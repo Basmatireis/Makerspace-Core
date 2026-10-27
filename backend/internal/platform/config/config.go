@@ -28,6 +28,7 @@ type Config struct {
 	CSRFCookieName             string
 	ManagedDeviceCookieName    string
 	OIDCFlowCookieName         string
+	PendingLoginCookieName     string
 	EnrollmentCookieName       string
 	EnrollmentCSRFName         string
 	SignagePairingCookieName   string
@@ -192,6 +193,7 @@ func Load() (Config, error) {
 	csrfName := "makerspace_csrf"
 	deviceName := "makerspace_device"
 	oidcFlowName := "makerspace_oidc_flow"
+	pendingLoginName := "makerspace_mfa_pending"
 	enrollmentName := "makerspace_enrollment"
 	enrollmentCSRFName := "makerspace_enrollment_csrf"
 	signagePairingName := "makerspace_signage_pairing"
@@ -200,6 +202,7 @@ func Load() (Config, error) {
 		csrfName = "__Host-makerspace_csrf"
 		deviceName = "__Host-makerspace_device"
 		oidcFlowName = "__Host-makerspace_oidc_flow"
+		pendingLoginName = "__Host-makerspace_mfa_pending"
 		enrollmentName = "__Host-makerspace_enrollment"
 		enrollmentCSRFName = "__Host-makerspace_enrollment_csrf"
 		signagePairingName = "__Host-makerspace_signage_pairing"
@@ -217,6 +220,7 @@ func Load() (Config, error) {
 		CSRFCookieName:             csrfName,
 		ManagedDeviceCookieName:    deviceName,
 		OIDCFlowCookieName:         oidcFlowName,
+		PendingLoginCookieName:     pendingLoginName,
 		EnrollmentCookieName:       enrollmentName,
 		EnrollmentCSRFName:         enrollmentCSRFName,
 		SignagePairingCookieName:   signagePairingName,

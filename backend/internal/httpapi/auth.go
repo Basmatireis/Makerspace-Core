@@ -14,7 +14,7 @@ func (s *Server) Login(ctx context.Context, request openapi.LoginRequestObject) 
 	if request.Body == nil || request.Body.Password == nil {
 		return nil, invalidRequest("email and password are required")
 	}
-	session, err := s.auth.Login(
+	result, err := s.auth.Login(
 		ctx,
 		string(request.Body.Email),
 		*request.Body.Password,
@@ -24,7 +24,10 @@ func (s *Server) Login(ctx context.Context, request openapi.LoginRequestObject) 
 	if err != nil {
 		return nil, err
 	}
-	return cookieNoContentResponse{config: s.config, session: &session}, nil
+	if result.Pending != nil {
+		return pendingLoginResponse{config: s.config, pending: *result.Pending}, nil
+	}
+	return cookieNoContentResponse{config: s.config, session: result.Session}, nil
 }
 
 func (s *Server) LoginWithPin(
@@ -161,6 +164,10 @@ func (s *Server) GetCurrentUser(
 			},
 		)
 	}
+	authentication, err := s.currentAuthentication(ctx, authenticated, principal)
+	if err != nil {
+		return nil, err
+	}
 	laborStatus, err := s.laborordnung.Evaluate(ctx, principal.PersonID)
 	if err != nil {
 		return nil, err
@@ -169,6 +176,7 @@ func (s *Server) GetCurrentUser(
 		Body: openapi.CurrentUser{
 			Account: accountDTO(account), Person: personResponse, Permissions: permissionIDs,
 			AuthenticationAssurance: openapi.AuthenticationAssurance(principal.Assurance),
+			Authentication:          authentication,
 			ManagedDevice:           device, DelegablePermissionGrants: delegable,
 			LaborordnungStatus: laborordnungStatusDTO(laborStatus),
 			Session: openapi.SessionContext{

@@ -20,6 +20,7 @@
  */
 import type { Account } from './account';
 import type { AuthenticationAssurance } from './authenticationAssurance';
+import type { CurrentAuthentication } from './currentAuthentication';
 import type { LaborordnungStatus } from './laborordnungStatus';
 import type { ManagedDeviceContext } from './managedDeviceContext';
 import type { PermissionGrant } from './permissionGrant';
@@ -32,6 +33,7 @@ export interface CurrentUser {
   person: Person;
   permissions: PermissionId[];
   authenticationAssurance: AuthenticationAssurance;
+  authentication: CurrentAuthentication;
   managedDevice: ManagedDeviceContext | null;
   delegablePermissionGrants: PermissionGrant[];
   laborordnungStatus: LaborordnungStatus;

@@ -191,11 +191,12 @@ func newOIDCSemanticsFixture(t *testing.T, oidcOnly bool) *oidcSemanticsFixture 
 			t.Fatal(err)
 		}
 	} else {
-		f.session, err = f.auth.Login(f.ctx, "oidc-semantics@example.test", bootstrapPassword, "local-fixture", nil)
+		f.session, err = loginSession(f.auth.Login(f.ctx, "oidc-semantics@example.test", bootstrapPassword, "local-fixture", nil))
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
+	elevateMasterSessions(t, f.pool)
 	authenticated, err := f.auth.Authenticate(f.ctx, f.session.Token)
 	if err != nil {
 		t.Fatal(err)

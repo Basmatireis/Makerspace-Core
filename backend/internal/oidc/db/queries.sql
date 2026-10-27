@@ -75,7 +75,7 @@ DELETE FROM auth_identities WHERE id = sqlc.arg(id) AND kind = 'oidc';
 
 -- name: RevokeSessionsForIdentity :exec
 UPDATE sessions SET revoked_at = COALESCE(revoked_at, now()), revocation_reason = COALESCE(revocation_reason, 'identity_unlinked')
-WHERE auth_identity_id = sqlc.arg(auth_identity_id) AND revoked_at IS NULL;
+WHERE auth_identity_id = sqlc.arg(auth_identity_id)::uuid AND revoked_at IS NULL;
 
 -- name: BumpAccountVersion :exec
 UPDATE accounts SET version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);

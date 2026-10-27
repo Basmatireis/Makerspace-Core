@@ -43,9 +43,11 @@ type Account struct {
 	PasswordStatus       PasswordStatus
 	LoginEmail           string
 	AuthIdentities       []AuthIdentity
-	Version              int64
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	// SecondFactors is loaded by account reads and the second-factor reset; nil elsewhere.
+	SecondFactors *auth.SecondFactorSummary
+	Version       int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type ResetIssue struct {
@@ -80,11 +82,29 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 	if !principal.Has(authorization.AccountsRead) {
 		return Account{}, apperror.PermissionDenied
 	}
-	return loadAccount(ctx, accountsdb.New(s.pool), id)
+	account, err := loadAccount(ctx, accountsdb.New(s.pool), id)
+	if err != nil {
+		return Account{}, err
+	}
+	return withSecondFactors(ctx, s.pool, account)
 }
 
 func (s *Service) GetCurrent(ctx context.Context, principal authorization.Principal) (Account, error) {
-	return loadAccount(ctx, accountsdb.New(s.pool), principal.AccountID)
+	account, err := loadAccount(ctx, accountsdb.New(s.pool), principal.AccountID)
+	if err != nil {
+		return Account{}, err
+	}
+	return withSecondFactors(ctx, s.pool, account)
+}
+
+// withSecondFactors adds the second-factor summary (kinds, names, timestamps; never secrets).
+func withSecondFactors(ctx context.Context, db accountsdb.DBTX, account Account) (Account, error) {
+	summary, err := auth.LoadSecondFactorSummary(ctx, db, account.ID)
+	if err != nil {
+		return Account{}, err
+	}
+	account.SecondFactors = &summary
+	return account, nil
 }
 
 func (s *Service) GetForPerson(
@@ -104,6 +124,10 @@ func (s *Service) GetForPerson(
 		return nil, err
 	}
 	account, err := loadAccount(ctx, queries, row.ID)
+	if err != nil {
+		return nil, err
+	}
+	account, err = withSecondFactors(ctx, s.pool, account)
 	return &account, err
 }
 

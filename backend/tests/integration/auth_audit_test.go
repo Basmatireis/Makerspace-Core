@@ -180,7 +180,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		t.Fatal(err)
 	}
 	requestID := ids.New()
-	session, err := authService.Login(ctx, strings.ToLower(loginEmail), bootstrapPassword, "127.0.0.1", &requestID)
+	session, err := loginSession(authService.Login(ctx, strings.ToLower(loginEmail), bootstrapPassword, "127.0.0.1", &requestID))
 	if err != nil {
 		t.Fatalf("login: %v", err)
 	}
@@ -194,6 +194,14 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		got > privateAbsolute+time.Minute {
 		t.Fatalf("absolute expiry delta = %s, want approximately %s", got, privateAbsolute)
 	}
+	passwordOnly, err := authService.Authenticate(ctx, session.Token)
+	if err != nil {
+		t.Fatalf("authenticate fresh session: %v", err)
+	}
+	if passwordOnly.Principal.Master || !passwordOnly.Principal.HoldsMasterRole || !passwordOnly.MFASetupRequired {
+		t.Fatalf("password-only master session = %#v, want the master role without its bypass", passwordOnly.Principal)
+	}
+	elevateMasterSessions(t, pool)
 	authenticated, err := authService.Authenticate(ctx, session.Token)
 	if err != nil {
 		t.Fatalf("authenticate fresh session: %v", err)
@@ -217,7 +225,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 			t.Fatalf("expired session destination = %#v, want login", appErr)
 		}
 	}
-	absoluteSession, err := authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.1", nil)
+	absoluteSession, err := loginSession(authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.1", nil))
 	if err != nil {
 		t.Fatalf("login for absolute-expiry check: %v", err)
 	}
@@ -232,10 +240,11 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		t.Fatalf("expired absolute session returned %v, want unauthenticated", err)
 	}
 
-	activeSession, err := authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.1", nil)
+	activeSession, err := loginSession(authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.1", nil))
 	if err != nil {
 		t.Fatalf("second login: %v", err)
 	}
+	elevateMasterSessions(t, pool)
 	activeAuth, err := authService.Authenticate(ctx, activeSession.Token)
 	if err != nil {
 		t.Fatal(err)
@@ -308,10 +317,11 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	) {
 		t.Fatalf("old password remained valid after reset: %v", err)
 	}
-	passwordChangeSession, err := authService.Login(ctx, loginEmail, resetPassword, "127.0.0.3", nil)
+	passwordChangeSession, err := loginSession(authService.Login(ctx, loginEmail, resetPassword, "127.0.0.3", nil))
 	if err != nil {
 		t.Fatalf("new password login: %v", err)
 	}
+	elevateMasterSessions(t, pool)
 	passwordChangeAuth, err := authService.Authenticate(ctx, passwordChangeSession.Token)
 	if err != nil {
 		t.Fatalf("authenticate before own password change: %v", err)
@@ -380,10 +390,11 @@ func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	masterSession, err := authService.Login(ctx, masterLogin, bootstrapPassword, "127.0.0.1", nil)
+	masterSession, err := loginSession(authService.Login(ctx, masterLogin, bootstrapPassword, "127.0.0.1", nil))
 	if err != nil {
 		t.Fatalf("master login: %v", err)
 	}
+	elevateMasterSessions(t, pool)
 	authenticated, err := authService.Authenticate(ctx, masterSession.Token)
 	if err != nil {
 		t.Fatalf("authenticate master: %v", err)
@@ -590,7 +601,7 @@ func TestAdministrativeResetIssuanceDoesNotRevokeConcurrentLogin(t *testing.T) {
 	}
 	loginDone := make(chan loginResult, 1)
 	go func() {
-		session, loginErr := authService.Login(context.Background(), loginEmail, bootstrapPassword, "192.0.2.31", nil)
+		session, loginErr := loginSession(authService.Login(context.Background(), loginEmail, bootstrapPassword, "192.0.2.31", nil))
 		loginDone <- loginResult{session: session, err: loginErr}
 	}()
 	waitForAdvisoryQuery(t, pool, "INSERT INTO sessions")
@@ -639,10 +650,11 @@ func TestConcurrentResetIssuanceDoesNotBlockPasswordChangeButCompletionWins(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	initialSession, err := authService.Login(ctx, loginEmail, bootstrapPassword, "192.0.2.32", nil)
+	initialSession, err := loginSession(authService.Login(ctx, loginEmail, bootstrapPassword, "192.0.2.32", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
+	elevateMasterSessions(t, pool)
 	authenticated, err := authService.Authenticate(ctx, initialSession.Token)
 	if err != nil {
 		t.Fatal(err)
@@ -817,7 +829,7 @@ func TestMasterRecoveryRevokesSessionCreatedByConcurrentLogin(t *testing.T) {
 	}
 	loginDone := make(chan loginResult, 1)
 	go func() {
-		session, loginErr := authService.Login(context.Background(), loginEmail, bootstrapPassword, "192.0.2.34", nil)
+		session, loginErr := loginSession(authService.Login(context.Background(), loginEmail, bootstrapPassword, "192.0.2.34", nil))
 		loginDone <- loginResult{session: session, err: loginErr}
 	}()
 	waitForAdvisoryQuery(t, pool, "INSERT INTO sessions")
@@ -880,10 +892,11 @@ func TestMutationRollsBackWhenAuditInsertionFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.1", nil)
+	session, err := loginSession(authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.1", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
+	elevateMasterSessions(t, pool)
 	authenticated, err := authService.Authenticate(ctx, session.Token)
 	if err != nil {
 		t.Fatal(err)

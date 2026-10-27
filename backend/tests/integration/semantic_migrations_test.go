@@ -98,7 +98,7 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 		actor.accountID,
 		masterRoleID,
 	)
-	applyMigrationFiles(t, pool, paths[17:])
+	applyMigrationFiles(t, pool, append(paths[17:], laterMigrationFiles(t)...))
 	authenticated, err := service.Authenticate(ctx, sessionToken)
 	if err != nil {
 		t.Fatalf("migration revoked login: %v", err)

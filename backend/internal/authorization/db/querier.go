@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	GetPrincipalRolePermissions(ctx context.Context, accountID uuid.UUID) ([]GetPrincipalRolePermissionsRow, error)
+	ListMasterReauthenticationPermissions(ctx context.Context) ([]ListMasterReauthenticationPermissionsRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

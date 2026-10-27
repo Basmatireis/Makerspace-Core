@@ -12,7 +12,14 @@ import (
 )
 
 type permissionsQuerierStub struct {
-	rows []authorizationdb.GetPrincipalRolePermissionsRow
+	rows   []authorizationdb.GetPrincipalRolePermissionsRow
+	policy []authorizationdb.ListMasterReauthenticationPermissionsRow
+}
+
+func (s permissionsQuerierStub) ListMasterReauthenticationPermissions(
+	context.Context,
+) ([]authorizationdb.ListMasterReauthenticationPermissionsRow, error) {
+	return s.policy, nil
 }
 
 func (s permissionsQuerierStub) GetPrincipalRolePermissions(
@@ -186,7 +193,7 @@ func TestLoadPermissionsDerivesMasterFromRoleEveryTime(t *testing.T) {
 		permissionsQuerierStub{rows: []authorizationdb.GetPrincipalRolePermissionsRow{
 			{RoleID: ids.New(), SystemKey: &systemKey},
 		}},
-		Principal{AccountID: ids.New()},
+		Principal{AccountID: ids.New(), Assurance: AssuranceStrongMFA},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +261,7 @@ func TestDeviceScopedPermissionMatrix(t *testing.T) {
 				Assurance: AssuranceNormal,
 				grants:    map[Permission][]PermissionGrant{PeopleReadAll: {test.grant}},
 			}
-			if got := p.grantEffective(test.grant); got != test.want {
+			if got := p.grantApplies(test.grant); got != test.want {
 				t.Fatalf("effective=%v want %v", got, test.want)
 			}
 		})

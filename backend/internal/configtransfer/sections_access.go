@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -238,10 +239,13 @@ func applySessionPolicies(r *run, items *[]sessionPolicyEntry) (func() error, er
 // device types by name.
 
 type permissionGrantEntry struct {
-	Permission       string   `json:"permission"`
-	Scope            string   `json:"scope"`
-	MinimumAssurance string   `json:"minimumAssurance"`
-	DeviceTypes      []string `json:"deviceTypes"`
+	Permission       string `json:"permission"`
+	Scope            string `json:"scope"`
+	MinimumAssurance string `json:"minimumAssurance"`
+	// ReauthWithinMinutes is absent in files exported before grants could require a fresh sign-in; absent means
+	// none.
+	ReauthWithinMinutes *int     `json:"reauthWithinMinutes,omitempty"`
+	DeviceTypes         []string `json:"deviceTypes"`
 }
 
 type roleEntry struct {
@@ -295,6 +299,9 @@ func validateRoles(items *[]roleEntry) error {
 			if grant.MinimumAssurance == "" {
 				grant.MinimumAssurance = string(authorization.AssuranceLow)
 			}
+			if !authorization.ValidReauthWindow(grant.ReauthWithinMinutes) {
+				return fmt.Errorf("role %q: reauthWithinMinutes must be between 1 and 1440", item.Name)
+			}
 			if grant.DeviceTypes == nil {
 				grant.DeviceTypes = []string{}
 			}
@@ -312,7 +319,12 @@ func grantKey(grant permissionGrantEntry) string {
 		types = append(types, nameKey(name))
 	}
 	sort.Strings(types)
-	return grant.Permission + "\x00" + grant.Scope + "\x00" + grant.MinimumAssurance + "\x00" + strings.Join(types, "\x01")
+	reauth := ""
+	if grant.ReauthWithinMinutes != nil {
+		reauth = strconv.Itoa(*grant.ReauthWithinMinutes)
+	}
+	return grant.Permission + "\x00" + grant.Scope + "\x00" + grant.MinimumAssurance + "\x00" + reauth + "\x00" +
+		strings.Join(types, "\x01")
 }
 
 func sameGrants(a, b []permissionGrantEntry) bool {
@@ -349,10 +361,11 @@ func loadRoles(ctx context.Context, q *configtransferdb.Queries) ([]storedRole, 
 		position, seen := index[row.ID]
 		if !seen {
 			grants[row.RoleID] = append(grants[row.RoleID], permissionGrantEntry{
-				Permission:       row.PermissionID,
-				Scope:            row.Scope,
-				MinimumAssurance: row.MinimumAssurance,
-				DeviceTypes:      []string{},
+				Permission:          row.PermissionID,
+				Scope:               row.Scope,
+				MinimumAssurance:    row.MinimumAssurance,
+				ReauthWithinMinutes: authorization.ReauthWindowFromDB(row.ReauthWithinMinutes),
+				DeviceTypes:         []string{},
 			})
 			position = len(grants[row.RoleID]) - 1
 			index[row.ID] = position
@@ -405,9 +418,10 @@ func resolveGrants(
 	grants := make([]authorization.PermissionGrant, 0, len(entries))
 	for _, entry := range entries {
 		grant := authorization.PermissionGrant{
-			PermissionID:     authorization.Permission(entry.Permission),
-			Scope:            authorization.GrantScope(entry.Scope),
-			MinimumAssurance: authorization.Assurance(entry.MinimumAssurance),
+			PermissionID:        authorization.Permission(entry.Permission),
+			Scope:               authorization.GrantScope(entry.Scope),
+			MinimumAssurance:    authorization.Assurance(entry.MinimumAssurance),
+			ReauthWithinMinutes: entry.ReauthWithinMinutes,
 		}
 		for _, name := range entry.DeviceTypes {
 			id, ok := deviceTypes[nameKey(name)]

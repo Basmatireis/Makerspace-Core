@@ -103,6 +103,16 @@ paths:
         On success, sets an HttpOnly session cookie and a separate readable CSRF
         cookie. Authentication failures use one generic response regardless of
         whether the email exists.
+
+        An account with a second factor (authenticator app or passkey) gets no
+        session yet: the answer is `202` with the available methods and an
+        HttpOnly, single-use pending-login cookie valid for five minutes. The
+        login completes with `POST /auth/login/second-factor` or the passkey
+        second-factor endpoints and then has `strong_mfa` assurance. Accounts
+        without a second factor get a `normal` session as before; when such an
+        account must use a second factor (master, or a role grant requiring
+        `strong_mfa`) the session is flagged `mfaSetupRequired` and every
+        operation outside second-factor setup answers `403 mfa_setup_required`.
       security: []
       requestBody:
         required: true
@@ -120,6 +130,19 @@ paths:
               description: Session and CSRF cookies. Multiple Set-Cookie headers may be sent.
               schema:
                 type: string
+        "202":
+          description: Password accepted; a second factor is required before a session is created.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            Set-Cookie:
+              description: HttpOnly pending-login cookie.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecondFactorRequired"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -215,6 +238,7 @@ paths:
       tags: [Authentication]
       operationId: logout
       summary: Revoke the current session
+      x-mfa-setup-allowed: true
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -240,7 +264,8 @@ paths:
       tags: [Authentication]
       operationId: getCurrentUser
       summary: Return the authenticated principal and current permissions
-      description: Permissions and account state are resolved from current server state.
+      description: Permissions and account state are resolved from current server state. `authentication` tells the frontend whether a second factor must be set up and which permissions wait for a fresh sign-in.
+      x-mfa-setup-allowed: true
       security:
         - sessionCookie: []
       responses:
@@ -257,6 +282,401 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "500":
           $ref: "#/components/responses/InternalServerError"
+
+  /auth/login/second-factor:
+    post:
+      tags: [Authentication]
+      operationId: completeSecondFactorLogin
+      summary: Complete a pending password login with a TOTP or recovery code
+      description: |
+        Requires the HttpOnly pending-login cookie set by a `202` answer of `POST /auth/login`. The pending login is
+        single-use and expires after five minutes; five wrong codes end it. Failed verifications are also throttled
+        per account (`second_factor_rate_limited`). On success the pending login is consumed and a session with
+        `strong_mfa` assurance is created.
+      security: [{pendingLoginCookie: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/SecondFactorCodeRequest"}
+      responses:
+        "204":
+          description: Session created; session and CSRF cookies are set and the pending-login cookie is cleared.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Set-Cookie: {schema: {type: string}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/login/second-factor/passkey/options:
+    post:
+      tags: [Authentication]
+      operationId: startSecondFactorPasskey
+      summary: Start a passkey assertion that completes a pending password login
+      description: Returns WebAuthn request options (`navigator.credentials.get`) limited to the pending account's passkeys, with user verification required. The challenge is stored server-side for five minutes and bound to the pending login.
+      security: [{pendingLoginCookie: []}]
+      responses:
+        "200":
+          description: WebAuthn request options.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WebAuthnOptions"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/login/second-factor/passkey:
+    post:
+      tags: [Authentication]
+      operationId: completeSecondFactorPasskey
+      summary: Complete a pending password login with a passkey assertion
+      security: [{pendingLoginCookie: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PasskeyAssertionRequest"}
+      responses:
+        "204":
+          description: Session created with `strong_mfa` assurance; the pending-login cookie is cleared.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Set-Cookie: {schema: {type: string}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/passkey/options:
+    post:
+      tags: [Authentication]
+      operationId: startPasskeyLogin
+      summary: Start a usernameless passkey login
+      description: Returns WebAuthn request options without `allowCredentials` (discoverable credentials), with user verification required. The challenge is single-use and expires after five minutes.
+      security: []
+      responses:
+        "200":
+          description: WebAuthn request options.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WebAuthnOptions"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/passkey/login:
+    post:
+      tags: [Authentication]
+      operationId: completePasskeyLogin
+      summary: Sign in with a discoverable passkey
+      description: |
+        Verifies the assertion against the stored challenge, the relying party ID and origin derived from
+        `PUBLIC_BASE_URL`, the user handle, and user verification. A passkey with user verification is two factors in
+        one, so the session has `strong_mfa` assurance. A sign counter that does not increase is treated as a possible
+        clone and rejected. Failures answer `401 invalid_credentials`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PasskeyAssertionRequest"}
+      responses:
+        "204":
+          description: Session created; session and CSRF cookies are set.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Set-Cookie: {schema: {type: string}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/reauthenticate:
+    post:
+      tags: [Authentication]
+      operationId: reauthenticate
+      summary: Prove the current password (and second factor) again for the current session
+      description: |
+        Step-up reauthentication without a new session. The password is always required. An account with a second
+        factor must also send `totpCode` or `recoveryCode`; the proof then has `strong_mfa` assurance and raises the
+        session to `strong_mfa`. Without a second factor the proof has `normal` assurance. The session's
+        `authenticatedAt` becomes now, which satisfies grants and master permissions that require a fresh sign-in.
+        Password attempts are bounded per account; second-factor failures use the per-account throttle.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      x-mfa-setup-allowed: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReauthenticateRequest"}
+      responses:
+        "200":
+          description: The session's authentication state after the reauthentication.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CurrentAuthentication"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/reauthenticate/passkey/options:
+    post:
+      tags: [Authentication]
+      operationId: startPasskeyReauthentication
+      summary: Start a passkey assertion that reauthenticates the current session
+      security: [{sessionCookie: [], csrfHeader: []}]
+      x-mfa-setup-allowed: true
+      responses:
+        "200":
+          description: WebAuthn request options limited to the current account's passkeys.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WebAuthnOptions"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/reauthenticate/passkey:
+    post:
+      tags: [Authentication]
+      operationId: completePasskeyReauthentication
+      summary: Reauthenticate the current session with a passkey
+      description: A verified passkey assertion with user verification is a `strong_mfa` proof; the session becomes `strong_mfa` and `authenticatedAt` becomes now.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      x-mfa-setup-allowed: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PasskeyAssertionRequest"}
+      responses:
+        "200":
+          description: The session's authentication state after the reauthentication.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CurrentAuthentication"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/second-factors:
+    get:
+      tags: [Authentication]
+      operationId: getOwnSecondFactors
+      summary: List the current account's second factors
+      description: Kinds, names and timestamps only; never secrets. Needs only a staff session.
+      security: [{sessionCookie: []}]
+      x-mfa-setup-allowed: true
+      responses:
+        "200":
+          description: Second factors of the current account.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SecondFactorSummary"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/second-factors/totp/enrollment:
+    post:
+      tags: [Authentication]
+      operationId: startTotpEnrollment
+      summary: Start enrolling an authenticator app (TOTP)
+      description: |
+        Needs a staff session with `normal` or higher authentication within the last ten minutes; no permission,
+        because accounts that must use a second factor have to be able to enroll one. Returns a new secret and its
+        `otpauth://` URI (RFC 6238: SHA-1, six digits, 30 seconds) for a QR code. The secret is stored encrypted and
+        is only shown in this response. Starting again replaces an unconfirmed enrollment; an account has at most one
+        confirmed authenticator app (`409 totp_already_enrolled`). The enrollment must be confirmed within ten minutes.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      x-mfa-setup-allowed: true
+      responses:
+        "200":
+          description: The enrollment secret.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/TotpEnrollment"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/second-factors/totp/enrollment/confirm:
+    post:
+      tags: [Authentication]
+      operationId: confirmTotpEnrollment
+      summary: Confirm the authenticator app with a current code
+      description: |
+        Activates the pending TOTP credential. When it is the account's first second factor, ten single-use recovery
+        codes are generated and returned once. The current session is raised to `strong_mfa` (it proved a password or
+        stronger login plus the new factor) and a forced setup (`mfa_setup_required`) ends.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      x-mfa-setup-allowed: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TotpCodeRequest"}
+      responses:
+        "200":
+          description: The account's second factors and, for a first factor, the recovery codes.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SecondFactorEnrollmentResult"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/second-factors/totp:
+    delete:
+      tags: [Authentication]
+      operationId: removeOwnTotp
+      summary: Remove the current account's authenticator app
+      description: Needs `strong_mfa` authentication within the last ten minutes (`reauthentication_required` otherwise). Removing the last second factor also deletes the recovery codes. Other sessions of the account are revoked.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Authenticator app removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/second-factors/recovery-codes:
+    post:
+      tags: [Authentication]
+      operationId: regenerateRecoveryCodes
+      summary: Replace the current account's recovery codes
+      description: Needs an enrolled second factor and `strong_mfa` authentication within the last ten minutes. Every earlier recovery code stops working; the ten new codes are returned once.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200":
+          description: New recovery codes.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RecoveryCodeList"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/second-factors/passkeys/registration-options:
+    post:
+      tags: [Authentication]
+      operationId: startPasskeyRegistration
+      summary: Start registering a passkey for the current account
+      description: Needs a staff session with `normal` or higher authentication within the last ten minutes. Returns WebAuthn creation options (`navigator.credentials.create`) for a discoverable (resident) credential with user verification required, excluding the account's existing passkeys. The relying party ID is the host of `PUBLIC_BASE_URL`. The challenge is bound to the session and expires after five minutes.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      x-mfa-setup-allowed: true
+      responses:
+        "200":
+          description: WebAuthn creation options.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/WebAuthnOptions"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/second-factors/passkeys:
+    post:
+      tags: [Authentication]
+      operationId: registerPasskey
+      summary: Finish registering a passkey
+      description: Verifies the attestation response against the stored challenge, origin and relying party ID, and requires user verification. When it is the account's first second factor, recovery codes are generated and returned once. The current session is raised to `strong_mfa` and a forced setup ends.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      x-mfa-setup-allowed: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PasskeyRegistrationRequest"}
+      responses:
+        "201":
+          description: Passkey registered.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SecondFactorEnrollmentResult"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/second-factors/passkeys/{passkeyId}:
+    parameters:
+      - {name: passkeyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    patch:
+      tags: [Authentication]
+      operationId: renamePasskey
+      summary: Rename one of the current account's passkeys
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RenamePasskeyRequest"}
+      responses:
+        "200": {description: Passkey renamed., content: {application/json: {schema: {$ref: "#/components/schemas/Passkey"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Authentication]
+      operationId: removePasskey
+      summary: Remove one of the current account's passkeys
+      description: Needs `strong_mfa` authentication within the last ten minutes. Sessions that were signed in with this passkey end; other sessions of the account are revoked. Removing the last second factor also deletes the recovery codes.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Passkey removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /auth/password:
     put:
@@ -1125,6 +1545,34 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /accounts/{accountId}/second-factors/reset:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    post:
+      tags: [Accounts]
+      operationId: resetAccountSecondFactors
+      summary: Remove every second factor of an account
+      description: |
+        Requires `accounts.mfa.reset`; only a master may reset a master account. Deletes the authenticator app,
+        recovery codes, and passkeys, revokes the account's sessions, and writes the audit event in the same
+        transaction. An account that must use a second factor is asked to set one up again at its next login.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VersionRequest"}
+      responses:
+        "200": {description: Second factors removed., content: {application/json: {schema: {$ref: "#/components/schemas/Account"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /accounts/{accountId}/password-reset:
     parameters:
       - $ref: "#/components/parameters/AccountId"
@@ -1673,6 +2121,37 @@ paths:
           $ref: "#/components/responses/UnprocessableEntity"
         "500":
           $ref: "#/components/responses/InternalServerError"
+
+  /roles/master-reauthentication-policy:
+    get:
+      tags: [Roles]
+      operationId: getMasterReauthenticationPolicy
+      summary: List the permissions a master may use only after a fresh sign-in
+      description: Readable with `roles.read`. The master role's universal permissions require `strong_mfa`; the listed permissions additionally require a `strong_mfa` sign-in within the window.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Policy., content: {application/json: {schema: {$ref: "#/components/schemas/MasterReauthenticationPolicy"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Roles]
+      operationId: replaceMasterReauthenticationPolicy
+      summary: Replace the master fresh-sign-in policy
+      description: Only a master may change it, and only with a `strong_mfa` sign-in within the last ten minutes (`reauthentication_required` otherwise). Audited.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/MasterReauthenticationPolicy"}
+      responses:
+        "200": {description: Policy replaced., content: {application/json: {schema: {$ref: "#/components/schemas/MasterReauthenticationPolicy"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /roles/effective-permissions:
     get:
@@ -8603,6 +9082,7 @@ paths:
     post:
       tags: [Authentication]
       operationId: recordSessionActivity
+      x-mfa-setup-allowed: true
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "200": {description: Session expiry after recorded foreground activity., content: {application/json: {schema: {$ref: "#/components/schemas/SessionContext"}}}}
@@ -9134,6 +9614,11 @@ components:
       in: header
       name: X-Managed-Device-Token
       description: Optional opaque managed-device bearer credential accepted on every session-authenticated operation and injected by a trusted native client. It never replaces the user session.
+    pendingLoginCookie:
+      type: apiKey
+      in: cookie
+      name: makerspace_mfa_pending
+      description: HttpOnly, single-use token of a password login that waits for its second factor. Only a digest is stored; it expires after five minutes. Secure production uses the `__Host-makerspace_mfa_pending` name.
     managedDeviceCookie:
       type: apiKey
       in: cookie
@@ -9379,7 +9864,11 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     Forbidden:
-      description: The caller lacks permission or the CSRF check failed.
+      description: |
+        The caller lacks permission or the CSRF check failed. `reauthentication_required` means a grant would allow
+        the operation after a fresh sign-in; `details.requiredAssurance` and `details.withinMinutes` say which, and
+        `POST /auth/reauthenticate` (or the passkey variant) provides it. `mfa_setup_required` means the session must
+        enroll a second factor first.
       content:
         application/json:
           schema:
@@ -9498,6 +9987,7 @@ components:
         - accounts.pin.remove.self
         - accounts.pin.remove.all
         - accounts.pin.reset
+        - accounts.mfa.reset
         - people.roles.assign
         - roles.read
         - roles.manage
@@ -9757,6 +10247,210 @@ components:
           minLength: 1
           maxLength: 200
 
+    SecondFactorRequired:
+      type: object
+      additionalProperties: false
+      required: [status, methods, expiresAt]
+      description: The password was correct, but the account has a second factor. No session exists yet; the HttpOnly pending-login cookie identifies this login for the second-factor endpoints until `expiresAt`.
+      properties:
+        status: {type: string, enum: [second_factor_required]}
+        methods:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/SecondFactorMethod"}
+        expiresAt: {type: string, format: date-time}
+
+    SecondFactorMethod:
+      type: string
+      enum: [totp, recovery_code, passkey]
+
+    SecondFactorCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [method, code]
+      properties:
+        method: {type: string, enum: [totp, recovery_code]}
+        code:
+          type: string
+          minLength: 6
+          maxLength: 32
+          writeOnly: true
+          description: Six-digit authenticator code or a recovery code (case and separators are ignored).
+
+    TotpCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code: {type: string, pattern: "^[0-9]{6}$", writeOnly: true}
+
+    ReauthenticateRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password: {$ref: "#/components/schemas/ExistingPassword"}
+        totpCode: {type: string, pattern: "^[0-9]{6}$", writeOnly: true}
+        recoveryCode: {type: string, minLength: 6, maxLength: 32, writeOnly: true}
+
+    WebAuthnOptions:
+      type: object
+      additionalProperties: true
+      required: [publicKey]
+      description: WebAuthn ceremony options exactly as `navigator.credentials.create` / `get` expect them after base64url decoding of the binary members (`challenge`, `user.id`, credential descriptor `id`s).
+      properties:
+        publicKey:
+          type: object
+          additionalProperties: true
+
+    PasskeyAssertionRequest:
+      type: object
+      additionalProperties: false
+      required: [credential]
+      properties:
+        credential:
+          type: object
+          additionalProperties: true
+          description: The `PublicKeyCredential` from `navigator.credentials.get` serialized as JSON (`PublicKeyCredential.toJSON()`, binary members base64url).
+
+    PasskeyRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [name, credential]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        credential:
+          type: object
+          additionalProperties: true
+          description: The `PublicKeyCredential` from `navigator.credentials.create` serialized as JSON.
+
+    RenamePasskeyRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+
+    TotpEnrollment:
+      type: object
+      additionalProperties: false
+      required: [secret, otpauthUri, expiresAt]
+      properties:
+        secret: {type: string, description: "Base32 shared secret for manual entry. Shown only in this response; never log or store it."}
+        otpauthUri: {type: string, description: "otpauth://totp URI to render as a QR code."}
+        expiresAt: {type: string, format: date-time}
+
+    Passkey:
+      type: object
+      additionalProperties: false
+      required: [id, name, createdAt, lastUsedAt, backedUp]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        createdAt: {type: string, format: date-time}
+        lastUsedAt: {type: string, format: date-time, nullable: true}
+        backedUp: {type: boolean, description: "Whether the authenticator reported the passkey as synced/backed up."}
+
+    TotpSummary:
+      type: object
+      additionalProperties: false
+      required: [confirmedAt, lastUsedAt]
+      properties:
+        confirmedAt: {type: string, format: date-time}
+        lastUsedAt: {type: string, format: date-time, nullable: true}
+
+    SecondFactorSummary:
+      type: object
+      additionalProperties: false
+      required: [enrolled, totp, passkeys, recoveryCodesRemaining]
+      description: An account's second factors without any secret.
+      properties:
+        enrolled: {type: boolean, description: "An authenticator app or at least one passkey is enrolled."}
+        totp:
+          allOf: [{$ref: "#/components/schemas/TotpSummary"}]
+          nullable: true
+        passkeys:
+          type: array
+          items: {$ref: "#/components/schemas/Passkey"}
+        recoveryCodesRemaining: {type: integer, minimum: 0}
+
+    SecondFactorEnrollmentResult:
+      type: object
+      additionalProperties: false
+      required: [secondFactors, recoveryCodes]
+      properties:
+        secondFactors: {$ref: "#/components/schemas/SecondFactorSummary"}
+        recoveryCodes:
+          type: array
+          nullable: true
+          items: {type: string}
+          description: Ten single-use recovery codes, returned only when this was the account's first second factor. Null otherwise.
+
+    RecoveryCodeList:
+      type: object
+      additionalProperties: false
+      required: [recoveryCodes]
+      properties:
+        recoveryCodes:
+          type: array
+          items: {type: string}
+
+    ReauthenticationRequirement:
+      type: object
+      additionalProperties: false
+      required: [permissionId, requiredAssurance, withinMinutes]
+      properties:
+        permissionId: {$ref: "#/components/schemas/PermissionId"}
+        requiredAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        withinMinutes: {type: integer, minimum: 1, maximum: 1440}
+
+    CurrentAuthentication:
+      type: object
+      additionalProperties: false
+      required: [method, assurance, authenticatedAt, authenticatedAssurance, mfaEnrolled, mfaRequired, mfaSetupRequired, secondFactorMethods, reauthenticationRequired]
+      description: How the current session was authenticated and what the frontend must ask for.
+      properties:
+        method: {type: string, enum: [password, pin, oidc, passkey]}
+        assurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        authenticatedAt: {type: string, format: date-time, description: "Time of the login or the last reauthentication."}
+        authenticatedAssurance:
+          allOf: [{$ref: "#/components/schemas/AuthenticationAssurance"}]
+          description: Assurance proven at `authenticatedAt`; fresh-sign-in requirements compare against it.
+        mfaEnrolled: {type: boolean}
+        mfaRequired:
+          type: boolean
+          description: The account must use a second factor because it holds the master role or a role grant that requires `strong_mfa`.
+        mfaSetupRequired:
+          type: boolean
+          description: Every operation except reading the current user, logging out, session activity, reauthentication, and second-factor enrollment answers `403 mfa_setup_required` until a second factor is enrolled.
+        secondFactorMethods:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/SecondFactorMethod"}
+        reauthenticationRequired:
+          type: array
+          items: {$ref: "#/components/schemas/ReauthenticationRequirement"}
+          description: Permissions that a grant (or the master policy) would allow but that are withheld until a fresh sign-in.
+
+    MasterReauthenticationPolicy:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          uniqueItems: true
+          maxItems: 500
+          items: {$ref: "#/components/schemas/MasterReauthenticationEntry"}
+
+    MasterReauthenticationEntry:
+      type: object
+      additionalProperties: false
+      required: [permissionId, withinMinutes]
+      properties:
+        permissionId: {$ref: "#/components/schemas/PermissionId"}
+        withinMinutes: {type: integer, minimum: 1, maximum: 1440}
+
     LoginRequest:
       type: object
       additionalProperties: false
@@ -9911,7 +10605,7 @@ components:
     CurrentUser:
       type: object
       additionalProperties: false
-      required: [account, person, permissions, authenticationAssurance, managedDevice, delegablePermissionGrants, laborordnungStatus, session]
+      required: [account, person, permissions, authenticationAssurance, authentication, managedDevice, delegablePermissionGrants, laborordnungStatus, session]
       properties:
         account:
           $ref: "#/components/schemas/Account"
@@ -9924,6 +10618,8 @@ components:
             $ref: "#/components/schemas/PermissionId"
         authenticationAssurance:
           $ref: "#/components/schemas/AuthenticationAssurance"
+        authentication:
+          $ref: "#/components/schemas/CurrentAuthentication"
         managedDevice:
           allOf: [{$ref: "#/components/schemas/ManagedDeviceContext"}]
           nullable: true
@@ -10725,6 +11421,9 @@ components:
         authIdentities:
           type: array
           items: {$ref: "#/components/schemas/AuthIdentitySummary"}
+        secondFactors:
+          allOf: [{$ref: "#/components/schemas/SecondFactorSummary"}]
+          description: The account's second factors (kinds, names, timestamps; never secrets). Present wherever the account is returned to the account itself or to a caller with `accounts.read`.
         createdAt:
           type: string
           format: date-time
@@ -12238,6 +12937,12 @@ components:
           items: {$ref: "#/components/schemas/UUIDv7"}
         minimumAssurance:
           $ref: "#/components/schemas/AuthenticationAssurance"
+        reauthWithinMinutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+          nullable: true
+          description: When set, the grant applies only while the session's last sign-in or reauthentication at the grant's minimum assurance is at most this many minutes old; otherwise the operation answers `403 reauthentication_required`. Omitted or null means no fresh sign-in is required. Delegation treats a shorter window as stricter.
 
     AuthenticationAssurance:
       type: string

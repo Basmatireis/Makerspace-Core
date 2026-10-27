@@ -33,6 +33,17 @@ function currentUser() {
     account,
     permissions: ['branding.manage'],
     authenticationAssurance: 'normal',
+    authentication: {
+      method: 'password',
+      assurance: 'normal',
+      authenticatedAt: '2026-01-01T00:00:00Z',
+      authenticatedAssurance: 'normal',
+      mfaEnrolled: false,
+      mfaRequired: false,
+      mfaSetupRequired: false,
+      secondFactorMethods: [],
+      reauthenticationRequired: [],
+    },
     managedDevice: null,
     session: {
       idleExpiresAt: '2099-01-01T01:00:00Z',

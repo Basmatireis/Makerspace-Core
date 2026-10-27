@@ -423,7 +423,7 @@ func (q *Queries) GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role,
 }
 
 const getRolePermissionGrantsForAssignment = `-- name: GetRolePermissionGrantsForAssignment :many
-SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, gdt.device_type_id
+SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, g.reauth_within_minutes, gdt.device_type_id
 FROM role_permission_grants g
 LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
 WHERE g.role_id = $1
@@ -431,11 +431,12 @@ ORDER BY g.permission_id, g.id, gdt.device_type_id
 `
 
 type GetRolePermissionGrantsForAssignmentRow struct {
-	ID               uuid.UUID
-	PermissionID     string
-	Scope            string
-	MinimumAssurance string
-	DeviceTypeID     *uuid.UUID
+	ID                  uuid.UUID
+	PermissionID        string
+	Scope               string
+	MinimumAssurance    string
+	ReauthWithinMinutes *int32
+	DeviceTypeID        *uuid.UUID
 }
 
 func (q *Queries) GetRolePermissionGrantsForAssignment(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsForAssignmentRow, error) {
@@ -452,6 +453,7 @@ func (q *Queries) GetRolePermissionGrantsForAssignment(ctx context.Context, role
 			&i.PermissionID,
 			&i.Scope,
 			&i.MinimumAssurance,
+			&i.ReauthWithinMinutes,
 			&i.DeviceTypeID,
 		); err != nil {
 			return nil, err

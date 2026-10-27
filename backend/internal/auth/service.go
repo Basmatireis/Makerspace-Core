@@ -19,6 +19,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -39,6 +40,15 @@ type Authenticated struct {
 	AuthMethod                       string
 	IdleExpiresAt, AbsoluteExpiresAt time.Time
 	PostSessionDestination           string
+	// MFASetupRequired confines the session to second-factor setup: the account must use a second factor and has
+	// none yet.
+	MFASetupRequired bool
+}
+
+// LoginResult is either a session or, for an account with a second factor, a pending login.
+type LoginResult struct {
+	Session *Session
+	Pending *PendingLogin
 }
 
 type Service struct {
@@ -48,6 +58,10 @@ type Service struct {
 	dummyPINHash string
 	limits       loginLimits
 	notifier     NotificationService
+	// keyring encrypts TOTP secrets; nil when no application encryption key is configured.
+	keyring *security.Keyring
+	// webAuthn is nil without a public base URL (administrative tools and some tests).
+	webAuthn *webauthn.WebAuthn
 }
 
 type NotificationService interface {
@@ -68,6 +82,16 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, notifier NotificationServ
 	if err != nil {
 		return nil, err
 	}
+	var keyring *security.Keyring
+	if len(cfg.EncryptionKeys) > 0 {
+		if keyring, err = security.NewKeyring(cfg.EncryptionKeys); err != nil {
+			return nil, err
+		}
+	}
+	relyingParty, err := newWebAuthn(cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &Service{
 		pool:         pool,
 		config:       cfg,
@@ -75,14 +99,22 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, notifier NotificationServ
 		dummyPINHash: dummyPINHash,
 		limits:       newLoginLimits(),
 		notifier:     notifier,
+		keyring:      keyring,
+		webAuthn:     relyingParty,
 	}, nil
 }
 
-func (s *Service) Login(ctx context.Context, email, password, sourceKey string, requestID *uuid.UUID) (Session, error) {
+// Login verifies a password. An account with a second factor gets a pending login instead of a session; an account
+// that must use a second factor but has none gets a session confined to setting one up.
+func (s *Service) Login(
+	ctx context.Context,
+	email, password, sourceKey string,
+	requestID *uuid.UUID,
+) (LoginResult, error) {
 	_, normalized, normalizeErr := security.NormalizeEmail(email)
 	limitKey, allowed := s.limits.take("password", sourceKey, normalized, time.Now())
 	if !allowed {
-		return Session{}, loginRateLimited(loginLimitWindow)
+		return LoginResult{}, loginRateLimited(loginLimitWindow)
 	}
 
 	// Verify before opening the transaction: Argon2id is deliberately slow and must not hold a
@@ -94,15 +126,15 @@ func (s *Service) Login(ctx context.Context, email, password, sourceKey string, 
 	}
 	validPassword := security.VerifyPassword(hash, password)
 	if candidateErr != nil && !errors.Is(candidateErr, pgx.ErrNoRows) {
-		return Session{}, candidateErr
+		return LoginResult{}, candidateErr
 	}
 	if normalizeErr != nil || candidateErr != nil || !validPassword {
-		return Session{}, apperror.InvalidCredentials
+		return LoginResult{}, apperror.InvalidCredentials
 	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return Session{}, err
+		return LoginResult{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := authdb.New(tx)
@@ -119,51 +151,68 @@ func (s *Service) Login(ctx context.Context, email, password, sourceKey string, 
 		}
 	}
 	if errors.Is(queryErr, pgx.ErrNoRows) {
-		return Session{}, apperror.InvalidCredentials
+		return LoginResult{}, apperror.InvalidCredentials
 	}
 	if queryErr != nil {
-		return Session{}, queryErr
+		return LoginResult{}, queryErr
 	}
 	// The credential may have changed between verification and acquiring the lock.
 	if login.AuthIdentityID != candidate.AuthIdentityID || login.PasswordHash != candidate.PasswordHash ||
 		authorization.AccountStatus(login.Status) != authorization.AccountEnabled || login.ResetRequired {
-		return Session{}, apperror.InvalidCredentials
+		return LoginResult{}, apperror.InvalidCredentials
 	}
 	if security.PasswordNeedsRehash(login.PasswordHash) {
 		upgradedHash, err := security.HashPassword(password)
 		if err != nil {
-			return Session{}, err
+			return LoginResult{}, err
 		}
 		if err := queries.UpsertPasswordCredential(ctx, authdb.UpsertPasswordCredentialParams{
 			AuthIdentityID: login.AuthIdentityID,
 			PasswordHash:   upgradedHash,
 		}); err != nil {
-			return Session{}, err
+			return LoginResult{}, err
 		}
 	}
 
-	session, err := s.createSession(ctx, queries, login.AccountID, login.AuthIdentityID)
+	state, err := queries.GetAccountSecondFactorState(ctx, login.AccountID)
 	if err != nil {
-		return Session{}, err
+		return LoginResult{}, err
+	}
+	if state.TotpEnrolled || state.PasskeyCount > 0 {
+		pending, err := s.createPendingLogin(ctx, queries, login.AccountID, login.AuthIdentityID, state)
+		if err != nil {
+			return LoginResult{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return LoginResult{}, err
+		}
+		s.limits.succeeded(limitKey)
+		return LoginResult{Pending: &pending}, nil
+	}
+	session, err := s.createSession(
+		ctx, queries, login.AccountID, login.AuthIdentityID, authorization.AssuranceNormal, state.Required,
+	)
+	if err != nil {
+		return LoginResult{}, err
 	}
 	if err := queries.MarkAuthenticationSucceeded(ctx, authdb.MarkAuthenticationSucceededParams{
 		AuthIdentityID: login.AuthIdentityID,
 		AccountID:      login.AccountID,
 	}); err != nil {
-		return Session{}, err
+		return LoginResult{}, err
 	}
 	actor := login.AccountID
 	if err := audit.Write(ctx, tx, audit.Event{
 		ActorAccountID: &actor, Action: "auth.login_succeeded", ResourceType: "account",
 		ResourceID: &actor, RequestID: requestID,
 	}); err != nil {
-		return Session{}, err
+		return LoginResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return Session{}, err
+		return LoginResult{}, err
 	}
 	s.limits.succeeded(limitKey)
-	return session, nil
+	return LoginResult{Session: &session}, nil
 }
 
 func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authenticated, error) {
@@ -187,6 +236,7 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 		SessionID: row.SessionID, AccountID: row.AccountID, PersonID: row.PersonID,
 		FirstName: row.FirstName, LastName: row.LastName,
 		Assurance: assurance, AuthenticatedAt: row.AuthenticatedAt,
+		AuthenticatedAssurance: authorization.Assurance(row.AuthenticatedAssurance),
 	})
 	if err != nil {
 		return Authenticated{}, err
@@ -198,7 +248,7 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	}
 	return Authenticated{Principal: principal, CSRFDigest: row.CsrfDigest, AuthMethod: row.AuthMethod,
 		IdleExpiresAt: row.IdleExpiresAt, AbsoluteExpiresAt: row.AbsoluteExpiresAt,
-		PostSessionDestination: row.PostSessionDestination}, nil
+		PostSessionDestination: row.PostSessionDestination, MFASetupRequired: row.MfaSetupRequired}, nil
 }
 
 func (s *Service) unauthenticatedWithDestination(
@@ -348,7 +398,19 @@ func (s *Service) ChangePassword(
 	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, principal.AccountID); err != nil {
 		return Session{}, err
 	}
-	session, err := s.createSession(ctx, queries, principal.AccountID, credential.AuthIdentityID)
+	// The rotated session keeps a multi-factor assurance it already had; the password change proved the password.
+	rotatedAssurance := authorization.AssuranceNormal
+	if principal.Assurance == authorization.AssuranceStrongMFA {
+		rotatedAssurance = authorization.AssuranceStrongMFA
+	}
+	state, err := queries.GetAccountSecondFactorState(ctx, principal.AccountID)
+	if err != nil {
+		return Session{}, err
+	}
+	session, err := s.createSession(
+		ctx, queries, principal.AccountID, credential.AuthIdentityID, rotatedAssurance,
+		state.Required && !state.TotpEnrolled && state.PasskeyCount == 0,
+	)
 	if err != nil {
 		return Session{}, err
 	}
@@ -514,6 +576,8 @@ func (s *Service) createSession(
 	ctx context.Context,
 	queries *authdb.Queries,
 	accountID, identityID uuid.UUID,
+	assurance authorization.Assurance,
+	mfaSetupRequired bool,
 ) (Session, error) {
 	token, tokenDigest, err := security.NewOpaqueToken()
 	if err != nil {
@@ -531,6 +595,7 @@ func (s *Service) createSession(
 	id := ids.New()
 	if _, err := queries.CreateSession(ctx, authdb.CreateSessionParams{
 		ID: id, AccountID: accountID, AuthIdentityID: identityID,
+		Assurance: string(assurance), MfaSetupRequired: mfaSetupRequired,
 		TokenDigest: tokenDigest, CsrfDigest: csrfDigest,
 		IdleExpiresAt: idle, AbsoluteExpiresAt: absolute, ManagedDeviceID: policy.ManagedDeviceID,
 		SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
@@ -581,6 +646,14 @@ func (s *Service) CreateOIDCSession(
 	if !usable {
 		return Session{}, apperror.Unauthenticated
 	}
+	state, err := queries.GetAccountSecondFactorState(ctx, accountID)
+	if err != nil {
+		return Session{}, err
+	}
+	// An identity provider that asserts multi-factor authentication satisfies the requirement; otherwise an account
+	// that must use a second factor and has none is confined to setting one up, as with a password login.
+	mfaSetupRequired := assurance != authorization.AssuranceStrongMFA && state.Required && !state.TotpEnrolled &&
+		state.PasskeyCount == 0
 	token, tokenDigest, err := security.NewOpaqueToken()
 	if err != nil {
 		return Session{}, err
@@ -599,6 +672,7 @@ func (s *Service) CreateOIDCSession(
 		ID: id, AccountID: accountID, AuthIdentityID: identityID, TokenDigest: tokenDigest,
 		CsrfDigest:        csrfDigest,
 		Assurance:         string(assurance),
+		MfaSetupRequired:  mfaSetupRequired,
 		AuthenticatedAt:   authenticatedAt,
 		IdleExpiresAt:     idle,
 		AbsoluteExpiresAt: absolute,
@@ -636,19 +710,27 @@ func validationError(message string) *apperror.Error {
 type loginLimits struct {
 	perAttempt *ratelimit.Limiter
 	perSource  *ratelimit.Limiter
+	// passkeyOptions bounds anonymous passkey challenges per source, since each one is a database row.
+	passkeyOptions *ratelimit.Limiter
 }
 
 const (
-	loginLimitWindow       = 15 * time.Minute
-	loginAttemptsPerKey    = 10
-	loginAttemptsPerSource = 100
+	loginLimitWindow              = 15 * time.Minute
+	loginAttemptsPerKey           = 10
+	loginAttemptsPerSource        = 100
+	passkeyOptionsPerSourceWindow = 100
 )
 
 func newLoginLimits() loginLimits {
 	return loginLimits{
-		perAttempt: ratelimit.New(loginAttemptsPerKey, loginLimitWindow),
-		perSource:  ratelimit.New(loginAttemptsPerSource, loginLimitWindow),
+		perAttempt:     ratelimit.New(loginAttemptsPerKey, loginLimitWindow),
+		perSource:      ratelimit.New(loginAttemptsPerSource, loginLimitWindow),
+		passkeyOptions: ratelimit.New(passkeyOptionsPerSourceWindow, loginLimitWindow),
 	}
+}
+
+func (l loginLimits) takeOptions(sourceKey string, now time.Time) bool {
+	return l.passkeyOptions.Take(ratelimit.KeyForIP(sourceKey), now)
 }
 
 // take counts one verification attempt for identifier within scope. An empty sourceKey skips the
@@ -673,6 +755,12 @@ func (s *Service) Cleanup(ctx context.Context, before time.Time) (sessions int64
 	sessions, err = queries.DeleteExpiredSessions(ctx, before)
 	if err != nil {
 		return 0, 0, fmt.Errorf("delete expired sessions: %w", err)
+	}
+	if _, err = queries.DeleteExpiredPendingLogins(ctx, time.Now().UTC()); err != nil {
+		return sessions, 0, fmt.Errorf("delete expired pending logins: %w", err)
+	}
+	if _, err = queries.DeleteExpiredWebAuthnChallenges(ctx, time.Now().UTC()); err != nil {
+		return sessions, 0, fmt.Errorf("delete expired passkey challenges: %w", err)
 	}
 	resets, err = queries.DeleteExpiredPasswordResetTokens(ctx, time.Now().UTC())
 	if err != nil {

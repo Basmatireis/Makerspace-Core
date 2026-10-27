@@ -48,6 +48,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `accounts.password.remove.self`, `accounts.password.remove.all`             | Remove a local password method.                                                                                                                                                                                                                                                                                           |
 | `accounts.pin.enroll.self`, `accounts.pin.enroll.all`                       | Enroll a PIN method for self or another Account.                                                                                                                                                                                                                                                                          |
 | `accounts.pin.remove.self`, `accounts.pin.remove.all`, `accounts.pin.reset` | Remove/reset PIN methods subject to fresh-authentication requirements.                                                                                                                                                                                                                                                    |
+| `accounts.mfa.reset`                                                        | Remove every second factor (authenticator app, recovery codes, passkeys) of another account and revoke its sessions; a master account's only by a master. Enrolling and managing one's own second factors needs only a staff session. Account responses list second factors (kinds, names, timestamps) with `accounts.read`. |
 | `laborordnung.read`, `laborordnung.manage`                                  | Read Lab Rules documents or upload/publish immutable versions.                                                                                                                                                                                                                                                            |
 | `laborordnung.requests.read`, `laborordnung.confirm`                        | Read the confirmation queue and the list of confirmed signatures (also on a person's page), or record verification of physical evidence.                                                                                                                                                                                                                                                  |
 | `visitor_enrollment.manage`                                                 | Configure approved kiosk types, methods, and a delegable initial Role.                                                                                                                                                                                                                                                 |
@@ -88,10 +89,12 @@ Authorization is based on application-registered permission identifiers. Backend
 Each role permission grant is global, valid on any currently valid managed
 device, or restricted to selected administrator-managed device types. Device
 scope is evaluated server-side alongside the ordinary user session; resource
-scope such as `people.read.self` remains independent. The `master` role retains
-its existing global bypass.
+scope such as `people.read.self` remains independent. The `master` role's
+bypass needs a `strong_mfa` session (see below).
 
 Each grant also has minimum assurance (`low`, `normal`, `strong`, `strong_mfa`). Multiple grants for a permission are alternatives. Delegation checks the full scope/assurance envelope, including selected device types, so a scoped or higher-assurance grant cannot be expanded into a global or lower-assurance grant. A PIN session is low assurance and cannot acquire permissions requiring stronger authentication merely by using a managed kiosk.
+
+A grant may also require a fresh sign-in: `reauthWithinMinutes` (1–1440, null for none) makes the grant apply only while the session's last login or reauthentication proved at least the grant's minimum assurance within that many minutes. When the only grants that would allow an operation are stale, the API answers `403 reauthentication_required` with `details.requiredAssurance` and `details.withinMinutes` (the easiest of the alternatives) instead of `permission_denied`; services record such checks on the principal and the HTTP layer converts the denial. `/auth/me` lists the withheld permissions in `authentication.reauthenticationRequired`. Delegation treats the window as part of the assurance envelope: a non-master may delegate a grant only with the same or a shorter window than their own grant, never without one. Role read/write APIs and the configuration export/import carry the field.
 
 The registry in application code is authoritative. Database RolePermission rows may reference only identifiers in this registry; unknown values from stale data or client requests never become effective. Additions require coordinated backend registry, OpenAPI enum, documentation, and authorization tests.
 
@@ -119,7 +122,8 @@ Deleting a configurable Role removes its account assignments and permission rows
 
 `master` is the only system Role. Its stable system key, rather than its display name, drives the special behavior:
 
-- it always has every permission currently registered in application code;
+- it has every permission currently registered in application code, but only in a `strong_mfa` session (password plus second factor, passkey, or an OIDC ACR mapped to `strong_mfa`). A master session below `strong_mfa` receives only what the account's other roles grant at that assurance; a master without a second factor is asked to set one up at login (`mfa_setup_required`);
+- permissions listed in the master fresh-sign-in policy (`GET|PUT /roles/master-reauthentication-policy`, table `master_reauthentication_permissions`) additionally need a `strong_mfa` sign-in within their window; the default is `accounts.mfa.reset`, `accounts.password.set`, `branding.manage`, `mail.manage`, `oidc.manage`, `people.roles.assign` and `roles.manage` at 10 minutes. Reading the policy needs `roles.read`; only a master with a `strong_mfa` sign-in within the last ten minutes may change it (audited);
 - it automatically receives permissions introduced by later versions;
 - it cannot be renamed, deleted, or have its permission rows edited;
 - only an existing master may assign or remove the master Role;

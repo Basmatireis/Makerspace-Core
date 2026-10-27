@@ -957,7 +957,7 @@ func (q *Queries) RevokeSessionsForAccount(ctx context.Context, arg RevokeSessio
 
 const revokeSessionsForIdentity = `-- name: RevokeSessionsForIdentity :exec
 UPDATE sessions SET revoked_at=COALESCE(revoked_at, now()), revocation_reason=COALESCE(revocation_reason, 'scim_deprovisioned')
-WHERE auth_identity_id=$1 AND revoked_at IS NULL
+WHERE auth_identity_id=$1::uuid AND revoked_at IS NULL
 `
 
 func (q *Queries) RevokeSessionsForIdentity(ctx context.Context, authIdentityID uuid.UUID) error {

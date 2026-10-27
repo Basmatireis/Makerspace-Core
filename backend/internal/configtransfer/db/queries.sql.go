@@ -802,7 +802,7 @@ func (q *Queries) ListPrinterSlots(ctx context.Context) ([]ListPrinterSlotsRow, 
 }
 
 const listRolePermissionGrants = `-- name: ListRolePermissionGrants :many
-SELECT g.role_id, g.id, g.permission_id, g.scope, g.minimum_assurance, dt.name AS device_type_name
+SELECT g.role_id, g.id, g.permission_id, g.scope, g.minimum_assurance, g.reauth_within_minutes, dt.name AS device_type_name
 FROM role_permission_grants g
 LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
 LEFT JOIN device_types dt ON dt.id = gdt.device_type_id
@@ -810,12 +810,13 @@ ORDER BY g.role_id, g.permission_id, g.scope, g.minimum_assurance, g.id, lower(d
 `
 
 type ListRolePermissionGrantsRow struct {
-	RoleID           uuid.UUID
-	ID               uuid.UUID
-	PermissionID     string
-	Scope            string
-	MinimumAssurance string
-	DeviceTypeName   *string
+	RoleID              uuid.UUID
+	ID                  uuid.UUID
+	PermissionID        string
+	Scope               string
+	MinimumAssurance    string
+	ReauthWithinMinutes *int32
+	DeviceTypeName      *string
 }
 
 func (q *Queries) ListRolePermissionGrants(ctx context.Context) ([]ListRolePermissionGrantsRow, error) {
@@ -833,6 +834,7 @@ func (q *Queries) ListRolePermissionGrants(ctx context.Context) ([]ListRolePermi
 			&i.PermissionID,
 			&i.Scope,
 			&i.MinimumAssurance,
+			&i.ReauthWithinMinutes,
 			&i.DeviceTypeName,
 		); err != nil {
 			return nil, err

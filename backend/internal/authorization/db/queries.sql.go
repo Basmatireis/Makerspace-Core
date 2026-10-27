@@ -13,7 +13,7 @@ import (
 
 const getPrincipalRolePermissions = `-- name: GetPrincipalRolePermissions :many
 SELECT r.id AS role_id, r.system_key, g.id AS grant_id, g.permission_id, g.scope,
-       g.minimum_assurance, gdt.device_type_id
+       g.minimum_assurance, g.reauth_within_minutes, gdt.device_type_id
 FROM accounts a
 JOIN person_roles pr ON pr.person_id = a.person_id
 JOIN roles r ON r.id = pr.role_id
@@ -23,13 +23,14 @@ WHERE a.id = $1 ORDER BY r.id, g.permission_id, g.id, gdt.device_type_id
 `
 
 type GetPrincipalRolePermissionsRow struct {
-	RoleID           uuid.UUID
-	SystemKey        *string
-	GrantID          *uuid.UUID
-	PermissionID     *string
-	Scope            *string
-	MinimumAssurance *string
-	DeviceTypeID     *uuid.UUID
+	RoleID              uuid.UUID
+	SystemKey           *string
+	GrantID             *uuid.UUID
+	PermissionID        *string
+	Scope               *string
+	MinimumAssurance    *string
+	ReauthWithinMinutes *int32
+	DeviceTypeID        *uuid.UUID
 }
 
 func (q *Queries) GetPrincipalRolePermissions(ctx context.Context, accountID uuid.UUID) ([]GetPrincipalRolePermissionsRow, error) {
@@ -48,8 +49,38 @@ func (q *Queries) GetPrincipalRolePermissions(ctx context.Context, accountID uui
 			&i.PermissionID,
 			&i.Scope,
 			&i.MinimumAssurance,
+			&i.ReauthWithinMinutes,
 			&i.DeviceTypeID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMasterReauthenticationPermissions = `-- name: ListMasterReauthenticationPermissions :many
+SELECT permission_id, within_minutes FROM master_reauthentication_permissions ORDER BY permission_id
+`
+
+type ListMasterReauthenticationPermissionsRow struct {
+	PermissionID  string
+	WithinMinutes int32
+}
+
+func (q *Queries) ListMasterReauthenticationPermissions(ctx context.Context) ([]ListMasterReauthenticationPermissionsRow, error) {
+	rows, err := q.db.Query(ctx, listMasterReauthenticationPermissions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMasterReauthenticationPermissionsRow{}
+	for rows.Next() {
+		var i ListMasterReauthenticationPermissionsRow
+		if err := rows.Scan(&i.PermissionID, &i.WithinMinutes); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

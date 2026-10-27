@@ -313,13 +313,13 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		1,
 		passwordResult.AccountID,
 	)
-	passwordSession, err := authService.Login(
+	passwordSession, err := loginSession(authService.Login(
 		ctx,
 		passwordEmail,
 		"Visitor password workshop 94",
 		"visitor-password-login",
 		nil,
-	)
+	))
 	if err != nil {
 		t.Fatal(err)
 	}

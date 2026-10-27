@@ -12,16 +12,18 @@ import (
 )
 
 const addRolePermission = `-- name: AddRolePermission :exec
-INSERT INTO role_permission_grants (id, role_id, permission_id, scope, minimum_assurance)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO role_permission_grants (id, role_id, permission_id, scope, minimum_assurance, reauth_within_minutes)
+VALUES ($1, $2, $3, $4, $5,
+        $6)
 `
 
 type AddRolePermissionParams struct {
-	ID               uuid.UUID
-	RoleID           uuid.UUID
-	PermissionID     string
-	Scope            string
-	MinimumAssurance string
+	ID                  uuid.UUID
+	RoleID              uuid.UUID
+	PermissionID        string
+	Scope               string
+	MinimumAssurance    string
+	ReauthWithinMinutes *int32
 }
 
 func (q *Queries) AddRolePermission(ctx context.Context, arg AddRolePermissionParams) error {
@@ -31,6 +33,7 @@ func (q *Queries) AddRolePermission(ctx context.Context, arg AddRolePermissionPa
 		arg.PermissionID,
 		arg.Scope,
 		arg.MinimumAssurance,
+		arg.ReauthWithinMinutes,
 	)
 	return err
 }
@@ -132,6 +135,15 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 	return i, err
 }
 
+const deleteMasterReauthenticationPolicy = `-- name: DeleteMasterReauthenticationPolicy :exec
+DELETE FROM master_reauthentication_permissions
+`
+
+func (q *Queries) DeleteMasterReauthenticationPolicy(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteMasterReauthenticationPolicy)
+	return err
+}
+
 const deleteRole = `-- name: DeleteRole :one
 DELETE FROM roles WHERE id = $1 AND version = $2 AND system_key IS NULL RETURNING id
 `
@@ -204,18 +216,19 @@ func (q *Queries) GetRoleForMutation(ctx context.Context, id uuid.UUID) (Role, e
 }
 
 const getRolePermissionGrants = `-- name: GetRolePermissionGrants :many
-SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, gdt.device_type_id
+SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, g.reauth_within_minutes, gdt.device_type_id
 FROM role_permission_grants g LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
 WHERE g.role_id = $1
 ORDER BY g.permission_id, g.id, gdt.device_type_id
 `
 
 type GetRolePermissionGrantsRow struct {
-	ID               uuid.UUID
-	PermissionID     string
-	Scope            string
-	MinimumAssurance string
-	DeviceTypeID     *uuid.UUID
+	ID                  uuid.UUID
+	PermissionID        string
+	Scope               string
+	MinimumAssurance    string
+	ReauthWithinMinutes *int32
+	DeviceTypeID        *uuid.UUID
 }
 
 func (q *Queries) GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsRow, error) {
@@ -232,8 +245,53 @@ func (q *Queries) GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID)
 			&i.PermissionID,
 			&i.Scope,
 			&i.MinimumAssurance,
+			&i.ReauthWithinMinutes,
 			&i.DeviceTypeID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertMasterReauthenticationPermission = `-- name: InsertMasterReauthenticationPermission :exec
+INSERT INTO master_reauthentication_permissions (permission_id, within_minutes, updated_at)
+VALUES ($1, $2, now())
+`
+
+type InsertMasterReauthenticationPermissionParams struct {
+	PermissionID  string
+	WithinMinutes int32
+}
+
+func (q *Queries) InsertMasterReauthenticationPermission(ctx context.Context, arg InsertMasterReauthenticationPermissionParams) error {
+	_, err := q.db.Exec(ctx, insertMasterReauthenticationPermission, arg.PermissionID, arg.WithinMinutes)
+	return err
+}
+
+const listMasterReauthenticationPolicy = `-- name: ListMasterReauthenticationPolicy :many
+SELECT permission_id, within_minutes FROM master_reauthentication_permissions ORDER BY permission_id
+`
+
+type ListMasterReauthenticationPolicyRow struct {
+	PermissionID  string
+	WithinMinutes int32
+}
+
+func (q *Queries) ListMasterReauthenticationPolicy(ctx context.Context) ([]ListMasterReauthenticationPolicyRow, error) {
+	rows, err := q.db.Query(ctx, listMasterReauthenticationPolicy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMasterReauthenticationPolicyRow{}
+	for rows.Next() {
+		var i ListMasterReauthenticationPolicyRow
+		if err := rows.Scan(&i.PermissionID, &i.WithinMinutes); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -278,6 +336,15 @@ func (q *Queries) ListRoles(ctx context.Context) ([]Role, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockMasterReauthenticationPolicy = `-- name: LockMasterReauthenticationPolicy :exec
+LOCK TABLE master_reauthentication_permissions IN SHARE ROW EXCLUSIVE MODE
+`
+
+func (q *Queries) LockMasterReauthenticationPolicy(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockMasterReauthenticationPolicy)
+	return err
 }
 
 const roleAssignmentCount = `-- name: RoleAssignmentCount :one

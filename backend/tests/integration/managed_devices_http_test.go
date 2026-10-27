@@ -65,6 +65,7 @@ func TestHTTPManagedDeviceContextAndScopedAuthorization(t *testing.T) {
 	}
 
 	sessionToken, csrfToken := insertTestSession(t, pool, actor)
+	elevateMasterSessions(t, pool)
 	origin := "http://makerspace.example.test"
 	server := newManagedDeviceHTTPServer(t, pool, origin)
 	defer server.Close()
@@ -86,6 +87,7 @@ func TestHTTPManagedDeviceContextAndScopedAuthorization(t *testing.T) {
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
 	workshopSession, workshopCSRF := insertTestSession(t, pool, actor, workshopDevice.Device.ID)
+	elevateMasterSessions(t, pool)
 	workshopClient := clientWithSession(t, server.URL, workshopSession, workshopCSRF)
 	response = doJSONWithDevice(
 		t,
@@ -101,6 +103,7 @@ func TestHTTPManagedDeviceContextAndScopedAuthorization(t *testing.T) {
 	response.Body.Close()
 
 	receptionSession, receptionCSRF := insertTestSession(t, pool, actor, receptionDevice.Device.ID)
+	elevateMasterSessions(t, pool)
 	receptionClient := clientWithSession(t, server.URL, receptionSession, receptionCSRF)
 	response = doJSONWithDevice(
 		t,

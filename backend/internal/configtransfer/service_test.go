@@ -178,6 +178,10 @@ func (e *env) seed() {
 		[]authorization.PermissionGrant{
 			{PermissionID: authorization.OpenDaysRead, Scope: authorization.GrantEverywhere},
 			{
+				PermissionID: authorization.OpenDaysManage, Scope: authorization.GrantEverywhere,
+				MinimumAssurance: authorization.AssuranceNormal, ReauthWithinMinutes: ptr(15),
+			},
+			{
 				PermissionID: authorization.AttendanceAssist, Scope: authorization.GrantSelectedDeviceTypes,
 				DeviceTypeIDs: []uuid.UUID{kiosk.ID}, MinimumAssurance: authorization.AssuranceNormal,
 			},
@@ -373,6 +377,9 @@ func TestRoundTripIntoAFreshInstanceReproducesEverySection(t *testing.T) {
 	source.seed()
 	data := source.export(source.master)
 	want := sectionsOf(t, data)
+	if !strings.Contains(string(want[SectionRoles]), `"reauthWithinMinutes"`) {
+		t.Fatalf("the fresh sign-in window of a grant is not exported: %s", want[SectionRoles])
+	}
 
 	t.Run("overwrite", func(t *testing.T) {
 		target := newEnv(t)
@@ -669,7 +676,7 @@ func importAuthorization(t *testing.T, data []byte) {
 	}
 	// An editor holding everything the role grants may import it.
 	full := e.staff(authorization.ConfigurationImport, authorization.RolesRead, authorization.RolesManage,
-		authorization.OpenDaysRead, authorization.AttendanceAssist)
+		authorization.OpenDaysRead, authorization.OpenDaysManage, authorization.AttendanceAssist)
 	report = must(preview(full))
 	if got := item(t, report, SectionRoles, "Supervisor"); got.Action != ActionCreate {
 		t.Fatalf("full editor = %+v", got)

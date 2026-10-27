@@ -21,6 +21,9 @@
 import type { Error } from './error';
 
 /**
- * The caller lacks permission or the CSRF check failed.
+ * The caller lacks permission or the CSRF check failed. `reauthentication_required` means a grant would allow
+ * the operation after a fresh sign-in; `details.requiredAssurance` and `details.withinMinutes` say which, and
+ * `POST /auth/reauthenticate` (or the passkey variant) provides it. `mfa_setup_required` means the session must
+ * enroll a second factor first.
  */
 export type ForbiddenResponse = Error;

@@ -505,6 +505,12 @@ func doJSON(t *testing.T, client *http.Client, method, endpoint, origin, csrf st
 	if err != nil {
 		t.Fatal(err)
 	}
+	if method == http.MethodPost && strings.HasSuffix(endpoint, "/api/v1/auth/login") &&
+		response.StatusCode == http.StatusNoContent {
+		if pool := testPool(t); pool != nil {
+			elevateMasterSessions(t, pool)
+		}
+	}
 	return response
 }
 

@@ -293,11 +293,12 @@ func insertGrants(
 		if err := q.AddRolePermission(
 			ctx,
 			rolesdb.AddRolePermissionParams{
-				ID:               grantID,
-				RoleID:           roleID,
-				PermissionID:     string(g.PermissionID),
-				Scope:            string(g.Scope),
-				MinimumAssurance: string(g.MinimumAssurance),
+				ID:                  grantID,
+				RoleID:              roleID,
+				PermissionID:        string(g.PermissionID),
+				Scope:               string(g.Scope),
+				MinimumAssurance:    string(g.MinimumAssurance),
+				ReauthWithinMinutes: reauthWindowToDB(g.ReauthWithinMinutes),
 			},
 		); err != nil {
 			return err
@@ -344,6 +345,9 @@ func validateGrants(
 		}
 		if g.Scope != authorization.GrantSelectedDeviceTypes && len(g.DeviceTypeIDs) != 0 {
 			return nil, apperror.InvalidField("deviceTypeIds are only valid for selected device types")
+		}
+		if !authorization.ValidReauthWindow(g.ReauthWithinMinutes) {
+			return nil, apperror.InvalidField("reauthWithinMinutes must be between 1 and 1440")
 		}
 		if g.Scope != authorization.GrantEverywhere && g.Scope != authorization.GrantAnyManagedDevice &&
 			g.Scope != authorization.GrantSelectedDeviceTypes {
@@ -778,10 +782,11 @@ func fromRow(ctx context.Context, queries *rolesdb.Queries, row rolesdb.Role) (R
 			grant, exists := byID[value.ID]
 			if !exists {
 				grant = authorization.PermissionGrant{
-					ID:               value.ID,
-					PermissionID:     permission,
-					Scope:            authorization.GrantScope(value.Scope),
-					MinimumAssurance: authorization.Assurance(value.MinimumAssurance),
+					ID:                  value.ID,
+					PermissionID:        permission,
+					Scope:               authorization.GrantScope(value.Scope),
+					MinimumAssurance:    authorization.Assurance(value.MinimumAssurance),
+					ReauthWithinMinutes: authorization.ReauthWindowFromDB(value.ReauthWithinMinutes),
 				}
 				order = append(order, value.ID)
 			}
@@ -842,10 +847,11 @@ func ensureExistingSubset(
 		grant, exists := seen[value.ID]
 		if !exists {
 			grant = authorization.PermissionGrant{
-				ID:               value.ID,
-				PermissionID:     permission,
-				Scope:            authorization.GrantScope(value.Scope),
-				MinimumAssurance: authorization.Assurance(value.MinimumAssurance),
+				ID:                  value.ID,
+				PermissionID:        permission,
+				Scope:               authorization.GrantScope(value.Scope),
+				MinimumAssurance:    authorization.Assurance(value.MinimumAssurance),
+				ReauthWithinMinutes: authorization.ReauthWindowFromDB(value.ReauthWithinMinutes),
 			}
 		}
 		if value.DeviceTypeID != nil {
@@ -906,4 +912,12 @@ func minOpenDaysFromRow(value *int32) *int {
 	}
 	converted := int(*value)
 	return &converted
+}
+
+func reauthWindowToDB(value *int) *int32 {
+	if value == nil {
+		return nil
+	}
+	window := int32(*value) //nolint:gosec // validated to 1..1440 before it is stored
+	return &window
 }

@@ -28,7 +28,7 @@ SELECT EXISTS (SELECT 1 FROM device_types WHERE id=sqlc.arg(id));
 SELECT * FROM roles WHERE id=sqlc.arg(id);
 
 -- name: GetRolePermissionGrants :many
-SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, gdt.device_type_id
+SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, g.reauth_within_minutes, gdt.device_type_id
 FROM role_permission_grants g
 LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id=g.id
 WHERE g.role_id=sqlc.arg(role_id)

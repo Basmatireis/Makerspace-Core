@@ -25,23 +25,37 @@ SELECT EXISTS (
 );
 
 -- name: CreateSession :one
-INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, authenticated_at,
+-- A password session: normal assurance, or strong_mfa when the login also verified a second factor.
+INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
+  base_assurance, current_assurance, authenticated_assurance, mfa_setup_required, authenticated_at,
   idle_expires_at, absolute_expires_at, managed_device_id, session_policy_id, session_policy_version,
   idle_timeout_seconds, post_session_destination)
-VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.arg(token_digest), sqlc.arg(csrf_digest), 'password', now(),
+VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id)::uuid, sqlc.arg(token_digest), sqlc.arg(csrf_digest), 'password',
+  sqlc.arg(assurance), sqlc.arg(assurance), sqlc.arg(assurance), sqlc.arg(mfa_setup_required), now(),
   sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at), sqlc.narg(managed_device_id), sqlc.narg(session_policy_id),
   sqlc.arg(session_policy_version), sqlc.arg(idle_timeout_seconds), sqlc.arg(post_session_destination))
-RETURNING *;
+RETURNING id;
+
+-- name: CreatePasskeySession :one
+INSERT INTO sessions (id, account_id, webauthn_credential_id, token_digest, csrf_digest, auth_method,
+  base_assurance, current_assurance, authenticated_assurance, authenticated_at,
+  idle_expires_at, absolute_expires_at, managed_device_id, session_policy_id, session_policy_version,
+  idle_timeout_seconds, post_session_destination)
+VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(webauthn_credential_id)::uuid, sqlc.arg(token_digest), sqlc.arg(csrf_digest), 'passkey',
+  'strong_mfa', 'strong_mfa', 'strong_mfa', now(),
+  sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at), sqlc.narg(managed_device_id), sqlc.narg(session_policy_id),
+  sqlc.arg(session_policy_version), sqlc.arg(idle_timeout_seconds), sqlc.arg(post_session_destination))
+RETURNING id;
 
 -- name: CreatePINSession :one
 INSERT INTO sessions (
     id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
-    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at,
+    base_assurance, current_assurance, authenticated_assurance, authenticated_at, idle_expires_at, absolute_expires_at,
     managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 )
 VALUES (
-    sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.arg(token_digest),
-    sqlc.arg(csrf_digest), 'pin', 'low', 'low', now(), sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at),
+    sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id)::uuid, sqlc.arg(token_digest),
+    sqlc.arg(csrf_digest), 'pin', 'low', 'low', 'low', now(), sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at),
     sqlc.narg(managed_device_id), sqlc.narg(session_policy_id), sqlc.arg(session_policy_version),
     sqlc.arg(idle_timeout_seconds), sqlc.arg(post_session_destination)
 )
@@ -50,12 +64,14 @@ RETURNING *;
 -- name: CreateOIDCSession :one
 INSERT INTO sessions (
     id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
-    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at,
+    base_assurance, current_assurance, authenticated_assurance, mfa_setup_required, authenticated_at,
+    idle_expires_at, absolute_expires_at,
     managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 )
 VALUES (
-    sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.arg(token_digest),
-    sqlc.arg(csrf_digest), 'oidc', sqlc.arg(assurance), sqlc.arg(assurance), sqlc.arg(authenticated_at),
+    sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id)::uuid, sqlc.arg(token_digest),
+    sqlc.arg(csrf_digest), 'oidc', sqlc.arg(assurance), sqlc.arg(assurance), sqlc.arg(assurance),
+    sqlc.arg(mfa_setup_required), sqlc.arg(authenticated_at),
     sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at), sqlc.narg(managed_device_id), sqlc.narg(session_policy_id),
     sqlc.arg(session_policy_version), sqlc.arg(idle_timeout_seconds), sqlc.arg(post_session_destination)
 )
@@ -72,16 +88,23 @@ SET first_authenticated_at = COALESCE(first_authenticated_at, now()), updated_at
 WHERE accounts.id = sqlc.arg(account_id);
 
 -- name: GetSessionPrincipal :one
-SELECT s.id AS session_id, s.account_id, s.auth_identity_id, s.csrf_digest,
+-- mfa_setup_required lifts as soon as the account has a second factor, even when it was enrolled in another session.
+SELECT s.id AS session_id, s.account_id, s.csrf_digest,
 	       s.idle_expires_at, s.absolute_expires_at, s.last_seen_at, s.managed_device_id,
 	       s.session_policy_id, s.session_policy_version, s.idle_timeout_seconds, s.post_session_destination,
 	       s.auth_method, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
+	       COALESCE(s.authenticated_assurance, s.current_assurance)::text AS authenticated_assurance,
+	       (s.mfa_setup_required AND NOT EXISTS (
+	           SELECT 1 FROM mfa_totp_credentials t WHERE t.account_id = s.account_id AND t.confirmed_at IS NOT NULL
+	       ) AND NOT EXISTS (
+	           SELECT 1 FROM webauthn_credentials w WHERE w.account_id = s.account_id
+	       ))::boolean AS mfa_setup_required,
 	       a.person_id, p.first_name, p.last_name
 FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN people p ON p.id = a.person_id
-JOIN auth_identities i ON i.id = s.auth_identity_id
+LEFT JOIN auth_identities i ON i.id = s.auth_identity_id
 WHERE s.token_digest = sqlc.arg(token_digest) AND s.revoked_at IS NULL
   AND s.idle_expires_at > now() AND s.absolute_expires_at > now() AND a.status = 'enabled'
-  AND i.disabled_at IS NULL;
+  AND (s.webauthn_credential_id IS NOT NULL OR (i.id IS NOT NULL AND i.disabled_at IS NULL));
 
 -- name: GetSessionPostDestinationByDigest :one
 SELECT post_session_destination
@@ -316,13 +339,176 @@ DELETE FROM auth_identities WHERE id = sqlc.arg(id) AND kind = 'pin';
 DELETE FROM auth_identities WHERE id = sqlc.arg(id) AND kind = 'password';
 
 -- name: GetSessionForReauthentication :one
-SELECT s.* FROM sessions s JOIN auth_identities i ON i.id=s.auth_identity_id
+-- Locks the session row (FOR UPDATE OF s).
+SELECT s.id, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
+       COALESCE(s.authenticated_assurance, s.current_assurance)::text AS authenticated_assurance,
+       s.auth_method, s.mfa_setup_required
+FROM sessions s LEFT JOIN auth_identities i ON i.id=s.auth_identity_id
 WHERE s.id=sqlc.arg(session_id) AND s.account_id=sqlc.arg(account_id)
   AND s.revoked_at IS NULL AND s.idle_expires_at>now() AND s.absolute_expires_at>now()
-  AND i.disabled_at IS NULL
+  AND (s.webauthn_credential_id IS NOT NULL OR (i.id IS NOT NULL AND i.disabled_at IS NULL))
 FOR UPDATE OF s;
 
 -- name: GrantRecentAuthentication :exec
-UPDATE sessions SET current_assurance=sqlc.arg(assurance), authenticated_at=sqlc.arg(authenticated_at),
-    assurance_expires_at=sqlc.arg(expires_at)
+-- A proof weaker than the session's base never lowers the session's assurance; it only records what was proven
+-- and when. The temporary raise expires back to the base assurance.
+UPDATE sessions SET current_assurance=sqlc.arg(current_assurance), authenticated_at=sqlc.arg(authenticated_at),
+    authenticated_assurance=sqlc.arg(proof_assurance), assurance_expires_at=sqlc.narg(expires_at)
 WHERE id=sqlc.arg(id);
+
+-- name: RaiseSessionToStrongMFA :exec
+-- The session proved a second factor (enrollment, second-factor reauthentication): it is now equivalent to a
+-- multi-factor login.
+UPDATE sessions SET base_assurance='strong_mfa', current_assurance='strong_mfa', authenticated_assurance='strong_mfa',
+    authenticated_at=sqlc.arg(authenticated_at), assurance_expires_at=NULL, mfa_setup_required=false
+WHERE id=sqlc.arg(id);
+
+-- name: GetAccountSecondFactorState :one
+-- required: the account holds the master role or a role with a grant that needs strong_mfa.
+SELECT
+    EXISTS (
+        SELECT 1 FROM accounts a
+        JOIN person_roles pr ON pr.person_id = a.person_id
+        JOIN roles r ON r.id = pr.role_id
+        LEFT JOIN role_permission_grants g ON g.role_id = r.id
+        WHERE a.id = sqlc.arg(account_id)::uuid AND (r.system_key = 'master' OR g.minimum_assurance = 'strong_mfa')
+    )::boolean AS required,
+    EXISTS (
+        SELECT 1 FROM mfa_totp_credentials t WHERE t.account_id = sqlc.arg(account_id)::uuid AND t.confirmed_at IS NOT NULL
+    )::boolean AS totp_enrolled,
+    (SELECT count(*) FROM webauthn_credentials w WHERE w.account_id = sqlc.arg(account_id)::uuid)::bigint AS passkey_count,
+    (SELECT count(*) FROM mfa_recovery_codes c WHERE c.account_id = sqlc.arg(account_id)::uuid AND c.used_at IS NULL)::bigint
+        AS recovery_codes_remaining;
+
+-- name: GetTOTPCredential :one
+SELECT * FROM mfa_totp_credentials WHERE account_id = sqlc.arg(account_id);
+
+-- name: GetTOTPCredentialForUpdate :one
+SELECT * FROM mfa_totp_credentials WHERE account_id = sqlc.arg(account_id) FOR UPDATE;
+
+-- name: ReplacePendingTOTPCredential :exec
+-- Only an unconfirmed enrollment is replaced; a confirmed authenticator app stays until it is removed.
+INSERT INTO mfa_totp_credentials (id, account_id, secret_ciphertext, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(secret_ciphertext), now())
+ON CONFLICT (account_id) DO UPDATE SET id = EXCLUDED.id, secret_ciphertext = EXCLUDED.secret_ciphertext,
+    created_at = now(), last_used_step = NULL, last_used_at = NULL
+WHERE mfa_totp_credentials.confirmed_at IS NULL;
+
+-- name: ConfirmTOTPCredential :exec
+UPDATE mfa_totp_credentials SET confirmed_at = now(), last_used_step = sqlc.arg(step), last_used_at = now()
+WHERE id = sqlc.arg(id) AND confirmed_at IS NULL;
+
+-- name: RecordTOTPUse :exec
+UPDATE mfa_totp_credentials SET last_used_step = sqlc.arg(step), last_used_at = now()
+WHERE id = sqlc.arg(id) AND (last_used_step IS NULL OR last_used_step < sqlc.arg(step));
+
+-- name: DeleteTOTPCredential :execrows
+DELETE FROM mfa_totp_credentials WHERE account_id = sqlc.arg(account_id);
+
+-- name: DeleteRecoveryCodes :exec
+DELETE FROM mfa_recovery_codes WHERE account_id = sqlc.arg(account_id);
+
+-- name: InsertRecoveryCode :exec
+INSERT INTO mfa_recovery_codes (id, account_id, code_digest) VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(code_digest));
+
+-- name: UseRecoveryCode :execrows
+UPDATE mfa_recovery_codes SET used_at = now()
+WHERE account_id = sqlc.arg(account_id) AND code_digest = sqlc.arg(code_digest) AND used_at IS NULL;
+
+-- name: ListWebAuthnCredentials :many
+SELECT * FROM webauthn_credentials WHERE account_id = sqlc.arg(account_id) ORDER BY created_at, id;
+
+-- name: GetWebAuthnCredentialByCredentialID :one
+SELECT * FROM webauthn_credentials WHERE credential_id = sqlc.arg(credential_id);
+
+-- name: InsertWebAuthnCredential :one
+INSERT INTO webauthn_credentials (id, account_id, credential_id, credential, name)
+VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(credential_id), sqlc.arg(credential)::text::jsonb, sqlc.arg(name))
+RETURNING *;
+
+-- name: UpdateWebAuthnCredentialUse :exec
+UPDATE webauthn_credentials SET credential = sqlc.arg(credential)::text::jsonb, last_used_at = now() WHERE id = sqlc.arg(id);
+
+-- name: RenameWebAuthnCredential :one
+UPDATE webauthn_credentials SET name = sqlc.arg(name)
+WHERE id = sqlc.arg(id) AND account_id = sqlc.arg(account_id)
+RETURNING *;
+
+-- name: DeleteWebAuthnCredential :execrows
+DELETE FROM webauthn_credentials WHERE id = sqlc.arg(id) AND account_id = sqlc.arg(account_id);
+
+-- name: CountSecondFactors :one
+SELECT ((SELECT count(*) FROM mfa_totp_credentials t WHERE t.account_id = sqlc.arg(account_id)::uuid AND t.confirmed_at IS NOT NULL)
+      + (SELECT count(*) FROM webauthn_credentials w WHERE w.account_id = sqlc.arg(account_id)::uuid))::bigint AS total;
+
+-- name: CreatePendingLogin :exec
+INSERT INTO pending_logins (id, token_digest, account_id, auth_identity_id, managed_device_id, expires_at)
+VALUES (sqlc.arg(id), sqlc.arg(token_digest), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.narg(managed_device_id), sqlc.arg(expires_at));
+
+-- name: GetPendingLoginForUpdate :one
+SELECT * FROM pending_logins WHERE token_digest = sqlc.arg(token_digest) AND expires_at > now() FOR UPDATE;
+
+-- name: GetPendingLogin :one
+SELECT * FROM pending_logins WHERE token_digest = sqlc.arg(token_digest) AND expires_at > now();
+
+-- name: RecordPendingLoginFailure :one
+UPDATE pending_logins SET failed_attempts = failed_attempts + 1 WHERE id = sqlc.arg(id) RETURNING failed_attempts;
+
+-- name: DeletePendingLogin :exec
+DELETE FROM pending_logins WHERE id = sqlc.arg(id);
+
+-- name: DeletePendingLoginsForAccount :exec
+DELETE FROM pending_logins WHERE account_id = sqlc.arg(account_id);
+
+-- name: DeleteExpiredPendingLogins :execrows
+DELETE FROM pending_logins WHERE expires_at < sqlc.arg(before_time);
+
+-- name: SecondFactorThrottleBlocked :one
+SELECT EXISTS (
+    SELECT 1 FROM second_factor_throttles WHERE account_id = sqlc.arg(account_id) AND blocked_until > now()
+);
+
+-- name: RecordSecondFactorFailure :exec
+-- Same back-off as the PIN throttle: one second, then doubling up to five minutes; a quiet quarter hour resets it.
+INSERT INTO second_factor_throttles (account_id, failure_count, blocked_until)
+VALUES (sqlc.arg(account_id), 1, now() + interval '1 second')
+ON CONFLICT (account_id) DO UPDATE SET
+    failure_count = CASE
+        WHEN second_factor_throttles.updated_at < now() - interval '15 minutes' THEN 1
+        ELSE LEAST(second_factor_throttles.failure_count + 1, 20)
+    END,
+    blocked_until = now() + CASE
+        WHEN second_factor_throttles.updated_at < now() - interval '15 minutes' THEN interval '1 second'
+        ELSE make_interval(secs => LEAST(300, power(2, LEAST(second_factor_throttles.failure_count, 8))::integer))
+    END,
+    updated_at = now();
+
+-- name: ClearSecondFactorThrottle :exec
+DELETE FROM second_factor_throttles WHERE account_id = sqlc.arg(account_id);
+
+-- name: InsertWebAuthnChallenge :exec
+INSERT INTO webauthn_challenges (id, challenge_digest, purpose, account_id, session_id, pending_login_id, session_data, expires_at)
+VALUES (sqlc.arg(id), sqlc.arg(challenge_digest), sqlc.arg(purpose), sqlc.narg(account_id), sqlc.narg(session_id),
+        sqlc.narg(pending_login_id), sqlc.arg(session_data)::text::jsonb, sqlc.arg(expires_at));
+
+-- name: DeleteWebAuthnChallengesForSession :exec
+DELETE FROM webauthn_challenges WHERE session_id = sqlc.arg(session_id) AND purpose = sqlc.arg(purpose);
+
+-- name: DeleteWebAuthnChallengesForPendingLogin :exec
+DELETE FROM webauthn_challenges WHERE pending_login_id = sqlc.arg(pending_login_id);
+
+-- name: ConsumeWebAuthnChallenge :one
+-- Single use: the row is deleted whether or not the assertion then verifies.
+DELETE FROM webauthn_challenges
+WHERE challenge_digest = sqlc.arg(challenge_digest) AND purpose = sqlc.arg(purpose)
+RETURNING *;
+
+-- name: DeleteExpiredWebAuthnChallenges :execrows
+DELETE FROM webauthn_challenges WHERE expires_at < sqlc.arg(before_time);
+
+-- name: GetAccountWebAuthnUser :one
+SELECT a.id, a.status, COALESCE(i.identifier_display, '')::text AS login_email, p.first_name, p.last_name
+FROM accounts a JOIN people p ON p.id = a.person_id
+LEFT JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
+WHERE a.id = sqlc.arg(account_id);
+

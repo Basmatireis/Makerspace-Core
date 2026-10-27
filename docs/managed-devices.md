@@ -25,7 +25,7 @@ Visitor enrollment uses it for the profile photo: the picker offers "Start camer
 
 Configured capabilities describe what administrators permit. A native client reports what is currently present through `PUT /api/v1/managed-devices/self/hardware`; the effective set is their intersection. The device identity comes only from its credential, never from a request-body ID. Reports replace the previous reported set transactionally and write an audit event without storing the token or hardware identifiers.
 
-Role grants can apply everywhere, to any valid managed device, or to selected administrator-maintained device types. Revocation and expiry are checked against PostgreSQL on every request, so device-scoped privileges disappear immediately. The protected `master` role remains unrestricted everywhere.
+Role grants can apply everywhere, to any valid managed device, or to selected administrator-maintained device types. Revocation and expiry are checked against PostgreSQL on every request, so device-scoped privileges disappear immediately. The protected `master` role remains unrestricted everywhere once its session has `strong_mfa` assurance.
 
 Provision a device by creating its type and device, copying the one-time token into the native client, and configuring that client's Core URL. Rotation replaces the digest immediately. Only revoked devices may be hard-deleted. IP addresses, MAC addresses, hostnames, and browser fingerprints are deliberately not security boundaries. Private browsers remain unregistered unless an administrator explicitly uses browser binding. Installing the desktop application does not register a device until its one-time native token is entered and accepted.
 

@@ -102,7 +102,7 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 		pgErr.Code != "23502" {
 		t.Fatalf("pre-repair session insert error = %v, want authenticated_at not-null violation", err)
 	}
-	applyMigrationFiles(t, pool, migrations[11:])
+	applyMigrationFiles(t, pool, append(migrations[11:], laterMigrationFiles(t)...))
 
 	var gotPersonID, gotAccountID, gotIdentityID uuid.UUID
 	var gotStatus, gotKind, gotIdentifierDisplay, gotIdentifierNormalized, gotHash string
@@ -154,7 +154,7 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	}
 	if preMigrationAuthentication.Principal.AccountID != accountID ||
 		preMigrationAuthentication.Principal.PersonID != personID ||
-		!preMigrationAuthentication.Principal.Master ||
+		preMigrationAuthentication.Principal.Master || !preMigrationAuthentication.Principal.HoldsMasterRole ||
 		preMigrationAuthentication.Principal.Assurance != "normal" ||
 		preMigrationAuthentication.AuthMethod != "password" {
 		t.Fatalf("migrated session principal = %#v", preMigrationAuthentication.Principal)
@@ -178,7 +178,7 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 			migratedSessionAuthenticatedAt,
 		)
 	}
-	session, err := service.Login(ctx, strings.ToUpper(email), password, "migration-regression", nil)
+	session, err := loginSession(service.Login(ctx, strings.ToUpper(email), password, "migration-regression", nil))
 	if err != nil {
 		t.Fatalf("login with original password after migration: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestAuditActorTypeMigrationBackfillsHistoricalSemantics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	applyMigrationFiles(t, pool, migrations[19:])
+	applyMigrationFiles(t, pool, append(migrations[19:], laterMigrationFiles(t)...))
 	for id, want := range map[uuid.UUID]string{
 		userEvent:    "user",
 		adminEvent:   "system",
@@ -335,7 +335,7 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	oldSession, err := authService.Login(ctx, "CLI-LOGIN@EXAMPLE.TEST", oldPassword, "before-cli-reset", nil)
+	oldSession, err := loginSession(authService.Login(ctx, "CLI-LOGIN@EXAMPLE.TEST", oldPassword, "before-cli-reset", nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -599,4 +599,25 @@ func asPostgresError(err error, target **pgconn.PgError) bool {
 		*target = pgErr
 	}
 	return ok
+}
+
+// laterMigrationFiles are the migrations after 41: the chain tests finish on the current schema, which the current
+// authentication code reads.
+func laterMigrationFiles(t *testing.T) []string {
+	t.Helper()
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot locate migration test")
+	}
+	paths, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "..", "..", "migrations", "*.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	later := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if filepath.Base(path) > "00041_"+strings.Repeat("z", 200) {
+			later = append(later, path)
+		}
+	}
+	return later
 }

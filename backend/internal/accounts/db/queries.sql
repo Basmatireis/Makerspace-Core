@@ -242,3 +242,16 @@ WHERE id = sqlc.arg(id) AND delivery_status = 'pending';
 -- name: MarkInvitationProvisioning :exec
 UPDATE accounts SET provisioning_source = 'invitation'
 WHERE id = sqlc.arg(id) AND first_authenticated_at IS NULL AND provisioning_source = 'local';
+
+-- name: DeleteTOTPForAccount :execrows
+DELETE FROM mfa_totp_credentials WHERE account_id = sqlc.arg(account_id);
+
+-- name: DeleteRecoveryCodesForAccount :execrows
+DELETE FROM mfa_recovery_codes WHERE account_id = sqlc.arg(account_id);
+
+-- name: DeletePasskeysForAccount :execrows
+-- Sessions signed in with one of these passkeys are deleted with it.
+DELETE FROM webauthn_credentials WHERE account_id = sqlc.arg(account_id);
+
+-- name: DeletePendingLoginsForAccount :exec
+DELETE FROM pending_logins WHERE account_id = sqlc.arg(account_id);

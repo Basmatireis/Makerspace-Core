@@ -454,8 +454,10 @@ func TestNonMasterRolePrivilegeSubsetIsEnforced(t *testing.T) {
 	targetAccount := seedAccount(t, pool, "subset-target", false)
 
 	master, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{
-		AccountID: masterAccount.accountID,
-		PersonID:  masterAccount.personID,
+		AccountID:       masterAccount.accountID,
+		PersonID:        masterAccount.personID,
+		Assurance:       authorization.AssuranceStrongMFA,
+		AuthenticatedAt: time.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -769,8 +771,10 @@ func TestRoleEffectivePermissionEvaluationUsesConfiguredContext(t *testing.T) {
 	ctx := testContext(t)
 	masterAccount := seedAccount(t, pool, "evaluation-master", true)
 	master, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{
-		AccountID: masterAccount.accountID,
-		PersonID:  masterAccount.personID,
+		AccountID:       masterAccount.accountID,
+		PersonID:        masterAccount.personID,
+		Assurance:       authorization.AssuranceStrongMFA,
+		AuthenticatedAt: time.Now(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -911,6 +915,7 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 		adminPool.Close()
 		t.Fatal(err)
 	}
+	registerTestPool(t, pool)
 	t.Cleanup(func() {
 		pool.Close()
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

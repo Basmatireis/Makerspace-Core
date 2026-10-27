@@ -1729,6 +1729,7 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	defer server.Close()
 	login := func(account seededAccount) (*http.Client, string) {
 		session, csrf := insertTestSession(t, pool, account)
+		elevateMasterSessions(t, pool)
 		return clientWithSession(t, server.URL, session, csrf), csrf
 	}
 	editorClient, editorCSRF := login(editor)

@@ -732,6 +732,12 @@ type ManagedDeviceReportedCapability struct {
 	Capability      string
 }
 
+type MasterReauthenticationPermission struct {
+	PermissionID  string
+	WithinMinutes int32
+	UpdatedAt     time.Time
+}
+
 type Material struct {
 	ID                uuid.UUID
 	Name              string
@@ -782,6 +788,24 @@ type MaterialType struct {
 type MaterialTypeProcess struct {
 	MaterialTypeID uuid.UUID
 	Process        string
+}
+
+type MfaRecoveryCode struct {
+	ID         uuid.UUID
+	AccountID  uuid.UUID
+	CodeDigest []byte
+	UsedAt     pgtype.Timestamptz
+	CreatedAt  time.Time
+}
+
+type MfaTotpCredential struct {
+	ID               uuid.UUID
+	AccountID        uuid.UUID
+	SecretCiphertext []byte
+	ConfirmedAt      pgtype.Timestamptz
+	LastUsedStep     *int64
+	LastUsedAt       pgtype.Timestamptz
+	CreatedAt        time.Time
 }
 
 type OidcFlow struct {
@@ -1054,6 +1078,17 @@ type PaymentAllocation struct {
 	ReversesAllocationID *uuid.UUID
 	ActorAccountID       *uuid.UUID
 	CreatedAt            time.Time
+}
+
+type PendingLogin struct {
+	ID              uuid.UUID
+	TokenDigest     []byte
+	AccountID       uuid.UUID
+	AuthIdentityID  uuid.UUID
+	ManagedDeviceID *uuid.UUID
+	FailedAttempts  int32
+	ExpiresAt       time.Time
+	CreatedAt       time.Time
 }
 
 type Person struct {
@@ -1382,11 +1417,12 @@ type Role struct {
 }
 
 type RolePermissionGrant struct {
-	ID               uuid.UUID
-	RoleID           uuid.UUID
-	PermissionID     string
-	Scope            string
-	MinimumAssurance string
+	ID                  uuid.UUID
+	RoleID              uuid.UUID
+	PermissionID        string
+	Scope               string
+	MinimumAssurance    string
+	ReauthWithinMinutes *int32
 }
 
 type RolePermissionGrantDeviceType struct {
@@ -1436,10 +1472,17 @@ type ScimUser struct {
 	UpdatedAt        time.Time
 }
 
+type SecondFactorThrottle struct {
+	AccountID    uuid.UUID
+	FailureCount int32
+	BlockedUntil pgtype.Timestamptz
+	UpdatedAt    time.Time
+}
+
 type Session struct {
 	ID                     uuid.UUID
 	AccountID              uuid.UUID
-	AuthIdentityID         uuid.UUID
+	AuthIdentityID         *uuid.UUID
 	TokenDigest            []byte
 	CsrfDigest             []byte
 	AuthMethod             string
@@ -1458,6 +1501,9 @@ type Session struct {
 	SessionPolicyVersion   int64
 	IdleTimeoutSeconds     int32
 	PostSessionDestination string
+	AuthenticatedAssurance *string
+	MfaSetupRequired       bool
+	WebauthnCredentialID   *uuid.UUID
 }
 
 type SessionPolicy struct {
@@ -1927,6 +1973,28 @@ type VisitorEnrollmentContext struct {
 
 type VisitorEnrollmentDeviceType struct {
 	DeviceTypeID uuid.UUID
+}
+
+type WebauthnChallenge struct {
+	ID              uuid.UUID
+	ChallengeDigest []byte
+	Purpose         string
+	AccountID       *uuid.UUID
+	SessionID       *uuid.UUID
+	PendingLoginID  *uuid.UUID
+	SessionData     []byte
+	ExpiresAt       time.Time
+	CreatedAt       time.Time
+}
+
+type WebauthnCredential struct {
+	ID           uuid.UUID
+	AccountID    uuid.UUID
+	CredentialID []byte
+	Credential   []byte
+	Name         string
+	CreatedAt    time.Time
+	LastUsedAt   pgtype.Timestamptz
 }
 
 type WirefDeliverySetting struct {

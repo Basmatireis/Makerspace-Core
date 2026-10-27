@@ -57,6 +57,7 @@ const (
 	operationStateContextKey
 	normalizedRouteContextKey
 	oidcFlowTokenContextKey
+	pendingLoginTokenContextKey
 	scimConnectorContextKey
 	visitorDeviceContextKey
 	visitorEnrollmentContextKey
@@ -223,6 +224,9 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 		}
 		if cookie, err := r.Cookie(s.config.OIDCFlowCookieName); err == nil {
 			r = r.WithContext(context.WithValue(r.Context(), oidcFlowTokenContextKey, cookie.Value))
+		}
+		if cookie, err := r.Cookie(pendingLoginCookieName(s.config)); err == nil {
+			r = r.WithContext(context.WithValue(r.Context(), pendingLoginTokenContextKey, cookie.Value))
 		}
 		if isPrinterConnectorPath(r.URL.Path) {
 			scheme, token, found := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
@@ -584,6 +588,19 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				return
 			}
 		}
+		if authenticated.MFASetupRequired && !s.routes.allowsDuringMFASetup(r.Context()) {
+			writeAPIError(
+				w,
+				r,
+				apperror.New(
+					http.StatusForbidden,
+					"mfa_setup_required",
+					"Set up a second factor before you continue",
+				),
+				logger,
+			)
+			return
+		}
 		ctx = context.WithValue(r.Context(), authenticatedContextKey, authenticated)
 		if state, ok := ctx.Value(operationStateContextKey).(*operationState); ok {
 			userID := authenticated.Principal.AccountID
@@ -922,6 +939,19 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, err error, logger *sl
 		)
 		err = appError
 	}
+	if errors.As(err, &appError) && appError.Code == apperror.PermissionDenied.Code {
+		// A permission that a grant would allow after a fresh sign-in is reported as such, so the client can ask
+		// for reauthentication instead of showing a plain denial.
+		if authenticated, ok := r.Context().Value(authenticatedContextKey).(auth.Authenticated); ok {
+			if requirement, denied := authenticated.Principal.ReauthenticationDenial(); denied {
+				err = auth.ReauthenticationRequired(
+					requirement.Assurance,
+					time.Duration(requirement.WithinMinutes)*time.Minute,
+				)
+				appError = nil
+			}
+		}
+	}
 	if errors.As(err, &appError) {
 		status = appError.HTTPStatus
 		response.Code = appError.Code
@@ -1044,6 +1074,7 @@ func managedDeviceAllowsMode(device manageddevices.DeviceContext, mode managedde
 
 func isStaffSessionEntryPath(path string) bool {
 	return path == apiBasePath+"/auth/login" || path == apiBasePath+"/auth/pin/login" ||
+		strings.HasPrefix(path, apiBasePath+"/auth/login/") || strings.HasPrefix(path, apiBasePath+"/auth/passkey/") ||
 		path == apiBasePath+"/auth/oidc/callback" ||
 		(strings.HasPrefix(path, apiBasePath+"/auth/oidc/") && strings.HasSuffix(path, "/start"))
 }

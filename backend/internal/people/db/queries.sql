@@ -204,7 +204,7 @@ ORDER BY pr.person_id, r.system_key DESC NULLS LAST, lower(r.name), r.id;
 SELECT * FROM roles WHERE id = sqlc.arg(id) FOR SHARE;
 
 -- name: GetRolePermissionGrantsForAssignment :many
-SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, gdt.device_type_id
+SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, g.reauth_within_minutes, gdt.device_type_id
 FROM role_permission_grants g
 LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
 WHERE g.role_id = sqlc.arg(role_id)

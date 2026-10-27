@@ -25,13 +25,28 @@ import type {
   CompletePasswordResetCodeRequest,
   CompletePasswordResetRequest,
   CompletePinEnrollmentRequest,
+  CurrentAuthentication,
   CurrentUser,
   EnrollPinRequest,
   LoginRequest,
+  Passkey,
+  PasskeyAssertionRequest,
+  PasskeyRegistrationRequest,
   PinLoginRequest,
+  ReauthenticateRequest,
+  RecoveryCodeList,
   RemoveOwnPasswordRequest,
+  RenamePasskeyRequest,
   RequestPasswordResetRequest,
-  SessionContext
+  SecondFactorCodeRequest,
+  SecondFactorEnrollmentResult,
+  SecondFactorRequired,
+  SecondFactorSummary,
+  SessionContext,
+  TotpCodeRequest,
+  TotpEnrollment,
+  UUIDv7,
+  WebAuthnOptions
 } from '../models';
 
 import { apiFetch } from '../../http-client';
@@ -48,9 +63,19 @@ export const getLoginUrl = () => {
  * On success, sets an HttpOnly session cookie and a separate readable CSRF
  * cookie. Authentication failures use one generic response regardless of
  * whether the email exists.
+ *
+ * An account with a second factor (authenticator app or passkey) gets no
+ * session yet: the answer is `202` with the available methods and an
+ * HttpOnly, single-use pending-login cookie valid for five minutes. The
+ * login completes with `POST /auth/login/second-factor` or the passkey
+ * second-factor endpoints and then has `strong_mfa` assurance. Accounts
+ * without a second factor get a `normal` session as before; when such an
+ * account must use a second factor (master, or a role grant requiring
+ * `strong_mfa`) the session is flagged `mfaSetupRequired` and every
+ * operation outside second-factor setup answers `403 mfa_setup_required`.
  * @summary Start an email/password session
  */
-export const login = async (loginRequest: LoginRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+export const login = async (loginRequest: LoginRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SecondFactorRequired | void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -66,7 +91,7 @@ export const login = async (loginRequest: LoginRequest, options?: Parameters<typ
     }
     return headers;
   };
-return apiFetch<void>(getLoginUrl(),
+return apiFetch<SecondFactorRequired | void>(getLoginUrl(),
   {
     ...options,
     method: 'POST',
@@ -242,7 +267,7 @@ export const getGetCurrentUserUrl = () => {
 }
 
 /**
- * Permissions and account state are resolved from current server state.
+ * Permissions and account state are resolved from current server state. `authentication` tells the frontend whether a second factor must be set up and which permissions wait for a fresh sign-in.
  * @summary Return the authenticated principal and current permissions
  */
 export const getCurrentUser = async ( options?: Parameters<typeof apiFetch>[1]): Promise<CurrentUser> => {
@@ -251,6 +276,540 @@ export const getCurrentUser = async ( options?: Parameters<typeof apiFetch>[1]):
   {
     ...options,
     method: 'GET'
+
+
+  }
+);}
+
+
+export const getCompleteSecondFactorLoginUrl = () => {
+
+
+
+
+  return `/api/v1/auth/login/second-factor`
+}
+
+/**
+ * Requires the HttpOnly pending-login cookie set by a `202` answer of `POST /auth/login`. The pending login is
+ * single-use and expires after five minutes; five wrong codes end it. Failed verifications are also throttled
+ * per account (`second_factor_rate_limited`). On success the pending login is consumed and a session with
+ * `strong_mfa` assurance is created.
+ * @summary Complete a pending password login with a TOTP or recovery code
+ */
+export const completeSecondFactorLogin = async (secondFactorCodeRequest: SecondFactorCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getCompleteSecondFactorLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(secondFactorCodeRequest)
+  }
+);}
+
+
+export const getStartSecondFactorPasskeyUrl = () => {
+
+
+
+
+  return `/api/v1/auth/login/second-factor/passkey/options`
+}
+
+/**
+ * Returns WebAuthn request options (`navigator.credentials.get`) limited to the pending account's passkeys, with user verification required. The challenge is stored server-side for five minutes and bound to the pending login.
+ * @summary Start a passkey assertion that completes a pending password login
+ */
+export const startSecondFactorPasskey = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WebAuthnOptions> => {
+
+  return apiFetch<WebAuthnOptions>(getStartSecondFactorPasskeyUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getCompleteSecondFactorPasskeyUrl = () => {
+
+
+
+
+  return `/api/v1/auth/login/second-factor/passkey`
+}
+
+/**
+ * @summary Complete a pending password login with a passkey assertion
+ */
+export const completeSecondFactorPasskey = async (passkeyAssertionRequest: PasskeyAssertionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getCompleteSecondFactorPasskeyUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(passkeyAssertionRequest)
+  }
+);}
+
+
+export const getStartPasskeyLoginUrl = () => {
+
+
+
+
+  return `/api/v1/auth/passkey/options`
+}
+
+/**
+ * Returns WebAuthn request options without `allowCredentials` (discoverable credentials), with user verification required. The challenge is single-use and expires after five minutes.
+ * @summary Start a usernameless passkey login
+ */
+export const startPasskeyLogin = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WebAuthnOptions> => {
+
+  return apiFetch<WebAuthnOptions>(getStartPasskeyLoginUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getCompletePasskeyLoginUrl = () => {
+
+
+
+
+  return `/api/v1/auth/passkey/login`
+}
+
+/**
+ * Verifies the assertion against the stored challenge, the relying party ID and origin derived from
+ * `PUBLIC_BASE_URL`, the user handle, and user verification. A passkey with user verification is two factors in
+ * one, so the session has `strong_mfa` assurance. A sign counter that does not increase is treated as a possible
+ * clone and rejected. Failures answer `401 invalid_credentials`.
+ * @summary Sign in with a discoverable passkey
+ */
+export const completePasskeyLogin = async (passkeyAssertionRequest: PasskeyAssertionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getCompletePasskeyLoginUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(passkeyAssertionRequest)
+  }
+);}
+
+
+export const getReauthenticateUrl = () => {
+
+
+
+
+  return `/api/v1/auth/reauthenticate`
+}
+
+/**
+ * Step-up reauthentication without a new session. The password is always required. An account with a second
+ * factor must also send `totpCode` or `recoveryCode`; the proof then has `strong_mfa` assurance and raises the
+ * session to `strong_mfa`. Without a second factor the proof has `normal` assurance. The session's
+ * `authenticatedAt` becomes now, which satisfies grants and master permissions that require a fresh sign-in.
+ * Password attempts are bounded per account; second-factor failures use the per-account throttle.
+ * @summary Prove the current password (and second factor) again for the current session
+ */
+export const reauthenticate = async (reauthenticateRequest: ReauthenticateRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CurrentAuthentication> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<CurrentAuthentication>(getReauthenticateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(reauthenticateRequest)
+  }
+);}
+
+
+export const getStartPasskeyReauthenticationUrl = () => {
+
+
+
+
+  return `/api/v1/auth/reauthenticate/passkey/options`
+}
+
+/**
+ * @summary Start a passkey assertion that reauthenticates the current session
+ */
+export const startPasskeyReauthentication = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WebAuthnOptions> => {
+
+  return apiFetch<WebAuthnOptions>(getStartPasskeyReauthenticationUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getCompletePasskeyReauthenticationUrl = () => {
+
+
+
+
+  return `/api/v1/auth/reauthenticate/passkey`
+}
+
+/**
+ * A verified passkey assertion with user verification is a `strong_mfa` proof; the session becomes `strong_mfa` and `authenticatedAt` becomes now.
+ * @summary Reauthenticate the current session with a passkey
+ */
+export const completePasskeyReauthentication = async (passkeyAssertionRequest: PasskeyAssertionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CurrentAuthentication> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<CurrentAuthentication>(getCompletePasskeyReauthenticationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(passkeyAssertionRequest)
+  }
+);}
+
+
+export const getGetOwnSecondFactorsUrl = () => {
+
+
+
+
+  return `/api/v1/auth/second-factors`
+}
+
+/**
+ * Kinds, names and timestamps only; never secrets. Needs only a staff session.
+ * @summary List the current account's second factors
+ */
+export const getOwnSecondFactors = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SecondFactorSummary> => {
+
+  return apiFetch<SecondFactorSummary>(getGetOwnSecondFactorsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getStartTotpEnrollmentUrl = () => {
+
+
+
+
+  return `/api/v1/auth/second-factors/totp/enrollment`
+}
+
+/**
+ * Needs a staff session with `normal` or higher authentication within the last ten minutes; no permission,
+ * because accounts that must use a second factor have to be able to enroll one. Returns a new secret and its
+ * `otpauth://` URI (RFC 6238: SHA-1, six digits, 30 seconds) for a QR code. The secret is stored encrypted and
+ * is only shown in this response. Starting again replaces an unconfirmed enrollment; an account has at most one
+ * confirmed authenticator app (`409 totp_already_enrolled`). The enrollment must be confirmed within ten minutes.
+ * @summary Start enrolling an authenticator app (TOTP)
+ */
+export const startTotpEnrollment = async ( options?: Parameters<typeof apiFetch>[1]): Promise<TotpEnrollment> => {
+
+  return apiFetch<TotpEnrollment>(getStartTotpEnrollmentUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getConfirmTotpEnrollmentUrl = () => {
+
+
+
+
+  return `/api/v1/auth/second-factors/totp/enrollment/confirm`
+}
+
+/**
+ * Activates the pending TOTP credential. When it is the account's first second factor, ten single-use recovery
+ * codes are generated and returned once. The current session is raised to `strong_mfa` (it proved a password or
+ * stronger login plus the new factor) and a forced setup (`mfa_setup_required`) ends.
+ * @summary Confirm the authenticator app with a current code
+ */
+export const confirmTotpEnrollment = async (totpCodeRequest: TotpCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SecondFactorEnrollmentResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SecondFactorEnrollmentResult>(getConfirmTotpEnrollmentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(totpCodeRequest)
+  }
+);}
+
+
+export const getRemoveOwnTotpUrl = () => {
+
+
+
+
+  return `/api/v1/auth/second-factors/totp`
+}
+
+/**
+ * Needs `strong_mfa` authentication within the last ten minutes (`reauthentication_required` otherwise). Removing the last second factor also deletes the recovery codes. Other sessions of the account are revoked.
+ * @summary Remove the current account's authenticator app
+ */
+export const removeOwnTotp = async ( options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getRemoveOwnTotpUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getRegenerateRecoveryCodesUrl = () => {
+
+
+
+
+  return `/api/v1/auth/second-factors/recovery-codes`
+}
+
+/**
+ * Needs an enrolled second factor and `strong_mfa` authentication within the last ten minutes. Every earlier recovery code stops working; the ten new codes are returned once.
+ * @summary Replace the current account's recovery codes
+ */
+export const regenerateRecoveryCodes = async ( options?: Parameters<typeof apiFetch>[1]): Promise<RecoveryCodeList> => {
+
+  return apiFetch<RecoveryCodeList>(getRegenerateRecoveryCodesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getStartPasskeyRegistrationUrl = () => {
+
+
+
+
+  return `/api/v1/auth/second-factors/passkeys/registration-options`
+}
+
+/**
+ * Needs a staff session with `normal` or higher authentication within the last ten minutes. Returns WebAuthn creation options (`navigator.credentials.create`) for a discoverable (resident) credential with user verification required, excluding the account's existing passkeys. The relying party ID is the host of `PUBLIC_BASE_URL`. The challenge is bound to the session and expires after five minutes.
+ * @summary Start registering a passkey for the current account
+ */
+export const startPasskeyRegistration = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WebAuthnOptions> => {
+
+  return apiFetch<WebAuthnOptions>(getStartPasskeyRegistrationUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getRegisterPasskeyUrl = () => {
+
+
+
+
+  return `/api/v1/auth/second-factors/passkeys`
+}
+
+/**
+ * Verifies the attestation response against the stored challenge, origin and relying party ID, and requires user verification. When it is the account's first second factor, recovery codes are generated and returned once. The current session is raised to `strong_mfa` and a forced setup ends.
+ * @summary Finish registering a passkey
+ */
+export const registerPasskey = async (passkeyRegistrationRequest: PasskeyRegistrationRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SecondFactorEnrollmentResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SecondFactorEnrollmentResult>(getRegisterPasskeyUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(passkeyRegistrationRequest)
+  }
+);}
+
+
+export const getRenamePasskeyUrl = (passkeyId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/auth/second-factors/passkeys/${passkeyId}`
+}
+
+/**
+ * @summary Rename one of the current account's passkeys
+ */
+export const renamePasskey = async (passkeyId: UUIDv7,
+    renamePasskeyRequest: RenamePasskeyRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Passkey> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<Passkey>(getRenamePasskeyUrl(passkeyId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(renamePasskeyRequest)
+  }
+);}
+
+
+export const getRemovePasskeyUrl = (passkeyId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/auth/second-factors/passkeys/${passkeyId}`
+}
+
+/**
+ * Needs `strong_mfa` authentication within the last ten minutes. Sessions that were signed in with this passkey end; other sessions of the account are revoked. Removing the last second factor also deletes the recovery codes.
+ * @summary Remove one of the current account's passkeys
+ */
+export const removePasskey = async (passkeyId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getRemovePasskeyUrl(passkeyId),
+  {
+    ...options,
+    method: 'DELETE'
 
 
   }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sort"
+	"sync"
 	"time"
 
 	authorizationdb "github.com/Basmatireis/Makerspace-Core/backend/internal/authorization/db"
@@ -56,6 +57,7 @@ const (
 	AccountsPINRemoveSelf              Permission = Permission(openapi.AccountsPinRemoveSelf)
 	AccountsPINRemoveAll               Permission = Permission(openapi.AccountsPinRemoveAll)
 	AccountsPINReset                   Permission = Permission(openapi.AccountsPinReset)
+	AccountsMFAReset                   Permission = Permission(openapi.AccountsMfaReset)
 	PeopleRolesAssign                  Permission = Permission(openapi.PeopleRolesAssign)
 	RolesRead                          Permission = Permission(openapi.RolesRead)
 	RolesManage                        Permission = Permission(openapi.RolesManage)
@@ -159,6 +161,7 @@ var registry = []Permission{
 	AccountsLoginEmailUpdate, AccountsPasswordSet, AccountsPasswordReset,
 	AccountsPasswordEnrollSelf, AccountsPasswordEnrollAll, AccountsPasswordRemoveSelf, AccountsPasswordRemoveAll,
 	AccountsPINEnrollSelf, AccountsPINEnrollAll, AccountsPINRemoveSelf, AccountsPINRemoveAll, AccountsPINReset,
+	AccountsMFAReset,
 	PeopleRolesAssign,
 	RolesRead, RolesManage, AuditRead,
 	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage,
@@ -231,6 +234,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	AccountsPINRemoveSelf:              "Remove the current account's PIN method.",
 	AccountsPINRemoveAll:               "Remove another account's PIN method and revoke its sessions.",
 	AccountsPINReset:                   "Replace or issue a one-time PIN setup challenge for another account.",
+	AccountsMFAReset:                   "Remove every second factor of another account (a master account's only by a master).",
 	PeopleRolesAssign:                  "Assign or remove permitted roles on people.",
 	RolesRead:                          "Read roles and the application permission registry.",
 	RolesManage:                        "Create, update, and delete permitted configurable roles.",
@@ -323,12 +327,33 @@ const (
 	AssuranceStrongMFA Assurance = "strong_mfa"
 )
 
+// Bounds of a grant's fresh-sign-in window.
+const (
+	MinReauthWithinMinutes = 1
+	MaxReauthWithinMinutes = 1440
+)
+
 type PermissionGrant struct {
 	ID               uuid.UUID
 	PermissionID     Permission
 	Scope            GrantScope
 	DeviceTypeIDs    []uuid.UUID
 	MinimumAssurance Assurance
+	// ReauthWithinMinutes, when set, requires that the session's last (re)authentication at MinimumAssurance is at
+	// most this many minutes old. A shorter window is stricter.
+	ReauthWithinMinutes *int
+}
+
+// ReauthenticationRequirement is what a fresh sign-in must prove for a withheld permission.
+type ReauthenticationRequirement struct {
+	Assurance     Assurance
+	WithinMinutes int
+}
+
+// PendingPermission is a permission that a grant (or the master policy) would allow after a fresh sign-in.
+type PendingPermission struct {
+	Permission  Permission
+	Requirement ReauthenticationRequirement
 }
 
 // EvaluationContext is the request context relevant to conditional permission
@@ -354,10 +379,48 @@ type Principal struct {
 	LastName        string
 	Assurance       Assurance
 	AuthenticatedAt time.Time
-	Master          bool
+	// AuthenticatedAssurance is the assurance proven at AuthenticatedAt; empty means Assurance.
+	AuthenticatedAssurance Assurance
+	// Master is the effective master bypass: the account holds the master role and the session has strong_mfa
+	// assurance. A master session below strong_mfa only gets what its other roles grant.
+	Master bool
+	// HoldsMasterRole reports the role assignment regardless of the session's assurance.
+	HoldsMasterRole bool
 	permissions     map[Permission]struct{}
 	grants          map[Permission][]PermissionGrant
+	pending         map[Permission]ReauthenticationRequirement
+	denials         *reauthenticationDenials
 	Device          *ManagedDevice
+}
+
+// reauthenticationDenials records, for one request, the permission checks that failed only because a fresh sign-in
+// is missing. Principal values are copied freely; they share this pointer, so the HTTP layer can turn the
+// resulting permission_denied into reauthentication_required.
+type reauthenticationDenials struct {
+	mu          sync.Mutex
+	permissions []Permission
+	easiest     *ReauthenticationRequirement
+}
+
+func (d *reauthenticationDenials) record(permission Permission, requirement ReauthenticationRequirement) {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.permissions = append(d.permissions, permission)
+	if d.easiest == nil || easierRequirement(requirement, *d.easiest) {
+		value := requirement
+		d.easiest = &value
+	}
+}
+
+// easierRequirement prefers the lower assurance, then the longer window.
+func easierRequirement(candidate, current ReauthenticationRequirement) bool {
+	if assuranceRank(candidate.Assurance) != assuranceRank(current.Assurance) {
+		return assuranceRank(candidate.Assurance) < assuranceRank(current.Assurance)
+	}
+	return candidate.WithinMinutes > current.WithinMinutes
 }
 
 func Registry() []Permission {
@@ -380,31 +443,64 @@ func Definitions() []Definition {
 	return result
 }
 
+// Has reports whether the permission is effective. A permission withheld only for a missing fresh sign-in is
+// recorded so the denial can be reported as reauthentication_required.
 func (p Principal) Has(permission Permission) bool {
 	if !Known(permission) {
 		return false
 	}
-	if p.Master {
+	if _, ok := p.permissions[permission]; ok {
 		return true
 	}
-	_, ok := p.permissions[permission]
-	return ok
+	if requirement, pending := p.pending[permission]; pending {
+		p.denials.record(permission, requirement)
+		return false
+	}
+	return p.Master
 }
 
 func (p Principal) PermissionIDs() []string {
-	permissions := append([]Permission(nil), registry...)
-	if !p.Master {
-		permissions = make([]Permission, 0, len(p.permissions))
-		for permission := range p.permissions {
-			permissions = append(permissions, permission)
+	set := make(map[Permission]struct{}, len(p.permissions))
+	for permission := range p.permissions {
+		set[permission] = struct{}{}
+	}
+	if p.Master {
+		for _, permission := range registry {
+			if _, pending := p.pending[permission]; !pending {
+				set[permission] = struct{}{}
+			}
 		}
 	}
-	result := make([]string, 0, len(permissions))
-	for _, permission := range permissions {
+	result := make([]string, 0, len(set))
+	for permission := range set {
 		result = append(result, string(permission))
 	}
 	sort.Strings(result)
 	return result
+}
+
+// PendingPermissions lists the permissions withheld until a fresh sign-in, sorted by permission.
+func (p Principal) PendingPermissions() []PendingPermission {
+	result := make([]PendingPermission, 0, len(p.pending))
+	for permission, requirement := range p.pending {
+		result = append(result, PendingPermission{Permission: permission, Requirement: requirement})
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Permission < result[j].Permission })
+	return result
+}
+
+// ReauthenticationDenial returns the easiest fresh sign-in that would have allowed a permission check of this
+// request that failed, if any failed for that reason.
+func (p Principal) ReauthenticationDenial() (ReauthenticationRequirement, bool) {
+	if p.denials == nil {
+		return ReauthenticationRequirement{}, false
+	}
+	p.denials.mu.Lock()
+	defer p.denials.mu.Unlock()
+	if p.denials.easiest == nil {
+		return ReauthenticationRequirement{}, false
+	}
+	return *p.denials.easiest, true
 }
 
 func (p Principal) CanReadPerson(personID uuid.UUID) bool {
@@ -415,9 +511,27 @@ func (p Principal) CanUpdatePerson(personID uuid.UUID) bool {
 	return p.Has(PeopleUpdateAll) || (p.PersonID == personID && p.Has(PeopleUpdateSelf))
 }
 
+// ProofAssurance is the assurance proven by the session's last (re)authentication.
+func (p Principal) ProofAssurance() Assurance {
+	if validAssurance(p.AuthenticatedAssurance) {
+		return p.AuthenticatedAssurance
+	}
+	return p.Assurance
+}
+
+// HasFreshAssurance reports whether the session currently has at least minimum assurance and its last
+// (re)authentication proved at least minimum within maximumAge.
 func (p Principal) HasFreshAssurance(minimum Assurance, maximumAge time.Duration, now time.Time) bool {
-	return assuranceRank(p.Assurance) >= assuranceRank(minimum) && !p.AuthenticatedAt.IsZero() &&
-		now.UTC().Sub(p.AuthenticatedAt.UTC()) >= 0 && now.UTC().Sub(p.AuthenticatedAt.UTC()) <= maximumAge
+	return assuranceRank(p.Assurance) >= assuranceRank(minimum) &&
+		freshProof(p.ProofAssurance(), p.AuthenticatedAt, minimum, maximumAge, now)
+}
+
+func freshProof(proof Assurance, authenticatedAt time.Time, minimum Assurance, maximumAge time.Duration, now time.Time) bool {
+	if !validAssurance(minimum) || assuranceRank(proof) < assuranceRank(minimum) || authenticatedAt.IsZero() {
+		return false
+	}
+	age := now.UTC().Sub(authenticatedAt.UTC())
+	return age >= 0 && age <= maximumAge
 }
 
 // LoadPermissionsFrom rebuilds a principal from current database state while
@@ -435,16 +549,21 @@ func LoadPermissions(ctx context.Context, queries authorizationdb.Querier, princ
 	// must not be able to retain master privileges by reusing a Principal value
 	// after its master assignment has been removed.
 	principal.Master = false
+	principal.HoldsMasterRole = false
 	if !validAssurance(principal.Assurance) {
 		principal.Assurance = AssuranceNormal
 	}
+	if principal.denials == nil {
+		principal.denials = &reauthenticationDenials{}
+	}
 	principal.permissions = make(map[Permission]struct{})
 	principal.grants = make(map[Permission][]PermissionGrant)
+	principal.pending = make(map[Permission]ReauthenticationRequirement)
 	byID := make(map[uuid.UUID]PermissionGrant)
 	order := make([]uuid.UUID, 0)
 	for _, row := range rows {
 		if row.SystemKey != nil && SystemKey(*row.SystemKey) == SystemKeyMaster {
-			principal.Master = true
+			principal.HoldsMasterRole = true
 		}
 		if row.PermissionID == nil || row.GrantID == nil {
 			continue
@@ -485,6 +604,10 @@ func LoadPermissions(ctx context.Context, queries authorizationdb.Querier, princ
 				Scope:            rowScope,
 				MinimumAssurance: minimum,
 			}
+			if row.ReauthWithinMinutes != nil {
+				window := int(*row.ReauthWithinMinutes)
+				grant.ReauthWithinMinutes = &window
+			}
 			order = append(order, *row.GrantID)
 		}
 		if row.DeviceTypeID != nil {
@@ -492,21 +615,65 @@ func LoadPermissions(ctx context.Context, queries authorizationdb.Querier, princ
 		}
 		byID[*row.GrantID] = grant
 	}
+	now := time.Now()
 	for _, id := range order {
 		grant := byID[id]
 		principal.grants[grant.PermissionID] = append(principal.grants[grant.PermissionID], grant)
-		if principal.grantEffective(grant) {
-			permission := grant.PermissionID
+		if !principal.grantApplies(grant) {
+			continue
+		}
+		if principal.fresh(grant.MinimumAssurance, grant.ReauthWithinMinutes, now) {
+			principal.permissions[grant.PermissionID] = struct{}{}
+			continue
+		}
+		principal.addPending(grant.PermissionID, ReauthenticationRequirement{
+			Assurance: grant.MinimumAssurance, WithinMinutes: *grant.ReauthWithinMinutes,
+		})
+	}
+	// The master role's universal permissions need a multi-factor session; below that, the account only has what
+	// its other roles grant.
+	if principal.HoldsMasterRole && assuranceRank(principal.Assurance) >= assuranceRank(AssuranceStrongMFA) {
+		principal.Master = true
+		policy, err := queries.ListMasterReauthenticationPermissions(ctx)
+		if err != nil {
+			return Principal{}, err
+		}
+		windows := make(map[Permission]int, len(policy))
+		for _, entry := range policy {
+			windows[Permission(entry.PermissionID)] = int(entry.WithinMinutes)
+		}
+		for _, permission := range registry {
+			window, restricted := windows[permission]
+			if restricted && !principal.fresh(AssuranceStrongMFA, &window, now) {
+				principal.addPending(permission, ReauthenticationRequirement{
+					Assurance: AssuranceStrongMFA, WithinMinutes: window,
+				})
+				continue
+			}
 			principal.permissions[permission] = struct{}{}
 		}
+	}
+	for permission := range principal.permissions {
+		delete(principal.pending, permission)
 	}
 	return principal, nil
 }
 
-func (p Principal) grantEffective(grant PermissionGrant) bool {
-	if p.Master {
+func (p Principal) addPending(permission Permission, requirement ReauthenticationRequirement) {
+	if current, exists := p.pending[permission]; !exists || easierRequirement(requirement, current) {
+		p.pending[permission] = requirement
+	}
+}
+
+func (p Principal) fresh(minimum Assurance, withinMinutes *int, now time.Time) bool {
+	if withinMinutes == nil {
 		return true
 	}
+	return freshProof(p.ProofAssurance(), p.AuthenticatedAt, minimum, time.Duration(*withinMinutes)*time.Minute, now)
+}
+
+// grantApplies evaluates scope and assurance of a grant for this principal, without its fresh-sign-in window.
+func (p Principal) grantApplies(grant PermissionGrant) bool {
 	var deviceTypeID *uuid.UUID
 	if p.Device != nil {
 		deviceTypeID = &p.Device.DeviceTypeID
@@ -516,7 +683,8 @@ func (p Principal) grantEffective(grant PermissionGrant) bool {
 
 // EffectivePermissions resolves a configured grant set for a hypothetical
 // request context. It intentionally shares GrantEffective with live Principal
-// authorization so administrative previews cannot drift from enforcement.
+// authorization so administrative previews cannot drift from enforcement. A grant that requires a fresh sign-in is
+// listed as if that sign-in had just happened.
 func EffectivePermissions(grants []PermissionGrant, evaluation EvaluationContext) []Permission {
 	effective := make(map[Permission]struct{})
 	for _, grant := range grants {
@@ -532,11 +700,12 @@ func EffectivePermissions(grants []PermissionGrant, evaluation EvaluationContext
 	return result
 }
 
-// GrantEffective reports whether one grant applies in the supplied context.
+// GrantEffective reports whether one grant applies in the supplied context, apart from its fresh-sign-in window.
 // Invalid grant data and invalid assurance values fail closed.
 func GrantEffective(grant PermissionGrant, evaluation EvaluationContext) bool {
 	if !Known(grant.PermissionID) || !validGrantScope(grant.Scope) ||
-		!validAssurance(grant.MinimumAssurance) || !validAssurance(evaluation.Assurance) {
+		!validAssurance(grant.MinimumAssurance) || !validAssurance(evaluation.Assurance) ||
+		!ValidReauthWindow(grant.ReauthWithinMinutes) {
 		return false
 	}
 	if assuranceRank(evaluation.Assurance) < assuranceRank(grant.MinimumAssurance) {
@@ -560,6 +729,20 @@ func GrantEffective(grant PermissionGrant, evaluation EvaluationContext) bool {
 		}
 	}
 	return false
+}
+
+// ReauthWindowFromDB converts a stored fresh-sign-in window.
+func ReauthWindowFromDB(value *int32) *int {
+	if value == nil {
+		return nil
+	}
+	window := int(*value)
+	return &window
+}
+
+// ValidReauthWindow accepts no window or one within the allowed bounds.
+func ValidReauthWindow(window *int) bool {
+	return window == nil || (*window >= MinReauthWithinMinutes && *window <= MaxReauthWithinMinutes)
 }
 
 func (p Principal) DelegablePermissionGrants() []PermissionGrant {
@@ -590,7 +773,7 @@ func (p Principal) CanDelegate(grant PermissionGrant) bool {
 	if !validGrantScope(grant.Scope) || (grant.Scope == GrantSelectedDeviceTypes && len(grant.DeviceTypeIDs) == 0) {
 		return false
 	}
-	if !validAssurance(grant.MinimumAssurance) {
+	if !validAssurance(grant.MinimumAssurance) || !ValidReauthWindow(grant.ReauthWithinMinutes) {
 		return false
 	}
 	if p.Master {
@@ -620,9 +803,15 @@ func (p Principal) CanDelegate(grant PermissionGrant) bool {
 	return true
 }
 
+// grantCoveredBy treats the fresh-sign-in window as part of the assurance envelope: a delegated grant may not drop
+// or lengthen the window of the grant it is derived from.
 func grantCoveredBy(envelope, requested PermissionGrant, selectedType uuid.UUID) bool {
 	if !validGrantScope(envelope.Scope) || !validAssurance(envelope.MinimumAssurance) ||
 		assuranceRank(envelope.MinimumAssurance) > assuranceRank(requested.MinimumAssurance) {
+		return false
+	}
+	if envelope.ReauthWithinMinutes != nil &&
+		(requested.ReauthWithinMinutes == nil || *requested.ReauthWithinMinutes > *envelope.ReauthWithinMinutes) {
 		return false
 	}
 	switch requested.Scope {
@@ -646,6 +835,11 @@ func grantCoveredBy(envelope, requested PermissionGrant, selectedType uuid.UUID)
 func validAssurance(value Assurance) bool { return assuranceRank(value) >= 0 }
 
 func ValidAssurance(value Assurance) bool { return validAssurance(value) }
+
+// AtLeast reports whether value is at least minimum in the assurance order.
+func AtLeast(value, minimum Assurance) bool {
+	return validAssurance(value) && validAssurance(minimum) && assuranceRank(value) >= assuranceRank(minimum)
+}
 
 func assuranceRank(value Assurance) int {
 	switch value {

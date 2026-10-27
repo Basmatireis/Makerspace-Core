@@ -17,12 +17,16 @@ type Querier interface {
 	// A role that stops being a supervisor role can no longer be the role promotions assign.
 	ClearSupervisorRoleRequirement(ctx context.Context, roleID *uuid.UUID) error
 	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
+	DeleteMasterReauthenticationPolicy(ctx context.Context) error
 	DeleteRole(ctx context.Context, arg DeleteRoleParams) (uuid.UUID, error)
 	DeleteRolePermissions(ctx context.Context, roleID uuid.UUID) error
 	GetRole(ctx context.Context, id uuid.UUID) (Role, error)
 	GetRoleForMutation(ctx context.Context, id uuid.UUID) (Role, error)
 	GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsRow, error)
+	InsertMasterReauthenticationPermission(ctx context.Context, arg InsertMasterReauthenticationPermissionParams) error
+	ListMasterReauthenticationPolicy(ctx context.Context) ([]ListMasterReauthenticationPolicyRow, error)
 	ListRoles(ctx context.Context) ([]Role, error)
+	LockMasterReauthenticationPolicy(ctx context.Context) error
 	RoleAssignmentCount(ctx context.Context, roleID uuid.UUID) (int64, error)
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, error)
 }

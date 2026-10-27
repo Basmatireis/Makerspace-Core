@@ -280,6 +280,7 @@ func TestBrandingAssetUploadAcceptsContractBinaryContentType(t *testing.T) {
 	cfg.CSRFCookieName = "makerspace_csrf"
 	account := seedAccount(t, pool, "branding-upload-http", true)
 	sessionToken, csrfToken := insertTestSession(t, pool, account)
+	elevateMasterSessions(t, pool)
 	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)

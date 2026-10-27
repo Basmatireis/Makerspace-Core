@@ -29,4 +29,11 @@ export interface PermissionGrant {
   scope: PermissionGrantScope;
   deviceTypeIds: UUIDv7[];
   minimumAssurance: AuthenticationAssurance;
+  /**
+     * When set, the grant applies only while the session's last sign-in or reauthentication at the grant's minimum assurance is at most this many minutes old; otherwise the operation answers `403 reauthentication_required`. Omitted or null means no fresh sign-in is required. Delegation treats a shorter window as stricter.
+     * @minimum 1
+     * @maximum 1440
+     * @nullable
+     */
+  reauthWithinMinutes?: number | null;
 }

@@ -220,6 +220,19 @@ func (q *Queries) DeletePINEnrollmentChallengesForAccount(ctx context.Context, a
 	return err
 }
 
+const deletePasskeysForAccount = `-- name: DeletePasskeysForAccount :execrows
+DELETE FROM webauthn_credentials WHERE account_id = $1
+`
+
+// Sessions signed in with one of these passkeys are deleted with it.
+func (q *Queries) DeletePasskeysForAccount(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePasskeysForAccount, accountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deletePasswordChallengesForAccount = `-- name: DeletePasswordChallengesForAccount :exec
 DELETE FROM auth_challenges
 WHERE account_id = $1
@@ -238,6 +251,39 @@ DELETE FROM password_reset_tokens WHERE account_id = $1
 func (q *Queries) DeletePasswordResetForAccount(ctx context.Context, accountID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deletePasswordResetForAccount, accountID)
 	return err
+}
+
+const deletePendingLoginsForAccount = `-- name: DeletePendingLoginsForAccount :exec
+DELETE FROM pending_logins WHERE account_id = $1
+`
+
+func (q *Queries) DeletePendingLoginsForAccount(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePendingLoginsForAccount, accountID)
+	return err
+}
+
+const deleteRecoveryCodesForAccount = `-- name: DeleteRecoveryCodesForAccount :execrows
+DELETE FROM mfa_recovery_codes WHERE account_id = $1
+`
+
+func (q *Queries) DeleteRecoveryCodesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRecoveryCodesForAccount, accountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteTOTPForAccount = `-- name: DeleteTOTPForAccount :execrows
+DELETE FROM mfa_totp_credentials WHERE account_id = $1
+`
+
+func (q *Queries) DeleteTOTPForAccount(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTOTPForAccount, accountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getAccountByPerson = `-- name: GetAccountByPerson :one

@@ -135,7 +135,7 @@ WHERE account_id=sqlc.arg(account_id) AND kind='oidc' AND provider_id=sqlc.arg(p
 
 -- name: RevokeSessionsForIdentity :exec
 UPDATE sessions SET revoked_at=COALESCE(revoked_at, now()), revocation_reason=COALESCE(revocation_reason, 'scim_deprovisioned')
-WHERE auth_identity_id=sqlc.arg(auth_identity_id) AND revoked_at IS NULL;
+WHERE auth_identity_id=sqlc.arg(auth_identity_id)::uuid AND revoked_at IS NULL;
 
 -- name: CountIndependentUsableIdentities :one
 SELECT count(*) FROM auth_identities i

@@ -22,6 +22,7 @@ import type {
   CreateRoleRequest,
   EvaluateRolePermissionsParams,
   ListRolesParams,
+  MasterReauthenticationPolicy,
   ReplaceRolePermissionsRequest,
   Role,
   RoleEffectivePermissionEvaluationList,
@@ -124,6 +125,68 @@ return apiFetch<Role>(getCreateRoleUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(createRoleRequest)
+  }
+);}
+
+
+export const getGetMasterReauthenticationPolicyUrl = () => {
+
+
+
+
+  return `/api/v1/roles/master-reauthentication-policy`
+}
+
+/**
+ * Readable with `roles.read`. The master role's universal permissions require `strong_mfa`; the listed permissions additionally require a `strong_mfa` sign-in within the window.
+ * @summary List the permissions a master may use only after a fresh sign-in
+ */
+export const getMasterReauthenticationPolicy = async ( options?: Parameters<typeof apiFetch>[1]): Promise<MasterReauthenticationPolicy> => {
+
+  return apiFetch<MasterReauthenticationPolicy>(getGetMasterReauthenticationPolicyUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getReplaceMasterReauthenticationPolicyUrl = () => {
+
+
+
+
+  return `/api/v1/roles/master-reauthentication-policy`
+}
+
+/**
+ * Only a master may change it, and only with a `strong_mfa` sign-in within the last ten minutes (`reauthentication_required` otherwise). Audited.
+ * @summary Replace the master fresh-sign-in policy
+ */
+export const replaceMasterReauthenticationPolicy = async (masterReauthenticationPolicy: MasterReauthenticationPolicy, options?: Parameters<typeof apiFetch>[1]): Promise<MasterReauthenticationPolicy> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MasterReauthenticationPolicy>(getReplaceMasterReauthenticationPolicyUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(masterReauthenticationPolicy)
   }
 );}
 

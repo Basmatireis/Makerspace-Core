@@ -614,6 +614,11 @@ func grantDTO(v authorization.PermissionGrant) openapi.PermissionGrant {
 		DeviceTypeIds:    ids,
 		MinimumAssurance: openapi.AuthenticationAssurance(v.MinimumAssurance),
 	}
+	if v.ReauthWithinMinutes != nil {
+		result.ReauthWithinMinutes = nullable.NewNullableWithValue(*v.ReauthWithinMinutes)
+	} else {
+		result.ReauthWithinMinutes = nullable.NewNullNullable[int]()
+	}
 	if v.ID != uuid.Nil {
 		id := v.ID
 		result.Id = &id
@@ -628,10 +633,14 @@ func grantDomain(v openapi.PermissionGrant) authorization.PermissionGrant {
 	case openapi.SelectedDeviceTypes:
 		scope = authorization.GrantSelectedDeviceTypes
 	}
-	return authorization.PermissionGrant{
+	grant := authorization.PermissionGrant{
 		PermissionID:     authorization.Permission(v.PermissionId),
 		Scope:            scope,
 		DeviceTypeIDs:    append([]openapi.UUIDv7(nil), v.DeviceTypeIds...),
 		MinimumAssurance: authorization.Assurance(v.MinimumAssurance),
 	}
+	if window, err := v.ReauthWithinMinutes.Get(); err == nil {
+		grant.ReauthWithinMinutes = &window
+	}
+	return grant
 }

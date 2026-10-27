@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -424,4 +425,15 @@ func TestAccountEmailMigrationBackfill(t *testing.T) {
 	if want := time.Date(2026, time.March, 2, 0, 0, 0, 0, time.UTC); !memberSince.Equal(want) {
 		t.Fatalf("member_since = %v, want %v", memberSince, want)
 	}
+}
+
+// loginSession unwraps a password login that is expected to create a session directly (no second factor).
+func loginSession(result auth.LoginResult, err error) (auth.Session, error) {
+	if err != nil {
+		return auth.Session{}, err
+	}
+	if result.Session == nil {
+		return auth.Session{}, errors.New("login is waiting for a second factor")
+	}
+	return *result.Session, nil
 }

@@ -23,7 +23,7 @@ WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND system_key 
 DELETE FROM roles WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND system_key IS NULL RETURNING id;
 
 -- name: GetRolePermissionGrants :many
-SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, gdt.device_type_id
+SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, g.reauth_within_minutes, gdt.device_type_id
 FROM role_permission_grants g LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
 WHERE g.role_id = sqlc.arg(role_id)
 ORDER BY g.permission_id, g.id, gdt.device_type_id;
@@ -32,8 +32,9 @@ ORDER BY g.permission_id, g.id, gdt.device_type_id;
 DELETE FROM role_permission_grants WHERE role_id = sqlc.arg(role_id);
 
 -- name: AddRolePermission :exec
-INSERT INTO role_permission_grants (id, role_id, permission_id, scope, minimum_assurance)
-VALUES (sqlc.arg(id), sqlc.arg(role_id), sqlc.arg(permission_id), sqlc.arg(scope), sqlc.arg(minimum_assurance));
+INSERT INTO role_permission_grants (id, role_id, permission_id, scope, minimum_assurance, reauth_within_minutes)
+VALUES (sqlc.arg(id), sqlc.arg(role_id), sqlc.arg(permission_id), sqlc.arg(scope), sqlc.arg(minimum_assurance),
+        sqlc.narg(reauth_within_minutes));
 
 -- name: AddRolePermissionDeviceType :exec
 INSERT INTO role_permission_grant_device_types (grant_id, device_type_id)
@@ -50,3 +51,16 @@ SELECT count(*) FROM person_roles WHERE role_id = sqlc.arg(role_id);
 -- A role that stops being a supervisor role can no longer be the role promotions assign.
 UPDATE open_day_requirements SET supervisor_role_id = NULL, version = version + 1, updated_at = now()
 WHERE supervisor_role_id = sqlc.arg(role_id);
+
+-- name: ListMasterReauthenticationPolicy :many
+SELECT permission_id, within_minutes FROM master_reauthentication_permissions ORDER BY permission_id;
+
+-- name: LockMasterReauthenticationPolicy :exec
+LOCK TABLE master_reauthentication_permissions IN SHARE ROW EXCLUSIVE MODE;
+
+-- name: DeleteMasterReauthenticationPolicy :exec
+DELETE FROM master_reauthentication_permissions;
+
+-- name: InsertMasterReauthenticationPermission :exec
+INSERT INTO master_reauthentication_permissions (permission_id, within_minutes, updated_at)
+VALUES (sqlc.arg(permission_id), sqlc.arg(within_minutes), now());

@@ -21,8 +21,13 @@ type Querier interface {
 	DeleteAccount(ctx context.Context, arg DeleteAccountParams) (uuid.UUID, error)
 	DeleteAuthIdentityForAccount(ctx context.Context, arg DeleteAuthIdentityForAccountParams) (int64, error)
 	DeletePINEnrollmentChallengesForAccount(ctx context.Context, accountID uuid.UUID) error
+	// Sessions signed in with one of these passkeys are deleted with it.
+	DeletePasskeysForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	DeletePasswordChallengesForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeletePasswordResetForAccount(ctx context.Context, accountID uuid.UUID) error
+	DeletePendingLoginsForAccount(ctx context.Context, accountID uuid.UUID) error
+	DeleteRecoveryCodesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
+	DeleteTOTPForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	GetAccountByPerson(ctx context.Context, personID uuid.UUID) (Account, error)
 	GetAccountByPersonForMutation(ctx context.Context, personID uuid.UUID) (Account, error)
 	GetAccountForMutation(ctx context.Context, id uuid.UUID) (Account, error)

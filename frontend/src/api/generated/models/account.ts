@@ -23,6 +23,7 @@ import type { AccountStatus } from './accountStatus';
 import type { AuthIdentitySummary } from './authIdentitySummary';
 import type { Email } from './email';
 import type { PasswordStatus } from './passwordStatus';
+import type { SecondFactorSummary } from './secondFactorSummary';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
@@ -37,6 +38,8 @@ export interface Account {
   /** @nullable */
   firstAuthenticatedAt: string | null;
   authIdentities: AuthIdentitySummary[];
+  /** The account's second factors (kinds, names, timestamps; never secrets). Present wherever the account is returned to the account itself or to a caller with `accounts.read`. */
+  secondFactors?: SecondFactorSummary;
   createdAt: string;
   updatedAt: string;
   version: Version;

@@ -137,6 +137,17 @@ export function currentUserFixture(permissions: PermissionId[] = [], master = fa
     },
     permissions,
     authenticationAssurance: 'normal',
+    authentication: {
+      method: 'password',
+      assurance: 'normal',
+      authenticatedAt: '2026-01-01T00:00:00Z',
+      authenticatedAssurance: 'normal',
+      mfaEnrolled: false,
+      mfaRequired: false,
+      mfaSetupRequired: false,
+      secondFactorMethods: [],
+      reauthenticationRequired: [],
+    },
     managedDevice: null,
     delegablePermissionGrants: permissions.map((permissionId) => ({
       permissionId,

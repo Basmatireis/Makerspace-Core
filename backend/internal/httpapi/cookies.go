@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 )
 
@@ -81,4 +83,62 @@ func setSessionCookies(w http.ResponseWriter, cfg config.Config, session auth.Se
 func clearSessionCookies(w http.ResponseWriter, cfg config.Config) {
 	http.SetCookie(w, expiringCookie(cfg, cfg.SessionCookieName, true))
 	http.SetCookie(w, expiringCookie(cfg, cfg.CSRFCookieName, false))
+}
+
+// pendingLoginCookieName falls back to the development name for configurations built without it (tests, tools).
+func pendingLoginCookieName(cfg config.Config) string {
+	if cfg.PendingLoginCookieName != "" {
+		return cfg.PendingLoginCookieName
+	}
+	return "makerspace_mfa_pending"
+}
+
+// pendingLoginResponse answers a correct password of an account with a second factor: no session, only the
+// HttpOnly single-use pending-login cookie and the methods that can complete it.
+type pendingLoginResponse struct {
+	config  config.Config
+	pending auth.PendingLogin
+}
+
+func (response pendingLoginResponse) VisitLoginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Cache-Control", "no-store")
+	http.SetCookie(w, applicationCookie(
+		response.config, pendingLoginCookieName(response.config), response.pending.Token, true,
+		response.pending.ExpiresAt, cookieMaxAge(response.pending.ExpiresAt),
+	))
+	methods := make([]openapi.SecondFactorMethod, 0, len(response.pending.Methods))
+	for _, method := range response.pending.Methods {
+		methods = append(methods, openapi.SecondFactorMethod(method))
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	return json.NewEncoder(w).Encode(openapi.SecondFactorRequired{
+		Status: "second_factor_required", Methods: methods, ExpiresAt: response.pending.ExpiresAt,
+	})
+}
+
+// secondFactorSessionResponse sets the new session's cookies and expires the pending-login cookie.
+type secondFactorSessionResponse struct {
+	config  config.Config
+	session auth.Session
+}
+
+func (response secondFactorSessionResponse) write(w http.ResponseWriter) error {
+	w.Header().Set("Cache-Control", "no-store")
+	http.SetCookie(w, expiringCookie(response.config, pendingLoginCookieName(response.config), true))
+	setSessionCookies(w, response.config, response.session)
+	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+func (response secondFactorSessionResponse) VisitCompleteSecondFactorLoginResponse(w http.ResponseWriter) error {
+	return response.write(w)
+}
+
+func (response secondFactorSessionResponse) VisitCompleteSecondFactorPasskeyResponse(w http.ResponseWriter) error {
+	return response.write(w)
+}
+
+func (response secondFactorSessionResponse) VisitCompletePasskeyLoginResponse(w http.ResponseWriter) error {
+	return response.write(w)
 }

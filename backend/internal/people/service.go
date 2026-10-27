@@ -1076,10 +1076,11 @@ func authorizeRoleAssignment(
 		grant, exists := grants[permission.ID]
 		if !exists {
 			grant = authorization.PermissionGrant{
-				ID:               permission.ID,
-				PermissionID:     permissionID,
-				Scope:            authorization.GrantScope(permission.Scope),
-				MinimumAssurance: authorization.Assurance(permission.MinimumAssurance),
+				ID:                  permission.ID,
+				PermissionID:        permissionID,
+				Scope:               authorization.GrantScope(permission.Scope),
+				MinimumAssurance:    authorization.Assurance(permission.MinimumAssurance),
+				ReauthWithinMinutes: authorization.ReauthWindowFromDB(permission.ReauthWithinMinutes),
 			}
 		}
 		if permission.DeviceTypeID != nil {

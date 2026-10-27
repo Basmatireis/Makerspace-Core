@@ -14,25 +14,45 @@ import (
 type Querier interface {
 	BumpAccountVersionAfterCredentialChange(ctx context.Context, accountID uuid.UUID) error
 	ClearPINThrottle(ctx context.Context, arg ClearPINThrottleParams) error
+	ClearSecondFactorThrottle(ctx context.Context, accountID uuid.UUID) error
+	ConfirmTOTPCredential(ctx context.Context, arg ConfirmTOTPCredentialParams) error
 	ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateLimitParams) (*bool, error)
+	// Single use: the row is deleted whether or not the assertion then verifies.
+	ConsumeWebAuthnChallenge(ctx context.Context, arg ConsumeWebAuthnChallengeParams) (WebauthnChallenge, error)
+	CountSecondFactors(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionParams) (Session, error)
 	CreatePINIdentity(ctx context.Context, arg CreatePINIdentityParams) (AuthIdentity, error)
 	CreatePINSession(ctx context.Context, arg CreatePINSessionParams) (Session, error)
+	CreatePasskeySession(ctx context.Context, arg CreatePasskeySessionParams) (uuid.UUID, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
-	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	CreatePendingLogin(ctx context.Context, arg CreatePendingLoginParams) error
+	// A password session: normal assurance, or strong_mfa when the login also verified a second factor.
+	CreateSession(ctx context.Context, arg CreateSessionParams) (uuid.UUID, error)
 	DeleteExpiredAuthSecurityState(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteExpiredPasswordResetTokens(ctx context.Context, beforeTime time.Time) (int64, error)
+	DeleteExpiredPendingLogins(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteExpiredSessions(ctx context.Context, beforeTime time.Time) (int64, error)
+	DeleteExpiredWebAuthnChallenges(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeletePINEnrollmentChallengeForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeletePINIdentity(ctx context.Context, id uuid.UUID) error
 	DeletePasswordIdentity(ctx context.Context, id uuid.UUID) error
 	DeletePasswordResetToken(ctx context.Context, id uuid.UUID) error
+	DeletePendingLogin(ctx context.Context, id uuid.UUID) error
+	DeletePendingLoginsForAccount(ctx context.Context, accountID uuid.UUID) error
+	DeleteRecoveryCodes(ctx context.Context, accountID uuid.UUID) error
+	DeleteTOTPCredential(ctx context.Context, accountID uuid.UUID) (int64, error)
+	DeleteWebAuthnChallengesForPendingLogin(ctx context.Context, pendingLoginID *uuid.UUID) error
+	DeleteWebAuthnChallengesForSession(ctx context.Context, arg DeleteWebAuthnChallengesForSessionParams) error
+	DeleteWebAuthnCredential(ctx context.Context, arg DeleteWebAuthnCredentialParams) (int64, error)
 	EnableInvitedAccount(ctx context.Context, accountID uuid.UUID) error
 	FindLoginAccountByEmail(ctx context.Context, identifierNormalized string) (uuid.UUID, error)
 	FindPINLogin(ctx context.Context, identifierNormalized string) (FindPINLoginRow, error)
 	FindPasswordIdentityTarget(ctx context.Context, identifierNormalized string) (FindPasswordIdentityTargetRow, error)
 	FindPasswordResetAccountByDigest(ctx context.Context, tokenDigest []byte) (uuid.UUID, error)
 	GetAccountForAuthentication(ctx context.Context, id uuid.UUID) (GetAccountForAuthenticationRow, error)
+	// required: the account holds the master role or a role with a grant that needs strong_mfa.
+	GetAccountSecondFactorState(ctx context.Context, accountID uuid.UUID) (GetAccountSecondFactorStateRow, error)
+	GetAccountWebAuthnUser(ctx context.Context, accountID uuid.UUID) (GetAccountWebAuthnUserRow, error)
 	GetActiveAuthChallengeForUpdate(ctx context.Context, arg GetActiveAuthChallengeForUpdateParams) (AuthChallenge, error)
 	GetEffectiveSessionPolicy(ctx context.Context, managedDeviceID *uuid.UUID) (SessionPolicy, error)
 	GetLoginByEmail(ctx context.Context, identifierNormalized string) (GetLoginByEmailRow, error)
@@ -40,27 +60,53 @@ type Querier interface {
 	GetPasswordCredentialForAccount(ctx context.Context, accountID uuid.UUID) (PasswordCredential, error)
 	GetPasswordIdentityTargetForAccount(ctx context.Context, accountID uuid.UUID) (GetPasswordIdentityTargetForAccountRow, error)
 	GetPasswordResetByDigest(ctx context.Context, tokenDigest []byte) (GetPasswordResetByDigestRow, error)
-	GetSessionForReauthentication(ctx context.Context, arg GetSessionForReauthenticationParams) (Session, error)
+	GetPendingLogin(ctx context.Context, tokenDigest []byte) (PendingLogin, error)
+	GetPendingLoginForUpdate(ctx context.Context, tokenDigest []byte) (PendingLogin, error)
+	// Locks the session row (FOR UPDATE OF s).
+	GetSessionForReauthentication(ctx context.Context, arg GetSessionForReauthenticationParams) (GetSessionForReauthenticationRow, error)
 	GetSessionPostDestinationByDigest(ctx context.Context, tokenDigest []byte) (string, error)
+	// mfa_setup_required lifts as soon as the account has a second factor, even when it was enrolled in another session.
 	GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (GetSessionPrincipalRow, error)
+	GetTOTPCredential(ctx context.Context, accountID uuid.UUID) (MfaTotpCredential, error)
+	GetTOTPCredentialForUpdate(ctx context.Context, accountID uuid.UUID) (MfaTotpCredential, error)
+	GetWebAuthnCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error)
+	// A proof weaker than the session's base never lowers the session's assurance; it only records what was proven
+	// and when. The temporary raise expires back to the base assurance.
 	GrantRecentAuthentication(ctx context.Context, arg GrantRecentAuthenticationParams) error
 	IncrementAuthChallengeFailure(ctx context.Context, id uuid.UUID) error
+	InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error
+	InsertWebAuthnChallenge(ctx context.Context, arg InsertWebAuthnChallengeParams) error
+	InsertWebAuthnCredential(ctx context.Context, arg InsertWebAuthnCredentialParams) (WebauthnCredential, error)
+	ListWebAuthnCredentials(ctx context.Context, accountID uuid.UUID) ([]WebauthnCredential, error)
 	MarkAuthenticationSucceeded(ctx context.Context, arg MarkAuthenticationSucceededParams) error
 	OIDCIdentityUsable(ctx context.Context, arg OIDCIdentityUsableParams) (bool, error)
 	PINThrottleBlocked(ctx context.Context, arg PINThrottleBlockedParams) (bool, error)
+	// The session proved a second factor (enrollment, second-factor reauthentication): it is now equivalent to a
+	// multi-factor login.
+	RaiseSessionToStrongMFA(ctx context.Context, arg RaiseSessionToStrongMFAParams) error
 	// A key that stayed quiet for 15 minutes starts over, so a shared source (a NAT, a
 	// terminal) is not stuck at the maximum back-off after a few old failures.
 	RecordPINFailure(ctx context.Context, arg RecordPINFailureParams) error
+	RecordPendingLoginFailure(ctx context.Context, id uuid.UUID) (int32, error)
+	// Same back-off as the PIN throttle: one second, then doubling up to five minutes; a quiet quarter hour resets it.
+	RecordSecondFactorFailure(ctx context.Context, accountID uuid.UUID) error
+	RecordTOTPUse(ctx context.Context, arg RecordTOTPUseParams) error
+	RenameWebAuthnCredential(ctx context.Context, arg RenameWebAuthnCredentialParams) (WebauthnCredential, error)
+	// Only an unconfirmed enrollment is replaced; a confirmed authenticator app stays until it is removed.
+	ReplacePendingTOTPCredential(ctx context.Context, arg ReplacePendingTOTPCredentialParams) error
 	RevokeOtherSessionsForAccount(ctx context.Context, arg RevokeOtherSessionsForAccountParams) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) error
 	RevokeSessionsForAccount(ctx context.Context, arg RevokeSessionsForAccountParams) error
+	SecondFactorThrottleBlocked(ctx context.Context, accountID uuid.UUID) (bool, error)
 	SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChallengeDeliveryParams) error
 	TouchSession(ctx context.Context, id uuid.UUID) (TouchSessionRow, error)
 	UpdatePINIdentity(ctx context.Context, arg UpdatePINIdentityParams) (AuthIdentity, error)
+	UpdateWebAuthnCredentialUse(ctx context.Context, arg UpdateWebAuthnCredentialUseParams) error
 	UpsertAuthChallenge(ctx context.Context, arg UpsertAuthChallengeParams) (AuthChallenge, error)
 	UpsertPINCredential(ctx context.Context, arg UpsertPINCredentialParams) error
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
 	UseAuthChallenge(ctx context.Context, id uuid.UUID) error
+	UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error)
 	VerifyPasswordIdentity(ctx context.Context, id uuid.UUID) error
 }
 

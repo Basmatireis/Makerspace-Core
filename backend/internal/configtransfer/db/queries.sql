@@ -24,7 +24,7 @@ FROM roles
 ORDER BY lower(name), id;
 
 -- name: ListRolePermissionGrants :many
-SELECT g.role_id, g.id, g.permission_id, g.scope, g.minimum_assurance, dt.name AS device_type_name
+SELECT g.role_id, g.id, g.permission_id, g.scope, g.minimum_assurance, g.reauth_within_minutes, dt.name AS device_type_name
 FROM role_permission_grants g
 LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
 LEFT JOIN device_types dt ON dt.id = gdt.device_type_id

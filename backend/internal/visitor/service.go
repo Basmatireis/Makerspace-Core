@@ -827,6 +827,7 @@ func authorizeRole(
 		), authorization.Assurance(
 			row.MinimumAssurance,
 		)
+		grant.ReauthWithinMinutes = authorization.ReauthWindowFromDB(row.ReauthWithinMinutes)
 		if row.DeviceTypeID != nil {
 			grant.DeviceTypeIDs = append(grant.DeviceTypeIDs, *row.DeviceTypeID)
 		}

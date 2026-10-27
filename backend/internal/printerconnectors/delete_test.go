@@ -17,6 +17,12 @@ type permissionsStub struct {
 	rows []authorizationdb.GetPrincipalRolePermissionsRow
 }
 
+func (permissionsStub) ListMasterReauthenticationPermissions(
+	context.Context,
+) ([]authorizationdb.ListMasterReauthenticationPermissionsRow, error) {
+	return nil, nil
+}
+
 func (s permissionsStub) GetPrincipalRolePermissions(
 	context.Context,
 	uuid.UUID,

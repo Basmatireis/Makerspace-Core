@@ -39,6 +39,30 @@ func (q *Queries) ClearPINThrottle(ctx context.Context, arg ClearPINThrottlePara
 	return err
 }
 
+const clearSecondFactorThrottle = `-- name: ClearSecondFactorThrottle :exec
+DELETE FROM second_factor_throttles WHERE account_id = $1
+`
+
+func (q *Queries) ClearSecondFactorThrottle(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearSecondFactorThrottle, accountID)
+	return err
+}
+
+const confirmTOTPCredential = `-- name: ConfirmTOTPCredential :exec
+UPDATE mfa_totp_credentials SET confirmed_at = now(), last_used_step = $1, last_used_at = now()
+WHERE id = $2 AND confirmed_at IS NULL
+`
+
+type ConfirmTOTPCredentialParams struct {
+	Step *int64
+	ID   uuid.UUID
+}
+
+func (q *Queries) ConfirmTOTPCredential(ctx context.Context, arg ConfirmTOTPCredentialParams) error {
+	_, err := q.db.Exec(ctx, confirmTOTPCredential, arg.Step, arg.ID)
+	return err
+}
+
 const consumeAuthRateLimit = `-- name: ConsumeAuthRateLimit :one
 INSERT INTO auth_rate_limits (action, key_digest, window_started_at, attempt_count)
 VALUES ($1, $2, now(), 1)
@@ -68,19 +92,62 @@ func (q *Queries) ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateL
 	return allowed, err
 }
 
+const consumeWebAuthnChallenge = `-- name: ConsumeWebAuthnChallenge :one
+DELETE FROM webauthn_challenges
+WHERE challenge_digest = $1 AND purpose = $2
+RETURNING id, challenge_digest, purpose, account_id, session_id, pending_login_id, session_data, expires_at, created_at
+`
+
+type ConsumeWebAuthnChallengeParams struct {
+	ChallengeDigest []byte
+	Purpose         string
+}
+
+// Single use: the row is deleted whether or not the assertion then verifies.
+func (q *Queries) ConsumeWebAuthnChallenge(ctx context.Context, arg ConsumeWebAuthnChallengeParams) (WebauthnChallenge, error) {
+	row := q.db.QueryRow(ctx, consumeWebAuthnChallenge, arg.ChallengeDigest, arg.Purpose)
+	var i WebauthnChallenge
+	err := row.Scan(
+		&i.ID,
+		&i.ChallengeDigest,
+		&i.Purpose,
+		&i.AccountID,
+		&i.SessionID,
+		&i.PendingLoginID,
+		&i.SessionData,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const countSecondFactors = `-- name: CountSecondFactors :one
+SELECT ((SELECT count(*) FROM mfa_totp_credentials t WHERE t.account_id = $1::uuid AND t.confirmed_at IS NOT NULL)
+      + (SELECT count(*) FROM webauthn_credentials w WHERE w.account_id = $1::uuid))::bigint AS total
+`
+
+func (q *Queries) CountSecondFactors(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countSecondFactors, accountID)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const createOIDCSession = `-- name: CreateOIDCSession :one
 INSERT INTO sessions (
     id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
-    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at,
+    base_assurance, current_assurance, authenticated_assurance, mfa_setup_required, authenticated_at,
+    idle_expires_at, absolute_expires_at,
     managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 )
 VALUES (
-    $1, $2, $3, $4,
-    $5, 'oidc', $6, $6, $7,
-    $8, $9, $10, $11,
-    $12, $13, $14
+    $1, $2, $3::uuid, $4,
+    $5, 'oidc', $6, $6, $6,
+    $7, $8,
+    $9, $10, $11, $12,
+    $13, $14, $15
 )
-RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
+RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination, authenticated_assurance, mfa_setup_required, webauthn_credential_id
 `
 
 type CreateOIDCSessionParams struct {
@@ -90,6 +157,7 @@ type CreateOIDCSessionParams struct {
 	TokenDigest            []byte
 	CsrfDigest             []byte
 	Assurance              string
+	MfaSetupRequired       bool
 	AuthenticatedAt        time.Time
 	IdleExpiresAt          time.Time
 	AbsoluteExpiresAt      time.Time
@@ -108,6 +176,7 @@ func (q *Queries) CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionPa
 		arg.TokenDigest,
 		arg.CsrfDigest,
 		arg.Assurance,
+		arg.MfaSetupRequired,
 		arg.AuthenticatedAt,
 		arg.IdleExpiresAt,
 		arg.AbsoluteExpiresAt,
@@ -140,6 +209,9 @@ func (q *Queries) CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionPa
 		&i.SessionPolicyVersion,
 		&i.IdleTimeoutSeconds,
 		&i.PostSessionDestination,
+		&i.AuthenticatedAssurance,
+		&i.MfaSetupRequired,
+		&i.WebauthnCredentialID,
 	)
 	return i, err
 }
@@ -186,16 +258,16 @@ func (q *Queries) CreatePINIdentity(ctx context.Context, arg CreatePINIdentityPa
 const createPINSession = `-- name: CreatePINSession :one
 INSERT INTO sessions (
     id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
-    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at,
+    base_assurance, current_assurance, authenticated_assurance, authenticated_at, idle_expires_at, absolute_expires_at,
     managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 )
 VALUES (
-    $1, $2, $3, $4,
-    $5, 'pin', 'low', 'low', now(), $6, $7,
+    $1, $2, $3::uuid, $4,
+    $5, 'pin', 'low', 'low', 'low', now(), $6, $7,
     $8, $9, $10,
     $11, $12
 )
-RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
+RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination, authenticated_assurance, mfa_setup_required, webauthn_credential_id
 `
 
 type CreatePINSessionParams struct {
@@ -251,8 +323,58 @@ func (q *Queries) CreatePINSession(ctx context.Context, arg CreatePINSessionPara
 		&i.SessionPolicyVersion,
 		&i.IdleTimeoutSeconds,
 		&i.PostSessionDestination,
+		&i.AuthenticatedAssurance,
+		&i.MfaSetupRequired,
+		&i.WebauthnCredentialID,
 	)
 	return i, err
+}
+
+const createPasskeySession = `-- name: CreatePasskeySession :one
+INSERT INTO sessions (id, account_id, webauthn_credential_id, token_digest, csrf_digest, auth_method,
+  base_assurance, current_assurance, authenticated_assurance, authenticated_at,
+  idle_expires_at, absolute_expires_at, managed_device_id, session_policy_id, session_policy_version,
+  idle_timeout_seconds, post_session_destination)
+VALUES ($1, $2, $3::uuid, $4, $5, 'passkey',
+  'strong_mfa', 'strong_mfa', 'strong_mfa', now(),
+  $6, $7, $8, $9,
+  $10, $11, $12)
+RETURNING id
+`
+
+type CreatePasskeySessionParams struct {
+	ID                     uuid.UUID
+	AccountID              uuid.UUID
+	WebauthnCredentialID   uuid.UUID
+	TokenDigest            []byte
+	CsrfDigest             []byte
+	IdleExpiresAt          time.Time
+	AbsoluteExpiresAt      time.Time
+	ManagedDeviceID        *uuid.UUID
+	SessionPolicyID        *uuid.UUID
+	SessionPolicyVersion   int64
+	IdleTimeoutSeconds     int32
+	PostSessionDestination string
+}
+
+func (q *Queries) CreatePasskeySession(ctx context.Context, arg CreatePasskeySessionParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, createPasskeySession,
+		arg.ID,
+		arg.AccountID,
+		arg.WebauthnCredentialID,
+		arg.TokenDigest,
+		arg.CsrfDigest,
+		arg.IdleExpiresAt,
+		arg.AbsoluteExpiresAt,
+		arg.ManagedDeviceID,
+		arg.SessionPolicyID,
+		arg.SessionPolicyVersion,
+		arg.IdleTimeoutSeconds,
+		arg.PostSessionDestination,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const createPasswordResetToken = `-- name: CreatePasswordResetToken :one
@@ -291,14 +413,42 @@ func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswo
 	return i, err
 }
 
+const createPendingLogin = `-- name: CreatePendingLogin :exec
+INSERT INTO pending_logins (id, token_digest, account_id, auth_identity_id, managed_device_id, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type CreatePendingLoginParams struct {
+	ID              uuid.UUID
+	TokenDigest     []byte
+	AccountID       uuid.UUID
+	AuthIdentityID  uuid.UUID
+	ManagedDeviceID *uuid.UUID
+	ExpiresAt       time.Time
+}
+
+func (q *Queries) CreatePendingLogin(ctx context.Context, arg CreatePendingLoginParams) error {
+	_, err := q.db.Exec(ctx, createPendingLogin,
+		arg.ID,
+		arg.TokenDigest,
+		arg.AccountID,
+		arg.AuthIdentityID,
+		arg.ManagedDeviceID,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, authenticated_at,
+INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
+  base_assurance, current_assurance, authenticated_assurance, mfa_setup_required, authenticated_at,
   idle_expires_at, absolute_expires_at, managed_device_id, session_policy_id, session_policy_version,
   idle_timeout_seconds, post_session_destination)
-VALUES ($1, $2, $3, $4, $5, 'password', now(),
-  $6, $7, $8, $9,
-  $10, $11, $12)
-RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
+VALUES ($1, $2, $3::uuid, $4, $5, 'password',
+  $6, $6, $6, $7, now(),
+  $8, $9, $10, $11,
+  $12, $13, $14)
+RETURNING id
 `
 
 type CreateSessionParams struct {
@@ -307,6 +457,8 @@ type CreateSessionParams struct {
 	AuthIdentityID         uuid.UUID
 	TokenDigest            []byte
 	CsrfDigest             []byte
+	Assurance              string
+	MfaSetupRequired       bool
 	IdleExpiresAt          time.Time
 	AbsoluteExpiresAt      time.Time
 	ManagedDeviceID        *uuid.UUID
@@ -316,13 +468,16 @@ type CreateSessionParams struct {
 	PostSessionDestination string
 }
 
-func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
+// A password session: normal assurance, or strong_mfa when the login also verified a second factor.
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, createSession,
 		arg.ID,
 		arg.AccountID,
 		arg.AuthIdentityID,
 		arg.TokenDigest,
 		arg.CsrfDigest,
+		arg.Assurance,
+		arg.MfaSetupRequired,
 		arg.IdleExpiresAt,
 		arg.AbsoluteExpiresAt,
 		arg.ManagedDeviceID,
@@ -331,31 +486,9 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		arg.IdleTimeoutSeconds,
 		arg.PostSessionDestination,
 	)
-	var i Session
-	err := row.Scan(
-		&i.ID,
-		&i.AccountID,
-		&i.AuthIdentityID,
-		&i.TokenDigest,
-		&i.CsrfDigest,
-		&i.AuthMethod,
-		&i.CreatedAt,
-		&i.LastSeenAt,
-		&i.IdleExpiresAt,
-		&i.AbsoluteExpiresAt,
-		&i.RevokedAt,
-		&i.RevocationReason,
-		&i.BaseAssurance,
-		&i.CurrentAssurance,
-		&i.AuthenticatedAt,
-		&i.AssuranceExpiresAt,
-		&i.ManagedDeviceID,
-		&i.SessionPolicyID,
-		&i.SessionPolicyVersion,
-		&i.IdleTimeoutSeconds,
-		&i.PostSessionDestination,
-	)
-	return i, err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const deleteExpiredAuthSecurityState = `-- name: DeleteExpiredAuthSecurityState :execrows
@@ -387,6 +520,18 @@ func (q *Queries) DeleteExpiredPasswordResetTokens(ctx context.Context, beforeTi
 	return result.RowsAffected(), nil
 }
 
+const deleteExpiredPendingLogins = `-- name: DeleteExpiredPendingLogins :execrows
+DELETE FROM pending_logins WHERE expires_at < $1
+`
+
+func (q *Queries) DeleteExpiredPendingLogins(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredPendingLogins, beforeTime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteExpiredSessions = `-- name: DeleteExpiredSessions :execrows
 DELETE FROM sessions WHERE absolute_expires_at < $1
    OR idle_expires_at < $1
@@ -395,6 +540,18 @@ DELETE FROM sessions WHERE absolute_expires_at < $1
 
 func (q *Queries) DeleteExpiredSessions(ctx context.Context, beforeTime time.Time) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteExpiredSessions, beforeTime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteExpiredWebAuthnChallenges = `-- name: DeleteExpiredWebAuthnChallenges :execrows
+DELETE FROM webauthn_challenges WHERE expires_at < $1
+`
+
+func (q *Queries) DeleteExpiredWebAuthnChallenges(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredWebAuthnChallenges, beforeTime)
 	if err != nil {
 		return 0, err
 	}
@@ -436,6 +593,85 @@ DELETE FROM password_reset_tokens WHERE id = $1
 func (q *Queries) DeletePasswordResetToken(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deletePasswordResetToken, id)
 	return err
+}
+
+const deletePendingLogin = `-- name: DeletePendingLogin :exec
+DELETE FROM pending_logins WHERE id = $1
+`
+
+func (q *Queries) DeletePendingLogin(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePendingLogin, id)
+	return err
+}
+
+const deletePendingLoginsForAccount = `-- name: DeletePendingLoginsForAccount :exec
+DELETE FROM pending_logins WHERE account_id = $1
+`
+
+func (q *Queries) DeletePendingLoginsForAccount(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePendingLoginsForAccount, accountID)
+	return err
+}
+
+const deleteRecoveryCodes = `-- name: DeleteRecoveryCodes :exec
+DELETE FROM mfa_recovery_codes WHERE account_id = $1
+`
+
+func (q *Queries) DeleteRecoveryCodes(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRecoveryCodes, accountID)
+	return err
+}
+
+const deleteTOTPCredential = `-- name: DeleteTOTPCredential :execrows
+DELETE FROM mfa_totp_credentials WHERE account_id = $1
+`
+
+func (q *Queries) DeleteTOTPCredential(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTOTPCredential, accountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteWebAuthnChallengesForPendingLogin = `-- name: DeleteWebAuthnChallengesForPendingLogin :exec
+DELETE FROM webauthn_challenges WHERE pending_login_id = $1
+`
+
+func (q *Queries) DeleteWebAuthnChallengesForPendingLogin(ctx context.Context, pendingLoginID *uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWebAuthnChallengesForPendingLogin, pendingLoginID)
+	return err
+}
+
+const deleteWebAuthnChallengesForSession = `-- name: DeleteWebAuthnChallengesForSession :exec
+DELETE FROM webauthn_challenges WHERE session_id = $1 AND purpose = $2
+`
+
+type DeleteWebAuthnChallengesForSessionParams struct {
+	SessionID *uuid.UUID
+	Purpose   string
+}
+
+func (q *Queries) DeleteWebAuthnChallengesForSession(ctx context.Context, arg DeleteWebAuthnChallengesForSessionParams) error {
+	_, err := q.db.Exec(ctx, deleteWebAuthnChallengesForSession, arg.SessionID, arg.Purpose)
+	return err
+}
+
+const deleteWebAuthnCredential = `-- name: DeleteWebAuthnCredential :execrows
+DELETE FROM webauthn_credentials WHERE id = $1 AND account_id = $2
+`
+
+type DeleteWebAuthnCredentialParams struct {
+	ID        uuid.UUID
+	AccountID uuid.UUID
+}
+
+func (q *Queries) DeleteWebAuthnCredential(ctx context.Context, arg DeleteWebAuthnCredentialParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteWebAuthnCredential, arg.ID, arg.AccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const enableInvitedAccount = `-- name: EnableInvitedAccount :exec
@@ -556,6 +792,71 @@ func (q *Queries) GetAccountForAuthentication(ctx context.Context, id uuid.UUID)
 	row := q.db.QueryRow(ctx, getAccountForAuthentication, id)
 	var i GetAccountForAuthenticationRow
 	err := row.Scan(&i.ID, &i.Status, &i.Version)
+	return i, err
+}
+
+const getAccountSecondFactorState = `-- name: GetAccountSecondFactorState :one
+SELECT
+    EXISTS (
+        SELECT 1 FROM accounts a
+        JOIN person_roles pr ON pr.person_id = a.person_id
+        JOIN roles r ON r.id = pr.role_id
+        LEFT JOIN role_permission_grants g ON g.role_id = r.id
+        WHERE a.id = $1::uuid AND (r.system_key = 'master' OR g.minimum_assurance = 'strong_mfa')
+    )::boolean AS required,
+    EXISTS (
+        SELECT 1 FROM mfa_totp_credentials t WHERE t.account_id = $1::uuid AND t.confirmed_at IS NOT NULL
+    )::boolean AS totp_enrolled,
+    (SELECT count(*) FROM webauthn_credentials w WHERE w.account_id = $1::uuid)::bigint AS passkey_count,
+    (SELECT count(*) FROM mfa_recovery_codes c WHERE c.account_id = $1::uuid AND c.used_at IS NULL)::bigint
+        AS recovery_codes_remaining
+`
+
+type GetAccountSecondFactorStateRow struct {
+	Required               bool
+	TotpEnrolled           bool
+	PasskeyCount           int64
+	RecoveryCodesRemaining int64
+}
+
+// required: the account holds the master role or a role with a grant that needs strong_mfa.
+func (q *Queries) GetAccountSecondFactorState(ctx context.Context, accountID uuid.UUID) (GetAccountSecondFactorStateRow, error) {
+	row := q.db.QueryRow(ctx, getAccountSecondFactorState, accountID)
+	var i GetAccountSecondFactorStateRow
+	err := row.Scan(
+		&i.Required,
+		&i.TotpEnrolled,
+		&i.PasskeyCount,
+		&i.RecoveryCodesRemaining,
+	)
+	return i, err
+}
+
+const getAccountWebAuthnUser = `-- name: GetAccountWebAuthnUser :one
+SELECT a.id, a.status, COALESCE(i.identifier_display, '')::text AS login_email, p.first_name, p.last_name
+FROM accounts a JOIN people p ON p.id = a.person_id
+LEFT JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
+WHERE a.id = $1
+`
+
+type GetAccountWebAuthnUserRow struct {
+	ID         uuid.UUID
+	Status     string
+	LoginEmail string
+	FirstName  string
+	LastName   string
+}
+
+func (q *Queries) GetAccountWebAuthnUser(ctx context.Context, accountID uuid.UUID) (GetAccountWebAuthnUserRow, error) {
+	row := q.db.QueryRow(ctx, getAccountWebAuthnUser, accountID)
+	var i GetAccountWebAuthnUserRow
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.LoginEmail,
+		&i.FirstName,
+		&i.LastName,
+	)
 	return i, err
 }
 
@@ -766,11 +1067,54 @@ func (q *Queries) GetPasswordResetByDigest(ctx context.Context, tokenDigest []by
 	return i, err
 }
 
+const getPendingLogin = `-- name: GetPendingLogin :one
+SELECT id, token_digest, account_id, auth_identity_id, managed_device_id, failed_attempts, expires_at, created_at FROM pending_logins WHERE token_digest = $1 AND expires_at > now()
+`
+
+func (q *Queries) GetPendingLogin(ctx context.Context, tokenDigest []byte) (PendingLogin, error) {
+	row := q.db.QueryRow(ctx, getPendingLogin, tokenDigest)
+	var i PendingLogin
+	err := row.Scan(
+		&i.ID,
+		&i.TokenDigest,
+		&i.AccountID,
+		&i.AuthIdentityID,
+		&i.ManagedDeviceID,
+		&i.FailedAttempts,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getPendingLoginForUpdate = `-- name: GetPendingLoginForUpdate :one
+SELECT id, token_digest, account_id, auth_identity_id, managed_device_id, failed_attempts, expires_at, created_at FROM pending_logins WHERE token_digest = $1 AND expires_at > now() FOR UPDATE
+`
+
+func (q *Queries) GetPendingLoginForUpdate(ctx context.Context, tokenDigest []byte) (PendingLogin, error) {
+	row := q.db.QueryRow(ctx, getPendingLoginForUpdate, tokenDigest)
+	var i PendingLogin
+	err := row.Scan(
+		&i.ID,
+		&i.TokenDigest,
+		&i.AccountID,
+		&i.AuthIdentityID,
+		&i.ManagedDeviceID,
+		&i.FailedAttempts,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getSessionForReauthentication = `-- name: GetSessionForReauthentication :one
-SELECT s.id, s.account_id, s.auth_identity_id, s.token_digest, s.csrf_digest, s.auth_method, s.created_at, s.last_seen_at, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.revocation_reason, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at, s.managed_device_id, s.session_policy_id, s.session_policy_version, s.idle_timeout_seconds, s.post_session_destination FROM sessions s JOIN auth_identities i ON i.id=s.auth_identity_id
+SELECT s.id, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
+       COALESCE(s.authenticated_assurance, s.current_assurance)::text AS authenticated_assurance,
+       s.auth_method, s.mfa_setup_required
+FROM sessions s LEFT JOIN auth_identities i ON i.id=s.auth_identity_id
 WHERE s.id=$1 AND s.account_id=$2
   AND s.revoked_at IS NULL AND s.idle_expires_at>now() AND s.absolute_expires_at>now()
-  AND i.disabled_at IS NULL
+  AND (s.webauthn_credential_id IS NOT NULL OR (i.id IS NOT NULL AND i.disabled_at IS NULL))
 FOR UPDATE OF s
 `
 
@@ -779,31 +1123,30 @@ type GetSessionForReauthenticationParams struct {
 	AccountID uuid.UUID
 }
 
-func (q *Queries) GetSessionForReauthentication(ctx context.Context, arg GetSessionForReauthenticationParams) (Session, error) {
+type GetSessionForReauthenticationRow struct {
+	ID                     uuid.UUID
+	BaseAssurance          string
+	CurrentAssurance       string
+	AuthenticatedAt        time.Time
+	AssuranceExpiresAt     pgtype.Timestamptz
+	AuthenticatedAssurance string
+	AuthMethod             string
+	MfaSetupRequired       bool
+}
+
+// Locks the session row (FOR UPDATE OF s).
+func (q *Queries) GetSessionForReauthentication(ctx context.Context, arg GetSessionForReauthenticationParams) (GetSessionForReauthenticationRow, error) {
 	row := q.db.QueryRow(ctx, getSessionForReauthentication, arg.SessionID, arg.AccountID)
-	var i Session
+	var i GetSessionForReauthenticationRow
 	err := row.Scan(
 		&i.ID,
-		&i.AccountID,
-		&i.AuthIdentityID,
-		&i.TokenDigest,
-		&i.CsrfDigest,
-		&i.AuthMethod,
-		&i.CreatedAt,
-		&i.LastSeenAt,
-		&i.IdleExpiresAt,
-		&i.AbsoluteExpiresAt,
-		&i.RevokedAt,
-		&i.RevocationReason,
 		&i.BaseAssurance,
 		&i.CurrentAssurance,
 		&i.AuthenticatedAt,
 		&i.AssuranceExpiresAt,
-		&i.ManagedDeviceID,
-		&i.SessionPolicyID,
-		&i.SessionPolicyVersion,
-		&i.IdleTimeoutSeconds,
-		&i.PostSessionDestination,
+		&i.AuthenticatedAssurance,
+		&i.AuthMethod,
+		&i.MfaSetupRequired,
 	)
 	return i, err
 }
@@ -822,22 +1165,27 @@ func (q *Queries) GetSessionPostDestinationByDigest(ctx context.Context, tokenDi
 }
 
 const getSessionPrincipal = `-- name: GetSessionPrincipal :one
-SELECT s.id AS session_id, s.account_id, s.auth_identity_id, s.csrf_digest,
+SELECT s.id AS session_id, s.account_id, s.csrf_digest,
 	       s.idle_expires_at, s.absolute_expires_at, s.last_seen_at, s.managed_device_id,
 	       s.session_policy_id, s.session_policy_version, s.idle_timeout_seconds, s.post_session_destination,
 	       s.auth_method, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
+	       COALESCE(s.authenticated_assurance, s.current_assurance)::text AS authenticated_assurance,
+	       (s.mfa_setup_required AND NOT EXISTS (
+	           SELECT 1 FROM mfa_totp_credentials t WHERE t.account_id = s.account_id AND t.confirmed_at IS NOT NULL
+	       ) AND NOT EXISTS (
+	           SELECT 1 FROM webauthn_credentials w WHERE w.account_id = s.account_id
+	       ))::boolean AS mfa_setup_required,
 	       a.person_id, p.first_name, p.last_name
 FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN people p ON p.id = a.person_id
-JOIN auth_identities i ON i.id = s.auth_identity_id
+LEFT JOIN auth_identities i ON i.id = s.auth_identity_id
 WHERE s.token_digest = $1 AND s.revoked_at IS NULL
   AND s.idle_expires_at > now() AND s.absolute_expires_at > now() AND a.status = 'enabled'
-  AND i.disabled_at IS NULL
+  AND (s.webauthn_credential_id IS NOT NULL OR (i.id IS NOT NULL AND i.disabled_at IS NULL))
 `
 
 type GetSessionPrincipalRow struct {
 	SessionID              uuid.UUID
 	AccountID              uuid.UUID
-	AuthIdentityID         uuid.UUID
 	CsrfDigest             []byte
 	IdleExpiresAt          time.Time
 	AbsoluteExpiresAt      time.Time
@@ -852,18 +1200,20 @@ type GetSessionPrincipalRow struct {
 	CurrentAssurance       string
 	AuthenticatedAt        time.Time
 	AssuranceExpiresAt     pgtype.Timestamptz
+	AuthenticatedAssurance string
+	MfaSetupRequired       bool
 	PersonID               uuid.UUID
 	FirstName              string
 	LastName               string
 }
 
+// mfa_setup_required lifts as soon as the account has a second factor, even when it was enrolled in another session.
 func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (GetSessionPrincipalRow, error) {
 	row := q.db.QueryRow(ctx, getSessionPrincipal, tokenDigest)
 	var i GetSessionPrincipalRow
 	err := row.Scan(
 		&i.SessionID,
 		&i.AccountID,
-		&i.AuthIdentityID,
 		&i.CsrfDigest,
 		&i.IdleExpiresAt,
 		&i.AbsoluteExpiresAt,
@@ -878,6 +1228,8 @@ func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (
 		&i.CurrentAssurance,
 		&i.AuthenticatedAt,
 		&i.AssuranceExpiresAt,
+		&i.AuthenticatedAssurance,
+		&i.MfaSetupRequired,
 		&i.PersonID,
 		&i.FirstName,
 		&i.LastName,
@@ -885,23 +1237,84 @@ func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (
 	return i, err
 }
 
+const getTOTPCredential = `-- name: GetTOTPCredential :one
+SELECT id, account_id, secret_ciphertext, confirmed_at, last_used_step, last_used_at, created_at FROM mfa_totp_credentials WHERE account_id = $1
+`
+
+func (q *Queries) GetTOTPCredential(ctx context.Context, accountID uuid.UUID) (MfaTotpCredential, error) {
+	row := q.db.QueryRow(ctx, getTOTPCredential, accountID)
+	var i MfaTotpCredential
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.SecretCiphertext,
+		&i.ConfirmedAt,
+		&i.LastUsedStep,
+		&i.LastUsedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getTOTPCredentialForUpdate = `-- name: GetTOTPCredentialForUpdate :one
+SELECT id, account_id, secret_ciphertext, confirmed_at, last_used_step, last_used_at, created_at FROM mfa_totp_credentials WHERE account_id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetTOTPCredentialForUpdate(ctx context.Context, accountID uuid.UUID) (MfaTotpCredential, error) {
+	row := q.db.QueryRow(ctx, getTOTPCredentialForUpdate, accountID)
+	var i MfaTotpCredential
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.SecretCiphertext,
+		&i.ConfirmedAt,
+		&i.LastUsedStep,
+		&i.LastUsedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getWebAuthnCredentialByCredentialID = `-- name: GetWebAuthnCredentialByCredentialID :one
+SELECT id, account_id, credential_id, credential, name, created_at, last_used_at FROM webauthn_credentials WHERE credential_id = $1
+`
+
+func (q *Queries) GetWebAuthnCredentialByCredentialID(ctx context.Context, credentialID []byte) (WebauthnCredential, error) {
+	row := q.db.QueryRow(ctx, getWebAuthnCredentialByCredentialID, credentialID)
+	var i WebauthnCredential
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.CredentialID,
+		&i.Credential,
+		&i.Name,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
 const grantRecentAuthentication = `-- name: GrantRecentAuthentication :exec
 UPDATE sessions SET current_assurance=$1, authenticated_at=$2,
-    assurance_expires_at=$3
-WHERE id=$4
+    authenticated_assurance=$3, assurance_expires_at=$4
+WHERE id=$5
 `
 
 type GrantRecentAuthenticationParams struct {
-	Assurance       string
-	AuthenticatedAt time.Time
-	ExpiresAt       pgtype.Timestamptz
-	ID              uuid.UUID
+	CurrentAssurance string
+	AuthenticatedAt  time.Time
+	ProofAssurance   *string
+	ExpiresAt        pgtype.Timestamptz
+	ID               uuid.UUID
 }
 
+// A proof weaker than the session's base never lowers the session's assurance; it only records what was proven
+// and when. The temporary raise expires back to the base assurance.
 func (q *Queries) GrantRecentAuthentication(ctx context.Context, arg GrantRecentAuthenticationParams) error {
 	_, err := q.db.Exec(ctx, grantRecentAuthentication,
-		arg.Assurance,
+		arg.CurrentAssurance,
 		arg.AuthenticatedAt,
+		arg.ProofAssurance,
 		arg.ExpiresAt,
 		arg.ID,
 	)
@@ -916,6 +1329,119 @@ WHERE id = $1
 func (q *Queries) IncrementAuthChallengeFailure(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, incrementAuthChallengeFailure, id)
 	return err
+}
+
+const insertRecoveryCode = `-- name: InsertRecoveryCode :exec
+INSERT INTO mfa_recovery_codes (id, account_id, code_digest) VALUES ($1, $2, $3)
+`
+
+type InsertRecoveryCodeParams struct {
+	ID         uuid.UUID
+	AccountID  uuid.UUID
+	CodeDigest []byte
+}
+
+func (q *Queries) InsertRecoveryCode(ctx context.Context, arg InsertRecoveryCodeParams) error {
+	_, err := q.db.Exec(ctx, insertRecoveryCode, arg.ID, arg.AccountID, arg.CodeDigest)
+	return err
+}
+
+const insertWebAuthnChallenge = `-- name: InsertWebAuthnChallenge :exec
+INSERT INTO webauthn_challenges (id, challenge_digest, purpose, account_id, session_id, pending_login_id, session_data, expires_at)
+VALUES ($1, $2, $3, $4, $5,
+        $6, $7::text::jsonb, $8)
+`
+
+type InsertWebAuthnChallengeParams struct {
+	ID              uuid.UUID
+	ChallengeDigest []byte
+	Purpose         string
+	AccountID       *uuid.UUID
+	SessionID       *uuid.UUID
+	PendingLoginID  *uuid.UUID
+	SessionData     string
+	ExpiresAt       time.Time
+}
+
+func (q *Queries) InsertWebAuthnChallenge(ctx context.Context, arg InsertWebAuthnChallengeParams) error {
+	_, err := q.db.Exec(ctx, insertWebAuthnChallenge,
+		arg.ID,
+		arg.ChallengeDigest,
+		arg.Purpose,
+		arg.AccountID,
+		arg.SessionID,
+		arg.PendingLoginID,
+		arg.SessionData,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
+const insertWebAuthnCredential = `-- name: InsertWebAuthnCredential :one
+INSERT INTO webauthn_credentials (id, account_id, credential_id, credential, name)
+VALUES ($1, $2, $3, $4::text::jsonb, $5)
+RETURNING id, account_id, credential_id, credential, name, created_at, last_used_at
+`
+
+type InsertWebAuthnCredentialParams struct {
+	ID           uuid.UUID
+	AccountID    uuid.UUID
+	CredentialID []byte
+	Credential   string
+	Name         string
+}
+
+func (q *Queries) InsertWebAuthnCredential(ctx context.Context, arg InsertWebAuthnCredentialParams) (WebauthnCredential, error) {
+	row := q.db.QueryRow(ctx, insertWebAuthnCredential,
+		arg.ID,
+		arg.AccountID,
+		arg.CredentialID,
+		arg.Credential,
+		arg.Name,
+	)
+	var i WebauthnCredential
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.CredentialID,
+		&i.Credential,
+		&i.Name,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const listWebAuthnCredentials = `-- name: ListWebAuthnCredentials :many
+SELECT id, account_id, credential_id, credential, name, created_at, last_used_at FROM webauthn_credentials WHERE account_id = $1 ORDER BY created_at, id
+`
+
+func (q *Queries) ListWebAuthnCredentials(ctx context.Context, accountID uuid.UUID) ([]WebauthnCredential, error) {
+	rows, err := q.db.Query(ctx, listWebAuthnCredentials, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WebauthnCredential{}
+	for rows.Next() {
+		var i WebauthnCredential
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.CredentialID,
+			&i.Credential,
+			&i.Name,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markAuthenticationSucceeded = `-- name: MarkAuthenticationSucceeded :exec
@@ -979,6 +1505,24 @@ func (q *Queries) PINThrottleBlocked(ctx context.Context, arg PINThrottleBlocked
 	return exists, err
 }
 
+const raiseSessionToStrongMFA = `-- name: RaiseSessionToStrongMFA :exec
+UPDATE sessions SET base_assurance='strong_mfa', current_assurance='strong_mfa', authenticated_assurance='strong_mfa',
+    authenticated_at=$1, assurance_expires_at=NULL, mfa_setup_required=false
+WHERE id=$2
+`
+
+type RaiseSessionToStrongMFAParams struct {
+	AuthenticatedAt time.Time
+	ID              uuid.UUID
+}
+
+// The session proved a second factor (enrollment, second-factor reauthentication): it is now equivalent to a
+// multi-factor login.
+func (q *Queries) RaiseSessionToStrongMFA(ctx context.Context, arg RaiseSessionToStrongMFAParams) error {
+	_, err := q.db.Exec(ctx, raiseSessionToStrongMFA, arg.AuthenticatedAt, arg.ID)
+	return err
+}
+
 const recordPINFailure = `-- name: RecordPINFailure :exec
 INSERT INTO pin_login_throttles (dimension, key_digest, failure_count, blocked_until)
 VALUES ($1, $2, 1, now() + interval '1 second')
@@ -1003,6 +1547,100 @@ type RecordPINFailureParams struct {
 // terminal) is not stuck at the maximum back-off after a few old failures.
 func (q *Queries) RecordPINFailure(ctx context.Context, arg RecordPINFailureParams) error {
 	_, err := q.db.Exec(ctx, recordPINFailure, arg.Dimension, arg.KeyDigest)
+	return err
+}
+
+const recordPendingLoginFailure = `-- name: RecordPendingLoginFailure :one
+UPDATE pending_logins SET failed_attempts = failed_attempts + 1 WHERE id = $1 RETURNING failed_attempts
+`
+
+func (q *Queries) RecordPendingLoginFailure(ctx context.Context, id uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, recordPendingLoginFailure, id)
+	var failed_attempts int32
+	err := row.Scan(&failed_attempts)
+	return failed_attempts, err
+}
+
+const recordSecondFactorFailure = `-- name: RecordSecondFactorFailure :exec
+INSERT INTO second_factor_throttles (account_id, failure_count, blocked_until)
+VALUES ($1, 1, now() + interval '1 second')
+ON CONFLICT (account_id) DO UPDATE SET
+    failure_count = CASE
+        WHEN second_factor_throttles.updated_at < now() - interval '15 minutes' THEN 1
+        ELSE LEAST(second_factor_throttles.failure_count + 1, 20)
+    END,
+    blocked_until = now() + CASE
+        WHEN second_factor_throttles.updated_at < now() - interval '15 minutes' THEN interval '1 second'
+        ELSE make_interval(secs => LEAST(300, power(2, LEAST(second_factor_throttles.failure_count, 8))::integer))
+    END,
+    updated_at = now()
+`
+
+// Same back-off as the PIN throttle: one second, then doubling up to five minutes; a quiet quarter hour resets it.
+func (q *Queries) RecordSecondFactorFailure(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, recordSecondFactorFailure, accountID)
+	return err
+}
+
+const recordTOTPUse = `-- name: RecordTOTPUse :exec
+UPDATE mfa_totp_credentials SET last_used_step = $1, last_used_at = now()
+WHERE id = $2 AND (last_used_step IS NULL OR last_used_step < $1)
+`
+
+type RecordTOTPUseParams struct {
+	Step *int64
+	ID   uuid.UUID
+}
+
+func (q *Queries) RecordTOTPUse(ctx context.Context, arg RecordTOTPUseParams) error {
+	_, err := q.db.Exec(ctx, recordTOTPUse, arg.Step, arg.ID)
+	return err
+}
+
+const renameWebAuthnCredential = `-- name: RenameWebAuthnCredential :one
+UPDATE webauthn_credentials SET name = $1
+WHERE id = $2 AND account_id = $3
+RETURNING id, account_id, credential_id, credential, name, created_at, last_used_at
+`
+
+type RenameWebAuthnCredentialParams struct {
+	Name      string
+	ID        uuid.UUID
+	AccountID uuid.UUID
+}
+
+func (q *Queries) RenameWebAuthnCredential(ctx context.Context, arg RenameWebAuthnCredentialParams) (WebauthnCredential, error) {
+	row := q.db.QueryRow(ctx, renameWebAuthnCredential, arg.Name, arg.ID, arg.AccountID)
+	var i WebauthnCredential
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.CredentialID,
+		&i.Credential,
+		&i.Name,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const replacePendingTOTPCredential = `-- name: ReplacePendingTOTPCredential :exec
+INSERT INTO mfa_totp_credentials (id, account_id, secret_ciphertext, created_at)
+VALUES ($1, $2, $3, now())
+ON CONFLICT (account_id) DO UPDATE SET id = EXCLUDED.id, secret_ciphertext = EXCLUDED.secret_ciphertext,
+    created_at = now(), last_used_step = NULL, last_used_at = NULL
+WHERE mfa_totp_credentials.confirmed_at IS NULL
+`
+
+type ReplacePendingTOTPCredentialParams struct {
+	ID               uuid.UUID
+	AccountID        uuid.UUID
+	SecretCiphertext []byte
+}
+
+// Only an unconfirmed enrollment is replaced; a confirmed authenticator app stays until it is removed.
+func (q *Queries) ReplacePendingTOTPCredential(ctx context.Context, arg ReplacePendingTOTPCredentialParams) error {
+	_, err := q.db.Exec(ctx, replacePendingTOTPCredential, arg.ID, arg.AccountID, arg.SecretCiphertext)
 	return err
 }
 
@@ -1050,6 +1688,19 @@ type RevokeSessionsForAccountParams struct {
 func (q *Queries) RevokeSessionsForAccount(ctx context.Context, arg RevokeSessionsForAccountParams) error {
 	_, err := q.db.Exec(ctx, revokeSessionsForAccount, arg.Reason, arg.AccountID)
 	return err
+}
+
+const secondFactorThrottleBlocked = `-- name: SecondFactorThrottleBlocked :one
+SELECT EXISTS (
+    SELECT 1 FROM second_factor_throttles WHERE account_id = $1 AND blocked_until > now()
+)
+`
+
+func (q *Queries) SecondFactorThrottleBlocked(ctx context.Context, accountID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, secondFactorThrottleBlocked, accountID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const setAuthChallengeDelivery = `-- name: SetAuthChallengeDelivery :exec
@@ -1122,6 +1773,20 @@ func (q *Queries) UpdatePINIdentity(ctx context.Context, arg UpdatePINIdentityPa
 		&i.LastUsedAt,
 	)
 	return i, err
+}
+
+const updateWebAuthnCredentialUse = `-- name: UpdateWebAuthnCredentialUse :exec
+UPDATE webauthn_credentials SET credential = $1::text::jsonb, last_used_at = now() WHERE id = $2
+`
+
+type UpdateWebAuthnCredentialUseParams struct {
+	Credential string
+	ID         uuid.UUID
+}
+
+func (q *Queries) UpdateWebAuthnCredentialUse(ctx context.Context, arg UpdateWebAuthnCredentialUseParams) error {
+	_, err := q.db.Exec(ctx, updateWebAuthnCredentialUse, arg.Credential, arg.ID)
+	return err
 }
 
 const upsertAuthChallenge = `-- name: UpsertAuthChallenge :one
@@ -1232,6 +1897,24 @@ WHERE id = $1 AND used_at IS NULL AND cancelled_at IS NULL
 func (q *Queries) UseAuthChallenge(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, useAuthChallenge, id)
 	return err
+}
+
+const useRecoveryCode = `-- name: UseRecoveryCode :execrows
+UPDATE mfa_recovery_codes SET used_at = now()
+WHERE account_id = $1 AND code_digest = $2 AND used_at IS NULL
+`
+
+type UseRecoveryCodeParams struct {
+	AccountID  uuid.UUID
+	CodeDigest []byte
+}
+
+func (q *Queries) UseRecoveryCode(ctx context.Context, arg UseRecoveryCodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, useRecoveryCode, arg.AccountID, arg.CodeDigest)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const verifyPasswordIdentity = `-- name: VerifyPasswordIdentity :exec

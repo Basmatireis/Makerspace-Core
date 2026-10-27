@@ -545,7 +545,7 @@ func (q *Queries) MarkFlowUsed(ctx context.Context, id uuid.UUID) (int64, error)
 
 const revokeSessionsForIdentity = `-- name: RevokeSessionsForIdentity :exec
 UPDATE sessions SET revoked_at = COALESCE(revoked_at, now()), revocation_reason = COALESCE(revocation_reason, 'identity_unlinked')
-WHERE auth_identity_id = $1 AND revoked_at IS NULL
+WHERE auth_identity_id = $1::uuid AND revoked_at IS NULL
 `
 
 func (q *Queries) RevokeSessionsForIdentity(ctx context.Context, authIdentityID uuid.UUID) error {

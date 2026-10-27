@@ -318,8 +318,14 @@ func accountDTO(account accounts.Account) openapi.Account {
 			Usable: identity.Usable,
 		})
 	}
+	var secondFactors *openapi.SecondFactorSummary
+	if account.SecondFactors != nil {
+		summary := secondFactorSummaryDTO(*account.SecondFactors)
+		secondFactors = &summary
+	}
 	return openapi.Account{
-		Id: account.ID, PersonId: account.PersonID, Status: openapi.AccountStatus(account.Status),
+		SecondFactors: secondFactors,
+		Id:            account.ID, PersonId: account.PersonID, Status: openapi.AccountStatus(account.Status),
 		ProvisioningSource: openapi.AccountProvisioningSource(account.ProvisioningSource),
 		FirstAuthenticatedAt: nullablePointer[time.Time](
 			account.FirstAuthenticatedAt,

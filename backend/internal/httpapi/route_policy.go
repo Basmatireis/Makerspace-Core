@@ -81,10 +81,15 @@ var revalidatedRoutes = map[string]bool{
 type routePolicy struct {
 	sessionless map[string]bool
 	rawBinary   map[string]bool
+	// mfaSetupAllowed lists the operations a session confined to second-factor setup may still use
+	// (`x-mfa-setup-allowed: true` in the contract).
+	mfaSetupAllowed map[string]bool
 }
 
+const mfaSetupAllowedExtension = "x-mfa-setup-allowed"
+
 func newRoutePolicy(spec *openapi3.T) routePolicy {
-	policy := routePolicy{sessionless: map[string]bool{}, rawBinary: map[string]bool{}}
+	policy := routePolicy{sessionless: map[string]bool{}, rawBinary: map[string]bool{}, mfaSetupAllowed: map[string]bool{}}
 	for path, item := range spec.Paths.Map() {
 		for method, operation := range item.Operations() {
 			key := routeKey(method, path)
@@ -94,6 +99,8 @@ func newRoutePolicy(spec *openapi3.T) routePolicy {
 			}
 			policy.sessionless[key] = !requiresSession(requirements)
 			policy.rawBinary[key] = hasOnlyBinaryBody(operation)
+			allowed, _ := operation.Extensions[mfaSetupAllowedExtension].(bool)
+			policy.mfaSetupAllowed[key] = allowed
 		}
 	}
 	return policy
@@ -146,6 +153,10 @@ func requestRoute(ctx context.Context) string {
 
 func (p routePolicy) isSessionless(ctx context.Context) bool {
 	return p.sessionless[requestRoute(ctx)]
+}
+
+func (p routePolicy) allowsDuringMFASetup(ctx context.Context) bool {
+	return p.mfaSetupAllowed[requestRoute(ctx)]
 }
 
 func (p routePolicy) isRawBinaryUpload(ctx context.Context) bool {

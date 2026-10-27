@@ -52,7 +52,7 @@ func (s *seeder) setupActor(email string) {
 			PersonID:        person,
 			FirstName:       fn,
 			LastName:        ln,
-			Assurance:       authorization.AssuranceNormal,
+			Assurance:       authorization.AssuranceStrongMFA,
 			AuthenticatedAt: s.now,
 		},
 	)
