@@ -17,7 +17,7 @@ import (
 )
 
 // masterTOTPSecret is a test-only base32 secret; keep it equal to frontend/e2e/totp.ts.
-const masterTOTPSecret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"
+const masterTOTPSecret = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP" //nolint:gosec // isolated E2E fixture, APP_ENV=test only
 
 func main() {
 	if err := run(); err != nil {
