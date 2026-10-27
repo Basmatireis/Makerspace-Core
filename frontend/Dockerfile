@@ -3,7 +3,7 @@
 # The dependency install and the Vite build run once on the build platform: the static output does
 # not depend on the target architecture, so only the final nginx stage is per platform (and it only
 # copies files).
-FROM --platform=$BUILDPLATFORM node:26.12.0-alpine3.24 AS base
+FROM --platform=$BUILDPLATFORM node:26.12.1-alpine3.24 AS base
 
 WORKDIR /workspace/frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml frontend/.pnpmfile.cjs ./
