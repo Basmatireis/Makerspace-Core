@@ -213,3 +213,68 @@ func commandFrom(row db.MachineRunCommand) Command {
 	}
 	return command
 }
+
+// RequestRecomputeAfterArtifact queues a consumption recompute for a run whose 3MF staff just attached,
+// inside the caller's transaction (which holds the run's lock and commits the attachment). A running run needs
+// none: the connector uses the file when the run ends. Anything that keeps the connector from taking the
+// command (removed, too old, rate limited) is not an error; the outcome says so and the consumption stays
+// as it was.
+func (s *Service) RequestRecomputeAfterArtifact(
+	ctx context.Context,
+	tx pgx.Tx,
+	actor uuid.UUID,
+	runID uuid.UUID,
+	requestID *uuid.UUID,
+) (RecomputeOutcome, error) {
+	q := db.New(tx)
+	target, err := q.GetRunCommandTargetForUpdate(ctx, runID)
+	if err != nil {
+		return "", err
+	}
+	if target.State != nil && *target.State == "running" {
+		return RecomputeNotNeeded, nil
+	}
+	if commandAllowed(target, CommandRecomputeConsumption) != nil {
+		return RecomputeUnavailable, nil
+	}
+	if _, err = q.GetOpenRunCommand(ctx, db.GetOpenRunCommandParams{
+		RunID: runID,
+		Kind:  string(CommandRecomputeConsumption),
+	}); err == nil {
+		return RecomputeAlreadyRequested, nil
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return "", err
+	}
+	now := s.now()
+	if !target.CommandsPolledAt.Valid || now.Sub(target.CommandsPolledAt.Time) > CommandPollFreshness {
+		return RecomputeUnavailable, nil
+	}
+	recent, err := q.CountRunCommandsSince(ctx, db.CountRunCommandsSinceParams{RunID: runID, Since: now.Add(-CommandRateWindow)})
+	if err != nil {
+		return "", err
+	}
+	if recent.Recent >= CommandsPerRunWindow {
+		return RecomputeUnavailable, nil
+	}
+	row, err := q.InsertRunCommand(ctx, db.InsertRunCommandParams{
+		ID:           ids.New(),
+		RunID:        runID,
+		ConnectorID:  target.ConnectorID,
+		AssignmentID: target.AssignmentID,
+		Kind:         string(CommandRecomputeConsumption),
+	})
+	if err != nil {
+		return "", err
+	}
+	if err = audit.Write(ctx, tx, audit.Event{
+		ActorAccountID: &actor,
+		Action:         "machine_run.consumption_recompute_requested",
+		ResourceType:   "machine_run",
+		ResourceID:     &runID,
+		RequestID:      requestID,
+		Metadata:       map[string]any{"commandId": row.ID.String()},
+	}); err != nil {
+		return "", err
+	}
+	return RecomputeRequested, nil
+}

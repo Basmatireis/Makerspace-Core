@@ -391,6 +391,8 @@ export * from './machinePage';
 export * from './machineProcess';
 export * from './machineRun';
 export * from './machineRunArtifactFile';
+export * from './machineRunArtifactUploadResult';
+export * from './machineRunArtifactUploadResultConsumptionRecompute';
 export * from './machineRunCommand';
 export * from './machineRunCommandKind';
 export * from './machineRunCommandState';

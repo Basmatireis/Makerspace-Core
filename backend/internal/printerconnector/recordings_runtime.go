@@ -198,7 +198,7 @@ func (r *Runtime) startCommand(ctx context.Context, identity Identity, command R
 			return err
 		}
 		if staged == nil {
-			if err = r.stageArtifactFromCore(ctx, identity, command, configurationVersion); err != nil {
+			if err = r.stageArtifactFromCore(ctx, identity, command.AssignmentID, command.RunID, configurationVersion); err != nil {
 				r.logFailure("artifact download for recompute failed", err)
 				return r.failCommand(ctx, command, commandReasonDownloadFailed)
 			}
@@ -217,7 +217,7 @@ func (r *Runtime) startCommand(ctx context.Context, identity Identity, command R
 func (r *Runtime) stageArtifactFromCore(
 	ctx context.Context,
 	identity Identity,
-	command RunCommand,
+	assignmentID, runID uuid.UUID,
 	configurationVersion int64,
 ) error {
 	directory := filepath.Join(r.store.dataDir, "artifacts")
@@ -230,7 +230,7 @@ func (r *Runtime) stageArtifactFromCore(
 	}
 	path := temporary.Name()
 	defer func() { _ = os.Remove(path) }()
-	err = r.client.DownloadRunArtifact(ctx, identity.CredentialSecret, command.AssignmentID, command.RunID, temporary, maxStagedArtifact)
+	err = r.client.DownloadRunArtifact(ctx, identity.CredentialSecret, assignmentID, runID, temporary, maxStagedArtifact)
 	if closeErr := temporary.Close(); err == nil {
 		err = closeErr
 	}
@@ -244,11 +244,11 @@ func (r *Runtime) stageArtifactFromCore(
 	defer func() { _ = reader.Close() }()
 	transfer, err := r.store.StageArtifact(
 		ctx,
-		command.AssignmentID,
-		command.RunID,
+		assignmentID,
+		runID,
 		configurationVersion,
-		"core:"+command.RunID.String(),
-		command.RunID.String()+".3mf",
+		"core:"+runID.String(),
+		runID.String()+".3mf",
 		reader,
 		time.Now().UTC().Add(24*time.Hour),
 	)
@@ -256,6 +256,26 @@ func (r *Runtime) stageArtifactFromCore(
 		return err
 	}
 	return r.store.MarkArtifactAcknowledged(ctx, transfer.ID)
+}
+
+// StageCoreArtifact stages the 3MF Core stores for a run (for example one staff uploaded after a print from the
+// printer's internal storage) so the adapter calculates the run's consumption from it. It reports false without
+// an error when Core has none.
+func (r *Runtime) StageCoreArtifact(
+	ctx context.Context,
+	assignmentID, runID uuid.UUID,
+	configurationVersion int64,
+) (bool, error) {
+	staged, err := r.store.StagedArtifactForRun(ctx, assignmentID, runID)
+	if err != nil || staged != nil {
+		return staged != nil, err
+	}
+	err = r.stageArtifactFromCore(ctx, r.currentIdentity(), assignmentID, runID, configurationVersion)
+	var coreErr *CoreError
+	if errors.As(err, &coreErr) && coreErr.Status == http.StatusNotFound {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 func (r *Runtime) checkCommand(ctx context.Context, command RunCommand) error {

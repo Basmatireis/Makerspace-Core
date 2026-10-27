@@ -11,7 +11,10 @@ import { formatQuantity } from '../shared/format';
 
 export const internalStorageTitle = 'Print file on the printer’s internal storage';
 export const internalStorageMessage =
-  'This print was started from the printer’s internal storage. The connector can only read USB or SD storage, so Core cannot get the 3MF: there is no preview, filament estimate or slicer-based consumption. Start prints from a USB stick (or SD card) to have them recorded fully.';
+  'This print was started from the printer’s internal storage. The connector can only read USB or SD storage, so Core cannot get the 3MF: there is no preview, filament estimate or slicer-based consumption. Upload the 3MF here to get the preview, filament estimate and consumption, or record the material manually. Start prints from a USB stick (or SD card) to have them recorded automatically.';
+
+export const internalStorageShortMessage =
+  'Started from the printer’s internal storage, so Core has no 3MF. Upload it on the run page or record the material manually.';
 
 /** True for a run whose 3MF is on the printer's internal storage, where the connector cannot read it. */
 export function isOnInternalStorage(status: MachineRunConsumptionStatus | null | undefined): boolean {

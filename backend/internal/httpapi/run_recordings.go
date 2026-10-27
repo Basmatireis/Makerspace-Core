@@ -71,6 +71,47 @@ func (s *Server) DownloadMachineRunArtifact(
 	}, nil
 }
 
+func (s *Server) UploadMachineRunArtifact(
+	ctx context.Context,
+	request openapi.UploadMachineRunArtifactRequestObject,
+) (openapi.UploadMachineRunArtifactResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	name, err := decodeUploadFileName(request.Params.XFileName)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.printArtifacts.UploadForRun(
+		ctx,
+		principal,
+		request.RunId,
+		name,
+		request.Body,
+		requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.UploadMachineRunArtifact201JSONResponse{
+		RunId: result.RunID,
+		Artifact: openapi.MachineRunArtifactFile{
+			Id:               result.Artifact.ID,
+			OriginalFilename: result.Artifact.OriginalFilename,
+			SizeBytes:        result.Artifact.SizeBytes,
+			Sha256:           result.Artifact.SHA256,
+			ParserStatus:     openapi.PrintArtifactParserStatus(result.Artifact.ParserStatus),
+			UploadedManually: true,
+		},
+		Replaced:             result.Replaced,
+		NameMismatch:         result.NameMismatch,
+		PrintName:            nullableString(result.PrintName),
+		ProjectName:          nullableString(result.ProjectName),
+		ConsumptionRecompute: openapi.MachineRunArtifactUploadResultConsumptionRecompute(result.ConsumptionRecompute),
+	}, nil
+}
+
 func (s *Server) GetMachineRunPreview(
 	ctx context.Context,
 	request openapi.GetMachineRunPreviewRequestObject,
@@ -434,6 +475,7 @@ func runRecordingDTO(recording runrecordings.Recording) openapi.MachineRunRecord
 			SizeBytes:        value.SizeBytes,
 			Sha256:           value.SHA256,
 			ParserStatus:     openapi.PrintArtifactParserStatus(value.ParserStatus),
+			UploadedManually: value.UploadedManually,
 		})
 	}
 	timelapse := nullable.NewNullNullable[openapi.MachineRunTimelapse]()

@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	ActivatePricingSnapshot(ctx context.Context, arg ActivatePricingSnapshotParams) (MachineJob, error)
 	ActiveOrganizationExists(ctx context.Context, id uuid.UUID) (bool, error)
+	// The connector's retrieval: it supersedes a manually uploaded file and clears the manual flag.
 	AttachArtifactToRun(ctx context.Context, arg AttachArtifactToRunParams) (MachineRun, error)
 	AttachRunToPlannedJob(ctx context.Context, arg AttachRunToPlannedJobParams) (int64, error)
 	BillingPersonExists(ctx context.Context, id uuid.UUID) (bool, error)
@@ -25,6 +26,8 @@ type Querier interface {
 	GetArtifactPreview(ctx context.Context, id uuid.UUID) (GetArtifactPreviewRow, error)
 	GetConnectorArtifactUploadTarget(ctx context.Context, arg GetConnectorArtifactUploadTargetParams) (GetConnectorArtifactUploadTargetRow, error)
 	GetMachineForArtifactJob(ctx context.Context, id uuid.UUID) (GetMachineForArtifactJobRow, error)
+	// Locks the run so concurrent uploads and connector retrievals serialize.
+	GetRunForManualArtifactUpload(ctx context.Context, runID uuid.UUID) (GetRunForManualArtifactUploadRow, error)
 	InsertArtifact(ctx context.Context, arg InsertArtifactParams) (PrintArtifact, error)
 	InsertArtifactFilament(ctx context.Context, arg InsertArtifactFilamentParams) error
 	InsertArtifactPreview(ctx context.Context, arg InsertArtifactPreviewParams) (PrintArtifactPreview, error)
@@ -38,6 +41,7 @@ type Querier interface {
 	OperatorExists(ctx context.Context, personID uuid.UUID) (bool, error)
 	ResolvePrinterErrorOccurrence(ctx context.Context, arg ResolvePrinterErrorOccurrenceParams) (int64, error)
 	SetArtifactPrimaryPreview(ctx context.Context, arg SetArtifactPrimaryPreviewParams) error
+	SetManualRunArtifact(ctx context.Context, arg SetManualRunArtifactParams) error
 	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) (PrinterErrorOccurrence, error)
 }
 

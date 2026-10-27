@@ -7,6 +7,7 @@ import {
   ToggletipButton,
   ToggletipContent,
 } from '@carbon/react';
+import type { ReactNode } from 'react';
 import { Calculator, Renew, WarningAltFilled } from '@carbon/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -25,7 +26,9 @@ import {
   commandKindLabel,
   commandStateLabel,
   consumptionNotice,
+  internalStorageShortMessage,
   isCommandOpen,
+  isOnInternalStorage,
   latestCommand,
 } from './recordingText';
 import './recording.scss';
@@ -54,6 +57,7 @@ export function ConsumptionNotice({
   recording,
   canEdit,
   ended,
+  uploadAction,
 }: {
   runId: string;
   status: MachineRunConsumptionStatus | null | undefined;
@@ -61,6 +65,8 @@ export function ConsumptionNotice({
   /** machine_jobs.edit: the backend decides; this only hides the buttons. */
   canEdit: boolean;
   ended: boolean;
+  /** Upload control, offered while the run has no print file. */
+  uploadAction?: ReactNode;
 }) {
   const client = useQueryClient();
   const request = useMutation({
@@ -117,6 +123,7 @@ export function ConsumptionNotice({
           {(open || request.isPending) && <InlineLoading description="Waiting for the connector" />}
         </div>
       )}
+      {canEdit && missingFile && uploadAction}
       {canAct && missingFile && (
         <p className="mj-secondary">Core has no print file for this run yet, so consumption cannot be recalculated.</p>
       )}
@@ -148,7 +155,8 @@ export function ConsumptionHint({ status }: { status: MachineRunConsumptionStatu
         </ToggletipButton>
         <ToggletipContent>
           <p>
-            <strong>{notice.title}.</strong> {notice.message}
+            <strong>{notice.title}.</strong>{' '}
+            {isOnInternalStorage(status) ? internalStorageShortMessage : notice.message}
           </p>
           {notice.detail && <p className="mj-secondary">Detail: {notice.detail}</p>}
         </ToggletipContent>

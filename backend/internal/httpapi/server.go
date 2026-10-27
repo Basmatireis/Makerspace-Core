@@ -184,6 +184,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService, location)
 	labRulesService.SetConfirmationListener(attendanceService)
 	visitorService.SetAttendance(attendanceService)
+	runRecordingsService := runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg))
 	return &Server{
 		pool:              pool,
 		config:            cfg,
@@ -200,10 +201,10 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		files:             fileService,
 		laborordnung:      labRulesService,
 		machineLogbook:    machineLogbook,
-		printArtifacts:    printartifacts.NewService(pool, fileService, machineLogbook),
+		printArtifacts:    printartifacts.NewService(pool, fileService, machineLogbook, runRecordingsService),
 		printing:          printingService,
 		printerConnectors: printerConnectorService,
-		runRecordings:     runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg)),
+		runRecordings:     runRecordingsService,
 		streamingGateways: streamingGatewayService,
 		orders:            ordersService,
 		invoicing:         invoicingService,

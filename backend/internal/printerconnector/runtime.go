@@ -511,6 +511,14 @@ func (s *runtimeSink) RecordingFeatures() *RecordingFeatures {
 	return s.runtime.RecordingFeatures()
 }
 
+// StageCoreArtifact lets adapters use the 3MF Core stores for a run.
+func (s *runtimeSink) StageCoreArtifact(ctx context.Context, assignmentID, runID uuid.UUID, version int64) (bool, error) {
+	if s.runtime == nil {
+		return false, nil
+	}
+	return s.runtime.StageCoreArtifact(ctx, assignmentID, runID, version)
+}
+
 // ReportLiveStatus keeps only the newest snapshot; delivery is throttled by the runtime.
 func (s *runtimeSink) ReportLiveStatus(snapshot json.RawMessage) {
 	if s.live != nil {

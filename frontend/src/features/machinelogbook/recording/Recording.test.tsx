@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   MachineRunConsumptionReason,
   PermissionId,
+  type MachineJobUsage,
   type MachineRunCommand,
   type MachineRunRecording,
   type RunRecordingSettings,
@@ -43,6 +44,7 @@ const artifact = {
   sizeBytes: 1024,
   sha256: 'abc',
   parserStatus: 'complete' as const,
+  uploadedManually: false,
 };
 const previewId = '0192f6f8-743e-7c77-a349-cd07c3e8d002';
 
@@ -131,7 +133,7 @@ describe('recording texts', () => {
       title: 'Print file on the printer’s internal storage',
       detail: '/data/Metadata/plate_1.gcode',
     });
-    expect(notice?.message).toMatch(/Start prints from a USB stick/);
+    expect(notice?.message).toMatch(/Upload the 3MF here/);
   });
 
   it('offers the internal-storage reason in the run list toggletip', async () => {
@@ -142,7 +144,7 @@ describe('recording texts', () => {
       />,
     );
     await user.click(screen.getByRole('button', { name: /Print file on the printer’s internal storage: why\?/ }));
-    expect(await screen.findByText(/Start prints from a USB stick/)).toBeInTheDocument();
+    expect(await screen.findByText(/Upload it on the run page/)).toBeInTheDocument();
   });
 
   it('labels previews and timelapse states', () => {
@@ -311,6 +313,91 @@ describe('Run detail recording', () => {
     await waitFor(() => expect(screen.getAllByText(/started from the printer’s internal storage/)).toHaveLength(3));
     expect(screen.queryByText(/Waiting for the printer’s 3MF file/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Core has no print file for this run/)).not.toBeInTheDocument();
+  });
+
+  it('offers the 3MF upload and the material action to editors of a run without a print file', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
+    const status = {
+      state: 'pending' as const,
+      reason: 'artifact_on_internal_storage' as const,
+      detail: null,
+    };
+    serveRun(recording({ state: 'running', consumptionStatus: status }), {
+      ...recordedRun({ state: 'running', endedAt: null, estimatedEndAt: '2099-01-01T13:30:00Z', outcome: null }),
+      consumptionStatus: status,
+    });
+    renderRun();
+    // One in the consumption notice and one in the empty preview tile; the run is unassigned.
+    await waitFor(() => expect(screen.getAllByText('Upload print file (3MF)').length).toBeGreaterThanOrEqual(2));
+    expect(screen.getByRole('button', { name: 'Edit material usage' })).toBeInTheDocument();
+  });
+
+  it('hides the upload and the material action without machine_jobs.edit', async () => {
+    auth.permissions = [PermissionId.machine_jobsread];
+    const status = missing('artifact_on_internal_storage');
+    serveRun(recording({ consumptionStatus: status }), { ...recordedRun(), consumptionStatus: status });
+    renderRun();
+    expect(await screen.findByText('Print file on the printer’s internal storage')).toBeInTheDocument();
+    expect(screen.queryByText('Upload print file (3MF)')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit material usage' })).not.toBeInTheDocument();
+  });
+
+  it('does not offer the upload once a print file exists', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
+    serveRun(recording({ artifact }));
+    renderRun();
+    expect(await screen.findByText('The print file contains no preview image.')).toBeInTheDocument();
+    expect(screen.queryByText('Upload print file (3MF)')).not.toBeInTheDocument();
+  });
+
+  it('uploads the file and warns when its name does not match the print', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
+    const status = missing('artifact_on_internal_storage');
+    serveRun(recording({ consumptionStatus: status }), { ...recordedRun(), consumptionStatus: status });
+    const headers: string[] = [];
+    server.use(
+      http.post(`*/api/v1/machine-runs/${runId}/artifact`, ({ request }) => {
+        headers.push(request.headers.get('X-File-Name') ?? '');
+        return HttpResponse.json(
+          {
+            runId,
+            artifact: { ...artifact, uploadedManually: true },
+            replaced: false,
+            nameMismatch: true,
+            printName: 'Benchy',
+            projectName: null,
+            consumptionRecompute: 'requested',
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    const { container } = renderRun();
+    await waitFor(() => expect(screen.getAllByText('Upload print file (3MF)').length).toBeGreaterThan(0));
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, new File(['x'], 'Vase.3mf'));
+    expect(await screen.findByText('The file may not belong to this print')).toBeInTheDocument();
+    expect(headers).toEqual(['Vase.3mf']);
+    await user.click(screen.getByRole('button', { name: 'Keep this file' }));
+    expect(screen.queryByText('The file may not belong to this print')).not.toBeInTheDocument();
+  });
+
+  it('warns when staff and machine material both exist', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
+    const staffUsage = {
+      id: ids.usage,
+      ownership: 'makerspace',
+      materialName: 'PLA Black',
+      materialTypeName: 'Filament',
+      unit: 'g',
+      quantity: '12',
+      quantityBasis: 'actual',
+      staffCorrected: true,
+    } as unknown as MachineJobUsage;
+    serveRun(recording({ artifact }), recordedRun({ usages: [staffUsage] }));
+    renderRun();
+    expect(await screen.findByText('Material entered by staff')).toBeInTheDocument();
   });
 
   it('hides the commands without machine_jobs.edit but still explains the reason', async () => {

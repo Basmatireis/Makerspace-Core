@@ -324,7 +324,15 @@ func (a *bambuH2DAdapter) retrieveOneArtifact(ctx context.Context) (bool, error)
 			ctx, a.assignmentID, retrieval.RunID, a.kind,
 		); factsErr == nil && internal {
 			// The print came from internal storage and external storage was listed
-			// successfully: the file is not there, so do not keep retrying.
+			// successfully: the file is not there, so do not keep retrying. Staff may have
+			// uploaded the 3MF to Core meanwhile; that settles the run instead.
+			adopted, adoptErr := a.adoptCoreArtifact(ctx, retrieval.RunID)
+			if adoptErr != nil {
+				return false, adoptErr
+			}
+			if adopted {
+				return true, a.store.MarkArtifactRetrievalStaged(ctx, *retrieval)
+			}
 			diagnostic := classifyAdapterError(err)
 			if err = a.store.QuarantineArtifactRetrieval(ctx, *retrieval, diagnostic); err != nil {
 				return false, err

@@ -25,6 +25,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts/parser"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/runrecordings"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -37,13 +38,19 @@ import (
 const MaxCompressedSize int64 = 512 << 20
 
 type Service struct {
-	pool    *pgxpool.Pool
-	files   *files.Service
-	logbook *machinelogbook.Service
+	pool       *pgxpool.Pool
+	files      *files.Service
+	logbook    *machinelogbook.Service
+	recordings *runrecordings.Service
 }
 
-func NewService(pool *pgxpool.Pool, fileService *files.Service, logbook *machinelogbook.Service) *Service {
-	return &Service{pool: pool, files: fileService, logbook: logbook}
+func NewService(
+	pool *pgxpool.Pool,
+	fileService *files.Service,
+	logbook *machinelogbook.Service,
+	recordings *runrecordings.Service,
+) *Service {
+	return &Service{pool: pool, files: fileService, logbook: logbook, recordings: recordings}
 }
 
 type Filament struct {
@@ -322,18 +329,7 @@ func (s *Service) Upload(
 			"Uploaded bytes do not match the declared length and SHA-256",
 		)
 	}
-	if _, err = temp.Seek(0, io.SeekStart); err != nil {
-		return UploadResult{}, err
-	}
-	parsed, err := parser.Parse(temp, contentLength, parser.DefaultLimits())
-	if err != nil {
-		var invalid *parser.ValidationError
-		if errors.As(err, &invalid) {
-			return UploadResult{}, validation("artifact_"+invalid.Code, "Archived printer job failed validation")
-		}
-		return UploadResult{}, validation("artifact_parse_failed", "Archived printer job could not be parsed")
-	}
-	metadata, err := normalizedMetadata(parsed)
+	parsed, metadata, err := parseArtifactFile(temp, contentLength)
 	if err != nil {
 		return UploadResult{}, err
 	}
@@ -351,6 +347,26 @@ func (s *Service) Upload(
 		metadata,
 		requestID,
 	)
+}
+
+// parseArtifactFile validates and parses a staged 3MF and normalizes its metadata.
+func parseArtifactFile(temp *os.File, size int64) (parser.Result, []byte, error) {
+	if _, err := temp.Seek(0, io.SeekStart); err != nil {
+		return parser.Result{}, nil, err
+	}
+	parsed, err := parser.Parse(temp, size, parser.DefaultLimits())
+	if err != nil {
+		var invalid *parser.ValidationError
+		if errors.As(err, &invalid) {
+			return parser.Result{}, nil, validation("artifact_"+invalid.Code, "Archived printer job failed validation")
+		}
+		return parser.Result{}, nil, validation("artifact_parse_failed", "Archived printer job could not be parsed")
+	}
+	metadata, err := normalizedMetadata(parsed)
+	if err != nil {
+		return parser.Result{}, nil, err
+	}
+	return parsed, metadata, nil
 }
 
 func normalizedMetadata(result parser.Result) ([]byte, error) {
@@ -458,42 +474,23 @@ func (s *Service) persistUpload(
 	} else if !errors.Is(getErr, pgx.ErrNoRows) {
 		return UploadResult{}, getErr
 	}
-	if _, err = temp.Seek(0, io.SeekStart); err != nil {
-		return UploadResult{}, err
-	}
-	var expected storage.Metadata
-	expected.Size = size
-	copy(expected.SHA256[:], digest)
-	file, cleanup, err := s.files.StoreSystemReaderInTransaction(
+	artifactID, created, err := s.createArtifact(
 		ctx,
 		tx,
+		q,
 		filename,
-		"application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+		size,
+		digest,
 		temp,
-		expected,
+		parsed,
+		metadata,
 		requestID,
+		&cleanups,
 	)
 	if err != nil {
 		return UploadResult{}, err
 	}
-	cleanups = append(cleanups, cleanup)
-	artifactID := ids.New()
-	status := ParserComplete
-	if parsed.Status == parser.StatusPartial {
-		status = ParserPartial
-	}
-	_, err = q.InsertArtifact(
-		ctx,
-		db.InsertArtifactParams{
-			ID:             artifactID,
-			OriginalFileID: file.ID,
-			Sha256:         digest,
-			ParserStatus:   string(status),
-			ParserVersion:  parsed.ParserVersion,
-			Metadata:       metadata,
-		},
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if !created {
 		_ = tx.Rollback(ctx)
 		for _, cleanup := range cleanups {
 			cleanup()
@@ -501,97 +498,6 @@ func (s *Service) persistUpload(
 		cleanups = nil
 		committed = true
 		return s.attachExistingAfterRace(ctx, connectorID, assignmentID, runID, digest, requestID)
-	}
-	if err != nil {
-		return UploadResult{}, err
-	}
-	for _, filament := range parsed.Filaments {
-		var extruder *int32
-		if len(filament.Extruders) != 0 {
-			v := int32(filament.Extruders[0])
-			extruder = &v
-		}
-		if err = q.InsertArtifactFilament(
-			ctx,
-			db.InsertArtifactFilamentParams{
-				ArtifactID:      artifactID,
-				FilamentKey:     filament.ID,
-				FilamentType:    optionalString(filament.Type),
-				Color:           optionalString(filament.Color),
-				Extruder:        extruder,
-				PlannedWeightG:  floatNumeric(filament.WeightGrams),
-				PlannedLengthMm: floatNumeric(filament.LengthMM),
-				DensityGCm3:     floatNumeric(filament.DensityGCM3),
-				DiameterMm:      floatNumeric(filament.DiameterMM),
-			},
-		); err != nil {
-			return UploadResult{}, err
-		}
-	}
-	var primary *uuid.UUID
-	for _, preview := range parsed.Previews {
-		previewDigest, decodeErr := hex.DecodeString(preview.SHA256)
-		if decodeErr != nil {
-			return UploadResult{}, decodeErr
-		}
-		var previewExpected storage.Metadata
-		previewExpected.Size = preview.Size
-		copy(previewExpected.SHA256[:], previewDigest)
-		stored, previewCleanup, storeErr := s.files.StoreSystemReaderInTransaction(
-			ctx,
-			tx,
-			filepath.Base(preview.ArchivePath),
-			preview.MIMEType,
-			bytes.NewReader(preview.Bytes),
-			previewExpected,
-			requestID,
-		)
-		if storeErr != nil {
-			return UploadResult{}, storeErr
-		}
-		cleanups = append(cleanups, previewCleanup)
-		role := PreviewOther
-		if preview.Role == parser.PreviewRolePlate {
-			role = PreviewPlate
-		}
-		var plate *int32
-		if preview.PlateNumber != nil {
-			v := int32(*preview.PlateNumber)
-			plate = &v
-		}
-		previewID := ids.New()
-		row, insertErr := q.InsertArtifactPreview(
-			ctx,
-			db.InsertArtifactPreviewParams{
-				ID:          previewID,
-				ArtifactID:  artifactID,
-				FileID:      stored.ID,
-				ArchivePath: preview.ArchivePath,
-				Role:        optional.Of(string(role)),
-				PlateNumber: plate,
-				Width:       int32(preview.Width),
-				Height:      int32(preview.Height),
-				MimeType:    preview.MIMEType,
-				SizeBytes:   preview.Size,
-				Sha256:      previewDigest,
-			},
-		)
-		if errors.Is(insertErr, pgx.ErrNoRows) {
-			continue
-		}
-		if insertErr != nil {
-			return UploadResult{}, insertErr
-		}
-		if preview.Primary {
-			v := row.ID
-			primary = &v
-		}
-	}
-	if err = q.SetArtifactPrimaryPreview(
-		ctx,
-		db.SetArtifactPrimaryPreviewParams{PrimaryPreviewID: primary, ID: artifactID},
-	); err != nil {
-		return UploadResult{}, err
 	}
 	if err = audit.Write(
 		ctx,
@@ -627,6 +533,154 @@ func (s *Service) persistUpload(
 	result.Disposition = DispositionCreated
 	result.Artifact, err = s.load(ctx, db.New(s.pool), artifactID)
 	return result, err
+}
+
+// createArtifact stores the 3MF, its artifact row, filaments and previews inside tx. created is false when
+// another transaction stored the same bytes first; the caller then reuses that artifact. Blob cleanups are
+// appended to cleanups so the caller can remove them if the transaction does not commit.
+func (s *Service) createArtifact(
+	ctx context.Context,
+	tx pgx.Tx,
+	q *db.Queries,
+	filename string,
+	size int64,
+	digest []byte,
+	temp *os.File,
+	parsed parser.Result,
+	metadata []byte,
+	requestID *uuid.UUID,
+	cleanups *[]func(),
+) (uuid.UUID, bool, error) {
+	artifactID := ids.New()
+	if _, err := temp.Seek(0, io.SeekStart); err != nil {
+		return uuid.Nil, false, err
+	}
+	var expected storage.Metadata
+	expected.Size = size
+	copy(expected.SHA256[:], digest)
+	file, cleanup, err := s.files.StoreSystemReaderInTransaction(
+		ctx,
+		tx,
+		filename,
+		"application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+		temp,
+		expected,
+		requestID,
+	)
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	*cleanups = append(*cleanups, cleanup)
+	status := ParserComplete
+	if parsed.Status == parser.StatusPartial {
+		status = ParserPartial
+	}
+	_, err = q.InsertArtifact(
+		ctx,
+		db.InsertArtifactParams{
+			ID:             artifactID,
+			OriginalFileID: file.ID,
+			Sha256:         digest,
+			ParserStatus:   string(status),
+			ParserVersion:  parsed.ParserVersion,
+			Metadata:       metadata,
+		},
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, false, nil
+	}
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	for _, filament := range parsed.Filaments {
+		var extruder *int32
+		if len(filament.Extruders) != 0 {
+			v := int32(filament.Extruders[0])
+			extruder = &v
+		}
+		if err = q.InsertArtifactFilament(
+			ctx,
+			db.InsertArtifactFilamentParams{
+				ArtifactID:      artifactID,
+				FilamentKey:     filament.ID,
+				FilamentType:    optionalString(filament.Type),
+				Color:           optionalString(filament.Color),
+				Extruder:        extruder,
+				PlannedWeightG:  floatNumeric(filament.WeightGrams),
+				PlannedLengthMm: floatNumeric(filament.LengthMM),
+				DensityGCm3:     floatNumeric(filament.DensityGCM3),
+				DiameterMm:      floatNumeric(filament.DiameterMM),
+			},
+		); err != nil {
+			return uuid.Nil, false, err
+		}
+	}
+	var primary *uuid.UUID
+	for _, preview := range parsed.Previews {
+		previewDigest, decodeErr := hex.DecodeString(preview.SHA256)
+		if decodeErr != nil {
+			return uuid.Nil, false, decodeErr
+		}
+		var previewExpected storage.Metadata
+		previewExpected.Size = preview.Size
+		copy(previewExpected.SHA256[:], previewDigest)
+		stored, previewCleanup, storeErr := s.files.StoreSystemReaderInTransaction(
+			ctx,
+			tx,
+			filepath.Base(preview.ArchivePath),
+			preview.MIMEType,
+			bytes.NewReader(preview.Bytes),
+			previewExpected,
+			requestID,
+		)
+		if storeErr != nil {
+			return uuid.Nil, false, storeErr
+		}
+		*cleanups = append(*cleanups, previewCleanup)
+		role := PreviewOther
+		if preview.Role == parser.PreviewRolePlate {
+			role = PreviewPlate
+		}
+		var plate *int32
+		if preview.PlateNumber != nil {
+			v := int32(*preview.PlateNumber)
+			plate = &v
+		}
+		previewID := ids.New()
+		row, insertErr := q.InsertArtifactPreview(
+			ctx,
+			db.InsertArtifactPreviewParams{
+				ID:          previewID,
+				ArtifactID:  artifactID,
+				FileID:      stored.ID,
+				ArchivePath: preview.ArchivePath,
+				Role:        optional.Of(string(role)),
+				PlateNumber: plate,
+				Width:       int32(preview.Width),
+				Height:      int32(preview.Height),
+				MimeType:    preview.MIMEType,
+				SizeBytes:   preview.Size,
+				Sha256:      previewDigest,
+			},
+		)
+		if errors.Is(insertErr, pgx.ErrNoRows) {
+			continue
+		}
+		if insertErr != nil {
+			return uuid.Nil, false, insertErr
+		}
+		if preview.Primary {
+			v := row.ID
+			primary = &v
+		}
+	}
+	if err = q.SetArtifactPrimaryPreview(
+		ctx,
+		db.SetArtifactPrimaryPreviewParams{PrimaryPreviewID: primary, ID: artifactID},
+	); err != nil {
+		return uuid.Nil, false, err
+	}
+	return artifactID, true, nil
 }
 
 func (s *Service) attachExistingAfterRace(
@@ -699,7 +753,8 @@ func (s *Service) attachArtifact(
 	artifactID, connectorID, assignmentID, runID uuid.UUID,
 	requestID *uuid.UUID,
 ) (UploadResult, error) {
-	if target.ArtifactID != nil && *target.ArtifactID != artifactID {
+	// A manually uploaded file is superseded by what the connector retrieves from the printer.
+	if target.ArtifactID != nil && *target.ArtifactID != artifactID && !target.ArtifactManual {
 		return UploadResult{}, apperror.Conflicting("artifact_mismatch", "Run already references a different artifact")
 	}
 	if _, err := q.AttachArtifactToRun(

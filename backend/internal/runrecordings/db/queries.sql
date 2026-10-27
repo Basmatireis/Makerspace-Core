@@ -114,7 +114,7 @@ RETURNING *;
 
 -- name: ListRunArtifactFiles :many
 SELECT r.id AS run_id, pa.id AS artifact_id, f.original_filename, f.size_bytes,
-       encode(pa.sha256, 'hex')::text AS sha256, pa.parser_status
+       encode(pa.sha256, 'hex')::text AS sha256, pa.parser_status, r.artifact_manual
 FROM machine_runs r
 JOIN print_artifacts pa ON pa.id = r.artifact_id
 JOIN files f ON f.id = pa.original_file_id

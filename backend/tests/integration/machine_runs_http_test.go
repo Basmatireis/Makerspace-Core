@@ -1,6 +1,8 @@
 package integration_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"io"
 	"log/slog"
 	"net/http"
@@ -353,4 +355,79 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 	)
 	assertStatus(t, response, http.StatusCreated)
 	response.Body.Close()
+
+	// Uploading the 3MF of a recorded run is an edit too: readers, creators and members without job
+	// permissions are refused, an editor may upload it (a raw body, like the other binary uploads).
+	recorded := insertRecordedRun(t, pool, machine.ID)
+	upload := func(client *http.Client, csrf string, body []byte) *http.Response {
+		t.Helper()
+		request, requestErr := http.NewRequestWithContext(
+			ctx,
+			http.MethodPost,
+			server.URL+"/api/v1/machine-runs/"+recorded.id.String()+"/artifact",
+			bytes.NewReader(body),
+		)
+		if requestErr != nil {
+			t.Fatal(requestErr)
+		}
+		request.Header.Set("Content-Type", "application/octet-stream")
+		request.Header.Set("X-File-Name", "Pa%C3%9Frt.gcode.3mf")
+		request.Header.Set("Origin", origin)
+		request.Header.Set("X-CSRF-Token", csrf)
+		result, doErr := client.Do(request)
+		if doErr != nil {
+			t.Fatal(doErr)
+		}
+		return result
+	}
+	file := minimal3MF(t)
+	for name, who := range map[string]struct {
+		client *http.Client
+		csrf   string
+	}{"reader": {readerClient, readerCSRF}, "creator": {creatorClient, creatorCSRF}, "nobody": {nobodyClient, nobodyCSRF}} {
+		response = upload(who.client, who.csrf, file)
+		if response.StatusCode != http.StatusForbidden {
+			t.Errorf("artifact upload as %s = %d, want 403", name, response.StatusCode)
+		}
+		response.Body.Close()
+	}
+	response = upload(editorClient, editorCSRF, []byte("not a 3MF"))
+	assertStatus(t, response, http.StatusUnprocessableEntity)
+	response.Body.Close()
+	response = upload(editorClient, editorCSRF, file)
+	assertStatus(t, response, http.StatusCreated)
+	var uploaded openapi.MachineRunArtifactUploadResult
+	decodeResponse(t, response, &uploaded)
+	if !uploaded.Artifact.UploadedManually || uploaded.RunId != recorded.id || uploaded.NameMismatch {
+		t.Fatalf("upload result = %+v", uploaded)
+	}
+	response = doJSON(t, readerClient, http.MethodGet, server.URL+"/api/v1/machine-runs/"+recorded.id.String()+"/recording", "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	var recording openapi.MachineRunRecording
+	decodeResponse(t, response, &recording)
+	if artifact, getErr := recording.Artifact.Get(); getErr != nil || artifact.Id != uploaded.Artifact.Id {
+		t.Fatalf("recording artifact = %+v %v", artifact, getErr)
+	}
+}
+
+func minimal3MF(t *testing.T) []byte {
+	t.Helper()
+	var buffer bytes.Buffer
+	writer := zip.NewWriter(&buffer)
+	for _, entry := range [][2]string{
+		{"Metadata/slice_info.config", `<?xml version="1.0"?><config><plate id="1"/><filament id="0" type="PLA" used_mm="100" used_g="0.3" density="1.24" diameter="1.75" extruder="0"/></config>`},
+		{"Metadata/plate_1.gcode", "M82\nG92 E0\n; layer: 0\nG1 E10\n"},
+	} {
+		file, err := writer.Create(entry[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = file.Write([]byte(entry[1])); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buffer.Bytes()
 }

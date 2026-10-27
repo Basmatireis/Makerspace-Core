@@ -1157,3 +1157,42 @@ func TestClearEventsHidesThemUntilIncluded(t *testing.T) {
 		t.Fatalf("get: %+v %v", got, err)
 	}
 }
+
+// Staff can record material on a recorded run that has no job and is still running; the machine's later report
+// does not replace it (the run page warns when both exist).
+func TestStaffRecordsMaterialOnARunningUnassignedRunAndKeepsItAgainstTheFinalReport(t *testing.T) {
+	h := newIngestHarness(t)
+	ctx := t.Context()
+	at := time.Now().UTC().Truncate(time.Second).Add(-2 * time.Hour)
+	slot := "slot-Running-" + h.suffix
+	spoolID := h.mountSpool("Running", &slot, at.Add(-time.Hour))
+	runID := ids.New()
+	h.accepted(runID, "progress", at, `{"state":"printing","percent":10}`)
+	detail, err := h.logbook.GetRun(ctx, h.principal, runID)
+	if err != nil || detail.Job != nil || detail.State != machinelogbook.RunStateRunning {
+		t.Fatalf("setup: %+v err=%v", detail, err)
+	}
+	staff := []machinelogbook.UsageInput{
+		{MaterialID: h.materialOfSpool(spoolID), SpoolID: &spoolID, Ownership: "makerspace", Quantity: "12", QuantityBasis: "actual"},
+	}
+	if _, err = h.logbook.ReplaceRunUsages(ctx, h.principal, runID, h.run(runID).version, staff, nil); err != nil {
+		t.Fatalf("staff usage on a running unassigned run: %v", err)
+	}
+	if _, active, ledger, net := h.runUsageState(runID); active != 1 || ledger != 1 || net != "12.000" {
+		t.Fatalf("after staff usage active=%d ledger=%d net=%s", active, ledger, net)
+	}
+	h.accepted(runID, "terminal_outcome", at.Add(30*time.Minute), `{"outcome":"completed"}`)
+	h.report(
+		runID,
+		at.Add(31*time.Minute),
+		`{"quantityGrams":"40","quantityBasis":"actual","inputUnitExternalId":"`+h.unitExternal("Running")+`","slotExternalId":"`+slot+`"}`,
+		1,
+	)
+	if _, active, _, net := h.runUsageState(runID); active != 1 || net != "12.000" {
+		t.Fatalf("staff usage overridden: active=%d net=%s", active, net)
+	}
+	after, err := h.logbook.GetRun(ctx, h.principal, runID)
+	if err != nil || len(after.Usages) != 1 || !after.Usages[0].StaffCorrected || len(after.ReportedUsageItems) == 0 {
+		t.Fatalf("run keeps the staff usage next to the machine report: %+v err=%v", after, err)
+	}
+}

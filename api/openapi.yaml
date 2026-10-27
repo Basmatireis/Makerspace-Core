@@ -7784,6 +7784,37 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /machine-runs/{runId}/artifact:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Runs]
+      operationId: uploadMachineRunArtifact
+      summary: Upload the 3MF of a recorded run afterwards
+      description: >-
+        Needs machine_jobs.edit. For recorded runs whose connector could not fetch the 3MF (a print started from the printer's internal storage),
+        in any run state, also while the run is still running. The body is the raw 3MF (at most 512 MiB); it is validated, parsed and stored like
+        a file the connector retrieved, then linked to the run, so previews, download, the filament estimate and consumption work as usual.
+        A run that already has a 3MF accepts a new upload only while that file was uploaded manually (409 `run_artifact_connector_retrieved`
+        otherwise); the connector's own retrieval supersedes a manual file. Manual runs answer 409 `run_not_recorded`. When the file's name or
+        its project name differs from the run's print name, the upload still succeeds and `nameMismatch` is true. When the run has ended, Core
+        asks the run's connector to calculate the consumption from the stored 3MF (`consumptionRecompute`); while it runs, the connector uses
+        the file at the run's end. Audited as `machine_run.artifact_uploaded`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: X-File-Name, in: header, required: true, description: "Percent-encoded UTF-8 file name (as produced by `encodeURIComponent`); invalid encodings and control characters are rejected with 400.", schema: {type: string, minLength: 1, maxLength: 2048}}
+      requestBody: {required: true, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+      responses:
+        "201": {description: 3MF stored and linked to the run., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunArtifactUploadResult"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /machine-runs/{runId}/previews/{previewId}/content:
     parameters:
       - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -16689,13 +16720,34 @@ components:
     MachineRunArtifactFile:
       type: object
       additionalProperties: false
-      required: [id, originalFilename, sizeBytes, sha256, parserStatus]
+      required: [id, originalFilename, sizeBytes, sha256, parserStatus, uploadedManually]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         originalFilename: {type: string, maxLength: 255}
         sizeBytes: {type: integer, format: int64, minimum: 1}
         sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
         parserStatus: {$ref: "#/components/schemas/PrintArtifactParserStatus"}
+        uploadedManually: {type: boolean, description: Staff uploaded the file with uploadMachineRunArtifact; the connector did not retrieve it. Only such a file can be replaced by another upload.}
+
+    MachineRunArtifactUploadResult:
+      type: object
+      additionalProperties: false
+      required: [runId, artifact, replaced, nameMismatch, printName, projectName, consumptionRecompute]
+      properties:
+        runId: {$ref: "#/components/schemas/UUIDv7"}
+        artifact: {$ref: "#/components/schemas/MachineRunArtifactFile"}
+        replaced: {type: boolean, description: A manually uploaded file of the run was replaced.}
+        nameMismatch: {type: boolean, description: Neither the uploaded file name nor the 3MF's project name matches the run's print name. The upload succeeded anyway.}
+        printName: {type: string, nullable: true, description: The print name the printer reported for the run.}
+        projectName: {type: string, nullable: true, description: The job or project name inside the 3MF.}
+        consumptionRecompute:
+          type: string
+          enum: [requested, already_requested, not_needed, unavailable]
+          description: >-
+            requested or already_requested: the run's connector calculates the consumption from the stored 3MF (the command shows in the run's
+            recording). not_needed: the run is still running; the connector uses the file when it ends.
+            unavailable: the run has ended but its connector is gone, does not poll commands or is rate limited; the consumption stays missing
+            and staff can record the material manually.
 
     MachineRunPreview:
       type: object

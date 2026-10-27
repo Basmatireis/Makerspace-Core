@@ -72,6 +72,7 @@ func (s *Service) recordings(ctx context.Context, runs []machinelogbook.MachineR
 			SizeBytes:        row.SizeBytes,
 			SHA256:           row.Sha256,
 			ParserStatus:     row.ParserStatus,
+			UploadedManually: row.ArtifactManual,
 		}
 	}
 	previews, err := q.ListRunPreviews(ctx, ids)

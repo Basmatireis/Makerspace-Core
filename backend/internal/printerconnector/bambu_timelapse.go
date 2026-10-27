@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/textproto"
 	"os"
 	"path"
@@ -110,6 +111,32 @@ type recordingFeatureSource interface {
 	RecordingFeatures() *RecordingFeatures
 }
 
+// coreArtifactSource lets an adapter ask Core for the 3MF it stores for a run.
+type coreArtifactSource interface {
+	StageCoreArtifact(ctx context.Context, assignmentID, runID uuid.UUID, configurationVersion int64) (bool, error)
+}
+
+// adoptCoreArtifact is the last resort for a print from the printer's internal storage, whose 3MF the
+// connector cannot read: staff may have uploaded it to Core. When Core has it, it is staged so the run's
+// consumption is calculated from it (slicer weights, or the G-code estimate up to the last layer) like for
+// a retrieved file. Failures to reach Core only mean the run stays without a 3MF, so they are not errors.
+func (a *bambuH2DAdapter) adoptCoreArtifact(ctx context.Context, runID uuid.UUID) (bool, error) {
+	source, ok := a.features.(coreArtifactSource)
+	if !ok {
+		return false, nil
+	}
+	adopted, err := source.StageCoreArtifact(ctx, a.assignmentID, runID, a.configurationVersion)
+	if err != nil {
+		slog.Warn("could not fetch the run's 3MF from Core", "run_id", runID.String(), "error", err)
+		return false, nil
+	}
+	if !adopted {
+		return false, nil
+	}
+	pending := string(machineConsumptionPending)
+	return true, a.store.SetRunConsumptionReport(ctx, a.assignmentID, runID, "pending", &pending, nil)
+}
+
 func (a *bambuH2DAdapter) recordingFeatures() *RecordingFeatures {
 	if a.features == nil {
 		return nil
@@ -159,8 +186,18 @@ func (a *bambuH2DAdapter) noteRunEnded(ctx context.Context, runID uuid.UUID) err
 	if err != nil {
 		return err
 	}
-	if facts, internal, factsErr := a.store.InternalStorageRunFacts(ctx, a.assignmentID, runID, a.kind); factsErr != nil {
+	facts, internal, factsErr := a.store.InternalStorageRunFacts(ctx, a.assignmentID, runID, a.kind)
+	if factsErr != nil {
 		return factsErr
+	}
+	adopted := false
+	if internal {
+		if adopted, err = a.adoptCoreArtifact(ctx, runID); err != nil {
+			return err
+		}
+	}
+	if adopted {
+		scheduled = true
 	} else if internal && !scheduled && isBambuArchivePath(facts.ArchiveCandidate) {
 		// Conservative fallback: the file might exist on external storage after all.
 		// Looked up once; a successful listing without it settles the report.

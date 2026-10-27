@@ -55,6 +55,20 @@ const (
 	TimelapseContentType = "video/mp4"
 )
 
+// RecomputeOutcome says what happens to a run's consumption after staff attached its 3MF.
+type RecomputeOutcome string
+
+const (
+	// RecomputeRequested: Core queued a recompute command for the run's connector.
+	RecomputeRequested RecomputeOutcome = "requested"
+	// RecomputeAlreadyRequested: a recompute command of the run was already open.
+	RecomputeAlreadyRequested RecomputeOutcome = "already_requested"
+	// RecomputeNotNeeded: the run still runs; the connector uses the file when it ends.
+	RecomputeNotNeeded RecomputeOutcome = "not_needed"
+	// RecomputeUnavailable: the run ended but no connector can take the command (gone, too old, rate limited).
+	RecomputeUnavailable RecomputeOutcome = "unavailable"
+)
+
 // Command is one run command.
 type Command struct {
 	ID, RunID             uuid.UUID
@@ -73,6 +87,8 @@ type ArtifactFile struct {
 	SizeBytes        int64
 	SHA256           string
 	ParserStatus     string
+	// UploadedManually is true when staff uploaded the file; the connector did not retrieve it.
+	UploadedManually bool
 }
 
 // Preview is an image embedded in a run's 3MF.

@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Button, IconButton, Tag } from '@carbon/react';
 import { ChevronLeft, ChevronRight, Download, NoImage } from '@carbon/icons-react';
 import type { Thumbnail } from './thumbnails';
@@ -12,11 +12,14 @@ export function PrintPreview({
   thumbnails,
   emptyText,
   emptyDownload,
+  emptyAction,
 }: {
   thumbnails: Thumbnail[];
   emptyText: string;
   /** Print file to offer when there is a file but no preview image. */
   emptyDownload?: { href: string; fileName: string };
+  /** Action offered in the empty state, for example uploading the print file. */
+  emptyAction?: ReactNode;
 }) {
   const [index, setIndex] = useState(0);
   const current = thumbnails[Math.min(index, thumbnails.length - 1)];
@@ -28,6 +31,7 @@ export function PrintPreview({
           <NoImage size={48} aria-hidden />
           <p>{emptyText}</p>
           {emptyDownload && <DownloadButton href={emptyDownload.href} fileName={emptyDownload.fileName} />}
+          {emptyAction}
         </div>
       </div>
     );

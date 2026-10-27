@@ -53,7 +53,7 @@ FROM print_artifact_previews p JOIN files f ON f.id = p.file_id
 WHERE p.id = sqlc.arg(id);
 
 -- name: GetConnectorArtifactUploadTarget :one
-SELECT a.id AS assignment_id, a.machine_id, a.configuration_version, r.id AS run_id, r.job_id, r.artifact_id
+SELECT a.id AS assignment_id, a.machine_id, a.configuration_version, r.id AS run_id, r.job_id, r.artifact_id, r.artifact_manual
 FROM printer_connector_assignments a
 JOIN machine_runs r ON r.assignment_id = a.id AND r.machine_id = a.machine_id
 WHERE a.id = sqlc.arg(assignment_id) AND a.connector_id = sqlc.arg(connector_id)
@@ -61,16 +61,28 @@ WHERE a.id = sqlc.arg(assignment_id) AND a.connector_id = sqlc.arg(connector_id)
 FOR UPDATE OF a, r;
 
 -- name: CheckConnectorArtifactUploadTarget :one
-SELECT a.machine_id, a.configuration_version, r.artifact_id
+SELECT a.machine_id, a.configuration_version, r.artifact_id, r.artifact_manual
 FROM printer_connector_assignments a
 JOIN machine_runs r ON r.assignment_id = a.id AND r.machine_id = a.machine_id
 WHERE a.id = sqlc.arg(assignment_id) AND a.connector_id = sqlc.arg(connector_id)
   AND r.id = sqlc.arg(run_id) AND r.deleted_at IS NULL AND a.ended_at IS NULL;
 
 -- name: AttachArtifactToRun :one
-UPDATE machine_runs SET artifact_id = sqlc.arg(artifact_id), version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(run_id) AND (artifact_id IS NULL OR artifact_id = sqlc.arg(artifact_id))
+-- The connector's retrieval: it supersedes a manually uploaded file and clears the manual flag.
+UPDATE machine_runs SET artifact_id = sqlc.arg(artifact_id), artifact_manual = false, version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(run_id) AND (artifact_id IS NULL OR artifact_id = sqlc.arg(artifact_id) OR artifact_manual)
 RETURNING *;
+
+-- name: GetRunForManualArtifactUpload :one
+-- Locks the run so concurrent uploads and connector retrievals serialize.
+SELECT r.id, r.source, r.state, r.file_name, r.job_id, r.artifact_id, r.artifact_manual, r.assignment_id
+FROM machine_runs r
+WHERE r.id = sqlc.arg(run_id) AND r.deleted_at IS NULL
+FOR UPDATE OF r;
+
+-- name: SetManualRunArtifact :exec
+UPDATE machine_runs SET artifact_id = sqlc.arg(artifact_id), artifact_manual = true, version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(run_id);
 
 -- name: FindPlannedJobsForArtifact :many
 SELECT j.id

@@ -554,7 +554,7 @@ func (q *Queries) ListOpenConnectorCommands(ctx context.Context, connectorID *uu
 
 const listRunArtifactFiles = `-- name: ListRunArtifactFiles :many
 SELECT r.id AS run_id, pa.id AS artifact_id, f.original_filename, f.size_bytes,
-       encode(pa.sha256, 'hex')::text AS sha256, pa.parser_status
+       encode(pa.sha256, 'hex')::text AS sha256, pa.parser_status, r.artifact_manual
 FROM machine_runs r
 JOIN print_artifacts pa ON pa.id = r.artifact_id
 JOIN files f ON f.id = pa.original_file_id
@@ -568,6 +568,7 @@ type ListRunArtifactFilesRow struct {
 	SizeBytes        int64
 	Sha256           string
 	ParserStatus     string
+	ArtifactManual   bool
 }
 
 func (q *Queries) ListRunArtifactFiles(ctx context.Context, runIds []uuid.UUID) ([]ListRunArtifactFilesRow, error) {
@@ -586,6 +587,7 @@ func (q *Queries) ListRunArtifactFiles(ctx context.Context, runIds []uuid.UUID) 
 			&i.SizeBytes,
 			&i.Sha256,
 			&i.ParserStatus,
+			&i.ArtifactManual,
 		); err != nil {
 			return nil, err
 		}

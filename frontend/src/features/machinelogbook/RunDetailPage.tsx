@@ -12,11 +12,11 @@ import {
   ProgressBar,
   Tile,
 } from '@carbon/react';
-import { Add, Link as LinkIcon } from '@carbon/icons-react';
+import { Add, Edit, Link as LinkIcon } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { detachMachineRun, setMachineRunSignageVisibility } from '../../api/generated/machine-runs/machine-runs';
-import type { MachineRunEvent } from '../../api/generated/models';
+import type { MachineRunArtifactUploadResult, MachineRunEvent } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
@@ -25,6 +25,8 @@ import { PermissionId } from '../auth/permissions';
 import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
 import { AttachToJobModal } from './dialogs/AttachToJobModal';
 import { JobFormModal } from './dialogs/JobFormModal';
+import { UsageFormModal } from './dialogs/UsageFormModal';
+import { RunFileUpload, UploadMismatchNotice } from './recording/RunFileUpload';
 import { ResolveReportedUsageModal } from './dialogs/ResolveReportedUsageModal';
 import { ApiError } from '../../api/http-client';
 import { saveError } from './dialogs/jobFormHelpers';
@@ -107,7 +109,8 @@ export function RunDetailPage() {
     refetchInterval: (query) => (query.state.data?.commands.some(isCommandOpen) ? COMMAND_REFRESH_MS : false),
   });
   const navigate = useNavigate();
-  const [dialog, setDialog] = useState<'create' | 'attach' | 'detach' | 'delete' | 'delete-job' | null>(null);
+  const [dialog, setDialog] = useState<'create' | 'attach' | 'detach' | 'delete' | 'delete-job' | 'usage' | null>(null);
+  const [uploaded, setUploaded] = useState<{ result: MachineRunArtifactUploadResult; fileName: string } | null>(null);
   const [resolutionLine, setResolutionLine] = useState<number | null>(null);
   const close = () => setDialog(null);
 
@@ -137,6 +140,14 @@ export function RunDetailPage() {
   });
 
   const unassigned = run !== undefined && run.job == null;
+  const onUploaded = (result: MachineRunArtifactUploadResult, fileName: string) => setUploaded({ result, fileName });
+  const uploadAction =
+    run?.source === 'recorded' && canEdit ? <RunFileUpload runId={runId} onUploaded={onUploaded} /> : undefined;
+  // Staff usage wins over what the machine reports; tell staff when both exist.
+  const staffAndMachineMaterial =
+    run !== undefined &&
+    run.usages.some((usage) => usage.staffCorrected) &&
+    ((run.reportedUsageItems?.length ?? 0) > 0 || run.reportedUsage != null);
   const live = run !== undefined && isRunLive(run, now);
   // Mirrors the backend rule (job editors, or the job's operator or person customer); the backend decides.
   const canHideFromSignage =
@@ -201,6 +212,11 @@ export function RunDetailPage() {
             <OverflowMenuItem itemText="Delete run" isDelete hasDivider onClick={() => setDialog('delete')} />
           )}
         </OverflowMenu>
+      )}
+      {canEdit && run.state !== 'replaced' && (
+        <Button kind="tertiary" renderIcon={Edit} onClick={() => setDialog('usage')}>
+          Edit material usage
+        </Button>
       )}
       {unassigned && canAttach && (
         <Button kind="tertiary" renderIcon={LinkIcon} onClick={() => setDialog('attach')}>
@@ -274,6 +290,24 @@ export function RunDetailPage() {
                 hideCloseButton
                 title="Run in progress"
                 subtitle="You can create a job from this run or attach it to one now; the job shows as running until the run ends."
+              />
+            )}
+            {uploaded?.result.nameMismatch && (
+              <UploadMismatchNotice
+                result={uploaded.result}
+                fileName={uploaded.fileName}
+                runId={run.id}
+                onKeep={() => setUploaded(null)}
+                onUploaded={onUploaded}
+              />
+            )}
+            {staffAndMachineMaterial && (
+              <InlineNotification
+                kind="warning"
+                lowContrast
+                hideCloseButton
+                title="Material entered by staff"
+                subtitle="The machine also reported material for this run. The staff entry counts; the machine’s report is not booked."
               />
             )}
             {live && (
@@ -378,6 +412,7 @@ export function RunDetailPage() {
                     recording={recording.data}
                     canEdit={canEdit}
                     ended={!live}
+                    uploadAction={uploadAction}
                   />
                 )}
                 {live && run.source === 'recorded' && can(PermissionId.print_artifactsread) && (
@@ -463,6 +498,7 @@ export function RunDetailPage() {
                   recorded={run.source === 'recorded'}
                   loading={run.source === 'recorded' && recording.isPending}
                   failed={recording.isError}
+                  uploadAction={uploadAction}
                 />
                 {recording.data && run.source === 'recorded' && <RunTimelapseTile recording={recording.data} />}
                 {jobRef && (
@@ -527,6 +563,7 @@ export function RunDetailPage() {
       )}
       {job && canDeleteJob && <DeleteJobModal open={dialog === 'delete-job'} onClose={close} job={job} />}
 
+      {run && canEdit && <UsageFormModal open={dialog === 'usage'} onClose={close} run={run} />}
       {run && canAttach && <AttachToJobModal open={dialog === 'attach'} onClose={close} run={run} />}
       {run &&
         resolutionLine !== null &&

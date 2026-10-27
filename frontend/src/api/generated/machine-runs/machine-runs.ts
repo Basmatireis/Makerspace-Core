@@ -31,6 +31,7 @@ import type {
   ListMachineRunsParams,
   MachineJob,
   MachineRun,
+  MachineRunArtifactUploadResult,
   MachineRunCommand,
   MachineRunDetail,
   MachineRunPage,
@@ -537,6 +538,45 @@ export const downloadMachineRunArtifact = async (runId: UUIDv7, options?: Parame
     method: 'GET'
 
 
+  }
+);}
+
+
+export const getUploadMachineRunArtifactUrl = (runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-runs/${runId}/artifact`
+}
+
+/**
+ * Needs machine_jobs.edit. For recorded runs whose connector could not fetch the 3MF (a print started from the printer's internal storage), in any run state, also while the run is still running. The body is the raw 3MF (at most 512 MiB); it is validated, parsed and stored like a file the connector retrieved, then linked to the run, so previews, download, the filament estimate and consumption work as usual. A run that already has a 3MF accepts a new upload only while that file was uploaded manually (409 `run_artifact_connector_retrieved` otherwise); the connector's own retrieval supersedes a manual file. Manual runs answer 409 `run_not_recorded`. When the file's name or its project name differs from the run's print name, the upload still succeeds and `nameMismatch` is true. When the run has ended, Core asks the run's connector to calculate the consumption from the stored 3MF (`consumptionRecompute`); while it runs, the connector uses the file at the run's end. Audited as `machine_run.artifact_uploaded`.
+ * @summary Upload the 3MF of a recorded run afterwards
+ */
+export const uploadMachineRunArtifact = async (runId: UUIDv7,
+    uploadMachineRunArtifactBody: Blob, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRunArtifactUploadResult> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MachineRunArtifactUploadResult>(getUploadMachineRunArtifactUrl(runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream', ...getHeaders(options?.headers) },
+    body: uploadMachineRunArtifactBody
   }
 );}
 

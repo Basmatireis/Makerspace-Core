@@ -1020,7 +1020,7 @@ func (q *Queries) GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDiges
 }
 
 const getObservedRunForUpdate = `-- name: GetObservedRunForUpdate :one
-SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage FROM machine_runs WHERE id=$1 AND source='recorded' FOR UPDATE
+SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual FROM machine_runs WHERE id=$1 AND source='recorded' FOR UPDATE
 `
 
 func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error) {
@@ -1055,6 +1055,7 @@ func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (Ma
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.ArtifactManual,
 	)
 	return i, err
 }
@@ -1193,7 +1194,7 @@ const insertObservedRun = `-- name: InsertObservedRun :one
 INSERT INTO machine_runs (id, display_id, source, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at)
 VALUES ($1, $2, 'recorded', $3, $4, $5, $6, $7, $8, $8)
 ON CONFLICT (id) DO NOTHING
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
 `
 
 type InsertObservedRunParams struct {
@@ -1248,6 +1249,7 @@ func (q *Queries) InsertObservedRun(ctx context.Context, arg InsertObservedRunPa
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.ArtifactManual,
 	)
 	return i, err
 }
@@ -1777,7 +1779,7 @@ func (q *Queries) ListNFCSpoolsAt(ctx context.Context, arg ListNFCSpoolsAtParams
 }
 
 const listObservedRuns = `-- name: ListObservedRuns :many
-SELECT r.id, r.assignment_id, r.machine_id, r.vendor_job_id, r.state, r.history_complete, r.first_observed_at, r.last_observed_at, r.version, r.created_at, r.updated_at, r.display_id, r.file_name, r.started_at, r.ended_at, r.estimated_end_at, r.progress_percent, r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, r.reported_event_id, r.source, r.job_id, r.outcome, r.artifact_id, r.deleted_at, r.deleted_by, r.hidden_from_signage, m.name AS machine_name
+SELECT r.id, r.assignment_id, r.machine_id, r.vendor_job_id, r.state, r.history_complete, r.first_observed_at, r.last_observed_at, r.version, r.created_at, r.updated_at, r.display_id, r.file_name, r.started_at, r.ended_at, r.estimated_end_at, r.progress_percent, r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, r.reported_event_id, r.source, r.job_id, r.outcome, r.artifact_id, r.deleted_at, r.deleted_by, r.hidden_from_signage, r.artifact_manual, m.name AS machine_name
 FROM machine_runs r JOIN machines m ON m.id=r.machine_id
 WHERE r.deleted_at IS NULL AND r.assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=$1)
 ORDER BY r.last_observed_at DESC, r.id DESC LIMIT 100
@@ -1812,6 +1814,7 @@ type ListObservedRunsRow struct {
 	DeletedAt             pgtype.Timestamptz
 	DeletedBy             *uuid.UUID
 	HiddenFromSignage     bool
+	ArtifactManual        bool
 	MachineName           string
 }
 
@@ -1853,6 +1856,7 @@ func (q *Queries) ListObservedRuns(ctx context.Context, connectorID uuid.UUID) (
 			&i.DeletedAt,
 			&i.DeletedBy,
 			&i.HiddenFromSignage,
+			&i.ArtifactManual,
 			&i.MachineName,
 		); err != nil {
 			return nil, err
@@ -2594,7 +2598,7 @@ UPDATE machine_runs SET
         ELSE updated_at
     END
 WHERE id=$5 AND assignment_id=$6 AND machine_id=$7
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
 `
 
 type UpdateObservedRunParams struct {
@@ -2647,6 +2651,7 @@ func (q *Queries) UpdateObservedRun(ctx context.Context, arg UpdateObservedRunPa
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.ArtifactManual,
 	)
 	return i, err
 }

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Accordion, AccordionItem, Button, InlineNotification, Tag, Tile } from '@carbon/react';
 import { Download } from '@carbon/icons-react';
 import {
@@ -45,11 +46,14 @@ export function RunPreviewTile({
   recorded,
   loading,
   failed,
+  uploadAction,
 }: {
   recording: MachineRunRecording | undefined;
   recorded: boolean;
   loading: boolean;
   failed: boolean;
+  /** Upload control for a run without a print file; shown in the empty state only. */
+  uploadAction?: ReactNode;
 }) {
   return (
     <Tile>
@@ -76,6 +80,7 @@ export function RunPreviewTile({
                   : 'Core has no print file for this run, so there is no preview.'
               : 'Manual runs have no print file, so there is no preview.'
           }
+          emptyAction={recorded && recording && !recording.artifact ? uploadAction : undefined}
           emptyDownload={
             recording?.artifact
               ? {

@@ -30,4 +30,6 @@ export interface MachineRunArtifactFile {
   /** @pattern ^[0-9a-f]{64}$ */
   sha256: string;
   parserStatus: PrintArtifactParserStatus;
+  /** Staff uploaded the file with uploadMachineRunArtifact; the connector did not retrieve it. Only such a file can be replaced by another upload. */
+  uploadedManually: boolean;
 }

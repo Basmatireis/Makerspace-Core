@@ -94,6 +94,9 @@ Core's limit is `PRINTER_TIMELAPSE_MAX_BYTES` (default 2 GiB, 1 MiB to 8 GiB). R
 
 **Unverified on real printers:** where and when X1C and H2D create the video file (at print start or after encoding at the end; the growth rule covers a file created at the start), its exact naming, whether `/timelapse` is reachable over LAN-only FTPS on every firmware, and FTP reply codes for a missing directory. The rules above were exercised with a scripted FTPS fake only.
 
+When Core holds the run's 3MF (staff uploaded it, see [Machine logbook](machine-logbook.md#upload-a-3mf-afterwards)), an internal-storage run is not given up: after the run's terminal outcome, and again before the one-shot lookup gives up, the connector downloads the stored file from `GET /printer-connector/self/assignments/{a}/runs/{r}/artifact/content` (404 means Core has none), stages it as already acknowledged and calculates the consumption from it like for a retrieved file. A file uploaded after the run ended arrives as a `recompute_consumption` command instead. A failed download only leaves the run without a 3MF.
+
+
 ## Docker deployment
 
 Release images use this name:

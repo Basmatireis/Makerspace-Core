@@ -225,3 +225,9 @@
 .recording-settings {
   max-inline-size: 32rem;
 }
+
+.recording-upload {
+  display: grid;
+  gap: $spacing-03;
+  justify-items: start;
+}

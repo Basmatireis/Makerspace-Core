@@ -68,9 +68,9 @@ func (q *Queries) ActiveOrganizationExists(ctx context.Context, id uuid.UUID) (b
 }
 
 const attachArtifactToRun = `-- name: AttachArtifactToRun :one
-UPDATE machine_runs SET artifact_id = $1, version = version + 1, updated_at = now()
-WHERE id = $2 AND (artifact_id IS NULL OR artifact_id = $1)
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage
+UPDATE machine_runs SET artifact_id = $1, artifact_manual = false, version = version + 1, updated_at = now()
+WHERE id = $2 AND (artifact_id IS NULL OR artifact_id = $1 OR artifact_manual)
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
 `
 
 type AttachArtifactToRunParams struct {
@@ -78,6 +78,7 @@ type AttachArtifactToRunParams struct {
 	RunID      uuid.UUID
 }
 
+// The connector's retrieval: it supersedes a manually uploaded file and clears the manual flag.
 func (q *Queries) AttachArtifactToRun(ctx context.Context, arg AttachArtifactToRunParams) (MachineRun, error) {
 	row := q.db.QueryRow(ctx, attachArtifactToRun, arg.ArtifactID, arg.RunID)
 	var i MachineRun
@@ -110,6 +111,7 @@ func (q *Queries) AttachArtifactToRun(ctx context.Context, arg AttachArtifactToR
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.ArtifactManual,
 	)
 	return i, err
 }
@@ -144,7 +146,7 @@ func (q *Queries) BillingPersonExists(ctx context.Context, id uuid.UUID) (bool, 
 }
 
 const checkConnectorArtifactUploadTarget = `-- name: CheckConnectorArtifactUploadTarget :one
-SELECT a.machine_id, a.configuration_version, r.artifact_id
+SELECT a.machine_id, a.configuration_version, r.artifact_id, r.artifact_manual
 FROM printer_connector_assignments a
 JOIN machine_runs r ON r.assignment_id = a.id AND r.machine_id = a.machine_id
 WHERE a.id = $1 AND a.connector_id = $2
@@ -161,12 +163,18 @@ type CheckConnectorArtifactUploadTargetRow struct {
 	MachineID            uuid.UUID
 	ConfigurationVersion int64
 	ArtifactID           *uuid.UUID
+	ArtifactManual       bool
 }
 
 func (q *Queries) CheckConnectorArtifactUploadTarget(ctx context.Context, arg CheckConnectorArtifactUploadTargetParams) (CheckConnectorArtifactUploadTargetRow, error) {
 	row := q.db.QueryRow(ctx, checkConnectorArtifactUploadTarget, arg.AssignmentID, arg.ConnectorID, arg.RunID)
 	var i CheckConnectorArtifactUploadTargetRow
-	err := row.Scan(&i.MachineID, &i.ConfigurationVersion, &i.ArtifactID)
+	err := row.Scan(
+		&i.MachineID,
+		&i.ConfigurationVersion,
+		&i.ArtifactID,
+		&i.ArtifactManual,
+	)
 	return i, err
 }
 
@@ -441,7 +449,7 @@ func (q *Queries) GetArtifactPreview(ctx context.Context, id uuid.UUID) (GetArti
 }
 
 const getConnectorArtifactUploadTarget = `-- name: GetConnectorArtifactUploadTarget :one
-SELECT a.id AS assignment_id, a.machine_id, a.configuration_version, r.id AS run_id, r.job_id, r.artifact_id
+SELECT a.id AS assignment_id, a.machine_id, a.configuration_version, r.id AS run_id, r.job_id, r.artifact_id, r.artifact_manual
 FROM printer_connector_assignments a
 JOIN machine_runs r ON r.assignment_id = a.id AND r.machine_id = a.machine_id
 WHERE a.id = $1 AND a.connector_id = $2
@@ -462,6 +470,7 @@ type GetConnectorArtifactUploadTargetRow struct {
 	RunID                uuid.UUID
 	JobID                *uuid.UUID
 	ArtifactID           *uuid.UUID
+	ArtifactManual       bool
 }
 
 func (q *Queries) GetConnectorArtifactUploadTarget(ctx context.Context, arg GetConnectorArtifactUploadTargetParams) (GetConnectorArtifactUploadTargetRow, error) {
@@ -474,6 +483,7 @@ func (q *Queries) GetConnectorArtifactUploadTarget(ctx context.Context, arg GetC
 		&i.RunID,
 		&i.JobID,
 		&i.ArtifactID,
+		&i.ArtifactManual,
 	)
 	return i, err
 }
@@ -515,6 +525,41 @@ func (q *Queries) GetMachineForArtifactJob(ctx context.Context, id uuid.UUID) (G
 		&i.UpdatedAt,
 		&i.ProfileMachineID,
 		&i.ProfileEnabled,
+	)
+	return i, err
+}
+
+const getRunForManualArtifactUpload = `-- name: GetRunForManualArtifactUpload :one
+SELECT r.id, r.source, r.state, r.file_name, r.job_id, r.artifact_id, r.artifact_manual, r.assignment_id
+FROM machine_runs r
+WHERE r.id = $1 AND r.deleted_at IS NULL
+FOR UPDATE OF r
+`
+
+type GetRunForManualArtifactUploadRow struct {
+	ID             uuid.UUID
+	Source         string
+	State          *string
+	FileName       *string
+	JobID          *uuid.UUID
+	ArtifactID     *uuid.UUID
+	ArtifactManual bool
+	AssignmentID   *uuid.UUID
+}
+
+// Locks the run so concurrent uploads and connector retrievals serialize.
+func (q *Queries) GetRunForManualArtifactUpload(ctx context.Context, runID uuid.UUID) (GetRunForManualArtifactUploadRow, error) {
+	row := q.db.QueryRow(ctx, getRunForManualArtifactUpload, runID)
+	var i GetRunForManualArtifactUploadRow
+	err := row.Scan(
+		&i.ID,
+		&i.Source,
+		&i.State,
+		&i.FileName,
+		&i.JobID,
+		&i.ArtifactID,
+		&i.ArtifactManual,
+		&i.AssignmentID,
 	)
 	return i, err
 }
@@ -944,6 +989,21 @@ type SetArtifactPrimaryPreviewParams struct {
 
 func (q *Queries) SetArtifactPrimaryPreview(ctx context.Context, arg SetArtifactPrimaryPreviewParams) error {
 	_, err := q.db.Exec(ctx, setArtifactPrimaryPreview, arg.PrimaryPreviewID, arg.ID)
+	return err
+}
+
+const setManualRunArtifact = `-- name: SetManualRunArtifact :exec
+UPDATE machine_runs SET artifact_id = $1, artifact_manual = true, version = version + 1, updated_at = now()
+WHERE id = $2
+`
+
+type SetManualRunArtifactParams struct {
+	ArtifactID *uuid.UUID
+	RunID      uuid.UUID
+}
+
+func (q *Queries) SetManualRunArtifact(ctx context.Context, arg SetManualRunArtifactParams) error {
+	_, err := q.db.Exec(ctx, setManualRunArtifact, arg.ArtifactID, arg.RunID)
 	return err
 }
 

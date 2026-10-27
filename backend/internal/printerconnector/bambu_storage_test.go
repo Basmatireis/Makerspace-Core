@@ -1,6 +1,7 @@
 package printerconnector
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/google/uuid"
 )
 
 func TestClassifyBambuPrintSource(t *testing.T) {
@@ -188,5 +190,122 @@ func TestPrintStaysExternalWhenTheConnectorMissedTheURL(t *testing.T) {
 	}
 	if got := processor.state.RunFacts[runID.String()].Source; got != bambuSourceExternal {
 		t.Fatalf("source = %q, want external", got)
+	}
+}
+
+// coreArtifacts is a feature source whose Core holds (or lacks) the run's 3MF.
+type coreArtifacts struct {
+	staticFeatures
+	store   *Store
+	archive []byte
+	calls   int
+}
+
+func (c *coreArtifacts) StageCoreArtifact(ctx context.Context, assignmentID, runID uuid.UUID, version int64) (bool, error) {
+	c.calls++
+	if c.archive == nil {
+		return false, nil
+	}
+	transfer, err := c.store.StageArtifact(
+		ctx, assignmentID, runID, version, "core:"+runID.String(), runID.String()+".3mf",
+		bytes.NewReader(c.archive), time.Now().UTC().Add(time.Hour),
+	)
+	if err != nil {
+		return false, err
+	}
+	return true, c.store.MarkArtifactAcknowledged(ctx, transfer.ID)
+}
+
+func endedInternalStorageRun(
+	t *testing.T,
+	adapter *bambuH2DAdapter,
+	processor *bambuProcessor,
+	outcome string,
+) (uuid.UUID, []Observation) {
+	t.Helper()
+	ctx := context.Background()
+	at := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	observations, _, err := processor.apply(ctx, []byte(internalStoragePrint), at)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := *observations[0].RunID
+	if err = adapter.reportInternalStorage(ctx, observations, processor.state.RunFacts); err != nil {
+		t.Fatal(err)
+	}
+	ended, _, err := processor.apply(ctx, []byte(outcome), at.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = processor.persist(ctx); err != nil {
+		t.Fatal(err)
+	}
+	return runID, ended
+}
+
+func TestInternalStorageRunUsesTheArtifactCoreStoresWhenTheRunEnds(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := openTestStore(t)
+	assignmentID := ids.New()
+	processor, err := newBambuProcessor(ctx, assignmentID, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	core := &coreArtifacts{store: store, archive: syntheticBambuConsumptionZIP(t)}
+	adapter := &bambuH2DAdapter{assignmentID: assignmentID, configurationVersion: 1, store: store, features: core}
+	runID, ended := endedInternalStorageRun(t, adapter, processor, `{"print":{"gcode_state":"FINISH"}}`)
+	if err = adapter.noteRunsForRecordings(ctx, ended); err != nil {
+		t.Fatal(err)
+	}
+	if core.calls != 1 {
+		t.Fatalf("Core asked %d times, want once", core.calls)
+	}
+	// No printer lookup is scheduled and the run is no longer reported as unreachable.
+	if retrieval, retrievalErr := store.PendingArtifactRetrieval(ctx, assignmentID); retrievalErr != nil || retrieval != nil {
+		t.Fatalf("retrieval = %+v err=%v", retrieval, retrievalErr)
+	}
+	if report := runReport(t, store, runID); report.Consumption == nil || report.Consumption.State != "pending" ||
+		*report.Consumption.Reason != "consumption_pending" {
+		t.Fatalf("report after staging = %+v", report.Consumption)
+	}
+	if err = adapter.processArtifactConsumptions(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if report := runReport(t, store, runID); report.Consumption == nil || report.Consumption.State != "reported" {
+		t.Fatalf("consumption report = %+v", report.Consumption)
+	}
+}
+
+func TestInternalStorageRunWithoutACoreArtifactStillLooksOnceAndGivesUp(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := openTestStore(t)
+	assignmentID := ids.New()
+	processor, err := newBambuProcessor(ctx, assignmentID, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	core := &coreArtifacts{store: store}
+	adapter := &bambuH2DAdapter{assignmentID: assignmentID, configurationVersion: 1, store: store, features: core}
+	runID, ended := endedInternalStorageRun(t, adapter, processor, `{"print":{"gcode_state":"FINISH"}}`)
+	if err = adapter.noteRunsForRecordings(ctx, ended); err != nil {
+		t.Fatal(err)
+	}
+	if retrieval, retrievalErr := store.PendingArtifactRetrieval(ctx, assignmentID); retrievalErr != nil || retrieval == nil {
+		t.Fatalf("fallback retrieval = %+v err=%v", retrieval, retrievalErr)
+	}
+	// The one-shot lookup finds nothing; Core still has no file, so the run ends unreachable.
+	if adopted, adoptErr := adapter.adoptCoreArtifact(ctx, runID); adoptErr != nil || adopted {
+		t.Fatalf("adopted = %v err=%v", adopted, adoptErr)
+	}
+	if core.calls != 2 {
+		t.Fatalf("Core asked %d times, want at the end and before giving up", core.calls)
+	}
+	if err = adapter.reportArtifactProblem(ctx, runID, "unavailable", "artifact_not_available"); err != nil {
+		t.Fatal(err)
+	}
+	if report := runReport(t, store, runID); *report.Consumption.Reason != "artifact_on_internal_storage" {
+		t.Fatalf("report = %+v", report.Consumption)
 	}
 }

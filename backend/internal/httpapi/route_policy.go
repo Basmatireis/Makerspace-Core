@@ -35,6 +35,10 @@ var requestBodyLimits = map[string]int64{
 		http.MethodPut,
 		"/printer-connector/self/assignments/{assignmentId}/runs/{runId}/artifact",
 	): printartifacts.MaxCompressedSize + 1,
+	routeKey(
+		http.MethodPost,
+		"/machine-runs/{runId}/artifact",
+	): printartifacts.MaxCompressedSize + 1,
 	// The configured PRINTER_TIMELAPSE_MAX_BYTES is enforced by the service; this is its ceiling.
 	routeKey(
 		http.MethodPut,
