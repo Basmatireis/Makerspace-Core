@@ -40,4 +40,5 @@ export const ConfigurationSection = {
   ConfigurationSectionSurveys: 'surveys',
   ConfigurationSectionMail: 'mail',
   ConfigurationSectionInvoicing: 'invoicing',
+  ConfigurationSectionPrivacy: 'privacy',
 } as const;

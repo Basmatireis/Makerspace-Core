@@ -26,6 +26,9 @@ type section struct {
 	// apply creates and updates entries and returns the step that handles entries missing from the file, which the
 	// engine runs in overwrite mode only.
 	apply func(*run, any) (func() error, error)
+	// prepare, when set, runs before an export or import of the section, outside its transaction, so lazily seeded
+	// state exists on both sides of a transfer.
+	prepare func(context.Context, Services) error
 }
 
 // registry lists the sections in import order: a section only references sections before it.
@@ -47,6 +50,7 @@ var registry = []section{
 	surveysSection(),
 	mailSection(),
 	invoicingSection(),
+	privacySection(),
 }
 
 func sectionByKey(key SectionKey) (section, bool) {

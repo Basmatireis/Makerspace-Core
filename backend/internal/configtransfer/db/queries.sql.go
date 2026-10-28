@@ -139,6 +139,36 @@ func (q *Queries) GetOpenDayRequirements(ctx context.Context) (GetOpenDayRequire
 	return i, err
 }
 
+const getPrivacySettingsForTransfer = `-- name: GetPrivacySettingsForTransfer :one
+
+SELECT controller_name, controller_address, data_protection_contact, automatic_runs_enabled, run_interval_minutes, version
+FROM privacy_settings
+`
+
+type GetPrivacySettingsForTransferRow struct {
+	ControllerName        string
+	ControllerAddress     string
+	DataProtectionContact string
+	AutomaticRunsEnabled  bool
+	RunIntervalMinutes    int32
+	Version               int64
+}
+
+// Privacy: the controller, every retention decision that is not retired, and the record of processing activities.
+func (q *Queries) GetPrivacySettingsForTransfer(ctx context.Context) (GetPrivacySettingsForTransferRow, error) {
+	row := q.db.QueryRow(ctx, getPrivacySettingsForTransfer)
+	var i GetPrivacySettingsForTransferRow
+	err := row.Scan(
+		&i.ControllerName,
+		&i.ControllerAddress,
+		&i.DataProtectionContact,
+		&i.AutomaticRunsEnabled,
+		&i.RunIntervalMinutes,
+		&i.Version,
+	)
+	return i, err
+}
+
 const getVisitorEnrollmentConfiguration = `-- name: GetVisitorEnrollmentConfiguration :one
 SELECT c.enabled, c.initial_role_id, r.name AS initial_role_name, c.allowed_methods, c.version
 FROM visitor_enrollment_configuration c
@@ -801,6 +831,51 @@ func (q *Queries) ListPrinterSlots(ctx context.Context) ([]ListPrinterSlotsRow, 
 	return items, nil
 }
 
+const listProcessingActivitiesForTransfer = `-- name: ListProcessingActivitiesForTransfer :many
+SELECT id, name, purpose, legal_basis, category_ids, recipients, retention_note, version
+FROM privacy_processing_activities ORDER BY lower(name), id
+`
+
+type ListProcessingActivitiesForTransferRow struct {
+	ID            uuid.UUID
+	Name          string
+	Purpose       string
+	LegalBasis    string
+	CategoryIds   []string
+	Recipients    string
+	RetentionNote string
+	Version       int64
+}
+
+func (q *Queries) ListProcessingActivitiesForTransfer(ctx context.Context) ([]ListProcessingActivitiesForTransferRow, error) {
+	rows, err := q.db.Query(ctx, listProcessingActivitiesForTransfer)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProcessingActivitiesForTransferRow{}
+	for rows.Next() {
+		var i ListProcessingActivitiesForTransferRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Purpose,
+			&i.LegalBasis,
+			&i.CategoryIds,
+			&i.Recipients,
+			&i.RetentionNote,
+			&i.Version,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRolePermissionGrants = `-- name: ListRolePermissionGrants :many
 SELECT g.role_id, g.id, g.permission_id, g.scope, g.minimum_assurance, g.reauth_within_minutes, dt.name AS device_type_name
 FROM role_permission_grants g
@@ -1198,6 +1273,55 @@ func (q *Queries) ListTrainings(ctx context.Context) ([]ListTrainingsRow, error)
 			&i.RecordCount,
 			&i.Competencies,
 			&i.MachineTypes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTransferablePolicies = `-- name: ListTransferablePolicies :many
+SELECT id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status
+FROM privacy_policy_versions WHERE status <> 'retired' ORDER BY category_id, version
+`
+
+type ListTransferablePoliciesRow struct {
+	ID         uuid.UUID
+	CategoryID string
+	Version    int32
+	Trigger    string
+	PeriodDays int32
+	Action     string
+	Purpose    string
+	LegalBasis string
+	Reason     string
+	Status     string
+}
+
+func (q *Queries) ListTransferablePolicies(ctx context.Context) ([]ListTransferablePoliciesRow, error) {
+	rows, err := q.db.Query(ctx, listTransferablePolicies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTransferablePoliciesRow{}
+	for rows.Next() {
+		var i ListTransferablePoliciesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CategoryID,
+			&i.Version,
+			&i.Trigger,
+			&i.PeriodDays,
+			&i.Action,
+			&i.Purpose,
+			&i.LegalBasis,
+			&i.Reason,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}

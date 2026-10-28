@@ -12,6 +12,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	privacydb "github.com/Basmatireis/Makerspace-Core/backend/internal/privacy/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -266,6 +267,21 @@ func (s *Service) UpdateSettings(
 	p authorization.Principal,
 	input SettingsInput,
 	requestID *uuid.UUID,
+) (result Settings, err error) {
+	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateSettingsTx(ctx, tx, p, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateSettingsTx is UpdateSettings inside the caller's transaction.
+func (s *Service) UpdateSettingsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	input SettingsInput,
+	requestID *uuid.UUID,
 ) (Settings, error) {
 	if !p.Has(authorization.PrivacySettingsManage) {
 		return Settings{}, apperror.PermissionDenied
@@ -285,11 +301,6 @@ func (s *Service) UpdateSettings(
 	case input.RunIntervalMinutes < 5 || input.RunIntervalMinutes > 1440:
 		return Settings{}, apperror.InvalidField("runIntervalMinutes must be between 5 and 1440")
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Settings{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := privacydb.New(tx)
 	current, err := q.LockPrivacySettings(ctx)
 	if err != nil {
@@ -339,9 +350,6 @@ func (s *Service) UpdateSettings(
 		RequestID:      requestID,
 		ChangedFields:  changed,
 	}); err != nil {
-		return Settings{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return Settings{}, err
 	}
 	return settingsFrom(row), nil

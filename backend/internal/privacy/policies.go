@@ -9,6 +9,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	privacydb "github.com/Basmatireis/Makerspace-Core/backend/internal/privacy/db"
 	"github.com/google/uuid"
@@ -145,18 +146,24 @@ func (s *Service) validatePolicyInput(input PolicyInput) (Definition, error) {
 }
 
 // CreatePolicy adds a draft version for a category (privacy.policies.manage).
-func (s *Service) CreatePolicy(ctx context.Context, p authorization.Principal, input PolicyInput, requestID *uuid.UUID) (Policy, error) {
+func (s *Service) CreatePolicy(ctx context.Context, p authorization.Principal, input PolicyInput, requestID *uuid.UUID) (result Policy, err error) {
+	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreatePolicyTx(ctx, tx, p, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+// CreatePolicyTx is CreatePolicy inside the caller's transaction.
+func (s *Service) CreatePolicyTx(
+	ctx context.Context, tx pgx.Tx, p authorization.Principal, input PolicyInput, requestID *uuid.UUID,
+) (Policy, error) {
 	if !p.Has(authorization.PrivacyPoliciesManage) {
 		return Policy{}, apperror.PermissionDenied
 	}
 	if _, err := s.validatePolicyInput(input); err != nil {
 		return Policy{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Policy{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := privacydb.New(tx)
 	if _, err := q.LockCategoryPolicies(ctx, string(input.Category)); err != nil {
 		return Policy{}, err
@@ -177,19 +184,27 @@ func (s *Service) CreatePolicy(ctx context.Context, p authorization.Principal, i
 	if err := s.auditPolicy(ctx, tx, p, "privacy.policy_created", row.ID, requestID, "trigger", "periodDays", "action"); err != nil {
 		return Policy{}, err
 	}
-	return policyFrom(row), tx.Commit(ctx)
+	return policyFrom(row), nil
 }
 
 // UpdatePolicy edits a draft (privacy.policies.manage).
-func (s *Service) UpdatePolicy(ctx context.Context, p authorization.Principal, id uuid.UUID, input PolicyInput, requestID *uuid.UUID) (Policy, error) {
+func (s *Service) UpdatePolicy(
+	ctx context.Context, p authorization.Principal, id uuid.UUID, input PolicyInput, requestID *uuid.UUID,
+) (result Policy, err error) {
+	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdatePolicyTx(ctx, tx, p, id, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdatePolicyTx is UpdatePolicy inside the caller's transaction.
+func (s *Service) UpdatePolicyTx(
+	ctx context.Context, tx pgx.Tx, p authorization.Principal, id uuid.UUID, input PolicyInput, requestID *uuid.UUID,
+) (Policy, error) {
 	if !p.Has(authorization.PrivacyPoliciesManage) {
 		return Policy{}, apperror.PermissionDenied
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Policy{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := privacydb.New(tx)
 	current, err := q.LockPolicy(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -216,7 +231,7 @@ func (s *Service) UpdatePolicy(ctx context.Context, p authorization.Principal, i
 	if err := s.auditPolicy(ctx, tx, p, "privacy.policy_updated", row.ID, requestID, "trigger", "periodDays", "action"); err != nil {
 		return Policy{}, err
 	}
-	return policyFrom(row), tx.Commit(ctx)
+	return policyFrom(row), nil
 }
 
 // TransitionPolicy approves, activates or retires a version (privacy.policies.manage).

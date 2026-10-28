@@ -47,6 +47,7 @@ const (
 	SectionSurveys             SectionKey = "surveys"
 	SectionMail                SectionKey = "mail"
 	SectionInvoicing           SectionKey = "invoicing"
+	SectionPrivacy             SectionKey = "privacy"
 )
 
 // Mode is how an import treats entries that already exist.

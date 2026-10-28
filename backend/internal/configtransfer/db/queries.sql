@@ -211,3 +211,17 @@ SELECT t.id, t.name, t.description, t.active, t.sort_order, t.version,
        ARRAY(SELECT m.name FROM training_machine_types tm JOIN machine_types m ON m.id = tm.machine_type_id
              WHERE tm.training_id = t.id ORDER BY lower(m.name))::text[] AS machine_types
 FROM trainings t ORDER BY lower(t.name), t.id;
+
+-- Privacy: the controller, every retention decision that is not retired, and the record of processing activities.
+
+-- name: GetPrivacySettingsForTransfer :one
+SELECT controller_name, controller_address, data_protection_contact, automatic_runs_enabled, run_interval_minutes, version
+FROM privacy_settings;
+
+-- name: ListTransferablePolicies :many
+SELECT id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status
+FROM privacy_policy_versions WHERE status <> 'retired' ORDER BY category_id, version;
+
+-- name: ListProcessingActivitiesForTransfer :many
+SELECT id, name, purpose, legal_basis, category_ids, recipients, retention_note, version
+FROM privacy_processing_activities ORDER BY lower(name), id;

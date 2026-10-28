@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -23,14 +24,18 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacycatalog"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/subjectrequests"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
@@ -67,20 +72,23 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	labRules := laborordnung.NewService(pool, inbox.NewEmitter(), fileService)
+	privacyService := privacy.NewService(pool, must(privacycatalog.Catalog()))
 	services := Services{
-		Files:          fileService,
-		ManagedDevices: manageddevices.NewService(pool),
-		Roles:          roles.NewService(pool),
-		MachineLogbook: machinelogbook.NewService(pool, inbox.NewEmitter()),
-		Printing:       printing.NewService(pool),
-		Staffing:       staffingService,
-		Visitor:        visitor.NewService(pool, cfg, fileService, labRules, nil),
-		Branding:       branding.NewService(pool, fileService),
-		LabRules:       labRules,
-		Surveys:        surveys.NewService(pool, cfg, nil),
-		Mail:           mailer,
-		Invoicing:      invoicing.NewService(pool, nil, nil),
-		Trainings:      trainings.NewService(pool),
+		Files:           fileService,
+		ManagedDevices:  manageddevices.NewService(pool),
+		Roles:           roles.NewService(pool),
+		MachineLogbook:  machinelogbook.NewService(pool, inbox.NewEmitter()),
+		Printing:        printing.NewService(pool),
+		Staffing:        staffingService,
+		Visitor:         visitor.NewService(pool, cfg, fileService, labRules, nil),
+		Branding:        branding.NewService(pool, fileService),
+		LabRules:        labRules,
+		Surveys:         surveys.NewService(pool, cfg, nil),
+		Mail:            mailer,
+		Invoicing:       invoicing.NewService(pool, nil, nil),
+		Trainings:       trainings.NewService(pool),
+		Privacy:         privacyService,
+		SubjectRequests: subjectrequests.NewService(pool, privacyService, people.NewService(pool, fileService), fileService),
 	}
 	e := &env{t: t, ctx: t.Context(), pool: pool, svc: NewService(pool, services), s: services}
 	account, person := e.account("master")
@@ -274,6 +282,24 @@ func (e *env) seed() {
 		CompetencyIDs: []uuid.UUID{printingCompetency.ID, electronics.ID}, MachineTypeIDs: []uuid.UUID{fdm.ID},
 	}, nil))
 	must(e.s.Trainings.CreateTraining(ctx, p, trainings.TrainingInput{Name: "Soldering", Active: false}, nil))
+	privacySettings := must(e.s.Privacy.GetSettings(ctx, p))
+	must(e.s.Privacy.UpdateSettings(ctx, p, privacy.SettingsInput{
+		ControllerName: "HTU Graz", ControllerAddress: "Rechbauerstraße 12, 8010 Graz", DataProtectionContact: "privacy@example.test",
+		AutomaticRunsEnabled: false, RunIntervalMinutes: 60, ExpectedVersion: privacySettings.Version,
+	}, nil))
+	for _, policy := range must(e.s.Privacy.ListPolicies(ctx, p)) {
+		if policy.Category == privacycatalog.AuditEvents {
+			must(e.s.Privacy.UpdatePolicy(ctx, p, policy.ID, privacy.PolicyInput{
+				Category: policy.Category, Trigger: policy.Trigger, PeriodDays: 400, Action: policy.Action,
+				Purpose: "Security review", LegalBasis: "Art. 6(1)(f) GDPR", Reason: "One year plus the audit season.",
+			}, nil))
+		}
+	}
+	must(e.s.SubjectRequests.CreateActivity(ctx, p, subjectrequests.ActivityInput{
+		Name: "Member administration", Purpose: "Run the lab", LegalBasis: "Art. 6(1)(b) GDPR",
+		CategoryIDs: []privacy.CategoryID{privacycatalog.PeopleIdentity, privacycatalog.AttendanceVisits},
+		Recipients:  "None", RetentionNote: "See the retention policies.",
+	}, nil))
 }
 
 func (e *env) export(p authorization.Principal, keys ...SectionKey) []byte {
@@ -879,4 +905,126 @@ func TestTrainingsTravelWithoutRecordsAndOverwriteKeepsUsedOnes(t *testing.T) {
 		[]SectionKey{SectionTrainings}, nil); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("export without trainings.manage: %v", err)
 	}
+}
+
+// withPrivacySection returns the file with its privacy section replaced.
+func withPrivacySection(t *testing.T, data []byte, mutate func(*privacyEntry)) []byte {
+	t.Helper()
+	var parsed file
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	var entry privacyEntry
+	if err := json.Unmarshal(parsed.Sections[SectionPrivacy], &entry); err != nil {
+		t.Fatal(err)
+	}
+	mutate(&entry)
+	raw, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed.Sections[SectionPrivacy] = raw
+	return must(json.Marshal(parsed))
+}
+
+func policyOf(t *testing.T, e *env, category privacy.CategoryID, status string) privacy.Policy {
+	t.Helper()
+	for _, policy := range must(e.s.Privacy.ListPolicies(e.ctx, e.master)) {
+		if policy.Category == category && policy.Status == status {
+			return policy
+		}
+	}
+	t.Fatalf("no %s policy for %s", status, category)
+	return privacy.Policy{}
+}
+
+func TestPrivacyDecisionsImportAsDraftsAndAreNeverRemoved(t *testing.T) {
+	source := newEnv(t)
+	source.seed()
+	data := source.export(source.master, SectionPrivacy)
+	keys := []SectionKey{SectionPrivacy}
+	audit := string(privacycatalog.AuditEvents)
+
+	// Export and import need the policy permission; the automatic-run switch never travels.
+	if _, err := source.svc.Export(source.ctx, source.staff(authorization.ConfigurationExport, authorization.PrivacyRead), keys, nil); !apperror.IsCode(
+		err, "permission_denied") {
+		t.Fatalf("export without privacy.policies.manage: %v", err)
+	}
+	if strings.Contains(string(sectionsOf(t, data)[SectionPrivacy]), "automaticRuns") {
+		t.Fatal("the automatic-runs switch must not be exported")
+	}
+
+	// Pools are shared within one test, so the target instance lives in a subtest.
+	t.Run("into a fresh instance", func(t *testing.T) {
+		// A fresh instance: the file's decision updates the seeded draft, nothing is approved or activated.
+		target := newEnv(t)
+		report := target.importFile(target.master, ModeOverwrite, data, keys...)
+		if got := item(t, report, SectionPrivacy, audit); got.Action != ActionUpdate {
+			t.Fatalf("audit policy = %+v", got)
+		}
+		if got := item(t, report, SectionPrivacy, "Member administration"); got.Action != ActionCreate {
+			t.Fatalf("activity = %+v", got)
+		}
+		if got := policyOf(t, target, privacycatalog.AuditEvents, privacy.PolicyDraft); got.PeriodDays != 400 || got.Purpose != "Security review" {
+			t.Fatalf("imported draft = %+v", got)
+		}
+
+		// The target approves and activates its own, different decision; the file's version becomes a new draft next to it
+		// and the active decision stays in force. Importing the same file again changes nothing.
+		draft := policyOf(t, target, privacycatalog.AuditEvents, privacy.PolicyDraft)
+		must(target.s.Privacy.UpdatePolicy(target.ctx, target.master, draft.ID, privacy.PolicyInput{
+			Category: draft.Category, Trigger: draft.Trigger, PeriodDays: 730, Action: draft.Action,
+			Purpose: "Local decision", LegalBasis: "Art. 6(1)(f) GDPR", Reason: "Two years.",
+		}, nil))
+		must(target.s.Privacy.TransitionPolicy(target.ctx, target.master, draft.ID, privacy.PolicyApproved, nil))
+		must(target.s.Privacy.TransitionPolicy(target.ctx, target.master, draft.ID, privacy.PolicyActive, nil))
+		report = target.importFile(target.master, ModeOverwrite, data, keys...)
+		if got := item(t, report, SectionPrivacy, audit); got.Action != ActionCreate || got.Reason != policyKeptReason {
+			t.Fatalf("decision next to an active policy = %+v", got)
+		}
+		if got := policyOf(t, target, privacycatalog.AuditEvents, privacy.PolicyActive); got.PeriodDays != 730 {
+			t.Fatalf("active policy changed: %+v", got)
+		}
+		again := must(target.svc.Preview(target.ctx, target.master, ModeOverwrite, keys, bytes.NewReader(data)))
+		if c := again.Sections[0].Counts; c.Create+c.Update+c.Delete+c.Conflict != 0 {
+			t.Fatalf("second import is not idempotent: %+v", again.Sections[0].Items)
+		}
+		// The export of the target carries its active decision, not the imported draft.
+		var exported privacyEntry
+		if err := json.Unmarshal(sectionsOf(t, target.export(target.master, keys...))[SectionPrivacy], &exported); err != nil {
+			t.Fatal(err)
+		}
+		for _, policy := range exported.RetentionPolicies {
+			if policy.Category == audit && policy.PeriodDays != 730 {
+				t.Fatalf("exported audit policy = %+v", policy)
+			}
+		}
+
+		// A file without a category keeps the target's decision; an unknown category or trigger is a conflict; insert mode
+		// leaves existing decisions untouched; the processing activity missing from the file is deleted in overwrite mode.
+		trimmed := withPrivacySection(t, data, func(entry *privacyEntry) {
+			entry.RetentionPolicies = slices.DeleteFunc(entry.RetentionPolicies, func(p retentionPolicyEntry) bool { return p.Category == audit })
+			entry.RetentionPolicies = append(entry.RetentionPolicies, retentionPolicyEntry{
+				Category: "events.content", Trigger: "created_at", PeriodDays: 10, Action: "delete", Purpose: "x", LegalBasis: "y", Reason: "z",
+			})
+			entry.ProcessingActivities = nil
+		})
+		preview := must(target.svc.Preview(target.ctx, target.master, ModeOverwrite, keys, bytes.NewReader(trimmed)))
+		if got := item(t, preview, SectionPrivacy, audit); got.Action != ActionKeep {
+			t.Fatalf("missing decision = %+v", got)
+		}
+		if got := item(t, preview, SectionPrivacy, "events.content"); got.Action != ActionConflict {
+			t.Fatalf("unsupported trigger = %+v", got)
+		}
+		if got := item(t, preview, SectionPrivacy, "Member administration"); got.Action != ActionDelete {
+			t.Fatalf("activity missing from the file = %+v", got)
+		}
+		insert := must(target.svc.Preview(target.ctx, target.master, ModeInsert, keys, bytes.NewReader(data)))
+		if got := item(t, insert, SectionPrivacy, audit); got.Action != ActionSkip {
+			t.Fatalf("insert mode = %+v", got)
+		}
+		if got := item(t, insert, SectionPrivacy, privacySettingsItem); got.Action != ActionSkip {
+			t.Fatalf("settings in insert mode = %+v", got)
+		}
+	})
 }

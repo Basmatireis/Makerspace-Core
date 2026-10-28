@@ -1,0 +1,160 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "machines-jobs-prototype",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--dir",
+        "frontend",
+        "exec",
+        "vite",
+        "--port",
+        "5174",
+        "--strictPort"
+      ],
+      "port": 5174
+    },
+    {
+      "name": "signage-prototype",
+      "runtimeExecutable": "/Users/basmatireis/git/Makerspace-core-signage/frontend/node_modules/.bin/vite",
+      "runtimeArgs": [
+        "/Users/basmatireis/git/Makerspace-core-signage/frontend",
+        "--port",
+        "5175",
+        "--strictPort"
+      ],
+      "port": 5175
+    },
+    {
+      "name": "signage-app",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "VITE_DEV_API_TARGET=http://localhost:18080",
+        "/Users/basmatireis/git/Makerspace-core-signage/frontend/node_modules/.bin/vite",
+        "/Users/basmatireis/git/Makerspace-core-signage/frontend",
+        "--port",
+        "5176",
+        "--strictPort",
+        "--host",
+        "localhost"
+      ],
+      "port": 5176
+    },
+    {
+      "name": "signage-player-test",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "/Users/basmatireis/git/Makerspace-core-signage/frontend/node_modules/.bin/vite",
+        "--config",
+        "/private/tmp/claude-501/-Users-basmatireis-git-Makerspace-core/4c65c323-a967-4078-806b-c4b8f3b1832f/scratchpad/devenv/vite.player.config.mts"
+      ],
+      "url": "http://127.0.0.1:5177",
+      "port": 5177
+    },
+    {
+      "name": "signage-player-prod",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "/Users/basmatireis/git/Makerspace-core-signage/frontend/node_modules/.bin/vite",
+        "preview",
+        "--config",
+        "/private/tmp/claude-501/-Users-basmatireis-git-Makerspace-core/4c65c323-a967-4078-806b-c4b8f3b1832f/scratchpad/devenv/vite.player.config.mts"
+      ],
+      "url": "http://127.0.0.1:5177",
+      "port": 5177
+    },
+    {
+      "name": "main-bugfix-preview",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "VITE_DEV_API_TARGET=http://127.0.0.1:18090",
+        "/Users/basmatireis/git/Makerspace-core/frontend/node_modules/.bin/vite",
+        "/Users/basmatireis/git/Makerspace-core/frontend",
+        "--port",
+        "5180",
+        "--strictPort",
+        "--host",
+        "localhost"
+      ],
+      "port": 5180
+    },
+    {
+      "name": "main-app",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "VITE_DEV_API_TARGET=http://localhost:18080",
+        "/Users/basmatireis/git/Makerspace-core/frontend/node_modules/.bin/vite",
+        "/Users/basmatireis/git/Makerspace-core/frontend",
+        "--port",
+        "5181",
+        "--strictPort",
+        "--host",
+        "localhost"
+      ],
+      "port": 5181
+    },
+    {
+      "name": "dashboard-prototype",
+      "runtimeExecutable": "/Users/basmatireis/git/Makerspace-core/frontend/node_modules/.bin/vite",
+      "runtimeArgs": [
+        "/Users/basmatireis/git/Makerspace-core/.claude/worktrees/prototype-dashboard/frontend",
+        "--port",
+        "5182",
+        "--strictPort"
+      ],
+      "port": 5182
+    },
+    {
+      "name": "tablet-terminal-prototype",
+      "runtimeExecutable": "/Users/basmatireis/git/Makerspace-core/.claude/worktrees/prototype-tablet-terminal/frontend/node_modules/.bin/vite",
+      "runtimeArgs": [
+        "/Users/basmatireis/git/Makerspace-core/.claude/worktrees/prototype-tablet-terminal/frontend",
+        "--port",
+        "5183",
+        "--strictPort"
+      ],
+      "url": "http://localhost:5183",
+      "port": 5183
+    },
+    {
+      "name": "main-review",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "VITE_DEV_API_TARGET=http://localhost:8080",
+        "/Users/basmatireis/git/Makerspace-core/frontend/node_modules/.bin/vite",
+        "/Users/basmatireis/git/Makerspace-core/frontend",
+        "--port",
+        "5185",
+        "--strictPort",
+        "--host",
+        "localhost"
+      ],
+      "port": 5185
+    },
+    {
+      "name": "tablet-terminal-api",
+      "runtimeExecutable": "/private/tmp/claude-501/-Users-basmatireis-git-Makerspace-core/368a30ce-569d-42a0-895f-e87ef8dd10a8/scratchpad/tabletenv/api.sh",
+      "runtimeArgs": [],
+      "port": 18095
+    },
+    {
+      "name": "tablet-terminal-app",
+      "runtimeExecutable": "/private/tmp/claude-501/-Users-basmatireis-git-Makerspace-core/368a30ce-569d-42a0-895f-e87ef8dd10a8/scratchpad/tabletenv/web.sh",
+      "runtimeArgs": [],
+      "port": 5184
+    },
+    {
+      "name": "print-details-prototype",
+      "runtimeExecutable": "/Users/basmatireis/git/Makerspace-core/.claude/worktrees/prototype-print-thumbnails/frontend/node_modules/.bin/vite",
+      "runtimeArgs": [
+        "/Users/basmatireis/git/Makerspace-core/.claude/worktrees/prototype-print-thumbnails/frontend",
+        "--port",
+        "5186",
+        "--strictPort"
+      ],
+      "url": "http://localhost:5186",
+      "port": 5186
+    }
+  ]
+}

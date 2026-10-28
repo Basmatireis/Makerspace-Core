@@ -172,20 +172,24 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	managedDevicesService := manageddevices.NewService(pool)
 	visitorService := visitor.NewService(pool, cfg, fileService, labRulesService, notifier)
 	trainingsService := trainings.NewService(pool)
+	peopleService := people.NewService(pool, fileService)
+	subjectRequestService := subjectrequests.NewService(pool, privacyService, peopleService, fileService)
 	configTransferService := configtransfer.NewService(pool, configtransfer.Services{
-		Files:          fileService,
-		ManagedDevices: managedDevicesService,
-		Roles:          rolesService,
-		MachineLogbook: machineLogbook,
-		Printing:       printingService,
-		Staffing:       staffingService,
-		Visitor:        visitorService,
-		Branding:       brandingService,
-		LabRules:       labRulesService,
-		Surveys:        surveyService,
-		Mail:           mailer,
-		Invoicing:      invoicingService,
-		Trainings:      trainingsService,
+		Files:           fileService,
+		ManagedDevices:  managedDevicesService,
+		Roles:           rolesService,
+		MachineLogbook:  machineLogbook,
+		Printing:        printingService,
+		Staffing:        staffingService,
+		Visitor:         visitorService,
+		Branding:        brandingService,
+		LabRules:        labRulesService,
+		Surveys:         surveyService,
+		Mail:            mailer,
+		Invoicing:       invoicingService,
+		Trainings:       trainingsService,
+		Privacy:         privacyService,
+		SubjectRequests: subjectRequestService,
 	})
 	location, err := time.LoadLocation(cfg.MakerspaceTimeZone)
 	if err != nil {
@@ -200,8 +204,6 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		AuditRetention:       &auditRetention,
 		EventSignupRetention: &eventSignupRetention,
 	})
-	peopleService := people.NewService(pool, fileService)
-	subjectRequestService := subjectrequests.NewService(pool, privacyService, peopleService, fileService)
 	privacyService.Register(privacycatalog.PrivacyRecords, subjectrequests.RetentionHandler())
 	return &Server{
 		pool:              pool,

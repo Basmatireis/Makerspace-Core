@@ -25,8 +25,10 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/subjectrequests"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
@@ -51,6 +53,9 @@ type Services struct {
 	Mail           *mail.Service
 	Invoicing      *invoicing.Service
 	Trainings      *trainings.Service
+	Privacy        *privacy.Service
+	// SubjectRequests owns the record of processing activities.
+	SubjectRequests *subjectrequests.Service
 }
 
 type Service struct {
@@ -146,6 +151,9 @@ func (s *Service) Export(
 	if err := authorize(p, authorization.ConfigurationExport, selected, false); err != nil {
 		return Export{}, err
 	}
+	if err := s.prepare(ctx, selected); err != nil {
+		return Export{}, err
+	}
 	values := make(map[SectionKey]any, len(selected))
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
@@ -207,6 +215,19 @@ func (s *Service) Export(
 		return Export{}, err
 	}
 	return Export{Filename: "makerspace-configuration-" + now.Format("2006-01-02") + ".json", Data: data}, nil
+}
+
+// prepare runs the sections' preparation steps before a transfer.
+func (s *Service) prepare(ctx context.Context, selected []section) error {
+	for _, definition := range selected {
+		if definition.prepare == nil {
+			continue
+		}
+		if err := definition.prepare(ctx, s.services); err != nil {
+			return fmt.Errorf("prepare section %s: %w", definition.key, err)
+		}
+	}
+	return nil
 }
 
 func sectionNames(selected []section) []string {
@@ -271,6 +292,9 @@ func (s *Service) execute(
 		return Report{}, err
 	}
 	if err := authorize(p, authorization.ConfigurationImport, selected, true); err != nil {
+		return Report{}, err
+	}
+	if err := s.prepare(ctx, selected); err != nil {
 		return Report{}, err
 	}
 	parsed, warnings, err := readFile(body)

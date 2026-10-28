@@ -19,6 +19,8 @@ type Querier interface {
 	// The encrypted SMTP password is never selected; only whether one is stored.
 	GetMailConfiguration(ctx context.Context) (GetMailConfigurationRow, error)
 	GetOpenDayRequirements(ctx context.Context) (GetOpenDayRequirementsRow, error)
+	// Privacy: the controller, every retention decision that is not retired, and the record of processing activities.
+	GetPrivacySettingsForTransfer(ctx context.Context) (GetPrivacySettingsForTransferRow, error)
 	GetVisitorEnrollmentConfiguration(ctx context.Context) (GetVisitorEnrollmentConfigurationRow, error)
 	GetWirefDeliverySettings(ctx context.Context) (GetWirefDeliverySettingsRow, error)
 	ListActivePricingRules(ctx context.Context) ([]ListActivePricingRulesRow, error)
@@ -37,6 +39,7 @@ type Querier interface {
 	ListPrinterInputUnits(ctx context.Context) ([]ListPrinterInputUnitsRow, error)
 	ListPrinterProfiles(ctx context.Context) ([]ListPrinterProfilesRow, error)
 	ListPrinterSlots(ctx context.Context) ([]ListPrinterSlotsRow, error)
+	ListProcessingActivitiesForTransfer(ctx context.Context) ([]ListProcessingActivitiesForTransferRow, error)
 	ListRolePermissionGrants(ctx context.Context) ([]ListRolePermissionGrantsRow, error)
 	ListRolePricingGroups(ctx context.Context) ([]ListRolePricingGroupsRow, error)
 	ListRoles(ctx context.Context) ([]ListRolesRow, error)
@@ -47,6 +50,7 @@ type Querier interface {
 	ListSurveys(ctx context.Context) ([]ListSurveysRow, error)
 	// Trainings with their competency and machine type names, the natural keys the file uses.
 	ListTrainings(ctx context.Context) ([]ListTrainingsRow, error)
+	ListTransferablePolicies(ctx context.Context) ([]ListTransferablePoliciesRow, error)
 	ListVisitorEnrollmentDeviceTypes(ctx context.Context) ([]ListVisitorEnrollmentDeviceTypesRow, error)
 	// Machines with history, connector assignments, cameras or mounted spools are retired instead of deleted.
 	MachineInUse(ctx context.Context, id uuid.UUID) (bool, error)

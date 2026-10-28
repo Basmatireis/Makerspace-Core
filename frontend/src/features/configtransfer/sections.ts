@@ -131,6 +131,14 @@ export const sectionDefinitions: SectionDefinition[] = [
     read: [PermissionId.invoicingsettingsmanage],
     manage: [PermissionId.invoicingsettingsmanage],
   },
+  {
+    key: 'privacy',
+    label: 'Privacy & data retention',
+    description:
+      'Controller, the retention decision per data category and the record of processing activities; imported decisions arrive as drafts.',
+    read: [PermissionId.privacyread, PermissionId.privacypoliciesmanage],
+    manage: [PermissionId.privacysettingsmanage],
+  },
 ];
 
 export function sectionLabel(key: ConfigurationSection): string {

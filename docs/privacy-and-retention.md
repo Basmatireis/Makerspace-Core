@@ -203,6 +203,10 @@ The record of processing activities (`privacy_processing_activities`) is the ope
 
 Closed requests and their export archives belong to the category `privacy.records`; its retention handler deletes closed requests whose completion lies before the cutoff and queues their archives for blob deletion. Open requests are never touched.
 
+## Configuration transfer
+
+The section `privacy` of the [configuration export and import](configuration-transfer.md) carries the controller settings, one retention decision per category and the record of processing activities. Imported decisions arrive as drafts and are approved and activated on the importing instance; holds, runs, data-subject requests and the automatic-runs switch never travel.
+
 ## admin cleanup
 
 `admin cleanup` is the legacy mode of the retention engine. It uses the same queries and the same periods as before (`AUDIT_RETENTION`, `EVENT_SIGNUP_RETENTION` and the code constants), and records a run.

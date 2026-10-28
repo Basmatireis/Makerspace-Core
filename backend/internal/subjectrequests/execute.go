@@ -17,6 +17,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
@@ -498,7 +499,18 @@ func categoryStrings(ids []privacy.CategoryID) []string {
 }
 
 // CreateActivity adds an activity (privacy.settings.manage).
-func (s *Service) CreateActivity(ctx context.Context, p authorization.Principal, input ActivityInput, requestID *uuid.UUID) (Activity, error) {
+func (s *Service) CreateActivity(ctx context.Context, p authorization.Principal, input ActivityInput, requestID *uuid.UUID) (result Activity, err error) {
+	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.CreateActivityTx(ctx, tx, p, input, requestID)
+		return err
+	})
+	return result, err
+}
+
+// CreateActivityTx is CreateActivity inside the caller's transaction.
+func (s *Service) CreateActivityTx(
+	ctx context.Context, tx pgx.Tx, p authorization.Principal, input ActivityInput, requestID *uuid.UUID,
+) (Activity, error) {
 	if !p.Has(authorization.PrivacySettingsManage) {
 		return Activity{}, apperror.PermissionDenied
 	}
@@ -506,11 +518,6 @@ func (s *Service) CreateActivity(ctx context.Context, p authorization.Principal,
 	if err != nil {
 		return Activity{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Activity{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	actor := p.AccountID
 	row, err := requestsdb.New(tx).InsertProcessingActivity(ctx, requestsdb.InsertProcessingActivityParams{
 		ID: ids.New(), Name: input.Name, Purpose: input.Purpose, LegalBasis: input.LegalBasis, CategoryIds: categoryStrings(input.CategoryIDs),
@@ -522,12 +529,24 @@ func (s *Service) CreateActivity(ctx context.Context, p authorization.Principal,
 	if err := s.auditActivity(ctx, tx, actor, "privacy.processing_activity_created", row.ID, requestID); err != nil {
 		return Activity{}, err
 	}
-	return activityFrom(row), tx.Commit(ctx)
+	return activityFrom(row), nil
 }
 
 // UpdateActivity changes an activity (privacy.settings.manage), version-checked.
 func (s *Service) UpdateActivity(
 	ctx context.Context, p authorization.Principal, id uuid.UUID, input ActivityInput, expectedVersion int64, requestID *uuid.UUID,
+) (result Activity, err error) {
+	err = database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.UpdateActivityTx(ctx, tx, p, id, input, expectedVersion, requestID)
+		return err
+	})
+	return result, err
+}
+
+// UpdateActivityTx is UpdateActivity inside the caller's transaction.
+func (s *Service) UpdateActivityTx(
+	ctx context.Context, tx pgx.Tx, p authorization.Principal, id uuid.UUID, input ActivityInput, expectedVersion int64,
+	requestID *uuid.UUID,
 ) (Activity, error) {
 	if !p.Has(authorization.PrivacySettingsManage) {
 		return Activity{}, apperror.PermissionDenied
@@ -536,11 +555,6 @@ func (s *Service) UpdateActivity(
 	if err != nil {
 		return Activity{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Activity{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := requestsdb.New(tx)
 	if _, err := q.GetProcessingActivity(ctx, id); errors.Is(err, pgx.ErrNoRows) {
 		return Activity{}, apperror.NotFound
@@ -561,36 +575,37 @@ func (s *Service) UpdateActivity(
 	if err := s.auditActivity(ctx, tx, actor, "privacy.processing_activity_updated", id, requestID); err != nil {
 		return Activity{}, err
 	}
-	return activityFrom(row), tx.Commit(ctx)
+	return activityFrom(row), nil
 }
 
 // DeleteActivity removes an activity (privacy.settings.manage), version-checked.
 func (s *Service) DeleteActivity(ctx context.Context, p authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) error {
+	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		return s.DeleteActivityTx(ctx, tx, p, id, expectedVersion, requestID)
+	})
+}
+
+// DeleteActivityTx is DeleteActivity inside the caller's transaction.
+func (s *Service) DeleteActivityTx(
+	ctx context.Context, tx pgx.Tx, p authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID,
+) error {
 	if !p.Has(authorization.PrivacySettingsManage) {
 		return apperror.PermissionDenied
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	q := requestsdb.New(tx)
 	if _, err := q.GetProcessingActivity(ctx, id); errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
 	} else if err != nil {
 		return err
 	}
-	_, err = q.DeleteProcessingActivity(ctx, requestsdb.DeleteProcessingActivityParams{ID: id, ExpectedVersion: expectedVersion})
+	_, err := q.DeleteProcessingActivity(ctx, requestsdb.DeleteProcessingActivityParams{ID: id, ExpectedVersion: expectedVersion})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.StaleWrite
 	}
 	if err != nil {
 		return err
 	}
-	if err := s.auditActivity(ctx, tx, p.AccountID, "privacy.processing_activity_deleted", id, requestID); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return s.auditActivity(ctx, tx, p.AccountID, "privacy.processing_activity_deleted", id, requestID)
 }
 
 func (s *Service) auditActivity(ctx context.Context, tx pgx.Tx, actor uuid.UUID, action string, id uuid.UUID, requestID *uuid.UUID) error {
