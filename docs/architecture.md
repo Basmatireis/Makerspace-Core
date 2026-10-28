@@ -8,7 +8,7 @@ The browser calls relative `/api/v1` routes. In development Vite proxies `/api` 
 
 ## Backend boundaries
 
-Business features own their service, repository/query, domain model, and tests. The modules include people, accounts, auth, authorization, roles, audit, managed devices, attendance, surveys, notifications, files/storage, Lab Rules, OIDC, SCIM, visitor enrollment, supervisors, Open Days, the machine logbook, and Orders/payment/external-invoicing records. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
+Business features own their service, repository/query, domain model, and tests. The modules include people, accounts, auth, authorization, roles, audit, managed devices, attendance, surveys, notifications, files/storage, Lab Rules, OIDC, SCIM, visitor enrollment, supervisors, Open Days, the machine logbook, and Orders/payment/external-invoicing records. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration. Periodic background jobs run through one scheduler in `internal/platform/scheduler`; each run takes a PostgreSQL advisory lock, so several API replicas never run the same job at once.
 
 Within a feature:
 

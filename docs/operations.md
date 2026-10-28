@@ -39,21 +39,25 @@ The command requires a TTY, prompts for the existing login email or identifier, 
 
 ## Cleanup and retention
 
-Expired/revoked sessions and expired password-reset tokens are operational data, not permanent records. Run cleanup manually or from the deployment's existing scheduler:
+`admin cleanup` is the legacy mode of the retention engine. It removes expired and revoked sessions, expired password-reset tokens and expired pending sign-in state, and applies the legacy periods of the other categories, using the same queries as before. Each run is recorded and appears in the execution history of Settings › Data › Privacy & data retention.
 
 ```sh
 docker compose --profile tools run --rm --build admin cleanup
 ```
 
-Audit retention must be based on a documented organizational/legal purpose. The initial default is `AUDIT_RETENTION=8760h` (365 days), and cleanup removes older events without retaining full before/after PII snapshots. Confirm this period against local policy before production use. A one-off explicit non-secret RFC 3339 cutoff can override the calculated cutoff:
+Flags:
+
+- `--dry-run` reports what would change without changing anything;
+- `--category <id>` limits the run to one data category (repeatable, for example `--category audit.events`);
+- `--audit-before <RFC 3339>` sets a one-off audit cutoff (non-secret), overriding the period from `AUDIT_RETENTION`:
 
 ```sh
 docker compose --profile tools run --rm --build admin cleanup --audit-before 2026-01-01T00:00:00Z
 ```
 
-Cleanup always prunes expired sessions/reset tokens and, by default, audit rows older than the configured retention. `AUDIT_RETENTION=0` is the deliberate opt-out for installations whose confirmed policy requires externally managed retention; it must not arise from a missing configuration value. Test the policy on a backup before the first production audit purge.
+The output lists the run and one line per category with its affected count and status.
 
-The same cleanup removes delivery identity from redeemed or expired Survey invitations after a seven-day operational grace period. Completed and voided Visit detail is removed after 90 days; completed Visit rows are first rolled into non-identifying UTC daily attendance aggregates. Open Visits are never removed by retention cleanup.
+Audit retention must be based on a documented organizational/legal purpose. The initial default is `AUDIT_RETENTION=8760h` (365 days), and cleanup removes older events without retaining full before/after PII snapshots. Confirm this period against local policy before production use. `AUDIT_RETENTION=0` is the deliberate opt-out for installations whose confirmed policy requires externally managed retention; it must not arise from a missing configuration value. Test the policy on a backup before the first production audit purge.
 
 Due post-visit survey emails are sent automatically by the API process every minute (`SURVEY_DELIVERY_INTERVAL`, a Go duration; `0` disables the loop), so no scheduler entry is needed any more. Claims are concurrency-safe across API replicas and retry failed or stale deliveries up to the configured database limit. The manual command remains available, for example when the loop is disabled:
 
@@ -61,7 +65,11 @@ Due post-visit survey emails are sent automatically by the API process every min
 docker compose run --rm --entrypoint /app/admin backend deliver-surveys --limit 100
 ```
 
-External Event signup contact snapshots and management-token digests default to a 180-day retention period after an Event is completed or cancelled (`EVENT_SIGNUP_RETENTION=4320h`). The same manual cleanup command erases those fields transactionally, retains only non-PII staffing history and any still-linked Person ID, and records a privacy-minimized audit event. Set `EVENT_SIGNUP_RETENTION=0` only as an explicit opt-out backed by the installation's documented retention policy.
+External Event signup contact snapshots and management-token digests default to a 180-day retention period after an Event is completed or cancelled (`EVENT_SIGNUP_RETENTION=4320h`). The same cleanup erases those fields transactionally, retains only non-PII staffing history and any still-linked Person ID, and records a privacy-minimized audit event. Set `EVENT_SIGNUP_RETENTION=0` only as an explicit opt-out backed by the installation's documented retention policy.
+
+Completed and voided Visit detail is removed after 90 days; completed Visit rows are first rolled into non-identifying UTC daily attendance aggregates. Open Visits are never removed by retention cleanup.
+
+Automatic policy runs are off by default. The scheduler then runs only the legacy routines for in-app notifications, signage announcements, printer telemetry and timelapses. Review the seeded retention policies in Settings › Data › Privacy & data retention (tab Retention policies) and confirm each period against the operating record before relying on them; an active policy replaces the legacy period of its category. See [Retention policies](privacy-and-retention.md#retention-policies) and [Scheduler and legacy behaviour](privacy-and-retention.md#scheduler-and-legacy-behaviour).
 
 Person and Account deletion remains a separate authorized product operation. Hard deletion cascades credentials and sessions rather than retaining PII under a soft-delete flag. Audit actor references become null and resource UUIDs remain non-PII context.
 
@@ -74,6 +82,16 @@ Application-log and backup retention are separate deployment policies; neither i
 No production deployment is ready until these values and owners are explicit in that deployment's operating record. Repository defaults cannot decide the makerspace's legal or organizational obligations.
 
 The privacy registry documents every personal-data category, its owner module and its legacy default period, so the installation's retention can be reviewed in one place. `admin cleanup` behaviour is unchanged in this release; see [Privacy registry, retention and data-subject requests](privacy-and-retention.md).
+
+Application-log and backup retention are separate deployment policies; neither inherits the 365-day audit default. Before production, the operator must record and approve all three periods:
+
+- **Audit events:** confirm or replace the application default above.
+- **Application logs:** configure the deployment platform's rotation and deletion period to the shortest duration needed for diagnosis. Logs are disposable, must keep the documented PII/secret exclusions, and must not be treated as an audit archive.
+- **Database backups:** define encrypted backup frequency, retention, access control, restore testing, and final expiry. Backups can temporarily retain records that were hard-deleted from the live database, so the policy must also describe how deletion and legal-retention obligations apply to backup generations.
+
+No production deployment is ready until these values and owners are explicit in that deployment's operating record. Repository defaults cannot decide the makerspace's legal or organizational obligations.
+
+Each category, its owner module and its legacy period are listed in [Privacy registry, retention and data-subject requests](privacy-and-retention.md#handled-categories), so the installation's retention can be reviewed in one place.
 
 ## Production Compose deployment
 

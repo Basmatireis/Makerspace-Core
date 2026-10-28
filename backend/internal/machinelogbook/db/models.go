@@ -1453,6 +1453,61 @@ type PrivacyCategorySnapshot struct {
 	Orphaned      bool
 }
 
+type PrivacyPolicyVersion struct {
+	ID                   uuid.UUID
+	CategoryID           string
+	Version              int32
+	Trigger              string
+	PeriodDays           int32
+	Action               string
+	Purpose              string
+	LegalBasis           string
+	Reason               string
+	Status               string
+	SourceTemplate       *string
+	CreatedAt            time.Time
+	CreatedByAccountID   *uuid.UUID
+	UpdatedAt            time.Time
+	ApprovedAt           pgtype.Timestamptz
+	ApprovedByAccountID  *uuid.UUID
+	ActivatedAt          pgtype.Timestamptz
+	ActivatedByAccountID *uuid.UUID
+	RetiredAt            pgtype.Timestamptz
+}
+
+type PrivacyRetentionHold struct {
+	ID                  uuid.UUID
+	CategoryID          *string
+	SubjectPersonID     *uuid.UUID
+	Reason              string
+	CreatedAt           time.Time
+	CreatedByAccountID  *uuid.UUID
+	ReleasedAt          pgtype.Timestamptz
+	ReleasedByAccountID *uuid.UUID
+}
+
+type PrivacyRetentionRun struct {
+	ID             uuid.UUID
+	Mode           string
+	Trigger        string
+	ActorAccountID *uuid.UUID
+	StartedAt      time.Time
+	FinishedAt     pgtype.Timestamptz
+	Status         string
+	ErrorCode      *string
+}
+
+type PrivacyRetentionRunItem struct {
+	RunID         uuid.UUID
+	CategoryID    string
+	PolicyID      *uuid.UUID
+	Action        string
+	Cutoff        time.Time
+	AffectedCount int64
+	Status        string
+	ErrorCode     *string
+}
+
 type PrivacySetting struct {
 	Singleton             bool
 	ControllerName        string

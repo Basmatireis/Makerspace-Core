@@ -178,6 +178,15 @@ func (q *Queries) CheckConnectorArtifactUploadTarget(ctx context.Context, arg Ch
 	return i, err
 }
 
+const clearPrimaryPreviews = `-- name: ClearPrimaryPreviews :exec
+UPDATE print_artifacts SET primary_preview_id = NULL WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) ClearPrimaryPreviews(ctx context.Context, artifactIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearPrimaryPreviews, artifactIds)
+	return err
+}
+
 const createPlannedMachineJob = `-- name: CreatePlannedMachineJob :one
 INSERT INTO machine_jobs (
     id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, title, notes, artifact_id
@@ -283,6 +292,79 @@ func (q *Queries) CreatePricingSnapshot(ctx context.Context, arg CreatePricingSn
 		&i.CapturedAt,
 	)
 	return i, err
+}
+
+const deleteArtifactFilesQueueBlobs = `-- name: DeleteArtifactFilesQueueBlobs :exec
+WITH deleted AS (
+    DELETE FROM files WHERE id = ANY($1::uuid[]) RETURNING storage_key
+)
+INSERT INTO file_blob_deletions (storage_key) SELECT storage_key FROM deleted
+ON CONFLICT (storage_key) DO NOTHING
+`
+
+func (q *Queries) DeleteArtifactFilesQueueBlobs(ctx context.Context, fileIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteArtifactFilesQueueBlobs, fileIds)
+	return err
+}
+
+const deletePrintArtifactFilamentsOf = `-- name: DeletePrintArtifactFilamentsOf :exec
+DELETE FROM print_artifact_filaments WHERE artifact_id = ANY($1::uuid[])
+`
+
+func (q *Queries) DeletePrintArtifactFilamentsOf(ctx context.Context, artifactIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePrintArtifactFilamentsOf, artifactIds)
+	return err
+}
+
+const deletePrintArtifactPreviewsOf = `-- name: DeletePrintArtifactPreviewsOf :many
+DELETE FROM print_artifact_previews WHERE artifact_id = ANY($1::uuid[]) RETURNING file_id
+`
+
+func (q *Queries) DeletePrintArtifactPreviewsOf(ctx context.Context, artifactIds []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, deletePrintArtifactPreviewsOf, artifactIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var file_id uuid.UUID
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deletePrintArtifactsByID = `-- name: DeletePrintArtifactsByID :exec
+DELETE FROM print_artifacts WHERE id = ANY($1::uuid[])
+`
+
+func (q *Queries) DeletePrintArtifactsByID(ctx context.Context, artifactIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePrintArtifactsByID, artifactIds)
+	return err
+}
+
+const detachJobArtifacts = `-- name: DetachJobArtifacts :exec
+UPDATE machine_jobs SET artifact_id = NULL WHERE artifact_id = ANY($1::uuid[])
+`
+
+func (q *Queries) DetachJobArtifacts(ctx context.Context, artifactIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, detachJobArtifacts, artifactIds)
+	return err
+}
+
+const detachRunArtifacts = `-- name: DetachRunArtifacts :exec
+UPDATE machine_runs SET artifact_id = NULL WHERE artifact_id = ANY($1::uuid[])
+`
+
+func (q *Queries) DetachRunArtifacts(ctx context.Context, artifactIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, detachRunArtifacts, artifactIds)
+	return err
 }
 
 const findPlannedJobsForArtifact = `-- name: FindPlannedJobsForArtifact :many
@@ -908,6 +990,47 @@ func (q *Queries) ListLatestReportedUsageItems(ctx context.Context, runID uuid.U
 			&i.Quality,
 			&i.CreatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPrintArtifactsBefore = `-- name: ListPrintArtifactsBefore :many
+SELECT a.id, a.original_file_id
+FROM print_artifacts a
+WHERE a.created_at < $1
+  AND NOT EXISTS (SELECT 1 FROM machine_runs r WHERE r.artifact_id = a.id AND r.ended_at IS NULL)
+ORDER BY a.created_at, a.id
+LIMIT $2
+FOR UPDATE OF a SKIP LOCKED
+`
+
+type ListPrintArtifactsBeforeParams struct {
+	BeforeTime time.Time
+	RowLimit   int32
+}
+
+type ListPrintArtifactsBeforeRow struct {
+	ID             uuid.UUID
+	OriginalFileID uuid.UUID
+}
+
+// Artifacts older than the cutoff that no running run uses; locked for the retention batch.
+func (q *Queries) ListPrintArtifactsBefore(ctx context.Context, arg ListPrintArtifactsBeforeParams) ([]ListPrintArtifactsBeforeRow, error) {
+	rows, err := q.db.Query(ctx, listPrintArtifactsBefore, arg.BeforeTime, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPrintArtifactsBeforeRow{}
+	for rows.Next() {
+		var i ListPrintArtifactsBeforeRow
+		if err := rows.Scan(&i.ID, &i.OriginalFileID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

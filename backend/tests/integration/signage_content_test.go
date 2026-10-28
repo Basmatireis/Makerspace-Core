@@ -1291,7 +1291,7 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 		t.Fatalf("scheduled = %#v", scheduled)
 	}
 
-	// Ended announcements are hidden, and removed 30 days after they ended.
+	// Ended announcements are hidden, and removed 30 days after they ended by the retention handler.
 	ended, recent := ids.New(), ids.New()
 	for id, endedAgo := range map[uuid.UUID]string{ended: "31 days", recent: "2 hours"} {
 		if _, err := f.pool.Exec(
@@ -1318,6 +1318,10 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	}
 	if len(listed) != 2 || listed[0].ID != running.ID || listed[1].ID != scheduled.ID {
 		t.Fatalf("listed = %#v", listed)
+	}
+	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcements WHERE id=$1`, 1, ended)
+	if affected := applyRetention(t, f.pool, signage.AnnouncementRetention(), time.Now().Add(-30*24*time.Hour)); affected != 1 {
+		t.Fatalf("retention affected %d, want 1", affected)
 	}
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcements WHERE id=$1`, 0, ended)
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcement_values WHERE announcement_id=$1`, 0, ended)

@@ -442,3 +442,12 @@ RETURNING *;
 
 -- name: GetTimelapseCollectionEnabled :one
 SELECT timelapse_enabled FROM run_recording_settings WHERE singleton;
+
+-- name: DeleteConnectorActivityBefore :execrows
+DELETE FROM printer_connector_activity WHERE occurred_at < sqlc.arg(before_time);
+
+-- name: DeleteUnreferencedPrinterEventsBefore :execrows
+-- Events that a run's reported usage still cites stay until that run is deleted.
+DELETE FROM printer_events e
+WHERE e.occurred_at < sqlc.arg(before_time)
+  AND NOT EXISTS (SELECT 1 FROM machine_run_reported_usage_items u WHERE u.source_printer_event_id = e.id);

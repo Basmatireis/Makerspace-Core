@@ -300,7 +300,7 @@ func (s *Service) PlayerLive(ctx context.Context, display PlayerDisplay) (LiveDa
 }
 
 func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStreams bool) (LiveData, error) {
-	s.sweepExpiredThrottled(ctx)
+	// Ended announcements are removed by the privacy retention engine.
 	now := s.now()
 	q := signagedb.New(s.pool)
 	live := LiveData{

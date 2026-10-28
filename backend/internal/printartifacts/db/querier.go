@@ -18,8 +18,15 @@ type Querier interface {
 	AttachRunToPlannedJob(ctx context.Context, arg AttachRunToPlannedJobParams) (int64, error)
 	BillingPersonExists(ctx context.Context, id uuid.UUID) (bool, error)
 	CheckConnectorArtifactUploadTarget(ctx context.Context, arg CheckConnectorArtifactUploadTargetParams) (CheckConnectorArtifactUploadTargetRow, error)
+	ClearPrimaryPreviews(ctx context.Context, artifactIds []uuid.UUID) error
 	CreatePlannedMachineJob(ctx context.Context, arg CreatePlannedMachineJobParams) (MachineJob, error)
 	CreatePricingSnapshot(ctx context.Context, arg CreatePricingSnapshotParams) (MachineJobPricingSnapshot, error)
+	DeleteArtifactFilesQueueBlobs(ctx context.Context, fileIds []uuid.UUID) error
+	DeletePrintArtifactFilamentsOf(ctx context.Context, artifactIds []uuid.UUID) error
+	DeletePrintArtifactPreviewsOf(ctx context.Context, artifactIds []uuid.UUID) ([]uuid.UUID, error)
+	DeletePrintArtifactsByID(ctx context.Context, artifactIds []uuid.UUID) error
+	DetachJobArtifacts(ctx context.Context, artifactIds []uuid.UUID) error
+	DetachRunArtifacts(ctx context.Context, artifactIds []uuid.UUID) error
 	FindPlannedJobsForArtifact(ctx context.Context, arg FindPlannedJobsForArtifactParams) ([]uuid.UUID, error)
 	GetArtifactByID(ctx context.Context, id uuid.UUID) (GetArtifactByIDRow, error)
 	GetArtifactBySHA256(ctx context.Context, sha256 []byte) (GetArtifactBySHA256Row, error)
@@ -36,6 +43,8 @@ type Querier interface {
 	ListArtifactFilaments(ctx context.Context, artifactID uuid.UUID) ([]PrintArtifactFilament, error)
 	ListArtifactPreviews(ctx context.Context, artifactID uuid.UUID) ([]PrintArtifactPreview, error)
 	ListLatestReportedUsageItems(ctx context.Context, runID uuid.UUID) ([]MachineRunReportedUsageItem, error)
+	// Artifacts older than the cutoff that no running run uses; locked for the retention batch.
+	ListPrintArtifactsBefore(ctx context.Context, arg ListPrintArtifactsBeforeParams) ([]ListPrintArtifactsBeforeRow, error)
 	NextMachineJobSequence(ctx context.Context) (int64, error)
 	NextPricingSnapshotRevision(ctx context.Context, machineJobID uuid.UUID) (int32, error)
 	OperatorExists(ctx context.Context, personID uuid.UUID) (bool, error)

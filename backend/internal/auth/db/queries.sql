@@ -265,9 +265,9 @@ WHERE id = sqlc.arg(id) AND kind = 'password';
 
 -- name: DeleteExpiredAuthSecurityState :execrows
 WITH deleted_challenges AS (
-    DELETE FROM auth_challenges WHERE expires_at < sqlc.arg(before_time) RETURNING 1
+    DELETE FROM auth_challenges WHERE expires_at < sqlc.arg(before_time)::timestamptz RETURNING 1
 ), deleted_limits AS (
-    DELETE FROM auth_rate_limits WHERE updated_at < sqlc.arg(before_time) - interval '1 day' RETURNING 1
+    DELETE FROM auth_rate_limits WHERE updated_at < sqlc.arg(before_time)::timestamptz - interval '1 day' RETURNING 1
 )
 SELECT count(*) FROM deleted_challenges;
 

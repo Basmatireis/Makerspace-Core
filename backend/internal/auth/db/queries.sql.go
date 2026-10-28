@@ -493,9 +493,9 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (u
 
 const deleteExpiredAuthSecurityState = `-- name: DeleteExpiredAuthSecurityState :execrows
 WITH deleted_challenges AS (
-    DELETE FROM auth_challenges WHERE expires_at < $1 RETURNING 1
+    DELETE FROM auth_challenges WHERE expires_at < $1::timestamptz RETURNING 1
 ), deleted_limits AS (
-    DELETE FROM auth_rate_limits WHERE updated_at < $1 - interval '1 day' RETURNING 1
+    DELETE FROM auth_rate_limits WHERE updated_at < $1::timestamptz - interval '1 day' RETURNING 1
 )
 SELECT count(*) FROM deleted_challenges
 `

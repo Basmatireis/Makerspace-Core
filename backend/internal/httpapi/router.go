@@ -26,7 +26,9 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/scheduler"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/runrecordings"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
@@ -99,11 +101,47 @@ func NewApplication(
 	if err != nil {
 		return nil, nil, err
 	}
-	run := func(ctx context.Context) {
-		go runrecordings.RunMaintenance(ctx, server.runRecordings, runrecordings.MaintenanceInterval, logger)
-		surveys.RunDelivery(ctx, server.surveys, cfg.SurveyDeliveryInterval, surveys.DeliveryBatchLimit, logger)
+	jobs := scheduler.New(pool, logger)
+	jobs.Add(scheduler.Job{
+		ID: "runrecordings.maintenance", Interval: runrecordings.MaintenanceInterval, RunAtStart: true,
+		Run: func(ctx context.Context) (scheduler.Summary, error) {
+			result, err := server.runRecordings.Maintain(ctx)
+			return scheduler.Summary{
+				"expired_commands": result.ExpiredCommands, "deleted_blobs": result.DeletedBlobs,
+			}, err
+		},
+	})
+	if cfg.SurveyDeliveryInterval > 0 {
+		jobs.Add(scheduler.Job{
+			ID: "surveys.delivery", Interval: cfg.SurveyDeliveryInterval,
+			Run: func(ctx context.Context) (scheduler.Summary, error) {
+				count, err := server.surveys.DeliverDue(ctx, surveys.DeliveryBatchLimit)
+				return scheduler.Summary{"delivered": count}, err
+			},
+		})
 	}
-	return handler, run, nil
+	jobs.Add(scheduler.Job{
+		ID: "privacy.retention", Interval: privacy.ScheduledInterval, RunAtStart: true,
+		Enabled: func(ctx context.Context) (bool, time.Duration, error) {
+			enabled, interval, err := server.privacy.AutomaticRunsEnabled(ctx)
+			if err != nil || !enabled {
+				// The legacy automatic routines still run on the fixed interval.
+				return err == nil, privacy.ScheduledInterval, err
+			}
+			return true, interval, nil
+		},
+		Run: func(ctx context.Context) (scheduler.Summary, error) {
+			run, err := server.privacy.RunScheduled(ctx)
+			summary := scheduler.Summary{}
+			for _, item := range run.Items {
+				if item.Affected > 0 {
+					summary[string(item.Category)] = int(item.Affected)
+				}
+			}
+			return summary, err
+		},
+	})
+	return handler, jobs.Run, nil
 }
 
 func newHandler(server *Server, logger *slog.Logger) (http.Handler, error) {

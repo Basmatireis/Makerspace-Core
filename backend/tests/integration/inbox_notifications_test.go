@@ -8,9 +8,11 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type inboxEnv struct {
@@ -204,7 +206,28 @@ func TestInboxSendingIsRateLimitedPerSender(t *testing.T) {
 	expectAppCode(t, err, "notification_rate_limited")
 }
 
-func TestInboxExpiredNotificationsAreSweptOnRead(t *testing.T) {
+// applyRetention runs one retention handler with the delete action in its own committed transaction.
+func applyRetention(t *testing.T, pool *pgxpool.Pool, handler privacy.RetentionHandler, cutoff time.Time) int64 {
+	t.Helper()
+	ctx := testContext(t)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	affected, err := handler.Apply(ctx, tx, privacy.ActionDelete, cutoff, 500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	return affected
+}
+
+// Expired notifications are hidden from reads and removed by the retention
+// handler (formerly a sweep on read).
+func TestInboxExpiredNotificationsAreHiddenAndRetained(t *testing.T) {
 	e := newInboxEnv(t)
 	ctx := testContext(t)
 	member := e.person("member")
@@ -217,6 +240,10 @@ func TestInboxExpiredNotificationsAreSweptOnRead(t *testing.T) {
 	page, err := e.inbox.List(ctx, member, 1, 25)
 	if err != nil || page.Total != 0 {
 		t.Fatalf("expired notification listed: %+v, %v", page, err)
+	}
+	assertCount(t, e.pool, `SELECT count(*) FROM inbox_notifications WHERE id=$1`, 1, id)
+	if affected := applyRetention(t, e.pool, inbox.NotificationRetention(), time.Now().Add(-90*24*time.Hour)); affected != 1 {
+		t.Fatalf("retention affected %d, want 1", affected)
 	}
 	assertCount(t, e.pool, `SELECT count(*) FROM inbox_notifications WHERE id=$1`, 0, id)
 }

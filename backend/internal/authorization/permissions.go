@@ -134,6 +134,8 @@ const (
 	NotificationsSend                  Permission = Permission(openapi.NotificationsSend)
 	PrivacyRead                        Permission = Permission(openapi.PrivacyRead)
 	PrivacySettingsManage              Permission = Permission(openapi.PrivacySettingsManage)
+	PrivacyPoliciesManage              Permission = Permission(openapi.PrivacyPoliciesManage)
+	PrivacyRetentionExecute            Permission = Permission(openapi.PrivacyRetentionExecute)
 )
 
 type Definition struct {
@@ -184,7 +186,7 @@ var registry = []Permission{
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride, LocalServicesManage,
 	ConfigurationExport, ConfigurationImport, NotificationsSend,
-	PrivacyRead, PrivacySettingsManage,
+	PrivacyRead, PrivacySettingsManage, PrivacyPoliciesManage, PrivacyRetentionExecute,
 }
 
 var known = func() map[Permission]struct{} {
@@ -315,6 +317,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	NotificationsSend:                  "Send in-app messages to roles and see sent messages.",
 	PrivacyRead:                        "Read the privacy registry: data categories, their owners, status and the privacy settings.",
 	PrivacySettingsManage:              "Change the installation's privacy settings (controller, contact, automatic retention runs).",
+	PrivacyPoliciesManage:              "Create, approve, activate and retire retention policies and place or release holds.",
+	PrivacyRetentionExecute:            "Start retention dry runs and executions.",
 }
 
 type GrantScope string

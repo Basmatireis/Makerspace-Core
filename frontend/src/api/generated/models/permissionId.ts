@@ -141,4 +141,6 @@ export const PermissionId = {
   notificationssend: 'notifications.send',
   privacyread: 'privacy.read',
   privacysettingsmanage: 'privacy.settings.manage',
+  privacypoliciesmanage: 'privacy.policies.manage',
+  privacyretentionexecute: 'privacy.retention.execute',
 } as const;

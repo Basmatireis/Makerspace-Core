@@ -238,6 +238,9 @@ func TestTimelapsesAreStoredStreamedExpiredAndDeletedWithTheirRun(t *testing.T) 
 	}
 	// Retention removes old videos; the status then says expired.
 	mustExec(t, h.pool, `UPDATE machine_run_timelapses SET created_at = now() - interval '91 days' WHERE run_id = $1`, run)
+	if _, err = h.service.ExpireTimelapsesBySetting(ctx); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = h.service.Maintain(ctx); err != nil {
 		t.Fatal(err)
 	}

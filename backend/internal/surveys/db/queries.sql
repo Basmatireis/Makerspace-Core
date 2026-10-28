@@ -375,3 +375,8 @@ WHERE v.survey_id = sqlc.arg(survey_id)
   AND (sqlc.narg(source)::text IS NULL OR r.source = sqlc.narg(source)::text)
   AND (sqlc.narg(link_id)::uuid IS NULL OR r.share_link_id = sqlc.narg(link_id)::uuid)
 ORDER BY a.response_id, a.question_id, a.position;
+
+-- name: DeleteUnlinkedExpiredInvitations :execrows
+-- Removes invitation rows whose delivery identity was already cleared and whose expiry lies before the cutoff.
+DELETE FROM survey_invitations
+WHERE person_id IS NULL AND recipient_email IS NULL AND expires_at < sqlc.arg(before_time);

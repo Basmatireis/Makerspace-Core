@@ -185,3 +185,38 @@ RETURNING *;
 UPDATE printer_error_occurrences SET resolved_at = sqlc.arg(observed_at), last_observed_at = GREATEST(last_observed_at, sqlc.arg(observed_at)), updated_at = now()
 WHERE assignment_id = sqlc.arg(assignment_id) AND source_family = sqlc.arg(source_family)
   AND original_code = sqlc.arg(original_code) AND resolved_at IS NULL;
+
+-- name: ListPrintArtifactsBefore :many
+-- Artifacts older than the cutoff that no running run uses; locked for the retention batch.
+SELECT a.id, a.original_file_id
+FROM print_artifacts a
+WHERE a.created_at < sqlc.arg(before_time)
+  AND NOT EXISTS (SELECT 1 FROM machine_runs r WHERE r.artifact_id = a.id AND r.ended_at IS NULL)
+ORDER BY a.created_at, a.id
+LIMIT sqlc.arg(row_limit)
+FOR UPDATE OF a SKIP LOCKED;
+
+-- name: DetachRunArtifacts :exec
+UPDATE machine_runs SET artifact_id = NULL WHERE artifact_id = ANY(sqlc.arg(artifact_ids)::uuid[]);
+
+-- name: DetachJobArtifacts :exec
+UPDATE machine_jobs SET artifact_id = NULL WHERE artifact_id = ANY(sqlc.arg(artifact_ids)::uuid[]);
+
+-- name: ClearPrimaryPreviews :exec
+UPDATE print_artifacts SET primary_preview_id = NULL WHERE id = ANY(sqlc.arg(artifact_ids)::uuid[]);
+
+-- name: DeletePrintArtifactPreviewsOf :many
+DELETE FROM print_artifact_previews WHERE artifact_id = ANY(sqlc.arg(artifact_ids)::uuid[]) RETURNING file_id;
+
+-- name: DeletePrintArtifactFilamentsOf :exec
+DELETE FROM print_artifact_filaments WHERE artifact_id = ANY(sqlc.arg(artifact_ids)::uuid[]);
+
+-- name: DeletePrintArtifactsByID :exec
+DELETE FROM print_artifacts WHERE id = ANY(sqlc.arg(artifact_ids)::uuid[]);
+
+-- name: DeleteArtifactFilesQueueBlobs :exec
+WITH deleted AS (
+    DELETE FROM files WHERE id = ANY(sqlc.arg(file_ids)::uuid[]) RETURNING storage_key
+)
+INSERT INTO file_blob_deletions (storage_key) SELECT storage_key FROM deleted
+ON CONFLICT (storage_key) DO NOTHING;

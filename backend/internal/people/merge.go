@@ -50,6 +50,7 @@ const (
 	MergedSurveyResponses         MergeCategory = "survey_responses"
 	MergedOrganizationMemberships MergeCategory = "organization_memberships"
 	MergedNotifications           MergeCategory = "notifications"
+	MergedPrivacyHolds            MergeCategory = "privacy_holds"
 	MergedActorReferences         MergeCategory = "actor_references"
 	MergedAuthenticationMethods   MergeCategory = "authentication_methods"
 	MergedAuditEvents             MergeCategory = "audit_events"
@@ -60,7 +61,7 @@ var mergeCategoryOrder = []MergeCategory{
 	MergedVisits, MergedAttendanceHolds, MergedTrainingRecords, MergedLabRulesRequests, MergedOpenDayAssignments,
 	MergedEventShiftAssignments, MergedEventPlanning, MergedOrders, MergedMachineJobs, MergedInvoiceRequests,
 	MergedCashMovements, MergedSurveyInvitations, MergedSurveyResponses, MergedOrganizationMemberships,
-	MergedNotifications, MergedActorReferences, MergedAuthenticationMethods, MergedAuditEvents,
+	MergedNotifications, MergedPrivacyHolds, MergedActorReferences, MergedAuthenticationMethods, MergedAuditEvents,
 }
 
 // MergeConflictCode identifies a reason People cannot be merged as requested.
@@ -517,6 +518,7 @@ func mergeHistory(ctx context.Context, queries *peopledb.Queries, state mergeSta
 		MergedSurveyResponses:         row.SurveyResponses,
 		MergedOrganizationMemberships: row.OrganizationMemberships,
 		MergedNotifications:           row.Notifications,
+		MergedPrivacyHolds:            row.PrivacyHolds,
 	}), nil
 }
 

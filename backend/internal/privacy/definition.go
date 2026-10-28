@@ -61,6 +61,12 @@ type LegacyDefault struct {
 	Source string
 	// ZeroDisables says that the source treats 0 as a deliberate opt-out.
 	ZeroDisables bool
+	// Automatic says that the routine ran inside the API process on its own
+	// (a maintenance loop or a lazy sweep) rather than from `admin cleanup`.
+	// The retention engine keeps running such categories automatically with
+	// their legacy period until a policy takes over, so switching the
+	// registry on changes nothing.
+	Automatic bool
 }
 
 // ModuleID names the built-in feature area that owns a category, for example

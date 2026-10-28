@@ -7,9 +7,159 @@ package privacydb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const activatePolicy = `-- name: ActivatePolicy :one
+UPDATE privacy_policy_versions
+SET status = 'active', activated_at = now(), activated_by_account_id = $1, updated_at = now()
+WHERE id = $2 AND status = 'approved'
+RETURNING id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at
+`
+
+type ActivatePolicyParams struct {
+	ActivatedByAccountID *uuid.UUID
+	ID                   uuid.UUID
+}
+
+func (q *Queries) ActivatePolicy(ctx context.Context, arg ActivatePolicyParams) (PrivacyPolicyVersion, error) {
+	row := q.db.QueryRow(ctx, activatePolicy, arg.ActivatedByAccountID, arg.ID)
+	var i PrivacyPolicyVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CategoryID,
+		&i.Version,
+		&i.Trigger,
+		&i.PeriodDays,
+		&i.Action,
+		&i.Purpose,
+		&i.LegalBasis,
+		&i.Reason,
+		&i.Status,
+		&i.SourceTemplate,
+		&i.CreatedAt,
+		&i.CreatedByAccountID,
+		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedByAccountID,
+		&i.ActivatedAt,
+		&i.ActivatedByAccountID,
+		&i.RetiredAt,
+	)
+	return i, err
+}
+
+const approvePolicy = `-- name: ApprovePolicy :one
+UPDATE privacy_policy_versions
+SET status = 'approved', approved_at = now(), approved_by_account_id = $1, updated_at = now()
+WHERE id = $2 AND status = 'draft'
+RETURNING id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at
+`
+
+type ApprovePolicyParams struct {
+	ApprovedByAccountID *uuid.UUID
+	ID                  uuid.UUID
+}
+
+func (q *Queries) ApprovePolicy(ctx context.Context, arg ApprovePolicyParams) (PrivacyPolicyVersion, error) {
+	row := q.db.QueryRow(ctx, approvePolicy, arg.ApprovedByAccountID, arg.ID)
+	var i PrivacyPolicyVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CategoryID,
+		&i.Version,
+		&i.Trigger,
+		&i.PeriodDays,
+		&i.Action,
+		&i.Purpose,
+		&i.LegalBasis,
+		&i.Reason,
+		&i.Status,
+		&i.SourceTemplate,
+		&i.CreatedAt,
+		&i.CreatedByAccountID,
+		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedByAccountID,
+		&i.ActivatedAt,
+		&i.ActivatedByAccountID,
+		&i.RetiredAt,
+	)
+	return i, err
+}
+
+const countPoliciesForCategory = `-- name: CountPoliciesForCategory :one
+SELECT count(*) FROM privacy_policy_versions WHERE category_id = $1
+`
+
+func (q *Queries) CountPoliciesForCategory(ctx context.Context, categoryID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countPoliciesForCategory, categoryID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const finishRun = `-- name: FinishRun :one
+UPDATE privacy_retention_runs
+SET status = $1, finished_at = now(), error_code = $2
+WHERE id = $3
+RETURNING id, mode, trigger, actor_account_id, started_at, finished_at, status, error_code
+`
+
+type FinishRunParams struct {
+	Status    string
+	ErrorCode *string
+	ID        uuid.UUID
+}
+
+func (q *Queries) FinishRun(ctx context.Context, arg FinishRunParams) (PrivacyRetentionRun, error) {
+	row := q.db.QueryRow(ctx, finishRun, arg.Status, arg.ErrorCode, arg.ID)
+	var i PrivacyRetentionRun
+	err := row.Scan(
+		&i.ID,
+		&i.Mode,
+		&i.Trigger,
+		&i.ActorAccountID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.ErrorCode,
+	)
+	return i, err
+}
+
+const getPolicy = `-- name: GetPolicy :one
+SELECT id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at FROM privacy_policy_versions WHERE id = $1
+`
+
+func (q *Queries) GetPolicy(ctx context.Context, id uuid.UUID) (PrivacyPolicyVersion, error) {
+	row := q.db.QueryRow(ctx, getPolicy, id)
+	var i PrivacyPolicyVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CategoryID,
+		&i.Version,
+		&i.Trigger,
+		&i.PeriodDays,
+		&i.Action,
+		&i.Purpose,
+		&i.LegalBasis,
+		&i.Reason,
+		&i.Status,
+		&i.SourceTemplate,
+		&i.CreatedAt,
+		&i.CreatedByAccountID,
+		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedByAccountID,
+		&i.ActivatedAt,
+		&i.ActivatedByAccountID,
+		&i.RetiredAt,
+	)
+	return i, err
+}
 
 const getPrivacySettings = `-- name: GetPrivacySettings :one
 SELECT singleton, controller_name, controller_address, data_protection_contact, automatic_runs_enabled, run_interval_minutes, version, updated_at, updated_by_account_id FROM privacy_settings WHERE singleton
@@ -30,6 +180,252 @@ func (q *Queries) GetPrivacySettings(ctx context.Context) (PrivacySetting, error
 		&i.UpdatedByAccountID,
 	)
 	return i, err
+}
+
+const getRun = `-- name: GetRun :one
+SELECT id, mode, trigger, actor_account_id, started_at, finished_at, status, error_code FROM privacy_retention_runs WHERE id = $1
+`
+
+func (q *Queries) GetRun(ctx context.Context, id uuid.UUID) (PrivacyRetentionRun, error) {
+	row := q.db.QueryRow(ctx, getRun, id)
+	var i PrivacyRetentionRun
+	err := row.Scan(
+		&i.ID,
+		&i.Mode,
+		&i.Trigger,
+		&i.ActorAccountID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.ErrorCode,
+	)
+	return i, err
+}
+
+const insertHold = `-- name: InsertHold :one
+INSERT INTO privacy_retention_holds (id, category_id, subject_person_id, reason, created_by_account_id)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, category_id, subject_person_id, reason, created_at, created_by_account_id, released_at, released_by_account_id
+`
+
+type InsertHoldParams struct {
+	ID                 uuid.UUID
+	CategoryID         *string
+	SubjectPersonID    *uuid.UUID
+	Reason             string
+	CreatedByAccountID *uuid.UUID
+}
+
+func (q *Queries) InsertHold(ctx context.Context, arg InsertHoldParams) (PrivacyRetentionHold, error) {
+	row := q.db.QueryRow(ctx, insertHold,
+		arg.ID,
+		arg.CategoryID,
+		arg.SubjectPersonID,
+		arg.Reason,
+		arg.CreatedByAccountID,
+	)
+	var i PrivacyRetentionHold
+	err := row.Scan(
+		&i.ID,
+		&i.CategoryID,
+		&i.SubjectPersonID,
+		&i.Reason,
+		&i.CreatedAt,
+		&i.CreatedByAccountID,
+		&i.ReleasedAt,
+		&i.ReleasedByAccountID,
+	)
+	return i, err
+}
+
+const insertPolicy = `-- name: InsertPolicy :one
+INSERT INTO privacy_policy_versions (
+    id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_by_account_id
+) VALUES (
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, 'draft', $10, $11
+) RETURNING id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at
+`
+
+type InsertPolicyParams struct {
+	ID                 uuid.UUID
+	CategoryID         string
+	Version            int32
+	Trigger            string
+	PeriodDays         int32
+	Action             string
+	Purpose            string
+	LegalBasis         string
+	Reason             string
+	SourceTemplate     *string
+	CreatedByAccountID *uuid.UUID
+}
+
+func (q *Queries) InsertPolicy(ctx context.Context, arg InsertPolicyParams) (PrivacyPolicyVersion, error) {
+	row := q.db.QueryRow(ctx, insertPolicy,
+		arg.ID,
+		arg.CategoryID,
+		arg.Version,
+		arg.Trigger,
+		arg.PeriodDays,
+		arg.Action,
+		arg.Purpose,
+		arg.LegalBasis,
+		arg.Reason,
+		arg.SourceTemplate,
+		arg.CreatedByAccountID,
+	)
+	var i PrivacyPolicyVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CategoryID,
+		&i.Version,
+		&i.Trigger,
+		&i.PeriodDays,
+		&i.Action,
+		&i.Purpose,
+		&i.LegalBasis,
+		&i.Reason,
+		&i.Status,
+		&i.SourceTemplate,
+		&i.CreatedAt,
+		&i.CreatedByAccountID,
+		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedByAccountID,
+		&i.ActivatedAt,
+		&i.ActivatedByAccountID,
+		&i.RetiredAt,
+	)
+	return i, err
+}
+
+const insertRun = `-- name: InsertRun :one
+INSERT INTO privacy_retention_runs (id, mode, trigger, actor_account_id, status)
+VALUES ($1, $2, $3, $4, 'running')
+RETURNING id, mode, trigger, actor_account_id, started_at, finished_at, status, error_code
+`
+
+type InsertRunParams struct {
+	ID             uuid.UUID
+	Mode           string
+	Trigger        string
+	ActorAccountID *uuid.UUID
+}
+
+func (q *Queries) InsertRun(ctx context.Context, arg InsertRunParams) (PrivacyRetentionRun, error) {
+	row := q.db.QueryRow(ctx, insertRun,
+		arg.ID,
+		arg.Mode,
+		arg.Trigger,
+		arg.ActorAccountID,
+	)
+	var i PrivacyRetentionRun
+	err := row.Scan(
+		&i.ID,
+		&i.Mode,
+		&i.Trigger,
+		&i.ActorAccountID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.ErrorCode,
+	)
+	return i, err
+}
+
+const insertRunItem = `-- name: InsertRunItem :exec
+INSERT INTO privacy_retention_run_items (run_id, category_id, policy_id, action, cutoff, affected_count, status, error_code)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+`
+
+type InsertRunItemParams struct {
+	RunID         uuid.UUID
+	CategoryID    string
+	PolicyID      *uuid.UUID
+	Action        string
+	Cutoff        time.Time
+	AffectedCount int64
+	Status        string
+	ErrorCode     *string
+}
+
+func (q *Queries) InsertRunItem(ctx context.Context, arg InsertRunItemParams) error {
+	_, err := q.db.Exec(ctx, insertRunItem,
+		arg.RunID,
+		arg.CategoryID,
+		arg.PolicyID,
+		arg.Action,
+		arg.Cutoff,
+		arg.AffectedCount,
+		arg.Status,
+		arg.ErrorCode,
+	)
+	return err
+}
+
+const lastRun = `-- name: LastRun :one
+SELECT id, mode, trigger, actor_account_id, started_at, finished_at, status, error_code FROM privacy_retention_runs ORDER BY started_at DESC LIMIT 1
+`
+
+func (q *Queries) LastRun(ctx context.Context) (PrivacyRetentionRun, error) {
+	row := q.db.QueryRow(ctx, lastRun)
+	var i PrivacyRetentionRun
+	err := row.Scan(
+		&i.ID,
+		&i.Mode,
+		&i.Trigger,
+		&i.ActorAccountID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.ErrorCode,
+	)
+	return i, err
+}
+
+const listActivePolicies = `-- name: ListActivePolicies :many
+SELECT id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at FROM privacy_policy_versions WHERE status = 'active' ORDER BY category_id
+`
+
+func (q *Queries) ListActivePolicies(ctx context.Context) ([]PrivacyPolicyVersion, error) {
+	rows, err := q.db.Query(ctx, listActivePolicies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PrivacyPolicyVersion{}
+	for rows.Next() {
+		var i PrivacyPolicyVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.CategoryID,
+			&i.Version,
+			&i.Trigger,
+			&i.PeriodDays,
+			&i.Action,
+			&i.Purpose,
+			&i.LegalBasis,
+			&i.Reason,
+			&i.Status,
+			&i.SourceTemplate,
+			&i.CreatedAt,
+			&i.CreatedByAccountID,
+			&i.UpdatedAt,
+			&i.ApprovedAt,
+			&i.ApprovedByAccountID,
+			&i.ActivatedAt,
+			&i.ActivatedByAccountID,
+			&i.RetiredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listCategorySnapshots = `-- name: ListCategorySnapshots :many
@@ -63,6 +459,257 @@ func (q *Queries) ListCategorySnapshots(ctx context.Context) ([]PrivacyCategoryS
 	return items, nil
 }
 
+const listHolds = `-- name: ListHolds :many
+SELECT id, category_id, subject_person_id, reason, created_at, created_by_account_id, released_at, released_by_account_id FROM privacy_retention_holds ORDER BY released_at NULLS FIRST, created_at DESC
+`
+
+func (q *Queries) ListHolds(ctx context.Context) ([]PrivacyRetentionHold, error) {
+	rows, err := q.db.Query(ctx, listHolds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PrivacyRetentionHold{}
+	for rows.Next() {
+		var i PrivacyRetentionHold
+		if err := rows.Scan(
+			&i.ID,
+			&i.CategoryID,
+			&i.SubjectPersonID,
+			&i.Reason,
+			&i.CreatedAt,
+			&i.CreatedByAccountID,
+			&i.ReleasedAt,
+			&i.ReleasedByAccountID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpenHolds = `-- name: ListOpenHolds :many
+SELECT id, category_id, subject_person_id, reason, created_at, created_by_account_id, released_at, released_by_account_id FROM privacy_retention_holds WHERE released_at IS NULL
+`
+
+func (q *Queries) ListOpenHolds(ctx context.Context) ([]PrivacyRetentionHold, error) {
+	rows, err := q.db.Query(ctx, listOpenHolds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PrivacyRetentionHold{}
+	for rows.Next() {
+		var i PrivacyRetentionHold
+		if err := rows.Scan(
+			&i.ID,
+			&i.CategoryID,
+			&i.SubjectPersonID,
+			&i.Reason,
+			&i.CreatedAt,
+			&i.CreatedByAccountID,
+			&i.ReleasedAt,
+			&i.ReleasedByAccountID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPolicies = `-- name: ListPolicies :many
+SELECT id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at FROM privacy_policy_versions ORDER BY category_id, version DESC
+`
+
+func (q *Queries) ListPolicies(ctx context.Context) ([]PrivacyPolicyVersion, error) {
+	rows, err := q.db.Query(ctx, listPolicies)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PrivacyPolicyVersion{}
+	for rows.Next() {
+		var i PrivacyPolicyVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.CategoryID,
+			&i.Version,
+			&i.Trigger,
+			&i.PeriodDays,
+			&i.Action,
+			&i.Purpose,
+			&i.LegalBasis,
+			&i.Reason,
+			&i.Status,
+			&i.SourceTemplate,
+			&i.CreatedAt,
+			&i.CreatedByAccountID,
+			&i.UpdatedAt,
+			&i.ApprovedAt,
+			&i.ApprovedByAccountID,
+			&i.ActivatedAt,
+			&i.ActivatedByAccountID,
+			&i.RetiredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRunItems = `-- name: ListRunItems :many
+SELECT run_id, category_id, policy_id, action, cutoff, affected_count, status, error_code FROM privacy_retention_run_items WHERE run_id = $1 ORDER BY category_id
+`
+
+func (q *Queries) ListRunItems(ctx context.Context, runID uuid.UUID) ([]PrivacyRetentionRunItem, error) {
+	rows, err := q.db.Query(ctx, listRunItems, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PrivacyRetentionRunItem{}
+	for rows.Next() {
+		var i PrivacyRetentionRunItem
+		if err := rows.Scan(
+			&i.RunID,
+			&i.CategoryID,
+			&i.PolicyID,
+			&i.Action,
+			&i.Cutoff,
+			&i.AffectedCount,
+			&i.Status,
+			&i.ErrorCode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRuns = `-- name: ListRuns :many
+SELECT id, mode, trigger, actor_account_id, started_at, finished_at, status, error_code FROM privacy_retention_runs ORDER BY started_at DESC LIMIT $1
+`
+
+func (q *Queries) ListRuns(ctx context.Context, rowLimit int32) ([]PrivacyRetentionRun, error) {
+	rows, err := q.db.Query(ctx, listRuns, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PrivacyRetentionRun{}
+	for rows.Next() {
+		var i PrivacyRetentionRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.Mode,
+			&i.Trigger,
+			&i.ActorAccountID,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Status,
+			&i.ErrorCode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockCategoryPolicies = `-- name: LockCategoryPolicies :many
+SELECT id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at FROM privacy_policy_versions WHERE category_id = $1 ORDER BY version FOR UPDATE
+`
+
+func (q *Queries) LockCategoryPolicies(ctx context.Context, categoryID string) ([]PrivacyPolicyVersion, error) {
+	rows, err := q.db.Query(ctx, lockCategoryPolicies, categoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PrivacyPolicyVersion{}
+	for rows.Next() {
+		var i PrivacyPolicyVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.CategoryID,
+			&i.Version,
+			&i.Trigger,
+			&i.PeriodDays,
+			&i.Action,
+			&i.Purpose,
+			&i.LegalBasis,
+			&i.Reason,
+			&i.Status,
+			&i.SourceTemplate,
+			&i.CreatedAt,
+			&i.CreatedByAccountID,
+			&i.UpdatedAt,
+			&i.ApprovedAt,
+			&i.ApprovedByAccountID,
+			&i.ActivatedAt,
+			&i.ActivatedByAccountID,
+			&i.RetiredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockPolicy = `-- name: LockPolicy :one
+SELECT id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at FROM privacy_policy_versions WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) LockPolicy(ctx context.Context, id uuid.UUID) (PrivacyPolicyVersion, error) {
+	row := q.db.QueryRow(ctx, lockPolicy, id)
+	var i PrivacyPolicyVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CategoryID,
+		&i.Version,
+		&i.Trigger,
+		&i.PeriodDays,
+		&i.Action,
+		&i.Purpose,
+		&i.LegalBasis,
+		&i.Reason,
+		&i.Status,
+		&i.SourceTemplate,
+		&i.CreatedAt,
+		&i.CreatedByAccountID,
+		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedByAccountID,
+		&i.ActivatedAt,
+		&i.ActivatedByAccountID,
+		&i.RetiredAt,
+	)
+	return i, err
+}
+
 const lockPrivacySettings = `-- name: LockPrivacySettings :one
 SELECT singleton, controller_name, controller_address, data_protection_contact, automatic_runs_enabled, run_interval_minutes, version, updated_at, updated_by_account_id FROM privacy_settings WHERE singleton FOR UPDATE
 `
@@ -84,6 +731,17 @@ func (q *Queries) LockPrivacySettings(ctx context.Context) (PrivacySetting, erro
 	return i, err
 }
 
+const nextPolicyVersion = `-- name: NextPolicyVersion :one
+SELECT COALESCE(max(version), 0) + 1 AS version FROM privacy_policy_versions WHERE category_id = $1
+`
+
+func (q *Queries) NextPolicyVersion(ctx context.Context, categoryID string) (int32, error) {
+	row := q.db.QueryRow(ctx, nextPolicyVersion, categoryID)
+	var version int32
+	err := row.Scan(&version)
+	return version, err
+}
+
 const orphanCategorySnapshots = `-- name: OrphanCategorySnapshots :execrows
 UPDATE privacy_category_snapshots SET orphaned = true
 WHERE NOT orphaned AND category_id <> ALL($1::text[])
@@ -96,6 +754,121 @@ func (q *Queries) OrphanCategorySnapshots(ctx context.Context, declared []string
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const releaseHold = `-- name: ReleaseHold :one
+UPDATE privacy_retention_holds
+SET released_at = now(), released_by_account_id = $1
+WHERE id = $2 AND released_at IS NULL
+RETURNING id, category_id, subject_person_id, reason, created_at, created_by_account_id, released_at, released_by_account_id
+`
+
+type ReleaseHoldParams struct {
+	ReleasedByAccountID *uuid.UUID
+	ID                  uuid.UUID
+}
+
+func (q *Queries) ReleaseHold(ctx context.Context, arg ReleaseHoldParams) (PrivacyRetentionHold, error) {
+	row := q.db.QueryRow(ctx, releaseHold, arg.ReleasedByAccountID, arg.ID)
+	var i PrivacyRetentionHold
+	err := row.Scan(
+		&i.ID,
+		&i.CategoryID,
+		&i.SubjectPersonID,
+		&i.Reason,
+		&i.CreatedAt,
+		&i.CreatedByAccountID,
+		&i.ReleasedAt,
+		&i.ReleasedByAccountID,
+	)
+	return i, err
+}
+
+const retirePolicy = `-- name: RetirePolicy :one
+UPDATE privacy_policy_versions
+SET status = 'retired', retired_at = now(), updated_at = now()
+WHERE id = $1 AND status IN ('draft', 'approved', 'active')
+RETURNING id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at
+`
+
+func (q *Queries) RetirePolicy(ctx context.Context, id uuid.UUID) (PrivacyPolicyVersion, error) {
+	row := q.db.QueryRow(ctx, retirePolicy, id)
+	var i PrivacyPolicyVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CategoryID,
+		&i.Version,
+		&i.Trigger,
+		&i.PeriodDays,
+		&i.Action,
+		&i.Purpose,
+		&i.LegalBasis,
+		&i.Reason,
+		&i.Status,
+		&i.SourceTemplate,
+		&i.CreatedAt,
+		&i.CreatedByAccountID,
+		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedByAccountID,
+		&i.ActivatedAt,
+		&i.ActivatedByAccountID,
+		&i.RetiredAt,
+	)
+	return i, err
+}
+
+const updateDraftPolicy = `-- name: UpdateDraftPolicy :one
+UPDATE privacy_policy_versions
+SET trigger = $1, period_days = $2, action = $3, purpose = $4,
+    legal_basis = $5, reason = $6, updated_at = now()
+WHERE id = $7 AND status = 'draft'
+RETURNING id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at
+`
+
+type UpdateDraftPolicyParams struct {
+	Trigger    string
+	PeriodDays int32
+	Action     string
+	Purpose    string
+	LegalBasis string
+	Reason     string
+	ID         uuid.UUID
+}
+
+func (q *Queries) UpdateDraftPolicy(ctx context.Context, arg UpdateDraftPolicyParams) (PrivacyPolicyVersion, error) {
+	row := q.db.QueryRow(ctx, updateDraftPolicy,
+		arg.Trigger,
+		arg.PeriodDays,
+		arg.Action,
+		arg.Purpose,
+		arg.LegalBasis,
+		arg.Reason,
+		arg.ID,
+	)
+	var i PrivacyPolicyVersion
+	err := row.Scan(
+		&i.ID,
+		&i.CategoryID,
+		&i.Version,
+		&i.Trigger,
+		&i.PeriodDays,
+		&i.Action,
+		&i.Purpose,
+		&i.LegalBasis,
+		&i.Reason,
+		&i.Status,
+		&i.SourceTemplate,
+		&i.CreatedAt,
+		&i.CreatedByAccountID,
+		&i.UpdatedAt,
+		&i.ApprovedAt,
+		&i.ApprovedByAccountID,
+		&i.ActivatedAt,
+		&i.ActivatedByAccountID,
+		&i.RetiredAt,
+	)
+	return i, err
 }
 
 const updatePrivacySettings = `-- name: UpdatePrivacySettings :one

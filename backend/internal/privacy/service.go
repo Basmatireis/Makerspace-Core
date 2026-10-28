@@ -55,18 +55,22 @@ type Overview struct {
 	AutomaticRunsEnabled bool
 }
 
-// Service reads the registry and settings.
+// Service reads the registry and settings and runs retention.
 type Service struct {
-	pool    *pgxpool.Pool
-	catalog *Catalog
+	pool     *pgxpool.Pool
+	catalog  *Catalog
+	handlers map[CategoryID]RetentionHandler
+	legacy   LegacyPeriods
+	now      func() time.Time
 
 	mu       sync.Mutex
 	snapshot bool
+	drafts   bool
 }
 
 // NewService wires the registry to the database.
 func NewService(pool *pgxpool.Pool, catalog *Catalog) *Service {
-	return &Service{pool: pool, catalog: catalog}
+	return &Service{pool: pool, catalog: catalog, handlers: map[CategoryID]RetentionHandler{}, now: time.Now}
 }
 
 // Catalog exposes the declared categories.

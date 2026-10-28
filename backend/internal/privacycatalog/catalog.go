@@ -41,6 +41,7 @@ const (
 	ActorReferences        privacy.CategoryID = "platform.actor_references"
 	FileBlobs              privacy.CategoryID = "files.blobs"
 	ConfigurationContacts  privacy.CategoryID = "configuration.contacts"
+	PrivacyRecords         privacy.CategoryID = "privacy.records"
 )
 
 // Owner modules: the built-in feature areas that own data categories.
@@ -336,10 +337,15 @@ func Definitions() []privacy.Definition {
 		{
 			ID: ActorReferences, Owner: Platform, Name: "Actor references",
 			Description: "Columns that name the account which created or changed a record; they become NULL when the account is deleted.",
-			Fields:      []string{"privacy_settings.updated_by_account_id"},
-			Triggers:    []privacy.Trigger{privacy.TriggerAccountClosedAt},
-			Actions:     []privacy.Action{privacy.ActionUnlink},
-			Subject:     privacy.SubjectAccount,
+			Fields: []string{
+				"privacy_settings.updated_by_account_id", "privacy_policy_versions.created_by_account_id",
+				"privacy_policy_versions.approved_by_account_id", "privacy_policy_versions.activated_by_account_id",
+				"privacy_retention_holds.created_by_account_id", "privacy_retention_holds.released_by_account_id",
+				"privacy_retention_runs.actor_account_id",
+			},
+			Triggers: []privacy.Trigger{privacy.TriggerAccountClosedAt},
+			Actions:  []privacy.Action{privacy.ActionUnlink},
+			Subject:  privacy.SubjectAccount,
 		},
 		{
 			ID: FileBlobs, Owner: Platform, Name: "Stored files",
@@ -349,6 +355,15 @@ func Definitions() []privacy.Definition {
 			Actions:       []privacy.Action{privacy.ActionDelete},
 			Subject:       privacy.SubjectNone,
 			RetentionNote: "Files are deleted with the record that references them; queued blob deletions are drained by the scheduler.",
+		},
+		{
+			ID: PrivacyRecords, Owner: Platform, Name: "Privacy registry records",
+			Description:   "Retention holds naming a person, retention runs and, later, data-subject requests of the privacy registry itself.",
+			Fields:        []string{"privacy_retention_holds.subject_person_id", "privacy_retention_holds.reason", "privacy_retention_run_items.*"},
+			Triggers:      []privacy.Trigger{privacy.TriggerCompletedAt},
+			Actions:       []privacy.Action{privacy.ActionRetainWithReview, privacy.ActionDelete},
+			Subject:       privacy.SubjectPerson,
+			RetentionNote: "Runs and released holds are evidence of what retention did; keep them as long as the audit log.",
 		},
 		{
 			ID: ConfigurationContacts, Owner: Platform, Name: "Configured contact addresses",

@@ -193,6 +193,11 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	labRulesService.SetConfirmationListener(attendanceService)
 	visitorService.SetAttendance(attendanceService)
 	runRecordingsService := runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg))
+	auditRetention, eventSignupRetention := cfg.AuditRetention, cfg.EventSignupRetention
+	privacycatalog.RegisterBuiltinHandlers(privacyService, runRecordingsService, privacy.LegacyPeriods{
+		AuditRetention:       &auditRetention,
+		EventSignupRetention: &eventSignupRetention,
+	})
 	return &Server{
 		pool:              pool,
 		config:            cfg,

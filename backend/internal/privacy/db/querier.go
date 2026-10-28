@@ -6,14 +6,39 @@ package privacydb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 type Querier interface {
+	ActivatePolicy(ctx context.Context, arg ActivatePolicyParams) (PrivacyPolicyVersion, error)
+	ApprovePolicy(ctx context.Context, arg ApprovePolicyParams) (PrivacyPolicyVersion, error)
+	CountPoliciesForCategory(ctx context.Context, categoryID string) (int64, error)
+	FinishRun(ctx context.Context, arg FinishRunParams) (PrivacyRetentionRun, error)
+	GetPolicy(ctx context.Context, id uuid.UUID) (PrivacyPolicyVersion, error)
 	GetPrivacySettings(ctx context.Context) (PrivacySetting, error)
+	GetRun(ctx context.Context, id uuid.UUID) (PrivacyRetentionRun, error)
+	InsertHold(ctx context.Context, arg InsertHoldParams) (PrivacyRetentionHold, error)
+	InsertPolicy(ctx context.Context, arg InsertPolicyParams) (PrivacyPolicyVersion, error)
+	InsertRun(ctx context.Context, arg InsertRunParams) (PrivacyRetentionRun, error)
+	InsertRunItem(ctx context.Context, arg InsertRunItemParams) error
+	LastRun(ctx context.Context) (PrivacyRetentionRun, error)
+	ListActivePolicies(ctx context.Context) ([]PrivacyPolicyVersion, error)
 	ListCategorySnapshots(ctx context.Context) ([]PrivacyCategorySnapshot, error)
+	ListHolds(ctx context.Context) ([]PrivacyRetentionHold, error)
+	ListOpenHolds(ctx context.Context) ([]PrivacyRetentionHold, error)
+	ListPolicies(ctx context.Context) ([]PrivacyPolicyVersion, error)
+	ListRunItems(ctx context.Context, runID uuid.UUID) ([]PrivacyRetentionRunItem, error)
+	ListRuns(ctx context.Context, rowLimit int32) ([]PrivacyRetentionRun, error)
+	LockCategoryPolicies(ctx context.Context, categoryID string) ([]PrivacyPolicyVersion, error)
+	LockPolicy(ctx context.Context, id uuid.UUID) (PrivacyPolicyVersion, error)
 	LockPrivacySettings(ctx context.Context) (PrivacySetting, error)
+	NextPolicyVersion(ctx context.Context, categoryID string) (int32, error)
 	// Marks every snapshot that is not in the list of currently declared categories.
 	OrphanCategorySnapshots(ctx context.Context, declared []string) (int64, error)
+	ReleaseHold(ctx context.Context, arg ReleaseHoldParams) (PrivacyRetentionHold, error)
+	RetirePolicy(ctx context.Context, id uuid.UUID) (PrivacyPolicyVersion, error)
+	UpdateDraftPolicy(ctx context.Context, arg UpdateDraftPolicyParams) (PrivacyPolicyVersion, error)
 	UpdatePrivacySettings(ctx context.Context, arg UpdatePrivacySettingsParams) (PrivacySetting, error)
 	// Records a declared category; a category seen again is no longer orphaned.
 	UpsertCategorySnapshot(ctx context.Context, arg UpsertCategorySnapshotParams) error

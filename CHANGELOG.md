@@ -6,11 +6,17 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Upgrade notes
 
+- **Migration 00081 (retention policies).** Adds `privacy_policy_versions`, `privacy_retention_holds`, `privacy_retention_runs` and `privacy_retention_run_items`; seeds `privacy.policies.manage` and `privacy.retention.execute` into the master fresh-sign-in policy; new permissions `privacy.policies.manage` and `privacy.retention.execute` (not granted to existing roles); new endpoints `GET|POST /privacy/policies`, `PUT /privacy/policies/{policyId}`, `POST /privacy/policies/{policyId}/transition`, `GET|POST /privacy/holds`, `POST /privacy/holds/{holdId}/release`, `GET|POST /privacy/retention/runs` and `GET /privacy/retention/runs/{runId}`. `admin cleanup` now runs through the retention engine and records a run; it gains `--dry-run` and `--category <id>` (repeatable), and its output lists counts per category instead of the former four-counter line. In-app notifications and signage announcements are no longer pruned on reads; the scheduled job does it. Behaviour is otherwise unchanged while automatic runs are off. Down refuses while an active policy exists.
 - **Migration 00080 (privacy registry).** Adds `privacy_settings` and `privacy_category_snapshots`, seeds `privacy.settings.manage` into the master fresh-sign-in policy; new permissions `privacy.read` and `privacy.settings.manage` (not granted to existing roles); new endpoints `GET /privacy/overview`, `GET /privacy/categories`, `GET /privacy/settings` and `PUT /privacy/settings`. Retention behaviour is unchanged.
 
 ### Added
 
 - **Privacy registry.** Every built-in module declares its personal-data categories in code, with owner, fields, retention triggers, actions, subject and legacy default. The registry persists snapshots, keeps orphaned and disabled-module categories visible, and adds privacy settings (controller, data protection contact, automatic runs off by default) in Settings › Data › Privacy & data retention. This release changes no retention behaviour; `admin cleanup` remains the production path. See [Privacy registry, retention and data-subject requests](docs/privacy-and-retention.md).
+- **Retention policy engine.** Each personal-data category has versioned retention policies (trigger, period, action, purpose, legal basis, reason) that move from draft through approval to activation, with a four-eyes rule and one active version per category. The first read seeds a draft from each legacy default, and a configured opt-out is seeded for review. Holds on a category or a person, and runs in dry-run or execute mode with counts-only history, are managed in Settings › Data › Privacy & data retention (tabs Retention policies, Holds and Execution history). `admin cleanup` is the legacy mode of the same engine. See [Privacy registry, retention and data-subject requests](docs/privacy-and-retention.md#retention-policies).
+
+### Changed
+
+- **Background jobs run through one scheduler with advisory locks.** The API process runs its periodic jobs (connector maintenance every five minutes, survey delivery and privacy retention) through one scheduler instead of separate loops. Each run takes a PostgreSQL advisory lock, so several API replicas never run the same job at once. While automatic retention runs are off, the retention job runs only the routines that already ran before, with their legacy periods. See [Privacy registry, retention and data-subject requests](docs/privacy-and-retention.md#scheduler-and-legacy-behaviour).
 
 ## [0.10.0] - 2026-10-27
 

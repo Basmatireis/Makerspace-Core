@@ -2210,6 +2210,164 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /privacy/policies:
+    get:
+      tags: [Privacy]
+      operationId: listPrivacyPolicies
+      summary: List every retention policy version
+      description: >-
+        Needs `privacy.read`. The first read seeds one draft per category with a legacy default, so the operator
+        reviews what the installation did before the registry instead of starting from nothing; a configured opt-out
+        (`0`) becomes `retain_with_review`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Policies., content: {application/json: {schema: {$ref: "#/components/schemas/RetentionPolicyList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Privacy]
+      operationId: createPrivacyPolicy
+      summary: Create a draft policy version for a category
+      description: Needs `privacy.policies.manage`. The trigger and action must be ones the category supports. Audited as `privacy.policy_created`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RetentionPolicyInput"}}}}
+      responses:
+        "201": {description: Draft created., content: {application/json: {schema: {$ref: "#/components/schemas/RetentionPolicy"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/policies/{policyId}:
+    parameters:
+      - {name: policyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Privacy]
+      operationId: updatePrivacyPolicy
+      summary: Edit a draft policy
+      description: Needs `privacy.policies.manage`. Only drafts change; refused with 409 `policy_not_draft` otherwise. `categoryId` in the body is ignored.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RetentionPolicyInput"}}}}
+      responses:
+        "200": {description: Draft updated., content: {application/json: {schema: {$ref: "#/components/schemas/RetentionPolicy"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/policies/{policyId}/transition:
+    parameters:
+      - {name: policyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Privacy]
+      operationId: transitionPrivacyPolicy
+      summary: Approve, activate or retire a policy version
+      description: >-
+        Needs `privacy.policies.manage`. Approval requires purpose, legal basis and reason (409 `policy_incomplete`).
+        Activation needs an approved version, retires the category's previously active version, and may not be done
+        by the person who approved it unless they are a master (409 `policy_four_eyes`). Wrong state: 409
+        `policy_state_invalid`. Audited as `privacy.policy_approved`, `privacy.policy_activated` or `privacy.policy_retired`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RetentionPolicyTransition"}}}}
+      responses:
+        "200": {description: Policy after the transition., content: {application/json: {schema: {$ref: "#/components/schemas/RetentionPolicy"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/holds:
+    get:
+      tags: [Privacy]
+      operationId: listPrivacyHolds
+      summary: List retention holds
+      description: Needs `privacy.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Holds., content: {application/json: {schema: {$ref: "#/components/schemas/RetentionHoldList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Privacy]
+      operationId: createPrivacyHold
+      summary: Place a retention hold on a category or a person
+      description: Needs `privacy.policies.manage`. A category hold skips that category in every run; a person hold blocks erasure of that person's data. Audited as `privacy.hold_created`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RetentionHoldInput"}}}}
+      responses:
+        "201": {description: Hold placed., content: {application/json: {schema: {$ref: "#/components/schemas/RetentionHold"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/holds/{holdId}/release:
+    parameters:
+      - {name: holdId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Privacy]
+      operationId: releasePrivacyHold
+      summary: Release a hold
+      description: Needs `privacy.policies.manage`. Refused with 409 `hold_not_open` once released. Audited as `privacy.hold_released`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Hold released., content: {application/json: {schema: {$ref: "#/components/schemas/RetentionHold"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/retention/runs:
+    get:
+      tags: [Privacy]
+      operationId: listRetentionRuns
+      summary: Recent retention runs
+      description: Needs `privacy.read`. Runs hold counts per category, never the affected records.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Runs., content: {application/json: {schema: {$ref: "#/components/schemas/RetentionRunList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Privacy]
+      operationId: startRetentionRun
+      summary: Run the active policies now, as a dry run or for real
+      description: >-
+        Needs `privacy.retention.execute`. A dry run executes the same handlers in a transaction that is rolled back
+        and reports what would change. Categories with an open hold or without a handler are skipped and reported.
+        Audited as `privacy.retention_run_dry_run` or `privacy.retention_run_execute` with counts only.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/StartRetentionRunRequest"}}}}
+      responses:
+        "200": {description: The finished run (empty id when nothing was planned)., content: {application/json: {schema: {$ref: "#/components/schemas/RetentionRun"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/retention/runs/{runId}:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Privacy]
+      operationId: getRetentionRun
+      summary: One retention run with its per-category items
+      description: Needs `privacy.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Run., content: {application/json: {schema: {$ref: "#/components/schemas/RetentionRun"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /roles:
     get:
       tags: [Roles]
@@ -10551,6 +10709,8 @@ components:
         - notifications.send
         - privacy.read
         - privacy.settings.manage
+        - privacy.policies.manage
+        - privacy.retention.execute
 
     NotificationKind:
       type: string
@@ -11190,6 +11350,150 @@ components:
         version: {type: integer, format: int64, minimum: 1}
         updatedAt: {type: string, format: date-time, nullable: true}
 
+    RetentionPolicyStatus:
+      type: string
+      enum: [draft, approved, active, retired]
+
+    RetentionPolicy:
+      type: object
+      additionalProperties: false
+      required: [id, categoryId, version, trigger, periodDays, action, purpose, legalBasis, reason, status, sourceTemplate, createdAt, updatedAt, approvedAt, activatedAt, retiredAt, createdBy, approvedBy, activatedBy]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        categoryId: {$ref: "#/components/schemas/PrivacyCategoryId"}
+        version: {type: integer, minimum: 1}
+        trigger: {$ref: "#/components/schemas/RetentionTrigger"}
+        periodDays: {type: integer, minimum: 0, maximum: 36500}
+        action: {$ref: "#/components/schemas/RetentionAction"}
+        purpose: {type: string, maxLength: 1000}
+        legalBasis: {type: string, maxLength: 500}
+        reason: {type: string, maxLength: 2000}
+        status: {$ref: "#/components/schemas/RetentionPolicyStatus"}
+        sourceTemplate: {type: string, maxLength: 200, nullable: true, description: "`legacy:<source>` for seeded drafts, otherwise null."}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        approvedAt: {type: string, format: date-time, nullable: true}
+        activatedAt: {type: string, format: date-time, nullable: true}
+        retiredAt: {type: string, format: date-time, nullable: true}
+        createdBy: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        approvedBy: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        activatedBy: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    RetentionPolicyList:
+      type: object
+      additionalProperties: false
+      required: [policies]
+      properties:
+        policies: {type: array, items: {$ref: "#/components/schemas/RetentionPolicy"}}
+
+    RetentionPolicyInput:
+      type: object
+      additionalProperties: false
+      required: [categoryId, trigger, periodDays, action, purpose, legalBasis, reason]
+      properties:
+        categoryId: {$ref: "#/components/schemas/PrivacyCategoryId"}
+        trigger: {$ref: "#/components/schemas/RetentionTrigger"}
+        periodDays: {type: integer, minimum: 0, maximum: 36500}
+        action: {$ref: "#/components/schemas/RetentionAction"}
+        purpose: {type: string, maxLength: 1000}
+        legalBasis: {type: string, maxLength: 500}
+        reason: {type: string, maxLength: 2000}
+
+    RetentionPolicyTransition:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [approved, active, retired]
+
+    RetentionHold:
+      type: object
+      additionalProperties: false
+      required: [id, categoryId, personId, reason, createdAt, createdBy, releasedAt, releasedBy]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        categoryId: {allOf: [{$ref: "#/components/schemas/PrivacyCategoryId"}], nullable: true}
+        personId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        reason: {type: string, maxLength: 1000}
+        createdAt: {type: string, format: date-time}
+        createdBy: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        releasedAt: {type: string, format: date-time, nullable: true}
+        releasedBy: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    RetentionHoldList:
+      type: object
+      additionalProperties: false
+      required: [holds]
+      properties:
+        holds: {type: array, items: {$ref: "#/components/schemas/RetentionHold"}}
+
+    RetentionHoldInput:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        categoryId: {$ref: "#/components/schemas/PrivacyCategoryId"}
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        reason: {type: string, minLength: 1, maxLength: 1000}
+
+    RetentionRunMode:
+      type: string
+      enum: [dry_run, execute]
+
+    RetentionRunItem:
+      type: object
+      additionalProperties: false
+      required: [categoryId, policyId, action, cutoff, affectedCount, status, errorCode]
+      properties:
+        categoryId: {$ref: "#/components/schemas/PrivacyCategoryId"}
+        policyId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null for a legacy run.}
+        action: {$ref: "#/components/schemas/RetentionAction"}
+        cutoff: {type: string, format: date-time}
+        affectedCount: {type: integer, format: int64, minimum: 0}
+        status:
+          type: string
+          enum: [applied, skipped_hold, skipped_no_handler, failed]
+        errorCode: {type: string, maxLength: 100, nullable: true}
+
+    RetentionRun:
+      type: object
+      additionalProperties: false
+      required: [id, mode, trigger, actorAccountId, startedAt, finishedAt, status, errorCode, items]
+      properties:
+        id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null when nothing was planned.}
+        mode: {$ref: "#/components/schemas/RetentionRunMode"}
+        trigger:
+          type: string
+          enum: [manual, scheduled, cli]
+        actorAccountId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        startedAt: {type: string, format: date-time}
+        finishedAt: {type: string, format: date-time, nullable: true}
+        status:
+          type: string
+          enum: [running, completed, failed]
+        errorCode: {type: string, maxLength: 100, nullable: true}
+        items: {type: array, items: {$ref: "#/components/schemas/RetentionRunItem"}}
+
+    RetentionRunList:
+      type: object
+      additionalProperties: false
+      required: [runs]
+      properties:
+        runs: {type: array, items: {$ref: "#/components/schemas/RetentionRun"}}
+
+    StartRetentionRunRequest:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode: {$ref: "#/components/schemas/RetentionRunMode"}
+        categoryIds:
+          type: array
+          maxItems: 100
+          items: {$ref: "#/components/schemas/PrivacyCategoryId"}
+
     UpdatePrivacySettingsRequest:
       type: object
       additionalProperties: false
@@ -11487,6 +11791,7 @@ components:
         - survey_responses
         - organization_memberships
         - notifications
+        - privacy_holds
         - actor_references
         - authentication_methods
         - audit_events

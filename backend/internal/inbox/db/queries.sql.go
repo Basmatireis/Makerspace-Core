@@ -85,6 +85,18 @@ func (q *Queries) DeleteExpiredNotifications(ctx context.Context, now time.Time)
 	return result.RowsAffected(), nil
 }
 
+const deleteNotificationsCreatedBefore = `-- name: DeleteNotificationsCreatedBefore :execrows
+DELETE FROM inbox_notifications WHERE created_at < $1
+`
+
+func (q *Queries) DeleteNotificationsCreatedBefore(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteNotificationsCreatedBefore, beforeTime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteOrphanedSystemNotification = `-- name: DeleteOrphanedSystemNotification :exec
 DELETE FROM inbox_notifications n
 WHERE n.id = $1

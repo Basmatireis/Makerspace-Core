@@ -7,9 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/runrecordings/db"
-	"github.com/google/uuid"
 )
 
 // maintenanceBatch bounds the rows one maintenance step handles per transaction.
@@ -25,10 +23,11 @@ type Maintainer interface {
 	Maintain(ctx context.Context) (MaintenanceResult, error)
 }
 
-// Maintain fails commands the connector did not pick up or finish in time,
-// removes timelapse videos older than the retention setting and deletes queued
-// storage blobs (of removed timelapses and of runs deleted with theirs). Several
-// API replicas may run it at once: rows are claimed with SKIP LOCKED and blob
+// Maintain fails commands the connector did not pick up or finish in time and
+// deletes queued storage blobs (of removed timelapses and of runs deleted with
+// theirs). Timelapse videos older than the retention setting are removed by
+// the privacy retention engine through TimelapseRetention. Several API
+// replicas may run it at once: rows are claimed with SKIP LOCKED and blob
 // deletion is idempotent.
 func (s *Service) Maintain(ctx context.Context) (MaintenanceResult, error) {
 	var result MaintenanceResult
@@ -41,23 +40,6 @@ func (s *Service) Maintain(ctx context.Context) (MaintenanceResult, error) {
 		return result, fmt.Errorf("expire run commands: %w", err)
 	}
 	result.ExpiredCommands = len(expired)
-	settings, err := db.New(s.pool).GetRecordingSettings(ctx)
-	if err != nil {
-		return result, err
-	}
-	if settings.TimelapseRetentionDays > 0 {
-		cutoff := now.AddDate(0, 0, -int(settings.TimelapseRetentionDays))
-		for {
-			count, err := s.expireTimelapses(ctx, cutoff)
-			result.ExpiredTimelapses += count
-			if err != nil {
-				return result, fmt.Errorf("expire timelapses: %w", err)
-			}
-			if count < maintenanceBatch {
-				break
-			}
-		}
-	}
 	for {
 		count, err := s.files.DeleteQueuedBlobs(ctx, maintenanceBatch)
 		result.DeletedBlobs += count
@@ -71,44 +53,37 @@ func (s *Service) Maintain(ctx context.Context) (MaintenanceResult, error) {
 	return result, nil
 }
 
-func (s *Service) expireTimelapses(ctx context.Context, cutoff time.Time) (int, error) {
-	tx, err := s.pool.Begin(ctx)
+// ExpireTimelapsesBySetting removes timelapses older than the retention
+// setting in one pass; the scheduler's retention job does this in production,
+// tests and the legacy path use it directly.
+func (s *Service) ExpireTimelapsesBySetting(ctx context.Context) (int, error) {
+	settings, err := db.New(s.pool).GetRecordingSettings(ctx)
 	if err != nil {
 		return 0, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	q := db.New(tx)
-	rows, err := q.ListExpiredTimelapsesForUpdate(ctx, db.ListExpiredTimelapsesForUpdateParams{
-		Cutoff:   cutoff,
-		RowLimit: maintenanceBatch,
-	})
-	if err != nil || len(rows) == 0 {
-		return 0, err
+	if settings.TimelapseRetentionDays <= 0 {
+		return 0, nil
 	}
-	runIDs := make([]uuid.UUID, 0, len(rows))
-	fileIDs := make([]uuid.UUID, 0, len(rows))
-	for _, row := range rows {
-		runIDs = append(runIDs, row.RunID)
-		fileIDs = append(fileIDs, row.FileID)
-	}
-	if err = q.DeleteRunTimelapses(ctx, runIDs); err != nil {
-		return 0, err
-	}
-	if err = q.DeleteFilesQueueBlobs(ctx, fileIDs); err != nil {
-		return 0, err
-	}
-	for _, runID := range runIDs {
-		if err = audit.Write(ctx, tx, audit.Event{
-			ActorType:     "system",
-			Action:        "machine_run.timelapse_expired",
-			ResourceType:  "machine_run",
-			ResourceID:    &runID,
-			ChangedFields: []string{"timelapse"},
-		}); err != nil {
-			return 0, err
+	cutoff := s.now().AddDate(0, 0, -int(settings.TimelapseRetentionDays))
+	total := 0
+	for {
+		tx, err := s.pool.Begin(ctx)
+		if err != nil {
+			return total, err
+		}
+		count, err := s.expireTimelapsesTx(ctx, tx, cutoff, maintenanceBatch)
+		if err != nil {
+			_ = tx.Rollback(ctx)
+			return total, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return total, err
+		}
+		total += count
+		if count < maintenanceBatch {
+			return total, nil
 		}
 	}
-	return len(rows), tx.Commit(ctx)
 }
 
 // RunMaintenance calls Maintain right away and then every interval until ctx is

@@ -18,8 +18,10 @@ import (
 	oidcservice "github.com/Basmatireis/Makerspace-Core/backend/internal/oidc"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
+	"github.com/google/uuid"
 	"golang.org/x/term"
 )
 
@@ -96,38 +98,50 @@ func run(ctx context.Context, args []string) error {
 	case "cleanup":
 		flags := flag.NewFlagSet("cleanup", flag.ContinueOnError)
 		auditBeforeRaw := flags.String("audit-before", "", "optional RFC3339 audit cutoff")
+		dryRun := flags.Bool("dry-run", false, "report what would change without changing anything")
+		var categories categoryList
+		flags.Var(&categories, "category", "limit the run to a data category (repeatable)")
 		if err := flags.Parse(args[1:]); err != nil {
 			return err
 		}
-		var auditBefore time.Time
+		auditRetention, eventSignupRetention := cfg.AuditRetention, cfg.EventSignupRetention
 		if *auditBeforeRaw != "" {
-			auditBefore, err = time.Parse(time.RFC3339, *auditBeforeRaw)
+			auditBefore, err := time.Parse(time.RFC3339, *auditBeforeRaw)
 			if err != nil {
 				return fmt.Errorf("parse audit cutoff: %w", err)
 			}
-		} else if cfg.AuditRetention > 0 {
-			auditBefore = time.Now().UTC().Add(-cfg.AuditRetention)
+			auditRetention = time.Since(auditBefore)
+			if auditRetention <= 0 {
+				return errors.New("audit cutoff must lie in the past")
+			}
 		}
-		var eventSignupBefore time.Time
-		if cfg.EventSignupRetention > 0 {
-			eventSignupBefore = time.Now().UTC().Add(-cfg.EventSignupRetention)
-		}
-		sessions, resets, events, eventAssignments, err := service.Cleanup(
-			ctx,
-			time.Now().UTC(),
-			auditBefore,
-			eventSignupBefore,
-		)
+		store, err := storage.NewFromConfig(ctx, cfg)
 		if err != nil {
 			return err
 		}
-		fmt.Printf(
-			"deleted sessions=%d reset_tokens=%d audit_events=%d anonymized_event_assignments=%d\n",
-			sessions,
-			resets,
-			events,
-			eventAssignments,
-		)
+		engine, err := newRetentionEngine(pool, cfg, store, auditRetention, eventSignupRetention)
+		if err != nil {
+			return err
+		}
+		mode := privacy.ModeExecute
+		if *dryRun {
+			mode = privacy.ModeDryRun
+		}
+		run, err := engine.RunLegacyCleanup(ctx, mode, categories.ids())
+		if err != nil {
+			return err
+		}
+		if run.ID == uuid.Nil {
+			fmt.Println("nothing to clean up: no category has a legacy retention routine or all are opted out")
+			return nil
+		}
+		fmt.Printf("retention run %s (%s) %s\n", run.ID, run.Mode, run.Status)
+		for _, item := range run.Items {
+			fmt.Printf("  %-32s %-20s affected=%d %s %s\n", item.Category, item.Action, item.Affected, item.Status, item.Error)
+		}
+		if run.Status != "completed" {
+			return fmt.Errorf("retention run finished with %s", run.Status)
+		}
 		return nil
 	case "deliver-surveys":
 		flags := flag.NewFlagSet("deliver-surveys", flag.ContinueOnError)

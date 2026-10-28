@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -24,8 +23,6 @@ const (
 	// sendsPerWindow bounds how many manual messages one account may send per sendWindow.
 	sendsPerWindow = 10
 	sendWindow     = time.Hour
-	// sweepInterval is the minimum time between two retention sweeps triggered by reads.
-	sweepInterval = 10 * time.Minute
 )
 
 // Service implements the signed-in account's inbox and the manual messages to roles. Reading,
@@ -36,8 +33,6 @@ type Service struct {
 	now         func() time.Time
 	sendLimiter *ratelimit.Limiter // manual messages sent per sender account
 
-	sweepMu   sync.Mutex
-	lastSweep time.Time
 }
 
 // NewService builds the service.
@@ -59,23 +54,9 @@ func pageWindow(page, pageSize int) (int, int) {
 	return page, min(pageSize, maxPageSize)
 }
 
-// sweepExpiredThrottled hard-deletes expired notifications at most once per sweepInterval per
-// process, so retention holds without a background worker. Failures are not fatal for the caller.
-func (s *Service) sweepExpiredThrottled(ctx context.Context) {
-	now := s.now()
-	s.sweepMu.Lock()
-	if !s.lastSweep.IsZero() && now.Sub(s.lastSweep) < sweepInterval && !now.Before(s.lastSweep) {
-		s.sweepMu.Unlock()
-		return
-	}
-	s.lastSweep = now
-	s.sweepMu.Unlock()
-	_, _ = inboxdb.New(s.pool).DeleteExpiredNotifications(ctx, now)
-}
-
 // List returns the principal's own notifications, newest first.
 func (s *Service) List(ctx context.Context, principal authorization.Principal, page, pageSize int) (Page, error) {
-	s.sweepExpiredThrottled(ctx)
+	// Expired notifications are removed by the privacy retention engine.
 	page, pageSize = pageWindow(page, pageSize)
 	queries := inboxdb.New(s.pool)
 	now := s.now()
@@ -116,7 +97,7 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, p
 
 // UnreadCount returns how many of the principal's notifications are unread.
 func (s *Service) UnreadCount(ctx context.Context, principal authorization.Principal) (int64, error) {
-	s.sweepExpiredThrottled(ctx)
+	// Expired notifications are removed by the privacy retention engine.
 	count, err := inboxdb.New(s.pool).CountOwnUnreadNotifications(ctx, inboxdb.CountOwnUnreadNotificationsParams{
 		AccountID: principal.AccountID, Now: s.now(),
 	})
@@ -326,7 +307,7 @@ func (s *Service) ListSent(
 	if !principal.Has(authorization.NotificationsSend) {
 		return SentPage{}, apperror.PermissionDenied
 	}
-	s.sweepExpiredThrottled(ctx)
+	// Expired notifications are removed by the privacy retention engine.
 	page, pageSize = pageWindow(page, pageSize)
 	queries := inboxdb.New(s.pool)
 	now := s.now()

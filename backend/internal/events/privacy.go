@@ -6,6 +6,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	eventsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/events/db"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -55,6 +56,26 @@ func EraseExpiredSignupData(ctx context.Context, pool *pgxpool.Pool, cutoff time
 		return 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	count, err := EraseExpiredSignupDataTx(ctx, tx, cutoff)
+	if err != nil {
+		return count, err
+	}
+	return count, tx.Commit(ctx)
+}
+
+// SignupRetention is the retention handler for external event sign-ups: it
+// redacts the contact snapshots of assignments whose event closed before the cutoff.
+func SignupRetention() privacy.RetentionHandler {
+	return privacy.HandlerFunc(func(ctx context.Context, tx pgx.Tx, action privacy.Action, cutoff time.Time, _ int32) (int64, error) {
+		if action != privacy.ActionRedact {
+			return 0, privacy.ErrActionUnsupported
+		}
+		return EraseExpiredSignupDataTx(ctx, tx, cutoff)
+	})
+}
+
+// EraseExpiredSignupDataTx is EraseExpiredSignupData inside the caller's transaction.
+func EraseExpiredSignupDataTx(ctx context.Context, tx pgx.Tx, cutoff time.Time) (int64, error) {
 	q := eventsdb.New(tx)
 	rows, err := q.ListExpiredEventAssignmentsForUpdate(ctx, pgtype.Timestamptz{Time: cutoff.UTC(), Valid: true})
 	if err != nil {
@@ -83,9 +104,6 @@ func EraseExpiredSignupData(ctx context.Context, pool *pgxpool.Pool, cutoff time
 			return count, err
 		}
 		count++
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return count, err
 	}
 	return count, nil
 }

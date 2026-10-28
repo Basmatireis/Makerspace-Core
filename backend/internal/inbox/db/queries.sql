@@ -159,3 +159,6 @@ FROM inbox_notification_roles nr
 JOIN roles r ON r.id = nr.role_id
 WHERE nr.notification_id = ANY(sqlc.arg(notification_ids)::text[]::uuid[])
 ORDER BY nr.notification_id, lower(r.name), r.id;
+
+-- name: DeleteNotificationsCreatedBefore :execrows
+DELETE FROM inbox_notifications WHERE created_at < sqlc.arg(before_time);

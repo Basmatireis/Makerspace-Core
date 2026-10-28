@@ -17,6 +17,7 @@ type Querier interface {
 	CountRolesByIDs(ctx context.Context, roleIds []string) (int64, error)
 	CountSentMessages(ctx context.Context, now time.Time) (int64, error)
 	DeleteExpiredNotifications(ctx context.Context, now time.Time) (int64, error)
+	DeleteNotificationsCreatedBefore(ctx context.Context, beforeTime time.Time) (int64, error)
 	// A system notification nobody holds any more carries no information. Manual messages stay until they expire so
 	// the sender's list is complete.
 	DeleteOrphanedSystemNotification(ctx context.Context, id uuid.UUID) error

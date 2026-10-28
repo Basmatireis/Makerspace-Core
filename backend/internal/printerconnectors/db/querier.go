@@ -6,6 +6,7 @@ package printerconnectorsdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -29,9 +30,12 @@ type Querier interface {
 	CreateReconciledMount(ctx context.Context, arg CreateReconciledMountParams) error
 	CreateRotatedCredential(ctx context.Context, arg CreateRotatedCredentialParams) (PrinterConnectorCredential, error)
 	DeleteConnector(ctx context.Context, arg DeleteConnectorParams) (int64, error)
+	DeleteConnectorActivityBefore(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error
 	// Events that no run, usage or spool mount rests on are pure diagnostics.
 	DeleteUnreferencedConnectorEvents(ctx context.Context, connectorID uuid.UUID) error
+	// Events that a run's reported usage still cites stay until that run is deleted.
+	DeleteUnreferencedPrinterEventsBefore(ctx context.Context, beforeTime time.Time) (int64, error)
 	// Remaining events are the evidence behind recorded runs and usage; they keep their payload but lose the connector.
 	DetachConnectorEvents(ctx context.Context, connectorID uuid.UUID) error
 	EndConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error

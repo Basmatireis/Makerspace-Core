@@ -22,6 +22,17 @@ import type {
   PrivacyCategoryList,
   PrivacyOverview,
   PrivacySettings,
+  RetentionHold,
+  RetentionHoldInput,
+  RetentionHoldList,
+  RetentionPolicy,
+  RetentionPolicyInput,
+  RetentionPolicyList,
+  RetentionPolicyTransition,
+  RetentionRun,
+  RetentionRunList,
+  StartRetentionRunRequest,
+  UUIDv7,
   UpdatePrivacySettingsRequest
 } from '../models';
 
@@ -133,6 +144,318 @@ return apiFetch<PrivacySettings>(getUpdatePrivacySettingsUrl(),
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(updatePrivacySettingsRequest)
+  }
+);}
+
+
+export const getListPrivacyPoliciesUrl = () => {
+
+
+
+
+  return `/api/v1/privacy/policies`
+}
+
+/**
+ * Needs `privacy.read`. The first read seeds one draft per category with a legacy default, so the operator reviews what the installation did before the registry instead of starting from nothing; a configured opt-out (`0`) becomes `retain_with_review`.
+ * @summary List every retention policy version
+ */
+export const listPrivacyPolicies = async ( options?: Parameters<typeof apiFetch>[1]): Promise<RetentionPolicyList> => {
+
+  return apiFetch<RetentionPolicyList>(getListPrivacyPoliciesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreatePrivacyPolicyUrl = () => {
+
+
+
+
+  return `/api/v1/privacy/policies`
+}
+
+/**
+ * Needs `privacy.policies.manage`. The trigger and action must be ones the category supports. Audited as `privacy.policy_created`.
+ * @summary Create a draft policy version for a category
+ */
+export const createPrivacyPolicy = async (retentionPolicyInput: RetentionPolicyInput, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionPolicy> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RetentionPolicy>(getCreatePrivacyPolicyUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(retentionPolicyInput)
+  }
+);}
+
+
+export const getUpdatePrivacyPolicyUrl = (policyId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/privacy/policies/${policyId}`
+}
+
+/**
+ * Needs `privacy.policies.manage`. Only drafts change; refused with 409 `policy_not_draft` otherwise. `categoryId` in the body is ignored.
+ * @summary Edit a draft policy
+ */
+export const updatePrivacyPolicy = async (policyId: UUIDv7,
+    retentionPolicyInput: RetentionPolicyInput, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionPolicy> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RetentionPolicy>(getUpdatePrivacyPolicyUrl(policyId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(retentionPolicyInput)
+  }
+);}
+
+
+export const getTransitionPrivacyPolicyUrl = (policyId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/privacy/policies/${policyId}/transition`
+}
+
+/**
+ * Needs `privacy.policies.manage`. Approval requires purpose, legal basis and reason (409 `policy_incomplete`). Activation needs an approved version, retires the category's previously active version, and may not be done by the person who approved it unless they are a master (409 `policy_four_eyes`). Wrong state: 409 `policy_state_invalid`. Audited as `privacy.policy_approved`, `privacy.policy_activated` or `privacy.policy_retired`.
+ * @summary Approve, activate or retire a policy version
+ */
+export const transitionPrivacyPolicy = async (policyId: UUIDv7,
+    retentionPolicyTransition: RetentionPolicyTransition, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionPolicy> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RetentionPolicy>(getTransitionPrivacyPolicyUrl(policyId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(retentionPolicyTransition)
+  }
+);}
+
+
+export const getListPrivacyHoldsUrl = () => {
+
+
+
+
+  return `/api/v1/privacy/holds`
+}
+
+/**
+ * Needs `privacy.read`.
+ * @summary List retention holds
+ */
+export const listPrivacyHolds = async ( options?: Parameters<typeof apiFetch>[1]): Promise<RetentionHoldList> => {
+
+  return apiFetch<RetentionHoldList>(getListPrivacyHoldsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreatePrivacyHoldUrl = () => {
+
+
+
+
+  return `/api/v1/privacy/holds`
+}
+
+/**
+ * Needs `privacy.policies.manage`. A category hold skips that category in every run; a person hold blocks erasure of that person's data. Audited as `privacy.hold_created`.
+ * @summary Place a retention hold on a category or a person
+ */
+export const createPrivacyHold = async (retentionHoldInput: RetentionHoldInput, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionHold> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RetentionHold>(getCreatePrivacyHoldUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(retentionHoldInput)
+  }
+);}
+
+
+export const getReleasePrivacyHoldUrl = (holdId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/privacy/holds/${holdId}/release`
+}
+
+/**
+ * Needs `privacy.policies.manage`. Refused with 409 `hold_not_open` once released. Audited as `privacy.hold_released`.
+ * @summary Release a hold
+ */
+export const releasePrivacyHold = async (holdId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionHold> => {
+
+  return apiFetch<RetentionHold>(getReleasePrivacyHoldUrl(holdId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getListRetentionRunsUrl = () => {
+
+
+
+
+  return `/api/v1/privacy/retention/runs`
+}
+
+/**
+ * Needs `privacy.read`. Runs hold counts per category, never the affected records.
+ * @summary Recent retention runs
+ */
+export const listRetentionRuns = async ( options?: Parameters<typeof apiFetch>[1]): Promise<RetentionRunList> => {
+
+  return apiFetch<RetentionRunList>(getListRetentionRunsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getStartRetentionRunUrl = () => {
+
+
+
+
+  return `/api/v1/privacy/retention/runs`
+}
+
+/**
+ * Needs `privacy.retention.execute`. A dry run executes the same handlers in a transaction that is rolled back and reports what would change. Categories with an open hold or without a handler are skipped and reported. Audited as `privacy.retention_run_dry_run` or `privacy.retention_run_execute` with counts only.
+ * @summary Run the active policies now, as a dry run or for real
+ */
+export const startRetentionRun = async (startRetentionRunRequest: StartRetentionRunRequest, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionRun> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<RetentionRun>(getStartRetentionRunUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(startRetentionRunRequest)
+  }
+);}
+
+
+export const getGetRetentionRunUrl = (runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/privacy/retention/runs/${runId}`
+}
+
+/**
+ * Needs `privacy.read`.
+ * @summary One retention run with its per-category items
+ */
+export const getRetentionRun = async (runId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionRun> => {
+
+  return apiFetch<RetentionRun>(getGetRetentionRunUrl(runId),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 

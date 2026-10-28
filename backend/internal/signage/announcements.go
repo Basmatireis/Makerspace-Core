@@ -8,7 +8,6 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
@@ -18,7 +17,6 @@ import (
 
 const (
 	maxAnnouncementDisplays = 100
-	endedRetention          = 30 * 24 * time.Hour
 )
 
 // Announcement is a started instance of a template: live data that is never published.
@@ -44,57 +42,6 @@ type AnnouncementInput struct {
 	DisplayIDs  []uuid.UUID
 	StartsAt    *time.Time
 	EndsAt      *time.Time
-}
-
-// sweepExpired hard-deletes announcements that ended more than 30 days ago, so message content is
-// not retained indefinitely. It runs when announcements are read.
-func (s *Service) sweepExpired(ctx context.Context) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	ids, err := signagedb.New(tx).DeleteExpiredSignageAnnouncements(ctx, s.now().Add(-endedRetention))
-	if err != nil {
-		return err
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	for index := range ids {
-		if err := audit.Write(
-			ctx,
-			tx,
-			audit.Event{
-				ActorType:    "system",
-				Source:       "system",
-				Action:       "signage_announcement.expired",
-				ResourceType: "signage_announcement",
-				ResourceID:   &ids[index],
-			},
-		); err != nil {
-			return err
-		}
-	}
-	return tx.Commit(ctx)
-}
-
-// announcementSweepInterval is the minimum time between two sweeps triggered by player traffic.
-const announcementSweepInterval = 10 * time.Minute
-
-// sweepExpiredThrottled runs sweepExpired at most once per announcementSweepInterval per process,
-// so retention holds even when nobody opens the admin lists. Failures are not fatal for the caller.
-func (s *Service) sweepExpiredThrottled(ctx context.Context) {
-	now := s.now()
-	s.sweepMu.Lock()
-	if !s.lastAnnounceGC.IsZero() && now.Sub(s.lastAnnounceGC) < announcementSweepInterval &&
-		!now.Before(s.lastAnnounceGC) {
-		s.sweepMu.Unlock()
-		return
-	}
-	s.lastAnnounceGC = now
-	s.sweepMu.Unlock()
-	_ = s.sweepExpired(ctx)
 }
 
 func (s *Service) statusOf(startsAt time.Time, now time.Time) AnnouncementState {
@@ -235,9 +182,6 @@ func (s *Service) ListAnnouncements(ctx context.Context, principal authorization
 	if err := requireRead(principal); err != nil {
 		return nil, err
 	}
-	if err := s.sweepExpired(ctx); err != nil {
-		return nil, err
-	}
 	q := signagedb.New(s.pool)
 	rows, err := q.ListLiveSignageAnnouncements(ctx, s.now())
 	if err != nil {
@@ -253,9 +197,6 @@ func (s *Service) GetAnnouncement(
 	id uuid.UUID,
 ) (Announcement, error) {
 	if err := requireRead(principal); err != nil {
-		return Announcement{}, err
-	}
-	if err := s.sweepExpired(ctx); err != nil {
 		return Announcement{}, err
 	}
 	return s.getLive(ctx, signagedb.New(s.pool), id)

@@ -491,6 +491,7 @@ func moveMergePerson(
 	counts[MergedMachineJobs] += row.MachineJobs
 	counts[MergedInvoiceRequests] += row.InvoiceRequests
 	counts[MergedCashMovements] += row.CashMovements
+	counts[MergedPrivacyHolds] += row.PrivacyHolds
 	return nil
 }
 

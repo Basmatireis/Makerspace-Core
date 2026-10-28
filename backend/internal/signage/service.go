@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -40,8 +39,6 @@ type Service struct {
 	claimFailures   *ratelimit.Limiter // wrong pairing codes entered per staff account
 	pairingPolls    *ratelimit.Limiter // pairing polls per client IP
 
-	sweepMu        sync.Mutex
-	lastAnnounceGC time.Time
 }
 
 // Option customises the service at construction.

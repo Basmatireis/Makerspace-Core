@@ -339,6 +339,18 @@ func (q *Queries) CreateVisitorPerson(ctx context.Context, arg CreateVisitorPers
 	return i, err
 }
 
+const deleteExpiredEnrollmentContexts = `-- name: DeleteExpiredEnrollmentContexts :execrows
+DELETE FROM visitor_enrollment_contexts WHERE expires_at < $1
+`
+
+func (q *Queries) DeleteExpiredEnrollmentContexts(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredEnrollmentContexts, beforeTime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deviceTypeExists = `-- name: DeviceTypeExists :one
 SELECT EXISTS (SELECT 1 FROM device_types WHERE id=$1)
 `

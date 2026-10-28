@@ -27,7 +27,7 @@ import {
   Toggle,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { ApiError } from '../../api/http-client';
 import type { PrivacyCategory, PrivacySettings } from '../../api/generated/models';
@@ -43,6 +43,10 @@ import {
   privacyQueryKey,
   privacySettingsQueryOptions,
 } from './privacy';
+
+const PoliciesTab = lazy(() => import('./PoliciesTab').then(({ PoliciesTab }) => ({ default: PoliciesTab })));
+const HoldsTab = lazy(() => import('./HoldsTab').then(({ HoldsTab }) => ({ default: HoldsTab })));
+const RunsTab = lazy(() => import('./RunsTab').then(({ RunsTab }) => ({ default: RunsTab })));
 
 function moduleLabel(id: string): string {
   const text = id.replace(/[_-]+/g, ' ');
@@ -420,6 +424,9 @@ export function PrivacyPage() {
       ? [
           { key: 'overview', label: 'Overview', panel: <OverviewTab /> },
           { key: 'categories', label: 'Categories', panel: <CategoriesTab /> },
+          { key: 'policies', label: 'Retention policies', panel: <PoliciesTab /> },
+          { key: 'holds', label: 'Holds', panel: <HoldsTab /> },
+          { key: 'runs', label: 'Execution history', panel: <RunsTab /> },
         ]
       : []),
     ...(canRead ? [{ key: 'settings', label: 'Settings', panel: <SettingsTab /> }] : []),

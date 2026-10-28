@@ -6,6 +6,7 @@ package visitordb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -23,6 +24,7 @@ type Querier interface {
 	CreateVisitorPINIdentity(ctx context.Context, arg CreateVisitorPINIdentityParams) (AuthIdentity, error)
 	CreateVisitorPasswordIdentity(ctx context.Context, arg CreateVisitorPasswordIdentityParams) (AuthIdentity, error)
 	CreateVisitorPerson(ctx context.Context, arg CreateVisitorPersonParams) (Person, error)
+	DeleteExpiredEnrollmentContexts(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeviceTypeExists(ctx context.Context, id uuid.UUID) (bool, error)
 	GetAssignableRole(ctx context.Context, id uuid.UUID) (Role, error)
 	GetConfiguration(ctx context.Context) (VisitorEnrollmentConfiguration, error)

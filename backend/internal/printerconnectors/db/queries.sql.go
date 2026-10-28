@@ -544,6 +544,18 @@ func (q *Queries) DeleteConnector(ctx context.Context, arg DeleteConnectorParams
 	return result.RowsAffected(), nil
 }
 
+const deleteConnectorActivityBefore = `-- name: DeleteConnectorActivityBefore :execrows
+DELETE FROM printer_connector_activity WHERE occurred_at < $1
+`
+
+func (q *Queries) DeleteConnectorActivityBefore(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteConnectorActivityBefore, beforeTime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteConnectorAssignments = `-- name: DeleteConnectorAssignments :exec
 DELETE FROM printer_connector_assignments WHERE connector_id=$1
 `
@@ -566,6 +578,21 @@ WHERE e.connector_id=$1::uuid AND e.run_id IS NULL
 func (q *Queries) DeleteUnreferencedConnectorEvents(ctx context.Context, connectorID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteUnreferencedConnectorEvents, connectorID)
 	return err
+}
+
+const deleteUnreferencedPrinterEventsBefore = `-- name: DeleteUnreferencedPrinterEventsBefore :execrows
+DELETE FROM printer_events e
+WHERE e.occurred_at < $1
+  AND NOT EXISTS (SELECT 1 FROM machine_run_reported_usage_items u WHERE u.source_printer_event_id = e.id)
+`
+
+// Events that a run's reported usage still cites stay until that run is deleted.
+func (q *Queries) DeleteUnreferencedPrinterEventsBefore(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUnreferencedPrinterEventsBefore, beforeTime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const detachConnectorEvents = `-- name: DetachConnectorEvents :exec

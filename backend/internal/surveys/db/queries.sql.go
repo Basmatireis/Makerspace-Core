@@ -662,6 +662,20 @@ func (q *Queries) DeleteSurveyShareLink(ctx context.Context, arg DeleteSurveySha
 	return result.RowsAffected(), nil
 }
 
+const deleteUnlinkedExpiredInvitations = `-- name: DeleteUnlinkedExpiredInvitations :execrows
+DELETE FROM survey_invitations
+WHERE person_id IS NULL AND recipient_email IS NULL AND expires_at < $1
+`
+
+// Removes invitation rows whose delivery identity was already cleared and whose expiry lies before the cutoff.
+func (q *Queries) DeleteUnlinkedExpiredInvitations(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUnlinkedExpiredInvitations, beforeTime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const disableSurveyTriggers = `-- name: DisableSurveyTriggers :exec
 UPDATE survey_triggers SET enabled = false, version = version + 1, updated_at = now()
 WHERE survey_id = $1 AND enabled
