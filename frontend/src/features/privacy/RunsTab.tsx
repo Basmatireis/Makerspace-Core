@@ -29,9 +29,9 @@ import {
 import { CheckmarkFilled, ErrorFilled, Filter, InProgress, WarningFilled } from '@carbon/icons-react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import type { PrivacyCategory, RetentionRun, RetentionRunItem } from '../../api/generated/models';
 import { startRetentionRun } from '../../api/generated/privacy/privacy';
+import { PrivacyLink } from './privacyNavigation';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { RichNotification } from '../../app/RichNotification';
 import {
@@ -87,15 +87,6 @@ const numberFormat = new Intl.NumberFormat(APP_LOCALE);
 
 function plural(count: number, one: string, many: string): string {
   return `${numberFormat.format(count)} ${count === 1 ? one : many}`;
-}
-
-/** A link to another tab of the privacy page, through the `?tab=` query parameter. */
-function TabLink({ tab, children, size }: { tab: string; children: string; size?: 'sm' }) {
-  return (
-    <CarbonLink as={Link} to={`?tab=${tab}`} size={size}>
-      {children}
-    </CarbonLink>
-  );
 }
 
 function summarize(items: readonly RetentionRunItem[]) {
@@ -178,9 +169,9 @@ function ItemStatus({ item, dryRun }: { item: RetentionRunItem; dryRun: boolean 
           <Tag type="warm-gray" size="sm">
             skipped: on hold
           </Tag>{' '}
-          <TabLink tab="holds" size="sm">
+          <PrivacyLink section="holds" size="sm">
             why?
-          </TabLink>
+          </PrivacyLink>
         </>
       );
     case 'skipped_no_handler':
@@ -233,7 +224,7 @@ function ItemsTable({
           return (
             <TableRow key={`${item.categoryId}-${item.policyId ?? 'legacy'}-${item.action}`}>
               <TableCell>
-                <TabLink tab="categories">{categoryName(categories, item.categoryId)}</TabLink>
+                <PrivacyLink section="categories">{categoryName(categories, item.categoryId)}</PrivacyLink>
                 {category?.description && <div className="cds--type-helper-text-01">{category.description}</div>}
               </TableCell>
               <TableCell>{ruleText(category, item)}</TableCell>
@@ -430,15 +421,15 @@ export function RunsTab() {
         <p className="cds--type-helper-text-01">
           Automatic runs are <strong>{policies.automaticRunsEnabled ? 'on' : 'off'}</strong>
           {policies.automaticRunsEnabled ? '' : ": admin cleanup runs from the server's scheduler"} ·{' '}
-          <TabLink tab="settings" size="sm">
+          <PrivacyLink section="settings" size="sm">
             Change in Settings
-          </TabLink>
+          </PrivacyLink>
           {' | '}
           {plural(policies.policiesActive, 'active policy', 'active policies')},{' '}
           {plural(policies.policiesPending, 'draft', 'drafts')} not in force ·{' '}
-          <TabLink tab="policies" size="sm">
+          <PrivacyLink section="policies" size="sm">
             Retention policies
-          </TabLink>
+          </PrivacyLink>
         </p>
       )}
       <DataTable rows={rows} headers={headers}>

@@ -127,16 +127,17 @@ describe('privacy settings', () => {
     );
   });
 
-  it('shows counts and the controller hint', async () => {
+  it('shows counts, the controller hint and the automatic-runs state on the entry page', async () => {
     renderRoute(<PrivacyPage />, '/settings/privacy');
     expect(await screen.findByText('12')).toBeInTheDocument();
     expect(await screen.findByText('Controller not named')).toBeInTheDocument();
-    expect(screen.getByText('Disabled')).toBeInTheDocument();
+    expect(screen.getByText('off')).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });
 
   it('lists categories with tags and filters them by search', async () => {
     const user = userEvent.setup();
-    renderRoute(<PrivacyPage />, '/settings/privacy?tab=categories');
+    renderRoute(<PrivacyPage />, '/settings/privacy');
     expect(await screen.findByText('Audit events')).toBeInTheDocument();
     expect(screen.getByText('Orphaned')).toBeInTheDocument();
     expect(screen.getByText('No person')).toBeInTheDocument();
@@ -157,7 +158,7 @@ describe('privacy settings', () => {
         }),
       ),
     );
-    renderRoute(<PrivacyPage />, '/settings/privacy?tab=categories');
+    renderRoute(<PrivacyPage />, '/settings/privacy');
     expect(await screen.findByText('Signage media')).toBeInTheDocument();
     await user.click(screen.getByText('Policy in force'));
     await waitFor(() => expect(screen.queryByText('Signage media')).not.toBeInTheDocument());
@@ -168,7 +169,7 @@ describe('privacy settings', () => {
 
   it('filters the table by who the data belongs to from the filter popover', async () => {
     const user = userEvent.setup();
-    renderRoute(<PrivacyPage />, '/settings/privacy?tab=categories');
+    renderRoute(<PrivacyPage />, '/settings/privacy');
     expect(await screen.findByText('Signage media')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^Filter/ }));
     await user.click(screen.getByRole('checkbox', { name: 'A person' }));
@@ -193,7 +194,7 @@ describe('privacy settings', () => {
         }),
       ),
     );
-    renderRoute(<PrivacyPage />, '/settings/privacy?tab=categories');
+    renderRoute(<PrivacyPage />, '/settings/privacy');
     await screen.findByText('Audit events');
     await user.click(screen.getByRole('button', { name: 'Show where Audit events is stored' }));
     expect(screen.getByText('audit_events')).toBeInTheDocument();
@@ -228,7 +229,7 @@ describe('privacy settings', () => {
         }),
       ),
     );
-    renderRoute(<PrivacyPage />, '/settings/privacy?tab=categories');
+    renderRoute(<PrivacyPage />, '/settings/privacy');
     expect(await screen.findByText('Paused by a hold: In force')).toBeInTheDocument();
     expect(screen.getByText(/On hold since .*: Legal review/)).toBeInTheDocument();
   });
@@ -243,7 +244,7 @@ describe('privacy settings', () => {
         return HttpResponse.json(settingsBody({ controllerName: 'New name', version: 5 }));
       }),
     );
-    renderRoute(<PrivacyPage />, '/settings/privacy?tab=settings');
+    renderRoute(<PrivacyPage />, '/settings/privacy/settings');
     const name = await screen.findByLabelText('Controller name');
     await user.clear(name);
     await user.type(name, 'New name');
@@ -260,7 +261,7 @@ describe('privacy settings', () => {
         HttpResponse.json({ code: 'stale_write', message: 'stale' }, { status: 409 }),
       ),
     );
-    renderRoute(<PrivacyPage />, '/settings/privacy?tab=settings');
+    renderRoute(<PrivacyPage />, '/settings/privacy/settings');
     await screen.findByLabelText('Controller name');
     await user.click(screen.getByRole('button', { name: 'Save privacy settings' }));
     expect(await screen.findByText('Settings changed in the meantime; reloaded.')).toBeInTheDocument();
@@ -269,18 +270,34 @@ describe('privacy settings', () => {
   it('is read-only without the manage permission', async () => {
     auth.permissions = ['privacy.read'];
     server.use(http.get('*/api/v1/privacy/settings', () => HttpResponse.json(settingsBody())));
-    renderRoute(<PrivacyPage />, '/settings/privacy?tab=settings');
+    renderRoute(<PrivacyPage />, '/settings/privacy/settings');
     expect(await screen.findByLabelText('Controller name')).toHaveAttribute('readonly');
     expect(screen.queryByRole('button', { name: 'Save privacy settings' })).not.toBeInTheDocument();
   });
 
-  it('shows the data requests tab only with the requests permission', async () => {
+  it('links to data requests only with the requests permission and sends request handlers there', async () => {
     const { unmount } = renderRoute(<PrivacyPage />, '/settings/privacy');
-    expect(await screen.findByRole('tab', { name: 'Processing activities' })).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Data requests' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Processing activities' })).toHaveAttribute(
+      'href',
+      '/settings/privacy/activities',
+    );
+    expect(screen.queryByRole('link', { name: 'Data requests' })).not.toBeInTheDocument();
     unmount();
     auth.permissions = ['privacy.read', 'privacy.requests.manage'];
-    renderRoute(<PrivacyPage />, '/settings/privacy');
-    expect(await screen.findByRole('tab', { name: 'Data requests' })).toBeInTheDocument();
+    const second = renderRoute(<PrivacyPage />, '/settings/privacy');
+    expect(await screen.findByRole('link', { name: 'Data requests' })).toHaveAttribute(
+      'href',
+      '/settings/privacy/requests',
+    );
+    second.unmount();
+    auth.permissions = ['privacy.requests.manage'];
+    const { router } = renderRoute(<PrivacyPage />, '/settings/privacy');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/settings/privacy/requests'));
+  });
+
+  it('shows a sub-page with a breadcrumb back to the categories', async () => {
+    renderRoute(<PrivacyPage />, '/settings/privacy/settings');
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Privacy & data retention' })).toHaveAttribute('href', '/settings/privacy');
   });
 });

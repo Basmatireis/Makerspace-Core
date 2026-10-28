@@ -153,7 +153,7 @@ describe('holds tab', () => {
     renderRoute(<HoldsTab />);
     expect(await screen.findByText('1 category is paused')).toBeInTheDocument();
     expect(screen.getByText(/Audit events \(since 01\.10\.2026\)/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'See the categories' })).toHaveAttribute('href', '/?tab=categories');
+    expect(screen.getByRole('link', { name: 'See the categories' })).toHaveAttribute('href', '/settings/privacy');
   });
 
   it('filters the holds by search text', async () => {

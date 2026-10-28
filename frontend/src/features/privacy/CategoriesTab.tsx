@@ -4,7 +4,6 @@ import {
   CheckboxGroup,
   ClickableTile,
   DataTable,
-  Link,
   Popover,
   PopoverContent,
   Stack,
@@ -25,7 +24,7 @@ import {
 } from '@carbon/react';
 import { ArrowRight, CheckmarkFilled, CircleFilled, Filter, Locked } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type {
   PrivacyCategory,
@@ -37,29 +36,14 @@ import type {
 } from '../../api/generated/models';
 import { ErrorState } from '../../app/PageState';
 import { formatDate, formatDateTime } from '../../app/dateTime';
+import { useCurrentUser } from '../auth/auth';
+import { hasPermission } from '../auth/permissions';
 import { SettingsLoading } from '../settings/SettingsPageLayout';
-import { privacyCategoriesQueryOptions, privacyOverviewQueryOptions } from './privacy';
+import { privacyCategoriesQueryOptions, privacyOverviewQueryOptions, privacySettingsQueryOptions } from './privacy';
+import { PrivacyLink, privacyPath } from './privacyNavigation';
 import './privacyCategories.scss';
 
 type Status = PrivacyCategoryCoveragePolicyStatus;
-
-/** A Carbon link that switches to another tab of the privacy page (or any path) without a full page load. */
-export function TabLink({ tab, to, children }: { tab?: string; to?: string; children: ReactNode }) {
-  const navigate = useNavigate();
-  const target = to ?? `?tab=${tab ?? 'overview'}`;
-  return (
-    <Link
-      href={target}
-      onClick={(event: MouseEvent) => {
-        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
-        event.preventDefault();
-        void navigate(target);
-      }}
-    >
-      {children}
-    </Link>
-  );
-}
 
 const triggerPhrases: Record<string, string> = {
   manual: 'by hand',
@@ -69,10 +53,17 @@ const triggerPhrases: Record<string, string> = {
 
 /** One line with the facts an operator checks first: last run, automatic runs, holds, orphaned categories. */
 export function PrivacyContextLine({ overview }: { overview: PrivacyOverview }) {
+  const currentUser = useCurrentUser();
+  const settings = useQuery(privacySettingsQueryOptions());
   const run = overview.lastRun;
   const holds = overview.openCategoryHolds;
+  const decided = overview.policiesActive + overview.policiesPending;
   return (
     <p className="privacy-context cds--type-body-compact-01">
+      <span>
+        {overview.policiesActive} {overview.policiesActive === 1 ? 'policy' : 'policies'} in force,{' '}
+        {decided - overview.policiesActive} drafted · <PrivacyLink section="policies">Retention policies</PrivacyLink>
+      </span>
       <span>
         Last run:{' '}
         {run ? (
@@ -85,20 +76,33 @@ export function PrivacyContextLine({ overview }: { overview: PrivacyOverview }) 
         ) : (
           <strong>none yet</strong>
         )}{' '}
-        · <TabLink tab="runs">Execution history</TabLink>
+        · <PrivacyLink section="runs">Execution history</PrivacyLink>
       </span>
       <span>
         Automatic runs are <strong>{overview.automaticRunsEnabled ? 'on' : 'off'}</strong> ·{' '}
-        <TabLink tab="settings">Settings</TabLink>
+        <PrivacyLink section="settings">Settings</PrivacyLink>
       </span>
       <span>
         {holds === 0 ? 'No category on hold' : `${holds} ${holds === 1 ? 'category' : 'categories'} on hold`} ·{' '}
-        <TabLink tab="holds">Holds</TabLink>
+        <PrivacyLink section="holds">Holds</PrivacyLink>
       </span>
       {overview.orphanedCategories > 0 && (
         <span>
           {overview.orphanedCategories} orphaned {overview.orphanedCategories === 1 ? 'category' : 'categories'} still
           hold data
+        </span>
+      )}
+      <span>
+        <PrivacyLink section="activities">Processing activities</PrivacyLink>
+      </span>
+      {hasPermission(currentUser, 'privacy.requests.manage') && (
+        <span>
+          <PrivacyLink section="requests">Data requests</PrivacyLink>
+        </span>
+      )}
+      {settings.data && settings.data.controllerName.trim() === '' && (
+        <span>
+          <strong>Controller not named</strong> · <PrivacyLink section="settings">Settings</PrivacyLink>
         </span>
       )}
     </p>
@@ -357,7 +361,7 @@ function SummaryTile({
 }) {
   return (
     <ClickableTile
-      href="?tab=categories"
+      href={privacyPath('categories')}
       aria-current={active ? 'true' : undefined}
       renderIcon={active ? CheckmarkFilled : ArrowRight}
       onClick={(event) => {
@@ -404,7 +408,7 @@ function CategoryDetail({ category }: { category: PrivacyCategory }) {
             <ul>
               {processingActivities.map((activity) => (
                 <li key={activity.id}>
-                  <TabLink tab="activities">{activity.name}</TabLink>
+                  <PrivacyLink section="activities">{activity.name}</PrivacyLink>
                 </li>
               ))}
             </ul>
@@ -462,13 +466,13 @@ function CategoryDetail({ category }: { category: PrivacyCategory }) {
         </div>
       </div>
       <div className="privacy-detail__actions">
-        <Button kind="tertiary" size="md" onClick={() => void navigate('?tab=holds')}>
+        <Button kind="tertiary" size="md" onClick={() => void navigate(privacyPath('holds'))}>
           {hold ? 'Release the hold' : 'Place a hold'}
         </Button>
-        <Button kind="tertiary" size="md" onClick={() => void navigate('?tab=runs')}>
+        <Button kind="tertiary" size="md" onClick={() => void navigate(privacyPath('runs'))}>
           Dry run
         </Button>
-        <Button kind="primary" size="md" onClick={() => void navigate('?tab=policies')}>
+        <Button kind="primary" size="md" onClick={() => void navigate(privacyPath('policies'))}>
           {info.cta}
         </Button>
       </div>
@@ -624,7 +628,7 @@ export function CategoriesTab() {
                               </div>
                             )}
                             <div className="cds--type-helper-text-01">{runLine(coverage.lastRun)}</div>
-                            <TabLink tab="policies">{info.link}</TabLink>
+                            <PrivacyLink section="policies">{info.link}</PrivacyLink>
                           </div>
                         </div>
                       </TableCell>

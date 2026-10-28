@@ -1,22 +1,19 @@
 import {
   Button,
   ClickableTile,
-  Column,
   Form,
-  Grid,
   InlineNotification,
   NumberInput,
   Stack,
-  Tag,
   TextArea,
   TextInput,
   Tile,
   Toggle,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { lazy, useEffect, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../../api/http-client';
 import type { PrivacySettings } from '../../api/generated/models';
 import { updatePrivacySettings } from '../../api/generated/privacy/privacy';
@@ -25,8 +22,15 @@ import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasAnyPermission, hasPermission } from '../auth/permissions';
 import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
-import { SettingsTabs, type SettingsTab } from '../settings/SettingsTabs';
-import { CategoriesTab, PrivacyContextLine, TabLink } from './CategoriesTab';
+import { PageShell } from '../../app/PageShell';
+import { CategoriesTab } from './CategoriesTab';
+import {
+  PrivacyLink,
+  privacyPath,
+  privacySectionFromPath,
+  privacySections,
+  type PrivacySection,
+} from './privacyNavigation';
 import { privacyOverviewQueryOptions, privacyQueryKey, privacySettingsQueryOptions } from './privacy';
 
 const PoliciesTab = lazy(() => import('./PoliciesTab').then(({ PoliciesTab }) => ({ default: PoliciesTab })));
@@ -34,75 +38,6 @@ const HoldsTab = lazy(() => import('./HoldsTab').then(({ HoldsTab }) => ({ defau
 const RequestsTab = lazy(() => import('./RequestsTab').then(({ RequestsTab }) => ({ default: RequestsTab })));
 const ActivitiesTab = lazy(() => import('./ActivitiesTab').then(({ ActivitiesTab }) => ({ default: ActivitiesTab })));
 const RunsTab = lazy(() => import('./RunsTab').then(({ RunsTab }) => ({ default: RunsTab })));
-
-function OverviewTab() {
-  const overview = useQuery(privacyOverviewQueryOptions());
-  const settings = useQuery(privacySettingsQueryOptions());
-  if (overview.isPending) return <SettingsLoading label="Loading privacy overview" />;
-  if (overview.isError) {
-    return <ErrorState message={overview.error.message} onRetry={() => void overview.refetch()} />;
-  }
-  const data = overview.data;
-  return (
-    <Stack gap={5}>
-      {settings.data && settings.data.controllerName.trim() === '' && (
-        <InlineNotification
-          kind="info"
-          lowContrast
-          hideCloseButton
-          title="Controller not named"
-          subtitle="Name the controller and a data protection contact in the Settings tab before production use."
-        />
-      )}
-      <PrivacyContextLine overview={data} />
-      <Grid condensed fullWidth>
-        <Column sm={4} md={4} lg={5}>
-          <Tile>
-            <p className="cds--type-label-01">Data categories</p>
-            <p className="cds--type-productive-heading-05">{data.categories}</p>
-          </Tile>
-        </Column>
-        <Column sm={4} md={4} lg={5}>
-          <Tile>
-            <p className="cds--type-label-01">Orphaned categories</p>
-            <p className="cds--type-productive-heading-05">{data.orphanedCategories}</p>
-          </Tile>
-        </Column>
-        <Column sm={4} md={8} lg={6}>
-          <Tile>
-            <p className="cds--type-label-01">Automatic retention runs</p>
-            <Tag type={data.automaticRunsEnabled ? 'green' : 'gray'} size="md">
-              {data.automaticRunsEnabled ? 'Enabled' : 'Disabled'}
-            </Tag>
-            {!data.automaticRunsEnabled && (
-              <p className="cds--type-helper-text-01">
-                <code>admin cleanup</code> remains the scheduled path while automatic runs are off.
-              </p>
-            )}
-          </Tile>
-        </Column>
-        <Column sm={4} md={4} lg={5}>
-          <Tile>
-            <p className="cds--type-label-01">Policies in force</p>
-            <p className="cds--type-productive-heading-05">{data.policiesActive}</p>
-          </Tile>
-        </Column>
-        <Column sm={4} md={4} lg={5}>
-          <Tile>
-            <p className="cds--type-label-01">Draft only, previous behaviour applies</p>
-            <p className="cds--type-productive-heading-05">{data.policiesPending}</p>
-          </Tile>
-        </Column>
-        <Column sm={4} md={4} lg={6}>
-          <Tile>
-            <p className="cds--type-label-01">No decision yet, kept indefinitely</p>
-            <p className="cds--type-productive-heading-05">{data.withoutPolicy}</p>
-          </Tile>
-        </Column>
-      </Grid>
-    </Stack>
-  );
-}
 
 function UsedInTile({ title, detail, to }: { title: string; detail: string; to: string }) {
   const navigate = useNavigate();
@@ -254,9 +189,9 @@ function SettingsForm({ settings, canManage }: { settings: PrivacySettings; canM
               <UsedInTile
                 title="Data request exports"
                 detail="manifest.json of every access export"
-                to="?tab=requests"
+                to={privacyPath('requests')}
               />
-              <UsedInTile title="Overview tile" detail="Controller named check" to="?tab=overview" />
+              <UsedInTile title="Categories page" detail="Controller named check" to={privacyPath('categories')} />
               <UsedInTile
                 title="Not yet: privacy notice"
                 detail="Branding & legal keeps its own text"
@@ -288,7 +223,7 @@ function SettingsForm({ settings, canManage }: { settings: PrivacySettings; canM
             {overview?.lastRun
               ? `${formatDateTime(overview.lastRun.startedAt)} (${overview.lastRun.mode === 'dry_run' ? 'dry run' : 'executed'})`
               : 'none yet'}{' '}
-            · <TabLink tab="runs">Execution history</TabLink>
+            · <PrivacyLink section="runs">Execution history</PrivacyLink>
           </p>
           <Controller
             control={control}
@@ -319,18 +254,18 @@ function SettingsForm({ settings, canManage }: { settings: PrivacySettings; canM
             <dl className="privacy-kv" aria-label="Ready to switch on?">
               <ReadinessRow label="Ready to switch on?">
                 {overview.policiesActive} of {overview.policiesActive + overview.policiesPending} drafted policies are
-                active · <TabLink tab="policies">Retention policies</TabLink>
+                active · <PrivacyLink section="policies">Retention policies</PrivacyLink>
               </ReadinessRow>
               <ReadinessRow label="Last run">
                 {overview.lastRun
                   ? `${formatDateTime(overview.lastRun.startedAt)}: ${overview.lastRun.mode === 'dry_run' ? 'would change' : 'changed'} ${overview.lastRun.affectedCount} rows`
                   : 'none yet'}{' '}
-                · <TabLink tab="runs">Open</TabLink>
+                · <PrivacyLink section="runs">Open</PrivacyLink>
               </ReadinessRow>
               <ReadinessRow label="Open holds">
                 {overview.openCategoryHolds} {overview.openCategoryHolds === 1 ? 'category' : 'categories'},{' '}
                 {overview.openPersonHolds} {overview.openPersonHolds === 1 ? 'person' : 'people'} ·{' '}
-                <TabLink tab="holds">Holds</TabLink>
+                <PrivacyLink section="holds">Holds</PrivacyLink>
               </ReadinessRow>
             </dl>
           )}
@@ -358,28 +293,49 @@ function SettingsTab() {
   return <SettingsForm settings={settings.data} canManage={hasPermission(currentUser, 'privacy.settings.manage')} />;
 }
 
+/** The privacy area: the categories page is the entry, every other section is a sub-page with a breadcrumb back. */
 export function PrivacyPage() {
   const currentUser = useCurrentUser();
-  const canRead = hasAnyPermission(currentUser, ['privacy.read', 'privacy.settings.manage']);
-  const tabs: SettingsTab[] = [
-    ...(hasPermission(currentUser, 'privacy.read')
-      ? [
-          { key: 'overview', label: 'Overview', panel: <OverviewTab /> },
-          { key: 'categories', label: 'Categories', panel: <CategoriesTab /> },
-          { key: 'activities', label: 'Processing activities', panel: <ActivitiesTab /> },
-          { key: 'policies', label: 'Retention policies', panel: <PoliciesTab /> },
-          { key: 'holds', label: 'Holds', panel: <HoldsTab /> },
-          { key: 'runs', label: 'Execution history', panel: <RunsTab /> },
-        ]
-      : []),
-    ...(hasPermission(currentUser, 'privacy.requests.manage')
-      ? [{ key: 'requests', label: 'Data requests', panel: <RequestsTab /> }]
-      : []),
-    ...(canRead ? [{ key: 'settings', label: 'Settings', panel: <SettingsTab /> }] : []),
-  ];
+  const location = useLocation();
+  const section = privacySectionFromPath(location.pathname);
+  const canRead = hasPermission(currentUser, 'privacy.read');
+  const canManageRequests = hasPermission(currentUser, 'privacy.requests.manage');
+  const canSeeSettings = hasAnyPermission(currentUser, ['privacy.read', 'privacy.settings.manage']);
+  if (section === null) return <Navigate to={privacyPath('categories')} replace />;
+  const allowed = section === 'requests' ? canManageRequests : section === 'settings' ? canSeeSettings : canRead;
+  if (!allowed) {
+    // Someone who only handles data requests lands on them; everyone else goes back to the entry.
+    const fallback = canRead ? 'categories' : canManageRequests ? 'requests' : 'settings';
+    return <Navigate to={privacyPath(fallback)} replace />;
+  }
+  if (section === 'categories') {
+    return (
+      <SettingsPageLayout page="privacy" width="wide">
+        <CategoriesTab />
+      </SettingsPageLayout>
+    );
+  }
+  const panels: Record<Exclude<PrivacySection, 'categories'>, ReactNode> = {
+    policies: <PoliciesTab />,
+    holds: <HoldsTab />,
+    runs: <RunsTab />,
+    requests: <RequestsTab />,
+    activities: <ActivitiesTab />,
+    settings: <SettingsTab />,
+  };
+  const { title, description } = privacySections[section];
   return (
-    <SettingsPageLayout page="privacy" width="wide">
-      <SettingsTabs label="Privacy and data retention" tabs={tabs} />
-    </SettingsPageLayout>
+    <PageShell
+      title={title}
+      description={description}
+      width="wide"
+      breadcrumbs={[
+        { label: 'Settings', to: '/settings' },
+        { label: 'Data', to: '/settings#data' },
+        { label: privacySections.categories.title, to: privacyPath('categories') },
+      ]}
+    >
+      <Suspense fallback={<SettingsLoading label={`Loading ${title}`} />}>{panels[section]}</Suspense>
+    </PageShell>
   );
 }

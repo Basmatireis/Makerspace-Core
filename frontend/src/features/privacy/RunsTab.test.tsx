@@ -136,8 +136,8 @@ describe('execution history tab', () => {
     renderRoute(<RunsTab />);
     await user.click(await screen.findByRole('button', { name: 'Expand current row' }));
     expect(await screen.findByText('skipped: on hold')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'why?' })).toHaveAttribute('href', '/?tab=holds');
-    expect(screen.getByRole('link', { name: 'Audit events' })).toHaveAttribute('href', '/?tab=categories');
+    expect(screen.getByRole('link', { name: 'why?' })).toHaveAttribute('href', '/settings/privacy/holds');
+    expect(screen.getByRole('link', { name: 'Audit events' })).toHaveAttribute('href', '/settings/privacy');
     expect(screen.getByText('Who did what when')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Execute this now' })).toBeInTheDocument();
   });
@@ -218,8 +218,14 @@ describe('execution history tab', () => {
   it('describes the automatic runs and the policies', async () => {
     renderRoute(<RunsTab />);
     expect(await screen.findByText(/admin cleanup runs from the server's scheduler/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Change in Settings' })).toHaveAttribute('href', '/?tab=settings');
-    expect(screen.getByRole('link', { name: 'Retention policies' })).toHaveAttribute('href', '/?tab=policies');
+    expect(screen.getByRole('link', { name: 'Change in Settings' })).toHaveAttribute(
+      'href',
+      '/settings/privacy/settings',
+    );
+    expect(screen.getByRole('link', { name: 'Retention policies' })).toHaveAttribute(
+      'href',
+      '/settings/privacy/policies',
+    );
     expect(screen.getByText(/4 active policies, 5 drafts not in force/)).toBeInTheDocument();
   });
 

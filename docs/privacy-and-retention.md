@@ -4,7 +4,7 @@ The privacy registry records which personal data the makerspace stores, which fe
 
 ## Overview
 
-- **What it is.** Every built-in feature area (called the owner module of a category) declares its data categories in code, in `backend/internal/privacycatalog`. The registry validates these declarations, persists a snapshot of them, and shows them in Settings › Data › Privacy & data retention (tabs Overview, Data categories and Settings).
+- **What it is.** Every built-in feature area (called the owner module of a category) declares its data categories in code, in `backend/internal/privacycatalog`. The registry validates these declarations, persists a snapshot of them, and shows them in Settings › Data › Privacy & data retention. The categories page is the entry of the privacy area; retention policies, holds, execution history, data requests, processing activities and settings are its sub-pages, reached from the context line under the summary tiles and from the rows themselves.
 - **Always on.** The registry has no switch. A category stays registered after the code that declared it is gone, so later retention and data-subject requests still reach that data.
 - **Retention.** The retention engine (`backend/internal/privacy`) applies approved retention policies to the categories that have a retention routine. It runs from `admin cleanup` (legacy mode, manually or from the deployment's scheduler), from the dry run and execute buttons, and from the API scheduler when automatic runs are enabled. Until a category has an active policy, its legacy period applies unchanged.
 - **Data-subject requests.** Access and erasure requests walk through a manual identity check, an assessment, an approval and the execution; each category answers through its subject handler. See [Data-subject requests](#data-subject-requests).
@@ -80,7 +80,7 @@ Adding a column that holds personal data without declaring it fails the build's 
 
 ### Coverage
 
-Each category carries what the registry knows beyond its declaration, so the Categories tab answers "is this covered?" without opening the other tabs: `coverage.policyStatus` is `active` when a policy is in force, `pending` when only a draft or approved version exists (the previous behaviour still applies), and `none` without any version; `coverage.policy` is that version; `coverage.hold` the open category hold; `coverage.lastRun` the most recent run item of the category (mode, trigger, action, affected rows, status); `coverage.processingActivities` the activities of the record of processing that name the category.
+Each category carries what the registry knows beyond its declaration, so the categories page answers "is this covered?" without opening the other pages: `coverage.policyStatus` is `active` when a policy is in force, `pending` when only a draft or approved version exists (the previous behaviour still applies), and `none` without any version; `coverage.policy` is that version; `coverage.hold` the open category hold; `coverage.lastRun` the most recent run item of the category (mode, trigger, action, affected rows, status); `coverage.processingActivities` the activities of the record of processing that name the category.
 
 ## Settings
 
@@ -126,7 +126,7 @@ A run executes the handlers of the active policies in one of two modes:
 
 A run records its trigger (`manual`, `scheduled` or `cli`) and one item per category with its action, affected count and status. Items carry counts only, never records. Runs are audited as `privacy.retention_run_dry_run` or `privacy.retention_run_execute`, with counts only.
 
-Start a run with `POST /privacy/retention/runs` (`privacy.retention.execute`); list runs with `GET /privacy/retention/runs` and read one with `GET /privacy/retention/runs/{runId}`. The UI offers the same as the Dry run and Execute buttons in the tab Execution history.
+Start a run with `POST /privacy/retention/runs` (`privacy.retention.execute`); list runs with `GET /privacy/retention/runs` and read one with `GET /privacy/retention/runs/{runId}`. The UI offers the same as the Dry run and Execute buttons on the Execution history page.
 
 Categories without a retention handler are reported with the status `skipped_no_handler`.
 

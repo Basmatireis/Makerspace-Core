@@ -3,7 +3,6 @@ import {
   DataTable,
   Dropdown,
   InlineNotification,
-  Link as CarbonLink,
   Modal,
   RadioButton,
   RadioButtonGroup,
@@ -25,9 +24,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Link } from 'react-router-dom';
 import type { PrivacyCategory, RetentionHold } from '../../api/generated/models';
 import { createPrivacyHold, releasePrivacyHold } from '../../api/generated/privacy/privacy';
+import { PrivacyLink } from './privacyNavigation';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { RichNotification } from '../../app/RichNotification';
 import { formatDate, formatDateTime } from '../../app/dateTime';
@@ -62,15 +61,6 @@ const actionWords: Record<PrivacyCategory['actions'][number], string> = {
   redact: 'redacted',
   retain_with_review: 'kept for review',
 };
-
-/** A link to another tab of the privacy page, through the `?tab=` query parameter. */
-function TabLink({ tab, children }: { tab: string; children: string }) {
-  return (
-    <CarbonLink as={Link} to={`?tab=${tab}`}>
-      {children}
-    </CarbonLink>
-  );
-}
 
 function scopeText(hold: RetentionHold, categories: readonly PrivacyCategory[]): string {
   return hold.categoryId ? categoryName(categories, hold.categoryId) : `Person ${hold.personId}`;
@@ -247,7 +237,7 @@ export function HoldsTab() {
             .map((hold) => `${categoryName(categoryList, hold.categoryId ?? '')} (since ${formatDate(hold.createdAt)})`)
             .join(', ')}{' '}
           {paused.length === 1 ? 'is' : 'are'} skipped by every run until released.{' '}
-          <TabLink tab="categories">See the categories</TabLink>
+          <PrivacyLink section="categories">See the categories</PrivacyLink>
         </RichNotification>
       )}
       <DataTable rows={rows} headers={headers}>
@@ -304,7 +294,9 @@ export function HoldsTab() {
                         <div>
                           {hold.categoryId ? (
                             <strong>
-                              <TabLink tab="categories">{categoryName(categoryList, hold.categoryId)}</TabLink>
+                              <PrivacyLink section="categories">
+                                {categoryName(categoryList, hold.categoryId)}
+                              </PrivacyLink>
                             </strong>
                           ) : (
                             <strong>{hold.personId}</strong>
