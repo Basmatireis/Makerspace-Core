@@ -174,7 +174,7 @@ func orphanedDefinition(row privacydb.PrivacyCategorySnapshot) Definition {
 		ID:          CategoryID(row.CategoryID),
 		Owner:       ModuleID(row.OwnerModuleID),
 		Name:        stored.Name,
-		Description: "No longer declared by any module or plugin; its data may still exist.",
+		Description: "No longer declared by the application code; its data may still exist.",
 		Fields:      stored.Fields,
 		Subject:     Subject(stored.Subject),
 	}

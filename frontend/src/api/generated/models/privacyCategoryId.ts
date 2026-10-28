@@ -20,7 +20,7 @@
  */
 
 /**
- * Data category declared in application code or a plugin manifest, such as `events.external_signups`.
+ * Data category declared in application code, such as `events.external_signups`.
  * @pattern ^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$
  */
 export type PrivacyCategoryId = string;

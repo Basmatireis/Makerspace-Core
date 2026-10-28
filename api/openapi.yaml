@@ -11450,7 +11450,7 @@ components:
     PrivacyCategoryId:
       type: string
       pattern: "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"
-      description: Data category declared in application code or a plugin manifest, such as `events.external_signups`.
+      description: Data category declared in application code, such as `events.external_signups`.
 
     RetentionTrigger:
       type: string
@@ -11486,7 +11486,7 @@ components:
         name: {type: string, maxLength: 100}
         description: {type: string, maxLength: 500}
         ownerModuleId: {type: string, maxLength: 60, pattern: "^[a-z][a-z0-9_]*$", description: The built-in feature area that owns the category.}
-        orphaned: {type: boolean, description: No module or plugin declares the category any more; its data may still exist.}
+        orphaned: {type: boolean, description: The application code no longer declares the category; its data may still exist.}
         subject: {$ref: "#/components/schemas/PrivacySubject"}
         fields:
           type: array

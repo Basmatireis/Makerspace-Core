@@ -36,7 +36,7 @@ export interface PrivacyCategory {
      * @pattern ^[a-z][a-z0-9_]*$
      */
   ownerModuleId: string;
-  /** No module or plugin declares the category any more; its data may still exist. */
+  /** The application code no longer declares the category; its data may still exist. */
   orphaned: boolean;
   subject: PrivacySubject;
   /**

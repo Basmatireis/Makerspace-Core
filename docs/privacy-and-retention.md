@@ -1,11 +1,11 @@
 # Privacy registry, retention and data-subject requests
 
-The privacy registry is the core module that records which personal data the makerspace stores, which module owns it, and how long the installation has handled it. This document covers the declared inventory, its persisted snapshot, the privacy settings and the read API, the retention policy engine (versioned policies, holds, runs and dry runs, and the scheduler that executes them), and data-subject requests (access exports and erasure) with the record of processing activities.
+The privacy registry records which personal data the makerspace stores, which feature area owns it, and how long the installation has handled it. This document covers the declared inventory, its persisted snapshot, the privacy settings and the read API, the retention policy engine (versioned policies, holds, runs and dry runs, and the scheduler that executes them), and data-subject requests (access exports and erasure) with the record of processing activities.
 
 ## Overview
 
-- **What it is.** Every built-in module declares its data categories in code, in `backend/internal/privacycatalog`. The registry validates these declarations, persists a snapshot of them, and shows them in Settings › Data › Privacy & data retention (tabs Overview, Data categories and Settings).
-- **Core module.** Privacy is a core module, so it can never be disabled. A category stays registered after its owning module is disabled or its plugin is removed, so later retention and data-subject requests still reach that data.
+- **What it is.** Every built-in feature area (called the owner module of a category) declares its data categories in code, in `backend/internal/privacycatalog`. The registry validates these declarations, persists a snapshot of them, and shows them in Settings › Data › Privacy & data retention (tabs Overview, Data categories and Settings).
+- **Always on.** The registry has no switch. A category stays registered after the code that declared it is gone, so later retention and data-subject requests still reach that data.
 - **Retention.** The retention engine (`backend/internal/privacy`) applies approved retention policies to the categories that have a retention routine. It runs from `admin cleanup` (legacy mode, manually or from the deployment's scheduler), from the dry run and execute buttons, and from the API scheduler when automatic runs are enabled. Until a category has an active policy, its legacy period applies unchanged.
 - **Data-subject requests.** Access and erasure requests walk through a manual identity check, an assessment, an approval and the execution; each category answers through its subject handler. See [Data-subject requests](#data-subject-requests).
 
@@ -65,7 +65,7 @@ The table lists every built-in category. Legacy defaults are the behaviour that 
 
 The inventory is enforced by tests in `backend/internal/privacycatalog/catalog_test.go`:
 
-- `TestCatalogIsValid` checks every declaration's shape against the module catalog, and that no category is declared twice.
+- `TestCatalogIsValid` checks every declaration's shape and that no category is declared twice.
 - `TestEveryPersonalDataColumnBelongsToACategory` proves that every known personal-data column and every foreign key to people belongs to exactly one category, and that no field is claimed twice.
 - `TestLegacyDefaultsMatchTheRoutinesTheyReplace` checks each legacy default against the routine it describes.
 
@@ -74,8 +74,7 @@ Adding a column that holds personal data without declaring it fails the build's 
 ## Registry status
 
 - **Snapshots.** On first use after a start, the registry writes every declared category to `privacy_category_snapshots` (migration `00080`), with its owner module and definition.
-- **Orphaned categories.** A snapshot whose category is no longer declared by any module is marked `orphaned` and stays visible, with its stored description. Orphaned data is still in scope for later retention and data-subject requests.
-- **Disabled modules.** A category whose owner module is disabled stays listed with `ownerModuleEnabled: false`. The Overview lists the disabled owner modules.
+- **Orphaned categories.** A snapshot whose category is no longer declared in code is marked `orphaned` and stays visible, with its stored description. Orphaned data is still in scope for later retention and data-subject requests.
 
 ## Settings
 
@@ -220,7 +219,7 @@ The output lists the run, then one line per category with its action, affected c
 
 | Endpoint | Permission | Purpose |
 | --- | --- | --- |
-| `GET /privacy/overview` | `privacy.read` | Counts of categories, orphaned categories, disabled owner modules and the automatic-runs flag. |
+| `GET /privacy/overview` | `privacy.read` | Counts of categories, orphaned categories and the automatic-runs flag. |
 | `GET /privacy/categories` | `privacy.read` | Declared and orphaned categories with their status. |
 | `GET /privacy/settings` | `privacy.read` | The privacy settings. |
 | `PUT /privacy/settings` | `privacy.settings.manage` | Change the privacy settings with `expectedVersion`. |
