@@ -1,5 +1,6 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/type' as type;
 
 // Layout glue for the Categories tab; every control is a Carbon component.
 .privacy-tiles {
@@ -97,5 +98,31 @@
 .privacy-used-in {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1px;
+}
+
+.privacy-col--name {
+  inline-size: 40%;
+}
+.privacy-col--subject {
+  inline-size: 14%;
+}
+.privacy-col--area {
+  inline-size: 11%;
+}
+.privacy-detail__lead {
+  max-inline-size: 60rem;
+  padding-block-start: $spacing-03;
+  color: theme.$text-secondary;
+}
+.privacy-detail__heading {
+  @include type.type-style('label-01');
+  margin: 0;
+  color: theme.$text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.32px;
+}
+.privacy-detail__actions {
+  flex-wrap: wrap;
   gap: 1px;
 }

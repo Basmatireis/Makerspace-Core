@@ -1,6 +1,5 @@
 import {
   Button,
-  ButtonSet,
   Checkbox,
   CheckboxGroup,
   ClickableTile,
@@ -383,9 +382,10 @@ function CategoryDetail({ category }: { category: PrivacyCategory }) {
   const info = statusInfo(category);
   return (
     <>
+      <p className="privacy-detail__lead">{category.description}</p>
       <div className="privacy-detail">
         <div className="privacy-detail__block">
-          <h4 className="cds--type-productive-heading-02">Where it is stored</h4>
+          <h4 className="privacy-detail__heading">Where it is stored</h4>
           {storedWhere(category.fields).map((entry) => (
             <div key={entry.table}>
               <strong>{entry.table}</strong>
@@ -399,7 +399,7 @@ function CategoryDetail({ category }: { category: PrivacyCategory }) {
               </div>
             </div>
           ))}
-          <h4 className="cds--type-productive-heading-02">Listed in processing activities</h4>
+          <h4 className="privacy-detail__heading">Listed in processing activities</h4>
           {processingActivities.length > 0 ? (
             <ul>
               {processingActivities.map((activity) => (
@@ -413,7 +413,7 @@ function CategoryDetail({ category }: { category: PrivacyCategory }) {
           )}
         </div>
         <div className="privacy-detail__block">
-          <h4 className="cds--type-productive-heading-02">Decision of record</h4>
+          <h4 className="privacy-detail__heading">Decision of record</h4>
           <dl className="privacy-kv">
             <dt>Status</dt>
             <dd>{policyStatusText(category)}</dd>
@@ -426,7 +426,7 @@ function CategoryDetail({ category }: { category: PrivacyCategory }) {
             <dt>Before the registry</dt>
             <dd>{legacyDefaultText(category)}</dd>
           </dl>
-          <h4 className="cds--type-productive-heading-02">Retention can</h4>
+          <h4 className="privacy-detail__heading">Retention can</h4>
           <div>
             {category.actions.map((action) => (
               <Tag key={action} type="teal" size="sm">
@@ -438,11 +438,11 @@ function CategoryDetail({ category }: { category: PrivacyCategory }) {
             <span className="privacy-secondary">The clock starts:</span>{' '}
             {category.triggers.map(words).join(', ') || '–'}
           </p>
-          <h4 className="cds--type-productive-heading-02">When a person asks for erasure</h4>
+          <h4 className="privacy-detail__heading">When a person asks for erasure</h4>
           <p>{erasureText[category.erasure]}</p>
         </div>
         <div className="privacy-detail__block">
-          <h4 className="cds--type-productive-heading-02">Recent runs</h4>
+          <h4 className="privacy-detail__heading">Recent runs</h4>
           {lastRun ? (
             <div>
               <div>{runOutcome(lastRun)}</div>
@@ -455,24 +455,22 @@ function CategoryDetail({ category }: { category: PrivacyCategory }) {
           )}
           {category.retentionNote && (
             <>
-              <h4 className="cds--type-productive-heading-02">Good to know</h4>
+              <h4 className="privacy-detail__heading">Good to know</h4>
               <p className="privacy-secondary">{category.retentionNote}</p>
             </>
           )}
         </div>
       </div>
       <div className="privacy-detail__actions">
-        <ButtonSet>
-          <Button kind="tertiary" size="md" onClick={() => void navigate('?tab=holds')}>
-            {hold ? 'Release the hold' : 'Place a hold'}
-          </Button>
-          <Button kind="tertiary" size="md" onClick={() => void navigate('?tab=runs')}>
-            Dry run
-          </Button>
-          <Button kind="primary" size="md" onClick={() => void navigate('?tab=policies')}>
-            {info.cta}
-          </Button>
-        </ButtonSet>
+        <Button kind="tertiary" size="md" onClick={() => void navigate('?tab=holds')}>
+          {hold ? 'Release the hold' : 'Place a hold'}
+        </Button>
+        <Button kind="tertiary" size="md" onClick={() => void navigate('?tab=runs')}>
+          Dry run
+        </Button>
+        <Button kind="primary" size="md" onClick={() => void navigate('?tab=policies')}>
+          {info.cta}
+        </Button>
       </div>
     </>
   );
@@ -546,7 +544,6 @@ export function CategoriesTab() {
             <TableToolbar>
               <TableToolbarContent>
                 <TableToolbarSearch
-                  persistent
                   labelText="Search data categories"
                   placeholder="Search by what it contains, e.g. matriculation number, e-mail, timelapse"
                   value={search}
@@ -562,7 +559,7 @@ export function CategoriesTab() {
                   {headers.map((header) => {
                     const { key, ...props } = getHeaderProps({ header });
                     return (
-                      <TableHeader key={key} {...props}>
+                      <TableHeader key={key} {...props} className={`privacy-col privacy-col--${header.key}`}>
                         {header.header}
                       </TableHeader>
                     );
@@ -594,10 +591,7 @@ export function CategoriesTab() {
                               </Tag>
                             )}
                           </div>
-                          <div className="privacy-secondary">{category.description}</div>
-                          <div>
-                            <span className="privacy-secondary">Contains:</span> {category.contains}
-                          </div>
+                          <div>{category.contains}</div>
                           <div className="cds--type-helper-text-01">
                             {footprint(category.fields)} ·{' '}
                             {activities > 0
