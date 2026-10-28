@@ -556,7 +556,7 @@ export function CategoriesTab() {
                 <FilterPanel categories={allCategories} filters={filters} onChange={setFilters} />
               </TableToolbarContent>
             </TableToolbar>
-            <Table {...getTableProps()} aria-label="Data categories">
+            <Table {...getTableProps()} aria-label="Data categories" className="privacy-table">
               <TableHead>
                 <TableRow>
                   <TableExpandHeader aria-label="Expand to see where the data is stored" />
@@ -633,7 +633,11 @@ export function CategoriesTab() {
                         </div>
                       </TableCell>
                     </TableExpandRow>,
-                    <TableExpandedRow key={`${key}-detail`} colSpan={headers.length + 1}>
+                    <TableExpandedRow
+                      key={`${key}-detail`}
+                      colSpan={headers.length + 1}
+                      className="privacy-table__detail"
+                    >
                       <CategoryDetail category={category} />
                     </TableExpandedRow>,
                   ];
