@@ -344,7 +344,8 @@ SELECT
     (SELECT count(*) FROM survey_responses WHERE identified_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS survey_responses,
     (SELECT count(*) FROM organization_members WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS organization_memberships,
     (SELECT count(*) FROM inbox_recipients WHERE account_id = ANY((sqlc.arg(account_ids)::text[])::uuid[]))::bigint AS notifications,
-    (SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS privacy_holds;
+    ((SELECT count(*) FROM privacy_retention_holds WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM privacy_subject_requests WHERE subject_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS privacy_holds;
 
 -- name: EnablePeopleMergeMode :exec
 -- Transaction-local: lets the history guards accept re-pointed person/account references (migration 00077).
@@ -448,9 +449,12 @@ WITH visits_moved AS (
 ), privacy_holds_moved AS (
     UPDATE privacy_retention_holds SET subject_person_id = sqlc.arg(target_person_id)::uuid
     WHERE subject_person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
+), privacy_requests_moved AS (
+    UPDATE privacy_subject_requests SET subject_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE subject_person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
 )
 SELECT
-    (SELECT count(*) FROM privacy_holds_moved)::bigint AS privacy_holds,
+    ((SELECT count(*) FROM privacy_holds_moved) + (SELECT count(*) FROM privacy_requests_moved))::bigint AS privacy_holds,
     (SELECT count(*) FROM visits_moved)::bigint AS visits,
     (SELECT count(*) FROM holds_moved)::bigint AS attendance_holds,
     (SELECT count(*) FROM invitations_moved)::bigint AS survey_invitations,
@@ -640,6 +644,24 @@ WITH c01 AS (
 ), c50 AS (
     UPDATE privacy_retention_runs SET actor_account_id = sqlc.arg(target_account_id)::uuid
     WHERE actor_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
+), c51 AS (
+    UPDATE privacy_processing_activities SET updated_by_account_id = sqlc.arg(target_account_id)::uuid
+    WHERE updated_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
+), c52 AS (
+    UPDATE privacy_subject_requests SET identity_verified_by_account_id = sqlc.arg(target_account_id)::uuid
+    WHERE identity_verified_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
+), c53 AS (
+    UPDATE privacy_subject_requests SET approved_by_account_id = sqlc.arg(target_account_id)::uuid
+    WHERE approved_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
+), c54 AS (
+    UPDATE privacy_subject_requests SET executed_by_account_id = sqlc.arg(target_account_id)::uuid
+    WHERE executed_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
+), c55 AS (
+    UPDATE privacy_subject_requests SET created_by_account_id = sqlc.arg(target_account_id)::uuid
+    WHERE created_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
+), c56 AS (
+    UPDATE privacy_subject_request_steps SET actor_account_id = sqlc.arg(target_account_id)::uuid
+    WHERE actor_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
 )
 SELECT (
     (SELECT count(*) FROM c01) + (SELECT count(*) FROM c02) + (SELECT count(*) FROM c03) + (SELECT count(*) FROM c04)
@@ -654,7 +676,8 @@ SELECT (
     + (SELECT count(*) FROM c37) + (SELECT count(*) FROM c38) + (SELECT count(*) FROM c39) + (SELECT count(*) FROM c40)
     + (SELECT count(*) FROM c41) + (SELECT count(*) FROM c42) + (SELECT count(*) FROM c43) + (SELECT count(*) FROM c44)
     + (SELECT count(*) FROM c45) + (SELECT count(*) FROM c46) + (SELECT count(*) FROM c47) + (SELECT count(*) FROM c48)
-    + (SELECT count(*) FROM c49) + (SELECT count(*) FROM c50)
+    + (SELECT count(*) FROM c49) + (SELECT count(*) FROM c50) + (SELECT count(*) FROM c51) + (SELECT count(*) FROM c52)
+    + (SELECT count(*) FROM c53) + (SELECT count(*) FROM c54) + (SELECT count(*) FROM c55) + (SELECT count(*) FROM c56)
 )::bigint AS moved;
 
 -- name: RepointMergeAuditEvents :execrows

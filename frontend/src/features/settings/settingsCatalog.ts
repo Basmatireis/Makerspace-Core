@@ -208,7 +208,7 @@ export const settingsItems: readonly SettingsItem[] = [
     description: "Data categories, retention and the installation's privacy settings.",
     path: '/settings/privacy',
     icon: Security,
-    permissions: [PermissionId.privacyread, PermissionId.privacysettingsmanage],
+    permissions: [PermissionId.privacyread, PermissionId.privacysettingsmanage, PermissionId.privacyrequestsmanage],
   },
 ];
 

@@ -46,6 +46,8 @@ import {
 
 const PoliciesTab = lazy(() => import('./PoliciesTab').then(({ PoliciesTab }) => ({ default: PoliciesTab })));
 const HoldsTab = lazy(() => import('./HoldsTab').then(({ HoldsTab }) => ({ default: HoldsTab })));
+const RequestsTab = lazy(() => import('./RequestsTab').then(({ RequestsTab }) => ({ default: RequestsTab })));
+const ActivitiesTab = lazy(() => import('./ActivitiesTab').then(({ ActivitiesTab }) => ({ default: ActivitiesTab })));
 const RunsTab = lazy(() => import('./RunsTab').then(({ RunsTab }) => ({ default: RunsTab })));
 
 function moduleLabel(id: string): string {
@@ -424,10 +426,14 @@ export function PrivacyPage() {
       ? [
           { key: 'overview', label: 'Overview', panel: <OverviewTab /> },
           { key: 'categories', label: 'Categories', panel: <CategoriesTab /> },
+          { key: 'activities', label: 'Processing activities', panel: <ActivitiesTab /> },
           { key: 'policies', label: 'Retention policies', panel: <PoliciesTab /> },
           { key: 'holds', label: 'Holds', panel: <HoldsTab /> },
           { key: 'runs', label: 'Execution history', panel: <RunsTab /> },
         ]
+      : []),
+    ...(hasPermission(currentUser, 'privacy.requests.manage')
+      ? [{ key: 'requests', label: 'Data requests', panel: <RequestsTab /> }]
       : []),
     ...(canRead ? [{ key: 'settings', label: 'Settings', panel: <SettingsTab /> }] : []),
   ];

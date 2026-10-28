@@ -129,7 +129,7 @@ export const categoryLabels: Record<PeopleMergeCategory, string> = {
   survey_responses: 'Survey responses',
   organization_memberships: 'Organization memberships',
   notifications: 'Notifications',
-  privacy_holds: 'Retention holds',
+  privacy_holds: 'Retention holds and data requests',
   actor_references: 'Recorded actions',
   authentication_methods: 'Authentication methods',
   audit_events: 'Audit events',

@@ -22,6 +22,10 @@ import type {
   PrivacyCategoryList,
   PrivacyOverview,
   PrivacySettings,
+  ProcessingActivity,
+  ProcessingActivityInput,
+  ProcessingActivityList,
+  ProcessingActivityUpdate,
   RetentionHold,
   RetentionHoldInput,
   RetentionHoldList,
@@ -32,8 +36,13 @@ import type {
   RetentionRun,
   RetentionRunList,
   StartRetentionRunRequest,
+  SubjectRequest,
+  SubjectRequestInput,
+  SubjectRequestList,
+  SubjectRequestTransitionInput,
   UUIDv7,
-  UpdatePrivacySettingsRequest
+  UpdatePrivacySettingsRequest,
+  VersionRequest
 } from '../models';
 
 import { apiFetch } from '../../http-client';
@@ -451,6 +460,334 @@ export const getGetRetentionRunUrl = (runId: UUIDv7,) => {
 export const getRetentionRun = async (runId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<RetentionRun> => {
 
   return apiFetch<RetentionRun>(getGetRetentionRunUrl(runId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListProcessingActivitiesUrl = () => {
+
+
+
+
+  return `/api/v1/privacy/processing-activities`
+}
+
+/**
+ * Needs `privacy.read`. Activities are the operator's own record; they reference data categories by id.
+ * @summary The record of processing activities
+ */
+export const listProcessingActivities = async ( options?: Parameters<typeof apiFetch>[1]): Promise<ProcessingActivityList> => {
+
+  return apiFetch<ProcessingActivityList>(getListProcessingActivitiesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateProcessingActivityUrl = () => {
+
+
+
+
+  return `/api/v1/privacy/processing-activities`
+}
+
+/**
+ * Needs `privacy.settings.manage`. Every referenced category must be declared. Audited as `privacy.processing_activity_created`.
+ * @summary Add a processing activity
+ */
+export const createProcessingActivity = async (processingActivityInput: ProcessingActivityInput, options?: Parameters<typeof apiFetch>[1]): Promise<ProcessingActivity> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<ProcessingActivity>(getCreateProcessingActivityUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(processingActivityInput)
+  }
+);}
+
+
+export const getUpdateProcessingActivityUrl = (activityId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/privacy/processing-activities/${activityId}`
+}
+
+/**
+ * Needs `privacy.settings.manage`. Version-checked (409 `stale_write`). Audited as `privacy.processing_activity_updated`.
+ * @summary Change a processing activity
+ */
+export const updateProcessingActivity = async (activityId: UUIDv7,
+    processingActivityUpdate: ProcessingActivityUpdate, options?: Parameters<typeof apiFetch>[1]): Promise<ProcessingActivity> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<ProcessingActivity>(getUpdateProcessingActivityUrl(activityId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(processingActivityUpdate)
+  }
+);}
+
+
+export const getDeleteProcessingActivityUrl = (activityId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/privacy/processing-activities/${activityId}`
+}
+
+/**
+ * Needs `privacy.settings.manage`. Audited as `privacy.processing_activity_deleted`.
+ * @summary Remove a processing activity
+ */
+export const deleteProcessingActivity = async (activityId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getDeleteProcessingActivityUrl(activityId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getListSubjectRequestsUrl = () => {
+
+
+
+
+  return `/api/v1/privacy/requests`
+}
+
+/**
+ * Needs `privacy.requests.manage`. Requests carry counts and outcomes per category, never the exported data.
+ * @summary List data-subject requests
+ */
+export const listSubjectRequests = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SubjectRequestList> => {
+
+  return apiFetch<SubjectRequestList>(getListSubjectRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateSubjectRequestUrl = () => {
+
+
+
+
+  return `/api/v1/privacy/requests`
+}
+
+/**
+ * Needs `privacy.requests.manage`. The request starts as `received`; the statutory one-month deadline (`dueAt`) is derived from `receivedAt`. `reference` is the operator's own reference, never the subject's name. Audited as `privacy.subject_request_created`.
+ * @summary Record a data-subject request
+ */
+export const createSubjectRequest = async (subjectRequestInput: SubjectRequestInput, options?: Parameters<typeof apiFetch>[1]): Promise<SubjectRequest> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SubjectRequest>(getCreateSubjectRequestUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(subjectRequestInput)
+  }
+);}
+
+
+export const getGetSubjectRequestUrl = (requestId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/privacy/requests/${requestId}`
+}
+
+/**
+ * Needs `privacy.requests.manage`.
+ * @summary Read a data-subject request with its steps
+ */
+export const getSubjectRequest = async (requestId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<SubjectRequest> => {
+
+  return apiFetch<SubjectRequest>(getGetSubjectRequestUrl(requestId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getTransitionSubjectRequestUrl = (requestId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/privacy/requests/${requestId}/transition`
+}
+
+/**
+ * Needs `privacy.requests.manage`. `identity_verified` records the manual identity check (the note says how the identity was verified, never what document was shown). `assessed` runs every category's handler in a transaction that is rolled back and stores counts, outcomes, blockers and open holds. `approved` requires an assessment; the approver may not be the person who verified the identity unless they are master (409 `request_four_eyes`). `rejected` closes the request with a reason. Other orders are refused with 409 `request_state_invalid`. Audited as `privacy.subject_request_<status>`.
+ * @summary Move a request through its lifecycle
+ */
+export const transitionSubjectRequest = async (requestId: UUIDv7,
+    subjectRequestTransitionInput: SubjectRequestTransitionInput, options?: Parameters<typeof apiFetch>[1]): Promise<SubjectRequest> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SubjectRequest>(getTransitionSubjectRequestUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(subjectRequestTransitionInput)
+  }
+);}
+
+
+export const getExecuteSubjectRequestUrl = (requestId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/privacy/requests/${requestId}/execute`
+}
+
+/**
+ * Needs `privacy.requests.execute`. An access request builds the export (JSON per category plus the profile image in one ZIP) as a private file. An erasure additionally needs `people.delete`; it is refused while the person has an open hold (409 `erasure_on_hold`) and by the same blockers as deleting the person (409). The request ends as `completed`, or `partially_completed` when records were retained for a legal obligation or need manual review. Audited as `privacy.subject_request_executed` with counts only.
+ * @summary Execute an approved request
+ */
+export const executeSubjectRequest = async (requestId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SubjectRequest> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SubjectRequest>(getExecuteSubjectRequestUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getDownloadSubjectRequestExportUrl = (requestId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/privacy/requests/${requestId}/export`
+}
+
+/**
+ * Needs `privacy.requests.execute`. 404 until the request was executed or after the export was removed by retention. Audited as `privacy.subject_request_export_downloaded`.
+ * @summary Download the export of a completed access request
+ */
+export const downloadSubjectRequestExport = async (requestId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadSubjectRequestExportUrl(requestId),
   {
     ...options,
     method: 'GET'

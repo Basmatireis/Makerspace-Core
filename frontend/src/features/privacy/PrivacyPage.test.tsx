@@ -140,4 +140,14 @@ describe('privacy settings', () => {
     expect(await screen.findByLabelText('Controller name')).toHaveAttribute('readonly');
     expect(screen.queryByRole('button', { name: 'Save privacy settings' })).not.toBeInTheDocument();
   });
+
+  it('shows the data requests tab only with the requests permission', async () => {
+    const { unmount } = renderRoute(<PrivacyPage />, '/settings/privacy');
+    expect(await screen.findByRole('tab', { name: 'Processing activities' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Data requests' })).not.toBeInTheDocument();
+    unmount();
+    auth.permissions = ['privacy.read', 'privacy.requests.manage'];
+    renderRoute(<PrivacyPage />, '/settings/privacy');
+    expect(await screen.findByRole('tab', { name: 'Data requests' })).toBeInTheDocument();
+  });
 });

@@ -2368,6 +2368,182 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /privacy/processing-activities:
+    get:
+      tags: [Privacy]
+      operationId: listProcessingActivities
+      summary: The record of processing activities
+      description: Needs `privacy.read`. Activities are the operator's own record; they reference data categories by id.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Activities., content: {application/json: {schema: {$ref: "#/components/schemas/ProcessingActivityList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Privacy]
+      operationId: createProcessingActivity
+      summary: Add a processing activity
+      description: Needs `privacy.settings.manage`. Every referenced category must be declared. Audited as `privacy.processing_activity_created`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ProcessingActivityInput"}}}}
+      responses:
+        "201": {description: Activity added., content: {application/json: {schema: {$ref: "#/components/schemas/ProcessingActivity"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/processing-activities/{activityId}:
+    parameters:
+      - {name: activityId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Privacy]
+      operationId: updateProcessingActivity
+      summary: Change a processing activity
+      description: Needs `privacy.settings.manage`. Version-checked (409 `stale_write`). Audited as `privacy.processing_activity_updated`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ProcessingActivityUpdate"}}}}
+      responses:
+        "200": {description: Activity changed., content: {application/json: {schema: {$ref: "#/components/schemas/ProcessingActivity"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Privacy]
+      operationId: deleteProcessingActivity
+      summary: Remove a processing activity
+      description: Needs `privacy.settings.manage`. Audited as `privacy.processing_activity_deleted`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Activity removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/requests:
+    get:
+      tags: [Privacy]
+      operationId: listSubjectRequests
+      summary: List data-subject requests
+      description: Needs `privacy.requests.manage`. Requests carry counts and outcomes per category, never the exported data.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Requests., content: {application/json: {schema: {$ref: "#/components/schemas/SubjectRequestList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Privacy]
+      operationId: createSubjectRequest
+      summary: Record a data-subject request
+      description: >
+        Needs `privacy.requests.manage`. The request starts as `received`; the statutory one-month deadline (`dueAt`) is
+        derived from `receivedAt`. `reference` is the operator's own reference, never the subject's name. Audited as
+        `privacy.subject_request_created`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubjectRequestInput"}}}}
+      responses:
+        "201": {description: Request recorded., content: {application/json: {schema: {$ref: "#/components/schemas/SubjectRequest"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/requests/{requestId}:
+    parameters:
+      - {name: requestId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Privacy]
+      operationId: getSubjectRequest
+      summary: Read a data-subject request with its steps
+      description: Needs `privacy.requests.manage`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Request., content: {application/json: {schema: {$ref: "#/components/schemas/SubjectRequest"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/requests/{requestId}/transition:
+    parameters:
+      - {name: requestId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Privacy]
+      operationId: transitionSubjectRequest
+      summary: Move a request through its lifecycle
+      description: >
+        Needs `privacy.requests.manage`. `identity_verified` records the manual identity check (the note says how the
+        identity was verified, never what document was shown). `assessed` runs every category's handler in a transaction
+        that is rolled back and stores counts, outcomes, blockers and open holds. `approved` requires an assessment; the
+        approver may not be the person who verified the identity unless they are master (409 `request_four_eyes`).
+        `rejected` closes the request with a reason. Other orders are refused with 409 `request_state_invalid`.
+        Audited as `privacy.subject_request_<status>`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubjectRequestTransitionInput"}}}}
+      responses:
+        "200": {description: Request updated., content: {application/json: {schema: {$ref: "#/components/schemas/SubjectRequest"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/requests/{requestId}/execute:
+    parameters:
+      - {name: requestId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Privacy]
+      operationId: executeSubjectRequest
+      summary: Execute an approved request
+      description: >
+        Needs `privacy.requests.execute`. An access request builds the export (JSON per category plus the profile image
+        in one ZIP) as a private file. An erasure additionally needs `people.delete`; it is refused while the person has
+        an open hold (409 `erasure_on_hold`) and by the same blockers as deleting the person (409). The request ends as
+        `completed`, or `partially_completed` when records were retained for a legal obligation or need manual review.
+        Audited as `privacy.subject_request_executed` with counts only.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Request executed., content: {application/json: {schema: {$ref: "#/components/schemas/SubjectRequest"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/requests/{requestId}/export:
+    parameters:
+      - {name: requestId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Privacy]
+      operationId: downloadSubjectRequestExport
+      summary: Download the export of a completed access request
+      description: Needs `privacy.requests.execute`. 404 until the request was executed or after the export was removed by retention. Audited as `privacy.subject_request_export_downloaded`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: ZIP archive.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Content-Disposition: {schema: {type: string}}
+            X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
+            Content-Security-Policy: {schema: {type: string}}
+          content: {application/zip: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /roles:
     get:
       tags: [Roles]
@@ -10711,6 +10887,8 @@ components:
         - privacy.settings.manage
         - privacy.policies.manage
         - privacy.retention.execute
+        - privacy.requests.manage
+        - privacy.requests.execute
 
     NotificationKind:
       type: string
@@ -11493,6 +11671,162 @@ components:
           type: array
           maxItems: 100
           items: {$ref: "#/components/schemas/PrivacyCategoryId"}
+
+    ProcessingActivity:
+      type: object
+      additionalProperties: false
+      required: [id, name, purpose, legalBasis, categoryIds, recipients, retentionNote, version, createdAt, updatedAt, updatedBy]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 200}
+        purpose: {type: string, maxLength: 2000}
+        legalBasis: {type: string, maxLength: 500}
+        categoryIds: {type: array, items: {$ref: "#/components/schemas/PrivacyCategoryId"}}
+        recipients: {type: string, maxLength: 1000}
+        retentionNote: {type: string, maxLength: 1000}
+        version: {type: integer, format: int64, minimum: 1}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        updatedBy: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    ProcessingActivityList:
+      type: object
+      additionalProperties: false
+      required: [activities]
+      properties:
+        activities: {type: array, items: {$ref: "#/components/schemas/ProcessingActivity"}}
+
+    ProcessingActivityInput:
+      type: object
+      additionalProperties: false
+      required: [name, purpose, legalBasis, categoryIds, recipients, retentionNote]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        purpose: {type: string, maxLength: 2000}
+        legalBasis: {type: string, maxLength: 500}
+        categoryIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/PrivacyCategoryId"}}
+        recipients: {type: string, maxLength: 1000}
+        retentionNote: {type: string, maxLength: 1000}
+
+    ProcessingActivityUpdate:
+      type: object
+      additionalProperties: false
+      required: [name, purpose, legalBasis, categoryIds, recipients, retentionNote, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        purpose: {type: string, maxLength: 2000}
+        legalBasis: {type: string, maxLength: 500}
+        categoryIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/PrivacyCategoryId"}}
+        recipients: {type: string, maxLength: 1000}
+        retentionNote: {type: string, maxLength: 1000}
+        expectedVersion: {type: integer, format: int64, minimum: 1}
+
+    SubjectRequestKind:
+      type: string
+      enum: [access, erasure]
+
+    SubjectRequestStatus:
+      type: string
+      enum: [received, identity_verified, assessed, approved, executing, completed, partially_completed, rejected]
+
+    SubjectRequestChannel:
+      type: string
+      enum: [email, in_person, letter, other]
+
+    SubjectRequestOutcome:
+      type: string
+      description: What erasure does with a category's records of the subject.
+      enum: [erased, unlinked, retained_legal, manual_review]
+
+    SubjectRequestCategory:
+      type: object
+      additionalProperties: false
+      required: [categoryId, name, records, outcome, note]
+      properties:
+        categoryId: {$ref: "#/components/schemas/PrivacyCategoryId"}
+        name: {type: string}
+        records: {type: integer, format: int64, minimum: 0}
+        outcome: {allOf: [{$ref: "#/components/schemas/SubjectRequestOutcome"}], nullable: true, description: Null for access requests.}
+        note: {type: string}
+
+    SubjectRequestAssessment:
+      type: object
+      additionalProperties: false
+      required: [categories, blockers, openHolds, uncoveredCategories]
+      properties:
+        categories: {type: array, items: {$ref: "#/components/schemas/SubjectRequestCategory"}}
+        blockers: {type: array, items: {type: string}, description: "Error codes that would block an erasure, such as `person_scim_managed`."}
+        openHolds: {type: integer, minimum: 0}
+        uncoveredCategories: {type: array, items: {$ref: "#/components/schemas/PrivacyCategoryId"}, description: Person-linked categories without a handler.}
+
+    SubjectRequestStep:
+      type: object
+      additionalProperties: false
+      required: [status, occurredAt, actor, note]
+      properties:
+        status: {$ref: "#/components/schemas/SubjectRequestStatus"}
+        occurredAt: {type: string, format: date-time}
+        actor: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        note: {type: string, maxLength: 1000}
+
+    SubjectRequest:
+      type: object
+      additionalProperties: false
+      required: [id, kind, status, personId, reference, channel, receivedAt, dueAt, notes, identityVerifiedAt, identityVerifiedBy, assessedAt, assessment, approvedAt, approvedBy, executedAt, executedBy, result, exportAvailable, completedAt, rejectionReason, steps, version, createdAt, createdBy]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {$ref: "#/components/schemas/SubjectRequestKind"}
+        status: {$ref: "#/components/schemas/SubjectRequestStatus"}
+        personId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null after an erasure was executed.}
+        reference: {type: string, maxLength: 100}
+        channel: {$ref: "#/components/schemas/SubjectRequestChannel"}
+        receivedAt: {type: string, format: date-time}
+        dueAt: {type: string, format: date-time}
+        notes: {type: string, maxLength: 2000}
+        identityVerifiedAt: {type: string, format: date-time, nullable: true}
+        identityVerifiedBy: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        assessedAt: {type: string, format: date-time, nullable: true}
+        assessment: {allOf: [{$ref: "#/components/schemas/SubjectRequestAssessment"}], nullable: true}
+        approvedAt: {type: string, format: date-time, nullable: true}
+        approvedBy: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        executedAt: {type: string, format: date-time, nullable: true}
+        executedBy: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        result: {allOf: [{$ref: "#/components/schemas/SubjectRequestAssessment"}], nullable: true, description: The outcome per category once executed.}
+        exportAvailable: {type: boolean}
+        completedAt: {type: string, format: date-time, nullable: true}
+        rejectionReason: {type: string, maxLength: 1000}
+        steps: {type: array, items: {$ref: "#/components/schemas/SubjectRequestStep"}}
+        version: {type: integer, format: int64, minimum: 1}
+        createdAt: {type: string, format: date-time}
+        createdBy: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    SubjectRequestList:
+      type: object
+      additionalProperties: false
+      required: [requests]
+      properties:
+        requests: {type: array, items: {$ref: "#/components/schemas/SubjectRequest"}}
+
+    SubjectRequestInput:
+      type: object
+      additionalProperties: false
+      required: [kind, personId, channel, receivedAt]
+      properties:
+        kind: {$ref: "#/components/schemas/SubjectRequestKind"}
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        reference: {type: string, maxLength: 100}
+        channel: {$ref: "#/components/schemas/SubjectRequestChannel"}
+        receivedAt: {type: string, format: date-time}
+        notes: {type: string, maxLength: 2000}
+
+    SubjectRequestTransitionInput:
+      type: object
+      additionalProperties: false
+      required: [status, expectedVersion]
+      properties:
+        status: {type: string, enum: [identity_verified, assessed, approved, rejected]}
+        note: {type: string, maxLength: 1000}
+        expectedVersion: {type: integer, format: int64, minimum: 1}
 
     UpdatePrivacySettingsRequest:
       type: object

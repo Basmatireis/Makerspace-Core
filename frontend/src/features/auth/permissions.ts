@@ -78,6 +78,7 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   'trainings.manage',
   'privacy.read',
   'privacy.settings.manage',
+  'privacy.requests.manage',
 ];
 
 export function canAccessSettings(currentUser: CurrentUser): boolean {

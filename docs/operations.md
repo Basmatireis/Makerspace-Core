@@ -81,7 +81,7 @@ Application-log and backup retention are separate deployment policies; neither i
 
 No production deployment is ready until these values and owners are explicit in that deployment's operating record. Repository defaults cannot decide the makerspace's legal or organizational obligations.
 
-The privacy registry documents every personal-data category, its owner module and its legacy default period, so the installation's retention can be reviewed in one place. `admin cleanup` behaviour is unchanged in this release; see [Privacy registry, retention and data-subject requests](privacy-and-retention.md).
+The privacy registry documents every personal-data category, its owner module and its legacy default period, so the installation's retention can be reviewed in one place; data-subject requests (access exports and erasure) are handled in Settings › Data › Privacy & data retention (tab Data requests). Note that backups can still hold data erased on request; the backup policy above must say how long. See [Privacy registry, retention and data-subject requests](privacy-and-retention.md).
 
 Application-log and backup retention are separate deployment policies; neither inherits the 365-day audit default. Before production, the operator must record and approve all three periods:
 

@@ -60,6 +60,7 @@ type Service struct {
 	pool     *pgxpool.Pool
 	catalog  *Catalog
 	handlers map[CategoryID]RetentionHandler
+	subjects map[CategoryID]SubjectHandler
 	legacy   LegacyPeriods
 	now      func() time.Time
 
@@ -70,7 +71,10 @@ type Service struct {
 
 // NewService wires the registry to the database.
 func NewService(pool *pgxpool.Pool, catalog *Catalog) *Service {
-	return &Service{pool: pool, catalog: catalog, handlers: map[CategoryID]RetentionHandler{}, now: time.Now}
+	return &Service{
+		pool: pool, catalog: catalog, handlers: map[CategoryID]RetentionHandler{},
+		subjects: map[CategoryID]SubjectHandler{}, now: time.Now,
+	}
 }
 
 // Catalog exposes the declared categories.
@@ -214,6 +218,15 @@ func (s *Service) GetSettings(ctx context.Context, p authorization.Principal) (S
 	if !p.Has(authorization.PrivacyRead) {
 		return Settings{}, apperror.PermissionDenied
 	}
+	row, err := privacydb.New(s.pool).GetPrivacySettings(ctx)
+	if err != nil {
+		return Settings{}, err
+	}
+	return settingsFrom(row), nil
+}
+
+// SettingsForExport reads the settings for a data-subject export (no permission check: the caller is authorized).
+func (s *Service) SettingsForExport(ctx context.Context) (Settings, error) {
 	row, err := privacydb.New(s.pool).GetPrivacySettings(ctx)
 	if err != nil {
 		return Settings{}, err

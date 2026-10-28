@@ -482,7 +482,7 @@ export function App() {
             <Route
               path="settings/privacy"
               element={
-                <PermissionRoute anyOf={['privacy.read', 'privacy.settings.manage']}>
+                <PermissionRoute anyOf={['privacy.read', 'privacy.settings.manage', 'privacy.requests.manage']}>
                   <PrivacyPage />
                 </PermissionRoute>
               }

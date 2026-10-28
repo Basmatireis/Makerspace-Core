@@ -40,6 +40,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/streaminggateways"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/subjectrequests"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/supervisors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
@@ -90,6 +91,7 @@ type Server struct {
 	configTransfer    *configtransfer.Service
 	trainings         *trainings.Service
 	privacy           *privacy.Service
+	subjectRequests   *subjectrequests.Service
 	deviceRates       deviceRateLimits
 	// gatewayFailures counts failed streaming-gateway authentications and enrollments per client IP.
 	gatewayFailures *ratelimit.Limiter
@@ -198,11 +200,15 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		AuditRetention:       &auditRetention,
 		EventSignupRetention: &eventSignupRetention,
 	})
+	peopleService := people.NewService(pool, fileService)
+	subjectRequestService := subjectrequests.NewService(pool, privacyService, peopleService, fileService)
+	privacyService.Register(privacycatalog.PrivacyRecords, subjectrequests.RetentionHandler())
 	return &Server{
 		pool:              pool,
 		config:            cfg,
 		auth:              authService,
-		people:            people.NewService(pool, fileService),
+		people:            peopleService,
+		subjectRequests:   subjectRequestService,
 		accounts:          accounts.NewService(pool, cfg, notifier),
 		permissions:       authorization.NewService(),
 		roles:             rolesService,

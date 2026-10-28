@@ -1,13 +1,13 @@
 # Privacy registry, retention and data-subject requests
 
-The privacy registry is the core module that records which personal data the makerspace stores, which module owns it, and how long the installation has handled it. This document covers the declared inventory, its persisted snapshot, the privacy settings and the read API, and the retention policy engine: versioned policies, holds, runs and dry runs, and the scheduler that executes them. Data-subject requests follow in the next phase and will use the same holds and runs.
+The privacy registry is the core module that records which personal data the makerspace stores, which module owns it, and how long the installation has handled it. This document covers the declared inventory, its persisted snapshot, the privacy settings and the read API, the retention policy engine (versioned policies, holds, runs and dry runs, and the scheduler that executes them), and data-subject requests (access exports and erasure) with the record of processing activities.
 
 ## Overview
 
 - **What it is.** Every built-in module declares its data categories in code, in `backend/internal/privacycatalog`. The registry validates these declarations, persists a snapshot of them, and shows them in Settings › Data › Privacy & data retention (tabs Overview, Data categories and Settings).
 - **Core module.** Privacy is a core module, so it can never be disabled. A category stays registered after its owning module is disabled or its plugin is removed, so later retention and data-subject requests still reach that data.
 - **Retention.** The retention engine (`backend/internal/privacy`) applies approved retention policies to the categories that have a retention routine. It runs from `admin cleanup` (legacy mode, manually or from the deployment's scheduler), from the dry run and execute buttons, and from the API scheduler when automatic runs are enabled. Until a category has an active policy, its legacy period applies unchanged.
-- **Data-subject requests.** Not yet answered by the engine; they follow in the next phase.
+- **Data-subject requests.** Access and erasure requests walk through a manual identity check, an assessment, an approval and the execution; each category answers through its subject handler. See [Data-subject requests](#data-subject-requests).
 
 The registry is implemented in `backend/internal/privacy`; the declarations and the legacy defaults live in `backend/internal/privacycatalog`.
 
@@ -108,7 +108,7 @@ Policies are managed with `privacy.policies.manage`: `GET|POST /privacy/policies
 A hold stops retention from acting on data:
 
 - a **category hold** skips the whole category in every run; its run items carry the status `skipped_hold`;
-- a **person hold** blocks erasure of that person. Data-subject requests use it in the next phase.
+- a **person hold** blocks erasure of that person: an erasure request is refused with 409 `erasure_on_hold` while one is open.
 
 Holds are created with `POST /privacy/holds` and ended with `POST /privacy/holds/{holdId}/release`, both with `privacy.policies.manage`. They are audited as `privacy.hold_created` and `privacy.hold_released`.
 
@@ -166,6 +166,44 @@ Every category below has a retention handler that applies its action inside the 
 | `printing.artifacts` | New handler: 3MF files and previews not used by a running run are removed; runs and jobs keep their records with the link cleared | No legacy period |
 | `runrecordings.timelapses` | 90 days (`timelapse_retention_days`; `0` keeps them) | Recording settings |
 
+## Data-subject requests
+
+A data-subject request (`backend/internal/subjectrequests`) answers a person's request for access to their data or for erasure. The request record holds the operator's reference, the channel, dates, counts and outcomes per category, and the lifecycle steps with their actors; it never holds the exported data itself.
+
+### Lifecycle
+
+**received → identity_verified → assessed → approved → executing → completed | partially_completed**, or **rejected** from any open state.
+
+- **Received.** The request is recorded with the person, the channel (`email`, `in_person`, `letter`, `other`), the date it was received and the operator's own reference (a ticket number, never the subject's name). The statutory deadline (`dueAt`, one month after receipt) is derived.
+- **Identity verified.** A manual step: the operator records how the identity was checked (the note says *how*, for example "student card shown in person", never what document was copied).
+- **Assessed.** Every category's subject handler runs inside a transaction that is rolled back. The assessment stores the number of records per category, for an erasure the outcome each category would have, the blockers that would stop the deletion (such as `person_scim_managed` or `accounts_delete_required`), the number of open holds on the person, and the person-linked categories without a handler. It can be repeated.
+- **Approved.** The person who verified the identity cannot approve (409 `request_four_eyes`); masters are excepted.
+- **Executed** (`privacy.requests.execute`). An **access** request builds one ZIP archive with `manifest.json` (controller, request, sections), one JSON document per category under `data/` and the profile image under `files/`, and stores it as a private file. An **erasure** runs the handlers again, then deletes the person through the people service with its usual rules (`people.delete` and, with an account, `accounts.delete` are required; SCIM provisioning and the last enabled master block it; an open person hold is refused with 409 `erasure_on_hold`). The request ends `completed`, or `partially_completed` when records were retained for a legal obligation, need manual review, or a category had no handler.
+- **Rejected.** Closes the request with a reason.
+
+Every step is audited as `privacy.subject_request_<status>`; execution as `privacy.subject_request_executed` with counts only; a download of the export as `privacy.subject_request_export_downloaded`.
+
+### Subject handlers and outcomes
+
+Each person- or account-linked category registers a `privacy.SubjectHandler` with `Export` (the category's records of the subject, as JSON, with explicit columns so that secrets never leave the database) and `Erase`. The built-in handlers rely on the person deletion: the database cascades or clears the links, so `Erase` counts the records and declares the outcome.
+
+| Outcome | Meaning | Built-in categories |
+| --- | --- | --- |
+| `erased` | Deleted with the person | identity, credentials, sessions, pending state, visits, survey invitations, event sign-ups, open day assignments, training records, Lab Rules confirmations, organization memberships, notifications |
+| `unlinked` | Kept without the person link | survey responses (anonymous results), event content, machine jobs and runs, actor references, privacy records |
+| `retained_legal` | Kept for a legal obligation, link removed | financial records, idempotency evidence, audit events |
+| `manual_review` | An operator must act first | SCIM mappings (deprovision in the identity provider) |
+
+Print files and run timelapses are not person-linked; the export's manifest says so and they are referenced only through machine jobs.
+
+### Processing activities
+
+The record of processing activities (`privacy_processing_activities`) is the operator's own list: name, purpose, legal basis, the data categories it covers, recipients and a retention note. It is read with `privacy.read` and maintained with `privacy.settings.manage` (`/privacy/processing-activities*`), version-checked and audited as `privacy.processing_activity_created|updated|deleted`.
+
+### Retention of requests
+
+Closed requests and their export archives belong to the category `privacy.records`; its retention handler deletes closed requests whose completion lies before the cutoff and queues their archives for blob deletion. Open requests are never touched.
+
 ## admin cleanup
 
 `admin cleanup` is the legacy mode of the retention engine. It uses the same queries and the same periods as before (`AUDIT_RETENTION`, `EVENT_SIGNUP_RETENTION` and the code constants), and records a run.
@@ -196,8 +234,14 @@ The output lists the run, then one line per category with its action, affected c
 | `GET /privacy/retention/runs` | `privacy.retention.execute` | List retention runs. |
 | `POST /privacy/retention/runs` | `privacy.retention.execute` | Start a `dry_run` or `execute` run. |
 | `GET /privacy/retention/runs/{runId}` | `privacy.retention.execute` | Read a run with its per-category items. |
+| `GET /privacy/processing-activities` | `privacy.read` | The record of processing activities. |
+| `POST /privacy/processing-activities`, `PUT|DELETE /privacy/processing-activities/{activityId}` | `privacy.settings.manage` | Maintain the record, version-checked. |
+| `GET|POST /privacy/requests`, `GET /privacy/requests/{requestId}` | `privacy.requests.manage` | Record and read data-subject requests. |
+| `POST /privacy/requests/{requestId}/transition` | `privacy.requests.manage` | Verify the identity, assess, approve or reject (`{status, note, expectedVersion}`). |
+| `POST /privacy/requests/{requestId}/execute` | `privacy.requests.execute` (+ `people.delete` for erasure) | Execute an approved request. |
+| `GET /privacy/requests/{requestId}/export` | `privacy.requests.execute` | Download the export archive of a completed access request. |
 
-`privacy.read`, `privacy.settings.manage`, `privacy.policies.manage` and `privacy.retention.execute` are not granted to existing roles. `master` receives them through the registry. `privacy.settings.manage`, `privacy.policies.manage` and `privacy.retention.execute` are part of the master fresh-sign-in policy (10 minutes). See [Authorization](authorization.md).
+`privacy.read`, `privacy.settings.manage`, `privacy.policies.manage`, `privacy.retention.execute`, `privacy.requests.manage` and `privacy.requests.execute` are not granted to existing roles. `master` receives them through the registry. All but `privacy.read` are part of the master fresh-sign-in policy (10 minutes). See [Authorization](authorization.md).
 
 ## Legal note
 

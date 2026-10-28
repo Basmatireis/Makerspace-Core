@@ -136,6 +136,8 @@ const (
 	PrivacySettingsManage              Permission = Permission(openapi.PrivacySettingsManage)
 	PrivacyPoliciesManage              Permission = Permission(openapi.PrivacyPoliciesManage)
 	PrivacyRetentionExecute            Permission = Permission(openapi.PrivacyRetentionExecute)
+	PrivacyRequestsManage              Permission = Permission(openapi.PrivacyRequestsManage)
+	PrivacyRequestsExecute             Permission = Permission(openapi.PrivacyRequestsExecute)
 )
 
 type Definition struct {
@@ -187,6 +189,7 @@ var registry = []Permission{
 	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride, LocalServicesManage,
 	ConfigurationExport, ConfigurationImport, NotificationsSend,
 	PrivacyRead, PrivacySettingsManage, PrivacyPoliciesManage, PrivacyRetentionExecute,
+	PrivacyRequestsManage, PrivacyRequestsExecute,
 }
 
 var known = func() map[Permission]struct{} {
@@ -319,6 +322,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	PrivacySettingsManage:              "Change the installation's privacy settings (controller, contact, automatic retention runs).",
 	PrivacyPoliciesManage:              "Create, approve, activate and retire retention policies and place or release holds.",
 	PrivacyRetentionExecute:            "Start retention dry runs and executions.",
+	PrivacyRequestsManage:              "Record data-subject requests, verify identities, assess, approve or reject them.",
+	PrivacyRequestsExecute:             "Execute approved data-subject requests and download access exports.",
 }
 
 type GrantScope string

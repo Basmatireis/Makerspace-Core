@@ -424,9 +424,6 @@ func (s *Service) Delete(
 	expectedVersion int64,
 	requestID *uuid.UUID,
 ) error {
-	if !principal.Has(authorization.PeopleDelete) {
-		return apperror.PermissionDenied
-	}
 	if expectedVersion < 1 {
 		return apperror.InvalidField("expectedVersion must be positive")
 	}
@@ -435,50 +432,101 @@ func (s *Service) Delete(
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	peopleQueries := peopledb.New(tx)
-	current, err := peopleQueries.GetPersonForDeletion(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.NotFound
-	} else if err != nil {
-		return err
-	}
-	if current.Version != expectedVersion {
-		return apperror.StaleWrite
-	}
-	// Collect every business rule that blocks the deletion so the operator
-	// sees all of them at once instead of fixing one per attempt.
-	var blockers []*apperror.Error
-	var appErr *apperror.Error
-	if err := accounts.AuthorizePersonDeletion(ctx, tx, principal, id); errors.As(err, &appErr) &&
-		appErr.HTTPStatus == 409 {
-		blockers = append(blockers, appErr)
-	} else if err != nil {
-		return err
-	}
-	// SCIM links restrict deletion; deprovisioning belongs to the identity provider.
-	scimManaged, err := peopleQueries.PersonHasSCIMProvisioning(ctx, id)
+	profileImage, err := s.DeleteInTransaction(ctx, tx, principal, id, expectedVersion, requestID)
 	if err != nil {
 		return err
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if profileImage != nil {
+		// The actor may have deleted their own Account. The Person deletion's
+		// audit event records the actor; subsequent file cleanup is system-owned.
+		return s.files.DeleteSystem(ctx, *profileImage, requestID)
+	}
+	return nil
+}
+
+// DeletionBlockers reports the business rules that would block deleting the
+// person right now (SCIM provisioning, the last enabled master, a missing
+// accounts.delete permission), for previews such as a data-subject erasure
+// assessment. It locks nothing beyond the master invariant lock of tx.
+func (s *Service) DeletionBlockers(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	id uuid.UUID,
+) ([]*apperror.Error, error) {
+	var blockers []*apperror.Error
+	var appErr *apperror.Error
+	err := accounts.AuthorizePersonDeletion(ctx, tx, principal, id)
+	switch {
+	case errors.Is(err, apperror.PermissionDenied):
+		blockers = append(blockers, apperror.New(http.StatusForbidden, "accounts_delete_required", "Deleting the attached account needs accounts.delete."))
+	case errors.As(err, &appErr) && appErr.HTTPStatus == http.StatusConflict:
+		blockers = append(blockers, appErr)
+	case err != nil:
+		return nil, err
+	}
+	// SCIM links restrict deletion; deprovisioning belongs to the identity provider.
+	scimManaged, err := peopledb.New(tx).PersonHasSCIMProvisioning(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	if scimManaged {
-		blockers = append(
-			blockers,
-			apperror.New(
-				http.StatusConflict,
-				"person_scim_managed",
-				"This person is provisioned through SCIM. Remove them in the identity provider instead.",
-			),
-		)
+		blockers = append(blockers, apperror.New(
+			http.StatusConflict,
+			"person_scim_managed",
+			"This person is provisioned through SCIM. Remove them in the identity provider instead.",
+		))
+	}
+	return blockers, nil
+}
+
+// DeleteInTransaction deletes the person inside tx after the same checks as
+// Delete (permission, version, blockers) and writes the audit event. It
+// returns the profile image file the caller removes once tx committed.
+func (s *Service) DeleteInTransaction(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	id uuid.UUID,
+	expectedVersion int64,
+	requestID *uuid.UUID,
+) (*uuid.UUID, error) {
+	if !principal.Has(authorization.PeopleDelete) {
+		return nil, apperror.PermissionDenied
+	}
+	peopleQueries := peopledb.New(tx)
+	current, err := peopleQueries.GetPersonForDeletion(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.NotFound
+	} else if err != nil {
+		return nil, err
+	}
+	if current.Version != expectedVersion {
+		return nil, apperror.StaleWrite
+	}
+	// Collect every business rule that blocks the deletion so the operator
+	// sees all of them at once instead of fixing one per attempt.
+	blockers, err := s.DeletionBlockers(ctx, tx, principal, id)
+	if err != nil {
+		return nil, err
+	}
+	for _, blocker := range blockers {
+		if blocker.Code == "accounts_delete_required" {
+			return nil, apperror.PermissionDenied
+		}
 	}
 	if len(blockers) > 0 {
-		return personDeletionBlocked(blockers...)
+		return nil, personDeletionBlocked(blockers...)
 	}
 	if current.ProfileImageFileID != nil && s.files == nil {
-		return errors.New("file storage is unavailable")
+		return nil, errors.New("file storage is unavailable")
 	}
 	actor := principal.AccountID
 	if err := events.ScrubAssignmentsForDeletedPerson(ctx, tx, actor, id, requestID); err != nil {
-		return err
+		return nil, err
 	}
 	if err := audit.Write(
 		ctx,
@@ -491,7 +539,7 @@ func (s *Service) Delete(
 			RequestID:      requestID,
 		},
 	); err != nil {
-		return err
+		return nil, err
 	}
 	if _, err := peopleQueries.DeletePerson(
 		ctx,
@@ -500,21 +548,13 @@ func (s *Service) Delete(
 		err,
 		pgx.ErrNoRows,
 	) {
-		return apperror.StaleWrite
+		return nil, apperror.StaleWrite
 	} else if blocker := accounts.DeletionReferenceBlocker(err); blocker != nil {
-		return personDeletionBlocked(blocker)
+		return nil, personDeletionBlocked(blocker)
 	} else if err != nil {
-		return err
+		return nil, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return err
-	}
-	if current.ProfileImageFileID != nil {
-		// The actor may have deleted their own Account. The Person deletion's
-		// audit event records the actor; subsequent file cleanup is system-owned.
-		return s.files.DeleteSystem(ctx, *current.ProfileImageFileID, requestID)
-	}
-	return nil
+	return current.ProfileImageFileID, nil
 }
 
 func personDeletionBlocked(reasons ...*apperror.Error) *apperror.Error {

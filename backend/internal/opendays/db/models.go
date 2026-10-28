@@ -1475,6 +1475,20 @@ type PrivacyPolicyVersion struct {
 	RetiredAt            pgtype.Timestamptz
 }
 
+type PrivacyProcessingActivity struct {
+	ID                 uuid.UUID
+	Name               string
+	Purpose            string
+	LegalBasis         string
+	CategoryIds        []string
+	Recipients         string
+	RetentionNote      string
+	Version            int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	UpdatedByAccountID *uuid.UUID
+}
+
 type PrivacyRetentionHold struct {
 	ID                  uuid.UUID
 	CategoryID          *string
@@ -1518,6 +1532,43 @@ type PrivacySetting struct {
 	Version               int64
 	UpdatedAt             pgtype.Timestamptz
 	UpdatedByAccountID    *uuid.UUID
+}
+
+type PrivacySubjectRequest struct {
+	ID                          uuid.UUID
+	Kind                        string
+	Status                      string
+	SubjectPersonID             *uuid.UUID
+	Reference                   string
+	Channel                     string
+	ReceivedAt                  time.Time
+	DueAt                       time.Time
+	Notes                       string
+	IdentityVerifiedAt          pgtype.Timestamptz
+	IdentityVerifiedByAccountID *uuid.UUID
+	AssessedAt                  pgtype.Timestamptz
+	Assessment                  []byte
+	ApprovedAt                  pgtype.Timestamptz
+	ApprovedByAccountID         *uuid.UUID
+	ExecutedAt                  pgtype.Timestamptz
+	ExecutedByAccountID         *uuid.UUID
+	ExportFileID                *uuid.UUID
+	Result                      []byte
+	CompletedAt                 pgtype.Timestamptz
+	RejectionReason             string
+	Version                     int64
+	CreatedAt                   time.Time
+	CreatedByAccountID          *uuid.UUID
+	UpdatedAt                   time.Time
+}
+
+type PrivacySubjectRequestStep struct {
+	ID             uuid.UUID
+	RequestID      uuid.UUID
+	Status         string
+	ActorAccountID *uuid.UUID
+	OccurredAt     time.Time
+	Note           string
 }
 
 type Role struct {
