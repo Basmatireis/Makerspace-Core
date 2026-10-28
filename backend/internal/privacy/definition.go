@@ -13,6 +13,7 @@ package privacy
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -47,7 +48,21 @@ const (
 	SubjectNone    Subject = "none"
 	SubjectPerson  Subject = "person"
 	SubjectAccount Subject = "account"
+
+	// ErasureNone: the category is not linked to a person or account.
+	ErasureNone Erasure = "none"
+	// ErasureErased: the rows are deleted together with the person or account.
+	ErasureErased Erasure = "erased"
+	// ErasureUnlinked: the rows stay without their link to the person.
+	ErasureUnlinked Erasure = "unlinked"
+	// ErasureRetainedLegal: the rows stay for a legal obligation, without the person link.
+	ErasureRetainedLegal Erasure = "retained_legal"
+	// ErasureManualReview: an operator must act before the rows can go.
+	ErasureManualReview Erasure = "manual_review"
 )
+
+// Erasure says what happens to a category's rows when its subject asks for erasure.
+type Erasure string
 
 // LegacyDefault describes how the installation handled the category before
 // the privacy registry existed, so Phase 4 can seed a policy proposal and the
@@ -82,6 +97,11 @@ type Definition struct {
 	Owner       ModuleID
 	Name        string
 	Description string
+	// Contains lists, in plain words, what the category holds ("first and last
+	// name, e-mail, matriculation number"), for operators who do not know the schema.
+	Contains string
+	// ErasureOutcome is what a data-subject erasure does to the category's rows.
+	ErasureOutcome Erasure
 	// Fields lists the columns that hold the data as table.column, so the
 	// inventory test can prove every known personal-data column has an owner.
 	Fields   []string
@@ -139,8 +159,20 @@ func (d Definition) Validate() error {
 			return fmt.Errorf("category %q: unknown action %q", d.ID, action)
 		}
 	}
+	if strings.TrimSpace(d.Contains) == "" {
+		return fmt.Errorf("category %q needs a plain-words list of what it contains", d.ID)
+	}
 	switch d.Subject {
-	case SubjectNone, SubjectPerson, SubjectAccount:
+	case SubjectNone:
+		if d.ErasureOutcome != "" && d.ErasureOutcome != ErasureNone {
+			return fmt.Errorf("category %q has no subject and cannot declare an erasure outcome", d.ID)
+		}
+	case SubjectPerson, SubjectAccount:
+		switch d.ErasureOutcome {
+		case ErasureErased, ErasureUnlinked, ErasureRetainedLegal, ErasureManualReview:
+		default:
+			return fmt.Errorf("category %q: unknown erasure outcome %q", d.ID, d.ErasureOutcome)
+		}
 	default:
 		return fmt.Errorf("category %q: unknown subject %q", d.ID, d.Subject)
 	}

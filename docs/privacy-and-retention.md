@@ -19,6 +19,8 @@ Each category (`privacy.Definition`) declares:
 
 - `id`: a stable dotted identifier, for example `events.external_signups`;
 - owner module, name and description;
+- `contains`: in plain words what the category holds ("first and last name, e-mail, matriculation number"), for operators who do not know the schema;
+- `erasure`: what a data-subject erasure does to the rows (`erased`, `unlinked`, `retained_legal`, `manual_review`; `none` for categories without a subject);
 - `fields`: the columns that hold the data as `table.column`;
 - `triggers`: the events that start a retention period (`created_at`, `completed_at`, `cancelled_at`, `expired_at`, `account_closed_at`, `last_used_at`, `legal_period_end`, `ended_at`);
 - `actions`: what retention may do (`delete`, `anonymize`, `unlink`, `redact`, `retain_with_review`). `retain_with_review` is a reviewed exception, never silent indefinite retention;
@@ -75,6 +77,10 @@ Adding a column that holds personal data without declaring it fails the build's 
 
 - **Snapshots.** On first use after a start, the registry writes every declared category to `privacy_category_snapshots` (migration `00080`), with its owner module and definition.
 - **Orphaned categories.** A snapshot whose category is no longer declared in code is marked `orphaned` and stays visible, with its stored description. Orphaned data is still in scope for later retention and data-subject requests.
+
+### Coverage
+
+Each category carries what the registry knows beyond its declaration, so the Categories tab answers "is this covered?" without opening the other tabs: `coverage.policyStatus` is `active` when a policy is in force, `pending` when only a draft or approved version exists (the previous behaviour still applies), and `none` without any version; `coverage.policy` is that version; `coverage.hold` the open category hold; `coverage.lastRun` the most recent run item of the category (mode, trigger, action, affected rows, status); `coverage.processingActivities` the activities of the record of processing that name the category.
 
 ## Settings
 
@@ -223,8 +229,8 @@ The output lists the run, then one line per category with its action, affected c
 
 | Endpoint | Permission | Purpose |
 | --- | --- | --- |
-| `GET /privacy/overview` | `privacy.read` | Counts of categories, orphaned categories and the automatic-runs flag. |
-| `GET /privacy/categories` | `privacy.read` | Declared and orphaned categories with their status. |
+| `GET /privacy/overview` | `privacy.read` | Counts of categories, orphaned categories, categories with an active, a pending or no policy, open holds, the last run and the automatic-runs flag. |
+| `GET /privacy/categories` | `privacy.read` | Declared and orphaned categories with their status and coverage: the decision of record (active, else approved, else newest draft), the open category hold, the last run item and the processing activities that name the category. |
 | `GET /privacy/settings` | `privacy.read` | The privacy settings. |
 | `PUT /privacy/settings` | `privacy.settings.manage` | Change the privacy settings with `expectedVersion`. |
 | `GET /privacy/policies` | `privacy.policies.manage` | List retention policy versions. |

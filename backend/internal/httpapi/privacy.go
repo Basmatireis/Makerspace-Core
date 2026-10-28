@@ -21,10 +21,25 @@ func (s *Server) GetPrivacyOverview(
 	if err != nil {
 		return nil, err
 	}
+	lastRun := nullable.NewNullNullable[openapi.RetentionRunSummary]()
+	if overview.LastRun != nil {
+		run := overview.LastRun
+		lastRun = nullable.NewNullableWithValue(openapi.RetentionRunSummary{
+			Id: run.ID, Mode: openapi.RetentionRunMode(run.Mode), Trigger: openapi.RetentionRunSummaryTrigger(run.Trigger),
+			StartedAt: run.StartedAt, FinishedAt: nullableTimeValue(run.FinishedAt),
+			Status: openapi.RetentionRunSummaryStatus(run.Status), AffectedCount: run.Affected,
+		})
+	}
 	return openapi.GetPrivacyOverview200JSONResponse{
 		Categories:           overview.Categories,
 		OrphanedCategories:   overview.OrphanedCategories,
 		AutomaticRunsEnabled: overview.AutomaticRunsEnabled,
+		PoliciesActive:       overview.PoliciesActive,
+		PoliciesPending:      overview.PoliciesPending,
+		WithoutPolicy:        overview.WithoutPolicy,
+		OpenCategoryHolds:    overview.OpenCategoryHolds,
+		OpenPersonHolds:      overview.OpenPersonHolds,
+		LastRun:              lastRun,
 	}, nil
 }
 
@@ -40,9 +55,23 @@ func (s *Server) ListPrivacyCategories(
 	if err != nil {
 		return nil, err
 	}
+	coverage, err := s.privacy.Coverage(ctx, principal)
+	if err != nil {
+		return nil, err
+	}
+	activities, err := s.subjectRequests.ListActivities(ctx, principal)
+	if err != nil {
+		return nil, err
+	}
+	byCategory := map[privacy.CategoryID][]openapi.ProcessingActivityReference{}
+	for _, activity := range activities {
+		for _, id := range activity.CategoryIDs {
+			byCategory[id] = append(byCategory[id], openapi.ProcessingActivityReference{Id: activity.ID, Name: activity.Name})
+		}
+	}
 	result := make([]openapi.PrivacyCategory, 0, len(categories))
 	for _, category := range categories {
-		result = append(result, privacyCategoryDTO(category))
+		result = append(result, privacyCategoryDTO(category, privacy.CoverageOf(coverage, category.ID), byCategory[category.ID]))
 	}
 	return openapi.ListPrivacyCategories200JSONResponse{Categories: result}, nil
 }
@@ -99,7 +128,36 @@ func privacySettingsDTO(settings privacy.Settings) openapi.PrivacySettings {
 	}
 }
 
-func privacyCategoryDTO(category privacy.Category) openapi.PrivacyCategory {
+func coverageDTO(coverage privacy.Coverage, activities []openapi.ProcessingActivityReference) openapi.PrivacyCategoryCoverage {
+	policy := nullable.NewNullNullable[openapi.RetentionPolicy]()
+	if coverage.Policy != nil {
+		policy = nullable.NewNullableWithValue(policyDTO(*coverage.Policy))
+	}
+	hold := nullable.NewNullNullable[openapi.RetentionHold]()
+	if coverage.Hold != nil {
+		hold = nullable.NewNullableWithValue(retentionHoldDTO(*coverage.Hold))
+	}
+	lastRun := nullable.NewNullNullable[openapi.RetentionRunItemSummary]()
+	if coverage.LastRun != nil {
+		item := coverage.LastRun
+		lastRun = nullable.NewNullableWithValue(openapi.RetentionRunItemSummary{
+			RunId: item.RunID, Mode: openapi.RetentionRunMode(item.Mode), Trigger: openapi.RetentionRunItemSummaryTrigger(item.Trigger),
+			StartedAt: item.StartedAt, Action: openapi.RetentionAction(item.Action), AffectedCount: item.Affected,
+			Status: openapi.RetentionRunItemSummaryStatus(item.Status),
+		})
+	}
+	if activities == nil {
+		activities = []openapi.ProcessingActivityReference{}
+	}
+	return openapi.PrivacyCategoryCoverage{
+		PolicyStatus: openapi.PrivacyCategoryCoveragePolicyStatus(coverage.PolicyStatus),
+		Policy:       policy, Hold: hold, LastRun: lastRun, ProcessingActivities: activities,
+	}
+}
+
+func privacyCategoryDTO(
+	category privacy.Category, coverage privacy.Coverage, activities []openapi.ProcessingActivityReference,
+) openapi.PrivacyCategory {
 	triggers := make([]openapi.RetentionTrigger, 0, len(category.Triggers))
 	for _, trigger := range category.Triggers {
 		triggers = append(triggers, openapi.RetentionTrigger(trigger))
@@ -119,10 +177,17 @@ func privacyCategoryDTO(category privacy.Category) openapi.PrivacyCategory {
 		})
 	}
 	fields := append([]string{}, category.Fields...)
+	erasure := category.ErasureOutcome
+	if erasure == "" {
+		erasure = privacy.ErasureNone
+	}
 	return openapi.PrivacyCategory{
 		Id:            string(category.ID),
 		Name:          category.Name,
 		Description:   category.Description,
+		Contains:      category.Contains,
+		Erasure:       openapi.PrivacyCategoryErasure(erasure),
+		Coverage:      coverageDTO(coverage, activities),
 		OwnerModuleId: string(category.Owner),
 		Orphaned:      category.Orphaned,
 		Subject:       openapi.PrivacySubject(category.Subject),

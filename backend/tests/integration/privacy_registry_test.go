@@ -94,9 +94,18 @@ func TestPrivacyRegistryOverHTTP(t *testing.T) {
 		Categories           int  `json:"categories"`
 		OrphanedCategories   int  `json:"orphanedCategories"`
 		AutomaticRunsEnabled bool `json:"automaticRunsEnabled"`
+		PoliciesActive       int  `json:"policiesActive"`
+		PoliciesPending      int  `json:"policiesPending"`
+		WithoutPolicy        int  `json:"withoutPolicy"`
+		OpenCategoryHolds    int  `json:"openCategoryHolds"`
+		LastRun              *struct {
+			Mode string `json:"mode"`
+		} `json:"lastRun"`
 	}
 	decodeResponse(t, response, &overview)
-	if overview.Categories != len(list.Categories) || overview.OrphanedCategories != 0 || overview.AutomaticRunsEnabled {
+	if overview.Categories != len(list.Categories) || overview.OrphanedCategories != 0 || overview.AutomaticRunsEnabled ||
+		overview.PoliciesActive != 0 || overview.PoliciesPending == 0 || overview.LastRun != nil ||
+		overview.PoliciesActive+overview.PoliciesPending+overview.WithoutPolicy != overview.Categories {
 		t.Fatalf("overview = %+v", overview)
 	}
 

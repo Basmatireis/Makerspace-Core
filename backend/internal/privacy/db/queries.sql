@@ -125,3 +125,15 @@ SELECT * FROM privacy_retention_run_items WHERE run_id = sqlc.arg(run_id) ORDER 
 
 -- name: LastRun :one
 SELECT * FROM privacy_retention_runs ORDER BY started_at DESC LIMIT 1;
+
+-- name: LastRunItemPerCategory :many
+-- The most recent run item of every category, with the run it belongs to.
+SELECT DISTINCT ON (i.category_id)
+    i.category_id, i.run_id, i.action, i.affected_count, i.status, r.mode, r.trigger, r.started_at
+FROM privacy_retention_run_items i
+JOIN privacy_retention_runs r ON r.id = i.run_id
+ORDER BY i.category_id, r.started_at DESC, i.run_id DESC;
+
+-- name: SumRunAffected :one
+SELECT coalesce(sum(affected_count), 0)::bigint AS affected
+FROM privacy_retention_run_items WHERE run_id = sqlc.arg(run_id) AND status = 'applied';

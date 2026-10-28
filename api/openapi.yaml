@@ -11480,11 +11480,17 @@ components:
     PrivacyCategory:
       type: object
       additionalProperties: false
-      required: [id, name, description, ownerModuleId, orphaned, subject, fields, triggers, actions, legacyDefault, retentionNote, firstSeenAt, lastSeenAt]
+      required: [id, name, description, contains, erasure, ownerModuleId, orphaned, subject, fields, triggers, actions, legacyDefault, retentionNote, firstSeenAt, lastSeenAt, coverage]
       properties:
         id: {$ref: "#/components/schemas/PrivacyCategoryId"}
         name: {type: string, maxLength: 100}
         description: {type: string, maxLength: 500}
+        contains: {type: string, maxLength: 500, description: "In plain words, what the category holds (names, e-mail, matriculation number)."}
+        erasure:
+          type: string
+          enum: [none, erased, unlinked, retained_legal, manual_review]
+          description: What a data-subject erasure does to the category's rows.
+        coverage: {$ref: "#/components/schemas/PrivacyCategoryCoverage"}
         ownerModuleId: {type: string, maxLength: 60, pattern: "^[a-z][a-z0-9_]*$", description: The built-in feature area that owns the category.}
         orphaned: {type: boolean, description: The application code no longer declares the category; its data may still exist.}
         subject: {$ref: "#/components/schemas/PrivacySubject"}
@@ -11499,6 +11505,58 @@ components:
         firstSeenAt: {type: string, format: date-time}
         lastSeenAt: {type: string, format: date-time}
 
+    PrivacyCategoryCoverage:
+      type: object
+      additionalProperties: false
+      description: What the registry knows about a category beyond its declaration.
+      required: [policyStatus, policy, hold, lastRun, processingActivities]
+      properties:
+        policyStatus:
+          type: string
+          enum: [active, pending, none]
+          description: "`active`: a policy is in force; `pending`: only a draft or approved version exists and the previous behaviour applies; `none`: no decision yet."
+        policy: {allOf: [{$ref: "#/components/schemas/RetentionPolicy"}], nullable: true, description: "The active version, else the approved one, else the newest draft."}
+        hold: {allOf: [{$ref: "#/components/schemas/RetentionHold"}], nullable: true, description: "The open category hold, if any."}
+        lastRun: {allOf: [{$ref: "#/components/schemas/RetentionRunItemSummary"}], nullable: true, description: "The most recent run that handled the category."}
+        processingActivities:
+          type: array
+          description: Processing activities that name the category.
+          items: {$ref: "#/components/schemas/ProcessingActivityReference"}
+
+    ProcessingActivityReference:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 200}
+
+    RetentionRunItemSummary:
+      type: object
+      additionalProperties: false
+      required: [runId, mode, trigger, startedAt, action, affectedCount, status]
+      properties:
+        runId: {$ref: "#/components/schemas/UUIDv7"}
+        mode: {$ref: "#/components/schemas/RetentionRunMode"}
+        trigger: {type: string, enum: [manual, scheduled, cli]}
+        startedAt: {type: string, format: date-time}
+        action: {$ref: "#/components/schemas/RetentionAction"}
+        affectedCount: {type: integer, format: int64, minimum: 0}
+        status: {type: string, enum: [applied, skipped_hold, skipped_no_handler, failed]}
+
+    RetentionRunSummary:
+      type: object
+      additionalProperties: false
+      required: [id, mode, trigger, startedAt, finishedAt, status, affectedCount]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        mode: {$ref: "#/components/schemas/RetentionRunMode"}
+        trigger: {type: string, enum: [manual, scheduled, cli]}
+        startedAt: {type: string, format: date-time}
+        finishedAt: {type: string, format: date-time, nullable: true}
+        status: {type: string, enum: [running, completed, failed]}
+        affectedCount: {type: integer, format: int64, minimum: 0, description: "Rows the run changed, or would have changed in a dry run."}
+
     PrivacyCategoryList:
       type: object
       additionalProperties: false
@@ -11509,11 +11567,17 @@ components:
     PrivacyOverview:
       type: object
       additionalProperties: false
-      required: [categories, orphanedCategories, automaticRunsEnabled]
+      required: [categories, orphanedCategories, automaticRunsEnabled, policiesActive, policiesPending, withoutPolicy, openCategoryHolds, openPersonHolds, lastRun]
       properties:
         categories: {type: integer, minimum: 0}
         orphanedCategories: {type: integer, minimum: 0}
         automaticRunsEnabled: {type: boolean}
+        policiesActive: {type: integer, minimum: 0, description: Categories with an active retention policy.}
+        policiesPending: {type: integer, minimum: 0, description: Categories whose only versions are drafts or approved; the previous behaviour applies.}
+        withoutPolicy: {type: integer, minimum: 0, description: Categories without any policy version.}
+        openCategoryHolds: {type: integer, minimum: 0}
+        openPersonHolds: {type: integer, minimum: 0}
+        lastRun: {allOf: [{$ref: "#/components/schemas/RetentionRunSummary"}], nullable: true}
 
     PrivacySettings:
       type: object

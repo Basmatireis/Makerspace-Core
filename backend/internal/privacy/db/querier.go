@@ -23,6 +23,8 @@ type Querier interface {
 	InsertRun(ctx context.Context, arg InsertRunParams) (PrivacyRetentionRun, error)
 	InsertRunItem(ctx context.Context, arg InsertRunItemParams) error
 	LastRun(ctx context.Context) (PrivacyRetentionRun, error)
+	// The most recent run item of every category, with the run it belongs to.
+	LastRunItemPerCategory(ctx context.Context) ([]LastRunItemPerCategoryRow, error)
 	ListActivePolicies(ctx context.Context) ([]PrivacyPolicyVersion, error)
 	ListCategorySnapshots(ctx context.Context) ([]PrivacyCategorySnapshot, error)
 	ListHolds(ctx context.Context) ([]PrivacyRetentionHold, error)
@@ -38,6 +40,7 @@ type Querier interface {
 	OrphanCategorySnapshots(ctx context.Context, declared []string) (int64, error)
 	ReleaseHold(ctx context.Context, arg ReleaseHoldParams) (PrivacyRetentionHold, error)
 	RetirePolicy(ctx context.Context, id uuid.UUID) (PrivacyPolicyVersion, error)
+	SumRunAffected(ctx context.Context, runID uuid.UUID) (int64, error)
 	UpdateDraftPolicy(ctx context.Context, arg UpdateDraftPolicyParams) (PrivacyPolicyVersion, error)
 	UpdatePrivacySettings(ctx context.Context, arg UpdatePrivacySettingsParams) (PrivacySetting, error)
 	// Records a declared category; a category seen again is no longer orphaned.

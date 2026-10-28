@@ -384,6 +384,55 @@ func (q *Queries) LastRun(ctx context.Context) (PrivacyRetentionRun, error) {
 	return i, err
 }
 
+const lastRunItemPerCategory = `-- name: LastRunItemPerCategory :many
+SELECT DISTINCT ON (i.category_id)
+    i.category_id, i.run_id, i.action, i.affected_count, i.status, r.mode, r.trigger, r.started_at
+FROM privacy_retention_run_items i
+JOIN privacy_retention_runs r ON r.id = i.run_id
+ORDER BY i.category_id, r.started_at DESC, i.run_id DESC
+`
+
+type LastRunItemPerCategoryRow struct {
+	CategoryID    string
+	RunID         uuid.UUID
+	Action        string
+	AffectedCount int64
+	Status        string
+	Mode          string
+	Trigger       string
+	StartedAt     time.Time
+}
+
+// The most recent run item of every category, with the run it belongs to.
+func (q *Queries) LastRunItemPerCategory(ctx context.Context) ([]LastRunItemPerCategoryRow, error) {
+	rows, err := q.db.Query(ctx, lastRunItemPerCategory)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LastRunItemPerCategoryRow{}
+	for rows.Next() {
+		var i LastRunItemPerCategoryRow
+		if err := rows.Scan(
+			&i.CategoryID,
+			&i.RunID,
+			&i.Action,
+			&i.AffectedCount,
+			&i.Status,
+			&i.Mode,
+			&i.Trigger,
+			&i.StartedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActivePolicies = `-- name: ListActivePolicies :many
 SELECT id, category_id, version, trigger, period_days, action, purpose, legal_basis, reason, status, source_template, created_at, created_by_account_id, updated_at, approved_at, approved_by_account_id, activated_at, activated_by_account_id, retired_at FROM privacy_policy_versions WHERE status = 'active' ORDER BY category_id
 `
@@ -816,6 +865,18 @@ func (q *Queries) RetirePolicy(ctx context.Context, id uuid.UUID) (PrivacyPolicy
 		&i.RetiredAt,
 	)
 	return i, err
+}
+
+const sumRunAffected = `-- name: SumRunAffected :one
+SELECT coalesce(sum(affected_count), 0)::bigint AS affected
+FROM privacy_retention_run_items WHERE run_id = $1 AND status = 'applied'
+`
+
+func (q *Queries) SumRunAffected(ctx context.Context, runID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, sumRunAffected, runID)
+	var affected int64
+	err := row.Scan(&affected)
+	return affected, err
 }
 
 const updateDraftPolicy = `-- name: UpdateDraftPolicy :one

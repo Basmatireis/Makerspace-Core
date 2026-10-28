@@ -54,6 +54,14 @@ type Overview struct {
 	Categories           int
 	OrphanedCategories   int
 	AutomaticRunsEnabled bool
+	// Policy coverage: categories with an active policy, with only a draft or approved version, and without any.
+	PoliciesActive    int
+	PoliciesPending   int
+	WithoutPolicy     int
+	OpenCategoryHolds int
+	OpenPersonHolds   int
+	// LastRun is the most recent retention run of any mode, if one exists.
+	LastRun *RunSummary
 }
 
 // Service reads the registry and settings and runs retention.
@@ -176,6 +184,7 @@ func orphanedDefinition(row privacydb.PrivacyCategorySnapshot) Definition {
 		Owner:       ModuleID(row.OwnerModuleID),
 		Name:        stored.Name,
 		Description: "No longer declared by the application code; its data may still exist.",
+		Contains:    "Unknown: the declaring code is gone.",
 		Fields:      stored.Fields,
 		Subject:     Subject(stored.Subject),
 	}
@@ -204,13 +213,28 @@ func (s *Service) Overview(ctx context.Context, p authorization.Principal) (Over
 	if err != nil {
 		return Overview{}, err
 	}
+	coverage, err := s.coverage(ctx)
+	if err != nil {
+		return Overview{}, err
+	}
 	overview := Overview{AutomaticRunsEnabled: settings.AutomaticRunsEnabled}
 	for _, category := range categories {
 		overview.Categories++
 		if category.Orphaned {
 			overview.OrphanedCategories++
 		}
+		switch coverage.categories[category.ID].PolicyStatus {
+		case PolicyCoverageActive:
+			overview.PoliciesActive++
+		case PolicyCoveragePending:
+			overview.PoliciesPending++
+		default:
+			overview.WithoutPolicy++
+		}
 	}
+	overview.OpenCategoryHolds = coverage.openCategoryHolds
+	overview.OpenPersonHolds = coverage.openPersonHolds
+	overview.LastRun = coverage.lastRun
 	return overview, nil
 }
 

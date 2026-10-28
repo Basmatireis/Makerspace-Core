@@ -18,6 +18,8 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PrivacyCategoryCoverage } from './privacyCategoryCoverage';
+import type { PrivacyCategoryErasure } from './privacyCategoryErasure';
 import type { PrivacyCategoryId } from './privacyCategoryId';
 import type { PrivacyLegacyDefault } from './privacyLegacyDefault';
 import type { PrivacySubject } from './privacySubject';
@@ -30,6 +32,14 @@ export interface PrivacyCategory {
   name: string;
   /** @maxLength 500 */
   description: string;
+  /**
+     * In plain words, what the category holds (names, e-mail, matriculation number).
+     * @maxLength 500
+     */
+  contains: string;
+  /** What a data-subject erasure does to the category's rows. */
+  erasure: PrivacyCategoryErasure;
+  coverage: PrivacyCategoryCoverage;
   /**
      * The built-in feature area that owns the category.
      * @maxLength 60

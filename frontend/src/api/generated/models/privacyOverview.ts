@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { RetentionRunSummary } from './retentionRunSummary';
 
 export interface PrivacyOverview {
   /** @minimum 0 */
@@ -25,4 +26,24 @@ export interface PrivacyOverview {
   /** @minimum 0 */
   orphanedCategories: number;
   automaticRunsEnabled: boolean;
+  /**
+     * Categories with an active retention policy.
+     * @minimum 0
+     */
+  policiesActive: number;
+  /**
+     * Categories whose only versions are drafts or approved; the previous behaviour applies.
+     * @minimum 0
+     */
+  policiesPending: number;
+  /**
+     * Categories without any policy version.
+     * @minimum 0
+     */
+  withoutPolicy: number;
+  /** @minimum 0 */
+  openCategoryHolds: number;
+  /** @minimum 0 */
+  openPersonHolds: number;
+  lastRun: RetentionRunSummary | null;
 }
