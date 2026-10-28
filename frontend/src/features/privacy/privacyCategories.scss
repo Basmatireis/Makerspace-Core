@@ -1,0 +1,101 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as theme;
+
+// Layout glue for the Categories tab; every control is a Carbon component.
+.privacy-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1px;
+}
+.privacy-tiles > .cds--tile {
+  min-block-size: 0;
+}
+.privacy-tiles__value {
+  display: block;
+  margin-block-start: $spacing-03;
+}
+.privacy-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02 $spacing-05;
+  color: theme.$text-secondary;
+}
+.privacy-context strong {
+  color: theme.$text-primary;
+}
+.privacy-filter {
+  position: relative;
+  display: flex;
+}
+.privacy-filter__panel {
+  display: grid;
+  gap: $spacing-05;
+  inline-size: 20rem;
+  max-inline-size: calc(100vw - 2rem);
+  padding: $spacing-05;
+}
+.privacy-filter__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-03;
+}
+.privacy-cell > * + * {
+  margin-block-start: $spacing-02;
+}
+.privacy-status {
+  display: flex;
+  gap: $spacing-03;
+  align-items: flex-start;
+}
+.privacy-status__dot {
+  flex: 0 0 auto;
+  margin-block-start: 0.125rem;
+}
+.privacy-status__dot--active {
+  fill: theme.$support-success;
+}
+.privacy-status__dot--pending {
+  fill: theme.$support-warning;
+}
+.privacy-status__dot--none {
+  fill: theme.$icon-secondary;
+}
+.privacy-secondary {
+  color: theme.$text-secondary;
+}
+.privacy-hold {
+  display: flex;
+  gap: $spacing-02;
+  align-items: center;
+  color: theme.$text-primary;
+}
+.privacy-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: $spacing-06;
+  padding-block: $spacing-03 $spacing-05;
+}
+.privacy-detail__block > * + * {
+  margin-block-start: $spacing-03;
+}
+.privacy-kv {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: $spacing-02 $spacing-05;
+}
+.privacy-kv dt {
+  color: theme.$text-secondary;
+}
+.privacy-kv dd {
+  margin: 0;
+}
+.privacy-detail__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-block-start: $spacing-05;
+}
+.privacy-used-in {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1px;
+}

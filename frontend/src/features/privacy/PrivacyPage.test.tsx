@@ -17,6 +17,15 @@ function category(overrides: Record<string, unknown> = {}) {
     id: 'audit_events',
     name: 'Audit events',
     description: 'Who did what.',
+    contains: 'who changed what and when',
+    erasure: 'unlinked',
+    coverage: {
+      policyStatus: 'none',
+      policy: null,
+      hold: null,
+      lastRun: null,
+      processingActivities: [],
+    },
     ownerModuleId: 'platform',
     orphaned: false,
     subject: 'person',
@@ -33,6 +42,37 @@ function category(overrides: Record<string, unknown> = {}) {
     retentionNote: 'Kept for a year.',
     firstSeenAt: '2026-10-01T00:00:00Z',
     lastSeenAt: '2026-10-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function policyCoverage(status: 'active' | 'pending' | 'none', overrides: Record<string, unknown> = {}) {
+  return {
+    policyStatus: status,
+    policy: {
+      id: '018f0000-0000-7000-8000-000000000001',
+      categoryId: 'audit_events',
+      version: 2,
+      trigger: 'created_at',
+      periodDays: 90,
+      action: 'delete',
+      purpose: 'Security',
+      legalBasis: 'Legitimate interest',
+      reason: 'Short retention',
+      status: status === 'active' ? 'active' : 'draft',
+      sourceTemplate: null,
+      createdAt: '2026-10-01T00:00:00Z',
+      updatedAt: '2026-10-01T00:00:00Z',
+      approvedAt: '2026-10-02T00:00:00Z',
+      activatedAt: '2026-10-03T00:00:00Z',
+      retiredAt: null,
+      createdBy: null,
+      approvedBy: null,
+      activatedBy: null,
+    },
+    hold: null,
+    lastRun: null,
+    processingActivities: [],
     ...overrides,
   };
 }
@@ -59,6 +99,12 @@ describe('privacy settings', () => {
           categories: 12,
           orphanedCategories: 1,
           automaticRunsEnabled: false,
+          policiesActive: 3,
+          policiesPending: 4,
+          withoutPolicy: 5,
+          openCategoryHolds: 0,
+          openPersonHolds: 0,
+          lastRun: null,
         }),
       ),
       http.get('*/api/v1/privacy/settings', () => HttpResponse.json(settingsBody({ controllerName: '' }))),
@@ -93,11 +139,98 @@ describe('privacy settings', () => {
     renderRoute(<PrivacyPage />, '/settings/privacy?tab=categories');
     expect(await screen.findByText('Audit events')).toBeInTheDocument();
     expect(screen.getByText('Orphaned')).toBeInTheDocument();
-    expect(screen.getByText('No subject')).toBeInTheDocument();
-    expect(screen.getByText('365 days after created_at → delete, from AUDIT_RETENTION')).toBeInTheDocument();
+    expect(screen.getByText('No person')).toBeInTheDocument();
     await user.type(screen.getByRole('searchbox'), 'actor_id');
     await waitFor(() => expect(screen.queryByText('Signage media')).not.toBeInTheDocument());
     expect(screen.getByText('Audit events')).toBeInTheDocument();
+  });
+
+  it('filters the table with the summary tiles', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('*/api/v1/privacy/categories', () =>
+        HttpResponse.json({
+          categories: [
+            category({ coverage: policyCoverage('active') }),
+            category({ id: 'signage_media', name: 'Signage media', ownerModuleId: 'signage', subject: 'none' }),
+          ],
+        }),
+      ),
+    );
+    renderRoute(<PrivacyPage />, '/settings/privacy?tab=categories');
+    expect(await screen.findByText('Signage media')).toBeInTheDocument();
+    await user.click(screen.getByText('Policy in force'));
+    await waitFor(() => expect(screen.queryByText('Signage media')).not.toBeInTheDocument());
+    expect(screen.getByText('Audit events')).toBeInTheDocument();
+    await user.click(screen.getByText('All categories'));
+    expect(await screen.findByText('Signage media')).toBeInTheDocument();
+  });
+
+  it('filters the table by who the data belongs to from the filter popover', async () => {
+    const user = userEvent.setup();
+    renderRoute(<PrivacyPage />, '/settings/privacy?tab=categories');
+    expect(await screen.findByText('Signage media')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Filter/ }));
+    await user.click(screen.getByRole('checkbox', { name: 'A person' }));
+    await waitFor(() => expect(screen.queryByText('Signage media')).not.toBeInTheDocument());
+    expect(screen.getByText('Audit events')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByText('Signage media')).toBeInTheDocument();
+  });
+
+  it('shows where the data is stored and the decision of record in the opened row', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('*/api/v1/privacy/categories', () =>
+        HttpResponse.json({
+          categories: [
+            category({
+              coverage: policyCoverage('active', {
+                processingActivities: [{ id: '018f0000-0000-7000-8000-000000000009', name: 'Security logging' }],
+              }),
+            }),
+          ],
+        }),
+      ),
+    );
+    renderRoute(<PrivacyPage />, '/settings/privacy?tab=categories');
+    await screen.findByText('Audit events');
+    await user.click(screen.getByRole('button', { name: 'Show where Audit events is stored' }));
+    expect(screen.getByText('audit_events')).toBeInTheDocument();
+    expect(screen.getByText('actor_id')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Security logging' })).toBeInTheDocument();
+    expect(screen.getByText('Active v2')).toBeInTheDocument();
+    expect(screen.getByText('365 days after created_at → delete, from AUDIT_RETENTION')).toBeInTheDocument();
+    expect(screen.getByText('Kept without the person link.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'View the active policy' })).toBeInTheDocument();
+  });
+
+  it('shows the hold on a category that is paused', async () => {
+    server.use(
+      http.get('*/api/v1/privacy/categories', () =>
+        HttpResponse.json({
+          categories: [
+            category({
+              coverage: policyCoverage('active', {
+                hold: {
+                  id: '018f0000-0000-7000-8000-000000000010',
+                  categoryId: 'audit_events',
+                  personId: null,
+                  reason: 'Legal review',
+                  createdAt: '2026-10-20T10:00:00Z',
+                  createdBy: null,
+                  releasedAt: null,
+                  releasedBy: null,
+                },
+              }),
+            }),
+          ],
+        }),
+      ),
+    );
+    renderRoute(<PrivacyPage />, '/settings/privacy?tab=categories');
+    expect(await screen.findByText('Paused by a hold: In force')).toBeInTheDocument();
+    expect(screen.getByText(/On hold since .*: Legal review/)).toBeInTheDocument();
   });
 
   it('saves the settings with the expected version', async () => {

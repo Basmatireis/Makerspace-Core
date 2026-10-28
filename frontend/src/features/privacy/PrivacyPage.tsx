@@ -1,25 +1,12 @@
 import {
   Button,
+  ClickableTile,
   Column,
-  DataTable,
   Form,
   Grid,
   InlineNotification,
   NumberInput,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableExpandedRow,
-  TableExpandHeader,
-  TableExpandRow,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableToolbar,
-  TableToolbarContent,
-  TableToolbarSearch,
   Tag,
   TextArea,
   TextInput,
@@ -27,45 +14,26 @@ import {
   Toggle,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { lazy, useEffect, useMemo, useState } from 'react';
+import { lazy, useEffect, useState, type ReactNode } from 'react';
 import { Controller, useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../../api/http-client';
-import type { PrivacyCategory, PrivacySettings } from '../../api/generated/models';
+import type { PrivacySettings } from '../../api/generated/models';
 import { updatePrivacySettings } from '../../api/generated/privacy/privacy';
 import { ErrorState } from '../../app/PageState';
+import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasAnyPermission, hasPermission } from '../auth/permissions';
 import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { SettingsTabs, type SettingsTab } from '../settings/SettingsTabs';
-import {
-  privacyCategoriesQueryOptions,
-  privacyOverviewQueryOptions,
-  privacyQueryKey,
-  privacySettingsQueryOptions,
-} from './privacy';
+import { CategoriesTab, PrivacyContextLine, TabLink } from './CategoriesTab';
+import { privacyOverviewQueryOptions, privacyQueryKey, privacySettingsQueryOptions } from './privacy';
 
 const PoliciesTab = lazy(() => import('./PoliciesTab').then(({ PoliciesTab }) => ({ default: PoliciesTab })));
 const HoldsTab = lazy(() => import('./HoldsTab').then(({ HoldsTab }) => ({ default: HoldsTab })));
 const RequestsTab = lazy(() => import('./RequestsTab').then(({ RequestsTab }) => ({ default: RequestsTab })));
 const ActivitiesTab = lazy(() => import('./ActivitiesTab').then(({ ActivitiesTab }) => ({ default: ActivitiesTab })));
 const RunsTab = lazy(() => import('./RunsTab').then(({ RunsTab }) => ({ default: RunsTab })));
-
-function moduleLabel(id: string): string {
-  const text = id.replace(/[_-]+/g, ' ');
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-const subjectLabels: Record<PrivacyCategory['subject'], string> = {
-  person: 'Person',
-  account: 'Account',
-  none: 'No subject',
-};
-
-function legacyDefaultText(category: PrivacyCategory): string {
-  const legacy = category.legacyDefault;
-  if (!legacy) return 'None';
-  return `${legacy.periodDays} days after ${legacy.trigger} → ${legacy.action}, from ${legacy.source}`;
-}
 
 function OverviewTab() {
   const overview = useQuery(privacyOverviewQueryOptions());
@@ -86,6 +54,7 @@ function OverviewTab() {
           subtitle="Name the controller and a data protection contact in the Settings tab before production use."
         />
       )}
+      <PrivacyContextLine overview={data} />
       <Grid condensed fullWidth>
         <Column sm={4} md={4} lg={5}>
           <Tile>
@@ -112,134 +81,51 @@ function OverviewTab() {
             )}
           </Tile>
         </Column>
+        <Column sm={4} md={4} lg={5}>
+          <Tile>
+            <p className="cds--type-label-01">Policies in force</p>
+            <p className="cds--type-productive-heading-05">{data.policiesActive}</p>
+          </Tile>
+        </Column>
+        <Column sm={4} md={4} lg={5}>
+          <Tile>
+            <p className="cds--type-label-01">Draft only, previous behaviour applies</p>
+            <p className="cds--type-productive-heading-05">{data.policiesPending}</p>
+          </Tile>
+        </Column>
+        <Column sm={4} md={4} lg={6}>
+          <Tile>
+            <p className="cds--type-label-01">No decision yet, kept indefinitely</p>
+            <p className="cds--type-productive-heading-05">{data.withoutPolicy}</p>
+          </Tile>
+        </Column>
       </Grid>
     </Stack>
   );
 }
 
-const categoryHeaders = [
-  { key: 'name', header: 'Category' },
-  { key: 'owner', header: 'Owner module' },
-  { key: 'subject', header: 'Subject' },
-  { key: 'triggers', header: 'Triggers' },
-  { key: 'actions', header: 'Actions' },
-  { key: 'legacy', header: 'Legacy default' },
-];
-
-function CategoriesTab() {
-  const categories = useQuery(privacyCategoriesQueryOptions());
-  const [search, setSearch] = useState('');
-  const list = categories.data?.categories;
-  const filtered = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (!list) return [];
-    if (needle === '') return list;
-    return list.filter(
-      (category) =>
-        category.id.toLowerCase().includes(needle) ||
-        category.name.toLowerCase().includes(needle) ||
-        category.fields.some((field) => field.toLowerCase().includes(needle)),
-    );
-  }, [list, search]);
-
-  if (categories.isPending) return <SettingsLoading label="Loading data categories" />;
-  if (categories.isError) {
-    return <ErrorState message={categories.error.message} onRetry={() => void categories.refetch()} />;
-  }
-  // DataTable can render one pass with its previous rows, so look up in the full list.
-  const byId = new Map(categories.data.categories.map((category) => [category.id as string, category]));
-  const rows = filtered.map((category) => ({ id: category.id as string }));
-
+function UsedInTile({ title, detail, to }: { title: string; detail: string; to: string }) {
+  const navigate = useNavigate();
   return (
-    <DataTable rows={rows} headers={categoryHeaders}>
-      {({ rows: tableRows, headers, getTableProps, getHeaderProps, getRowProps }) => (
-        <TableContainer>
-          <TableToolbar>
-            <TableToolbarContent>
-              <TableToolbarSearch
-                persistent
-                labelText="Search data categories"
-                placeholder="Search by id, name or field"
-                value={search}
-                onChange={(event) => setSearch(typeof event === 'string' ? event : event.target.value)}
-              />
-            </TableToolbarContent>
-          </TableToolbar>
-          <Table {...getTableProps()} aria-label="Data categories">
-            <TableHead>
-              <TableRow>
-                <TableExpandHeader aria-label="Expand to see fields" />
-                {headers.map((header) => {
-                  const { key, ...props } = getHeaderProps({ header });
-                  return (
-                    <TableHeader key={key} {...props}>
-                      {header.header}
-                    </TableHeader>
-                  );
-                })}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {tableRows.map((row) => {
-                const category = byId.get(row.id)!;
-                const { key, ...rowProps } = getRowProps({ row });
-                return [
-                  <TableExpandRow key={key} {...rowProps} expandHeader="Expand to see fields">
-                    <TableCell>
-                      <strong>{category.name}</strong>
-                      <p className="cds--type-helper-text-01">{category.description}</p>
-                    </TableCell>
-                    <TableCell>
-                      <Tag type="cool-gray" size="sm">
-                        {moduleLabel(category.ownerModuleId)}
-                      </Tag>
-                      {category.orphaned && (
-                        <Tag type="red" size="sm">
-                          Orphaned
-                        </Tag>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Tag type="blue" size="sm">
-                        {subjectLabels[category.subject]}
-                      </Tag>
-                    </TableCell>
-                    <TableCell>
-                      {category.triggers.map((trigger) => (
-                        <Tag key={trigger} type="gray" size="sm">
-                          {trigger}
-                        </Tag>
-                      ))}
-                    </TableCell>
-                    <TableCell>
-                      {category.actions.map((action) => (
-                        <Tag key={action} type="teal" size="sm">
-                          {action}
-                        </Tag>
-                      ))}
-                    </TableCell>
-                    <TableCell>{legacyDefaultText(category)}</TableCell>
-                  </TableExpandRow>,
-                  <TableExpandedRow key={`${key}-fields`} colSpan={headers.length + 1}>
-                    <Stack gap={3}>
-                      <p>{category.retentionNote}</p>
-                      <ul aria-label={`${category.name} fields`}>
-                        {category.fields.map((field) => (
-                          <li key={field}>
-                            <code>{field}</code>
-                          </li>
-                        ))}
-                      </ul>
-                    </Stack>
-                  </TableExpandedRow>,
-                ];
-              })}
-            </TableBody>
-          </Table>
-          {filtered.length === 0 && <p className="cds--type-helper-text-01">No data categories match.</p>}
-        </TableContainer>
-      )}
-    </DataTable>
+    <ClickableTile
+      href={to}
+      onClick={(event) => {
+        event.preventDefault();
+        void navigate(to);
+      }}
+    >
+      <strong>{title}</strong>
+      <span className="cds--type-helper-text-01"> {detail}</span>
+    </ClickableTile>
+  );
+}
+
+function ReadinessRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </>
   );
 }
 
@@ -257,6 +143,7 @@ function formValues(settings: PrivacySettings): SettingsFormValues {
 
 function SettingsForm({ settings, canManage }: { settings: PrivacySettings; canManage: boolean }) {
   const client = useQueryClient();
+  const overview = useQuery(privacyOverviewQueryOptions()).data;
   const [notice, setNotice] = useState<'saved' | 'stale'>();
   const form = useForm<SettingsFormValues>({ defaultValues: formValues(settings) });
   const {
@@ -331,6 +218,13 @@ function SettingsForm({ settings, canManage }: { settings: PrivacySettings; canM
               subtitle="Review the values and try again."
             />
           )}
+          <div>
+            <h3 className="cds--type-productive-heading-03">Controller</h3>
+            <p className="cds--type-helper-text-01">
+              The organisation that decides why and how personal data is processed. Members and guests see it when they
+              ask for their data.
+            </p>
+          </div>
           <TextInput
             id="privacy-controller-name"
             labelText="Controller name"
@@ -351,8 +245,25 @@ function SettingsForm({ settings, canManage }: { settings: PrivacySettings; canM
             labelText="Data protection contact"
             maxLength={500}
             readOnly={readOnly}
+            helperText="Where people send questions and requests. Appears on every export a person receives."
             {...register('dataProtectionContact', { maxLength: 500 })}
           />
+          <div>
+            <p className="cds--type-label-01">Used in</p>
+            <div className="privacy-used-in">
+              <UsedInTile
+                title="Data request exports"
+                detail="manifest.json of every access export"
+                to="?tab=requests"
+              />
+              <UsedInTile title="Overview tile" detail="Controller named check" to="?tab=overview" />
+              <UsedInTile
+                title="Not yet: privacy notice"
+                detail="Branding & legal keeps its own text"
+                to="/settings/branding-legal"
+              />
+            </div>
+          </div>
           <Controller
             control={control}
             name="automaticRunsEnabled"
@@ -371,6 +282,13 @@ function SettingsForm({ settings, canManage }: { settings: PrivacySettings; canM
           <p className="cds--type-helper-text-01">
             Approved retention policies run inside the API process. Off: run <code>admin cleanup</code> from your
             scheduler instead.
+          </p>
+          <p className="cds--type-helper-text-01">
+            Last run:{' '}
+            {overview?.lastRun
+              ? `${formatDateTime(overview.lastRun.startedAt)} (${overview.lastRun.mode === 'dry_run' ? 'dry run' : 'executed'})`
+              : 'none yet'}{' '}
+            · <TabLink tab="runs">Execution history</TabLink>
           </p>
           <Controller
             control={control}
@@ -397,6 +315,28 @@ function SettingsForm({ settings, canManage }: { settings: PrivacySettings; canM
               />
             )}
           />
+          {overview && (
+            <dl className="privacy-kv" aria-label="Ready to switch on?">
+              <ReadinessRow label="Ready to switch on?">
+                {overview.policiesActive} of {overview.policiesActive + overview.policiesPending} drafted policies are
+                active · <TabLink tab="policies">Retention policies</TabLink>
+              </ReadinessRow>
+              <ReadinessRow label="Last run">
+                {overview.lastRun
+                  ? `${formatDateTime(overview.lastRun.startedAt)}: ${overview.lastRun.mode === 'dry_run' ? 'would change' : 'changed'} ${overview.lastRun.affectedCount} rows`
+                  : 'none yet'}{' '}
+                · <TabLink tab="runs">Open</TabLink>
+              </ReadinessRow>
+              <ReadinessRow label="Open holds">
+                {overview.openCategoryHolds} {overview.openCategoryHolds === 1 ? 'category' : 'categories'},{' '}
+                {overview.openPersonHolds} {overview.openPersonHolds === 1 ? 'person' : 'people'} ·{' '}
+                <TabLink tab="holds">Holds</TabLink>
+              </ReadinessRow>
+            </dl>
+          )}
+          <p className="cds--type-helper-text-01">
+            Saving needs a fresh sign-in. Changes are audited with the names of the changed fields only.
+          </p>
           {canManage && (
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? 'Saving…' : 'Save privacy settings'}

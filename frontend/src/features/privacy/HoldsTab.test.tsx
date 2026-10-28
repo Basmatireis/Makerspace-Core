@@ -33,7 +33,10 @@ const categoryList = {
     {
       id: 'audit_events',
       name: 'Audit events',
-      description: '',
+      description: 'Who did what when',
+      contains: 'Who did what, when',
+      erasure: 'none',
+      coverage: { policyStatus: 'none', policy: null, hold: null, lastRun: null, processingActivities: [] },
       ownerModuleId: 'platform',
       ownerModuleEnabled: true,
       orphaned: false,
@@ -68,7 +71,10 @@ describe('holds tab', () => {
     renderRoute(<HoldsTab />);
     await user.click(await screen.findByRole('button', { name: 'Place hold' }));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Reason'), 'Legal proceedings');
+    await user.type(
+      within(dialog).getByLabelText('Why (shown in every run report and the audit log)'),
+      'Legal proceedings',
+    );
     await user.click(within(dialog).getByRole('button', { name: 'Place hold' }));
     await vi.waitFor(() => expect(body).toBeDefined());
     expect(body).toEqual({ categoryId: 'audit_events', reason: 'Legal proceedings' });
@@ -87,12 +93,86 @@ describe('holds tab', () => {
     renderRoute(<HoldsTab />);
     await user.click(await screen.findByRole('button', { name: 'Place hold' }));
     const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByLabelText('A person'));
+    await user.click(within(dialog).getByLabelText('One person, so they cannot be erased yet'));
     await user.type(within(dialog).getByLabelText('Person ID'), '0198a000-0000-7000-8000-0000000000aa');
-    await user.type(within(dialog).getByLabelText('Reason'), 'Dispute');
+    await user.type(within(dialog).getByLabelText('Why (shown in every run report and the audit log)'), 'Dispute');
     await user.click(within(dialog).getByRole('button', { name: 'Place hold' }));
     await vi.waitFor(() => expect(body).toBeDefined());
     expect(body).toEqual({ personId: '0198a000-0000-7000-8000-0000000000aa', reason: 'Dispute' });
+  });
+
+  it('shows the rule that applies to the chosen category in the place-hold dialog', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('*/api/v1/privacy/holds', () => HttpResponse.json({ holds: [] })),
+      http.get('*/api/v1/privacy/categories', () =>
+        HttpResponse.json({
+          categories: [
+            {
+              ...categoryList.categories[0],
+              legacyDefault: {
+                trigger: 'created_at',
+                periodDays: 365,
+                action: 'delete',
+                source: 'audit.retention_days',
+                zeroDisables: false,
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    renderRoute(<HoldsTab />);
+    await user.click(await screen.findByRole('button', { name: 'Place hold' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('What should retention leave alone?')).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('Currently: deleted 365 days after created_at (built-in default)'),
+    ).toBeInTheDocument();
+  });
+
+  it('says without a policy that no rule applies', async () => {
+    const user = userEvent.setup();
+    server.use(http.get('*/api/v1/privacy/holds', () => HttpResponse.json({ holds: [] })));
+    renderRoute(<HoldsTab />);
+    await user.click(await screen.findByRole('button', { name: 'Place hold' }));
+    expect(await within(await screen.findByRole('dialog')).findByText('Currently: no policy')).toBeInTheDocument();
+  });
+
+  it('warns about categories that are paused by an open hold', async () => {
+    server.use(
+      http.get('*/api/v1/privacy/holds', () =>
+        HttpResponse.json({
+          holds: [
+            hold(),
+            hold({ id: '0198a000-0000-7000-8000-000000000003', categoryId: null, personId: 'p1', reason: 'Dispute' }),
+          ],
+        }),
+      ),
+    );
+    renderRoute(<HoldsTab />);
+    expect(await screen.findByText('1 category is paused')).toBeInTheDocument();
+    expect(screen.getByText(/Audit events \(since 01\.10\.2026\)/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'See the categories' })).toHaveAttribute('href', '/?tab=categories');
+  });
+
+  it('filters the holds by search text', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('*/api/v1/privacy/holds', () =>
+        HttpResponse.json({
+          holds: [
+            hold(),
+            hold({ id: '0198a000-0000-7000-8000-000000000003', categoryId: null, personId: 'p1', reason: 'Dispute' }),
+          ],
+        }),
+      ),
+    );
+    renderRoute(<HoldsTab />);
+    await screen.findByText('Legal proceedings');
+    await user.type(screen.getByRole('searchbox', { name: 'Search holds' }), 'dispute');
+    expect(screen.queryByText('Legal proceedings')).not.toBeInTheDocument();
+    expect(screen.getByText('Dispute')).toBeInTheDocument();
   });
 
   it('releases an open hold after confirmation', async () => {

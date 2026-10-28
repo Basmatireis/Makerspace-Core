@@ -49,7 +49,10 @@ describe('execution history tab', () => {
             {
               id: 'audit_events',
               name: 'Audit events',
-              description: '',
+              description: 'Who did what when',
+              contains: 'Who did what, when',
+              erasure: 'none',
+              coverage: { policyStatus: 'none', policy: null, hold: null, lastRun: null, processingActivities: [] },
               ownerModuleId: 'platform',
               ownerModuleEnabled: true,
               orphaned: false,
@@ -66,6 +69,20 @@ describe('execution history tab', () => {
         }),
       ),
       http.get('*/api/v1/privacy/retention/runs', () => HttpResponse.json({ runs: [run()] })),
+      http.get(`*/api/v1/privacy/retention/runs/${runId}`, () => HttpResponse.json(run({ items: [item] }))),
+      http.get('*/api/v1/privacy/overview', () =>
+        HttpResponse.json({
+          categories: 1,
+          orphanedCategories: 0,
+          automaticRunsEnabled: false,
+          policiesActive: 4,
+          policiesPending: 5,
+          withoutPolicy: 20,
+          openCategoryHolds: 1,
+          openPersonHolds: 0,
+          lastRun: null,
+        }),
+      ),
     );
   });
 
@@ -81,8 +98,9 @@ describe('execution history tab', () => {
     renderRoute(<RunsTab />);
     await user.click(await screen.findByRole('button', { name: 'Dry run' }));
     expect(await screen.findByText('Dry run finished')).toBeInTheDocument();
-    expect(screen.getByText('Skipped: hold')).toBeInTheDocument();
-    expect(screen.getByText('42')).toBeInTheDocument();
+    expect(
+      screen.getByText(/0 categories would change 0 rows\. 1 skipped: on hold\. Nothing was changed\./),
+    ).toBeInTheDocument();
     expect(mode).toBe('dry_run');
   });
 
@@ -104,27 +122,121 @@ describe('execution history tab', () => {
       }),
     );
     renderRoute(<RunsTab />);
-    await user.click(await screen.findByRole('button', { name: 'Execute' }));
+    await user.click(await screen.findByRole('button', { name: 'Execute now' }));
     expect(mode).toBeUndefined();
     expect(await screen.findByText(/This removes data according to the active policies/)).toBeInTheDocument();
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Execute' }));
-    expect(await screen.findByText('Applied')).toBeInTheDocument();
+    expect(await screen.findByText('Run finished')).toBeInTheDocument();
+    expect(screen.getByText(/1 category changed 42 rows\./)).toBeInTheDocument();
     expect(mode).toBe('execute');
   });
 
   it('loads the items when a past run is expanded', async () => {
     const user = userEvent.setup();
-    server.use(http.get(`*/api/v1/privacy/retention/runs/${runId}`, () => HttpResponse.json(run({ items: [item] }))));
     renderRoute(<RunsTab />);
     await user.click(await screen.findByRole('button', { name: 'Expand current row' }));
-    expect(await screen.findByText('Skipped: hold')).toBeInTheDocument();
+    expect(await screen.findByText('skipped: on hold')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'why?' })).toHaveAttribute('href', '/?tab=holds');
+    expect(screen.getByRole('link', { name: 'Audit events' })).toHaveAttribute('href', '/?tab=categories');
+    expect(screen.getByText('Who did what when')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Execute this now' })).toBeInTheDocument();
+  });
+
+  it('summarises the result of every run in the table', async () => {
+    server.use(
+      http.get(`*/api/v1/privacy/retention/runs/${runId}`, () =>
+        HttpResponse.json(
+          run({
+            items: [
+              { ...item, status: 'applied', affectedCount: 42 },
+              { ...item, categoryId: 'sessions', status: 'skipped_hold' },
+              { ...item, categoryId: 'other', status: 'skipped_no_handler', affectedCount: 0 },
+            ],
+          }),
+        ),
+      ),
+    );
+    renderRoute(<RunsTab />);
+    expect(await screen.findByText('Would change 42 rows in 1 category')).toBeInTheDocument();
+    expect(screen.getByText('1 skipped: on hold · 1 skipped: no policy')).toBeInTheDocument();
+    expect(screen.getByText('1 s')).toBeInTheDocument();
+    expect(screen.getByText('Showing 1 of 1 runs')).toBeInTheDocument();
+  });
+
+  it('names the rule of a policy and folds categories without one into a line', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('*/api/v1/privacy/categories', () =>
+        HttpResponse.json({
+          categories: [
+            {
+              id: 'audit_events',
+              name: 'Audit events',
+              description: 'Who did what when',
+              contains: '',
+              erasure: 'none',
+              coverage: {
+                policyStatus: 'active',
+                policy: { periodDays: 365, trigger: 'created_at', action: 'delete' },
+                hold: null,
+                lastRun: null,
+                processingActivities: [],
+              },
+              ownerModuleId: 'platform',
+              ownerModuleEnabled: true,
+              orphaned: false,
+              subject: 'person',
+              fields: [],
+              triggers: ['created_at'],
+              actions: ['delete'],
+              legacyDefault: null,
+              retentionNote: '',
+              firstSeenAt: '2026-10-01T00:00:00Z',
+              lastSeenAt: '2026-10-01T00:00:00Z',
+            },
+          ],
+        }),
+      ),
+      http.get(`*/api/v1/privacy/retention/runs/${runId}`, () =>
+        HttpResponse.json(
+          run({
+            items: [
+              { ...item, status: 'applied' },
+              ...['a', 'b', 'c', 'd'].map((id) => ({ ...item, categoryId: id, status: 'skipped_no_handler' })),
+            ],
+          }),
+        ),
+      ),
+    );
+    renderRoute(<RunsTab />);
+    await user.click(await screen.findByRole('button', { name: 'Expand current row' }));
+    expect(await screen.findByText('Delete, 365 days after created_at')).toBeInTheDocument();
+    expect(screen.getByText('4 categories without a policy')).toBeInTheDocument();
+    expect(screen.getByText('Nothing, until a policy is active')).toBeInTheDocument();
+  });
+
+  it('describes the automatic runs and the policies', async () => {
+    renderRoute(<RunsTab />);
+    expect(await screen.findByText(/admin cleanup runs from the server's scheduler/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Change in Settings' })).toHaveAttribute('href', '/?tab=settings');
+    expect(screen.getByRole('link', { name: 'Retention policies' })).toHaveAttribute('href', '/?tab=policies');
+    expect(screen.getByText(/4 active policies, 5 drafts not in force/)).toBeInTheDocument();
+  });
+
+  it('filters runs by mode', async () => {
+    const user = userEvent.setup();
+    renderRoute(<RunsTab />);
+    await screen.findByText('Dry run', { selector: '.cds--tag *' });
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(screen.getByLabelText('Executed'));
+    expect(await screen.findByText('No runs match the search or filter.')).toBeInTheDocument();
   });
 
   it('hides the run buttons without the execute permission', async () => {
     auth.permissions = ['privacy.read'];
     renderRoute(<RunsTab />);
-    await screen.findByText('Dry run');
+    await screen.findByText('Showing 1 of 1 runs');
     expect(screen.queryByRole('button', { name: 'Dry run' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Execute' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Execute now' })).not.toBeInTheDocument();
   });
 });
