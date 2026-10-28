@@ -132,6 +132,8 @@ const (
 	ConfigurationExport                Permission = Permission(openapi.ConfigurationExport)
 	ConfigurationImport                Permission = Permission(openapi.ConfigurationImport)
 	NotificationsSend                  Permission = Permission(openapi.NotificationsSend)
+	PrivacyRead                        Permission = Permission(openapi.PrivacyRead)
+	PrivacySettingsManage              Permission = Permission(openapi.PrivacySettingsManage)
 )
 
 type Definition struct {
@@ -182,6 +184,7 @@ var registry = []Permission{
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride, LocalServicesManage,
 	ConfigurationExport, ConfigurationImport, NotificationsSend,
+	PrivacyRead, PrivacySettingsManage,
 }
 
 var known = func() map[Permission]struct{} {
@@ -310,6 +313,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	ConfigurationExport:                "Download configuration sections as a file; each section also needs its own read permission.",
 	ConfigurationImport:                "Preview and import configuration files; each section also needs its own read and manage permissions.",
 	NotificationsSend:                  "Send in-app messages to roles and see sent messages.",
+	PrivacyRead:                        "Read the privacy registry: data categories, their owners, status and the privacy settings.",
+	PrivacySettingsManage:              "Change the installation's privacy settings (controller, contact, automatic retention runs).",
 }
 
 type GrantScope string

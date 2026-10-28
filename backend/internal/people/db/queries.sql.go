@@ -1836,6 +1836,9 @@ WITH c01 AS (
 ), c43 AS (
     UPDATE training_records SET recorded_by_account_id = $1::uuid
     WHERE recorded_by_account_id = $2::uuid RETURNING 1
+), c44 AS (
+    UPDATE privacy_settings SET updated_by_account_id = $1::uuid
+    WHERE updated_by_account_id = $2::uuid RETURNING 1
 )
 SELECT (
     (SELECT count(*) FROM c01) + (SELECT count(*) FROM c02) + (SELECT count(*) FROM c03) + (SELECT count(*) FROM c04)
@@ -1848,7 +1851,7 @@ SELECT (
     + (SELECT count(*) FROM c29) + (SELECT count(*) FROM c30) + (SELECT count(*) FROM c31) + (SELECT count(*) FROM c32)
     + (SELECT count(*) FROM c33) + (SELECT count(*) FROM c34) + (SELECT count(*) FROM c35) + (SELECT count(*) FROM c36)
     + (SELECT count(*) FROM c37) + (SELECT count(*) FROM c38) + (SELECT count(*) FROM c39) + (SELECT count(*) FROM c40)
-    + (SELECT count(*) FROM c41) + (SELECT count(*) FROM c42) + (SELECT count(*) FROM c43)
+    + (SELECT count(*) FROM c41) + (SELECT count(*) FROM c42) + (SELECT count(*) FROM c43) + (SELECT count(*) FROM c44)
 )::bigint AS moved
 `
 

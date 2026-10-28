@@ -1444,6 +1444,27 @@ type PrinterSpoolAssignment struct {
 	CreatedAt            time.Time
 }
 
+type PrivacyCategorySnapshot struct {
+	CategoryID    string
+	OwnerModuleID string
+	Definition    []byte
+	FirstSeenAt   time.Time
+	LastSeenAt    time.Time
+	Orphaned      bool
+}
+
+type PrivacySetting struct {
+	Singleton             bool
+	ControllerName        string
+	ControllerAddress     string
+	DataProtectionContact string
+	AutomaticRunsEnabled  bool
+	RunIntervalMinutes    int32
+	Version               int64
+	UpdatedAt             pgtype.Timestamptz
+	UpdatedByAccountID    *uuid.UUID
+}
+
 type Role struct {
 	ID                     uuid.UUID
 	Name                   string

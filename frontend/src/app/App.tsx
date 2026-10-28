@@ -36,6 +36,7 @@ import {
   MachineLogbookOverviewPage,
   MachinesPage,
   MailSettingsPage,
+  PrivacyPage,
   MaterialDetailPage,
   OpenDayDetailPage,
   OpenDayManagementPage,
@@ -475,6 +476,14 @@ export function App() {
               element={
                 <PermissionRoute allOf={['mail.manage']}>
                   <MailSettingsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/privacy"
+              element={
+                <PermissionRoute anyOf={['privacy.read', 'privacy.settings.manage']}>
+                  <PrivacyPage />
                 </PermissionRoute>
               }
             />

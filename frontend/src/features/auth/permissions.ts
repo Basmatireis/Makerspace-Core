@@ -76,6 +76,8 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   'printer_connectors.read',
   'open_days.manage',
   'trainings.manage',
+  'privacy.read',
+  'privacy.settings.manage',
 ];
 
 export function canAccessSettings(currentUser: CurrentUser): boolean {

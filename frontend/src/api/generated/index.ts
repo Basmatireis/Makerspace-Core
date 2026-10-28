@@ -30,6 +30,7 @@ export * from './pricing/pricing';
 export * from './print-artifacts/print-artifacts';
 export * from './printer-connectors/printer-connectors';
 export * from './printing/printing';
+export * from './privacy/privacy';
 export * from './public-events/public-events';
 export * from './public-open-days/public-open-days';
 export * from './roles/roles';

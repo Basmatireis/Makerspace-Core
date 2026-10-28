@@ -10,6 +10,7 @@ import {
   PaintBrush,
   QuestionAnswering,
   Receipt,
+  Security,
   UserMultiple,
   VideoChat,
 } from '@carbon/icons-react';
@@ -33,7 +34,8 @@ export type SettingsPageId =
   | 'branding-legal'
   | 'invoicing'
   | 'local-services'
-  | 'configuration-transfer';
+  | 'configuration-transfer'
+  | 'privacy';
 
 export type SettingsGroup = {
   id: SettingsGroupId;
@@ -74,7 +76,7 @@ export const settingsGroups: readonly SettingsGroup[] = [
     title: 'Local services',
     description: 'Software that runs in the makerspace network next to Core.',
   },
-  { id: 'data', title: 'Data', description: 'Move configuration between instances.' },
+  { id: 'data', title: 'Data', description: 'Configuration transfer and privacy.' },
 ];
 
 export const settingsItems: readonly SettingsItem[] = [
@@ -198,6 +200,15 @@ export const settingsItems: readonly SettingsItem[] = [
     path: '/settings/configuration-transfer',
     icon: Migrate,
     permissions: [PermissionId.configurationexport, PermissionId.configurationimport],
+  },
+  {
+    id: 'privacy',
+    group: 'data',
+    title: 'Privacy & data retention',
+    description: "Data categories, retention and the installation's privacy settings.",
+    path: '/settings/privacy',
+    icon: Security,
+    permissions: [PermissionId.privacyread, PermissionId.privacysettingsmanage],
   },
 ];
 

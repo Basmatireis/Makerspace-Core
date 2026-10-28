@@ -7,6 +7,7 @@
 - [Bootstrap, recovery, cleanup, and deployment operations](operations.md)
 - [Configuration export and import](configuration-transfer.md)
 - [Authorization](authorization.md)
+- [Privacy registry, retention and data-subject requests](privacy-and-retention.md)
 - [Merging duplicate people](people-merge.md)
 - [Managed devices](managed-devices.md)
 - [Device Bridge architecture](device-bridge.md)

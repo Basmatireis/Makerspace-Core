@@ -139,4 +139,6 @@ export const PermissionId = {
   configurationexport: 'configuration.export',
   configurationimport: 'configuration.import',
   notificationssend: 'notifications.send',
+  privacyread: 'privacy.read',
+  privacysettingsmanage: 'privacy.settings.manage',
 } as const;

@@ -4,6 +4,14 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- **Migration 00080 (privacy registry).** Adds `privacy_settings` and `privacy_category_snapshots`, seeds `privacy.settings.manage` into the master fresh-sign-in policy; new permissions `privacy.read` and `privacy.settings.manage` (not granted to existing roles); new endpoints `GET /privacy/overview`, `GET /privacy/categories`, `GET /privacy/settings` and `PUT /privacy/settings`. Retention behaviour is unchanged.
+
+### Added
+
+- **Privacy registry.** Every built-in module declares its personal-data categories in code, with owner, fields, retention triggers, actions, subject and legacy default. The registry persists snapshots, keeps orphaned and disabled-module categories visible, and adds privacy settings (controller, data protection contact, automatic runs off by default) in Settings › Data › Privacy & data retention. This release changes no retention behaviour; `admin cleanup` remains the production path. See [Privacy registry, retention and data-subject requests](docs/privacy-and-retention.md).
+
 ## [0.10.0] - 2026-10-27
 
 ### Upgrade notes

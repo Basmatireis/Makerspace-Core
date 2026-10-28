@@ -54,6 +54,8 @@ tags:
     description: "In-app notifications: the signed-in account's own inbox and manual messages to roles (docs/notifications.md)."
   - name: Configuration Transfer
     description: "Export the configuration of this makerspace as a versioned JSON file and import it section by section (docs/configuration-transfer.md)."
+  - name: Privacy
+    description: "The privacy registry: data categories declared by modules, retention and data-subject requests, and the installation's privacy settings (docs/privacy-and-retention.md)."
 
 paths:
   /health/live:
@@ -2146,6 +2148,64 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/overview:
+    get:
+      tags: [Privacy]
+      operationId: getPrivacyOverview
+      summary: Summary of the privacy registry
+      description: Needs `privacy.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Overview., content: {application/json: {schema: {$ref: "#/components/schemas/PrivacyOverview"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/categories:
+    get:
+      tags: [Privacy]
+      operationId: listPrivacyCategories
+      summary: List the declared data categories and their registry status
+      description: >-
+        Needs `privacy.read`. Categories stay listed after their code is gone (`orphaned: true`), so retention and
+        data-subject requests still cover them.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Categories., content: {application/json: {schema: {$ref: "#/components/schemas/PrivacyCategoryList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /privacy/settings:
+    get:
+      tags: [Privacy]
+      operationId: getPrivacySettings
+      summary: The installation's privacy settings
+      description: Needs `privacy.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Settings., content: {application/json: {schema: {$ref: "#/components/schemas/PrivacySettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Privacy]
+      operationId: updatePrivacySettings
+      summary: Change the privacy settings
+      description: >-
+        Needs `privacy.settings.manage`. `automaticRunsEnabled` lets the API process run approved retention policies on
+        its own every `runIntervalMinutes`; it stays off until the operator turns it on, and `admin cleanup` remains the
+        scheduled path meanwhile. Audited as `privacy.settings_updated` with the changed field names.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdatePrivacySettingsRequest"}}}}
+      responses:
+        "200": {description: Settings., content: {application/json: {schema: {$ref: "#/components/schemas/PrivacySettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -10489,6 +10549,8 @@ components:
         - configuration.export
         - configuration.import
         - notifications.send
+        - privacy.read
+        - privacy.settings.manage
 
     NotificationKind:
       type: string
@@ -11046,6 +11108,99 @@ components:
           $ref: "#/components/schemas/LaborordnungStatus"
         session:
           $ref: "#/components/schemas/SessionContext"
+
+    PrivacyCategoryId:
+      type: string
+      pattern: "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"
+      description: Data category declared in application code or a plugin manifest, such as `events.external_signups`.
+
+    RetentionTrigger:
+      type: string
+      enum: [created_at, completed_at, cancelled_at, expired_at, account_closed_at, last_used_at, legal_period_end, ended_at]
+
+    RetentionAction:
+      type: string
+      enum: [delete, anonymize, unlink, redact, retain_with_review]
+
+    PrivacySubject:
+      type: string
+      enum: [none, person, account]
+      description: Whether rows of the category are linked to a person or an account.
+
+    PrivacyLegacyDefault:
+      type: object
+      additionalProperties: false
+      required: [trigger, periodDays, action, source, zeroDisables]
+      description: How the installation handled the category before the privacy registry existed.
+      properties:
+        trigger: {$ref: "#/components/schemas/RetentionTrigger"}
+        periodDays: {type: integer, minimum: 0}
+        action: {$ref: "#/components/schemas/RetentionAction"}
+        source: {type: string, maxLength: 200, description: "Environment variable, setting, code constant or lazy sweep the period came from."}
+        zeroDisables: {type: boolean, description: Whether the source treats 0 as a deliberate opt-out.}
+
+    PrivacyCategory:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, ownerModuleId, orphaned, subject, fields, triggers, actions, legacyDefault, retentionNote, firstSeenAt, lastSeenAt]
+      properties:
+        id: {$ref: "#/components/schemas/PrivacyCategoryId"}
+        name: {type: string, maxLength: 100}
+        description: {type: string, maxLength: 500}
+        ownerModuleId: {type: string, maxLength: 60, pattern: "^[a-z][a-z0-9_]*$", description: The built-in feature area that owns the category.}
+        orphaned: {type: boolean, description: No module or plugin declares the category any more; its data may still exist.}
+        subject: {$ref: "#/components/schemas/PrivacySubject"}
+        fields:
+          type: array
+          description: Columns that hold the data, as table.column (table.* for whole tables).
+          items: {type: string, maxLength: 200}
+        triggers: {type: array, items: {$ref: "#/components/schemas/RetentionTrigger"}}
+        actions: {type: array, items: {$ref: "#/components/schemas/RetentionAction"}}
+        legacyDefault: {allOf: [{$ref: "#/components/schemas/PrivacyLegacyDefault"}], nullable: true}
+        retentionNote: {type: string, maxLength: 500}
+        firstSeenAt: {type: string, format: date-time}
+        lastSeenAt: {type: string, format: date-time}
+
+    PrivacyCategoryList:
+      type: object
+      additionalProperties: false
+      required: [categories]
+      properties:
+        categories: {type: array, items: {$ref: "#/components/schemas/PrivacyCategory"}}
+
+    PrivacyOverview:
+      type: object
+      additionalProperties: false
+      required: [categories, orphanedCategories, automaticRunsEnabled]
+      properties:
+        categories: {type: integer, minimum: 0}
+        orphanedCategories: {type: integer, minimum: 0}
+        automaticRunsEnabled: {type: boolean}
+
+    PrivacySettings:
+      type: object
+      additionalProperties: false
+      required: [controllerName, controllerAddress, dataProtectionContact, automaticRunsEnabled, runIntervalMinutes, version, updatedAt]
+      properties:
+        controllerName: {type: string, maxLength: 200, description: The controller responsible for processing (not necessarily the makerspace name).}
+        controllerAddress: {type: string, maxLength: 1000}
+        dataProtectionContact: {type: string, maxLength: 500}
+        automaticRunsEnabled: {type: boolean}
+        runIntervalMinutes: {type: integer, minimum: 5, maximum: 1440}
+        version: {type: integer, format: int64, minimum: 1}
+        updatedAt: {type: string, format: date-time, nullable: true}
+
+    UpdatePrivacySettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [controllerName, controllerAddress, dataProtectionContact, automaticRunsEnabled, runIntervalMinutes, expectedVersion]
+      properties:
+        controllerName: {type: string, maxLength: 200}
+        controllerAddress: {type: string, maxLength: 1000}
+        dataProtectionContact: {type: string, maxLength: 500}
+        automaticRunsEnabled: {type: boolean}
+        runIntervalMinutes: {type: integer, minimum: 5, maximum: 1440}
+        expectedVersion: {type: integer, format: int64, minimum: 1}
 
     ManagedDeviceContext:
       type: object

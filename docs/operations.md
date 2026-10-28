@@ -73,6 +73,8 @@ Application-log and backup retention are separate deployment policies; neither i
 
 No production deployment is ready until these values and owners are explicit in that deployment's operating record. Repository defaults cannot decide the makerspace's legal or organizational obligations.
 
+The privacy registry documents every personal-data category, its owner module and its legacy default period, so the installation's retention can be reviewed in one place. `admin cleanup` behaviour is unchanged in this release; see [Privacy registry, retention and data-subject requests](privacy-and-retention.md).
+
 ## Production Compose deployment
 
 This section is the Core stack in detail; [Hosting](hosting.md) gives the overview of all four stacks (Core, printer connector, streaming gateway, local services) and the development commands.

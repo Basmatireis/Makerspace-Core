@@ -91,6 +91,7 @@ var MergeReferences = []MergeReference{
 	{"payments", "actor_account_id", "accounts", ruleActor},
 	{"pending_logins", "account_id", "accounts", ruleTransient},
 	{"person_roles", "assigned_by_account_id", "accounts", ruleActor},
+	{"privacy_settings", "updated_by_account_id", "accounts", ruleActor},
 	{"printer_connector_enrollments", "created_by_account_id", "accounts", ruleActor},
 	{"printer_connectors", "events_cleared_by", "accounts", ruleActor},
 	{"printer_discovery_requests", "requested_by_account_id", "accounts", ruleActor},

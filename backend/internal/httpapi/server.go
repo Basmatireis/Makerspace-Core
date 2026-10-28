@@ -31,6 +31,8 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacycatalog"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/runrecordings"
 	scimservice "github.com/Basmatireis/Makerspace-Core/backend/internal/scim"
@@ -87,6 +89,7 @@ type Server struct {
 	inbox             *inbox.Service
 	configTransfer    *configtransfer.Service
 	trainings         *trainings.Service
+	privacy           *privacy.Service
 	deviceRates       deviceRateLimits
 	// gatewayFailures counts failed streaming-gateway authentications and enrollments per client IP.
 	gatewayFailures *ratelimit.Limiter
@@ -96,6 +99,11 @@ type Server struct {
 }
 
 func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
+	privacyCatalog, err := privacycatalog.Catalog()
+	if err != nil {
+		return nil, fmt.Errorf("privacy catalog: %w", err)
+	}
+	privacyService := privacy.NewService(pool, privacyCatalog)
 	mailer, err := mailservice.NewService(pool, cfg.EncryptionKeys)
 	if err != nil {
 		return nil, fmt.Errorf("initialize mail service: %w", err)
@@ -220,6 +228,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		inbox:             inbox.NewService(pool),
 		configTransfer:    configTransferService,
 		trainings:         trainingsService,
+		privacy:           privacyService,
 		deviceRates:       newDeviceRateLimits(),
 		gatewayFailures:   ratelimit.New(gatewayFailuresPerWindow, gatewayFailureWindow),
 		surveyLinkViews:   ratelimit.New(surveyLinkViewsPerWindow, surveyLinkWindow),
