@@ -1,16 +1,14 @@
-import { InlineNotification, Modal, MultiSelect, Stack, TextArea, TextInput } from '@carbon/react';
+import { InlineNotification, Modal, MultiSelect, Stack } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import type { Role } from '../../api/generated/models';
 import { sendNotificationMessage } from '../../api/generated/notifications/notifications';
 import { ApiError } from '../../api/http-client';
 import { fullRoleCatalogOptions } from '../roles/queries';
+import { MessageFields, type MessageFieldValues } from './MessageFields';
 import { notificationKeys } from './queries';
 
-export const MAX_TITLE = 120;
-export const MAX_BODY = 2000;
-
-type Values = { title: string; body: string; link: string; roleIds: string[] };
+type Values = MessageFieldValues & { roleIds: string[] };
 
 function sendErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -64,53 +62,7 @@ export function NewMessageModal({ canListRoles, onClose }: { canListRoles: boole
             The message goes to everyone who holds one of the chosen roles right now and appears in their notifications
             for 90 days. It is plain text.
           </p>
-          <TextInput
-            id="message-title"
-            labelText="Title"
-            maxCount={MAX_TITLE}
-            invalid={Boolean(errors.title)}
-            invalidText={errors.title?.message}
-            {...form.register('title', {
-              validate: (value) => {
-                const length = value.trim().length;
-                if (length === 0) return 'Enter a title.';
-                return length <= MAX_TITLE || `Use at most ${MAX_TITLE} characters.`;
-              },
-            })}
-          />
-          <TextArea
-            id="message-body"
-            labelText="Text"
-            rows={5}
-            enableCounter
-            maxCount={MAX_BODY}
-            invalid={Boolean(errors.body)}
-            invalidText={errors.body?.message}
-            {...form.register('body', {
-              validate: (value) => {
-                const length = value.trim().length;
-                if (length === 0) return 'Enter the text of the message.';
-                return length <= MAX_BODY || `Use at most ${MAX_BODY} characters.`;
-              },
-            })}
-          />
-          <TextInput
-            id="message-link"
-            labelText="Link (optional)"
-            helperText="A page in this application, for example /open-days."
-            invalid={Boolean(errors.link)}
-            invalidText={errors.link?.message}
-            {...form.register('link', {
-              validate: (value) => {
-                const link = value.trim();
-                if (!link) return true;
-                return (
-                  (link.startsWith('/') && !link.startsWith('//') && !/[\s\\]/.test(link)) ||
-                  'Enter a path that starts with a single “/”, without spaces.'
-                );
-              },
-            })}
-          />
+          <MessageFields form={form} />
           {canListRoles ? (
             <Controller
               control={form.control}

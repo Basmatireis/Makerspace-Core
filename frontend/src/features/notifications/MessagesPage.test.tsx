@@ -84,9 +84,10 @@ describe('Messages page', () => {
 
     await user.type(within(dialog).getByLabelText('Title'), '  Cleanup day ');
     await user.type(within(dialog).getByLabelText('Text'), 'Bring gloves.');
-    await user.type(within(dialog).getByLabelText(/Link/), 'https://evil.example');
+    expect(within(dialog).getByText('A page in the app (/open-days) or a web address (https://…)')).toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText(/Link/), 'http://insecure.example');
     await user.click(within(dialog).getByRole('button', { name: 'Send message' }));
-    expect(await within(dialog).findByText(/path that starts with a single/)).toBeInTheDocument();
+    expect(await within(dialog).findByText('Web addresses must start with https://.')).toBeInTheDocument();
     await user.clear(within(dialog).getByLabelText(/Link/));
     await user.type(within(dialog).getByLabelText(/Link/), '/open-days');
     const picker = within(dialog).getByRole('combobox', { name: /Send to roles/ });
@@ -130,5 +131,96 @@ describe('Messages page', () => {
     expect(
       await within(dialog).findByText('Nobody with an active account holds the chosen roles.'),
     ).toBeInTheDocument();
+  });
+
+  it('accepts a web address and a scheme-less host as the link', async () => {
+    mockMessages([PermissionId.notificationssend, PermissionId.rolesread]);
+    let body: { link?: string } | undefined;
+    server.use(
+      http.post('*/api/v1/notifications/messages', async ({ request }) => {
+        body = (await request.json()) as { link?: string };
+        return HttpResponse.json(sentMessage(), { status: 201 });
+      }),
+    );
+    renderRoute(<App />, '/notifications/messages');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'New message' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Title'), 'Hello');
+    await user.type(within(dialog).getByLabelText('Text'), 'Text');
+    await user.type(within(dialog).getByLabelText(/Link/), 'www.example.org/x');
+    const picker = within(dialog).getByRole('combobox', { name: /Send to roles/ });
+    await waitFor(() => expect(picker).toBeEnabled());
+    await user.click(picker);
+    await user.click((await screen.findAllByLabelText('Crew'))[0]);
+    await user.click(within(dialog).getByRole('button', { name: 'Send message' }));
+    await waitFor(() => expect(body?.link).toBe('www.example.org/x'));
+  });
+
+  it('edits title, text and link of a sent message and reloads the list', async () => {
+    mockMessages([PermissionId.notificationssend]);
+    let body: unknown;
+    let putId: string | undefined;
+    let listCalls = 0;
+    server.use(
+      http.get('*/api/v1/notifications/messages', () => {
+        listCalls += 1;
+        return HttpResponse.json({ items: [sentMessage()], page: 1, pageSize: 25, total: 1 });
+      }),
+      http.put('*/api/v1/notifications/messages/:id', async ({ request, params }) => {
+        putId = String(params.id);
+        body = await request.json();
+        return HttpResponse.json(sentMessage());
+      }),
+    );
+    renderRoute(<App />, '/notifications/messages');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Actions for Cleanup day' }));
+    await user.click(await screen.findByText('Edit'));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).queryByRole('combobox', { name: /Send to roles/ })).not.toBeInTheDocument();
+    const title = within(dialog).getByLabelText('Title');
+    expect(title).toHaveValue('Cleanup day');
+    await user.clear(title);
+    await user.type(title, 'Cleanup day moved');
+    await user.type(within(dialog).getByLabelText(/Link/), '/open-days');
+    const before = listCalls;
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() =>
+      expect(body).toEqual({ title: 'Cleanup day moved', body: 'Bring gloves.', link: '/open-days' }),
+    );
+    expect(putId).toBe(messageId);
+    await waitFor(() => expect(listCalls).toBeGreaterThan(before));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('retracts a sent message after confirmation and reloads the list', async () => {
+    mockMessages([PermissionId.notificationssend]);
+    let deletedId: string | undefined;
+    let listCalls = 0;
+    server.use(
+      http.get('*/api/v1/notifications/messages', () => {
+        listCalls += 1;
+        return HttpResponse.json({ items: [sentMessage()], page: 1, pageSize: 25, total: 1 });
+      }),
+      http.delete('*/api/v1/notifications/messages/:id', ({ params }) => {
+        deletedId = String(params.id);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderRoute(<App />, '/notifications/messages');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Actions for Cleanup day' }));
+    await user.click(await screen.findByText('Retract'));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('Retract this message?')).toBeInTheDocument();
+    expect(
+      within(dialog).getByText('It disappears for everyone, including people who already read it.'),
+    ).toBeInTheDocument();
+    expect(deletedId).toBeUndefined();
+    const before = listCalls;
+    await user.click(within(dialog).getByRole('button', { name: 'Retract message' }));
+    await waitFor(() => expect(deletedId).toBe(messageId));
+    await waitFor(() => expect(listCalls).toBeGreaterThan(before));
   });
 });

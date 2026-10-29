@@ -3,6 +3,7 @@ import { HeaderPanel, IconButton } from '@carbon/react';
 import { Notification } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { unreadCountQuery } from './queries';
+import { useNewNotificationToasts } from './useNewNotificationToasts';
 
 // The list pulls in the list, tag and relative-time code, so it loads when the panel is first opened.
 const NotificationList = lazy(() =>
@@ -18,6 +19,7 @@ type ActionProps = {
 /** The header bell with the unread badge. Polls the unread count; the badge is hidden at zero. */
 export function NotificationAction({ expanded, actionRef, onToggle }: ActionProps) {
   const unread = useQuery(unreadCountQuery()).data?.unreadCount ?? 0;
+  useNewNotificationToasts();
   const label = `${expanded ? 'Close' : 'Open'} notifications${unread > 0 ? `, ${unread} unread` : ''}`;
   // HeaderGlobalAction has no badge; Carbon's IconButton does (ghost, large), and the header action class gives it
   // the same look and the active state as the profile action next to it.

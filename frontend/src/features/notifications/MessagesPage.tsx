@@ -5,6 +5,8 @@ import {
   DataTable,
   DataTableSkeleton,
   InlineNotification,
+  OverflowMenu,
+  OverflowMenuItem,
   Pagination,
   Table,
   TableBody,
@@ -16,13 +18,16 @@ import {
 } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
+import type { SentNotificationMessage } from '../../api/generated/models';
 import { formatDateTime } from '../../app/dateTime';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { EditMessageModal } from './EditMessageModal';
 import { NewMessageModal } from './NewMessageModal';
 import { sentMessagesQuery } from './queries';
+import { RetractMessageModal } from './RetractMessageModal';
 
 const headers = [
   { key: 'message', header: 'Message' },
@@ -40,6 +45,8 @@ export function MessagesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [composing, setComposing] = useState(false);
+  const [editing, setEditing] = useState<SentNotificationMessage | null>(null);
+  const [retracting, setRetracting] = useState<SentNotificationMessage | null>(null);
   const sent = useQuery({ ...sentMessagesQuery(page, pageSize), enabled: canSend });
   const crumbs = [{ label: 'Directory' }];
   const actions = canSend ? (
@@ -105,6 +112,9 @@ export function MessagesPage() {
                     {tableHeaders.map((header) => (
                       <TableHeader key={header.key}>{header.header}</TableHeader>
                     ))}
+                    <TableHeader>
+                      <span className="cds--visually-hidden">Actions</span>
+                    </TableHeader>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -127,6 +137,17 @@ export function MessagesPage() {
                           {formatDateTime(item.createdAt)}
                           {item.senderName ? ` · ${item.senderName}` : ''}
                         </TableCell>
+                        <TableCell className="cds--table-column-menu">
+                          <OverflowMenu size="sm" flipped iconDescription={`Actions for ${item.title}`}>
+                            <OverflowMenuItem itemText="Edit" onClick={() => setEditing(item)} />
+                            <OverflowMenuItem
+                              itemText="Retract"
+                              isDelete
+                              hasDivider
+                              onClick={() => setRetracting(item)}
+                            />
+                          </OverflowMenu>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -146,6 +167,8 @@ export function MessagesPage() {
           )}
         </DataTable>
       )}
+      {editing && <EditMessageModal message={editing} onClose={() => setEditing(null)} />}
+      {retracting && <RetractMessageModal message={retracting} onClose={() => setRetracting(null)} />}
       {composing && <NewMessageModal canListRoles={canListRoles} onClose={() => setComposing(false)} />}
     </PageShell>
   );

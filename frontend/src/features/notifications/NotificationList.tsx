@@ -9,14 +9,10 @@ import {
 } from '@carbon/react';
 import { Close } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import type { Notification } from '../../api/generated/models';
-import {
-  dismissNotification,
-  markAllNotificationsRead,
-  markNotificationRead,
-} from '../../api/generated/notifications/notifications';
+import { dismissNotification, markAllNotificationsRead } from '../../api/generated/notifications/notifications';
 import { useNow } from '../../app/useNow';
+import { useOpenNotification } from './openNotification';
 import { notificationKeys, notificationListQuery, PANEL_PAGE_SIZE } from './queries';
 import { relativeTime } from './relativeTime';
 
@@ -30,20 +26,15 @@ type Props = {
 /** The own notifications, newest first: open one (marks it read and follows its link), dismiss, mark all read. */
 export function NotificationList({ active, onNavigate }: Props) {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const openNotification = useOpenNotification();
   const now = useNow();
   const query = useQuery({ ...notificationListQuery(), enabled: active });
   const refresh = () => queryClient.invalidateQueries({ queryKey: notificationKeys.all });
-  const markRead = useMutation({ mutationFn: (id: string) => markNotificationRead(id), onSettled: refresh });
   const markAll = useMutation({ mutationFn: () => markAllNotificationsRead(), onSettled: refresh });
   const dismiss = useMutation({ mutationFn: (id: string) => dismissNotification(id), onSettled: refresh });
 
   const open = (item: Notification) => {
-    if (!item.readAt) markRead.mutate(item.id);
-    if (item.link) {
-      navigate(item.link);
-      onNavigate();
-    }
+    if (openNotification(item)) onNavigate();
   };
 
   if (query.isPending) return <SkeletonText paragraph lineCount={4} />;
@@ -59,7 +50,7 @@ export function NotificationList({ active, onNavigate }: Props) {
     );
   }
   const { items, total, unreadCount } = query.data;
-  const failed = markRead.isError || markAll.isError || dismiss.isError;
+  const failed = markAll.isError || dismiss.isError;
   return (
     <div className="notification-panel__content">
       <div className="notification-panel__toolbar">

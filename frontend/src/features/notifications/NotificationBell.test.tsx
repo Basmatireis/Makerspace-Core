@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react';
+import { afterEach, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import type { Notification } from '../../api/generated/models';
+import { ToastProvider } from '../../app/toasts';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { NotificationAction, NotificationPanel } from './NotificationBell';
@@ -51,10 +53,10 @@ function Harness() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
   return (
-    <>
+    <ToastProvider>
       <NotificationAction expanded={open} actionRef={ref} onToggle={() => setOpen((value) => !value)} />
       <NotificationPanel expanded={open} actionRef={ref} onClose={() => setOpen(false)} />
-    </>
+    </ToastProvider>
   );
 }
 
@@ -124,4 +126,86 @@ describe('Notification bell', () => {
     expect(await screen.findByText('You have no notifications.')).toBeInTheDocument();
     expect(within(document.body).getByRole('button', { name: 'Mark all as read' })).toBeDisabled();
   });
+
+  it('opens a web address in a new tab without opener access and keeps app paths in the router', async () => {
+    const user = userEvent.setup();
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    const calls = mockInbox([
+      notification({ link: 'https://example.org/page' }),
+      notification({ id: second, title: 'Inside the app', link: '/open-days' }),
+    ]);
+    const view = renderRoute(<Harness />);
+    await user.click(await screen.findByRole('button', { name: /Open notifications/ }));
+    await user.click(await screen.findByText('Run R-2026-000012 finished'));
+    expect(open).toHaveBeenCalledWith('https://example.org/page', '_blank', 'noopener,noreferrer');
+    await waitFor(() => expect(calls).toContain(`read ${first}`));
+    expect(view.router.state.location.pathname).toBe('/');
+
+    await user.click(await screen.findByRole('button', { name: /Open notifications/ }));
+    await user.click(await screen.findByText('Inside the app'));
+    await waitFor(() => expect(view.router.state.location.pathname).toBe('/open-days'));
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  describe('toasts for new notifications', () => {
+    it('shows a toast only when the unread count rises after the first load, and its action follows the link', async () => {
+      const user = userEvent.setup();
+      const open = vi.spyOn(window, 'open').mockReturnValue(null);
+      const long = 'x'.repeat(300);
+      let unread = 1;
+      const read: string[] = [];
+      server.use(
+        http.get('*/api/v1/notifications/unread-count', () => HttpResponse.json({ unreadCount: unread })),
+        http.get('*/api/v1/notifications', () =>
+          HttpResponse.json({
+            items:
+              unread === 1
+                ? [notification({ id: second, title: 'Old one', body: 'Already there.', link: null })]
+                : [
+                    notification({ title: 'Fresh news', body: long, link: 'https://example.org/news' }),
+                    notification({ id: second, title: 'Old one', body: 'Already there.', link: null }),
+                  ],
+            page: 1,
+            pageSize: 20,
+            total: 2,
+            unreadCount: unread,
+          }),
+        ),
+        http.post('*/api/v1/notifications/:id/read', ({ params }) => {
+          read.push(String(params.id));
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+      const view = renderRoute(<Harness />);
+      await screen.findByRole('button', { name: 'Open notifications, 1 unread' });
+      expect(screen.queryByText('Fresh news')).not.toBeInTheDocument();
+      expect(screen.queryByText('Old one')).not.toBeInTheDocument();
+
+      unread = 2;
+      await view.queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] });
+      expect(await screen.findByText('Fresh news')).toBeInTheDocument();
+      expect(screen.queryByText('Old one')).not.toBeInTheDocument();
+      const subtitle = screen.getByText(/^x+…$/);
+      expect(subtitle.textContent?.length).toBeLessThan(200);
+
+      await user.click(screen.getByRole('button', { name: 'Open' }));
+      expect(open).toHaveBeenCalledWith('https://example.org/news', '_blank', 'noopener,noreferrer');
+      await waitFor(() => expect(read).toEqual([first]));
+      await waitFor(() => expect(screen.queryByText('Fresh news')).not.toBeInTheDocument());
+    });
+
+    it('stays quiet when the count falls or stays the same', async () => {
+      let unread = 2;
+      mockInbox([notification()], 2);
+      server.use(http.get('*/api/v1/notifications/unread-count', () => HttpResponse.json({ unreadCount: unread })));
+      const view = renderRoute(<Harness />);
+      await screen.findByRole('button', { name: 'Open notifications, 2 unread' });
+      unread = 1;
+      await view.queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] });
+      await screen.findByRole('button', { name: 'Open notifications, 1 unread' });
+      expect(screen.queryByText('Run R-2026-000012 finished')).not.toBeInTheDocument();
+    });
+  });
 });
+
+afterEach(() => vi.restoreAllMocks());
