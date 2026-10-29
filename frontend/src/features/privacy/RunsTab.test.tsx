@@ -222,10 +222,7 @@ describe('execution history tab', () => {
       'href',
       '/settings/privacy/settings',
     );
-    expect(screen.getByRole('link', { name: 'Retention policies' })).toHaveAttribute(
-      'href',
-      '/settings/privacy/policies',
-    );
+    expect(screen.getByRole('link', { name: 'Edit per category' })).toHaveAttribute('href', '/settings/privacy');
     expect(screen.getByText(/4 active policies, 5 drafts not in force/)).toBeInTheDocument();
   });
 

@@ -33,7 +33,6 @@ import {
 } from './privacyNavigation';
 import { privacyOverviewQueryOptions, privacyQueryKey, privacySettingsQueryOptions } from './privacy';
 
-const PoliciesTab = lazy(() => import('./PoliciesTab').then(({ PoliciesTab }) => ({ default: PoliciesTab })));
 const HoldsTab = lazy(() => import('./HoldsTab').then(({ HoldsTab }) => ({ default: HoldsTab })));
 const RequestsTab = lazy(() => import('./RequestsTab').then(({ RequestsTab }) => ({ default: RequestsTab })));
 const ActivitiesTab = lazy(() => import('./ActivitiesTab').then(({ ActivitiesTab }) => ({ default: ActivitiesTab })));
@@ -254,7 +253,7 @@ function SettingsForm({ settings, canManage }: { settings: PrivacySettings; canM
             <dl className="privacy-kv" aria-label="Ready to switch on?">
               <ReadinessRow label="Ready to switch on?">
                 {overview.policiesActive} of {overview.policiesActive + overview.policiesPending} drafted policies are
-                active · <PrivacyLink section="policies">Retention policies</PrivacyLink>
+                active · <PrivacyLink section="categories">Edit them per category</PrivacyLink>
               </ReadinessRow>
               <ReadinessRow label="Last run">
                 {overview.lastRun
@@ -316,7 +315,6 @@ export function PrivacyPage() {
     );
   }
   const panels: Record<Exclude<PrivacySection, 'categories'>, ReactNode> = {
-    policies: <PoliciesTab />,
     holds: <HoldsTab />,
     runs: <RunsTab />,
     requests: <RequestsTab />,

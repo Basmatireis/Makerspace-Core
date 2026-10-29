@@ -151,3 +151,75 @@
   flex-wrap: wrap;
   gap: 1px;
 }
+
+// Edit retention: the rule on the left, its consequences and the approval on the right.
+.privacy-retention {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: $spacing-06;
+  align-items: start;
+}
+@media (max-width: 66rem) {
+  .privacy-retention {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.privacy-retention__main,
+.privacy-retention__side,
+.privacy-retention__form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-06;
+}
+.privacy-retention__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 1px;
+}
+.privacy-retention__actions--start {
+  justify-content: flex-start;
+}
+.privacy-steps {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.privacy-steps > li {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-01;
+  padding: $spacing-03 $spacing-04 $spacing-03 0;
+  border-block-start: 2px solid theme.$border-subtle;
+  color: theme.$text-secondary;
+  font-size: 0.75rem;
+}
+.privacy-steps > li > strong {
+  color: theme.$text-primary;
+  font-size: 0.875rem;
+}
+.privacy-steps__step--done {
+  border-block-start-color: theme.$support-success;
+}
+.privacy-steps__step--now {
+  border-block-start-color: theme.$interactive;
+}
+.privacy-versions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.privacy-versions__item {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  gap: $spacing-04;
+  align-items: start;
+  padding-block: $spacing-04;
+  border-block-start: 1px solid theme.$border-subtle;
+}
+.privacy-versions__item:first-child {
+  border-block-start: 0;
+  padding-block-start: 0;
+}

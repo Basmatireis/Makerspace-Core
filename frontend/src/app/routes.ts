@@ -265,3 +265,9 @@ export const OpenDayRequirementsPage = lazy(() =>
 export const PrivacyPage = lazy(() =>
   import('../features/privacy/PrivacyPage').then(({ PrivacyPage }) => ({ default: PrivacyPage })),
 );
+
+export const CategoryRetentionPage = lazy(() =>
+  import('../features/privacy/CategoryRetentionPage').then(({ CategoryRetentionPage }) => ({
+    default: CategoryRetentionPage,
+  })),
+);

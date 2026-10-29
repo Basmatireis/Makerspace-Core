@@ -108,6 +108,8 @@ A retention policy is a versioned decision for one data category: its trigger (f
 
 Policies are managed with `privacy.policies.manage`: `GET|POST /privacy/policies`, `PUT /privacy/policies/{policyId}` and `POST /privacy/policies/{policyId}/transition` with `{status}`.
 
+In the web interface a decision is edited on its category: "Edit retention" in a row of the categories page opens `/settings/privacy/categories/{categoryId}`, where the rule is asked in three questions (when the clock starts, how long the data is kept, what happens then), followed by purpose, legal basis and reason. Saving creates or updates the category's draft; the page shows the decision in force, what the draft would mean, the three steps to get it into force with the approve and activate buttons, the version history and the last run of the category. A dry run from that page applies the decision in force to that category only. There is no separate policies table.
+
 ## Holds
 
 A hold stops retention from acting on data:

@@ -203,7 +203,11 @@ describe('privacy settings', () => {
     expect(screen.getByText('Active v2')).toBeInTheDocument();
     expect(screen.getByText('365 days after created_at → delete, from AUDIT_RETENTION')).toBeInTheDocument();
     expect(screen.getByText('Kept without the person link.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'View the active policy' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit retention' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Edit retention' })).toHaveAttribute(
+      'href',
+      '/settings/privacy/categories/audit_events',
+    );
   });
 
   it('shows the hold on a category that is paused', async () => {

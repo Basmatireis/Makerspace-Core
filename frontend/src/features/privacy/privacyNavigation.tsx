@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 /** The sections of the privacy area: the categories page is the entry, the others are its sub-pages. */
-export type PrivacySection = 'categories' | 'policies' | 'holds' | 'runs' | 'requests' | 'activities' | 'settings';
+export type PrivacySection = 'categories' | 'holds' | 'runs' | 'requests' | 'activities' | 'settings';
 
 export const privacyBasePath = '/settings/privacy';
 
@@ -12,10 +12,6 @@ export const privacySections: Record<PrivacySection, { title: string; descriptio
   categories: {
     title: 'Privacy & data retention',
     description: "Data categories, retention and the installation's privacy settings.",
-  },
-  policies: {
-    title: 'Retention policies',
-    description: 'One decision per data category: how long it is kept and what happens then.',
   },
   holds: {
     title: 'Holds',
@@ -42,6 +38,19 @@ export const privacySections: Record<PrivacySection, { title: string; descriptio
 /** The path of a section; the categories page is the privacy page itself. */
 export function privacyPath(section: PrivacySection): string {
   return section === 'categories' ? privacyBasePath : `${privacyBasePath}/${section}`;
+}
+
+/** The path of a category's retention page, where its decision is edited. */
+export function categoryRetentionPath(categoryId: string): string {
+  return `${privacyBasePath}/categories/${encodeURIComponent(categoryId)}`;
+}
+
+/** The category id a retention page's location points to, or null. */
+export function categoryIdFromPath(pathname: string): string | null {
+  const prefix = `${privacyBasePath}/categories/`;
+  if (!pathname.startsWith(prefix)) return null;
+  const id = decodeURIComponent(pathname.slice(prefix.length).replace(/\/+$/, ''));
+  return id === '' ? null : id;
 }
 
 /** The section a location points to, or null for a path that is not a privacy page. */

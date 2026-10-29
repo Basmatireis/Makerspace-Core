@@ -427,8 +427,8 @@ export function RunsTab() {
           {' | '}
           {plural(policies.policiesActive, 'active policy', 'active policies')},{' '}
           {plural(policies.policiesPending, 'draft', 'drafts')} not in force ·{' '}
-          <PrivacyLink section="policies" size="sm">
-            Retention policies
+          <PrivacyLink section="categories" size="sm">
+            Edit per category
           </PrivacyLink>
         </p>
       )}

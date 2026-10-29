@@ -4,6 +4,7 @@ import {
   CheckboxGroup,
   ClickableTile,
   DataTable,
+  Link,
   Popover,
   PopoverContent,
   Stack,
@@ -25,7 +26,7 @@ import {
 import { ArrowRight, CheckmarkFilled, CircleFilled, Filter, Locked } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import type {
   PrivacyCategory,
   PrivacyCategoryCoveragePolicyStatus,
@@ -40,7 +41,7 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission } from '../auth/permissions';
 import { SettingsLoading } from '../settings/SettingsPageLayout';
 import { privacyCategoriesQueryOptions, privacyOverviewQueryOptions, privacySettingsQueryOptions } from './privacy';
-import { PrivacyLink, privacyPath } from './privacyNavigation';
+import { categoryRetentionPath, PrivacyLink, privacyPath } from './privacyNavigation';
 import './privacyCategories.scss';
 
 type Status = PrivacyCategoryCoveragePolicyStatus;
@@ -61,8 +62,8 @@ export function PrivacyContextLine({ overview }: { overview: PrivacyOverview }) 
   return (
     <p className="privacy-context cds--type-body-compact-01">
       <span>
-        {overview.policiesActive} {overview.policiesActive === 1 ? 'policy' : 'policies'} in force,{' '}
-        {decided - overview.policiesActive} drafted · <PrivacyLink section="policies">Retention policies</PrivacyLink>
+        {overview.policiesActive} {overview.policiesActive === 1 ? 'decision' : 'decisions'} in force,{' '}
+        {decided - overview.policiesActive} drafted, {overview.withoutPolicy} still open
       </span>
       <span>
         Last run:{' '}
@@ -213,21 +214,21 @@ function statusInfo(category: PrivacyCategory) {
   const onHold = category.coverage.hold !== null;
   const prefix = onHold ? 'Paused by a hold: ' : '';
   if (policyStatus === 'active' && policy) {
-    return { title: `${prefix}In force`, line: rule(policy), link: 'View policy', cta: 'View the active policy' };
+    return { title: `${prefix}In force`, line: rule(policy), link: 'Edit retention', cta: 'Edit retention' };
   }
   if (policyStatus === 'pending' && policy) {
     return {
       title: `${prefix}Draft only`,
       line: `Draft: ${rule(policy)}. Today: ${legacy ?? 'kept indefinitely'}`,
-      link: 'Review draft',
-      cta: 'Review and approve the draft',
+      link: 'Edit retention',
+      cta: 'Edit retention',
     };
   }
   return {
     title: `${prefix}No decision yet`,
     line: legacy ?? (category.subject === 'person' ? 'Kept until the person is deleted' : 'Kept indefinitely'),
-    link: 'Create policy',
-    cta: 'Decide a retention period',
+    link: 'Edit retention',
+    cta: 'Edit retention',
   };
 }
 
@@ -472,7 +473,7 @@ function CategoryDetail({ category }: { category: PrivacyCategory }) {
         <Button kind="tertiary" size="md" onClick={() => void navigate(privacyPath('runs'))}>
           Dry run
         </Button>
-        <Button kind="primary" size="md" onClick={() => void navigate(privacyPath('policies'))}>
+        <Button kind="primary" size="md" onClick={() => void navigate(categoryRetentionPath(category.id))}>
           {info.cta}
         </Button>
       </div>
@@ -628,7 +629,9 @@ export function CategoriesTab() {
                               </div>
                             )}
                             <div className="cds--type-helper-text-01">{runLine(coverage.lastRun)}</div>
-                            <PrivacyLink section="policies">{info.link}</PrivacyLink>
+                            <Link as={RouterLink} to={categoryRetentionPath(category.id)}>
+                              {info.link}
+                            </Link>
                           </div>
                         </div>
                       </TableCell>
