@@ -54,6 +54,7 @@ import { useCan } from '../shared/useCan';
 import { colorsClearlyDiffer, reportedToMaterialHex } from '../colors';
 import { DetectedTrayCell } from './DetectedTrayCell';
 import type { StepKey } from './wizard/wizardTypes';
+import { useFilamentChangeToasts } from './filamentChanges';
 import { slotTag, slotHeaders, runtimeTag, spoolLabel } from './printerSetupShared';
 
 const PRINTER_REFRESH_MS = 5000;
@@ -89,6 +90,7 @@ export function PrinterSetup({
     refetchInterval: active ? PRINTER_REFRESH_MS : false,
   });
   const detection = live.data?.status ?? null;
+  useFilamentChangeToasts(machine.id, detection, profile, notify);
   const slots = (profile?.slots ?? []).filter((slot) => slot.status !== 'retired');
   const hasMounted = slots.some((slot) => slot.spoolId);
   const mountedSpools = useQuery({
