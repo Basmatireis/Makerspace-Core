@@ -23,8 +23,8 @@
 }
 .privacy-context {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: $spacing-05 $spacing-07;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: $spacing-05 $spacing-06;
   padding: $spacing-05;
   background: theme.$layer-01;
   color: theme.$text-secondary;

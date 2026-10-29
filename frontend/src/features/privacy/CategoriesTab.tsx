@@ -58,7 +58,6 @@ export function PrivacyContextLine({ overview }: { overview: PrivacyOverview }) 
   const settings = useQuery(privacySettingsQueryOptions());
   const run = overview.lastRun;
   const holds = overview.openCategoryHolds;
-  const decided = overview.policiesActive + overview.policiesPending;
   const item = (label: string, value: ReactNode, link?: ReactNode) => (
     <div className="privacy-context__item">
       <span className="privacy-context__label">{label}</span>
@@ -68,13 +67,6 @@ export function PrivacyContextLine({ overview }: { overview: PrivacyOverview }) 
   );
   return (
     <div className="privacy-context">
-      {item(
-        'Decisions',
-        <>
-          <strong>{overview.policiesActive}</strong> in force, {decided - overview.policiesActive} drafted,{' '}
-          {overview.withoutPolicy} still open
-        </>,
-      )}
       {item(
         'Last run',
         run ? (
