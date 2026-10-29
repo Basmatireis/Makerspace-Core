@@ -33,6 +33,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Fixed
 
+- **Roles & Permissions as master.** Once the fresh-sign-in window of `roles.manage` had passed, the page read-only instead of asking for the sign-in: it now lets a master edit, and saving opens the "confirm it's you" dialog and repeats the request.
 - **Pay now on the dashboard** looked different from "Record payment" on an order until an order page had been opened once; the payment form now carries its own styles.
 - **Notification links to other sites** were treated as application paths and answered 404; they are stored as `https://` URLs and open in a new tab.
 - **Printer error events** sent by the connector were rejected by Core as an unknown event kind; they are accepted and stored.

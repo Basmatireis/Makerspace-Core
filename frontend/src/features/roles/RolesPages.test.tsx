@@ -169,6 +169,32 @@ describe('Roles and permissions matrix', () => {
     expect(within(review).getByText('View roles')).toBeInTheDocument();
   });
 
+  it('lets a master edit while the manage permission only waits for a fresh sign-in', async () => {
+    const actor = currentUserFixture([PermissionId.rolesread], true);
+    actor.authentication.reauthenticationRequired = [
+      { permissionId: PermissionId.rolesmanage, requiredAssurance: 'normal', withinMinutes: 10 },
+    ];
+    // A master may delegate everything, whether or not a permission waits for a fresh sign-in.
+    actor.delegablePermissionGrants = [
+      ...actor.delegablePermissionGrants,
+      { permissionId: PermissionId.rolesmanage, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' },
+    ];
+    const role = roleFixture();
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
+      ...matrixHandlers(role),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/roles');
+
+    expect(await screen.findByRole('heading', { name: 'Select a permission' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Create role/ })).toBeInTheDocument();
+    await user.click(
+      await screen.findByRole('button', { name: 'Set Manage roles for Workshop supervisors to Unconditional' }),
+    );
+    expect(screen.getByRole('button', { name: 'Review and save' })).toBeInTheDocument();
+  });
+
   it('provides compact permission search and filter controls in the shared toolbar', async () => {
     const user = userEvent.setup();
     server.use(

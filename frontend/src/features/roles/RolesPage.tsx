@@ -27,6 +27,7 @@ import { authQueryKey, useCurrentUser } from '../auth/auth';
 import {
   grantCoveredBy,
   hasPermission,
+  hasPermissionOrPending,
   normalizePermissionGrants,
   permissionGrantCoveredBy,
   permissionGrantsValid,
@@ -81,8 +82,11 @@ export function RolesPage() {
   const settingsRole = roles.find((role) => role.id === routeRoleId);
   const deletingRole = roles.find((role) => role.id === deleteRoleId);
   const isMasterActor = currentUser.person.roles.some((role) => role.systemKey === 'master');
+  // A master whose manage permission only waits for a fresh sign-in may still edit; the API asks for the
+  // sign-in when the change is saved and the request is then repeated.
+  const mayManageRoles = hasPermissionOrPending(currentUser, PermissionId.rolesmanage);
   const canManageRole = (role: Role) =>
-    hasPermission(currentUser, PermissionId.rolesmanage) &&
+    mayManageRoles &&
     role.systemKey !== 'master' &&
     (isMasterActor ||
       role.permissionGrants.every((grant) =>
@@ -385,7 +389,7 @@ export function RolesPage() {
               Master sign-in policy
             </Button>
           )}
-          {hasPermission(currentUser, PermissionId.rolesmanage) && (
+          {mayManageRoles && (
             <Button
               className="roles-toolbar__create"
               kind="primary"
