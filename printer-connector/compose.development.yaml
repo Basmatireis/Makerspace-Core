@@ -1,8 +1,25 @@
-# Development: the printer connector built from this checkout, next to `make dev` (Core on the host,
-# port 8080). Started with `make dev-connector`; see docs/hosting.md.
+# Development: the printer connector (built from this checkout) and go2rtc, next to `make dev` (Core
+# on the host, port 8080; the player is served by Vite on port 5173). Started with
+# `make dev-connector`; see docs/hosting.md. Nothing is published: camera video reaches the player
+# through Core. The production CORE_URL from .env is not used here.
 name: makerspace-connector
 
 services:
+  # One-shot: the go2rtc configuration volume must belong to the connector's user (uid 100, gid 101;
+  # see the Dockerfile). A new named volume can otherwise take root ownership from whichever image
+  # mounts it first (go2rtc's).
+  go2rtc-config-init:
+    image: alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+    user: "0:0"
+    entrypoint: ["sh", "-c", "chown 100:101 /go2rtc-config && chmod 0700 /go2rtc-config"]
+    volumes:
+      - go2rtc_config:/go2rtc-config
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt: [no-new-privileges:true]
+    restart: "no"
+
   connector:
     build:
       context: ..
@@ -12,19 +29,41 @@ services:
         VERSION: dev
     environment:
       APP_ENV: development
-      # Core's API as seen from the container. The production CORE_URL from .env is not used here.
+      # Core's API as seen from the container (the development backend on the host).
       CORE_URL: ${DEV_CORE_URL:-http://host.docker.internal:8080}
       CONNECTOR_ALLOW_HTTP: "true"
       CONNECTOR_DATA_DIR: /var/lib/makerspace-printer-connector
       CONNECTOR_ENROLLMENT_SECRET: ${CONNECTOR_ENROLLMENT_SECRET:-}
+      GO2RTC_API_URL: http://go2rtc:1984
+      GO2RTC_CONFIG_FILE: /go2rtc-config/go2rtc.yaml
     extra_hosts:
       - host.docker.internal:host-gateway
+    depends_on:
+      go2rtc-config-init:
+        condition: service_completed_successfully
     volumes:
       - connector_data:/var/lib/makerspace-printer-connector
+      - go2rtc_config:/go2rtc-config
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     stop_grace_period: 20s
     init: true
 
+  go2rtc:
+    image: alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae
+    # Same numeric user as the connector, which writes the configuration file with mode 0600.
+    user: "100:101"
+    command: ["go2rtc", "-config", "/config/go2rtc.yaml"]
+    volumes:
+      - go2rtc_config:/config:ro
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      connector:
+        condition: service_healthy
+    stop_grace_period: 10s
+    restart: unless-stopped
+
 volumes:
   connector_data:
+  go2rtc_config:

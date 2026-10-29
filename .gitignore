@@ -45,7 +45,7 @@ desktop-kiosk/src-tauri/gen/
 
 # Generated OpenAPI and sqlc sources are intentionally committed; do not ignore them.
 
-# Stack configuration and TLS certificates (printer-connector/, streaming-gateway/, local-services/)
+# Stack configuration (printer-connector/)
 */certs/
 # Enrollment secrets of installs that predate env-based enrollment
 */secrets/

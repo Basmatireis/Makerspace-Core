@@ -20,9 +20,12 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM alpine:3.24.3 AS final
 
+# The numeric ids are fixed (they are what `adduser -S` has always assigned): the go2rtc container
+# reads the configuration file this process writes into a shared volume and has to run as the same
+# user (see compose.yaml), and existing data volumes keep their ownership.
 RUN apk add --no-cache ca-certificates tzdata \
-    && addgroup -S connector \
-    && adduser -S -G connector connector \
+    && addgroup -S -g 101 connector \
+    && adduser -S -u 100 -G connector connector \
     && mkdir -p /var/lib/makerspace-printer-connector \
     && chown connector:connector /var/lib/makerspace-printer-connector \
     && chmod 0700 /var/lib/makerspace-printer-connector
@@ -31,7 +34,7 @@ WORKDIR /app
 COPY --from=build /out/printer-connector /app/printer-connector
 COPY LICENSE NOTICE /app/
 
-USER connector
+USER 100:101
 VOLUME ["/var/lib/makerspace-printer-connector"]
 HEALTHCHECK --interval=30s --timeout=3s --start-period=45s --retries=3 CMD ["/app/printer-connector", "healthcheck"]
 ENTRYPOINT ["/app/printer-connector"]

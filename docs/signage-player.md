@@ -12,7 +12,7 @@ The player is a small web app served by Makerspace Core at `https://<core>/playe
 
 ## Pairing
 
-See also [Signage](signage.md) for the content model and [Streaming gateway](streaming-gateway.md) for live printer cameras. Hosting and setup of the services around Core: [Hosting](hosting.md).
+See also [Signage](signage.md) for the content model and [Printer connector](printer-connector.md#camera-streaming) and [Signage](signage.md#cameras-relayed-by-core) for live printer cameras. Hosting and setup of the services around Core: [Hosting](hosting.md).
 
 1. Start the browser on the display. It shows **This display is not paired** and a six-character code with a countdown (codes are valid for 15 minutes; a new one appears by itself).
 2. In Makerspace Core open **Signage > Displays > Pair display**, enter the code and fill in name, location, orientation and resolution.
@@ -96,7 +96,7 @@ loginctl enable-linger signage
 - Applies a new publication only after all its images and videos are loaded, then switches at once. A video that does not buffer within 30 s is accepted and reported in the next heartbeat.
 - Keeps playing the last revision when Core is unreachable and shows a small yellow dot in the bottom-right corner. Time-window rules keep working offline. After 60 s without live data machine widgets show "Status unknown" and the `live data unavailable` rule applies. See "Offline operation" below.
 - Letterboxes to the configured resolution and orientation; it does not rotate the output. Rotate the screen in the operating system (`wlr-randr --output HDMI-A-1 --transform 90`, `xrandr --output HDMI-1 --rotate left`) and set the display to portrait in Core.
-- Camera widgets show their configured fallback until the streaming gateway exists.
+- Camera widgets play live printer cameras over a websocket to Core on the player's own origin (no extra host, certificate or port; MSE, about 1 to 2 s latency) and show their configured fallback while no stream is available. The display needs nothing but its connection to Core.
 
 ## Offline operation
 
@@ -119,52 +119,21 @@ Normally not needed: revoking the display in Core makes the player delete its ca
 
 To keep the pairing and drop only the cached content, open `chrome://serviceworker-internals`, unregister `/player/`, then in DevTools (Application, Storage) clear "Cache storage" for the Core origin, and reload.
 
-## DNS on the kiosk: names that point to a private address
-
-A gateway with a public certificate (for example `signage-gw.example.org`, obtained from Let's Encrypt, see [Hosting](hosting.md)) has a public DNS record that points to a private LAN address. Many routers refuse to answer such names: OpenWrt's dnsmasq has **rebind protection** (`rebind_protection`) and drops answers with private addresses for public names. The display then shows no camera and the gateway name does not resolve, although Core works. If you have no admin access to the router, fix it on the display. WebRTC media is not affected: it uses the gateway's LAN IP address as an ICE candidate (`STREAM_LAN_ADDRESS:8555`) and needs no DNS; only the HTTPS signalling to the gateway name does.
-
-**Option 1 (recommended): DNS-over-HTTPS in Chromium.** Chromium then asks Cloudflare's resolver for names directly and bypasses the router's resolver. Create the managed policy file as root (the directory may not exist):
-
-```sh
-sudo mkdir -p /etc/chromium/policies/managed
-sudo tee /etc/chromium/policies/managed/makerspace-signage.json >/dev/null <<'JSON'
-{
-  "DnsOverHttpsMode": "secure",
-  "DnsOverHttpsTemplates": "https://cloudflare-dns.com/dns-query"
-}
-JSON
-```
-
-For Google Chrome the directory is `/etc/opt/chrome/policies/managed/` (same content, any file name ending in `.json`). Snap or Flatpak Chromium reads other paths: for the Snap use `/var/snap/chromium/current/policies/managed/`. Restart the browser. `secure` means no fallback to the system resolver; Chromium resolves the DoH server's own address (`cloudflare-dns.com`) through the system resolver once, which works because that name has a public address. Check `chrome://policy` (the two policies are listed with status OK) and open `https://signage-gw.example.org:8443/` in the kiosk browser or the player.
-
-**Option 2: system DNS.** Point the display's resolver to `1.1.1.1` (for example `nmcli connection modify <connection> ipv4.dns 1.1.1.1 ipv4.ignore-auto-dns yes`, or `DNS=1.1.1.1` in `/etc/systemd/resolved.conf`). Then every name of the display goes through Cloudflare, including local names.
-
-**Option 3: hosts entry.** On a fixed installation add one line to `/etc/hosts`: `192.168.1.20  signage-gw.example.org` (the gateway's LAN IP). Simple and robust, but it has to be changed by hand when the address changes.
-
-**Verify.**
-
-```sh
-nslookup signage-gw.example.org                 # through the router: fails or returns nothing when blocked
-nslookup signage-gw.example.org 1.1.1.1         # through Cloudflare: returns the LAN address
-```
-
-If the second answer is correct and the first is not, rebind protection is the cause. In Chromium open `chrome://net-internals/#dns` to see what the browser resolved (with DoH active the entries show the answer from Cloudflare), and `chrome://net-internals/#dns` also lets you clear the host cache after a change. If a DoH policy is set and names still fail, make sure the display can reach `cloudflare-dns.com` on port 443.
-
 ## Troubleshooting
 
-| Symptom                                                      | Check                                                                                                                                                                                      |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Pairing screen after every restart                           | The browser profile is not persistent (incognito, tmpfs profile, profile deleted at boot). Use a fixed `--user-data-dir`.                                                                  |
-| "This network may not pair displays"                         | Core restricts pairing with `SIGNAGE_PAIRING_ALLOWED_CIDRS`. Pair from the makerspace network; after pairing the display can run anywhere.                                                 |
-| "Too many requests, trying again shortly"                    | Core limits 10 pairing codes per hour per client address. Behind a proxy outside the Compose network make sure it is listed in `HTTP_TRUSTED_PROXIES`. Wait; the player retries by itself. |
-| Camera widgets stay empty, the gateway name does not resolve | The router blocks public names that point to private addresses; see [DNS on the kiosk](#dns-on-the-kiosk-names-that-point-to-a-private-address).                                           |
-| "Cannot reach Makerspace Core"                               | DNS, certificate (the clock of the device must be right) or firewall. Open the URL in a normal browser to see certificate errors.                                                          |
-| "Waiting for content"                                        | The display is paired but was never published. Publish it from the display detail page.                                                                                                    |
-| Black screen, yellow dot                                     | The first load failed and nothing is cached yet (a new display needs one online start); the player retries with growing delays (up to 2 minutes). Check the network.                       |
-| Revision not activated, "Not enough storage" in health       | The device's browser storage is too small for the new media. Free space or reduce media; the old revision keeps playing.                                                                   |
-| Old content after a publication                              | The new revision is still loading (large videos) or an asset failed. The display detail page shows the revision the display reports; errors appear in the health tab.                      |
-| Video stutters or stays black                                | Use H.264 MP4 at the display resolution or lower; on a Raspberry Pi 4 keep to 1080p30.                                                                                                     |
-| Display is "offline" in Core but shows content               | Heartbeats fail (rate limit, proxy blocking POST). Check the proxy log for `/api/v1/signage/player/heartbeat`.                                                                             |
-| Needs to be paired again                                     | Revoke the old display in Core (or delete it) and clear the browser profile, or just wait for the pairing screen after revoking.                                                           |
+| Symptom                                                | Check                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pairing screen after every restart                     | The browser profile is not persistent (incognito, tmpfs profile, profile deleted at boot). Use a fixed `--user-data-dir`.                                                                                                                                                                                                                                                                 |
+| "This network may not pair displays"                   | Core restricts pairing with `SIGNAGE_PAIRING_ALLOWED_CIDRS`. Pair from the makerspace network; after pairing the display can run anywhere.                                                                                                                                                                                                                                                |
+| "Too many requests, trying again shortly"              | Core limits 10 pairing codes per hour per client address. Behind a proxy outside the Compose network make sure it is listed in `HTTP_TRUSTED_PROXIES`. Wait; the player retries by itself.                                                                                                                                                                                                |
+| Camera widgets only show their fallback                | The camera is only offered while the published scene contains a camera widget for a machine whose printer-connector assignment has **Stream camera** on and whose connector is online. A display that is visible from outside needs the display setting `allowCameraOutside` switched on. Core's reverse proxy must pass websockets ([Hosting](hosting.md#reverse-proxy-and-websockets)). |
+| "Cannot reach Makerspace Core"                         | DNS, certificate (the clock of the device must be right) or firewall. Open the URL in a normal browser to see certificate errors.                                                                                                                                                                                                                                                         |
+| "Waiting for content"                                  | The display is paired but was never published. Publish it from the display detail page.                                                                                                                                                                                                                                                                                                   |
+| Black screen, yellow dot                               | The first load failed and nothing is cached yet (a new display needs one online start); the player retries with growing delays (up to 2 minutes). Check the network.                                                                                                                                                                                                                      |
+| Revision not activated, "Not enough storage" in health | The device's browser storage is too small for the new media. Free space or reduce media; the old revision keeps playing.                                                                                                                                                                                                                                                                  |
+| Old content after a publication                        | The new revision is still loading (large videos) or an asset failed. The display detail page shows the revision the display reports; errors appear in the health tab.                                                                                                                                                                                                                     |
+| Video stutters or stays black                          | Use H.264 MP4 at the display resolution or lower; on a Raspberry Pi 4 keep to 1080p30.                                                                                                                                                                                                                                                                                                    |
+| Display is "offline" in Core but shows content         | Heartbeats fail (rate limit, proxy blocking POST). Check the proxy log for `/api/v1/signage/player/heartbeat`.                                                                                                                                                                                                                                                                            |
+| Needs to be paired again                               | Revoke the old display in Core (or delete it) and clear the browser profile, or just wait for the pairing screen after revoking.                                                                                                                                                                                                                                                          |
 
 Developer note: `https://<core>/player/` works with any current browser, so a staff member can check a display setup on a laptop. A paired browser keeps its device cookie, so use a separate profile for tests.

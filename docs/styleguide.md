@@ -44,7 +44,7 @@ How code in this repository is written. [AGENTS.md](../AGENTS.md) holds the bind
 - Enumerated domain values are typed: `type RunOutcome string` with a `const` block. Raw string literals for states are confined to the persistence mapping.
 - Constructors take every dependency explicitly; no variadic optional dependencies.
 - Size, time and count limits are named constants defined once, in the package that enforces them, and exported when the HTTP layer needs the same value.
-- Package names are lower case without underscores and name the feature (`opendays`, `machinelogbook`). A local daemon and the Core module that manages it share a stem: the singular is the daemon (`printerconnector`, `streaminggateway`), the plural is Core's registry of them (`printerconnectors`, `streaminggateways`). Every package has a `// Package …` comment saying which side it is.
+- Package names are lower case without underscores and name the feature (`opendays`, `machinelogbook`). A local daemon and the Core module that manages it share a stem: the singular is the daemon (`printerconnector`), the plural is Core's registry of them (`printerconnectors`). Every package has a `// Package …` comment saying which side it is.
 
 ### HTTP
 

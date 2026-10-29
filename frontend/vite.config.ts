@@ -80,6 +80,8 @@ export default defineConfig({
       '/api': {
         target: process.env.VITE_DEV_API_TARGET ?? 'http://localhost:8080',
         changeOrigin: false,
+        // Camera streams in the signage player are websockets.
+        ws: true,
       },
     },
   },

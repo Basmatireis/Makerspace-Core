@@ -23,6 +23,6 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: docker
-    directories: ["/backend", "/frontend", "/printer-connector", "/streaming-gateway"]
+    directories: ["/backend", "/frontend", "/printer-connector"]
     schedule:
       interval: weekly

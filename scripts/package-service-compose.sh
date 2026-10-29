@@ -1,18 +1,16 @@
 #!/bin/sh
-# Packages a local-service stack (printer-connector, streaming-gateway, local-services) as a release
-# bundle. Used by package-printer-connector-compose.sh, package-streaming-compose.sh and
-# package-local-services-compose.sh.
+# Packages a local-service stack (printer-connector) as a release bundle. Used by
+# package-printer-connector-compose.sh.
 #
-#   package-service-compose.sh STACK_DIRECTORY ARCHIVE_PREFIX VERSION OUTPUT_DIRECTORY [with-certs]
+#   package-service-compose.sh STACK_DIRECTORY ARCHIVE_PREFIX VERSION OUTPUT_DIRECTORY
 #
 # The bundle holds the stack's unchanged compose.yaml and its .env.example with MAKERSPACE_VERSION
-# set to VERSION. With "with-certs" it also holds certs/README, the optional place for a TLS
-# certificate (file mode; without certificate files the gateway uses ACME mode).
+# set to VERSION.
 
 set -eu
 
-if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
-    printf 'usage: %s STACK_DIRECTORY ARCHIVE_PREFIX VERSION OUTPUT_DIRECTORY [with-certs]\n' "$0" >&2
+if [ "$#" -ne 4 ]; then
+    printf 'usage: %s STACK_DIRECTORY ARCHIVE_PREFIX VERSION OUTPUT_DIRECTORY\n' "$0" >&2
     exit 2
 fi
 
@@ -20,7 +18,6 @@ stack=$1
 archive_prefix=$2
 version=$3
 output_directory=$4
-with_certs=${5:-}
 if ! printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
     printf 'VERSION must have the form MAJOR.MINOR.PATCH without a leading v\n' >&2
     exit 2
@@ -43,22 +40,5 @@ if [ "$(grep -c '^MAKERSPACE_VERSION=0\.0\.0$' "$source_directory/.env.example")
 fi
 sed "s/^MAKERSPACE_VERSION=0\.0\.0\$/MAKERSPACE_VERSION=$version/" "$source_directory/.env.example" >"$bundle_directory/.env.example"
 
-entries="compose.yaml .env.example"
-if [ "$with_certs" = with-certs ]; then
-    mkdir "$bundle_directory/certs"
-    cat >"$bundle_directory/certs/README" <<'README'
-Optional (file mode). Without files here the gateway obtains a Let's Encrypt certificate by itself
-when ACME_EMAIL and CLOUDFLARE_DNS_API_TOKEN are set in .env (see .env.example).
-
-To use your own certificate instead, put the chain and private key for STREAM_PUBLIC_HOST here as
-fullchain.pem and privkey.pem (the file names certbot and acme.sh produce). When both files exist
-they win over ACME. The gateway runs as uid 10001 and must be able to read both files. This
-directory is mounted read-only; a renewed certificate is picked up within about a minute without a
-restart. See docs/hosting.md.
-README
-    entries="$entries certs/README"
-fi
-
-# shellcheck disable=SC2086
-tar -czf "$output_directory/$archive_name" -C "$bundle_directory" $entries
+tar -czf "$output_directory/$archive_name" -C "$bundle_directory" compose.yaml .env.example
 printf '%s\n' "$output_directory/$archive_name"

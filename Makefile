@@ -3,10 +3,10 @@ SHELL := /bin/sh
 .DEFAULT_GOAL := help
 
 .PHONY: help dev dev-detached down logs db-up db-shell \
-	dev-connector dev-connector-logs dev-connector-down dev-streaming dev-streaming-logs dev-streaming-down \
+	dev-connector dev-connector-logs dev-connector-down \
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
-	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-printer-connector-compose test-streaming-compose test-local-services-compose test-android test-desktop \
+	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-printer-connector-compose test-android test-desktop \
 	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password seed-dev
 
 # Integration tests use their own database next to the development database so
@@ -24,23 +24,14 @@ dev: ## Build and run the database, backend, and frontend with live source mount
 dev-detached: ## Start the development stack in the background.
 	docker compose up --build -d
 
-dev-connector: ## Build and start the printer connector (stack makerspace-connector) next to `make dev` (docs/hosting.md).
+dev-connector: ## Build and start the printer connector + go2rtc (stack makerspace-connector) next to `make dev` (docs/hosting.md).
 	@./scripts/dev-stack.sh connector
 
-dev-connector-logs: ## Follow the development printer connector logs.
+dev-connector-logs: ## Follow the development printer connector and go2rtc logs.
 	docker compose -f printer-connector/compose.development.yaml logs -f
 
-dev-connector-down: ## Stop the development printer connector (keeps its data volume).
+dev-connector-down: ## Stop the development printer connector and go2rtc (keeps their data volumes).
 	docker compose -f printer-connector/compose.development.yaml down
-
-dev-streaming: ## Build and start the streaming gateway + go2rtc (stack makerspace-streaming) next to `make dev` (docs/hosting.md).
-	@./scripts/dev-stack.sh streaming
-
-dev-streaming-logs: ## Follow the development streaming gateway and go2rtc logs.
-	docker compose -f streaming-gateway/compose.development.yaml logs -f
-
-dev-streaming-down: ## Stop the development streaming gateway and go2rtc (keeps their data volumes).
-	docker compose -f streaming-gateway/compose.development.yaml down
 
 down: ## Stop the development stack without deleting database data.
 	docker compose down
@@ -88,14 +79,8 @@ test-e2e: ## Run all Playwright checks against an isolated live Go/PostgreSQL st
 test-production-compose: ## Smoke-test the standalone production Compose release bundle.
 	./scripts/test-production-compose.sh
 
-test-printer-connector-compose: ## Package and validate the standalone printer-connector Compose bundle.
+test-printer-connector-compose: ## Package and validate the printer-connector Compose bundle (connector + go2rtc).
 	./scripts/test-printer-connector-compose.sh
-
-test-streaming-compose: ## Package and validate the standalone streaming-gateway Compose bundle.
-	./scripts/test-streaming-compose.sh
-
-test-local-services-compose: ## Package and validate the local-services Compose bundle (connector + gateway).
-	./scripts/test-local-services-compose.sh
 
 test-android: ## Build and unit-test the Android kiosk in a pinned SDK container.
 	./scripts/test-android-kiosk.sh
@@ -138,11 +123,10 @@ check-frontend: ## Run the dependency audit, lint, type checking, tests, and a p
 	docker compose run --rm --no-deps -e CI=true frontend pnpm test
 	docker compose run --rm --no-deps -e CI=true frontend pnpm build
 
-build: ## Build the backend, frontend, printer connector, streaming gateway and local updater production images.
+build: ## Build the backend, frontend, printer connector and local updater production images.
 	docker build --target final -f backend/Dockerfile .
 	docker build --target final -f frontend/Dockerfile .
 	docker build --target final -f printer-connector/Dockerfile .
-	docker build --target final -f streaming-gateway/Dockerfile .
 	docker build --target final -f local-updater/Dockerfile .
 
 build-desktop: ## Build the native desktop application and platform installer.

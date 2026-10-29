@@ -1,21 +1,21 @@
 #!/bin/sh
-# Shared validation for the local-service release bundles (no images are pulled or started):
-#   test-service-compose.sh PACKAGE_SCRIPT PROJECT_NAME EXPECTED_SERVICES(comma-separated) with-certs|no-certs
+# Validation of the local-service release bundle (no images are pulled or started):
+#   test-service-compose.sh PACKAGE_SCRIPT PROJECT_NAME EXPECTED_SERVICES(comma-separated)
 # Packages the bundle as version 0.0.0, checks its contents, and validates that Compose renders it
 # with the shipped .env.example plus a sample enrollment secret: pinned image tags, hardened
-# containers, no host networking, only the intended published ports, and the Docker socket only in
-# the optional updater (profile "updater").
+# containers, no host networking, no published port at all, go2rtc pinned by digest and attached only
+# to the internal network and its own egress network, and the Docker socket only in the optional
+# updater (profile "updater").
 
 set -eu
 
-if [ "$#" -ne 4 ]; then
-    printf 'usage: %s PACKAGE_SCRIPT PROJECT_NAME SERVICES with-certs|no-certs\n' "$0" >&2
+if [ "$#" -ne 3 ]; then
+    printf 'usage: %s PACKAGE_SCRIPT PROJECT_NAME SERVICES\n' "$0" >&2
     exit 2
 fi
 package_script=$1
 project_name=$2
 expected_services=$(printf '%s\n' "$3" | tr ',' '\n' | sort)
-with_certs=$4
 
 repository_directory=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/makerspace-service-smoke.XXXXXX")
@@ -27,11 +27,7 @@ trap cleanup EXIT INT TERM
 cd "$repository_directory"
 archive_path=$("$package_script" "$version" "$temporary_directory")
 archive_entries=$(tar -tzf "$archive_path" | grep -v '/$' | sort)
-if [ "$with_certs" = with-certs ]; then
-    expected_entries=$(printf '%s\n' .env.example certs/README compose.yaml)
-else
-    expected_entries=$(printf '%s\n' .env.example compose.yaml)
-fi
+expected_entries=$(printf '%s\n' .env.example compose.yaml)
 test "$archive_entries" = "$expected_entries"
 
 mkdir "$deployment_directory"
@@ -46,7 +42,6 @@ cp "$deployment_directory/.env.example" "$deployment_directory/.env"
 {
     printf 'MAKERSPACE_IMAGE_PREFIX=makerspace-core-service-smoke\n'
     printf 'CONNECTOR_ENROLLMENT_SECRET=smoke-connector-secret\n'
-    printf 'STREAM_ENROLLMENT_SECRET=smoke-stream-secret\n'
 } >>"$deployment_directory/.env"
 
 (
@@ -75,27 +70,24 @@ cp "$deployment_directory/.env.example" "$deployment_directory/.env"
     for service in $updater_services; do
         printf '%s\n' "$expected_services" | grep -Fx "$service" >/dev/null
     done
-    if [ "$with_certs" = no-certs ]; then
-        test -z "$(printf '%s\n' "$rendered" | grep -E 'published:' || true)"
-        printf '%s\n' "$rendered" | grep -F 'read_only: true' >/dev/null
-    fi
-    if [ "$with_certs" = with-certs ]; then
-        printf '%s\n' "$rendered" | grep -F 'STREAM_TLS_CERT_FILE: /certs/fullchain.pem' >/dev/null
-        printf '%s\n' "$rendered" | grep -F 'read_only: true' >/dev/null
-        # go2rtc's API (1984) and RTSP (8554) must never be published.
-        test -z "$(printf '%s\n' "$rendered" | grep -E 'published: "(1984|8554)"' || true)"
-        # Both TLS modes must render: ACME variables reach the gateway, and the certs directory is optional.
-        printf '%s\n' "$rendered" | grep -E '^ +ACME_EMAIL:' >/dev/null
-        printf '%s\n' "$rendered" | grep -E '^ +CLOUDFLARE_DNS_API_TOKEN:' >/dev/null
-        grep -E '^ACME_EMAIL=$' .env.example >/dev/null
-        grep -E '^CLOUDFLARE_DNS_API_TOKEN=$' .env.example >/dev/null
-        {
-            printf 'ACME_EMAIL=ops@example.org\n'
-            printf 'CLOUDFLARE_DNS_API_TOKEN=smoke-cloudflare-token\n'
-        } >>.env
-        rm -rf certs
-        acme_rendered=$(docker compose config)
-        printf '%s\n' "$acme_rendered" | grep -F 'ACME_EMAIL: ops@example.org' >/dev/null
-        printf '%s\n' "$acme_rendered" | grep -F 'CLOUDFLARE_DNS_API_TOKEN: smoke-cloudflare-token' >/dev/null
-    fi
+    # Nothing is published: players reach cameras through Core, never through this host.
+    test -z "$(printf '%s\n' "$rendered" | grep -E 'published:|^ +ports:' || true)"
+    printf '%s\n' "$rendered" | grep -F 'read_only: true' >/dev/null
+    # go2rtc is pinned by tag and digest, runs as the connector's uid and has no direct Core access.
+    printf '%s\n' "$rendered" | grep -E 'image: alexxit/go2rtc:[0-9.]+@sha256:[0-9a-f]{64}$' >/dev/null
+    printf '%s\n' "$rendered" | grep -F 'GO2RTC_API_URL: http://go2rtc:1984' >/dev/null
+    printf '%s\n' "$rendered" | grep -F 'GO2RTC_CONFIG_FILE: /go2rtc-config/go2rtc.yaml' >/dev/null
+    printf '%s\n' "$rendered" | grep -F 'internal: true' >/dev/null
+    # Networks of one rendered service: the keys below its "networks:" line.
+    service_networks() {
+        docker compose config "$1" | awk -v service="$1" '
+            $0 == "  " service ":" { in_service = 1; next }
+            in_service && /^  [^ ]/ { in_service = 0 }
+            in_service && /^    networks:/ { in_networks = 1; next }
+            in_service && in_networks && /^      [^ ]/ { sub(/:.*/, ""); gsub(/ /, ""); print; next }
+            in_networks && !/^      / { in_networks = 0 }
+        ' | sort
+    }
+    test "$(service_networks go2rtc)" = "$(printf 'go2rtc_egress\ninternal\n')"
+    test "$(service_networks connector)" = "$(printf 'connector_egress\ninternal\n')"
 )

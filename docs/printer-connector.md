@@ -25,13 +25,13 @@ Connector identities are separate from people, browser sessions, and Managed Dev
 
 Runtime credentials expire after 90 days. The connector rotates its own credential during the final seven days. Core accepts the prior credential for a 24-hour handover window so a successful server response followed by a local disk failure can recover safely. Revocation immediately rejects all credentials, invalidates open enrollment, ends assignments, and is audited.
 
-To connect a daemon to a different or newly created connector or gateway, put the new enrollment secret into `CONNECTOR_ENROLLMENT_SECRET` and restart. If the secret differs from the one used for the stored identity, the daemon enrolls with it and replaces its local identity. If Core rejects the new secret, the daemon keeps running with the old identity and logs an error. An unchanged secret is ignored and can be removed. If the log says "Core rejects this connector's credential (revoked or deleted)", the connector was revoked or deleted: create a new connector (or use a pending one), put its secret into `.env` and restart.
+To connect a daemon to a different or newly created connector, put the new enrollment secret into `CONNECTOR_ENROLLMENT_SECRET` and restart. If the secret differs from the one used for the stored identity, the daemon enrolls with it and replaces its local identity. If Core rejects the new secret, the daemon keeps running with the old identity and logs an error. An unchanged secret is ignored and can be removed. If the log says "Core rejects this connector's credential (revoked or deleted)", the connector was revoked or deleted: create a new connector (or use a pending one), put its secret into `.env` and restart.
 
 **Deleting a connector.** `DELETE /printer-connectors/{id}` (`printer_connectors.manage`, `expectedVersion`) works in every lifecycle, including revoked. In one transaction Core revokes the credentials and open enrollments, resolves open printer errors, marks runs that were still running as `unknown`, and deletes the assignments (with their live statuses), enrollments, credentials, discovery requests and the events no run or usage rests on. Recorded runs, printer error history and the events behind runs and usage stay; they only lose the reference to the connector and the assignment (migration 00055). The action is audited as `printer_connector.deleted` without secrets. A connector daemon that still runs with the deleted credential gets 401 and stops; its printers can be assigned to another connector. A new enrollment secret (`POST /printer-connectors/{id}/enrollments`, `printer_connectors.credentials.manage`) can be issued for pending, active and disabled connectors (revoked ones answer 409 `printer_connector_revoked`); issuing one invalidates an earlier unused secret and is audited (`printer_connector.enrollment_issued`).
 
 **Re-enrolling an enrolled connector.** To move a connector to another host or recover after losing its data volume without losing its printer assignments, issue a new enrollment secret for it (Settings, Local services, Printer connectors, row menu, New enrollment secret). Issuing does not touch the current credential: the running connector keeps working until the new secret is used. When a daemon enrolls with it, Core in one transaction makes the new credential current, revokes every earlier credential of the connector, bumps the configuration revision so the new daemon pulls its configuration, and audits `printer_connector.reenrolled` (no secrets). The connector keeps its id, assignments and lifecycle (a disabled connector stays disabled). The old daemon, if it still runs, gets 401 and logs that Core rejects its credential. Put the secret into `CONNECTOR_ENROLLMENT_SECRET` on the new host (or the same host after deleting the volume) and start.
 
-All production Core URLs must use HTTPS. Plain HTTP is accepted only when `CONNECTOR_ALLOW_HTTP=true`, which is intended for an isolated local development stack.
+All production Core URLs must use HTTPS. Plain HTTP is accepted only when `CONNECTOR_ALLOW_HTTP=true`, which is intended for an isolated local development stack and for setups where the connection never leaves a trusted network, such as a VPN to the Core host or Core and the connector on the same machine (the connector credential and the camera video are then unencrypted on that link).
 
 ## Bambu Lab H2D and X1 Carbon setup
 
@@ -96,7 +96,6 @@ Core's limit is `PRINTER_TIMELAPSE_MAX_BYTES` (default 2 GiB, 1 MiB to 8 GiB). R
 
 When Core holds the run's 3MF (staff uploaded it, see [Machine logbook](machine-logbook.md#upload-a-3mf-afterwards)), an internal-storage run is not given up: after the run's terminal outcome, and again before the one-shot lookup gives up, the connector downloads the stored file from `GET /printer-connector/self/assignments/{a}/runs/{r}/artifact/content` (404 means Core has none), stages it as already acknowledged and calculates the consumption from it like for a retrieved file. A file uploaded after the run ended arrives as a `recompute_consumption` command instead. A failed download only leaves the run without a 3MF.
 
-
 ## Docker deployment
 
 Release images use this name:
@@ -105,13 +104,61 @@ Release images use this name:
 ghcr.io/basmatireis/makerspace-core-printer-connector:<version>
 ```
 
-Setup, the variables (`MAKERSPACE_VERSION`, `CORE_URL`, `CONNECTOR_ENROLLMENT_SECRET`), enrollment, upgrades and backups for the production bundle and for development (`make dev-connector`) are described in [Hosting](hosting.md#stack-2-printer-connector-makerspace-connector). The Compose file runs as a non-root account, drops all Linux capabilities, enables `no-new-privileges`, uses a read-only root filesystem, limits processes, memory, and CPU, and persists `/var/lib/makerspace-printer-connector` in a named volume. It needs outbound access to Core and to configured printers. No ports are published.
+Setup, the variables (`MAKERSPACE_VERSION`, `CORE_URL`, `CONNECTOR_ENROLLMENT_SECRET`), enrollment, upgrades and backups for the production bundle and for development (`make dev-connector`) are described in [Hosting](hosting.md#stack-2-local-service-makerspace-connector). The bundle runs the connector together with a pinned go2rtc for printer cameras (see [Camera streaming](#camera-streaming)). The Compose file runs as a non-root account (uid 100), drops all Linux capabilities, enables `no-new-privileges`, uses a read-only root filesystem, limits processes, memory, and CPU, and persists `/var/lib/makerspace-printer-connector` in a named volume. It needs outbound access to Core and to configured printers. No ports are published.
 
 Back up the data volume as sensitive data. Restoring two running containers from the same volume is prevented on one host by the process lock, but operators must also avoid cloning it to another host.
 
 The healthcheck reads a local health timestamp. A stale check reports unhealthy without deleting the durable queue. Docker health status alone does not restart containers; the `unless-stopped` restart policy handles process exits.
 
 Back up the connector volume together with Core's PostgreSQL database, private file storage, and encryption configuration. The connector volume contains encrypted assignment state, durable event/artifact queues, and temporary private archives. Restore it only to one connector instance. A printer or Core outage is recoverable by leaving the volume intact and restarting the same configuration; do not clear SQLite or staged files to resolve connectivity errors.
+
+## Camera streaming
+
+The connector is also the local service that relays Bambu printer cameras to Core, from where signage players watch them ([Signage](signage.md#cameras-relayed-by-core)). The bundle therefore also runs [go2rtc](https://github.com/AlexxIT/go2rtc), pinned by tag and digest. Nothing is published and nothing listens for inbound connections from outside: video travels printer, go2rtc, connector, outbound websocket to Core, display.
+
+**Turning it on.** The camera is the switch `cameraStreaming` ("Stream camera") on an active `bambu_h2d` or `bambu_x1c` assignment, set when creating or editing the assignment (`printer_connectors.manage`; 422 for other adapters). The connector's configuration carries the switch per assignment; for each such assignment the connector builds the source `rtspx://bblp:<lanAccessCode>@<ip>:322/streaming/live/1` itself from the settings and secrets it already receives (`rtspx` is go2rtc's RTSPS without certificate verification, needed for the printer's self-signed certificate). The local stream name is `cam-<assignmentId>`. Cameras are not configured anywhere else. The printer must be in LAN mode with the camera enabled and reachable from the Docker host on TCP 322.
+
+**Environment.** Streaming is off when neither `GO2RTC_API_URL` nor `GO2RTC_CONFIG_FILE` is set and a startup error when only one is. The bundle sets both:
+
+| Variable             | Meaning                                                                                                                          |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `GO2RTC_API_URL`     | where the connector reaches go2rtc's API, `http://go2rtc:1984` on the bundle's internal network (no default)                     |
+| `GO2RTC_CONFIG_FILE` | the go2rtc configuration the connector writes with mode 0600, `/go2rtc-config/go2rtc.yaml` on a volume go2rtc reads (no default) |
+| `GO2RTC_API_LISTEN`  | go2rtc's `api.listen`, default `:1984`                                                                                           |
+| `GO2RTC_LOG_LEVEL`   | `error` (default) or `fatal`; anything more verbose is refused because go2rtc would log the access codes                         |
+
+go2rtc has to read the 0600 file, so it runs as the same numeric user as the connector (uid 100, gid 101, fixed in the Dockerfile); the one-shot `go2rtc-config-init` container hands the volume to that user.
+
+**Protocol.** The connector keeps one outbound control websocket to Core (`GET /printer-connector/self/stream-control`, connector bearer). Core sends `open` and `close` text frames; the connector sends nothing but pongs (Core pings every 20 s and drops the channel after 60 s of silence, the connector reconnects with backoff). On `open` for a configured `cam-<assignmentId>` the connector dials go2rtc's `/api/ws?src=cam-<assignmentId>` with its local credentials and Core's `GET /printer-connector/self/stream-sessions/{sessionId}`, then copies frames both ways preserving frame types. It refuses stream names that are not in its current configuration. It reports `live`, `idle` or `unavailable` and the viewer count per camera in its heartbeat. go2rtc fans out locally: one RTSP connection per printer however many displays watch. The wire details are in `api/openapi.yaml`.
+
+**Reverse proxy.** Core's reverse proxy must pass websockets for `/api/v1/printer-connector/self/stream-*` and the players' `/api/v1/signage/player/cameras/*/stream`, see [Hosting](hosting.md#reverse-proxy-and-websockets).
+
+**Operation.**
+
+- The connector rewrites `go2rtc.yaml` when the rendered content changes (cameras added, removed or their address or code changed) and then restarts go2rtc through `POST /api/restart`; viewers are dropped and reconnect. A failed restart is retried. A changed printer address reaches go2rtc within a polling interval (10 s).
+- go2rtc connects to a printer on the first viewer and disconnects after the last (verify on hardware, printers allow few concurrent RTSP clients). An idle camera therefore shows as `idle`; `unavailable` means go2rtc is down, the stream is missing or viewers get no media.
+- If Core is unreachable, running sessions end with the channel; the connector keeps its last configuration and reconnects.
+
+**Security model.**
+
+- The camera source URL contains the printer's LAN access code. It reaches the connector in the encrypted configuration, is written with mode 0600 into the volume shared with go2rtc and never appears in logs, admin responses or the audit log.
+- **go2rtc API.** go2rtc's API exposes stream sources (with access codes) and can restart or create streams, so it is never published and is protected twice: the connector generates a random user name and password once, keeps them in its encrypted store and renders them as `api.username`/`api.password`; go2rtc then answers 401 to every request that does not come from inside its own container (the container healthcheck does). In addition `api.allow_paths` limits go2rtc to `/api/streams`, `/api/ws` and `/api/restart`: configuration dumps, mp4/hls/mjpeg consumers, WebRTC signalling, `/api/exit` and the web UI answer 404 even with credentials. The RTSP/SRTP server and the WebRTC listener are disabled, and `exec` and `echo` sources are disabled through allow lists that name a non-existent executable. go2rtc 1.9.14 has no switch for its other modules; residual risk: go2rtc listens on all interfaces of its own container (`go2rtc_egress` as well as `internal`), so only something with access to the Docker host's networks that also holds the credentials could reach it. A holder of the credentials (the connector only) could create RTSP streams to arbitrary hosts.
+- **Networks.** `internal` (no outbound access) joins the connector and go2rtc only; the connector additionally has `connector_egress` (Core and the printers), go2rtc `go2rtc_egress` (the printers' cameras). No outbound network is shared.
+- **go2rtc logs.** go2rtc logs stream sources, which contain the access codes, at its more verbose levels. The generated configuration uses `error` (see `GO2RTC_LOG_LEVEL`). Error lines in go2rtc 1.9.14 were observed to carry the failing address but not the stream URL; this is not guaranteed for future versions, so Compose also limits the go2rtc log to a local file driver with 5 MB x 3 files. Do not ship these logs to a central system.
+- Containers run read-only, without capabilities and with `no-new-privileges`.
+- Who may watch is decided by Core, not by the connector: see [Signage](signage.md#cameras-relayed-by-core).
+
+**Assumptions verified on hardware (2026-10-20).** The RTSPS source `rtspx://bblp:<LAN access code>@<ip>:322/streaming/live/1` works on a Bambu Lab H2D and an X1 Carbon (LAN mode, liveview on; H.264). Not yet verified: go2rtc stops the printer connection after the last viewer; go2rtc's `/api/streams` reports no resolution or frame rate; MSE playback in the kiosk's Chromium over the Core relay on the displays' real network.
+
+**Hardware validation checklist.**
+
+- [ ] H2D and X1 Carbon streaming at the same time through one connector
+- [ ] 12 to 24 h continuous operation: no memory growth in go2rtc and the connector, no stuck streams, control channel survives proxy idle timeouts
+- [ ] Several viewers (several displays, several tabs) on one camera: the printer sees one connection
+- [ ] MSE latency (about 1 to 2 s expected) and live-edge catch-up on Wi-Fi displays
+- [ ] Printer reboot or network loss: the stream recovers without restarting the connector
+- [ ] Revoking a display, republishing without the camera and switching `allowCameraOutside` off end running sessions within about 15 seconds
+- [ ] Core outage or proxy restart: the control channel reconnects and new sessions work again
 
 ## Reliable event delivery
 
@@ -232,6 +279,6 @@ Configuration is a complete snapshot polled every 10 seconds, and the heartbeat 
 
 `POST /printer-connectors/{id}/events/clear` (`printer_connectors.manage`) sets `eventsClearedAt` (migration 00044) and audits `printer_connector.events_cleared`. The event list omits events received up to that time unless `includeCleared=true`. Events are never deleted.
 
-**Where in the UI.** Connectors are managed under **Settings > Local services** (tab **Printer connectors**, next to the streaming gateways; route `/settings/local-services?tab=connectors`). Users with `printer_connectors.read` reach the page and its settings tile even without `local_services.manage`; they see only the connector tabs. The former Machines tab (`/machine-logbook/machines?tab=connectors`) and `/settings/printer-connectors` redirect there. The tab **Versions and updates** compares each connector's version with Core's and requests updates (see [Hosting](hosting.md#updating-stacks-2-to-4-from-the-web-ui-optional-updater)).
+**Where in the UI.** Connectors are managed under **Settings > Local services** (tab **Printer connectors**; route `/settings/local-services?tab=connectors`). Users with `printer_connectors.read` reach the page and its settings tile. The former Machines tab (`/machine-logbook/machines?tab=connectors`) and `/settings/printer-connectors` redirect there. The tab **Versions and updates** compares each connector's version with Core's and requests updates (see [Hosting](hosting.md#updating-stack-2-from-the-web-ui-optional-updater)).
 
 **Activity log.** What a connector changes on its own is not audited: received events, spool mounts and unmounts from RFID evidence, and the recorded runs and jobs that its events settle (outcome, material usage, inventory, price). Core writes one row per change into `printer_connector_activity` (migration 00062) in the transaction of the change, with identifiers only (connector, machine, the event, slot, run or job, the event kind and the changed field names; no personal data). Every heartbeat prunes the connector's entries older than 30 days and beyond the newest 10000. `GET /printer-connectors/{id}/activity?page=&pageSize=` (`printer_connectors.read`, newest first, at most 100 per page) lists them; the diagnostics dialog shows them on its **Activity log** tab. Staff actions on connectors, assignments, enrollments, credentials, manual spool mounts and printer setup stay in the audit log. Migration 00062 moved the runtime rows of the last 30 days out of the audit log into the activity log and deleted the older ones.

@@ -1,5 +1,8 @@
-# Makerspace printer connector (stack "makerspace-connector"): runs in the makerspace network, next
-# to the printers, and talks outbound to Makerspace Core. See docs/hosting.md.
+# Makerspace local service (stack "makerspace-connector"): the printer connector and its go2rtc
+# camera helper. It runs in the makerspace network, next to the printers, and talks only outbound to
+# Makerspace Core: it publishes no ports at all. Camera video leaves the printers through go2rtc, is
+# relayed by the connector over its own outbound websocket and reaches players through Core. See
+# docs/hosting.md.
 #
 # This one file is both the repository's production file and what the release bundle ships: the
 # bundle only sets MAKERSPACE_VERSION in .env.example. For development use compose.development.yaml
@@ -17,9 +20,18 @@ services:
       CONNECTOR_DATA_DIR: /var/lib/makerspace-printer-connector
       # One-time secret from Core; only used until the first successful enrollment.
       CONNECTOR_ENROLLMENT_SECRET: ${CONNECTOR_ENROLLMENT_SECRET:-}
+      # Set to "true" only when CORE_URL is an http:// address inside a VPN or on the same host.
       CONNECTOR_ALLOW_HTTP: "false"
+      # Camera streaming: where the connector reaches go2rtc's API (internal network only), and the
+      # go2rtc configuration file it writes (mode 0600; it holds the printers' camera access codes).
+      GO2RTC_API_URL: http://go2rtc:1984
+      GO2RTC_CONFIG_FILE: /go2rtc-config/go2rtc.yaml
+    depends_on:
+      go2rtc-config-init:
+        condition: service_completed_successfully
     volumes:
       - connector_data:/var/lib/makerspace-printer-connector
+      - go2rtc_config:/go2rtc-config
       # Update requests for the optional updater below (unused without it).
       - updater_exchange:/var/lib/makerspace-updater
     read_only: true
@@ -28,12 +40,77 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    # internal: the go2rtc API (shared with go2rtc only); connector_egress: Core and the printers.
+    networks: [internal, connector_egress]
     pids_limit: 128
     mem_limit: 256m
     cpus: 1.0
     stop_grace_period: 20s
     restart: unless-stopped
     init: true
+
+  # One-shot: the go2rtc configuration volume must belong to the connector's user (uid 100, gid 101;
+  # see the Dockerfile). A new named volume can otherwise take root ownership from whichever image
+  # mounts it first (go2rtc's).
+  go2rtc-config-init:
+    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-printer-connector:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION}${PRINTER_CONNECTOR_DIGEST:-}
+    user: "0:0"
+    entrypoint: ["sh", "-c", "chown 100:101 /go2rtc-config && chmod 0700 /go2rtc-config"]
+    volumes:
+      - go2rtc_config:/go2rtc-config
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
+
+  go2rtc:
+    # The go2rtc image runs tini as its own init; Docker's init in front of it only adds a warning.
+    init: false
+    # Pinned to the tag AND the verified multi-arch digest of alexxit/go2rtc 1.9.14. Re-verify the
+    # digest (docker buildx imagetools inspect alexxit/go2rtc:<tag>) when upgrading.
+    image: alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae
+    # Same numeric user as the connector so it can read the configuration file the connector writes
+    # with mode 0600 (it contains the printers' camera credentials).
+    user: "100:101"
+    command: ["go2rtc", "-config", "/config/go2rtc.yaml"]
+    volumes:
+      - go2rtc_config:/config:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # internal: the API, only the connector shares it. go2rtc_egress: the printers' cameras on the
+    # LAN; no other service is attached to it. Nothing is published: the API (port 1984, protected by
+    # credentials the connector generates, restricted to three paths; exec/echo sources, the RTSP
+    # server and WebRTC are disabled in the generated configuration) is only reachable from the
+    # connector. See docs/printer-connector.md.
+    networks: [internal, go2rtc_egress]
+    # Stream sources carry the printers' access codes; keep the logs small and local (the generated
+    # configuration also restricts go2rtc to the error log level).
+    logging:
+      driver: local
+      options:
+        max-size: "5m"
+        max-file: "3"
+    depends_on:
+      connector:
+        condition: service_healthy
+    healthcheck:
+      # Requests from inside the container itself need no API credentials.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:1984/api/streams"]
+      interval: 30s
+      timeout: 3s
+      start_period: 15s
+      retries: 3
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 2.0
+    stop_grace_period: 10s
+    restart: unless-stopped
 
   # Optional updater sidecar: lets staff update this bundle to Core's version from Settings > Local
   # services. It runs only with COMPOSE_PROFILES=updater in .env; without it, update by hand
@@ -48,7 +125,7 @@ services:
       UPDATER_COMPONENTS: printer-connector
       # Never list the updater itself: it would stop itself halfway. It is updated with the next
       # manual `docker compose up -d`.
-      UPDATER_SERVICES: connector
+      UPDATER_SERVICES: connector,go2rtc-config-init
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
       # This bundle directory (compose.yaml and .env); the updater writes .env.
@@ -67,6 +144,16 @@ services:
     restart: unless-stopped
     init: true
 
+networks:
+  # Connector <-> go2rtc API traffic. No outbound access.
+  internal:
+    internal: true
+  # Connector: outbound access to Core and to the printers. Used by nothing else.
+  connector_egress: {}
+  # go2rtc only: outbound access to the printers' cameras.
+  go2rtc_egress: {}
+
 volumes:
   connector_data:
+  go2rtc_config:
   updater_exchange:

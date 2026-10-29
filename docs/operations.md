@@ -95,7 +95,7 @@ Each category, its owner module and its legacy period are listed in [Privacy reg
 
 ## Production Compose deployment
 
-This section is the Core stack in detail; [Hosting](hosting.md) gives the overview of all four stacks (Core, printer connector, streaming gateway, local services) and the development commands.
+This section is the Core stack in detail; [Hosting](hosting.md) gives the overview of both stacks (Core, and the local service with the printer connector and go2rtc) and the development commands.
 
 Every GitHub Release includes `makerspace-core-VERSION-compose.tar.gz`. This is a standalone deployment bundle: it contains a conventional `compose.yaml` pinned to that exact immutable frontend/backend release and a secret-free `.env.example`. A production host needs Docker Compose and this bundle, not a repository checkout or build toolchain. The release images are public and require no registry login.
 
@@ -153,15 +153,16 @@ The command is read-only. It exits unsuccessfully and prints only opaque File ID
 
 Back up the private file store alongside PostgreSQL. New local-storage volumes are owned by the unprivileged API user. Existing volumes retain their permissions when images change; verify their ownership and write access during an upgrade. Custom S3 endpoints must use HTTPS in production. The bundled nginx allows the API's 513 MiB maximum request envelope for connector-streamed 3MF archives; any external ingress must allow the same endpoint size. The API still enforces 512 MiB for connector artifacts and the smaller feature-specific JSON, image, and PDF limits.
 
-## Signage and local services
+## Signage and the local service
 
 Digital signage ([signage](signage.md), [player setup](signage-player.md)) needs no extra services. Core settings:
 
-- `HTTP_TRUSTED_PROXIES`: defaults to the Compose network (see above). If your proxy reaches the backend another way and is not trusted, every client appears as the proxy and the per-client limits (pairing, polling, failed gateway authentications) throttle every display and gateway together.
+- `HTTP_TRUSTED_PROXIES`: defaults to the Compose network (see above). If your proxy reaches the backend another way and is not trusted, every client appears as the proxy and the per-client limits (pairing, polling, failed connector authentications) throttle every display and connector together.
 - `SIGNAGE_PAIRING_ALLOWED_CIDRS` (optional, comma-separated CIDRs): restricts `POST /public/signage/pairing` to the makerspace network; other clients get 403 `pairing_network_denied`.
-- `APP_ENCRYPTION_KEYS`: without it no stream tickets are issued and gateway configuration answers 409.
+- `APP_ENCRYPTION_KEYS`: without it printer access codes cannot be stored, so no camera can be relayed.
+- Camera video: Core relays it between the printer connector and the signage players over websockets, in one API process (an in-memory relay; no Redis or queue). The reverse proxy must pass websockets for `/api/v1/signage/player/cameras/*/stream` and `/api/v1/printer-connector/self/stream-*` and must not cut idle connections within minutes; see [Hosting](hosting.md#reverse-proxy-and-websockets). The API server clears its write deadline on these connections.
 
-The optional streaming gateway and the printer connector run on a computer in the makerspace network, as their own Compose stacks (`streaming-gateway/`, `printer-connector/`, or both in `local-services/`) with their own `.env`; variables, enrollment, TLS certificates, ports and upgrades are in [Hosting](hosting.md). The security model: [streaming gateway](streaming-gateway.md). The gateway's credential expires after 90 days and is rotated by the gateway itself; the expiry is visible under Settings, Local services.
+The optional local service (the printer connector and its go2rtc) runs on a computer in the makerspace network as its own Compose stack (`printer-connector/`) with its own `.env`; variables, enrollment, ports and upgrades are in [Hosting](hosting.md), camera streaming and its security model in [Printer connector](printer-connector.md#camera-streaming). The connector's credential expires after 90 days and is rotated by the connector itself.
 
 ## SCIM connectors
 
@@ -197,7 +198,7 @@ Public configuration and legal JSON use `Cache-Control: no-cache` so browsers re
 
 The frontend defaults to `127.0.0.1:8080` for a reverse proxy on the Docker host. Configure that proxy to terminate HTTPS and forward the complete site—not a separate API origin—to the frontend port. Preserve the public `Host`, append the client address to `X-Forwarded-For`, and send `X-Forwarded-Proto: https`. Keep port 8080 loopback-only or protected by a firewall; never publish the backend or PostgreSQL ports.
 
-nginx sends the browser security headers from `frontend/nginx/`: a Content-Security-Policy without inline scripts and with `frame-ancestors 'none'` (the signage player has its own policy that also allows gateway streams over `https:`/`wss:`), `Strict-Transport-Security`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Permissions-Policy` (camera for visitor photos only) and `Cross-Origin-Opener-Policy`. Preserve them in an external proxy or CDN. Every API response is `Cache-Control: no-store` unless it is public configuration, legal text or a content-addressed asset; throttled requests carry `Retry-After` with the window of the limiter that fired.
+nginx sends the browser security headers from `frontend/nginx/`: a Content-Security-Policy without inline scripts and with `frame-ancestors 'none'` (the signage player has its own, stricter policy: connections to its own origin only, which covers the camera websocket), `Strict-Transport-Security`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`, `Permissions-Policy` (camera for visitor photos only) and `Cross-Origin-Opener-Policy`. Preserve them in an external proxy or CDN. Every API response is `Cache-Control: no-store` unless it is public configuration, legal text or a content-addressed asset; throttled requests carry `Retry-After` with the window of the limiter that fired.
 
 If the reverse proxy itself runs in a container, adapt the example to attach it to the Compose network or deliberately override `FRONTEND_BIND_ADDRESS`. Binding to `0.0.0.0` makes unencrypted HTTP reachable on every host interface unless the host firewall prevents it.
 
@@ -225,7 +226,7 @@ Stopping the stack preserves the named PostgreSQL volume:
 docker compose down
 ```
 
-Do not add `--volumes` unless deliberate, irreversible database deletion is intended. The expected load is a handful of concurrent users: run one backend process with its conservative pgx pool. Domains, certificates, ACME, reverse-proxy products, backup infrastructure, and any external OTLP collector remain site-specific responsibilities.
+Do not add `--volumes` unless deliberate, irreversible database deletion is intended. The expected load is a handful of concurrent users: run one backend process with its conservative pgx pool. Domains, certificates, reverse-proxy products, backup infrastructure, and any external OTLP collector remain site-specific responsibilities.
 
 ## Failure and rollback
 

@@ -4,6 +4,27 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- **Breaking: the streaming gateway is gone, the printer connector bundle carries the cameras.** Printer cameras are now relayed by Core: the connector bundle runs the connector next to **go2rtc**, the connector relays each camera over its own outbound websocket to Core, and signage players watch through Core over a same-origin websocket. No gateway, public host, TLS certificate, Let's Encrypt/Cloudflare setup, port 8443/8555 or inbound firewall rule is needed any more. To upgrade:
+  1. On the host that ran the old stack, stop and remove it: `docker compose down` in the `streaming-gateway/` or `local-services/` bundle directory (do not add `--volumes` unless you want them gone; the volumes hold nothing that is still needed and can be kept as a backup until you are sure). Remove the old directory.
+  2. Download the new `makerspace-printer-connector-VERSION-compose.tar.gz` bundle, set `MAKERSPACE_VERSION` and `CORE_URL` in `.env` and run `docker compose up -d`. A host that already ran the standalone connector stack (`makerspace-connector`) keeps its identity. A host that ran `local-services` has its connector identity in the old project's volume: in Core issue a **New enrollment secret** for that connector (Settings > Local services > Printer connectors), put it into `CONNECTOR_ENROLLMENT_SECRET` and start; the connector keeps its assignments ([Hosting](docs/hosting.md#coming-from-the-previous-layout)). The bundle now has the services `connector`, `go2rtc` and `go2rtc-config-init`, publishes no port and runs go2rtc pinned by digest.
+  3. Make sure the reverse proxy in front of Core passes websockets for `/api/v1/signage/player/cameras/*/stream` and `/api/v1/printer-connector/self/stream-*`, with idle timeouts of several minutes. The bundled nginx and Caddy do; nginx in front of it needs `Upgrade`/`Connection` headers (example in [Hosting](docs/hosting.md#reverse-proxy-and-websockets)).
+  4. Roles that held `local_services.manage` need `printer_connectors.manage` to switch a camera on or off. The permission `local_services.manage` is removed and every stored grant of it is deleted by the migration.
+     Cameras of enabled gateway assignments are carried over automatically: the migration switches **Stream camera** on for the machine's active Bambu connector assignment. Gateway rows, camera states, ticket keys and the revoked-display list are dropped.
+- **Container uid.** The printer-connector image now fixes its user to uid 100 and gid 101 (what it always used) so go2rtc can read the configuration file the connector writes.
+- **Plain `http://` Core URLs.** `CONNECTOR_ALLOW_HTTP` remains the only way to allow them (a VPN or Core on the same host); the video and the connector credential are then unencrypted on that link.
+
+### Changed
+
+- **Camera streaming is a switch on the Bambu connector assignment.** "Stream camera" (`cameraStreaming`) is set with the assignment (`printer_connectors.manage`); the connector renders the printer's RTSPS source itself and reports `live`, `idle` or `unavailable` and the viewer count in its heartbeat.
+- **Players use MSE only.** Latency is about 1 to 2 seconds; the player jumps to the live edge when it lags more than 3 seconds. WebRTC and stream tickets are gone; the player's live data lists `streams: [{machineId, path}]`. Viewers need the same right as before: a paired display whose published scene contains the camera, and `allowCameraOutside` for displays visible from outside. Core re-checks the right every 15 seconds.
+- **Bundles.** A release now attaches two Compose bundles (Core and the printer connector). The `makerspace-streaming` and `makerspace-local-services` bundles, the `-streaming-gateway` image, `make dev-streaming*`, `make test-streaming-compose` and `make test-local-services-compose` are removed; `make dev-connector` starts the connector and go2rtc.
+
+### Removed
+
+- The streaming gateway (binary, image, bundle, Settings pages, `/streaming-gateways*`, `/streaming-gateway/*`, `/local-services/*` camera and ticket-key endpoints), Ed25519 stream tickets, go2rtc WebRTC, ACME/Cloudflare certificates, ports 8443 and 8555, the permission `local_services.manage`.
+
 ## [0.11.1] - 2026-10-29
 
 ### Added

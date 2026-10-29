@@ -10,24 +10,21 @@ The implemented modules cover people, optional user accounts, password/PIN/OIDC 
 
 ## Running Makerspace Core
 
-Everything runs with Docker Compose, split into four stacks with fixed project names. **[docs/hosting.md](docs/hosting.md) is the guide** for development and production setup of all of them.
+Everything runs with Docker Compose, split into two stacks with fixed project names. **[docs/hosting.md](docs/hosting.md) is the guide** for development and production setup of both.
 
 | Stack | Runs | Where | Develop with | Production bundle |
 |---|---|---|---|---|
 | `makerspace-core` | frontend, backend, PostgreSQL | server / cloud | `make dev` | `makerspace-core-VERSION-compose.tar.gz` |
-| `makerspace-connector` | printer connector | makerspace LAN | `make dev-connector` | `makerspace-printer-connector-VERSION-compose.tar.gz` |
-| `makerspace-streaming` | streaming gateway + go2rtc | makerspace LAN | `make dev-streaming` | `makerspace-streaming-VERSION-compose.tar.gz` |
-| `makerspace-local-services` | connector + gateway + go2rtc on one host | makerspace LAN | stacks 2 and 3 | `makerspace-local-services-VERSION-compose.tar.gz` |
+| `makerspace-connector` | printer connector + go2rtc (printer status, jobs and cameras; outbound only, no published ports) | makerspace LAN | `make dev-connector` | `makerspace-printer-connector-VERSION-compose.tar.gz` |
 
 ```sh
 cp .env.example .env              # set POSTGRES_PASSWORD
 make migrate-up && make dev       # Core at http://localhost:5173
 make bootstrap-master             # first master account (interactive)
-make dev-connector                # optional: printer connector (guides you through enrollment)
-make dev-streaming                # optional: camera streaming gateway (same)
+make dev-connector                # optional: printer connector + go2rtc (guides you through enrollment)
 ```
 
-In production, extract a release bundle, copy `.env.example` to `.env`, fill it in and run `docker compose up -d`. Details, variables, TLS and enrollment: [docs/hosting.md](docs/hosting.md).
+In production, extract a release bundle, copy `.env.example` to `.env`, fill it in and run `docker compose up -d`. Details, variables, reverse proxy (websockets for cameras) and enrollment: [docs/hosting.md](docs/hosting.md).
 
 ## Technology
 
@@ -46,9 +43,7 @@ frontend/            React application and generated API client
 docs/                architecture and operating documentation
 compose.yaml         local PostgreSQL/backend/frontend environment (stack makerspace-core)
 compose.production.yaml  source template for the production release bundle
-printer-connector/   printer connector image and Compose stack (makerspace-connector)
-streaming-gateway/   streaming gateway image and Compose stack (makerspace-streaming)
-local-services/      connector + gateway in one production stack (makerspace-local-services)
+printer-connector/   printer connector image and Compose stack with go2rtc (makerspace-connector)
 ```
 
 Generated Go, TypeScript, and sqlc files are committed but never edited by hand. Change their source contract/query and run `make generate`.
@@ -114,14 +109,14 @@ Run `make test-e2e` after the one-time browser setup for the complete smoke/acce
 
 Pull requests to `main` and pushes to `main` run generated-code checks, backend and frontend checks, PostgreSQL integration tests, the full-stack Playwright suite, and production container builds. These validation runs never publish images.
 
-Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same validation, publish versioned backend, frontend, printer-connector and streaming-gateway images to GHCR, and create a GitHub Release with the four Compose bundles. CI also packages and smoke-tests the standalone production bundle and nginx API relay. See [CI, releases, and container images](docs/ci-cd.md) for the release commands, tag policy, rollback procedure, and recommended branch rules.
+Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same validation, publish versioned backend, frontend, printer-connector and local-updater images to GHCR, and create a GitHub Release with the two Compose bundles (Core and the printer connector). CI also packages and smoke-tests the standalone production bundle and nginx API relay. See [CI, releases, and container images](docs/ci-cd.md) for the release commands, tag policy, rollback procedure, and recommended branch rules.
 
 ## Documentation
 
 - [Hosting: Compose stacks, development and production setup](docs/hosting.md)
 - [Architecture and domain model](docs/architecture.md)
 - [Orders, payments, and external wiRef invoicing](docs/orders.md)
-- [Digital signage](docs/signage.md), [signage player kiosk setup](docs/signage-player.md), and [streaming gateway](docs/streaming-gateway.md)
+- [Digital signage](docs/signage.md) and [signage player kiosk setup](docs/signage-player.md); printer cameras: [printer connector](docs/printer-connector.md#camera-streaming)
 - [Kiosk, attendance, session policies, and surveys](docs/kiosk-attendance-surveys.md)
 - [Surveys: conditional questions, share links, results](docs/surveys.md)
 - [Device Bridge architecture](docs/device-bridge.md)
