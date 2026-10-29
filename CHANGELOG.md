@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-29
+
 ### Upgrade notes
 
 - **Migration 00083 (greetings, notification kinds, links).** `branding_configuration` gains `fun_greetings text[]` (four English defaults) and `fun_greeting_share` (default 10); `inbox_notifications.kind` accepts `printer_error` and `filament_change`; `inbox_notifications.link` accepts `https://` URLs next to application paths. `BrandingIdentity` gains the required `funGreetings` and `funGreetingShare` (the configuration export's `branding` section carries them as optional fields). New endpoints `PUT|DELETE /notifications/messages/{messageId}`; new audit actions `inbox_message.updated` and `inbox_message.retracted`. Core now accepts the connector's `printer_error` events, which it rejected before, so printer errors are stored (and announced) for the first time; the Bambu connector looks a print classified as internal storage up by name during the print. Down deletes the new notification kinds and external links.
@@ -565,6 +567,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.11.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.8.5...v0.9.0
