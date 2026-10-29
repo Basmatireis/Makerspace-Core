@@ -50,6 +50,8 @@ const (
 	EventSlotObservation   EventKind = "slot_observation"
 	EventConsumptionReport EventKind = "consumption_report"
 	EventTerminalOutcome   EventKind = "terminal_outcome"
+	// EventPrinterError is a printer error appearing or clearing; the connector runtime stores it.
+	EventPrinterError EventKind = "printer_error"
 )
 
 // ApplicationState is what Core did with a connector event.

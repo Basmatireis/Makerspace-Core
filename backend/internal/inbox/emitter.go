@@ -213,3 +213,139 @@ func runEnding(outcome, state *string) (string, bool) {
 	}
 	return "", false
 }
+
+// PrinterError tells everyone who may read printer connectors, plus the operator of the run that is
+// printing on the machine, that the printer reported an error for the first time. Repeated reports of
+// an open error and cleared errors stay quiet. family and code are the printer's own words; the body
+// repeats them because the connector knows no plain-language description at this point.
+func (e *Emitter) PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, family, code string) error {
+	queries := inboxdb.New(tx)
+	machine, err := queries.GetMachineNotificationFacts(ctx, machineID)
+	if err != nil {
+		return fmt.Errorf("load machine: %w", err)
+	}
+	recipients, err := queries.ListEnabledAccountIDsWithPermission(ctx, inboxdb.ListEnabledAccountIDsWithPermissionParams{
+		PermissionID: string(authorization.PrinterConnectorsRead), ExcludedAccountIds: []string{},
+	})
+	if err != nil {
+		return fmt.Errorf("resolve printer connector readers: %w", err)
+	}
+	if machine.OperatorPersonID != nil {
+		operators, err := queries.ListEnabledAccountIDsOfPerson(ctx, *machine.OperatorPersonID)
+		if err != nil {
+			return fmt.Errorf("resolve run operator: %w", err)
+		}
+		recipients = append(recipients, operators...)
+	}
+	body := fmt.Sprintf("%s reports the error %s (%s).", machine.MachineName, code, family)
+	if machine.RunDisplayID != nil {
+		body = fmt.Sprintf("%s reports the error %s (%s) during run %s.", machine.MachineName, code, family, *machine.RunDisplayID)
+	}
+	return e.deliver(ctx, tx, notice{
+		kind:  KindPrinterError,
+		title: "Printer error on " + machine.MachineName,
+		body:  body,
+		link:  machinePrinterLink(machineID),
+	}, recipients)
+}
+
+// FilamentChangeKind is what happened in a printer slot.
+type FilamentChangeKind string
+
+const (
+	// FilamentLoaded: a spool Core knows was put into the slot.
+	FilamentLoaded FilamentChangeKind = "loaded"
+	// FilamentUnloaded: the slot that held a known spool is empty now.
+	FilamentUnloaded FilamentChangeKind = "unloaded"
+	// FilamentUnknownTag: the slot holds material with an RFID tag no spool in Core carries.
+	FilamentUnknownTag FilamentChangeKind = "unknown_tag"
+	// FilamentNoTag: the slot holds material without a readable RFID tag, so a spool must be assigned by hand.
+	FilamentNoTag FilamentChangeKind = "no_tag"
+)
+
+// FilamentChange describes one slot change for FilamentChange notifications.
+type FilamentChange struct {
+	Kind FilamentChangeKind
+	// Slot is the slot's name as people know it, such as "AMS A · 1".
+	Slot string
+	// SpoolID names the spool for loaded and unloaded; nil for the other kinds.
+	SpoolID *uuid.UUID
+	// Material is what the printer read from the tray (type and colour), when it knows.
+	Material string
+}
+
+// FilamentChange tells the operator of the run that is printing on the machine that material in one
+// of its slots changed. Without a running run or without an operator nobody is told; the printer page
+// shows the change to whoever has it open.
+func (e *Emitter) FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, change FilamentChange) error {
+	queries := inboxdb.New(tx)
+	machine, err := queries.GetMachineNotificationFacts(ctx, machineID)
+	if err != nil {
+		return fmt.Errorf("load machine: %w", err)
+	}
+	if machine.RunID == nil || machine.OperatorPersonID == nil {
+		return nil
+	}
+	recipients, err := queries.ListEnabledAccountIDsOfPerson(ctx, *machine.OperatorPersonID)
+	if err != nil {
+		return fmt.Errorf("resolve run operator: %w", err)
+	}
+	spool := ""
+	if change.SpoolID != nil {
+		facts, err := queries.GetSpoolNotificationFacts(ctx, *change.SpoolID)
+		if err != nil {
+			return fmt.Errorf("load spool: %w", err)
+		}
+		spool = facts.DisplayID
+		if facts.MaterialName != nil {
+			spool += " (" + *facts.MaterialName
+			if facts.ColorName != nil && strings.TrimSpace(*facts.ColorName) != "" {
+				spool += ", " + *facts.ColorName
+			}
+			spool += ")"
+		}
+	}
+	material := strings.TrimSpace(change.Material)
+	slot := strings.TrimSpace(change.Slot)
+	var title, body string
+	switch change.Kind {
+	case FilamentLoaded:
+		title = "Spool loaded on " + machine.MachineName
+		body = fmt.Sprintf("Spool %s was loaded into slot %s of %s.", spool, slot, machine.MachineName)
+	case FilamentUnloaded:
+		title = "Spool removed from " + machine.MachineName
+		body = fmt.Sprintf("Spool %s was removed from slot %s of %s.", spool, slot, machine.MachineName)
+	case FilamentUnknownTag:
+		title = "New material on " + machine.MachineName
+		body = fmt.Sprintf(
+			"Slot %s of %s holds new material%s whose RFID tag belongs to no spool here. Assign a spool on the printer page.",
+			slot, machine.MachineName, withMaterial(material),
+		)
+	case FilamentNoTag:
+		title = "Material without tag on " + machine.MachineName
+		body = fmt.Sprintf(
+			"Slot %s of %s holds material%s without a readable RFID tag. Load the spool by hand on the printer page.",
+			slot, machine.MachineName, withMaterial(material),
+		)
+	default:
+		return nil
+	}
+	return e.deliver(ctx, tx, notice{
+		kind:  KindFilamentChange,
+		title: title,
+		body:  body + " Run " + *machine.RunDisplayID + " is printing.",
+		link:  machinePrinterLink(machineID),
+	}, recipients)
+}
+
+func withMaterial(material string) string {
+	if material == "" {
+		return ""
+	}
+	return " (" + material + ")"
+}
+
+// machinePrinterLink opens the machine's printer setup, where slots and errors are shown.
+func machinePrinterLink(machineID uuid.UUID) string {
+	return "/machine-logbook/machines/" + machineID.String() + "?tab=printer"
+}

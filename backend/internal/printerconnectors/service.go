@@ -1,12 +1,14 @@
 package printerconnectors
 
 import (
+	"context"
 	"encoding/json"
 	"net/netip"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -15,6 +17,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -31,11 +34,20 @@ type Service struct {
 	printing *printing.Service
 	logbook  *machinelogbook.Service
 	keyring  *security.Keyring
+	emitter  InboxEmitter
+}
+
+// InboxEmitter is the part of the in-app notification emitter this package uses, on top of what the
+// machine logbook needs. It writes inside the caller's transaction.
+type InboxEmitter interface {
+	machinelogbook.InboxEmitter
+	PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, family, code string) error
+	FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, change inbox.FilamentChange) error
 }
 
 func NewService(
 	pool *pgxpool.Pool,
-	emitter machinelogbook.InboxEmitter,
+	emitter InboxEmitter,
 	printingService *printing.Service,
 	encryptionKeys [][]byte,
 ) (*Service, error) {
@@ -52,6 +64,7 @@ func NewService(
 		printing: printingService,
 		logbook:  machinelogbook.NewService(pool, emitter),
 		keyring:  keyring,
+		emitter:  emitter,
 	}, nil
 }
 

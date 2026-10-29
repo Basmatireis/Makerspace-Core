@@ -39,6 +39,8 @@ type Querier interface {
 	// Remaining events are the evidence behind recorded runs and usage; they keep their payload but lose the connector.
 	DetachConnectorEvents(ctx context.Context, connectorID uuid.UUID) error
 	EndConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error
+	// Like LockActiveSpoolByNFCTag without the lock.
+	FindActiveSpoolByNFCTag(ctx context.Context, tagUid string) (uuid.UUID, error)
 	GetAccountDisplayName(ctx context.Context, id uuid.UUID) (string, error)
 	GetActivePrinterLiveStatus(ctx context.Context, machineID uuid.UUID) (PrinterLiveStatus, error)
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (GetAssignmentRow, error)
@@ -54,6 +56,10 @@ type Querier interface {
 	GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDigest []byte) (PrinterConnectorEnrollment, error)
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error)
+	GetOpenMountSpoolForSlot(ctx context.Context, slotID uuid.UUID) (uuid.UUID, error)
+	// The slot a connector names, with the names people know it by; any status, so a change in a slot that
+	// is unavailable right now is still reported.
+	GetSlotByExternalIDs(ctx context.Context, arg GetSlotByExternalIDsParams) (GetSlotByExternalIDsRow, error)
 	GetTimelapseCollectionEnabled(ctx context.Context) (bool, error)
 	InsertConnectorActivity(ctx context.Context, arg InsertConnectorActivityParams) error
 	InsertConnectorEvent(ctx context.Context, arg InsertConnectorEventParams) (PrinterEvent, error)
@@ -102,7 +108,8 @@ type Querier interface {
 	UpdateConnector(ctx context.Context, arg UpdateConnectorParams) (PrinterConnector, error)
 	UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (MachineRun, error)
 	UpdateObservedRunFacts(ctx context.Context, arg UpdateObservedRunFactsParams) error
-	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) error
+	// inserted is true when this is the first observation of a still open occurrence.
+	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) (bool, error)
 	UpsertPrinterLiveStatus(ctx context.Context, arg UpsertPrinterLiveStatusParams) error
 }
 

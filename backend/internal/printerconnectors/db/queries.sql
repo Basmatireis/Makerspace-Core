@@ -201,7 +201,8 @@ INSERT INTO machine_run_reported_usage_items (
     sqlc.arg(method), sqlc.arg(calculation_version), sqlc.arg(quality)
 ) ON CONFLICT (run_id, report_revision, line_number) DO NOTHING;
 
--- name: UpsertPrinterErrorOccurrence :exec
+-- name: UpsertPrinterErrorOccurrence :one
+-- inserted is true when this is the first observation of a still open occurrence.
 INSERT INTO printer_error_occurrences (
     id, machine_id, assignment_id, run_id, source_family, original_code,
     first_observed_at, last_observed_at, context
@@ -212,7 +213,8 @@ INSERT INTO printer_error_occurrences (
 ON CONFLICT (assignment_id, source_family, original_code) WHERE resolved_at IS NULL
 DO UPDATE SET last_observed_at=GREATEST(printer_error_occurrences.last_observed_at, EXCLUDED.last_observed_at),
               run_id=COALESCE(printer_error_occurrences.run_id, EXCLUDED.run_id),
-              context=EXCLUDED.context, updated_at=now();
+              context=EXCLUDED.context, updated_at=now()
+RETURNING (xmax = 0)::boolean AS inserted;
 
 -- name: ResolvePrinterErrorOccurrence :exec
 UPDATE printer_error_occurrences
@@ -365,6 +367,27 @@ FROM printer_slots s JOIN printer_input_units u ON u.id=s.input_unit_id
 WHERE u.machine_id=sqlc.arg(machine_id) AND u.enabled AND s.status='available'
   AND u.external_identifier=sqlc.arg(input_unit_external_id)::text AND s.external_identifier=sqlc.arg(slot_external_id)::text
 FOR UPDATE OF s;
+
+-- name: GetSlotByExternalIDs :one
+-- The slot a connector names, with the names people know it by; any status, so a change in a slot that
+-- is unavailable right now is still reported.
+SELECT s.id, u.name AS unit_name, s.name AS slot_name
+FROM printer_slots s JOIN printer_input_units u ON u.id=s.input_unit_id
+WHERE u.machine_id=sqlc.arg(machine_id)
+  AND u.external_identifier=sqlc.arg(input_unit_external_id)::text AND s.external_identifier=sqlc.arg(slot_external_id)::text;
+
+-- name: GetOpenMountSpoolForSlot :one
+SELECT spool_id FROM printer_spool_assignments WHERE slot_id=sqlc.arg(slot_id) AND unmounted_at IS NULL;
+
+-- name: FindActiveSpoolByNFCTag :one
+-- Like LockActiveSpoolByNFCTag without the lock.
+SELECT s.id
+FROM filament_spool_identifiers i
+JOIN filament_spools s ON s.id=i.spool_id
+JOIN filament_spool_fills f ON f.id=i.fill_id AND f.spool_id=s.id
+WHERE i.kind='nfc' AND lower(i.value)=lower(sqlc.arg(tag_uid)) AND i.retired_at IS NULL
+  AND f.closed_at IS NULL AND s.lifecycle='active'
+LIMIT 1;
 
 -- name: LockOpenMountForSlot :one
 SELECT id, slot_id, spool_id, source, mounted_at FROM printer_spool_assignments

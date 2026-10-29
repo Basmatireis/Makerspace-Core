@@ -352,7 +352,8 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	if inserted && input.Kind == EventPrinterError {
 		if err = applyPrinterError(
 			ctx,
-			db.New(tx),
+			tx,
+			s.emitter,
 			a.MachineID,
 			a.ID,
 			input.RunID,
@@ -364,18 +365,25 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		}
 	}
 	if inserted && input.Kind == printing.EventSlotObservation && applicationState == printing.ApplicationApplied &&
-		isBambuLANAdapter(AdapterKind(a.AdapterKind)) &&
-		bambuAutoDetectSpools(a.Settings) {
-		if err = reconcileBambuSlotObservation(
-			ctx,
-			tx,
-			connector.ID,
-			a.ID,
-			a.MachineID,
-			event.ID,
-			input.Payload,
-			input.OccurredAt,
-		); err != nil {
+		isBambuLANAdapter(AdapterKind(a.AdapterKind)) {
+		var slot *observedSlot
+		slot, err = observeSlot(ctx, db.New(tx), a.MachineID, input.Payload)
+		if err == nil && bambuAutoDetectSpools(a.Settings) {
+			err = reconcileBambuSlotObservation(
+				ctx,
+				tx,
+				connector.ID,
+				a.ID,
+				a.MachineID,
+				event.ID,
+				input.Payload,
+				input.OccurredAt,
+			)
+		}
+		if err == nil && slot != nil && input.HistoryComplete {
+			err = notifyFilamentChange(ctx, tx, s.emitter, a.MachineID, slot)
+		}
+		if err != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: ReceiptRetry, ReasonCode: &code}
 		}
@@ -396,14 +404,19 @@ func isBambuLANAdapter(kind AdapterKind) bool {
 	return kind == AdapterBambuH2D || kind == AdapterBambuX1C
 }
 
+// applyPrinterError records an error transition. The first observation of an open error also notifies
+// the people who read printer connectors and the operator of the running print; repeats and cleared
+// errors stay quiet.
 func applyPrinterError(
 	ctx context.Context,
-	q *db.Queries,
+	tx pgx.Tx,
+	emitter InboxEmitter,
 	machineID, assignmentID uuid.UUID,
 	runID *uuid.UUID,
 	payload json.RawMessage,
 	observedAt time.Time,
 ) error {
+	q := db.New(tx)
 	var value struct {
 		Transition   string `json:"transition"`
 		SourceFamily string `json:"sourceFamily"`
@@ -432,7 +445,7 @@ func applyPrinterError(
 			},
 		)
 	}
-	return q.UpsertPrinterErrorOccurrence(
+	first, err := q.UpsertPrinterErrorOccurrence(
 		ctx,
 		db.UpsertPrinterErrorOccurrenceParams{
 			ID:           ids.New(),
@@ -445,6 +458,10 @@ func applyPrinterError(
 			Context:      json.RawMessage(`{}`),
 		},
 	)
+	if err != nil || !first || emitter == nil {
+		return err
+	}
+	return emitter.PrinterError(ctx, tx, machineID, value.SourceFamily, value.Code)
 }
 
 func recordedRunState(kind printing.EventKind, payload json.RawMessage) (RunState, error) {

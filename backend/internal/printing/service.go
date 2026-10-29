@@ -734,7 +734,8 @@ func (s *Service) IngestConnectorEvent(
 		EventProgress,
 		EventSlotObservation,
 		EventConsumptionReport,
-		EventTerminalOutcome:
+		EventTerminalOutcome,
+		EventPrinterError:
 	default:
 		return PrinterEvent{}, false, apperror.Invalid("invalid printer event kind")
 	}

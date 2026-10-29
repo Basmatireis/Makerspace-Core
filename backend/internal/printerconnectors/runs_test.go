@@ -166,7 +166,7 @@ func (h *ingestHarness) sendEvent(input EventInput) EventReceipt {
 func (h *ingestHarness) accepted(runID uuid.UUID, kind printing.EventKind, at time.Time, payload string) {
 	h.t.Helper()
 	if receipt := h.send(runID, kind, at, payload, nil); receipt.Status != "accepted" {
-		h.t.Fatalf("%s receipt = %+v", kind, receipt)
+		h.t.Fatalf("%s receipt = %+v %s", kind, receipt, *receipt.ReasonCode)
 	}
 }
 

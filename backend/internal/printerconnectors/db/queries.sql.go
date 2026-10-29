@@ -616,6 +616,24 @@ func (q *Queries) EndConnectorAssignments(ctx context.Context, connectorID uuid.
 	return err
 }
 
+const findActiveSpoolByNFCTag = `-- name: FindActiveSpoolByNFCTag :one
+SELECT s.id
+FROM filament_spool_identifiers i
+JOIN filament_spools s ON s.id=i.spool_id
+JOIN filament_spool_fills f ON f.id=i.fill_id AND f.spool_id=s.id
+WHERE i.kind='nfc' AND lower(i.value)=lower($1) AND i.retired_at IS NULL
+  AND f.closed_at IS NULL AND s.lifecycle='active'
+LIMIT 1
+`
+
+// Like LockActiveSpoolByNFCTag without the lock.
+func (q *Queries) FindActiveSpoolByNFCTag(ctx context.Context, tagUid string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, findActiveSpoolByNFCTag, tagUid)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getAccountDisplayName = `-- name: GetAccountDisplayName :one
 SELECT btrim(p.first_name || ' ' || p.last_name)::text AS display_name
 FROM accounts a JOIN people p ON p.id=a.person_id WHERE a.id=$1
@@ -1098,6 +1116,45 @@ func (q *Queries) GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid
 	var remaining pgtype.Numeric
 	err := row.Scan(&remaining)
 	return remaining, err
+}
+
+const getOpenMountSpoolForSlot = `-- name: GetOpenMountSpoolForSlot :one
+SELECT spool_id FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL
+`
+
+func (q *Queries) GetOpenMountSpoolForSlot(ctx context.Context, slotID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getOpenMountSpoolForSlot, slotID)
+	var spool_id uuid.UUID
+	err := row.Scan(&spool_id)
+	return spool_id, err
+}
+
+const getSlotByExternalIDs = `-- name: GetSlotByExternalIDs :one
+SELECT s.id, u.name AS unit_name, s.name AS slot_name
+FROM printer_slots s JOIN printer_input_units u ON u.id=s.input_unit_id
+WHERE u.machine_id=$1
+  AND u.external_identifier=$2::text AND s.external_identifier=$3::text
+`
+
+type GetSlotByExternalIDsParams struct {
+	MachineID           uuid.UUID
+	InputUnitExternalID string
+	SlotExternalID      string
+}
+
+type GetSlotByExternalIDsRow struct {
+	ID       uuid.UUID
+	UnitName string
+	SlotName string
+}
+
+// The slot a connector names, with the names people know it by; any status, so a change in a slot that
+// is unavailable right now is still reported.
+func (q *Queries) GetSlotByExternalIDs(ctx context.Context, arg GetSlotByExternalIDsParams) (GetSlotByExternalIDsRow, error) {
+	row := q.db.QueryRow(ctx, getSlotByExternalIDs, arg.MachineID, arg.InputUnitExternalID, arg.SlotExternalID)
+	var i GetSlotByExternalIDsRow
+	err := row.Scan(&i.ID, &i.UnitName, &i.SlotName)
+	return i, err
 }
 
 const getTimelapseCollectionEnabled = `-- name: GetTimelapseCollectionEnabled :one
@@ -2714,7 +2771,7 @@ func (q *Queries) UpdateObservedRunFacts(ctx context.Context, arg UpdateObserved
 	return err
 }
 
-const upsertPrinterErrorOccurrence = `-- name: UpsertPrinterErrorOccurrence :exec
+const upsertPrinterErrorOccurrence = `-- name: UpsertPrinterErrorOccurrence :one
 INSERT INTO printer_error_occurrences (
     id, machine_id, assignment_id, run_id, source_family, original_code,
     first_observed_at, last_observed_at, context
@@ -2726,6 +2783,7 @@ ON CONFLICT (assignment_id, source_family, original_code) WHERE resolved_at IS N
 DO UPDATE SET last_observed_at=GREATEST(printer_error_occurrences.last_observed_at, EXCLUDED.last_observed_at),
               run_id=COALESCE(printer_error_occurrences.run_id, EXCLUDED.run_id),
               context=EXCLUDED.context, updated_at=now()
+RETURNING (xmax = 0)::boolean AS inserted
 `
 
 type UpsertPrinterErrorOccurrenceParams struct {
@@ -2739,8 +2797,9 @@ type UpsertPrinterErrorOccurrenceParams struct {
 	Context      []byte
 }
 
-func (q *Queries) UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) error {
-	_, err := q.db.Exec(ctx, upsertPrinterErrorOccurrence,
+// inserted is true when this is the first observation of a still open occurrence.
+func (q *Queries) UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, upsertPrinterErrorOccurrence,
 		arg.ID,
 		arg.MachineID,
 		arg.AssignmentID,
@@ -2750,7 +2809,9 @@ func (q *Queries) UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPr
 		arg.ObservedAt,
 		arg.Context,
 	)
-	return err
+	var inserted bool
+	err := row.Scan(&inserted)
+	return inserted, err
 }
 
 const upsertPrinterLiveStatus = `-- name: UpsertPrinterLiveStatus :exec

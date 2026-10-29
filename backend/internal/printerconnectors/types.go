@@ -40,7 +40,7 @@ const (
 )
 
 // EventPrinterError is the connector event kind for printer error transitions.
-const EventPrinterError printing.EventKind = "printer_error"
+const EventPrinterError = printing.EventPrinterError
 
 // RunState is the state of an observed print run.
 type RunState string
