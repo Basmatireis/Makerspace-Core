@@ -14,7 +14,7 @@ const waitingFor: Partial<Record<SubjectRequest['status'], string>> = {
 };
 
 function stepSentence(step: SubjectRequest['steps'][number], request: SubjectRequest): string {
-  const note = step.note ? `: “${step.note}”` : '';
+  const note = step.note ? `: ${step.note}` : '';
   switch (step.status) {
     case 'received':
       return `Recorded, received ${channelPhrases[request.channel]}${note}`;
