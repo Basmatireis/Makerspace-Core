@@ -29,8 +29,16 @@ export function ReauthenticationDialog({ request, onFinish }: Props) {
   const [passkeyError, setPasskeyError] = useState<unknown>(null);
 
   const succeed = (authentication: CurrentAuthentication) => {
-    queryClient.setQueryData<CurrentUser>(authQueryKey, (user) => (user ? { ...user, authentication } : user));
-    // The permissions withheld until a fresh sign-in are granted again now; fetch them.
+    queryClient.setQueryData<CurrentUser>(authQueryKey, (user) => {
+      if (!user) return user;
+      // The permissions that were withheld until this fresh sign-in are granted again from now on. Move them into the
+      // permission list at once, so a page that needed one of them is not sent away while the user is refetched.
+      const stillWithheld = new Set(authentication.reauthenticationRequired.map((entry) => entry.permissionId));
+      const granted = user.authentication.reauthenticationRequired
+        .map((entry) => entry.permissionId)
+        .filter((permission) => !stillWithheld.has(permission) && !user.permissions.includes(permission));
+      return { ...user, authentication, permissions: [...user.permissions, ...granted] };
+    });
     void queryClient.invalidateQueries({ queryKey: authQueryKey });
     onFinish(true);
   };
