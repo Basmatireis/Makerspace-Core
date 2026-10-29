@@ -38,7 +38,10 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
   await test.step('sign in with the CLI-bootstrap fixture and reach Dashboard', async () => {
     await signIn(page, masterLogin, masterPassword);
     await expect(
-      page.getByRole('heading', { name: /^(Still up|Good (morning|afternoon|evening)), E2E$/ }),
+      page.getByRole('heading', {
+        // One visit in ten shows one of the default playful greetings instead of the time of day.
+        name: /^(Still up|Good (morning|afternoon|evening)), E2E$|^(Bogos binted\?|Hello there|Ready to make something\?|The printers missed you)$/,
+      }),
     ).toBeVisible();
     await expect(page.getByLabel('Breadcrumb').getByText('Dashboard', { exact: true })).toBeVisible();
   });
