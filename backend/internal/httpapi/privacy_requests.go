@@ -242,6 +242,13 @@ func (s *Server) DownloadSubjectRequestExport(
 	}, nil
 }
 
+func nullableName(name *string) nullable.Nullable[string] {
+	if name == nil {
+		return nullable.NewNullNullable[string]()
+	}
+	return nullable.NewNullableWithValue(*name)
+}
+
 func nullableID(id *uuid.UUID) nullable.Nullable[uuid.UUID] {
 	return nullablePointer[uuid.UUID](id, func(v uuid.UUID) uuid.UUID { return v })
 }
@@ -277,34 +284,39 @@ func subjectRequestDTO(request subjectrequests.Request) openapi.SubjectRequest {
 	steps := make([]openapi.SubjectRequestStep, 0, len(request.Steps))
 	for _, step := range request.Steps {
 		steps = append(steps, openapi.SubjectRequestStep{
-			Status: openapi.SubjectRequestStatus(step.Status), OccurredAt: step.OccurredAt, Actor: nullableID(step.Actor), Note: step.Note,
+			Status: openapi.SubjectRequestStatus(step.Status), OccurredAt: step.OccurredAt, Actor: nullableID(step.Actor),
+			ActorName: nullableName(step.ActorName), Note: step.Note,
 		})
 	}
 	return openapi.SubjectRequest{
-		Id:                 request.ID,
-		Kind:               openapi.SubjectRequestKind(request.Kind),
-		Status:             openapi.SubjectRequestStatus(request.Status),
-		PersonId:           nullableID(request.PersonID),
-		Reference:          request.Reference,
-		Channel:            openapi.SubjectRequestChannel(request.Channel),
-		ReceivedAt:         request.ReceivedAt,
-		DueAt:              request.DueAt,
-		Notes:              request.Notes,
-		IdentityVerifiedAt: nullableTimestamp(request.IdentityVerifiedAt),
-		IdentityVerifiedBy: nullableID(request.IdentityVerifiedBy),
-		AssessedAt:         nullableTimestamp(request.AssessedAt),
-		Assessment:         assessmentDTO(request.Assessment),
-		ApprovedAt:         nullableTimestamp(request.ApprovedAt),
-		ApprovedBy:         nullableID(request.ApprovedBy),
-		ExecutedAt:         nullableTimestamp(request.ExecutedAt),
-		ExecutedBy:         nullableID(request.ExecutedBy),
-		Result:             assessmentDTO(request.Result),
-		ExportAvailable:    request.ExportFileID != nil,
-		CompletedAt:        nullableTimestamp(request.CompletedAt),
-		RejectionReason:    request.RejectionReason,
-		Steps:              steps,
-		Version:            request.Version,
-		CreatedAt:          request.CreatedAt,
-		CreatedBy:          nullableID(request.CreatedBy),
+		Id:                     request.ID,
+		Kind:                   openapi.SubjectRequestKind(request.Kind),
+		Status:                 openapi.SubjectRequestStatus(request.Status),
+		PersonId:               nullableID(request.PersonID),
+		PersonName:             nullableName(request.PersonName),
+		Reference:              request.Reference,
+		Channel:                openapi.SubjectRequestChannel(request.Channel),
+		ReceivedAt:             request.ReceivedAt,
+		DueAt:                  request.DueAt,
+		Notes:                  request.Notes,
+		IdentityVerifiedAt:     nullableTimestamp(request.IdentityVerifiedAt),
+		IdentityVerifiedBy:     nullableID(request.IdentityVerifiedBy),
+		IdentityVerifiedByName: nullableName(request.IdentityVerifiedByName),
+		AssessedAt:             nullableTimestamp(request.AssessedAt),
+		Assessment:             assessmentDTO(request.Assessment),
+		ApprovedAt:             nullableTimestamp(request.ApprovedAt),
+		ApprovedBy:             nullableID(request.ApprovedBy),
+		ApprovedByName:         nullableName(request.ApprovedByName),
+		ExecutedAt:             nullableTimestamp(request.ExecutedAt),
+		ExecutedBy:             nullableID(request.ExecutedBy),
+		ExecutedByName:         nullableName(request.ExecutedByName),
+		Result:                 assessmentDTO(request.Result),
+		ExportAvailable:        request.ExportFileID != nil,
+		CompletedAt:            nullableTimestamp(request.CompletedAt),
+		RejectionReason:        request.RejectionReason,
+		Steps:                  steps,
+		Version:                request.Version,
+		CreatedAt:              request.CreatedAt,
+		CreatedBy:              nullableID(request.CreatedBy),
 	}
 }

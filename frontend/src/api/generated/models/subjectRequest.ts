@@ -31,6 +31,27 @@ export interface SubjectRequest {
   status: SubjectRequestStatus;
   /** Null after an erasure was executed. */
   personId: UUIDv7 | null;
+  /**
+     * The person's current name, resolved on read; null once the person is gone.
+     * @maxLength 201
+     * @nullable
+     */
+  personName: string | null;
+  /**
+     * @maxLength 201
+     * @nullable
+     */
+  identityVerifiedByName: string | null;
+  /**
+     * @maxLength 201
+     * @nullable
+     */
+  approvedByName: string | null;
+  /**
+     * @maxLength 201
+     * @nullable
+     */
+  executedByName: string | null;
   /** @maxLength 100 */
   reference: string;
   channel: SubjectRequestChannel;

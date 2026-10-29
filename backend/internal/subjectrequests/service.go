@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -50,31 +51,36 @@ var channels = map[string]bool{"email": true, "in_person": true, "letter": true,
 
 // Request is a recorded data-subject request.
 type Request struct {
-	ID                 uuid.UUID
-	Kind               string
-	Status             string
-	PersonID           *uuid.UUID
-	Reference          string
-	Channel            string
-	ReceivedAt         time.Time
-	DueAt              time.Time
-	Notes              string
-	IdentityVerifiedAt *time.Time
-	IdentityVerifiedBy *uuid.UUID
-	AssessedAt         *time.Time
-	Assessment         *Assessment
-	ApprovedAt         *time.Time
-	ApprovedBy         *uuid.UUID
-	ExecutedAt         *time.Time
-	ExecutedBy         *uuid.UUID
-	Result             *Assessment
-	ExportFileID       *uuid.UUID
-	CompletedAt        *time.Time
-	RejectionReason    string
-	Steps              []Step
-	Version            int64
-	CreatedAt          time.Time
-	CreatedBy          *uuid.UUID
+	ID       uuid.UUID
+	Kind     string
+	Status   string
+	PersonID *uuid.UUID
+	// PersonName is resolved at read time and nil once the person was erased.
+	PersonName             *string
+	IdentityVerifiedByName *string
+	ApprovedByName         *string
+	ExecutedByName         *string
+	Reference              string
+	Channel                string
+	ReceivedAt             time.Time
+	DueAt                  time.Time
+	Notes                  string
+	IdentityVerifiedAt     *time.Time
+	IdentityVerifiedBy     *uuid.UUID
+	AssessedAt             *time.Time
+	Assessment             *Assessment
+	ApprovedAt             *time.Time
+	ApprovedBy             *uuid.UUID
+	ExecutedAt             *time.Time
+	ExecutedBy             *uuid.UUID
+	Result                 *Assessment
+	ExportFileID           *uuid.UUID
+	CompletedAt            *time.Time
+	RejectionReason        string
+	Steps                  []Step
+	Version                int64
+	CreatedAt              time.Time
+	CreatedBy              *uuid.UUID
 }
 
 // Step is one lifecycle transition.
@@ -82,6 +88,7 @@ type Step struct {
 	Status     string
 	OccurredAt time.Time
 	Actor      *uuid.UUID
+	ActorName  *string
 	Note       string
 }
 
@@ -198,7 +205,81 @@ func (s *Service) List(ctx context.Context, p authorization.Principal) ([]Reques
 		}
 		requests = append(requests, request)
 	}
+	if err := s.resolveNames(ctx, requestsdb.New(s.pool), requests); err != nil {
+		return nil, err
+	}
 	return requests, nil
+}
+
+// resolveNames fills the person and actor names of requests from the current people records, so a name never
+// lives in the request itself and disappears with the person.
+func (s *Service) resolveNames(ctx context.Context, q *requestsdb.Queries, requests []Request) error {
+	people := map[string]bool{}
+	accounts := map[string]bool{}
+	for _, request := range requests {
+		if request.PersonID != nil {
+			people[request.PersonID.String()] = true
+		}
+		for _, id := range []*uuid.UUID{request.IdentityVerifiedBy, request.ApprovedBy, request.ExecutedBy} {
+			if id != nil {
+				accounts[id.String()] = true
+			}
+		}
+		for _, step := range request.Steps {
+			if step.Actor != nil {
+				accounts[step.Actor.String()] = true
+			}
+		}
+	}
+	personNames := map[uuid.UUID]string{}
+	if len(people) > 0 {
+		rows, err := q.ListPeopleNames(ctx, keys(people))
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			personNames[row.ID] = strings.TrimSpace(row.FirstName + " " + row.LastName)
+		}
+	}
+	accountNames := map[uuid.UUID]string{}
+	if len(accounts) > 0 {
+		rows, err := q.ListAccountPersonNames(ctx, keys(accounts))
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			accountNames[row.AccountID] = strings.TrimSpace(row.FirstName + " " + row.LastName)
+		}
+	}
+	lookup := func(names map[uuid.UUID]string, id *uuid.UUID) *string {
+		if id == nil {
+			return nil
+		}
+		if name, ok := names[*id]; ok && name != "" {
+			return &name
+		}
+		return nil
+	}
+	for i := range requests {
+		request := &requests[i]
+		request.PersonName = lookup(personNames, request.PersonID)
+		request.IdentityVerifiedByName = lookup(accountNames, request.IdentityVerifiedBy)
+		request.ApprovedByName = lookup(accountNames, request.ApprovedBy)
+		request.ExecutedByName = lookup(accountNames, request.ExecutedBy)
+		for j := range request.Steps {
+			request.Steps[j].ActorName = lookup(accountNames, request.Steps[j].Actor)
+		}
+	}
+	return nil
+}
+
+func keys(set map[string]bool) []string {
+	result := make([]string, 0, len(set))
+	for key := range set {
+		result = append(result, key)
+	}
+	sort.Strings(result)
+	return result
 }
 
 // Get returns one request with its steps (privacy.requests.manage).
@@ -221,7 +302,11 @@ func (s *Service) load(ctx context.Context, q *requestsdb.Queries, id uuid.UUID)
 	if err != nil {
 		return Request{}, err
 	}
-	return requestFrom(row, steps)
+	request, err := requestFrom(row, steps)
+	if err != nil {
+		return Request{}, err
+	}
+	return s.withNames(ctx, q, request)
 }
 
 // Create records a request as received (privacy.requests.manage).
@@ -268,7 +353,20 @@ func (s *Service) Create(ctx context.Context, p authorization.Principal, input I
 	if err := tx.Commit(ctx); err != nil {
 		return Request{}, err
 	}
-	return requestFrom(row, []requestsdb.PrivacySubjectRequestStep{{Status: StatusReceived, ActorAccountID: &actor, OccurredAt: row.CreatedAt}})
+	request, err := requestFrom(row, []requestsdb.PrivacySubjectRequestStep{{Status: StatusReceived, ActorAccountID: &actor, OccurredAt: row.CreatedAt}})
+	if err != nil {
+		return Request{}, err
+	}
+	return s.withNames(ctx, requestsdb.New(s.pool), request)
+}
+
+// withNames resolves the names of one request.
+func (s *Service) withNames(ctx context.Context, q *requestsdb.Queries, request Request) (Request, error) {
+	requests := []Request{request}
+	if err := s.resolveNames(ctx, q, requests); err != nil {
+		return Request{}, err
+	}
+	return requests[0], nil
 }
 
 func (s *Service) step(ctx context.Context, q *requestsdb.Queries, requestID uuid.UUID, status string, actor *uuid.UUID, note string) error {
@@ -385,6 +483,9 @@ func (s *Service) Transition(
 	}
 	request, err := requestFrom(row, steps)
 	if err != nil {
+		return Request{}, err
+	}
+	if request, err = s.withNames(ctx, q, request); err != nil {
 		return Request{}, err
 	}
 	return request, tx.Commit(ctx)

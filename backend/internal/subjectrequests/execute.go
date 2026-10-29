@@ -220,6 +220,11 @@ func (s *Service) Execute(ctx context.Context, p authorization.Principal, id uui
 	if err != nil {
 		return Request{}, err
 	}
+	// Resolve the names before the commit: an erasure removes the person in this very transaction, so the
+	// subject's name is already gone, while the actors' names still resolve.
+	if request, err = s.withNames(ctx, q, request); err != nil {
+		return Request{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Request{}, err
 	}

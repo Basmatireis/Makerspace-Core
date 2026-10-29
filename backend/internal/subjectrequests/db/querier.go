@@ -64,6 +64,9 @@ type Querier interface {
 	InsertProcessingActivity(ctx context.Context, arg InsertProcessingActivityParams) (PrivacyProcessingActivity, error)
 	InsertSubjectRequest(ctx context.Context, arg InsertSubjectRequestParams) (PrivacySubjectRequest, error)
 	InsertSubjectRequestStep(ctx context.Context, arg InsertSubjectRequestStepParams) error
+	ListAccountPersonNames(ctx context.Context, ids []string) ([]ListAccountPersonNamesRow, error)
+	// Names for the request pages: who the request is about and who acted. The person is gone after an erasure.
+	ListPeopleNames(ctx context.Context, ids []string) ([]ListPeopleNamesRow, error)
 	// Processing activities ------------------------------------------------------
 	ListProcessingActivities(ctx context.Context) ([]PrivacyProcessingActivity, error)
 	ListSubjectRequestSteps(ctx context.Context, requestID uuid.UUID) ([]PrivacySubjectRequestStep, error)

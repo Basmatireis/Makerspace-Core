@@ -188,6 +188,8 @@ A data-subject request (`backend/internal/subjectrequests`) answers a person's r
 - **Executed** (`privacy.requests.execute`). An **access** request builds one ZIP archive with `manifest.json` (controller, request, sections), one JSON document per category under `data/` and the profile image under `files/`, and stores it as a private file. An **erasure** runs the handlers again, then deletes the person through the people service with its usual rules (`people.delete` and, with an account, `accounts.delete` are required; SCIM provisioning and the last enabled master block it; an open person hold is refused with 409 `erasure_on_hold`). The request ends `completed`, or `partially_completed` when records were retained for a legal obligation, need manual review, or a category had no handler.
 - **Rejected.** Closes the request with a reason.
 
+The web interface lists requests under Settings › Data › Privacy & data retention › Data requests with the step each one is at, the next step and who may take it, and the due date; each request has its own page (`/settings/privacy/requests/{requestId}`) that shows the five steps, the current step with its single action and note, the assessment in plain words, the facts and the timeline. The API resolves the names of the person and of the actors on read (`personName`, `identityVerifiedByName`, `approvedByName`, `executedByName`, `steps[].actorName`); they are never stored in the request, so they disappear with the person.
+
 Every step is audited as `privacy.subject_request_<status>`; execution as `privacy.subject_request_executed` with counts only; a download of the export as `privacy.subject_request_export_downloaded`.
 
 ### Subject handlers and outcomes

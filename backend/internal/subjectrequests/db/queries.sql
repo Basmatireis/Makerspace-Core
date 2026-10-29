@@ -96,6 +96,16 @@ WITH deleted AS (
 INSERT INTO file_blob_deletions (storage_key) SELECT storage_key FROM deleted
 ON CONFLICT (storage_key) DO NOTHING;
 
+-- Names for the request pages: who the request is about and who acted. The person is gone after an erasure.
+
+-- name: ListPeopleNames :many
+SELECT id, first_name, last_name FROM people WHERE id = ANY((sqlc.arg(ids)::text[])::uuid[]);
+
+-- name: ListAccountPersonNames :many
+SELECT a.id AS account_id, p.first_name, p.last_name
+FROM accounts a JOIN people p ON p.id = a.person_id
+WHERE a.id = ANY((sqlc.arg(ids)::text[])::uuid[]);
+
 -- Subject lookups ----------------------------------------------------------------
 
 -- name: GetSubjectPerson :one

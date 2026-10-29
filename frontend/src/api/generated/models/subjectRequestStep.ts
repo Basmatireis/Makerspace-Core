@@ -25,6 +25,12 @@ export interface SubjectRequestStep {
   status: SubjectRequestStatus;
   occurredAt: string;
   actor: UUIDv7 | null;
+  /**
+     * The actor's current name; null for the system or once the person is gone.
+     * @maxLength 201
+     * @nullable
+     */
+  actorName: string | null;
   /** @maxLength 1000 */
   note: string;
 }

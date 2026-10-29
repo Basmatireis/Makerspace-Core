@@ -824,6 +824,70 @@ func (q *Queries) InsertSubjectRequestStep(ctx context.Context, arg InsertSubjec
 	return err
 }
 
+const listAccountPersonNames = `-- name: ListAccountPersonNames :many
+SELECT a.id AS account_id, p.first_name, p.last_name
+FROM accounts a JOIN people p ON p.id = a.person_id
+WHERE a.id = ANY(($1::text[])::uuid[])
+`
+
+type ListAccountPersonNamesRow struct {
+	AccountID uuid.UUID
+	FirstName string
+	LastName  string
+}
+
+func (q *Queries) ListAccountPersonNames(ctx context.Context, ids []string) ([]ListAccountPersonNamesRow, error) {
+	rows, err := q.db.Query(ctx, listAccountPersonNames, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountPersonNamesRow{}
+	for rows.Next() {
+		var i ListAccountPersonNamesRow
+		if err := rows.Scan(&i.AccountID, &i.FirstName, &i.LastName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPeopleNames = `-- name: ListPeopleNames :many
+
+SELECT id, first_name, last_name FROM people WHERE id = ANY(($1::text[])::uuid[])
+`
+
+type ListPeopleNamesRow struct {
+	ID        uuid.UUID
+	FirstName string
+	LastName  string
+}
+
+// Names for the request pages: who the request is about and who acted. The person is gone after an erasure.
+func (q *Queries) ListPeopleNames(ctx context.Context, ids []string) ([]ListPeopleNamesRow, error) {
+	rows, err := q.db.Query(ctx, listPeopleNames, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPeopleNamesRow{}
+	for rows.Next() {
+		var i ListPeopleNamesRow
+		if err := rows.Scan(&i.ID, &i.FirstName, &i.LastName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProcessingActivities = `-- name: ListProcessingActivities :many
 
 SELECT id, name, purpose, legal_basis, category_ids, recipients, retention_note, version, created_at, updated_at, updated_by_account_id FROM privacy_processing_activities ORDER BY name, id

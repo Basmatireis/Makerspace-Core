@@ -28,16 +28,18 @@ import (
 )
 
 type subjectRequestJSON struct {
-	ID              uuid.UUID `json:"id"`
-	Kind            string    `json:"kind"`
-	Status          string    `json:"status"`
-	PersonID        *string   `json:"personId"`
-	Reference       string    `json:"reference"`
-	ReceivedAt      time.Time `json:"receivedAt"`
-	DueAt           time.Time `json:"dueAt"`
-	ExportAvailable bool      `json:"exportAvailable"`
-	Version         int64     `json:"version"`
-	Assessment      *struct {
+	ID                     uuid.UUID `json:"id"`
+	Kind                   string    `json:"kind"`
+	Status                 string    `json:"status"`
+	PersonID               *string   `json:"personId"`
+	PersonName             *string   `json:"personName"`
+	IdentityVerifiedByName *string   `json:"identityVerifiedByName"`
+	Reference              string    `json:"reference"`
+	ReceivedAt             time.Time `json:"receivedAt"`
+	DueAt                  time.Time `json:"dueAt"`
+	ExportAvailable        bool      `json:"exportAvailable"`
+	Version                int64     `json:"version"`
+	Assessment             *struct {
 		Categories []struct {
 			CategoryID string  `json:"categoryId"`
 			Records    int64   `json:"records"`
@@ -55,8 +57,9 @@ type subjectRequestJSON struct {
 		} `json:"categories"`
 	} `json:"result"`
 	Steps []struct {
-		Status string `json:"status"`
-		Note   string `json:"note"`
+		Status    string  `json:"status"`
+		ActorName *string `json:"actorName"`
+		Note      string  `json:"note"`
 	} `json:"steps"`
 }
 
@@ -181,6 +184,11 @@ func TestSubjectRequestsOverHTTP(t *testing.T) {
 	response = transition(request.ID, "identity_verified", "Checked the student card in person", request.Version)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &request)
+	// Names are resolved on read: the subject's, the verifier's and the step actor's.
+	if request.PersonName == nil || *request.PersonName == "" || request.IdentityVerifiedByName == nil ||
+		*request.IdentityVerifiedByName == "" || len(request.Steps) < 2 || request.Steps[len(request.Steps)-1].ActorName == nil {
+		t.Fatalf("names not resolved: person=%v verifier=%v steps=%+v", request.PersonName, request.IdentityVerifiedByName, request.Steps)
+	}
 	response = transition(request.ID, "assessed", "", request.Version)
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &request)

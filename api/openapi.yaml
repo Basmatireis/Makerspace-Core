@@ -11826,22 +11826,27 @@ components:
     SubjectRequestStep:
       type: object
       additionalProperties: false
-      required: [status, occurredAt, actor, note]
+      required: [status, occurredAt, actor, actorName, note]
       properties:
         status: {$ref: "#/components/schemas/SubjectRequestStatus"}
         occurredAt: {type: string, format: date-time}
         actor: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        actorName: {type: string, maxLength: 201, nullable: true, description: "The actor's current name; null for the system or once the person is gone."}
         note: {type: string, maxLength: 1000}
 
     SubjectRequest:
       type: object
       additionalProperties: false
-      required: [id, kind, status, personId, reference, channel, receivedAt, dueAt, notes, identityVerifiedAt, identityVerifiedBy, assessedAt, assessment, approvedAt, approvedBy, executedAt, executedBy, result, exportAvailable, completedAt, rejectionReason, steps, version, createdAt, createdBy]
+      required: [id, kind, status, personId, personName, reference, channel, receivedAt, dueAt, notes, identityVerifiedAt, identityVerifiedBy, identityVerifiedByName, assessedAt, assessment, approvedAt, approvedBy, approvedByName, executedAt, executedBy, executedByName, result, exportAvailable, completedAt, rejectionReason, steps, version, createdAt, createdBy]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         kind: {$ref: "#/components/schemas/SubjectRequestKind"}
         status: {$ref: "#/components/schemas/SubjectRequestStatus"}
         personId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null after an erasure was executed.}
+        personName: {type: string, maxLength: 201, nullable: true, description: "The person's current name, resolved on read; null once the person is gone."}
+        identityVerifiedByName: {type: string, maxLength: 201, nullable: true}
+        approvedByName: {type: string, maxLength: 201, nullable: true}
+        executedByName: {type: string, maxLength: 201, nullable: true}
         reference: {type: string, maxLength: 100}
         channel: {$ref: "#/components/schemas/SubjectRequestChannel"}
         receivedAt: {type: string, format: date-time}
