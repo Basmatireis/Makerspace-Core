@@ -20,7 +20,7 @@ import { updatePrivacySettings } from '../../api/generated/privacy/privacy';
 import { ErrorState } from '../../app/PageState';
 import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
-import { hasAnyPermission, hasPermission } from '../auth/permissions';
+import { hasAnyPermission, hasPermission, hasPermissionOrPending } from '../auth/permissions';
 import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { PageShell } from '../../app/PageShell';
 import { CategoriesTab } from './CategoriesTab';
@@ -298,7 +298,7 @@ export function PrivacyPage() {
   const location = useLocation();
   const section = privacySectionFromPath(location.pathname);
   const canRead = hasPermission(currentUser, 'privacy.read');
-  const canManageRequests = hasPermission(currentUser, 'privacy.requests.manage');
+  const canManageRequests = hasPermissionOrPending(currentUser, 'privacy.requests.manage');
   const canSeeSettings = hasAnyPermission(currentUser, ['privacy.read', 'privacy.settings.manage']);
   if (section === null) return <Navigate to={privacyPath('categories')} replace />;
   const allowed = section === 'requests' ? canManageRequests : section === 'settings' ? canSeeSettings : canRead;

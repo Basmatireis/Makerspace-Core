@@ -9,7 +9,7 @@ import { RunsTab } from './RunsTab';
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock('../auth/auth', () => ({
   authQueryKey: ['auth', 'current-user'],
-  useCurrentUser: () => ({ permissions: auth.permissions }),
+  useCurrentUser: () => ({ permissions: auth.permissions, authentication: { reauthenticationRequired: [] } }),
 }));
 
 const runId = '0198a000-0000-7000-8000-000000000004';

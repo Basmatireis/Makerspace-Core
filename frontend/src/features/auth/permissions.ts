@@ -31,6 +31,14 @@ export function hasAnyPermission(currentUser: CurrentUser, permissions: readonly
   return permissions.some((permission) => hasPermission(currentUser, permission));
 }
 
+/** The permission is held, or withheld only until a fresh sign-in (the API then asks for it on use). */
+export function hasPermissionOrPending(currentUser: CurrentUser, permission: PermissionIdType): boolean {
+  return (
+    hasPermission(currentUser, permission) ||
+    currentUser.authentication.reauthenticationRequired.some((entry) => entry.permissionId === permission)
+  );
+}
+
 // Both billing-party and machine-job-operator searches use this permission set.
 // Keep aligned with machinelogbook/catalog.go: canLookupParties.
 export function canLookupJobParties(currentUser: CurrentUser): boolean {

@@ -30,6 +30,8 @@ export function ReauthenticationDialog({ request, onFinish }: Props) {
 
   const succeed = (authentication: CurrentAuthentication) => {
     queryClient.setQueryData<CurrentUser>(authQueryKey, (user) => (user ? { ...user, authentication } : user));
+    // The permissions withheld until a fresh sign-in are granted again now; fetch them.
+    void queryClient.invalidateQueries({ queryKey: authQueryKey });
     onFinish(true);
   };
   const mutation = useSecretMutation((body: ReauthenticateRequest) => reauthenticate(body), { onSuccess: succeed });

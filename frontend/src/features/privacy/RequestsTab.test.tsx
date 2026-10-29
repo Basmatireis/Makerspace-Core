@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,7 @@ import { RequestsTab } from './RequestsTab';
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock('../auth/auth', () => ({
   authQueryKey: ['auth', 'current-user'],
-  useCurrentUser: () => ({ permissions: auth.permissions }),
+  useCurrentUser: () => ({ permissions: auth.permissions, authentication: { reauthenticationRequired: [] } }),
 }));
 
 const requestId = '0198a000-0000-7000-8000-000000000020';
@@ -176,10 +176,25 @@ describe('data requests tab', () => {
       await user.click(button);
     }
     expect(await screen.findByRole('button', { name: 'Execute' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Download export' })).toHaveAttribute(
-      'href',
-      expect.stringContaining('/privacy/requests/0198a000-0000-7000-8000-000000000021/export'),
+    const downloads: string[] = [];
+    server.use(
+      http.get('*/api/v1/privacy/requests/:id/export', ({ params }) => {
+        downloads.push(String(params.id));
+        return new HttpResponse(new Blob(['zip']), {
+          headers: { 'content-type': 'application/zip', 'content-disposition': 'attachment; filename="x.zip"' },
+        });
+      }),
     );
+    const saved: string[] = [];
+    Object.defineProperty(URL, 'createObjectURL', { value: () => 'blob:export', configurable: true });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: () => undefined, configurable: true });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      saved.push(this.download);
+    });
+    await user.click(screen.getByRole('button', { name: 'Download export' }));
+    await waitFor(() => expect(downloads).toEqual(['0198a000-0000-7000-8000-000000000021']));
+    await waitFor(() => expect(saved).toEqual(['subject-request-0198a000-0000-7000-8000-000000000021.zip']));
+    click.mockRestore();
     unmount();
 
     auth.permissions = ['privacy.read', 'privacy.requests.manage'];
@@ -189,6 +204,6 @@ describe('data requests tab', () => {
       await user.click(button);
     }
     expect(screen.queryByRole('button', { name: 'Execute' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Download export' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Download export' })).not.toBeInTheDocument();
   });
 });

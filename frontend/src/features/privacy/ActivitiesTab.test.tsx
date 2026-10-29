@@ -9,7 +9,7 @@ import { ActivitiesTab } from './ActivitiesTab';
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock('../auth/auth', () => ({
   authQueryKey: ['auth', 'current-user'],
-  useCurrentUser: () => ({ permissions: auth.permissions }),
+  useCurrentUser: () => ({ permissions: auth.permissions, authentication: { reauthenticationRequired: [] } }),
 }));
 
 const activityId = '0198a000-0000-7000-8000-000000000010';

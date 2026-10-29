@@ -6,10 +6,13 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { PrivacyPage } from './PrivacyPage';
 
-const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
+const auth = vi.hoisted(() => ({ permissions: [] as string[], pending: [] as string[] }));
 vi.mock('../auth/auth', () => ({
   authQueryKey: ['auth', 'current-user'],
-  useCurrentUser: () => ({ permissions: auth.permissions }),
+  useCurrentUser: () => ({
+    permissions: auth.permissions,
+    authentication: { reauthenticationRequired: auth.pending.map((permissionId) => ({ permissionId })) },
+  }),
 }));
 
 function category(overrides: Record<string, unknown> = {}) {
@@ -297,6 +300,17 @@ describe('privacy settings', () => {
     auth.permissions = ['privacy.requests.manage'];
     const { router } = renderRoute(<PrivacyPage />, '/settings/privacy');
     await waitFor(() => expect(router.state.location.pathname).toBe('/settings/privacy/requests'));
+  });
+
+  it('keeps the data requests reachable while the permission only waits for a fresh sign-in', async () => {
+    auth.permissions = ['privacy.read'];
+    auth.pending = ['privacy.requests.manage'];
+    renderRoute(<PrivacyPage />, '/settings/privacy');
+    expect(await screen.findByRole('link', { name: 'Data requests' })).toHaveAttribute(
+      'href',
+      '/settings/privacy/requests',
+    );
+    auth.pending = [];
   });
 
   it('shows a sub-page with a breadcrumb back to the categories', async () => {

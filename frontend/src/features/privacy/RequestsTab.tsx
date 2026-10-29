@@ -46,7 +46,7 @@ import type {
 import {
   createSubjectRequest,
   executeSubjectRequest,
-  getDownloadSubjectRequestExportUrl,
+  downloadSubjectRequestExport,
   transitionSubjectRequest,
 } from '../../api/generated/privacy/privacy';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
@@ -58,6 +58,7 @@ import {
 } from '../../app/dateTime';
 import { ErrorState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
+import { saveBlob } from '../configtransfer/helpers';
 import { hasPermission } from '../auth/permissions';
 import { SettingsLoading } from '../settings/SettingsPageLayout';
 import { peopleListOptions } from '../users/queries';
@@ -389,6 +390,11 @@ function RequestDetail({ request, canExecute }: { request: SubjectRequest; canEx
     },
     onError: () => void settle(),
   });
+  const download = useMutation({
+    // Through the API client, so an expired fresh sign-in opens the re-authentication dialog instead of a JSON page.
+    mutationFn: () => downloadSubjectRequestExport(request.id),
+    onSuccess: (blob) => saveBlob(blob, `subject-request-${request.id}.zip`),
+  });
   const execute = useMutation({
     mutationFn: () => executeSubjectRequest(request.id, { expectedVersion: request.version }),
     onSuccess: async () => {
@@ -399,7 +405,13 @@ function RequestDetail({ request, canExecute }: { request: SubjectRequest; canEx
   });
 
   const status = request.status;
-  const error = transition.isError ? transition.error : execute.isError ? execute.error : undefined;
+  const error = transition.isError
+    ? transition.error
+    : execute.isError
+      ? execute.error
+      : download.isError
+        ? download.error
+        : undefined;
   const busy = transition.isPending || execute.isPending;
   const open = (next: Dialog) => {
     transition.reset();
@@ -454,8 +466,8 @@ function RequestDetail({ request, canExecute }: { request: SubjectRequest; canEx
           request.kind === 'access' &&
           (status === 'completed' || status === 'partially_completed') &&
           request.exportAvailable && (
-            <Button size="sm" kind="tertiary" href={getDownloadSubjectRequestExportUrl(request.id)}>
-              Download export
+            <Button size="sm" kind="tertiary" disabled={download.isPending} onClick={() => download.mutate()}>
+              {download.isPending ? 'Downloading…' : 'Download export'}
             </Button>
           )}
       </div>

@@ -10,7 +10,7 @@ const auth = { permissions: ['privacy.read', 'privacy.policies.manage', 'privacy
 
 vi.mock('../auth/auth', () => ({
   authQueryKey: ['auth', 'current-user'],
-  useCurrentUser: () => ({ permissions: auth.permissions }),
+  useCurrentUser: () => ({ permissions: auth.permissions, authentication: { reauthenticationRequired: [] } }),
 }));
 
 const category = {
