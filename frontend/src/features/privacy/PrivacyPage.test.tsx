@@ -130,8 +130,8 @@ describe('privacy settings', () => {
   it('shows counts, the controller hint and the automatic-runs state on the entry page', async () => {
     renderRoute(<PrivacyPage />, '/settings/privacy');
     expect(await screen.findByText('12')).toBeInTheDocument();
-    expect(await screen.findByText('Controller not named')).toBeInTheDocument();
-    expect(screen.getByText('off')).toBeInTheDocument();
+    expect(await screen.findByText(/controller not named/)).toBeInTheDocument();
+    expect(screen.getByText('Off')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });
 
@@ -160,10 +160,10 @@ describe('privacy settings', () => {
     );
     renderRoute(<PrivacyPage />, '/settings/privacy');
     expect(await screen.findByText('Signage media')).toBeInTheDocument();
-    await user.click(screen.getByText('Policy in force'));
+    await user.click(screen.getByRole('link', { name: /Policy in force/ }));
     await waitFor(() => expect(screen.queryByText('Signage media')).not.toBeInTheDocument());
     expect(screen.getByText('Audit events')).toBeInTheDocument();
-    await user.click(screen.getByText('All categories'));
+    await user.click(screen.getByRole('link', { name: /All categories/ }));
     expect(await screen.findByText('Signage media')).toBeInTheDocument();
   });
 

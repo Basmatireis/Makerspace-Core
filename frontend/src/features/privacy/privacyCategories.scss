@@ -9,17 +9,39 @@
   gap: 1px;
 }
 .privacy-tiles > .cds--tile {
-  min-block-size: 0;
+  min-block-size: 6rem;
+}
+.privacy-tiles__label {
+  @include type.type-style('label-01');
+  display: block;
+  color: theme.$text-secondary;
 }
 .privacy-tiles__value {
+  @include type.type-style('heading-04');
   display: block;
   margin-block-start: $spacing-03;
 }
 .privacy-context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $spacing-02 $spacing-05;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: $spacing-05 $spacing-07;
+  padding: $spacing-05;
+  background: theme.$layer-01;
   color: theme.$text-secondary;
+}
+.privacy-context__item {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-01;
+}
+.privacy-context__label {
+  @include type.type-style('label-01');
+}
+.privacy-context__value {
+  color: theme.$text-primary;
+}
+.privacy-context__link {
+  @include type.type-style('body-compact-01');
 }
 .privacy-context strong {
   color: theme.$text-primary;

@@ -25,7 +25,7 @@ import {
 } from '@carbon/react';
 import { ArrowRight, CheckmarkFilled, CircleFilled, Filter, Locked } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import type {
   PrivacyCategory,
@@ -59,15 +59,25 @@ export function PrivacyContextLine({ overview }: { overview: PrivacyOverview }) 
   const run = overview.lastRun;
   const holds = overview.openCategoryHolds;
   const decided = overview.policiesActive + overview.policiesPending;
+  const item = (label: string, value: ReactNode, link?: ReactNode) => (
+    <div className="privacy-context__item">
+      <span className="privacy-context__label">{label}</span>
+      <span className="privacy-context__value">{value}</span>
+      {link && <span className="privacy-context__link">{link}</span>}
+    </div>
+  );
   return (
-    <p className="privacy-context cds--type-body-compact-01">
-      <span>
-        {overview.policiesActive} {overview.policiesActive === 1 ? 'decision' : 'decisions'} in force,{' '}
-        {decided - overview.policiesActive} drafted, {overview.withoutPolicy} still open
-      </span>
-      <span>
-        Last run:{' '}
-        {run ? (
+    <div className="privacy-context">
+      {item(
+        'Decisions',
+        <>
+          <strong>{overview.policiesActive}</strong> in force, {decided - overview.policiesActive} drafted,{' '}
+          {overview.withoutPolicy} still open
+        </>,
+      )}
+      {item(
+        'Last run',
+        run ? (
           <>
             <strong>{formatDateTime(run.startedAt)}</strong> {triggerPhrases[run.trigger] ?? run.trigger},{' '}
             {run.mode === 'dry_run'
@@ -76,37 +86,43 @@ export function PrivacyContextLine({ overview }: { overview: PrivacyOverview }) 
           </>
         ) : (
           <strong>none yet</strong>
-        )}{' '}
-        · <PrivacyLink section="runs">Execution history</PrivacyLink>
-      </span>
-      <span>
-        Automatic runs are <strong>{overview.automaticRunsEnabled ? 'on' : 'off'}</strong> ·{' '}
-        <PrivacyLink section="settings">Settings</PrivacyLink>
-      </span>
-      <span>
-        {holds === 0 ? 'No category on hold' : `${holds} ${holds === 1 ? 'category' : 'categories'} on hold`} ·{' '}
-        <PrivacyLink section="holds">Holds</PrivacyLink>
-      </span>
-      {overview.orphanedCategories > 0 && (
-        <span>
-          {overview.orphanedCategories} orphaned {overview.orphanedCategories === 1 ? 'category' : 'categories'} still
-          hold data
-        </span>
+        ),
+        <PrivacyLink section="runs">Execution history</PrivacyLink>,
       )}
-      <span>
-        <PrivacyLink section="activities">Processing activities</PrivacyLink>
-      </span>
-      {hasPermission(currentUser, 'privacy.requests.manage') && (
-        <span>
-          <PrivacyLink section="requests">Data requests</PrivacyLink>
-        </span>
+      {item(
+        'Automatic runs',
+        <>
+          <strong>{overview.automaticRunsEnabled ? 'On' : 'Off'}</strong>
+          {overview.automaticRunsEnabled ? '' : ', admin cleanup applies the policies'}
+          {settings.data && settings.data.controllerName.trim() === '' ? ' · controller not named' : ''}
+        </>,
+        <PrivacyLink section="settings">Settings</PrivacyLink>,
       )}
-      {settings.data && settings.data.controllerName.trim() === '' && (
-        <span>
-          <strong>Controller not named</strong> · <PrivacyLink section="settings">Settings</PrivacyLink>
-        </span>
+      {item(
+        'Holds',
+        holds === 0 ? (
+          'No category on hold'
+        ) : (
+          <>
+            <strong>{holds}</strong> {holds === 1 ? 'category' : 'categories'} on hold
+          </>
+        ),
+        <PrivacyLink section="holds">Holds</PrivacyLink>,
       )}
-    </p>
+      {item(
+        'Record of processing',
+        overview.orphanedCategories > 0
+          ? `${overview.orphanedCategories} orphaned ${overview.orphanedCategories === 1 ? 'category' : 'categories'} still hold data`
+          : 'Which activities use which data',
+        <PrivacyLink section="activities">Processing activities</PrivacyLink>,
+      )}
+      {hasPermission(currentUser, 'privacy.requests.manage') &&
+        item(
+          'People asking for their data',
+          'Access and erasure requests',
+          <PrivacyLink section="requests">Data requests</PrivacyLink>,
+        )}
+    </div>
   );
 }
 
@@ -370,9 +386,11 @@ function SummaryTile({
         onSelect();
       }}
     >
-      <span className="cds--type-label-01">{label}</span>
-      {note && <span className="cds--type-helper-text-01"> · {note}</span>}
-      <span className="privacy-tiles__value cds--type-productive-heading-05">{value}</span>
+      <span className="privacy-tiles__label">
+        {label}
+        {note ? ` · ${note}` : ''}
+      </span>
+      <span className="privacy-tiles__value">{value}</span>
     </ClickableTile>
   );
 }
