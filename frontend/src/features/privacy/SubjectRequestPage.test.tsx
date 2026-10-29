@@ -113,7 +113,8 @@ describe('data request page', () => {
     expect(screen.getByText(/Lena K\. verified the identity, so someone else must approve/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Approve the erasure' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Max Mustermann' })).toHaveAttribute('href', `/people/${personId}`);
-    expect(screen.getByText(/Student card shown/, { selector: '.cds--progress-optional' })).toBeInTheDocument();
+    expect(screen.queryByText(/Student card shown/, { selector: '.cds--progress-optional' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Lena K. · 02\.09\.2026/, { selector: '.cds--progress-optional' })).toBeInTheDocument();
   });
 
   it('tells the verifier that someone else must approve', async () => {

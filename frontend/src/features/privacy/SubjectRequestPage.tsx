@@ -67,8 +67,8 @@ function stepLabel(request: SubjectRequest, index: number, actor: Actor): string
   if (index < done) {
     const step = request.steps.filter((entry) => status.includes(entry.status)).at(-1);
     if (!step) return '';
-    const who = [step.actorName, formatDate(step.occurredAt)].filter(Boolean).join(' · ');
-    return step.note ? `${who} · ${step.note}` : who;
+    // Name and date only; the note stays in the timeline, where there is room for it.
+    return [step.actorName, formatDate(step.occurredAt)].filter(Boolean).join(' · ');
   }
   if (index === done && !isClosed(request)) {
     const next = nextStep(request, actor);
