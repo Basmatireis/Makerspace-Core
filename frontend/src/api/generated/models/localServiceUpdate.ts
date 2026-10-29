@@ -23,7 +23,7 @@ import type { ReleaseVersion } from './releaseVersion';
 import type { UUIDv7 } from './uUIDv7';
 
 /**
- * The latest update request of a connector or gateway. Who requested it is in the audit log.
+ * The latest update request of a connector. Who requested it is in the audit log.
  */
 export interface LocalServiceUpdate {
   requestId: UUIDv7;

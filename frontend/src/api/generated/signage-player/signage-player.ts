@@ -22,7 +22,8 @@ import type {
   GetSignagePlayerManifestParams,
   SignagePlayerHeartbeat,
   SignagePlayerLive,
-  SignagePlayerManifestResponse
+  SignagePlayerManifestResponse,
+  UUIDv7
 } from '../models';
 
 import { apiFetch } from '../../http-client';
@@ -99,6 +100,39 @@ export const getGetSignagePlayerLiveUrl = () => {
 export const getSignagePlayerLive = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignagePlayerLive> => {
 
   return apiFetch<SignagePlayerLive>(getGetSignagePlayerLiveUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getStreamSignagePlayerCameraUrl = (machineId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/signage/player/cameras/${machineId}/stream`
+}
+
+/**
+ * Device credential of a signage player only. A websocket upgrade; answers a normal error response before the upgrade.
+ * The device may watch only machines whose camera widget is in its currently published scene (`SignagePlayerLive.streams`),
+ * respecting the display's `allowCameraOutside` setting. Browser upgrades must carry an `Origin` equal to the application's
+ * public origin; requests that authenticate with the token header may omit it.
+ *
+ * Core is a byte pipe and does not parse media. The websocket carries the go2rtc MSE protocol: the player sends one text
+ * frame `{"type":"mse","value":"<codecs>"}` (viewer to service: text frames only, at most 4 KiB each and 10 per second;
+ * a binary frame closes the session), and the service answers with text and binary frames of at most 4 MiB each.
+ * Core re-checks the right to watch every 15 seconds. Close codes: 4403 forbidden, 4404 camera gone, 4503 local service offline.
+ * A device may hold at most 4 streams per machine and 20 in total.
+ * @summary Websocket relay of a printer camera (MSE)
+ */
+export const streamSignagePlayerCamera = async (machineId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<unknown> => {
+
+  return apiFetch<unknown>(getStreamSignagePlayerCameraUrl(machineId),
   {
     ...options,
     method: 'GET'

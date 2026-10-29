@@ -11,7 +11,7 @@ const VersionVariable = "MAKERSPACE_VERSION"
 
 // DigestVariables pin an image to the digest of one release. A digest of the previous release would
 // keep the old image (or fail) after the version changed, so the updater comments them out.
-var DigestVariables = []string{"PRINTER_CONNECTOR_DIGEST", "STREAMING_GATEWAY_DIGEST", "LOCAL_UPDATER_DIGEST"}
+var DigestVariables = []string{"PRINTER_CONNECTOR_DIGEST", "LOCAL_UPDATER_DIGEST"}
 
 var assignmentPattern = regexp.MustCompile(`^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$`)
 

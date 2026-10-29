@@ -367,12 +367,11 @@ func Definitions() []privacy.Definition {
 		},
 		{
 			ID: DeviceCredentials, Owner: Platform, Name: "Device and service credentials",
-			Description: "Token digests of managed devices, printer connectors, streaming gateways and signage displays.",
-			Contains:    "Token digests of kiosks, printer connectors, streaming gateways and signage displays",
+			Description: "Token digests of managed devices, printer connectors and signage displays.",
+			Contains:    "Token digests of kiosks, printer connectors and signage displays",
 			Fields: []string{
 				"managed_devices.token_digest", "printer_connector_credentials.*", "printer_connector_enrollments.*",
-				"streaming_gateway_credentials.*", "streaming_gateway_enrollments.*", "signage_pairing_requests.*",
-				"signage_display_states.*",
+				"signage_pairing_requests.*", "signage_display_states.*",
 			},
 			Triggers: []privacy.Trigger{privacy.TriggerExpiredAt},
 			Actions:  []privacy.Action{privacy.ActionDelete},

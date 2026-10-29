@@ -1374,7 +1374,6 @@ SELECT (
     OR EXISTS (SELECT 1 FROM printer_connector_assignments ca WHERE ca.machine_id = $1)
     OR EXISTS (SELECT 1 FROM printer_events pe WHERE pe.machine_id = $1)
     OR EXISTS (SELECT 1 FROM printer_error_occurrences eo WHERE eo.machine_id = $1)
-    OR EXISTS (SELECT 1 FROM streaming_cameras sc WHERE sc.machine_id = $1)
     OR EXISTS (
         SELECT 1 FROM printer_spool_assignments a
         JOIN printer_slots s ON s.id = a.slot_id
@@ -1384,7 +1383,7 @@ SELECT (
 )::boolean AS in_use
 `
 
-// Machines with history, connector assignments, cameras or mounted spools are retired instead of deleted.
+// Machines with history, connector assignments or mounted spools are retired instead of deleted.
 func (q *Queries) MachineInUse(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, machineInUse, id)
 	var in_use bool

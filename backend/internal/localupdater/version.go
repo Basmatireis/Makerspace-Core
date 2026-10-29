@@ -1,6 +1,6 @@
-// Package localupdater is the optional updater sidecar of the local-service Compose bundles and the
-// file exchange through which the printer connector and the streaming gateway hand it the update
-// requests they receive from Core. The sidecar is the only container of a bundle with the Docker
+// Package localupdater is the optional updater sidecar of the local-service Compose bundle and the
+// file exchange through which the printer connector hands it the update requests it receives from
+// Core. The sidecar is the only container of a bundle with the Docker
 // socket; it installs nothing but a newer release of the bundle's own images.
 package localupdater
 

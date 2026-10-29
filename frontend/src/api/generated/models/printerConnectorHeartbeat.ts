@@ -20,6 +20,7 @@
  */
 import type { LocalServiceUpdaterReport } from './localServiceUpdaterReport';
 import type { PrinterConnectorAssignmentHealth } from './printerConnectorAssignmentHealth';
+import type { PrinterConnectorCameraHealth } from './printerConnectorCameraHealth';
 import type { PrinterConnectorHeartbeatHealthState } from './printerConnectorHeartbeatHealthState';
 
 export interface PrinterConnectorHeartbeat {
@@ -44,5 +45,7 @@ export interface PrinterConnectorHeartbeat {
   quarantinedEventCount: number;
   /** @maxItems 32 */
   assignments: PrinterConnectorAssignmentHealth[];
+  /** @maxItems 64 */
+  cameras?: PrinterConnectorCameraHealth[];
   updater?: LocalServiceUpdaterReport;
 }

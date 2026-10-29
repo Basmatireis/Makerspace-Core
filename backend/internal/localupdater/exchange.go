@@ -37,12 +37,11 @@ type Component string
 
 const (
 	ComponentPrinterConnector Component = "printer-connector"
-	ComponentStreamingGateway Component = "streaming-gateway"
 )
 
 // Valid reports whether c is a known component.
 func (c Component) Valid() bool {
-	return c == ComponentPrinterConnector || c == ComponentStreamingGateway
+	return c == ComponentPrinterConnector
 }
 
 // Request asks the updater to install release Version. Core issues a new RequestID for every request;

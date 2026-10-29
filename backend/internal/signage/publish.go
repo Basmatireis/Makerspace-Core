@@ -64,10 +64,6 @@ func (s *Service) publishDisplay(
 	if current.RevokedAt.Valid || current.DeviceRevokedAt.Valid {
 		return Display{}, displayRevoked()
 	}
-	previous, hadPrevious, err := s.latestManifest(ctx, q, id)
-	if err != nil {
-		return Display{}, err
-	}
 	rules, err := loadRules(ctx, q, []uuid.UUID{id})
 	if err != nil {
 		return Display{}, err
@@ -109,12 +105,6 @@ func (s *Service) publishDisplay(
 	); err != nil {
 		return Display{}, err
 	}
-	if hadPrevious && camerasRemoved(cameraSetOf(previous), cameraSetOf(manifest)) {
-		// The display no longer shows a camera it used before: drop its running sessions.
-		if err := q.BumpStreamingSessionEpoch(ctx); err != nil {
-			return Display{}, err
-		}
-	}
 	if err := writeAudit(
 		ctx,
 		tx,
@@ -132,35 +122,4 @@ func (s *Service) publishDisplay(
 		return Display{}, err
 	}
 	return result, tx.Commit(ctx)
-}
-
-// cameraSet is the set of cameras a manifest can show; all means every camera.
-type cameraSet struct {
-	ids []uuid.UUID
-	all bool
-}
-
-func cameraSetOf(manifest Manifest) cameraSet {
-	ids, all := ManifestCameraMachineIDs(manifest)
-	return cameraSet{ids: ids, all: all}
-}
-
-// camerasRemoved reports whether the old camera set can show a machine the new one cannot.
-func camerasRemoved(before, after cameraSet) bool {
-	if after.all {
-		return false
-	}
-	if before.all {
-		return true
-	}
-	remaining := make(map[uuid.UUID]struct{}, len(after.ids))
-	for _, id := range after.ids {
-		remaining[id] = struct{}{}
-	}
-	for _, id := range before.ids {
-		if _, ok := remaining[id]; !ok {
-			return true
-		}
-	}
-	return false
 }

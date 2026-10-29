@@ -18,22 +18,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PrinterConnectorAssignmentCameraHealth } from './printerConnectorAssignmentCameraHealth';
 
-export interface StreamingGatewayTicketKey {
+/**
+ * Camera relay status reported by the local service in its heartbeat. `unknown` when the connector never reported one or its last report (every heartbeat that lists the camera renews it) is older than two minutes.
+ */
+export interface PrinterConnectorAssignmentCamera {
+  health: PrinterConnectorAssignmentCameraHealth;
   /**
-     * @minLength 8
-     * @maxLength 32
+     * @minimum 0
+     * @maximum 100000
      */
-  kid: string;
-  /**
-     * Ed25519 public key, 32 bytes, base64url without padding.
-     * @minLength 43
-     * @maxLength 43
-     */
-  publicKey: string;
-  /**
-     * Null for the current and a pending key; a retired key stays valid for ten minutes.
-     * @nullable
-     */
-  validUntil: string | null;
+  viewers: number;
+  /** @nullable */
+  reportedAt: string | null;
 }

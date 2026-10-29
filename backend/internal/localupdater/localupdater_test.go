@@ -50,7 +50,6 @@ func TestReleaseVersionsAreStrict(t *testing.T) {
 func TestRewriteEnvChangesOnlyTheVersionAndDigestPins(t *testing.T) {
 	original := "# Release\nMAKERSPACE_VERSION=0.8.2\r\n" +
 		"PRINTER_CONNECTOR_DIGEST=@sha256:abc\n" +
-		"STREAMING_GATEWAY_DIGEST=\n" +
 		"#LOCAL_UPDATER_DIGEST=@sha256:old\n" +
 		"CORE_URL=https://makerspace.example.org\n" +
 		"CONNECTOR_ENROLLMENT_SECRET=keep-me"
@@ -60,7 +59,6 @@ func TestRewriteEnvChangesOnlyTheVersionAndDigestPins(t *testing.T) {
 	}
 	want := "# Release\nMAKERSPACE_VERSION=0.8.3\r\n" +
 		"#PRINTER_CONNECTOR_DIGEST=@sha256:abc # pinned the previous release; cleared by the local updater for 0.8.3\n" +
-		"STREAMING_GATEWAY_DIGEST=\n" +
 		"#LOCAL_UPDATER_DIGEST=@sha256:old\n" +
 		"CORE_URL=https://makerspace.example.org\n" +
 		"CONNECTOR_ENROLLMENT_SECRET=keep-me"
@@ -166,21 +164,21 @@ func (h *updaterHarness) submit(version string) uuid.UUID {
 
 func TestServiceHandsRequestsOnlyToAPresentUpdater(t *testing.T) {
 	root := t.TempDir()
-	exchange := NewExchange(root, ComponentStreamingGateway)
+	exchange := NewExchange(root, ComponentPrinterConnector)
 	if exchange.Available() || exchange.Report().Available {
 		t.Fatal("no updater runs")
 	}
 	if err := exchange.Submit(Request{RequestID: uuid.Must(uuid.NewV7()), Version: "0.8.3"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(root, "streaming-gateway", requestFile)); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "printer-connector", requestFile)); !os.IsNotExist(err) {
 		t.Fatalf("a request was written without an updater: %v", err)
 	}
 	if err := exchange.Submit(Request{RequestID: uuid.Must(uuid.NewV7()), Version: "dev"}); err == nil {
 		t.Fatal("a development version must be refused")
 	}
 	// A stale presence file means the updater stopped.
-	dir := filepath.Join(root, "streaming-gateway")
+	dir := filepath.Join(root, "printer-connector")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

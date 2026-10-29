@@ -18,27 +18,13 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LocalServiceUpdaterReport } from './localServiceUpdaterReport';
-import type { StreamingGatewayCameraHealth } from './streamingGatewayCameraHealth';
-import type { StreamingGatewayHeartbeatHealthState } from './streamingGatewayHeartbeatHealthState';
 
-export interface StreamingGatewayHeartbeat {
-  /**
-     * @minLength 1
-     * @maxLength 80
-     */
-  softwareVersion: string;
-  /** @minimum 1 */
-  protocolVersion: number;
-  /** @minimum 0 */
-  appliedConfigurationRevision: number;
-  healthState: StreamingGatewayHeartbeatHealthState;
-  /**
-     * @maxLength 500
-     * @nullable
-     */
-  healthSummary: string | null;
-  /** @maxItems 100 */
-  cameras: StreamingGatewayCameraHealth[];
-  updater?: LocalServiceUpdaterReport;
-}
+export type PrinterConnectorAssignmentCameraHealth = typeof PrinterConnectorAssignmentCameraHealth[keyof typeof PrinterConnectorAssignmentCameraHealth];
+
+
+export const PrinterConnectorAssignmentCameraHealth = {
+  live: 'live',
+  idle: 'idle',
+  unavailable: 'unavailable',
+  unknown: 'unknown',
+} as const;

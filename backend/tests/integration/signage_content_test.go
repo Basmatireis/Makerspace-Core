@@ -270,7 +270,6 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 		"manager",
 		authorization.SignageManage,
 		authorization.SignagePublish,
-		authorization.LocalServicesManage,
 	)
 
 	asset := f.uploadImage(t, "seed.jpg")

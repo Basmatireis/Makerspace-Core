@@ -280,3 +280,11 @@ func rolePageDTO(page roles.Page) openapi.RolePage {
 		NextCursor: nullablePointer[string](page.NextCursor, func(value string) string { return value }),
 	}
 }
+
+func nullableIntPointer(value nullable.Nullable[int]) *int {
+	if !value.IsSpecified() || value.IsNull() {
+		return nil
+	}
+	result := value.GetOrEmpty()
+	return &result
+}

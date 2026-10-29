@@ -32,4 +32,6 @@ export interface PrinterConnectorRuntimeAssignment {
   settings: PrinterConnectorRuntimeAssignmentSettings;
   secrets: PrinterConnectorRuntimeAssignmentSecrets;
   enabled: boolean;
+  /** The local service relays this printer's camera. Its local go2rtc stream is named `cam-<id>`. */
+  cameraStreaming: boolean;
 }

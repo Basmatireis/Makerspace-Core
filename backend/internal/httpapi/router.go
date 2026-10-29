@@ -66,8 +66,6 @@ const (
 	visitorEnrollmentContextKey
 	printerConnectorContextKey
 	printerConnectorEnrollmentSecretContextKey
-	streamingGatewayContextKey
-	streamingGatewayEnrollmentSecretContextKey
 	httpRequestContextKey
 	rawUploadBodyContextKey
 )
@@ -297,55 +295,6 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 					return
 				}
 				ctx = context.WithValue(ctx, printerConnectorContextKey, *connector)
-			}
-			next.ServeHTTP(w, r.WithContext(ctx))
-			return
-		}
-		if isStreamingGatewayPath(r.URL.Path) {
-			failureKey := ratelimit.KeyForIP(sourceAddress(r.Context()))
-			if s.gatewayFailures.Blocked(failureKey, time.Now().UTC()) {
-				writeAPIError(
-					w,
-					r,
-					apperror.RateLimited(
-						"rate_limited",
-						"Too many failed gateway authentications; try again later",
-						gatewayFailureWindow,
-					),
-					logger,
-				)
-				return
-			}
-			scheme, token, found := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
-			if !found || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
-				s.gatewayFailures.Take(failureKey, time.Now().UTC())
-				writeAPIError(w, r, apperror.Unauthenticated, logger)
-				return
-			}
-			ctx := r.Context()
-			if r.URL.Path == apiBasePath+"/streaming-gateway/enroll" {
-				ctx = context.WithValue(ctx, streamingGatewayEnrollmentSecretContextKey, strings.TrimSpace(token))
-			} else {
-				gateway, err := s.streamingGateways.Authenticate(ctx, strings.TrimSpace(token))
-				if err != nil {
-					writeAPIError(w, r, err, logger)
-					return
-				}
-				if gateway == nil {
-					s.gatewayFailures.Take(failureKey, time.Now().UTC())
-					writeAPIError(w, r, apperror.Unauthenticated, logger)
-					return
-				}
-				if !s.allowPrinterConnectorRequest(gateway.ID, time.Now().UTC()) {
-					writeAPIError(
-						w,
-						r,
-						apperror.RateLimited("rate_limited", "Gateway request rate exceeded", deviceRequestWindow),
-						logger,
-					)
-					return
-				}
-				ctx = context.WithValue(ctx, streamingGatewayContextKey, *gateway)
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
@@ -652,11 +601,6 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 }
 
 const (
-	gatewayFailuresPerWindow = 20
-	gatewayFailureWindow     = 15 * time.Minute
-)
-
-const (
 	deviceRequestWindow                 = time.Minute
 	deviceRequestsPerWindow             = 600
 	signagePlayerRequestsPerMinute      = 120
@@ -664,7 +608,7 @@ const (
 )
 
 // newDeviceRateLimits bounds the request rate of authenticated machine clients (printer
-// connectors, streaming gateways and signage players) per credential.
+// connectors and signage players) per credential.
 func newDeviceRateLimits() deviceRateLimits {
 	return deviceRateLimits{
 		connectors:   ratelimit.New(deviceRequestsPerWindow, deviceRequestWindow),
@@ -693,7 +637,7 @@ func (s *Server) allowSignagePlayerRequest(deviceID uuid.UUID, assets bool, now 
 func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	expectedOrigin := s.config.PublicBaseURL.Scheme + "://" + s.config.PublicBaseURL.Host
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isSCIMPath(r.URL.Path) || isPrinterConnectorPath(r.URL.Path) || isStreamingGatewayPath(r.URL.Path) {
+		if isSCIMPath(r.URL.Path) || isPrinterConnectorPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}

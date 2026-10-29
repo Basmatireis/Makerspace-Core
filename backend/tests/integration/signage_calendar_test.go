@@ -287,7 +287,7 @@ func TestSignageCalendarPermissions(t *testing.T) {
 		"nobody":   e.staff("cal-nobody"),
 		"publish":  e.staff("cal-publish", authorization.SignagePublish),
 		"override": e.staff("cal-override", authorization.SignageOverride),
-		"local":    e.staff("cal-local", authorization.LocalServicesManage),
+		"connect":  e.staff("cal-connect", authorization.PrinterConnectorsManage),
 	} {
 		t.Run("denied "+name, func(t *testing.T) {
 			e.expectCode(

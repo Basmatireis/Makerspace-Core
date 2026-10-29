@@ -64,10 +64,20 @@ func printerConnectorAssignmentDTO(value printerconnectors.Assignment) openapi.P
 		Settings:             settings,
 		ConfigurationVersion: value.ConfigurationVersion, AppliedConfigurationVersion: value.AppliedVersion,
 		Enabled:          value.Enabled,
+		CameraStreaming:  value.CameraStreaming,
+		Camera:           printerConnectorAssignmentCameraDTO(value.Camera),
 		RuntimeState:     runtimeState,
 		RuntimeErrorCode: nullableString(value.RuntimeErrorCode),
 		EndedAt:          nullableValue(value.EndedAt),
 		Version:          value.Version, ActivatedAt: value.ActivatedAt, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt}
+}
+
+func printerConnectorAssignmentCameraDTO(value printerconnectors.AssignmentCamera) openapi.PrinterConnectorAssignmentCamera {
+	return openapi.PrinterConnectorAssignmentCamera{
+		Health:     openapi.PrinterConnectorAssignmentCameraHealth(value.Health),
+		Viewers:    value.Viewers,
+		ReportedAt: nullableValue(value.ReportedAt),
+	}
 }
 
 func printerObservedRunDTO(value printerconnectors.ObservedRun) openapi.PrinterObservedRun {
@@ -279,6 +289,7 @@ func (s *Server) CreatePrinterConnectorAssignment(
 			Settings:             settings,
 			Secrets:              secrets,
 			Enabled:              request.Body.Enabled,
+			CameraStreaming:      request.Body.CameraStreaming != nil && *request.Body.CameraStreaming,
 		},
 		requestIDPointer(ctx),
 	)
@@ -327,7 +338,7 @@ func (s *Server) UpdatePrinterConnectorAssignment(
 		printerconnectors.AssignmentUpdate{
 			AdapterKind: printerconnectors.AdapterKind(request.Body.AdapterKind), AdapterSchemaVersion: request.Body.AdapterSchemaVersion,
 			Settings: settings, Secrets: request.Body.Secrets, Enabled: request.Body.Enabled, End: request.Body.End,
-			ExpectedVersion: request.Body.ExpectedVersion,
+			CameraStreaming: request.Body.CameraStreaming, ExpectedVersion: request.Body.ExpectedVersion,
 		},
 		requestIDPointer(ctx),
 	)
@@ -442,6 +453,7 @@ func (s *Server) GetPrinterConnectorConfiguration(
 				Settings:             settings,
 				Secrets:              &secrets,
 				Enabled:              value.Enabled,
+				CameraStreaming:      value.CameraStreaming,
 			},
 		)
 	}
@@ -484,6 +496,20 @@ func (s *Server) ReportPrinterConnectorHeartbeat(
 			},
 		)
 	}
+	var cameras []printerconnectors.CameraHealthReport
+	if request.Body.Cameras != nil {
+		cameras = make([]printerconnectors.CameraHealthReport, 0, len(*request.Body.Cameras))
+		for _, value := range *request.Body.Cameras {
+			cameras = append(
+				cameras,
+				printerconnectors.CameraHealthReport{
+					AssignmentID: value.AssignmentId,
+					Health:       printerconnectors.CameraHealth(value.Health),
+					Viewers:      value.Viewers,
+				},
+			)
+		}
+	}
 	item, err := s.printerConnectors.Heartbeat(
 		ctx,
 		connector,
@@ -496,6 +522,7 @@ func (s *Server) ReportPrinterConnectorHeartbeat(
 			PendingEventCount:            request.Body.PendingEventCount,
 			QuarantinedEventCount:        request.Body.QuarantinedEventCount,
 			Assignments:                  health,
+			Cameras:                      cameras,
 			Updater:                      updaterReportFrom(request.Body.Updater),
 		},
 	)

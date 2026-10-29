@@ -887,6 +887,13 @@ func assertEvaluatedPermissions(
 
 func migratedPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
+	return migratedPoolMode(t, pgx.QueryExecModeSimpleProtocol)
+}
+
+// migratedPoolMode is migratedPool with an explicit query mode. The simple protocol cannot encode []byte
+// arguments for json columns, which the printer connector queries use.
+func migratedPoolMode(t *testing.T, mode pgx.QueryExecMode) *pgxpool.Pool {
+	t.Helper()
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("TEST_DATABASE_URL is not set")
@@ -909,7 +916,7 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	poolConfig.ConnConfig.RuntimeParams["search_path"] = schema
-	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+	poolConfig.ConnConfig.DefaultQueryExecMode = mode
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		adminPool.Close()

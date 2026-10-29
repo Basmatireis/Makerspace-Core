@@ -1826,9 +1826,6 @@ WITH c01 AS (
 ), c37 AS (
     UPDATE signage_publications SET published_by_account_id = $1::uuid
     WHERE published_by_account_id = $2::uuid RETURNING 1
-), c38 AS (
-    UPDATE streaming_gateway_enrollments SET created_by_account_id = $1::uuid
-    WHERE created_by_account_id = $2::uuid RETURNING 1
 ), c39 AS (
     UPDATE open_day_requirements SET updated_by_account_id = $1::uuid
     WHERE updated_by_account_id = $2::uuid RETURNING 1
@@ -1894,7 +1891,7 @@ SELECT (
     + (SELECT count(*) FROM c25) + (SELECT count(*) FROM c26) + (SELECT count(*) FROM c27) + (SELECT count(*) FROM c28)
     + (SELECT count(*) FROM c29) + (SELECT count(*) FROM c30) + (SELECT count(*) FROM c31) + (SELECT count(*) FROM c32)
     + (SELECT count(*) FROM c33) + (SELECT count(*) FROM c34) + (SELECT count(*) FROM c35) + (SELECT count(*) FROM c36)
-    + (SELECT count(*) FROM c37) + (SELECT count(*) FROM c38) + (SELECT count(*) FROM c39) + (SELECT count(*) FROM c40)
+    + (SELECT count(*) FROM c37) + (SELECT count(*) FROM c39) + (SELECT count(*) FROM c40)
     + (SELECT count(*) FROM c41) + (SELECT count(*) FROM c42) + (SELECT count(*) FROM c43) + (SELECT count(*) FROM c44)
     + (SELECT count(*) FROM c45) + (SELECT count(*) FROM c46) + (SELECT count(*) FROM c47) + (SELECT count(*) FROM c48)
     + (SELECT count(*) FROM c49) + (SELECT count(*) FROM c50) + (SELECT count(*) FROM c51) + (SELECT count(*) FROM c52)

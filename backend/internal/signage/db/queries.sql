@@ -39,8 +39,9 @@ FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
 ORDER BY lower(m.name), m.id;
 
 -- name: ListSignageCameraMachineIDs :many
-SELECT c.machine_id FROM streaming_cameras c JOIN streaming_gateways g ON g.id = c.gateway_id
-WHERE c.enabled AND g.lifecycle <> 'revoked';
+-- Machines whose active, enabled printer-connector assignment relays the printer camera.
+SELECT a.machine_id FROM printer_connector_assignments a
+WHERE a.camera_streaming AND a.enabled AND a.ended_at IS NULL;
 
 -- name: ListSignageHiddenMachineIDs :many
 -- Machines whose currently running run was opted out of signage by its operator or customer. A manual run
@@ -339,18 +340,6 @@ SET name = sqlc.arg(name), location = sqlc.arg(location), orientation = sqlc.arg
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND revoked_at IS NULL
 RETURNING id;
-
--- name: BumpStreamingSessionEpoch :exec
--- Drops running camera sessions: gateways restart go2rtc when the epoch changes.
-WITH bumped AS (UPDATE streaming_session_epoch SET epoch = epoch + 1 WHERE singleton RETURNING epoch)
-UPDATE streaming_gateways SET configuration_revision = configuration_revision + 1, updated_at = now()
-WHERE lifecycle IN ('pending', 'active', 'disabled') AND EXISTS (SELECT 1 FROM bumped);
-
--- name: RecordRevokedSignageDisplay :exec
-INSERT INTO signage_revoked_displays (display_id) VALUES (sqlc.arg(display_id)) ON CONFLICT (display_id) DO NOTHING;
-
--- name: PruneRevokedSignageDisplays :exec
-DELETE FROM signage_revoked_displays WHERE revoked_at < sqlc.arg(older_than);
 
 -- name: BumpSignageDisplayVersion :one
 UPDATE signage_displays SET version = version + 1, updated_at = now()

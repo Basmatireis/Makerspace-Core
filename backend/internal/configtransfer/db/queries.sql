@@ -50,14 +50,13 @@ JOIN machine_types t ON t.id = m.machine_type_id
 ORDER BY lower(m.name), m.id;
 
 -- name: MachineInUse :one
--- Machines with history, connector assignments, cameras or mounted spools are retired instead of deleted.
+-- Machines with history, connector assignments or mounted spools are retired instead of deleted.
 SELECT (
     EXISTS (SELECT 1 FROM machine_jobs j WHERE j.machine_id = sqlc.arg(id))
     OR EXISTS (SELECT 1 FROM machine_runs mr WHERE mr.machine_id = sqlc.arg(id))
     OR EXISTS (SELECT 1 FROM printer_connector_assignments ca WHERE ca.machine_id = sqlc.arg(id))
     OR EXISTS (SELECT 1 FROM printer_events pe WHERE pe.machine_id = sqlc.arg(id))
     OR EXISTS (SELECT 1 FROM printer_error_occurrences eo WHERE eo.machine_id = sqlc.arg(id))
-    OR EXISTS (SELECT 1 FROM streaming_cameras sc WHERE sc.machine_id = sqlc.arg(id))
     OR EXISTS (
         SELECT 1 FROM printer_spool_assignments a
         JOIN printer_slots s ON s.id = a.slot_id

@@ -128,7 +128,6 @@ const (
 	SignageContentManage               Permission = Permission(openapi.SignageContentManage)
 	SignagePublish                     Permission = Permission(openapi.SignagePublish)
 	SignageOverride                    Permission = Permission(openapi.SignageOverride)
-	LocalServicesManage                Permission = Permission(openapi.LocalServicesManage)
 	ConfigurationExport                Permission = Permission(openapi.ConfigurationExport)
 	ConfigurationImport                Permission = Permission(openapi.ConfigurationImport)
 	NotificationsSend                  Permission = Permission(openapi.NotificationsSend)
@@ -186,7 +185,7 @@ var registry = []Permission{
 	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign,
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
-	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride, LocalServicesManage,
+	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride,
 	ConfigurationExport, ConfigurationImport, NotificationsSend,
 	PrivacyRead, PrivacySettingsManage, PrivacyPoliciesManage, PrivacyRetentionExecute,
 	PrivacyRequestsManage, PrivacyRequestsExecute,
@@ -314,7 +313,6 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	SignageContentManage:               "Create, edit, and delete signage scenes, playlists, media assets, and announcement templates.",
 	SignagePublish:                     "Publish a signage display so its player receives the current content.",
 	SignageOverride:                    "Start, edit, and stop signage announcements.",
-	LocalServicesManage:                "Manage local streaming gateways and camera assignments and issue their enrollment secrets.",
 	ConfigurationExport:                "Download configuration sections as a file; each section also needs its own read permission.",
 	ConfigurationImport:                "Preview and import configuration files; each section also needs its own read and manage permissions.",
 	NotificationsSend:                  "Send in-app messages to roles and see sent messages.",

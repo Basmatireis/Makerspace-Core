@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/jackc/pgx/v5"
 	"io"
 	"log/slog"
 	"net/http"
@@ -56,7 +57,12 @@ func newSignageEnv(t *testing.T) *signageEnv { return newSignageEnvWith(t, nil) 
 // newSignageEnvWith lets a test adjust the configuration (for example the pairing allow-list).
 func newSignageEnvWith(t *testing.T, adjust func(*config.Config)) *signageEnv {
 	t.Helper()
-	pool := migratedPool(t)
+	return newSignageEnvMode(t, adjust, pgx.QueryExecModeSimpleProtocol)
+}
+
+func newSignageEnvMode(t *testing.T, adjust func(*config.Config), mode pgx.QueryExecMode) *signageEnv {
+	t.Helper()
+	pool := migratedPoolMode(t, mode)
 	dir := t.TempDir()
 	store, err := storage.NewLocal(dir)
 	if err != nil {
@@ -713,15 +719,6 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 	)
 }
 
-func (e *signageEnv) epoch() int64 {
-	e.t.Helper()
-	var epoch int64
-	if err := e.pool.QueryRow(testContext(e.t), `SELECT epoch FROM streaming_session_epoch`).Scan(&epoch); err != nil {
-		e.t.Fatal(err)
-	}
-	return epoch
-}
-
 func TestSignageDisplayCanBeDeletedInAnyState(t *testing.T) {
 	e := newSignageEnv(t)
 	ctx := testContext(t)
@@ -745,8 +742,7 @@ func TestSignageDisplayCanBeDeletedInAnyState(t *testing.T) {
 	)
 	e.expect(e.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusOK)
 
-	// An active display is deleted without a prior revoke; its player is cut off and camera sessions end.
-	epoch := e.epoch()
+	// An active display is deleted without a prior revoke; its player is cut off.
 	e.expect(
 		e.as(staff, http.MethodDelete, "/signage/displays/"+id, map[string]any{"expectedVersion": version}),
 		http.StatusNoContent,
@@ -757,18 +753,7 @@ func TestSignageDisplayCanBeDeletedInAnyState(t *testing.T) {
 		http.StatusUnauthorized,
 		"unauthenticated",
 	)
-	if e.epoch() != epoch+1 {
-		t.Fatalf("session epoch = %d, want %d", e.epoch(), epoch+1)
-	}
-	var listed, devices int
-	if err := e.pool.QueryRow(
-		ctx,
-		`SELECT count(*) FROM signage_revoked_displays WHERE display_id = $1`,
-		id,
-	).Scan(&listed); err != nil ||
-		listed != 1 {
-		t.Fatalf("deleted display must be on the revoked list: %d %v", listed, err)
-	}
+	var devices int
 	if err := e.pool.QueryRow(
 		ctx,
 		`SELECT count(*) FROM managed_devices WHERE id = $1`,

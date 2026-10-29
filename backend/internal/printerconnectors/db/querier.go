@@ -104,6 +104,8 @@ type Querier interface {
 	SettleRunsOfConnector(ctx context.Context, connectorID uuid.UUID) error
 	TouchCredential(ctx context.Context, id uuid.UUID) error
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) (PrinterConnectorAssignment, error)
+	// Ephemeral relay status from the connector heartbeat: not audited, no configuration change.
+	UpdateAssignmentCamera(ctx context.Context, arg UpdateAssignmentCameraParams) error
 	UpdateAssignmentRuntime(ctx context.Context, arg UpdateAssignmentRuntimeParams) error
 	UpdateConnector(ctx context.Context, arg UpdateConnectorParams) (PrinterConnector, error)
 	UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (MachineRun, error)

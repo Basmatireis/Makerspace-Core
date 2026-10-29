@@ -493,14 +493,6 @@ func (s *Service) UpdateDisplay(
 	if current.DefaultPlaylistID != checked.DefaultPlaylistID {
 		changed = append(changed, "defaultPlaylistId")
 	}
-	// Camera tickets stop at once when the display loses the right to show cameras to the outside;
-	// running sessions are dropped through the gateways' session epoch.
-	if cameraAllowed(current.VisibleFromOutside, current.AllowCameraOutside) &&
-		!cameraAllowed(checked.VisibleFromOutside, allowOutside) {
-		if err := q.BumpStreamingSessionEpoch(ctx); err != nil {
-			return Display{}, err
-		}
-	}
 	if err := writeAudit(
 		ctx,
 		tx,
@@ -567,9 +559,6 @@ func (s *Service) RevokeDisplay(
 		current.ManagedDeviceID,
 		requestID,
 	); err != nil {
-		return Display{}, err
-	}
-	if err := dropDisplaySessions(ctx, q, id, s.now()); err != nil {
 		return Display{}, err
 	}
 	if err := writeAudit(
@@ -641,9 +630,6 @@ func (s *Service) DeleteDisplay(
 	if err := manageddevices.DeleteSignagePlayerDeviceTx(ctx, tx, principal, deviceID, requestID); err != nil {
 		return err
 	}
-	if err := dropDisplaySessions(ctx, q, id, s.now()); err != nil {
-		return err
-	}
 	if err := writeAudit(
 		ctx,
 		tx,
@@ -657,27 +643,4 @@ func (s *Service) DeleteDisplay(
 		return err
 	}
 	return tx.Commit(ctx)
-}
-
-// cameraAllowed tells whether a display may receive camera stream tickets: displays that are visible
-// from outside need the explicit allowCameraOutside setting.
-func cameraAllowed(visibleFromOutside, allowCameraOutside bool) bool {
-	return !visibleFromOutside || allowCameraOutside
-}
-
-// revokedDisplayRetention is how long gateways keep refusing tickets of a revoked display (longer
-// than any ticket lives).
-const revokedDisplayRetention = 24 * time.Hour
-
-// dropDisplaySessions records a revoked or deleted display for the gateways (ticket refusal list) and
-// bumps the session epoch so that running camera sessions are dropped. It runs in the revoking
-// transaction.
-func dropDisplaySessions(ctx context.Context, q *signagedb.Queries, displayID uuid.UUID, now time.Time) error {
-	if err := q.PruneRevokedSignageDisplays(ctx, now.Add(-revokedDisplayRetention)); err != nil {
-		return err
-	}
-	if err := q.RecordRevokedSignageDisplay(ctx, displayID); err != nil {
-		return err
-	}
-	return q.BumpStreamingSessionEpoch(ctx)
 }

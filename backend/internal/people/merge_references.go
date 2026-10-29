@@ -119,7 +119,6 @@ var MergeReferences = []MergeReference{
 	{"signage_announcements", "created_by_account_id", "accounts", ruleActor},
 	{"signage_assets", "created_by_account_id", "accounts", ruleActor},
 	{"signage_publications", "published_by_account_id", "accounts", ruleActor},
-	{"streaming_gateway_enrollments", "created_by_account_id", "accounts", ruleActor},
 	{"training_records", "recorded_by_account_id", "accounts", ruleActor},
 	{"visitor_enrollment_configuration", "updated_by_account_id", "accounts", ruleActor},
 	{"visits", "checked_in_by_account_id", "accounts", ruleActor},

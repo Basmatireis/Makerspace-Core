@@ -86,8 +86,8 @@ UPDATE printer_connector_assignments SET ended_at=COALESCE(ended_at, now()), ena
 WHERE connector_id=sqlc.arg(connector_id) AND ended_at IS NULL;
 
 -- name: CreateAssignment :one
-INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, enabled)
-VALUES (sqlc.arg(id), sqlc.arg(connector_id), sqlc.arg(machine_id), sqlc.arg(adapter_kind), sqlc.arg(adapter_schema_version), sqlc.arg(settings), sqlc.narg(encrypted_secrets), sqlc.arg(enabled)) RETURNING *;
+INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, enabled, camera_streaming)
+VALUES (sqlc.arg(id), sqlc.arg(connector_id), sqlc.arg(machine_id), sqlc.arg(adapter_kind), sqlc.arg(adapter_schema_version), sqlc.arg(settings), sqlc.narg(encrypted_secrets), sqlc.arg(enabled), sqlc.arg(camera_streaming)) RETURNING *;
 
 -- name: GetAssignmentForUpdate :one
 SELECT * FROM printer_connector_assignments
@@ -99,6 +99,11 @@ UPDATE printer_connector_assignments SET adapter_kind=sqlc.arg(adapter_kind),
     encrypted_secrets=sqlc.narg(encrypted_secrets),
     enabled=CASE WHEN sqlc.arg(end_assignment)::boolean THEN false ELSE sqlc.arg(enabled) END,
     ended_at=CASE WHEN sqlc.arg(end_assignment)::boolean THEN now() ELSE ended_at END,
+    -- The reported relay status belongs to the previous switch position: switching resets it.
+    camera_health=CASE WHEN camera_streaming = (NOT sqlc.arg(end_assignment)::boolean AND sqlc.arg(camera_streaming)::boolean) THEN camera_health END,
+    camera_viewers=CASE WHEN camera_streaming = (NOT sqlc.arg(end_assignment)::boolean AND sqlc.arg(camera_streaming)::boolean) THEN camera_viewers ELSE 0 END,
+    camera_reported_at=CASE WHEN camera_streaming = (NOT sqlc.arg(end_assignment)::boolean AND sqlc.arg(camera_streaming)::boolean) THEN camera_reported_at END,
+    camera_streaming=(NOT sqlc.arg(end_assignment)::boolean AND sqlc.arg(camera_streaming)::boolean),
     configuration_version=configuration_version+1, version=version+1, updated_at=now()
 WHERE id=sqlc.arg(id) AND connector_id=sqlc.arg(connector_id)
   AND version=sqlc.arg(expected_version) AND ended_at IS NULL
@@ -143,6 +148,12 @@ WHERE id=sqlc.arg(id) AND lifecycle='active' RETURNING *;
 UPDATE printer_connector_assignments SET applied_configuration_version=sqlc.arg(applied_configuration_version),
     runtime_state=sqlc.arg(runtime_state), runtime_error_code=sqlc.narg(runtime_error_code), updated_at=now()
 WHERE id=sqlc.arg(id) AND connector_id=sqlc.arg(connector_id) AND ended_at IS NULL;
+
+-- name: UpdateAssignmentCamera :exec
+-- Ephemeral relay status from the connector heartbeat: not audited, no configuration change.
+UPDATE printer_connector_assignments SET camera_health=sqlc.arg(camera_health), camera_viewers=sqlc.arg(camera_viewers),
+    camera_reported_at=now()
+WHERE id=sqlc.arg(id) AND connector_id=sqlc.arg(connector_id) AND ended_at IS NULL AND camera_streaming;
 
 -- name: NextPrintSequence :one
 SELECT nextval('machine_run_display_sequence')::bigint;

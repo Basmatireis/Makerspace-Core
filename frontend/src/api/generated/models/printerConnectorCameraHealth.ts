@@ -18,12 +18,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PrinterConnectorCameraHealthHealth } from './printerConnectorCameraHealthHealth';
 import type { UUIDv7 } from './uUIDv7';
 
-export interface StreamingGatewayEnrollmentResult {
-  gatewayId: UUIDv7;
-  credentialId: UUIDv7;
-  /** @minimum 1 */
-  protocolVersion: number;
-  credentialExpiresAt: string;
+export interface PrinterConnectorCameraHealth {
+  assignmentId: UUIDv7;
+  /** live: go2rtc has a producer; idle: configured, no viewers; unavailable: the source reports an error. */
+  health: PrinterConnectorCameraHealthHealth;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  viewers: number;
 }

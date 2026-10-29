@@ -34,6 +34,8 @@ export interface UpdatePrinterConnectorAssignmentRequest {
   /** Omit to retain existing printer credentials; provide an empty object to clear them. */
   secrets?: UpdatePrinterConnectorAssignmentRequestSecrets;
   enabled: boolean;
+  /** Omit to keep the current value. true is only valid for the Bambu adapters (`bambu_h2d`, `bambu_x1c`); other adapters answer 422. */
+  cameraStreaming?: boolean;
   end: boolean;
   expectedVersion: Version;
 }

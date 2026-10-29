@@ -9,26 +9,18 @@ import (
 	"github.com/google/uuid"
 )
 
-// A running run its operator hid removes the machine from signage entirely: no status, no camera ticket,
-// also for automatic camera widgets. Runs that ended, were deleted or were never hidden change nothing.
+// A running run its operator hid removes the machine from signage entirely: no status, also for
+// automatic camera widgets. Runs that ended, were deleted or were never hidden change nothing.
 func TestHiddenRunRemovesMachineFromSignageLive(t *testing.T) {
-	g := newGatewayEnv(t)
+	g := newConnectorEnv(t)
 	ctx := testContext(t)
 	staff := g.allStaff()
 	svc, admin := g.fixture.service, g.fixture.admin
-	gateway, _ := g.enrolledGateway("Hidden run gateway", "gw-hidden.example.org")
 	hiding := g.bambu("Hiding printer", "bambu_h2d", "192.168.1.81", "20000001")
 	other := g.bambu("Other printer", "bambu_h2d", "192.168.1.82", "20000002")
-	for _, machine := range []uuid.UUID{hiding, other} {
-		g.expect(
-			g.as(
-				g.admin,
-				http.MethodPost,
-				"/streaming-gateways/"+gateway["id"].(string)+"/cameras",
-				map[string]any{"machineId": machine.String(), "enabled": true},
-			),
-			http.StatusCreated,
-		)
+	if _, err := g.pool.Exec(ctx, `UPDATE printer_connector_assignments SET camera_streaming = true WHERE machine_id = ANY($1)`,
+		[]uuid.UUID{hiding, other}); err != nil {
+		t.Fatal(err)
 	}
 	boundInput := sceneInput("Bound camera", "full")
 	boundInput.Zones = map[string]json.RawMessage{"main": cameraWidget(hiding)}
@@ -52,28 +44,25 @@ func TestHiddenRunRemovesMachineFromSignageLive(t *testing.T) {
 		return player
 	}
 	boundPlayer, autoPlayer := display("Bound display", bound.ID), display("Automatic display", automatic.ID)
-	observed := func(player *http.Client) (streams, machines map[string]bool) {
+	observed := func(player *http.Client) map[string]bool {
 		t.Helper()
 		live := g.expect(g.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusOK)
-		streams, machines = map[string]bool{}, map[string]bool{}
-		for _, item := range live["streams"].([]any) {
-			streams[item.(map[string]any)["machineId"].(string)] = true
-		}
+		machines := map[string]bool{}
 		for _, item := range live["machines"].([]any) {
 			machines[item.(map[string]any)["machineId"].(string)] = true
 		}
-		return streams, machines
+		return machines
 	}
 	expect := func(label string, player *http.Client, wantHiding bool, wantOther bool) {
 		t.Helper()
-		streams, machines := observed(player)
+		machines := observed(player)
 		want := map[string]bool{hiding.String(): wantHiding, other.String(): wantOther}
 		for machine, visible := range want {
 			if player == boundPlayer && machine == other.String() {
 				continue // the bound widget never showed the other machine
 			}
-			if streams[machine] != visible || machines[machine] != visible {
-				t.Fatalf("%s: machine %s want visible=%v, streams=%v machines=%v", label, machine, visible, streams, machines)
+			if machines[machine] != visible {
+				t.Fatalf("%s: machine %s want visible=%v, machines=%v", label, machine, visible, machines)
 			}
 		}
 	}
@@ -104,13 +93,13 @@ func TestHiddenRunRemovesMachineFromSignageLive(t *testing.T) {
 	// A visible running run changes nothing.
 	run := insertRun(false, "running", true)
 	expect("running, visible", autoPlayer, true, true)
-	// The opt-out removes the machine from machines and streams, for bound and automatic widgets alike.
+	// The opt-out removes the machine from the live machines, for bound and automatic widgets alike.
 	if _, err = g.pool.Exec(ctx, `UPDATE machine_runs SET hidden_from_signage = true WHERE id = $1`, run); err != nil {
 		t.Fatal(err)
 	}
 	expect("running, hidden (bound)", boundPlayer, false, false)
 	expect("running, hidden (auto)", autoPlayer, false, true)
-	// The preview carries no tickets but must not list the machine either.
+	// The preview must not list the machine either.
 	displays := g.expect(g.as(staff, http.MethodGet, "/signage/displays", nil), http.StatusOK)
 	for _, item := range displays["items"].([]any) {
 		preview := g.expect(

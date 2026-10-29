@@ -216,18 +216,11 @@ type LiveAnnouncement struct {
 	EndsAt         *time.Time
 }
 
-// Stream is a camera stream the display may watch: gateway URLs plus a short-lived ticket.
+// Stream is a camera stream the display may watch right now. Path is the relative websocket URL on
+// Core's own origin; the device credential authorizes it, there is no ticket.
 type Stream struct {
 	MachineID uuid.UUID
-	WebRTCURL string
-	MSEURL    string
-	Ticket    string
-	ExpiresAt time.Time
-}
-
-// StreamIssuer hands out stream tickets. It is implemented by the streaming gateway service.
-type StreamIssuer interface {
-	IssueStreams(ctx context.Context, displayID uuid.UUID, machineIDs []uuid.UUID) ([]Stream, error)
+	Path      string
 }
 
 // LiveData is the short-lived data the player polls about every ten seconds.
@@ -293,13 +286,13 @@ func liveMachineFrom(
 	return machine
 }
 
-// PlayerLive assembles the live data of a display, including stream tickets for the cameras its
-// published camera widgets use. The display must not be revoked; PlayerDisplayFor guarantees that.
+// PlayerLive assembles the live data of a display. The display must not be revoked; PlayerDisplayFor
+// guarantees that. The streams list stays empty until the camera relay lands.
 func (s *Service) PlayerLive(ctx context.Context, display PlayerDisplay) (LiveData, error) {
-	return s.playerLive(ctx, display, true)
+	return s.playerLive(ctx, display)
 }
 
-func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStreams bool) (LiveData, error) {
+func (s *Service) playerLive(ctx context.Context, display PlayerDisplay) (LiveData, error) {
 	// Ended announcements are removed by the privacy retention engine.
 	now := s.now()
 	q := signagedb.New(s.pool)
@@ -324,31 +317,21 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 		revision := manifest.Revision
 		live.Revision = &revision
 		machineIDs := ManifestMachineIDs(manifest)
-		cameraIDs, allCameras := ManifestCameraMachineIDs(manifest)
-		if allCameras {
+		if _, allCameras := ManifestCameraMachineIDs(manifest); allCameras {
 			// An automatic camera widget without a restriction may show every camera.
 			every, err := q.ListSignageCameraMachineIDs(ctx)
 			if err != nil {
 				return LiveData{}, err
 			}
-			cameraIDs = distinct(append(cameraIDs, every...))
 			machineIDs = distinct(append(machineIDs, every...))
 		}
-		// A machine whose running run its operator opted out of signage disappears entirely: no status, no
-		// camera ticket. Already issued tickets stay valid until they expire (a few minutes, verified
-		// statelessly by the streaming gateway), so a hidden camera vanishes from the screens within that time.
+		// A machine whose running run its operator opted out of signage disappears entirely.
 		hidden, err := q.ListSignageHiddenMachineIDs(ctx, now)
 		if err != nil {
 			return LiveData{}, err
 		}
 		if len(hidden) > 0 {
-			machineIDs, cameraIDs = withoutIDs(machineIDs, hidden), withoutIDs(cameraIDs, hidden)
-		}
-		if withStreams && s.streams != nil && cameraAllowed(display.VisibleFromOutside, display.AllowCameraOutside) &&
-			len(cameraIDs) > 0 {
-			if live.Streams, err = s.streams.IssueStreams(ctx, display.ID, cameraIDs); err != nil {
-				return LiveData{}, err
-			}
+			machineIDs = withoutIDs(machineIDs, hidden)
 		}
 		if ids := machineIDs; len(ids) > 0 {
 			names, err := q.ListSignageMachineNames(ctx, uuidStrings(ids))
@@ -429,7 +412,7 @@ func (s *Service) PreviewDisplay(
 		return DisplayPreview{}, err
 	}
 	// The preview never carries stream tickets: it is not the display itself.
-	live, err := s.playerLive(ctx, PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location}, false)
+	live, err := s.playerLive(ctx, PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location})
 	if err != nil {
 		return DisplayPreview{}, err
 	}

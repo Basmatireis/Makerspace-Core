@@ -34,4 +34,6 @@ export interface CreatePrinterConnectorAssignmentRequest {
   settings: CreatePrinterConnectorAssignmentRequestSettings;
   secrets: CreatePrinterConnectorAssignmentRequestSecrets;
   enabled: boolean;
+  /** Relay the printer's camera to signage players through the local service. Only for the Bambu adapters (`bambu_h2d`, `bambu_x1c`); other adapters answer 422. */
+  cameraStreaming?: boolean;
 }

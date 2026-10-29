@@ -52,7 +52,7 @@ type Querier interface {
 	ListTrainings(ctx context.Context) ([]ListTrainingsRow, error)
 	ListTransferablePolicies(ctx context.Context) ([]ListTransferablePoliciesRow, error)
 	ListVisitorEnrollmentDeviceTypes(ctx context.Context) ([]ListVisitorEnrollmentDeviceTypesRow, error)
-	// Machines with history, connector assignments, cameras or mounted spools are retired instead of deleted.
+	// Machines with history, connector assignments or mounted spools are retired instead of deleted.
 	MachineInUse(ctx context.Context, id uuid.UUID) (bool, error)
 	// A role in use is kept by an overwrite: deleting it would silently take it away from people or requirements.
 	RoleInUse(ctx context.Context, id uuid.UUID) (bool, error)

@@ -6,28 +6,14 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
 )
 
 const testCoreVersion = "0.9.0"
 
-func newReleasedGatewayEnv(t *testing.T) *gatewayEnv {
+func newReleasedConnectorEnv(t *testing.T) *connectorEnv {
 	t.Helper()
-	e := newSignageEnvWith(t, func(cfg *config.Config) {
-		cfg.EncryptionKeys = [][]byte{gatewayTestKey}
-		cfg.Version = testCoreVersion
-	})
-	keyring, err := security.NewKeyring([][]byte{gatewayTestKey})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &gatewayEnv{
-		signageEnv: e,
-		admin:      e.staff("lsm-"+uuid.NewString()[:8], authorization.LocalServicesManage),
-		keyring:    keyring,
-		plain:      &http.Client{},
-	}
+	return newConnectorEnvWith(t, func(cfg *config.Config) { cfg.Version = testCoreVersion })
 }
 
 // localService is one kind of updatable local service for the shared update scenario.
@@ -64,52 +50,12 @@ var updatableConnector = localService{
 	},
 }
 
-var updatableGateway = localService{
-	kind:          "streaming_gateway",
-	listPath:      "/streaming-gateways",
-	itemPath:      func(id string) string { return "/streaming-gateways/" + id },
-	configPath:    "/streaming-gateway/configuration",
-	heartbeatPath: "/streaming-gateway/heartbeat",
-	heartbeat: func(version string, updater any) map[string]any {
-		body := map[string]any{
-			"softwareVersion":              version,
-			"protocolVersion":              1,
-			"appliedConfigurationRevision": 0,
-			"healthState":                  "connected",
-			"healthSummary":                nil,
-			"cameras":                      []any{},
-		}
-		if updater != nil {
-			body["updater"] = updater
-		}
-		return body
-	},
-}
-
-func (g *gatewayEnv) enrolledConnector(name string) (string, string) {
-	g.t.Helper()
-	connector := g.expect(
-		g.as(g.admin, http.MethodPost, "/printer-connectors", map[string]any{"name": name, "locationLabel": nil}),
-		http.StatusCreated,
-	)
-	id := connector["id"].(string)
-	issue := g.expect(g.as(g.admin, http.MethodPost, "/printer-connectors/"+id+"/enrollments", nil), http.StatusCreated)
-	credID, credSecret := g.newCredential()
-	g.expect(g.gw(issue["enrollmentSecret"].(string), http.MethodPost, "/printer-connector/enroll", map[string]any{
-		"credentialId":     credID,
-		"credentialSecret": credSecret,
-		"softwareVersion":  "0.8.3",
-		"protocolVersion":  1,
-	}), http.StatusOK)
-	return id, credSecret
-}
-
-func (g *gatewayEnv) runUpdateScenario(t *testing.T, spec localService, id, token string, manage, denied staffSession) {
+func (g *connectorEnv) runUpdateScenario(t *testing.T, spec localService, id, token string, manage, denied staffSession) {
 	t.Helper()
 	ctx := testContext(t)
 	beat := func(version string, updater any) map[string]any {
 		t.Helper()
-		return g.expect(g.gw(token, http.MethodPost, spec.heartbeatPath, spec.heartbeat(version, updater)), http.StatusOK)
+		return g.expect(g.bearer(token, http.MethodPost, spec.heartbeatPath, spec.heartbeat(version, updater)), http.StatusOK)
 	}
 	request := func(staff staffSession, target string) *http.Response {
 		return g.as(staff, http.MethodPost, spec.itemPath(id)+"/update", map[string]any{"targetVersion": target})
@@ -163,7 +109,7 @@ func (g *gatewayEnv) runUpdateScenario(t *testing.T, spec localService, id, toke
 		t.Fatalf("audit: %v %v", actor, err)
 	}
 	g.expectCode(request(manage, testCoreVersion), http.StatusConflict, "update_in_progress")
-	offer, ok := g.expect(g.gw(token, http.MethodGet, spec.configPath, nil), http.StatusOK)["update"].(map[string]any)
+	offer, ok := g.expect(g.bearer(token, http.MethodGet, spec.configPath, nil), http.StatusOK)["update"].(map[string]any)
 	if !ok || offer["requestId"] != first["requestId"] || offer["version"] != testCoreVersion {
 		t.Fatalf("configuration offer: %v", offer)
 	}
@@ -179,7 +125,7 @@ func (g *gatewayEnv) runUpdateScenario(t *testing.T, spec localService, id, toke
 	if failed["status"] != "failed" || failed["reason"] != "pull_failed" {
 		t.Fatalf("failed: %v", failed)
 	}
-	if offer := g.expect(g.gw(token, http.MethodGet, spec.configPath, nil), http.StatusOK)["update"]; offer != nil {
+	if offer := g.expect(g.bearer(token, http.MethodGet, spec.configPath, nil), http.StatusOK)["update"]; offer != nil {
 		t.Fatalf("a failed request is still offered: %v", offer)
 	}
 	// A failed update stays failed until staff ask again; the new request has a new ID.
@@ -198,7 +144,7 @@ func (g *gatewayEnv) runUpdateScenario(t *testing.T, spec localService, id, toke
 }
 
 func TestPrinterConnectorUpdateRequestAndStatus(t *testing.T) {
-	g := newReleasedGatewayEnv(t)
+	g := newReleasedConnectorEnv(t)
 	g.admin = g.staff("pcm-"+uuid.NewString()[:8], authorization.PrinterConnectorsRead, authorization.PrinterConnectorsManage,
 		authorization.PrinterConnectorsCredentialsManage)
 	id, token := g.enrolledConnector("Updatable connector")
@@ -206,20 +152,13 @@ func TestPrinterConnectorUpdateRequestAndStatus(t *testing.T) {
 	g.runUpdateScenario(t, updatableConnector, id, token, g.admin, reader)
 }
 
-func TestStreamingGatewayUpdateRequestAndStatus(t *testing.T) {
-	g := newReleasedGatewayEnv(t)
-	_, identity := g.enrolledGateway("Updatable gateway", "gw-update.example.org")
-	connectorManager := g.staff("pcm-"+uuid.NewString()[:8], authorization.PrinterConnectorsManage)
-	g.runUpdateScenario(t, updatableGateway, identity.id, identity.secret, g.admin, connectorManager)
-}
-
 func TestDevelopmentCoreOffersNoUpdates(t *testing.T) {
-	g := newGatewayEnv(t)
-	_, identity := g.enrolledGateway("Dev gateway", "gw-dev.example.org")
-	g.expect(g.gw(identity.secret, http.MethodPost, "/streaming-gateway/heartbeat",
-		updatableGateway.heartbeat("0.8.3", map[string]any{"available": true, "result": nil})), http.StatusOK)
+	g := newConnectorEnv(t)
+	id, token := g.enrolledConnector("Dev connector")
+	g.expect(g.bearer(token, http.MethodPost, updatableConnector.heartbeatPath,
+		updatableConnector.heartbeat("0.8.3", map[string]any{"available": true, "result": nil})), http.StatusOK)
 	g.expectCode(
-		g.as(g.admin, http.MethodPost, "/streaming-gateways/"+identity.id+"/update", map[string]any{"targetVersion": "0.9.0"}),
+		g.as(g.admin, http.MethodPost, "/printer-connectors/"+id+"/update", map[string]any{"targetVersion": "0.9.0"}),
 		http.StatusConflict,
 		"core_version_unreleased",
 	)

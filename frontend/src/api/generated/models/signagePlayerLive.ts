@@ -43,7 +43,7 @@ export interface SignagePlayerLive {
   /** Present only while the display's publication contains a calendar widget; holds only the categories a published calendar widget shows. */
   calendar: SignagePlayerCalendar | null;
   /**
-     * Camera streams for the cameras the display's published camera widgets use, only while their gateway is active and the camera is enabled.
+     * Camera streams the device may watch right now: machines used by a camera widget of the published scene whose assignment has camera streaming on, respecting the display's `allowCameraOutside` setting.
      * @maxItems 20
      */
   streams: SignagePlayerStream[];

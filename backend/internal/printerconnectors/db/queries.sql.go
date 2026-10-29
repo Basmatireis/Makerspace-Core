@@ -301,8 +301,8 @@ func (q *Queries) CountConnectorActivity(ctx context.Context, connectorID uuid.U
 }
 
 const createAssignment = `-- name: CreateAssignment :one
-INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, enabled)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, configuration_version, enabled, applied_configuration_version, runtime_state, runtime_error_code, activated_at, ended_at, version, created_at, updated_at
+INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, enabled, camera_streaming)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, configuration_version, enabled, applied_configuration_version, runtime_state, runtime_error_code, activated_at, ended_at, version, created_at, updated_at, camera_streaming, camera_health, camera_viewers, camera_reported_at
 `
 
 type CreateAssignmentParams struct {
@@ -314,6 +314,7 @@ type CreateAssignmentParams struct {
 	Settings             []byte
 	EncryptedSecrets     []byte
 	Enabled              bool
+	CameraStreaming      bool
 }
 
 func (q *Queries) CreateAssignment(ctx context.Context, arg CreateAssignmentParams) (PrinterConnectorAssignment, error) {
@@ -326,6 +327,7 @@ func (q *Queries) CreateAssignment(ctx context.Context, arg CreateAssignmentPara
 		arg.Settings,
 		arg.EncryptedSecrets,
 		arg.Enabled,
+		arg.CameraStreaming,
 	)
 	var i PrinterConnectorAssignment
 	err := row.Scan(
@@ -346,6 +348,10 @@ func (q *Queries) CreateAssignment(ctx context.Context, arg CreateAssignmentPara
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CameraStreaming,
+		&i.CameraHealth,
+		&i.CameraViewers,
+		&i.CameraReportedAt,
 	)
 	return i, err
 }
@@ -666,7 +672,7 @@ func (q *Queries) GetActivePrinterLiveStatus(ctx context.Context, machineID uuid
 }
 
 const getAssignment = `-- name: GetAssignment :one
-SELECT a.id, a.connector_id, a.machine_id, a.adapter_kind, a.adapter_schema_version, a.settings, a.encrypted_secrets, a.configuration_version, a.enabled, a.applied_configuration_version, a.runtime_state, a.runtime_error_code, a.activated_at, a.ended_at, a.version, a.created_at, a.updated_at, m.name AS machine_name
+SELECT a.id, a.connector_id, a.machine_id, a.adapter_kind, a.adapter_schema_version, a.settings, a.encrypted_secrets, a.configuration_version, a.enabled, a.applied_configuration_version, a.runtime_state, a.runtime_error_code, a.activated_at, a.ended_at, a.version, a.created_at, a.updated_at, a.camera_streaming, a.camera_health, a.camera_viewers, a.camera_reported_at, m.name AS machine_name
 FROM printer_connector_assignments a JOIN machines m ON m.id=a.machine_id
 WHERE a.id=$1 AND a.connector_id=$2
 `
@@ -694,6 +700,10 @@ type GetAssignmentRow struct {
 	Version                     int64
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
+	CameraStreaming             bool
+	CameraHealth                *string
+	CameraViewers               int32
+	CameraReportedAt            pgtype.Timestamptz
 	MachineName                 string
 }
 
@@ -718,13 +728,17 @@ func (q *Queries) GetAssignment(ctx context.Context, arg GetAssignmentParams) (G
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CameraStreaming,
+		&i.CameraHealth,
+		&i.CameraViewers,
+		&i.CameraReportedAt,
 		&i.MachineName,
 	)
 	return i, err
 }
 
 const getAssignmentForIngress = `-- name: GetAssignmentForIngress :one
-SELECT a.id, a.connector_id, a.machine_id, a.adapter_kind, a.adapter_schema_version, a.settings, a.encrypted_secrets, a.configuration_version, a.enabled, a.applied_configuration_version, a.runtime_state, a.runtime_error_code, a.activated_at, a.ended_at, a.version, a.created_at, a.updated_at, c.lifecycle AS connector_lifecycle
+SELECT a.id, a.connector_id, a.machine_id, a.adapter_kind, a.adapter_schema_version, a.settings, a.encrypted_secrets, a.configuration_version, a.enabled, a.applied_configuration_version, a.runtime_state, a.runtime_error_code, a.activated_at, a.ended_at, a.version, a.created_at, a.updated_at, a.camera_streaming, a.camera_health, a.camera_viewers, a.camera_reported_at, c.lifecycle AS connector_lifecycle
 FROM printer_connector_assignments a JOIN printer_connectors c ON c.id=a.connector_id
 WHERE a.id=$1 AND a.connector_id=$2 FOR UPDATE OF a, c
 `
@@ -752,6 +766,10 @@ type GetAssignmentForIngressRow struct {
 	Version                     int64
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
+	CameraStreaming             bool
+	CameraHealth                *string
+	CameraViewers               int32
+	CameraReportedAt            pgtype.Timestamptz
 	ConnectorLifecycle          string
 }
 
@@ -776,6 +794,10 @@ func (q *Queries) GetAssignmentForIngress(ctx context.Context, arg GetAssignment
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CameraStreaming,
+		&i.CameraHealth,
+		&i.CameraViewers,
+		&i.CameraReportedAt,
 		&i.ConnectorLifecycle,
 	)
 	return i, err
@@ -816,7 +838,7 @@ func (q *Queries) GetAssignmentForLiveStatus(ctx context.Context, arg GetAssignm
 }
 
 const getAssignmentForUpdate = `-- name: GetAssignmentForUpdate :one
-SELECT id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, configuration_version, enabled, applied_configuration_version, runtime_state, runtime_error_code, activated_at, ended_at, version, created_at, updated_at FROM printer_connector_assignments
+SELECT id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, configuration_version, enabled, applied_configuration_version, runtime_state, runtime_error_code, activated_at, ended_at, version, created_at, updated_at, camera_streaming, camera_health, camera_viewers, camera_reported_at FROM printer_connector_assignments
 WHERE id=$1 AND connector_id=$2 FOR UPDATE
 `
 
@@ -846,6 +868,10 @@ func (q *Queries) GetAssignmentForUpdate(ctx context.Context, arg GetAssignmentF
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CameraStreaming,
+		&i.CameraHealth,
+		&i.CameraViewers,
+		&i.CameraReportedAt,
 	)
 	return i, err
 }
@@ -1396,7 +1422,7 @@ func (q *Queries) InsertReportedUsageItem(ctx context.Context, arg InsertReporte
 }
 
 const listActiveAssignments = `-- name: ListActiveAssignments :many
-SELECT a.id, a.connector_id, a.machine_id, a.adapter_kind, a.adapter_schema_version, a.settings, a.encrypted_secrets, a.configuration_version, a.enabled, a.applied_configuration_version, a.runtime_state, a.runtime_error_code, a.activated_at, a.ended_at, a.version, a.created_at, a.updated_at, p.enabled AS printer_enabled, m.name AS machine_name
+SELECT a.id, a.connector_id, a.machine_id, a.adapter_kind, a.adapter_schema_version, a.settings, a.encrypted_secrets, a.configuration_version, a.enabled, a.applied_configuration_version, a.runtime_state, a.runtime_error_code, a.activated_at, a.ended_at, a.version, a.created_at, a.updated_at, a.camera_streaming, a.camera_health, a.camera_viewers, a.camera_reported_at, p.enabled AS printer_enabled, m.name AS machine_name
 FROM printer_connector_assignments a
 JOIN printer_profiles p ON p.machine_id=a.machine_id
 JOIN machines m ON m.id=a.machine_id
@@ -1422,6 +1448,10 @@ type ListActiveAssignmentsRow struct {
 	Version                     int64
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
+	CameraStreaming             bool
+	CameraHealth                *string
+	CameraViewers               int32
+	CameraReportedAt            pgtype.Timestamptz
 	PrinterEnabled              bool
 	MachineName                 string
 }
@@ -1453,6 +1483,10 @@ func (q *Queries) ListActiveAssignments(ctx context.Context, connectorID uuid.UU
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CameraStreaming,
+			&i.CameraHealth,
+			&i.CameraViewers,
+			&i.CameraReportedAt,
 			&i.PrinterEnabled,
 			&i.MachineName,
 		); err != nil {
@@ -1611,7 +1645,7 @@ func (q *Queries) ListConnectorActivity(ctx context.Context, arg ListConnectorAc
 }
 
 const listConnectorAssignments = `-- name: ListConnectorAssignments :many
-SELECT a.id, a.connector_id, a.machine_id, a.adapter_kind, a.adapter_schema_version, a.settings, a.encrypted_secrets, a.configuration_version, a.enabled, a.applied_configuration_version, a.runtime_state, a.runtime_error_code, a.activated_at, a.ended_at, a.version, a.created_at, a.updated_at, m.name AS machine_name
+SELECT a.id, a.connector_id, a.machine_id, a.adapter_kind, a.adapter_schema_version, a.settings, a.encrypted_secrets, a.configuration_version, a.enabled, a.applied_configuration_version, a.runtime_state, a.runtime_error_code, a.activated_at, a.ended_at, a.version, a.created_at, a.updated_at, a.camera_streaming, a.camera_health, a.camera_viewers, a.camera_reported_at, m.name AS machine_name
 FROM printer_connector_assignments a JOIN machines m ON m.id=a.machine_id
 WHERE a.connector_id=$1
 ORDER BY a.ended_at NULLS FIRST, lower(m.name), a.id
@@ -1635,6 +1669,10 @@ type ListConnectorAssignmentsRow struct {
 	Version                     int64
 	CreatedAt                   time.Time
 	UpdatedAt                   time.Time
+	CameraStreaming             bool
+	CameraHealth                *string
+	CameraViewers               int32
+	CameraReportedAt            pgtype.Timestamptz
 	MachineName                 string
 }
 
@@ -1665,6 +1703,10 @@ func (q *Queries) ListConnectorAssignments(ctx context.Context, connectorID uuid
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CameraStreaming,
+			&i.CameraHealth,
+			&i.CameraViewers,
+			&i.CameraReportedAt,
 			&i.MachineName,
 		); err != nil {
 			return nil, err
@@ -2525,10 +2567,15 @@ UPDATE printer_connector_assignments SET adapter_kind=$1,
     encrypted_secrets=$4,
     enabled=CASE WHEN $5::boolean THEN false ELSE $6 END,
     ended_at=CASE WHEN $5::boolean THEN now() ELSE ended_at END,
+    -- The reported relay status belongs to the previous switch position: switching resets it.
+    camera_health=CASE WHEN camera_streaming = (NOT $5::boolean AND $7::boolean) THEN camera_health END,
+    camera_viewers=CASE WHEN camera_streaming = (NOT $5::boolean AND $7::boolean) THEN camera_viewers ELSE 0 END,
+    camera_reported_at=CASE WHEN camera_streaming = (NOT $5::boolean AND $7::boolean) THEN camera_reported_at END,
+    camera_streaming=(NOT $5::boolean AND $7::boolean),
     configuration_version=configuration_version+1, version=version+1, updated_at=now()
-WHERE id=$7 AND connector_id=$8
-  AND version=$9 AND ended_at IS NULL
-RETURNING id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, configuration_version, enabled, applied_configuration_version, runtime_state, runtime_error_code, activated_at, ended_at, version, created_at, updated_at
+WHERE id=$8 AND connector_id=$9
+  AND version=$10 AND ended_at IS NULL
+RETURNING id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, configuration_version, enabled, applied_configuration_version, runtime_state, runtime_error_code, activated_at, ended_at, version, created_at, updated_at, camera_streaming, camera_health, camera_viewers, camera_reported_at
 `
 
 type UpdateAssignmentParams struct {
@@ -2538,6 +2585,7 @@ type UpdateAssignmentParams struct {
 	EncryptedSecrets     []byte
 	EndAssignment        bool
 	Enabled              bool
+	CameraStreaming      bool
 	ID                   uuid.UUID
 	ConnectorID          uuid.UUID
 	ExpectedVersion      int64
@@ -2551,6 +2599,7 @@ func (q *Queries) UpdateAssignment(ctx context.Context, arg UpdateAssignmentPara
 		arg.EncryptedSecrets,
 		arg.EndAssignment,
 		arg.Enabled,
+		arg.CameraStreaming,
 		arg.ID,
 		arg.ConnectorID,
 		arg.ExpectedVersion,
@@ -2574,8 +2623,36 @@ func (q *Queries) UpdateAssignment(ctx context.Context, arg UpdateAssignmentPara
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CameraStreaming,
+		&i.CameraHealth,
+		&i.CameraViewers,
+		&i.CameraReportedAt,
 	)
 	return i, err
+}
+
+const updateAssignmentCamera = `-- name: UpdateAssignmentCamera :exec
+UPDATE printer_connector_assignments SET camera_health=$1, camera_viewers=$2,
+    camera_reported_at=now()
+WHERE id=$3 AND connector_id=$4 AND ended_at IS NULL AND camera_streaming
+`
+
+type UpdateAssignmentCameraParams struct {
+	CameraHealth  *string
+	CameraViewers int32
+	ID            uuid.UUID
+	ConnectorID   uuid.UUID
+}
+
+// Ephemeral relay status from the connector heartbeat: not audited, no configuration change.
+func (q *Queries) UpdateAssignmentCamera(ctx context.Context, arg UpdateAssignmentCameraParams) error {
+	_, err := q.db.Exec(ctx, updateAssignmentCamera,
+		arg.CameraHealth,
+		arg.CameraViewers,
+		arg.ID,
+		arg.ConnectorID,
+	)
+	return err
 }
 
 const updateAssignmentRuntime = `-- name: UpdateAssignmentRuntime :exec

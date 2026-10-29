@@ -622,6 +622,61 @@ return apiFetch<PrinterConnector>(getReportPrinterConnectorHeartbeatUrl(),
 );}
 
 
+export const getConnectPrinterConnectorStreamControlUrl = () => {
+
+
+
+
+  return `/api/v1/printer-connector/self/stream-control`
+}
+
+/**
+ * Connector credential. A websocket upgrade; the connector keeps exactly one control channel open, a new one replaces an older one.
+ * Core sends text frames `{"type":"open","sessionId":"<uuid>","stream":"cam-<assignmentId>"}` and `{"type":"close","sessionId":"<uuid>"}`
+ * and websocket pings every 20 seconds; a connector that misses pings for 60 seconds counts as disconnected. The connector sends
+ * nothing but pongs (other input is ignored, at most 4 KiB per frame). On `open` the connector dials its local go2rtc
+ * `/api/ws?src=<stream>` and `GET /printer-connector/self/stream-sessions/{sessionId}`, then copies frames both ways.
+ * It refuses streams that are not in its current configuration.
+ * @summary Websocket control channel for camera relay sessions
+ */
+export const connectPrinterConnectorStreamControl = async ( options?: Parameters<typeof apiFetch>[1]): Promise<unknown> => {
+
+  return apiFetch<unknown>(getConnectPrinterConnectorStreamControlUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getAcceptPrinterConnectorStreamSessionUrl = (sessionId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-connector/self/stream-sessions/${sessionId}`
+}
+
+/**
+ * Connector credential. A websocket upgrade that answers an `open` request of the control channel. Core splices the connector's
+ * frames (text and binary, at most 4 MiB each) to the waiting viewer and the viewer's text frames back, preserving the frame type.
+ * A session is pending for 10 seconds; an unknown or expired session, or one that belongs to another connector, answers 404.
+ * @summary Websocket data channel of one camera relay session
+ */
+export const acceptPrinterConnectorStreamSession = async (sessionId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<unknown> => {
+
+  return apiFetch<unknown>(getAcceptPrinterConnectorStreamSessionUrl(sessionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 export const getIngestPrinterConnectorEventsUrl = () => {
 
 

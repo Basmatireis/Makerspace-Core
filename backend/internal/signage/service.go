@@ -33,7 +33,6 @@ type Service struct {
 	location *time.Location
 	now      func() time.Time
 	calendar PublicCalendar
-	streams  StreamIssuer
 
 	pairingRequests *ratelimit.Limiter // pairing codes handed out per client IP
 	claimFailures   *ratelimit.Limiter // wrong pairing codes entered per staff account
@@ -48,12 +47,6 @@ type Option func(*Service)
 // Without it those lists stay empty.
 func WithPublicCalendar(calendar PublicCalendar) Option {
 	return func(s *Service) { s.calendar = calendar }
-}
-
-// WithStreamIssuer supplies the camera stream tickets for the player live data. Without it the
-// live data carries no streams.
-func WithStreamIssuer(issuer StreamIssuer) Option {
-	return func(s *Service) { s.streams = issuer }
 }
 
 // NewService builds the service. Announcement times are rendered in the makerspace time zone.

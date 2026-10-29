@@ -83,6 +83,7 @@ func (s *Service) Configuration(ctx context.Context, connector Context) (Configu
 				Settings:             a.Settings,
 				Secrets:              secrets,
 				Enabled:              a.Enabled && a.PrinterEnabled,
+				CameraStreaming:      a.CameraStreaming && a.Enabled && a.PrinterEnabled,
 			},
 		)
 	}
@@ -126,6 +127,25 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 			return Connector{}, err
 		}
 	}
+	if len(input.Cameras) > maxHeartbeatCameras {
+		return Connector{}, apperror.Invalid("invalid camera health")
+	}
+	for _, camera := range input.Cameras {
+		if !camera.Health.valid() || camera.Viewers < 0 || camera.Viewers > 100000 {
+			return Connector{}, apperror.Invalid("invalid camera health")
+		}
+		if err = q.UpdateAssignmentCamera(
+			ctx,
+			db.UpdateAssignmentCameraParams{
+				CameraHealth:  optional.Of(string(camera.Health)),
+				CameraViewers: int32(camera.Viewers),
+				ID:            camera.AssignmentID,
+				ConnectorID:   connector.ID,
+			},
+		); err != nil {
+			return Connector{}, err
+		}
+	}
 	row, err := q.RecordHeartbeat(
 		ctx,
 		db.RecordHeartbeatParams{
@@ -158,6 +178,9 @@ func (s *Service) Heartbeat(ctx context.Context, connector Context, input Heartb
 	}
 	return connectorFrom(row), nil
 }
+
+// maxHeartbeatCameras bounds the camera entries of one heartbeat.
+const maxHeartbeatCameras = 64
 
 func int32Pointer(value int) *int32 { v := int32(value); return &v }
 

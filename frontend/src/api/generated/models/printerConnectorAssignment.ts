@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PrinterConnectorAssignmentCamera } from './printerConnectorAssignmentCamera';
 import type { PrinterConnectorAssignmentRuntimeState } from './printerConnectorAssignmentRuntimeState';
 import type { PrinterConnectorAssignmentSettings } from './printerConnectorAssignmentSettings';
 import type { UUIDv7 } from './uUIDv7';
@@ -34,6 +35,8 @@ export interface PrinterConnectorAssignment {
   configurationVersion: number;
   appliedConfigurationVersion: number;
   enabled: boolean;
+  cameraStreaming: boolean;
+  camera: PrinterConnectorAssignmentCamera;
   /** @nullable */
   runtimeState: PrinterConnectorAssignmentRuntimeState;
   /**

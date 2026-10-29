@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// RequestState is Core's view of the latest update request of a connector or gateway.
+// RequestState is Core's view of the latest update request of a connector.
 type RequestState string
 
 const (
@@ -59,7 +59,7 @@ func Settle(
 	return state, nil, false
 }
 
-// Current is the update state of a connector or gateway that CheckRequest looks at.
+// Current is the update state of a connector that CheckRequest looks at.
 type Current struct {
 	Active           bool
 	UpdaterAvailable bool

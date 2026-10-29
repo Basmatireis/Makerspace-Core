@@ -30,18 +30,6 @@ func (q *Queries) BumpSignageDisplayVersion(ctx context.Context, arg BumpSignage
 	return version, err
 }
 
-const bumpStreamingSessionEpoch = `-- name: BumpStreamingSessionEpoch :exec
-WITH bumped AS (UPDATE streaming_session_epoch SET epoch = epoch + 1 WHERE singleton RETURNING epoch)
-UPDATE streaming_gateways SET configuration_revision = configuration_revision + 1, updated_at = now()
-WHERE lifecycle IN ('pending', 'active', 'disabled') AND EXISTS (SELECT 1 FROM bumped)
-`
-
-// Drops running camera sessions: gateways restart go2rtc when the epoch changes.
-func (q *Queries) BumpStreamingSessionEpoch(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, bumpStreamingSessionEpoch)
-	return err
-}
-
 const claimSignagePairingRequest = `-- name: ClaimSignagePairingRequest :exec
 UPDATE signage_pairing_requests SET claimed_display_id = $1, claimed_at = $2::timestamptz, expires_at = $3
 WHERE id = $4
@@ -1908,10 +1896,11 @@ func (q *Queries) ListSignageAssetsByIDs(ctx context.Context, ids []string) ([]L
 }
 
 const listSignageCameraMachineIDs = `-- name: ListSignageCameraMachineIDs :many
-SELECT c.machine_id FROM streaming_cameras c JOIN streaming_gateways g ON g.id = c.gateway_id
-WHERE c.enabled AND g.lifecycle <> 'revoked'
+SELECT a.machine_id FROM printer_connector_assignments a
+WHERE a.camera_streaming AND a.enabled AND a.ended_at IS NULL
 `
 
+// Machines whose active, enabled printer-connector assignment relays the printer camera.
 func (q *Queries) ListSignageCameraMachineIDs(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listSignageCameraMachineIDs)
 	if err != nil {
@@ -2672,15 +2661,6 @@ func (q *Queries) NextSignagePublicationRevision(ctx context.Context, displayID 
 	return revision, err
 }
 
-const pruneRevokedSignageDisplays = `-- name: PruneRevokedSignageDisplays :exec
-DELETE FROM signage_revoked_displays WHERE revoked_at < $1
-`
-
-func (q *Queries) PruneRevokedSignageDisplays(ctx context.Context, olderThan time.Time) error {
-	_, err := q.db.Exec(ctx, pruneRevokedSignageDisplays, olderThan)
-	return err
-}
-
 const pruneSignagePublications = `-- name: PruneSignagePublications :exec
 DELETE FROM signage_publications WHERE display_id = $1 AND revision <= $2::int
 `
@@ -2692,15 +2672,6 @@ type PruneSignagePublicationsParams struct {
 
 func (q *Queries) PruneSignagePublications(ctx context.Context, arg PruneSignagePublicationsParams) error {
 	_, err := q.db.Exec(ctx, pruneSignagePublications, arg.DisplayID, arg.MaxRevision)
-	return err
-}
-
-const recordRevokedSignageDisplay = `-- name: RecordRevokedSignageDisplay :exec
-INSERT INTO signage_revoked_displays (display_id) VALUES ($1) ON CONFLICT (display_id) DO NOTHING
-`
-
-func (q *Queries) RecordRevokedSignageDisplay(ctx context.Context, displayID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, recordRevokedSignageDisplay, displayID)
 	return err
 }
 

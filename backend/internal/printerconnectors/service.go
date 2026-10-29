@@ -114,12 +114,15 @@ type Assignment struct {
 	EncryptedSecrets                     []byte
 	ConfigurationVersion, AppliedVersion int64
 	Enabled, PrinterEnabled              bool
-	RuntimeState                         *AssignmentState
-	RuntimeErrorCode                     *string
-	ActivatedAt                          time.Time
-	EndedAt                              *time.Time
-	Version                              int64
-	CreatedAt, UpdatedAt                 time.Time
+	// CameraStreaming switches the camera relay of a Bambu printer; Camera is the status the connector last reported.
+	CameraStreaming      bool
+	Camera               AssignmentCamera
+	RuntimeState         *AssignmentState
+	RuntimeErrorCode     *string
+	ActivatedAt          time.Time
+	EndedAt              *time.Time
+	Version              int64
+	CreatedAt, UpdatedAt time.Time
 }
 
 type AssignmentInput struct {
@@ -129,6 +132,7 @@ type AssignmentInput struct {
 	Settings             json.RawMessage
 	Secrets              map[string]string
 	Enabled              bool
+	CameraStreaming      bool
 }
 
 type AssignmentUpdate struct {
@@ -137,7 +141,9 @@ type AssignmentUpdate struct {
 	Settings             json.RawMessage
 	Secrets              *map[string]string
 	Enabled, End         bool
-	ExpectedVersion      int64
+	// CameraStreaming nil keeps the current value.
+	CameraStreaming *bool
+	ExpectedVersion int64
 }
 
 type RuntimeAssignment struct {
@@ -149,6 +155,8 @@ type RuntimeAssignment struct {
 	Settings             json.RawMessage
 	Secrets              map[string]string
 	Enabled              bool
+	// CameraStreaming: the connector relays this printer's camera as stream "cam-<id>".
+	CameraStreaming bool
 }
 
 type Configuration struct {
@@ -168,6 +176,48 @@ type AssignmentHealth struct {
 	ErrorCode                   *string
 }
 
+// CameraHealth is the relay status of one camera as reported by the connector.
+type CameraHealth string
+
+const (
+	CameraLive        CameraHealth = "live"
+	CameraIdle        CameraHealth = "idle"
+	CameraUnavailable CameraHealth = "unavailable"
+	// CameraUnknown is never reported by connectors: Core derives it when nothing recent was reported.
+	CameraUnknown CameraHealth = "unknown"
+)
+
+func (h CameraHealth) valid() bool {
+	return h == CameraLive || h == CameraIdle || h == CameraUnavailable
+}
+
+// cameraReportMaxAge is how old a camera report may be before its health counts as unknown.
+const cameraReportMaxAge = 2 * time.Minute
+
+// AssignmentCamera is the camera relay status of an assignment.
+type AssignmentCamera struct {
+	Health     CameraHealth
+	Viewers    int
+	ReportedAt *time.Time
+}
+
+// CameraHealthReport is one camera entry of a connector heartbeat.
+type CameraHealthReport struct {
+	AssignmentID uuid.UUID
+	Health       CameraHealth
+	Viewers      int
+}
+
+func assignmentCamera(streaming bool, health *string, viewers int32, reportedAt pgtype.Timestamptz, now time.Time) AssignmentCamera {
+	camera := AssignmentCamera{Health: CameraUnknown, ReportedAt: nullableTime(reportedAt)}
+	if !streaming || health == nil || camera.ReportedAt == nil || now.Sub(*camera.ReportedAt) > cameraReportMaxAge {
+		return camera
+	}
+	camera.Health = CameraHealth(*health)
+	camera.Viewers = int(viewers)
+	return camera
+}
+
 type Heartbeat struct {
 	SoftwareVersion                          string
 	HealthState                              HealthState
@@ -176,6 +226,7 @@ type Heartbeat struct {
 	HealthSummary                            *string
 	PendingEventCount, QuarantinedEventCount int64
 	Assignments                              []AssignmentHealth
+	Cameras                                  []CameraHealthReport
 	// Updater is nil for connectors without updater support.
 	Updater *localupdater.Report
 }

@@ -39,7 +39,6 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/streaminggateways"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/subjectrequests"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/supervisors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
@@ -76,7 +75,6 @@ type Server struct {
 	printing          *printing.Service
 	printerConnectors *printerconnectors.Service
 	runRecordings     *runrecordings.Service
-	streamingGateways *streaminggateways.Service
 	supervisors       *supervisors.Service
 	staffing          *staffing.Service
 	dashboard         *dashboard.Service
@@ -93,8 +91,6 @@ type Server struct {
 	privacy           *privacy.Service
 	subjectRequests   *subjectrequests.Service
 	deviceRates       deviceRateLimits
-	// gatewayFailures counts failed streaming-gateway authentications and enrollments per client IP.
-	gatewayFailures *ratelimit.Limiter
 	// surveyLinkViews and surveyLinkSubmits bound the anonymous share-link endpoints per client IP.
 	surveyLinkViews   *ratelimit.Limiter
 	surveyLinkSubmits *ratelimit.Limiter
@@ -151,16 +147,11 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize printer connectors: %w", err)
 	}
-	streamingGatewayService, err := streaminggateways.NewService(pool, cfg.EncryptionKeys)
-	if err != nil {
-		return nil, fmt.Errorf("initialize streaming gateways: %w", err)
-	}
 	signageService, err := signage.NewService(
 		pool,
 		cfg,
 		fileService,
 		signage.WithPublicCalendar(publicCalendar{openDays: openDaysService, events: eventService}),
-		signage.WithStreamIssuer(streamIssuer{gateways: streamingGatewayService}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("initialize signage: %w", err)
@@ -226,7 +217,6 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		printing:          printingService,
 		printerConnectors: printerConnectorService,
 		runRecordings:     runRecordingsService,
-		streamingGateways: streamingGatewayService,
 		orders:            ordersService,
 		invoicing:         invoicingService,
 		supervisors:       supervisors.NewService(pool, staffingService),
@@ -243,7 +233,6 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		trainings:         trainingsService,
 		privacy:           privacyService,
 		deviceRates:       newDeviceRateLimits(),
-		gatewayFailures:   ratelimit.New(gatewayFailuresPerWindow, gatewayFailureWindow),
 		surveyLinkViews:   ratelimit.New(surveyLinkViewsPerWindow, surveyLinkWindow),
 		surveyLinkSubmits: ratelimit.New(surveyLinkSubmitsPerWindow, surveyLinkWindow),
 		attendance:        attendanceService,

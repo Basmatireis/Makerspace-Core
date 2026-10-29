@@ -426,10 +426,4 @@ func TestManifestCameraMachineIDs(t *testing.T) {
 		len(ids) != 0 {
 		t.Fatalf("status widget gives cameras: %v %v", ids, all)
 	}
-	if !camerasRemoved(cameraSet{all: true}, cameraSet{ids: []uuid.UUID{a}}) ||
-		camerasRemoved(cameraSet{ids: []uuid.UUID{a}}, cameraSet{all: true}) ||
-		camerasRemoved(cameraSet{ids: []uuid.UUID{a}}, cameraSet{ids: []uuid.UUID{a, b}}) ||
-		!camerasRemoved(cameraSet{ids: []uuid.UUID{a, b}}, cameraSet{ids: []uuid.UUID{a}}) {
-		t.Fatal("camerasRemoved semantics wrong")
-	}
 }

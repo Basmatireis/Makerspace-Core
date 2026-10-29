@@ -8,10 +8,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// reenrollment describes one daemon kind (printer connector or streaming gateway) for the shared
-// re-enrollment scenario.
+// reenrollment describes the printer connector for the re-enrollment scenario.
 type reenrollment struct {
-	adminPath    string // "/streaming-gateways/{id}"
+	adminPath    string // "/printer-connectors/{id}"
 	enrollPath   string // daemon endpoint exchanging the enrollment secret
 	configPath   string // daemon endpoint answering for a valid credential
 	revisionSQL  string // SELECT configuration_revision ... WHERE id = $1
@@ -22,7 +21,7 @@ type reenrollment struct {
 	disable      string // SQL moving the entry to disabled
 }
 
-func (g *gatewayEnv) runReenrollment(
+func (g *connectorEnv) runReenrollment(
 	t *testing.T,
 	spec reenrollment,
 	id string,
@@ -34,7 +33,7 @@ func (g *gatewayEnv) runReenrollment(
 	ctx := testContext(t)
 	enroll := func(secret string) (string, string, *http.Response) {
 		credID, credSecret := g.newCredential()
-		return credID, credSecret, g.gw(
+		return credID, credSecret, g.bearer(
 			secret,
 			http.MethodPost,
 			spec.enrollPath,
@@ -63,7 +62,7 @@ func (g *gatewayEnv) runReenrollment(
 
 	// Issuing for an enrolled entry leaves the running daemon untouched.
 	first := g.expect(g.as(manage, http.MethodPost, spec.adminPath+"/enrollments", nil), http.StatusCreated)
-	g.expect(g.gw(firstSecret, http.MethodGet, spec.configPath, nil), http.StatusOK)
+	g.expect(g.bearer(firstSecret, http.MethodGet, spec.configPath, nil), http.StatusOK)
 	// A second issue revokes the first unused secret.
 	second := g.expect(g.as(manage, http.MethodPost, spec.adminPath+"/enrollments", nil), http.StatusCreated)
 	_, _, stale := enroll(first["enrollmentSecret"].(string))
@@ -71,13 +70,13 @@ func (g *gatewayEnv) runReenrollment(
 		t.Fatalf("revoked enrollment status = %d", stale.StatusCode)
 	}
 	stale.Body.Close()
-	g.expect(g.gw(firstSecret, http.MethodGet, spec.configPath, nil), http.StatusOK)
+	g.expect(g.bearer(firstSecret, http.MethodGet, spec.configPath, nil), http.StatusOK)
 
 	newID, newSecret, response := enroll(second["enrollmentSecret"].(string))
 	g.expect(response, http.StatusOK)
 	// The new credential works, the old daemon is rejected.
-	g.expect(g.gw(newSecret, http.MethodGet, spec.configPath, nil), http.StatusOK)
-	g.expectCode(g.gw(firstSecret, http.MethodGet, spec.configPath, nil), http.StatusUnauthorized, "unauthenticated")
+	g.expect(g.bearer(newSecret, http.MethodGet, spec.configPath, nil), http.StatusOK)
+	g.expectCode(g.bearer(firstSecret, http.MethodGet, spec.configPath, nil), http.StatusUnauthorized, "unauthenticated")
 	var current int
 	var currentID string
 	if err := g.pool.QueryRow(ctx, spec.credentialsQ, id).Scan(&current, &currentID); err != nil || current != 1 ||
@@ -101,7 +100,7 @@ func (g *gatewayEnv) runReenrollment(
 	}
 	// The same exchange is idempotent; another credential on the used secret is refused.
 	g.expect(
-		g.gw(
+		g.bearer(
 			second["enrollmentSecret"].(string),
 			http.MethodPost,
 			spec.enrollPath,
@@ -147,8 +146,8 @@ func (g *gatewayEnv) runReenrollment(
 	disabledID, disabledSecret, response := enroll(third["enrollmentSecret"].(string))
 	_ = disabledID
 	g.expect(response, http.StatusOK)
-	g.expectCode(g.gw(newSecret, http.MethodGet, spec.configPath, nil), http.StatusUnauthorized, "unauthenticated")
-	g.expect(g.gw(disabledSecret, http.MethodGet, spec.configPath, nil), http.StatusOK)
+	g.expectCode(g.bearer(newSecret, http.MethodGet, spec.configPath, nil), http.StatusUnauthorized, "unauthenticated")
+	g.expect(g.bearer(disabledSecret, http.MethodGet, spec.configPath, nil), http.StatusOK)
 	if got := g.expect(
 		g.as(manage, http.MethodGet, spec.adminPath, nil),
 		http.StatusOK,
@@ -173,37 +172,11 @@ func (g *gatewayEnv) runReenrollment(
 		t.Fatalf("enrollment after revocation = %d", late.StatusCode)
 	}
 	late.Body.Close()
-	g.expectCode(g.gw(disabledSecret, http.MethodGet, spec.configPath, nil), http.StatusUnauthorized, "unauthenticated")
-}
-
-func TestStreamingGatewayReenrollment(t *testing.T) {
-	g := newGatewayEnv(t)
-	gateway, identity := g.enrolledGateway("Reenroll gateway", "gw.example.org")
-	id := gateway["id"].(string)
-	machine := g.bambu("Reenroll printer", "bambu_h2d", "192.168.1.60", "55556666")
-	g.expect(
-		g.as(
-			g.admin,
-			http.MethodPost,
-			"/streaming-gateways/"+id+"/cameras",
-			map[string]any{"machineId": machine.String(), "enabled": true},
-		),
-		http.StatusCreated,
-	)
-	g.runReenrollment(t, reenrollment{
-		adminPath:    "/streaming-gateways/" + id,
-		enrollPath:   "/streaming-gateway/enroll",
-		configPath:   "/streaming-gateway/configuration",
-		revisionSQL:  `SELECT configuration_revision FROM streaming_gateways WHERE id = $1`,
-		childrenSQL:  `SELECT count(*) FROM streaming_cameras WHERE gateway_id = $1`,
-		credentialsQ: `SELECT count(*), COALESCE(max(id::text), '') FROM streaming_gateway_credentials WHERE gateway_id = $1 AND state <> 'revoked'`,
-		action:       "streaming_gateway.reenrolled", revokedCode: "streaming_gateway_revoked",
-		disable: `UPDATE streaming_gateways SET lifecycle = 'disabled', disabled_at = now() WHERE id = $1`,
-	}, id, identity.secret, identity.credID, g.admin, g.staff("nolsm-"+uuid.NewString()[:6], authorization.PrinterConnectorsCredentialsManage, authorization.PrinterConnectorsManage))
+	g.expectCode(g.bearer(disabledSecret, http.MethodGet, spec.configPath, nil), http.StatusUnauthorized, "unauthenticated")
 }
 
 func TestPrinterConnectorReenrollment(t *testing.T) {
-	g := newGatewayEnv(t)
+	g := newConnectorEnv(t)
 	manage := g.staff(
 		"pcm-"+uuid.NewString()[:6],
 		authorization.PrinterConnectorsRead,
@@ -223,7 +196,7 @@ func TestPrinterConnectorReenrollment(t *testing.T) {
 	issue := g.expect(g.as(manage, http.MethodPost, path+"/enrollments", nil), http.StatusCreated)
 	credID, credSecret := g.newCredential()
 	g.expect(
-		g.gw(
+		g.bearer(
 			issue["enrollmentSecret"].(string),
 			http.MethodPost,
 			"/printer-connector/enroll",
@@ -243,5 +216,5 @@ func TestPrinterConnectorReenrollment(t *testing.T) {
 		credentialsQ: `SELECT count(*), COALESCE(max(id::text), '') FROM printer_connector_credentials WHERE connector_id = $1 AND state <> 'revoked'`,
 		action:       "printer_connector.reenrolled", revokedCode: "printer_connector_revoked",
 		disable: `UPDATE printer_connectors SET lifecycle = 'disabled', disabled_at = now() WHERE id = $1`,
-	}, connectorID, credSecret, credID, manage, g.admin)
+	}, connectorID, credSecret, credID, manage, g.staff("pcr-"+uuid.NewString()[:6], authorization.PrinterConnectorsRead))
 }

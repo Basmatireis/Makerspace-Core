@@ -820,31 +820,6 @@ func TestDeadlockAndSerializationAbortsAreRetryableConflicts(t *testing.T) {
 	}
 }
 
-func TestStreamingGatewayFailedAuthenticationsAreLimitedPerIP(t *testing.T) {
-	handler, err := NewHandler(nil, testConfig(t), slog.New(slog.NewJSONHandler(io.Discard, nil)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	call := func(remoteAddress string) int {
-		request := httptest.NewRequest(http.MethodGet, "/api/v1/streaming-gateway/configuration", nil)
-		request.RemoteAddr = remoteAddress
-		recorder := httptest.NewRecorder()
-		handler.ServeHTTP(recorder, request)
-		return recorder.Code
-	}
-	for attempt := 0; attempt < gatewayFailuresPerWindow; attempt++ {
-		if status := call("192.0.2.50:4000"); status != http.StatusUnauthorized {
-			t.Fatalf("attempt %d status = %d, want 401", attempt, status)
-		}
-	}
-	if status := call("192.0.2.50:4001"); status != http.StatusTooManyRequests {
-		t.Fatalf("status after the limit = %d, want 429", status)
-	}
-	if status := call("192.0.2.51:4000"); status != http.StatusUnauthorized {
-		t.Fatalf("another IP must not be limited, status = %d", status)
-	}
-}
-
 func TestRetryAfterFollowsTheLimiterWindow(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)

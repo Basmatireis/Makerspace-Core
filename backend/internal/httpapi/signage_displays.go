@@ -774,13 +774,7 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	for _, stream := range live.Streams {
 		streams = append(
 			streams,
-			openapi.SignagePlayerStream{
-				MachineId: stream.MachineID,
-				WebrtcUrl: stream.WebRTCURL,
-				MseUrl:    stream.MSEURL,
-				Ticket:    stream.Ticket,
-				ExpiresAt: stream.ExpiresAt,
-			},
+			openapi.SignagePlayerStream{MachineId: stream.MachineID, Path: stream.Path},
 		)
 	}
 	return openapi.SignagePlayerLive{

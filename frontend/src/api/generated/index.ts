@@ -11,7 +11,6 @@ export * from './filament-spools/filament-spools';
 export * from './health/health';
 export * from './inventory/inventory';
 export * from './laborordnung/laborordnung';
-export * from './local-services/local-services';
 export * from './machine-jobs/machine-jobs';
 export * from './machine-logbook/machine-logbook';
 export * from './machine-runs/machine-runs';

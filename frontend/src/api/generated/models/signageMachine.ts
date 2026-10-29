@@ -29,6 +29,6 @@ export interface SignageMachine {
      * @maxLength 120
      */
   kind: string;
-  /** Whether an enabled streaming camera on a non-revoked streaming gateway is assigned to the machine. */
+  /** Whether the machine has an active Bambu printer-connector assignment with camera streaming switched on. */
   hasCamera: boolean;
 }

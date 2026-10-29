@@ -135,7 +135,6 @@ export const PermissionId = {
   signagecontentmanage: 'signage.content.manage',
   signagepublish: 'signage.publish',
   signageoverride: 'signage.override',
-  local_servicesmanage: 'local_services.manage',
   configurationexport: 'configuration.export',
   configurationimport: 'configuration.import',
   notificationssend: 'notifications.send',

@@ -49,7 +49,6 @@ tags:
   - name: Branding
   - name: Signage
   - name: Signage Player
-  - name: Local Services
   - name: Notifications
     description: "In-app notifications: the signed-in account's own inbox and manual messages to roles (docs/notifications.md)."
   - name: Configuration Transfer
@@ -5383,6 +5382,34 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/player/cameras/{machineId}/stream:
+    parameters: [{name: machineId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Signage Player]
+      operationId: streamSignagePlayerCamera
+      summary: Websocket relay of a printer camera (MSE)
+      description: |
+        Device credential of a signage player only. A websocket upgrade; answers a normal error response before the upgrade.
+        The device may watch only machines whose camera widget is in its currently published scene (`SignagePlayerLive.streams`),
+        respecting the display's `allowCameraOutside` setting. Browser upgrades must carry an `Origin` equal to the application's
+        public origin; requests that authenticate with the token header may omit it.
+
+        Core is a byte pipe and does not parse media. The websocket carries the go2rtc MSE protocol: the player sends one text
+        frame `{"type":"mse","value":"<codecs>"}` (viewer to service: text frames only, at most 4 KiB each and 10 per second;
+        a binary frame closes the session), and the service answers with text and binary frames of at most 4 MiB each.
+        Core re-checks the right to watch every 15 seconds. Close codes: 4403 forbidden, 4404 camera gone, 4503 local service offline.
+        A device may hold at most 4 streams per machine and 20 in total.
+      security: [{managedDeviceCookie: []}, {managedDeviceToken: []}]
+      responses:
+        "101": {description: Switching Protocols. The websocket relay is open.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {description: "The local service is not connected on its control channel (`camera_offline`).", content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+
   /signage/player/heartbeat:
     post:
       tags: [Signage Player]
@@ -5741,6 +5768,45 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /printer-connector/self/stream-control:
+    get:
+      tags: [Printer Connectors]
+      operationId: connectPrinterConnectorStreamControl
+      summary: Websocket control channel for camera relay sessions
+      description: |
+        Connector credential. A websocket upgrade; the connector keeps exactly one control channel open, a new one replaces an older one.
+        Core sends text frames `{"type":"open","sessionId":"<uuid>","stream":"cam-<assignmentId>"}` and `{"type":"close","sessionId":"<uuid>"}`
+        and websocket pings every 20 seconds; a connector that misses pings for 60 seconds counts as disconnected. The connector sends
+        nothing but pongs (other input is ignored, at most 4 KiB per frame). On `open` the connector dials its local go2rtc
+        `/api/ws?src=<stream>` and `GET /printer-connector/self/stream-sessions/{sessionId}`, then copies frames both ways.
+        It refuses streams that are not in its current configuration.
+      security: [{printerConnectorBearer: []}]
+      responses:
+        "101": {description: Switching Protocols. The control channel is open.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connector/self/stream-sessions/{sessionId}:
+    parameters: [{name: sessionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Printer Connectors]
+      operationId: acceptPrinterConnectorStreamSession
+      summary: Websocket data channel of one camera relay session
+      description: |
+        Connector credential. A websocket upgrade that answers an `open` request of the control channel. Core splices the connector's
+        frames (text and binary, at most 4 MiB each) to the waiting viewer and the viewer's text frames back, preserving the frame type.
+        A session is pending for 10 seconds; an unknown or expired session, or one that belongs to another connector, answers 404.
+      security: [{printerConnectorBearer: []}]
+      responses:
+        "101": {description: Switching Protocols. The data channel is open.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /printer-connector/self/events:
     post:
       tags: [Printer Connectors]
@@ -5931,283 +5997,6 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateways:
-    get:
-      tags: [Local Services]
-      operationId: listStreamingGateways
-      summary: List streaming gateways and their health
-      description: Needs `local_services.manage`.
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Streaming gateways., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGatewayList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    post:
-      tags: [Local Services]
-      operationId: createStreamingGateway
-      summary: Create a pending streaming gateway identity
-      description: Needs `local_services.manage`. `publicHost` is the hostname[:port] players use to reach the gateway.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateStreamingGatewayRequest"}}}}
-      responses:
-        "201": {description: Pending gateway., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGateway"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateways/{streamingGatewayId}:
-    parameters: [{name: streamingGatewayId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
-    get:
-      tags: [Local Services]
-      operationId: getStreamingGateway
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Gateway detail., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGateway"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    patch:
-      tags: [Local Services]
-      operationId: updateStreamingGateway
-      summary: Rename, change the public host of, enable or disable a gateway
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateStreamingGatewayRequest"}}}}
-      responses:
-        "200": {description: Updated gateway., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGateway"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    delete:
-      tags: [Local Services]
-      operationId: deleteStreamingGateway
-      summary: Permanently delete a gateway in any lifecycle with its credentials and camera assignments
-      description: Needs `local_services.manage`. A running gateway is rejected as unauthenticated afterwards.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
-      responses:
-        "204": {description: Gateway deleted.}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateways/{streamingGatewayId}/enrollments:
-    parameters: [{name: streamingGatewayId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
-    post:
-      tags: [Local Services]
-      operationId: createStreamingGatewayEnrollment
-      summary: Issue a one-time gateway enrollment secret
-      description: The secret is valid for 15 minutes and shown once. Allowed for pending, active and disabled gateways; an enrolled gateway keeps working until the secret is used, then its earlier credentials are revoked (re-enrollment). Revoked gateways answer 409.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      responses:
-        "201": {description: One-time enrollment secret., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGatewayEnrollmentIssue"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateways/{streamingGatewayId}/revocation:
-    parameters: [{name: streamingGatewayId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
-    post:
-      tags: [Local Services]
-      operationId: revokeStreamingGateway
-      summary: Revoke gateway credentials immediately
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
-      responses:
-        "200": {description: Revoked gateway., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGateway"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateways/{streamingGatewayId}/update:
-    parameters: [{name: streamingGatewayId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
-    post:
-      tags: [Local Services]
-      operationId: requestStreamingGatewayUpdate
-      summary: Ask the gateway's updater to install Core's version
-      description: >-
-        Needs local_services.manage. The gateway must be active, report an updater sidecar and run an older release; targetVersion
-        must equal Core's version. The gateway hands the request to its updater with its next configuration poll and
-        reports the outcome in later heartbeats. Audited as an update request.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RequestLocalServiceUpdateRequest"}}}}
-      responses:
-        "200": {description: The gateway with its new update request., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGateway"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateways/{streamingGatewayId}/cameras:
-    parameters: [{name: streamingGatewayId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
-    get:
-      tags: [Local Services]
-      operationId: listStreamingGatewayCameras
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Cameras of the gateway., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingCameraList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    post:
-      tags: [Local Services]
-      operationId: createStreamingGatewayCamera
-      summary: Assign a machine's printer camera to the gateway
-      description: The machine must have an active Bambu printer assignment. Each machine has at most one camera.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateStreamingCameraRequest"}}}}
-      responses:
-        "201": {description: Camera assignment., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingCamera"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateways/{streamingGatewayId}/cameras/{cameraId}:
-    parameters:
-      - {name: streamingGatewayId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-      - {name: cameraId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    patch:
-      tags: [Local Services]
-      operationId: updateStreamingGatewayCamera
-      summary: Enable or disable a camera
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateStreamingCameraRequest"}}}}
-      responses:
-        "200": {description: Updated camera., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingCamera"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    delete:
-      tags: [Local Services]
-      operationId: deleteStreamingGatewayCamera
-      summary: Unassign a camera
-      security: [{sessionCookie: [], csrfHeader: []}]
-      responses:
-        "204": {description: Camera unassigned.}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /local-services/cameras:
-    get:
-      tags: [Local Services]
-      operationId: listLocalServiceCameras
-      summary: Status of every assigned camera across all gateways
-      description: Needs `local_services.manage`. Health is the gateway's last heartbeat; `unknown` when none was received.
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Camera status list., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingCameraList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /local-services/camera-candidates:
-    get:
-      tags: [Local Services]
-      operationId: listCameraCandidates
-      summary: Machines that can be given a streaming camera
-      description: Needs `local_services.manage` (not `machines.read`). Machines with an active Bambu printer assignment that have no camera assigned yet, by name.
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Camera candidates., content: {application/json: {schema: {$ref: "#/components/schemas/CameraCandidateList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /local-services/ticket-key/rotation:
-    post:
-      tags: [Local Services]
-      operationId: rotateStreamTicketKey
-      summary: Start rotating the stream ticket signing key
-      description: Needs `local_services.manage`. The new key is published to gateways at once as pending and starts signing after at least 60 seconds; the previous key stays verifiable for ten minutes after that. A second call while a key is pending activates it immediately and starts the next rotation.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      responses:
-        "202": {description: Rotation started., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/StreamTicketKeyRotation"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateway/enroll:
-    post:
-      tags: [Local Services]
-      operationId: enrollStreamingGateway
-      summary: Exchange a short-lived enrollment secret for a gateway identity
-      security: [{streamingGatewayBearer: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EnrollStreamingGatewayRequest"}}}}
-      responses:
-        "200": {description: Enrolled gateway identity., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGatewayEnrollmentResult"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateway/configuration:
-    get:
-      tags: [Local Services]
-      operationId: getStreamingGatewayConfiguration
-      summary: Fetch the complete centrally managed gateway configuration
-      description: Contains the camera source URLs, which embed the printers' LAN access codes. Only the authenticated gateway receives them.
-      security: [{streamingGatewayBearer: []}]
-      responses:
-        "200": {description: Configuration snapshot., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGatewayConfiguration"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "429": {$ref: "#/components/responses/TooManyRequests"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateway/heartbeat:
-    post:
-      tags: [Local Services]
-      operationId: reportStreamingGatewayHeartbeat
-      summary: Report gateway and per-camera health
-      security: [{streamingGatewayBearer: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGatewayHeartbeat"}}}}
-      responses:
-        "200": {description: Current gateway status., content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGateway"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "429": {$ref: "#/components/responses/TooManyRequests"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /streaming-gateway/credential-rotation:
-    post:
-      tags: [Local Services]
-      operationId: rotateStreamingGatewayCredential
-      summary: Replace the current gateway credential with a gateway-generated secret
-      security: [{streamingGatewayBearer: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RotateStreamingGatewayCredentialRequest"}}}}
-      responses:
-        "200": {description: Rotated gateway credential., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/StreamingGatewayEnrollmentResult"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /print-artifacts/{artifactId}:
@@ -10479,11 +10268,6 @@ components:
       scheme: bearer
       bearerFormat: opaque
       description: Printer connector enrollment or machine credential. Core stores only a digest.
-    streamingGatewayBearer:
-      type: http
-      scheme: bearer
-      bearerFormat: opaque
-      description: Streaming gateway enrollment secret or runtime credential. Core stores only a digest.
     eventSignupToken:
       type: apiKey
       in: header
@@ -10920,7 +10704,6 @@ components:
         - signage.content.manage
         - signage.publish
         - signage.override
-        - local_services.manage
         - configuration.export
         - configuration.import
         - notifications.send
@@ -15187,7 +14970,7 @@ components:
       type: object
       additionalProperties: false
       required: [requestId, targetVersion, status, reason, requestedAt, statusAt]
-      description: The latest update request of a connector or gateway. Who requested it is in the audit log.
+      description: The latest update request of a connector. Who requested it is in the audit log.
       properties:
         requestId: {$ref: "#/components/schemas/UUIDv7"}
         targetVersion: {$ref: "#/components/schemas/ReleaseVersion"}
@@ -15293,6 +15076,7 @@ components:
         settings: {type: object, additionalProperties: true}
         secrets: {type: object, additionalProperties: {type: string, maxLength: 2048}, writeOnly: true}
         enabled: {type: boolean}
+        cameraStreaming: {type: boolean, default: false, description: "Relay the printer's camera to signage players through the local service. Only for the Bambu adapters (`bambu_h2d`, `bambu_x1c`); other adapters answer 422."}
 
     UpdatePrinterConnectorAssignmentRequest:
       type: object
@@ -15308,13 +15092,24 @@ components:
           writeOnly: true
           description: Omit to retain existing printer credentials; provide an empty object to clear them.
         enabled: {type: boolean}
+        cameraStreaming: {type: boolean, description: "Omit to keep the current value. true is only valid for the Bambu adapters (`bambu_h2d`, `bambu_x1c`); other adapters answer 422."}
         end: {type: boolean}
         expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    PrinterConnectorAssignmentCamera:
+      type: object
+      additionalProperties: false
+      required: [health, viewers, reportedAt]
+      description: Camera relay status reported by the local service in its heartbeat. `unknown` when the connector never reported one or its last report (every heartbeat that lists the camera renews it) is older than two minutes.
+      properties:
+        health: {type: string, enum: [live, idle, unavailable, unknown]}
+        viewers: {type: integer, minimum: 0, maximum: 100000}
+        reportedAt: {type: string, format: date-time, nullable: true}
 
     PrinterConnectorAssignment:
       type: object
       additionalProperties: false
-      required: [id, connectorId, machineId, machineName, adapterKind, adapterSchemaVersion, settings, configurationVersion, appliedConfigurationVersion, enabled, runtimeState, runtimeErrorCode, endedAt, version, activatedAt, createdAt, updatedAt]
+      required: [id, connectorId, machineId, machineName, adapterKind, adapterSchemaVersion, settings, configurationVersion, appliedConfigurationVersion, enabled, cameraStreaming, camera, runtimeState, runtimeErrorCode, endedAt, version, activatedAt, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         connectorId: {$ref: "#/components/schemas/UUIDv7"}
@@ -15326,6 +15121,8 @@ components:
         configurationVersion: {type: integer, format: int64}
         appliedConfigurationVersion: {type: integer, format: int64}
         enabled: {type: boolean}
+        cameraStreaming: {type: boolean}
+        camera: {$ref: "#/components/schemas/PrinterConnectorAssignmentCamera"}
         runtimeState: {type: string, enum: [connecting, connected, disconnected, degraded, disabled], nullable: true}
         runtimeErrorCode: {type: string, maxLength: 80, nullable: true}
         endedAt: {type: string, format: date-time, nullable: true}
@@ -15476,7 +15273,7 @@ components:
     PrinterConnectorRuntimeAssignment:
       type: object
       additionalProperties: false
-      required: [id, machineId, machineName, adapterKind, adapterSchemaVersion, configurationVersion, settings, secrets, enabled]
+      required: [id, machineId, machineName, adapterKind, adapterSchemaVersion, configurationVersion, settings, secrets, enabled, cameraStreaming]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         machineId: {$ref: "#/components/schemas/UUIDv7"}
@@ -15487,6 +15284,7 @@ components:
         settings: {type: object, additionalProperties: true}
         secrets: {type: object, additionalProperties: {type: string}, writeOnly: true}
         enabled: {type: boolean}
+        cameraStreaming: {type: boolean, description: "The local service relays this printer's camera. Its local go2rtc stream is named `cam-<id>`."}
 
     PrinterConnectorConfiguration:
       type: object
@@ -15509,6 +15307,15 @@ components:
         state: {type: string, enum: [connecting, connected, disconnected, degraded, disabled]}
         errorCode: {type: string, maxLength: 80, nullable: true}
 
+    PrinterConnectorCameraHealth:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, health, viewers]
+      properties:
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        health: {type: string, enum: [live, idle, unavailable], description: "live: go2rtc has a producer; idle: configured, no viewers; unavailable: the source reports an error."}
+        viewers: {type: integer, minimum: 0, maximum: 100000}
+
     PrinterConnectorHeartbeat:
       type: object
       additionalProperties: false
@@ -15522,6 +15329,7 @@ components:
         pendingEventCount: {type: integer, format: int64, minimum: 0}
         quarantinedEventCount: {type: integer, format: int64, minimum: 0}
         assignments: {type: array, maxItems: 32, items: {$ref: "#/components/schemas/PrinterConnectorAssignmentHealth"}}
+        cameras: {type: array, maxItems: 64, items: {$ref: "#/components/schemas/PrinterConnectorCameraHealth"}}
         updater: {$ref: "#/components/schemas/LocalServiceUpdaterReport"}
 
     PrinterConnectorEventInput:
@@ -15584,210 +15392,6 @@ components:
       properties:
         credentialId: {$ref: "#/components/schemas/UUIDv7"}
         credentialSecret: {type: string, minLength: 43, maxLength: 43, writeOnly: true}
-
-    StreamingGatewayLifecycle:
-      type: string
-      enum: [pending, active, disabled, revoked]
-    StreamingGateway:
-      type: object
-      additionalProperties: false
-      required: [id, name, publicHost, lifecycle, configurationRevision, appliedConfigurationRevision, softwareVersion, protocolVersion, healthState, healthSummary, lastHeartbeatAt, enrolledAt, disabledAt, revokedAt, credentialExpiresAt, updaterAvailable, update, version, createdAt, updatedAt]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        name: {type: string, minLength: 1, maxLength: 120}
-        publicHost: {type: string, minLength: 1, maxLength: 260, description: "Hostname[:port] players use to reach the gateway over HTTPS/WSS."}
-        lifecycle: {$ref: "#/components/schemas/StreamingGatewayLifecycle"}
-        configurationRevision: {type: integer, format: int64, minimum: 1}
-        appliedConfigurationRevision: {type: integer, format: int64, minimum: 0}
-        softwareVersion: {type: string, maxLength: 80, nullable: true}
-        protocolVersion: {type: integer, minimum: 1, nullable: true}
-        healthState: {type: string, enum: [connected, degraded], nullable: true}
-        healthSummary: {type: string, maxLength: 500, nullable: true}
-        lastHeartbeatAt: {type: string, format: date-time, nullable: true}
-        enrolledAt: {type: string, format: date-time, nullable: true}
-        disabledAt: {type: string, format: date-time, nullable: true}
-        revokedAt: {type: string, format: date-time, nullable: true}
-        credentialExpiresAt: {type: string, format: date-time, nullable: true, description: "When the gateway's current credential expires; null while the gateway has none (pending or revoked). The gateway rotates it on its own before then."}
-        updaterAvailable: {type: boolean, description: "The gateway's last heartbeat reported a running updater sidecar."}
-        update: {allOf: [{$ref: "#/components/schemas/LocalServiceUpdate"}], nullable: true}
-        version: {$ref: "#/components/schemas/Version"}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
-    CameraCandidate:
-      type: object
-      additionalProperties: false
-      required: [id, name, kind]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        name: {type: string, maxLength: 150}
-        kind: {type: string, maxLength: 120, description: "Machine type (process) name."}
-    CameraCandidateList:
-      type: object
-      additionalProperties: false
-      required: [items]
-      properties: {items: {type: array, items: {$ref: "#/components/schemas/CameraCandidate"}}}
-    StreamingGatewayList:
-      type: object
-      additionalProperties: false
-      required: [items, coreVersion]
-      properties:
-        items: {type: array, items: {$ref: "#/components/schemas/StreamingGateway"}}
-        coreVersion: {type: string, maxLength: 80, description: "Core's own version, the only one gateways can be updated to; \"dev\" for development builds."}
-    CreateStreamingGatewayRequest:
-      type: object
-      additionalProperties: false
-      required: [name, publicHost]
-      properties:
-        name: {type: string, minLength: 1, maxLength: 120}
-        publicHost: {type: string, minLength: 1, maxLength: 260}
-    UpdateStreamingGatewayRequest:
-      type: object
-      additionalProperties: false
-      required: [name, publicHost, enabled, expectedVersion]
-      properties:
-        name: {type: string, minLength: 1, maxLength: 120}
-        publicHost: {type: string, minLength: 1, maxLength: 260}
-        enabled: {type: boolean}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-    StreamingGatewayEnrollmentIssue:
-      type: object
-      additionalProperties: false
-      required: [gateway, enrollmentId, enrollmentSecret, expiresAt]
-      properties:
-        gateway: {$ref: "#/components/schemas/StreamingGateway"}
-        enrollmentId: {$ref: "#/components/schemas/UUIDv7"}
-        enrollmentSecret: {type: string, minLength: 43, maxLength: 43, writeOnly: true}
-        expiresAt: {type: string, format: date-time}
-    EnrollStreamingGatewayRequest:
-      type: object
-      additionalProperties: false
-      required: [credentialId, credentialSecret, softwareVersion, protocolVersion]
-      properties:
-        credentialId: {$ref: "#/components/schemas/UUIDv7"}
-        credentialSecret: {type: string, minLength: 43, maxLength: 43, writeOnly: true}
-        softwareVersion: {type: string, minLength: 1, maxLength: 80}
-        protocolVersion: {type: integer, minimum: 1}
-    StreamingGatewayEnrollmentResult:
-      type: object
-      additionalProperties: false
-      required: [gatewayId, credentialId, protocolVersion, credentialExpiresAt]
-      properties:
-        gatewayId: {$ref: "#/components/schemas/UUIDv7"}
-        credentialId: {$ref: "#/components/schemas/UUIDv7"}
-        protocolVersion: {type: integer, minimum: 1}
-        credentialExpiresAt: {type: string, format: date-time}
-    RotateStreamingGatewayCredentialRequest:
-      type: object
-      additionalProperties: false
-      required: [credentialId, credentialSecret]
-      properties:
-        credentialId: {$ref: "#/components/schemas/UUIDv7"}
-        credentialSecret: {type: string, minLength: 43, maxLength: 43, writeOnly: true}
-    StreamingCameraHealth:
-      type: string
-      enum: [live, idle, unavailable, unknown]
-    StreamingCamera:
-      type: object
-      additionalProperties: false
-      required: [id, gatewayId, gatewayName, gatewayLifecycle, machineId, machineName, enabled, health, viewers, codec, width, height, fps, reportedAt, version, createdAt, updatedAt]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        gatewayId: {$ref: "#/components/schemas/UUIDv7"}
-        gatewayName: {type: string}
-        gatewayLifecycle: {$ref: "#/components/schemas/StreamingGatewayLifecycle"}
-        machineId: {$ref: "#/components/schemas/UUIDv7"}
-        machineName: {type: string}
-        enabled: {type: boolean}
-        health: {$ref: "#/components/schemas/StreamingCameraHealth"}
-        viewers: {type: integer, minimum: 0, nullable: true}
-        codec: {type: string, maxLength: 40, nullable: true}
-        width: {type: integer, minimum: 1, nullable: true}
-        height: {type: integer, minimum: 1, nullable: true}
-        fps: {type: number, minimum: 0, nullable: true}
-        reportedAt: {type: string, format: date-time, nullable: true}
-        version: {$ref: "#/components/schemas/Version"}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
-    StreamingCameraList:
-      type: object
-      additionalProperties: false
-      required: [items]
-      properties: {items: {type: array, items: {$ref: "#/components/schemas/StreamingCamera"}}}
-    CreateStreamingCameraRequest:
-      type: object
-      additionalProperties: false
-      required: [machineId, enabled]
-      properties:
-        machineId: {$ref: "#/components/schemas/UUIDv7"}
-        enabled: {type: boolean}
-    UpdateStreamingCameraRequest:
-      type: object
-      additionalProperties: false
-      required: [enabled, expectedVersion]
-      properties:
-        enabled: {type: boolean}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-    StreamTicketKeyRotation:
-      type: object
-      additionalProperties: false
-      required: [keyId, activatesAt]
-      properties:
-        keyId: {type: string, minLength: 8, maxLength: 32}
-        activatesAt: {type: string, format: date-time}
-    StreamingGatewayTicketKey:
-      type: object
-      additionalProperties: false
-      required: [kid, publicKey, validUntil]
-      properties:
-        kid: {type: string, minLength: 8, maxLength: 32}
-        publicKey: {type: string, minLength: 43, maxLength: 43, description: "Ed25519 public key, 32 bytes, base64url without padding."}
-        validUntil: {type: string, format: date-time, nullable: true, description: "Null for the current and a pending key; a retired key stays valid for ten minutes."}
-    StreamingGatewayConfigCamera:
-      type: object
-      additionalProperties: false
-      required: [machineId, name, streamName, sourceUrl]
-      properties:
-        machineId: {$ref: "#/components/schemas/UUIDv7"}
-        name: {type: string}
-        streamName: {type: string, description: "Stable go2rtc stream name derived from the machine id."}
-        sourceUrl: {type: string, writeOnly: true, description: "go2rtc source URL, rtspx://bblp:<LAN access code>@<ip>:322/streaming/live/1. Secret."}
-    StreamingGatewayConfiguration:
-      type: object
-      additionalProperties: false
-      required: [revision, protocolVersion, publicHost, ticketPublicKeys, cameras, sessionEpoch, revokedDisplayIds, update]
-      properties:
-        sessionEpoch: {type: integer, format: int64, minimum: 0, description: "Changes when running camera sessions must be dropped (display revoked or deleted, camera removed from a display, camera access outside switched off). The gateway restarts go2rtc when the value changes."}
-        revokedDisplayIds: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Displays revoked or deleted within the last 24 hours; tickets for them are refused."}
-        revision: {type: integer, format: int64, minimum: 1}
-        protocolVersion: {type: integer, minimum: 1}
-        publicHost: {type: string}
-        ticketPublicKeys: {type: array, maxItems: 4, items: {$ref: "#/components/schemas/StreamingGatewayTicketKey"}}
-        cameras: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/StreamingGatewayConfigCamera"}}
-        update: {allOf: [{$ref: "#/components/schemas/LocalServiceUpdateOffer"}], nullable: true, description: "The open update request for the gateway's updater. The field's presence tells a gateway that Core accepts the updater field in heartbeats."}
-    StreamingGatewayCameraHealth:
-      type: object
-      additionalProperties: false
-      required: [machineId, health, viewers, codec, width, height, fps]
-      properties:
-        machineId: {$ref: "#/components/schemas/UUIDv7"}
-        health: {type: string, enum: [live, idle, unavailable]}
-        viewers: {type: integer, minimum: 0, maximum: 100000}
-        codec: {type: string, maxLength: 40, nullable: true}
-        width: {type: integer, minimum: 1, maximum: 16384, nullable: true}
-        height: {type: integer, minimum: 1, maximum: 16384, nullable: true}
-        fps: {type: number, minimum: 0, maximum: 1000, nullable: true}
-    StreamingGatewayHeartbeat:
-      type: object
-      additionalProperties: false
-      required: [softwareVersion, protocolVersion, appliedConfigurationRevision, healthState, healthSummary, cameras]
-      properties:
-        softwareVersion: {type: string, minLength: 1, maxLength: 80}
-        protocolVersion: {type: integer, minimum: 1}
-        appliedConfigurationRevision: {type: integer, format: int64, minimum: 0}
-        healthState: {type: string, enum: [connected, degraded]}
-        healthSummary: {type: string, maxLength: 500, nullable: true}
-        cameras: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/StreamingGatewayCameraHealth"}}
-        updater: {$ref: "#/components/schemas/LocalServiceUpdaterReport"}
 
     SCIMConnector:
       type: object
@@ -20130,7 +19734,7 @@ components:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, maxLength: 150}
         kind: {type: string, maxLength: 120, description: "Machine type (process) name."}
-        hasCamera: {type: boolean, description: "Whether an enabled streaming camera on a non-revoked streaming gateway is assigned to the machine."}
+        hasCamera: {type: boolean, description: "Whether the machine has an active Bambu printer-connector assignment with camera streaming switched on."}
     SignageMachineList:
       type: object
       additionalProperties: false
@@ -20676,7 +20280,7 @@ components:
         orientation: {$ref: "#/components/schemas/SignageOrientation"}
         resolution: {$ref: "#/components/schemas/SignageResolution"}
         visibleFromOutside: {type: boolean}
-        allowCameraOutside: {type: boolean, description: "Only meaningful with visibleFromOutside. Without it, no camera stream tickets are issued to a display that is visible from outside. Takes effect immediately (no publication needed)."}
+        allowCameraOutside: {type: boolean, description: "Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams. Takes effect immediately (no publication needed)."}
         defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
         status: {$ref: "#/components/schemas/SignageDisplayStatus"}
         revokedAt: {type: string, format: date-time, nullable: true}
@@ -21006,13 +20610,10 @@ components:
     SignagePlayerStream:
       type: object
       additionalProperties: false
-      required: [machineId, webrtcUrl, mseUrl, ticket, expiresAt]
+      required: [machineId, path]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
-        webrtcUrl: {type: string, description: "HTTPS URL of the gateway's WebRTC signalling endpoint (go2rtc /api/webrtc?src=...). The player POSTs its SDP offer here with the ticket."}
-        mseUrl: {type: string, description: "WSS URL of the gateway's MSE websocket (go2rtc /api/ws?src=...), used when WebRTC fails."}
-        ticket: {type: string, description: "Ed25519-signed, short-lived stream ticket; send it as the `ticket` query parameter or as a Bearer token."}
-        expiresAt: {type: string, format: date-time}
+        path: {type: string, maxLength: 200, description: "Relative URL of the camera websocket (`/api/v1/signage/player/cameras/{machineId}/stream`). Open it on the player's own origin (ws/wss); the device credential authorizes it, there is no ticket."}
     SignagePlayerLive:
       type: object
       additionalProperties: false
@@ -21028,7 +20629,7 @@ components:
           allOf: [{$ref: "#/components/schemas/SignagePlayerCalendar"}]
           nullable: true
           description: Present only while the display's publication contains a calendar widget; holds only the categories a published calendar widget shows.
-        streams: {type: array, maxItems: 20, description: "Camera streams for the cameras the display's published camera widgets use, only while their gateway is active and the camera is enabled.", items: {$ref: "#/components/schemas/SignagePlayerStream"}}
+        streams: {type: array, maxItems: 20, description: "Camera streams the device may watch right now: machines used by a camera widget of the published scene whose assignment has camera streaming on, respecting the display's `allowCameraOutside` setting.", items: {$ref: "#/components/schemas/SignagePlayerStream"}}
     SignageCalendar:
       type: object
       additionalProperties: false

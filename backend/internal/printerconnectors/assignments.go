@@ -7,6 +7,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"strings"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
@@ -17,6 +18,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
+
+// errCameraStreamingAdapter rejects the camera relay for adapters that expose no camera.
+var errCameraStreamingAdapter = apperror.Invalid("cameraStreaming is only available for Bambu printers")
 
 func (s *Service) CreateAssignment(
 	ctx context.Context,
@@ -31,6 +35,9 @@ func (s *Service) CreateAssignment(
 	input.AdapterKind = AdapterKind(strings.TrimSpace(string(input.AdapterKind)))
 	if input.AdapterKind == "" || len(input.AdapterKind) > 80 {
 		return Assignment{}, apperror.Invalid("adapterKind and supported schema version are required")
+	}
+	if input.CameraStreaming && !isBambuLANAdapter(input.AdapterKind) {
+		return Assignment{}, errCameraStreamingAdapter
 	}
 	var err error
 	input.Settings, input.Secrets, err = validateAssignmentContract(
@@ -82,6 +89,7 @@ func (s *Service) ListAssignments(
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now().UTC()
 	result := make([]Assignment, 0, len(rows))
 	for _, row := range rows {
 		result = append(
@@ -97,13 +105,17 @@ func (s *Service) ListAssignments(
 				ConfigurationVersion: row.ConfigurationVersion,
 				AppliedVersion:       row.AppliedConfigurationVersion,
 				Enabled:              row.Enabled,
-				RuntimeState:         optional.Convert[AssignmentState](row.RuntimeState),
-				RuntimeErrorCode:     row.RuntimeErrorCode,
-				ActivatedAt:          row.ActivatedAt,
-				EndedAt:              nullableTime(row.EndedAt),
-				Version:              row.Version,
-				CreatedAt:            row.CreatedAt,
-				UpdatedAt:            row.UpdatedAt,
+				CameraStreaming:      row.CameraStreaming,
+				Camera: assignmentCamera(
+					row.CameraStreaming, row.CameraHealth, row.CameraViewers, row.CameraReportedAt, now,
+				),
+				RuntimeState:     optional.Convert[AssignmentState](row.RuntimeState),
+				RuntimeErrorCode: row.RuntimeErrorCode,
+				ActivatedAt:      row.ActivatedAt,
+				EndedAt:          nullableTime(row.EndedAt),
+				Version:          row.Version,
+				CreatedAt:        row.CreatedAt,
+				UpdatedAt:        row.UpdatedAt,
 			},
 		)
 	}
@@ -123,6 +135,9 @@ func (s *Service) UpdateAssignment(
 	input.AdapterKind = AdapterKind(strings.TrimSpace(string(input.AdapterKind)))
 	if input.AdapterKind == "" || len(input.AdapterKind) > 80 {
 		return Assignment{}, apperror.Invalid("adapterKind and supported schema version are required")
+	}
+	if input.CameraStreaming != nil && *input.CameraStreaming && !isBambuLANAdapter(input.AdapterKind) {
+		return Assignment{}, errCameraStreamingAdapter
 	}
 	providedSecrets := map[string]string{}
 	if input.Secrets != nil {
@@ -181,6 +196,14 @@ func (s *Service) UpdateAssignment(
 			}
 		}
 	}
+	cameraStreaming := current.CameraStreaming
+	if input.CameraStreaming != nil {
+		cameraStreaming = *input.CameraStreaming
+	}
+	if cameraStreaming && !input.End && !isBambuLANAdapter(input.AdapterKind) {
+		// The adapter changed away from Bambu while the camera relay was on.
+		return Assignment{}, errCameraStreamingAdapter
+	}
 	_, err = q.UpdateAssignment(
 		ctx,
 		db.UpdateAssignmentParams{
@@ -189,6 +212,7 @@ func (s *Service) UpdateAssignment(
 			Settings:             input.Settings,
 			EncryptedSecrets:     encrypted,
 			Enabled:              input.Enabled,
+			CameraStreaming:      cameraStreaming,
 			EndAssignment:        input.End,
 			ID:                   assignmentID,
 			ConnectorID:          connectorID,
@@ -218,7 +242,7 @@ func (s *Service) UpdateAssignment(
 			ResourceType:   "printer_connector_assignment",
 			ResourceID:     &assignmentID,
 			RequestID:      requestID,
-			ChangedFields:  []string{"adapterKind", "configuration", "enabled", "endedAt"},
+			ChangedFields:  []string{"adapterKind", "configuration", "enabled", "endedAt", "cameraStreaming"},
 		},
 	); err != nil {
 		return Assignment{}, err
@@ -237,13 +261,17 @@ func (s *Service) UpdateAssignment(
 		ConfigurationVersion: row.ConfigurationVersion,
 		AppliedVersion:       row.AppliedConfigurationVersion,
 		Enabled:              row.Enabled,
-		RuntimeState:         optional.Convert[AssignmentState](row.RuntimeState),
-		RuntimeErrorCode:     row.RuntimeErrorCode,
-		ActivatedAt:          row.ActivatedAt,
-		EndedAt:              nullableTime(row.EndedAt),
-		Version:              row.Version,
-		CreatedAt:            row.CreatedAt,
-		UpdatedAt:            row.UpdatedAt,
+		CameraStreaming:      row.CameraStreaming,
+		Camera: assignmentCamera(
+			row.CameraStreaming, row.CameraHealth, row.CameraViewers, row.CameraReportedAt, time.Now().UTC(),
+		),
+		RuntimeState:     optional.Convert[AssignmentState](row.RuntimeState),
+		RuntimeErrorCode: row.RuntimeErrorCode,
+		ActivatedAt:      row.ActivatedAt,
+		EndedAt:          nullableTime(row.EndedAt),
+		Version:          row.Version,
+		CreatedAt:        row.CreatedAt,
+		UpdatedAt:        row.UpdatedAt,
 	}, nil
 }
 
@@ -371,6 +399,7 @@ func (s *Service) createAssignment(
 			Settings:             input.Settings,
 			EncryptedSecrets:     encrypted,
 			Enabled:              input.Enabled,
+			CameraStreaming:      input.CameraStreaming,
 		},
 	)
 	if err != nil {
@@ -389,7 +418,7 @@ func (s *Service) createAssignment(
 			ResourceType:   "printer_connector_assignment",
 			ResourceID:     &assignmentID,
 			RequestID:      requestID,
-			ChangedFields:  []string{"connectorId", "machineId", "adapterKind", "configuration"},
+			ChangedFields:  []string{"connectorId", "machineId", "adapterKind", "configuration", "cameraStreaming"},
 		},
 	); err != nil {
 		return Assignment{}, err
@@ -407,6 +436,8 @@ func (s *Service) createAssignment(
 		ConfigurationVersion: row.ConfigurationVersion,
 		AppliedVersion:       row.AppliedConfigurationVersion,
 		Enabled:              row.Enabled,
+		CameraStreaming:      row.CameraStreaming,
+		Camera:               AssignmentCamera{Health: CameraUnknown},
 		ActivatedAt:          row.ActivatedAt,
 		Version:              row.Version,
 		CreatedAt:            row.CreatedAt,
