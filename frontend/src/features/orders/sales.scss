@@ -142,80 +142,6 @@
   margin-block: $spacing-05;
 }
 
-// Payment entry ------------------------------------------------------------------------------------------------------------
-.sales-modal-summary {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: $spacing-05;
-  padding: $spacing-05;
-  background: var(--cds-layer-accent);
-}
-.sales-modal-summary > div {
-  display: grid;
-  gap: $spacing-02;
-}
-.sales-modal-summary__amount {
-  @include type-style('productive-heading-05');
-}
-.sales-method-tiles > div {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: $spacing-03;
-}
-.sales-method-tile {
-  display: flex;
-  align-items: center;
-  gap: $spacing-03;
-}
-.sales-payment-row {
-  display: grid;
-  gap: $spacing-05;
-}
-.sales-payment-row--split {
-  padding: $spacing-05;
-  border: 1px solid var(--cds-border-subtle);
-  background: var(--cds-layer);
-}
-.sales-payment-row__head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: $spacing-03;
-}
-.sales-amount-line {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: $spacing-03;
-}
-.sales-amount-line:not(:has(.cds--btn)) {
-  grid-template-columns: minmax(0, 1fr);
-}
-.sales-tender-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $spacing-03;
-}
-.sales-change.cds--tile {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: $spacing-05;
-  background: var(--cds-layer-accent);
-}
-.sales-change__amount {
-  @include type-style('productive-heading-04');
-  font-variant-numeric: tabular-nums;
-}
-.sales-cover {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: $spacing-03;
-}
-
 // Ready to bill -------------------------------------------------------------------------------------------------------------
 .sales-ready-jobs {
   display: grid;
@@ -305,10 +231,6 @@
   }
   .sales-tile__value {
     @include type-style('productive-heading-04');
-  }
-  .sales-method-tiles > div {
-    grid-auto-flow: row;
-    grid-template-columns: 1fr;
   }
   .sales-ready-jobs__row {
     grid-template-columns: auto minmax(0, 1fr);

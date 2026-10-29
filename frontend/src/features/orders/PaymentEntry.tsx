@@ -16,6 +16,7 @@ import { Add, Currency, Document, Edit, TrashCan, Wallet } from '@carbon/icons-r
 import type { PaymentInput } from '../../api/generated/models';
 import { DateTimeInput } from '../../app/DateInput';
 import { instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../app/dateTime';
+import './paymentEntry.scss';
 import { methodLabel } from './labels';
 import { formatCents, fromCents, moneyInputText, parseMoneyInput } from './money';
 
