@@ -223,3 +223,14 @@
   border-block-start: 0;
   padding-block-start: 0;
 }
+
+.privacy-retention__notice {
+  margin-block-end: $spacing-06;
+}
+.privacy-retention__notice:empty {
+  display: none;
+}
+.privacy-retention__notice .cds--inline-notification {
+  inline-size: 100%;
+  max-inline-size: none;
+}
