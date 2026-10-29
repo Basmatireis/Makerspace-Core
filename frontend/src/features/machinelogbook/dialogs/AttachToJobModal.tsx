@@ -10,7 +10,7 @@ import { useAttachRun } from '../shared/useAttachRun';
 import { saveError } from './jobFormHelpers';
 
 const jobLabel = (job: WorkItem) =>
-  `${job.displayId}${job.title ? ` ${job.title}` : ''} · ${job.customer?.displayName ?? 'No customer'} · started ${formatRelative(job.startedAt)} · ${job.runCount} ${job.runCount === 1 ? 'run' : 'runs'}`;
+  `${job.displayId}${job.title ? ` ${job.title}` : ''} · ${job.customer?.displayName ?? 'No recipient'} · started ${formatRelative(job.startedAt)} · ${job.runCount} ${job.runCount === 1 ? 'run' : 'runs'}`;
 
 export function AttachToJobModal({ open, onClose, run }: { open: boolean; onClose: () => void; run: MachineRun }) {
   const [selected, setSelected] = useState<WorkItem | null>(null);

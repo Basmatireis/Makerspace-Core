@@ -157,7 +157,7 @@ export default function StatisticsCharts({ data }: { data: StatisticsChartsData 
   const { months } = data;
   const lineData = [
     ...months.map((point) => ({
-      group: 'Customer charges',
+      group: 'Recipient charges',
       key: point.label,
       value: Math.round(point.charges * 100) / 100,
     })),
@@ -168,7 +168,7 @@ export default function StatisticsCharts({ data }: { data: StatisticsChartsData 
     })),
   ];
   const lineOptions = {
-    ...baseOptions('Monthly customer charges and material cost in euro'),
+    ...baseOptions('Monthly recipient charges and material cost in euro'),
     legend: { enabled: true },
     curve: 'curveMonotoneX' as const,
   };
@@ -179,11 +179,11 @@ export default function StatisticsCharts({ data }: { data: StatisticsChartsData 
         <LineChart data={lineData} options={lineOptions} />
         <div className="visually-hidden">
           <table>
-            <caption>Monthly customer charges versus material cost</caption>
+            <caption>Monthly recipient charges versus material cost</caption>
             <thead>
               <tr>
                 <th scope="col">Month</th>
-                <th scope="col">Customer charges</th>
+                <th scope="col">Recipient charges</th>
                 <th scope="col">Material cost</th>
               </tr>
             </thead>

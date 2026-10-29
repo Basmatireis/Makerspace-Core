@@ -32,7 +32,7 @@ const canDeleteRun = (can: Can, run: Pick<MachineRun, 'source'>) =>
 
 const errorCode = (error: unknown) => (error instanceof ApiError ? error.data?.code : undefined);
 
-/** Usages whose material left stock (own material, positive quantity); customer material never touched the ledger. */
+/** Usages whose material left stock (own material, positive quantity); recipient material never touched the ledger. */
 const bookedUsages = (usages: MachineJobUsage[]) =>
   usages.filter((usage) => usage.ownership !== 'external' && Number(usage.quantity) > 0);
 

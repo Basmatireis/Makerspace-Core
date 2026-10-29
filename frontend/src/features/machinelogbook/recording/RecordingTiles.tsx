@@ -1,5 +1,14 @@
-import type { ReactNode } from 'react';
-import { Accordion, AccordionItem, Button, InlineNotification, Tag, Tile } from '@carbon/react';
+import { useState, type ReactNode } from 'react';
+import {
+  Accordion,
+  AccordionItem,
+  Button,
+  ContentSwitcher,
+  InlineNotification,
+  Switch,
+  Tag,
+  Tile,
+} from '@carbon/react';
 import { Download } from '@carbon/icons-react';
 import {
   getDownloadMachineRunArtifactUrl,
@@ -40,7 +49,10 @@ function TimelapseVideo({ recording }: { recording: MachineRunRecording }) {
   );
 }
 
-/** Preview and print file of one run. */
+/**
+ * Preview and print file of one run. A small gallery: the print file's preview image and, when the run has one, the
+ * timelapse as a second item. A pending or missing timelapse shows as a compact line below the preview.
+ */
 export function RunPreviewTile({
   recording,
   recorded,
@@ -55,9 +67,12 @@ export function RunPreviewTile({
   /** Upload control for a run without a print file; shown in the empty state only. */
   uploadAction?: ReactNode;
 }) {
+  const [item, setItem] = useState<'preview' | 'timelapse'>('preview');
+  const hasVideo = Boolean(recording?.timelapse);
+  const timelapse = recorded && recording && !hasVideo ? timelapseMessage(recording.timelapseStatus) : null;
   return (
     <Tile>
-      <h3 className="mj-section-title">Preview</h3>
+      <h3 className="mj-section-title">{hasVideo ? 'Preview and timelapse' : 'Preview'}</h3>
       {failed ? (
         <InlineNotification
           kind="warning"
@@ -69,50 +84,48 @@ export function RunPreviewTile({
       ) : loading ? (
         <p className="mj-secondary">Loading the preview…</p>
       ) : (
-        <PrintPreview
-          thumbnails={recording ? thumbnailsOf([recording], false) : []}
-          emptyText={
-            recorded
-              ? recording?.artifact
-                ? 'The print file contains no preview image.'
-                : isOnInternalStorage(recording?.consumptionStatus)
-                  ? internalStorageMessage
-                  : 'Core has no print file for this run, so there is no preview.'
-              : 'Manual runs have no print file, so there is no preview.'
-          }
-          emptyAction={recorded && recording && !recording.artifact ? uploadAction : undefined}
-          emptyDownload={
-            recording?.artifact
-              ? {
-                  href: getDownloadMachineRunArtifactUrl(recording.runId),
-                  fileName: recording.artifact.originalFilename,
-                }
-              : undefined
-          }
-        />
-      )}
-    </Tile>
-  );
-}
-
-/** Timelapse of one run, or the reason there is none. Hidden for manual runs. */
-export function RunTimelapseTile({ recording }: { recording: MachineRunRecording }) {
-  const message = recording.timelapse ? null : timelapseMessage(recording.timelapseStatus);
-  return (
-    <Tile>
-      <h3 className="mj-section-title">Timelapse</h3>
-      {recording.timelapse ? (
-        <TimelapseVideo recording={recording} />
-      ) : (
-        message && (
-          <InlineNotification
-            kind={recording.timelapseStatus?.state === 'failed' ? 'warning' : 'info'}
-            lowContrast
-            hideCloseButton
-            title={message.title}
-            subtitle={message.message}
-          />
-        )
+        <div className="mj-stack">
+          {hasVideo && (
+            <ContentSwitcher
+              size="sm"
+              selectedIndex={item === 'preview' ? 0 : 1}
+              onChange={({ name }) => setItem(name === 'timelapse' ? 'timelapse' : 'preview')}
+            >
+              <Switch name="preview" text="Preview" />
+              <Switch name="timelapse" text="Timelapse" />
+            </ContentSwitcher>
+          )}
+          {item === 'timelapse' && recording && hasVideo ? (
+            <TimelapseVideo recording={recording} />
+          ) : (
+            <PrintPreview
+              thumbnails={recording ? thumbnailsOf([recording], false) : []}
+              emptyText={
+                recorded
+                  ? recording?.artifact
+                    ? 'The print file contains no preview image.'
+                    : isOnInternalStorage(recording?.consumptionStatus)
+                      ? internalStorageMessage
+                      : 'Core has no print file for this run, so there is no preview.'
+                  : 'Manual runs have no print file, so there is no preview.'
+              }
+              emptyAction={recorded && recording && !recording.artifact ? uploadAction : undefined}
+              emptyDownload={
+                recording?.artifact
+                  ? {
+                      href: getDownloadMachineRunArtifactUrl(recording.runId),
+                      fileName: recording.artifact.originalFilename,
+                    }
+                  : undefined
+              }
+            />
+          )}
+          {timelapse && (
+            <p className="mj-secondary">
+              <strong>{timelapse.title}</strong> · <span>{timelapse.message}</span>
+            </p>
+          )}
+        </div>
       )}
     </Tile>
   );

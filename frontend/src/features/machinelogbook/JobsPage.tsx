@@ -123,7 +123,7 @@ const columns: Column<WorkItem>[] = [
   { key: 'machine', header: 'Machine', sortValue: () => 0, narrow: true, render: (item) => item.machineName },
   {
     key: 'customer',
-    header: 'Customer',
+    header: 'Recipient',
     sortValue: () => 0,
     narrow: true,
     render: (item) =>
@@ -166,7 +166,7 @@ const actionsColumn: Column<WorkItem> = {
   render: (item) => <UnassignedRunActions item={item} />,
 };
 
-/** Columns of the jobs filter panel. Catalog lookups load once the person may read them; customer and operator are searched on the server. */
+/** Columns of the jobs filter panel. Catalog lookups load once the person may read them; recipient and operator are searched on the server. */
 function useJobsFilterCategories(rows: WorkItem[]): FilterCategory[] {
   const currentUser = useCurrentUser();
   const can = useCan();
@@ -226,8 +226,8 @@ function useJobsFilterCategories(rows: WorkItem[]): FilterCategory[] {
             <ComboBox
               autoAlign
               id={`${idPrefix}-customer`}
-              titleText="Customer"
-              placeholder="Any customer"
+              titleText="Recipient"
+              placeholder="Any recipient"
               items={people}
               itemToString={(item) => item?.displayName ?? ''}
               shouldFilterItem={matchesName}
@@ -235,7 +235,7 @@ function useJobsFilterCategories(rows: WorkItem[]): FilterCategory[] {
                 customerId
                   ? (people.find((person) => person.id === customerId) ?? {
                       id: customerId,
-                      displayName: 'Selected customer',
+                      displayName: 'Selected recipient',
                     })
                   : null
               }

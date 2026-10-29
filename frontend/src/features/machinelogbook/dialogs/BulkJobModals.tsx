@@ -37,7 +37,7 @@ type Values = PartyValues & { title: string; pricingGroupId: string };
 
 const BULK_ITEM = (item: WorkItem) => ({ id: item.id, expectedVersion: item.version ?? 0 });
 
-/** One job per selected unassigned run; customer, operator, notes and pricing group are shared. */
+/** One job per selected unassigned run; recipient, operator, notes and pricing group are shared. */
 export function CreateSeparateJobsModal({ open, ...props }: Props) {
   return open ? <BulkJobDialog mode="separate" {...props} /> : null;
 }
@@ -145,10 +145,10 @@ function BulkJobDialog({ mode, onClose, runs, onDone }: Omit<Props, 'open'> & { 
             <Select
               id="bulk-job-pricing-group"
               labelText="Pricing group (optional)"
-              helperText="Leave empty to use the customer’s pricing group."
+              helperText="Leave empty to use the recipient’s pricing group."
               {...form.register('pricingGroupId')}
             >
-              <SelectItem value="" text="Customer’s pricing group" />
+              <SelectItem value="" text="Recipient’s pricing group" />
               {(pricing.data?.items ?? [])
                 .filter((group) => group.active)
                 .map((group) => (

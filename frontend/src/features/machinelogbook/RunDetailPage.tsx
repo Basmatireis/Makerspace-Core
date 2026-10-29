@@ -34,7 +34,7 @@ import { artifactQuery, jobQuery, machineLogbookKeys, recordingQuery, runQuery }
 import { ConsumptionNotice } from './recording/ConsumptionNotice';
 import { FactsBar } from './recording/FactsBar';
 import { internalStorageMessage, isCommandOpen, isOnInternalStorage } from './recording/recordingText';
-import { RunPreviewTile, RunTimelapseTile } from './recording/RecordingTiles';
+import { RunPreviewTile } from './recording/RecordingTiles';
 import { formatDateTime, formatDuration, formatQuantity, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
@@ -331,6 +331,22 @@ export function RunDetailPage() {
             )}
             <div className="mj-detail-layout">
               <div className="mj-stack">
+                {jobRef && (
+                  <Tile>
+                    <h2 className="mj-section-title">Job</h2>
+                    <p>
+                      Part of{' '}
+                      <RefLink kind="job" reference={jobRef.displayId} id={jobRef.id}>
+                        {jobRef.displayId}
+                        {jobRef.title ? ` ${jobRef.title}` : ''}
+                      </RefLink>
+                      <span className="mj-secondary">
+                        {job ? ` · ${job.customer?.displayName ?? 'No recipient'}.` : '.'} Material and outcome from
+                        this run count towards the job.
+                      </span>
+                    </p>
+                  </Tile>
+                )}
                 <FactsBar
                   metrics={[
                     {
@@ -497,23 +513,6 @@ export function RunDetailPage() {
                   failed={recording.isError}
                   uploadAction={uploadAction}
                 />
-                {recording.data && run.source === 'recorded' && <RunTimelapseTile recording={recording.data} />}
-                {jobRef && (
-                  <Tile>
-                    <h2 className="mj-section-title">Job</h2>
-                    <p>
-                      Part of{' '}
-                      <RefLink kind="job" reference={jobRef.displayId} id={jobRef.id}>
-                        {jobRef.displayId}
-                        {jobRef.title ? ` ${jobRef.title}` : ''}
-                      </RefLink>
-                      <span className="mj-secondary">
-                        {job ? ` · ${job.customer?.displayName ?? 'No customer'}.` : '.'} Material and outcome from this
-                        run count towards the job.
-                      </span>
-                    </p>
-                  </Tile>
-                )}
               </div>
             </div>
           </div>

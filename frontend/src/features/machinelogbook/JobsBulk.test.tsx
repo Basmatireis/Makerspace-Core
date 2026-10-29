@@ -339,7 +339,7 @@ describe('Create jobs from runs', () => {
     await user.click(await screen.findByText('Maria Hoffmann'));
   }
 
-  it('creates one job per selected run with shared customer and operator', async () => {
+  it('creates one job per selected run with shared recipient and operator', async () => {
     let body: BulkCreateMachineJobsRequest | undefined;
     server.use(
       as(...allPermissions),

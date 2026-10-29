@@ -116,7 +116,7 @@ function UsageRowFields({
     <div className="mj-usage-row">
       <Select id={`${idPrefix}-ownership`} labelText="Ownership" {...register(`usages.${index}.ownership`)}>
         <SelectItem value="makerspace" text="Makerspace stock" />
-        <SelectItem value="external" text="Customer / external" />
+        <SelectItem value="external" text="Recipient / external" />
       </Select>
       {row.ownership === 'makerspace' ? (
         <>

@@ -177,7 +177,7 @@ function JobDetail({ job }: { job: MachineJob }) {
       material: usage.materialName,
       source:
         usage.ownership === 'external'
-          ? 'Customer material'
+          ? 'Recipient material'
           : usage.spoolDisplayId
             ? `Spool ${usage.spoolDisplayId}${usage.spoolId ? '' : ' (deleted)'}`
             : 'Makerspace stock',
@@ -258,13 +258,22 @@ function JobDetail({ job }: { job: MachineJob }) {
         <div className="mj-detail-layout">
           <div className="mj-stack">
             <FactsBar
+              detailsLayout="tiles"
               metrics={[
+                { label: 'Start', value: job.startedAt ? formatDateTime(job.startedAt) : '—' },
                 {
                   label: 'Runtime',
                   value: formatDuration(job.durationSeconds),
                   note: runs.length > 1 ? 'All runs together' : undefined,
                 },
                 { label: 'Material', value: materialText },
+                {
+                  label: 'Recipient',
+                  value: job.customer?.displayName ?? '—',
+                  note: job.customer?.pricingGroup?.name,
+                },
+              ]}
+              details={[
                 {
                   label: 'Outcome',
                   value:
@@ -281,15 +290,7 @@ function JobDetail({ job }: { job: MachineJob }) {
                       ? 'Derived from the runs'
                       : undefined,
                 },
-                {
-                  label: 'Customer',
-                  value: job.customer?.displayName ?? '—',
-                  note: job.customer?.pricingGroup?.name,
-                },
-              ]}
-              details={[
                 { label: 'Operator', value: job.operator?.displayName ?? '—' },
-                { label: 'Start', value: job.startedAt ? formatDateTime(job.startedAt) : '—' },
                 {
                   label: running && !job.endedAt ? 'Expected end' : 'End',
                   value: job.endedAt

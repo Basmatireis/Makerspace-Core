@@ -256,6 +256,8 @@ describe('Run detail recording', () => {
       }),
     );
     const { container } = renderRun();
+    // The timelapse is the second item of the preview tile; no video loads before it is chosen.
+    await userEvent.click(await screen.findByRole('tab', { name: 'Timelapse' }));
     expect(await screen.findByRole('link', { name: /Download timelapse/ })).toHaveAttribute(
       'href',
       `/api/v1/machine-runs/${runId}/timelapse/content`,

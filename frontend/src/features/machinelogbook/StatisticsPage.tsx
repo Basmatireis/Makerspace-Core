@@ -311,7 +311,7 @@ export function StatisticsPage() {
             detail={comparison(totals.runtimeHours, previous.runtimeHours, 'percent')}
           />
           <Metric
-            label="Customer charges (€)"
+            label="Recipient charges (€)"
             value={formatMoney(totals.charges)}
             detail={comparison(totals.charges, previous.charges, 'percent')}
           />

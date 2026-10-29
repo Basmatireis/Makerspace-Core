@@ -99,7 +99,7 @@ export function saveError(error: unknown, fallback = 'The job could not be saved
     case 'outcome_before_run_end':
       return { message: 'The outcome can only be recorded once the run has ended.', field: 'outcome' };
     case 'customer_required':
-      return { message: 'Choose a customer before this job can be saved.', field: 'customer' };
+      return { message: 'Choose a recipient before this job can be saved.', field: 'customer' };
     case 'outcome_required':
       return { message: 'Choose how the run ended before this job can be saved.', field: 'outcome' };
     case 'job_needs_run':

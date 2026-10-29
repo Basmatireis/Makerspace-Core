@@ -50,7 +50,7 @@ export const processConfig: Record<MachineProcess, ProcessConfig> = {
   },
   laser_cutting: {
     label: 'Laser cutting',
-    description: 'Mostly time tracking; sheet material in cm², customer material stays free.',
+    description: 'Mostly time tracking; sheet material in cm², recipient material stays free.',
     measures: [],
     inkGroup: false,
     areaHelper: true,

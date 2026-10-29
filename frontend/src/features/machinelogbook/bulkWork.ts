@@ -25,7 +25,7 @@ export function deleteBlocker(item: WorkItem): string | null {
   return null;
 }
 
-/** Whether deleting the item can return material to stock: own material was consumed (customer material never touched stock). */
+/** Whether deleting the item can return material to stock: own material was consumed (recipient material never touched stock). */
 export const hasBookedMaterial = (item: WorkItem) =>
   (item.consumption?.materials ?? []).some(
     (material) => material.materialTypeName !== 'External' && Number(material.quantity) > 0,

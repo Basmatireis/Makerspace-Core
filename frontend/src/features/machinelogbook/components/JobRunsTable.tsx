@@ -31,7 +31,7 @@ import {
   runConsumptionText,
   runStateNow,
 } from '../shared/status';
-import { ConsumptionHint } from '../recording/ConsumptionNotice';
+import { ConsumptionTooltip, HintTooltip } from './HintTooltip';
 import '../styles/jobs.scss';
 
 export type RunAction = 'edit' | 'usage' | 'cancel' | 'delete' | 'detach';
@@ -171,12 +171,10 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, canAttach, 
                         </div>
                       </TableCell>
                       <TableCell className="mj-hide-narrow">
-                        <div className="mj-cell-stack">
-                          <span>
-                            <RunSourceTag source={run.source} size="sm" />
-                          </span>
-                          {run.connectorName && <span className="mj-secondary">{run.connectorName}</span>}
-                        </div>
+                        <span className="mj-inline">
+                          <RunSourceTag source={run.source} size="sm" />
+                          {run.connectorName && <HintTooltip text={`Recorded via ${run.connectorName}.`} />}
+                        </span>
                       </TableCell>
                       <TableCell>
                         {isReplaced ? (
@@ -226,7 +224,7 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, canAttach, 
                         <div className="mj-cell-stack">
                           <span className="mj-inline">
                             {runConsumptionText(run)}
-                            <ConsumptionHint status={run.consumptionStatus} />
+                            <ConsumptionTooltip status={run.consumptionStatus} />
                           </span>
                           {run.usagesFromMachine && (
                             <span>

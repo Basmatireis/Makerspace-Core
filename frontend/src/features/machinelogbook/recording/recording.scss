@@ -193,6 +193,37 @@
   border-block-start: 0;
 }
 
+.facts-bar__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: $spacing-03;
+  margin: 0;
+  padding-block-end: $spacing-03;
+}
+
+.facts-bar__tile.cds--tile {
+  display: grid;
+  align-content: start;
+  gap: $spacing-02;
+  min-inline-size: 0;
+  background: theme.$layer-02;
+}
+
+.facts-bar__tile dt {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.facts-bar__tile dd {
+  margin: 0;
+  @include type-style('body-compact-01');
+}
+
+.facts-bar__tile .facts-bar__value {
+  @include type-style('productive-heading-03');
+  overflow-wrap: anywhere;
+}
+
 .facts-bar__details .mj-facts {
   padding-block-end: $spacing-03;
 }
@@ -220,6 +251,10 @@
 
 .recording-hint svg {
   fill: theme.$support-warning;
+}
+
+.recording-hint--info svg {
+  fill: theme.$icon-secondary;
 }
 
 .recording-settings {

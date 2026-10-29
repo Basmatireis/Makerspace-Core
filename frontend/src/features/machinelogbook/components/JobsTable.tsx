@@ -44,7 +44,7 @@ export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, empty
   const headers = [
     { key: 'job', header: 'Job', isSortable: true },
     ...(hideMachine ? [] : [{ key: 'machine', header: 'Machine', isSortable: true }]),
-    { key: 'customer', header: 'Customer', isSortable: true },
+    { key: 'customer', header: 'Recipient', isSortable: true },
     { key: 'status', header: 'Status', isSortable: false },
     { key: 'price', header: 'Price', isSortable: true },
   ];

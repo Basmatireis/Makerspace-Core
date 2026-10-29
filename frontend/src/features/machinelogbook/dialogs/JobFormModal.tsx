@@ -81,13 +81,13 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
     placeholderData: keepPreviousData,
   });
   const lookupFailed = parties.isError || operators.isError;
-  // A confirmed job whose customer was deleted keeps no customer unless one is chosen; everything else needs one.
+  // A confirmed job whose recipient was deleted keeps no recipient unless one is chosen; everything else needs one.
   const customerRequired = !current || !!current.customer;
   return (
     <Stack gap={6}>
       {!canLookup && (
         <p className="mj-secondary">
-          Customer and operator lookups are unavailable with your permissions. Existing assignments are kept.
+          Recipient and operator lookups are unavailable with your permissions. Existing assignments are kept.
         </p>
       )}
       {lookupFailed && (
@@ -108,7 +108,7 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
             <ComboBox
               autoAlign
               id={`${idPrefix}-customer`}
-              titleText="Customer"
+              titleText="Recipient"
               placeholder="Search people or organizations"
               disabled={!canLookup}
               items={parties.data?.items ?? (current?.customer ? [current.customer] : [])}
@@ -118,7 +118,7 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
               onInputChange={setCustomerSearch}
               onChange={({ selectedItem }) => field.onChange(selectedItem ?? null)}
               invalid={fieldState.invalid}
-              invalidText="Select a customer."
+              invalidText="Select a recipient."
             />
           )}
         />
@@ -360,9 +360,9 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
               <p>
                 {mode === 'create'
                   ? fromRun
-                    ? `The job contains ${run.displayId}: machine, start, end and material come from the machine. The price is calculated from the customer’s pricing group when saved.`
-                    : 'Use this when a machine cannot report the run. The first run is entered by hand and the job is priced from the customer’s pricing group when saved. Runs reported by the machine can be attached later.'
-                  : 'Changing customer or machine recalculates the price; existing order charges stay unchanged. Runs and their material are edited on the job page.'}
+                    ? `The job contains ${run.displayId}: machine, start, end and material come from the machine. The price is calculated from the recipient’s pricing group when saved.`
+                    : 'Use this when a machine cannot report the run. The first run is entered by hand and the job is priced from the recipient’s pricing group when saved. Runs reported by the machine can be attached later.'
+                  : 'Changing recipient or machine recalculates the price; existing order charges stay unchanged. Runs and their material are edited on the job page.'}
               </p>
               {error && (
                 <InlineNotification kind="error" lowContrast hideCloseButton title="Job not saved" subtitle={error} />
@@ -421,10 +421,10 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
                 <Select
                   id="job-form-pricing-group"
                   labelText="Pricing group (optional)"
-                  helperText="Leave empty to use the customer’s pricing group."
+                  helperText="Leave empty to use the recipient’s pricing group."
                   {...form.register('pricingGroupId')}
                 >
-                  <SelectItem value="" text="Customer’s pricing group" />
+                  <SelectItem value="" text="Recipient’s pricing group" />
                   {(pricing.data?.items ?? [])
                     .filter((group) => group.active)
                     .map((group) => (

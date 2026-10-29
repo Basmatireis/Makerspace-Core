@@ -353,6 +353,10 @@ describe('Job form', () => {
   });
 });
 
+/** The tooltip sentence a Carbon icon button is labelled by. */
+const tooltipText = (button: HTMLElement) =>
+  document.getElementById(button.getAttribute('aria-labelledby') ?? '')?.textContent ?? '';
+
 describe('Job detail page', () => {
   const editor = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit] as const;
 
@@ -390,7 +394,11 @@ describe('Job detail page', () => {
     const recordedRow = within(table).getByRole('link', { name: 'RN-2026-000007' }).closest('tr')!;
     expect(recordedRow.querySelector('a')).toHaveAttribute('href', `/machine-logbook/jobs/runs/${recordedRunId}`);
     expect(within(recordedRow).getByText('Recorded')).toBeInTheDocument();
-    expect(within(recordedRow).getByText('Bambu LAN')).toBeInTheDocument();
+    // The connector name is a tooltip on an info icon, not text under the tag.
+    expect(within(recordedRow).queryByText('Bambu LAN')).not.toBeInTheDocument();
+    expect(tooltipText(recordedRow.querySelector<HTMLElement>('.recording-hint button')!)).toBe(
+      'Recorded via Bambu LAN.',
+    );
     expect(within(recordedRow).getAllByText('From machine')).toHaveLength(2);
     // The replaced run is history: hidden until asked for, and then muted with a Replaced tag.
     expect(within(table).queryByText('RN-2026-000002')).not.toBeInTheDocument();
@@ -399,9 +407,37 @@ describe('Job detail page', () => {
     expect(replacedRow).toHaveClass('mj-run-row--replaced');
     expect(within(replacedRow).getByText('Replaced')).toBeInTheDocument();
     expect(replacedRow.querySelector('.cds--overflow-menu')).toBeNull();
+    // Facts: the metric tiles read Start, Runtime, Material, Recipient; the outcome sits in the details.
+    const metricLabels = [...document.querySelectorAll('.facts-bar__metric dt')].map((node) => node.textContent);
+    expect(metricLabels).toEqual(['Start', 'Runtime', 'Material', 'Recipient']);
+    expect(screen.queryByText('Outcome', { selector: '.facts-bar__metric dt' })).not.toBeInTheDocument();
     // Facts: the runtime is the sum of the runs that count, the replaced one is not included.
     expect(screen.getByText('Runtime', { selector: 'dt' }).nextSibling).toHaveTextContent('2 h 30 min');
-    expect(screen.getByText('Runs', { selector: 'dt' }).nextSibling).toHaveTextContent(/^2.*1 replaced/);
+    expect(screen.getByText('Runs', { selector: 'dt' }).parentElement).toHaveTextContent(/Runs2.*1 replaced/);
+  });
+
+  it('explains a run without recorded material in a tooltip instead of text under the value', async () => {
+    const recorded = recordedRun({
+      job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' },
+      usages: [],
+      consumptionStatus: { state: 'pending', reason: 'artifact_on_internal_storage', detail: null },
+    });
+    server.use(
+      as(...editor),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [recorded] }))),
+      noUnassignedRuns,
+    );
+    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    const table = await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
+    const row = within(table).getByRole('link', { name: 'RN-2026-000007' }).closest('tr')!;
+    // The cell shows the value and an icon button; the sentence is the button's tooltip, reachable by hover and focus.
+    const hint = [...row.querySelectorAll<HTMLElement>('.recording-hint button')].at(-1)!;
+    expect(hint).not.toBeNull();
+    expect(tooltipText(hint)).toMatch(/Print file on the printer’s internal storage\..*Upload it on the run page/);
+    expect(row.querySelector('.cds--toggletip-button')).toBeNull();
+    await userEvent.setup().tab();
+    hint.focus();
+    expect(hint).toHaveFocus();
   });
 
   it('shows a running manual run and cancels it with the version of the run', async () => {

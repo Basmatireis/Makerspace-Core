@@ -24,7 +24,7 @@ import { useNotify } from '../shared/toasts';
 import { BulkError } from './BulkError';
 
 const jobLabel = (job: WorkItem) =>
-  `${job.displayId}${job.title ? ` ${job.title}` : ''} · ${job.customer?.displayName ?? 'No customer'} · started ${formatRelative(job.startedAt)} · ${plural(job.runCount, 'run')}`;
+  `${job.displayId}${job.title ? ` ${job.title}` : ''} · ${job.customer?.displayName ?? 'No recipient'} · started ${formatRelative(job.startedAt)} · ${plural(job.runCount, 'run')}`;
 
 type Props = { open: boolean; onClose: () => void; runs: WorkItem[]; onDone: () => void };
 
