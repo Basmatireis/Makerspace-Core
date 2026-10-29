@@ -237,7 +237,8 @@ func TestSubjectRequestsOverHTTP(t *testing.T) {
 		!strings.Contains(entries["data/attendance.visits.json"], `"status": "checked_out"`) ||
 		!strings.Contains(entries["data/trainings.records.json"], "Laser cutter") ||
 		!strings.Contains(entries["data/orders.financial_records.json"], "O-2026-") ||
-		strings.Contains(entries["data/accounts.credentials.json"], "integration-test-hash") {
+		strings.Contains(entries["data/accounts.credentials.json"], "integration-test-hash") ||
+		!strings.HasPrefix(entries["data/people.identity.json"], "{\n  ") && !strings.HasPrefix(entries["data/people.identity.json"], "[\n  ") {
 		t.Fatalf("archive entries = %v", entries)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='privacy.subject_request_export_downloaded' AND resource_id=$1`, 1, request.ID)

@@ -294,7 +294,11 @@ func (s *Service) export(
 			return Assessment{}, nil, fmt.Errorf("export %s: %w", definition.ID, err)
 		}
 		entry := manifestSection{CategoryID: definition.ID, Name: definition.Name, Records: section.Records, File: "data/" + string(definition.ID) + ".json"}
-		if err := writeEntry(archive, entry.File, section.JSON); err != nil {
+		pretty, err := indentJSON(section.JSON)
+		if err != nil {
+			return Assessment{}, nil, fmt.Errorf("export %s: %w", definition.ID, err)
+		}
+		if err := writeEntry(archive, entry.File, pretty); err != nil {
 			return Assessment{}, nil, err
 		}
 		for _, file := range section.Files {
@@ -339,6 +343,16 @@ func (s *Service) export(
 
 func exportFilename(current requestsdb.PrivacySubjectRequest) string {
 	return "subject-request-" + current.ID.String() + ".zip"
+}
+
+// indentJSON re-indents a handler's document so the files of an export read well in a text editor.
+func indentJSON(raw []byte) ([]byte, error) {
+	var buffer bytes.Buffer
+	if err := json.Indent(&buffer, raw, "", "  "); err != nil {
+		return nil, err
+	}
+	buffer.WriteByte('\n')
+	return buffer.Bytes(), nil
 }
 
 func writeEntry(archive *zip.Writer, name string, content []byte) error {
