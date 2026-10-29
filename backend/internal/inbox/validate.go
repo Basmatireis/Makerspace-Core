@@ -96,7 +96,7 @@ func looksLikeHost(link string) bool {
 		return false
 	}
 	for _, r := range host {
-		if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '-' || r == '.') {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '-' && r != '.' {
 			return false
 		}
 	}
