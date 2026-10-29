@@ -3,7 +3,7 @@ import type { SignagePlayerLive } from '../api/generated/models';
 import type { RenderMachine } from '../features/signage/render/types';
 
 /**
- * Where camera pictures come from. `cameraManager.tsx` supplies the WebRTC/MSE implementation fed by the stream tickets
+ * Where camera pictures come from. `cameraManager.tsx` supplies the MSE implementation fed by the stream paths
  * in the live data; `noCameraSource` (no machine has a stream) makes camera widgets show their configured fallback.
  */
 export interface CameraSource {
@@ -11,11 +11,11 @@ export interface CameraSource {
   hasStream(machineId: string): boolean;
   /** The picture to show inside the camera frame; null keeps the neutral frame. */
   view(machine: RenderMachine): ReactNode;
-  /** Receives the streams of every live poll (tickets are refreshed this way). */
+  /** Receives the streams of every live poll; a stream that is listed again after Core closed it as forbidden is tried once more. */
   setStreams?(streams: LiveStreams): void;
   /** Called when the availability of a picture changed, so the view can be resolved again. */
   subscribe?(listener: () => void): () => void;
-  /** Where problems go (they reach the display's heartbeat); never contains tickets. */
+  /** Where problems go (they reach the display's heartbeat); never contains URLs. */
   setErrorSink?(sink: (message: string) => void): void;
   /** Closes every connection (the source stays usable). */
   dispose?(): void;

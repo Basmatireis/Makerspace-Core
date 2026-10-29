@@ -95,6 +95,29 @@ describe('Connectors tab', () => {
     );
   });
 
+  it('shows the camera relay health and viewer count of assignments that stream', async () => {
+    setup(READ, {
+      assignments: [
+        assignmentOf({
+          cameraStreaming: true,
+          camera: { health: 'live', viewers: 2, reportedAt: now },
+        }),
+      ],
+    });
+    renderPage('/settings/local-services?tab=connectors');
+    const table = await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
+    expect(await within(table).findByText('Camera: live')).toBeInTheDocument();
+    expect(within(table).getByText('2 viewers')).toBeInTheDocument();
+  });
+
+  it('shows no camera tag for assignments without camera streaming', async () => {
+    setup(READ);
+    renderPage('/settings/local-services?tab=connectors');
+    const table = await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
+    await within(table).findByRole('link', { name: 'Bambu H2D' });
+    expect(within(table).queryByText(/^Camera:/)).not.toBeInTheDocument();
+  });
+
   it('hides management actions without printer_connectors.manage and credentials.manage', async () => {
     setup(READ, { connectors: [connectorOf({ lifecycle: 'pending' })] });
     const user = userEvent.setup();

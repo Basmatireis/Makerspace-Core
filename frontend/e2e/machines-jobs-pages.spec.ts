@@ -422,7 +422,7 @@ test.describe('role without job access', () => {
 
 test.describe('printer connectors under Settings, Local services', () => {
   test.use({
-    userPermissions: ['machines.read', 'printer_connectors.read', 'printer_connectors.manage', 'local_services.manage'],
+    userPermissions: ['machines.read', 'printer_connectors.read', 'printer_connectors.manage'],
   });
 
   test('the former Connectors tab leads there, and the page passes axe and fits a phone', async ({ page, world }) => {

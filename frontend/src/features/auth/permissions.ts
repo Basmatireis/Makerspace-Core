@@ -87,7 +87,6 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   'invoicing.settings.manage',
   'configuration.export',
   'configuration.import',
-  'local_services.manage',
   'printer_connectors.read',
   'open_days.manage',
   'trainings.manage',

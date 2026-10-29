@@ -21,7 +21,6 @@ import {
   EventsPage,
   ExternalInvoiceRedirect,
   FilamentSpoolDetailPage,
-  GatewayDetailPage,
   InventoryPage,
   InvitationPage,
   InvoicingSettingsPage,
@@ -448,16 +447,8 @@ export function App() {
             <Route
               path="settings/local-services"
               element={
-                <PermissionRoute anyOf={['local_services.manage', 'printer_connectors.read']}>
+                <PermissionRoute allOf={['printer_connectors.read']}>
                   <LocalServicesPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="settings/local-services/:gatewayId"
-              element={
-                <PermissionRoute allOf={['local_services.manage']}>
-                  <GatewayDetailPage />
                 </PermissionRoute>
               }
             />

@@ -21,6 +21,8 @@ export type SetupValues = {
   /** Write-only: the API never returns the LAN access code, so this is empty unless the user types a new one. */
   accessCode: string;
   autoMountRfid: boolean;
+  /** Relay the printer's camera to signage players (Bambu adapters only). */
+  cameraStreaming: boolean;
 };
 
 export type SetupForm = UseFormReturn<SetupValues>;

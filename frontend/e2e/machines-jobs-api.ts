@@ -1140,9 +1140,6 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       });
     if (path.match(/^\/api\/v1\/printer-connectors\/[^/]+\/assignments$/) && method === 'GET')
       return ok(route, { items: [] });
-    if (path === '/api/v1/streaming-gateways' && method === 'GET')
-      return ok(route, { items: [], coreVersion: '0.8.3' });
-    if (path === '/api/v1/local-services/cameras' && method === 'GET') return ok(route, { items: [] });
     if (path.match(/^\/api\/v1\/machines\/([^/]+)\/printer\/setup$/) && method === 'PUT')
       return ok(route, { ...world.printerProfile, version: world.printerProfile.version + 1 });
     if ((match = path.match(/^\/api\/v1\/machines\/([^/]+)\/printer$/))) {

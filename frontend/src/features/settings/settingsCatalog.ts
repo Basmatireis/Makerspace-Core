@@ -186,11 +186,11 @@ export const settingsItems: readonly SettingsItem[] = [
   {
     id: 'local-services',
     group: 'local-services',
-    title: 'Printer connectors & streaming gateways',
-    description: 'Connectors, gateways and their versions and updates.',
+    title: 'Printer connectors',
+    description: 'Connectors with their printers and cameras, and their versions and updates.',
     path: '/settings/local-services',
     icon: VideoChat,
-    permissions: [PermissionId.local_servicesmanage, PermissionId.printer_connectorsread],
+    permissions: [PermissionId.printer_connectorsread],
   },
   {
     id: 'configuration-transfer',

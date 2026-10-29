@@ -18,3 +18,7 @@ export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     signal?.addEventListener('abort', done, { once: true });
   });
 }
+
+/** `backoffMs` spread by up to 20 % downwards, so viewers that lost the same connection do not retry in lockstep. */
+export const jitteredBackoffMs = (attempt: number, base: number, max: number, random: () => number = Math.random) =>
+  Math.round(backoffMs(attempt, base, max) * (0.8 + 0.2 * random()));

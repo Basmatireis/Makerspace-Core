@@ -12,6 +12,7 @@ import {
   Stack,
   TextInput,
   TileGroup,
+  Toggle,
 } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Controller, useWatch } from 'react-hook-form';
@@ -246,6 +247,26 @@ export function ConnectionStep({
                     checked={field.value}
                     onChange={(_event, { checked }) => field.onChange(checked)}
                   />
+                )}
+              />
+              <Controller
+                control={control}
+                name="cameraStreaming"
+                render={({ field }) => (
+                  <div>
+                    <Toggle
+                      id="setup-camera"
+                      labelText="Stream camera"
+                      labelA="Off"
+                      labelB="On"
+                      toggled={field.value}
+                      onToggle={(checked) => field.onChange(checked)}
+                    />
+                    <p className="mj-secondary">
+                      Relays the printer's camera through the connector to signage players that show it. Nothing is
+                      recorded.
+                    </p>
+                  </div>
                 )}
               />
             </>

@@ -6,50 +6,13 @@ import type { StreamEnv } from './stream';
 
 const MACHINE = '0192f6f8-743e-7c77-a349-cd07c3e8a201';
 const OTHER = '0192f6f8-743e-7c77-a349-cd07c3e8a202';
-
-class FakePeer {
-  static all: FakePeer[] = [];
-  static autoConnect = true;
-  connectionState = 'new';
-  iceGatheringState = 'complete';
-  localDescription = { sdp: 'v=0 offer' };
-  ontrack: ((event: unknown) => void) | null = null;
-  onconnectionstatechange: (() => void) | null = null;
-  closed = false;
-  stream = { id: 'stream' };
-  constructor() {
-    FakePeer.all.push(this);
-  }
-  addEventListener() {}
-  removeEventListener() {}
-  addTransceiver() {}
-  async createOffer() {
-    return { type: 'offer', sdp: 'v=0 offer' };
-  }
-  async setLocalDescription() {}
-  async setRemoteDescription() {
-    if (FakePeer.autoConnect) this.up();
-  }
-  up() {
-    this.ontrack?.({ streams: [this.stream], track: {} });
-    this.connectionState = 'connected';
-    this.onconnectionstatechange?.();
-  }
-  drop() {
-    this.connectionState = 'failed';
-    this.onconnectionstatechange?.();
-  }
-  close() {
-    this.closed = true;
-  }
-}
+const MIME = 'video/mp4; codecs="avc1.640029"';
 
 class FakeSocket {
   static all: FakeSocket[] = [];
   binaryType = '';
   onopen: (() => void) | null = null;
-  onclose: (() => void) | null = null;
-  onerror: (() => void) | null = null;
+  onclose: ((event: { code: number }) => void) | null = null;
   onmessage: ((event: { data: unknown }) => void) | null = null;
   sent: string[] = [];
   closed = false;
@@ -64,6 +27,10 @@ class FakeSocket {
   }
   receive(data: unknown) {
     this.onmessage?.({ data });
+  }
+  /** The peer ends the connection with a close code. */
+  end(code: number) {
+    this.onclose?.({ code });
   }
 }
 
@@ -99,43 +66,36 @@ class FakeMediaSource {
   endOfStream() {}
 }
 
-type FetchPlan = { status: number };
-let fetchPlan: FetchPlan = { status: 200 };
-const fetchCalls: { url: string; body: string }[] = [];
-const fakeFetch = (async (url: string, init: RequestInit) => {
-  fetchCalls.push({ url: String(url), body: String(init.body) });
-  return { status: fetchPlan.status, ok: fetchPlan.status < 300, text: async () => 'v=0 answer' } as Response;
-}) as unknown as typeof fetch;
-
 const env: StreamEnv = {
-  RTCPeerConnection: FakePeer as unknown as typeof RTCPeerConnection,
   WebSocket: FakeSocket as unknown as typeof WebSocket,
   MediaSource: FakeMediaSource as unknown as typeof MediaSource,
-  fetch: fakeFetch,
+  location: { protocol: 'https:', host: 'makerspace.example.org' },
 };
 
-const stream = (machineId = MACHINE, ticket = 'ticket-1'): LiveStreams[number] =>
-  ({
-    machineId,
-    ticket,
-    expiresAt: new Date(Date.now() + 300_000).toISOString(),
-    webrtcUrl: `https://gw.example.org:8443/api/webrtc?src=cam-${machineId}`,
-    mseUrl: `wss://gw.example.org:8443/api/ws?src=cam-${machineId}`,
-  }) as LiveStreams[number];
+const stream = (machineId = MACHINE): LiveStreams[number] => ({
+  machineId,
+  path: `/api/v1/signage/player/cameras/${machineId}/stream`,
+});
 
 const settle = (ms = 0) =>
   act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
   });
 
+/** Plays the go2rtc side of the handshake: the mime text frame, then the initialisation segment. */
+const goLive = async (socket: FakeSocket) => {
+  socket.onopen?.();
+  socket.receive(JSON.stringify({ type: 'mse', value: MIME }));
+  socket.receive(new ArrayBuffer(8));
+  await settle();
+};
+
 describe('CameraManager', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
-    FakePeer.all = [];
-    FakePeer.autoConnect = true;
+    // Backoff without jitter: the full delay.
+    vi.spyOn(Math, 'random').mockReturnValue(1);
     FakeSocket.all = [];
-    fetchCalls.length = 0;
-    fetchPlan = { status: 200 };
     vi.stubGlobal(
       'URL',
       Object.assign(URL, { createObjectURL: () => 'blob:camera', revokeObjectURL: () => undefined }),
@@ -144,10 +104,11 @@ describe('CameraManager', () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
-  it('offers no stream for a machine without a ticket', () => {
+  it('offers no stream for a machine Core does not list', () => {
     const manager = new CameraManager({ env });
     expect(manager.hasStream(MACHINE)).toBe(false);
     manager.setStreams([stream()]);
@@ -156,7 +117,7 @@ describe('CameraManager', () => {
     expect(manager.hasStream(MACHINE)).toBe(false);
   });
 
-  it('connects over WebRTC with the ticket as query parameter and shows the stream muted and inline', async () => {
+  it('connects a same-origin websocket to the listed path and shows the stream muted and inline', async () => {
     const manager = new CameraManager({ env });
     manager.setStreams([stream()]);
     const view = render(
@@ -172,80 +133,65 @@ describe('CameraManager', () => {
       </>,
     );
     await settle();
-    expect(fetchCalls).toHaveLength(1);
-    const url = new URL(fetchCalls[0].url);
-    expect(url.searchParams.get('src')).toBe(`cam-${MACHINE}`);
-    expect(url.searchParams.get('ticket')).toBe('ticket-1');
-    expect(fetchCalls[0].body).toBe('v=0 offer');
+    expect(FakeSocket.all).toHaveLength(1);
+    const socket = FakeSocket.all[0];
+    expect(socket.url).toBe(`wss://makerspace.example.org/api/v1/signage/player/cameras/${MACHINE}/stream`);
+    expect(socket.binaryType).toBe('arraybuffer');
+    socket.onopen?.();
+    expect(JSON.parse(socket.sent[0])).toEqual({ type: 'mse', value: 'avc1.640029' });
+    expect(manager.feed(MACHINE)).toBeNull();
+    await goLive(socket);
     const video = view.container.querySelector('video')!;
     expect(video.muted).toBe(true);
     expect(video.hasAttribute('playsinline')).toBe(true);
     expect(video.autoplay).toBe(true);
-    expect(video.srcObject).toBe(FakePeer.all[0].stream);
-    expect(manager.hasStream(MACHINE)).toBe(true);
+    expect(manager.feed(MACHINE)).not.toBeNull();
     view.unmount();
     manager.dispose();
   });
 
-  it('falls back to MSE over the websocket when WebRTC signalling fails', async () => {
-    fetchPlan = { status: 502 };
+  it('feeds the initialisation segment and later fragments into the video element', async () => {
     const manager = new CameraManager({ env });
     manager.setStreams([stream()]);
     const release = manager.acquire(MACHINE);
     await settle();
-    expect(FakeSocket.all).toHaveLength(1);
     const socket = FakeSocket.all[0];
-    expect(new URL(socket.url).searchParams.get('ticket')).toBe('ticket-1');
     socket.onopen?.();
-    expect(JSON.parse(socket.sent[0])).toEqual({ type: 'mse', value: 'avc1.640029' });
-    expect(manager.feed(MACHINE)).toBeNull();
-    socket.receive(JSON.stringify({ type: 'mse', value: 'video/mp4; codecs="avc1.640029"' }));
+    socket.receive(JSON.stringify({ type: 'mse', value: MIME }));
     const init = new ArrayBuffer(8);
     socket.receive(init);
     await settle();
-    const feed = manager.feed(MACHINE);
-    expect(feed).not.toBeNull();
-    const video = document.createElement('video');
-    const detach = feed!.attach(video);
+    const detach = manager.feed(MACHINE)!.attach(document.createElement('video'));
     FakeMediaSource.last!.open();
     expect(FakeMediaSource.last!.buffer.appended).toEqual([init]);
-    socket.receive(new ArrayBuffer(4));
+    const fragment = new ArrayBuffer(4);
+    socket.receive(fragment);
+    expect(FakeMediaSource.last!.buffer.appended).toEqual([init, fragment]);
     detach();
     release();
     manager.dispose();
   });
 
-  it('falls back to MSE when WebRTC does not come up within its budget', async () => {
-    FakePeer.autoConnect = false;
-    const manager = new CameraManager({ env });
-    manager.setStreams([stream()]);
-    manager.acquire(MACHINE);
-    await settle(4_100);
-    expect(FakePeer.all[0].closed).toBe(true);
-    expect(FakeSocket.all).toHaveLength(1);
-    manager.dispose();
-  });
-
-  it('reports a camera that shows nothing within 8 seconds, without the ticket, and tries again later', async () => {
-    fetchPlan = { status: 502 };
+  it('reports a camera that shows nothing within 8 seconds, without the path, and tries again later', async () => {
     const reports: string[] = [];
     const manager = new CameraManager({ env });
     manager.setErrorSink((message) => reports.push(message));
-    manager.setStreams([stream(MACHINE, 'secret-ticket')]);
+    manager.setStreams([stream()]);
     const release = manager.acquire(MACHINE);
     await settle(STREAM_DEADLINE_MS + 100);
     expect(manager.hasStream(MACHINE)).toBe(false);
     expect(reports).toHaveLength(1);
     expect(reports[0]).toContain('unavailable');
-    expect(reports[0]).not.toContain('secret-ticket');
-    expect(reports[0]).not.toContain('gw.example.org');
+    expect(reports[0]).not.toContain('/api/');
+    expect(reports[0]).not.toContain('makerspace.example.org');
     release(); // the tile is gone while the fallback shows
-    await settle(15_100);
+    await settle(1_100);
     expect(manager.hasStream(MACHINE)).toBe(true);
-    FakePeer.all = [];
-    fetchPlan = { status: 200 };
+    const sockets = FakeSocket.all.length;
     manager.acquire(MACHINE); // the tile mounts again
     await settle();
+    expect(FakeSocket.all.length).toBe(sockets + 1);
+    await goLive(FakeSocket.all[sockets]);
     expect(manager.feed(MACHINE)).not.toBeNull();
     manager.dispose();
   });
@@ -256,91 +202,139 @@ describe('CameraManager', () => {
     const first = manager.acquire(MACHINE);
     const second = manager.acquire(MACHINE);
     await settle();
-    expect(FakePeer.all).toHaveLength(1);
+    await goLive(FakeSocket.all[0]);
+    expect(FakeSocket.all).toHaveLength(1);
     first();
     await settle(IDLE_GRACE_MS + 100);
-    expect(FakePeer.all[0].closed).toBe(false);
+    expect(FakeSocket.all[0].closed).toBe(false);
     second();
     await settle(IDLE_GRACE_MS - 100);
-    expect(FakePeer.all[0].closed).toBe(false); // still within the grace period
+    expect(FakeSocket.all[0].closed).toBe(false); // still within the grace period
     await settle(200);
-    expect(FakePeer.all[0].closed).toBe(true);
+    expect(FakeSocket.all[0].closed).toBe(true);
     expect(manager.feed(MACHINE)).toBeNull();
     // A tile coming back reconnects.
     manager.acquire(MACHINE);
     await settle();
-    expect(FakePeer.all).toHaveLength(2);
+    expect(FakeSocket.all).toHaveLength(2);
     manager.dispose();
   });
 
-  it('closes a connection when Core stops offering the stream', async () => {
+  it('closes a connection when Core stops listing the stream', async () => {
     const manager = new CameraManager({ env });
     manager.setStreams([stream(), stream(OTHER)]);
     manager.acquire(MACHINE);
     await settle();
+    await goLive(FakeSocket.all[0]);
     manager.setStreams([stream(OTHER)]);
-    expect(FakePeer.all[0].closed).toBe(true);
+    expect(FakeSocket.all[0].closed).toBe(true);
     expect(manager.hasStream(MACHINE)).toBe(false);
     manager.dispose();
   });
 
-  it('keeps a healthy stream when a new ticket arrives and reconnects with the newest one after a drop', async () => {
+  it('keeps a healthy stream across live polls', async () => {
     const manager = new CameraManager({ env });
-    manager.setStreams([stream(MACHINE, 'ticket-1')]);
+    manager.setStreams([stream()]);
     manager.acquire(MACHINE);
     await settle();
-    manager.setStreams([stream(MACHINE, 'ticket-2')]);
-    await settle(1_000);
-    expect(FakePeer.all).toHaveLength(1);
-    expect(FakePeer.all[0].closed).toBe(false);
-    FakePeer.all[0].drop();
-    await settle(1_100);
-    expect(FakePeer.all).toHaveLength(2);
-    expect(new URL(fetchCalls[1].url).searchParams.get('ticket')).toBe('ticket-2');
+    await goLive(FakeSocket.all[0]);
+    manager.setStreams([stream()]);
+    await settle(2_000);
+    expect(FakeSocket.all).toHaveLength(1);
+    expect(FakeSocket.all[0].closed).toBe(false);
     expect(manager.feed(MACHINE)).not.toBeNull();
     manager.dispose();
   });
 
-  it('does not retry a refused ticket until live data brings a new one', async () => {
-    fetchPlan = { status: 401 };
+  it('reconnects a lost connection with exponential backoff without showing the fallback', async () => {
     const manager = new CameraManager({ env });
-    manager.setStreams([stream(MACHINE, 'old')]);
-    manager.acquire(MACHINE);
-    await settle(3_000);
-    expect(fetchCalls).toHaveLength(1);
-    expect(FakeSocket.all).toHaveLength(0); // MSE would use the same ticket
-    fetchPlan = { status: 200 };
-    manager.setStreams([stream(MACHINE, 'new')]);
-    await settle();
-    expect(fetchCalls).toHaveLength(2);
-    expect(new URL(fetchCalls[1].url).searchParams.get('ticket')).toBe('new');
-    expect(manager.feed(MACHINE)).not.toBeNull();
-    manager.dispose();
-  });
-
-  it('reconnects an MSE stream closed by the gateway with the newest ticket, without showing the fallback', async () => {
-    fetchPlan = { status: 502 };
-    const manager = new CameraManager({ env });
-    manager.setStreams([stream(MACHINE, 'ticket-1')]);
+    manager.setStreams([stream()]);
     manager.acquire(MACHINE);
     await settle();
-    const first = FakeSocket.all[0];
-    first.receive(JSON.stringify({ type: 'mse', value: 'video/mp4; codecs="avc1.640029"' }));
-    first.receive(new ArrayBuffer(8));
+    await goLive(FakeSocket.all[0]);
+    FakeSocket.all[0].end(1006);
     await settle();
-    expect(manager.feed(MACHINE)).not.toBeNull();
-    manager.setStreams([stream(MACHINE, 'ticket-2')]); // arrives with the next live poll; the healthy stream stays
-    expect(first.closed).toBe(false);
-    first.onclose?.(); // the gateway closes the websocket when the ticket expires
-    await settle(0);
     expect(manager.hasStream(MACHINE)).toBe(true);
-    await settle(1_100);
-    const second = FakeSocket.all[1];
-    expect(new URL(second.url).searchParams.get('ticket')).toBe('ticket-2');
-    second.receive(JSON.stringify({ type: 'mse', value: 'video/mp4; codecs="avc1.640029"' }));
-    second.receive(new ArrayBuffer(8));
-    await settle();
+    expect(manager.feed(MACHINE)).toBeNull();
+    await settle(900);
+    expect(FakeSocket.all).toHaveLength(1);
+    await settle(200); // 1 s
+    expect(FakeSocket.all).toHaveLength(2);
+    FakeSocket.all[1].end(1006); // the second attempt fails as well
+    await settle(1_900);
+    expect(FakeSocket.all).toHaveLength(2);
+    await settle(200); // 2 s
+    expect(FakeSocket.all).toHaveLength(3);
+    await goLive(FakeSocket.all[2]);
     expect(manager.feed(MACHINE)).not.toBeNull();
+    // A healthy connection starts the backoff over.
+    FakeSocket.all[2].end(1006);
+    await settle(1_100);
+    expect(FakeSocket.all).toHaveLength(4);
+    manager.dispose();
+  });
+
+  it('retries with backoff when the local service is offline (4503)', async () => {
+    const manager = new CameraManager({ env });
+    manager.setStreams([stream()]);
+    manager.acquire(MACHINE);
+    await settle();
+    await goLive(FakeSocket.all[0]);
+    FakeSocket.all[0].end(4503);
+    await settle(1_100);
+    expect(manager.hasStream(MACHINE)).toBe(true);
+    expect(FakeSocket.all).toHaveLength(2);
+    manager.dispose();
+  });
+
+  it.each([4403, 4404])(
+    'stops on close code %i and shows the fallback until a live poll lists the stream again',
+    async (code) => {
+      const reports: string[] = [];
+      const manager = new CameraManager({ env });
+      manager.setErrorSink((message) => reports.push(message));
+      manager.setStreams([stream()]);
+      manager.acquire(MACHINE);
+      await settle();
+      await goLive(FakeSocket.all[0]);
+      FakeSocket.all[0].end(code);
+      await settle();
+      expect(manager.hasStream(MACHINE)).toBe(false);
+      expect(manager.feed(MACHINE)).toBeNull();
+      expect(reports).toHaveLength(1);
+      expect(reports[0]).not.toContain('/api/');
+      await settle(10 * 60_000);
+      expect(FakeSocket.all).toHaveLength(1); // neither a retry nor a revive
+      expect(manager.hasStream(MACHINE)).toBe(false);
+
+      manager.setStreams([stream()]); // the next live poll still lists it
+      expect(manager.hasStream(MACHINE)).toBe(true);
+      await settle();
+      expect(FakeSocket.all).toHaveLength(2);
+      await goLive(FakeSocket.all[1]);
+      expect(manager.feed(MACHINE)).not.toBeNull();
+      manager.dispose();
+    },
+  );
+
+  it('stops on 4403 before the first picture as well', async () => {
+    const manager = new CameraManager({ env });
+    manager.setStreams([stream()]);
+    manager.acquire(MACHINE);
+    await settle();
+    FakeSocket.all[0].end(4403);
+    await settle(60_000);
+    expect(manager.hasStream(MACHINE)).toBe(false);
+    expect(FakeSocket.all).toHaveLength(1);
+    manager.dispose();
+  });
+
+  it('builds the websocket URL from the page protocol', async () => {
+    const manager = new CameraManager({ env: { ...env, location: { protocol: 'http:', host: 'localhost:5173' } } });
+    manager.setStreams([stream()]);
+    manager.acquire(MACHINE);
+    await settle();
+    expect(FakeSocket.all[0].url).toBe(`ws://localhost:5173/api/v1/signage/player/cameras/${MACHINE}/stream`);
     manager.dispose();
   });
 });

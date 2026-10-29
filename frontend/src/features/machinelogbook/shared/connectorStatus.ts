@@ -1,4 +1,4 @@
-import type { PrinterConnector } from '../../../api/generated/models';
+import type { PrinterConnector, PrinterConnectorAssignmentCamera } from '../../../api/generated/models';
 
 export type ConnectorStatus = {
   label: 'Connected' | 'Disconnected' | 'Degraded' | 'Disabled' | 'Never connected' | 'Pending' | 'Revoked';
@@ -24,3 +24,24 @@ export function connectorStatus(connector: PrinterConnector, now = Date.now()): 
 export function ageSeconds(iso: string, now = Date.now()) {
   return Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
 }
+
+export type CameraStatus = {
+  label: 'Live' | 'Idle' | 'Unavailable' | 'Unknown';
+  type: 'green' | 'blue' | 'red' | 'warm-gray';
+};
+
+/** Health of an assignment's camera relay as reported by the connector; `unknown` also covers a stale report. */
+export function cameraStatus(camera: PrinterConnectorAssignmentCamera): CameraStatus {
+  switch (camera.health) {
+    case 'live':
+      return { label: 'Live', type: 'green' };
+    case 'idle':
+      return { label: 'Idle', type: 'blue' };
+    case 'unavailable':
+      return { label: 'Unavailable', type: 'red' };
+    default:
+      return { label: 'Unknown', type: 'warm-gray' };
+  }
+}
+
+export const viewerText = (viewers: number) => `${viewers} ${viewers === 1 ? 'viewer' : 'viewers'}`;

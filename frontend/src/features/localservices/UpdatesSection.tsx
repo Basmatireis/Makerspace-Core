@@ -15,18 +15,13 @@ import {
   Tag,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { requestStreamingGatewayUpdate } from '../../api/generated/local-services/local-services';
 import type { LocalServiceUpdate } from '../../api/generated/models';
 import { requestPrinterConnectorUpdate } from '../../api/generated/printer-connectors/printer-connectors';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { connectorKeys, connectorsQuery } from '../machinelogbook/connectorQueries';
 import { dateOrDash, errorText, isNewerRelease, isRelease } from './helpers';
-import { gatewaysQuery, localServiceKeys } from './queries';
-
-type ServiceKind = 'connector' | 'gateway';
 
 type ServiceRow = {
-  kind: ServiceKind;
   id: string;
   name: string;
   active: boolean;
@@ -34,8 +29,6 @@ type ServiceRow = {
   updaterAvailable: boolean;
   update: LocalServiceUpdate | null;
 };
-
-const kindLabels: Record<ServiceKind, string> = { connector: 'Printer connector', gateway: 'Streaming gateway' };
 
 const statusLabels: Record<LocalServiceUpdate['status'], { label: string; type: 'blue' | 'green' | 'red' | 'gray' }> = {
   requested: { label: 'Update requested', type: 'blue' },
@@ -67,78 +60,44 @@ function manualCommand(version: string) {
 }
 
 /**
- * Versions of all connectors and gateways the user can see, compared with Core's version, and the
- * update requests for the services that run the optional updater sidecar.
+ * Versions of all printer connectors the user can see, compared with Core's version, and the update requests for the
+ * connectors that run the optional updater sidecar. A connector bundle contains the camera relay too.
  */
-export function UpdatesSection({
-  canReadConnectors,
-  canManageConnectors,
-  canManageGateways,
-}: {
-  canReadConnectors: boolean;
-  canManageConnectors: boolean;
-  canManageGateways: boolean;
-}) {
+export function UpdatesSection({ canManageConnectors }: { canManageConnectors: boolean }) {
   const queryClient = useQueryClient();
-  const connectors = useQuery({ ...connectorsQuery(), enabled: canReadConnectors, refetchInterval: 10_000 });
-  const gateways = useQuery({ ...gatewaysQuery(), enabled: canManageGateways });
+  const connectors = useQuery({ ...connectorsQuery(), refetchInterval: 10_000 });
   const [confirming, setConfirming] = useState<ServiceRow | null>(null);
-  const coreVersion = connectors.data?.coreVersion ?? gateways.data?.coreVersion ?? null;
+  const coreVersion = connectors.data?.coreVersion ?? null;
   const request = useMutation({
-    mutationFn: async ({ row, version }: { row: ServiceRow; version: string }): Promise<void> => {
-      if (row.kind === 'connector') await requestPrinterConnectorUpdate(row.id, { targetVersion: version });
-      else await requestStreamingGatewayUpdate(row.id, { targetVersion: version });
-    },
+    mutationFn: ({ row, version }: { row: ServiceRow; version: string }) =>
+      requestPrinterConnectorUpdate(row.id, { targetVersion: version }),
     onSuccess: async () => {
       setConfirming(null);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: connectorKeys.all }),
-        queryClient.invalidateQueries({ queryKey: localServiceKeys.all }),
-      ]);
+      await queryClient.invalidateQueries({ queryKey: connectorKeys.all });
     },
   });
 
-  const pending = (canReadConnectors && connectors.isPending) || (canManageGateways && gateways.isPending);
-  const failed = (canReadConnectors && connectors.isError) || (canManageGateways && gateways.isError);
-  if (pending) return <InlineLoadingState label="Loading versions" />;
-  if (failed) {
+  if (connectors.isPending) return <InlineLoadingState label="Loading versions" />;
+  if (connectors.isError) {
     return (
       <ErrorState
-        message="The versions of the local services could not be loaded."
-        onRetry={() => {
-          if (canReadConnectors) void connectors.refetch();
-          if (canManageGateways) void gateways.refetch();
-        }}
+        message="The versions of the printer connectors could not be loaded."
+        onRetry={() => void connectors.refetch()}
       />
     );
   }
 
-  const rows: ServiceRow[] = [
-    ...(connectors.data?.items ?? [])
-      .filter((item) => item.lifecycle !== 'revoked')
-      .map((item) => ({
-        kind: 'connector' as const,
-        id: item.id,
-        name: item.name,
-        active: item.lifecycle === 'active',
-        running: item.softwareVersion,
-        updaterAvailable: item.updaterAvailable,
-        update: item.update,
-      })),
-    ...(gateways.data?.items ?? [])
-      .filter((item) => item.lifecycle !== 'revoked')
-      .map((item) => ({
-        kind: 'gateway' as const,
-        id: item.id,
-        name: item.name,
-        active: item.lifecycle === 'active',
-        running: item.softwareVersion,
-        updaterAvailable: item.updaterAvailable,
-        update: item.update,
-      })),
-  ];
+  const rows: ServiceRow[] = connectors.data.items
+    .filter((item) => item.lifecycle !== 'revoked')
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      active: item.lifecycle === 'active',
+      running: item.softwareVersion,
+      updaterAvailable: item.updaterAvailable,
+      update: item.update,
+    }));
   const released = isRelease(coreVersion);
-  const canManage = (row: ServiceRow) => (row.kind === 'connector' ? canManageConnectors : canManageGateways);
   const open = (row: ServiceRow) =>
     row.update !== null &&
     (row.update.status === 'requested' || row.update.status === 'in_progress') &&
@@ -149,8 +108,7 @@ export function UpdatesSection({
   return (
     <Stack gap={5}>
       <p>
-        Core runs version <strong>{coreVersion ?? '—'}</strong>. Connectors and gateways are updated to exactly this
-        version.
+        Core runs version <strong>{coreVersion ?? '—'}</strong>. Printer connectors are updated to exactly this version.
       </p>
       {!released && (
         <InlineNotification
@@ -162,14 +120,13 @@ export function UpdatesSection({
         />
       )}
       {rows.length === 0 ? (
-        <p>No connectors or gateways yet.</p>
+        <p>No printer connectors yet.</p>
       ) : (
         <TableContainer className="mj-table-container local-services-table">
           <Table aria-label="Versions and updates">
             <TableHead>
               <TableRow>
                 <TableHeader>Service</TableHeader>
-                <TableHeader>Type</TableHeader>
                 <TableHeader>Running version</TableHeader>
                 <TableHeader>Status</TableHeader>
                 <TableHeader>
@@ -182,9 +139,8 @@ export function UpdatesSection({
                 const status = row.update ? statusLabels[row.update.status] : null;
                 const reason = row.update?.reason ? (reasonTexts[row.update.reason] ?? row.update.reason) : null;
                 return (
-                  <TableRow key={`${row.kind}-${row.id}`}>
+                  <TableRow key={row.id}>
                     <TableCell>{row.name}</TableCell>
-                    <TableCell>{kindLabels[row.kind]}</TableCell>
                     <TableCell>{row.running ?? '—'}</TableCell>
                     <TableCell>
                       <Stack gap={2}>
@@ -211,7 +167,7 @@ export function UpdatesSection({
                       </Stack>
                     </TableCell>
                     <TableCell>
-                      {available(row) && row.updaterAvailable && row.active && canManage(row) && (
+                      {available(row) && row.updaterAvailable && row.active && canManageConnectors && (
                         <Button
                           kind="tertiary"
                           size="sm"
@@ -259,10 +215,8 @@ export function UpdatesSection({
         >
           <Stack gap={5}>
             <p>
-              The updater on the host downloads version {coreVersion} and restarts the{' '}
-              {confirming.kind === 'connector' ? 'connector' : 'gateway'} within a minute or two. Running prints are not
-              affected; the {confirming.kind === 'connector' ? 'printer data is' : 'camera streams are'} interrupted
-              briefly. In the combined local-services bundle the other service is updated too.
+              The updater on the host downloads version {coreVersion} and restarts the connector within a minute or two.
+              Running prints are not affected; the printer data and camera streams are interrupted briefly.
             </p>
             {request.isError && (
               <InlineNotification

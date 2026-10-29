@@ -198,6 +198,9 @@ describe('Add machine wizard for a printer', () => {
     await user.type(within(dialog).getByLabelText('Serial number'), '01p00a123456789');
     await user.type(within(dialog).getByLabelText('LAN access code'), 'secret-code');
     expect(within(dialog).getByLabelText('Serial number')).toHaveValue('01P00A123456789');
+    const camera = within(dialog).getByRole('switch', { name: 'Stream camera' });
+    expect(camera).not.toBeChecked();
+    await user.click(camera);
     connectionTestTiming.pollMs = 150;
     await user.click(within(dialog).getByRole('button', { name: 'Save and test' }));
     await waitFor(() =>
@@ -208,6 +211,7 @@ describe('Add machine wizard for a printer', () => {
         settings: { ipAddress: '192.168.1.42', serialNumber: '01P00A123456789', autoDetectSpools: true },
         secrets: { lanAccessCode: 'secret-code' },
         enabled: true,
+        cameraStreaming: true,
       }),
     );
     expect(
@@ -506,6 +510,9 @@ describe('Printer setup tab', () => {
     const ip = within(dialog).getByLabelText('Printer IPv4 address');
     await user.clear(ip);
     await user.type(ip, '192.168.1.50');
+    const camera = within(dialog).getByRole('switch', { name: 'Stream camera' });
+    expect(camera).not.toBeChecked();
+    await user.click(camera);
     await user.click(within(dialog).getByRole('button', { name: 'Save and test' }));
     await waitFor(() => expect(requests.patch).toHaveLength(1));
     expect(requests.patch[0]).toMatchObject({
@@ -513,6 +520,7 @@ describe('Printer setup tab', () => {
       adapterSchemaVersion: 1,
       settings: { ipAddress: '192.168.1.50', serialNumber: '01P00A123456789', autoDetectSpools: true },
       enabled: true,
+      cameraStreaming: true,
       end: false,
       expectedVersion: 3,
     });

@@ -28,6 +28,8 @@ export type AssignmentInput = {
   settings: Record<string, string | number | boolean>;
   /** Only sent when the user typed a new LAN access code. */
   secrets: Record<string, string>;
+  /** Relay the printer's camera through the connector; only valid for the Bambu adapters. */
+  cameraStreaming: boolean;
 };
 
 const sleep = (ms: number) =>
@@ -43,6 +45,7 @@ export async function saveAssignment({
   adapterKind,
   settings,
   secrets,
+  cameraStreaming,
 }: AssignmentInput): Promise<PrinterConnectorAssignment> {
   const sameConnector = existing && existing.connector.id === connector.id;
   if (existing && !sameConnector) {
@@ -63,6 +66,7 @@ export async function saveAssignment({
       adapterSchemaVersion: 1,
       settings,
       enabled: true,
+      cameraStreaming,
       end: false,
       expectedVersion: current.version,
       ...(Object.keys(secrets).length > 0 ? { secrets } : {}),
@@ -75,6 +79,7 @@ export async function saveAssignment({
     settings,
     secrets,
     enabled: true,
+    cameraStreaming,
   });
 }
 

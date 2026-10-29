@@ -281,10 +281,7 @@ describe('PlayerRuntime', () => {
     const streams = [
       {
         machineId: 'm1',
-        webrtcUrl: 'https://gw/api/webrtc?src=a',
-        mseUrl: 'wss://gw/api/ws?src=a',
-        ticket: 't',
-        expiresAt: new Date().toISOString(),
+        path: '/api/v1/signage/player/cameras/m1/stream',
       },
     ];
     const runtime = new PlayerRuntime({

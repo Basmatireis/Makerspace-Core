@@ -132,6 +132,8 @@ export const assignmentOf = (overrides: Partial<PrinterConnectorAssignment> = {}
   configurationVersion: 2,
   appliedConfigurationVersion: 2,
   enabled: true,
+  cameraStreaming: false,
+  camera: { health: 'unknown', viewers: 0, reportedAt: null },
   runtimeState: 'connected',
   runtimeErrorCode: null,
   endedAt: null,

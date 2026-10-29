@@ -158,11 +158,6 @@ export const LocalServicesPage = lazy(() =>
     default: LocalServicesPage,
   })),
 );
-export const GatewayDetailPage = lazy(() =>
-  import('../features/localservices/GatewayDetailPage').then(({ GatewayDetailPage }) => ({
-    default: GatewayDetailPage,
-  })),
-);
 export const LaborordnungPage = lazy(() =>
   import('../features/laborordnung/LaborordnungPage').then(({ LaborordnungPage }) => ({ default: LaborordnungPage })),
 );

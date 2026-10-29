@@ -47,6 +47,7 @@ const CONNECTION_FIELDS = new Set<string>([
   'serialNumber',
   'accessCode',
   'autoMountRfid',
+  'cameraStreaming',
 ]);
 const STEP_LABEL: Record<StepKey, string> = {
   machine: 'Machine',
@@ -152,6 +153,7 @@ function WizardBody({
       serialNumber: text('serialNumber') || (machine?.externalIdentifier ?? '').toUpperCase(),
       accessCode: '',
       autoMountRfid: settings ? settings.autoDetectSpools === true : true,
+      cameraStreaming: initialConnection?.assignment.cameraStreaming ?? false,
     },
   });
   const values = form.watch();
@@ -267,6 +269,7 @@ function WizardBody({
                 intervalSeconds: typeof keep?.intervalSeconds === 'number' ? keep.intervalSeconds : 5,
               },
           secrets: live && v.accessCode ? { lanAccessCode: v.accessCode } : {},
+          cameraStreaming: live && v.cameraStreaming,
         },
         (assignment) => setConnection({ connector, assignment }),
       );

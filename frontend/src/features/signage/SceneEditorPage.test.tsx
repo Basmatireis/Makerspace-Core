@@ -122,8 +122,8 @@ describe('Scene editor', () => {
     expect(screen.queryByRole('option', { name: /Prusa MK4/ })).not.toBeInTheDocument();
   });
 
-  it('explains that no machine has a camera and links to Local services only with the permission', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage, PermissionId.local_servicesmanage], {
+  it('explains that no machine has a camera and links to Printer connectors only with the permission', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage, PermissionId.printer_connectorsmanage], {
       machines: [prusa],
     });
     const first = renderRoute(<App />, editor);
@@ -131,9 +131,9 @@ describe('Scene editor', () => {
     await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
     await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
     expect(await screen.findByText('No machine has a camera yet')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Settings, Local services' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Settings, Printer connectors' })).toHaveAttribute(
       'href',
-      '/settings/local-services',
+      '/settings/local-services?tab=connectors',
     );
     first.unmount();
 
@@ -142,7 +142,7 @@ describe('Scene editor', () => {
     await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
     await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
     expect(await screen.findByText('No machine has a camera yet')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Settings, Local services' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Settings, Printer connectors' })).not.toBeInTheDocument();
   });
 
   it('saves the machines an automatic camera may show', async () => {

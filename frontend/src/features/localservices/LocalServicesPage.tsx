@@ -6,29 +6,21 @@ import { hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
 import { ConnectorsTab } from '../machinelogbook/components/ConnectorsTab';
 import { ToastProvider } from '../machinelogbook/shared/toasts';
-import { GatewaysSection } from './GatewaysSection';
 import { UpdatesSection } from './UpdatesSection';
 import './localServices.scss';
 
-type TabKey = 'connectors' | 'gateways' | 'updates';
+type TabKey = 'connectors' | 'updates';
 const tabLabels: Record<TabKey, string> = {
   connectors: 'Printer connectors',
-  gateways: 'Streaming gateways',
   updates: 'Versions and updates',
 };
 
-/** Printer connectors and streaming gateways: the software that runs in the makerspace network next to Core. */
+/** Printer connectors (with the camera relay): the software that runs in the makerspace network next to Core. */
 export function LocalServicesPage() {
   const currentUser = useCurrentUser();
   const [params, setParams] = useSearchParams();
-  const canReadConnectors = hasPermission(currentUser, PermissionId.printer_connectorsread);
   const canManageConnectors = hasPermission(currentUser, PermissionId.printer_connectorsmanage);
-  const canManageGateways = hasPermission(currentUser, PermissionId.local_servicesmanage);
-  const tabs: TabKey[] = [
-    ...(canReadConnectors ? (['connectors'] as const) : []),
-    ...(canManageGateways ? (['gateways'] as const) : []),
-    'updates',
-  ];
+  const tabs: TabKey[] = ['connectors', 'updates'];
   const requested = params.get('tab') as TabKey | null;
   const selected = requested && tabs.includes(requested) ? requested : tabs[0];
   return (
@@ -60,14 +52,7 @@ export function LocalServicesPage() {
             {tabs.map((key) => (
               <TabPanel key={key}>
                 {key === selected && key === 'connectors' && <ConnectorsTab />}
-                {key === selected && key === 'gateways' && <GatewaysSection />}
-                {key === selected && key === 'updates' && (
-                  <UpdatesSection
-                    canReadConnectors={canReadConnectors}
-                    canManageConnectors={canManageConnectors}
-                    canManageGateways={canManageGateways}
-                  />
-                )}
+                {key === selected && key === 'updates' && <UpdatesSection canManageConnectors={canManageConnectors} />}
               </TabPanel>
             ))}
           </TabPanels>

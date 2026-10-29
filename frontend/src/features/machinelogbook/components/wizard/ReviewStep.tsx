@@ -75,6 +75,7 @@ export function ReviewStep({
                   {live && <Row label="Serial number">{values.serialNumber.trim()}</Row>}
                   {live && <Row label="LAN access code">{values.accessCode || hasCode ? 'Set' : 'Not set'}</Row>}
                   {live && <Row label="Auto-mount RFID spools">{values.autoMountRfid ? 'On' : 'Off'}</Row>}
+                  {live && <Row label="Stream camera">{values.cameraStreaming ? 'On' : 'Off'}</Row>}
                   <Row label="Test">{connected ? 'Connected' : 'Not confirmed yet'}</Row>
                 </>
               )}

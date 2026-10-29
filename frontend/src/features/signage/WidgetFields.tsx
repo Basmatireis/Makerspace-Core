@@ -19,6 +19,7 @@ import { Link } from 'react-router-dom';
 import type { SignageAnnouncementTemplate, SignageAsset, SignageWidget } from '../../api/generated/models';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { machineLogbookPaths } from '../machinelogbook/shared/paths';
 import { CalendarFields } from './CalendarFields';
 import { AssetPicker, FitField } from './components';
 import { ListFields } from './ListFields';
@@ -41,9 +42,9 @@ function SizeField({ id, value, onChange }: { id: string; value: TextSize; onCha
   );
 }
 
-/** Shown instead of the camera machine pickers while no machine has a camera; points to Local services when the person may open it. */
+/** Shown instead of the camera machine pickers while no machine has a camera; points to the printer connectors when the person may change them. */
 function NoCameraNote() {
-  const canSetUp = hasPermission(useCurrentUser(), PermissionId.local_servicesmanage);
+  const canSetUp = hasPermission(useCurrentUser(), PermissionId.printer_connectorsmanage);
   return (
     <>
       <InlineNotification
@@ -53,14 +54,14 @@ function NoCameraNote() {
         title="No machine has a camera yet"
         subtitle={
           canSetUp
-            ? 'Cameras are assigned to machines in Local services.'
-            : 'Cameras are set up under Settings, Local services, which needs the local services permission.'
+            ? 'Switch on "Stream camera" for a Bambu printer assignment under Printer connectors.'
+            : 'Cameras are switched on per Bambu printer assignment under Settings, Printer connectors, which needs the printer connectors permission.'
         }
       />
       {canSetUp && (
         <p>
-          <CarbonLink as={Link} to="/settings/local-services">
-            Settings, Local services
+          <CarbonLink as={Link} to={machineLogbookPaths.connectors()}>
+            Settings, Printer connectors
           </CarbonLink>
         </p>
       )}

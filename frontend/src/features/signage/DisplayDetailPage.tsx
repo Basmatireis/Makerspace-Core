@@ -146,7 +146,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
   };
   const difference = view ? reportedDifference(display, view, describeRule, sceneName) : null;
   const activeAnnouncements = preview.data?.live.announcements ?? [];
-  // The server issues no stream tickets to such a display, so its camera widgets only ever show their fallback.
+  // The server offers no camera streams to such a display, so its camera widgets only ever show their fallback.
   const camerasBlocked =
     !revoked &&
     display.visibleFromOutside &&

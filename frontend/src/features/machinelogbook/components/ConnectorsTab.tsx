@@ -43,12 +43,12 @@ import { assignmentsQuery, connectorKeys, connectorsQuery } from '../connectorQu
 import { formatRelative } from '../shared/format';
 import { machineLogbookPaths } from '../shared/paths';
 import { QueryBoundary } from '../shared/QueryBoundary';
-import { connectorStatus } from '../shared/connectorStatus';
+import { cameraStatus, connectorStatus, viewerText } from '../shared/connectorStatus';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import { useNow } from '../shared/useNow';
 import { DiagnosticsModal } from './ConnectorDiagnostics';
-// The connectors are shown under Settings, Local services, outside the machine logbook's pages.
+// The connectors are shown under Settings, Printer connectors, outside the machine logbook's pages.
 import '../styles/machines.scss';
 
 const headers = [
@@ -179,8 +179,7 @@ function SecretModal({
             {secret}
           </CodeSnippet>
           <p>
-            Put this line into the <code>.env</code> of the printer connector stack (<code>printer-connector/</code> or{' '}
-            <code>local-services/</code>):
+            Put this line into the <code>.env</code> of the printer connector stack (<code>printer-connector/</code>):
           </p>
           <CodeSnippet type="multi" aria-label=".env line">
             {env}
@@ -339,15 +338,24 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
                             <span className="mj-secondary">None</span>
                           ) : (
                             <span className="mj-inline">
-                              {printers.map((assignment) => (
-                                <CarbonLink
-                                  key={assignment.id}
-                                  as={Link}
-                                  to={machineLogbookPaths.machine(assignment.machineId)}
-                                >
-                                  {assignment.machineName}
-                                </CarbonLink>
-                              ))}
+                              {printers.map((assignment) => {
+                                const camera = cameraStatus(assignment.camera);
+                                return (
+                                  <span key={assignment.id} className="mj-cell-stack">
+                                    <CarbonLink as={Link} to={machineLogbookPaths.machine(assignment.machineId)}>
+                                      {assignment.machineName}
+                                    </CarbonLink>
+                                    {assignment.cameraStreaming && (
+                                      <span className="mj-inline">
+                                        <Tag size="sm" type={camera.type} title="Camera relay status">
+                                          {`Camera: ${camera.label.toLowerCase()}`}
+                                        </Tag>
+                                        <span className="mj-secondary">{viewerText(assignment.camera.viewers)}</span>
+                                      </span>
+                                    )}
+                                  </span>
+                                );
+                              })}
                             </span>
                           )}
                         </TableCell>
