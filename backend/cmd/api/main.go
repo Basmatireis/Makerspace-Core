@@ -60,13 +60,16 @@ func run() error {
 	}
 	defer pool.Close()
 
-	handler, runBackground, err := httpapi.NewApplication(pool, cfg, logger)
+	application, err := httpapi.NewApplication(pool, cfg, logger)
 	if err != nil {
 		return fmt.Errorf("initialize HTTP API: %w", err)
 	}
+	// Websockets are hijacked connections: their deadlines are managed by the camera relay, not by the
+	// read and write timeouts below, and Shutdown does not track them, so it ends them explicitly.
+	defer application.CloseConnections()
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           handler,
+		Handler:           application.Handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -77,10 +80,12 @@ func run() error {
 		},
 	}
 
+	server.RegisterOnShutdown(application.CloseConnections)
+
 	backgroundDone := make(chan struct{})
 	go func() {
 		defer close(backgroundDone)
-		runBackground(rootContext)
+		application.RunBackground(rootContext)
 	}()
 
 	serveError := make(chan error, 1)
@@ -102,6 +107,9 @@ func run() error {
 	defer cancel()
 	if err := server.Shutdown(shutdownContext); err != nil {
 		return fmt.Errorf("graceful shutdown: %w", err)
+	}
+	if err := application.WaitConnections(shutdownContext); err != nil {
+		logger.Warn("camera relay connections did not end before the shutdown timeout")
 	}
 	select {
 	case <-backgroundDone:

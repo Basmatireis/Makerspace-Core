@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/camerarelay"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -77,27 +79,54 @@ type operationState struct {
 }
 
 func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (http.Handler, error) {
-	handler, _, err := NewApplication(pool, cfg, logger)
-	return handler, err
+	application, err := NewApplication(pool, cfg, logger)
+	if err != nil {
+		return nil, err
+	}
+	return application.Handler, nil
 }
 
-// NewApplication builds the HTTP handler together with the background work the API process runs
-// beside it. The returned function blocks until ctx is cancelled and is meant for one goroutine.
-func NewApplication(
+// Application is the HTTP handler together with the background work and the long-lived websocket
+// connections the API process runs beside it.
+type Application struct {
+	Handler       http.Handler
+	runBackground func(context.Context)
+	relay         *camerarelay.Hub
+}
+
+// RunBackground runs the scheduled jobs. It blocks until ctx is cancelled and is meant for one goroutine.
+func (a *Application) RunBackground(ctx context.Context) { a.runBackground(ctx) }
+
+// CloseConnections ends the camera relay's websockets and refuses new ones. http.Server.Shutdown
+// does not track hijacked connections, so the server calls this when shutdown starts.
+func (a *Application) CloseConnections() { a.relay.Close() }
+
+// WaitConnections blocks until every websocket closed by CloseConnections has ended, or ctx ends.
+func (a *Application) WaitConnections(ctx context.Context) error { return a.relay.Wait(ctx) }
+
+// NewApplication builds the application with the production camera relay timing.
+func NewApplication(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (*Application, error) {
+	return NewApplicationWithRelay(pool, cfg, logger, camerarelay.DefaultConfig())
+}
+
+// NewApplicationWithRelay builds the application with the given camera relay timing (tests shorten it).
+func NewApplicationWithRelay(
 	pool *pgxpool.Pool,
 	cfg config.Config,
 	logger *slog.Logger,
-) (http.Handler, func(context.Context), error) {
-	server, err := NewServer(pool, cfg)
-	if err != nil {
-		return nil, nil, err
-	}
+	relayConfig camerarelay.Config,
+) (*Application, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	relay := camerarelay.NewHub(relayConfig, logger)
+	server, err := NewServer(pool, cfg, relay, logger)
+	if err != nil {
+		return nil, err
+	}
 	handler, err := newHandler(server, logger)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	jobs := scheduler.New(pool, logger)
 	jobs.Add(scheduler.Job{
@@ -139,7 +168,7 @@ func NewApplication(
 			return summary, err
 		},
 	})
-	return handler, jobs.Run, nil
+	return &Application{Handler: handler, runBackground: jobs.Run, relay: relay}, nil
 }
 
 func newHandler(server *Server, logger *slog.Logger) (http.Handler, error) {
@@ -739,6 +768,32 @@ func (r *responseRecorder) Write(body []byte) (int, error) {
 
 func (r *responseRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
+// Hijack lets websocket upgrades take over the connection through the recorder; the access log then
+// reports 101.
+func (r *responseRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hijacker, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("hijack response: %w", http.ErrNotSupported)
+	}
+	conn, buffered, err := hijacker.Hijack()
+	if err == nil && r.status == 0 {
+		r.status = http.StatusSwitchingProtocols
+	}
+	return conn, buffered, err
+}
+
+// Flush passes flushes of streamed responses through the recorder.
+func (r *responseRecorder) Flush() {
+	flusher, ok := r.ResponseWriter.(http.Flusher)
+	if !ok {
+		return
+	}
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+	flusher.Flush()
+}
+
 func accessLogMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
@@ -818,6 +873,8 @@ func captureOperation(next openapi.StrictHandlerFunc, operationID string) openap
 		if state, ok := ctx.Value(operationStateContextKey).(*operationState); ok {
 			state.name = operationID
 		}
+		// Handlers that need the raw request (cookies, Range, websocket upgrades) read it from the context.
+		ctx = context.WithValue(ctx, httpRequestContextKey, r)
 		return next(ctx, w, r, request)
 	}
 }

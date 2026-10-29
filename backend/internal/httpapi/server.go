@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
@@ -11,6 +12,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/camerarelay"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/configtransfer"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
@@ -54,6 +56,7 @@ const apiBasePath = "/api/v1"
 // writes deliberately remain in those services.
 type Server struct {
 	routes            routePolicy
+	logger            *slog.Logger
 	pool              *pgxpool.Pool
 	config            config.Config
 	auth              *auth.Service
@@ -91,12 +94,14 @@ type Server struct {
 	privacy           *privacy.Service
 	subjectRequests   *subjectrequests.Service
 	deviceRates       deviceRateLimits
+	// cameraRelay pairs signage viewers with the printer connectors' camera streams.
+	cameraRelay *camerarelay.Hub
 	// surveyLinkViews and surveyLinkSubmits bound the anonymous share-link endpoints per client IP.
 	surveyLinkViews   *ratelimit.Limiter
 	surveyLinkSubmits *ratelimit.Limiter
 }
 
-func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
+func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, logger *slog.Logger) (*Server, error) {
 	privacyCatalog, err := privacycatalog.Catalog()
 	if err != nil {
 		return nil, fmt.Errorf("privacy catalog: %w", err)
@@ -197,6 +202,8 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	})
 	privacyService.Register(privacycatalog.PrivacyRecords, subjectrequests.RetentionHandler())
 	return &Server{
+		logger:            logger,
+		cameraRelay:       relay,
 		pool:              pool,
 		config:            cfg,
 		auth:              authService,

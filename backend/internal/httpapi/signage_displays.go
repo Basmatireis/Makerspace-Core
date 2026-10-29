@@ -774,7 +774,7 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	for _, stream := range live.Streams {
 		streams = append(
 			streams,
-			openapi.SignagePlayerStream{MachineId: stream.MachineID, Path: stream.Path},
+			openapi.SignagePlayerStream{MachineId: stream.MachineID, Path: cameraStreamPath(stream.MachineID)},
 		)
 	}
 	return openapi.SignagePlayerLive{

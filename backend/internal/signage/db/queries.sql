@@ -43,6 +43,26 @@ ORDER BY lower(m.name), m.id;
 SELECT a.machine_id FROM printer_connector_assignments a
 WHERE a.camera_streaming AND a.enabled AND a.ended_at IS NULL;
 
+-- name: ListSignageStreamingCameras :many
+-- Cameras the relay can serve right now: the active, enabled assignment switches the camera on, belongs to an
+-- active connector, and the printer profile is enabled (the connector's configuration carries the camera only then).
+SELECT a.machine_id, a.id AS assignment_id, a.connector_id
+FROM printer_connector_assignments a
+JOIN printer_connectors c ON c.id = a.connector_id
+JOIN printer_profiles p ON p.machine_id = a.machine_id
+JOIN machines m ON m.id = a.machine_id
+WHERE a.camera_streaming AND a.enabled AND p.enabled AND a.ended_at IS NULL AND c.lifecycle = 'active'
+ORDER BY lower(m.name), a.machine_id;
+
+-- name: GetSignageStreamingCamera :one
+-- The camera of one machine under the same conditions as ListSignageStreamingCameras.
+SELECT a.machine_id, a.id AS assignment_id, a.connector_id
+FROM printer_connector_assignments a
+JOIN printer_connectors c ON c.id = a.connector_id
+JOIN printer_profiles p ON p.machine_id = a.machine_id
+WHERE a.machine_id = sqlc.arg(machine_id) AND a.camera_streaming AND a.enabled AND p.enabled AND a.ended_at IS NULL
+  AND c.lifecycle = 'active';
+
 -- name: ListSignageHiddenMachineIDs :many
 -- Machines whose currently running run was opted out of signage by its operator or customer. A manual run
 -- is running until its planned end; a recorded run while its state says so.

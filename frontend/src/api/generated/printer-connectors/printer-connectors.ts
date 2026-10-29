@@ -636,7 +636,7 @@ export const getConnectPrinterConnectorStreamControlUrl = () => {
  * and websocket pings every 20 seconds; a connector that misses pings for 60 seconds counts as disconnected. The connector sends
  * nothing but pongs (other input is ignored, at most 4 KiB per frame). On `open` the connector dials its local go2rtc
  * `/api/ws?src=<stream>` and `GET /printer-connector/self/stream-sessions/{sessionId}`, then copies frames both ways.
- * It refuses streams that are not in its current configuration.
+ * It refuses streams that are not in its current configuration. A replaced control channel is closed with code 4409.
  * @summary Websocket control channel for camera relay sessions
  */
 export const connectPrinterConnectorStreamControl = async ( options?: Parameters<typeof apiFetch>[1]): Promise<unknown> => {

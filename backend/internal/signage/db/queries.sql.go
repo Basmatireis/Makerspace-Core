@@ -1120,6 +1120,29 @@ func (q *Queries) GetSignageSceneForUpdate(ctx context.Context, id uuid.UUID) (S
 	return i, err
 }
 
+const getSignageStreamingCamera = `-- name: GetSignageStreamingCamera :one
+SELECT a.machine_id, a.id AS assignment_id, a.connector_id
+FROM printer_connector_assignments a
+JOIN printer_connectors c ON c.id = a.connector_id
+JOIN printer_profiles p ON p.machine_id = a.machine_id
+WHERE a.machine_id = $1 AND a.camera_streaming AND a.enabled AND p.enabled AND a.ended_at IS NULL
+  AND c.lifecycle = 'active'
+`
+
+type GetSignageStreamingCameraRow struct {
+	MachineID    uuid.UUID
+	AssignmentID uuid.UUID
+	ConnectorID  uuid.UUID
+}
+
+// The camera of one machine under the same conditions as ListSignageStreamingCameras.
+func (q *Queries) GetSignageStreamingCamera(ctx context.Context, machineID uuid.UUID) (GetSignageStreamingCameraRow, error) {
+	row := q.db.QueryRow(ctx, getSignageStreamingCamera, machineID)
+	var i GetSignageStreamingCameraRow
+	err := row.Scan(&i.MachineID, &i.AssignmentID, &i.ConnectorID)
+	return i, err
+}
+
 const getSignageTemplate = `-- name: GetSignageTemplate :one
 SELECT id, name, tone, title, body, version, created_at, updated_at, body_format, body_css FROM signage_announcement_templates WHERE id = $1
 `
@@ -2496,6 +2519,44 @@ func (q *Queries) ListSignageScenesByIDs(ctx context.Context, ids []string) ([]S
 			&i.UpdatedAt,
 			&i.CustomLayoutID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageStreamingCameras = `-- name: ListSignageStreamingCameras :many
+SELECT a.machine_id, a.id AS assignment_id, a.connector_id
+FROM printer_connector_assignments a
+JOIN printer_connectors c ON c.id = a.connector_id
+JOIN printer_profiles p ON p.machine_id = a.machine_id
+JOIN machines m ON m.id = a.machine_id
+WHERE a.camera_streaming AND a.enabled AND p.enabled AND a.ended_at IS NULL AND c.lifecycle = 'active'
+ORDER BY lower(m.name), a.machine_id
+`
+
+type ListSignageStreamingCamerasRow struct {
+	MachineID    uuid.UUID
+	AssignmentID uuid.UUID
+	ConnectorID  uuid.UUID
+}
+
+// Cameras the relay can serve right now: the active, enabled assignment switches the camera on, belongs to an
+// active connector, and the printer profile is enabled (the connector's configuration carries the camera only then).
+func (q *Queries) ListSignageStreamingCameras(ctx context.Context) ([]ListSignageStreamingCamerasRow, error) {
+	rows, err := q.db.Query(ctx, listSignageStreamingCameras)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignageStreamingCamerasRow{}
+	for rows.Next() {
+		var i ListSignageStreamingCamerasRow
+		if err := rows.Scan(&i.MachineID, &i.AssignmentID, &i.ConnectorID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

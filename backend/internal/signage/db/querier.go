@@ -69,6 +69,8 @@ type Querier interface {
 	GetSignagePlaylistForUpdate(ctx context.Context, id uuid.UUID) (SignagePlaylist, error)
 	GetSignageScene(ctx context.Context, id uuid.UUID) (SignageScene, error)
 	GetSignageSceneForUpdate(ctx context.Context, id uuid.UUID) (SignageScene, error)
+	// The camera of one machine under the same conditions as ListSignageStreamingCameras.
+	GetSignageStreamingCamera(ctx context.Context, machineID uuid.UUID) (GetSignageStreamingCameraRow, error)
 	GetSignageTemplate(ctx context.Context, id uuid.UUID) (SignageAnnouncementTemplate, error)
 	GetSignageTemplateForUpdate(ctx context.Context, id uuid.UUID) (SignageAnnouncementTemplate, error)
 	InsertSignageAnnouncementDisplay(ctx context.Context, arg InsertSignageAnnouncementDisplayParams) error
@@ -116,6 +118,9 @@ type Querier interface {
 	ListSignageScenes(ctx context.Context) ([]SignageScene, error)
 	// Publications and manifest content ---------------------------------------------------------------------------
 	ListSignageScenesByIDs(ctx context.Context, ids []string) ([]SignageScene, error)
+	// Cameras the relay can serve right now: the active, enabled assignment switches the camera on, belongs to an
+	// active connector, and the printer profile is enabled (the connector's configuration carries the camera only then).
+	ListSignageStreamingCameras(ctx context.Context) ([]ListSignageStreamingCamerasRow, error)
 	ListSignageTemplateFields(ctx context.Context, templateIds []string) ([]SignageAnnouncementTemplateField, error)
 	ListSignageTemplateIDsByIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListSignageTemplateIDsForShare(ctx context.Context, ids []string) ([]uuid.UUID, error)

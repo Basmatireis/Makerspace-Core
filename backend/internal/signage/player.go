@@ -216,11 +216,10 @@ type LiveAnnouncement struct {
 	EndsAt         *time.Time
 }
 
-// Stream is a camera stream the display may watch right now. Path is the relative websocket URL on
-// Core's own origin; the device credential authorizes it, there is no ticket.
+// Stream is a camera the display may watch right now through the relay. The device credential authorizes
+// it; there is no ticket.
 type Stream struct {
 	MachineID uuid.UUID
-	Path      string
 }
 
 // LiveData is the short-lived data the player polls about every ten seconds.
@@ -286,13 +285,13 @@ func liveMachineFrom(
 	return machine
 }
 
-// PlayerLive assembles the live data of a display. The display must not be revoked; PlayerDisplayFor
-// guarantees that. The streams list stays empty until the camera relay lands.
+// PlayerLive assembles the live data of a display, including the cameras it may watch right now (the
+// rule of AuthorizeCamera). The display must not be revoked; PlayerDisplayFor guarantees that.
 func (s *Service) PlayerLive(ctx context.Context, display PlayerDisplay) (LiveData, error) {
-	return s.playerLive(ctx, display)
+	return s.playerLive(ctx, display, true)
 }
 
-func (s *Service) playerLive(ctx context.Context, display PlayerDisplay) (LiveData, error) {
+func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStreams bool) (LiveData, error) {
 	// Ended announcements are removed by the privacy retention engine.
 	now := s.now()
 	q := signagedb.New(s.pool)
@@ -332,6 +331,15 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay) (LiveDa
 		}
 		if len(hidden) > 0 {
 			machineIDs = withoutIDs(machineIDs, hidden)
+		}
+		if withStreams {
+			cameras, err := s.displayCameras(ctx, q, display, now)
+			if err != nil {
+				return LiveData{}, err
+			}
+			for _, camera := range cameras {
+				live.Streams = append(live.Streams, Stream{MachineID: camera.MachineID})
+			}
 		}
 		if ids := machineIDs; len(ids) > 0 {
 			names, err := q.ListSignageMachineNames(ctx, uuidStrings(ids))
@@ -411,8 +419,8 @@ func (s *Service) PreviewDisplay(
 	if err != nil {
 		return DisplayPreview{}, err
 	}
-	// The preview never carries stream tickets: it is not the display itself.
-	live, err := s.playerLive(ctx, PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location})
+	// The preview never offers camera streams: it is not the display itself.
+	live, err := s.playerLive(ctx, PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location}, false)
 	if err != nil {
 		return DisplayPreview{}, err
 	}

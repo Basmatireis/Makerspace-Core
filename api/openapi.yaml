@@ -5402,6 +5402,7 @@ paths:
       security: [{managedDeviceCookie: []}, {managedDeviceToken: []}]
       responses:
         "101": {description: Switching Protocols. The websocket relay is open.}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -5779,10 +5780,11 @@ paths:
         and websocket pings every 20 seconds; a connector that misses pings for 60 seconds counts as disconnected. The connector sends
         nothing but pongs (other input is ignored, at most 4 KiB per frame). On `open` the connector dials its local go2rtc
         `/api/ws?src=<stream>` and `GET /printer-connector/self/stream-sessions/{sessionId}`, then copies frames both ways.
-        It refuses streams that are not in its current configuration.
+        It refuses streams that are not in its current configuration. A replaced control channel is closed with code 4409.
       security: [{printerConnectorBearer: []}]
       responses:
         "101": {description: Switching Protocols. The control channel is open.}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "429": {$ref: "#/components/responses/TooManyRequests"}
@@ -5801,6 +5803,7 @@ paths:
       security: [{printerConnectorBearer: []}]
       responses:
         "101": {description: Switching Protocols. The data channel is open.}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}

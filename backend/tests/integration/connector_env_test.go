@@ -1,12 +1,19 @@
 package integration_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/camerarelay"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -36,13 +43,51 @@ func newConnectorEnv(t *testing.T) *connectorEnv {
 
 func newConnectorEnvWith(t *testing.T, adjust func(*config.Config)) *connectorEnv {
 	t.Helper()
+	return newConnectorEnvRelay(t, adjust, nil)
+}
+
+// newConnectorEnvWithRelay is a connector environment whose API runs the camera relay with the given timing.
+func newConnectorEnvWithRelay(t *testing.T, relay camerarelay.Config) *connectorEnv {
+	t.Helper()
+	return newConnectorEnvRelay(t, nil, &relay)
+}
+
+func newConnectorEnvRelay(t *testing.T, adjust func(*config.Config), relay *camerarelay.Config) *connectorEnv {
+	t.Helper()
+	var final config.Config
 	// The extended protocol, like production: connector queries pass json columns as []byte.
 	e := newSignageEnvMode(t, func(cfg *config.Config) {
 		cfg.EncryptionKeys = [][]byte{connectorTestKey}
 		if adjust != nil {
 			adjust(cfg)
 		}
+		final = *cfg
 	}, pgx.QueryExecModeCacheStatement)
+	if relay != nil {
+		// Same database and configuration, but the API built with the relay timing under test.
+		application, err := httpapi.NewApplicationWithRelay(
+			e.pool,
+			final,
+			slog.New(slog.NewJSONHandler(io.Discard, nil)),
+			*relay,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		server := httptest.NewServer(application.Handler)
+		t.Cleanup(server.Close)
+		t.Cleanup(func() {
+			// Websockets are hijacked: the test server does not wait for them, the relay does.
+			application.CloseConnections()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := application.WaitConnections(ctx); err != nil {
+				t.Errorf("camera relay did not stop: %v", err)
+			}
+		})
+		e.server.Close()
+		e.server, e.api = server, server.URL+"/api/v1"
+	}
 	keyring, err := security.NewKeyring([][]byte{connectorTestKey})
 	if err != nil {
 		t.Fatal(err)
