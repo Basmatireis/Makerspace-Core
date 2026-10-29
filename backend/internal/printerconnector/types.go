@@ -98,3 +98,12 @@ const (
 	ErrorAppeared ErrorTransition = "appeared"
 	ErrorCleared  ErrorTransition = "cleared"
 )
+
+// CameraHealthState is the health of one camera stream reported in the heartbeat.
+type CameraHealthState string
+
+const (
+	CameraLive        CameraHealthState = "live"
+	CameraIdle        CameraHealthState = "idle"
+	CameraUnavailable CameraHealthState = "unavailable"
+)

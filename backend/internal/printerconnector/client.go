@@ -28,6 +28,8 @@ type RuntimeAssignment struct {
 	Settings             map[string]any    `json:"settings"`
 	Secrets              map[string]string `json:"secrets"`
 	Enabled              bool              `json:"enabled"`
+	// CameraStreaming asks the connector to relay the printer's camera (Bambu adapters only).
+	CameraStreaming bool `json:"cameraStreaming"`
 }
 
 type Configuration struct {
@@ -51,6 +53,13 @@ type AssignmentHealth struct {
 	State                       HealthState `json:"state"`
 	ErrorCode                   *string     `json:"errorCode"`
 }
+
+// CameraHealth is the relay state of one camera in a heartbeat.
+type CameraHealth struct {
+	AssignmentID string            `json:"assignmentId"`
+	Health       CameraHealthState `json:"health"`
+	Viewers      int               `json:"viewers"`
+}
 type Heartbeat struct {
 	SoftwareVersion              string             `json:"softwareVersion"`
 	ProtocolVersion              int                `json:"protocolVersion"`
@@ -60,6 +69,8 @@ type Heartbeat struct {
 	PendingEventCount            int64              `json:"pendingEventCount"`
 	QuarantinedEventCount        int64              `json:"quarantinedEventCount"`
 	Assignments                  []AssignmentHealth `json:"assignments"`
+	// Cameras is sent only when camera streaming is set up (GO2RTC_* environment).
+	Cameras []CameraHealth `json:"cameras,omitempty"`
 	// Updater is sent only to a Core that announced support with the update field of its configuration.
 	Updater *localupdater.Report `json:"updater,omitempty"`
 }

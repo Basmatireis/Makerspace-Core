@@ -59,6 +59,18 @@ func run() error {
 		),
 		logger,
 	)
+	apiURL, configFile := strings.TrimSpace(os.Getenv("GO2RTC_API_URL")), strings.TrimSpace(os.Getenv("GO2RTC_CONFIG_FILE"))
+	if apiURL != "" || configFile != "" {
+		// Camera streaming is optional; it needs both the go2rtc API address and its configuration file.
+		if err = runtime.EnableCameras(ctx, printerconnector.CameraOptions{
+			APIURL:     apiURL,
+			ConfigFile: configFile,
+			APIListen:  env("GO2RTC_API_LISTEN", printerconnector.DefaultGo2RTCAPIListen),
+			LogLevel:   printerconnector.LogLevel(env("GO2RTC_LOG_LEVEL", string(printerconnector.LogLevelError))),
+		}); err != nil {
+			return err
+		}
+	}
 	return runtime.Run(ctx)
 }
 

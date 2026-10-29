@@ -49,6 +49,9 @@ type Runtime struct {
 	// once Core's configuration showed that it accepts the updater report.
 	exchange        localupdater.Exchange
 	updateSupported bool
+
+	// cameras is nil unless camera streaming was enabled with EnableCameras.
+	cameras *cameraService
 }
 
 // Configuration and heartbeat are polled every 10 seconds so a change in Core
@@ -108,6 +111,20 @@ func NewRuntime(
 	}
 }
 
+// EnableCameras sets up camera streaming: the connector then drives the bundled go2rtc and relays
+// viewer sessions to Core. Without it the connector runs as before and reports no cameras. It must be
+// called before Run.
+func (r *Runtime) EnableCameras(ctx context.Context, options CameraOptions) error {
+	cameras, err := newCameraService(ctx, r.store, r.client, func() string {
+		return r.currentIdentity().CredentialSecret
+	}, options, r.logger)
+	if err != nil {
+		return err
+	}
+	r.cameras = cameras
+	return nil
+}
+
 func newSecret() (string, error) {
 	value := make([]byte, 32)
 	if _, err := rand.Read(value); err != nil {
@@ -135,6 +152,13 @@ func (r *Runtime) Run(ctx context.Context) error {
 	}
 	r.setIdentity(identity)
 	go r.runRecordings(ctx)
+	if r.cameras != nil {
+		if cached == nil {
+			// Render the authenticated, camera-less go2rtc configuration before Core's first answer.
+			r.cameras.Apply(ctx, nil)
+		}
+		go r.cameras.relay.Run(ctx)
+	}
 	if err = r.writeHealth("healthy"); err != nil {
 		return err
 	}
@@ -346,6 +370,9 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 	r.mu.Lock()
 	r.revision = value.Revision
 	r.mu.Unlock()
+	if r.cameras != nil {
+		r.cameras.Apply(parent, value.Assignments)
+	}
 	for _, raw := range value.Assignments {
 		if !raw.Enabled {
 			continue
@@ -732,6 +759,11 @@ func (r *Runtime) sendHeartbeat(ctx context.Context, identity Identity) error {
 	revision := r.revision
 	supported := r.updateSupported
 	r.mu.Unlock()
+	var cameras []CameraHealth
+	if r.cameras != nil {
+		r.cameras.Reconcile(ctx)
+		cameras = r.cameras.Health(ctx)
+	}
 	var updater *localupdater.Report
 	if supported {
 		report := r.exchange.Report()
@@ -748,6 +780,7 @@ func (r *Runtime) sendHeartbeat(ctx context.Context, identity Identity) error {
 			PendingEventCount:            pending,
 			QuarantinedEventCount:        quarantined,
 			Assignments:                  health,
+			Cameras:                      cameras,
 			Updater:                      updater,
 		},
 	)
