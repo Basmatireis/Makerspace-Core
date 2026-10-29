@@ -1,5 +1,13 @@
-import { useState } from 'react';
-import { Button, CodeSnippet, InlineNotification, Link as CarbonLink, Stack, TextInput } from '@carbon/react';
+import { lazy, Suspense, useState } from 'react';
+import {
+  Button,
+  CodeSnippet,
+  InlineNotification,
+  Link as CarbonLink,
+  SkeletonPlaceholder,
+  Stack,
+  TextInput,
+} from '@carbon/react';
 import { Download, FingerprintRecognition } from '@carbon/icons-react';
 import { useMutation } from '@tanstack/react-query';
 import type { SecondFactorEnrollmentResult } from '../../../api/generated/models';
@@ -11,6 +19,8 @@ import {
 } from '../../../api/generated/authentication/authentication';
 import { useSecretMutation } from '../../../api/use-secret-mutation';
 import { createPasskeyCredential, describeAuthenticationError } from './webauthn';
+
+const QrCode = lazy(() => import('./QrCode'));
 
 function Failure({ error, title }: { error: unknown; title: string }) {
   if (error == null) return null;
@@ -51,26 +61,20 @@ export function TotpEnrollmentPanel({ onEnrolled }: { onEnrolled: (result: Secon
   return (
     <Stack gap={5}>
       <p>
-        Add this account to your authenticator app by entering the key below
+        Scan the QR code with your authenticator app, or enter the key below manually
         {otpauthLink && (
           <>
             {' '}
-            or <CarbonLink href={otpauthLink}>opening it in an authenticator app on this device</CarbonLink>
+            or <CarbonLink href={otpauthLink}>open it in an authenticator app on this device</CarbonLink>
           </>
         )}
         . Then enter the six-digit code it shows.
       </p>
+      <Suspense fallback={<SkeletonPlaceholder style={{ width: 200, height: 200 }} />}>
+        <QrCode value={enrollment.otpauthUri} label="QR code for your authenticator app" />
+      </Suspense>
       <CodeSnippet type="single" feedback="Copied" aria-label="Setup key" copyButtonDescription="Copy setup key">
         {enrollment.secret}
-      </CodeSnippet>
-      <CodeSnippet
-        type="multi"
-        feedback="Copied"
-        aria-label="Setup link"
-        copyButtonDescription="Copy setup link"
-        wrapText
-      >
-        {enrollment.otpauthUri}
       </CodeSnippet>
       <Failure error={confirm.error} title="Unable to confirm" />
       <form

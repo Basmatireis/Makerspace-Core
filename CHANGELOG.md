@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Added
+
+- **Authenticator enrolment by QR code.** Setting up an authenticator app (forced setup and Profile › Two-factor authentication) shows a QR code of the `otpauth://` URI next to the copyable key and the open-in-app link; the code is drawn client-side as an SVG by the `qrcode` package in a lazily loaded chunk, so the initial bundle is unchanged. See [Authentication](docs/authentication.md#second-factors-in-the-web-interface).
+
 ## [0.11.0] - 2026-10-29
 
 ### Upgrade notes
