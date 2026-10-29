@@ -10,6 +10,8 @@ export const defaultPublicConfiguration: PublicConfiguration = {
     displayName: 'Makerspace',
     applicationName: 'HTU Graz Makerspace',
     tagline: null,
+    funGreetings: [],
+    funGreetingShare: 0,
   },
   colors: { primary: '#57569f', secondary: '#ffbf3d', accent: '#e76f12', background: '#111621' },
   assets: {

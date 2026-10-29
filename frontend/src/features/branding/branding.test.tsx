@@ -13,6 +13,8 @@ const configured: PublicConfiguration = {
     displayName: 'Open Workshop',
     applicationName: 'Workshop Portal',
     tagline: 'Make things together',
+    funGreetings: [],
+    funGreetingShare: 0,
   },
   colors: { primary: '#123456', secondary: '#abcdef', accent: '#fedcba', background: '#101820' },
   assets: {

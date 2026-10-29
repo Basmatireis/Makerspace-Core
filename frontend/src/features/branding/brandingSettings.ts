@@ -5,7 +5,32 @@ import type {
 } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 
-export type FormValues = Omit<UpdateBrandingConfigurationRequest, 'expectedVersion'>;
+/** The request body plus the greetings as the one-per-line text the editor works with. */
+export type FormValues = Omit<UpdateBrandingConfigurationRequest, 'expectedVersion'> & { greetingsText: string };
+
+export const MAX_GREETINGS = 50;
+export const MAX_GREETING_LENGTH = 120;
+
+/** One greeting per line; blank lines are dropped. */
+export function parseGreetings(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+export function greetingsError(text: string): string | true {
+  const lines = parseGreetings(text);
+  if (lines.length > MAX_GREETINGS) return `Use at most ${MAX_GREETINGS} greetings.`;
+  const index = lines.findIndex((line) => line.length > MAX_GREETING_LENGTH);
+  return index < 0 || `Greeting ${index + 1} is longer than ${MAX_GREETING_LENGTH} characters.`;
+}
+
+/** The body of the update request: the form values without the editor-only text. */
+export function toUpdateInput(values: FormValues): Omit<UpdateBrandingConfigurationRequest, 'expectedVersion'> {
+  const { greetingsText, ...input } = values;
+  return { ...input, identity: { ...input.identity, funGreetings: parseGreetings(greetingsText) } };
+}
 
 export const hexPattern = /^#[0-9a-fA-F]{6}$/;
 
@@ -67,6 +92,7 @@ export function toFormValues(configuration: BrandingConfiguration): FormValues {
     colors: configuration.colors,
     imprint: configuration.imprint,
     privacy: configuration.privacy,
+    greetingsText: configuration.identity.funGreetings.join('\n'),
   };
 }
 

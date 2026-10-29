@@ -3,24 +3,37 @@ import {
   Button,
   Form,
   InlineNotification,
+  NumberInput,
   Stack,
   Tab,
   TabList,
   TabPanel,
   TabPanels,
   Tabs,
+  TextArea,
   TextInput,
   Tile,
 } from '@carbon/react';
 import { Save } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm, useWatch } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import type { BrandingConfiguration, PublicConfiguration } from '../../api/generated/models';
 import { getBrandingConfiguration, updateBrandingConfiguration } from '../../api/generated/branding/branding';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { defaultPublicConfiguration, publicConfigurationFromAdmin, publicConfigurationKey } from './branding';
-import { FormValues, adminQueryKey, assets, toFormValues, contrastRatio, mutationMessage } from './brandingSettings';
+import {
+  FormValues,
+  MAX_GREETINGS,
+  MAX_GREETING_LENGTH,
+  adminQueryKey,
+  assets,
+  contrastRatio,
+  greetingsError,
+  mutationMessage,
+  toFormValues,
+  toUpdateInput,
+} from './brandingSettings';
 import { ColorField } from './ColorField';
 import { LegalEditor } from './LegalEditor';
 import { AssetCard } from './AssetCard';
@@ -46,7 +59,7 @@ export function BrandingLegalSettingsPage() {
   };
   const save = useMutation({
     mutationFn: (input: FormValues) =>
-      updateBrandingConfiguration({ ...input, expectedVersion: configuration.data!.version }),
+      updateBrandingConfiguration({ ...toUpdateInput(input), expectedVersion: configuration.data!.version }),
     onSuccess: (result) => {
       apply(result);
       form.reset(toFormValues(result));
@@ -127,6 +140,39 @@ export function BrandingLegalSettingsPage() {
                         maxLength: { value: 240, message: 'Use at most 240 characters.' },
                         setValueAs: (value) => value || null,
                       })}
+                    />
+                    <TextArea
+                      id="fun-greetings"
+                      labelText="Playful greetings"
+                      rows={5}
+                      helperText={`One greeting per line, at most ${MAX_GREETINGS} lines of ${MAX_GREETING_LENGTH} characters. {name} is replaced by the person's first name; without it the greeting is shown on its own. Leave empty to always show the time-of-day greeting.`}
+                      invalid={Boolean(form.formState.errors.greetingsText)}
+                      invalidText={form.formState.errors.greetingsText?.message}
+                      {...form.register('greetingsText', { validate: greetingsError })}
+                    />
+                    <Controller
+                      control={form.control}
+                      name="identity.funGreetingShare"
+                      rules={{
+                        validate: (value) =>
+                          (Number.isInteger(value) && value >= 0 && value <= 100) ||
+                          'Enter a whole number from 0 to 100.',
+                      }}
+                      render={({ field }) => (
+                        <NumberInput
+                          id="fun-greeting-share"
+                          label="How often"
+                          min={0}
+                          max={100}
+                          step={1}
+                          allowEmpty
+                          value={field.value}
+                          helperText="Out of 100 dashboard visits. 0 turns the playful greetings off."
+                          invalid={Boolean(form.formState.errors.identity?.funGreetingShare)}
+                          invalidText={form.formState.errors.identity?.funGreetingShare?.message}
+                          onChange={(_event, { value }) => field.onChange(value === '' ? Number.NaN : Number(value))}
+                        />
+                      )}
                     />
                   </Stack>
                 </Tile>

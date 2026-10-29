@@ -13,6 +13,8 @@ const configuration: BrandingConfiguration = {
     displayName: 'Makerspace',
     applicationName: 'HTU Graz Makerspace',
     tagline: null,
+    funGreetings: [],
+    funGreetingShare: 0,
   },
   colors: { primary: '#57569f', secondary: '#ffbf3d', accent: '#e76f12', background: '#111621' },
   assets: {
@@ -161,5 +163,28 @@ describe('branding and legal settings', () => {
     expect(textInput).toHaveValue('#123456');
     expect(picker).toHaveValue('#123456');
     expect(screen.getAllByText('You have unsaved changes.').length).toBeGreaterThan(0);
+  });
+
+  it('saves the playful greetings one per line and how often they appear', async () => {
+    let body: { identity?: { funGreetings?: string[]; funGreetingShare?: number } } | undefined;
+    server.use(
+      http.get('*/api/v1/branding/configuration', () => HttpResponse.json(configuration)),
+      http.put('*/api/v1/branding/configuration', async ({ request }) => {
+        body = (await request.json()) as typeof body;
+        return HttpResponse.json(configuration);
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<BrandingLegalSettingsPage />, '/settings/branding-legal');
+    const greetings = await screen.findByLabelText('Playful greetings');
+    expect(screen.getByText(/\{name\} is replaced by the person's first name/)).toBeInTheDocument();
+    await user.type(greetings, '  Hello {{name}!  {Enter}{Enter}Hammer time');
+    const share = screen.getByLabelText('How often');
+    await user.clear(share);
+    await user.type(share, '25');
+    await user.click(screen.getByRole('button', { name: 'Save configuration' }));
+    await waitFor(() => expect(body?.identity?.funGreetings).toEqual(['Hello {name}!', 'Hammer time']));
+    expect(body?.identity?.funGreetingShare).toBe(25);
+    expect(body).not.toHaveProperty('greetingsText');
   });
 });

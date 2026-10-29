@@ -7,6 +7,7 @@ import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useNow } from '../../app/useNow';
 import { useCurrentUser } from '../auth/auth';
+import { useBranding } from '../branding/branding';
 import { canAccessOpenDays, hasPermission, PermissionId } from '../auth/permissions';
 import { BalanceTile } from './BalanceTile';
 import { ComingUpPanel } from './ComingUpPanel';
@@ -19,7 +20,7 @@ import { RecentJobsPanel, RecentOrdersPanel } from './RecentPanels';
 import { SemesterTile } from './SemesterTile';
 import { StatisticsSection } from './StatisticsSection';
 import { jobItems, orderItems, payableOrders } from './balance';
-import { greeting, longToday, plural, upcomingOpenDays } from './format';
+import { longToday, pickGreeting, plural, replayRandom, upcomingOpenDays } from './format';
 import { ownLabRulesOptions, personalDashboardOptions, publicOpenDaysOptions } from './queries';
 import './dashboard.scss';
 
@@ -32,6 +33,9 @@ const WEEK_MS = 7 * 86_400_000;
 export function DashboardPage() {
   const currentUser = useCurrentUser();
   const now = useNow();
+  const { funGreetings, funGreetingShare } = useBranding().identity;
+  // Drawn once per visit so the title does not change on every render (the clock ticks).
+  const [rolls] = useState(() => [Math.random(), Math.random()]);
   const dashboard = useQuery(personalDashboardOptions);
   const labRules = useQuery(ownLabRulesOptions);
   /** Ids ticked in the pay dialog; null while it is closed. */
@@ -86,7 +90,13 @@ export function DashboardPage() {
 
   return (
     <PageShell
-      title={`${greeting(now)}, ${data.person.firstName}`}
+      title={pickGreeting({
+        now,
+        firstName: data.person.firstName,
+        funGreetings,
+        funGreetingShare,
+        random: replayRandom(rolls),
+      })}
       breadcrumbs={[{ label: 'Dashboard' }]}
       description={description}
       width="wide"

@@ -5,6 +5,8 @@ export function defaultPublicBrandingConfiguration() {
       displayName: 'Makerspace',
       applicationName: 'HTU Graz Makerspace',
       tagline: null,
+      funGreetings: [],
+      funGreetingShare: 0,
     },
     colors: {
       primary: '#57569f',

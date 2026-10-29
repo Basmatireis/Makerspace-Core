@@ -53,6 +53,34 @@ export function greeting(now: number): string {
   return hour < 18 ? 'Good afternoon' : 'Good evening';
 }
 
+type GreetingInput = {
+  now: number;
+  firstName: string;
+  funGreetings: readonly string[];
+  /** How many of 100 visits show a playful greeting. */
+  funGreetingShare: number;
+  /** Uniform in [0, 1). Called once for the share check and once to choose the greeting. */
+  random: () => number;
+};
+
+/**
+ * The dashboard title. Playful greetings appear in `funGreetingShare` of 100 visits; `{name}` becomes the first name,
+ * and a greeting without it stands alone. Otherwise the time-of-day greeting followed by the first name.
+ */
+export function pickGreeting({ now, firstName, funGreetings, funGreetingShare, random }: GreetingInput): string {
+  if (funGreetings.length > 0 && random() * 100 < funGreetingShare) {
+    const index = Math.min(funGreetings.length - 1, Math.floor(random() * funGreetings.length));
+    return funGreetings[index].replaceAll('{name}', firstName);
+  }
+  return `${greeting(now)}, ${firstName}`;
+}
+
+/** A `random` that replays numbers drawn once, so a page keeps its greeting across renders. */
+export function replayRandom(rolls: readonly number[]): () => number {
+  let next = 0;
+  return () => rolls[next++ % rolls.length];
+}
+
 export function longToday(now: number): string {
   return longDayFormat.format(new Date(now));
 }
