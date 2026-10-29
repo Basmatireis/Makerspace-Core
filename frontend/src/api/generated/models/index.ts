@@ -1060,6 +1060,7 @@ export * from './updateManagedDeviceRequest';
 export * from './updateManagedDeviceTypeRequest';
 export * from './updateMaterialRequest';
 export * from './updateMaterialTypeRequest';
+export * from './updateNotificationMessageRequest';
 export * from './updateOIDCProviderRequest';
 export * from './updateOIDCProviderRequestAcrAssuranceMappings';
 export * from './updateOpenDayPeriodRequest';

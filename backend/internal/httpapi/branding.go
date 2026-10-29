@@ -118,6 +118,8 @@ func (s *Server) UpdateBrandingConfiguration(
 			DisplayName:           request.Body.Identity.DisplayName,
 			ApplicationName:       request.Body.Identity.ApplicationName,
 			Tagline:               nullableStringPointer(request.Body.Identity.Tagline),
+			FunGreetings:          request.Body.Identity.FunGreetings,
+			FunGreetingShare:      request.Body.Identity.FunGreetingShare,
 		},
 		Colors: branding.Colors{
 			Primary:    request.Body.Colors.Primary,
@@ -284,6 +286,8 @@ func brandingIdentityDTO(value branding.Identity) openapi.BrandingIdentity {
 		DisplayName:           value.DisplayName,
 		ApplicationName:       value.ApplicationName,
 		Tagline:               nullableString(value.Tagline),
+		FunGreetings:          append([]string{}, value.FunGreetings...),
+		FunGreetingShare:      value.FunGreetingShare,
 	}
 }
 

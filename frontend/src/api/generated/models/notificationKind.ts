@@ -28,4 +28,6 @@ export const NotificationKind = {
   NotificationKindOpenDayPeriodOpen: 'open_day_period_open',
   NotificationKindOpenDayPlaceFreed: 'open_day_place_freed',
   NotificationKindRunFinished: 'run_finished',
+  NotificationKindPrinterError: 'printer_error',
+  NotificationKindFilamentChange: 'filament_change',
 } as const;

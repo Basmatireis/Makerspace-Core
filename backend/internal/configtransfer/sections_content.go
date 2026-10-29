@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -63,6 +64,9 @@ type brandingIdentity struct {
 	DisplayName           string  `json:"displayName"`
 	ApplicationName       string  `json:"applicationName"`
 	Tagline               *string `json:"tagline"`
+	// Both greeting fields are optional so exports of older releases still import; nil keeps the current value.
+	FunGreetings     *[]string `json:"funGreetings,omitempty"`
+	FunGreetingShare *int      `json:"funGreetingShare,omitempty"`
 }
 
 type brandingColors struct {
@@ -147,6 +151,8 @@ func exportBranding(ctx context.Context, q *configtransferdb.Queries) (brandingE
 			DisplayName:           row.DisplayName,
 			ApplicationName:       row.ApplicationName,
 			Tagline:               row.Tagline,
+			FunGreetings:          ptr(append([]string{}, row.FunGreetings...)),
+			FunGreetingShare:      ptr(int(row.FunGreetingShare)),
 		},
 		Colors: brandingColors{
 			Primary:    row.PrimaryColor,
@@ -208,6 +214,8 @@ func brandingInput(entry *brandingEntry) branding.ConfigurationInput {
 			DisplayName:           entry.Identity.DisplayName,
 			ApplicationName:       entry.Identity.ApplicationName,
 			Tagline:               entry.Identity.Tagline,
+			FunGreetings:          derefSlice(entry.Identity.FunGreetings),
+			FunGreetingShare:      derefInt(entry.Identity.FunGreetingShare),
 		},
 		Colors: branding.Colors{
 			Primary:    entry.Colors.Primary,
@@ -228,11 +236,38 @@ func brandingInput(entry *brandingEntry) branding.ConfigurationInput {
 	}
 }
 
+// brandingInputFrom fills the greeting fields an older export leaves out from the current configuration,
+// so an import never wipes them.
+func completeBrandingEntry(entry *brandingEntry, current brandingEntry) {
+	if entry.Identity.FunGreetings == nil {
+		entry.Identity.FunGreetings = current.Identity.FunGreetings
+	}
+	if entry.Identity.FunGreetingShare == nil {
+		entry.Identity.FunGreetingShare = current.Identity.FunGreetingShare
+	}
+}
+
+func derefSlice(value *[]string) []string {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func derefInt(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
 func sameBrandingConfiguration(current, desired brandingEntry) bool {
 	a, b := current.Identity, desired.Identity
 	identity := a.LegalOrganizationName == strings.TrimSpace(b.LegalOrganizationName) &&
 		a.DisplayName == strings.TrimSpace(b.DisplayName) && a.ApplicationName == strings.TrimSpace(b.ApplicationName) &&
-		sameText(a.Tagline, trimmed(b.Tagline))
+		sameText(a.Tagline, trimmed(b.Tagline)) &&
+		(b.FunGreetings == nil || slices.Equal(derefSlice(a.FunGreetings), derefSlice(b.FunGreetings))) &&
+		(b.FunGreetingShare == nil || derefInt(a.FunGreetingShare) == derefInt(b.FunGreetingShare))
 	colors := strings.EqualFold(current.Colors.Primary, desired.Colors.Primary) &&
 		strings.EqualFold(current.Colors.Secondary, desired.Colors.Secondary) &&
 		strings.EqualFold(current.Colors.Accent, desired.Colors.Accent) &&
@@ -254,6 +289,7 @@ func applyBranding(r *run, entry *brandingEntry) (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
+	completeBrandingEntry(entry, current)
 	if sameBrandingConfiguration(current, *entry) {
 		r.skip(brandingItem, reasonUnchanged)
 	} else if _, err := r.attempt(brandingItem, ActionUpdate, "", func(tx pgx.Tx) error {

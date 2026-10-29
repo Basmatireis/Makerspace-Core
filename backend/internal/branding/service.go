@@ -59,7 +59,18 @@ type Identity struct {
 	DisplayName           string
 	ApplicationName       string
 	Tagline               *string
+	// FunGreetings are shown on the dashboard instead of the time-of-day greeting in FunGreetingShare
+	// of a hundred visits; "{name}" stands for the person's first name.
+	FunGreetings     []string
+	FunGreetingShare int
 }
+
+const (
+	// MaxFunGreetings bounds the list; MaxFunGreetingLength is in characters.
+	MaxFunGreetings       = 50
+	MaxFunGreetingLength  = 120
+	maxFunGreetingPercent = 100
+)
 
 type Colors struct{ Primary, Secondary, Accent, Background string }
 type Legal struct {
@@ -227,6 +238,7 @@ func (s *Service) UpdateTx(
 	row, err := queries.UpdateConfiguration(ctx, brandingdb.UpdateConfigurationParams{
 		LegalOrganizationName: input.Identity.LegalOrganizationName, DisplayName: input.Identity.DisplayName,
 		ApplicationName: input.Identity.ApplicationName, Tagline: input.Identity.Tagline,
+		FunGreetings: input.Identity.FunGreetings, FunGreetingShare: int32(input.Identity.FunGreetingShare), //nolint:gosec // 0..100
 		PrimaryColor: input.Colors.Primary, SecondaryColor: input.Colors.Secondary,
 		AccentColor: input.Colors.Accent, BackgroundColor: input.Colors.Background,
 		ImprintMode:        string(input.Imprint.Mode),
@@ -509,6 +521,8 @@ func fromRow(row brandingdb.BrandingConfiguration, assets map[Slot]Asset) Config
 			DisplayName:           row.DisplayName,
 			ApplicationName:       row.ApplicationName,
 			Tagline:               row.Tagline,
+			FunGreetings:          row.FunGreetings,
+			FunGreetingShare:      int(row.FunGreetingShare),
 		},
 		Colors: Colors{
 			Primary:    row.PrimaryColor,
@@ -544,6 +558,14 @@ func validateConfiguration(input *ConfigurationInput) error {
 		utf8.RuneCountInString(input.Identity.ApplicationName) > 150 ||
 		(input.Identity.Tagline != nil && utf8.RuneCountInString(*input.Identity.Tagline) > 240) {
 		return validation("organization identity is invalid")
+	}
+	greetings, err := cleanFunGreetings(input.Identity.FunGreetings)
+	if err != nil {
+		return err
+	}
+	input.Identity.FunGreetings = greetings
+	if input.Identity.FunGreetingShare < 0 || input.Identity.FunGreetingShare > maxFunGreetingPercent {
+		return validation("the share of playful greetings must be between 0 and 100")
 	}
 	colors := []*string{&input.Colors.Primary, &input.Colors.Secondary, &input.Colors.Accent, &input.Colors.Background}
 	for _, color := range colors {
@@ -885,4 +907,28 @@ func (s *Service) readLogo(ctx context.Context, url string) ([]byte, bool) {
 		return nil, false
 	}
 	return raw, true
+}
+
+// cleanFunGreetings trims the greetings, drops empty lines and duplicates, and bounds count and length.
+func cleanFunGreetings(values []string) ([]string, error) {
+	cleaned := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.Join(strings.Fields(value), " ")
+		if value == "" {
+			continue
+		}
+		if utf8.RuneCountInString(value) > MaxFunGreetingLength {
+			return nil, validation("a playful greeting may have at most 120 characters")
+		}
+		if _, duplicate := seen[value]; duplicate {
+			continue
+		}
+		seen[value] = struct{}{}
+		cleaned = append(cleaned, value)
+	}
+	if len(cleaned) > MaxFunGreetings {
+		return nil, validation("at most 50 playful greetings are allowed")
+	}
+	return cleaned, nil
 }

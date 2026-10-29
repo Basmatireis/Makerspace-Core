@@ -160,5 +160,53 @@ JOIN roles r ON r.id = nr.role_id
 WHERE nr.notification_id = ANY(sqlc.arg(notification_ids)::text[]::uuid[])
 ORDER BY nr.notification_id, lower(r.name), r.id;
 
+-- name: GetSentMessageForUpdate :one
+SELECT id, title, body, link FROM inbox_notifications
+WHERE id = sqlc.arg(id) AND kind = 'message' AND expires_at > sqlc.arg(now)
+FOR UPDATE;
+
+-- name: UpdateSentMessage :exec
+UPDATE inbox_notifications
+SET title = sqlc.arg(title), body = sqlc.arg(body), link = sqlc.narg(link)
+WHERE id = sqlc.arg(id);
+
+-- name: GetSentMessage :one
+SELECT n.id, n.title, n.body, n.link, n.created_at, n.expires_at,
+       p.first_name AS sender_first_name, p.last_name AS sender_last_name,
+       (SELECT count(*) FROM inbox_recipients rc WHERE rc.notification_id = n.id)::bigint AS recipient_count,
+       (SELECT count(*) FROM inbox_recipients rc WHERE rc.notification_id = n.id AND rc.read_at IS NOT NULL)::bigint AS read_count
+FROM inbox_notifications n
+LEFT JOIN accounts a ON a.id = n.created_by_account_id
+LEFT JOIN people p ON p.id = a.person_id
+WHERE n.id = sqlc.arg(id) AND n.kind = 'message';
+
+-- name: DeleteSentMessage :execrows
+-- Recipient rows and role rows go with it (ON DELETE CASCADE).
+DELETE FROM inbox_notifications WHERE id = sqlc.arg(id) AND kind = 'message' AND expires_at > sqlc.arg(now);
+
+-- name: GetMachineNotificationFacts :one
+-- The machine and the operator of the run that is printing on it right now, if any.
+SELECT m.id, m.name AS machine_name, r.id AS run_id, r.display_id AS run_display_id, j.operator_person_id
+FROM machines m
+LEFT JOIN machine_runs r ON r.id = (
+    SELECT x.id
+    FROM machine_runs x
+    WHERE x.machine_id = m.id AND x.deleted_at IS NULL AND x.source = 'recorded' AND x.state = 'running'
+    ORDER BY x.started_at DESC NULLS LAST, x.created_at DESC
+    LIMIT 1
+)
+LEFT JOIN machine_jobs j ON j.id = r.job_id
+WHERE m.id = sqlc.arg(id);
+
+-- name: GetSpoolNotificationFacts :one
+-- How a spool is named to people: its display id and the material of its open fill, if any.
+SELECT s.display_id, mat.name AS material_name, mat.color_name
+FROM filament_spools s
+LEFT JOIN filament_spool_fills f ON f.spool_id = s.id AND f.closed_at IS NULL
+LEFT JOIN materials mat ON mat.id = f.material_id
+WHERE s.id = sqlc.arg(id)
+ORDER BY f.fill_number DESC NULLS LAST
+LIMIT 1;
+
 -- name: DeleteNotificationsCreatedBefore :execrows
 DELETE FROM inbox_notifications WHERE created_at < sqlc.arg(before_time);

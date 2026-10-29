@@ -129,6 +129,24 @@ func (q *Queries) DeleteOwnRecipient(ctx context.Context, arg DeleteOwnRecipient
 	return result.RowsAffected(), nil
 }
 
+const deleteSentMessage = `-- name: DeleteSentMessage :execrows
+DELETE FROM inbox_notifications WHERE id = $1 AND kind = 'message' AND expires_at > $2
+`
+
+type DeleteSentMessageParams struct {
+	ID  uuid.UUID
+	Now time.Time
+}
+
+// Recipient rows and role rows go with it (ON DELETE CASCADE).
+func (q *Queries) DeleteSentMessage(ctx context.Context, arg DeleteSentMessageParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSentMessage, arg.ID, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getAccountPersonName = `-- name: GetAccountPersonName :one
 SELECT p.first_name, p.last_name
 FROM accounts a
@@ -145,6 +163,42 @@ func (q *Queries) GetAccountPersonName(ctx context.Context, accountID uuid.UUID)
 	row := q.db.QueryRow(ctx, getAccountPersonName, accountID)
 	var i GetAccountPersonNameRow
 	err := row.Scan(&i.FirstName, &i.LastName)
+	return i, err
+}
+
+const getMachineNotificationFacts = `-- name: GetMachineNotificationFacts :one
+SELECT m.id, m.name AS machine_name, r.id AS run_id, r.display_id AS run_display_id, j.operator_person_id
+FROM machines m
+LEFT JOIN machine_runs r ON r.id = (
+    SELECT x.id
+    FROM machine_runs x
+    WHERE x.machine_id = m.id AND x.deleted_at IS NULL AND x.source = 'recorded' AND x.state = 'running'
+    ORDER BY x.started_at DESC NULLS LAST, x.created_at DESC
+    LIMIT 1
+)
+LEFT JOIN machine_jobs j ON j.id = r.job_id
+WHERE m.id = $1
+`
+
+type GetMachineNotificationFactsRow struct {
+	ID               uuid.UUID
+	MachineName      string
+	RunID            *uuid.UUID
+	RunDisplayID     *string
+	OperatorPersonID *uuid.UUID
+}
+
+// The machine and the operator of the run that is printing on it right now, if any.
+func (q *Queries) GetMachineNotificationFacts(ctx context.Context, id uuid.UUID) (GetMachineNotificationFactsRow, error) {
+	row := q.db.QueryRow(ctx, getMachineNotificationFacts, id)
+	var i GetMachineNotificationFactsRow
+	err := row.Scan(
+		&i.ID,
+		&i.MachineName,
+		&i.RunID,
+		&i.RunDisplayID,
+		&i.OperatorPersonID,
+	)
 	return i, err
 }
 
@@ -223,6 +277,102 @@ func (q *Queries) GetRunNotificationFacts(ctx context.Context, id uuid.UUID) (Ge
 		&i.JobTitle,
 		&i.OperatorPersonID,
 	)
+	return i, err
+}
+
+const getSentMessage = `-- name: GetSentMessage :one
+SELECT n.id, n.title, n.body, n.link, n.created_at, n.expires_at,
+       p.first_name AS sender_first_name, p.last_name AS sender_last_name,
+       (SELECT count(*) FROM inbox_recipients rc WHERE rc.notification_id = n.id)::bigint AS recipient_count,
+       (SELECT count(*) FROM inbox_recipients rc WHERE rc.notification_id = n.id AND rc.read_at IS NOT NULL)::bigint AS read_count
+FROM inbox_notifications n
+LEFT JOIN accounts a ON a.id = n.created_by_account_id
+LEFT JOIN people p ON p.id = a.person_id
+WHERE n.id = $1 AND n.kind = 'message'
+`
+
+type GetSentMessageRow struct {
+	ID              uuid.UUID
+	Title           string
+	Body            string
+	Link            *string
+	CreatedAt       time.Time
+	ExpiresAt       time.Time
+	SenderFirstName *string
+	SenderLastName  *string
+	RecipientCount  int64
+	ReadCount       int64
+}
+
+func (q *Queries) GetSentMessage(ctx context.Context, id uuid.UUID) (GetSentMessageRow, error) {
+	row := q.db.QueryRow(ctx, getSentMessage, id)
+	var i GetSentMessageRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Body,
+		&i.Link,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SenderFirstName,
+		&i.SenderLastName,
+		&i.RecipientCount,
+		&i.ReadCount,
+	)
+	return i, err
+}
+
+const getSentMessageForUpdate = `-- name: GetSentMessageForUpdate :one
+SELECT id, title, body, link FROM inbox_notifications
+WHERE id = $1 AND kind = 'message' AND expires_at > $2
+FOR UPDATE
+`
+
+type GetSentMessageForUpdateParams struct {
+	ID  uuid.UUID
+	Now time.Time
+}
+
+type GetSentMessageForUpdateRow struct {
+	ID    uuid.UUID
+	Title string
+	Body  string
+	Link  *string
+}
+
+func (q *Queries) GetSentMessageForUpdate(ctx context.Context, arg GetSentMessageForUpdateParams) (GetSentMessageForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getSentMessageForUpdate, arg.ID, arg.Now)
+	var i GetSentMessageForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Body,
+		&i.Link,
+	)
+	return i, err
+}
+
+const getSpoolNotificationFacts = `-- name: GetSpoolNotificationFacts :one
+SELECT s.display_id, mat.name AS material_name, mat.color_name
+FROM filament_spools s
+LEFT JOIN filament_spool_fills f ON f.spool_id = s.id AND f.closed_at IS NULL
+LEFT JOIN materials mat ON mat.id = f.material_id
+WHERE s.id = $1
+ORDER BY f.fill_number DESC NULLS LAST
+LIMIT 1
+`
+
+type GetSpoolNotificationFactsRow struct {
+	DisplayID    string
+	MaterialName *string
+	ColorName    *string
+}
+
+// How a spool is named to people: its display id and the material of its open fill, if any.
+func (q *Queries) GetSpoolNotificationFacts(ctx context.Context, id uuid.UUID) (GetSpoolNotificationFactsRow, error) {
+	row := q.db.QueryRow(ctx, getSpoolNotificationFacts, id)
+	var i GetSpoolNotificationFactsRow
+	err := row.Scan(&i.DisplayID, &i.MaterialName, &i.ColorName)
 	return i, err
 }
 
@@ -666,4 +816,27 @@ func (q *Queries) MarkOwnNotificationRead(ctx context.Context, arg MarkOwnNotifi
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const updateSentMessage = `-- name: UpdateSentMessage :exec
+UPDATE inbox_notifications
+SET title = $1, body = $2, link = $3
+WHERE id = $4
+`
+
+type UpdateSentMessageParams struct {
+	Title string
+	Body  string
+	Link  *string
+	ID    uuid.UUID
+}
+
+func (q *Queries) UpdateSentMessage(ctx context.Context, arg UpdateSentMessageParams) error {
+	_, err := q.db.Exec(ctx, updateSentMessage,
+		arg.Title,
+		arg.Body,
+		arg.Link,
+		arg.ID,
+	)
+	return err
 }

@@ -32,7 +32,7 @@ export interface Notification {
      */
   body: string;
   /**
-     * Application-relative path, always starting with a single `/`.
+     * Either an application-relative path starting with a single `/` or an absolute `https://` URL of another site.
      * @maxLength 500
      * @nullable
      */

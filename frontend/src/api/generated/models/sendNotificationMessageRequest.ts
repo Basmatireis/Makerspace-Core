@@ -33,7 +33,7 @@ export interface SendNotificationMessageRequest {
      */
   body: string;
   /**
-     * Optional application-relative path; must start with a single `/`.
+     * Optional: an application-relative path starting with a single `/`, or an `https://` URL of another site. A host without a scheme (`www.example.org/page`) is stored as `https://`.
      * @maxLength 500
      * @nullable
      */

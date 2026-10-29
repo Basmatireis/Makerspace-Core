@@ -178,3 +178,39 @@ func (s *Server) SendNotificationMessage(
 	}
 	return openapi.SendNotificationMessage201JSONResponse(sentMessageDTO(item)), nil
 }
+
+func (s *Server) UpdateNotificationMessage(
+	ctx context.Context,
+	r openapi.UpdateNotificationMessageRequestObject,
+) (openapi.UpdateNotificationMessageResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.inbox.UpdateMessage(ctx, p, r.MessageId, inbox.MessageUpdate{
+		Title: r.Body.Title,
+		Body:  r.Body.Body,
+		Link:  nullableStringLike(r.Body.Link),
+	}, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.UpdateNotificationMessage200JSONResponse(sentMessageDTO(item)), nil
+}
+
+func (s *Server) RetractNotificationMessage(
+	ctx context.Context,
+	r openapi.RetractNotificationMessageRequestObject,
+) (openapi.RetractNotificationMessageResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.inbox.RetractMessage(ctx, p, r.MessageId, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.RetractNotificationMessage204Response{}, nil
+}

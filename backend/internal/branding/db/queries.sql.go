@@ -18,7 +18,7 @@ UPDATE branding_configuration SET
     updated_by_account_id = $1,
     updated_at = now()
 WHERE singleton = true AND version = $2
-RETURNING singleton, legal_organization_name, display_name, application_name, tagline, primary_color, secondary_color, accent_color, background_color, imprint_mode, imprint_markdown, imprint_external_url, privacy_mode, privacy_markdown, privacy_external_url, version, updated_by_account_id, updated_at
+RETURNING singleton, legal_organization_name, display_name, application_name, tagline, primary_color, secondary_color, accent_color, background_color, imprint_mode, imprint_markdown, imprint_external_url, privacy_mode, privacy_markdown, privacy_external_url, version, updated_by_account_id, updated_at, fun_greetings, fun_greeting_share
 `
 
 type BumpConfigurationVersionParams struct {
@@ -48,6 +48,8 @@ func (q *Queries) BumpConfigurationVersion(ctx context.Context, arg BumpConfigur
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
+		&i.FunGreetings,
+		&i.FunGreetingShare,
 	)
 	return i, err
 }
@@ -97,7 +99,7 @@ func (q *Queries) GetAssetOverride(ctx context.Context, slot string) (GetAssetOv
 }
 
 const getConfiguration = `-- name: GetConfiguration :one
-SELECT singleton, legal_organization_name, display_name, application_name, tagline, primary_color, secondary_color, accent_color, background_color, imprint_mode, imprint_markdown, imprint_external_url, privacy_mode, privacy_markdown, privacy_external_url, version, updated_by_account_id, updated_at FROM branding_configuration WHERE singleton = true
+SELECT singleton, legal_organization_name, display_name, application_name, tagline, primary_color, secondary_color, accent_color, background_color, imprint_mode, imprint_markdown, imprint_external_url, privacy_mode, privacy_markdown, privacy_external_url, version, updated_by_account_id, updated_at, fun_greetings, fun_greeting_share FROM branding_configuration WHERE singleton = true
 `
 
 func (q *Queries) GetConfiguration(ctx context.Context) (BrandingConfiguration, error) {
@@ -122,12 +124,14 @@ func (q *Queries) GetConfiguration(ctx context.Context) (BrandingConfiguration, 
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
+		&i.FunGreetings,
+		&i.FunGreetingShare,
 	)
 	return i, err
 }
 
 const getConfigurationForUpdate = `-- name: GetConfigurationForUpdate :one
-SELECT singleton, legal_organization_name, display_name, application_name, tagline, primary_color, secondary_color, accent_color, background_color, imprint_mode, imprint_markdown, imprint_external_url, privacy_mode, privacy_markdown, privacy_external_url, version, updated_by_account_id, updated_at FROM branding_configuration WHERE singleton = true FOR UPDATE
+SELECT singleton, legal_organization_name, display_name, application_name, tagline, primary_color, secondary_color, accent_color, background_color, imprint_mode, imprint_markdown, imprint_external_url, privacy_mode, privacy_markdown, privacy_external_url, version, updated_by_account_id, updated_at, fun_greetings, fun_greeting_share FROM branding_configuration WHERE singleton = true FOR UPDATE
 `
 
 func (q *Queries) GetConfigurationForUpdate(ctx context.Context) (BrandingConfiguration, error) {
@@ -152,6 +156,8 @@ func (q *Queries) GetConfigurationForUpdate(ctx context.Context) (BrandingConfig
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
+		&i.FunGreetings,
+		&i.FunGreetingShare,
 	)
 	return i, err
 }
@@ -253,21 +259,23 @@ UPDATE branding_configuration SET
     display_name = $2,
     application_name = $3,
     tagline = $4,
-    primary_color = $5,
-    secondary_color = $6,
-    accent_color = $7,
-    background_color = $8,
-    imprint_mode = $9,
-    imprint_markdown = $10,
-    imprint_external_url = $11,
-    privacy_mode = $12,
-    privacy_markdown = $13,
-    privacy_external_url = $14,
+    fun_greetings = $5::text[],
+    fun_greeting_share = $6,
+    primary_color = $7,
+    secondary_color = $8,
+    accent_color = $9,
+    background_color = $10,
+    imprint_mode = $11,
+    imprint_markdown = $12,
+    imprint_external_url = $13,
+    privacy_mode = $14,
+    privacy_markdown = $15,
+    privacy_external_url = $16,
     version = version + 1,
-    updated_by_account_id = $15,
+    updated_by_account_id = $17,
     updated_at = now()
-WHERE singleton = true AND version = $16
-RETURNING singleton, legal_organization_name, display_name, application_name, tagline, primary_color, secondary_color, accent_color, background_color, imprint_mode, imprint_markdown, imprint_external_url, privacy_mode, privacy_markdown, privacy_external_url, version, updated_by_account_id, updated_at
+WHERE singleton = true AND version = $18
+RETURNING singleton, legal_organization_name, display_name, application_name, tagline, primary_color, secondary_color, accent_color, background_color, imprint_mode, imprint_markdown, imprint_external_url, privacy_mode, privacy_markdown, privacy_external_url, version, updated_by_account_id, updated_at, fun_greetings, fun_greeting_share
 `
 
 type UpdateConfigurationParams struct {
@@ -275,6 +283,8 @@ type UpdateConfigurationParams struct {
 	DisplayName           string
 	ApplicationName       string
 	Tagline               *string
+	FunGreetings          []string
+	FunGreetingShare      int32
 	PrimaryColor          string
 	SecondaryColor        string
 	AccentColor           string
@@ -295,6 +305,8 @@ func (q *Queries) UpdateConfiguration(ctx context.Context, arg UpdateConfigurati
 		arg.DisplayName,
 		arg.ApplicationName,
 		arg.Tagline,
+		arg.FunGreetings,
+		arg.FunGreetingShare,
 		arg.PrimaryColor,
 		arg.SecondaryColor,
 		arg.AccentColor,
@@ -328,6 +340,8 @@ func (q *Queries) UpdateConfiguration(ctx context.Context, arg UpdateConfigurati
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
+		&i.FunGreetings,
+		&i.FunGreetingShare,
 	)
 	return i, err
 }

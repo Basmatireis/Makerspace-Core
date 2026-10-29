@@ -2,6 +2,7 @@ package inbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -296,6 +298,143 @@ func (s *Service) SendMessage(
 		result.Roles = append(result.Roles, MessageRole{ID: role.RoleID, Name: role.RoleName})
 	}
 	return result, nil
+}
+
+// UpdateMessage changes the title, text or link of a sent message for every recipient, including
+// those who already read it. Recipients and roles stay as they were. Anyone who may send messages may
+// edit any sent message, because the sent list is shared among them.
+func (s *Service) UpdateMessage(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	input MessageUpdate,
+	requestID *uuid.UUID,
+) (SentMessage, error) {
+	if !principal.Has(authorization.NotificationsSend) {
+		return SentMessage{}, apperror.PermissionDenied
+	}
+	title, err := cleanTitle(input.Title)
+	if err != nil {
+		return SentMessage{}, err
+	}
+	body, err := cleanBody(input.Body)
+	if err != nil {
+		return SentMessage{}, err
+	}
+	link, err := cleanLink(input.Link)
+	if err != nil {
+		return SentMessage{}, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return SentMessage{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := inboxdb.New(tx)
+	current, err := queries.GetSentMessageForUpdate(ctx, inboxdb.GetSentMessageForUpdateParams{ID: id, Now: s.now()})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return SentMessage{}, apperror.NotFound
+	}
+	if err != nil {
+		return SentMessage{}, fmt.Errorf("load message: %w", err)
+	}
+	var changed []string
+	if current.Title != title {
+		changed = append(changed, "title")
+	}
+	if current.Body != body {
+		changed = append(changed, "body")
+	}
+	if (current.Link == nil) != (link == nil) || (link != nil && *current.Link != *link) {
+		changed = append(changed, "link")
+	}
+	actor := principal.AccountID
+	if len(changed) > 0 {
+		if err := queries.UpdateSentMessage(ctx, inboxdb.UpdateSentMessageParams{
+			ID: id, Title: title, Body: body, Link: link,
+		}); err != nil {
+			return SentMessage{}, fmt.Errorf("update message: %w", err)
+		}
+		if err := audit.Write(ctx, tx, audit.Event{
+			ActorAccountID: &actor,
+			Action:         "inbox_message.updated",
+			ResourceType:   "inbox_message",
+			ResourceID:     &id,
+			RequestID:      requestID,
+			ChangedFields:  changed,
+		}); err != nil {
+			return SentMessage{}, err
+		}
+	}
+	item, err := s.sentMessage(ctx, queries, id)
+	if err != nil {
+		return SentMessage{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return SentMessage{}, err
+	}
+	return item, nil
+}
+
+// RetractMessage deletes a sent message together with every recipient's copy, read or not.
+func (s *Service) RetractMessage(
+	ctx context.Context,
+	principal authorization.Principal,
+	id uuid.UUID,
+	requestID *uuid.UUID,
+) error {
+	if !principal.Has(authorization.NotificationsSend) {
+		return apperror.PermissionDenied
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := inboxdb.New(tx)
+	affected, err := queries.DeleteSentMessage(ctx, inboxdb.DeleteSentMessageParams{ID: id, Now: s.now()})
+	if err != nil {
+		return fmt.Errorf("retract message: %w", err)
+	}
+	if affected == 0 {
+		return apperror.NotFound
+	}
+	actor := principal.AccountID
+	if err := audit.Write(ctx, tx, audit.Event{
+		ActorAccountID: &actor,
+		Action:         "inbox_message.retracted",
+		ResourceType:   "inbox_message",
+		ResourceID:     &id,
+		RequestID:      requestID,
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// sentMessage reads one sent message with its roles and counts.
+func (s *Service) sentMessage(ctx context.Context, queries *inboxdb.Queries, id uuid.UUID) (SentMessage, error) {
+	row, err := queries.GetSentMessage(ctx, id)
+	if err != nil {
+		return SentMessage{}, fmt.Errorf("load sent message: %w", err)
+	}
+	roles, err := queries.ListNotificationRoles(ctx, uuidTexts([]uuid.UUID{id}))
+	if err != nil {
+		return SentMessage{}, fmt.Errorf("list message roles: %w", err)
+	}
+	item := SentMessage{
+		ID: row.ID, Title: row.Title, Body: row.Body, Link: row.Link,
+		RecipientCount: row.RecipientCount, ReadCount: row.ReadCount,
+		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt,
+	}
+	if row.SenderFirstName != nil && row.SenderLastName != nil {
+		name := strings.TrimSpace(*row.SenderFirstName + " " + *row.SenderLastName)
+		item.SenderName = &name
+	}
+	for _, role := range roles {
+		item.Roles = append(item.Roles, MessageRole{ID: role.RoleID, Name: role.RoleName})
+	}
+	return item, nil
 }
 
 // ListSent returns the manual messages that were sent, newest first.

@@ -22,10 +22,18 @@ type Querier interface {
 	// the sender's list is complete.
 	DeleteOrphanedSystemNotification(ctx context.Context, id uuid.UUID) error
 	DeleteOwnRecipient(ctx context.Context, arg DeleteOwnRecipientParams) (int64, error)
+	// Recipient rows and role rows go with it (ON DELETE CASCADE).
+	DeleteSentMessage(ctx context.Context, arg DeleteSentMessageParams) (int64, error)
 	GetAccountPersonName(ctx context.Context, accountID uuid.UUID) (GetAccountPersonNameRow, error)
+	// The machine and the operator of the run that is printing on it right now, if any.
+	GetMachineNotificationFacts(ctx context.Context, id uuid.UUID) (GetMachineNotificationFactsRow, error)
 	GetOpenDayFacts(ctx context.Context, id uuid.UUID) (GetOpenDayFactsRow, error)
 	GetOpenDayPeriodFacts(ctx context.Context, id uuid.UUID) (GetOpenDayPeriodFactsRow, error)
 	GetRunNotificationFacts(ctx context.Context, id uuid.UUID) (GetRunNotificationFactsRow, error)
+	GetSentMessage(ctx context.Context, id uuid.UUID) (GetSentMessageRow, error)
+	GetSentMessageForUpdate(ctx context.Context, arg GetSentMessageForUpdateParams) (GetSentMessageForUpdateRow, error)
+	// How a spool is named to people: its display id and the material of its open fill, if any.
+	GetSpoolNotificationFacts(ctx context.Context, id uuid.UUID) (GetSpoolNotificationFactsRow, error)
 	InsertNotification(ctx context.Context, arg InsertNotificationParams) (InboxNotification, error)
 	InsertNotificationRoles(ctx context.Context, arg InsertNotificationRolesParams) error
 	InsertRecipients(ctx context.Context, arg InsertRecipientsParams) (int64, error)
@@ -44,6 +52,7 @@ type Querier interface {
 	MarkAllOwnNotificationsRead(ctx context.Context, arg MarkAllOwnNotificationsReadParams) (int64, error)
 	// Idempotent: an already read notification keeps its first read time but still counts as found.
 	MarkOwnNotificationRead(ctx context.Context, arg MarkOwnNotificationReadParams) (int64, error)
+	UpdateSentMessage(ctx context.Context, arg UpdateSentMessageParams) error
 }
 
 var _ Querier = (*Queries)(nil)

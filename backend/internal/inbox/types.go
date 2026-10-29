@@ -15,6 +15,8 @@ const (
 	KindOpenDayPeriodOpen             Kind = "open_day_period_open"
 	KindOpenDayPlaceFreed             Kind = "open_day_place_freed"
 	KindRunFinished                   Kind = "run_finished"
+	KindPrinterError                  Kind = "printer_error"
+	KindFilamentChange                Kind = "filament_change"
 )
 
 const (
@@ -57,6 +59,13 @@ type MessageInput struct {
 	Body    string
 	Link    *string
 	RoleIDs []uuid.UUID
+}
+
+// MessageUpdate is the new content of a sent message; its recipients and roles stay.
+type MessageUpdate struct {
+	Title string
+	Body  string
+	Link  *string
 }
 
 // MessageRole names a role a message was sent to.

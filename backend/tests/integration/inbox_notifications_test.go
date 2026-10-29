@@ -162,14 +162,20 @@ func TestInboxSendingNeedsPermissionAndValidInput(t *testing.T) {
 		expectAppCode(t, err, code)
 	}
 	external := "//evil.example/x"
-	scheme := "https://evil.example/x"
+	insecure := "http://evil.example/x"
+	script := "javascript:alert(1)"
+	credentials := "https://user@evil.example/x"
+	noDot := "https://localhost/x"
 	backslash := "/\\evil.example"
 	bad(func(i *inbox.MessageInput) { i.Title = "  " }, "validation_failed")
 	bad(func(i *inbox.MessageInput) { i.Title = "two\nlines" }, "validation_failed")
 	bad(func(i *inbox.MessageInput) { i.Body = "" }, "validation_failed")
 	bad(func(i *inbox.MessageInput) { i.Body = string(make([]rune, 2001)) + "x" }, "validation_failed")
 	bad(func(i *inbox.MessageInput) { i.Link = &external }, "validation_failed")
-	bad(func(i *inbox.MessageInput) { i.Link = &scheme }, "validation_failed")
+	bad(func(i *inbox.MessageInput) { i.Link = &insecure }, "validation_failed")
+	bad(func(i *inbox.MessageInput) { i.Link = &script }, "validation_failed")
+	bad(func(i *inbox.MessageInput) { i.Link = &credentials }, "validation_failed")
+	bad(func(i *inbox.MessageInput) { i.Link = &noDot }, "validation_failed")
 	bad(func(i *inbox.MessageInput) { i.Link = &backslash }, "validation_failed")
 	bad(func(i *inbox.MessageInput) { i.RoleIDs = nil }, "validation_failed")
 	bad(func(i *inbox.MessageInput) { i.RoleIDs = []uuid.UUID{ids.New()} }, "unknown_role")
@@ -187,6 +193,123 @@ func TestInboxSendingNeedsPermissionAndValidInput(t *testing.T) {
 		ctx, `SELECT count(*) FROM audit_events WHERE action='inbox_message.sent' AND resource_id=$1 AND metadata='{}'`, sent.ID,
 	).Scan(&audited); err != nil || audited != 1 {
 		t.Fatalf("audit events for the message = %d, %v", audited, err)
+	}
+}
+
+func TestInboxLinksMayPointToOtherSitesOverHTTPS(t *testing.T) {
+	e := newInboxEnv(t)
+	ctx := testContext(t)
+	crew := e.role("Crew", nil)
+	e.person("member", crew.ID)
+	sender := e.person("sender", e.role("Messenger", nil, authorization.NotificationsSend).ID)
+	for given, want := range map[string]string{
+		"https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ": "https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ",
+		"www.youtube.com/watch?v=dQw4w9WgXcQ":                            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+		" example.org ":                                                  "https://example.org",
+		"/open-days":                                                     "/open-days",
+	} {
+		link := given
+		sent, err := e.inbox.SendMessage(ctx, sender, inbox.MessageInput{
+			Title: "Linked", Body: "See there", Link: &link, RoleIDs: []uuid.UUID{crew.ID},
+		}, nil)
+		if err != nil || sent.Link == nil || *sent.Link != want {
+			t.Fatalf("link %q stored as %v, %v; want %q", given, sent.Link, err, want)
+		}
+	}
+}
+
+func TestInboxSentMessagesCanBeEditedAndRetracted(t *testing.T) {
+	e := newInboxEnv(t)
+	ctx := testContext(t)
+	crew := e.role("Crew", nil)
+	alice := e.person("alice", crew.ID)
+	bob := e.person("bob", crew.ID)
+	sender := e.person("sender", e.role("Messenger", nil, authorization.NotificationsSend).ID)
+	colleague := e.person("colleague", e.role("Messenger too", nil, authorization.NotificationsSend).ID)
+	sent, err := e.inbox.SendMessage(ctx, sender, inbox.MessageInput{
+		Title: "Cleanup day", Body: "Bring gloves.", RoleIDs: []uuid.UUID{crew.ID},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.inbox.MarkRead(ctx, alice, sent.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = e.inbox.UpdateMessage(ctx, alice, sent.ID, inbox.MessageUpdate{Title: "x", Body: "y"}, nil)
+	expectAppCode(t, err, "permission_denied")
+	expectAppCode(t, e.inbox.RetractMessage(ctx, alice, sent.ID, nil), "permission_denied")
+	_, err = e.inbox.UpdateMessage(ctx, sender, sent.ID, inbox.MessageUpdate{Title: " ", Body: "y"}, nil)
+	expectAppCode(t, err, "validation_failed")
+	_, err = e.inbox.UpdateMessage(ctx, sender, ids.New(), inbox.MessageUpdate{Title: "x", Body: "y"}, nil)
+	expectAppCode(t, err, "not_found")
+
+	// Another sender may edit it; the change reaches the read copy and the unread one alike.
+	link := "www.example.org/cleanup"
+	updated, err := e.inbox.UpdateMessage(ctx, colleague, sent.ID, inbox.MessageUpdate{
+		Title: "Cleanup day moved", Body: "Bring gloves.", Link: &link,
+	}, nil)
+	if err != nil || updated.Title != "Cleanup day moved" || updated.Link == nil ||
+		*updated.Link != "https://www.example.org/cleanup" || updated.RecipientCount != 2 || updated.ReadCount != 1 ||
+		len(updated.Roles) != 1 || updated.SenderName == nil {
+		t.Fatalf("updated message = %+v, %v", updated, err)
+	}
+	for _, p := range []authorization.Principal{alice, bob} {
+		items := e.kinds(p, inbox.KindMessage)
+		if len(items) != 1 || items[0].Title != "Cleanup day moved" || items[0].Link == nil {
+			t.Fatalf("copy after the edit = %+v", items)
+		}
+	}
+	if n, _ := e.inbox.UnreadCount(ctx, alice); n != 0 {
+		t.Fatalf("editing made alice's copy unread again")
+	}
+	var audited []string
+	rows, err := e.pool.Query(
+		ctx, `SELECT changed_fields FROM audit_events WHERE action='inbox_message.updated' AND resource_id=$1`, sent.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var fields []string
+		if err := rows.Scan(&fields); err != nil {
+			t.Fatal(err)
+		}
+		audited = append(audited, fields...)
+	}
+	rows.Close()
+	if len(audited) != 2 || audited[0] != "title" || audited[1] != "link" {
+		t.Fatalf("audited changed fields = %v", audited)
+	}
+	// Editing without a change writes no audit event.
+	if _, err := e.inbox.UpdateMessage(ctx, sender, sent.ID, inbox.MessageUpdate{
+		Title: "Cleanup day moved", Body: "Bring gloves.", Link: &link,
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var unchanged int
+	if err := e.pool.QueryRow(
+		ctx, `SELECT count(*) FROM audit_events WHERE action='inbox_message.updated' AND resource_id=$1`, sent.ID,
+	).Scan(&unchanged); err != nil || unchanged != 1 {
+		t.Fatalf("audit events after an unchanged edit = %d, %v", unchanged, err)
+	}
+
+	// Retracting removes every copy, read or not, and the message from the sent list.
+	if err := e.inbox.RetractMessage(ctx, colleague, sent.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	e.expectCount(alice, inbox.KindMessage, 0, "alice after the retraction")
+	e.expectCount(bob, inbox.KindMessage, 0, "bob after the retraction")
+	expectAppCode(t, e.inbox.RetractMessage(ctx, sender, sent.ID, nil), "not_found")
+	page, err := e.inbox.ListSent(ctx, sender, 1, 25)
+	if err != nil || page.Total != 0 {
+		t.Fatalf("sent list after the retraction = %+v, %v", page, err)
+	}
+	var retracted int
+	if err := e.pool.QueryRow(
+		ctx, `SELECT count(*) FROM audit_events WHERE action='inbox_message.retracted' AND resource_id=$1`, sent.ID,
+	).Scan(&retracted); err != nil || retracted != 1 {
+		t.Fatalf("retraction audit events = %d, %v", retracted, err)
 	}
 }
 

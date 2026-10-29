@@ -25,7 +25,8 @@ import type {
   NotificationUnreadCount,
   SendNotificationMessageRequest,
   SentNotificationMessage,
-  SentNotificationMessagePage
+  SentNotificationMessagePage,
+  UpdateNotificationMessageRequest
 } from '../models';
 
 import { apiFetch } from '../../http-client';
@@ -173,6 +174,69 @@ return apiFetch<SentNotificationMessage>(getSendNotificationMessageUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(sendNotificationMessageRequest)
+  }
+);}
+
+
+export const getUpdateNotificationMessageUrl = (messageId: string,) => {
+
+
+
+
+  return `/api/v1/notifications/messages/${messageId}`
+}
+
+/**
+ * Requires `notifications.send`. The change reaches every recipient, including those who already read the message; the recipients and roles stay as they were. Answers 404 for an expired message or one that is not a manual message.
+ * @summary Change the title, text or link of a sent message
+ */
+export const updateNotificationMessage = async (messageId: string,
+    updateNotificationMessageRequest: UpdateNotificationMessageRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SentNotificationMessage> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SentNotificationMessage>(getUpdateNotificationMessageUrl(messageId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateNotificationMessageRequest)
+  }
+);}
+
+
+export const getRetractNotificationMessageUrl = (messageId: string,) => {
+
+
+
+
+  return `/api/v1/notifications/messages/${messageId}`
+}
+
+/**
+ * Requires `notifications.send`. Deletes the message together with every recipient's copy, read or not, and removes it from the sent list. Answers 404 for an expired message or one that is not a manual message.
+ * @summary Retract a sent message from every recipient
+ */
+export const retractNotificationMessage = async (messageId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getRetractNotificationMessageUrl(messageId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
   }
 );}
 

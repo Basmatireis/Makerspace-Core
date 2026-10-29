@@ -28,7 +28,7 @@ func (q *Queries) DeviceTypeInUse(ctx context.Context, id uuid.UUID) (bool, erro
 }
 
 const getBrandingConfiguration = `-- name: GetBrandingConfiguration :one
-SELECT singleton, legal_organization_name, display_name, application_name, tagline, primary_color, secondary_color, accent_color, background_color, imprint_mode, imprint_markdown, imprint_external_url, privacy_mode, privacy_markdown, privacy_external_url, version, updated_by_account_id, updated_at FROM branding_configuration
+SELECT singleton, legal_organization_name, display_name, application_name, tagline, primary_color, secondary_color, accent_color, background_color, imprint_mode, imprint_markdown, imprint_external_url, privacy_mode, privacy_markdown, privacy_external_url, version, updated_by_account_id, updated_at, fun_greetings, fun_greeting_share FROM branding_configuration
 `
 
 func (q *Queries) GetBrandingConfiguration(ctx context.Context) (BrandingConfiguration, error) {
@@ -53,6 +53,8 @@ func (q *Queries) GetBrandingConfiguration(ctx context.Context) (BrandingConfigu
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
+		&i.FunGreetings,
+		&i.FunGreetingShare,
 	)
 	return i, err
 }

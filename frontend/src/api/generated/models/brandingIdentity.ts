@@ -40,4 +40,17 @@ export interface BrandingIdentity {
      * @nullable
      */
   tagline: string | null;
+  /**
+     * Playful dashboard greetings shown instead of the time-of-day greeting now and then. `{name}` is replaced by the person's first name.
+     * @maxItems 50
+     * @items.minLength 1
+     * @items.maxLength 120
+     */
+  funGreetings: string[];
+  /**
+     * How many of a hundred dashboard visits show a playful greeting instead of the time-of-day one. 0 turns them off.
+     * @minimum 0
+     * @maximum 100
+     */
+  funGreetingShare: number;
 }

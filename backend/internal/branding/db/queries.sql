@@ -10,6 +10,8 @@ UPDATE branding_configuration SET
     display_name = sqlc.arg(display_name),
     application_name = sqlc.arg(application_name),
     tagline = sqlc.narg(tagline),
+    fun_greetings = sqlc.arg(fun_greetings)::text[],
+    fun_greeting_share = sqlc.arg(fun_greeting_share),
     primary_color = sqlc.arg(primary_color),
     secondary_color = sqlc.arg(secondary_color),
     accent_color = sqlc.arg(accent_color),

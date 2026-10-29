@@ -34,6 +34,8 @@ The dashboard (`/dashboard`, the landing page) is about the signed-in person and
 
 People without these see their lab-rules status and the next open days. Statistics cover all time; time spent in the space cannot be tracked, so there is no statistic based on it.
 
+The page title greets the person by the time of day ("Good morning, Lena"). In `funGreetingShare` of a hundred visits a playful greeting from the branding configuration (Settings › Communication & appearance › Branding & legal, "Playful greetings", English, up to 50 lines of 120 characters) replaces it: a greeting containing `{name}` gets the first name in its place and stands alone; one without stands alone too. The choice is made once per visit in the browser; nothing is stored.
+
 ### Open balance and paying
 
 The balance is always shown (also at €0.00): finalized orders of the person that still have money outstanding and no active wiRef invoice request, plus their own completely priced jobs that are not on any order. "Pay now" opens a dialog with everything ticked; unticking pays a subset, and a single unpaid order can also be paid from its menu in Recent orders. Supervisors record payments for their own orders themselves.

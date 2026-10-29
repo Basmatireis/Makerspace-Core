@@ -129,6 +129,8 @@ type BrandingConfiguration struct {
 	Version               int64
 	UpdatedByAccountID    *uuid.UUID
 	UpdatedAt             time.Time
+	FunGreetings          []string
+	FunGreetingShare      int32
 }
 
 type CashMovement struct {
