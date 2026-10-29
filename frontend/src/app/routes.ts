@@ -271,3 +271,9 @@ export const CategoryRetentionPage = lazy(() =>
     default: CategoryRetentionPage,
   })),
 );
+
+export const SubjectRequestPage = lazy(() =>
+  import('../features/privacy/SubjectRequestPage').then(({ SubjectRequestPage }) => ({
+    default: SubjectRequestPage,
+  })),
+);

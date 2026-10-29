@@ -23,7 +23,8 @@ export const privacySections: Record<PrivacySection, { title: string; descriptio
   },
   requests: {
     title: 'Data requests',
-    description: 'Access and erasure requests from the people whose data this makerspace holds.',
+    description:
+      'People asking for a copy of their data or for erasure. Every request has one month; the page tells you whose move it is.',
   },
   activities: {
     title: 'Processing activities',
@@ -48,6 +49,19 @@ export function categoryRetentionPath(categoryId: string): string {
 /** The category id a retention page's location points to, or null. */
 export function categoryIdFromPath(pathname: string): string | null {
   const prefix = `${privacyBasePath}/categories/`;
+  if (!pathname.startsWith(prefix)) return null;
+  const id = decodeURIComponent(pathname.slice(prefix.length).replace(/\/+$/, ''));
+  return id === '' ? null : id;
+}
+
+/** The path of one data request's page. */
+export function requestPath(requestId: string): string {
+  return `${privacyBasePath}/requests/${encodeURIComponent(requestId)}`;
+}
+
+/** The request id a request page's location points to, or null. */
+export function requestIdFromPath(pathname: string): string | null {
+  const prefix = `${privacyBasePath}/requests/`;
   if (!pathname.startsWith(prefix)) return null;
   const id = decodeURIComponent(pathname.slice(prefix.length).replace(/\/+$/, ''));
   return id === '' ? null : id;

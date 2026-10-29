@@ -1,0 +1,226 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/type' as type;
+
+// Layout glue for the data requests list and the request page; every control is a Carbon component.
+.privacy-requests__toolbar-actions {
+  display: flex;
+  align-items: stretch;
+}
+.privacy-requests__table td {
+  padding-block: $spacing-05;
+  vertical-align: top;
+}
+.privacy-requests__empty {
+  padding: $spacing-06 $spacing-05;
+  background: theme.$layer-01;
+}
+.privacy-requests__person {
+  @include type.type-style('body-compact-01');
+  font-weight: 600;
+}
+
+// The five-segment progress bar of a row.
+.privacy-bar {
+  display: flex;
+  gap: $spacing-01;
+  align-items: center;
+}
+.privacy-bar__segment {
+  display: block;
+  inline-size: 1.5rem;
+  block-size: 0.25rem;
+  border-radius: 0.125rem;
+  background: theme.$border-subtle-03;
+}
+.privacy-bar__segment--done {
+  background: theme.$support-success;
+}
+.privacy-bar__segment--current {
+  background: theme.$interactive;
+}
+.privacy-bar__segment--rejected {
+  background: theme.$support-error;
+}
+.privacy-requests__stands > * + * {
+  margin-block-start: $spacing-03;
+}
+.privacy-requests__due {
+  font-weight: 600;
+}
+.privacy-requests__due--late {
+  color: theme.$support-error;
+}
+.privacy-requests__due--soon {
+  color: theme.$text-primary;
+}
+
+// The record modal: the two kinds with their explanation.
+.privacy-choice__title {
+  display: block;
+  font-weight: 600;
+}
+.privacy-choice__detail {
+  display: block;
+  color: theme.$text-secondary;
+}
+
+// The request page.
+.privacy-due {
+  text-align: end;
+}
+.privacy-due__label {
+  @include type.type-style('label-01');
+  display: block;
+  color: theme.$text-secondary;
+}
+.privacy-due__value {
+  @include type.type-style('productive-heading-03');
+}
+.privacy-due__value--late {
+  color: theme.$support-error;
+}
+.privacy-request {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-06;
+}
+.privacy-request__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: $spacing-06;
+  align-items: start;
+}
+@media (max-width: 66rem) {
+  .privacy-request__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.privacy-request__main,
+.privacy-request__side {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-06;
+}
+.privacy-request__card > * + * {
+  margin-block-start: $spacing-05;
+}
+.privacy-request__card--step {
+  border-block-start: 3px solid theme.$interactive;
+}
+.privacy-request__card--done {
+  border-block-start-color: theme.$support-success;
+}
+.privacy-request__card--stopped {
+  border-block-start-color: theme.$support-error;
+}
+.privacy-request__lead {
+  @include type.type-style('body-01');
+  max-inline-size: 45rem;
+  margin-block-start: $spacing-03;
+  color: theme.$text-secondary;
+}
+.privacy-request__field {
+  max-inline-size: 45rem;
+}
+.privacy-request__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 1px;
+}
+.privacy-request__reject {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  align-items: center;
+  justify-content: space-between;
+}
+.privacy-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: theme.$border-subtle;
+}
+.privacy-summary > div {
+  padding: $spacing-04 $spacing-05;
+  background: theme.$layer-02;
+}
+.privacy-summary__value {
+  @include type.type-style('heading-04');
+  display: block;
+}
+.privacy-summary__label {
+  @include type.type-style('label-01');
+  display: block;
+  color: theme.$text-secondary;
+}
+.privacy-request__table {
+  overflow-x: auto;
+}
+.privacy-request__num {
+  text-align: end;
+}
+.privacy-outcome {
+  display: inline-flex;
+  gap: $spacing-03;
+  align-items: center;
+}
+.privacy-outcome__dot--erased {
+  fill: theme.$support-success;
+}
+.privacy-outcome__dot--unlinked,
+.privacy-outcome__dot--none {
+  fill: theme.$icon-secondary;
+}
+.privacy-outcome__dot--retained_legal {
+  fill: theme.$support-warning;
+}
+.privacy-outcome__dot--manual_review {
+  fill: theme.$support-error;
+}
+.privacy-request__notices > * + * {
+  margin-block-start: $spacing-03;
+}
+.privacy-request__notices .cds--inline-notification {
+  inline-size: 100%;
+  max-inline-size: none;
+}
+.privacy-timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.privacy-timeline__item {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  gap: $spacing-04;
+  padding-block: $spacing-04;
+  border-block-start: 1px solid theme.$border-subtle;
+}
+.privacy-timeline__item:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+.privacy-timeline__dot {
+  margin-block-start: 0.125rem;
+  fill: theme.$support-success;
+}
+.privacy-timeline__dot--now {
+  fill: theme.$interactive;
+}
+.privacy-requests__secondary {
+  color: theme.$text-secondary;
+}
+.privacy-request__kv {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: $spacing-03 $spacing-05;
+  margin: 0;
+}
+.privacy-request__kv dt {
+  color: theme.$text-secondary;
+}
+.privacy-request__kv dd {
+  margin: 0;
+}

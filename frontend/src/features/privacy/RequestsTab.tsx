@@ -1,597 +1,312 @@
+import { ArrowRight, Checkmark, CheckmarkFilled, Filter } from '@carbon/icons-react';
 import {
   Button,
-  ComboBox,
+  Checkbox,
+  CheckboxGroup,
+  ClickableTile,
   DataTable,
-  InlineNotification,
-  Modal,
-  RadioButton,
-  RadioButtonGroup,
-  Select,
-  SelectItem,
+  Link,
+  Pagination,
+  Popover,
+  PopoverContent,
   Stack,
-  StructuredListBody,
-  StructuredListCell,
-  StructuredListHead,
-  StructuredListRow,
-  StructuredListWrapper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
-  TableExpandedRow,
-  TableExpandHeader,
-  TableExpandRow,
   TableHead,
   TableHeader,
   TableRow,
   TableToolbar,
   TableToolbarContent,
+  TableToolbarSearch,
   Tag,
-  TextArea,
-  TextInput,
 } from '@carbon/react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import type {
-  Person,
-  SubjectRequest,
-  SubjectRequestAssessment,
-  SubjectRequestChannel,
-  SubjectRequestKind,
-  SubjectRequestOutcome,
-  SubjectRequestStatus,
-  SubjectRequestTransitionInputStatus,
-} from '../../api/generated/models';
-import {
-  createSubjectRequest,
-  executeSubjectRequest,
-  downloadSubjectRequestExport,
-  transitionSubjectRequest,
-} from '../../api/generated/privacy/privacy';
-import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
-import {
-  formatDateTime,
-  instantToZonedDateTimeValue,
-  isZonedDateTimeValue,
-  zonedDateTimeValueToISO,
-} from '../../app/dateTime';
+import { Link as RouterLink } from 'react-router-dom';
+import type { SubjectRequest, SubjectRequestKind, SubjectRequestStatus } from '../../api/generated/models';
+import { formatDate } from '../../app/dateTime';
 import { ErrorState } from '../../app/PageState';
+import { useNow } from '../../app/useNow';
 import { useCurrentUser } from '../auth/auth';
-import { saveBlob } from '../configtransfer/helpers';
 import { hasPermission } from '../auth/permissions';
 import { SettingsLoading } from '../settings/SettingsPageLayout';
-import { peopleListOptions } from '../users/queries';
-import { errorCode, privacyErrorMessage, privacyQueryKey, subjectRequestsQueryOptions } from './privacy';
+import { subjectRequestsQueryOptions } from './privacy';
+import { privacyPath, requestPath } from './privacyNavigation';
+import {
+  channelPhrases,
+  dueInfo,
+  isClosed,
+  isClosedThisYear,
+  isDueSoon,
+  kindLabels,
+  nextStep,
+  personLabel,
+  requestProgress,
+  statusDetail,
+  statusLabels,
+  statusSentence,
+  type Actor,
+} from './privacyRequests';
+import { RecordRequestModal } from './RecordRequestModal';
+import './privacyCategories.scss';
+import './privacyRequests.scss';
 
 const headers = [
-  { key: 'reference', header: 'Reference' },
-  { key: 'kind', header: 'Kind' },
-  { key: 'status', header: 'Status' },
-  { key: 'person', header: 'Person' },
+  { key: 'who', header: 'Who and what' },
+  { key: 'stands', header: 'Where it stands' },
+  { key: 'next', header: 'Next step' },
   { key: 'received', header: 'Received' },
   { key: 'due', header: 'Due' },
 ];
 
-const kindLabels: Record<SubjectRequestKind, string> = { access: 'Access', erasure: 'Erasure' };
+type TileFilter = 'mine' | 'waiting' | 'due' | 'closed';
 
-const statusLabels: Record<SubjectRequestStatus, string> = {
-  received: 'Received',
-  identity_verified: 'Identity verified',
-  assessed: 'Assessed',
-  approved: 'Approved',
-  executing: 'Executing',
-  completed: 'Completed',
-  partially_completed: 'Partially completed',
-  rejected: 'Rejected',
-};
+type Filters = { kinds: SubjectRequestKind[]; statuses: SubjectRequestStatus[] };
 
-const statusTagTypes: Record<
-  SubjectRequestStatus,
-  'gray' | 'blue' | 'teal' | 'cyan' | 'purple' | 'green' | 'magenta' | 'red'
-> = {
-  received: 'gray',
-  identity_verified: 'blue',
-  assessed: 'teal',
-  approved: 'cyan',
-  executing: 'purple',
-  completed: 'green',
-  partially_completed: 'magenta',
-  rejected: 'red',
-};
+const noFilters: Filters = { kinds: [], statuses: [] };
 
-const outcomeLabels: Record<SubjectRequestOutcome, string> = {
-  erased: 'Erased',
-  unlinked: 'Unlinked',
-  retained_legal: 'Retained (legal)',
-  manual_review: 'Manual review',
-};
-
-const channelLabels: Record<SubjectRequestChannel, string> = {
-  email: 'Email',
-  in_person: 'In person',
-  letter: 'Letter',
-  other: 'Other',
-};
-
-const closedStatuses: readonly SubjectRequestStatus[] = ['completed', 'partially_completed', 'rejected'];
-const rejectableStatuses: readonly SubjectRequestStatus[] = ['received', 'identity_verified', 'assessed', 'approved'];
-
-function isOverdue(request: SubjectRequest): boolean {
-  return !closedStatuses.includes(request.status) && new Date(request.dueAt).getTime() < Date.now();
+function toggled<T extends string>(list: readonly T[], value: T, checked: boolean): T[] {
+  return checked ? [...list.filter((item) => item !== value), value] : list.filter((item) => item !== value);
 }
 
-function shortId(id: string | null): string {
-  return id ? id.slice(0, 8) : '—';
-}
-
-function personName(person: Person): string {
-  return `${person.firstName} ${person.lastName}`;
-}
-
-type RequestFormValues = {
-  kind: SubjectRequestKind;
-  person: Person | null;
-  channel: SubjectRequestChannel;
-  receivedAt: string;
-  reference: string;
-  notes: string;
-};
-
-function RecordRequestModal({ onClose }: { onClose: () => void }) {
-  const client = useQueryClient();
-  const [search, setSearch] = useState('');
-  const candidates = useQuery({ ...peopleListOptions({ search, pageSize: 25 }), placeholderData: keepPreviousData });
-  const form = useForm<RequestFormValues>({
-    defaultValues: {
-      kind: 'access',
-      person: null,
-      channel: 'email',
-      receivedAt: instantToZonedDateTimeValue(new Date()),
-      reference: '',
-      notes: '',
-    },
-  });
-  const { control, register, setValue, watch, formState } = form;
-  const kind = watch('kind');
-  const mutation = useMutation({
-    mutationFn: (values: RequestFormValues) =>
-      createSubjectRequest({
-        kind: values.kind,
-        personId: values.person!.id,
-        channel: values.channel,
-        receivedAt: zonedDateTimeValueToISO(values.receivedAt),
-        ...(values.reference.trim() ? { reference: values.reference.trim() } : {}),
-        ...(values.notes.trim() ? { notes: values.notes.trim() } : {}),
-      }),
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: privacyQueryKey });
-      onClose();
-    },
-  });
-  const submit = form.handleSubmit(async (values) => {
-    try {
-      await mutation.mutateAsync(values);
-    } catch {
-      /* rendered in the dialog */
-    }
-  });
-
+function ProgressBar({ request }: { request: SubjectRequest }) {
+  const { done, stopped } = requestProgress(request);
   return (
-    <Modal
-      open
-      size="md"
-      modalHeading="Record request"
-      primaryButtonText={mutation.isPending ? 'Recording…' : 'Record request'}
-      secondaryButtonText="Cancel"
-      primaryButtonDisabled={mutation.isPending}
-      preventCloseOnClickOutside
-      onRequestClose={onClose}
-      onSecondarySubmit={onClose}
-      onRequestSubmit={() => void submit()}
-    >
-      <Stack gap={5}>
-        {mutation.isError && (
-          <InlineNotification
-            kind="error"
-            lowContrast
-            hideCloseButton
-            title="Request not recorded"
-            subtitle={privacyErrorMessage(mutation.error)}
-          />
-        )}
-        <RadioButtonGroup
-          legendText="Kind of request"
-          name="request-kind"
-          orientation="vertical"
-          valueSelected={kind}
-          onChange={(value) => setValue('kind', value as SubjectRequestKind)}
-        >
-          <RadioButton id="request-kind-access" value="access" labelText="Access (copy of the data)" />
-          <RadioButton id="request-kind-erasure" value="erasure" labelText="Erasure" />
-        </RadioButtonGroup>
-        <Controller
-          control={control}
-          name="person"
-          rules={{ validate: (value) => value !== null || 'Choose the person.' }}
-          render={({ field }) => (
-            <ComboBox
-              id="request-person"
-              titleText="Person"
-              placeholder="Search people"
-              items={candidates.data?.items ?? []}
-              itemToString={(item) => (item ? personName(item) : '')}
-              shouldFilterItem={() => true}
-              selectedItem={field.value}
-              invalid={Boolean(formState.errors.person)}
-              invalidText={formState.errors.person?.message}
-              onInputChange={setSearch}
-              onChange={({ selectedItem }) => field.onChange(selectedItem ?? null)}
-            />
-          )}
-        />
-        <Select id="request-channel" labelText="Channel" {...register('channel')}>
-          {(Object.keys(channelLabels) as SubjectRequestChannel[]).map((channel) => (
-            <SelectItem key={channel} value={channel} text={channelLabels[channel]} />
-          ))}
-        </Select>
-        <TextInput
-          id="request-received-at"
-          type="datetime-local"
-          labelText="Received"
-          invalid={Boolean(formState.errors.receivedAt)}
-          invalidText={formState.errors.receivedAt?.message}
-          {...register('receivedAt', {
-            validate: (value) => isZonedDateTimeValue(value) || 'Enter the date and time of receipt.',
-          })}
-        />
-        <TextInput
-          id="request-reference"
-          labelText="Reference"
-          helperText="Your own reference, never the name of the person."
-          maxLength={100}
-          {...register('reference')}
-        />
-        <TextArea id="request-notes" labelText="Notes" maxLength={2000} rows={3} {...register('notes')} />
-      </Stack>
-    </Modal>
+    <div className="privacy-bar" aria-hidden="true">
+      {[1, 2, 3, 4, 5].map((step) => {
+        const state =
+          step <= done ? 'done' : step === done + 1 ? (stopped ? 'rejected' : isClosed(request) ? '' : 'current') : '';
+        return <span key={step} className={`privacy-bar__segment${state ? ` privacy-bar__segment--${state}` : ''}`} />;
+      })}
+    </div>
   );
 }
 
-function NoteModal({
-  title,
+function FilterPanel({ filters, onChange }: { filters: Filters; onChange: (filters: Filters) => void }) {
+  const [open, setOpen] = useState(false);
+  const count = filters.kinds.length + filters.statuses.length;
+  return (
+    <div className="privacy-filter">
+      <Popover open={open} align="bottom-end" isTabTip onRequestClose={() => setOpen(false)}>
+        <Button
+          kind="ghost"
+          size="lg"
+          renderIcon={Filter}
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          Filter
+          {count > 0 && (
+            <>
+              {' '}
+              <Tag as="span" type="blue" size="sm">
+                {count}
+              </Tag>
+            </>
+          )}
+        </Button>
+        <PopoverContent>
+          {open && (
+            <div className="privacy-filter__panel" role="group" aria-label="Filter data requests">
+              <CheckboxGroup legendText="Kind">
+                {(Object.keys(kindLabels) as SubjectRequestKind[]).map((kind) => (
+                  <Checkbox
+                    key={kind}
+                    id={`request-filter-kind-${kind}`}
+                    labelText={kindLabels[kind]}
+                    checked={filters.kinds.includes(kind)}
+                    onChange={(_event, { checked }) =>
+                      onChange({ ...filters, kinds: toggled(filters.kinds, kind, checked) })
+                    }
+                  />
+                ))}
+              </CheckboxGroup>
+              <CheckboxGroup legendText="Status">
+                {(Object.keys(statusLabels) as SubjectRequestStatus[]).map((status) => (
+                  <Checkbox
+                    key={status}
+                    id={`request-filter-status-${status}`}
+                    labelText={statusLabels[status]}
+                    checked={filters.statuses.includes(status)}
+                    onChange={(_event, { checked }) =>
+                      onChange({ ...filters, statuses: toggled(filters.statuses, status, checked) })
+                    }
+                  />
+                ))}
+              </CheckboxGroup>
+              <div className="privacy-filter__actions">
+                <Button kind="ghost" size="md" onClick={() => onChange(noFilters)}>
+                  Clear filters
+                </Button>
+                <Button kind="primary" size="md" onClick={() => setOpen(false)}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+function SummaryTile({
   label,
-  confirmLabel,
-  pending,
-  error,
-  onSubmit,
-  onClose,
+  value,
+  alert,
+  active,
+  onSelect,
 }: {
-  title: string;
   label: string;
-  confirmLabel: string;
-  pending: boolean;
-  error: string | undefined;
-  onSubmit: (note: string) => void;
-  onClose: () => void;
+  value: number;
+  alert?: boolean;
+  active: boolean;
+  onSelect: () => void;
 }) {
-  const form = useForm<{ note: string }>({ defaultValues: { note: '' } });
-  const submit = form.handleSubmit((values) => onSubmit(values.note.trim()));
   return (
-    <Modal
-      open
-      size="sm"
-      modalHeading={title}
-      primaryButtonText={pending ? `${confirmLabel}…` : confirmLabel}
-      secondaryButtonText="Cancel"
-      primaryButtonDisabled={pending}
-      preventCloseOnClickOutside
-      onRequestClose={onClose}
-      onSecondarySubmit={onClose}
-      onRequestSubmit={() => void submit()}
+    <ClickableTile
+      href={privacyPath('requests')}
+      aria-current={active ? 'true' : undefined}
+      renderIcon={active ? CheckmarkFilled : ArrowRight}
+      onClick={(event) => {
+        event.preventDefault();
+        onSelect();
+      }}
     >
-      <Stack gap={5}>
-        {error && (
-          <InlineNotification kind="error" lowContrast hideCloseButton title="Action failed" subtitle={error} />
-        )}
-        <TextArea
-          id="request-note"
-          labelText={label}
-          maxLength={1000}
-          rows={3}
-          invalid={Boolean(form.formState.errors.note)}
-          invalidText={form.formState.errors.note?.message}
-          {...form.register('note', { validate: (value) => value.trim() !== '' || 'This field is required.' })}
-        />
-      </Stack>
-    </Modal>
+      <span className="privacy-tiles__label">{label}</span>
+      <span className={`privacy-tiles__value${alert ? ' privacy-requests__due--late' : ''}`}>{value}</span>
+    </ClickableTile>
   );
 }
 
-function AssessmentView({ title, assessment }: { title: string; assessment: SubjectRequestAssessment }) {
-  return (
-    <Stack gap={3}>
-      <h4 className="cds--type-productive-heading-02">{title}</h4>
-      <Table size="sm" aria-label={title}>
-        <TableHead>
-          <TableRow>
-            <TableHeader>Category</TableHeader>
-            <TableHeader>Records</TableHeader>
-            <TableHeader>Outcome</TableHeader>
-            <TableHeader>Note</TableHeader>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {assessment.categories.map((category) => (
-            <TableRow key={category.categoryId}>
-              <TableCell>{category.name}</TableCell>
-              <TableCell>{category.records}</TableCell>
-              <TableCell>
-                {category.outcome ? (
-                  <Tag
-                    type={category.outcome === 'erased' || category.outcome === 'unlinked' ? 'green' : 'warm-gray'}
-                    size="sm"
-                  >
-                    {outcomeLabels[category.outcome]}
-                  </Tag>
-                ) : (
-                  '—'
-                )}
-              </TableCell>
-              <TableCell>{category.note}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-      {assessment.blockers.length > 0 && (
-        <div>
-          <p className="cds--type-label-01">Blockers</p>
-          {assessment.blockers.map((blocker) => (
-            <Tag key={blocker} type="red" size="sm">
-              {blocker}
-            </Tag>
-          ))}
-        </div>
-      )}
-      <p className="cds--type-helper-text-01">Open holds: {assessment.openHolds}</p>
-      {assessment.uncoveredCategories.length > 0 && (
-        <div>
-          <p className="cds--type-label-01">Uncovered categories (no handler)</p>
-          {assessment.uncoveredCategories.map((id) => (
-            <Tag key={id} type="warm-gray" size="sm">
-              {id}
-            </Tag>
-          ))}
-        </div>
-      )}
-    </Stack>
-  );
+function matchesSearch(request: SubjectRequest, search: string): boolean {
+  const needle = search.trim().toLowerCase();
+  if (needle === '') return true;
+  return (request.personName ?? '').toLowerCase().includes(needle) || request.reference.toLowerCase().includes(needle);
 }
 
-type Dialog = 'verify' | 'reject' | 'execute';
-
-function RequestDetail({ request, canExecute }: { request: SubjectRequest; canExecute: boolean }) {
-  const client = useQueryClient();
-  const [dialog, setDialog] = useState<Dialog>();
-
-  const settle = async () => {
-    await client.invalidateQueries({ queryKey: privacyQueryKey });
-  };
-  const transition = useMutation({
-    mutationFn: (input: { status: SubjectRequestTransitionInputStatus; note?: string }) =>
-      transitionSubjectRequest(request.id, {
-        status: input.status,
-        ...(input.note ? { note: input.note } : {}),
-        expectedVersion: request.version,
-      }),
-    onSuccess: async () => {
-      setDialog(undefined);
-      await settle();
-    },
-    onError: () => void settle(),
-  });
-  const download = useMutation({
-    // Through the API client, so an expired fresh sign-in opens the re-authentication dialog instead of a JSON page.
-    mutationFn: () => downloadSubjectRequestExport(request.id),
-    onSuccess: (blob) => saveBlob(blob, `subject-request-${request.id}.zip`),
-  });
-  const execute = useMutation({
-    mutationFn: () => executeSubjectRequest(request.id, { expectedVersion: request.version }),
-    onSuccess: async () => {
-      setDialog(undefined);
-      await settle();
-    },
-    onError: () => void settle(),
-  });
-
-  const status = request.status;
-  const error = transition.isError
-    ? transition.error
-    : execute.isError
-      ? execute.error
-      : download.isError
-        ? download.error
-        : undefined;
-  const busy = transition.isPending || execute.isPending;
-  const open = (next: Dialog) => {
-    transition.reset();
-    execute.reset();
-    setDialog(next);
-  };
-  const run = (next: SubjectRequestTransitionInputStatus) => {
-    execute.reset();
-    transition.mutate({ status: next });
-  };
-  const closeDialog = () => setDialog(undefined);
-  const dialogError = error ? privacyErrorMessage(error) : undefined;
-
-  return (
-    <Stack gap={5}>
-      {error && (
-        <InlineNotification
-          kind={errorCode(error) === 'stale_write' ? 'warning' : 'error'}
-          lowContrast
-          hideCloseButton
-          title={errorCode(error) ?? 'Action failed'}
-          subtitle={privacyErrorMessage(error)}
-        />
-      )}
-      <div>
-        {status === 'received' && (
-          <Button size="sm" kind="tertiary" disabled={busy} onClick={() => open('verify')}>
-            Verify identity
-          </Button>
-        )}
-        {(status === 'identity_verified' || status === 'assessed') && (
-          <Button size="sm" kind="tertiary" disabled={busy} onClick={() => run('assessed')}>
-            Assess
-          </Button>
-        )}
-        {status === 'assessed' && (
-          <Button size="sm" kind="tertiary" disabled={busy} onClick={() => run('approved')}>
-            Approve
-          </Button>
-        )}
-        {rejectableStatuses.includes(status) && (
-          <Button size="sm" kind="danger--tertiary" disabled={busy} onClick={() => open('reject')}>
-            Reject
-          </Button>
-        )}
-        {status === 'approved' && canExecute && (
-          <Button size="sm" kind="danger" disabled={busy} onClick={() => open('execute')}>
-            Execute
-          </Button>
-        )}
-        {canExecute &&
-          request.kind === 'access' &&
-          (status === 'completed' || status === 'partially_completed') &&
-          request.exportAvailable && (
-            <Button size="sm" kind="tertiary" disabled={download.isPending} onClick={() => download.mutate()}>
-              {download.isPending ? 'Downloading…' : 'Download export'}
-            </Button>
-          )}
-      </div>
-      {request.rejectionReason && <p>Rejection reason: {request.rejectionReason}</p>}
-      {request.notes && <p className="cds--type-helper-text-01">Notes: {request.notes}</p>}
-      <StructuredListWrapper isCondensed aria-label="Request steps">
-        <StructuredListHead>
-          <StructuredListRow head>
-            <StructuredListCell head>Step</StructuredListCell>
-            <StructuredListCell head>Time</StructuredListCell>
-            <StructuredListCell head>Note</StructuredListCell>
-          </StructuredListRow>
-        </StructuredListHead>
-        <StructuredListBody>
-          {request.steps.map((step, index) => (
-            <StructuredListRow key={`${step.status}-${index}`}>
-              <StructuredListCell>
-                <Tag type={statusTagTypes[step.status]} size="sm">
-                  {statusLabels[step.status]}
-                </Tag>
-              </StructuredListCell>
-              <StructuredListCell>{formatDateTime(step.occurredAt)}</StructuredListCell>
-              <StructuredListCell>{step.note}</StructuredListCell>
-            </StructuredListRow>
-          ))}
-        </StructuredListBody>
-      </StructuredListWrapper>
-      {request.assessment && <AssessmentView title="Assessment" assessment={request.assessment} />}
-      {request.result && <AssessmentView title="Result" assessment={request.result} />}
-      {dialog === 'verify' && (
-        <NoteModal
-          title="Verify identity"
-          label="How was the identity verified?"
-          confirmLabel="Verify identity"
-          pending={transition.isPending}
-          error={dialogError}
-          onSubmit={(note) => transition.mutate({ status: 'identity_verified', note })}
-          onClose={closeDialog}
-        />
-      )}
-      {dialog === 'reject' && (
-        <NoteModal
-          title="Reject request"
-          label="Reason"
-          confirmLabel="Reject"
-          pending={transition.isPending}
-          error={dialogError}
-          onSubmit={(note) => transition.mutate({ status: 'rejected', note })}
-          onClose={closeDialog}
-        />
-      )}
-      {dialog === 'execute' && request.kind === 'erasure' && (
-        <DestructiveActionDialog
-          open
-          title="Execute erasure"
-          confirmLabel="Erase data"
-          pending={execute.isPending}
-          error={dialogError}
-          onClose={closeDialog}
-          onConfirm={() => execute.mutate()}
-        >
-          <p>
-            This erases or unlinks the data of the person in every category as assessed. It cannot be undone. Records
-            kept for a legal obligation are retained.
-          </p>
-        </DestructiveActionDialog>
-      )}
-      {dialog === 'execute' && request.kind === 'access' && (
-        <Modal
-          open
-          size="sm"
-          modalHeading="Execute access request"
-          primaryButtonText={execute.isPending ? 'Executing…' : 'Execute'}
-          secondaryButtonText="Cancel"
-          primaryButtonDisabled={execute.isPending}
-          preventCloseOnClickOutside
-          onRequestClose={closeDialog}
-          onSecondarySubmit={closeDialog}
-          onRequestSubmit={() => execute.mutate()}
-        >
-          <Stack gap={5}>
-            {dialogError && (
-              <InlineNotification
-                kind="error"
-                lowContrast
-                hideCloseButton
-                title="Action failed"
-                subtitle={dialogError}
-              />
-            )}
-            <p>Build the export with the data of the person as a ZIP file for download.</p>
-          </Stack>
-        </Modal>
-      )}
-    </Stack>
-  );
+/** Open requests first, the most urgent on top; closed ones follow, newest due date first. */
+function byUrgency(a: SubjectRequest, b: SubjectRequest): number {
+  const closedOrder = Number(isClosed(a)) - Number(isClosed(b));
+  if (closedOrder !== 0) return closedOrder;
+  const order = new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+  return isClosed(a) ? -order : order;
 }
 
 export function RequestsTab() {
   const currentUser = useCurrentUser();
-  const canExecute = hasPermission(currentUser, 'privacy.requests.execute');
   const requests = useQuery(subjectRequestsQueryOptions());
+  const now = useNow();
   const [recording, setRecording] = useState(false);
+  const [search, setSearch] = useState('');
+  const [openOnly, setOpenOnly] = useState(true);
+  const [tile, setTile] = useState<TileFilter | null>(null);
+  const [filters, setFilters] = useState<Filters>(noFilters);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   if (requests.isPending) return <SettingsLoading label="Loading data requests" />;
   if (requests.isError) return <ErrorState message={requests.error.message} onRetry={() => void requests.refetch()} />;
 
-  const byId = new Map(requests.data.requests.map((request) => [request.id as string, request]));
-  const rows = requests.data.requests.map((request) => ({ id: request.id as string }));
+  const actor: Actor = {
+    accountId: currentUser.account.id,
+    canManage: hasPermission(currentUser, 'privacy.requests.manage'),
+    canExecute: hasPermission(currentUser, 'privacy.requests.execute'),
+  };
+  const all = requests.data.requests;
+  const open = all.filter((request) => !isClosed(request));
+  const counts = {
+    mine: open.filter((request) => nextStep(request, actor).mine).length,
+    waiting: open.filter((request) => !nextStep(request, actor).mine).length,
+    due: all.filter((request) => isDueSoon(request, now)).length,
+    closed: all.filter((request) => isClosedThisYear(request, now)).length,
+  };
+  const inTile: Record<TileFilter, (request: SubjectRequest) => boolean> = {
+    mine: (request) => !isClosed(request) && nextStep(request, actor).mine,
+    waiting: (request) => !isClosed(request) && !nextStep(request, actor).mine,
+    due: (request) => isDueSoon(request, now),
+    closed: (request) => isClosedThisYear(request, now),
+  };
+  const matched = all
+    .filter(
+      (request) =>
+        matchesSearch(request, search) &&
+        (tile ? inTile[tile](request) : !openOnly || !isClosed(request)) &&
+        (filters.kinds.length === 0 || filters.kinds.includes(request.kind)) &&
+        (filters.statuses.length === 0 || filters.statuses.includes(request.status)),
+    )
+    .sort(byUrgency);
+  const lastPage = Math.max(1, Math.ceil(matched.length / pageSize));
+  const currentPage = Math.min(page, lastPage);
+  const visible = matched.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  // DataTable can render one pass with its previous rows, so look up in the full list.
+  const byId = new Map(all.map((request) => [request.id as string, request]));
+  const rows = visible.map((request) => ({ id: request.id as string }));
+  const tileProps = (key: TileFilter) => ({
+    active: tile === key,
+    onSelect: () => {
+      setTile(tile === key ? null : key);
+      setPage(1);
+    },
+  });
 
   return (
     <Stack gap={5}>
+      <div className="privacy-tiles">
+        <SummaryTile label="Your move" value={counts.mine} {...tileProps('mine')} />
+        <SummaryTile label="Waiting for someone else" value={counts.waiting} {...tileProps('waiting')} />
+        <SummaryTile
+          label="Due within 7 days or overdue"
+          value={counts.due}
+          alert={counts.due > 0}
+          {...tileProps('due')}
+        />
+        <SummaryTile label="Closed this year" value={counts.closed} {...tileProps('closed')} />
+      </div>
       <DataTable rows={rows} headers={headers}>
         {({ rows: tableRows, headers: tableHeaders, getTableProps, getHeaderProps, getRowProps }) => (
           <TableContainer>
             <TableToolbar>
               <TableToolbarContent>
-                <Button onClick={() => setRecording(true)}>Record request</Button>
+                <TableToolbarSearch
+                  labelText="Search data requests"
+                  placeholder="Search by person or reference"
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(typeof event === 'string' ? event : event.target.value);
+                    setPage(1);
+                  }}
+                />
+                <Button
+                  kind="ghost"
+                  size="lg"
+                  renderIcon={openOnly && !tile ? Checkmark : undefined}
+                  aria-pressed={openOnly && !tile}
+                  disabled={tile !== null}
+                  onClick={() => {
+                    setOpenOnly(!openOnly);
+                    setPage(1);
+                  }}
+                >
+                  Open only
+                </Button>
+                <FilterPanel
+                  filters={filters}
+                  onChange={(next) => {
+                    setFilters(next);
+                    setPage(1);
+                  }}
+                />
+                <Button size="lg" onClick={() => setRecording(true)}>
+                  Record a request
+                </Button>
               </TableToolbarContent>
             </TableToolbar>
-            <Table {...getTableProps()} aria-label="Data requests">
+            <Table {...getTableProps()} aria-label="Data requests" className="privacy-requests__table">
               <TableHead>
                 <TableRow>
-                  <TableExpandHeader aria-label="Expand to see details" />
                   {tableHeaders.map((header) => {
                     const { key, ...props } = getHeaderProps({ header });
                     return (
@@ -607,46 +322,85 @@ export function RequestsTab() {
                   const request = byId.get(row.id);
                   if (!request) return null;
                   const { key, ...rowProps } = getRowProps({ row });
-                  return [
-                    <TableExpandRow
-                      key={key}
-                      {...rowProps}
-                      aria-label={`Show details of ${request.reference || shortId(request.id)}`}
-                      expandHeader="Expand to see details"
-                    >
-                      <TableCell>{request.reference || '—'}</TableCell>
-                      <TableCell>{kindLabels[request.kind]}</TableCell>
+                  const next = nextStep(request, actor);
+                  const due = dueInfo(request, now);
+                  return (
+                    <TableRow key={key} {...rowProps}>
                       <TableCell>
-                        <Tag type={statusTagTypes[request.status]} size="sm">
-                          {statusLabels[request.status]}
-                        </Tag>
-                      </TableCell>
-                      <TableCell>
-                        <code>{shortId(request.personId)}</code>
-                      </TableCell>
-                      <TableCell>{formatDateTime(request.receivedAt)}</TableCell>
-                      <TableCell>
-                        {formatDateTime(request.dueAt)}
-                        {isOverdue(request) && (
-                          <Tag type="red" size="sm">
-                            Overdue
+                        <div className="privacy-requests__stands">
+                          <div className="privacy-requests__person">
+                            <Link as={RouterLink} to={requestPath(request.id)}>
+                              {personLabel(request)}
+                            </Link>
+                          </div>
+                          <div className="cds--type-helper-text-01">
+                            {request.reference ? `${request.reference} · ` : ''}
+                            {channelPhrases[request.channel]}
+                          </div>
+                          <Tag type={request.kind === 'erasure' ? 'blue' : 'purple'} size="sm">
+                            {kindLabels[request.kind]}
                           </Tag>
-                        )}
+                        </div>
                       </TableCell>
-                    </TableExpandRow>,
-                    row.isExpanded ? (
-                      <TableExpandedRow key={`${key}-detail`} colSpan={tableHeaders.length + 1}>
-                        <RequestDetail request={request} canExecute={canExecute} />
-                      </TableExpandedRow>
-                    ) : null,
-                  ];
+                      <TableCell>
+                        <div className="privacy-requests__stands">
+                          <ProgressBar request={request} />
+                          <div>{statusSentence(request)}</div>
+                          <div className="cds--type-helper-text-01">{statusDetail(request)}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="privacy-requests__stands">
+                          <div className="privacy-requests__person">{next.task}</div>
+                          {(next.who || next.fact) && (
+                            <div className="cds--type-helper-text-01">
+                              {[next.who, next.fact].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>{formatDate(request.receivedAt)}</TableCell>
+                      <TableCell>
+                        <div className="privacy-requests__stands">
+                          <div className={`privacy-requests__due${due.late ? ' privacy-requests__due--late' : ''}`}>
+                            {formatDate(request.dueAt)}
+                          </div>
+                          <div className={`cds--type-helper-text-01${due.late ? ' privacy-requests__due--late' : ''}`}>
+                            {due.text}
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
                 })}
               </TableBody>
             </Table>
-            {rows.length === 0 && <p className="cds--type-helper-text-01">No data requests recorded.</p>}
+            {matched.length === 0 && (
+              <p className="privacy-requests__empty cds--type-body-compact-01">
+                {all.length === 0 ? 'No data requests recorded.' : 'No data requests match.'}
+              </p>
+            )}
           </TableContainer>
         )}
       </DataTable>
+      {matched.length > 10 ? (
+        <Pagination
+          page={currentPage}
+          pageSize={pageSize}
+          pageSizes={[10, 25, 50]}
+          totalItems={matched.length}
+          itemsPerPageText="Requests per page"
+          itemRangeText={(min, max, total) => `Showing ${min}–${max} of ${total} requests`}
+          onChange={({ page: nextPage, pageSize: nextSize }) => {
+            setPage(nextPage);
+            setPageSize(nextSize);
+          }}
+        />
+      ) : (
+        <p className="cds--type-helper-text-01">
+          Showing {matched.length} of {all.length} requests
+        </p>
+      )}
       {recording && <RecordRequestModal onClose={() => setRecording(false)} />}
     </Stack>
   );

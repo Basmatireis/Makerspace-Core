@@ -37,6 +37,7 @@ import {
   MachinesPage,
   MailSettingsPage,
   CategoryRetentionPage,
+  SubjectRequestPage,
   PrivacyPage,
   MaterialDetailPage,
   OpenDayDetailPage,
@@ -485,6 +486,14 @@ export function App() {
               element={
                 <PermissionRoute anyOf={['privacy.read']}>
                   <CategoryRetentionPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/privacy/requests/:requestId"
+              element={
+                <PermissionRoute anyOf={['privacy.requests.manage']}>
+                  <SubjectRequestPage />
                 </PermissionRoute>
               }
             />
