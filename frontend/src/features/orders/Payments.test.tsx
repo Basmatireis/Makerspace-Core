@@ -83,6 +83,23 @@ describe('cashbook', () => {
     );
   });
 
+  it('searches the kind labels of payments and cash movements', async () => {
+    as(everything);
+    serveCashbook();
+    const user = userEvent.setup();
+    renderRoute(<App />, '/payments');
+    const table = await screen.findByRole('table', { name: 'Payments' });
+    expect(await within(table).findByRole('link', { name: 'P-2026-000001' })).toBeInTheDocument();
+    const search = screen.getByLabelText('Search payments', { selector: 'input' });
+    await user.type(search, 'withdrawal');
+    await waitFor(() => expect(within(table).queryByRole('link', { name: 'P-2026-000001' })).not.toBeInTheDocument());
+    expect(within(table).getByText('C-2026-000001')).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'receipt');
+    await waitFor(() => expect(within(table).queryByText('C-2026-000001')).not.toBeInTheDocument());
+    expect(within(table).getByRole('link', { name: 'P-2026-000001' })).toBeInTheDocument();
+  });
+
   it('explains in a toggletip that only cash goes through the register', async () => {
     as(everything);
     serveCashbook();

@@ -214,9 +214,14 @@ export function HoldsTab() {
   const visible = holds.data.holds.filter(
     (hold) =>
       term === '' ||
-      [scopeText(hold, categoryList), hold.reason, hold.createdBy ?? ''].some((text) =>
-        text.toLowerCase().includes(term),
-      ),
+      [
+        hold.categoryId ? 'Category' : 'Person',
+        scopeText(hold, categoryList),
+        categoryList.find((candidate) => candidate.id === hold.categoryId)?.description ?? '',
+        hold.reason,
+        hold.createdBy ?? '',
+        hold.releasedAt ? 'Released' : 'Open',
+      ].some((text) => text.toLowerCase().includes(term)),
   );
   const byId = new Map(visible.map((hold) => [hold.id as string, hold]));
   const rows = visible.map((hold) => ({ id: hold.id as string }));
@@ -248,7 +253,7 @@ export function HoldsTab() {
                 <TableToolbarSearch
                   persistent
                   labelText="Search holds"
-                  placeholder="Search holds by category, person or reason"
+                  placeholder="Search holds by category, person, reason or status"
                   value={search}
                   onChange={(event) => setSearch(typeof event === 'string' ? event : event.target.value)}
                 />

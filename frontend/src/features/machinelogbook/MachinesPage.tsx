@@ -8,12 +8,19 @@ import { SectionSwitcher } from '../../app/SectionSwitcher';
 import { MachineTypesTab } from './components/MachineTypesTab';
 import { RecordingSettingsTab } from './recording/RecordingSettingsTab';
 import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
+import { processConfig } from './processConfig';
 import { machineActivityQuery, machinesQuery } from './queries';
 import { DirectoryTable, useUrlState, type Column, type Option } from './shared/DirectoryTable';
 import { formatQuantity, formatRelative } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
-import { AvailabilityTag, ConnectorIssueTag, connectorIssue, currentItemName } from './shared/status';
+import {
+  AvailabilityTag,
+  availabilityLabel,
+  ConnectorIssueTag,
+  connectorIssue,
+  currentItemName,
+} from './shared/status';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
 import './styles/machines.scss';
@@ -71,6 +78,19 @@ function AvailabilityTags({ row }: { row: Row }) {
     </span>
   );
 }
+
+/** What the machine search matches: name, type and its process, external ID, availability and a connector issue. */
+const machineSearchText = (row: Row) =>
+  [
+    row.machine.name,
+    row.machine.machineType.name,
+    processConfig[row.machine.machineType.process]?.label,
+    row.machine.externalIdentifier,
+    availabilityLabel(row.availability),
+    row.issue,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
 const columns: Column<Row>[] = [
   {
@@ -218,9 +238,7 @@ export function MachinesPage() {
             rows={rows}
             totalCount={allRows.length}
             switcher={switcher}
-            searchText={(row) =>
-              [row.machine.name, row.machine.machineType.name, row.machine.externalIdentifier ?? ''].join(' ')
-            }
+            searchText={machineSearchText}
             defaultSort={{ key: 'machine', direction: 'ASC' }}
             filterCategories={[
               {

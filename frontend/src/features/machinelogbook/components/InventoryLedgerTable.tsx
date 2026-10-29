@@ -164,7 +164,20 @@ export function InventoryLedgerTable({
       rows={rows}
       totalCount={transactions.length}
       searchText={(tx) =>
-        [tx.actorName, tx.note, tx.supplier, tx.reference, tx.machineJobDisplayId, tx.orderReference, ...spoolTexts(tx)]
+        [
+          tx.actorName,
+          transactionKindOptions.find((item) => item.id === tx.kind)?.label,
+          materialNames?.get(tx.materialId),
+          tx.adjustmentReason && tx.adjustmentReason !== 'mark_empty'
+            ? adjustmentReasonLabels[tx.adjustmentReason]
+            : null,
+          tx.note,
+          tx.supplier,
+          tx.reference,
+          tx.machineJobDisplayId,
+          tx.orderReference,
+          ...spoolTexts(tx),
+        ]
           .filter(Boolean)
           .join(' ')
       }

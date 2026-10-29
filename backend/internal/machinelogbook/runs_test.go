@@ -779,6 +779,33 @@ func TestListAndGetRuns(t *testing.T) {
 	if items := list(RunFilters{Search: "%"}); len(items) != 0 {
 		t.Fatalf("wildcard matched %d runs", len(items))
 	}
+	title := "Bracket" + token
+	job = h.edit(t, job, func(u *JobUpdate) { u.Title = &title })
+	manualRunID := job.Runs[0].ID
+	if manualRunID == finished {
+		manualRunID = job.Runs[len(job.Runs)-1].ID
+	}
+	searchIDs := func(label, search string, want ...uuid.UUID) {
+		t.Helper()
+		got := make([]uuid.UUID, 0)
+		for _, item := range list(RunFilters{Search: search}) {
+			got = append(got, item.ID)
+		}
+		slices.SortFunc(got, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
+		slices.SortFunc(want, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
+		if !slices.Equal(got, want) {
+			t.Fatalf("%s: search %q = %v, want %v", label, search, got, want)
+		}
+	}
+	searchIDs("machine name", strings.ToLower(h.machine.Name), finished, running, manualRunID)
+	searchIDs("job display id", job.DisplayID, finished, manualRunID)
+	searchIDs("job title", "bracket"+token, finished, manualRunID)
+	searchIDs("material of the reported spool", strings.ToUpper(h.material.Name), finished)
+	searchIDs("spool display id", h.spool.DisplayID, finished)
+	searchIDs("recipient name", "job tes", finished, manualRunID)
+	searchIDs("operator name", "tester", finished, manualRunID)
+	searchIDs("nothing matches", "no-such-term-"+token)
+	searchIDs("underscore stays literal", "_", finished, running)
 	if _, _, err := h.s.ListRuns(
 		ctx,
 		h.p,

@@ -15,8 +15,18 @@ import { DeviceStatusTag } from './components/DeviceStatusTag';
 import { devicePaths, keys, modeLabels } from './components/deviceShared';
 import { useAllManagedDevices } from './queries';
 
+const statusLabel = (status: ManagedDeviceStatus) => status[0].toUpperCase() + status.slice(1);
 const statuses: ManagedDeviceStatus[] = ['active', 'expired', 'revoked'];
-const statusOptions = statuses.map((status) => ({ id: status, label: status[0].toUpperCase() + status.slice(1) }));
+const statusOptions = statuses.map((status) => ({ id: status, label: statusLabel(status) }));
+
+/** What the search matches: name, type, application mode labels and the status label. */
+const deviceSearchText = (device: ManagedDevice) =>
+  [
+    device.name,
+    device.deviceTypeName,
+    ...device.allowedApplicationModes.map((mode) => modeLabels[mode]),
+    statusLabel(device.status),
+  ].join(' ');
 
 const columns: Column<ManagedDevice>[] = [
   {
@@ -120,7 +130,7 @@ export function ManagedDevicesPanel() {
           columns={columns}
           rows={rows}
           totalCount={all.length}
-          searchText={(device) => `${device.name} ${device.deviceTypeName}`}
+          searchText={deviceSearchText}
           defaultSort={{ key: 'name', direction: 'ASC' }}
           filterCategories={[{ key: 'status', label: 'Status', options: statusOptions }]}
           onRowClick={(device) => navigate(devicePaths.detail(device.id))}

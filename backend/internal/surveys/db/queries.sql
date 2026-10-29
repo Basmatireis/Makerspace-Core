@@ -9,7 +9,8 @@ JOIN LATERAL (
   SELECT * FROM survey_versions WHERE survey_id = s.id ORDER BY revision DESC LIMIT 1
 ) sv ON true
 WHERE (sqlc.narg(status)::text IS NULL OR s.status = sqlc.narg(status)::text)
-  AND (sqlc.narg(search)::text IS NULL OR position(lower(sqlc.narg(search)::text) IN lower(s.name)) > 0)
+  AND (sqlc.narg(search)::text IS NULL OR position(lower(sqlc.narg(search)::text) IN lower(s.name)) > 0
+       OR position(lower(sqlc.narg(search)::text) IN lower(sv.title)) > 0)
 ORDER BY
   CASE WHEN sqlc.arg(sort)::text = 'name' AND NOT sqlc.arg(descending)::boolean THEN lower(s.name) END ASC,
   CASE WHEN sqlc.arg(sort)::text = 'name' AND sqlc.arg(descending)::boolean THEN lower(s.name) END DESC,
@@ -29,7 +30,9 @@ LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: CountSurveys :one
 SELECT count(*) FROM surveys s
 WHERE (sqlc.narg(status)::text IS NULL OR s.status = sqlc.narg(status)::text)
-  AND (sqlc.narg(search)::text IS NULL OR position(lower(sqlc.narg(search)::text) IN lower(s.name)) > 0);
+  AND (sqlc.narg(search)::text IS NULL OR position(lower(sqlc.narg(search)::text) IN lower(s.name)) > 0
+       OR EXISTS (SELECT 1 FROM survey_versions lv WHERE lv.survey_id = s.id AND lv.revision = (SELECT max(x.revision) FROM survey_versions x WHERE x.survey_id = s.id)
+                  AND position(lower(sqlc.narg(search)::text) IN lower(lv.title)) > 0));
 
 -- name: GetSurvey :one
 SELECT s.*, sv.id AS survey_version_id, sv.revision, sv.title, sv.introduction,

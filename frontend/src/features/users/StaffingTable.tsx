@@ -99,7 +99,7 @@ export function StaffingTable({
               <TableToolbarSearch
                 id="members-search"
                 labelText="Search members"
-                placeholder="Search members"
+                placeholder="Search by name, role, status or Lab Rules"
                 value={search}
                 onChange={(_event, value) => onSearch(value ?? '')}
                 onClear={() => onSearch('')}

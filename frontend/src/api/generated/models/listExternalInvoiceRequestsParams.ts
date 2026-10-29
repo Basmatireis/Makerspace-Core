@@ -32,6 +32,7 @@ page?: number;
  */
 pageSize?: number;
 /**
+ * Case-insensitive substring match on the request reference and the reference of its order.
  * @maxLength 200
  */
 search?: string;

@@ -552,7 +552,9 @@ WHERE CASE sqlc.arg(scope)::text
   AND (sqlc.arg(search)::text = ''
        OR lower(r.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR lower(COALESCE(r.public_title, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
-       OR lower(COALESCE(r.location, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+       OR lower(COALESCE(r.location, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR EXISTS (SELECT 1 FROM people op WHERE op.id = r.owner_person_id
+                  AND lower(op.first_name || ' ' || op.last_name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'))
 ORDER BY CASE WHEN sqlc.arg(scope)::text = 'past' THEN r.range_starts_at END DESC NULLS LAST,
          CASE WHEN sqlc.arg(scope)::text <> 'past' THEN r.range_starts_at END ASC NULLS LAST,
          lower(r.name), r.id

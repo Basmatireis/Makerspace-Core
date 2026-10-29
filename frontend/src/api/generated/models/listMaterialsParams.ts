@@ -24,6 +24,7 @@ import type { UUIDv7 } from './uUIDv7';
 
 export type ListMaterialsParams = {
 /**
+ * Case-insensitive substring match on material name, material type, variant, manufacturer, colour name, storage location and notes.
  * @maxLength 200
  */
 search?: string;

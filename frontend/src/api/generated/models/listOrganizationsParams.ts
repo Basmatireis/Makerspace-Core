@@ -23,6 +23,7 @@ import type { UUIDv7 } from './uUIDv7';
 
 export type ListOrganizationsParams = {
 /**
+ * Case-insensitive substring match on organization name, contact name, contact email, locality and pricing group name.
  * @maxLength 200
  */
 search?: string;

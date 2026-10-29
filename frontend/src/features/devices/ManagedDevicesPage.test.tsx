@@ -81,6 +81,35 @@ describe('Managed devices administration', () => {
     expect(screen.queryByRole('button', { name: 'Rotate token' })).not.toBeInTheDocument();
   });
 
+  it('searches the status label and the application mode labels', async () => {
+    const kiosk = {
+      ...device,
+      id: '0192f6f8-743e-7c77-a349-cd07c3e8a923',
+      name: 'Lobby tablet',
+      status: 'revoked' as const,
+      allowedApplicationModes: ['visitor_terminal' as const],
+    };
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.managed_devicesread]))),
+      http.get('*/api/v1/managed-devices', () => HttpResponse.json({ items: [device, kiosk], nextCursor: null })),
+      http.get('*/api/v1/session-policies', () => HttpResponse.json({ items: [] })),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/devices-sessions?tab=managed-devices');
+    expect(await screen.findByRole('link', { name: 'Front desk' })).toBeInTheDocument();
+    const search = screen.getByLabelText('Search managed devices', { selector: 'input' });
+    await user.type(search, 'visitor kiosk');
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Front desk' })).not.toBeInTheDocument());
+    expect(screen.getByRole('link', { name: 'Lobby tablet' })).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'staff ui');
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Lobby tablet' })).not.toBeInTheDocument());
+    expect(screen.getByRole('link', { name: 'Front desk' })).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'revoked');
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Front desk' })).not.toBeInTheDocument());
+  });
+
   it('confirms device-type deletion and keeps reference conflicts visible', async () => {
     let deleteAttempts = 0;
     let types = [deviceType];

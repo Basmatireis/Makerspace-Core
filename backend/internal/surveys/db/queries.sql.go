@@ -236,7 +236,9 @@ func (q *Queries) CountSurveyTextAnswers(ctx context.Context, arg CountSurveyTex
 const countSurveys = `-- name: CountSurveys :one
 SELECT count(*) FROM surveys s
 WHERE ($1::text IS NULL OR s.status = $1::text)
-  AND ($2::text IS NULL OR position(lower($2::text) IN lower(s.name)) > 0)
+  AND ($2::text IS NULL OR position(lower($2::text) IN lower(s.name)) > 0
+       OR EXISTS (SELECT 1 FROM survey_versions lv WHERE lv.survey_id = s.id AND lv.revision = (SELECT max(x.revision) FROM survey_versions x WHERE x.survey_id = s.id)
+                  AND position(lower($2::text) IN lower(lv.title)) > 0))
 `
 
 type CountSurveysParams struct {
@@ -1487,7 +1489,8 @@ JOIN LATERAL (
   SELECT id, survey_id, revision, title, introduction, published_at, created_at FROM survey_versions WHERE survey_id = s.id ORDER BY revision DESC LIMIT 1
 ) sv ON true
 WHERE ($1::text IS NULL OR s.status = $1::text)
-  AND ($2::text IS NULL OR position(lower($2::text) IN lower(s.name)) > 0)
+  AND ($2::text IS NULL OR position(lower($2::text) IN lower(s.name)) > 0
+       OR position(lower($2::text) IN lower(sv.title)) > 0)
 ORDER BY
   CASE WHEN $3::text = 'name' AND NOT $4::boolean THEN lower(s.name) END ASC,
   CASE WHEN $3::text = 'name' AND $4::boolean THEN lower(s.name) END DESC,

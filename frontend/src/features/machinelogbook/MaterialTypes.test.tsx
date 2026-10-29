@@ -117,6 +117,18 @@ describe('Types and categories', () => {
     expect(screen.queryByRole('button', { name: 'New type or category' })).not.toBeInTheDocument();
   });
 
+  it('searches the kind, unit and process labels the columns show', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    serveTypes();
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    const table = await openTypes(user);
+    expect(await within(table).findByText('PLA')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Search types and categories', { selector: 'input' }), 'laser cutting');
+    await waitFor(() => expect(within(table).queryByText('PLA')).not.toBeInTheDocument());
+    expect(within(table).getByText('Plywood')).toBeInTheDocument();
+  });
+
   it('narrows the types with the Process filter', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveTypes();

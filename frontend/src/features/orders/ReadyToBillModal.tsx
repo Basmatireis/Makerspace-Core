@@ -48,7 +48,9 @@ export function ReadyToBillModal({ canCreate, onClose }: { canCreate: boolean; o
   const visible = groups.filter(
     (group) =>
       !search ||
-      `${group.customer?.displayName ?? ''} ${group.rows.map((row) => workItemName(row.job)).join(' ')}`
+      `${group.customer?.displayName ?? ''} ${group.rows
+        .map((row) => `${workItemName(row.job)} ${row.job.displayId} ${row.job.machineName}`)
+        .join(' ')}`
         .toLowerCase()
         .includes(search.toLowerCase()),
   );

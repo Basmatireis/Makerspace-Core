@@ -172,7 +172,7 @@ export function EventsPage({
             <TableToolbarSearch
               id="events-search"
               labelText="Search events"
-              placeholder="Search by name or location"
+              placeholder="Search by name, location or organizer"
               persistent
               value={search}
               onChange={(_event, value) => {

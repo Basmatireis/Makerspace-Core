@@ -118,6 +118,8 @@ Setup, ports, TLS and the hardware checklist are in [Streaming gateway](streamin
 
 ## Media and picker API details
 
+The search on the Media page matches the file name, the type label (Image, Video, Font) and the content type (for example `image/png`).
+
 - **Image caps.** PNG, JPEG and WebP up to 20 MiB; at most 8192 px per side and 40 megapixels (422 otherwise). Dimensions come from the decoded header, never from the client.
 - **Video.** MP4 only, up to 200 MiB; width, height and duration are optional client-measured headers.
 - **File names.** `X-File-Name` carries the percent-encoded UTF-8 name (`encodeURIComponent`). The server decodes it with `url.PathUnescape` and answers 400 `invalid_request` for invalid encodings, invalid UTF-8, control characters or a decoded name over 600 bytes; the stored name is limited to 150 characters (422). Plain ASCII names keep working.

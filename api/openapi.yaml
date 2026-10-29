@@ -895,7 +895,7 @@ paths:
         - $ref: "#/components/parameters/PageSize"
         - name: search
           in: query
-          description: Case-insensitive search over permitted name and contact fields.
+          description: "Case-insensitive substring match on first name, last name, the full name in either order (first and last, or last and first), email and phone. Matriculation numbers are matched only when the caller holds `people.read.matriculation`."
           schema:
             type: string
             maxLength: 200
@@ -3368,7 +3368,7 @@ paths:
       security: [{sessionCookie: []}]
       parameters:
         - {name: scope, in: query, schema: {$ref: "#/components/schemas/EventListScope"}}
-        - {name: search, in: query, description: "Case-insensitive match on internal name, public title and location.", schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Case-insensitive substring match on internal name, public title, location and the organizer's full name.", schema: {type: string, maxLength: 200}}
         - {name: ownerPersonId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
@@ -6707,7 +6707,7 @@ paths:
       summary: List machines and operational metrics
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Case-insensitive substring match on machine name, machine type and external identifier.", schema: {type: string, maxLength: 200}}
         - {name: status, in: query, schema: {$ref: "#/components/schemas/MachineStatus"}}
         - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
         - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
@@ -6787,7 +6787,7 @@ paths:
       description: Requires `organizations.read`.
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Case-insensitive substring match on organization name, contact name, contact email, locality and pricing group name.", schema: {type: string, maxLength: 200}}
         - {name: active, in: query, schema: {type: boolean}}
         - {name: kind, in: query, schema: {$ref: "#/components/schemas/OrganizationKind"}}
         - {name: pricingGroupId, in: query, description: Only organizations assigned to this pricing group., schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -7175,7 +7175,7 @@ paths:
       description: Requires `inventory.read`. `search` matches name, material type, variant and manufacturer.
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Case-insensitive substring match on material name, material type, variant, manufacturer, colour name, storage location and notes.", schema: {type: string, maxLength: 200}}
         - {name: materialTypeId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: kind, in: query, schema: {$ref: "#/components/schemas/MaterialKind"}}
         - {name: stockState, in: query, schema: {$ref: "#/components/schemas/StockState"}}
@@ -7402,7 +7402,7 @@ paths:
       summary: List physical filament spools
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Case-insensitive substring match on spool display ID, label, storage location, notes, acquisition reference, spool identifier values (such as tag IDs), the material name, type and colour, manufacturer, product name and the name of the machine the spool is mounted on.", schema: {type: string, maxLength: 200}}
         - {name: materialId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: lifecycle, in: query, schema: {type: string, enum: [active, archived]}}
         - {name: location, in: query, schema: {type: string, maxLength: 200}}
@@ -7797,7 +7797,7 @@ paths:
       summary: List and filter machine jobs
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Case-insensitive substring match on job display ID, job name, notes, machine name, recipient (person or organization) name, operator name, used material name and the display IDs and file names of the job's runs.", schema: {type: string, maxLength: 200}}
         - {name: machineId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: customerId, in: query, description: Person or Organization identifier., schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: operatorPersonId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -7960,7 +7960,7 @@ paths:
       summary: List machine runs, manual and recorded by machine connectors
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, description: Matches run display ID and file name., schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Case-insensitive substring match on run display ID, file name, machine name, the display ID and name of the job, the material name and display ID of the reported spool, and the job's recipient (person or organization) and operator names.", schema: {type: string, maxLength: 200}}
         - {name: machineId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: state, in: query, style: form, explode: true, schema: {type: array, maxItems: 6, items: {$ref: "#/components/schemas/MachineRunState"}}}
         - {name: source, in: query, schema: {$ref: "#/components/schemas/MachineRunSource"}}
@@ -8446,7 +8446,7 @@ paths:
         billing state of jobs. Array filters are comma-separated.
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, description: "Matches job name, job and print display IDs and file names.", schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Case-insensitive substring match on print display ID, file name and machine name, and for jobs also the job display ID, job name, notes, recipient (person or organization) name, operator name and the display IDs and file names of the job's prints.", schema: {type: string, maxLength: 200}}
         - {name: status, in: query, style: form, explode: true, schema: {type: array, maxItems: 8, items: {$ref: "#/components/schemas/WorkItemStatus"}}}
         - {name: machineId, in: query, style: form, explode: true, schema: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}}
         - {name: source, in: query, style: form, explode: true, schema: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/WorkItemSource"}}}
@@ -8544,6 +8544,7 @@ paths:
         -
           name: "search"
           in: "query"
+          description: "Case-insensitive substring match on the order reference, the customer name captured with the order and the reference of the order it replaces."
           schema:
             type: "string"
             maxLength: 200
@@ -9443,6 +9444,7 @@ paths:
         -
           name: "search"
           in: "query"
+          description: "Case-insensitive substring match on the request reference and the reference of its order."
           schema:
             type: "string"
             maxLength: 200
@@ -10121,7 +10123,7 @@ paths:
         `total` counts all matches regardless of paging.
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, schema: {type: string, maxLength: 160}}
+        - {name: search, in: query, description: "Case-insensitive substring match on the survey name and the title of its latest version.", schema: {type: string, maxLength: 160}}
         - {name: status, in: query, schema: {type: string, enum: [draft, published, closed]}}
         - {name: sort, in: query, schema: {type: string, enum: [name, status, updatedAt, responseCount], default: updatedAt}}
         - {name: order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}

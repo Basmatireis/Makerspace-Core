@@ -34,13 +34,27 @@ export function compareRows(a: SupervisorRow, b: SupervisorRow): number {
   return rank(a) - rank(b) || a.name.localeCompare(b.name);
 }
 
+/** The text the search matches: the name, the role, the status and the Lab Rules label the table shows. */
+export function rowSearchText(row: SupervisorRow): string {
+  const label = (options: Array<{ id: string; label: string }>, id: string) =>
+    options.find((option) => option.id === id)?.label ?? id;
+  return [
+    row.name,
+    label(KIND_OPTIONS, row.kind),
+    label(STATUS_OPTIONS, row.status),
+    labRulesLabel(row.laborordnungState),
+  ]
+    .join(' ')
+    .toLocaleLowerCase();
+}
+
 export function filterRows(rows: SupervisorRow[], search: string, filters: FilterValues): SupervisorRow[] {
   const query = search.trim().toLocaleLowerCase();
   const matches = (key: string, value: string) => !filters[key]?.length || filters[key].includes(value);
   return rows
     .filter(
       (row) =>
-        (!query || row.name.toLocaleLowerCase().includes(query)) &&
+        (!query || rowSearchText(row).includes(query)) &&
         matches('status', row.status) &&
         matches('kind', row.kind) &&
         matches('labRules', row.laborordnungState) &&

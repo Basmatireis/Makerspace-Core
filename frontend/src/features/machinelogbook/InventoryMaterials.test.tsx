@@ -321,6 +321,23 @@ describe('Inventory page', () => {
     expect(screen.getByText(/Stock value €218\.00/)).toBeInTheDocument();
   });
 
+  it('searches the notes and the kind label of an article', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    serveInventory([{ ...filament, notes: 'Dry before printing' }, sheet]);
+    const user = userEvent.setup();
+    renderPage(<InventoryPage />, machineLogbookPaths.inventory('materials'));
+    const table = await screen.findByRole('table', { name: 'Materials' });
+    expect(await within(table).findByRole('link', { name: 'Birch plywood' })).toBeInTheDocument();
+    const search = screen.getByLabelText('Search materials', { selector: 'input' });
+    await user.type(search, 'dry before');
+    await waitFor(() => expect(within(table).queryByRole('link', { name: 'Birch plywood' })).not.toBeInTheDocument());
+    expect(within(table).getByRole('link', { name: 'Black' })).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'consumable');
+    await waitFor(() => expect(within(table).queryByRole('link', { name: 'Black' })).not.toBeInTheDocument());
+    expect(within(table).getByRole('link', { name: 'Birch plywood' })).toBeInTheDocument();
+  });
+
   it('narrows Materials to filament or consumables with the Process filter', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveInventory();
@@ -677,6 +694,29 @@ describe('Article detail page', () => {
     expect(within(ledger).getByText('Order reversed')).toBeInTheDocument();
     expect(within(ledger).getByText('INV-2026-77')).toBeInTheDocument();
     expect(within(ledger).getByText('Würth')).toBeInTheDocument();
+  });
+
+  it('searches the transaction kind label in the ledger', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    serveMaterial(insert, [
+      transaction({ id: ids.spool + 'f', materialId: ids.insert, kind: 'purchase', note: 'Restock' }),
+      transaction({
+        id: ids.spool + 'g',
+        materialId: ids.insert,
+        kind: 'order_sale',
+        quantityDelta: '-10',
+        inventoryValueDelta: '-0.5',
+        totalPurchasePrice: null,
+        occurredAt: '2026-09-13T10:00:00Z',
+      }),
+    ]);
+    const user = userEvent.setup();
+    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.insert), route);
+    const ledger = await screen.findByRole('table', { name: 'Ledger' });
+    expect(await within(ledger).findByText('Sold (order)')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Search ledger', { selector: 'input' }), 'sold');
+    await waitFor(() => expect(within(ledger).queryByText('Restock')).not.toBeInTheDocument());
+    expect(within(ledger).getByText('Sold (order)')).toBeInTheDocument();
   });
 
   it('links the order of a sale in the ledger only with orders.read', async () => {

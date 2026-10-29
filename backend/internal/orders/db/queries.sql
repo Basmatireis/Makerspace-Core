@@ -30,9 +30,11 @@ finalized_at=CASE WHEN $2::text='finalized' THEN now() ELSE finalized_at END,
 cancelled_at=CASE WHEN $2::text='cancelled' THEN now() ELSE cancelled_at END,
 reversed_at=CASE WHEN $2::text='reversed' THEN now() ELSE reversed_at END WHERE id=$1;
 -- name: ListOrders :many
-SELECT * FROM orders WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR status=sqlc.arg(status)) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+SELECT o.* FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
+WHERE (sqlc.arg(search)::text='' OR o.reference ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR o.status=sqlc.arg(status)) ORDER BY o.created_at DESC,o.id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: CountOrders :one
-SELECT count(*) FROM orders WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR status=sqlc.arg(status));
+SELECT count(*) FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
+WHERE (sqlc.arg(search)::text='' OR o.reference ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||sqlc.arg(search)||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR o.status=sqlc.arg(status));
 -- name: GetCustomerName :one
 SELECT COALESCE(s.display_name,p.first_name || ' ' || p.last_name,g.name)::text AS display_name
 FROM orders o LEFT JOIN order_customer_snapshots s ON s.order_id=o.id
@@ -128,9 +130,9 @@ WHERE e.request_id=$1 ORDER BY e.recorded_at,e.id;
 -- name: RequestHasReference :one
 SELECT EXISTS(SELECT 1 FROM external_invoice_request_events WHERE request_id=$1 AND kind IN ('reference_added','reference_corrected')) AS has_reference;
 -- name: ListRequests :many
-SELECT * FROM external_invoice_requests WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR state=sqlc.arg(status)) AND (sqlc.narg(order_id)::uuid IS NULL OR order_id=sqlc.narg(order_id)) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+SELECT * FROM external_invoice_requests WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%' OR order_reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR state=sqlc.arg(status)) AND (sqlc.narg(order_id)::uuid IS NULL OR order_id=sqlc.narg(order_id)) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: CountRequests :one
-SELECT count(*) FROM external_invoice_requests WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR state=sqlc.arg(status)) AND (sqlc.narg(order_id)::uuid IS NULL OR order_id=sqlc.narg(order_id));
+SELECT count(*) FROM external_invoice_requests WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%' OR order_reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR state=sqlc.arg(status)) AND (sqlc.narg(order_id)::uuid IS NULL OR order_id=sqlc.narg(order_id));
 
 -- name: LockOrganizationRequirements :exec
 SELECT id FROM organizations WHERE id=$1 FOR UPDATE;

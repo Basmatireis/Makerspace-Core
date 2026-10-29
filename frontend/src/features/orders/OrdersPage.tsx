@@ -3,7 +3,7 @@ import { Button, ComboBox } from '@carbon/react';
 import { Add, ListChecked } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { Order } from '../../api/generated/models';
+import type { ExternalInvoiceRequestState, Order } from '../../api/generated/models';
 import { DateInput } from '../../app/DateInput';
 import { PageShell } from '../../app/PageShell';
 import { RefLink } from '../../app/RefLink';
@@ -30,7 +30,7 @@ import { formatCents, toCents } from './money';
 import { EditOrderModal } from './OrderDialogs';
 import { allOrdersQuery, readyToBillQuery } from './queries';
 import { ReadyToBillModal } from './ReadyToBillModal';
-import { OrderStatusTag, RequestStateTag } from './status';
+import { OrderStatusTag, orderStatusLabel, RequestStateTag } from './status';
 import { readyToBillGroups, readyTotals } from './logic';
 import './sales.scss';
 import '../machinelogbook/shared/shared.scss';
@@ -42,6 +42,32 @@ const STATUS_VIEWS = [
 ];
 const invoiceLabel = (key: InvoiceKey) => (key === 'none' ? 'No invoice' : requestStateLabel[key]);
 const SECTION_LABEL: Record<OrderSection, string> = { open: 'Open', paid: 'Paid', cancelled: 'Cancelled' };
+
+/** What the search matches: reference, customer, status, the linked orders, the invoice request and its state, and the payment wording. */
+function orderSearchText(order: Order) {
+  const invoiceState =
+    order.activeExternalRequestState ?? (order.latestExternalRequestState === 'cancelled' ? 'cancelled' : null);
+  const payment =
+    order.status !== 'finalized'
+      ? null
+      : toCents(order.netCharge) === 0
+        ? 'No payment due'
+        : isAwaitingPayment(order)
+          ? 'outstanding'
+          : 'Paid in full';
+  return [
+    order.reference,
+    customerLabel(order),
+    orderStatusLabel(order),
+    order.replacesOrderReference,
+    order.replacedByOrderReference,
+    order.activeExternalRequestReference ?? order.latestExternalRequestReference,
+    invoiceState && (requestStateLabel[invoiceState as ExternalInvoiceRequestState] ?? invoiceState),
+    payment,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 
 function OrdersTable({ orders }: { orders: Order[] }) {
   const user = useCurrentUser();
@@ -237,7 +263,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
         columns={columns}
         rows={rows}
         totalCount={orders.length}
-        searchText={(order) => `${order.reference} ${customerLabel(order)}`}
+        searchText={orderSearchText}
         defaultSort={{ key: 'updated', direction: 'DESC' }}
         pageSizes={[10, 25, 50]}
         onRowClick={(order) => navigate(`/orders/${order.id}`)}

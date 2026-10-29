@@ -27,7 +27,7 @@ import type { WorkItemStatus } from './workItemStatus';
 
 export type ListMachineLogbookWorkItemsParams = {
 /**
- * Matches job name, job and print display IDs and file names.
+ * Case-insensitive substring match on print display ID, file name and machine name, and for jobs also the job display ID, job name, notes, recipient (person or organization) name, operator name and the display IDs and file names of the job's prints.
  * @maxLength 200
  */
 search?: string;

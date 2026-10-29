@@ -326,6 +326,114 @@ func TestWorkItemFilters(t *testing.T) {
 	only("search unassigned run display id", WorkItemFilters{Search: w.printingDisplayID(t)}, w.printing)
 }
 
+// searchPeopleAndJobs adds two people, an organization and two jobs whose
+// searchable fields (recipient, operator, notes) are unique to them.
+func (w *workItemFixture) searchPeopleAndJobs(t *testing.T) (personJob, orgJob MachineJob, token string) {
+	t.Helper()
+	ctx := t.Context()
+	token = strings.ReplaceAll(ids.New().String(), "-", "")[:8]
+	grace, ada := ids.New(), ids.New()
+	for _, person := range []struct {
+		id          uuid.UUID
+		first, last string
+	}{{grace, "Grace", "Hopper" + token}, {ada, "Ada", "Lovelace" + token}} {
+		if _, err := w.pool.Exec(
+			ctx,
+			`INSERT INTO people (id, first_name, last_name, email) VALUES ($1, $2, $3, $4)`,
+			person.id, person.first, person.last, person.first+"-"+token+"@example.test",
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	adaAccount := ids.New()
+	if _, err := w.pool.Exec(
+		ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, adaAccount, ada,
+	); err != nil {
+		t.Fatal(err)
+	}
+	org, err := w.s.CreateOrganization(
+		ctx, w.p, "Zenith Robotics "+token, OrganizationCompany, OrganizationDetailsInput{}, &w.request,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, _ = w.pool.Exec(cleanup, `DELETE FROM machine_runs WHERE job_id IN (SELECT id FROM machine_jobs WHERE customer_person_id = $1 OR operator_person_id = $2)`, grace, ada)
+		_, _ = w.pool.Exec(cleanup, `DELETE FROM machine_jobs WHERE customer_person_id = $1 OR operator_person_id = $2 OR customer_organization_id = $3`, grace, ada, org.ID)
+		_, _ = w.pool.Exec(cleanup, `DELETE FROM organizations WHERE id = $1`, org.ID)
+		_, _ = w.pool.Exec(cleanup, `DELETE FROM accounts WHERE id = $1`, adaAccount)
+		_, _ = w.pool.Exec(cleanup, `DELETE FROM people WHERE id IN ($1, $2)`, grace, ada)
+	})
+	notes := "needs sanding" + token + " afterwards"
+	person := w.input(-40*time.Hour, time.Hour, "successful")
+	person.Customer = PartyReference{Kind: "person", ID: grace}
+	person.Notes = &notes
+	personJob = w.create(t, person)
+	organization := w.input(-45*time.Hour, time.Hour, "successful")
+	organization.Customer = PartyReference{Kind: "organization", ID: org.ID}
+	organization.OperatorPersonID = ada
+	orgJob = w.create(t, organization)
+	return personJob, orgJob, token
+}
+
+func TestWorkItemSearchCoversWhatTheTableShows(t *testing.T) {
+	w := newWorkItemFixture(t)
+	personJob, orgJob, token := w.searchPeopleAndJobs(t)
+	only := func(label, search string, want ...uuid.UUID) {
+		t.Helper()
+		items, total := w.list(t, WorkItemFilters{Search: search})
+		if total != int64(len(want)) {
+			t.Fatalf("%s: total = %d, want %d (%v)", label, total, len(want), idsOf(items))
+		}
+		sameIDs(t, label, items, want...)
+	}
+	only("recipient first and last name, partial and lower-case", "grace hopper"+strings.ToLower(token[:4]), personJob.ID)
+	only("recipient last name", "HOPPER"+token, personJob.ID)
+	only("organization recipient", "zenith robotics "+token, orgJob.ID)
+	only("operator name", "ada lovelace"+token, orgJob.ID)
+	only("job notes", "SANDING"+token, personJob.ID)
+	only("machine name of prints", "jobs bare machine", w.noPrice.ID, w.printing, w.ended)
+	only("job display id", orgJob.DisplayID, orgJob.ID)
+	only("nothing matches", "no-such-term-"+token)
+}
+
+func TestListJobsSearchFindsTitleNotesAndRunFileNames(t *testing.T) {
+	w := newWorkItemFixture(t)
+	personJob, _, token := w.searchPeopleAndJobs(t)
+	search := func(term string) []uuid.UUID {
+		t.Helper()
+		jobs, total, err := w.s.ListJobs(t.Context(), w.p, JobFilters{Search: term, Page: 1, PageSize: 50})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if total != int64(len(jobs)) {
+			t.Fatalf("%q: total %d, page %d", term, total, len(jobs))
+		}
+		out := make([]uuid.UUID, 0, len(jobs))
+		for _, job := range jobs {
+			out = append(out, job.ID)
+		}
+		return out
+	}
+	for _, c := range []struct {
+		label, term string
+		want        uuid.UUID
+	}{
+		{"title", "GEAR1100", w.running.ID},
+		{"run file name", "Benchy", w.linked.ID},
+		{"notes", "sanding" + token, personJob.ID},
+	} {
+		if got := search(c.term); len(got) != 1 || got[0] != c.want {
+			t.Fatalf("%s: search %q = %v, want [%s]", c.label, c.term, got, c.want)
+		}
+	}
+	if got := search("no-such-term-" + token); len(got) != 0 {
+		t.Fatalf("unmatched search = %v", got)
+	}
+}
+
 func ptr[T any](v T) *T { return &v }
 
 func (w *workItemFixture) printingDisplayID(t *testing.T) string {

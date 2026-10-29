@@ -31,6 +31,7 @@ page?: number;
  */
 pageSize?: number;
 /**
+ * Case-insensitive substring match on the order reference, the customer name captured with the order and the reference of the order it replaces.
  * @maxLength 200
  */
 search?: string;

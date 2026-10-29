@@ -116,6 +116,23 @@ describe('orders list', () => {
     expect(rows()[0]).toContain('Awaiting customer');
   });
 
+  it('searches the invoice request reference and the status label, not only reference and customer', async () => {
+    as(everything);
+    orderList(all);
+    const user = userEvent.setup();
+    renderRoute(<App />, '/orders');
+    await screen.findByRole('table', { name: 'Orders' });
+    const search = screen.getByLabelText('Search orders', { selector: 'input' });
+    await user.type(search, 'W-1');
+    await waitFor(() => expect(rows()).toHaveLength(1));
+    expect(rows()[0]).toContain('O-2026-000012');
+    await user.clear(search);
+    await user.type(search, 'awaiting payment');
+    await waitFor(() => expect(rows()).not.toHaveLength(3));
+    expect(rows().join(' ')).toContain('O-2026-000011');
+    expect(rows().join(' ')).not.toContain('O-2026-000010');
+  });
+
   it('offers the review of billable jobs with their value and opens it from the URL', async () => {
     as(everything);
     orderList([]);
@@ -152,6 +169,50 @@ describe('orders list', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Jobs ready to bill' });
     expect(await within(dialog).findByText('Ada Lovelace')).toBeInTheDocument();
     expect(within(dialog).getAllByText('€12.50').length).toBeGreaterThan(0);
+  });
+
+  it('searches the job numbers and machine names of the jobs ready to bill', async () => {
+    as(everything);
+    orderList([]);
+    const job = (n: number, machineName: string, customer: string) => ({
+      kind: 'job',
+      id: `j${n}`,
+      displayId: `J-2026-00000${n}`,
+      title: `Part ${n}`,
+      runCount: 1,
+      machineId: `m${n}`,
+      machineName,
+      customer: { kind: 'person', id: `p${n}`, displayName: customer, pricingGroupAssignmentVersion: 0 },
+      status: 'successful',
+      source: 'manual',
+      startedAt: '2026-10-01T10:00:00Z',
+      endsAt: '2026-10-01T11:00:00Z',
+      effectivePrice: '12.50',
+      billing: { state: 'not_on_order' },
+      version: 4,
+    });
+    server.use(
+      http.get('*/api/v1/machine-logbook/work-items', () =>
+        HttpResponse.json({
+          items: [job(1, 'Laser', 'Ada Lovelace'), job(2, 'Prusa', 'Grace Hopper')],
+          page: 1,
+          pageSize: 100,
+          total: 2,
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/orders?review=1');
+    const dialog = await screen.findByRole('dialog', { name: 'Jobs ready to bill' });
+    expect(await within(dialog).findByText('Grace Hopper')).toBeInTheDocument();
+    const search = within(dialog).getByLabelText('Search customers and jobs', { selector: 'input' });
+    await user.type(search, 'prusa');
+    await waitFor(() => expect(within(dialog).queryByText('Ada Lovelace')).not.toBeInTheDocument());
+    expect(within(dialog).getByText('Grace Hopper')).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'J-2026-000001');
+    await waitFor(() => expect(within(dialog).queryByText('Grace Hopper')).not.toBeInTheDocument());
+    expect(within(dialog).getByText('Ada Lovelace')).toBeInTheDocument();
   });
 
   it('hides the write actions without the permission', async () => {

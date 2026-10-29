@@ -244,7 +244,8 @@ func (q *Queries) CountCashMovements(ctx context.Context, arg CountCashMovements
 }
 
 const countOrders = `-- name: CountOrders :one
-SELECT count(*) FROM orders WHERE ($1::text='' OR reference ILIKE '%'||$1||'%') AND ($2::text='' OR status=$2)
+SELECT count(*) FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
+WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||$1||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%') AND ($2::text='' OR o.status=$2)
 `
 
 type CountOrdersParams struct {
@@ -277,7 +278,7 @@ func (q *Queries) CountPayments(ctx context.Context, arg CountPaymentsParams) (i
 }
 
 const countRequests = `-- name: CountRequests :one
-SELECT count(*) FROM external_invoice_requests WHERE ($1::text='' OR reference ILIKE '%'||$1||'%') AND ($2::text='' OR state=$2) AND ($3::uuid IS NULL OR order_id=$3)
+SELECT count(*) FROM external_invoice_requests WHERE ($1::text='' OR reference ILIKE '%'||$1||'%' OR order_reference ILIKE '%'||$1||'%') AND ($2::text='' OR state=$2) AND ($3::uuid IS NULL OR order_id=$3)
 `
 
 type CountRequestsParams struct {
@@ -1259,7 +1260,8 @@ func (q *Queries) ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItems
 }
 
 const listOrders = `-- name: ListOrders :many
-SELECT id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, fulfillment_mode, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at FROM orders WHERE ($1::text='' OR reference ILIKE '%'||$1||'%') AND ($2::text='' OR status=$2) ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $3
+SELECT o.id, o.reference, o.status, o.currency, o.customer_kind, o.customer_person_id, o.customer_organization_id, o.fulfillment_mode, o.total_amount, o.replaces_order_id, o.replaces_order_reference, o.version, o.created_at, o.updated_at, o.created_by_account_id, o.finalized_at, o.cancelled_at, o.reversed_at FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
+WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||$1||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%') AND ($2::text='' OR o.status=$2) ORDER BY o.created_at DESC,o.id DESC LIMIT $4 OFFSET $3
 `
 
 type ListOrdersParams struct {
@@ -1430,7 +1432,7 @@ func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]P
 }
 
 const listRequests = `-- name: ListRequests :many
-SELECT id, reference, order_id, order_reference, provider, state, currency, requested_amount, supersedes_request_id, version, created_at FROM external_invoice_requests WHERE ($1::text='' OR reference ILIKE '%'||$1||'%') AND ($2::text='' OR state=$2) AND ($3::uuid IS NULL OR order_id=$3) ORDER BY created_at DESC,id DESC LIMIT $5 OFFSET $4
+SELECT id, reference, order_id, order_reference, provider, state, currency, requested_amount, supersedes_request_id, version, created_at FROM external_invoice_requests WHERE ($1::text='' OR reference ILIKE '%'||$1||'%' OR order_reference ILIKE '%'||$1||'%') AND ($2::text='' OR state=$2) AND ($3::uuid IS NULL OR order_id=$3) ORDER BY created_at DESC,id DESC LIMIT $5 OFFSET $4
 `
 
 type ListRequestsParams struct {

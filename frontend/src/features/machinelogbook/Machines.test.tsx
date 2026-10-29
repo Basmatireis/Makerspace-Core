@@ -263,6 +263,21 @@ describe('Machines list', () => {
     expect(await screen.findByRole('link', { name: 'Laser cutter' })).toBeInTheDocument();
   });
 
+  it('searches the availability label, the process label and a connector issue', async () => {
+    setup([PermissionId.machinesread]);
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines');
+    await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
+    const search = screen.getByLabelText('Search machines', { selector: 'input' });
+    await user.type(search, 'maintenance');
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Laser cutter' })).not.toBeInTheDocument());
+    expect(screen.getByRole('link', { name: 'CNC mill' })).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'FDM 3D');
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'Laser cutter' })).not.toBeInTheDocument());
+    expect(screen.getByRole('link', { name: 'Bambu H2D' })).toBeInTheDocument();
+  });
+
   it('keeps Machines and Machine types and sends the former Connectors tab to Settings, Local services', async () => {
     setup([PermissionId.machinesread]);
     const readOnly = renderPage('/machine-logbook/machines');

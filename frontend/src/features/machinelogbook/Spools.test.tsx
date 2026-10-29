@@ -675,6 +675,29 @@ describe('Spool mount and ledger attribution', () => {
     expect(link).toHaveAttribute('href', `/machine-logbook/machines/${id(40)}?tab=printer`);
   });
 
+  it('searches the notes, the mounted machine and the status label', async () => {
+    auth.permissions = [PermissionId.inventoryread];
+    useCatalog([
+      spool({ mounted: true, mountedOn, status: 'needs_refill', notes: 'Wet spool' }),
+      spool({ id: id(22), displayId: 'S-2026-000002', label: null }),
+    ]);
+    const user = userEvent.setup();
+    renderRoute(
+      <ToastProvider>
+        <InventorySpoolsTable />
+      </ToastProvider>,
+    );
+    const table = await screen.findByRole('table', { name: 'Spools' });
+    expect(within(table).getByRole('link', { name: 'S-2026-000002' })).toBeInTheDocument();
+    const search = screen.getByLabelText('Search spools', { selector: 'input' });
+    for (const term of ['wet spool', 'h2d #1', 'needs refill']) {
+      await user.clear(search);
+      await user.type(search, term);
+      await waitFor(() => expect(within(table).queryByRole('link', { name: 'S-2026-000002' })).not.toBeInTheDocument());
+      expect(within(table).getByRole('link', { name: 'S-2026-000001' })).toBeInTheDocument();
+    }
+  });
+
   it('shows where the spool is mounted on its page and names the slot in the finish dialog', async () => {
     auth.permissions = BOTH;
     const item = spool({ mounted: true, mountedOn });

@@ -216,6 +216,27 @@ export function statusDetail(request: SubjectRequest): string {
   }
 }
 
+/**
+ * What the requests search matches: the person, the reference, the channel and kind labels, the status
+ * (label, sentence and the line with the actor names) and the next step shown in the table.
+ */
+export function matchesRequestSearch(request: SubjectRequest, search: string, actor: Actor): boolean {
+  const needle = search.trim().toLowerCase();
+  if (needle === '') return true;
+  const next = nextStep(request, actor);
+  return [
+    personLabel(request),
+    request.reference,
+    channelPhrases[request.channel],
+    kindLabels[request.kind],
+    statusLabels[request.status],
+    statusSentence(request),
+    statusDetail(request),
+    next.task,
+    next.fact,
+  ].some((text) => text.toLowerCase().includes(needle));
+}
+
 /** When a closed request was closed: completion, else its last recorded step. */
 export function closedAt(request: SubjectRequest): string | null {
   return request.completedAt ?? request.steps.at(-1)?.occurredAt ?? null;

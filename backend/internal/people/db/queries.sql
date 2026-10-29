@@ -54,6 +54,8 @@ WHERE (
        sqlc.arg(search)::text = ''
        OR p.first_name ILIKE '%' || sqlc.arg(search)::text || '%'
        OR p.last_name ILIKE '%' || sqlc.arg(search)::text || '%'
+       OR (p.first_name || ' ' || p.last_name) ILIKE '%' || sqlc.arg(search)::text || '%'
+       OR (p.last_name || ' ' || p.first_name) ILIKE '%' || sqlc.arg(search)::text || '%'
        OR COALESCE(p.email, '') ILIKE '%' || sqlc.arg(search)::text || '%'
        OR COALESCE(p.phone, '') ILIKE '%' || sqlc.arg(search)::text || '%'
        OR (sqlc.arg(include_matriculation)::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || sqlc.arg(search)::text || '%')
@@ -119,6 +121,8 @@ WHERE (
        sqlc.arg(search)::text = ''
        OR p.first_name ILIKE '%' || sqlc.arg(search)::text || '%'
        OR p.last_name ILIKE '%' || sqlc.arg(search)::text || '%'
+       OR (p.first_name || ' ' || p.last_name) ILIKE '%' || sqlc.arg(search)::text || '%'
+       OR (p.last_name || ' ' || p.first_name) ILIKE '%' || sqlc.arg(search)::text || '%'
        OR COALESCE(p.email, '') ILIKE '%' || sqlc.arg(search)::text || '%'
        OR COALESCE(p.phone, '') ILIKE '%' || sqlc.arg(search)::text || '%'
        OR (sqlc.arg(include_matriculation)::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || sqlc.arg(search)::text || '%')

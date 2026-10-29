@@ -1,7 +1,11 @@
 package integration_test
 
 import (
+	"context"
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
@@ -128,6 +132,49 @@ func TestPeopleListFiltersMissingPublishedLabRulesVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertPeoplePageIDs(t, page, subject.personID)
+}
+
+func TestPeopleListSearchesFullNameAndGatesMatriculation(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	service := people.NewService(pool, nil)
+	token := strings.ReplaceAll(ids.New().String(), "-", "")[:8]
+	matriculation := fmt.Sprintf("s%07d", time.Now().UnixNano()%10_000_000)
+	lovelace, other := ids.New(), ids.New()
+	for _, person := range []struct {
+		id                  uuid.UUID
+		first, last, matric any
+	}{{lovelace, "Ada", "Lovelace" + token, matriculation}, {other, "Charles", "Babbage" + token, nil}} {
+		if _, err := pool.Exec(
+			ctx,
+			`INSERT INTO people(id,first_name,last_name,email,matriculation_number) VALUES($1,$2,$3,$4,$5)`,
+			person.id, person.first, person.last, "full-name-"+person.id.String()+"@example.test", person.matric,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(
+			context.Background(), `DELETE FROM people WHERE id = ANY($1)`, []uuid.UUID{lovelace, other},
+		)
+	})
+	withoutMatriculation, _ := principalWithPermissions(t, pool, "people-search-plain-"+token, "people.read.all")
+	withMatriculation, _ := principalWithPermissions(
+		t, pool, "people-search-matric-"+token, "people.read.all", "people.read.matriculation",
+	)
+	search := func(principal authorization.Principal, term string) people.Page {
+		t.Helper()
+		page, err := service.List(ctx, principal, 1, 100, people.ListFilters{Search: term})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return page
+	}
+	assertPeoplePageIDs(t, search(withoutMatriculation, "ada lovelace"+strings.ToLower(token[:5])), lovelace)
+	assertPeoplePageIDs(t, search(withoutMatriculation, "LOVELACE"+token+" ada"), lovelace)
+	assertPeoplePageIDs(t, search(withoutMatriculation, "babbage"+token+" charles"), other)
+	assertPeoplePageIDs(t, search(withoutMatriculation, matriculation))
+	assertPeoplePageIDs(t, search(withMatriculation, matriculation), lovelace)
 }
 
 func assertPeoplePageIDs(t *testing.T, page people.Page, expected ...uuid.UUID) {

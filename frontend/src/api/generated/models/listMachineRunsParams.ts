@@ -24,7 +24,7 @@ import type { UUIDv7 } from './uUIDv7';
 
 export type ListMachineRunsParams = {
 /**
- * Matches run display ID and file name.
+ * Case-insensitive substring match on run display ID, file name, machine name, the display ID and name of the job, the material name and display ID of the reported spool, and the job's recipient (person or organization) and operator names.
  * @maxLength 200
  */
 search?: string;

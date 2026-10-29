@@ -10,7 +10,7 @@ import { materialTypesQuery } from '../inventoryQueries';
 import { processConfig, processOptions } from '../processConfig';
 import { DirectoryTable, useUrlState, type Column } from '../shared/DirectoryTable';
 import { QueryBoundary } from '../shared/QueryBoundary';
-import { ArticleKindTag, articleKinds, unitLabel } from './inventoryShared';
+import { ArticleKindTag, articleKinds, kindNames, unitLabel } from './inventoryShared';
 
 type Dialog =
   | { name: 'choose' }
@@ -115,7 +115,15 @@ function TypesTable({
         columns={columns}
         rows={rows}
         totalCount={types.length}
-        searchText={(row) => row.name}
+        searchText={(row) =>
+          [
+            row.name,
+            kindNames[row.kind],
+            unitLabel(row.unit),
+            ...row.processes.map((process) => processConfig[process].label),
+            row.active ? 'Active' : 'Inactive',
+          ].join(' ')
+        }
         defaultSort={{ key: 'name', direction: 'ASC' }}
         onRowClick={canManage ? (row) => setDialog({ name: 'form', type: row }) : undefined}
         filterCategories={[

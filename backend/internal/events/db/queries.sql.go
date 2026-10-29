@@ -1929,7 +1929,9 @@ WHERE CASE $1::text
   AND ($5::text = ''
        OR lower(r.name) LIKE '%' || lower($5::text) || '%'
        OR lower(COALESCE(r.public_title, '')) LIKE '%' || lower($5::text) || '%'
-       OR lower(COALESCE(r.location, '')) LIKE '%' || lower($5::text) || '%')
+       OR lower(COALESCE(r.location, '')) LIKE '%' || lower($5::text) || '%'
+       OR EXISTS (SELECT 1 FROM people op WHERE op.id = r.owner_person_id
+                  AND lower(op.first_name || ' ' || op.last_name) LIKE '%' || lower($5::text) || '%'))
 ORDER BY CASE WHEN $1::text = 'past' THEN r.range_starts_at END DESC NULLS LAST,
          CASE WHEN $1::text <> 'past' THEN r.range_starts_at END ASC NULLS LAST,
          lower(r.name), r.id

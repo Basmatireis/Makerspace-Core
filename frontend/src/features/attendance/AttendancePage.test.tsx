@@ -345,6 +345,27 @@ describe('Lab Rules confirmation notice', () => {
     );
   });
 
+  it('searches the check-in method label of held and checked-in people', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.attendanceread]))),
+      http.get('*/api/v1/visits', () => HttpResponse.json({ items: [visit] })),
+      http.get('*/api/v1/attendance/holds', () => HttpResponse.json({ items: [hold] })),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/attendance');
+    const title = await screen.findByText('Currently here', { selector: 'h4, .cds--data-table-header__title' });
+    const here = within(title.closest('.cds--data-table-container') as HTMLElement);
+    expect(await here.findByText('Katherine Johnson')).toBeInTheDocument();
+    const search = screen.getByPlaceholderText('Search by name or method');
+    await user.type(search, 'assisted');
+    await waitFor(() => expect(here.queryByText('Katherine Johnson')).not.toBeInTheDocument());
+    expect(here.getByText('Grace Hopper')).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'PIN');
+    await waitFor(() => expect(here.queryByText('Grace Hopper')).not.toBeInTheDocument());
+    expect(here.getByText('Katherine Johnson')).toBeInTheDocument();
+  });
+
   it('does not fetch requests without laborordnung.requests.read', async () => {
     let queueRequested = false;
     server.use(

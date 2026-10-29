@@ -41,6 +41,7 @@ import {
   isClosedThisYear,
   isDueSoon,
   kindLabels,
+  matchesRequestSearch,
   nextStep,
   personLabel,
   requestProgress,
@@ -181,12 +182,6 @@ function SummaryTile({
   );
 }
 
-function matchesSearch(request: SubjectRequest, search: string): boolean {
-  const needle = search.trim().toLowerCase();
-  if (needle === '') return true;
-  return (request.personName ?? '').toLowerCase().includes(needle) || request.reference.toLowerCase().includes(needle);
-}
-
 /** Open requests first, the most urgent on top; closed ones follow, newest due date first. */
 function byUrgency(a: SubjectRequest, b: SubjectRequest): number {
   const closedOrder = Number(isClosed(a)) - Number(isClosed(b));
@@ -232,7 +227,7 @@ export function RequestsTab() {
   const matched = all
     .filter(
       (request) =>
-        matchesSearch(request, search) &&
+        matchesRequestSearch(request, search, actor) &&
         (tile ? inTile[tile](request) : !openOnly || !isClosed(request)) &&
         (filters.kinds.length === 0 || filters.kinds.includes(request.kind)) &&
         (filters.statuses.length === 0 || filters.statuses.includes(request.status)),
@@ -272,7 +267,7 @@ export function RequestsTab() {
               <TableToolbarContent>
                 <TableToolbarSearch
                   labelText="Search data requests"
-                  placeholder="Search by person or reference"
+                  placeholder="Search by person, reference, kind or status"
                   value={search}
                   onChange={(event) => {
                     setSearch(typeof event === 'string' ? event : event.target.value);

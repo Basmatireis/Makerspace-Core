@@ -40,6 +40,7 @@ import { formatDate, formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission } from '../auth/permissions';
 import { SettingsLoading } from '../settings/SettingsPageLayout';
+import { matches, moduleLabel, noFilters, subjectLabels, type Filters } from './categoryFilter';
 import { privacyCategoriesQueryOptions, privacyOverviewQueryOptions, privacySettingsQueryOptions } from './privacy';
 import { categoryRetentionPath, PrivacyLink, privacyPath } from './privacyNavigation';
 import './privacyCategories.scss';
@@ -118,18 +119,13 @@ export function PrivacyContextLine({ overview }: { overview: PrivacyOverview }) 
   );
 }
 
-function moduleLabel(id: string): string {
-  const text = id.replace(/[_-]+/g, ' ');
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
 const subjectInfo: Record<
   PrivacyCategory['subject'],
   { label: string; hint: string; color: 'blue' | 'purple' | 'gray' }
 > = {
-  person: { label: 'A person', hint: 'Named member, guest or helper', color: 'blue' },
-  account: { label: 'An account', hint: 'Only the login, not the person', color: 'purple' },
-  none: { label: 'No person', hint: 'Not about anyone in particular', color: 'gray' },
+  person: { label: subjectLabels.person, hint: 'Named member, guest or helper', color: 'blue' },
+  account: { label: subjectLabels.account, hint: 'Only the login, not the person', color: 'purple' },
+  none: { label: subjectLabels.none, hint: 'Not about anyone in particular', color: 'gray' },
 };
 
 const actionLabels: Record<RetentionAction, string> = {
@@ -245,27 +241,6 @@ function policyStatusText(category: PrivacyCategory): string {
   if (!policy) return 'None';
   if (policyStatus === 'active') return `Active v${policy.version}`;
   return policy.status === 'approved' ? `Approved v${policy.version}, not yet active` : 'Draft, not yet approved';
-}
-
-type Filters = { subjects: string[]; statuses: string[]; areas: string[]; special: string[] };
-const noFilters: Filters = { subjects: [], statuses: [], areas: [], special: [] };
-
-function matches(category: PrivacyCategory, search: string, filters: Filters): boolean {
-  const needle = search.trim().toLowerCase();
-  if (
-    needle !== '' &&
-    ![category.id, category.name, category.description, category.contains, ...category.fields].some((text) =>
-      text.toLowerCase().includes(needle),
-    )
-  ) {
-    return false;
-  }
-  if (filters.subjects.length > 0 && !filters.subjects.includes(category.subject)) return false;
-  if (filters.statuses.length > 0 && !filters.statuses.includes(category.coverage.policyStatus)) return false;
-  if (filters.areas.length > 0 && !filters.areas.includes(category.ownerModuleId)) return false;
-  if (filters.special.includes('hold') && !category.coverage.hold) return false;
-  if (filters.special.includes('orphaned') && !category.orphaned) return false;
-  return true;
 }
 
 function toggled(list: readonly string[], value: string, checked: boolean): string[] {

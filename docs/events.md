@@ -52,7 +52,7 @@ Both are audited (`event_assignment.joined`, `event_assignment.left`). The event
 
 ## Lists
 
-`GET /events?scope=upcoming|drafts|past&search=&ownerPersonId=&page=&pageSize=` pages events by date: `upcoming` holds confirmed events that have not ended (earliest first), `drafts` the drafts (organizers only; empty otherwise), `past` completed and cancelled events and confirmed events that have ended (latest first). Without an organizer permission `past` lists only events the caller helped at. Every item carries the staffing counts, `openPlaces`, `tasksOverdue`, `goLive` and the caller's own shifts (`myShifts`).
+`GET /events?scope=upcoming|drafts|past&search=&ownerPersonId=&page=&pageSize=` (`search` is a case-insensitive substring match on the internal name, public title, location and the organizer's full name) pages events by date: `upcoming` holds confirmed events that have not ended (earliest first), `drafts` the drafts (organizers only; empty otherwise), `past` completed and cancelled events and confirmed events that have ended (latest first). Without an organizer permission `past` lists only events the caller helped at. Every item carries the staffing counts, `openPlaces`, `tasksOverdue`, `goLive` and the caller's own shifts (`myShifts`).
 
 ## Organizers
 

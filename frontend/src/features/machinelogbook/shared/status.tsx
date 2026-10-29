@@ -307,6 +307,8 @@ const availabilityMeta: Record<
   retired: { label: 'Retired', type: 'gray', icon: CircleDash },
 };
 
+export const availabilityLabel = (availability: MachineAvailability) => availabilityMeta[availability].label;
+
 export function AvailabilityTag({
   availability,
   size = 'md',

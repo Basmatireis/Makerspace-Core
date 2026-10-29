@@ -109,7 +109,7 @@ The registry in application code is authoritative. Database RolePermission rows 
 
 ## Resource and field scope
 
-`people.read.self` and `people.update.self` apply only when the requested Person ID equals the authenticated principal's linked Person ID. Their `*.all` counterparts apply to any Person. `GET /people` is an administrative listing and requires `people.read.all`; a self-only caller reads their record through `/auth/me` or `GET /people/{personId}`.
+`people.read.self` and `people.update.self` apply only when the requested Person ID equals the authenticated principal's linked Person ID. Their `*.all` counterparts apply to any Person. `GET /people` is an administrative listing and requires `people.read.all`; its `search` is a case-insensitive substring match on first name, last name, the full name in either order, email and phone, and on matriculation numbers only with `people.read.matriculation`; a self-only caller reads their record through `/auth/me` or `GET /people/{personId}`.
 
 Matriculation access is an additional field gate, not a substitute for record access. Without `people.read.matriculation`, the backend omits `matriculationNumber` entirely even if the caller has `people.read.all`. `null` is reserved for an authorized response with no stored value. Sending the field requires `people.update.matriculation` in addition to the applicable create/update permission.
 

@@ -47,7 +47,8 @@ FROM machines m
 JOIN machine_types mt ON mt.id = m.machine_type_id
 LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.deleted_at IS NULL
 LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
-WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(mt.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(mt.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(m.external_identifier, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.narg(status)::text IS NULL OR m.status = sqlc.narg(status)::text)
 GROUP BY m.id, mt.id
 ORDER BY CASE m.status WHEN 'active' THEN 0 WHEN 'maintenance' THEN 1 ELSE 2 END, lower(m.name), m.id
@@ -55,7 +56,8 @@ LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 
 -- name: CountMachines :one
 SELECT count(*) FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
-WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(mt.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(mt.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(m.external_identifier, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.narg(status)::text IS NULL OR m.status = sqlc.narg(status)::text);
 
 -- name: UpdateMachine :one
@@ -105,7 +107,11 @@ SELECT o.*, pg.id AS pricing_group_id, pg.name AS pricing_group_name,
 FROM organizations o
 LEFT JOIN organization_pricing_group_assignments a ON a.organization_id = o.id
 LEFT JOIN pricing_groups pg ON pg.id = a.pricing_group_id
-WHERE (sqlc.arg(search)::text = '' OR lower(o.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+WHERE (sqlc.arg(search)::text = '' OR lower(o.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(o.contact_name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(o.locality) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(o.contact_email) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(pg.name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.narg(active)::boolean IS NULL OR o.active = sqlc.narg(active)::boolean)
   AND (sqlc.narg(kind)::text IS NULL OR o.kind = sqlc.narg(kind)::text)
   AND (sqlc.narg(pricing_group_id)::uuid IS NULL OR a.pricing_group_id = sqlc.narg(pricing_group_id)::uuid)
@@ -115,7 +121,12 @@ LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: CountOrganizations :one
 SELECT count(*) FROM organizations o
 LEFT JOIN organization_pricing_group_assignments a ON a.organization_id = o.id
-WHERE (sqlc.arg(search)::text = '' OR lower(o.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+LEFT JOIN pricing_groups pg ON pg.id = a.pricing_group_id
+WHERE (sqlc.arg(search)::text = '' OR lower(o.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(o.contact_name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(o.locality) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(o.contact_email) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(pg.name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.narg(active)::boolean IS NULL OR o.active = sqlc.narg(active)::boolean)
   AND (sqlc.narg(kind)::text IS NULL OR o.kind = sqlc.narg(kind)::text)
   AND (sqlc.narg(pricing_group_id)::uuid IS NULL OR a.pricing_group_id = sqlc.narg(pricing_group_id)::uuid);
@@ -366,7 +377,9 @@ JOIN material_types mt ON mt.id = m.material_type_id
 LEFT JOIN material_filament_properties fp ON fp.material_id=m.id
 LEFT JOIN inventory_transactions t ON t.material_id = m.id
 WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(mt.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
-       OR lower(COALESCE(m.variant, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(COALESCE(m.manufacturer, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+       OR lower(COALESCE(m.variant, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(COALESCE(m.manufacturer, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(m.color_name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(COALESCE(m.storage_location, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(m.notes, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.narg(material_type_id)::uuid IS NULL OR m.material_type_id = sqlc.narg(material_type_id)::uuid)
   AND (sqlc.arg(kind)::text = '' OR mt.kind = sqlc.arg(kind)::text)
   AND (sqlc.arg(stock_state)::text = '' OR
@@ -381,7 +394,9 @@ LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 SELECT count(*) FROM materials m JOIN material_balances b ON b.material_id = m.id
 JOIN material_types mt ON mt.id = m.material_type_id
 WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(mt.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
-       OR lower(COALESCE(m.variant, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(COALESCE(m.manufacturer, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+       OR lower(COALESCE(m.variant, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(COALESCE(m.manufacturer, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(m.color_name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(COALESCE(m.storage_location, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(m.notes, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.narg(material_type_id)::uuid IS NULL OR m.material_type_id = sqlc.narg(material_type_id)::uuid)
   AND (sqlc.arg(kind)::text = '' OR mt.kind = sqlc.arg(kind)::text)
   AND (sqlc.arg(stock_state)::text = '' OR
@@ -538,7 +553,14 @@ WHERE (sqlc.arg(search)::text='' OR lower(s.display_id) LIKE '%'||lower(sqlc.arg
     OR lower(COALESCE(s.label,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(m.name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(f.manufacturer,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
-    OR lower(COALESCE(f.product_name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%')
+    OR lower(COALESCE(f.product_name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(s.storage_location,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(s.notes,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(s.acquisition_reference,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(mt.name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(m.color_name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(mc.name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR EXISTS (SELECT 1 FROM filament_spool_identifiers i WHERE i.spool_id=s.id AND lower(i.value) LIKE '%'||lower(sqlc.arg(search)::text)||'%'))
   -- A spool without an open fill (finished, waiting for a refill) still belongs to the material of its last fill.
   AND (sqlc.narg(material_id)::uuid IS NULL OR f.material_id=sqlc.narg(material_id)
        OR (f.id IS NULL AND (SELECT lf.material_id FROM filament_spool_fills lf WHERE lf.spool_id=s.id
@@ -559,11 +581,23 @@ SELECT count(*)
 FROM filament_spools s
 LEFT JOIN filament_spool_fills f ON f.spool_id=s.id AND f.closed_at IS NULL
 LEFT JOIN materials m ON m.id=f.material_id
+LEFT JOIN material_types mt ON mt.id=m.material_type_id
+LEFT JOIN printer_spool_assignments pa ON pa.spool_id=s.id AND pa.unmounted_at IS NULL
+LEFT JOIN printer_slots pl ON pl.id=pa.slot_id
+LEFT JOIN printer_input_units mu ON mu.id=pl.input_unit_id
+LEFT JOIN machines mc ON mc.id=mu.machine_id
 WHERE (sqlc.arg(search)::text='' OR lower(s.display_id) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(s.label,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(m.name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(f.manufacturer,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
-    OR lower(COALESCE(f.product_name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%')
+    OR lower(COALESCE(f.product_name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(s.storage_location,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(s.notes,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(s.acquisition_reference,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(mt.name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(m.color_name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(mc.name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR EXISTS (SELECT 1 FROM filament_spool_identifiers i WHERE i.spool_id=s.id AND lower(i.value) LIKE '%'||lower(sqlc.arg(search)::text)||'%'))
   -- A spool without an open fill (finished, waiting for a refill) still belongs to the material of its last fill.
   AND (sqlc.narg(material_id)::uuid IS NULL OR f.material_id=sqlc.narg(material_id)
        OR (f.id IS NULL AND (SELECT lf.material_id FROM filament_spool_fills lf WHERE lf.spool_id=s.id
@@ -848,10 +882,18 @@ WITH runs AS (
         (SELECT x.id FROM filament_spool_fills x WHERE x.spool_id = sp.id ORDER BY x.fill_number DESC LIMIT 1))
     LEFT JOIN materials mat ON mat.id = pf.material_id
     LEFT JOIN print_artifacts pa ON pa.id = r.artifact_id
+    LEFT JOIN people cp ON cp.id = j.customer_person_id
+    LEFT JOIN organizations co ON co.id = j.customer_organization_id
+    LEFT JOIN people op ON op.id = j.operator_person_id
     WHERE r.deleted_at IS NULL
       AND (sqlc.narg(run_id)::uuid IS NULL OR r.id = sqlc.narg(run_id)::uuid)
       AND (sqlc.narg(job_id)::uuid IS NULL OR r.job_id = sqlc.narg(job_id)::uuid)
-      AND (sqlc.arg(search)::text = '' OR r.display_id ILIKE '%' || sqlc.arg(search)::text || '%' OR r.file_name ILIKE '%' || sqlc.arg(search)::text || '%')
+      AND (sqlc.arg(search)::text = '' OR r.display_id ILIKE '%' || sqlc.arg(search)::text || '%' OR r.file_name ILIKE '%' || sqlc.arg(search)::text || '%'
+           OR m.name ILIKE '%' || sqlc.arg(search)::text || '%' OR j.display_id ILIKE '%' || sqlc.arg(search)::text || '%'
+           OR j.title ILIKE '%' || sqlc.arg(search)::text || '%' OR mat.name ILIKE '%' || sqlc.arg(search)::text || '%'
+           OR sp.display_id ILIKE '%' || sqlc.arg(search)::text || '%'
+           OR COALESCE(cp.first_name || ' ' || cp.last_name, co.name, '') ILIKE '%' || sqlc.arg(search)::text || '%'
+           OR COALESCE(op.first_name || ' ' || op.last_name, '') ILIKE '%' || sqlc.arg(search)::text || '%')
       AND (sqlc.narg(machine_id)::uuid IS NULL OR r.machine_id = sqlc.narg(machine_id)::uuid)
       AND (sqlc.narg(source)::text IS NULL OR r.source = sqlc.narg(source)::text)
       AND (sqlc.narg(assigned)::boolean IS NULL OR (r.job_id IS NOT NULL) = sqlc.narg(assigned)::boolean)
@@ -884,6 +926,9 @@ WHERE j.deleted_at IS NULL
   AND (sqlc.arg(search)::text = '' OR lower(j.display_id) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR lower(COALESCE(cp.first_name || ' ' || cp.last_name, co.name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR lower(COALESCE(op.first_name || ' ' || op.last_name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(j.title, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(COALESCE(j.notes, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR EXISTS (SELECT 1 FROM machine_runs rr WHERE rr.job_id = j.id AND rr.deleted_at IS NULL
+                  AND (lower(rr.display_id) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(COALESCE(rr.file_name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'))
        OR EXISTS (SELECT 1 FROM machine_run_usages u JOIN machine_runs ur ON ur.id = u.run_id JOIN materials mat ON mat.id = u.material_id
                   WHERE ur.job_id = j.id AND ur.state IS DISTINCT FROM 'replaced' AND u.active AND lower(mat.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'))
   AND (sqlc.narg(machine_id)::uuid IS NULL OR j.machine_id = sqlc.narg(machine_id)::uuid)
@@ -908,6 +953,9 @@ WHERE j.deleted_at IS NULL
   AND (sqlc.arg(search)::text = '' OR lower(j.display_id) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR lower(COALESCE(cp.first_name || ' ' || cp.last_name, co.name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR lower(COALESCE(op.first_name || ' ' || op.last_name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(COALESCE(j.title, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(COALESCE(j.notes, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR EXISTS (SELECT 1 FROM machine_runs rr WHERE rr.job_id = j.id AND rr.deleted_at IS NULL
+                  AND (lower(rr.display_id) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(COALESCE(rr.file_name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'))
        OR EXISTS (SELECT 1 FROM machine_run_usages u JOIN machine_runs ur ON ur.id = u.run_id JOIN materials mat ON mat.id = u.material_id
                   WHERE ur.job_id = j.id AND ur.state IS DISTINCT FROM 'replaced' AND u.active AND lower(mat.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'))
   AND (sqlc.narg(machine_id)::uuid IS NULL OR j.machine_id = sqlc.narg(machine_id)::uuid)
@@ -1091,7 +1139,7 @@ WITH items AS (
            NULL::numeric AS effective_price,
            NULL::text AS billing_state, NULL::uuid AS billing_order_id, NULL::text AS billing_order_reference,
            r.version,
-           (r.display_id || ' ' || COALESCE(r.file_name, ''))::text AS search_text,
+           concat_ws(' ', r.display_id, r.file_name, m.name)::text AS search_text,
            COALESCE(r.file_name, r.display_id)::text AS name_key,
            EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.run_id = r.id AND u.active AND u.material_id = ANY(sqlc.arg(material_ids)::uuid[]))
                OR COALESCE(pf.material_id = ANY(sqlc.arg(material_ids)::uuid[]), false) AS material_match
@@ -1126,7 +1174,8 @@ WITH items AS (
                  ELSE 'not_on_order' END)::text,
            oo.id, oo.reference,
            j.version,
-           COALESCE((SELECT string_agg(sr.display_id || ' ' || COALESCE(sr.file_name, ''), ' ') FROM machine_runs sr WHERE sr.job_id = j.id), '')::text,
+           concat_ws(' ', j.display_id, j.title, j.notes, m.name, COALESCE(btrim(cp.first_name || ' ' || cp.last_name), co.name), btrim(op.first_name || ' ' || op.last_name),
+                     (SELECT string_agg(sr.display_id || ' ' || COALESCE(sr.file_name, ''), ' ') FROM machine_runs sr WHERE sr.job_id = j.id))::text,
            COALESCE(j.title, lr.file_name, j.display_id)::text,
            EXISTS (SELECT 1 FROM machine_run_usages u JOIN machine_runs ur ON ur.id = u.run_id
                    WHERE ur.job_id = j.id AND ur.state IS DISTINCT FROM 'replaced' AND u.active AND u.material_id = ANY(sqlc.arg(material_ids)::uuid[]))
@@ -1164,8 +1213,7 @@ WHERE (cardinality(sqlc.arg(statuses)::text[]) = 0 OR i.status = ANY(sqlc.arg(st
   AND (sqlc.narg(operator_person_id)::uuid IS NULL OR i.operator_person_id = sqlc.narg(operator_person_id)::uuid)
   AND (sqlc.narg(from_time)::timestamptz IS NULL OR i.started_at >= sqlc.narg(from_time)::timestamptz)
   AND (sqlc.narg(to_time)::timestamptz IS NULL OR i.started_at < sqlc.narg(to_time)::timestamptz)
-  AND (sqlc.arg(search)::text = '' OR i.title ILIKE '%' || sqlc.arg(search)::text || '%' OR i.display_id ILIKE '%' || sqlc.arg(search)::text || '%'
-       OR i.search_text ILIKE '%' || sqlc.arg(search)::text || '%')
+  AND (sqlc.arg(search)::text = '' OR i.search_text ILIKE '%' || sqlc.arg(search)::text || '%')
 ORDER BY
     CASE WHEN sqlc.arg(active_order)::boolean THEN (CASE i.status WHEN 'running' THEN 1 WHEN 'running_unassigned' THEN 2 WHEN 'unassigned' THEN 3 ELSE 4 END) END ASC,
     CASE WHEN sqlc.arg(sort_key)::text = 'startedAt' AND sqlc.arg(sort_direction)::text = 'asc' THEN i.started_at END ASC,

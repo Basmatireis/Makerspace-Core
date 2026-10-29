@@ -26,7 +26,7 @@ import type { UUIDv7 } from './uUIDv7';
 export type ListEventsParams = {
 scope?: EventListScope;
 /**
- * Case-insensitive match on internal name, public title and location.
+ * Case-insensitive substring match on internal name, public title, location and the organizer's full name.
  * @maxLength 200
  */
 search?: string;

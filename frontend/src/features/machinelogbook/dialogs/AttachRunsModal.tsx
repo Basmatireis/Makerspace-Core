@@ -124,7 +124,7 @@ function AttachRunsDialog({ onClose, runs, onDone }: Omit<Props, 'open'>) {
           id="attach-runs-job"
           titleText="Job"
           placeholder="Search jobs"
-          helperText={`Jobs on ${machineName}, newest first. Type to search by job name or ID.`}
+          helperText={`Jobs on ${machineName}, newest first. Type to search by job name, ID, recipient, operator or file name.`}
           items={jobs}
           itemToString={(item) => (item ? jobLabel(item) : '')}
           selectedItem={selected}

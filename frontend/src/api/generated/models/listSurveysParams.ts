@@ -24,6 +24,7 @@ import type { ListSurveysStatus } from './listSurveysStatus';
 
 export type ListSurveysParams = {
 /**
+ * Case-insensitive substring match on the survey name and the title of its latest version.
  * @maxLength 160
  */
 search?: string;

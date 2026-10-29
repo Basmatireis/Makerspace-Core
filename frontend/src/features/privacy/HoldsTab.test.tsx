@@ -175,6 +175,36 @@ describe('holds tab', () => {
     expect(screen.getByText('Dispute')).toBeInTheDocument();
   });
 
+  it('searches the category description and the released status shown in the table', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.get('*/api/v1/privacy/holds', () =>
+        HttpResponse.json({
+          holds: [
+            hold(),
+            hold({
+              id: '0198a000-0000-7000-8000-000000000003',
+              categoryId: null,
+              personId: 'p1',
+              reason: 'Dispute',
+              releasedAt: '2026-10-05T10:00:00Z',
+            }),
+          ],
+        }),
+      ),
+    );
+    renderRoute(<HoldsTab />);
+    await screen.findByText('Legal proceedings');
+    const search = screen.getByRole('searchbox', { name: 'Search holds' });
+    await user.type(search, 'who did what when');
+    expect(screen.getByText('Legal proceedings')).toBeInTheDocument();
+    expect(screen.queryByText('Dispute')).not.toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'released');
+    expect(screen.queryByText('Legal proceedings')).not.toBeInTheDocument();
+    expect(screen.getByText('Dispute')).toBeInTheDocument();
+  });
+
   it('releases an open hold after confirmation', async () => {
     const user = userEvent.setup();
     server.use(

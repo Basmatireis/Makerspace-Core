@@ -37,7 +37,7 @@ page?: PageParameter;
  */
 pageSize?: PageSizeParameter;
 /**
- * Case-insensitive search over permitted name and contact fields.
+ * Case-insensitive substring match on first name, last name, the full name in either order (first and last, or last and first), email and phone. Matriculation numbers are matched only when the caller holds `people.read.matriculation`.
  * @maxLength 200
  */
 search?: string;

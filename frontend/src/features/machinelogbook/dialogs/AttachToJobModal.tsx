@@ -72,7 +72,7 @@ export function AttachToJobModal({ open, onClose, run }: { open: boolean; onClos
           id="attach-job-select"
           titleText="Job"
           placeholder="Search jobs"
-          helperText={`Jobs on ${run.machineName}, newest first. Type to search by job name or ID.`}
+          helperText={`Jobs on ${run.machineName}, newest first. Type to search by job name, ID, recipient, operator or file name.`}
           items={jobs}
           itemToString={(job) => (job ? jobLabel(job) : '')}
           selectedItem={selected}

@@ -53,13 +53,15 @@ export function CurrentlyHere({
   const [search, setSearch] = useState('');
   const hasActions = canAssist || canCorrect || canConfirm;
   const term = search.trim().toLowerCase();
-  const matches = (name: string) => name.toLowerCase().includes(term);
+  // The name and the check-in method label (the "Via" cell) both count.
+  const matches = (name: string, method: string) =>
+    `${name} ${checkInMethodLabel(method)}`.toLowerCase().includes(term);
   const shownHolds = [...holds]
     .sort((a, b) => a.requestedAt.localeCompare(b.requestedAt))
-    .filter((hold) => matches(hold.displayName));
+    .filter((hold) => matches(hold.displayName, hold.checkInMethod));
   const shownVisits = [...visits]
     .sort((a, b) => b.checkedInAt.localeCompare(a.checkedInAt))
-    .filter((visit) => matches(visit.displayName));
+    .filter((visit) => matches(visit.displayName, visit.checkInMethod));
   const rows = [
     ...shownHolds.map((hold) => ({
       id: hold.id,
@@ -91,7 +93,7 @@ export function CurrentlyHere({
             <TableToolbarContent>
               <TableToolbarSearch
                 persistent
-                placeholder="Search by name"
+                placeholder="Search by name or method"
                 onChange={(event) => setSearch(typeof event === 'string' ? event : event.target.value)}
               />
             </TableToolbarContent>

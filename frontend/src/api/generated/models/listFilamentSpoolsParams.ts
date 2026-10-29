@@ -25,6 +25,7 @@ import type { UUIDv7 } from './uUIDv7';
 
 export type ListFilamentSpoolsParams = {
 /**
+ * Case-insensitive substring match on spool display ID, label, storage location, notes, acquisition reference, spool identifier values (such as tag IDs), the material name, type and colour, manufacturer, product name and the name of the machine the spool is mounted on.
  * @maxLength 200
  */
 search?: string;

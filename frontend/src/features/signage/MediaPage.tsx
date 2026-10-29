@@ -28,8 +28,11 @@ export function MediaPage() {
   const scenes = useQuery(scenesQuery());
   const items = assets.data?.items ?? [];
   const used = items.reduce((sum, item) => sum + item.sizeBytes, 0);
+  const needle = search.trim().toLowerCase();
   const visible = items.filter(
-    (item) => (kind === 'all' || item.kind === kind) && item.name.toLowerCase().includes(search.trim().toLowerCase()),
+    (item) =>
+      (kind === 'all' || item.kind === kind) &&
+      `${item.name} ${KIND_LABEL[item.kind]} ${item.contentType}`.toLowerCase().includes(needle),
   );
   const open = items.find((item) => item.id === openId) ?? null;
   const scenesUsing = (assetId: string) =>
@@ -53,7 +56,7 @@ export function MediaPage() {
           <Search
             id="media-search"
             labelText="Search media"
-            placeholder="Search by name"
+            placeholder="Search by name or type"
             size="lg"
             value={search}
             onChange={(event) => setSearch(event.target.value)}

@@ -347,6 +347,8 @@ WHERE (
        $1::text = ''
        OR p.first_name ILIKE '%' || $1::text || '%'
        OR p.last_name ILIKE '%' || $1::text || '%'
+       OR (p.first_name || ' ' || p.last_name) ILIKE '%' || $1::text || '%'
+       OR (p.last_name || ' ' || p.first_name) ILIKE '%' || $1::text || '%'
        OR COALESCE(p.email, '') ILIKE '%' || $1::text || '%'
        OR COALESCE(p.phone, '') ILIKE '%' || $1::text || '%'
        OR ($2::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || $1::text || '%')
@@ -1124,6 +1126,8 @@ WHERE (
        $1::text = ''
        OR p.first_name ILIKE '%' || $1::text || '%'
        OR p.last_name ILIKE '%' || $1::text || '%'
+       OR (p.first_name || ' ' || p.last_name) ILIKE '%' || $1::text || '%'
+       OR (p.last_name || ' ' || p.first_name) ILIKE '%' || $1::text || '%'
        OR COALESCE(p.email, '') ILIKE '%' || $1::text || '%'
        OR COALESCE(p.phone, '') ILIKE '%' || $1::text || '%'
        OR ($2::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || $1::text || '%')

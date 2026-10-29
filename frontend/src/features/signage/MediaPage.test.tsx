@@ -41,6 +41,26 @@ describe('Media page', () => {
     expect(await screen.findByText('No media found')).toBeInTheDocument();
   });
 
+  it('searches the type label and the content type as well as the name', async () => {
+    mockSignage([PermissionId.signageread], {
+      assets: [
+        assetFixture(),
+        assetFixture({ id: ids.video, kind: 'video', name: 'intro.mp4', contentType: 'video/mp4', durationMs: 90_000 }),
+      ],
+    });
+    renderRoute(<App />, '/signage/media');
+    const user = userEvent.setup();
+    expect(await screen.findByRole('button', { name: 'intro.mp4, details' })).toBeInTheDocument();
+    const search = screen.getByRole('searchbox');
+    await user.type(search, 'video');
+    expect(screen.queryByRole('button', { name: 'poster.png, details' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'intro.mp4, details' })).toBeInTheDocument();
+    await user.clear(search);
+    await user.type(search, 'image/png');
+    expect(screen.queryByRole('button', { name: 'intro.mp4, details' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'poster.png, details' })).toBeInTheDocument();
+  });
+
   it('uploads an image as raw bytes with the expected headers', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
     let headers: Headers | undefined;

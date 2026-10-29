@@ -27,10 +27,13 @@ import { downloadCsv } from './csv';
 import { cashbookCsv } from './cashbookCsv';
 import {
   cashbookKindOptions,
+  cashMovementKindLabel,
   cashMovementReasonLabel,
   customerTypeOptions,
   methodFilterOptions,
   methodLabel,
+  paymentKind,
+  reasonKindLabel,
 } from './labels';
 import {
   cashbookLines,
@@ -53,6 +56,24 @@ const amountText = (line: CashbookLine) =>
   line.type === 'movement' || line.payment.entryKind === 'reversal'
     ? formatSignedCents(line.signed)
     : formatCents(line.signed);
+
+/** What the search matches: reference, kind and method labels, the order and customer, reasons, notes, sources and who recorded it. */
+function lineSearchText(line: CashbookLine) {
+  const parts =
+    line.type === 'payment'
+      ? [
+          line.orderReference,
+          line.customerLabel,
+          paymentKind(line.payment).label,
+          line.payment.entryKind === 'receipt' ? null : reasonKindLabel(line.payment.reasonKind),
+          line.payment.reason,
+          line.payment.reversedPaymentReference,
+          line.payment.externalSource,
+          line.payment.externalReference,
+        ]
+      : [cashMovementKindLabel(line.movement.kind), cashMovementReasonLabel[line.movement.reason], line.movement.note];
+  return [line.reference, ...parts, methodLabel(line.method), line.recordedBy].filter(Boolean).join(' ');
+}
 
 function Cashbook() {
   const user = useCurrentUser();
@@ -243,9 +264,7 @@ function Cashbook() {
         columns={columns}
         rows={rows}
         totalCount={lines.length}
-        searchText={(line) =>
-          `${line.reference} ${line.type === 'payment' ? `${line.orderReference ?? ''} ${line.customerLabel} ${line.payment.externalReference}` : `${cashMovementReasonLabel[line.movement.reason]} ${line.movement.note}`} ${line.recordedBy}`
-        }
+        searchText={lineSearchText}
         defaultSort={{ key: 'time', direction: 'DESC' }}
         pageSizes={[10, 25, 50]}
         onRowClick={(line) => {

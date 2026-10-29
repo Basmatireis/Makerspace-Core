@@ -9,7 +9,7 @@ import { DirectoryTable, useUrlState, type Column, type Option } from '../shared
 import { formatMoney } from '../shared/format';
 import { machineLogbookPaths } from '../shared/paths';
 import { QueryBoundary } from '../shared/QueryBoundary';
-import { ArticleKindTag, formatQuantity, isFilament, StockTag, stockStateOptions } from './inventoryShared';
+import { ArticleKindTag, formatQuantity, isFilament, kindNames, StockTag, stockStateOptions } from './inventoryShared';
 
 /** Materials are filament and consumables together; parts have their own table. */
 export type ArticleScope = 'materials' | 'parts';
@@ -179,7 +179,16 @@ function ArticlesTable({
       rows={rows}
       totalCount={inScope.length}
       searchText={(row) =>
-        [row.name, row.materialTypeName, row.variant, row.colorName, row.manufacturer, row.storageLocation]
+        [
+          row.name,
+          row.materialTypeName,
+          kindNames[row.kind],
+          row.variant,
+          row.colorName,
+          row.manufacturer,
+          row.storageLocation,
+          row.notes,
+        ]
           .filter(Boolean)
           .join(' ')
       }

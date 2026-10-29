@@ -17,7 +17,7 @@ Status per person: **Minimum reached** when staffed plus signed-up open days rea
 
 ## Supervisor staffing page
 
-People › Staffing (`/people/staffing`, `supervisor_dashboard.read`) is the Leitung's overview of everyone with a staffing level. Four key figures (below minimum, lab rules not signed, ready for supervisor, no profile picture) each set the table filter; the table shows role and trainee progress, lab rules, open days this semester against each person's own minimum (`minimum` in every row of `GET /supervisor-dashboard`), status and the last open day, sorted by what needs action, with the usual pagination. People are not assigned to open days from this page. Data: `GET /supervisor-dashboard`.
+People › Staffing (`/people/staffing`, `supervisor_dashboard.read`) is the Leitung's overview of everyone with a staffing level. Four key figures (below minimum, lab rules not signed, ready for supervisor, no profile picture) each set the table filter; the table shows role and trainee progress, lab rules, open days this semester against each person's own minimum (`minimum` in every row of `GET /supervisor-dashboard`), status and the last open day, sorted by what needs action, with the usual pagination. The table search matches the name, the role (Supervisor or Trainee), the status label (for example "Below minimum") and the Lab Rules label. People are not assigned to open days from this page. Data: `GET /supervisor-dashboard`.
 
 ## Personal dashboard
 
