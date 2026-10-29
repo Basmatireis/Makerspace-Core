@@ -227,5 +227,8 @@
 
 // The five steps sit on their own band, like the cards below them, instead of over the page background.
 .privacy-request__steps {
+  padding-block-end: $spacing-06;
+}
+.privacy-request__steps .cds--progress-step {
   padding-block-end: $spacing-03;
 }
