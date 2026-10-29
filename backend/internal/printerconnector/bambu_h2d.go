@@ -366,7 +366,7 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 			if scheduleErr := a.reportInternalStorage(ctx, observations, processor.state.RunFacts); scheduleErr != nil {
 				return scheduleErr
 			}
-			if scheduleErr := a.scheduleArtifactRetrievals(ctx, observations); scheduleErr == nil {
+			if scheduleErr := a.scheduleArtifactRetrievals(ctx, observations, processor.state.RunFacts); scheduleErr == nil {
 				if err = a.noteRunsForRecordings(ctx, observations); err != nil {
 					return err
 				}
@@ -416,7 +416,17 @@ func (a *bambuH2DAdapter) reportInternalStorage(
 	return nil
 }
 
-func (a *bambuH2DAdapter) scheduleArtifactRetrievals(ctx context.Context, observations []Observation) error {
+// scheduleArtifactRetrievals queues the 3MF of each running print. A print whose status names an archive
+// on external storage is fetched from that path. A print classified as internal storage (the printer's
+// url names another file or none) is still looked up by its name on external storage during the print,
+// so a USB print whose url did not match gets its preview, estimate and consumption while it runs
+// instead of after the end. The lookup is one retrieval per run; when external storage really lacks the
+// file, the retrieval worker settles the run with the internal-storage reason once.
+func (a *bambuH2DAdapter) scheduleArtifactRetrievals(
+	ctx context.Context,
+	observations []Observation,
+	facts map[string]bambuRunFacts,
+) error {
 	for _, observation := range observations {
 		if observation.RunID == nil || (observation.Kind != ObservationOperationalState && observation.Kind != ObservationProgress) {
 			continue
@@ -429,7 +439,18 @@ func (a *bambuH2DAdapter) scheduleArtifactRetrievals(ctx context.Context, observ
 		}
 		reportedPath := strings.TrimSpace(payload.ArtifactPath)
 		if !isBambuArchivePath(reportedPath) {
-			continue
+			runFacts := facts[observation.RunID.String()]
+			if runFacts.Source != bambuSourceInternal || !isBambuArchivePath(runFacts.ArchiveCandidate) {
+				continue
+			}
+			_, _, scheduled, err := a.store.ArtifactRetrievalState(ctx, a.assignmentID, *observation.RunID)
+			if err != nil {
+				return err
+			}
+			if scheduled {
+				continue
+			}
+			reportedPath = runFacts.ArchiveCandidate
 		}
 		expiresAt := time.Now().UTC().Add(24 * time.Hour)
 		if err := a.store.ScheduleArtifactRetrieval(

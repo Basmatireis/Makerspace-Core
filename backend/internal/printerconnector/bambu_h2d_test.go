@@ -725,7 +725,7 @@ func TestArtifactRetrievalUsesArchivePathNotProjectName(t *testing.T) {
 		RunID:   &runID,
 		Payload: mustJSON(map[string]any{"fileName": "Customer project", "artifactPath": "/cache/generated-name.3mf"}),
 	}
-	if err = adapter.scheduleArtifactRetrievals(ctx, []Observation{observation}); err != nil {
+	if err = adapter.scheduleArtifactRetrievals(ctx, []Observation{observation}, nil); err != nil {
 		t.Fatal(err)
 	}
 	retrieval, err := store.PendingArtifactRetrieval(ctx, assignmentID)
@@ -753,7 +753,7 @@ func TestInternalGCodePathIsNotScheduledAsAnArtifact(t *testing.T) {
 			"artifactPath": "/data/Metadata/plate_1.gcode",
 		}),
 	}
-	if err = adapter.scheduleArtifactRetrievals(ctx, []Observation{observation}); err != nil {
+	if err = adapter.scheduleArtifactRetrievals(ctx, []Observation{observation}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if retrieval, pendingErr := store.PendingArtifactRetrieval(ctx, assignmentID); pendingErr != nil ||
@@ -1537,5 +1537,51 @@ func TestRuntimeRetriesArtifactsOnTransientCoreErrors(t *testing.T) {
 	).Scan(&state); err != nil ||
 		state != "pending" {
 		t.Fatalf("transient failure changed the transfer state: %q %v", state, err)
+	}
+}
+
+func TestInternalStoragePrintIsLookedUpByNameWhileItRuns(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	assignmentID, runID := ids.New(), ids.New()
+	adapter := &bambuH2DAdapter{assignmentID: assignmentID, configurationVersion: 3, store: store}
+	// The printer's url named another file, so the print counts as internal storage; its name still
+	// yields the archive to look for on external storage.
+	facts := map[string]bambuRunFacts{runID.String(): {
+		Source: bambuSourceInternal, InternalPath: "data_metadata_plate_1_gcode", ArchiveCandidate: "/cache/Ghostie.gcode.3mf",
+	}}
+	observation := Observation{
+		Kind:    ObservationProgress,
+		RunID:   &runID,
+		Payload: mustJSON(map[string]any{"fileName": "Ghostie", "artifactPath": "/data/Metadata/plate_1.gcode"}),
+	}
+	if err = adapter.scheduleArtifactRetrievals(ctx, []Observation{observation}, facts); err != nil {
+		t.Fatal(err)
+	}
+	retrieval, err := store.PendingArtifactRetrieval(ctx, assignmentID)
+	if err != nil || retrieval == nil || retrieval.ReportedPath != "/cache/Ghostie.gcode.3mf" ||
+		retrieval.ConfigurationVersion != 3 {
+		t.Fatalf("retrieval during the print = %#v err=%v", retrieval, err)
+	}
+	// Later progress reports do not queue it again, and a print without a candidate is left alone.
+	if err = adapter.scheduleArtifactRetrievals(ctx, []Observation{observation}, facts); err != nil {
+		t.Fatal(err)
+	}
+	other := ids.New()
+	noCandidate := Observation{Kind: ObservationProgress, RunID: &other, Payload: observation.Payload}
+	if err = adapter.scheduleArtifactRetrievals(
+		ctx, []Observation{noCandidate}, map[string]bambuRunFacts{other.String(): {Source: bambuSourceInternal}},
+	); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err = store.db.QueryRow(`SELECT count(*) FROM artifact_retrievals WHERE assignment_id=?`, assignmentID.String()).Scan(&count); err != nil ||
+		count != 1 {
+		t.Fatalf("retrievals = %d, %v; want one", count, err)
 	}
 }
