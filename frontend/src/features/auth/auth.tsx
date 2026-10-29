@@ -14,7 +14,7 @@ import { ApiError } from '../../api/http-client';
 import { clearPrivateQueryData } from '../../api/query-client';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
-import { hasAnyPermission } from './permissions';
+import { hasAnyPermission, hasPermission } from './permissions';
 
 // Forced second-factor enrollment is rare, so its screens stay out of the initial bundle.
 const MfaSetupPage = lazy(() => import('./mfa/MfaSetupPage').then(({ MfaSetupPage }) => ({ default: MfaSetupPage })));
@@ -192,7 +192,7 @@ export function PermissionRoute({ anyOf = [], allOf = [], children }: Permission
 
   if (
     (anyOf.length > 0 && !hasAnyPermission(currentUser, anyOf)) ||
-    !allOf.every((permission) => currentUser.permissions.includes(permission))
+    !allOf.every((permission) => hasPermission(currentUser, permission))
   ) {
     return <Navigate to="/dashboard" replace />;
   }

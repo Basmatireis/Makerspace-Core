@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import type { PermissionGrant, Role } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { currentUserFixture } from '../../test/fixtures';
-import { canAccessSettings, canLookupJobParties, canManageRoleMembership, permissionGrantsValid } from './permissions';
+import {
+  canAccessSettings,
+  canLookupJobParties,
+  canManageRoleMembership,
+  hasAnyPermission,
+  hasPermission,
+  isPendingPermission,
+  permissionGrantsValid,
+} from './permissions';
 
 const role = (permissionIds: PermissionId[], systemKey: Role['systemKey'] = null) => ({
   permissionGrants: permissionIds.map((permissionId) => ({
@@ -210,5 +218,19 @@ describe('role membership authorization UX', () => {
         ]),
       ),
     ).toBe(false);
+  });
+});
+
+describe('permissions withheld until a fresh sign-in', () => {
+  it('count as held for the UI, so pages and controls stay visible and the API asks on use', () => {
+    const user = currentUserFixture([PermissionId.rolesread]);
+    user.authentication.reauthenticationRequired = [
+      { permissionId: PermissionId.brandingmanage, requiredAssurance: 'normal', withinMinutes: 10 },
+    ];
+    expect(hasPermission(user, PermissionId.brandingmanage)).toBe(true);
+    expect(isPendingPermission(user, PermissionId.brandingmanage)).toBe(true);
+    expect(hasAnyPermission(user, [PermissionId.mailmanage, PermissionId.brandingmanage])).toBe(true);
+    expect(hasPermission(user, PermissionId.mailmanage)).toBe(false);
+    expect(isPendingPermission(user, PermissionId.rolesread)).toBe(false);
   });
 });

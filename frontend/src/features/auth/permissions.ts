@@ -23,20 +23,27 @@ export function normalizePermissionGrants(grants: readonly PermissionGrant[]): P
   }));
 }
 
+/**
+ * Whether the person may use a permission as far as the UI is concerned: it is held, or it is withheld only until
+ * a fresh sign-in. The UI shows such pages and controls like any other; the API answers their first use with
+ * `403 reauthentication_required`, the "Confirm it's you" dialog opens, and the request is repeated. Hiding them
+ * instead would make a master's settings vanish ten minutes after signing in. Authorization itself stays with the
+ * backend, so a withheld permission never reveals data the API does not send.
+ */
 export function hasPermission(currentUser: CurrentUser, permission: PermissionIdType): boolean {
-  return currentUser.permissions.includes(permission);
+  return currentUser.permissions.includes(permission) || isPendingPermission(currentUser, permission);
+}
+
+/** The permission is withheld only until a fresh sign-in. */
+export function isPendingPermission(currentUser: CurrentUser, permission: PermissionIdType): boolean {
+  // Tolerates partial current-user doubles that mock only the permission list.
+  return (currentUser.authentication?.reauthenticationRequired ?? []).some(
+    (entry) => entry.permissionId === permission,
+  );
 }
 
 export function hasAnyPermission(currentUser: CurrentUser, permissions: readonly PermissionIdType[]): boolean {
   return permissions.some((permission) => hasPermission(currentUser, permission));
-}
-
-/** The permission is held, or withheld only until a fresh sign-in (the API then asks for it on use). */
-export function hasPermissionOrPending(currentUser: CurrentUser, permission: PermissionIdType): boolean {
-  return (
-    hasPermission(currentUser, permission) ||
-    currentUser.authentication.reauthenticationRequired.some((entry) => entry.permissionId === permission)
-  );
 }
 
 // Both billing-party and machine-job-operator searches use this permission set.

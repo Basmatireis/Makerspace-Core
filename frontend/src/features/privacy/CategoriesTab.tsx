@@ -38,7 +38,7 @@ import type {
 import { ErrorState } from '../../app/PageState';
 import { formatDate, formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
-import { hasPermissionOrPending } from '../auth/permissions';
+import { hasPermission } from '../auth/permissions';
 import { SettingsLoading } from '../settings/SettingsPageLayout';
 import { privacyCategoriesQueryOptions, privacyOverviewQueryOptions, privacySettingsQueryOptions } from './privacy';
 import { categoryRetentionPath, PrivacyLink, privacyPath } from './privacyNavigation';
@@ -108,7 +108,7 @@ export function PrivacyContextLine({ overview }: { overview: PrivacyOverview }) 
           : 'Which activities use which data',
         <PrivacyLink section="activities">Processing activities</PrivacyLink>,
       )}
-      {hasPermissionOrPending(currentUser, 'privacy.requests.manage') &&
+      {hasPermission(currentUser, 'privacy.requests.manage') &&
         item(
           'People asking for their data',
           'Access and erasure requests',
