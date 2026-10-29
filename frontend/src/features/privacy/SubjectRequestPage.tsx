@@ -87,7 +87,7 @@ function Progress({ request, actor }: { request: SubjectRequest; actor: Actor })
     done >= 5 ? 'Executed' : 'Execute',
   ];
   return (
-    <ProgressIndicator currentIndex={done} spaceEqually>
+    <ProgressIndicator currentIndex={done} spaceEqually className="privacy-request__steps">
       {names.map((label, index) => (
         <ProgressStep
           key={label}

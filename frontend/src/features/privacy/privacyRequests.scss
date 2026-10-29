@@ -224,3 +224,9 @@
 .privacy-request__kv dd {
   margin: 0;
 }
+
+// The five steps sit on their own band, like the cards below them, instead of over the page background.
+.privacy-request__steps {
+  padding: $spacing-05 $spacing-05 $spacing-03;
+  background: theme.$layer-01;
+}
