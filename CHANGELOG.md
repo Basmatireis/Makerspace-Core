@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Added
+
+- **Frontend client allow-list.** The optional `FRONTEND_ALLOWED_CLIENTS` (comma-separated IPv4/IPv6 addresses, CIDR ranges and hostnames) makes the bundled nginx answer only those clients and loopback; everyone else gets `403` for every page, asset, API request and websocket. Hostnames are resolved once at container start; an invalid or unresolvable entry stops the frontend container. Unset keeps today's behaviour. A TLS proxy on another host must be listed itself ([Hosting](docs/hosting.md#restricting-frontend-clients)).
+
 ## [0.12.0] - 2026-10-30
 
 ### Upgrade notes

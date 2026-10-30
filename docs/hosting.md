@@ -73,6 +73,7 @@ Bundle: `makerspace-core-VERSION-compose.tar.gz` (`compose.yaml` with the releas
 | `AUTH_CHALLENGE_HMAC_KEY`, `PIN_PEPPER`                                                       | independent base64 secrets of at least 32 bytes, `openssl rand -base64 32` (required; sensitive)                                                                                           |
 | `APP_ENCRYPTION_KEYS`                                                                         | ordered base64 32-byte AES keys; required for OIDC/SMTP secrets, printer access codes (sensitive)                                                                                          |
 | `FRONTEND_BIND_ADDRESS`, `FRONTEND_PORT`                                                      | where the frontend listens; default `127.0.0.1:8080`                                                                                                                                       |
+| `FRONTEND_ALLOWED_CLIENTS`                                                                    | optional: only these clients (comma-separated IPs, CIDRs, hostnames) get any response, others get 403; unset: everyone, see [below](#restricting-frontend-clients)                         |
 | `HTTP_TRUSTED_PROXIES`                                                                        | forwarding proxies the backend trusts; defaults to the Compose network (`MAKERSPACE_NETWORK_SUBNET`, `172.30.240.0/24`), which covers the bundled nginx and a TLS proxy on the Docker host |
 | `MAKERSPACE_NETWORK_SUBNET`                                                                   | subnet of the production Compose network; change only if it collides with a host network                                                                                                   |
 | `SIGNAGE_PAIRING_ALLOWED_CIDRS`                                                               | optional: only these networks may pair signage displays                                                                                                                                    |
@@ -85,6 +86,16 @@ docker compose run --rm --entrypoint /app/admin backend bootstrap-master
 ```
 
 Upgrade: back up PostgreSQL, extract the new bundle's `compose.yaml` and `.env.example` over the deployment directory (keep `.env`), `docker compose up -d`. Rollback, retention and the reverse proxy are covered in [operations](operations.md).
+
+#### Restricting frontend clients
+
+`FRONTEND_ALLOWED_CLIENTS` makes the bundled nginx answer only listed clients; everyone else gets `403` (with the usual security headers and `Cache-Control: no-store`) before any page, asset, API request or websocket is served. Entries are separated by commas and may be IPv4 or IPv6 addresses, CIDR ranges or hostnames, for example `FRONTEND_ALLOWED_CLIENTS=192.0.2.10, 10.0.0.0/8, proxy.example.org`. Unset or empty allows every client. Loopback inside the container is always allowed, so the healthcheck keeps working.
+
+- **Hostnames** are resolved once when the frontend container starts, and all their IPv4 and IPv6 addresses are allowed. They are not re-resolved until the container restarts (`docker compose restart frontend`).
+- **Invalid entries stop the container**: an entry that is neither an address, a CIDR range nor a resolvable hostname makes the frontend exit at start with a message naming it (`docker compose logs frontend`); it never falls back to allowing everyone. A DNS failure at start has the same effect, and Compose retries.
+- **Which address nginx sees**: for traffic from other hosts it is the real source address, because Docker forwards published ports with DNAT. Connections through the Docker host's own loopback (or the userland `docker-proxy`) appear as the Compose network's gateway (by default `172.30.240.1`), so a TLS proxy on the Docker host is allowed by listing that gateway address. A TLS proxy on another host connects with its own address and must be listed itself; the browsers behind it are not checked here (forwarded headers are ignored), so restrict them at that proxy.
+
+This is an application-level filter, not a firewall: the port stays open and connections are accepted before they are refused.
 
 #### Reverse proxy and websockets
 

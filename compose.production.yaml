@@ -81,6 +81,8 @@ services:
 
   frontend:
     image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-frontend:__MAKERSPACE_VERSION__
+    environment:
+      FRONTEND_ALLOWED_CLIENTS: ${FRONTEND_ALLOWED_CLIENTS:-}
     ports:
       - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"
     depends_on:

@@ -360,5 +360,7 @@ jobs:
           cache-from: type=gha,scope=frontend
       - name: Test standalone production deployment
         run: make test-production-compose
+      - name: Test frontend client allow-list
+        run: make test-frontend-allowed-clients
       - name: Test printer connector deployment bundle
         run: make test-printer-connector-compose

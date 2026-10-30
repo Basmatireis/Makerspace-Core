@@ -30,6 +30,9 @@ RUN pnpm generate:api && pnpm build
 FROM nginxinc/nginx-unprivileged:1.31.7-alpine3.24 AS final
 
 COPY frontend/nginx/default.conf /etc/nginx/conf.d/default.conf
+# The entrypoint script rewrites allowed-clients.conf at start (/etc/nginx is writable by the nginx user).
+COPY frontend/nginx/allowed-clients.conf /etc/nginx/allowed-clients.conf
+COPY --chmod=755 frontend/nginx/40-allowed-clients.sh /docker-entrypoint.d/40-allowed-clients.sh
 COPY frontend/nginx/security-headers.conf frontend/nginx/csp-app.conf frontend/nginx/csp-player.conf /etc/nginx/snippets/
 COPY --from=build /workspace/frontend/dist/ /usr/share/nginx/html/
 COPY LICENSE NOTICE /licenses/

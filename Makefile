@@ -6,7 +6,7 @@ SHELL := /bin/sh
 	dev-connector dev-connector-logs dev-connector-down \
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
-	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-printer-connector-compose test-android test-desktop \
+	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-frontend-allowed-clients test-printer-connector-compose test-android test-desktop \
 	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password seed-dev
 
 # Integration tests use their own database next to the development database so
@@ -78,6 +78,9 @@ test-e2e: ## Run all Playwright checks against an isolated live Go/PostgreSQL st
 
 test-production-compose: ## Smoke-test the standalone production Compose release bundle.
 	./scripts/test-production-compose.sh
+
+test-frontend-allowed-clients: ## Check FRONTEND_ALLOWED_CLIENTS of the production frontend image.
+	./scripts/test-frontend-allowed-clients.sh
 
 test-printer-connector-compose: ## Package and validate the printer-connector Compose bundle (connector + go2rtc).
 	./scripts/test-printer-connector-compose.sh
