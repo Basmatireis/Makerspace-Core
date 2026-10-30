@@ -4,6 +4,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-30
+
 ### Upgrade notes
 
 - **Breaking: the streaming gateway is gone, the printer connector bundle carries the cameras.** Printer cameras are now relayed by Core: the connector bundle runs the connector next to **go2rtc**, the connector relays each camera over its own outbound websocket to Core, and signage players watch through Core over a same-origin websocket. No gateway, public host, TLS certificate, Let's Encrypt/Cloudflare setup, port 8443/8555 or inbound firewall rule is needed any more. To upgrade:
@@ -595,6 +597,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.12.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.9.1...v0.10.0
