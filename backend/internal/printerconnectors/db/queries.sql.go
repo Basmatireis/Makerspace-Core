@@ -300,6 +300,28 @@ func (q *Queries) CountConnectorActivity(ctx context.Context, connectorID uuid.U
 	return column_1, err
 }
 
+const countPrinterErrorCodes = `-- name: CountPrinterErrorCodes :one
+SELECT count(*) FROM printer_error_codes
+WHERE ($1::text = '' OR lower(code) LIKE '%' || lower($1::text) || '%'
+       OR lower(title) LIKE '%' || lower($1::text) || '%'
+       OR lower(description) LIKE '%' || lower($1::text) || '%')
+  AND ($2::text = '' OR source_family = $2::text)
+  AND ($3::text = '' OR source = $3::text)
+`
+
+type CountPrinterErrorCodesParams struct {
+	Search       string
+	SourceFamily string
+	Source       string
+}
+
+func (q *Queries) CountPrinterErrorCodes(ctx context.Context, arg CountPrinterErrorCodesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countPrinterErrorCodes, arg.Search, arg.SourceFamily, arg.Source)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countRolesByID = `-- name: CountRolesByID :one
 SELECT count(*) FROM roles WHERE id = $1
 `
@@ -2091,11 +2113,32 @@ func (q *Queries) ListObservedRuns(ctx context.Context, connectorID uuid.UUID) (
 }
 
 const listPrinterErrorCodes = `-- name: ListPrinterErrorCodes :many
-SELECT id, source_family, code, title, description, link, created_at, updated_at, source FROM printer_error_codes ORDER BY source_family, code
+SELECT id, source_family, code, title, description, link, created_at, updated_at, source FROM printer_error_codes
+WHERE ($1::text = '' OR lower(code) LIKE '%' || lower($1::text) || '%'
+       OR lower(title) LIKE '%' || lower($1::text) || '%'
+       OR lower(description) LIKE '%' || lower($1::text) || '%')
+  AND ($2::text = '' OR source_family = $2::text)
+  AND ($3::text = '' OR source = $3::text)
+ORDER BY source_family, code
+LIMIT $5 OFFSET $4
 `
 
-func (q *Queries) ListPrinterErrorCodes(ctx context.Context) ([]PrinterErrorCode, error) {
-	rows, err := q.db.Query(ctx, listPrinterErrorCodes)
+type ListPrinterErrorCodesParams struct {
+	Search       string
+	SourceFamily string
+	Source       string
+	PageOffset   int32
+	PageLimit    int32
+}
+
+func (q *Queries) ListPrinterErrorCodes(ctx context.Context, arg ListPrinterErrorCodesParams) ([]PrinterErrorCode, error) {
+	rows, err := q.db.Query(ctx, listPrinterErrorCodes,
+		arg.Search,
+		arg.SourceFamily,
+		arg.Source,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

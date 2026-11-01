@@ -23,5 +23,14 @@ import type { PrinterErrorCodeSync } from './printerErrorCodeSync';
 
 export interface PrinterErrorCodeList {
   items: PrinterErrorCode[];
+  /** @minimum 1 */
+  page: number;
+  /** @minimum 1 */
+  pageSize: number;
+  /**
+     * Codes matching the search and filters.
+     * @minimum 0
+     */
+  total: number;
   sync: PrinterErrorCodeSync;
 }

@@ -41,6 +41,7 @@ import type {
   ListMachineJobsParams,
   ListMachineLogbookWorkItemsParams,
   ListMachinesParams,
+  ListPrinterErrorCodesParams,
   ListMaterialsParams,
   ListMachineRunsParams,
 } from '../../api/generated/models';
@@ -69,7 +70,10 @@ export const machineLogbookKeys = {
   jobRecordings: (jobId: string) => [...machineLogbookKeys.all, 'job-recordings', jobId] as const,
   recordingSettings: () => [...machineLogbookKeys.all, 'recording-settings'] as const,
   printerErrors: (machineId: string) => [...machineLogbookKeys.all, 'printer-errors', machineId] as const,
-  printerErrorCodes: () => [...machineLogbookKeys.all, 'printer-error-codes'] as const,
+  printerErrorCodes: (params?: ListPrinterErrorCodesParams) =>
+    (params
+      ? [...machineLogbookKeys.all, 'printer-error-codes', params]
+      : [...machineLogbookKeys.all, 'printer-error-codes']) as readonly unknown[],
   printerNotificationSettings: () => [...machineLogbookKeys.all, 'printer-notification-settings'] as const,
   artifact: (id: string) => [...machineLogbookKeys.all, 'artifact', id] as const,
   pricing: () => [...machineLogbookKeys.all, 'pricing'] as const,
@@ -154,10 +158,10 @@ export const printerErrorsQuery = (machineId: string) =>
     queryKey: machineLogbookKeys.printerErrors(machineId),
     queryFn: ({ signal }) => listPrinterErrors(machineId, { signal }),
   });
-export const printerErrorCodesQuery = () =>
+export const printerErrorCodesQuery = (params: ListPrinterErrorCodesParams = {}) =>
   queryOptions({
-    queryKey: machineLogbookKeys.printerErrorCodes(),
-    queryFn: ({ signal }) => listPrinterErrorCodes({ signal }),
+    queryKey: machineLogbookKeys.printerErrorCodes(params),
+    queryFn: ({ signal }) => listPrinterErrorCodes(params, { signal }),
   });
 export const printerNotificationSettingsQuery = () =>
   queryOptions({

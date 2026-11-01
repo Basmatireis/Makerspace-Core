@@ -23,6 +23,7 @@ type Querier interface {
 	CloseOpenMount(ctx context.Context, arg CloseOpenMountParams) error
 	CompleteEnrollment(ctx context.Context, arg CompleteEnrollmentParams) (PrinterConnectorEnrollment, error)
 	CountConnectorActivity(ctx context.Context, connectorID uuid.UUID) (int64, error)
+	CountPrinterErrorCodes(ctx context.Context, arg CountPrinterErrorCodesParams) (int64, error)
 	CountRolesByID(ctx context.Context, id uuid.UUID) (int64, error)
 	CreateAssignment(ctx context.Context, arg CreateAssignmentParams) (PrinterConnectorAssignment, error)
 	CreateConnector(ctx context.Context, arg CreateConnectorParams) (PrinterConnector, error)
@@ -84,7 +85,7 @@ type Querier interface {
 	ListEnabledPrinterLiveStatuses(ctx context.Context) ([]ListEnabledPrinterLiveStatusesRow, error)
 	ListNFCSpoolsAt(ctx context.Context, arg ListNFCSpoolsAtParams) ([]uuid.UUID, error)
 	ListObservedRuns(ctx context.Context, connectorID uuid.UUID) ([]ListObservedRunsRow, error)
-	ListPrinterErrorCodes(ctx context.Context) ([]PrinterErrorCode, error)
+	ListPrinterErrorCodes(ctx context.Context, arg ListPrinterErrorCodesParams) ([]PrinterErrorCode, error)
 	ListPrinterErrorCodesByCodes(ctx context.Context, codes []string) ([]PrinterErrorCode, error)
 	// Open errors first (newest first), then errors resolved within the window, newest first.
 	ListPrinterErrorOccurrences(ctx context.Context, arg ListPrinterErrorOccurrencesParams) ([]ListPrinterErrorOccurrencesRow, error)

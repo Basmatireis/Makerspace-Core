@@ -248,7 +248,22 @@ WHERE machine_id = sqlc.arg(machine_id) AND resolved_at IS NULL;
 DELETE FROM printer_error_occurrences WHERE machine_id = sqlc.arg(machine_id) AND resolved_at IS NOT NULL;
 
 -- name: ListPrinterErrorCodes :many
-SELECT * FROM printer_error_codes ORDER BY source_family, code;
+SELECT * FROM printer_error_codes
+WHERE (sqlc.arg(search)::text = '' OR lower(code) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(title) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(description) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+  AND (sqlc.arg(source_family)::text = '' OR source_family = sqlc.arg(source_family)::text)
+  AND (sqlc.arg(source)::text = '' OR source = sqlc.arg(source)::text)
+ORDER BY source_family, code
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: CountPrinterErrorCodes :one
+SELECT count(*) FROM printer_error_codes
+WHERE (sqlc.arg(search)::text = '' OR lower(code) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(title) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+       OR lower(description) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+  AND (sqlc.arg(source_family)::text = '' OR source_family = sqlc.arg(source_family)::text)
+  AND (sqlc.arg(source)::text = '' OR source = sqlc.arg(source)::text);
 
 -- name: ListPrinterErrorCodesByCodes :many
 SELECT * FROM printer_error_codes WHERE code = ANY(sqlc.arg(codes)::text[]);

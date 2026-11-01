@@ -180,7 +180,13 @@ describe('Printer settings tabs', () => {
     importedCount: 12,
     ...overrides,
   });
-  const codeList = (items: PrinterErrorCode[], sync = syncState()): PrinterErrorCodeList => ({ items, sync });
+  const codeList = (items: PrinterErrorCode[], sync = syncState()): PrinterErrorCodeList => ({
+    items,
+    page: 1,
+    pageSize: 25,
+    total: items.length,
+    sync,
+  });
   const serveBase = () =>
     server.use(
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
@@ -313,17 +319,16 @@ describe('Printer settings tabs', () => {
     expect(screen.getByRole('button', { name: 'Fetch now' })).toBeDisabled();
   });
 
-  it('replaces the list with the result of Fetch now and shows a failure message', async () => {
+  it('reloads the list after Fetch now and shows a failure message', async () => {
     auth.permissions = [PermissionId.machinesmanage];
     serveBase();
     let fail = false;
+    let fetched = false;
     server.use(
-      http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([code()]))),
-      http.post('*/api/v1/printer-error-codes/sync', () =>
-        fail
-          ? HttpResponse.json({ code: 'sync_failed', message: 'Bambu Lab could not be reached.' }, { status: 502 })
-          : HttpResponse.json(
-              codeList(
+      http.get('*/api/v1/printer-error-codes', () =>
+        HttpResponse.json(
+          fetched
+            ? codeList(
                 [
                   code({
                     id: '0192f6f8-743e-7c77-a349-cd07c3e8e102',
@@ -333,9 +338,19 @@ describe('Printer settings tabs', () => {
                   }),
                 ],
                 syncState({ importedCount: 1 }),
-              ),
-            ),
+              )
+            : codeList([code()]),
+        ),
       ),
+      http.post('*/api/v1/printer-error-codes/sync', () => {
+        if (fail)
+          return HttpResponse.json(
+            { code: 'sync_failed', message: 'Bambu Lab could not be reached.' },
+            { status: 502 },
+          );
+        fetched = true;
+        return HttpResponse.json(syncState({ importedCount: 1 }));
+      }),
     );
     const user = userEvent.setup();
     renderTab('catalog');
@@ -351,6 +366,36 @@ describe('Printer settings tabs', () => {
     fail = true;
     await user.click(screen.getByRole('button', { name: 'Fetch now' }));
     expect(await screen.findByText('Bambu Lab could not be reached.')).toBeInTheDocument();
+  });
+
+  it('pages and searches the catalog on the server', async () => {
+    auth.permissions = [PermissionId.machinesmanage];
+    serveBase();
+    const requests: URLSearchParams[] = [];
+    server.use(
+      http.get('*/api/v1/printer-error-codes', ({ request }) => {
+        requests.push(new URL(request.url).searchParams);
+        return HttpResponse.json({
+          ...codeList([
+            code(),
+            code({ id: '0192f6f8-743e-7c77-a349-cd07c3e8e103', code: '07FF8004', title: 'Bed loose' }),
+          ]),
+          total: 60,
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderTab('catalog');
+    const table = await screen.findByRole('table', { name: 'Printer error catalog' });
+    expect(within(table).getByText('Nozzle clogged')).toBeInTheDocument();
+    expect(within(table).getByText('Bed loose')).toBeInTheDocument();
+    expect(screen.getByText(/of 60 items/)).toBeInTheDocument();
+    expect(requests[0].get('page')).toBe('1');
+    expect(requests[0].get('pageSize')).toBe('10');
+    expect(requests[0].has('search')).toBe(false);
+
+    await user.type(screen.getByPlaceholderText('Search printer error catalog'), 'nozzle');
+    await waitFor(() => expect(requests.some((params) => params.get('search') === 'nozzle')).toBe(true));
   });
 
   it('offers the new tabs only with machines.manage', async () => {

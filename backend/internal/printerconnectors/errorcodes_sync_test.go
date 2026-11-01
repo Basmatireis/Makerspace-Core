@@ -79,9 +79,28 @@ func TestSyncErrorCodesFillsTheCatalogWithoutTouchingManualMeanings(t *testing.T
 	if err := h.service.SyncErrorCodesNow(ctx, h.principal, nil); err != nil {
 		t.Fatal(err)
 	}
-	codes, err := h.service.ListErrorCodes(ctx, h.principal)
+	codes, total, err := h.service.ListErrorCodes(ctx, h.principal, ErrorCodeFilter{}, 1, 100)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if total < 4 || int(total) != len(codes) {
+		t.Fatalf("catalog total = %d for %d rows", total, len(codes))
+	}
+	// Paging, search and filters narrow the catalog; the page size is bounded.
+	if page, pageTotal, err := h.service.ListErrorCodes(ctx, h.principal, ErrorCodeFilter{}, 1, 2); err != nil || len(page) != 2 || pageTotal != total {
+		t.Fatalf("first page of two = %d rows, total %d, %v", len(page), pageTotal, err)
+	}
+	if found, foundTotal, err := h.service.ListErrorCodes(ctx, h.principal, ErrorCodeFilter{Search: "07ff8003"}, 1, 25); err != nil || foundTotal != 1 || len(found) != 1 || found[0].Code != "07FF8003" {
+		t.Fatalf("search by code = %+v, total %d, %v", found, foundTotal, err)
+	}
+	if manual, manualTotal, err := h.service.ListErrorCodes(ctx, h.principal, ErrorCodeFilter{Search: "our own", Source: "manual", SourceFamily: "hms"}, 1, 25); err != nil || manualTotal != 1 || manual[0].Code != "0700-5200-0003-0001" {
+		t.Fatalf("search by meaning with filters = %+v, total %d, %v", manual, manualTotal, err)
+	}
+	if _, _, err := h.service.ListErrorCodes(ctx, h.principal, ErrorCodeFilter{}, 1, 101); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("page size above the bound: %v", err)
+	}
+	if _, _, err := h.service.ListErrorCodes(ctx, h.principalWith("bystander"), ErrorCodeFilter{}, 1, 25); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("catalog without machines.read: %v", err)
 	}
 	byCode := map[string]ErrorCode{}
 	for _, code := range codes {
@@ -102,7 +121,7 @@ func TestSyncErrorCodesFillsTheCatalogWithoutTouchingManualMeanings(t *testing.T
 	if _, err := h.service.SyncErrorCodes(ctx); err != nil {
 		t.Fatal(err)
 	}
-	codes, _ = h.service.ListErrorCodes(ctx, h.principal)
+	codes, _, _ = h.service.ListErrorCodes(ctx, h.principal, ErrorCodeFilter{Search: "07FF8003"}, 1, 25)
 	for _, code := range codes {
 		if code.Code == "07FF8003" && code.Title != "Print file missing; printing paused." {
 			t.Fatalf("fetched meaning not refreshed: %+v", code)

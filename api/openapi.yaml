@@ -7484,10 +7484,17 @@ paths:
       tags: [Printing]
       operationId: listPrinterErrorCodes
       summary: The catalog of printer error code meanings
-      description: Needs machines.read.
+      description: "Needs machines.read. One page, ordered by family and code; the fetch state comes with every page."
       security: [{sessionCookie: []}]
+      parameters:
+        - {name: search, in: query, description: "Case-insensitive substring match on code, meaning and description.", schema: {type: string, maxLength: 200}}
+        - {name: sourceFamily, in: query, schema: {type: string, enum: [print, hms]}}
+        - {name: source, in: query, schema: {type: string, enum: [manual, bambu]}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
       responses:
-        "200": {description: Catalog., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterErrorCodeList"}}}}
+        "200": {description: Catalog page., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterErrorCodeList"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -7504,7 +7511,7 @@ paths:
         (the catalog answer then carries the reason). Audited as `printer_error_codes.synced`.
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
-        "200": {description: The catalog after the fetch., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterErrorCodeList"}}}}
+        "200": {description: The fetch state afterwards., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterErrorCodeSync"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
@@ -17213,9 +17220,12 @@ components:
     PrinterErrorCodeList:
       type: object
       additionalProperties: false
-      required: [items, sync]
+      required: [items, page, pageSize, total, sync]
       properties:
         items: {type: array, items: {$ref: "#/components/schemas/PrinterErrorCode"}}
+        page: {type: integer, minimum: 1}
+        pageSize: {type: integer, minimum: 1}
+        total: {type: integer, format: int64, minimum: 0, description: "Codes matching the search and filters."}
         sync: {$ref: "#/components/schemas/PrinterErrorCodeSync"}
 
     PrinterErrorCodeInput:

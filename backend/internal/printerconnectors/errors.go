@@ -214,20 +214,47 @@ func (s *Service) ErrorFacts(ctx context.Context, items [][2]string) (map[string
 	return result, nil
 }
 
-// ListErrorCodes returns the catalog.
-func (s *Service) ListErrorCodes(ctx context.Context, p authorization.Principal) ([]ErrorCode, error) {
+// ErrorCodeFilter narrows the catalog: a case-insensitive substring of code, meaning or description, one
+// source family (print, hms) and one source (manual, bambu); empty values match everything.
+type ErrorCodeFilter struct {
+	Search       string
+	SourceFamily string
+	Source       string
+}
+
+// ListErrorCodes returns one page of the catalog, ordered by family and code, and how many entries match.
+func (s *Service) ListErrorCodes(ctx context.Context, p authorization.Principal, filter ErrorCodeFilter, page, pageSize int) ([]ErrorCode, int64, error) {
 	if !p.Has(authorization.MachinesRead) {
-		return nil, apperror.PermissionDenied
+		return nil, 0, apperror.PermissionDenied
 	}
-	rows, err := db.New(s.pool).ListPrinterErrorCodes(ctx)
+	if page < 1 || pageSize < 1 || pageSize > 100 {
+		return nil, 0, apperror.Invalid("page must be positive and pageSize must be between 1 and 100")
+	}
+	search := strings.TrimSpace(filter.Search)
+	q := db.New(s.pool)
+	rows, err := q.ListPrinterErrorCodes(ctx, db.ListPrinterErrorCodesParams{
+		Search:       search,
+		SourceFamily: filter.SourceFamily,
+		Source:       filter.Source,
+		PageLimit:    int32(pageSize),
+		PageOffset:   int32((page - 1) * pageSize),
+	})
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+	total, err := q.CountPrinterErrorCodes(ctx, db.CountPrinterErrorCodesParams{
+		Search:       search,
+		SourceFamily: filter.SourceFamily,
+		Source:       filter.Source,
+	})
+	if err != nil {
+		return nil, 0, err
 	}
 	result := make([]ErrorCode, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, errorCodeFrom(row))
 	}
-	return result, nil
+	return result, total, nil
 }
 
 // PutErrorCode records or replaces what a code means.

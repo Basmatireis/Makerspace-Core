@@ -23,10 +23,12 @@ import type {
   CreatePrinterInputUnitRequest,
   CreatePrinterSlotRequest,
   DetectedSpoolTagList,
+  ListPrinterErrorCodesParams,
   MountSpoolRequest,
   PrinterErrorCode,
   PrinterErrorCodeInput,
   PrinterErrorCodeList,
+  PrinterErrorCodeSync,
   PrinterErrorOccurrenceList,
   PrinterInputUnit,
   PrinterLiveStatus,
@@ -171,21 +173,28 @@ export const clearPrinterErrors = async (machineId: UUIDv7, options?: Parameters
 );}
 
 
-export const getListPrinterErrorCodesUrl = () => {
+export const getListPrinterErrorCodesUrl = (params?: ListPrinterErrorCodesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/printer-error-codes`
+  return stringifiedParams.length > 0 ? `/api/v1/printer-error-codes?${stringifiedParams}` : `/api/v1/printer-error-codes`
 }
 
 /**
- * Needs machines.read.
+ * Needs machines.read. One page, ordered by family and code; the fetch state comes with every page.
  * @summary The catalog of printer error code meanings
  */
-export const listPrinterErrorCodes = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PrinterErrorCodeList> => {
+export const listPrinterErrorCodes = async (params?: ListPrinterErrorCodesParams, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterErrorCodeList> => {
 
-  return apiFetch<PrinterErrorCodeList>(getListPrinterErrorCodesUrl(),
+  return apiFetch<PrinterErrorCodeList>(getListPrinterErrorCodesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -207,9 +216,9 @@ export const getSyncPrinterErrorCodesUrl = () => {
  * Needs machines.manage. Fetches the list the API also fetches daily, adds the codes it does not know and refreshes earlier fetched meanings; meanings written here are never overwritten. Answers 409 `sync_disabled` when PRINTER_ERROR_CODE_SOURCE_URL is empty and 502 `sync_failed` when the fetch failed (the catalog answer then carries the reason). Audited as `printer_error_codes.synced`.
  * @summary Fetch Bambu Lab's published code list now
  */
-export const syncPrinterErrorCodes = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PrinterErrorCodeList> => {
+export const syncPrinterErrorCodes = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PrinterErrorCodeSync> => {
 
-  return apiFetch<PrinterErrorCodeList>(getSyncPrinterErrorCodesUrl(),
+  return apiFetch<PrinterErrorCodeSync>(getSyncPrinterErrorCodesUrl(),
   {
     ...options,
     method: 'POST'
