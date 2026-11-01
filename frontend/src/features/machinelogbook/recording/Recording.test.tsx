@@ -115,6 +115,17 @@ describe('recording texts', () => {
     expect(consumptionReasonMessage(null)).toBe('The reason is not known.');
   });
 
+  it('says the proxy answered 413 when the connector reports artifact_too_large', () => {
+    const notice = consumptionNotice(missing('artifact_rejected', 'artifact_too_large'));
+    expect(notice?.message).toBe(
+      'The print file was rejected on the way to Core: the proxy in front of Core answered 413 (file too large). Raise the proxy’s body size limit or let the connector reach Core directly.',
+    );
+    expect(notice?.detail).toBeNull();
+    expect(consumptionReasonMessage('artifact_rejected', 'other')).toBe(
+      'Core rejected the print file because it is not a valid 3MF.',
+    );
+  });
+
   it('only builds a notice for missing, partial and pending consumption', () => {
     expect(consumptionNotice(null)).toBeNull();
     expect(consumptionNotice({ state: 'recorded', reason: null, detail: null })).toBeNull();
@@ -477,6 +488,9 @@ describe('Recording settings', () => {
     timelapseEnabled: true,
     timelapseRetentionDays: 30,
     timelapseMaxBytes: 200 * 1024 * 1024,
+    timelapseMaxBytesLimit: 1024 * 1024 * 1024,
+    timelapseMaxCount: 0,
+    timelapseMaxTotalBytes: 0,
     version: 4,
     updatedAt: '2026-09-15T09:00:00Z',
   };
@@ -510,7 +524,51 @@ describe('Recording settings', () => {
     await user.type(days, '0');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
-      expect(body).toEqual({ timelapseEnabled: false, timelapseRetentionDays: 0, expectedVersion: 4 }),
+      expect(body).toEqual({
+        timelapseEnabled: false,
+        timelapseRetentionDays: 0,
+        timelapseMaxBytes: 200 * 1024 * 1024,
+        timelapseMaxCount: 0,
+        timelapseMaxTotalBytes: 0,
+        expectedVersion: 4,
+      }),
+    );
+  });
+
+  it('saves the video size, count and total limits in bytes and refuses a size above the installation limit', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machinesmanage];
+    serve();
+    let body: unknown;
+    server.use(
+      http.put('*/api/v1/machine-logbook/recording-settings', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ ...settings, version: 5 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderSettings();
+    const size = await screen.findByLabelText('Largest video (MB)');
+    const count = screen.getByLabelText('Keep at most this many videos');
+    const total = screen.getByLabelText('Keep at most this much video (GB)');
+    await user.clear(size);
+    await user.type(size, '2000');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.clear(size);
+    await user.type(size, '500');
+    await user.clear(count);
+    await user.type(count, '40');
+    await user.clear(total);
+    await user.type(total, '2');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(body).toEqual({
+        timelapseEnabled: true,
+        timelapseRetentionDays: 30,
+        timelapseMaxBytes: 500 * 1024 * 1024,
+        timelapseMaxCount: 40,
+        timelapseMaxTotalBytes: 2 * 1024 * 1024 * 1024,
+        expectedVersion: 4,
+      }),
     );
   });
 

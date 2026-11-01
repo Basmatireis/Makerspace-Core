@@ -49,9 +49,22 @@ const consumptionTitle: Record<MachineRunConsumptionStatus['state'], string> = {
   pending: 'Material pending',
 };
 
+/** Refinements of a reason by its `detail` code; the detail is then explained and not shown raw. */
+const consumptionDetailText: Record<string, Record<string, string>> = {
+  artifact_rejected: {
+    artifact_too_large:
+      'The print file was rejected on the way to Core: the proxy in front of Core answered 413 (file too large). Raise the proxy’s body size limit or let the connector reach Core directly.',
+  },
+};
+
+const detailMessage = (reason: string | null | undefined, detail: string | null | undefined) =>
+  (reason && detail ? consumptionDetailText[reason]?.[detail] : undefined) ?? null;
+
 /** Human-readable message for a reason code; unknown codes (newer backend) fall back to a generic line. */
-export function consumptionReasonMessage(reason: string | null | undefined): string {
+export function consumptionReasonMessage(reason: string | null | undefined, detail?: string | null): string {
   if (!reason) return 'The reason is not known.';
+  const specific = detailMessage(reason, detail);
+  if (specific) return specific;
   return (consumptionReasonText as Record<string, string>)[reason] ?? 'The reason is not known.';
 }
 
@@ -62,8 +75,8 @@ export function consumptionNotice(status: MachineRunConsumptionStatus | null | u
   return {
     kind: status.state === 'pending' && !internal ? ('info' as const) : ('warning' as const),
     title: internal ? internalStorageTitle : consumptionTitle[status.state],
-    message: consumptionReasonMessage(status.reason),
-    detail: status.detail,
+    message: consumptionReasonMessage(status.reason, status.detail),
+    detail: detailMessage(status.reason, status.detail) ? null : status.detail,
   };
 }
 
