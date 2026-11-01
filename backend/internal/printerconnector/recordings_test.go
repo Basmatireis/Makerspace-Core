@@ -85,43 +85,58 @@ type staticFeatures struct{ value *RecordingFeatures }
 
 func (s staticFeatures) RecordingFeatures() *RecordingFeatures { return s.value }
 
-// fakeTimelapseFTPS serves a scripted /timelapse directory.
-type fakeTimelapseFTPS struct {
-	mu      sync.Mutex
-	files   map[string][]byte
-	listErr error
+// fakeFTPS serves a scripted printer storage: files keyed by their full path
+// below /, /cache and /timelapse. It can fail listings per directory and the
+// next retrievals, and counts both.
+type fakeFTPS struct {
+	mu         sync.Mutex
+	files      map[string][]byte
+	listErr    error
+	dirErr     map[string]error
+	failNext   int
+	lists      int
+	retrievals int
 }
 
-func (f *fakeTimelapseFTPS) List(_ context.Context, directory string) ([]FTPEntry, error) {
+func (f *fakeFTPS) List(_ context.Context, directory string) ([]FTPEntry, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if directory != bambuTimelapseDirectory {
-		return nil, errors.New("unexpected directory")
-	}
+	f.lists++
 	if f.listErr != nil {
 		return nil, f.listErr
 	}
+	if err := f.dirErr[directory]; err != nil {
+		return nil, err
+	}
 	var entries []FTPEntry
 	for name, content := range f.files {
-		entries = append(entries, FTPEntry{Name: name, Size: int64(len(content))})
+		if path.Dir(name) == directory {
+			entries = append(entries, FTPEntry{Name: path.Base(name), Size: int64(len(content))})
+		}
 	}
 	return entries, nil
 }
 
-func (f *fakeTimelapseFTPS) RetrieveLimited(_ context.Context, remotePath string, writer io.Writer, limit int64) error {
+func (f *fakeFTPS) RetrieveLimited(_ context.Context, remotePath string, writer io.Writer, limit int64) error {
 	f.mu.Lock()
-	content, ok := f.files[path.Base(remotePath)]
+	f.retrievals++
+	content, ok := f.files[path.Clean(remotePath)]
+	if f.failNext > 0 {
+		f.failNext--
+		f.mu.Unlock()
+		return errors.New("finish Bambu FTPS transfer: connection reset")
+	}
 	f.mu.Unlock()
-	if !ok || path.Dir(remotePath) != bambuTimelapseDirectory {
+	if !ok {
 		return errors.New("550 not found")
 	}
 	_, err := io.Copy(writer, io.LimitReader(bytes.NewReader(content), limit))
 	return err
 }
 
-func (f *fakeTimelapseFTPS) Close() error { return nil }
+func (f *fakeFTPS) Close() error { return nil }
 
-func timelapseAdapter(t *testing.T, store *Store, server *fakeTimelapseFTPS, features *RecordingFeatures) *bambuH2DAdapter {
+func timelapseAdapter(t *testing.T, store *Store, server *fakeFTPS, features *RecordingFeatures) *bambuH2DAdapter {
 	t.Helper()
 	return &bambuH2DAdapter{
 		kind:                 AdapterBambuX1C,
@@ -129,7 +144,7 @@ func timelapseAdapter(t *testing.T, store *Store, server *fakeTimelapseFTPS, fea
 		configurationVersion: 2,
 		store:                store,
 		features:             staticFeatures{value: features},
-		newTimelapseFTPS:     func(context.Context) (timelapseFTPS, error) { return server, nil },
+		newFTPS:              func(context.Context) (bambuFTPS, error) { return server, nil },
 	}
 }
 
@@ -171,7 +186,7 @@ func TestTimelapseRetrievalMatchesTheNewVideoAndUploadsIt(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	store := openTestStore(t)
-	server := &fakeTimelapseFTPS{files: map[string][]byte{"video_old.mp4": []byte("previous print")}}
+	server := &fakeFTPS{files: map[string][]byte{"/timelapse/video_old.mp4": []byte("previous print")}}
 	adapter := timelapseAdapter(t, store, server, &RecordingFeatures{TimelapseEnabled: true, TimelapseMaxBytes: 1 << 20})
 	runID := ids.New()
 	active := Observation{Kind: ObservationOperationalState, RunID: &runID, Payload: json.RawMessage(`{}`)}
@@ -184,7 +199,7 @@ func TestTimelapseRetrievalMatchesTheNewVideoAndUploadsIt(t *testing.T) {
 	}
 	video := append([]byte("\x00\x00\x00\x18ftypmp42"), bytes.Repeat([]byte("frame"), 200)...)
 	server.mu.Lock()
-	server.files["video_2026-10-27_09-00-00.mp4"] = video
+	server.files["/timelapse/video_2026-10-27_09-00-00.mp4"] = video
 	server.mu.Unlock()
 	if err := store.ScheduleArtifactRetrieval(ctx, adapter.assignmentID, runID, 2, "/cache/part.gcode.3mf", time.Time{}); err != nil {
 		t.Fatal(err)
@@ -272,7 +287,7 @@ func TestTimelapseRetrievalGivesUpWithoutGuessing(t *testing.T) {
 
 	// A print first seen at its end has no baseline.
 	store := openTestStore(t)
-	adapter := timelapseAdapter(t, store, &fakeTimelapseFTPS{files: map[string][]byte{}}, features)
+	adapter := timelapseAdapter(t, store, &fakeFTPS{files: map[string][]byte{}}, features)
 	runID := ids.New()
 	end(adapter, runID)
 	report := runReport(t, store, runID)
@@ -287,7 +302,7 @@ func TestTimelapseRetrievalGivesUpWithoutGuessing(t *testing.T) {
 	}
 
 	// Two new videos are ambiguous.
-	server := &fakeTimelapseFTPS{files: map[string][]byte{}}
+	server := &fakeFTPS{files: map[string][]byte{}}
 	adapter = timelapseAdapter(t, openTestStore(t), server, features)
 	runID = ids.New()
 	if err := adapter.noteRunsForRecordings(ctx, []Observation{{Kind: ObservationProgress, RunID: &runID}}); err != nil {
@@ -296,7 +311,7 @@ func TestTimelapseRetrievalGivesUpWithoutGuessing(t *testing.T) {
 	if err := adapter.processTimelapses(ctx); err != nil {
 		t.Fatal(err)
 	}
-	server.files["video_a.mp4"], server.files["video_b.mp4"] = []byte("a"), []byte("b")
+	server.files["/timelapse/video_a.mp4"], server.files["/timelapse/video_b.mp4"] = []byte("a"), []byte("b")
 	end(adapter, runID)
 	if err := adapter.processTimelapses(ctx); err != nil {
 		t.Fatal(err)
@@ -306,7 +321,7 @@ func TestTimelapseRetrievalGivesUpWithoutGuessing(t *testing.T) {
 	}
 
 	// Nothing new appears within the search window.
-	server = &fakeTimelapseFTPS{files: map[string][]byte{}}
+	server = &fakeFTPS{files: map[string][]byte{}}
 	adapter = timelapseAdapter(t, openTestStore(t), server, features)
 	runID = ids.New()
 	if err := adapter.noteRunsForRecordings(ctx, []Observation{{Kind: ObservationProgress, RunID: &runID}}); err != nil {
@@ -328,7 +343,7 @@ func TestTimelapseRetrievalGivesUpWithoutGuessing(t *testing.T) {
 	}
 
 	// Disabled collection is reported as skipped and never lists the printer.
-	server = &fakeTimelapseFTPS{listErr: errors.New("must not list")}
+	server = &fakeFTPS{listErr: errors.New("must not list")}
 	adapter = timelapseAdapter(t, openTestStore(t), server, &RecordingFeatures{TimelapseEnabled: false})
 	runID = ids.New()
 	end(adapter, runID)

@@ -115,8 +115,8 @@ type bambuH2DAdapter struct {
 	newMQTT              func(BambuH2DSettings, BambuH2DSecrets) (bambuMQTTClient, error)
 	// features is Core's recording support, read from the runtime sink.
 	features recordingFeatureSource
-	// newTimelapseFTPS replaces the FTPS client in tests.
-	newTimelapseFTPS func(context.Context) (timelapseFTPS, error)
+	// newFTPS replaces the FTPS client in tests.
+	newFTPS func(context.Context) (bambuFTPS, error)
 }
 
 func NewBambuH2D(
@@ -387,7 +387,10 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 }
 
 // reportInternalStorage tells Core as soon as a running print is classified as
-// coming from internal storage, so the run shows why it will have no 3MF.
+// coming from internal storage, so the run shows why it may have no 3MF. Once
+// the run's retrieval exists, the retrieval worker owns the report: it repeats
+// this reason while external storage holds nothing and replaces it with what it
+// found or why it gave up.
 func (a *bambuH2DAdapter) reportInternalStorage(
 	ctx context.Context,
 	observations []Observation,
@@ -400,6 +403,13 @@ func (a *bambuH2DAdapter) reportInternalStorage(
 		}
 		runFacts := facts[observation.RunID.String()]
 		if runFacts.Source != bambuSourceInternal {
+			continue
+		}
+		_, _, scheduled, err := a.store.ArtifactRetrievalState(ctx, a.assignmentID, *observation.RunID)
+		if err != nil {
+			return err
+		}
+		if scheduled {
 			continue
 		}
 		reason := string(machineArtifactOnInternal)
@@ -416,12 +426,13 @@ func (a *bambuH2DAdapter) reportInternalStorage(
 	return nil
 }
 
-// scheduleArtifactRetrievals queues the 3MF of each running print. A print whose status names an archive
-// on external storage is fetched from that path. A print classified as internal storage (the printer's
-// url names another file or none) is still looked up by its name on external storage during the print,
-// so a USB print whose url did not match gets its preview, estimate and consumption while it runs
-// instead of after the end. The lookup is one retrieval per run; when external storage really lacks the
-// file, the retrieval worker settles the run with the internal-storage reason once.
+// scheduleArtifactRetrievals queues the 3MF of each running print, whatever storage the print runs
+// from: a print from the printer's internal storage may still have its archive on the USB stick or SD
+// card. The retrieval starts from the strongest evidence the connector has (the FTPS path a status of this
+// session named, the archive name the printer reported, or the print name) and the retrieval worker
+// looks on external storage with backoff until the archive appears or the run has been over for a while.
+// Repeated progress reports only refresh a pending retrieval's evidence and expiry; a settled retrieval
+// (staged or given up) is never reopened by them.
 func (a *bambuH2DAdapter) scheduleArtifactRetrievals(
 	ctx context.Context,
 	observations []Observation,
@@ -437,20 +448,22 @@ func (a *bambuH2DAdapter) scheduleArtifactRetrievals(
 		if json.Unmarshal(observation.Payload, &payload) != nil {
 			continue
 		}
+		runFacts := facts[observation.RunID.String()]
 		reportedPath := strings.TrimSpace(payload.ArtifactPath)
+		if runFacts.ArchivePath != "" {
+			reportedPath = runFacts.ArchivePath
+		} else if !isBambuArchivePath(reportedPath) {
+			reportedPath = artifactLookupPath(runFacts)
+		}
 		if !isBambuArchivePath(reportedPath) {
-			runFacts := facts[observation.RunID.String()]
-			if runFacts.Source != bambuSourceInternal || !isBambuArchivePath(runFacts.ArchiveCandidate) {
-				continue
-			}
-			_, _, scheduled, err := a.store.ArtifactRetrievalState(ctx, a.assignmentID, *observation.RunID)
-			if err != nil {
-				return err
-			}
-			if scheduled {
-				continue
-			}
-			reportedPath = runFacts.ArchiveCandidate
+			continue
+		}
+		state, _, scheduled, err := a.store.ArtifactRetrievalState(ctx, a.assignmentID, *observation.RunID)
+		if err != nil {
+			return err
+		}
+		if scheduled && state != "pending" {
+			continue
 		}
 		expiresAt := time.Now().UTC().Add(24 * time.Hour)
 		if err := a.store.ScheduleArtifactRetrieval(
@@ -468,6 +481,19 @@ func (a *bambuH2DAdapter) scheduleArtifactRetrievals(
 		}
 	}
 	return nil
+}
+
+// artifactLookupPath is the path a run's archive is looked up by when no status
+// named it: the FTPS path of this session's url, else the archive name the
+// printer reported or the print name with Bambu's suffix.
+func artifactLookupPath(facts bambuRunFacts) string {
+	if isBambuArchivePath(facts.ArchivePath) {
+		return facts.ArchivePath
+	}
+	if isBambuArchivePath(facts.ArchiveCandidate) {
+		return facts.ArchiveCandidate
+	}
+	return ""
 }
 
 func commitBambuProcessorState(
