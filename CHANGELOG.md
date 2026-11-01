@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Changed
+
+- **Preview tile of an internal-storage print.** The tile now says only that Core has no print file, like any run without a 3MF; the warning on the page keeps the explanation.
+
 ## [0.12.1] - 2026-10-30
 
 ### Added

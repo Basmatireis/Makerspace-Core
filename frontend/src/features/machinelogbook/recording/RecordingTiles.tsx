@@ -18,7 +18,7 @@ import type { MachineRunRecording } from '../../../api/generated/models';
 import { formatDateTime } from '../shared/format';
 import { PrintPreview } from './PrintPreview';
 import { thumbnailsOf } from './thumbnails';
-import { formatFileSize, internalStorageMessage, isOnInternalStorage, timelapseMessage } from './recordingText';
+import { formatFileSize, timelapseMessage } from './recordingText';
 import './recording.scss';
 
 /** The video and its download; preload stays off so opening a page never transfers the file. */
@@ -104,9 +104,8 @@ export function RunPreviewTile({
                 recorded
                   ? recording?.artifact
                     ? 'The print file contains no preview image.'
-                    : isOnInternalStorage(recording?.consumptionStatus)
-                      ? internalStorageMessage
-                      : 'Core has no print file for this run, so there is no preview.'
+                    : // A print from internal storage is explained by the warning on the page; the tile stays plain.
+                      'Core has no print file for this run, so there is no preview.'
                   : 'Manual runs have no print file, so there is no preview.'
               }
               emptyAction={recorded && recording && !recording.artifact ? uploadAction : undefined}

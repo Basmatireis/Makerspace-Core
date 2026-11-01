@@ -311,10 +311,10 @@ describe('Run detail recording', () => {
     });
     renderRun();
     expect(await screen.findByText('Print file on the printer’s internal storage')).toBeInTheDocument();
-    // The consumption notice, the Filament estimate section and the preview tile.
-    await waitFor(() => expect(screen.getAllByText(/started from the printer’s internal storage/)).toHaveLength(3));
+    // The consumption notice and the Filament estimate section; the preview tile only says there is no file.
+    await waitFor(() => expect(screen.getAllByText(/started from the printer’s internal storage/)).toHaveLength(2));
     expect(screen.queryByText(/Waiting for the printer’s 3MF file/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Core has no print file for this run/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Core has no print file for this run/)).toBeInTheDocument();
   });
 
   it('offers the 3MF upload and the material action to editors of a run without a print file', async () => {
