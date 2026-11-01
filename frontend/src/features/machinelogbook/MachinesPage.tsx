@@ -8,7 +8,6 @@ import { SectionSwitcher } from '../../app/SectionSwitcher';
 import { MachineTypesTab } from './components/MachineTypesTab';
 import { ErrorCatalogTab } from './components/ErrorCatalogTab';
 import { PrinterNotificationsTab } from './components/PrinterNotificationsTab';
-import { RecordingSettingsTab } from './recording/RecordingSettingsTab';
 import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
 import { processConfig } from './processConfig';
 import { machineActivityQuery, machinesQuery } from './queries';
@@ -52,11 +51,10 @@ const connectorOptions: Option[] = [
   { id: 'issue', label: 'Issue' },
   { id: 'none', label: 'None' },
 ];
-type TabKey = 'machines' | 'types' | 'recording' | 'notifications' | 'catalog';
+type TabKey = 'machines' | 'types' | 'notifications' | 'catalog';
 const tabLabels: Record<TabKey, string> = {
   machines: 'Machines',
   types: 'Machine types',
-  recording: 'Recording',
   notifications: 'Printer notifications',
   catalog: 'Error catalog',
 };
@@ -151,10 +149,8 @@ export function MachinesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const url = useUrlState('');
   const [params, setParams] = useSearchParams();
-  // Recording, notification and catalog settings are installation-wide and only meaningful to people who manage machines.
-  const tabs: TabKey[] = canManage
-    ? ['machines', 'types', 'recording', 'notifications', 'catalog']
-    : ['machines', 'types'];
+  // Notification and catalog settings are installation-wide and only meaningful to people who manage machines.
+  const tabs: TabKey[] = canManage ? ['machines', 'types', 'notifications', 'catalog'] : ['machines', 'types'];
   const requestedTab = params.get('tab') as TabKey | null;
   const tab: TabKey = requestedTab && tabs.includes(requestedTab) ? requestedTab : 'machines';
   const selectTab = (id: string) =>
@@ -281,12 +277,6 @@ export function MachinesPage() {
         </QueryBoundary>
       )}
       {tab === 'types' && <MachineTypesTab switcher={switcher} />}
-      {tab === 'recording' && (
-        <div className="mj-stack">
-          {switcher}
-          <RecordingSettingsTab />
-        </div>
-      )}
       {tab === 'notifications' && (
         <div className="mj-stack">
           {switcher}

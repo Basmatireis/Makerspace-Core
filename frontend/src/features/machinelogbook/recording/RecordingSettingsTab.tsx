@@ -4,14 +4,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { updateRunRecordingSettings } from '../../../api/generated/machine-runs/machine-runs';
 import type { RunRecordingSettings } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
+import { Link } from 'react-router-dom';
 import { machineLogbookKeys, recordingSettingsQuery } from '../queries';
 import { QueryBoundary } from '../shared/QueryBoundary';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
+import { categoryRetentionPath, privacyPath } from '../../privacy/privacyNavigation';
 import { formatFileSize } from './recordingText';
 import './recording.scss';
 
-const MAX_RETENTION_DAYS = 3650;
 const MAX_COUNT = 100000;
 const MB = 1024 * 1024;
 const GB = 1024 * MB;
@@ -26,12 +27,10 @@ function SettingsForm({ settings }: { settings: RunRecordingSettings }) {
   const notify = useNotify();
   const canManage = useCan()('machines.manage');
   const [enabled, setEnabled] = useState(settings.timelapseEnabled);
-  const [days, setDays] = useState(settings.timelapseRetentionDays);
   const [videoMb, setVideoMb] = useState(settings.timelapseMaxBytes / MB);
   const [count, setCount] = useState(settings.timelapseMaxCount);
   const [totalGb, setTotalGb] = useState(settings.timelapseMaxTotalBytes / GB);
   const [fileMb, setFileMb] = useState(settings.artifactMaxBytes / MB);
-  const [fileDays, setFileDays] = useState(settings.artifactRetentionDays);
   const [fileCount, setFileCount] = useState(settings.artifactMaxCount);
   const [fileTotalGb, setFileTotalGb] = useState(settings.artifactMaxTotalBytes / GB);
   const maxFileBytes = settings.artifactMaxBytesLimit;
@@ -39,46 +38,34 @@ function SettingsForm({ settings }: { settings: RunRecordingSettings }) {
   const fileBytes = bytesOf(fileMb, MB);
   const fileTotalBytes = bytesOf(fileTotalGb, GB);
   const validFile = Number.isFinite(fileMb) && fileBytes >= MB && fileBytes <= maxFileBytes;
-  const validFileDays = Number.isInteger(fileDays) && fileDays >= 0 && fileDays <= MAX_RETENTION_DAYS;
   const validFileCount = Number.isInteger(fileCount) && fileCount >= 0 && fileCount <= MAX_COUNT;
   const validFileTotal = Number.isFinite(fileTotalGb) && fileTotalGb >= 0;
   const maxVideoBytes = Math.min(MAX_VIDEO_BYTES, settings.timelapseMaxBytesLimit);
   const maxVideoMb = Math.floor(maxVideoBytes / MB);
   const videoBytes = bytesOf(videoMb, MB);
   const totalBytes = bytesOf(totalGb, GB);
-  const validDays = Number.isInteger(days) && days >= 0 && days <= MAX_RETENTION_DAYS;
   const validVideo = Number.isFinite(videoMb) && videoBytes >= MIN_VIDEO_BYTES && videoBytes <= maxVideoBytes;
   const validCount = Number.isInteger(count) && count >= 0 && count <= MAX_COUNT;
   const validTotal = Number.isFinite(totalGb) && totalGb >= 0;
-  const valid =
-    validDays &&
-    validVideo &&
-    validCount &&
-    validTotal &&
-    validFile &&
-    validFileDays &&
-    validFileCount &&
-    validFileTotal;
+  const valid = validVideo && validCount && validTotal && validFile && validFileCount && validFileTotal;
   const unchanged =
     enabled === settings.timelapseEnabled &&
-    days === settings.timelapseRetentionDays &&
     videoBytes === settings.timelapseMaxBytes &&
     count === settings.timelapseMaxCount &&
     totalBytes === settings.timelapseMaxTotalBytes &&
     fileBytes === settings.artifactMaxBytes &&
-    fileDays === settings.artifactRetentionDays &&
     fileCount === settings.artifactMaxCount &&
     fileTotalBytes === settings.artifactMaxTotalBytes;
   const save = useMutation({
     mutationFn: () =>
       updateRunRecordingSettings({
         timelapseEnabled: enabled,
-        timelapseRetentionDays: days,
+        timelapseRetentionDays: settings.timelapseRetentionDays,
         timelapseMaxBytes: videoBytes,
         timelapseMaxCount: count,
         timelapseMaxTotalBytes: totalBytes,
         artifactMaxBytes: fileBytes,
-        artifactRetentionDays: fileDays,
+        artifactRetentionDays: settings.artifactRetentionDays,
         artifactMaxCount: fileCount,
         artifactMaxTotalBytes: fileTotalBytes,
         expectedVersion: settings.version,
@@ -91,6 +78,12 @@ function SettingsForm({ settings }: { settings: RunRecordingSettings }) {
 
   return (
     <Tile className="recording-settings">
+      <p className="mj-secondary">
+        How long videos and print files are kept is decided in{' '}
+        <Link to={privacyPath('categories')}>Privacy &amp; data retention</Link>: see{' '}
+        <Link to={categoryRetentionPath('runrecordings.timelapses')}>Run timelapses</Link> and{' '}
+        <Link to={categoryRetentionPath('printing.artifacts')}>Print files and previews</Link>.
+      </p>
       <h3 className="mj-section-title">Timelapses</h3>
       <div className="mj-stack">
         <Toggle
@@ -101,21 +94,6 @@ function SettingsForm({ settings }: { settings: RunRecordingSettings }) {
           toggled={enabled}
           disabled={!canManage}
           onToggle={setEnabled}
-        />
-        <NumberInput
-          id="timelapse-retention-days"
-          label="Keep timelapses for (days)"
-          helperText="0 keeps them until their run is deleted."
-
-          min={0}
-          max={MAX_RETENTION_DAYS}
-          step={1}
-          allowEmpty
-          value={Number.isNaN(days) ? '' : days}
-          disabled={!canManage}
-          invalid={!validDays}
-          invalidText={`Enter a whole number of days from 0 to ${MAX_RETENTION_DAYS}.`}
-          onChange={(_event, state) => setDays(state.value === '' ? Number.NaN : Number(state.value))}
         />
         <NumberInput
           id="timelapse-max-mb"
@@ -172,22 +150,6 @@ function SettingsForm({ settings }: { settings: RunRecordingSettings }) {
           invalid={!validFile}
           invalidText={`Enter a size from 1 to ${maxFileMb} MB.`}
           onChange={(_event, state) => setFileMb(state.value === '' ? Number.NaN : Number(state.value))}
-        />
-        <NumberInput
-          id="artifact-retention-days"
-          label="Keep print files for (days)"
-          helperText={
-            '0 keeps them until their run is deleted. The oldest go first; a file a running print uses stays.'
-          }
-          min={0}
-          max={MAX_RETENTION_DAYS}
-          step={1}
-          allowEmpty
-          value={Number.isNaN(fileDays) ? '' : fileDays}
-          disabled={!canManage}
-          invalid={!validFileDays}
-          invalidText={`Enter a whole number of days from 0 to ${MAX_RETENTION_DAYS}.`}
-          onChange={(_event, state) => setFileDays(state.value === '' ? Number.NaN : Number(state.value))}
         />
         <NumberInput
           id="artifact-max-count"

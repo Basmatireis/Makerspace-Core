@@ -159,4 +159,62 @@ describe('category retention page', () => {
     const { router } = renderRoute(<CategoryRetentionPage />, '/settings/privacy/categories/nope.nothing');
     await waitFor(() => expect(router.state.location.pathname).toBe('/settings/privacy'));
   });
+
+  it('edits the recording period that applies while no decision is active', async () => {
+    const user = userEvent.setup();
+    auth.permissions = ['privacy.read', 'privacy.policies.manage', 'machines.manage'];
+    useServer([], {
+      id: 'runrecordings.timelapses',
+      name: 'Run timelapses',
+      legacyDefault: {
+        trigger: 'completed_at',
+        periodDays: 30,
+        action: 'delete',
+        source: 'run_recording_settings.timelapse_retention_days',
+        zeroDisables: true,
+      },
+    });
+    const settings = {
+      timelapseEnabled: true,
+      timelapseRetentionDays: 30,
+      timelapseMaxBytes: 1048576,
+      timelapseMaxBytesLimit: 1073741824,
+      timelapseMaxCount: 0,
+      timelapseMaxTotalBytes: 0,
+      artifactMaxBytes: 1048576,
+      artifactMaxBytesLimit: 1073741824,
+      artifactRetentionDays: 7,
+      artifactMaxCount: 0,
+      artifactMaxTotalBytes: 0,
+      version: 4,
+      updatedAt: '2026-10-01T00:00:00Z',
+    };
+    let body: unknown;
+    server.use(
+      http.get('*/api/v1/machine-logbook/recording-settings', () => HttpResponse.json(settings)),
+      http.put('*/api/v1/machine-logbook/recording-settings', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ ...settings, version: 5 });
+      }),
+    );
+    renderRoute(<CategoryRetentionPage />, '/settings/privacy/categories/runrecordings.timelapses');
+    expect(await screen.findByText('Period while no decision is active')).toBeInTheDocument();
+    const days = await screen.findByLabelText('Keep for (days)', { selector: '#recording-period-days' });
+    await waitFor(() => expect(days).toHaveValue(30));
+    const save = screen.getByRole('button', { name: 'Save period' });
+    expect(save).toBeDisabled();
+    await user.clear(days);
+    await user.type(days, '60');
+    await user.click(save);
+    await waitFor(() =>
+      expect(body).toMatchObject({ timelapseRetentionDays: 60, artifactRetentionDays: 7, expectedVersion: 4 }),
+    );
+  });
+
+  it('shows no recording period card for other categories', async () => {
+    useServer([]);
+    renderRoute(<CategoryRetentionPage />, '/settings/privacy/categories/attendance.visits');
+    expect(await screen.findByRole('heading', { name: 'Visits and holds' })).toBeInTheDocument();
+    expect(screen.queryByText('Period while no decision is active')).not.toBeInTheDocument();
+  });
 });

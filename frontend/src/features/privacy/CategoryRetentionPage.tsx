@@ -29,12 +29,14 @@ import {
   transitionPrivacyPolicy,
   updatePrivacyPolicy,
 } from '../../api/generated/privacy/privacy';
+import { getRunRecordingSettings, updateRunRecordingSettings } from '../../api/generated/machine-runs/machine-runs';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { formatDateTime } from '../../app/dateTime';
 import { ErrorState } from '../../app/PageState';
 import { PageShell } from '../../app/PageShell';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission } from '../auth/permissions';
+import { machineLogbookKeys, recordingSettingsQuery } from '../machinelogbook/queries';
 import { SettingsLoading } from '../settings/SettingsPageLayout';
 import {
   privacyCategoriesQueryOptions,
@@ -141,6 +143,88 @@ function defaults(category: PrivacyCategory, draft: RetentionPolicy | undefined)
   };
 }
 
+const recordingFields = {
+  'run_recording_settings.timelapse_retention_days': 'timelapseRetentionDays',
+  'run_recording_settings.artifact_retention_days': 'artifactRetentionDays',
+} as const;
+
+/** The period that applies while no decision is active is a recording setting; it is edited here, next to the decision. */
+function RecordingPeriodCard({
+  field,
+  canManage,
+}: {
+  field: 'timelapseRetentionDays' | 'artifactRetentionDays';
+  canManage: boolean;
+}) {
+  const client = useQueryClient();
+  const settings = useQuery({ ...recordingSettingsQuery(), enabled: canManage });
+  const current = settings.data?.[field];
+  const [days, setDays] = useState<number | undefined>();
+  const shown = days ?? current ?? 0;
+  const valid = Number.isInteger(shown) && shown >= 0 && shown <= 3650;
+  const save = useMutation({
+    mutationFn: async () => {
+      // Read the latest settings so only this one field changes and the version is current.
+      const latest = await getRunRecordingSettings();
+      const { version, updatedAt: _updatedAt, ...rest } = latest;
+      void _updatedAt;
+      return updateRunRecordingSettings({ ...rest, [field]: shown, expectedVersion: version });
+    },
+    onSuccess: async () => {
+      setDays(undefined);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: privacyQueryKey }),
+        client.invalidateQueries({ queryKey: machineLogbookKeys.recordingSettings() }),
+      ]);
+    },
+  });
+  return (
+    <Tile>
+      <Stack gap={4}>
+        <h2 className="cds--type-productive-heading-03">Period while no decision is active</h2>
+        {canManage ? (
+          <>
+            <NumberInput
+              id="recording-period-days"
+              label="Keep for (days)"
+              helperText="0 keeps them until their run is deleted."
+              min={0}
+              max={3650}
+              step={1}
+              allowEmpty
+              disabled={settings.data === undefined}
+              value={Number.isNaN(shown) ? '' : shown}
+              invalid={!valid}
+              invalidText="Enter a whole number of days from 0 to 3650."
+              onChange={(_event, state) => setDays(state.value === '' ? Number.NaN : Number(state.value))}
+            />
+            {save.isError && (
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title="The period was not saved"
+                subtitle="Someone else may have changed the recording settings. Reload the page and try again."
+              />
+            )}
+            <div>
+              <Button
+                size="md"
+                disabled={!valid || current === undefined || shown === current || save.isPending}
+                onClick={() => save.mutate()}
+              >
+                {save.isPending ? 'Saving…' : 'Save period'}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <p className="privacy-secondary">Changing it needs the permission to manage machines.</p>
+        )}
+      </Stack>
+    </Tile>
+  );
+}
+
 type Confirmation = { policy: RetentionPolicy; status: RetentionPolicyTransitionStatus };
 
 function RetentionEditor({
@@ -160,6 +244,10 @@ function RetentionEditor({
   const approved = versions.find((policy) => policy.status === 'approved');
   const active = versions.find((policy) => policy.status === 'active');
   const decision = active ?? category.coverage.policy ?? undefined;
+  const canManageMachines = hasPermission(useCurrentUser(), 'machines.manage');
+  const recordingField = (recordingFields as Record<string, 'timelapseRetentionDays' | 'artifactRetentionDays'>)[
+    category.legacyDefault?.source ?? ''
+  ];
   const form = useForm<RetentionPolicyInput>({ defaultValues: defaults(category, draft) });
   const { control, handleSubmit, register, reset, watch, formState } = form;
   useEffect(() => {
@@ -369,6 +457,7 @@ function RetentionEditor({
         </div>
 
         <div className="privacy-retention__side">
+          {recordingField && <RecordingPeriodCard field={recordingField} canManage={canManageMachines} />}
           <Tile>
             <Stack gap={4}>
               <h2 className="cds--type-productive-heading-03">What this means</h2>

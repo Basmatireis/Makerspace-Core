@@ -15,6 +15,7 @@ import {
 import { ids, jobFixture, recordedRun } from '../../../test/machineRuns';
 import { testQueryClient } from '../../../test/render';
 import { server } from '../../../test/server';
+import { LocalServicesPage } from '../../localservices/LocalServicesPage';
 import { MachinesPage } from '../MachinesPage';
 import { JobDetailPage } from '../JobDetailPage';
 import { RunDetailPage } from '../RunDetailPage';
@@ -500,7 +501,7 @@ describe('Recording settings', () => {
     updatedAt: '2026-09-15T09:00:00Z',
   };
   const renderSettings = () =>
-    renderWith('/machine-logbook/machines?tab=recording', '/machine-logbook/machines', <MachinesPage />);
+    renderWith('/settings/printer-connectors?tab=recording', '/settings/printer-connectors', <LocalServicesPage />);
   const serve = () =>
     server.use(
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
@@ -516,22 +517,30 @@ describe('Recording settings', () => {
     server.use(
       http.put('*/api/v1/machine-logbook/recording-settings', async ({ request }) => {
         body = await request.json();
-        return HttpResponse.json({ ...settings, timelapseEnabled: false, timelapseRetentionDays: 0, version: 5 });
+        return HttpResponse.json({ ...settings, timelapseEnabled: false, version: 5 });
       }),
     );
     const user = userEvent.setup();
     renderSettings();
-    const days = await screen.findByLabelText('Keep timelapses for (days)');
-    expect(days).toHaveValue(30);
+    expect(await screen.findByRole('switch', { name: /Collect timelapses/ })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Keep timelapses for (days)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Keep print files for (days)')).not.toBeInTheDocument();
+    expect(screen.getByText(/How long videos and print files are kept is decided in/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Run timelapses' })).toHaveAttribute(
+      'href',
+      '/settings/privacy/categories/runrecordings.timelapses',
+    );
+    expect(screen.getByRole('link', { name: 'Print files and previews' })).toHaveAttribute(
+      'href',
+      '/settings/privacy/categories/printing.artifacts',
+    );
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     await user.click(screen.getByRole('switch', { name: /Collect timelapses/ }));
-    await user.clear(days);
-    await user.type(days, '0');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(body).toEqual({
         timelapseEnabled: false,
-        timelapseRetentionDays: 0,
+        timelapseRetentionDays: 30,
         timelapseMaxBytes: 200 * 1024 * 1024,
         timelapseMaxCount: 0,
         timelapseMaxTotalBytes: 0,
@@ -573,8 +582,6 @@ describe('Recording settings', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     await user.clear(screen.getByLabelText('Largest print file (MB)'));
     await user.type(screen.getByLabelText('Largest print file (MB)'), '50');
-    await user.clear(screen.getByLabelText('Keep print files for (days)'));
-    await user.type(screen.getByLabelText('Keep print files for (days)'), '90');
     await user.clear(screen.getByLabelText('Keep at most this many print files'));
     await user.type(screen.getByLabelText('Keep at most this many print files'), '200');
     await user.clear(screen.getByLabelText('Keep at most this much print file data (GB)'));
@@ -588,7 +595,7 @@ describe('Recording settings', () => {
         timelapseMaxCount: 40,
         timelapseMaxTotalBytes: 2 * 1024 * 1024 * 1024,
         artifactMaxBytes: 50 * 1024 * 1024,
-        artifactRetentionDays: 90,
+        artifactRetentionDays: 0,
         artifactMaxCount: 200,
         artifactMaxTotalBytes: 5 * 1024 * 1024 * 1024,
         expectedVersion: 4,
@@ -599,7 +606,7 @@ describe('Recording settings', () => {
   it('does not offer the Recording tab without machines.manage', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machinesread];
     serve();
-    renderSettings();
+    renderWith('/machine-logbook/machines?tab=recording', '/machine-logbook/machines', <MachinesPage />);
     expect(await screen.findByRole('tab', { name: 'Machine types' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Recording' })).not.toBeInTheDocument();
   });

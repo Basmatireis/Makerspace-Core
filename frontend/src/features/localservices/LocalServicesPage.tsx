@@ -5,14 +5,16 @@ import { SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
 import { ConnectorsTab } from '../machinelogbook/components/ConnectorsTab';
+import { RecordingSettingsTab } from '../machinelogbook/recording/RecordingSettingsTab';
 import { ToastProvider } from '../machinelogbook/shared/toasts';
 import { UpdatesSection } from './UpdatesSection';
 import './localServices.scss';
 
-type TabKey = 'connectors' | 'updates';
+type TabKey = 'connectors' | 'updates' | 'recording';
 const tabLabels: Record<TabKey, string> = {
   connectors: 'Printer connectors',
   updates: 'Versions and updates',
+  recording: 'Recording',
 };
 
 /** Printer connectors (with the camera relay): the software that runs in the makerspace network next to Core. */
@@ -20,7 +22,9 @@ export function LocalServicesPage() {
   const currentUser = useCurrentUser();
   const [params, setParams] = useSearchParams();
   const canManageConnectors = hasPermission(currentUser, PermissionId.printer_connectorsmanage);
-  const tabs: TabKey[] = ['connectors', 'updates'];
+  // Recording limits are installation-wide and only meaningful to people who manage machines.
+  const canManageMachines = hasPermission(currentUser, PermissionId.machinesmanage);
+  const tabs: TabKey[] = canManageMachines ? ['connectors', 'updates', 'recording'] : ['connectors', 'updates'];
   const requested = params.get('tab') as TabKey | null;
   const selected = requested && tabs.includes(requested) ? requested : tabs[0];
   return (
@@ -52,6 +56,7 @@ export function LocalServicesPage() {
             {tabs.map((key) => (
               <TabPanel key={key}>
                 {key === selected && key === 'connectors' && <ConnectorsTab />}
+                {key === selected && key === 'recording' && <RecordingSettingsTab />}
                 {key === selected && key === 'updates' && <UpdatesSection canManageConnectors={canManageConnectors} />}
               </TabPanel>
             ))}
