@@ -26,7 +26,13 @@ import {
   getRunRecordingSettings,
   listMachineRuns,
 } from '../../api/generated/machine-runs/machine-runs';
-import { getPrinterProfile, listDetectedSpoolTags } from '../../api/generated/printing/printing';
+import {
+  getPrinterNotificationSettings,
+  getPrinterProfile,
+  listDetectedSpoolTags,
+  listPrinterErrorCodes,
+  listPrinterErrors,
+} from '../../api/generated/printing/printing';
 import { getPrintArtifact } from '../../api/generated/print-artifacts/print-artifacts';
 import type {
   GetMachineLogbookStatisticsParams,
@@ -61,6 +67,9 @@ export const machineLogbookKeys = {
   recording: (runId: string) => [...machineLogbookKeys.all, 'recording', runId] as const,
   jobRecordings: (jobId: string) => [...machineLogbookKeys.all, 'job-recordings', jobId] as const,
   recordingSettings: () => [...machineLogbookKeys.all, 'recording-settings'] as const,
+  printerErrors: (machineId: string) => [...machineLogbookKeys.all, 'printer-errors', machineId] as const,
+  printerErrorCodes: () => [...machineLogbookKeys.all, 'printer-error-codes'] as const,
+  printerNotificationSettings: () => [...machineLogbookKeys.all, 'printer-notification-settings'] as const,
   artifact: (id: string) => [...machineLogbookKeys.all, 'artifact', id] as const,
   pricing: () => [...machineLogbookKeys.all, 'pricing'] as const,
   statistics: (params: GetMachineLogbookStatisticsParams) => [...machineLogbookKeys.all, 'statistics', params] as const,
@@ -135,6 +144,21 @@ export const recordingSettingsQuery = () =>
   queryOptions({
     queryKey: machineLogbookKeys.recordingSettings(),
     queryFn: ({ signal }) => getRunRecordingSettings({ signal }),
+  });
+export const printerErrorsQuery = (machineId: string) =>
+  queryOptions({
+    queryKey: machineLogbookKeys.printerErrors(machineId),
+    queryFn: ({ signal }) => listPrinterErrors(machineId, { signal }),
+  });
+export const printerErrorCodesQuery = () =>
+  queryOptions({
+    queryKey: machineLogbookKeys.printerErrorCodes(),
+    queryFn: ({ signal }) => listPrinterErrorCodes({ signal }),
+  });
+export const printerNotificationSettingsQuery = () =>
+  queryOptions({
+    queryKey: machineLogbookKeys.printerNotificationSettings(),
+    queryFn: ({ signal }) => getPrinterNotificationSettings({ signal }),
   });
 export const artifactQuery = (id: string) =>
   queryOptions({

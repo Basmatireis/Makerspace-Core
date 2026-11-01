@@ -38,6 +38,7 @@ import {
   temperature,
   PrinterView,
 } from './diagnosticsShared';
+import { LivePrinterErrors, PrinterErrorHistory } from '../../printerErrors/PrinterErrors';
 import { Fact } from './Fact';
 import { EventsTable } from './EventsTable';
 
@@ -339,22 +340,9 @@ export function PrinterPanel({
       )}
       <div>
         <h4 className="mj-group-title">Health</h4>
-        {snapshot.errors.length === 0 ? (
-          <p className="mj-secondary">No errors reported.</p>
-        ) : (
-          <Stack gap={3}>
-            {snapshot.errors.map((error) => (
-              <span key={`${error.sourceFamily}-${error.code}`} className="mj-inline">
-                <Tag size="sm" type={error.sourceFamily === 'print' ? 'red' : 'purple'}>
-                  {error.sourceFamily === 'print' ? 'Print error' : 'Warning'}
-                </Tag>
-                <code>{error.code}</code>
-                {error.observedAt && <span className="mj-secondary">{relativeAge(error.observedAt)}</span>}
-              </span>
-            ))}
-          </Stack>
-        )}
+        <LivePrinterErrors errors={snapshot.errors} />
       </div>
+      <PrinterErrorHistory machineId={machineId} active={active} />
       <div>
         <h4 className="mj-group-title">Device</h4>
         <div className="mj-diag-grid">

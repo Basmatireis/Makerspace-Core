@@ -7,6 +7,7 @@ import type {
 import { ageSeconds } from '../../shared/connectorStatus';
 import { connectorDiagnostic } from '../../shared/connectorHelpers';
 import { formatRelative } from '../../shared/format';
+import { isNotice } from '../../printerErrors/printerErrorText';
 
 export const STALE_AFTER_SECONDS = 300;
 
@@ -97,7 +98,8 @@ export function printerIssue(
   stale: boolean,
 ) {
   if (assignment.runtimeErrorCode) return connectorDiagnostic(assignment.runtimeErrorCode);
-  const errors = live?.status.errors ?? [];
+  // Common and info notices do not make the printer look unhealthy.
+  const errors = (live?.status.errors ?? []).filter((error) => !isNotice(error));
   if (errors.some((error) => error.sourceFamily === 'print')) return 'The printer reports a print error';
   if (errors.length > 0) return `${errors.length} printer warning${errors.length === 1 ? '' : 's'}`;
   return stale ? 'No recent status' : null;
