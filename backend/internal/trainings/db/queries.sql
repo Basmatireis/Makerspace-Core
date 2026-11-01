@@ -74,7 +74,7 @@ DELETE FROM training_processes WHERE training_id = sqlc.arg(training_id);
 INSERT INTO training_processes (training_id, process_id) VALUES (sqlc.arg(training_id), sqlc.arg(process_id));
 
 -- name: CountExistingProcesses :one
-SELECT count(*) FROM processes WHERE id = ANY(sqlc.arg(ids)::uuid[]);
+SELECT count(*) FROM processes WHERE id = ANY((sqlc.arg(ids)::text[])::uuid[]);
 
 -- name: PersonExists :one
 SELECT EXISTS (SELECT 1 FROM people WHERE id = sqlc.arg(id))::boolean;

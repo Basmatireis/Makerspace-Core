@@ -159,14 +159,14 @@ func runMeasureKeyNullable(value nullable.Nullable[openapi.RunMeasureKey]) *stri
 	if !value.IsSpecified() || value.IsNull() {
 		return nil
 	}
-	key := string(value.GetOrEmpty())
+	key := value.GetOrEmpty()
 	return &key
 }
 func runMeasureKeyValue(value *string) nullable.Nullable[openapi.RunMeasureKey] {
 	if value == nil {
 		return nullable.NewNullNullable[openapi.RunMeasureKey]()
 	}
-	return nullable.NewNullableWithValue(openapi.RunMeasureKey(*value))
+	return nullable.NewNullableWithValue(*value)
 }
 
 // mlMeasuresDTO converts run measures; only measures with a value are present.

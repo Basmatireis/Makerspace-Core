@@ -12,7 +12,7 @@ import (
 
 type Querier interface {
 	CountExistingCompetencyCategories(ctx context.Context, ids []uuid.UUID) (int64, error)
-	CountExistingProcesses(ctx context.Context, ids []uuid.UUID) (int64, error)
+	CountExistingProcesses(ctx context.Context, ids []string) (int64, error)
 	CreateCompetencyCategory(ctx context.Context, arg CreateCompetencyCategoryParams) error
 	CreateTraining(ctx context.Context, arg CreateTrainingParams) error
 	DeleteCompetencyCategory(ctx context.Context, arg DeleteCompetencyCategoryParams) (int64, error)

@@ -5790,11 +5790,11 @@ func (q *Queries) ListPrinterErrorCodeFacts(ctx context.Context, codes []string)
 
 const listProcessMeasures = `-- name: ListProcessMeasures :many
 SELECT process_id, key, label, unit, block_size, position FROM process_measures
-WHERE process_id = ANY($1::uuid[])
+WHERE process_id = ANY(($1::text[])::uuid[])
 ORDER BY process_id, position, key
 `
 
-func (q *Queries) ListProcessMeasures(ctx context.Context, processIds []uuid.UUID) ([]ProcessMeasure, error) {
+func (q *Queries) ListProcessMeasures(ctx context.Context, processIds []string) ([]ProcessMeasure, error) {
 	rows, err := q.db.Query(ctx, listProcessMeasures, processIds)
 	if err != nil {
 		return nil, err
@@ -5854,7 +5854,7 @@ func (q *Queries) ListProcesses(ctx context.Context) ([]Process, error) {
 }
 
 const listProcessesByIDs = `-- name: ListProcessesByIDs :many
-SELECT id, integration FROM processes WHERE id = ANY($1::uuid[])
+SELECT id, integration FROM processes WHERE id = ANY(($1::text[])::uuid[])
 `
 
 type ListProcessesByIDsRow struct {
@@ -5862,7 +5862,7 @@ type ListProcessesByIDsRow struct {
 	Integration string
 }
 
-func (q *Queries) ListProcessesByIDs(ctx context.Context, processIds []uuid.UUID) ([]ListProcessesByIDsRow, error) {
+func (q *Queries) ListProcessesByIDs(ctx context.Context, processIds []string) ([]ListProcessesByIDsRow, error) {
 	rows, err := q.db.Query(ctx, listProcessesByIDs, processIds)
 	if err != nil {
 		return nil, err

@@ -25,10 +25,10 @@ func (q *Queries) CountExistingCompetencyCategories(ctx context.Context, ids []u
 }
 
 const countExistingProcesses = `-- name: CountExistingProcesses :one
-SELECT count(*) FROM processes WHERE id = ANY($1::uuid[])
+SELECT count(*) FROM processes WHERE id = ANY(($1::text[])::uuid[])
 `
 
-func (q *Queries) CountExistingProcesses(ctx context.Context, ids []uuid.UUID) (int64, error) {
+func (q *Queries) CountExistingProcesses(ctx context.Context, ids []string) (int64, error) {
 	row := q.db.QueryRow(ctx, countExistingProcesses, ids)
 	var count int64
 	err := row.Scan(&count)

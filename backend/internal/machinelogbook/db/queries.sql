@@ -1750,7 +1750,7 @@ ON CONFLICT (storage_key) DO NOTHING;
 
 -- name: ListProcessMeasures :many
 SELECT process_id, key, label, unit, block_size, position FROM process_measures
-WHERE process_id = ANY(sqlc.arg(process_ids)::uuid[])
+WHERE process_id = ANY((sqlc.arg(process_ids)::text[])::uuid[])
 ORDER BY process_id, position, key;
 
 -- name: ReplaceProcessMeasures :exec
@@ -1767,7 +1767,7 @@ SELECT (SELECT count(*) FROM pricing_rules r WHERE r.process_id = sqlc.arg(proce
         WHERE rm.measure = sqlc.arg(key) AND ru.machine_id IN (SELECT id FROM machines WHERE process_id = sqlc.arg(process_id)));
 
 -- name: ListProcessesByIDs :many
-SELECT id, integration FROM processes WHERE id = ANY(sqlc.arg(process_ids)::uuid[]);
+SELECT id, integration FROM processes WHERE id = ANY((sqlc.arg(process_ids)::text[])::uuid[]);
 
 -- name: ListActiveFDMProcessIDs :many
 SELECT id FROM processes WHERE integration = 'fdm_printer' AND active ORDER BY id;

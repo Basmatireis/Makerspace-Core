@@ -476,7 +476,7 @@ func replaceLinks(ctx context.Context, q *trainingsdb.Queries, id uuid.UUID, inp
 	if categories != int64(len(input.CompetencyIDs)) {
 		return apperror.Invalid("competencyIds contains an unknown competency category")
 	}
-	processes, err := q.CountExistingProcesses(ctx, input.ProcessIDs)
+	processes, err := q.CountExistingProcesses(ctx, uuidStrings(input.ProcessIDs))
 	if err != nil {
 		return err
 	}
@@ -663,4 +663,13 @@ func writeAudit(
 		RequestID:      requestID,
 		ChangedFields:  fields,
 	})
+}
+
+// uuidStrings renders ids as text for text[] query parameters.
+func uuidStrings(ids []uuid.UUID) []string {
+	result := make([]string, 0, len(ids))
+	for _, id := range ids {
+		result = append(result, id.String())
+	}
+	return result
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -182,7 +183,10 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	response.Body.Close()
 	createProcess := func(name, integration string, measures []map[string]any) openapi.Process {
 		t.Helper()
-		body := map[string]any{"name": name + " " + uuid.NewString()[:8], "integration": integration, "measures": measures}
+		body := map[string]any{"name": name + " " + uuid.NewString()[:8], "integration": integration}
+		if measures != nil {
+			body["measures"] = measures
+		}
 		response := doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/processes", origin, adminCSRF, body)
 		assertStatus(t, response, http.StatusCreated)
 		var process openapi.Process
@@ -242,7 +246,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		origin,
 		managerCSRF,
 		map[string]any{
-			"name": "Unknown process", "kind": "consumable", "unit": "g", "processIds": []string{uuid.NewString()},
+			"name": "Unknown process", "kind": "consumable", "unit": "g", "processIds": []string{ids.New().String()},
 		},
 	)
 	assertStatus(t, response, http.StatusUnprocessableEntity)

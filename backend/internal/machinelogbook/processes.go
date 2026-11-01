@@ -87,7 +87,7 @@ func loadProcessMeasures(
 	if len(processIDs) == 0 {
 		return result, nil
 	}
-	rows, err := q.ListProcessMeasures(ctx, processIDs)
+	rows, err := q.ListProcessMeasures(ctx, uuidStrings(processIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -228,4 +228,13 @@ func requireMaterialsForProcess(
 func (p machineProcessInfo) supports(measure string) bool {
 	_, ok := p.Measures[measure]
 	return ok
+}
+
+// uuidStrings renders ids as text: array parameters travel as text[] so every query protocol can encode them.
+func uuidStrings(ids []uuid.UUID) []string {
+	result := make([]string, 0, len(ids))
+	for _, id := range ids {
+		result = append(result, id.String())
+	}
+	return result
 }

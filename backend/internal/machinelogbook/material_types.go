@@ -62,7 +62,7 @@ func validateProcesses(
 	unique := slices.Clone(processIDs)
 	slices.SortFunc(unique, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
 	unique = slices.Compact(unique)
-	rows, err := q.ListProcessesByIDs(ctx, unique)
+	rows, err := q.ListProcessesByIDs(ctx, uuidStrings(unique))
 	if err != nil {
 		return nil, nil, err
 	}
