@@ -281,6 +281,7 @@ export function ImportPanel({ sections }: { sections: SectionDefinition[] }) {
       <DestructiveActionDialog
         open={confirming && Boolean(preview)}
         title="Overwrite configuration?"
+        fate="permanent"
         confirmLabel="Overwrite"
         pending={applyMutation.isPending}
         error={applyMutation.isError ? failureMessage(applyMutation.error) : undefined}

@@ -157,6 +157,7 @@ function SurveyDetail({ survey }: { survey: Survey }) {
       <DestructiveActionDialog
         open={confirm === 'close'}
         title="Close this survey?"
+        fate="none"
         confirmLabel="Close survey"
         pending={change.isPending}
         error={change.error?.message}
@@ -169,6 +170,7 @@ function SurveyDetail({ survey }: { survey: Survey }) {
       <DestructiveActionDialog
         open={confirm === 'delete'}
         title="Delete this survey?"
+        fate="permanent"
         confirmLabel="Delete survey"
         pending={remove.isPending}
         error={remove.error?.message}

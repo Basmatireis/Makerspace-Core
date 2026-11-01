@@ -2,10 +2,19 @@ import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { InlineNotification, Modal, Stack } from '@carbon/react';
 import { useLatestCallback } from './useLatestCallback';
 
+/** What happens to the thing the action removes: gone for good, or moved to the recycle bin. */
+export type DestructiveFate = 'permanent' | 'recycle';
+
+export const destructiveFateSentence: Record<DestructiveFate, string> = {
+  permanent: 'This cannot be undone.',
+  recycle: 'It moves to the recycle bin, where it can be restored or deleted for good.',
+};
+
 export type DestructiveActionDialogProps = {
   open: boolean;
   title: string;
   children: ReactNode;
+  fate: DestructiveFate;
   confirmLabel: string;
   cancelLabel?: string;
   pending?: boolean;
@@ -19,6 +28,7 @@ export function DestructiveActionDialog({
   open,
   title,
   children,
+  fate,
   confirmLabel,
   cancelLabel = 'Cancel',
   pending = false,
@@ -81,6 +91,7 @@ export function DestructiveActionDialog({
     >
       <Stack gap={5}>
         {children}
+        <p>{destructiveFateSentence[fate]}</p>
         {error && (
           <InlineNotification kind="error" lowContrast hideCloseButton title="Action failed" subtitle={error} />
         )}

@@ -37,6 +37,7 @@ import type {
   MachineRunPage,
   MachineRunRecording,
   MachineRunUpdateResult,
+  RecycleBin,
   ReplaceMachineRunUsagesRequest,
   RunRecordingSettings,
   SetMachineRunSignageVisibilityRequest,
@@ -814,6 +815,186 @@ return apiFetch<MachineJob>(getAddManualMachineRunUrl(machineJobId),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(addManualMachineRunRequest)
+  }
+);}
+
+
+export const getGetRecycleBinUrl = () => {
+
+
+
+
+  return `/api/v1/machine-logbook/recycle-bin`
+}
+
+/**
+ * Needs machine_jobs.delete. Deleted jobs and runs, newest deletion first, at most 500 each. A job lists how many runs went into the bin with it and how many recorded runs it left behind as unassigned runs.
+ * @summary Deleted jobs and runs that can still be restored
+ */
+export const getRecycleBin = async ( options?: Parameters<typeof apiFetch>[1]): Promise<RecycleBin> => {
+
+  return apiFetch<RecycleBin>(getGetRecycleBinUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getPurgeMachineJobUrl = (machineJobId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-logbook/recycle-bin/jobs/${machineJobId}`
+}
+
+/**
+ * Needs machine_jobs.delete. Removes the job with its pricing snapshots and usages; runs that went into the bin with it are removed too, runs it left behind stay. Inventory bookings are kept. Audited as `machine_job.purged`.
+ * @summary Delete a job in the bin for good
+ */
+export const purgeMachineJob = async (machineJobId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getPurgeMachineJobUrl(machineJobId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getRestoreMachineJobUrl = (machineJobId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-logbook/recycle-bin/jobs/${machineJobId}/restore`
+}
+
+/**
+ * Needs machine_jobs.delete. The job comes back with the runs that went into the bin with it; recorded runs it left behind as unassigned runs are attached again as long as nobody claimed them. Material the deletion reversed stays reversed. Audited as `machine_job.restored`.
+ * @summary Bring a deleted job back
+ */
+export const restoreMachineJob = async (machineJobId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineJob> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MachineJob>(getRestoreMachineJobUrl(machineJobId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getPurgeMachineRunUrl = (runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-logbook/recycle-bin/runs/${runId}`
+}
+
+/**
+ * Needs machine_jobs.delete. Removes the run with its usages, measures and reports; inventory bookings are kept and its print file stays for other runs. Audited as `machine_run.purged`.
+ * @summary Delete a run in the bin for good
+ */
+export const purgeMachineRun = async (runId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getPurgeMachineRunUrl(runId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getRestoreMachineRunUrl = (runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-logbook/recycle-bin/runs/${runId}/restore`
+}
+
+/**
+ * Needs machine_jobs.delete. The run comes back into its former job when that job still exists and is not in the bin; otherwise as an unassigned run. Material the deletion reversed stays reversed. Audited as `machine_run.restored`.
+ * @summary Bring a deleted run back
+ */
+export const restoreMachineRun = async (runId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineRun> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MachineRun>(getRestoreMachineRunUrl(runId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
   }
 );}
 

@@ -226,6 +226,7 @@ export function PrinterErrorHistory({ machineId, active }: { machineId: string; 
       <DestructiveActionDialog
         open={confirm}
         title="Clear error history?"
+        fate="permanent"
         confirmLabel="Clear history"
         pending={clear.isPending}
         error={clear.isError ? 'The history could not be cleared. Try again.' : undefined}

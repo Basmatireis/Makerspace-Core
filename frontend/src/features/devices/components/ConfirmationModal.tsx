@@ -29,6 +29,7 @@ export function ConfirmationModal({
     <DestructiveActionDialog
       open={Boolean(value)}
       title={revoke ? `Revoke ${name}?` : deletingType ? `Delete device type ${name}?` : `Delete ${name}?`}
+      fate="permanent"
       confirmLabel={revoke ? 'Revoke device' : deletingType ? 'Delete device type' : 'Delete device'}
       pending={pending}
       error={errorMessage}

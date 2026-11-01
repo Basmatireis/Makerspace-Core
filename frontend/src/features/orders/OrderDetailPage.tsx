@@ -477,6 +477,7 @@ function OrderDetail({ order }: { order: Order }) {
       <DestructiveActionDialog
         open={dialog === 'cancel'}
         title="Cancel this draft?"
+        fate="none"
         confirmLabel="Cancel draft"
         cancelLabel="Keep draft"
         pending={mutation.isPending}
@@ -501,6 +502,7 @@ function OrderDetail({ order }: { order: Order }) {
       <DestructiveActionDialog
         open={!!removing}
         title="Remove item from draft?"
+        fate="permanent"
         confirmLabel="Remove item"
         pending={mutation.isPending}
         error={mutation.error?.message}

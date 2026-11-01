@@ -331,6 +331,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
       <DestructiveActionDialog
         open={confirm === 'revoke'}
         title="Revoke display"
+        fate="permanent"
         confirmLabel="Revoke"
         pending={revoke.isPending}
         error={revoke.isError ? errorMessage(revoke.error) : undefined}

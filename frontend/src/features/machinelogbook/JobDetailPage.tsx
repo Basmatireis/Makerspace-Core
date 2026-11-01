@@ -410,6 +410,7 @@ function JobDetail({ job }: { job: MachineJob }) {
       <DestructiveActionDialog
         open={runDialog?.action === 'cancel' && !!targetRun}
         title="Cancel this run?"
+        fate="none"
         confirmLabel="Cancel run"
         cancelLabel="Keep running"
         pending={cancelRun.isPending}
@@ -449,6 +450,7 @@ function JobDetail({ job }: { job: MachineJob }) {
       <DestructiveActionDialog
         open={runDialog?.action === 'detach' && !!targetRun}
         title="Detach this run?"
+        fate="none"
         confirmLabel="Detach"
         pending={detachRun.isPending}
         onClose={close}
@@ -473,6 +475,7 @@ function JobDetail({ job }: { job: MachineJob }) {
       <DestructiveActionDialog
         open={dialog === 'clear'}
         title="Remove price adjustment?"
+        fate="none"
         confirmLabel="Remove adjustment"
         pending={clearAdjustment.isPending}
         onClose={close}

@@ -521,6 +521,7 @@ export function HelpersTab({
       <DestructiveActionDialog
         open={dialog?.kind === 'cancel'}
         title="Cancel assignment?"
+        fate="none"
         confirmLabel="Cancel assignment"
         pending={cancel.isPending}
         error={cancel.isError ? eventMutationMessage(cancel.error) : undefined}

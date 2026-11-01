@@ -280,6 +280,7 @@ function ManagementForm({
       <DestructiveActionDialog
         open={cancelOpen}
         title="Cancel your signup?"
+        fate="none"
         confirmLabel="Cancel signup"
         pending={pending}
         error={failed ? 'The signup changed or can no longer be cancelled.' : undefined}

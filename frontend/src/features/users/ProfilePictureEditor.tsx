@@ -163,6 +163,7 @@ export function ProfilePictureEditor({
       <DestructiveActionDialog
         open={open && confirmRemove}
         title={`Remove profile picture for ${fullName}?`}
+        fate="permanent"
         confirmLabel="Remove picture"
         pending={isRemoving}
         error={removeError?.message}

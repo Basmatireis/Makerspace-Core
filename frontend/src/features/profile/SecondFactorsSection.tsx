@@ -231,6 +231,7 @@ export function SecondFactorsSection() {
               ? 'Remove passkey'
               : 'Remove authenticator app'
         }
+        fate={dialog?.kind === 'regenerate' ? 'none' : 'permanent'}
         confirmLabel={dialog?.kind === 'regenerate' ? 'Regenerate' : 'Remove'}
         pending={mutation.isPending}
         error={errorText(mutation.error)}

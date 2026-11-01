@@ -183,7 +183,7 @@ func (q *Queries) ArchiveFilamentSpool(ctx context.Context, arg ArchiveFilamentS
 const assignRunToJob = `-- name: AssignRunToJob :one
 UPDATE machine_runs SET job_id = $1, version = version + 1, updated_at = now()
 WHERE id = $2 AND source = 'recorded' AND job_id IS NULL AND machine_id = $3
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id
 `
 
 type AssignRunToJobParams struct {
@@ -225,6 +225,7 @@ func (q *Queries) AssignRunToJob(ctx context.Context, arg AssignRunToJobParams) 
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
@@ -329,7 +330,7 @@ func (q *Queries) BumpMachineJobVersion(ctx context.Context, arg BumpMachineJobV
 const bumpRunVersion = `-- name: BumpRunVersion :one
 UPDATE machine_runs SET version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id
 `
 
 type BumpRunVersionParams struct {
@@ -370,6 +371,7 @@ func (q *Queries) BumpRunVersion(ctx context.Context, arg BumpRunVersionParams) 
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
@@ -377,7 +379,7 @@ func (q *Queries) BumpRunVersion(ctx context.Context, arg BumpRunVersionParams) 
 const cancelManualRun = `-- name: CancelManualRun :one
 UPDATE machine_runs SET ended_at = $1, state = 'cancelled', outcome = 'cancelled', version = version + 1, updated_at = now()
 WHERE id = $2 AND source = 'manual' AND state IS NULL AND version = $3
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id
 `
 
 type CancelManualRunParams struct {
@@ -419,6 +421,7 @@ func (q *Queries) CancelManualRun(ctx context.Context, arg CancelManualRunParams
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
@@ -621,6 +624,17 @@ SELECT count(*) FROM machine_runs WHERE job_id = $1 AND source = 'recorded'
 
 func (q *Queries) CountJobRecordedRuns(ctx context.Context, jobID *uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countJobRecordedRuns, jobID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countLiveRunsOfJob = `-- name: CountLiveRunsOfJob :one
+SELECT count(*) FROM machine_runs WHERE job_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) CountLiveRunsOfJob(ctx context.Context, jobID *uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countLiveRunsOfJob, jobID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -1617,10 +1631,21 @@ func (q *Queries) DeleteRunTimelapsesForRuns(ctx context.Context, runIds []uuid.
 	return items, nil
 }
 
+const detachRunForJobDeletion = `-- name: DetachRunForJobDeletion :exec
+UPDATE machine_runs SET former_job_id = job_id, job_id = NULL, version = version + 1, updated_at = now()
+WHERE id = $1 AND source = 'recorded' AND job_id IS NOT NULL
+`
+
+// A recorded run that outlives its deleted job becomes unassigned but remembers the job.
+func (q *Queries) DetachRunForJobDeletion(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, detachRunForJobDeletion, id)
+	return err
+}
+
 const detachRunFromJob = `-- name: DetachRunFromJob :one
 UPDATE machine_runs SET job_id = NULL, version = version + 1, updated_at = now()
 WHERE id = $1 AND source = 'recorded' AND job_id IS NOT NULL
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id
 `
 
 func (q *Queries) DetachRunFromJob(ctx context.Context, id uuid.UUID) (MachineRun, error) {
@@ -1656,6 +1681,7 @@ func (q *Queries) DetachRunFromJob(ctx context.Context, id uuid.UUID) (MachineRu
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
@@ -1712,6 +1738,15 @@ func (q *Queries) FindMaterialByName(ctx context.Context, name string) (uuid.UUI
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const forgetFormerJobOfRuns = `-- name: ForgetFormerJobOfRuns :exec
+UPDATE machine_runs SET former_job_id = NULL WHERE former_job_id = $1
+`
+
+func (q *Queries) ForgetFormerJobOfRuns(ctx context.Context, jobID *uuid.UUID) error {
+	_, err := q.db.Exec(ctx, forgetFormerJobOfRuns, jobID)
+	return err
 }
 
 const getActivePricingRulesByGroup = `-- name: GetActivePricingRulesByGroup :many
@@ -1838,6 +1873,84 @@ func (q *Queries) GetDefaultPricingGroup(ctx context.Context) (PricingGroup, err
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getDeletedMachineJobForUpdate = `-- name: GetDeletedMachineJobForUpdate :one
+SELECT id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by FROM machine_jobs WHERE id = $1 AND deleted_at IS NOT NULL FOR UPDATE
+`
+
+func (q *Queries) GetDeletedMachineJobForUpdate(ctx context.Context, id uuid.UUID) (MachineJob, error) {
+	row := q.db.QueryRow(ctx, getDeletedMachineJobForUpdate, id)
+	var i MachineJob
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayID,
+		&i.MachineID,
+		&i.CustomerPersonID,
+		&i.CustomerOrganizationID,
+		&i.OperatorPersonID,
+		&i.Notes,
+		&i.PricingStatus,
+		&i.CalculatedPrice,
+		&i.PriceAdjustmentReason,
+		&i.PriceAdjustedByAccountID,
+		&i.PriceAdjustedAt,
+		&i.ActivePricingSnapshotID,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Title,
+		&i.PriceAdjustmentKind,
+		&i.PriceAdjustmentValue,
+		&i.EffectivePrice,
+		&i.OutcomeOverride,
+		&i.ArtifactID,
+		&i.DeletedAt,
+		&i.DeletedBy,
+	)
+	return i, err
+}
+
+const getDeletedMachineRunForUpdate = `-- name: GetDeletedMachineRunForUpdate :one
+SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id FROM machine_runs WHERE id = $1 AND deleted_at IS NOT NULL FOR UPDATE
+`
+
+func (q *Queries) GetDeletedMachineRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error) {
+	row := q.db.QueryRow(ctx, getDeletedMachineRunForUpdate, id)
+	var i MachineRun
+	err := row.Scan(
+		&i.ID,
+		&i.AssignmentID,
+		&i.MachineID,
+		&i.VendorJobID,
+		&i.State,
+		&i.HistoryComplete,
+		&i.FirstObservedAt,
+		&i.LastObservedAt,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DisplayID,
+		&i.FileName,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.EstimatedEndAt,
+		&i.ProgressPercent,
+		&i.ReportedQuantityG,
+		&i.ReportedQuantityBasis,
+		&i.ReportedSpoolID,
+		&i.ReportedEventID,
+		&i.Source,
+		&i.JobID,
+		&i.Outcome,
+		&i.ArtifactID,
+		&i.DeletedAt,
+		&i.DeletedBy,
+		&i.HiddenFromSignage,
+		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
@@ -2892,7 +3005,7 @@ func (q *Queries) GetPricingSnapshot(ctx context.Context, id uuid.UUID) (Machine
 }
 
 const getRunBase = `-- name: GetRunBase :one
-SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual FROM machine_runs WHERE id = $1 AND deleted_at IS NULL
+SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id FROM machine_runs WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetRunBase(ctx context.Context, id uuid.UUID) (MachineRun, error) {
@@ -2928,12 +3041,13 @@ func (q *Queries) GetRunBase(ctx context.Context, id uuid.UUID) (MachineRun, err
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
 
 const getRunForUpdate = `-- name: GetRunForUpdate :one
-SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual FROM machine_runs WHERE id = $1 AND deleted_at IS NULL FOR UPDATE
+SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id FROM machine_runs WHERE id = $1 AND deleted_at IS NULL FOR UPDATE
 `
 
 func (q *Queries) GetRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error) {
@@ -2969,6 +3083,7 @@ func (q *Queries) GetRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
@@ -3136,7 +3251,7 @@ func (q *Queries) InsertInventoryTransaction(ctx context.Context, arg InsertInve
 const insertManualRun = `-- name: InsertManualRun :one
 INSERT INTO machine_runs (id, display_id, machine_id, source, job_id, started_at, ended_at, outcome, history_complete)
 VALUES ($1, $2, $3, 'manual', $4, $5, $6, $7, true)
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id
 `
 
 type InsertManualRunParams struct {
@@ -3190,6 +3305,7 @@ func (q *Queries) InsertManualRun(ctx context.Context, arg InsertManualRunParams
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
@@ -3695,6 +3811,130 @@ func (q *Queries) ListClosedFilamentSpoolFills(ctx context.Context, spoolID uuid
 			&i.CreatedAt,
 			&i.MaterialName,
 			&i.UsedG,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDeletedMachineJobs = `-- name: ListDeletedMachineJobs :many
+SELECT j.id, j.display_id, j.title, j.machine_id, m.name AS machine_name, j.deleted_at, j.version,
+       p.first_name AS deleted_by_first_name, p.last_name AS deleted_by_last_name,
+       (SELECT count(*) FROM machine_runs r WHERE r.deleted_at = j.deleted_at AND r.former_job_id = j.id)::bigint AS deleted_run_count,
+       (SELECT count(*) FROM machine_runs r WHERE r.deleted_at IS NULL AND r.job_id IS NULL AND r.former_job_id = j.id)::bigint AS detached_run_count
+FROM machine_jobs j
+JOIN machines m ON m.id = j.machine_id
+LEFT JOIN accounts a ON a.id = j.deleted_by
+LEFT JOIN people p ON p.id = a.person_id
+WHERE j.deleted_at IS NOT NULL
+ORDER BY j.deleted_at DESC, j.id DESC
+LIMIT 500
+`
+
+type ListDeletedMachineJobsRow struct {
+	ID                 uuid.UUID
+	DisplayID          string
+	Title              *string
+	MachineID          uuid.UUID
+	MachineName        string
+	DeletedAt          pgtype.Timestamptz
+	Version            int64
+	DeletedByFirstName *string
+	DeletedByLastName  *string
+	DeletedRunCount    int64
+	DetachedRunCount   int64
+}
+
+func (q *Queries) ListDeletedMachineJobs(ctx context.Context) ([]ListDeletedMachineJobsRow, error) {
+	rows, err := q.db.Query(ctx, listDeletedMachineJobs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDeletedMachineJobsRow{}
+	for rows.Next() {
+		var i ListDeletedMachineJobsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayID,
+			&i.Title,
+			&i.MachineID,
+			&i.MachineName,
+			&i.DeletedAt,
+			&i.Version,
+			&i.DeletedByFirstName,
+			&i.DeletedByLastName,
+			&i.DeletedRunCount,
+			&i.DetachedRunCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDeletedMachineRuns = `-- name: ListDeletedMachineRuns :many
+SELECT r.id, r.display_id, r.file_name, r.source, r.machine_id, m.name AS machine_name, r.deleted_at, r.version,
+       p.first_name AS deleted_by_first_name, p.last_name AS deleted_by_last_name,
+       j.id AS former_job_id, j.display_id AS former_job_display_id, j.deleted_at AS former_job_deleted_at
+FROM machine_runs r
+JOIN machines m ON m.id = r.machine_id
+LEFT JOIN accounts a ON a.id = r.deleted_by
+LEFT JOIN people p ON p.id = a.person_id
+LEFT JOIN machine_jobs j ON j.id = r.former_job_id
+WHERE r.deleted_at IS NOT NULL
+ORDER BY r.deleted_at DESC, r.id DESC
+LIMIT 500
+`
+
+type ListDeletedMachineRunsRow struct {
+	ID                 uuid.UUID
+	DisplayID          string
+	FileName           *string
+	Source             string
+	MachineID          uuid.UUID
+	MachineName        string
+	DeletedAt          pgtype.Timestamptz
+	Version            int64
+	DeletedByFirstName *string
+	DeletedByLastName  *string
+	FormerJobID        *uuid.UUID
+	FormerJobDisplayID *string
+	FormerJobDeletedAt pgtype.Timestamptz
+}
+
+func (q *Queries) ListDeletedMachineRuns(ctx context.Context) ([]ListDeletedMachineRunsRow, error) {
+	rows, err := q.db.Query(ctx, listDeletedMachineRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDeletedMachineRunsRow{}
+	for rows.Next() {
+		var i ListDeletedMachineRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayID,
+			&i.FileName,
+			&i.Source,
+			&i.MachineID,
+			&i.MachineName,
+			&i.DeletedAt,
+			&i.Version,
+			&i.DeletedByFirstName,
+			&i.DeletedByLastName,
+			&i.FormerJobID,
+			&i.FormerJobDisplayID,
+			&i.FormerJobDeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -4289,7 +4529,7 @@ func (q *Queries) ListInventoryVariantSuggestions(ctx context.Context, materialT
 }
 
 const listJobRunsForUpdate = `-- name: ListJobRunsForUpdate :many
-SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual FROM machine_runs WHERE job_id = $1 ORDER BY id FOR UPDATE
+SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id FROM machine_runs WHERE job_id = $1 ORDER BY id FOR UPDATE
 `
 
 func (q *Queries) ListJobRunsForUpdate(ctx context.Context, jobID *uuid.UUID) ([]MachineRun, error) {
@@ -4331,6 +4571,7 @@ func (q *Queries) ListJobRunsForUpdate(ctx context.Context, jobID *uuid.UUID) ([
 			&i.DeletedBy,
 			&i.HiddenFromSignage,
 			&i.ArtifactManual,
+			&i.FormerJobID,
 		); err != nil {
 			return nil, err
 		}
@@ -5994,6 +6235,70 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsR
 	return items, nil
 }
 
+const listRunsDeletedWithJob = `-- name: ListRunsDeletedWithJob :many
+SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id FROM machine_runs
+WHERE former_job_id = $1 AND deleted_at = $2::timestamptz
+ORDER BY started_at, id
+FOR UPDATE
+`
+
+type ListRunsDeletedWithJobParams struct {
+	JobID     *uuid.UUID
+	DeletedAt time.Time
+}
+
+// The runs that went into the bin together with the job (same moment), locked for the restore.
+func (q *Queries) ListRunsDeletedWithJob(ctx context.Context, arg ListRunsDeletedWithJobParams) ([]MachineRun, error) {
+	rows, err := q.db.Query(ctx, listRunsDeletedWithJob, arg.JobID, arg.DeletedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MachineRun{}
+	for rows.Next() {
+		var i MachineRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.AssignmentID,
+			&i.MachineID,
+			&i.VendorJobID,
+			&i.State,
+			&i.HistoryComplete,
+			&i.FirstObservedAt,
+			&i.LastObservedAt,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DisplayID,
+			&i.FileName,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.EstimatedEndAt,
+			&i.ProgressPercent,
+			&i.ReportedQuantityG,
+			&i.ReportedQuantityBasis,
+			&i.ReportedSpoolID,
+			&i.ReportedEventID,
+			&i.Source,
+			&i.JobID,
+			&i.Outcome,
+			&i.ArtifactID,
+			&i.DeletedAt,
+			&i.DeletedBy,
+			&i.HiddenFromSignage,
+			&i.ArtifactManual,
+			&i.FormerJobID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkItemMaterialTotals = `-- name: ListWorkItemMaterialTotals :many
 SELECT COALESCE(r.job_id, r.id)::uuid AS item_id, COALESCE(mt.name, 'External')::text AS material_type_name, COALESCE(m.unit, 'g')::text AS unit, sum(u.quantity)::numeric AS quantity
 FROM machine_run_usages u
@@ -6544,6 +6849,45 @@ func (q *Queries) OverviewDailyActivity(ctx context.Context) ([]OverviewDailyAct
 	return items, nil
 }
 
+const purgeMachineJob = `-- name: PurgeMachineJob :execrows
+DELETE FROM machine_jobs WHERE id = $1 AND deleted_at IS NOT NULL
+`
+
+func (q *Queries) PurgeMachineJob(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeMachineJob, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const purgeMachineRun = `-- name: PurgeMachineRun :execrows
+DELETE FROM machine_runs WHERE id = $1 AND deleted_at IS NOT NULL
+`
+
+// Usages, measures, reported items, reports and timelapse rows cascade; the inventory ledger keeps its copies.
+func (q *Queries) PurgeMachineRun(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeMachineRun, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const reattachDetachedRunsOfJob = `-- name: ReattachDetachedRunsOfJob :execrows
+UPDATE machine_runs SET job_id = former_job_id, former_job_id = NULL, version = version + 1, updated_at = now()
+WHERE former_job_id = $1 AND job_id IS NULL AND deleted_at IS NULL AND source = 'recorded'
+`
+
+// Recorded runs the job deletion detached, as long as they are still unassigned and alive.
+func (q *Queries) ReattachDetachedRunsOfJob(ctx context.Context, jobID *uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, reattachDetachedRunsOfJob, jobID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const recalculateMachineJobPrice = `-- name: RecalculateMachineJobPrice :one
 UPDATE machine_jobs SET pricing_status = $1, calculated_price = $2,
     effective_price = $3, version = version + 1, updated_at = now()
@@ -6665,6 +7009,35 @@ func (q *Queries) RemoveOrganizationMember(ctx context.Context, arg RemoveOrgani
 	var person_id uuid.UUID
 	err := row.Scan(&person_id)
 	return person_id, err
+}
+
+const restoreMachineJob = `-- name: RestoreMachineJob :exec
+UPDATE machine_jobs SET deleted_at = NULL, deleted_by = NULL, version = version + 1, updated_at = now()
+WHERE id = $1 AND deleted_at IS NOT NULL
+`
+
+func (q *Queries) RestoreMachineJob(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, restoreMachineJob, id)
+	return err
+}
+
+const restoreMachineRun = `-- name: RestoreMachineRun :exec
+UPDATE machine_runs
+SET deleted_at = NULL, deleted_by = NULL,
+    job_id = CASE WHEN $1::boolean THEN former_job_id ELSE NULL END,
+    former_job_id = NULL, version = version + 1, updated_at = now()
+WHERE id = $2 AND deleted_at IS NOT NULL
+`
+
+type RestoreMachineRunParams struct {
+	Reattach bool
+	ID       uuid.UUID
+}
+
+// Back into its former job when that job is alive; otherwise unassigned.
+func (q *Queries) RestoreMachineRun(ctx context.Context, arg RestoreMachineRunParams) error {
+	_, err := q.db.Exec(ctx, restoreMachineRun, arg.Reattach, arg.ID)
+	return err
 }
 
 const retireFillIdentifiers = `-- name: RetireFillIdentifiers :exec
@@ -6858,7 +7231,7 @@ const setRecordedRunOutcomeFromMachine = `-- name: SetRecordedRunOutcomeFromMach
 UPDATE machine_runs SET outcome = CASE state WHEN 'finished' THEN 'successful' WHEN 'failed' THEN 'failed' WHEN 'cancelled' THEN 'cancelled' END,
     version = version + 1, updated_at = now()
 WHERE id = $1 AND source = 'recorded' AND outcome IS NULL AND state IN ('finished', 'failed', 'cancelled')
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id
 `
 
 func (q *Queries) SetRecordedRunOutcomeFromMachine(ctx context.Context, id uuid.UUID) (MachineRun, error) {
@@ -6894,6 +7267,7 @@ func (q *Queries) SetRecordedRunOutcomeFromMachine(ctx context.Context, id uuid.
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
@@ -6901,7 +7275,7 @@ func (q *Queries) SetRecordedRunOutcomeFromMachine(ctx context.Context, id uuid.
 const setRunSignageHidden = `-- name: SetRunSignageHidden :one
 UPDATE machine_runs SET hidden_from_signage = $1, updated_at = now()
 WHERE id = $2 AND deleted_at IS NULL
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id
 `
 
 type SetRunSignageHiddenParams struct {
@@ -6942,6 +7316,7 @@ func (q *Queries) SetRunSignageHidden(ctx context.Context, arg SetRunSignageHidd
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
@@ -6997,7 +7372,8 @@ func (q *Queries) SoftDeleteMachineJob(ctx context.Context, arg SoftDeleteMachin
 }
 
 const softDeleteMachineRun = `-- name: SoftDeleteMachineRun :exec
-UPDATE machine_runs SET deleted_at = $1, deleted_by = $2, job_id = NULL, version = version + 1, updated_at = $1
+UPDATE machine_runs SET deleted_at = $1, deleted_by = $2, former_job_id = COALESCE(job_id, former_job_id), job_id = NULL,
+    version = version + 1, updated_at = $1
 WHERE id = $3 AND deleted_at IS NULL
 `
 
@@ -7007,7 +7383,7 @@ type SoftDeleteMachineRunParams struct {
 	ID        uuid.UUID
 }
 
-// A deleted run is detached from its job.
+// A deleted run is detached from its job but remembers it for the recycle bin.
 func (q *Queries) SoftDeleteMachineRun(ctx context.Context, arg SoftDeleteMachineRunParams) error {
 	_, err := q.db.Exec(ctx, softDeleteMachineRun, arg.DeletedAt, arg.DeletedBy, arg.ID)
 	return err
@@ -7805,7 +8181,7 @@ const updateManualRunFacts = `-- name: UpdateManualRunFacts :one
 UPDATE machine_runs SET started_at = $1, ended_at = $2, outcome = $3,
     version = version + 1, updated_at = now()
 WHERE id = $4 AND source = 'manual' AND version = $5
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id
 `
 
 type UpdateManualRunFactsParams struct {
@@ -7855,6 +8231,7 @@ func (q *Queries) UpdateManualRunFacts(ctx context.Context, arg UpdateManualRunF
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }
@@ -8171,7 +8548,7 @@ func (q *Queries) UpdatePricingRule(ctx context.Context, arg UpdatePricingRulePa
 const updateRecordedRunOutcome = `-- name: UpdateRecordedRunOutcome :one
 UPDATE machine_runs SET outcome = $1, version = version + 1, updated_at = now()
 WHERE id = $2 AND source = 'recorded' AND version = $3
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by, hidden_from_signage, artifact_manual, former_job_id
 `
 
 type UpdateRecordedRunOutcomeParams struct {
@@ -8213,6 +8590,7 @@ func (q *Queries) UpdateRecordedRunOutcome(ctx context.Context, arg UpdateRecord
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
 		&i.ArtifactManual,
+		&i.FormerJobID,
 	)
 	return i, err
 }

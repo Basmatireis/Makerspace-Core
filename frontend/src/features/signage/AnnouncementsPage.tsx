@@ -217,6 +217,7 @@ export function AnnouncementsPage() {
       <DestructiveActionDialog
         open={stopping !== null}
         title="Stop announcement"
+        fate="none"
         confirmLabel="Stop announcement"
         pending={stop.isPending}
         error={stop.isError && !isStaleWrite(stop.error) ? errorMessage(stop.error) : undefined}

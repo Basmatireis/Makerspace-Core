@@ -399,7 +399,7 @@ func (s *Service) deleteJobRows(
 		}
 	}
 	for _, run := range detaching {
-		if _, err := q.DetachRunFromJob(ctx, run.ID); err != nil {
+		if err := q.DetachRunForJobDeletion(ctx, run.ID); err != nil {
 			return databaseError(err)
 		}
 	}

@@ -295,6 +295,7 @@ export function ActivitiesTab() {
       <DestructiveActionDialog
         open={deleting !== undefined}
         title="Delete processing activity"
+        fate="permanent"
         confirmLabel="Delete"
         pending={remove.isPending}
         error={remove.isError ? privacyErrorMessage(remove.error) : undefined}

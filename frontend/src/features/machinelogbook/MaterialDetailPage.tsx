@@ -280,6 +280,7 @@ function MaterialDetail({ material }: { material: Material }) {
       <DestructiveActionDialog
         open={dialog === 'empty'}
         title="Mark as empty?"
+        fate="none"
         confirmLabel="Mark as empty"
         pending={emptying.isPending}
         onClose={close}
@@ -300,6 +301,7 @@ function MaterialDetail({ material }: { material: Material }) {
       <DestructiveActionDialog
         open={dialog === 'delete'}
         title="Delete this article?"
+        fate="permanent"
         confirmLabel="Delete article"
         pending={removal.isPending}
         onClose={close}

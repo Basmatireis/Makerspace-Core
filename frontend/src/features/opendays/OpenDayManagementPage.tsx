@@ -366,6 +366,7 @@ export function OpenDayManagementPage() {
       <DestructiveActionDialog
         open={Boolean(deleteBreak)}
         title="Delete academic break?"
+        fate="permanent"
         confirmLabel="Delete break"
         pending={deleteMutation.isPending}
         error={deleteMutation.isError ? 'The break may have changed. Reload and try again.' : undefined}

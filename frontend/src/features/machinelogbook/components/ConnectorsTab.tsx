@@ -460,6 +460,7 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
       <DestructiveActionDialog
         open={Boolean(revoking)}
         title={`Revoke ${revoking?.name ?? 'connector'}?`}
+        fate="permanent"
         confirmLabel="Revoke connector"
         pending={revoke.isPending}
         error={revoke.isError ? 'The connector could not be revoked. Reload and try again.' : undefined}
@@ -480,6 +481,7 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
       <DestructiveActionDialog
         open={Boolean(deleting)}
         title={`Delete ${deleting?.name ?? 'connector'}?`}
+        fate="permanent"
         confirmLabel="Delete connector"
         pending={remove.isPending}
         error={remove.isError ? 'The connector could not be deleted. Reload and try again.' : undefined}

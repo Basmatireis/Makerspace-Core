@@ -115,6 +115,7 @@ export function PublicEventPage() {
       <DestructiveActionDialog
         open={Boolean(cancelling)}
         title="Cancel your signup?"
+        fate="none"
         confirmLabel="Cancel signup"
         pending={cancel.isPending}
         error={cancel.isError ? 'The signup changed or can no longer be cancelled.' : undefined}

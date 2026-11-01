@@ -149,6 +149,7 @@ export function ErrorCatalogTab({ switcher }: { switcher?: ReactNode }) {
       <DestructiveActionDialog
         open={removing !== null}
         title="Remove error code?"
+        fate="permanent"
         confirmLabel="Remove"
         pending={remove.isPending}
         error={remove.isError ? 'The code could not be removed. Try again.' : undefined}

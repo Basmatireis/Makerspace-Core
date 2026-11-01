@@ -21,6 +21,7 @@ export function UnsavedChangesDialog({
     <DestructiveActionDialog
       open={guard.dialogOpen}
       title={title}
+      fate="none"
       confirmLabel={confirmLabel}
       cancelLabel={cancelLabel}
       onClose={guard.keepEditing}

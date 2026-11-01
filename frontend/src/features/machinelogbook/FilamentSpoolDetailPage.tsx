@@ -494,6 +494,7 @@ function SpoolDetail({ spool }: { spool: FilamentSpool }) {
       <DestructiveActionDialog
         open={dialog === 'archive'}
         title="Archive this spool?"
+        fate="none"
         confirmLabel="Archive"
         pending={lifecycle.isPending}
         onClose={close}
@@ -507,6 +508,7 @@ function SpoolDetail({ spool }: { spool: FilamentSpool }) {
       <DestructiveActionDialog
         open={dialog === 'restore'}
         title="Restore this spool?"
+        fate="none"
         confirmLabel="Restore"
         pending={lifecycle.isPending}
         onClose={close}
@@ -523,6 +525,7 @@ function SpoolDetail({ spool }: { spool: FilamentSpool }) {
       <DestructiveActionDialog
         open={removing !== null}
         title="Remove identifier?"
+        fate="permanent"
         confirmLabel="Remove identifier"
         pending={removeIdentifier.isPending}
         onClose={() => setRemoving(null)}

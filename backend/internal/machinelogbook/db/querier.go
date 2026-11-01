@@ -35,6 +35,7 @@ type Querier interface {
 	CountFilamentSpools(ctx context.Context, arg CountFilamentSpoolsParams) (int64, error)
 	CountInventoryTransactions(ctx context.Context, materialID uuid.UUID) (int64, error)
 	CountJobRecordedRuns(ctx context.Context, jobID *uuid.UUID) (int64, error)
+	CountLiveRunsOfJob(ctx context.Context, jobID *uuid.UUID) (int64, error)
 	CountLowStockMaterials(ctx context.Context) (int64, error)
 	CountMachineJobs(ctx context.Context, arg CountMachineJobsParams) (int64, error)
 	CountMachines(ctx context.Context, arg CountMachinesParams) (int64, error)
@@ -88,16 +89,21 @@ type Querier interface {
 	// Removes the timelapse rows of runs being deleted and returns their files; the
 	// caller deletes the file rows and queues the blobs in the same transaction.
 	DeleteRunTimelapsesForRuns(ctx context.Context, runIds []uuid.UUID) ([]DeleteRunTimelapsesForRunsRow, error)
+	// A recorded run that outlives its deleted job becomes unassigned but remembers the job.
+	DetachRunForJobDeletion(ctx context.Context, id uuid.UUID) error
 	DetachRunFromJob(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	FilamentSpoolIdentifierInUse(ctx context.Context, arg FilamentSpoolIdentifierInUseParams) (bool, error)
 	FilamentSpoolMounted(ctx context.Context, spoolID uuid.UUID) (bool, error)
 	FindFilamentSpoolByIdentifier(ctx context.Context, arg FindFilamentSpoolByIdentifierParams) (uuid.UUID, error)
 	FindMaterialByName(ctx context.Context, name string) (uuid.UUID, error)
+	ForgetFormerJobOfRuns(ctx context.Context, jobID *uuid.UUID) error
 	GetActivePricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]PricingRule, error)
 	GetArtifactReference(ctx context.Context, id uuid.UUID) (GetArtifactReferenceRow, error)
 	GetBillingOrganization(ctx context.Context, id uuid.UUID) (GetBillingOrganizationRow, error)
 	GetBillingPerson(ctx context.Context, id uuid.UUID) (GetBillingPersonRow, error)
 	GetDefaultPricingGroup(ctx context.Context) (PricingGroup, error)
+	GetDeletedMachineJobForUpdate(ctx context.Context, id uuid.UUID) (MachineJob, error)
+	GetDeletedMachineRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	GetFilamentSpool(ctx context.Context, id uuid.UUID) (GetFilamentSpoolRow, error)
 	GetFilamentSpoolFill(ctx context.Context, id uuid.UUID) (GetFilamentSpoolFillRow, error)
 	GetFilamentSpoolForUpdate(ctx context.Context, id uuid.UUID) (FilamentSpool, error)
@@ -152,6 +158,8 @@ type Querier interface {
 	ListActiveOrganizationsOfPeople(ctx context.Context, personIds []uuid.UUID) ([]ListActiveOrganizationsOfPeopleRow, error)
 	ListActiveRunUsagesForUpdate(ctx context.Context, runID uuid.UUID) ([]MachineRunUsage, error)
 	ListClosedFilamentSpoolFills(ctx context.Context, spoolID uuid.UUID) ([]ListClosedFilamentSpoolFillsRow, error)
+	ListDeletedMachineJobs(ctx context.Context) ([]ListDeletedMachineJobsRow, error)
+	ListDeletedMachineRuns(ctx context.Context) ([]ListDeletedMachineRunsRow, error)
 	ListFilamentSpoolCleanupCandidates(ctx context.Context, cutoff time.Time) ([]ListFilamentSpoolCleanupCandidatesRow, error)
 	ListFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error)
 	ListFilamentSpoolTransactions(ctx context.Context, arg ListFilamentSpoolTransactionsParams) ([]ListFilamentSpoolTransactionsRow, error)
@@ -202,6 +210,8 @@ type Querier interface {
 	ListRunUsagesForRuns(ctx context.Context, runIds []uuid.UUID) ([]ListRunUsagesForRunsRow, error)
 	ListRunningMachineNames(ctx context.Context, now time.Time) ([]string, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error)
+	// The runs that went into the bin together with the job (same moment), locked for the restore.
+	ListRunsDeletedWithJob(ctx context.Context, arg ListRunsDeletedWithJobParams) ([]MachineRun, error)
 	// Material of jobs (their runs that are not replaced) and of unassigned runs, summed per material type and unit.
 	ListWorkItemMaterialTotals(ctx context.Context, itemIds []uuid.UUID) ([]ListWorkItemMaterialTotalsRow, error)
 	ListWorkItemMeasureTotals(ctx context.Context, itemIds []uuid.UUID) ([]ListWorkItemMeasureTotalsRow, error)
@@ -226,10 +236,18 @@ type Querier interface {
 	// jobs count: their foreign key would otherwise be nulled out by the delete.
 	OrganizationIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
 	OverviewDailyActivity(ctx context.Context) ([]OverviewDailyActivityRow, error)
+	PurgeMachineJob(ctx context.Context, id uuid.UUID) (int64, error)
+	// Usages, measures, reported items, reports and timelapse rows cascade; the inventory ledger keeps its copies.
+	PurgeMachineRun(ctx context.Context, id uuid.UUID) (int64, error)
+	// Recorded runs the job deletion detached, as long as they are still unassigned and alive.
+	ReattachDetachedRunsOfJob(ctx context.Context, jobID *uuid.UUID) (int64, error)
 	RecalculateMachineJobPrice(ctx context.Context, arg RecalculateMachineJobPriceParams) (MachineJob, error)
 	// Keeps the price of a running job current without bumping its version.
 	RefreshMachineJobPrice(ctx context.Context, arg RefreshMachineJobPriceParams) (MachineJob, error)
 	RemoveOrganizationMember(ctx context.Context, arg RemoveOrganizationMemberParams) (uuid.UUID, error)
+	RestoreMachineJob(ctx context.Context, id uuid.UUID) error
+	// Back into its former job when that job is alive; otherwise unassigned.
+	RestoreMachineRun(ctx context.Context, arg RestoreMachineRunParams) error
 	RetireFillIdentifiers(ctx context.Context, arg RetireFillIdentifiersParams) error
 	RoleExists(ctx context.Context, id uuid.UUID) (bool, error)
 	SearchBillingParties(ctx context.Context, arg SearchBillingPartiesParams) ([]SearchBillingPartiesRow, error)
@@ -238,7 +256,7 @@ type Querier interface {
 	SetRecordedRunOutcomeFromMachine(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	SetRunSignageHidden(ctx context.Context, arg SetRunSignageHiddenParams) (MachineRun, error)
 	SoftDeleteMachineJob(ctx context.Context, arg SoftDeleteMachineJobParams) (MachineJob, error)
-	// A deleted run is detached from its job.
+	// A deleted run is detached from its job but remembers it for the recycle bin.
 	SoftDeleteMachineRun(ctx context.Context, arg SoftDeleteMachineRunParams) error
 	StatisticAcquisitionCost(ctx context.Context, arg StatisticAcquisitionCostParams) ([]StatisticAcquisitionCostRow, error)
 	StatisticAdjustmentLoss(ctx context.Context, arg StatisticAdjustmentLossParams) ([]StatisticAdjustmentLossRow, error)

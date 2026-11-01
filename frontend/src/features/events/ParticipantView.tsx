@@ -292,6 +292,7 @@ export function ParticipantView({ event }: { event: Event }) {
       <DestructiveActionDialog
         open={Boolean(leaving)}
         title="Leave shift?"
+        fate="none"
         confirmLabel="Leave shift"
         pending={leave.isPending}
         error={leave.isError ? eventMutationMessage(leave.error) : undefined}

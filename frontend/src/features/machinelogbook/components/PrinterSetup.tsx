@@ -496,6 +496,7 @@ export function PrinterSetup({
       <DestructiveActionDialog
         open={disableOpen}
         title="Disable printing?"
+        fate="none"
         confirmLabel="Disable profile"
         pending={configure.isPending}
         error={configure.isError ? 'The profile could not be disabled. Reload and try again.' : undefined}

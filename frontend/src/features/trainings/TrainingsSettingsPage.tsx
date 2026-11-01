@@ -175,6 +175,7 @@ function TrainingsPanel() {
       <DestructiveActionDialog
         open={deleting !== null}
         title="Delete training"
+        fate="permanent"
         confirmLabel="Delete training"
         pending={remove.isPending}
         error={deleteError(remove.error, 'People hold records of this training. Deactivate it instead.')}
@@ -287,6 +288,7 @@ function CategoriesPanel() {
       <DestructiveActionDialog
         open={deleting !== null}
         title="Delete competency"
+        fate="permanent"
         confirmLabel="Delete competency"
         pending={remove.isPending}
         error={deleteError(remove.error, 'Trainings feed this competency. Deactivate it instead.')}

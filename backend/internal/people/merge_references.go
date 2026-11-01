@@ -108,6 +108,7 @@ var MergeReferences = []MergeReference{
 	{"privacy_subject_requests", "identity_verified_by_account_id", "accounts", ruleActor},
 	{"printer_connector_enrollments", "created_by_account_id", "accounts", ruleActor},
 	{"printer_connectors", "events_cleared_by", "accounts", ruleActor},
+	{"printer_error_occurrences", "cleared_by_account_id", "accounts", ruleActor},
 	{"printer_discovery_requests", "requested_by_account_id", "accounts", ruleActor},
 	{"printer_spool_assignments", "mounted_by_account_id", "accounts", ruleActor},
 	{"printer_spool_assignments", "unmounted_by_account_id", "accounts", ruleActor},

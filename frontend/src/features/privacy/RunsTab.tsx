@@ -630,6 +630,7 @@ export function RunsTab() {
       <DestructiveActionDialog
         open={confirmExecute}
         title="Execute retention run"
+        fate="permanent"
         confirmLabel="Execute"
         pending={start.isPending}
         error={start.isError ? privacyErrorMessage(start.error) : undefined}

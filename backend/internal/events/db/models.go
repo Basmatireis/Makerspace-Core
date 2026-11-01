@@ -622,6 +622,7 @@ type MachineRun struct {
 	DeletedBy             *uuid.UUID
 	HiddenFromSignage     bool
 	ArtifactManual        bool
+	FormerJobID           *uuid.UUID
 }
 
 type MachineRunCommand struct {

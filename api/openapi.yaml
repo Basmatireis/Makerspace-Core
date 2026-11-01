@@ -8320,6 +8320,103 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /machine-logbook/recycle-bin:
+    get:
+      tags: [Machine Runs]
+      operationId: getRecycleBin
+      summary: Deleted jobs and runs that can still be restored
+      description: >-
+        Needs machine_jobs.delete. Deleted jobs and runs, newest deletion first, at most 500 each. A job lists how many
+        runs went into the bin with it and how many recorded runs it left behind as unassigned runs.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: The bin., content: {application/json: {schema: {$ref: "#/components/schemas/RecycleBin"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-logbook/recycle-bin/jobs/{machineJobId}:
+    parameters:
+      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Machine Runs]
+      operationId: purgeMachineJob
+      summary: Delete a job in the bin for good
+      description: >-
+        Needs machine_jobs.delete. Removes the job with its pricing snapshots and usages; runs that went into the bin
+        with it are removed too, runs it left behind stay. Inventory bookings are kept. Audited as `machine_job.purged`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Gone for good.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-logbook/recycle-bin/jobs/{machineJobId}/restore:
+    parameters:
+      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Runs]
+      operationId: restoreMachineJob
+      summary: Bring a deleted job back
+      description: >-
+        Needs machine_jobs.delete. The job comes back with the runs that went into the bin with it; recorded runs it
+        left behind as unassigned runs are attached again as long as nobody claimed them. Material the deletion
+        reversed stays reversed. Audited as `machine_job.restored`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Restored., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-logbook/recycle-bin/runs/{runId}:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Machine Runs]
+      operationId: purgeMachineRun
+      summary: Delete a run in the bin for good
+      description: >-
+        Needs machine_jobs.delete. Removes the run with its usages, measures and reports; inventory bookings are kept
+        and its print file stays for other runs. Audited as `machine_run.purged`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Gone for good.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-logbook/recycle-bin/runs/{runId}/restore:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Runs]
+      operationId: restoreMachineRun
+      summary: Bring a deleted run back
+      description: >-
+        Needs machine_jobs.delete. The run comes back into its former job when that job still exists and is not in
+        the bin; otherwise as an unassigned run. Material the deletion reversed stays reversed. Audited as
+        `machine_run.restored`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Restored., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRun"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /machine-logbook/overview:
     get:
       tags: [Machine Logbook]
@@ -17738,6 +17835,48 @@ components:
         runs: {type: array, minItems: 1, maxItems: 100, items: {$ref: "#/components/schemas/BulkItem"}}
         replaceManualRuns: {type: boolean}
         expectedJobVersion: {$ref: "#/components/schemas/Version"}
+
+    DeletedMachineJob:
+      type: object
+      additionalProperties: false
+      required: [id, displayId, title, machineId, machineName, deletedAt, deletedByName, deletedRunCount, detachedRunCount, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        displayId: {type: string}
+        title: {type: string, nullable: true}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        machineName: {type: string}
+        deletedAt: {type: string, format: date-time}
+        deletedByName: {type: string, nullable: true}
+        deletedRunCount: {type: integer, format: int64, minimum: 0, description: Runs that went into the bin with the job.}
+        detachedRunCount: {type: integer, format: int64, minimum: 0, description: "Recorded runs the deletion left behind as unassigned runs, still unclaimed."}
+        version: {$ref: "#/components/schemas/Version"}
+
+    DeletedMachineRun:
+      type: object
+      additionalProperties: false
+      required: [id, displayId, fileName, source, machineId, machineName, deletedAt, deletedByName, formerJobId, formerJobDisplayId, formerJobInBin, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        displayId: {type: string}
+        fileName: {type: string, nullable: true}
+        source: {$ref: "#/components/schemas/MachineRunSource"}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        machineName: {type: string}
+        deletedAt: {type: string, format: date-time}
+        deletedByName: {type: string, nullable: true}
+        formerJobId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        formerJobDisplayId: {type: string, nullable: true}
+        formerJobInBin: {type: boolean, description: "The former job is in the bin too; restoring the run alone makes it unassigned."}
+        version: {$ref: "#/components/schemas/Version"}
+
+    RecycleBin:
+      type: object
+      additionalProperties: false
+      required: [jobs, runs]
+      properties:
+        jobs: {type: array, items: {$ref: "#/components/schemas/DeletedMachineJob"}}
+        runs: {type: array, items: {$ref: "#/components/schemas/DeletedMachineRun"}}
 
     DeleteMachineJobRequest:
       type: object

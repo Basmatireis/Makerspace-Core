@@ -368,6 +368,7 @@ export function DeleteRoleDialog({
     <DestructiveActionDialog
       open
       title="Delete role?"
+      fate="permanent"
       confirmLabel="Delete role"
       launcherButtonRef={launcherButtonRef}
       pending={isPending}

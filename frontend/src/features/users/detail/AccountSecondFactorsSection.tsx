@@ -79,6 +79,7 @@ export function AccountSecondFactorsSection({ account, canReset }: { account: Ac
       <DestructiveActionDialog
         open={confirming}
         title="Reset second factors?"
+        fate="permanent"
         confirmLabel="Reset second factors"
         pending={reset.isPending}
         error={

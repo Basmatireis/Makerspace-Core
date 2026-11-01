@@ -1357,9 +1357,84 @@ WHERE id = sqlc.arg(id) AND deleted_at IS NULL AND version = sqlc.arg(expected_v
 RETURNING *;
 
 -- name: SoftDeleteMachineRun :exec
--- A deleted run is detached from its job.
-UPDATE machine_runs SET deleted_at = sqlc.arg(deleted_at), deleted_by = sqlc.narg(deleted_by), job_id = NULL, version = version + 1, updated_at = sqlc.arg(deleted_at)
+-- A deleted run is detached from its job but remembers it for the recycle bin.
+UPDATE machine_runs SET deleted_at = sqlc.arg(deleted_at), deleted_by = sqlc.narg(deleted_by), former_job_id = COALESCE(job_id, former_job_id), job_id = NULL,
+    version = version + 1, updated_at = sqlc.arg(deleted_at)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
+
+-- name: DetachRunForJobDeletion :exec
+-- A recorded run that outlives its deleted job becomes unassigned but remembers the job.
+UPDATE machine_runs SET former_job_id = job_id, job_id = NULL, version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND source = 'recorded' AND job_id IS NOT NULL;
+
+-- name: ListDeletedMachineJobs :many
+SELECT j.id, j.display_id, j.title, j.machine_id, m.name AS machine_name, j.deleted_at, j.version,
+       p.first_name AS deleted_by_first_name, p.last_name AS deleted_by_last_name,
+       (SELECT count(*) FROM machine_runs r WHERE r.deleted_at = j.deleted_at AND r.former_job_id = j.id)::bigint AS deleted_run_count,
+       (SELECT count(*) FROM machine_runs r WHERE r.deleted_at IS NULL AND r.job_id IS NULL AND r.former_job_id = j.id)::bigint AS detached_run_count
+FROM machine_jobs j
+JOIN machines m ON m.id = j.machine_id
+LEFT JOIN accounts a ON a.id = j.deleted_by
+LEFT JOIN people p ON p.id = a.person_id
+WHERE j.deleted_at IS NOT NULL
+ORDER BY j.deleted_at DESC, j.id DESC
+LIMIT 500;
+
+-- name: ListDeletedMachineRuns :many
+SELECT r.id, r.display_id, r.file_name, r.source, r.machine_id, m.name AS machine_name, r.deleted_at, r.version,
+       p.first_name AS deleted_by_first_name, p.last_name AS deleted_by_last_name,
+       j.id AS former_job_id, j.display_id AS former_job_display_id, j.deleted_at AS former_job_deleted_at
+FROM machine_runs r
+JOIN machines m ON m.id = r.machine_id
+LEFT JOIN accounts a ON a.id = r.deleted_by
+LEFT JOIN people p ON p.id = a.person_id
+LEFT JOIN machine_jobs j ON j.id = r.former_job_id
+WHERE r.deleted_at IS NOT NULL
+ORDER BY r.deleted_at DESC, r.id DESC
+LIMIT 500;
+
+-- name: GetDeletedMachineJobForUpdate :one
+SELECT * FROM machine_jobs WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL FOR UPDATE;
+
+-- name: GetDeletedMachineRunForUpdate :one
+SELECT * FROM machine_runs WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL FOR UPDATE;
+
+-- name: RestoreMachineJob :exec
+UPDATE machine_jobs SET deleted_at = NULL, deleted_by = NULL, version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL;
+
+-- name: RestoreMachineRun :exec
+-- Back into its former job when that job is alive; otherwise unassigned.
+UPDATE machine_runs
+SET deleted_at = NULL, deleted_by = NULL,
+    job_id = CASE WHEN sqlc.arg(reattach)::boolean THEN former_job_id ELSE NULL END,
+    former_job_id = NULL, version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL;
+
+-- name: ListRunsDeletedWithJob :many
+-- The runs that went into the bin together with the job (same moment), locked for the restore.
+SELECT * FROM machine_runs
+WHERE former_job_id = sqlc.arg(job_id) AND deleted_at = sqlc.arg(deleted_at)::timestamptz
+ORDER BY started_at, id
+FOR UPDATE;
+
+-- name: ReattachDetachedRunsOfJob :execrows
+-- Recorded runs the job deletion detached, as long as they are still unassigned and alive.
+UPDATE machine_runs SET job_id = former_job_id, former_job_id = NULL, version = version + 1, updated_at = now()
+WHERE former_job_id = sqlc.arg(job_id) AND job_id IS NULL AND deleted_at IS NULL AND source = 'recorded';
+
+-- name: ForgetFormerJobOfRuns :exec
+UPDATE machine_runs SET former_job_id = NULL WHERE former_job_id = sqlc.arg(job_id);
+
+-- name: PurgeMachineRun :execrows
+-- Usages, measures, reported items, reports and timelapse rows cascade; the inventory ledger keeps its copies.
+DELETE FROM machine_runs WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL;
+
+-- name: PurgeMachineJob :execrows
+DELETE FROM machine_jobs WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL;
+
+-- name: CountLiveRunsOfJob :one
+SELECT count(*) FROM machine_runs WHERE job_id = sqlc.arg(job_id) AND deleted_at IS NULL;
 
 -- name: SumRunUsageLedger :one
 -- The net quantity and value the ledger holds for a run usage.

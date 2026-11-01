@@ -511,6 +511,7 @@ export function RunDetailPage() {
       <DestructiveActionDialog
         open={dialog === 'detach'}
         title="Detach this run?"
+        fate="none"
         confirmLabel="Detach"
         pending={detach.isPending}
         onClose={close}

@@ -270,6 +270,7 @@ export function EventFilesPanel({
         launcherButtonRef={deleteLauncher}
         open={Boolean(removeTarget) && !guard.dialogOpen}
         title={`Remove ${removeTarget?.originalFilename ?? 'file'}?`}
+        fate="permanent"
         confirmLabel="Remove file"
         pending={remove.isPending}
         error={String(remove.error ?? '') || undefined}

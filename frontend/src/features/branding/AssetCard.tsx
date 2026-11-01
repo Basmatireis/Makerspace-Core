@@ -123,6 +123,7 @@ export function AssetCard({
       <DestructiveActionDialog
         open={confirm === 'remove'}
         title={`Remove ${descriptor.title.toLowerCase()}?`}
+        fate="permanent"
         confirmLabel="Remove asset"
         pending={action.isPending}
         error={action.isError ? mutationMessage(action.error) : undefined}

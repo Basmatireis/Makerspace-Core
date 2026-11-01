@@ -192,6 +192,14 @@ Deleting a job or a recorded run needs `machine_jobs.delete`; removing a manual 
 - Locks follow job, then runs. Audit events `machine_job.deleted` and `machine_run.deleted` commit with the mutation; audit metadata only allows UUIDs, so the choices are recorded as changed fields (`usages`, `inventory`, `recordedRunsDeleted`, `recordedRunsDetached`).
 - Connector events for a deleted recorded run are stored (idempotency) with application state `recorded` and reason `run_deleted`; they never change or resurrect the run and book no consumption.
 
+### Recycle bin
+
+Deleted jobs and runs stay in a recycle bin (Workshop › Jobs › Recycle bin, `GET /machine-logbook/recycle-bin`, `machine_jobs.delete`; newest deletion first, at most 500 each). A deleted or detached run remembers its job in `machine_runs.former_job_id` (migration 00087).
+
+- **Restore** (`POST /machine-logbook/recycle-bin/jobs/{id}/restore`, `…/runs/{id}/restore`, `{expectedVersion}`, `machine_jobs.delete`): a job comes back with the runs that went into the bin at the same moment and re-attaches the recorded runs its deletion detached as long as they are still unassigned; the job is settled again. A run comes back into its former job when that job is alive, otherwise as an unassigned run; a manual run whose job is in the bin answers 409 `job_in_bin`. Material a deletion reversed stays reversed (the ledger is immutable); a purged timelapse is gone. Audited as `machine_job.restored` (with `countRunsRestored`, `countRunsReattached`) and `machine_run.restored`.
+- **Delete for good** (`DELETE /machine-logbook/recycle-bin/jobs/{id}`, `…/runs/{id}`, `{expectedVersion}`): removes the rows; usages, measures, reports and timelapse links cascade, a job takes the runs deleted with it, inventory bookings and print files stay. Audited as `machine_job.purged` and `machine_run.purged`.
+- **Confirmations.** Every delete in the UI asks first and says whether the item moves to the recycle bin (jobs and runs) or is gone for good (everything else).
+
 ## Bulk operations on the Jobs table
 
 The Jobs table lists work items (jobs and unassigned recorded runs) and can act on a selection. Four endpoints apply the rules of the single operations to several items in **one transaction**: all-or-nothing, one audit event per affected job and run in the same transaction, and an optimistic version check per item (`{id, expectedVersion}`, at most 100 per list, no repeated IDs).

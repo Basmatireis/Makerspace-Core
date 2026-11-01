@@ -483,6 +483,7 @@ export function OpenDaysPage() {
       <DestructiveActionDialog
         open={Boolean(deletePeriod)}
         title="Delete period?"
+        fate="permanent"
         confirmLabel="Delete period"
         pending={deleteMutation.isPending}
         error={deleteMutation.isError ? 'The period may have changed. Reload and try again.' : undefined}

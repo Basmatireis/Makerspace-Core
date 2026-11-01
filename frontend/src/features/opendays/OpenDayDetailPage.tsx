@@ -514,6 +514,7 @@ function OpenDayDetails({
         <DestructiveActionDialog
           open
           title={assignmentRemoval === 'self' ? 'Leave Open Day?' : 'Remove assignment?'}
+          fate="permanent"
           confirmLabel={assignmentRemoval === 'self' ? 'Leave Open Day' : 'Remove assignment'}
           pending={mutationPending}
           error={
@@ -529,6 +530,7 @@ function OpenDayDetails({
         <DestructiveActionDialog
           open
           title={removesDraft ? 'Delete Open Day?' : 'Cancel Open Day?'}
+          fate={removesDraft ? 'permanent' : 'none'}
           confirmLabel={removesDraft ? 'Delete Open Day' : 'Cancel Open Day'}
           cancelLabel="Keep Open Day"
           pending={mutationPending}

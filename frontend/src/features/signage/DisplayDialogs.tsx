@@ -139,6 +139,7 @@ export function DeleteDisplayDialog({ display, onClose }: { display: SignageDisp
     <DestructiveActionDialog
       open
       title="Delete display"
+      fate="permanent"
       confirmLabel="Delete"
       pending={remove.isPending}
       error={remove.isError ? (isStaleWrite(remove.error) ? staleText : errorMessage(remove.error)) : undefined}

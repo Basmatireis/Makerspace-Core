@@ -216,6 +216,7 @@ export function RoleAndConfirmationDialogs({ person, ctrl }: { person: Person; c
       <DestructiveActionDialog
         open={Boolean(roleToRemove)}
         title={`Remove ${roleToRemove?.name ?? 'role'}?`}
+        fate="permanent"
         confirmLabel="Remove role"
         pending={roleMutation.isPending}
         error={

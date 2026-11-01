@@ -361,6 +361,7 @@ export function HoldsTab() {
       <DestructiveActionDialog
         open={releasing !== undefined}
         title="Release hold"
+        fate="none"
         confirmLabel="Release"
         pending={release.isPending}
         error={release.isError ? privacyErrorMessage(release.error) : undefined}

@@ -639,6 +639,7 @@ function RetentionEditor({
         <DestructiveActionDialog
           open={confirmation !== undefined}
           title={confirmation?.status === 'active' ? 'Activate this decision' : 'Retire this decision'}
+          fate="none"
           confirmLabel={confirmation?.status === 'active' ? 'Activate' : 'Retire'}
           pending={transition.isPending}
           error={transition.isError ? privacyErrorMessage(transition.error) : undefined}

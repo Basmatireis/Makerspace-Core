@@ -18,6 +18,7 @@ export function RetractMessageModal({ message, onClose }: { message: SentNotific
     <DestructiveActionDialog
       open
       title="Retract this message?"
+      fate="permanent"
       confirmLabel="Retract message"
       pending={retract.isPending}
       error={retract.isError ? 'The message could not be retracted. Check the connection and try again.' : undefined}

@@ -405,6 +405,7 @@ function RequestView({
       <DestructiveActionDialog
         open={dialog === 'reject'}
         title="Reject this request"
+        fate="none"
         confirmLabel="Reject"
         pending={transition.isPending}
         error={dialogError}
@@ -428,6 +429,7 @@ function RequestView({
       <DestructiveActionDialog
         open={dialog === 'execute'}
         title="Delete the person's data"
+        fate="permanent"
         confirmLabel="Delete the data"
         pending={execute.isPending}
         error={dialogError}

@@ -177,6 +177,7 @@ export function SurveyLinksTab({ survey }: { survey: Survey }) {
       <DestructiveActionDialog
         open={deleting !== null}
         title="Delete this share link?"
+        fate="permanent"
         confirmLabel="Delete link"
         pending={remove.isPending}
         error={remove.error?.message}

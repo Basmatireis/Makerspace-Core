@@ -335,6 +335,7 @@ export function DeleteDialog({
     <DestructiveActionDialog
       open
       title={title}
+      fate="permanent"
       confirmLabel={confirmLabel}
       pending={mutation.isPending}
       error={mutation.isError && !inUseReferences(mutation.error) ? errorMessage(mutation.error) : undefined}

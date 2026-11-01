@@ -274,6 +274,7 @@ export function AuthenticationDialogs({ authentication }: { authentication: Prof
         open={Boolean(oidcIdentityToUnlink)}
         title="Unlink external identity?"
         launcherButtonRef={oidcUnlinkLauncher}
+        fate="none"
         confirmLabel="Unlink identity"
         pending={unlinkOIDCMutation.isPending}
         error={unlinkOIDCMutation.isError ? 'Try again after reauthenticating.' : undefined}
