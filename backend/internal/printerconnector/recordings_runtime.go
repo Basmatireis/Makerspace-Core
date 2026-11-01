@@ -164,13 +164,14 @@ func (r *Runtime) startCommand(ctx context.Context, identity Identity, command R
 			time.Now().UTC().Add(refetchRetrievalWindow),
 		)
 		if errors.Is(err, errArtifactPathUnknown) {
-			// A print from internal storage has no scheduled retrieval; look it up
-			// by name once more, as after the run.
-			facts, internal, factsErr := r.store.InternalStorageRunFacts(ctx, command.AssignmentID, command.RunID, kind)
+			// The run never had a retrieval (recorded by an older connector, or its
+			// archive name only became known at the end); look it up now.
+			facts, known, factsErr := r.store.RunFactsFor(ctx, command.AssignmentID, command.RunID, kind)
 			if factsErr != nil {
 				return factsErr
 			}
-			if !internal || !isBambuArchivePath(facts.ArchiveCandidate) {
+			reportedPath := artifactLookupPath(facts)
+			if !known || reportedPath == "" {
 				return r.failCommand(ctx, command, commandReasonPathUnknown)
 			}
 			err = r.store.ScheduleArtifactRetrieval(
@@ -178,11 +179,15 @@ func (r *Runtime) startCommand(ctx context.Context, identity Identity, command R
 				command.AssignmentID,
 				command.RunID,
 				configurationVersion,
-				facts.ArchiveCandidate,
+				reportedPath,
 				time.Now().UTC().Add(refetchRetrievalWindow),
 			)
 		}
 		if err != nil {
+			return err
+		}
+		// Core accepts re-fetches for ended runs only: a lookup that finds nothing is not repeated.
+		if err = r.store.MarkArtifactLookupFinal(ctx, command.AssignmentID, command.RunID); err != nil {
 			return err
 		}
 	case "recompute_consumption":
@@ -297,13 +302,13 @@ func (r *Runtime) checkCommand(ctx context.Context, command RunCommand) error {
 			if reason != nil {
 				last = *reason
 			}
-			failure := artifactProblemReason(last)
-			if _, internal, factsErr := r.store.InternalStorageRunFacts(
-				ctx, command.AssignmentID, command.RunID, r.adapterKindOf(command.AssignmentID),
-			); factsErr == nil && internal && failure == machineArtifactNotFound {
-				failure = machineArtifactOnInternal
+			failure, _, failureErr := artifactFailureFor(
+				ctx, r.store, command.AssignmentID, command.RunID, r.adapterKindOf(command.AssignmentID), last,
+			)
+			if failureErr != nil {
+				return failureErr
 			}
-			return r.failCommand(ctx, command, string(failure))
+			return r.failCommand(ctx, command, failure)
 		}
 	case "recompute_consumption":
 		done, err := r.store.ConsumptionReportedSince(ctx, command.AssignmentID, command.RunID, command.AcceptedAt)

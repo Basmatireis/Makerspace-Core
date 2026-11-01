@@ -57,8 +57,16 @@ type bambuRunFacts struct {
 	Source bambuPrintSource `json:"source,omitempty"`
 	// InternalPath is the internal storage path the printer reported for an internal-storage print.
 	InternalPath string `json:"internalPath,omitempty"`
-	// ArchiveCandidate is the archive name derived from the print name, looked up once after the run ends.
+	// ArchiveCandidate is the archive name the printer reported or, failing that, the print name with Bambu's
+	// suffix; it is looked up on external storage whatever the print's source.
 	ArchiveCandidate string `json:"archiveCandidate,omitempty"`
+	// PrintName is the printer's subtask_name, the name the archive is looked up and validated by.
+	PrintName string `json:"printName,omitempty"`
+	// ArchivePath is the archive's FTPS path (directory and name) when a status of this session named it on
+	// external storage: the strongest evidence of where the file is.
+	ArchivePath string `json:"archivePath,omitempty"`
+	// TotalLayers is the printer's total_layer_num, which tells two archives of the same name apart.
+	TotalLayers *int `json:"totalLayers,omitempty"`
 }
 
 type bambuSpoolEvidence struct {
@@ -559,9 +567,12 @@ func bambuExplicitArchivePath(state map[string]any) string {
 }
 
 // applyBambuPrintSource records the url of this message, if any, and classifies
-// where the print's archive lives. A print that names its archive explicitly
+// where the print runs from. A print that names its archive explicitly
 // stays external; otherwise the url rule in classifyBambuPrintSource decides,
-// falling back to the merged document's url when this run saw none.
+// falling back to the merged document's url when this run saw none. The source
+// is a diagnostic only: the archive name (and, when a url of this session
+// names it, its FTPS path) is kept for every run, because a print may run from
+// internal storage while its archive is readable on external storage.
 func applyBambuPrintSource(facts *bambuRunFacts, patch, printState map[string]any) {
 	patchPrint := objectAt(patch, "print")
 	if patchPrint == nil {
@@ -574,21 +585,36 @@ func applyBambuPrintSource(facts *bambuRunFacts, patch, printState map[string]an
 		facts.ReportedURL = reported
 	}
 	subtaskName := scalarString(printState["subtask_name"])
+	if name := strings.TrimSpace(subtaskName); name != "" {
+		if len(name) > 255 {
+			name = name[:255]
+		}
+		facts.PrintName = name
+	}
+	if layers, ok := boundedInt(printState["total_layer_num"], 1, math.MaxInt32); ok {
+		facts.TotalLayers = &layers
+	}
 	sessionURL := facts.ReportedURL
 	if sessionURL == "" && strings.TrimSpace(subtaskName) != "" {
 		// A connector (re)started during the print missed the message with the url; the merged document's url
 		// still counts when its file name matches this print, which a previous print's url does not.
 		sessionURL = strings.TrimSpace(scalarString(printState["url"]))
 	}
-	if bambuExplicitArchivePath(printState) != "" ||
-		classifyBambuPrintSource(sessionURL, subtaskName) == bambuSourceExternal {
+	facts.ArchiveCandidate = bambuArtifactPath(printState)
+	explicit := bambuExplicitArchivePath(printState)
+	urlNamesThisPrint := classifyBambuPrintSource(sessionURL, subtaskName) == bambuSourceExternal
+	if explicit != "" || urlNamesThisPrint {
 		facts.Source = bambuSourceExternal
-		facts.InternalPath, facts.ArchiveCandidate = "", ""
+		facts.InternalPath = ""
+		facts.ArchivePath = bambuFTPSArchivePath(explicit)
+		if facts.ArchivePath == "" && urlNamesThisPrint {
+			facts.ArchivePath = bambuFTPSArchivePath(sessionURL)
+		}
 		return
 	}
 	facts.Source = bambuSourceInternal
 	facts.InternalPath = bambuInternalPath(printState)
-	facts.ArchiveCandidate = bambuArtifactPath(printState)
+	facts.ArchivePath = ""
 }
 
 func isBambuArchivePath(value string) bool {

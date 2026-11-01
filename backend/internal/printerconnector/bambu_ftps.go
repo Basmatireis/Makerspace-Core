@@ -33,41 +33,25 @@ type ArtifactCandidate struct {
 	Size       int64
 }
 
-// SelectArtifactCandidate performs exact matching only. An exact reported path
-// wins; otherwise an exact basename must identify one file across /cache and /.
+// SelectArtifactCandidate resolves a reported path alone, without run facts: an
+// exact reported path wins; otherwise the name must identify one file across
+// /cache and /. The retrieval worker uses discoverArtifacts with the run's
+// evidence, which also tells the same name in both directories apart.
 func SelectArtifactCandidate(reportedPath string, listings map[string][]FTPEntry) (ArtifactCandidate, error) {
 	reportedPath = strings.TrimSpace(reportedPath)
-	hasDirectory := strings.Contains(reportedPath, "/") || strings.Contains(reportedPath, `\`)
 	clean := path.Clean("/" + strings.TrimPrefix(strings.ReplaceAll(reportedPath, `\`, "/"), "/"))
 	name := path.Base(clean)
-	if name == "." || name == "/" || strings.ContainsAny(name, `/\`) {
+	if name == "." || name == "/" || strings.ContainsAny(name, `/\`) || !isBambuArchivePath(name) {
 		return ArtifactCandidate{}, errors.New("invalid reported artifact path")
 	}
-	if directory := path.Dir(clean); hasDirectory && (directory == "/" || directory == "/cache") {
-		for _, entry := range listings[directory] {
-			if !entry.IsDir && entry.Name == name {
-				return ArtifactCandidate{RemotePath: path.Join(directory, name), Name: name, Size: entry.Size}, nil
-			}
-		}
+	candidates, err := discoverArtifacts(artifactEvidenceFor(reportedPath, bambuRunFacts{}, false), listings)
+	if err != nil {
+		return ArtifactCandidate{}, err
 	}
-	var matches []ArtifactCandidate
-	for _, directory := range []string{"/cache", "/"} {
-		for _, entry := range listings[directory] {
-			if !entry.IsDir && entry.Name == name {
-				matches = append(
-					matches,
-					ArtifactCandidate{RemotePath: path.Join(directory, name), Name: name, Size: entry.Size},
-				)
-			}
-		}
+	if len(candidates) != 1 {
+		return ArtifactCandidate{}, errArtifactAmbiguous
 	}
-	if len(matches) == 0 {
-		return ArtifactCandidate{}, errors.New("reported artifact is not available over FTPS")
-	}
-	if len(matches) != 1 {
-		return ArtifactCandidate{}, errors.New("reported artifact name is ambiguous over FTPS")
-	}
-	return matches[0], nil
+	return candidates[0], nil
 }
 
 type ArtifactCandidateTracker struct {

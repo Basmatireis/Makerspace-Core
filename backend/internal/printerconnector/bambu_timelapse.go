@@ -99,8 +99,8 @@ func SelectTimelapseCandidate(
 	}
 }
 
-// timelapseFTPS is the part of the FTPS client timelapse retrieval needs.
-type timelapseFTPS interface {
+// bambuFTPS is the part of the FTPS client archive and timelapse retrieval need.
+type bambuFTPS interface {
 	List(context.Context, string) ([]FTPEntry, error)
 	RetrieveLimited(context.Context, string, io.Writer, int64) error
 	Close() error
@@ -144,9 +144,9 @@ func (a *bambuH2DAdapter) recordingFeatures() *RecordingFeatures {
 	return a.features.RecordingFeatures()
 }
 
-func (a *bambuH2DAdapter) openTimelapseFTPS(ctx context.Context) (timelapseFTPS, error) {
-	if a.newTimelapseFTPS != nil {
-		return a.newTimelapseFTPS(ctx)
+func (a *bambuH2DAdapter) openFTPS(ctx context.Context) (bambuFTPS, error) {
+	if a.newFTPS != nil {
+		return a.newFTPS(ctx)
 	}
 	client, err := NewBambuFTPSClient(a.settings, a.secrets)
 	if err != nil {
@@ -181,29 +181,34 @@ func (a *bambuH2DAdapter) noteRunsForRecordings(ctx context.Context, observation
 	return nil
 }
 
+// noteRunEnded settles what the end of a run means for its archive: a print from
+// internal storage first tries Core's own copy (staff may have uploaded the
+// 3MF), a run without a retrieval yet gets one from the facts now known, and a
+// pending retrieval learns that the run ended so its lookup gives up after the
+// post-run window.
 func (a *bambuH2DAdapter) noteRunEnded(ctx context.Context, runID uuid.UUID) error {
-	_, _, scheduled, err := a.store.ArtifactRetrievalState(ctx, a.assignmentID, runID)
+	state, _, scheduled, err := a.store.ArtifactRetrievalState(ctx, a.assignmentID, runID)
 	if err != nil {
 		return err
 	}
-	facts, internal, factsErr := a.store.InternalStorageRunFacts(ctx, a.assignmentID, runID, a.kind)
+	facts, known, factsErr := a.store.RunFactsFor(ctx, a.assignmentID, runID, a.kind)
 	if factsErr != nil {
 		return factsErr
 	}
+	internal := known && facts.Source == bambuSourceInternal
+	now := time.Now().UTC()
 	adopted := false
-	if internal {
+	if internal && (!scheduled || state == "pending") {
 		if adopted, err = a.adoptCoreArtifact(ctx, runID); err != nil {
 			return err
 		}
 	}
-	if adopted {
-		scheduled = true
-	} else if internal && !scheduled && isBambuArchivePath(facts.ArchiveCandidate) {
-		// Conservative fallback: the file might exist on external storage after all.
-		// Looked up once; a successful listing without it settles the report.
-		expiresAt := time.Now().UTC().Add(24 * time.Hour)
+	if !scheduled && !adopted && known && artifactLookupPath(facts) != "" {
+		// The archive might exist on external storage after all; the worker looks for it
+		// until the post-run window ends.
+		expiresAt := now.Add(24 * time.Hour)
 		if err = a.store.ScheduleArtifactRetrieval(
-			ctx, a.assignmentID, runID, a.configurationVersion, facts.ArchiveCandidate, expiresAt,
+			ctx, a.assignmentID, runID, a.configurationVersion, artifactLookupPath(facts), expiresAt,
 		); err != nil {
 			return err
 		}
@@ -212,7 +217,19 @@ func (a *bambuH2DAdapter) noteRunEnded(ctx context.Context, runID uuid.UUID) err
 		}
 		scheduled = true
 	}
-	if !scheduled {
+	if scheduled {
+		if err = a.store.MarkArtifactRunEnded(ctx, a.assignmentID, runID, now); err != nil {
+			return err
+		}
+		if adopted {
+			// Core's copy settles the run; the printer is not asked for the file any more.
+			settled := ArtifactRetrieval{AssignmentID: a.assignmentID, RunID: runID}
+			if err = a.store.MarkArtifactRetrievalStaged(ctx, settled); err != nil {
+				return err
+			}
+		}
+	}
+	if !scheduled && !adopted {
 		// The printer never named an archive for this print (for example a plain G-code print).
 		if err = a.reportArtifactProblem(ctx, runID, "unavailable", "no_archive_reported"); err != nil {
 			return err
@@ -247,7 +264,7 @@ func (a *bambuH2DAdapter) processTimelapses(ctx context.Context) error {
 	if err != nil || len(due) == 0 {
 		return err
 	}
-	client, err := a.openTimelapseFTPS(ctx)
+	client, err := a.openFTPS(ctx)
 	if err != nil {
 		for _, item := range due {
 			if deferErr := a.deferTimelapse(ctx, item, err); deferErr != nil {
@@ -292,7 +309,7 @@ func maxTimelapseBytes(features *RecordingFeatures) int64 {
 
 func (a *bambuH2DAdapter) searchTimelapse(
 	ctx context.Context,
-	client timelapseFTPS,
+	client bambuFTPS,
 	item timelapseRetrieval,
 	listing []FTPEntry,
 	maxBytes int64,
@@ -335,7 +352,7 @@ type stagedTimelapse struct {
 
 func (a *bambuH2DAdapter) stageTimelapse(
 	ctx context.Context,
-	client timelapseFTPS,
+	client bambuFTPS,
 	item timelapseRetrieval,
 	match TimelapseMatch,
 	maxBytes int64,

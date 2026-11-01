@@ -140,9 +140,9 @@ func bambuInternalPath(state map[string]any) string {
 	return ""
 }
 
-// InternalStorageRunFacts returns the run's facts when the connector classified
-// its print as coming from internal storage.
-func (s *Store) InternalStorageRunFacts(
+// RunFactsFor returns the reducer's facts about a run, when the adapter state
+// still holds them (the last 64 sessions).
+func (s *Store) RunFactsFor(
 	ctx context.Context,
 	assignmentID, runID uuid.UUID,
 	kind AdapterKind,
@@ -158,5 +158,16 @@ func (s *Store) InternalStorageRunFacts(
 		return bambuRunFacts{}, false, err
 	}
 	facts, ok := state.RunFacts[runID.String()]
-	return facts, ok && facts.Source == bambuSourceInternal, nil
+	return facts, ok, nil
+}
+
+// InternalStorageRunFacts returns the run's facts when the connector classified
+// its print as coming from internal storage.
+func (s *Store) InternalStorageRunFacts(
+	ctx context.Context,
+	assignmentID, runID uuid.UUID,
+	kind AdapterKind,
+) (bambuRunFacts, bool, error) {
+	facts, ok, err := s.RunFactsFor(ctx, assignmentID, runID, kind)
+	return facts, ok && facts.Source == bambuSourceInternal, err
 }
