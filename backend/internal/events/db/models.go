@@ -1354,6 +1354,16 @@ type PrinterErrorCode struct {
 	Link         *string
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	Source       string
+}
+
+type PrinterErrorCodeSync struct {
+	Singleton     bool
+	LastAttemptAt pgtype.Timestamptz
+	LastSuccessAt pgtype.Timestamptz
+	LastError     *string
+	ImportedCount int32
+	UpdatedAt     time.Time
 }
 
 type PrinterErrorOccurrence struct {

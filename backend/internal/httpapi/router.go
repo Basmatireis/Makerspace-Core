@@ -143,6 +143,15 @@ func NewApplicationWithRelay(
 			}, err
 		},
 	})
+	if cfg.PrinterErrorCodeSourceURL != "" {
+		jobs.Add(scheduler.Job{
+			ID: "printererrors.sync", Interval: printerconnectors.ErrorCodeSyncInterval, RunAtStart: true,
+			Run: func(ctx context.Context) (scheduler.Summary, error) {
+				count, err := server.printerConnectors.SyncErrorCodes(ctx)
+				return scheduler.Summary{"codes": count}, err
+			},
+		})
+	}
 	if cfg.SurveyDeliveryInterval > 0 {
 		jobs.Add(scheduler.Job{
 			ID: "surveys.delivery", Interval: cfg.SurveyDeliveryInterval,

@@ -1196,6 +1196,29 @@ func (q *Queries) GetOpenMountSpoolForSlot(ctx context.Context, slotID uuid.UUID
 	return spool_id, err
 }
 
+const getPrinterErrorCodeSync = `-- name: GetPrinterErrorCodeSync :one
+SELECT last_attempt_at, last_success_at, last_error, imported_count FROM printer_error_code_sync WHERE singleton
+`
+
+type GetPrinterErrorCodeSyncRow struct {
+	LastAttemptAt pgtype.Timestamptz
+	LastSuccessAt pgtype.Timestamptz
+	LastError     *string
+	ImportedCount int32
+}
+
+func (q *Queries) GetPrinterErrorCodeSync(ctx context.Context) (GetPrinterErrorCodeSyncRow, error) {
+	row := q.db.QueryRow(ctx, getPrinterErrorCodeSync)
+	var i GetPrinterErrorCodeSyncRow
+	err := row.Scan(
+		&i.LastAttemptAt,
+		&i.LastSuccessAt,
+		&i.LastError,
+		&i.ImportedCount,
+	)
+	return i, err
+}
+
 const getPrinterNotificationSettings = `-- name: GetPrinterNotificationSettings :one
 SELECT s.error_role_id, s.error_min_severity, s.version, s.updated_at, r.name AS error_role_name
 FROM printer_notification_settings s
@@ -2068,7 +2091,7 @@ func (q *Queries) ListObservedRuns(ctx context.Context, connectorID uuid.UUID) (
 }
 
 const listPrinterErrorCodes = `-- name: ListPrinterErrorCodes :many
-SELECT id, source_family, code, title, description, link, created_at, updated_at FROM printer_error_codes ORDER BY source_family, code
+SELECT id, source_family, code, title, description, link, created_at, updated_at, source FROM printer_error_codes ORDER BY source_family, code
 `
 
 func (q *Queries) ListPrinterErrorCodes(ctx context.Context) ([]PrinterErrorCode, error) {
@@ -2089,6 +2112,7 @@ func (q *Queries) ListPrinterErrorCodes(ctx context.Context) ([]PrinterErrorCode
 			&i.Link,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}
@@ -2101,7 +2125,7 @@ func (q *Queries) ListPrinterErrorCodes(ctx context.Context) ([]PrinterErrorCode
 }
 
 const listPrinterErrorCodesByCodes = `-- name: ListPrinterErrorCodesByCodes :many
-SELECT id, source_family, code, title, description, link, created_at, updated_at FROM printer_error_codes WHERE code = ANY($1::text[])
+SELECT id, source_family, code, title, description, link, created_at, updated_at, source FROM printer_error_codes WHERE code = ANY($1::text[])
 `
 
 func (q *Queries) ListPrinterErrorCodesByCodes(ctx context.Context, codes []string) ([]PrinterErrorCode, error) {
@@ -2122,6 +2146,7 @@ func (q *Queries) ListPrinterErrorCodesByCodes(ctx context.Context, codes []stri
 			&i.Link,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}
@@ -2446,6 +2471,36 @@ func (q *Queries) RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams
 		&i.CommandsPolledAt,
 	)
 	return i, err
+}
+
+const recordPrinterErrorCodeSyncFailure = `-- name: RecordPrinterErrorCodeSyncFailure :exec
+UPDATE printer_error_code_sync SET last_attempt_at = $1, last_error = $2, updated_at = now() WHERE singleton
+`
+
+type RecordPrinterErrorCodeSyncFailureParams struct {
+	At        pgtype.Timestamptz
+	LastError *string
+}
+
+func (q *Queries) RecordPrinterErrorCodeSyncFailure(ctx context.Context, arg RecordPrinterErrorCodeSyncFailureParams) error {
+	_, err := q.db.Exec(ctx, recordPrinterErrorCodeSyncFailure, arg.At, arg.LastError)
+	return err
+}
+
+const recordPrinterErrorCodeSyncSuccess = `-- name: RecordPrinterErrorCodeSyncSuccess :exec
+UPDATE printer_error_code_sync
+SET last_attempt_at = $1, last_success_at = $1, last_error = NULL, imported_count = $2, updated_at = now()
+WHERE singleton
+`
+
+type RecordPrinterErrorCodeSyncSuccessParams struct {
+	At            pgtype.Timestamptz
+	ImportedCount int32
+}
+
+func (q *Queries) RecordPrinterErrorCodeSyncSuccess(ctx context.Context, arg RecordPrinterErrorCodeSyncSuccessParams) error {
+	_, err := q.db.Exec(ctx, recordPrinterErrorCodeSyncSuccess, arg.At, arg.ImportedCount)
+	return err
 }
 
 const reenrollConnector = `-- name: ReenrollConnector :one
@@ -3109,12 +3164,44 @@ func (q *Queries) UpdatePrinterNotificationSettings(ctx context.Context, arg Upd
 	return i, err
 }
 
-const upsertPrinterErrorCode = `-- name: UpsertPrinterErrorCode :one
-INSERT INTO printer_error_codes (id, source_family, code, title, description, link)
-VALUES ($1, $2, $3, $4, $5, $6)
+const upsertFetchedPrinterErrorCode = `-- name: UpsertFetchedPrinterErrorCode :execrows
+INSERT INTO printer_error_codes (id, source_family, code, title, description, link, source)
+VALUES ($1, $2, $3, $4, $5, NULL, 'bambu')
 ON CONFLICT (source_family, code)
-DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, link = EXCLUDED.link, updated_at = now()
-RETURNING id, source_family, code, title, description, link, created_at, updated_at
+DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, updated_at = now()
+WHERE printer_error_codes.source = 'bambu'
+  AND (printer_error_codes.title <> EXCLUDED.title OR printer_error_codes.description <> EXCLUDED.description)
+`
+
+type UpsertFetchedPrinterErrorCodeParams struct {
+	ID           uuid.UUID
+	SourceFamily string
+	Code         string
+	Title        string
+	Description  string
+}
+
+// Fetched meanings fill gaps and refresh earlier fetched rows; a row someone wrote here stays as it is.
+func (q *Queries) UpsertFetchedPrinterErrorCode(ctx context.Context, arg UpsertFetchedPrinterErrorCodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertFetchedPrinterErrorCode,
+		arg.ID,
+		arg.SourceFamily,
+		arg.Code,
+		arg.Title,
+		arg.Description,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const upsertPrinterErrorCode = `-- name: UpsertPrinterErrorCode :one
+INSERT INTO printer_error_codes (id, source_family, code, title, description, link, source)
+VALUES ($1, $2, $3, $4, $5, $6, 'manual')
+ON CONFLICT (source_family, code)
+DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, link = EXCLUDED.link, source = 'manual', updated_at = now()
+RETURNING id, source_family, code, title, description, link, created_at, updated_at, source
 `
 
 type UpsertPrinterErrorCodeParams struct {
@@ -3126,6 +3213,7 @@ type UpsertPrinterErrorCodeParams struct {
 	Link         *string
 }
 
+// A meaning written here is a manual one, whatever the row was before.
 func (q *Queries) UpsertPrinterErrorCode(ctx context.Context, arg UpsertPrinterErrorCodeParams) (PrinterErrorCode, error) {
 	row := q.db.QueryRow(ctx, upsertPrinterErrorCode,
 		arg.ID,
@@ -3145,6 +3233,7 @@ func (q *Queries) UpsertPrinterErrorCode(ctx context.Context, arg UpsertPrinterE
 		&i.Link,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Source,
 	)
 	return i, err
 }

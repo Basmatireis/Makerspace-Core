@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PrinterErrorCodeSource } from './printerErrorCodeSource';
 import type { PrinterErrorCodeSourceFamily } from './printerErrorCodeSourceFamily';
 import type { UUIDv7 } from './uUIDv7';
 
@@ -46,5 +47,7 @@ export interface PrinterErrorCode {
      * @nullable
      */
   link: string | null;
+  /** manual: written here (never touched by the sync); bambu: fetched from Bambu Lab's published list. */
+  source: PrinterErrorCodeSource;
   updatedAt: string;
 }

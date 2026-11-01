@@ -19,7 +19,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PrinterErrorCode } from './printerErrorCode';
+import type { PrinterErrorCodeSync } from './printerErrorCodeSync';
 
 export interface PrinterErrorCodeList {
   items: PrinterErrorCode[];
+  sync: PrinterErrorCodeSync;
 }

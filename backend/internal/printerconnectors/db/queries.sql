@@ -254,11 +254,32 @@ SELECT * FROM printer_error_codes ORDER BY source_family, code;
 SELECT * FROM printer_error_codes WHERE code = ANY(sqlc.arg(codes)::text[]);
 
 -- name: UpsertPrinterErrorCode :one
-INSERT INTO printer_error_codes (id, source_family, code, title, description, link)
-VALUES (sqlc.arg(id), sqlc.arg(source_family), sqlc.arg(code), sqlc.arg(title), sqlc.arg(description), sqlc.narg(link))
+-- A meaning written here is a manual one, whatever the row was before.
+INSERT INTO printer_error_codes (id, source_family, code, title, description, link, source)
+VALUES (sqlc.arg(id), sqlc.arg(source_family), sqlc.arg(code), sqlc.arg(title), sqlc.arg(description), sqlc.narg(link), 'manual')
 ON CONFLICT (source_family, code)
-DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, link = EXCLUDED.link, updated_at = now()
+DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, link = EXCLUDED.link, source = 'manual', updated_at = now()
 RETURNING *;
+
+-- name: UpsertFetchedPrinterErrorCode :execrows
+-- Fetched meanings fill gaps and refresh earlier fetched rows; a row someone wrote here stays as it is.
+INSERT INTO printer_error_codes (id, source_family, code, title, description, link, source)
+VALUES (sqlc.arg(id), sqlc.arg(source_family), sqlc.arg(code), sqlc.arg(title), sqlc.arg(description), NULL, 'bambu')
+ON CONFLICT (source_family, code)
+DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, updated_at = now()
+WHERE printer_error_codes.source = 'bambu'
+  AND (printer_error_codes.title <> EXCLUDED.title OR printer_error_codes.description <> EXCLUDED.description);
+
+-- name: GetPrinterErrorCodeSync :one
+SELECT last_attempt_at, last_success_at, last_error, imported_count FROM printer_error_code_sync WHERE singleton;
+
+-- name: RecordPrinterErrorCodeSyncSuccess :exec
+UPDATE printer_error_code_sync
+SET last_attempt_at = sqlc.arg(at), last_success_at = sqlc.arg(at), last_error = NULL, imported_count = sqlc.arg(imported_count), updated_at = now()
+WHERE singleton;
+
+-- name: RecordPrinterErrorCodeSyncFailure :exec
+UPDATE printer_error_code_sync SET last_attempt_at = sqlc.arg(at), last_error = sqlc.arg(last_error), updated_at = now() WHERE singleton;
 
 -- name: DeletePrinterErrorCode :execrows
 DELETE FROM printer_error_codes WHERE source_family = sqlc.arg(source_family) AND code = sqlc.arg(code);

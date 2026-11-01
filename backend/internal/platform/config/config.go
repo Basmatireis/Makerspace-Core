@@ -39,6 +39,8 @@ type Config struct {
 	AuditRetention             time.Duration
 	EventSignupRetention       time.Duration
 	SurveyDeliveryInterval     time.Duration
+	// PrinterErrorCodeSourceURL is where the printer error code meanings are fetched from; empty turns the sync off.
+	PrinterErrorCodeSourceURL string
 	// PrinterTimelapseMaxBytes is the largest timelapse video a printer connector may upload.
 	PrinterTimelapseMaxBytes int64
 	ShutdownTimeout          time.Duration
@@ -240,6 +242,7 @@ func Load() (Config, error) {
 		AuditRetention:             auditRetention,
 		EventSignupRetention:       eventSignupRetention,
 		SurveyDeliveryInterval:     surveyDeliveryInterval,
+		PrinterErrorCodeSourceURL:  strings.TrimSpace(envOr("PRINTER_ERROR_CODE_SOURCE_URL", DefaultPrinterErrorCodeSourceURL)),
 		PrinterTimelapseMaxBytes:   timelapseMaxBytes,
 		ShutdownTimeout:            10 * time.Second,
 		MakerspaceTimeZone:         timeZone,
@@ -329,6 +332,9 @@ func (c Config) ValidateDatabase() error {
 }
 
 const (
+	// DefaultPrinterErrorCodeSourceURL is Bambu Lab's published list of HMS and print error codes with their English
+	// meanings, the one Bambu Studio reads.
+	DefaultPrinterErrorCodeSourceURL = "https://e.bambulab.com/query.php?lang=en"
 	// DefaultPrinterTimelapseMaxBytes is the default PRINTER_TIMELAPSE_MAX_BYTES (2 GiB).
 	DefaultPrinterTimelapseMaxBytes int64 = 2 << 30
 	// MaxPrinterTimelapseBytes is the largest value PRINTER_TIMELAPSE_MAX_BYTES accepts (8 GiB).

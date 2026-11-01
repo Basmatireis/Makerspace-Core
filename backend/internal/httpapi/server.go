@@ -152,6 +152,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	if err != nil {
 		return nil, fmt.Errorf("initialize printer connectors: %w", err)
 	}
+	printerConnectorService.SetErrorCodeSource(cfg.PrinterErrorCodeSourceURL)
 	signageService, err := signage.NewService(
 		pool,
 		cfg,

@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   PermissionId,
   type PrinterErrorCode,
+  type PrinterErrorCodeList,
+  type PrinterErrorCodeSync,
   type PrinterErrorOccurrence,
   type PrinterLiveStatusError,
   type PrinterNotificationSettings,
@@ -166,9 +168,19 @@ describe('Printer settings tabs', () => {
     title: 'Nozzle clogged',
     description: 'Clean the nozzle.',
     link: null,
+    source: 'manual',
     updatedAt: '2026-10-30T09:00:00Z',
     ...overrides,
   });
+  const syncState = (overrides: Partial<PrinterErrorCodeSync> = {}): PrinterErrorCodeSync => ({
+    enabled: true,
+    lastAttemptAt: '2026-10-31T03:00:00Z',
+    lastSuccessAt: '2026-10-31T03:00:00Z',
+    lastError: null,
+    importedCount: 12,
+    ...overrides,
+  });
+  const codeList = (items: PrinterErrorCode[], sync = syncState()): PrinterErrorCodeList => ({ items, sync });
   const serveBase = () =>
     server.use(
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
@@ -217,7 +229,7 @@ describe('Printer settings tabs', () => {
     serveBase();
     const puts: { family: unknown; code: unknown; body: unknown }[] = [];
     server.use(
-      http.get('*/api/v1/printer-error-codes', () => HttpResponse.json({ items: [code()] })),
+      http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([code()]))),
       http.put('*/api/v1/printer-error-codes/:family/:code', async ({ request, params }) => {
         puts.push({ family: params.family, code: params.code, body: await request.json() });
         return HttpResponse.json(code());
@@ -262,6 +274,83 @@ describe('Printer settings tabs', () => {
         body: { title: 'Nozzle blocked', description: 'Clean the nozzle.', link: null },
       }),
     );
+  });
+
+  it('shows the fetch status, with and without a last error', async () => {
+    auth.permissions = [PermissionId.machinesmanage];
+    serveBase();
+    server.use(http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([code()]))));
+    const view = renderTab('catalog');
+    expect(
+      await screen.findByText(/Meanings are fetched from Bambu Lab's published list daily\. Last fetched/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/\(12 codes\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/The last fetch failed/)).not.toBeInTheDocument();
+    view.unmount();
+
+    server.use(
+      http.get('*/api/v1/printer-error-codes', () =>
+        HttpResponse.json(codeList([], syncState({ lastSuccessAt: null, lastError: 'HTTP 503', importedCount: 0 }))),
+      ),
+    );
+    renderTab('catalog');
+    expect(await screen.findByText(/Not fetched yet\./)).toBeInTheDocument();
+    expect(screen.getByText('The last fetch failed: HTTP 503')).toBeInTheDocument();
+  });
+
+  it('says the fetch is off and disables Fetch now', async () => {
+    auth.permissions = [PermissionId.machinesmanage];
+    serveBase();
+    server.use(
+      http.get('*/api/v1/printer-error-codes', () =>
+        HttpResponse.json(codeList([], syncState({ enabled: false, lastSuccessAt: null }))),
+      ),
+    );
+    renderTab('catalog');
+    expect(
+      await screen.findByText(/Automatic fetching is off \(PRINTER_ERROR_CODE_SOURCE_URL is empty\)\./),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fetch now' })).toBeDisabled();
+  });
+
+  it('replaces the list with the result of Fetch now and shows a failure message', async () => {
+    auth.permissions = [PermissionId.machinesmanage];
+    serveBase();
+    let fail = false;
+    server.use(
+      http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([code()]))),
+      http.post('*/api/v1/printer-error-codes/sync', () =>
+        fail
+          ? HttpResponse.json({ code: 'sync_failed', message: 'Bambu Lab could not be reached.' }, { status: 502 })
+          : HttpResponse.json(
+              codeList(
+                [
+                  code({
+                    id: '0192f6f8-743e-7c77-a349-cd07c3e8e102',
+                    code: '0500-0100',
+                    title: 'Fetched meaning',
+                    source: 'bambu',
+                  }),
+                ],
+                syncState({ importedCount: 1 }),
+              ),
+            ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderTab('catalog');
+    const catalogTable = () => screen.getByRole('table', { name: 'Printer error catalog' });
+    await screen.findByRole('table', { name: 'Printer error catalog' });
+    expect(within(catalogTable()).getByText('Edited here')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Fetch now' }));
+    expect(await screen.findByText('Fetched meaning')).toBeInTheDocument();
+    expect(within(catalogTable()).queryByText('Nozzle clogged')).not.toBeInTheDocument();
+    expect(within(catalogTable()).getByText('Bambu Lab')).toBeInTheDocument();
+    expect(await screen.findByText(/\(1 codes\)/)).toBeInTheDocument();
+
+    fail = true;
+    await user.click(screen.getByRole('button', { name: 'Fetch now' }));
+    expect(await screen.findByText('Bambu Lab could not be reached.')).toBeInTheDocument();
   });
 
   it('offers the new tabs only with machines.manage', async () => {

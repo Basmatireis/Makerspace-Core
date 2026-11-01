@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/oapi-codegen/nullable"
@@ -39,8 +40,53 @@ func printerErrorCodeDTO(item printerconnectors.ErrorCode) openapi.PrinterErrorC
 		Title:        item.Title,
 		Description:  item.Description,
 		Link:         nullableString(item.Link),
+		Source:       openapi.PrinterErrorCodeSource(item.Source),
 		UpdatedAt:    item.UpdatedAt,
 	}
+}
+
+func printerErrorCodeSyncDTO(status printerconnectors.ErrorCodeSyncStatus) openapi.PrinterErrorCodeSync {
+	return openapi.PrinterErrorCodeSync{
+		Enabled:       status.Enabled,
+		LastAttemptAt: nullableTimeValue(status.LastAttemptAt),
+		LastSuccessAt: nullableTimeValue(status.LastSuccessAt),
+		LastError:     nullableString(status.LastError),
+		ImportedCount: status.ImportedCount,
+	}
+}
+
+func (s *Server) printerErrorCodeList(ctx context.Context, p authorization.Principal) (openapi.PrinterErrorCodeList, error) {
+	items, err := s.printerConnectors.ListErrorCodes(ctx, p)
+	if err != nil {
+		return openapi.PrinterErrorCodeList{}, err
+	}
+	status, err := s.printerConnectors.ErrorCodeSyncStatus(ctx)
+	if err != nil {
+		return openapi.PrinterErrorCodeList{}, err
+	}
+	result := make([]openapi.PrinterErrorCode, 0, len(items))
+	for _, item := range items {
+		result = append(result, printerErrorCodeDTO(item))
+	}
+	return openapi.PrinterErrorCodeList{Items: result, Sync: printerErrorCodeSyncDTO(status)}, nil
+}
+
+func (s *Server) SyncPrinterErrorCodes(
+	ctx context.Context,
+	_ openapi.SyncPrinterErrorCodesRequestObject,
+) (openapi.SyncPrinterErrorCodesResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.printerConnectors.SyncErrorCodesNow(ctx, p, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	list, err := s.printerErrorCodeList(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.SyncPrinterErrorCodes200JSONResponse(list), nil
 }
 
 func printerNotificationSettingsDTO(item printerconnectors.NotificationSettings) openapi.PrinterNotificationSettings {
@@ -94,15 +140,11 @@ func (s *Server) ListPrinterErrorCodes(
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.printerConnectors.ListErrorCodes(ctx, p)
+	list, err := s.printerErrorCodeList(ctx, p)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]openapi.PrinterErrorCode, 0, len(items))
-	for _, item := range items {
-		result = append(result, printerErrorCodeDTO(item))
-	}
-	return openapi.ListPrinterErrorCodes200JSONResponse{Items: result}, nil
+	return openapi.ListPrinterErrorCodes200JSONResponse(list), nil
 }
 
 func (s *Server) PutPrinterErrorCode(

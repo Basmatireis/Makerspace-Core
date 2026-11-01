@@ -60,6 +60,7 @@ type Querier interface {
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error)
 	GetOpenMountSpoolForSlot(ctx context.Context, slotID uuid.UUID) (uuid.UUID, error)
+	GetPrinterErrorCodeSync(ctx context.Context) (GetPrinterErrorCodeSyncRow, error)
 	GetPrinterNotificationSettings(ctx context.Context) (GetPrinterNotificationSettingsRow, error)
 	// The slot a connector names, with the names people know it by; any status, so a change in a slot that
 	// is unavailable right now is still reported.
@@ -98,6 +99,8 @@ type Querier interface {
 	// Keeps the newest keep_count entries of the connector that are not older than cutoff.
 	PruneConnectorActivity(ctx context.Context, arg PruneConnectorActivityParams) error
 	RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams) (PrinterConnector, error)
+	RecordPrinterErrorCodeSyncFailure(ctx context.Context, arg RecordPrinterErrorCodeSyncFailureParams) error
+	RecordPrinterErrorCodeSyncSuccess(ctx context.Context, arg RecordPrinterErrorCodeSyncSuccessParams) error
 	ReenrollConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	RequestConnectorUpdate(ctx context.Context, arg RequestConnectorUpdateParams) (PrinterConnector, error)
 	ResolveErrorOccurrencesOfConnector(ctx context.Context, connectorID uuid.UUID) error
@@ -121,6 +124,9 @@ type Querier interface {
 	UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (MachineRun, error)
 	UpdateObservedRunFacts(ctx context.Context, arg UpdateObservedRunFactsParams) error
 	UpdatePrinterNotificationSettings(ctx context.Context, arg UpdatePrinterNotificationSettingsParams) (PrinterNotificationSetting, error)
+	// Fetched meanings fill gaps and refresh earlier fetched rows; a row someone wrote here stays as it is.
+	UpsertFetchedPrinterErrorCode(ctx context.Context, arg UpsertFetchedPrinterErrorCodeParams) (int64, error)
+	// A meaning written here is a manual one, whatever the row was before.
 	UpsertPrinterErrorCode(ctx context.Context, arg UpsertPrinterErrorCodeParams) (PrinterErrorCode, error)
 	// inserted is true when this is the first observation of a still open occurrence.
 	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) (bool, error)

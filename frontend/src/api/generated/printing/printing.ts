@@ -195,6 +195,30 @@ export const listPrinterErrorCodes = async ( options?: Parameters<typeof apiFetc
 );}
 
 
+export const getSyncPrinterErrorCodesUrl = () => {
+
+
+
+
+  return `/api/v1/printer-error-codes/sync`
+}
+
+/**
+ * Needs machines.manage. Fetches the list the API also fetches daily, adds the codes it does not know and refreshes earlier fetched meanings; meanings written here are never overwritten. Answers 409 `sync_disabled` when PRINTER_ERROR_CODE_SOURCE_URL is empty and 502 `sync_failed` when the fetch failed (the catalog answer then carries the reason). Audited as `printer_error_codes.synced`.
+ * @summary Fetch Bambu Lab's published code list now
+ */
+export const syncPrinterErrorCodes = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PrinterErrorCodeList> => {
+
+  return apiFetch<PrinterErrorCodeList>(getSyncPrinterErrorCodesUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
 export const getPutPrinterErrorCodeUrl = (sourceFamily: 'print' | 'hms',
     code: string,) => {
 

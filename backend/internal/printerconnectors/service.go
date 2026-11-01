@@ -3,6 +3,7 @@ package printerconnectors
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/netip"
 	"regexp"
 	"strings"
@@ -35,6 +36,9 @@ type Service struct {
 	logbook  *machinelogbook.Service
 	keyring  *security.Keyring
 	emitter  InboxEmitter
+	// errorCodeSourceURL is where code meanings are fetched from; empty turns the sync off.
+	errorCodeSourceURL string
+	errorCodeClient    *http.Client
 }
 
 // InboxEmitter is the part of the in-app notification emitter this package uses, on top of what the

@@ -110,7 +110,7 @@ export function ErrorCodeModal({
           <TextInput
             id="error-code-title"
             labelText="Meaning"
-            helperText="What the code means, in a few words."
+            helperText="What the code means, in a few words. Saving makes the meaning your own: the daily fetch from Bambu Lab will not change it anymore."
             autoComplete="off"
             data-modal-primary-focus
             invalid={Boolean(errors.title)}

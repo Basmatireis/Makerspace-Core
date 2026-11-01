@@ -52,7 +52,9 @@ type ErrorCode struct {
 	Title        string
 	Description  string
 	Link         *string
-	UpdatedAt    time.Time
+	// Source is manual for a meaning written here and bambu for one fetched from the published list.
+	Source    string
+	UpdatedAt time.Time
 }
 
 // ErrorCodeInput is the content of a catalog entry.
@@ -407,6 +409,6 @@ func (s *Service) UpdateNotificationSettings(
 func errorCodeFrom(row db.PrinterErrorCode) ErrorCode {
 	return ErrorCode{
 		ID: row.ID, SourceFamily: row.SourceFamily, Code: row.Code, Title: row.Title, Description: row.Description,
-		Link: row.Link, UpdatedAt: row.UpdatedAt.UTC(),
+		Link: row.Link, Source: row.Source, UpdatedAt: row.UpdatedAt.UTC(),
 	}
 }
