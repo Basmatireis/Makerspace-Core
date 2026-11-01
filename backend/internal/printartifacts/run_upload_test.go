@@ -3,6 +3,7 @@ package printartifacts
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -318,5 +319,63 @@ func TestRunUploadFlagsANameThatDiffersFromThePrintName(t *testing.T) {
 		if err = h.pool.QueryRow(ctx, `SELECT artifact_id IS NOT NULL FROM machine_runs WHERE id=$1`, run).Scan(&linked); err != nil || !linked {
 			t.Errorf("%s: not linked (%v)", name, err)
 		}
+	}
+}
+
+func TestPrintFileLimitsRemoveTheOldestFilesButNeverARunningPrints(t *testing.T) {
+	h := newUploadHarness(t)
+	ctx := t.Context()
+	first := h.recordedRun(t, "finished", "first.gcode.3mf")
+	second := h.recordedRun(t, "finished", "second.gcode.3mf")
+	running := h.recordedRun(t, "running", "third.gcode.3mf")
+	for i, upload := range []struct {
+		run  uuid.UUID
+		name string
+	}{{first, "first"}, {second, "second"}, {running, "third"}} {
+		if _, err := h.service.UploadForRun(ctx, h.master, upload.run, upload.name+".gcode.3mf", bytes.NewReader(archive(t, upload.name)), nil); err != nil {
+			t.Fatal(err)
+		}
+		mustExec(t, h.pool, `UPDATE print_artifacts SET created_at = now() - make_interval(days => $2) WHERE id = (SELECT artifact_id FROM machine_runs WHERE id = $1)`, upload.run, 10-i)
+	}
+	// Nothing is removed without a limit.
+	if removed, err := h.service.EnforceLimits(ctx); err != nil || removed != 0 {
+		t.Fatalf("removed without a limit = %d, %v", removed, err)
+	}
+	mustExec(t, h.pool, `UPDATE run_recording_settings SET artifact_max_count = 1`)
+	t.Cleanup(func() {
+		_, _ = h.pool.Exec(context.Background(), `UPDATE run_recording_settings SET artifact_max_count = 0, artifact_max_total_bytes = 0, artifact_max_bytes = 536870912`)
+	})
+	removed, err := h.service.EnforceLimits(ctx)
+	if err != nil || removed != 2 {
+		t.Fatalf("removed for the count limit = %d, %v", removed, err)
+	}
+	var firstArtifact, secondArtifact, runningArtifact *uuid.UUID
+	if err = h.pool.QueryRow(ctx, `SELECT
+		(SELECT artifact_id FROM machine_runs WHERE id = $1), (SELECT artifact_id FROM machine_runs WHERE id = $2), (SELECT artifact_id FROM machine_runs WHERE id = $3)`,
+		first, second, running).Scan(&firstArtifact, &secondArtifact, &runningArtifact); err != nil {
+		t.Fatal(err)
+	}
+	if firstArtifact != nil || secondArtifact != nil || runningArtifact == nil {
+		t.Fatalf("artifact links after trimming: first=%v second=%v running=%v", firstArtifact, secondArtifact, runningArtifact)
+	}
+	var audited int
+	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'print_artifact.trimmed' AND resource_type = 'print_artifact'`).Scan(&audited); err != nil || audited < 2 {
+		t.Fatalf("trim audit events = %d, %v", audited, err)
+	}
+	// The size setting bounds uploads at once; Core's ceiling bounds the setting.
+	mustExec(t, h.pool, `UPDATE run_recording_settings SET artifact_max_bytes = 1048576`)
+	limit, err := h.service.MaxArtifactBytes(ctx)
+	if err != nil || limit != 1<<20 {
+		t.Fatalf("effective limit = %d, %v", limit, err)
+	}
+	settings, err := h.recordings.GetSettings(ctx, h.master)
+	if err != nil || settings.ArtifactMaxBytes != 1<<20 || settings.ArtifactMaxBytesLimit != 512<<20 {
+		t.Fatalf("settings = %+v, %v", settings, err)
+	}
+	if _, err = h.recordings.UpdateSettings(ctx, h.master, runrecordings.SettingsInput{
+		TimelapseEnabled: true, TimelapseRetentionDays: 90, TimelapseMaxBytes: settings.TimelapseMaxBytes,
+		ArtifactMaxBytes: 513 << 20, ExpectedVersion: settings.Version,
+	}, nil); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("limit above Core's ceiling: %v", err)
 	}
 }

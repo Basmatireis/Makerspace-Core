@@ -8263,11 +8263,12 @@ paths:
     put:
       tags: [Machine Runs]
       operationId: updateRunRecordingSettings
-      summary: Change whether timelapses are collected, how large they may be and how many are kept
+      summary: Change how timelapses and print files are limited and kept
       description: >-
-        Needs machines.manage. `timelapseRetentionDays` 0 keeps videos until their run is deleted; `timelapseMaxCount` and
-        `timelapseMaxTotalBytes` 0 mean no limit, otherwise the oldest videos are deleted first. `timelapseMaxBytes` may not exceed the
-        deployment's ceiling. A shorter retention or a tighter limit applies on the next maintenance pass (every five minutes). Connectors read `timelapseEnabled` with their next configuration poll (every 10 seconds). Audited as
+        Needs machines.manage. `timelapseRetentionDays` and `artifactRetentionDays` 0 keep files until their run is deleted; the count and
+        total-storage limits 0 mean no limit, otherwise the oldest files are deleted first (a print file a running print uses stays).
+        `timelapseMaxBytes` may not exceed the deployment's ceiling, `artifactMaxBytes` not 512 MiB. A shorter retention or a tighter
+        limit applies on the next maintenance pass (every five minutes). Connectors read `timelapseEnabled` with their next configuration poll (every 10 seconds). Audited as
         `run_recording_settings.updated`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateRunRecordingSettingsRequest"}}}}
@@ -17536,7 +17537,7 @@ components:
     RunRecordingSettings:
       type: object
       additionalProperties: false
-      required: [timelapseEnabled, timelapseRetentionDays, timelapseMaxBytes, timelapseMaxBytesLimit, timelapseMaxCount, timelapseMaxTotalBytes, version, updatedAt]
+      required: [timelapseEnabled, timelapseRetentionDays, timelapseMaxBytes, timelapseMaxBytesLimit, timelapseMaxCount, timelapseMaxTotalBytes, artifactMaxBytes, artifactMaxBytesLimit, artifactRetentionDays, artifactMaxCount, artifactMaxTotalBytes, version, updatedAt]
       properties:
         timelapseEnabled: {type: boolean, description: Connectors retrieve timelapse videos after a print ends.}
         timelapseRetentionDays: {type: integer, minimum: 0, maximum: 3650, description: 0 keeps videos until their run is deleted.}
@@ -17544,19 +17545,28 @@ components:
         timelapseMaxBytesLimit: {type: integer, format: int64, minimum: 1048576, readOnly: true, description: The ceiling the deployment allows (PRINTER_TIMELAPSE_MAX_BYTES).}
         timelapseMaxCount: {type: integer, minimum: 0, maximum: 100000, description: "How many videos are kept in all; the oldest go first. 0 means no limit."}
         timelapseMaxTotalBytes: {type: integer, format: int64, minimum: 0, description: "How much storage all videos may take; the oldest go first. 0 means no limit."}
+        artifactMaxBytes: {type: integer, format: int64, minimum: 1048576, maximum: 536870912, description: "Largest accepted print file (3MF); larger uploads answer 413 artifact_too_large."}
+        artifactMaxBytesLimit: {type: integer, format: int64, minimum: 1048576, readOnly: true, description: The ceiling Core allows for print files (512 MiB).}
+        artifactRetentionDays: {type: integer, minimum: 0, maximum: 3650, description: "How long print files are kept; 0 keeps them until their run is deleted. A file a running print uses is never removed."}
+        artifactMaxCount: {type: integer, minimum: 0, maximum: 100000, description: "How many print files are kept in all; the oldest go first. 0 means no limit."}
+        artifactMaxTotalBytes: {type: integer, format: int64, minimum: 0, description: "How much storage all print files (with their previews) may take; the oldest go first. 0 means no limit."}
         version: {$ref: "#/components/schemas/Version"}
         updatedAt: {type: string, format: date-time}
 
     UpdateRunRecordingSettingsRequest:
       type: object
       additionalProperties: false
-      required: [timelapseEnabled, timelapseRetentionDays, timelapseMaxBytes, timelapseMaxCount, timelapseMaxTotalBytes, expectedVersion]
+      required: [timelapseEnabled, timelapseRetentionDays, timelapseMaxBytes, timelapseMaxCount, timelapseMaxTotalBytes, artifactMaxBytes, artifactRetentionDays, artifactMaxCount, artifactMaxTotalBytes, expectedVersion]
       properties:
         timelapseEnabled: {type: boolean}
         timelapseRetentionDays: {type: integer, minimum: 0, maximum: 3650}
         timelapseMaxBytes: {type: integer, format: int64, minimum: 1048576, maximum: 8589934592}
         timelapseMaxCount: {type: integer, minimum: 0, maximum: 100000}
         timelapseMaxTotalBytes: {type: integer, format: int64, minimum: 0}
+        artifactMaxBytes: {type: integer, format: int64, minimum: 1048576, maximum: 536870912}
+        artifactRetentionDays: {type: integer, minimum: 0, maximum: 3650}
+        artifactMaxCount: {type: integer, minimum: 0, maximum: 100000}
+        artifactMaxTotalBytes: {type: integer, format: int64, minimum: 0}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     PrinterConnectorRecordingFeatures:

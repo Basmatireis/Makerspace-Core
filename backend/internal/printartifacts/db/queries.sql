@@ -196,8 +196,31 @@ ORDER BY a.created_at, a.id
 LIMIT sqlc.arg(row_limit)
 FOR UPDATE OF a SKIP LOCKED;
 
+-- name: GetArtifactLimits :one
+SELECT artifact_max_bytes, artifact_retention_days, artifact_max_count, artifact_max_total_bytes
+FROM run_recording_settings WHERE singleton;
+
+-- name: SummarizePrintArtifacts :one
+-- Every print file with its previews, for the count and storage limits.
+SELECT count(DISTINCT a.id)::bigint AS count,
+       (COALESCE((SELECT sum(f.size_bytes) FROM print_artifacts x JOIN files f ON f.id = x.original_file_id), 0)
+        + COALESCE((SELECT sum(f.size_bytes) FROM print_artifact_previews p JOIN files f ON f.id = p.file_id), 0))::bigint AS total_bytes
+FROM print_artifacts a;
+
+-- name: ListOldestPrintArtifactsForUpdate :many
+-- Oldest first, with the storage each takes (file and previews); files a running run uses are skipped.
+SELECT a.id, a.original_file_id,
+       (f.size_bytes + COALESCE((SELECT sum(pf.size_bytes) FROM print_artifact_previews p JOIN files pf ON pf.id = p.file_id WHERE p.artifact_id = a.id), 0))::bigint AS size_bytes
+FROM print_artifacts a
+JOIN files f ON f.id = a.original_file_id
+WHERE NOT EXISTS (SELECT 1 FROM machine_runs r WHERE r.artifact_id = a.id AND r.ended_at IS NULL)
+ORDER BY a.created_at, a.id
+LIMIT sqlc.arg(row_limit)
+FOR UPDATE OF a SKIP LOCKED;
+
 -- name: DetachRunArtifacts :exec
-UPDATE machine_runs SET artifact_id = NULL WHERE artifact_id = ANY(sqlc.arg(artifact_ids)::uuid[]);
+-- A file uploaded by hand loses that mark with the file (the constraint requires one for the other).
+UPDATE machine_runs SET artifact_id = NULL, artifact_manual = false WHERE artifact_id = ANY(sqlc.arg(artifact_ids)::uuid[]);
 
 -- name: DetachJobArtifacts :exec
 UPDATE machine_jobs SET artifact_id = NULL WHERE artifact_id = ANY(sqlc.arg(artifact_ids)::uuid[]);

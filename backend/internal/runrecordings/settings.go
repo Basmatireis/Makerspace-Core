@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -18,6 +19,8 @@ const (
 	MaxTimelapseRetentionDays = 3650
 	MinTimelapseMaxBytes      = 1 << 20
 	MaxTimelapseCount         = 100000
+	// MaxArtifactBytes is Core's ceiling for a print file; printartifacts.MaxCompressedSize is the same value.
+	MaxArtifactBytes = 512 << 20
 )
 
 // GetSettings returns the recording settings (machine_jobs.read or machines.manage).
@@ -54,6 +57,13 @@ func (s *Service) UpdateSettings(
 	if input.TimelapseMaxCount < 0 || input.TimelapseMaxCount > MaxTimelapseCount || input.TimelapseMaxTotalBytes < 0 {
 		return Settings{}, apperror.Invalid("timelapseMaxCount and timelapseMaxTotalBytes must be 0 or positive")
 	}
+	if input.ArtifactMaxBytes < MinTimelapseMaxBytes || input.ArtifactMaxBytes > MaxArtifactBytes {
+		return Settings{}, apperror.Invalid(fmt.Sprintf("artifactMaxBytes must be between %d and %d", MinTimelapseMaxBytes, MaxArtifactBytes))
+	}
+	if input.ArtifactRetentionDays < 0 || input.ArtifactRetentionDays > MaxTimelapseRetentionDays ||
+		input.ArtifactMaxCount < 0 || input.ArtifactMaxCount > MaxTimelapseCount || input.ArtifactMaxTotalBytes < 0 {
+		return Settings{}, apperror.Invalid("artifactRetentionDays, artifactMaxCount and artifactMaxTotalBytes must be 0 or positive")
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Settings{}, err
@@ -70,6 +80,10 @@ func (s *Service) UpdateSettings(
 		TimelapseMaxBytes:      input.TimelapseMaxBytes,
 		TimelapseMaxCount:      int32(input.TimelapseMaxCount), //nolint:gosec // bounded above
 		TimelapseMaxTotalBytes: input.TimelapseMaxTotalBytes,
+		ArtifactMaxBytes:       input.ArtifactMaxBytes,
+		ArtifactRetentionDays:  int32(input.ArtifactRetentionDays), //nolint:gosec // bounded above
+		ArtifactMaxCount:       int32(input.ArtifactMaxCount),      //nolint:gosec // bounded above
+		ArtifactMaxTotalBytes:  input.ArtifactMaxTotalBytes,
 		ExpectedVersion:        input.ExpectedVersion,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -93,6 +107,18 @@ func (s *Service) UpdateSettings(
 	}
 	if current.TimelapseMaxTotalBytes != row.TimelapseMaxTotalBytes {
 		fields = append(fields, "timelapseMaxTotalBytes")
+	}
+	if current.ArtifactMaxBytes != row.ArtifactMaxBytes {
+		fields = append(fields, "artifactMaxBytes")
+	}
+	if current.ArtifactRetentionDays != row.ArtifactRetentionDays {
+		fields = append(fields, "artifactRetentionDays")
+	}
+	if current.ArtifactMaxCount != row.ArtifactMaxCount {
+		fields = append(fields, "artifactMaxCount")
+	}
+	if current.ArtifactMaxTotalBytes != row.ArtifactMaxTotalBytes {
+		fields = append(fields, "artifactMaxTotalBytes")
 	}
 	actor := p.AccountID
 	if err = audit.Write(ctx, tx, audit.Event{
@@ -118,9 +144,24 @@ func (s *Service) settingsFrom(row db.RunRecordingSetting) Settings {
 		TimelapseMaxBytesLimit: s.timelapseMaxBytes,
 		TimelapseMaxCount:      int(row.TimelapseMaxCount),
 		TimelapseMaxTotalBytes: row.TimelapseMaxTotalBytes,
+		ArtifactMaxBytes:       min(row.ArtifactMaxBytes, MaxArtifactBytes),
+		ArtifactMaxBytesLimit:  MaxArtifactBytes,
+		ArtifactRetentionDays:  int(row.ArtifactRetentionDays),
+		ArtifactMaxCount:       int(row.ArtifactMaxCount),
+		ArtifactMaxTotalBytes:  row.ArtifactMaxTotalBytes,
 		Version:                row.Version,
 		UpdatedAt:              row.UpdatedAt.UTC(),
 	}
+}
+
+// ConfiguredArtifactRetention reads the print file period from the settings row; zero means keep.
+func (s *Service) ConfiguredArtifactRetention(ctx context.Context) (*time.Duration, error) {
+	settings, err := db.New(s.pool).GetRecordingSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	period := time.Duration(settings.ArtifactRetentionDays) * 24 * time.Hour
+	return &period, nil
 }
 
 // EffectiveTimelapseMaxBytes is the largest video accepted right now: the setting, capped by the deployment's

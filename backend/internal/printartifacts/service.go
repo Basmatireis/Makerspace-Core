@@ -280,6 +280,13 @@ func (s *Service) Upload(
 			"Artifact filename and content length are invalid",
 		)
 	}
+	limit, err := s.MaxArtifactBytes(ctx)
+	if err != nil {
+		return UploadResult{}, err
+	}
+	if contentLength > limit {
+		return UploadResult{}, tooLarge(limit)
+	}
 	digestBytes, err := hex.DecodeString(strings.ToLower(strings.TrimSpace(declaredSHA)))
 	if err != nil || len(digestBytes) != sha256.Size || configurationVersion < 1 {
 		return UploadResult{}, validation(

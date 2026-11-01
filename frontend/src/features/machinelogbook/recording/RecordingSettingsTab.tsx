@@ -30,6 +30,18 @@ function SettingsForm({ settings }: { settings: RunRecordingSettings }) {
   const [videoMb, setVideoMb] = useState(settings.timelapseMaxBytes / MB);
   const [count, setCount] = useState(settings.timelapseMaxCount);
   const [totalGb, setTotalGb] = useState(settings.timelapseMaxTotalBytes / GB);
+  const [fileMb, setFileMb] = useState(settings.artifactMaxBytes / MB);
+  const [fileDays, setFileDays] = useState(settings.artifactRetentionDays);
+  const [fileCount, setFileCount] = useState(settings.artifactMaxCount);
+  const [fileTotalGb, setFileTotalGb] = useState(settings.artifactMaxTotalBytes / GB);
+  const maxFileBytes = settings.artifactMaxBytesLimit;
+  const maxFileMb = Math.floor(maxFileBytes / MB);
+  const fileBytes = bytesOf(fileMb, MB);
+  const fileTotalBytes = bytesOf(fileTotalGb, GB);
+  const validFile = Number.isFinite(fileMb) && fileBytes >= MB && fileBytes <= maxFileBytes;
+  const validFileDays = Number.isInteger(fileDays) && fileDays >= 0 && fileDays <= MAX_RETENTION_DAYS;
+  const validFileCount = Number.isInteger(fileCount) && fileCount >= 0 && fileCount <= MAX_COUNT;
+  const validFileTotal = Number.isFinite(fileTotalGb) && fileTotalGb >= 0;
   const maxVideoBytes = Math.min(MAX_VIDEO_BYTES, settings.timelapseMaxBytesLimit);
   const maxVideoMb = Math.floor(maxVideoBytes / MB);
   const videoBytes = bytesOf(videoMb, MB);
@@ -38,13 +50,25 @@ function SettingsForm({ settings }: { settings: RunRecordingSettings }) {
   const validVideo = Number.isFinite(videoMb) && videoBytes >= MIN_VIDEO_BYTES && videoBytes <= maxVideoBytes;
   const validCount = Number.isInteger(count) && count >= 0 && count <= MAX_COUNT;
   const validTotal = Number.isFinite(totalGb) && totalGb >= 0;
-  const valid = validDays && validVideo && validCount && validTotal;
+  const valid =
+    validDays &&
+    validVideo &&
+    validCount &&
+    validTotal &&
+    validFile &&
+    validFileDays &&
+    validFileCount &&
+    validFileTotal;
   const unchanged =
     enabled === settings.timelapseEnabled &&
     days === settings.timelapseRetentionDays &&
     videoBytes === settings.timelapseMaxBytes &&
     count === settings.timelapseMaxCount &&
-    totalBytes === settings.timelapseMaxTotalBytes;
+    totalBytes === settings.timelapseMaxTotalBytes &&
+    fileBytes === settings.artifactMaxBytes &&
+    fileDays === settings.artifactRetentionDays &&
+    fileCount === settings.artifactMaxCount &&
+    fileTotalBytes === settings.artifactMaxTotalBytes;
   const save = useMutation({
     mutationFn: () =>
       updateRunRecordingSettings({
@@ -53,6 +77,10 @@ function SettingsForm({ settings }: { settings: RunRecordingSettings }) {
         timelapseMaxBytes: videoBytes,
         timelapseMaxCount: count,
         timelapseMaxTotalBytes: totalBytes,
+        artifactMaxBytes: fileBytes,
+        artifactRetentionDays: fileDays,
+        artifactMaxCount: fileCount,
+        artifactMaxTotalBytes: fileTotalBytes,
         expectedVersion: settings.version,
       }),
     onSuccess: async () => {
@@ -130,6 +158,66 @@ function SettingsForm({ settings }: { settings: RunRecordingSettings }) {
           invalidText="Enter a size of 0 GB or more."
           onChange={(_event, state) => setTotalGb(state.value === '' ? Number.NaN : Number(state.value))}
         />
+        <h3 className="mj-section-title">Print files</h3>
+        <NumberInput
+          id="artifact-max-mb"
+          label="Largest print file (MB)"
+          helperText={`Larger 3MF files are rejected. At most ${formatFileSize(maxFileBytes)}, the limit of this installation.`}
+          min={1}
+          max={maxFileMb}
+          step={10}
+          allowEmpty
+          value={Number.isNaN(fileMb) ? '' : fileMb}
+          disabled={!canManage}
+          invalid={!validFile}
+          invalidText={`Enter a size from 1 to ${maxFileMb} MB.`}
+          onChange={(_event, state) => setFileMb(state.value === '' ? Number.NaN : Number(state.value))}
+        />
+        <NumberInput
+          id="artifact-retention-days"
+          label="Keep print files for (days)"
+          helperText={
+            '0 keeps them until their run is deleted. The oldest go first; a file a running print uses stays.'
+          }
+          min={0}
+          max={MAX_RETENTION_DAYS}
+          step={1}
+          allowEmpty
+          value={Number.isNaN(fileDays) ? '' : fileDays}
+          disabled={!canManage}
+          invalid={!validFileDays}
+          invalidText={`Enter a whole number of days from 0 to ${MAX_RETENTION_DAYS}.`}
+          onChange={(_event, state) => setFileDays(state.value === '' ? Number.NaN : Number(state.value))}
+        />
+        <NumberInput
+          id="artifact-max-count"
+          label="Keep at most this many print files"
+          helperText={'0 means no limit. When there are more, the oldest go first; a file a running print uses stays.'}
+          min={0}
+          max={MAX_COUNT}
+          step={1}
+          allowEmpty
+          value={Number.isNaN(fileCount) ? '' : fileCount}
+          disabled={!canManage}
+          invalid={!validFileCount}
+          invalidText={`Enter a whole number from 0 to ${MAX_COUNT}.`}
+          onChange={(_event, state) => setFileCount(state.value === '' ? Number.NaN : Number(state.value))}
+        />
+        <NumberInput
+          id="artifact-max-total-gb"
+          label="Keep at most this much print file data (GB)"
+          helperText={
+            '0 means no limit. Includes previews. When all files together take more, the oldest go first; a file a running print uses stays.'
+          }
+          min={0}
+          step={1}
+          allowEmpty
+          value={Number.isNaN(fileTotalGb) ? '' : fileTotalGb}
+          disabled={!canManage}
+          invalid={!validFileTotal}
+          invalidText={'Enter a size of 0 GB or more.'}
+          onChange={(_event, state) => setFileTotalGb(state.value === '' ? Number.NaN : Number(state.value))}
+        />
         {save.isError && (
           <InlineNotification
             kind="error"
@@ -157,7 +245,7 @@ function SettingsForm({ settings }: { settings: RunRecordingSettings }) {
   );
 }
 
-/** Installation-wide settings for timelapse collection and retention. */
+/** Installation-wide settings for timelapse and print file collection and retention. */
 export function RecordingSettingsTab() {
   const query = useQuery(recordingSettingsQuery());
   return (

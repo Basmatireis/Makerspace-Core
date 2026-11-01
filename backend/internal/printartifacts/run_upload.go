@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io"
-	"net/http"
 	"os"
 	"strings"
 
@@ -64,17 +63,17 @@ func (s *Service) UploadForRun(
 	if err = temp.Chmod(0o600); err != nil {
 		return RunUploadResult{}, err
 	}
+	limit, err := s.MaxArtifactBytes(ctx)
+	if err != nil {
+		return RunUploadResult{}, err
+	}
 	hasher := sha256.New()
-	size, err := io.Copy(io.MultiWriter(temp, hasher), io.LimitReader(body, MaxCompressedSize+1))
+	size, err := io.Copy(io.MultiWriter(temp, hasher), io.LimitReader(body, limit+1))
 	if err != nil {
 		return RunUploadResult{}, apperror.Invalid("the file could not be read")
 	}
-	if size > MaxCompressedSize {
-		return RunUploadResult{}, apperror.New(
-			http.StatusRequestEntityTooLarge,
-			"artifact_too_large",
-			"Print files are limited to 512 MiB",
-		)
+	if size > limit {
+		return RunUploadResult{}, tooLarge(limit)
 	}
 	if size < 1 {
 		return RunUploadResult{}, validation("artifact_metadata_invalid", "The file is empty")

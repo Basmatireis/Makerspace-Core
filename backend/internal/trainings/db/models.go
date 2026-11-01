@@ -1643,6 +1643,10 @@ type RunRecordingSetting struct {
 	TimelapseMaxBytes      int64
 	TimelapseMaxCount      int32
 	TimelapseMaxTotalBytes int64
+	ArtifactMaxBytes       int64
+	ArtifactRetentionDays  int32
+	ArtifactMaxCount       int32
+	ArtifactMaxTotalBytes  int64
 }
 
 type ScimConnector struct {

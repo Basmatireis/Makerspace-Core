@@ -316,10 +316,14 @@ func Definitions() []privacy.Definition {
 			Description:   "3MF files with their embedded metadata and the preview images generated from them.",
 			Contains:      "3MF files with embedded metadata, generated previews",
 			Fields:        []string{"print_artifacts.*", "print_artifact_previews.*"},
-			Triggers:      []privacy.Trigger{privacy.TriggerCompletedAt},
+			Triggers:      []privacy.Trigger{privacy.TriggerCreatedAt, privacy.TriggerCompletedAt},
 			Actions:       []privacy.Action{privacy.ActionDelete, privacy.ActionRetainWithReview},
 			Subject:       privacy.SubjectNone,
-			RetentionNote: "No deletion routine existed before the privacy registry.",
+			RetentionNote: "Kept until their run is deleted unless the recording settings set a period (artifactRetentionDays).",
+			Legacy: &privacy.LegacyDefault{
+				Trigger: privacy.TriggerCreatedAt, Period: 0, Action: privacy.ActionDelete,
+				Source: "run_recording_settings.artifact_retention_days", ZeroDisables: true,
+			},
 		},
 		{
 			ID: PrinterTelemetry, Owner: Machines, Name: "Printer telemetry",

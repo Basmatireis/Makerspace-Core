@@ -139,8 +139,14 @@ type Settings struct {
 	// TimelapseMaxCount and TimelapseMaxTotalBytes bound how many videos are kept and their storage; 0 means no limit.
 	TimelapseMaxCount      int
 	TimelapseMaxTotalBytes int64
-	Version                int64
-	UpdatedAt              time.Time
+	// The same limits for print files (3MF): ArtifactMaxBytesLimit is Core's ceiling (512 MiB).
+	ArtifactMaxBytes      int64
+	ArtifactMaxBytesLimit int64
+	ArtifactRetentionDays int
+	ArtifactMaxCount      int
+	ArtifactMaxTotalBytes int64
+	Version               int64
+	UpdatedAt             time.Time
 }
 
 // SettingsInput changes the recording settings.
@@ -150,6 +156,10 @@ type SettingsInput struct {
 	TimelapseMaxBytes      int64
 	TimelapseMaxCount      int
 	TimelapseMaxTotalBytes int64
+	ArtifactMaxBytes       int64
+	ArtifactRetentionDays  int
+	ArtifactMaxCount       int
+	ArtifactMaxTotalBytes  int64
 	ExpectedVersion        int64
 }
 

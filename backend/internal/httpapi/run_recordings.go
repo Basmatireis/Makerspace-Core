@@ -265,6 +265,10 @@ func (s *Server) UpdateRunRecordingSettings(
 		TimelapseMaxBytes:      request.Body.TimelapseMaxBytes,
 		TimelapseMaxCount:      request.Body.TimelapseMaxCount,
 		TimelapseMaxTotalBytes: request.Body.TimelapseMaxTotalBytes,
+		ArtifactMaxBytes:       request.Body.ArtifactMaxBytes,
+		ArtifactRetentionDays:  request.Body.ArtifactRetentionDays,
+		ArtifactMaxCount:       request.Body.ArtifactMaxCount,
+		ArtifactMaxTotalBytes:  request.Body.ArtifactMaxTotalBytes,
 		ExpectedVersion:        request.Body.ExpectedVersion,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -521,6 +525,11 @@ func (s *Server) runRecordingSettingsDTO(settings runrecordings.Settings) openap
 		TimelapseMaxBytesLimit: &settings.TimelapseMaxBytesLimit,
 		TimelapseMaxCount:      settings.TimelapseMaxCount,
 		TimelapseMaxTotalBytes: settings.TimelapseMaxTotalBytes,
+		ArtifactMaxBytes:       settings.ArtifactMaxBytes,
+		ArtifactMaxBytesLimit:  &settings.ArtifactMaxBytesLimit,
+		ArtifactRetentionDays:  settings.ArtifactRetentionDays,
+		ArtifactMaxCount:       settings.ArtifactMaxCount,
+		ArtifactMaxTotalBytes:  settings.ArtifactMaxTotalBytes,
 		Version:                settings.Version,
 		UpdatedAt:              settings.UpdatedAt,
 	}

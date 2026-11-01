@@ -32,6 +32,7 @@ func RegisterBuiltinHandlers(service *privacy.Service, runRecordings *runrecordi
 	if runRecordings != nil {
 		service.Register(RunTimelapses, runRecordings.TimelapseRetention())
 		periods.TimelapseRetention = runRecordings.ConfiguredTimelapseRetention
+		periods.ArtifactRetention = runRecordings.ConfiguredArtifactRetention
 	}
 	service.SetLegacyPeriods(periods)
 }

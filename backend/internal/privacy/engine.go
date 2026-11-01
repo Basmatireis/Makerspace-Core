@@ -89,8 +89,9 @@ const (
 type LegacyPeriods struct {
 	AuditRetention       *time.Duration
 	EventSignupRetention *time.Duration
-	// TimelapseRetention is read from run_recording_settings by the owner module.
+	// TimelapseRetention and ArtifactRetention are read from run_recording_settings by the owner module.
 	TimelapseRetention func(ctx context.Context) (*time.Duration, error)
+	ArtifactRetention  func(ctx context.Context) (*time.Duration, error)
 }
 
 // RunRequest asks the engine for a run.
@@ -279,12 +280,23 @@ func (s *Service) legacyPeriod(ctx context.Context, definition Definition) (time
 			}
 			configured = value
 		}
+	case "run_recording_settings.artifact_retention_days":
+		if s.legacy.ArtifactRetention != nil {
+			value, err := s.legacy.ArtifactRetention(ctx)
+			if err != nil {
+				return 0, false, err
+			}
+			configured = value
+		}
 	}
 	if configured != nil {
 		if *configured <= 0 && legacy.ZeroDisables {
 			return 0, true, nil
 		}
 		return *configured, false, nil
+	}
+	if legacy.Period <= 0 && legacy.ZeroDisables {
+		return 0, true, nil
 	}
 	return legacy.Period, false, nil
 }

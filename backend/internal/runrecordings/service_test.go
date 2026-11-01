@@ -286,7 +286,7 @@ func TestTimelapsesAreStoredStreamedExpiredAndDeletedWithTheirRun(t *testing.T) 
 		t.Fatalf("settings update without machines.manage = %v", err)
 	}
 	if _, err = h.service.UpdateSettings(ctx, h.master, SettingsInput{
-		TimelapseRetentionDays: 30, TimelapseMaxBytes: settings.TimelapseMaxBytes, ExpectedVersion: settings.Version,
+		TimelapseRetentionDays: 30, TimelapseMaxBytes: settings.TimelapseMaxBytes, ArtifactMaxBytes: settings.ArtifactMaxBytes, ExpectedVersion: settings.Version,
 	}, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -389,19 +389,19 @@ func TestTimelapseLimitsRemoveTheOldestVideos(t *testing.T) {
 	}
 	// The setting may not exceed the deployment's ceiling and the count must not be negative.
 	if _, err = h.service.UpdateSettings(ctx, h.master, SettingsInput{
-		TimelapseEnabled: true, TimelapseMaxBytes: settings.TimelapseMaxBytesLimit + 1, ExpectedVersion: settings.Version,
+		TimelapseEnabled: true, TimelapseMaxBytes: settings.TimelapseMaxBytesLimit + 1, ArtifactMaxBytes: settings.ArtifactMaxBytes, ExpectedVersion: settings.Version,
 	}, nil); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("limit above the ceiling: %v", err)
 	}
 	if _, err = h.service.UpdateSettings(ctx, h.master, SettingsInput{
-		TimelapseEnabled: true, TimelapseMaxBytes: settings.TimelapseMaxBytes, TimelapseMaxCount: -1, ExpectedVersion: settings.Version,
+		TimelapseEnabled: true, TimelapseMaxBytes: settings.TimelapseMaxBytes, TimelapseMaxCount: -1, ArtifactMaxBytes: settings.ArtifactMaxBytes, ExpectedVersion: settings.Version,
 	}, nil); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("negative count: %v", err)
 	}
 	// A smaller maximum size refuses larger uploads at once.
 	settings, err = h.service.UpdateSettings(ctx, h.master, SettingsInput{
 		TimelapseEnabled: true, TimelapseRetentionDays: 90, TimelapseMaxBytes: 1 << 20, TimelapseMaxCount: 2,
-		TimelapseMaxTotalBytes: 0, ExpectedVersion: settings.Version,
+		TimelapseMaxTotalBytes: 0, ArtifactMaxBytes: settings.ArtifactMaxBytes, ExpectedVersion: settings.Version,
 	}, nil)
 	if err != nil || settings.TimelapseMaxCount != 2 || settings.TimelapseMaxBytes != 1<<20 {
 		t.Fatalf("settings = %+v, %v", settings, err)

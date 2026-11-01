@@ -6,6 +6,8 @@ UPDATE run_recording_settings
 SET timelapse_enabled = sqlc.arg(timelapse_enabled), timelapse_retention_days = sqlc.arg(timelapse_retention_days),
     timelapse_max_bytes = sqlc.arg(timelapse_max_bytes), timelapse_max_count = sqlc.arg(timelapse_max_count),
     timelapse_max_total_bytes = sqlc.arg(timelapse_max_total_bytes),
+    artifact_max_bytes = sqlc.arg(artifact_max_bytes), artifact_retention_days = sqlc.arg(artifact_retention_days),
+    artifact_max_count = sqlc.arg(artifact_max_count), artifact_max_total_bytes = sqlc.arg(artifact_max_total_bytes),
     version = version + 1, updated_at = now()
 WHERE singleton AND version = sqlc.arg(expected_version)
 RETURNING *;

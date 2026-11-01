@@ -491,6 +491,11 @@ describe('Recording settings', () => {
     timelapseMaxBytesLimit: 1024 * 1024 * 1024,
     timelapseMaxCount: 0,
     timelapseMaxTotalBytes: 0,
+    artifactMaxBytes: 100 * 1024 * 1024,
+    artifactMaxBytesLimit: 512 * 1024 * 1024,
+    artifactRetentionDays: 0,
+    artifactMaxCount: 0,
+    artifactMaxTotalBytes: 0,
     version: 4,
     updatedAt: '2026-09-15T09:00:00Z',
   };
@@ -530,6 +535,10 @@ describe('Recording settings', () => {
         timelapseMaxBytes: 200 * 1024 * 1024,
         timelapseMaxCount: 0,
         timelapseMaxTotalBytes: 0,
+        artifactMaxBytes: 100 * 1024 * 1024,
+        artifactRetentionDays: 0,
+        artifactMaxCount: 0,
+        artifactMaxTotalBytes: 0,
         expectedVersion: 4,
       }),
     );
@@ -559,6 +568,17 @@ describe('Recording settings', () => {
     await user.type(count, '40');
     await user.clear(total);
     await user.type(total, '2');
+    await user.clear(screen.getByLabelText('Largest print file (MB)'));
+    await user.type(screen.getByLabelText('Largest print file (MB)'), '600');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await user.clear(screen.getByLabelText('Largest print file (MB)'));
+    await user.type(screen.getByLabelText('Largest print file (MB)'), '50');
+    await user.clear(screen.getByLabelText('Keep print files for (days)'));
+    await user.type(screen.getByLabelText('Keep print files for (days)'), '90');
+    await user.clear(screen.getByLabelText('Keep at most this many print files'));
+    await user.type(screen.getByLabelText('Keep at most this many print files'), '200');
+    await user.clear(screen.getByLabelText('Keep at most this much print file data (GB)'));
+    await user.type(screen.getByLabelText('Keep at most this much print file data (GB)'), '5');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(body).toEqual({
@@ -567,6 +587,10 @@ describe('Recording settings', () => {
         timelapseMaxBytes: 500 * 1024 * 1024,
         timelapseMaxCount: 40,
         timelapseMaxTotalBytes: 2 * 1024 * 1024 * 1024,
+        artifactMaxBytes: 50 * 1024 * 1024,
+        artifactRetentionDays: 90,
+        artifactMaxCount: 200,
+        artifactMaxTotalBytes: 5 * 1024 * 1024 * 1024,
         expectedVersion: 4,
       }),
     );

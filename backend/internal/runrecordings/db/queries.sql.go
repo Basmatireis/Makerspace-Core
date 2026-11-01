@@ -213,7 +213,7 @@ func (q *Queries) GetOpenRunCommand(ctx context.Context, arg GetOpenRunCommandPa
 }
 
 const getRecordingSettings = `-- name: GetRecordingSettings :one
-SELECT singleton, timelapse_enabled, timelapse_retention_days, version, updated_at, timelapse_max_bytes, timelapse_max_count, timelapse_max_total_bytes FROM run_recording_settings WHERE singleton
+SELECT singleton, timelapse_enabled, timelapse_retention_days, version, updated_at, timelapse_max_bytes, timelapse_max_count, timelapse_max_total_bytes, artifact_max_bytes, artifact_retention_days, artifact_max_count, artifact_max_total_bytes FROM run_recording_settings WHERE singleton
 `
 
 func (q *Queries) GetRecordingSettings(ctx context.Context) (RunRecordingSetting, error) {
@@ -228,6 +228,10 @@ func (q *Queries) GetRecordingSettings(ctx context.Context) (RunRecordingSetting
 		&i.TimelapseMaxBytes,
 		&i.TimelapseMaxCount,
 		&i.TimelapseMaxTotalBytes,
+		&i.ArtifactMaxBytes,
+		&i.ArtifactRetentionDays,
+		&i.ArtifactMaxCount,
+		&i.ArtifactMaxTotalBytes,
 	)
 	return i, err
 }
@@ -819,9 +823,11 @@ UPDATE run_recording_settings
 SET timelapse_enabled = $1, timelapse_retention_days = $2,
     timelapse_max_bytes = $3, timelapse_max_count = $4,
     timelapse_max_total_bytes = $5,
+    artifact_max_bytes = $6, artifact_retention_days = $7,
+    artifact_max_count = $8, artifact_max_total_bytes = $9,
     version = version + 1, updated_at = now()
-WHERE singleton AND version = $6
-RETURNING singleton, timelapse_enabled, timelapse_retention_days, version, updated_at, timelapse_max_bytes, timelapse_max_count, timelapse_max_total_bytes
+WHERE singleton AND version = $10
+RETURNING singleton, timelapse_enabled, timelapse_retention_days, version, updated_at, timelapse_max_bytes, timelapse_max_count, timelapse_max_total_bytes, artifact_max_bytes, artifact_retention_days, artifact_max_count, artifact_max_total_bytes
 `
 
 type UpdateRecordingSettingsParams struct {
@@ -830,6 +836,10 @@ type UpdateRecordingSettingsParams struct {
 	TimelapseMaxBytes      int64
 	TimelapseMaxCount      int32
 	TimelapseMaxTotalBytes int64
+	ArtifactMaxBytes       int64
+	ArtifactRetentionDays  int32
+	ArtifactMaxCount       int32
+	ArtifactMaxTotalBytes  int64
 	ExpectedVersion        int64
 }
 
@@ -840,6 +850,10 @@ func (q *Queries) UpdateRecordingSettings(ctx context.Context, arg UpdateRecordi
 		arg.TimelapseMaxBytes,
 		arg.TimelapseMaxCount,
 		arg.TimelapseMaxTotalBytes,
+		arg.ArtifactMaxBytes,
+		arg.ArtifactRetentionDays,
+		arg.ArtifactMaxCount,
+		arg.ArtifactMaxTotalBytes,
 		arg.ExpectedVersion,
 	)
 	var i RunRecordingSetting
@@ -852,6 +866,10 @@ func (q *Queries) UpdateRecordingSettings(ctx context.Context, arg UpdateRecordi
 		&i.TimelapseMaxBytes,
 		&i.TimelapseMaxCount,
 		&i.TimelapseMaxTotalBytes,
+		&i.ArtifactMaxBytes,
+		&i.ArtifactRetentionDays,
+		&i.ArtifactMaxCount,
+		&i.ArtifactMaxTotalBytes,
 	)
 	return i, err
 }

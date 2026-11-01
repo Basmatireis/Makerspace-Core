@@ -359,9 +359,10 @@ func (q *Queries) DetachJobArtifacts(ctx context.Context, artifactIds []uuid.UUI
 }
 
 const detachRunArtifacts = `-- name: DetachRunArtifacts :exec
-UPDATE machine_runs SET artifact_id = NULL WHERE artifact_id = ANY($1::uuid[])
+UPDATE machine_runs SET artifact_id = NULL, artifact_manual = false WHERE artifact_id = ANY($1::uuid[])
 `
 
+// A file uploaded by hand loses that mark with the file (the constraint requires one for the other).
 func (q *Queries) DetachRunArtifacts(ctx context.Context, artifactIds []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, detachRunArtifacts, artifactIds)
 	return err
@@ -481,6 +482,30 @@ func (q *Queries) GetArtifactBySHA256(ctx context.Context, sha256 []byte) (GetAr
 		&i.OriginalFilename,
 		&i.ContentType,
 		&i.SizeBytes,
+	)
+	return i, err
+}
+
+const getArtifactLimits = `-- name: GetArtifactLimits :one
+SELECT artifact_max_bytes, artifact_retention_days, artifact_max_count, artifact_max_total_bytes
+FROM run_recording_settings WHERE singleton
+`
+
+type GetArtifactLimitsRow struct {
+	ArtifactMaxBytes      int64
+	ArtifactRetentionDays int32
+	ArtifactMaxCount      int32
+	ArtifactMaxTotalBytes int64
+}
+
+func (q *Queries) GetArtifactLimits(ctx context.Context) (GetArtifactLimitsRow, error) {
+	row := q.db.QueryRow(ctx, getArtifactLimits)
+	var i GetArtifactLimitsRow
+	err := row.Scan(
+		&i.ArtifactMaxBytes,
+		&i.ArtifactRetentionDays,
+		&i.ArtifactMaxCount,
+		&i.ArtifactMaxTotalBytes,
 	)
 	return i, err
 }
@@ -1000,6 +1025,44 @@ func (q *Queries) ListLatestReportedUsageItems(ctx context.Context, runID uuid.U
 	return items, nil
 }
 
+const listOldestPrintArtifactsForUpdate = `-- name: ListOldestPrintArtifactsForUpdate :many
+SELECT a.id, a.original_file_id,
+       (f.size_bytes + COALESCE((SELECT sum(pf.size_bytes) FROM print_artifact_previews p JOIN files pf ON pf.id = p.file_id WHERE p.artifact_id = a.id), 0))::bigint AS size_bytes
+FROM print_artifacts a
+JOIN files f ON f.id = a.original_file_id
+WHERE NOT EXISTS (SELECT 1 FROM machine_runs r WHERE r.artifact_id = a.id AND r.ended_at IS NULL)
+ORDER BY a.created_at, a.id
+LIMIT $1
+FOR UPDATE OF a SKIP LOCKED
+`
+
+type ListOldestPrintArtifactsForUpdateRow struct {
+	ID             uuid.UUID
+	OriginalFileID uuid.UUID
+	SizeBytes      int64
+}
+
+// Oldest first, with the storage each takes (file and previews); files a running run uses are skipped.
+func (q *Queries) ListOldestPrintArtifactsForUpdate(ctx context.Context, rowLimit int32) ([]ListOldestPrintArtifactsForUpdateRow, error) {
+	rows, err := q.db.Query(ctx, listOldestPrintArtifactsForUpdate, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOldestPrintArtifactsForUpdateRow{}
+	for rows.Next() {
+		var i ListOldestPrintArtifactsForUpdateRow
+		if err := rows.Scan(&i.ID, &i.OriginalFileID, &i.SizeBytes); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPrintArtifactsBefore = `-- name: ListPrintArtifactsBefore :many
 SELECT a.id, a.original_file_id
 FROM print_artifacts a
@@ -1128,6 +1191,26 @@ type SetManualRunArtifactParams struct {
 func (q *Queries) SetManualRunArtifact(ctx context.Context, arg SetManualRunArtifactParams) error {
 	_, err := q.db.Exec(ctx, setManualRunArtifact, arg.ArtifactID, arg.RunID)
 	return err
+}
+
+const summarizePrintArtifacts = `-- name: SummarizePrintArtifacts :one
+SELECT count(DISTINCT a.id)::bigint AS count,
+       (COALESCE((SELECT sum(f.size_bytes) FROM print_artifacts x JOIN files f ON f.id = x.original_file_id), 0)
+        + COALESCE((SELECT sum(f.size_bytes) FROM print_artifact_previews p JOIN files f ON f.id = p.file_id), 0))::bigint AS total_bytes
+FROM print_artifacts a
+`
+
+type SummarizePrintArtifactsRow struct {
+	Count      int64
+	TotalBytes int64
+}
+
+// Every print file with its previews, for the count and storage limits.
+func (q *Queries) SummarizePrintArtifacts(ctx context.Context) (SummarizePrintArtifactsRow, error) {
+	row := q.db.QueryRow(ctx, summarizePrintArtifacts)
+	var i SummarizePrintArtifactsRow
+	err := row.Scan(&i.Count, &i.TotalBytes)
+	return i, err
 }
 
 const upsertPrinterErrorOccurrence = `-- name: UpsertPrinterErrorOccurrence :one

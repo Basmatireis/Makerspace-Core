@@ -26,10 +26,12 @@ type Querier interface {
 	DeletePrintArtifactPreviewsOf(ctx context.Context, artifactIds []uuid.UUID) ([]uuid.UUID, error)
 	DeletePrintArtifactsByID(ctx context.Context, artifactIds []uuid.UUID) error
 	DetachJobArtifacts(ctx context.Context, artifactIds []uuid.UUID) error
+	// A file uploaded by hand loses that mark with the file (the constraint requires one for the other).
 	DetachRunArtifacts(ctx context.Context, artifactIds []uuid.UUID) error
 	FindPlannedJobsForArtifact(ctx context.Context, arg FindPlannedJobsForArtifactParams) ([]uuid.UUID, error)
 	GetArtifactByID(ctx context.Context, id uuid.UUID) (GetArtifactByIDRow, error)
 	GetArtifactBySHA256(ctx context.Context, sha256 []byte) (GetArtifactBySHA256Row, error)
+	GetArtifactLimits(ctx context.Context) (GetArtifactLimitsRow, error)
 	GetArtifactPreview(ctx context.Context, id uuid.UUID) (GetArtifactPreviewRow, error)
 	GetConnectorArtifactUploadTarget(ctx context.Context, arg GetConnectorArtifactUploadTargetParams) (GetConnectorArtifactUploadTargetRow, error)
 	GetMachineForArtifactJob(ctx context.Context, id uuid.UUID) (GetMachineForArtifactJobRow, error)
@@ -43,6 +45,8 @@ type Querier interface {
 	ListArtifactFilaments(ctx context.Context, artifactID uuid.UUID) ([]PrintArtifactFilament, error)
 	ListArtifactPreviews(ctx context.Context, artifactID uuid.UUID) ([]PrintArtifactPreview, error)
 	ListLatestReportedUsageItems(ctx context.Context, runID uuid.UUID) ([]MachineRunReportedUsageItem, error)
+	// Oldest first, with the storage each takes (file and previews); files a running run uses are skipped.
+	ListOldestPrintArtifactsForUpdate(ctx context.Context, rowLimit int32) ([]ListOldestPrintArtifactsForUpdateRow, error)
 	// Artifacts older than the cutoff that no running run uses; locked for the retention batch.
 	ListPrintArtifactsBefore(ctx context.Context, arg ListPrintArtifactsBeforeParams) ([]ListPrintArtifactsBeforeRow, error)
 	NextMachineJobSequence(ctx context.Context) (int64, error)
@@ -51,6 +55,8 @@ type Querier interface {
 	ResolvePrinterErrorOccurrence(ctx context.Context, arg ResolvePrinterErrorOccurrenceParams) (int64, error)
 	SetArtifactPrimaryPreview(ctx context.Context, arg SetArtifactPrimaryPreviewParams) error
 	SetManualRunArtifact(ctx context.Context, arg SetManualRunArtifactParams) error
+	// Every print file with its previews, for the count and storage limits.
+	SummarizePrintArtifacts(ctx context.Context) (SummarizePrintArtifactsRow, error)
 	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) (PrinterErrorOccurrence, error)
 }
 

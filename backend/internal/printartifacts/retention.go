@@ -30,27 +30,7 @@ func ArtifactRetention() privacy.RetentionHandler {
 			ids = append(ids, row.ID)
 			files = append(files, row.OriginalFileID)
 		}
-		if err := q.DetachRunArtifacts(ctx, ids); err != nil {
-			return 0, err
-		}
-		if err := q.DetachJobArtifacts(ctx, ids); err != nil {
-			return 0, err
-		}
-		if err := q.ClearPrimaryPreviews(ctx, ids); err != nil {
-			return 0, err
-		}
-		previews, err := q.DeletePrintArtifactPreviewsOf(ctx, ids)
-		if err != nil {
-			return 0, err
-		}
-		files = append(files, previews...)
-		if err := q.DeletePrintArtifactFilamentsOf(ctx, ids); err != nil {
-			return 0, err
-		}
-		if err := q.DeletePrintArtifactsByID(ctx, ids); err != nil {
-			return 0, err
-		}
-		if err := q.DeleteArtifactFilesQueueBlobs(ctx, files); err != nil {
+		if err := deleteArtifacts(ctx, q, ids, files); err != nil {
 			return 0, err
 		}
 		return int64(len(rows)), nil

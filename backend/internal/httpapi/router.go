@@ -133,8 +133,13 @@ func NewApplicationWithRelay(
 		ID: "runrecordings.maintenance", Interval: runrecordings.MaintenanceInterval, RunAtStart: true,
 		Run: func(ctx context.Context) (scheduler.Summary, error) {
 			result, err := server.runRecordings.Maintain(ctx)
+			if err != nil {
+				return scheduler.Summary{}, err
+			}
+			trimmed, err := server.printArtifacts.EnforceLimits(ctx)
 			return scheduler.Summary{
 				"expired_commands": result.ExpiredCommands, "deleted_blobs": result.DeletedBlobs,
+				"removed_timelapses": result.RemovedTimelapses, "removed_print_files": trimmed,
 			}, err
 		},
 	})

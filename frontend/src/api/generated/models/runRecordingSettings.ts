@@ -51,6 +51,34 @@ export interface RunRecordingSettings {
      * @minimum 0
      */
   timelapseMaxTotalBytes: number;
+  /**
+     * Largest accepted print file (3MF); larger uploads answer 413 artifact_too_large.
+     * @minimum 1048576
+     * @maximum 536870912
+     */
+  artifactMaxBytes: number;
+  /**
+     * The ceiling Core allows for print files (512 MiB).
+     * @minimum 1048576
+     */
+  readonly artifactMaxBytesLimit: number;
+  /**
+     * How long print files are kept; 0 keeps them until their run is deleted. A file a running print uses is never removed.
+     * @minimum 0
+     * @maximum 3650
+     */
+  artifactRetentionDays: number;
+  /**
+     * How many print files are kept in all; the oldest go first. 0 means no limit.
+     * @minimum 0
+     * @maximum 100000
+     */
+  artifactMaxCount: number;
+  /**
+     * How much storage all print files (with their previews) may take; the oldest go first. 0 means no limit.
+     * @minimum 0
+     */
+  artifactMaxTotalBytes: number;
   version: Version;
   updatedAt: string;
 }
