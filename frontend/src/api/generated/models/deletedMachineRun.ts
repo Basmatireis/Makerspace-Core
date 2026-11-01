@@ -38,5 +38,7 @@ export interface DeletedMachineRun {
   formerJobDisplayId: string | null;
   /** The former job is in the bin too; restoring the run alone makes it unassigned. */
   formerJobInBin: boolean;
+  /** The immutable inventory ledger refers to its material; it can stay in the bin but cannot be deleted for good (409 inventory_bookings_exist). */
+  hasInventoryBookings: boolean;
   version: Version;
 }

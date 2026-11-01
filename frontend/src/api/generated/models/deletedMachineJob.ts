@@ -41,5 +41,7 @@ export interface DeletedMachineJob {
      * @minimum 0
      */
   detachedRunCount: number;
+  /** The immutable inventory ledger refers to its material; it can stay in the bin but cannot be deleted for good (409 inventory_bookings_exist). */
+  hasInventoryBookings: boolean;
   version: Version;
 }

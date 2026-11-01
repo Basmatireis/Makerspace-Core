@@ -629,6 +629,36 @@ func (q *Queries) CountJobRecordedRuns(ctx context.Context, jobID *uuid.UUID) (i
 	return count, err
 }
 
+const countLedgerEntriesOfJob = `-- name: CountLedgerEntriesOfJob :one
+SELECT count(*) FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id
+WHERE u.run_id IN (SELECT r.id FROM machine_runs r WHERE r.former_job_id = $1 AND r.deleted_at = $2::timestamptz)
+`
+
+type CountLedgerEntriesOfJobParams struct {
+	JobID     *uuid.UUID
+	DeletedAt time.Time
+}
+
+// Ledger entries that refer to the job's usages or to the usages of the runs deleted with it; the ledger is immutable,
+// so such a job cannot be removed for good.
+func (q *Queries) CountLedgerEntriesOfJob(ctx context.Context, arg CountLedgerEntriesOfJobParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLedgerEntriesOfJob, arg.JobID, arg.DeletedAt)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countLedgerEntriesOfRun = `-- name: CountLedgerEntriesOfRun :one
+SELECT count(*) FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id WHERE u.run_id = $1
+`
+
+func (q *Queries) CountLedgerEntriesOfRun(ctx context.Context, runID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countLedgerEntriesOfRun, runID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countLiveRunsOfJob = `-- name: CountLiveRunsOfJob :one
 SELECT count(*) FROM machine_runs WHERE job_id = $1 AND deleted_at IS NULL
 `
@@ -3900,7 +3930,9 @@ const listDeletedMachineJobs = `-- name: ListDeletedMachineJobs :many
 SELECT j.id, j.display_id, j.title, j.machine_id, m.name AS machine_name, j.deleted_at, j.version,
        p.first_name AS deleted_by_first_name, p.last_name AS deleted_by_last_name,
        (SELECT count(*) FROM machine_runs r WHERE r.deleted_at = j.deleted_at AND r.former_job_id = j.id)::bigint AS deleted_run_count,
-       (SELECT count(*) FROM machine_runs r WHERE r.deleted_at IS NULL AND r.job_id IS NULL AND r.former_job_id = j.id)::bigint AS detached_run_count
+       (SELECT count(*) FROM machine_runs r WHERE r.deleted_at IS NULL AND r.job_id IS NULL AND r.former_job_id = j.id)::bigint AS detached_run_count,
+       EXISTS (SELECT 1 FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id
+               WHERE u.run_id IN (SELECT r.id FROM machine_runs r WHERE r.former_job_id = j.id AND r.deleted_at = j.deleted_at)) AS has_inventory_bookings
 FROM machine_jobs j
 JOIN machines m ON m.id = j.machine_id
 LEFT JOIN accounts a ON a.id = j.deleted_by
@@ -3911,17 +3943,18 @@ LIMIT 500
 `
 
 type ListDeletedMachineJobsRow struct {
-	ID                 uuid.UUID
-	DisplayID          string
-	Title              *string
-	MachineID          uuid.UUID
-	MachineName        string
-	DeletedAt          pgtype.Timestamptz
-	Version            int64
-	DeletedByFirstName *string
-	DeletedByLastName  *string
-	DeletedRunCount    int64
-	DetachedRunCount   int64
+	ID                   uuid.UUID
+	DisplayID            string
+	Title                *string
+	MachineID            uuid.UUID
+	MachineName          string
+	DeletedAt            pgtype.Timestamptz
+	Version              int64
+	DeletedByFirstName   *string
+	DeletedByLastName    *string
+	DeletedRunCount      int64
+	DetachedRunCount     int64
+	HasInventoryBookings bool
 }
 
 func (q *Queries) ListDeletedMachineJobs(ctx context.Context) ([]ListDeletedMachineJobsRow, error) {
@@ -3945,6 +3978,7 @@ func (q *Queries) ListDeletedMachineJobs(ctx context.Context) ([]ListDeletedMach
 			&i.DeletedByLastName,
 			&i.DeletedRunCount,
 			&i.DetachedRunCount,
+			&i.HasInventoryBookings,
 		); err != nil {
 			return nil, err
 		}
@@ -3959,7 +3993,8 @@ func (q *Queries) ListDeletedMachineJobs(ctx context.Context) ([]ListDeletedMach
 const listDeletedMachineRuns = `-- name: ListDeletedMachineRuns :many
 SELECT r.id, r.display_id, r.file_name, r.source, r.machine_id, m.name AS machine_name, r.deleted_at, r.version,
        p.first_name AS deleted_by_first_name, p.last_name AS deleted_by_last_name,
-       j.id AS former_job_id, j.display_id AS former_job_display_id, j.deleted_at AS former_job_deleted_at
+       j.id AS former_job_id, j.display_id AS former_job_display_id, j.deleted_at AS former_job_deleted_at,
+       EXISTS (SELECT 1 FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id WHERE u.run_id = r.id) AS has_inventory_bookings
 FROM machine_runs r
 JOIN machines m ON m.id = r.machine_id
 LEFT JOIN accounts a ON a.id = r.deleted_by
@@ -3971,19 +4006,20 @@ LIMIT 500
 `
 
 type ListDeletedMachineRunsRow struct {
-	ID                 uuid.UUID
-	DisplayID          string
-	FileName           *string
-	Source             string
-	MachineID          uuid.UUID
-	MachineName        string
-	DeletedAt          pgtype.Timestamptz
-	Version            int64
-	DeletedByFirstName *string
-	DeletedByLastName  *string
-	FormerJobID        *uuid.UUID
-	FormerJobDisplayID *string
-	FormerJobDeletedAt pgtype.Timestamptz
+	ID                   uuid.UUID
+	DisplayID            string
+	FileName             *string
+	Source               string
+	MachineID            uuid.UUID
+	MachineName          string
+	DeletedAt            pgtype.Timestamptz
+	Version              int64
+	DeletedByFirstName   *string
+	DeletedByLastName    *string
+	FormerJobID          *uuid.UUID
+	FormerJobDisplayID   *string
+	FormerJobDeletedAt   pgtype.Timestamptz
+	HasInventoryBookings bool
 }
 
 func (q *Queries) ListDeletedMachineRuns(ctx context.Context) ([]ListDeletedMachineRunsRow, error) {
@@ -4009,6 +4045,7 @@ func (q *Queries) ListDeletedMachineRuns(ctx context.Context) ([]ListDeletedMach
 			&i.FormerJobID,
 			&i.FormerJobDisplayID,
 			&i.FormerJobDeletedAt,
+			&i.HasInventoryBookings,
 		); err != nil {
 			return nil, err
 		}

@@ -28,6 +28,7 @@ const job: DeletedMachineJob = {
   deletedByName: 'Ada Lovelace',
   deletedRunCount: 3,
   detachedRunCount: 1,
+  hasInventoryBookings: false,
   version: 4,
 };
 const run: DeletedMachineRun = {
@@ -42,6 +43,7 @@ const run: DeletedMachineRun = {
   formerJobId: ids.job,
   formerJobDisplayId: 'J-2026-000007',
   formerJobInBin: true,
+  hasInventoryBookings: false,
   version: 2,
 };
 const bin = (contents: Partial<RecycleBin> = {}) =>
@@ -120,6 +122,33 @@ describe('Recycle bin page', () => {
     expect(body).toBeUndefined();
     await user.click(within(dialog).getByRole('button', { name: 'Delete for good' }));
     await waitFor(() => expect(body).toEqual({ expectedVersion: 4 }));
+  });
+
+  it('keeps a job with inventory bookings: restore stays, delete for good is not offered', async () => {
+    server.use(as(...deleter), bin({ jobs: [{ ...job, hasInventoryBookings: true }] }));
+    renderRoute(<App />, '/machine-logbook/recycle-bin');
+    expect(await screen.findByRole('button', { name: 'Restore J-2026-000007' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText('Kept: its material is booked in the inventory ledger')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete J-2026-000007 for good' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete RN-2026-000012 for good' })).toBeInTheDocument();
+  });
+
+  it('shows the message of the API when deleting for good is refused', async () => {
+    const user = userEvent.setup();
+    const message =
+      'Material bookings in the inventory ledger refer to it, so it can stay in the recycle bin but cannot be deleted for good';
+    server.use(
+      as(...deleter),
+      bin(),
+      http.delete(`*/api/v1/machine-logbook/recycle-bin/jobs/${ids.job}`, () =>
+        HttpResponse.json({ code: 'inventory_bookings_exist', message }, { status: 409 }),
+      ),
+    );
+    renderRoute(<App />, '/machine-logbook/recycle-bin');
+    await user.click(await screen.findByRole('button', { name: 'Delete J-2026-000007 for good' }, { timeout: 5000 }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete for good' }));
+    expect(await within(dialog).findByText(message)).toBeInTheDocument();
   });
 
   it('is hidden without machine_jobs.delete', async () => {

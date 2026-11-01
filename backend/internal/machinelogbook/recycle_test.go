@@ -109,6 +109,22 @@ func TestRecycleBinRestoresAndPurgesJobsAndRuns(t *testing.T) {
 		t.Fatalf("run restored while its job is in the bin: deleted=%v assigned=%v", deleted, assigned)
 	}
 
+	// A job whose material is booked in the ledger stays in the bin: the ledger is immutable.
+	manualAgain, err := h.s.GetJob(ctx, h.p, manual.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = h.s.DeleteJob(ctx, h.p, manual.ID, DeleteJobInput{ExpectedVersion: manualAgain.Version}, &h.request); err != nil {
+		t.Fatal(err)
+	}
+	bin, err = h.s.RecycleBin(ctx, h.p)
+	if err != nil || find(manual.ID) == nil || !find(manual.ID).HasInventoryBookings {
+		t.Fatalf("bin with the booked job = %+v, %v", bin.Jobs, err)
+	}
+	if err = h.s.PurgeJob(ctx, h.p, manual.ID, find(manual.ID).Version, &h.request); !apperror.IsCode(err, "inventory_bookings_exist") {
+		t.Fatalf("purging a job with ledger bookings: %v", err)
+	}
+
 	// Purging removes the rows for good; the job takes the runs that went into the bin with it.
 	bin, err = h.s.RecycleBin(ctx, h.p)
 	if err != nil {

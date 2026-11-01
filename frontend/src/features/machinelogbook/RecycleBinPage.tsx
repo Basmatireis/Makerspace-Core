@@ -112,15 +112,19 @@ export function RecycleBinPage() {
       >
         Restore
       </Button>
-      <Button
-        kind="danger--ghost"
-        size="sm"
-        renderIcon={TrashCan}
-        aria-label={`Delete ${nameOf(entry)} for good`}
-        onClick={() => setPending({ mode: 'purge', entry })}
-      >
-        Delete for good
-      </Button>
+      {entry.item.hasInventoryBookings ? (
+        <span className="mj-secondary">Kept: its material is booked in the inventory ledger</span>
+      ) : (
+        <Button
+          kind="danger--ghost"
+          size="sm"
+          renderIcon={TrashCan}
+          aria-label={`Delete ${nameOf(entry)} for good`}
+          onClick={() => setPending({ mode: 'purge', entry })}
+        >
+          Delete for good
+        </Button>
+      )}
     </div>
   );
 

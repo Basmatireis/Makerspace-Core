@@ -26,24 +26,35 @@ type DeletedJob struct {
 	DeletedByName    *string
 	DeletedRunCount  int64
 	DetachedRunCount int64
-	Version          int64
+	// HasInventoryBookings: the immutable inventory ledger refers to the job's material; it can stay in the bin but
+	// cannot be deleted for good.
+	HasInventoryBookings bool
+	Version              int64
 }
 
 // DeletedRun is a run in the recycle bin.
 type DeletedRun struct {
-	ID                 uuid.UUID
-	DisplayID          string
-	FileName           *string
-	Source             string
-	MachineID          uuid.UUID
-	MachineName        string
-	DeletedAt          time.Time
-	DeletedByName      *string
-	FormerJobID        *uuid.UUID
-	FormerJobDisplayID *string
-	FormerJobInBin     bool
-	Version            int64
+	ID                   uuid.UUID
+	DisplayID            string
+	FileName             *string
+	Source               string
+	MachineID            uuid.UUID
+	MachineName          string
+	DeletedAt            time.Time
+	DeletedByName        *string
+	FormerJobID          *uuid.UUID
+	FormerJobDisplayID   *string
+	FormerJobInBin       bool
+	HasInventoryBookings bool
+	Version              int64
 }
+
+// errInventoryBookingsExist: the inventory ledger is immutable and keeps its link to the material usage, so the rows
+// behind it have to stay.
+var errInventoryBookingsExist = apperror.Conflicting(
+	"inventory_bookings_exist",
+	"Material bookings in the inventory ledger refer to it, so it can stay in the recycle bin but cannot be deleted for good",
+)
 
 // RecycleBin holds what can still be restored.
 type RecycleBin struct {
@@ -88,7 +99,8 @@ func (s *Service) RecycleBin(ctx context.Context, p authorization.Principal) (Re
 		bin.Jobs = append(bin.Jobs, DeletedJob{
 			ID: row.ID, DisplayID: row.DisplayID, Title: row.Title, MachineID: row.MachineID, MachineName: row.MachineName,
 			DeletedAt: row.DeletedAt.Time, DeletedByName: personName(row.DeletedByFirstName, row.DeletedByLastName),
-			DeletedRunCount: row.DeletedRunCount, DetachedRunCount: row.DetachedRunCount, Version: row.Version,
+			DeletedRunCount: row.DeletedRunCount, DetachedRunCount: row.DetachedRunCount,
+			HasInventoryBookings: row.HasInventoryBookings, Version: row.Version,
 		})
 	}
 	for _, row := range runs {
@@ -97,7 +109,7 @@ func (s *Service) RecycleBin(ctx context.Context, p authorization.Principal) (Re
 			MachineName: row.MachineName, DeletedAt: row.DeletedAt.Time,
 			DeletedByName: personName(row.DeletedByFirstName, row.DeletedByLastName),
 			FormerJobID:   row.FormerJobID, FormerJobDisplayID: row.FormerJobDisplayID,
-			FormerJobInBin: row.FormerJobDeletedAt.Valid, Version: row.Version,
+			FormerJobInBin: row.FormerJobDeletedAt.Valid, HasInventoryBookings: row.HasInventoryBookings, Version: row.Version,
 		})
 	}
 	return bin, nil
@@ -261,6 +273,13 @@ func (s *Service) PurgeJob(ctx context.Context, p authorization.Principal, id uu
 	if job.Version != expected {
 		return apperror.StaleWrite
 	}
+	bookings, err := q.CountLedgerEntriesOfJob(ctx, machinelogbookdb.CountLedgerEntriesOfJobParams{JobID: &id, DeletedAt: job.DeletedAt.Time})
+	if err != nil {
+		return databaseError(err)
+	}
+	if bookings > 0 {
+		return errInventoryBookingsExist
+	}
 	runs, err := q.ListRunsDeletedWithJob(ctx, machinelogbookdb.ListRunsDeletedWithJobParams{JobID: &id, DeletedAt: job.DeletedAt.Time})
 	if err != nil {
 		return databaseError(err)
@@ -313,6 +332,13 @@ func (s *Service) PurgeRun(ctx context.Context, p authorization.Principal, id uu
 	}
 	if run.Version != expected {
 		return apperror.StaleWrite
+	}
+	bookings, err := q.CountLedgerEntriesOfRun(ctx, id)
+	if err != nil {
+		return databaseError(err)
+	}
+	if bookings > 0 {
+		return errInventoryBookingsExist
 	}
 	if _, err = q.PurgeMachineRun(ctx, id); err != nil {
 		return databaseError(err)

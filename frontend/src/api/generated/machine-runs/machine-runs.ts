@@ -852,7 +852,7 @@ export const getPurgeMachineJobUrl = (machineJobId: UUIDv7,) => {
 }
 
 /**
- * Needs machine_jobs.delete. Removes the job with its pricing snapshots and usages; runs that went into the bin with it are removed too, runs it left behind stay. Inventory bookings are kept. Audited as `machine_job.purged`.
+ * Needs machine_jobs.delete. Removes the job with its pricing snapshots and usages; runs that went into the bin with it are removed too, runs it left behind stay. A job whose material is booked in the inventory ledger answers 409 `inventory_bookings_exist` and stays in the bin (the ledger is immutable). Audited as `machine_job.purged`.
  * @summary Delete a job in the bin for good
  */
 export const purgeMachineJob = async (machineJobId: UUIDv7,
@@ -930,7 +930,7 @@ export const getPurgeMachineRunUrl = (runId: UUIDv7,) => {
 }
 
 /**
- * Needs machine_jobs.delete. Removes the run with its usages, measures and reports; inventory bookings are kept and its print file stays for other runs. Audited as `machine_run.purged`.
+ * Needs machine_jobs.delete. Removes the run with its usages, measures and reports; its print file stays for other runs. A run whose material is booked in the inventory ledger answers 409 `inventory_bookings_exist` and stays in the bin. Audited as `machine_run.purged`.
  * @summary Delete a run in the bin for good
  */
 export const purgeMachineRun = async (runId: UUIDv7,

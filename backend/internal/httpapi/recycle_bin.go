@@ -9,33 +9,35 @@ import (
 
 func deletedJobDTO(item machinelogbook.DeletedJob) openapi.DeletedMachineJob {
 	return openapi.DeletedMachineJob{
-		Id:               item.ID,
-		DisplayId:        item.DisplayID,
-		Title:            nullableString(item.Title),
-		MachineId:        item.MachineID,
-		MachineName:      item.MachineName,
-		DeletedAt:        item.DeletedAt,
-		DeletedByName:    nullableString(item.DeletedByName),
-		DeletedRunCount:  item.DeletedRunCount,
-		DetachedRunCount: item.DetachedRunCount,
-		Version:          item.Version,
+		Id:                   item.ID,
+		DisplayId:            item.DisplayID,
+		Title:                nullableString(item.Title),
+		MachineId:            item.MachineID,
+		MachineName:          item.MachineName,
+		DeletedAt:            item.DeletedAt,
+		DeletedByName:        nullableString(item.DeletedByName),
+		DeletedRunCount:      item.DeletedRunCount,
+		DetachedRunCount:     item.DetachedRunCount,
+		HasInventoryBookings: item.HasInventoryBookings,
+		Version:              item.Version,
 	}
 }
 
 func deletedRunDTO(item machinelogbook.DeletedRun) openapi.DeletedMachineRun {
 	return openapi.DeletedMachineRun{
-		Id:                 item.ID,
-		DisplayId:          item.DisplayID,
-		FileName:           nullableString(item.FileName),
-		Source:             openapi.MachineRunSource(item.Source),
-		MachineId:          item.MachineID,
-		MachineName:        item.MachineName,
-		DeletedAt:          item.DeletedAt,
-		DeletedByName:      nullableString(item.DeletedByName),
-		FormerJobId:        nullableUUIDValue(item.FormerJobID),
-		FormerJobDisplayId: nullableString(item.FormerJobDisplayID),
-		FormerJobInBin:     item.FormerJobInBin,
-		Version:            item.Version,
+		Id:                   item.ID,
+		DisplayId:            item.DisplayID,
+		FileName:             nullableString(item.FileName),
+		Source:               openapi.MachineRunSource(item.Source),
+		MachineId:            item.MachineID,
+		MachineName:          item.MachineName,
+		DeletedAt:            item.DeletedAt,
+		DeletedByName:        nullableString(item.DeletedByName),
+		FormerJobId:          nullableUUIDValue(item.FormerJobID),
+		FormerJobDisplayId:   nullableString(item.FormerJobDisplayID),
+		FormerJobInBin:       item.FormerJobInBin,
+		HasInventoryBookings: item.HasInventoryBookings,
+		Version:              item.Version,
 	}
 }
 

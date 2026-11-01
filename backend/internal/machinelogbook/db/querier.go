@@ -35,6 +35,10 @@ type Querier interface {
 	CountFilamentSpools(ctx context.Context, arg CountFilamentSpoolsParams) (int64, error)
 	CountInventoryTransactions(ctx context.Context, materialID uuid.UUID) (int64, error)
 	CountJobRecordedRuns(ctx context.Context, jobID *uuid.UUID) (int64, error)
+	// Ledger entries that refer to the job's usages or to the usages of the runs deleted with it; the ledger is immutable,
+	// so such a job cannot be removed for good.
+	CountLedgerEntriesOfJob(ctx context.Context, arg CountLedgerEntriesOfJobParams) (int64, error)
+	CountLedgerEntriesOfRun(ctx context.Context, runID uuid.UUID) (int64, error)
 	CountLiveRunsOfJob(ctx context.Context, jobID *uuid.UUID) (int64, error)
 	CountLowStockMaterials(ctx context.Context) (int64, error)
 	CountMachineJobs(ctx context.Context, arg CountMachineJobsParams) (int64, error)
