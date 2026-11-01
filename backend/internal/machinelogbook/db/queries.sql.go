@@ -5469,6 +5469,42 @@ func (q *Queries) ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.
 	return items, nil
 }
 
+const listPrinterErrorCodeFacts = `-- name: ListPrinterErrorCodeFacts :many
+SELECT source_family, code, title, link FROM printer_error_codes WHERE code = ANY($1::text[])
+`
+
+type ListPrinterErrorCodeFactsRow struct {
+	SourceFamily string
+	Code         string
+	Title        string
+	Link         *string
+}
+
+func (q *Queries) ListPrinterErrorCodeFacts(ctx context.Context, codes []string) ([]ListPrinterErrorCodeFactsRow, error) {
+	rows, err := q.db.Query(ctx, listPrinterErrorCodeFacts, codes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPrinterErrorCodeFactsRow{}
+	for rows.Next() {
+		var i ListPrinterErrorCodeFactsRow
+		if err := rows.Scan(
+			&i.SourceFamily,
+			&i.Code,
+			&i.Title,
+			&i.Link,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecentJobIDs = `-- name: ListRecentJobIDs :many
 SELECT j.id FROM machine_jobs j
 LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id

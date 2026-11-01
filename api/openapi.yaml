@@ -7449,6 +7449,108 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /machines/{machineId}/printer-errors:
+    parameters:
+      - {name: machineId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Printing]
+      operationId: listPrinterErrors
+      summary: Printer errors the machine's connectors reported, open ones first
+      description: "Needs machines.read. Open errors first, then resolved ones of the last 30 days, newest first; at most 200."
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Printer errors., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterErrorOccurrenceList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Printing]
+      operationId: clearPrinterErrors
+      summary: Clear the machine's printer error history
+      description: >-
+        Needs machines.manage. Marks every open error of the machine as resolved and deletes the resolved history. An error the printer
+        still reports comes back with its next status. Audited as `printer_errors.cleared`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: History cleared.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-error-codes:
+    get:
+      tags: [Printing]
+      operationId: listPrinterErrorCodes
+      summary: The catalog of printer error code meanings
+      description: Needs machines.read.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Catalog., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterErrorCodeList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-error-codes/{sourceFamily}/{code}:
+    parameters:
+      - {name: sourceFamily, in: path, required: true, schema: {type: string, enum: [print, hms]}}
+      - {name: code, in: path, required: true, schema: {type: string, minLength: 1, maxLength: 120}}
+    put:
+      tags: [Printing]
+      operationId: putPrinterErrorCode
+      summary: Record or change what a printer error code means
+      description: Needs machines.manage. Creates the entry or replaces it. Audited as `printer_error_code.saved`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterErrorCodeInput"}}}}
+      responses:
+        "200": {description: Saved., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterErrorCode"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Printing]
+      operationId: deletePrinterErrorCode
+      summary: Remove a code's meaning from the catalog
+      description: Needs machines.manage. Audited as `printer_error_code.deleted`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-notification-settings:
+    get:
+      tags: [Printing]
+      operationId: getPrinterNotificationSettings
+      summary: Who is told about printer errors
+      description: Needs machines.read.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Settings., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterNotificationSettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Printing]
+      operationId: updatePrinterNotificationSettings
+      summary: Change who is told about printer errors
+      description: >-
+        Needs machines.manage. The operator of the running print is always told; the chosen role's holders in addition. Errors below the
+        minimum severity are not announced. Audited as `printer_notification_settings.updated`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdatePrinterNotificationSettingsRequest"}}}}
+      responses:
+        "200": {description: Settings., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterNotificationSettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /printers/detected-spool-tags:
     get:
       tags: [Printing]
@@ -8161,10 +8263,11 @@ paths:
     put:
       tags: [Machine Runs]
       operationId: updateRunRecordingSettings
-      summary: Change whether timelapses are collected and how long they are kept
+      summary: Change whether timelapses are collected, how large they may be and how many are kept
       description: >-
-        Needs machines.manage. `timelapseRetentionDays` 0 keeps videos until their run is deleted. A shorter retention applies on the next
-        maintenance pass (every five minutes). Connectors read `timelapseEnabled` with their next configuration poll (every 10 seconds). Audited as
+        Needs machines.manage. `timelapseRetentionDays` 0 keeps videos until their run is deleted; `timelapseMaxCount` and
+        `timelapseMaxTotalBytes` 0 mean no limit, otherwise the oldest videos are deleted first. `timelapseMaxBytes` may not exceed the
+        deployment's ceiling. A shorter retention or a tighter limit applies on the next maintenance pass (every five minutes). Connectors read `timelapseEnabled` with their next configuration poll (every 10 seconds). Audited as
         `run_recording_settings.updated`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateRunRecordingSettingsRequest"}}}}
@@ -16908,14 +17011,95 @@ components:
         unitExternalId: {type: string, minLength: 1, maxLength: 200}
         trayExternalId: {type: string, minLength: 1, maxLength: 200}
 
+    PrinterErrorSeverity:
+      type: string
+      description: "The level a Bambu HMS code carries in its third group: fatal, serious, common or info. Unknown for print errors and codes of older connectors."
+      enum: [fatal, serious, common, info]
+
     PrinterLiveStatusError:
       type: object
       additionalProperties: false
       required: [sourceFamily, code, observedAt]
       properties:
         sourceFamily: {type: string, enum: [print, hms]}
-        code: {type: string, minLength: 1, maxLength: 120}
+        code: {type: string, minLength: 1, maxLength: 120, description: "HMS codes as the printer shows them, AAAA-BBBB-CCCC-DDDD; print errors as eight hex digits."}
         observedAt: {type: string, format: date-time, nullable: true}
+        severity: {allOf: [{$ref: "#/components/schemas/PrinterErrorSeverity"}], nullable: true, description: Filled by Core from the code; absent in connector reports.}
+        title: {type: string, nullable: true, description: "The meaning kept in the printer error catalog, when one is recorded."}
+        link: {type: string, nullable: true, description: "The catalog's link or, for HMS codes, the Bambu wiki page of the code."}
+
+    PrinterErrorOccurrence:
+      type: object
+      additionalProperties: false
+      required: [id, sourceFamily, code, severity, title, description, link, firstObservedAt, lastObservedAt, resolvedAt, runId]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        sourceFamily: {type: string, enum: [print, hms]}
+        code: {type: string}
+        severity: {allOf: [{$ref: "#/components/schemas/PrinterErrorSeverity"}], nullable: true}
+        title: {type: string, nullable: true}
+        description: {type: string, nullable: true}
+        link: {type: string, nullable: true}
+        firstObservedAt: {type: string, format: date-time}
+        lastObservedAt: {type: string, format: date-time}
+        resolvedAt: {type: string, format: date-time, nullable: true, description: "When the printer stopped reporting it, or when someone cleared the history."}
+        runId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    PrinterErrorOccurrenceList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/PrinterErrorOccurrence"}}
+
+    PrinterErrorCode:
+      type: object
+      additionalProperties: false
+      required: [id, sourceFamily, code, title, description, link, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        sourceFamily: {type: string, enum: [print, hms]}
+        code: {type: string, minLength: 1, maxLength: 120}
+        title: {type: string, minLength: 1, maxLength: 160, description: "What the code means, in a few words."}
+        description: {type: string, maxLength: 2000, description: "What to do about it; plain text, may be empty."}
+        link: {type: string, maxLength: 500, nullable: true, description: "An https link with more; null uses the Bambu wiki page for HMS codes."}
+        updatedAt: {type: string, format: date-time}
+
+    PrinterErrorCodeList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/PrinterErrorCode"}}
+
+    PrinterErrorCodeInput:
+      type: object
+      additionalProperties: false
+      required: [title, description, link]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 160}
+        description: {type: string, maxLength: 2000}
+        link: {type: string, maxLength: 500, nullable: true}
+
+    PrinterNotificationSettings:
+      type: object
+      additionalProperties: false
+      required: [errorRoleId, errorRoleName, errorMinSeverity, version, updatedAt]
+      properties:
+        errorRoleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Holders of this role are told about printer errors besides the operator of the running print; null tells only the operator."}
+        errorRoleName: {type: string, nullable: true}
+        errorMinSeverity: {allOf: [{$ref: "#/components/schemas/PrinterErrorSeverity"}], description: "Errors below this level are not announced; print errors and codes without a level always are."}
+        version: {$ref: "#/components/schemas/Version"}
+        updatedAt: {type: string, format: date-time}
+
+    UpdatePrinterNotificationSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [errorRoleId, errorMinSeverity, expectedVersion]
+      properties:
+        errorRoleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        errorMinSeverity: {$ref: "#/components/schemas/PrinterErrorSeverity"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
 
     PrinterLiveStatusSnapshot:
       type: object
@@ -17181,6 +17365,15 @@ components:
         state: {type: string, nullable: true, description: Operational state or terminal outcome reported by the machine.}
         progressPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
         quantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: Reported grams (consumption reports).}
+        sourceFamily: {type: string, nullable: true, description: "Printer errors: print or hms."}
+        code: {type: string, nullable: true, description: "Printer errors: the code as the printer shows it."}
+        transition: {type: string, nullable: true, enum: [appeared, cleared], description: "Printer errors: whether the error appeared or cleared."}
+        severity: {allOf: [{$ref: "#/components/schemas/PrinterErrorSeverity"}], nullable: true}
+        title: {type: string, nullable: true, description: "Printer errors: the catalog's meaning of the code."}
+        link: {type: string, nullable: true, description: "Printer errors: where to read more."}
+        fromSlot: {type: string, nullable: true, description: "Filament changes: the slot the printer switched from."}
+        toSlot: {type: string, nullable: true, description: "Filament changes: the slot the printer switched to."}
+        fileName: {type: string, nullable: true, description: "Operational states: the print file the printer named."}
 
     MachineRunConsumptionReason:
       type: string
@@ -17343,21 +17536,27 @@ components:
     RunRecordingSettings:
       type: object
       additionalProperties: false
-      required: [timelapseEnabled, timelapseRetentionDays, timelapseMaxBytes, version, updatedAt]
+      required: [timelapseEnabled, timelapseRetentionDays, timelapseMaxBytes, timelapseMaxBytesLimit, timelapseMaxCount, timelapseMaxTotalBytes, version, updatedAt]
       properties:
         timelapseEnabled: {type: boolean, description: Connectors retrieve timelapse videos after a print ends.}
         timelapseRetentionDays: {type: integer, minimum: 0, maximum: 3650, description: 0 keeps videos until their run is deleted.}
-        timelapseMaxBytes: {type: integer, format: int64, minimum: 1, readOnly: true, description: Largest accepted video (PRINTER_TIMELAPSE_MAX_BYTES).}
+        timelapseMaxBytes: {type: integer, format: int64, minimum: 1048576, maximum: 8589934592, description: "Largest accepted video; connectors skip larger ones. Capped by PRINTER_TIMELAPSE_MAX_BYTES (`timelapseMaxBytesLimit`)."}
+        timelapseMaxBytesLimit: {type: integer, format: int64, minimum: 1048576, readOnly: true, description: The ceiling the deployment allows (PRINTER_TIMELAPSE_MAX_BYTES).}
+        timelapseMaxCount: {type: integer, minimum: 0, maximum: 100000, description: "How many videos are kept in all; the oldest go first. 0 means no limit."}
+        timelapseMaxTotalBytes: {type: integer, format: int64, minimum: 0, description: "How much storage all videos may take; the oldest go first. 0 means no limit."}
         version: {$ref: "#/components/schemas/Version"}
         updatedAt: {type: string, format: date-time}
 
     UpdateRunRecordingSettingsRequest:
       type: object
       additionalProperties: false
-      required: [timelapseEnabled, timelapseRetentionDays, expectedVersion]
+      required: [timelapseEnabled, timelapseRetentionDays, timelapseMaxBytes, timelapseMaxCount, timelapseMaxTotalBytes, expectedVersion]
       properties:
         timelapseEnabled: {type: boolean}
         timelapseRetentionDays: {type: integer, minimum: 0, maximum: 3650}
+        timelapseMaxBytes: {type: integer, format: int64, minimum: 1048576, maximum: 8589934592}
+        timelapseMaxCount: {type: integer, minimum: 0, maximum: 100000}
+        timelapseMaxTotalBytes: {type: integer, format: int64, minimum: 0}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     PrinterConnectorRecordingFeatures:

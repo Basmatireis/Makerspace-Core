@@ -915,6 +915,9 @@ WHERE run_id = sqlc.arg(run_id)
 ORDER BY occurred_at, id
 LIMIT 200;
 
+-- name: ListPrinterErrorCodeFacts :many
+SELECT source_family, code, title, link FROM printer_error_codes WHERE code = ANY(sqlc.arg(codes)::text[]);
+
 -- name: ListMachineJobIDs :many
 SELECT j.id FROM machine_jobs j
 JOIN machines m ON m.id = j.machine_id

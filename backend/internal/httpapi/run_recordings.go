@@ -262,6 +262,9 @@ func (s *Server) UpdateRunRecordingSettings(
 	settings, err := s.runRecordings.UpdateSettings(ctx, principal, runrecordings.SettingsInput{
 		TimelapseEnabled:       request.Body.TimelapseEnabled,
 		TimelapseRetentionDays: request.Body.TimelapseRetentionDays,
+		TimelapseMaxBytes:      request.Body.TimelapseMaxBytes,
+		TimelapseMaxCount:      request.Body.TimelapseMaxCount,
+		TimelapseMaxTotalBytes: request.Body.TimelapseMaxTotalBytes,
 		ExpectedVersion:        request.Body.ExpectedVersion,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -511,11 +514,13 @@ func runRecordingDTO(recording runrecordings.Recording) openapi.MachineRunRecord
 }
 
 func (s *Server) runRecordingSettingsDTO(settings runrecordings.Settings) openapi.RunRecordingSettings {
-	maxBytes := s.runRecordings.TimelapseMaxBytes()
 	return openapi.RunRecordingSettings{
 		TimelapseEnabled:       settings.TimelapseEnabled,
 		TimelapseRetentionDays: settings.TimelapseRetentionDays,
-		TimelapseMaxBytes:      &maxBytes,
+		TimelapseMaxBytes:      settings.TimelapseMaxBytes,
+		TimelapseMaxBytesLimit: &settings.TimelapseMaxBytesLimit,
+		TimelapseMaxCount:      settings.TimelapseMaxCount,
+		TimelapseMaxTotalBytes: settings.TimelapseMaxTotalBytes,
 		Version:                settings.Version,
 		UpdatedAt:              settings.UpdatedAt,
 	}

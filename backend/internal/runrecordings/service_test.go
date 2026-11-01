@@ -2,6 +2,7 @@ package runrecordings
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -284,7 +285,9 @@ func TestTimelapsesAreStoredStreamedExpiredAndDeletedWithTheirRun(t *testing.T) 
 	if _, err = h.service.UpdateSettings(ctx, reader, SettingsInput{ExpectedVersion: settings.Version}, nil); !errors.Is(err, apperror.PermissionDenied) {
 		t.Fatalf("settings update without machines.manage = %v", err)
 	}
-	if _, err = h.service.UpdateSettings(ctx, h.master, SettingsInput{TimelapseRetentionDays: 30, ExpectedVersion: settings.Version}, nil); err != nil {
+	if _, err = h.service.UpdateSettings(ctx, h.master, SettingsInput{
+		TimelapseRetentionDays: 30, TimelapseMaxBytes: settings.TimelapseMaxBytes, ExpectedVersion: settings.Version,
+	}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = h.upload(t, h.recordedRun(t, "finished"), video); !apperror.IsCode(err, "timelapse_disabled") {
@@ -375,4 +378,76 @@ func (h *harness) principal(t *testing.T, permissions ...authorization.Permissio
 		t.Fatal(err)
 	}
 	return p
+}
+
+func TestTimelapseLimitsRemoveTheOldestVideos(t *testing.T) {
+	h := newHarness(t)
+	ctx := t.Context()
+	settings, err := h.service.GetSettings(ctx, h.master)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The setting may not exceed the deployment's ceiling and the count must not be negative.
+	if _, err = h.service.UpdateSettings(ctx, h.master, SettingsInput{
+		TimelapseEnabled: true, TimelapseMaxBytes: settings.TimelapseMaxBytesLimit + 1, ExpectedVersion: settings.Version,
+	}, nil); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("limit above the ceiling: %v", err)
+	}
+	if _, err = h.service.UpdateSettings(ctx, h.master, SettingsInput{
+		TimelapseEnabled: true, TimelapseMaxBytes: settings.TimelapseMaxBytes, TimelapseMaxCount: -1, ExpectedVersion: settings.Version,
+	}, nil); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("negative count: %v", err)
+	}
+	// A smaller maximum size refuses larger uploads at once.
+	settings, err = h.service.UpdateSettings(ctx, h.master, SettingsInput{
+		TimelapseEnabled: true, TimelapseRetentionDays: 90, TimelapseMaxBytes: 1 << 20, TimelapseMaxCount: 2,
+		TimelapseMaxTotalBytes: 0, ExpectedVersion: settings.Version,
+	}, nil)
+	if err != nil || settings.TimelapseMaxCount != 2 || settings.TimelapseMaxBytes != 1<<20 {
+		t.Fatalf("settings = %+v, %v", settings, err)
+	}
+	t.Cleanup(func() {
+		// The test context is gone by now.
+		_, _ = h.pool.Exec(context.Background(), `UPDATE run_recording_settings SET timelapse_max_count = 0, timelapse_max_total_bytes = 0, timelapse_max_bytes = 2147483648`)
+	})
+	runs := []uuid.UUID{h.recordedRun(t, "finished"), h.recordedRun(t, "finished"), h.recordedRun(t, "finished")}
+	for i, run := range runs {
+		if _, err = h.upload(t, run, mp4(1000+i)); err != nil {
+			t.Fatal(err)
+		}
+		mustExec(t, h.pool, `UPDATE machine_run_timelapses SET created_at = now() - make_interval(days => $2) WHERE run_id = $1`, run, 10-i)
+	}
+	removed, err := h.service.EnforceTimelapseLimits(ctx)
+	if err != nil || removed != 1 {
+		t.Fatalf("removed for the count limit = %d, %v", removed, err)
+	}
+	var kept []uuid.UUID
+	rows, err := h.pool.Query(ctx, `SELECT run_id FROM machine_run_timelapses WHERE run_id = ANY($1) ORDER BY created_at`, runs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		kept = append(kept, id)
+	}
+	rows.Close()
+	if len(kept) != 2 || kept[0] != runs[1] || kept[1] != runs[2] {
+		t.Fatalf("kept after the count limit = %v, want the two newest of %v", kept, runs)
+	}
+	// The storage limit removes the oldest until the total fits.
+	mustExec(t, h.pool, `UPDATE run_recording_settings SET timelapse_max_count = 0, timelapse_max_total_bytes = 1100`)
+	if removed, err = h.service.EnforceTimelapseLimits(ctx); err != nil || removed != 1 {
+		t.Fatalf("removed for the storage limit = %d, %v", removed, err)
+	}
+	var remaining int
+	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM machine_run_timelapses WHERE run_id = ANY($1)`, runs).Scan(&remaining); err != nil || remaining != 1 {
+		t.Fatalf("remaining after the storage limit = %d, %v", remaining, err)
+	}
+	var audited int
+	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'machine_run.timelapse_trimmed' AND resource_id = ANY($1)`, runs).Scan(&audited); err != nil || audited != 2 {
+		t.Fatalf("trim audit events = %d, %v", audited, err)
+	}
 }

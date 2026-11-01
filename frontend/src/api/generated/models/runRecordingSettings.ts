@@ -30,10 +30,27 @@ export interface RunRecordingSettings {
      */
   timelapseRetentionDays: number;
   /**
-     * Largest accepted video (PRINTER_TIMELAPSE_MAX_BYTES).
-     * @minimum 1
+     * Largest accepted video; connectors skip larger ones. Capped by PRINTER_TIMELAPSE_MAX_BYTES (`timelapseMaxBytesLimit`).
+     * @minimum 1048576
+     * @maximum 8589934592
      */
-  readonly timelapseMaxBytes: number;
+  timelapseMaxBytes: number;
+  /**
+     * The ceiling the deployment allows (PRINTER_TIMELAPSE_MAX_BYTES).
+     * @minimum 1048576
+     */
+  readonly timelapseMaxBytesLimit: number;
+  /**
+     * How many videos are kept in all; the oldest go first. 0 means no limit.
+     * @minimum 0
+     * @maximum 100000
+     */
+  timelapseMaxCount: number;
+  /**
+     * How much storage all videos may take; the oldest go first. 0 means no limit.
+     * @minimum 0
+     */
+  timelapseMaxTotalBytes: number;
   version: Version;
   updatedAt: string;
 }

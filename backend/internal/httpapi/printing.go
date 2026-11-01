@@ -322,6 +322,9 @@ func (s *Server) GetPrinterLiveStatus(
 	if json.Unmarshal(item.Snapshot, &snapshot) != nil {
 		return nil, errors.New("stored live status snapshot is invalid")
 	}
+	if e = s.describeLiveErrors(ctx, &snapshot); e != nil {
+		return nil, e
+	}
 	return openapi.GetPrinterLiveStatus200JSONResponse{
 		MachineId:    item.MachineID,
 		AssignmentId: item.AssignmentID,

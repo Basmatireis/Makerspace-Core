@@ -27,5 +27,17 @@ export interface UpdateRunRecordingSettingsRequest {
      * @maximum 3650
      */
   timelapseRetentionDays: number;
+  /**
+     * @minimum 1048576
+     * @maximum 8589934592
+     */
+  timelapseMaxBytes: number;
+  /**
+     * @minimum 0
+     * @maximum 100000
+     */
+  timelapseMaxCount: number;
+  /** @minimum 0 */
+  timelapseMaxTotalBytes: number;
   expectedVersion: Version;
 }

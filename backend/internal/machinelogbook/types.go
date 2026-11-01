@@ -78,8 +78,11 @@ const (
 type RunEventKind string
 
 const (
+	RunEventOperationalState  RunEventKind = "operational_state"
 	RunEventTerminalOutcome   RunEventKind = "terminal_outcome"
 	RunEventConsumptionReport RunEventKind = "consumption_report"
+	RunEventPrinterError      RunEventKind = "printer_error"
+	RunEventFilamentChange    RunEventKind = "filament_change"
 )
 
 // UsageOwnership says whether a material usage came from the makerspace's

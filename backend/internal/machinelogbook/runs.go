@@ -3,6 +3,8 @@ package machinelogbook
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/printererrors"
 	"strings"
 	"time"
 
@@ -74,6 +76,18 @@ type RunEvent struct {
 	State           *string
 	ProgressPercent *int
 	Quantity        *string
+	// Printer errors: the family and code as the printer shows it, whether it appeared or cleared, its level, the
+	// catalog's meaning and where to read more.
+	SourceFamily *string
+	Code         *string
+	Transition   *string
+	Severity     *string
+	Title        *string
+	Link         *string
+	// Filament changes: the slots the printer switched between. Operational states: the file the printer named.
+	FromSlot *string
+	ToSlot   *string
+	FileName *string
 }
 
 type RunDetail struct {
@@ -450,7 +464,17 @@ func (s *Service) GetRun(ctx context.Context, p authorization.Principal, id uuid
 	}
 	detail := RunDetail{MachineRun: run, Events: make([]RunEvent, 0, len(events))}
 	for _, event := range events {
-		detail.Events = append(detail.Events, runEventFromRow(event))
+		item := runEventFromRow(event)
+		// The machine repeats its state with every status that carries other news; the page shows a state once
+		// until it changes.
+		if last := len(detail.Events) - 1; last >= 0 && item.Kind == RunEventOperationalState &&
+			detail.Events[last].Kind == RunEventOperationalState && sameText(detail.Events[last].State, item.State) {
+			continue
+		}
+		detail.Events = append(detail.Events, item)
+	}
+	if err := describeRunErrorEvents(ctx, q, detail.Events); err != nil {
+		return RunDetail{}, err
 	}
 	return detail, nil
 }
@@ -480,5 +504,65 @@ func runEventFromRow(row machinelogbookdb.ListRunEventsRow) RunEvent {
 			event.Quantity = &quantity
 		}
 	}
+	text := func(key string, limit int) *string {
+		value, ok := values[key].(string)
+		value = strings.TrimSpace(value)
+		if !ok || value == "" || len(value) > limit {
+			return nil
+		}
+		return &value
+	}
+	switch RunEventKind(row.Kind) {
+	case RunEventPrinterError:
+		event.SourceFamily, event.Code, event.Transition = text("sourceFamily", 80), text("code", 120), text("transition", 16)
+		if event.SourceFamily != nil && event.Code != nil {
+			event.Severity = printererrors.Severity(*event.SourceFamily, *event.Code)
+			event.Link = printererrors.WikiLink(*event.SourceFamily, *event.Code)
+		}
+	case RunEventFilamentChange:
+		event.FromSlot, event.ToSlot = text("fromSlotExternalId", 200), text("toSlotExternalId", 200)
+	case RunEventOperationalState:
+		event.FileName = text("fileName", 255)
+	}
 	return event
+}
+
+// describeRunErrorEvents adds the catalog's meaning and link to printer error events.
+func describeRunErrorEvents(ctx context.Context, q *machinelogbookdb.Queries, events []RunEvent) error {
+	var codes []string
+	for _, event := range events {
+		if event.Kind == RunEventPrinterError && event.Code != nil {
+			codes = append(codes, *event.Code)
+		}
+	}
+	if len(codes) == 0 {
+		return nil
+	}
+	rows, err := q.ListPrinterErrorCodeFacts(ctx, codes)
+	if err != nil {
+		return fmt.Errorf("load printer error codes: %w", err)
+	}
+	for i := range events {
+		event := &events[i]
+		if event.Kind != RunEventPrinterError || event.Code == nil || event.SourceFamily == nil {
+			continue
+		}
+		for _, row := range rows {
+			if row.SourceFamily == *event.SourceFamily && row.Code == *event.Code {
+				title := row.Title
+				event.Title = &title
+				if row.Link != nil {
+					event.Link = row.Link
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func sameText(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }

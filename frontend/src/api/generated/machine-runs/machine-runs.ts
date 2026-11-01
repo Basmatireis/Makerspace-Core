@@ -712,8 +712,8 @@ export const getUpdateRunRecordingSettingsUrl = () => {
 }
 
 /**
- * Needs machines.manage. `timelapseRetentionDays` 0 keeps videos until their run is deleted. A shorter retention applies on the next maintenance pass (every five minutes). Connectors read `timelapseEnabled` with their next configuration poll (every 10 seconds). Audited as `run_recording_settings.updated`.
- * @summary Change whether timelapses are collected and how long they are kept
+ * Needs machines.manage. `timelapseRetentionDays` 0 keeps videos until their run is deleted; `timelapseMaxCount` and `timelapseMaxTotalBytes` 0 mean no limit, otherwise the oldest videos are deleted first. `timelapseMaxBytes` may not exceed the deployment's ceiling. A shorter retention or a tighter limit applies on the next maintenance pass (every five minutes). Connectors read `timelapseEnabled` with their next configuration poll (every 10 seconds). Audited as `run_recording_settings.updated`.
+ * @summary Change whether timelapses are collected, how large they may be and how many are kept
  */
 export const updateRunRecordingSettings = async (updateRunRecordingSettingsRequest: UpdateRunRecordingSettingsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<RunRecordingSettings> => {
 

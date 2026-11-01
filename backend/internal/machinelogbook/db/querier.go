@@ -190,6 +190,7 @@ type Querier interface {
 	ListPricingGroups(ctx context.Context) ([]PricingGroup, error)
 	ListPricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]ListPricingRulesByGroupRow, error)
 	ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.UUID) ([]MachineJobPricingSnapshotRule, error)
+	ListPrinterErrorCodeFacts(ctx context.Context, codes []string) ([]ListPrinterErrorCodeFactsRow, error)
 	ListRecentJobIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
 	ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error)
 	ListRolePricingGroups(ctx context.Context) ([]ListRolePricingGroupsRow, error)

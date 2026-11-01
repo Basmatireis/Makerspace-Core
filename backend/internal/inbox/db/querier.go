@@ -29,6 +29,8 @@ type Querier interface {
 	GetMachineNotificationFacts(ctx context.Context, id uuid.UUID) (GetMachineNotificationFactsRow, error)
 	GetOpenDayFacts(ctx context.Context, id uuid.UUID) (GetOpenDayFactsRow, error)
 	GetOpenDayPeriodFacts(ctx context.Context, id uuid.UUID) (GetOpenDayPeriodFactsRow, error)
+	GetPrinterErrorCodeFacts(ctx context.Context, arg GetPrinterErrorCodeFactsParams) (GetPrinterErrorCodeFactsRow, error)
+	GetPrinterNotificationPolicy(ctx context.Context) (GetPrinterNotificationPolicyRow, error)
 	GetRunNotificationFacts(ctx context.Context, id uuid.UUID) (GetRunNotificationFactsRow, error)
 	GetSentMessage(ctx context.Context, id uuid.UUID) (GetSentMessageRow, error)
 	GetSentMessageForUpdate(ctx context.Context, arg GetSentMessageForUpdateParams) (GetSentMessageForUpdateRow, error)

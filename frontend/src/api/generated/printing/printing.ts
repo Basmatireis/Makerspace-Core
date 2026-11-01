@@ -24,13 +24,19 @@ import type {
   CreatePrinterSlotRequest,
   DetectedSpoolTagList,
   MountSpoolRequest,
+  PrinterErrorCode,
+  PrinterErrorCodeInput,
+  PrinterErrorCodeList,
+  PrinterErrorOccurrenceList,
   PrinterInputUnit,
   PrinterLiveStatus,
+  PrinterNotificationSettings,
   PrinterProfile,
   PrinterSetupRequest,
   PrinterSlot,
   UUIDv7,
   UpdatePrinterInputUnitRequest,
+  UpdatePrinterNotificationSettingsRequest,
   UpdatePrinterSlotRequest
 } from '../models';
 
@@ -113,6 +119,207 @@ export const getPrinterLiveStatus = async (machineId: UUIDv7, options?: Paramete
     method: 'GET'
 
 
+  }
+);}
+
+
+export const getListPrinterErrorsUrl = (machineId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machines/${machineId}/printer-errors`
+}
+
+/**
+ * Needs machines.read. Open errors first, then resolved ones of the last 30 days, newest first; at most 200.
+ * @summary Printer errors the machine's connectors reported, open ones first
+ */
+export const listPrinterErrors = async (machineId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterErrorOccurrenceList> => {
+
+  return apiFetch<PrinterErrorOccurrenceList>(getListPrinterErrorsUrl(machineId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getClearPrinterErrorsUrl = (machineId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machines/${machineId}/printer-errors`
+}
+
+/**
+ * Needs machines.manage. Marks every open error of the machine as resolved and deletes the resolved history. An error the printer still reports comes back with its next status. Audited as `printer_errors.cleared`.
+ * @summary Clear the machine's printer error history
+ */
+export const clearPrinterErrors = async (machineId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getClearPrinterErrorsUrl(machineId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getListPrinterErrorCodesUrl = () => {
+
+
+
+
+  return `/api/v1/printer-error-codes`
+}
+
+/**
+ * Needs machines.read.
+ * @summary The catalog of printer error code meanings
+ */
+export const listPrinterErrorCodes = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PrinterErrorCodeList> => {
+
+  return apiFetch<PrinterErrorCodeList>(getListPrinterErrorCodesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getPutPrinterErrorCodeUrl = (sourceFamily: 'print' | 'hms',
+    code: string,) => {
+
+
+
+
+  return `/api/v1/printer-error-codes/${sourceFamily}/${code}`
+}
+
+/**
+ * Needs machines.manage. Creates the entry or replaces it. Audited as `printer_error_code.saved`.
+ * @summary Record or change what a printer error code means
+ */
+export const putPrinterErrorCode = async (sourceFamily: 'print' | 'hms',
+    code: string,
+    printerErrorCodeInput: PrinterErrorCodeInput, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterErrorCode> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PrinterErrorCode>(getPutPrinterErrorCodeUrl(sourceFamily,code),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(printerErrorCodeInput)
+  }
+);}
+
+
+export const getDeletePrinterErrorCodeUrl = (sourceFamily: 'print' | 'hms',
+    code: string,) => {
+
+
+
+
+  return `/api/v1/printer-error-codes/${sourceFamily}/${code}`
+}
+
+/**
+ * Needs machines.manage. Audited as `printer_error_code.deleted`.
+ * @summary Remove a code's meaning from the catalog
+ */
+export const deletePrinterErrorCode = async (sourceFamily: 'print' | 'hms',
+    code: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeletePrinterErrorCodeUrl(sourceFamily,code),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getGetPrinterNotificationSettingsUrl = () => {
+
+
+
+
+  return `/api/v1/printer-notification-settings`
+}
+
+/**
+ * Needs machines.read.
+ * @summary Who is told about printer errors
+ */
+export const getPrinterNotificationSettings = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PrinterNotificationSettings> => {
+
+  return apiFetch<PrinterNotificationSettings>(getGetPrinterNotificationSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdatePrinterNotificationSettingsUrl = () => {
+
+
+
+
+  return `/api/v1/printer-notification-settings`
+}
+
+/**
+ * Needs machines.manage. The operator of the running print is always told; the chosen role's holders in addition. Errors below the minimum severity are not announced. Audited as `printer_notification_settings.updated`.
+ * @summary Change who is told about printer errors
+ */
+export const updatePrinterNotificationSettings = async (updatePrinterNotificationSettingsRequest: UpdatePrinterNotificationSettingsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterNotificationSettings> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<PrinterNotificationSettings>(getUpdatePrinterNotificationSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updatePrinterNotificationSettingsRequest)
   }
 );}
 

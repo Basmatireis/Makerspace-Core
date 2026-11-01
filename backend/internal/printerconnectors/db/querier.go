@@ -23,6 +23,7 @@ type Querier interface {
 	CloseOpenMount(ctx context.Context, arg CloseOpenMountParams) error
 	CompleteEnrollment(ctx context.Context, arg CompleteEnrollmentParams) (PrinterConnectorEnrollment, error)
 	CountConnectorActivity(ctx context.Context, connectorID uuid.UUID) (int64, error)
+	CountRolesByID(ctx context.Context, id uuid.UUID) (int64, error)
 	CreateAssignment(ctx context.Context, arg CreateAssignmentParams) (PrinterConnectorAssignment, error)
 	CreateConnector(ctx context.Context, arg CreateConnectorParams) (PrinterConnector, error)
 	CreateCredential(ctx context.Context, arg CreateCredentialParams) (PrinterConnectorCredential, error)
@@ -32,6 +33,8 @@ type Querier interface {
 	DeleteConnector(ctx context.Context, arg DeleteConnectorParams) (int64, error)
 	DeleteConnectorActivityBefore(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error
+	DeletePrinterErrorCode(ctx context.Context, arg DeletePrinterErrorCodeParams) (int64, error)
+	DeleteResolvedPrinterErrorOccurrences(ctx context.Context, machineID uuid.UUID) (int64, error)
 	// Events that no run, usage or spool mount rests on are pure diagnostics.
 	DeleteUnreferencedConnectorEvents(ctx context.Context, connectorID uuid.UUID) error
 	// Events that a run's reported usage still cites stay until that run is deleted.
@@ -57,6 +60,7 @@ type Querier interface {
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error)
 	GetOpenMountSpoolForSlot(ctx context.Context, slotID uuid.UUID) (uuid.UUID, error)
+	GetPrinterNotificationSettings(ctx context.Context) (GetPrinterNotificationSettingsRow, error)
 	// The slot a connector names, with the names people know it by; any status, so a change in a slot that
 	// is unavailable right now is still reported.
 	GetSlotByExternalIDs(ctx context.Context, arg GetSlotByExternalIDsParams) (GetSlotByExternalIDsRow, error)
@@ -79,12 +83,17 @@ type Querier interface {
 	ListEnabledPrinterLiveStatuses(ctx context.Context) ([]ListEnabledPrinterLiveStatusesRow, error)
 	ListNFCSpoolsAt(ctx context.Context, arg ListNFCSpoolsAtParams) ([]uuid.UUID, error)
 	ListObservedRuns(ctx context.Context, connectorID uuid.UUID) ([]ListObservedRunsRow, error)
+	ListPrinterErrorCodes(ctx context.Context) ([]PrinterErrorCode, error)
+	ListPrinterErrorCodesByCodes(ctx context.Context, codes []string) ([]PrinterErrorCode, error)
+	// Open errors first (newest first), then errors resolved within the window, newest first.
+	ListPrinterErrorOccurrences(ctx context.Context, arg ListPrinterErrorOccurrencesParams) ([]ListPrinterErrorOccurrencesRow, error)
 	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)
 	LockActiveSpoolByNFCTag(ctx context.Context, tagUid string) (uuid.UUID, error)
 	LockAvailableSlotByExternalIDs(ctx context.Context, arg LockAvailableSlotByExternalIDsParams) (uuid.UUID, error)
 	LockEventSource(ctx context.Context, lockKey string) error
 	LockOpenMountForSlot(ctx context.Context, slotID uuid.UUID) (LockOpenMountForSlotRow, error)
 	LockOpenMountForSpool(ctx context.Context, spoolID uuid.UUID) (LockOpenMountForSpoolRow, error)
+	MachineExists(ctx context.Context, id uuid.UUID) (bool, error)
 	NextPrintSequence(ctx context.Context) (int64, error)
 	// Keeps the newest keep_count entries of the connector that are not older than cutoff.
 	PruneConnectorActivity(ctx context.Context, arg PruneConnectorActivityParams) error
@@ -92,6 +101,7 @@ type Querier interface {
 	ReenrollConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	RequestConnectorUpdate(ctx context.Context, arg RequestConnectorUpdateParams) (PrinterConnector, error)
 	ResolveErrorOccurrencesOfConnector(ctx context.Context, connectorID uuid.UUID) error
+	ResolveOpenPrinterErrorOccurrences(ctx context.Context, arg ResolveOpenPrinterErrorOccurrencesParams) (int64, error)
 	ResolvePrinterErrorOccurrence(ctx context.Context, arg ResolvePrinterErrorOccurrenceParams) error
 	RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (PrinterConnector, error)
 	RevokeConnectorCredentials(ctx context.Context, connectorID uuid.UUID) error
@@ -110,6 +120,8 @@ type Querier interface {
 	UpdateConnector(ctx context.Context, arg UpdateConnectorParams) (PrinterConnector, error)
 	UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (MachineRun, error)
 	UpdateObservedRunFacts(ctx context.Context, arg UpdateObservedRunFactsParams) error
+	UpdatePrinterNotificationSettings(ctx context.Context, arg UpdatePrinterNotificationSettingsParams) (PrinterNotificationSetting, error)
+	UpsertPrinterErrorCode(ctx context.Context, arg UpsertPrinterErrorCodeParams) (PrinterErrorCode, error)
 	// inserted is true when this is the first observation of a still open occurrence.
 	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) (bool, error)
 	UpsertPrinterLiveStatus(ctx context.Context, arg UpsertPrinterLiveStatusParams) error

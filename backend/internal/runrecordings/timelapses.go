@@ -40,15 +40,18 @@ func (s *Service) UploadTimelapse(
 		!strings.HasSuffix(strings.ToLower(name), ".mp4") || upload.ContentLength < 1 {
 		return TimelapseUploadResult{}, invalid("timelapse_metadata_invalid", "Timelapse file name, length or SHA-256 is invalid")
 	}
-	if upload.ContentLength > s.timelapseMaxBytes {
+	q := db.New(s.pool)
+	settings, err := q.GetRecordingSettings(ctx)
+	if err != nil {
+		return TimelapseUploadResult{}, err
+	}
+	if upload.ContentLength > min(settings.TimelapseMaxBytes, s.timelapseMaxBytes) {
 		return TimelapseUploadResult{}, apperror.New(
 			http.StatusRequestEntityTooLarge,
 			"timelapse_too_large",
 			"Timelapse video exceeds the configured limit",
 		)
 	}
-	q := db.New(s.pool)
-	settings, err := q.GetRecordingSettings(ctx)
 	if err != nil {
 		return TimelapseUploadResult{}, err
 	}

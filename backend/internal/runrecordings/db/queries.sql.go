@@ -213,7 +213,7 @@ func (q *Queries) GetOpenRunCommand(ctx context.Context, arg GetOpenRunCommandPa
 }
 
 const getRecordingSettings = `-- name: GetRecordingSettings :one
-SELECT singleton, timelapse_enabled, timelapse_retention_days, version, updated_at FROM run_recording_settings WHERE singleton
+SELECT singleton, timelapse_enabled, timelapse_retention_days, version, updated_at, timelapse_max_bytes, timelapse_max_count, timelapse_max_total_bytes FROM run_recording_settings WHERE singleton
 `
 
 func (q *Queries) GetRecordingSettings(ctx context.Context) (RunRecordingSetting, error) {
@@ -225,6 +225,9 @@ func (q *Queries) GetRecordingSettings(ctx context.Context) (RunRecordingSetting
 		&i.TimelapseRetentionDays,
 		&i.Version,
 		&i.UpdatedAt,
+		&i.TimelapseMaxBytes,
+		&i.TimelapseMaxCount,
+		&i.TimelapseMaxTotalBytes,
 	)
 	return i, err
 }
@@ -513,6 +516,40 @@ func (q *Queries) ListLatestRunCommands(ctx context.Context, runIds []uuid.UUID)
 	return items, nil
 }
 
+const listOldestTimelapsesForUpdate = `-- name: ListOldestTimelapsesForUpdate :many
+SELECT run_id, file_id, size_bytes FROM machine_run_timelapses
+ORDER BY created_at, run_id
+LIMIT $1
+FOR UPDATE SKIP LOCKED
+`
+
+type ListOldestTimelapsesForUpdateRow struct {
+	RunID     uuid.UUID
+	FileID    uuid.UUID
+	SizeBytes int64
+}
+
+// Oldest first, for the count and storage limits.
+func (q *Queries) ListOldestTimelapsesForUpdate(ctx context.Context, rowLimit int32) ([]ListOldestTimelapsesForUpdateRow, error) {
+	rows, err := q.db.Query(ctx, listOldestTimelapsesForUpdate, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOldestTimelapsesForUpdateRow{}
+	for rows.Next() {
+		var i ListOldestTimelapsesForUpdateRow
+		if err := rows.Scan(&i.RunID, &i.FileID, &i.SizeBytes); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOpenConnectorCommands = `-- name: ListOpenConnectorCommands :many
 SELECT id, run_id, connector_id, assignment_id, kind, state, reason_code, requested_at, started_at, finished_at, updated_at FROM machine_run_commands
 WHERE connector_id = $1 AND state IN ('requested', 'running') AND assignment_id IS NOT NULL
@@ -761,22 +798,50 @@ func (q *Queries) SetRunCommandState(ctx context.Context, arg SetRunCommandState
 	return i, err
 }
 
+const summarizeTimelapses = `-- name: SummarizeTimelapses :one
+SELECT count(*)::bigint AS count, COALESCE(sum(size_bytes), 0)::bigint AS total_bytes FROM machine_run_timelapses
+`
+
+type SummarizeTimelapsesRow struct {
+	Count      int64
+	TotalBytes int64
+}
+
+func (q *Queries) SummarizeTimelapses(ctx context.Context) (SummarizeTimelapsesRow, error) {
+	row := q.db.QueryRow(ctx, summarizeTimelapses)
+	var i SummarizeTimelapsesRow
+	err := row.Scan(&i.Count, &i.TotalBytes)
+	return i, err
+}
+
 const updateRecordingSettings = `-- name: UpdateRecordingSettings :one
 UPDATE run_recording_settings
 SET timelapse_enabled = $1, timelapse_retention_days = $2,
+    timelapse_max_bytes = $3, timelapse_max_count = $4,
+    timelapse_max_total_bytes = $5,
     version = version + 1, updated_at = now()
-WHERE singleton AND version = $3
-RETURNING singleton, timelapse_enabled, timelapse_retention_days, version, updated_at
+WHERE singleton AND version = $6
+RETURNING singleton, timelapse_enabled, timelapse_retention_days, version, updated_at, timelapse_max_bytes, timelapse_max_count, timelapse_max_total_bytes
 `
 
 type UpdateRecordingSettingsParams struct {
 	TimelapseEnabled       bool
 	TimelapseRetentionDays int32
+	TimelapseMaxBytes      int64
+	TimelapseMaxCount      int32
+	TimelapseMaxTotalBytes int64
 	ExpectedVersion        int64
 }
 
 func (q *Queries) UpdateRecordingSettings(ctx context.Context, arg UpdateRecordingSettingsParams) (RunRecordingSetting, error) {
-	row := q.db.QueryRow(ctx, updateRecordingSettings, arg.TimelapseEnabled, arg.TimelapseRetentionDays, arg.ExpectedVersion)
+	row := q.db.QueryRow(ctx, updateRecordingSettings,
+		arg.TimelapseEnabled,
+		arg.TimelapseRetentionDays,
+		arg.TimelapseMaxBytes,
+		arg.TimelapseMaxCount,
+		arg.TimelapseMaxTotalBytes,
+		arg.ExpectedVersion,
+	)
 	var i RunRecordingSetting
 	err := row.Scan(
 		&i.Singleton,
@@ -784,6 +849,9 @@ func (q *Queries) UpdateRecordingSettings(ctx context.Context, arg UpdateRecordi
 		&i.TimelapseRetentionDays,
 		&i.Version,
 		&i.UpdatedAt,
+		&i.TimelapseMaxBytes,
+		&i.TimelapseMaxCount,
+		&i.TimelapseMaxTotalBytes,
 	)
 	return i, err
 }

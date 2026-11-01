@@ -4,6 +4,22 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Upgrade notes
+
+- **Migration 00085 (printer errors, timelapse limits).** Adds `printer_notification_settings` (one row), `printer_error_codes`, `severity` and `cleared_by_account_id` on `printer_error_occurrences`, and `timelapse_max_bytes`, `timelapse_max_count`, `timelapse_max_total_bytes` on `run_recording_settings`. New endpoints `GET|DELETE /machines/{machineId}/printer-errors`, `GET /printer-error-codes`, `PUT|DELETE /printer-error-codes/{sourceFamily}/{code}`, `GET|PUT /printer-notification-settings`; `RunRecordingSettings` gains `timelapseMaxBytes` (now writable), `timelapseMaxBytesLimit`, `timelapseMaxCount` and `timelapseMaxTotalBytes`; `MachineRunEvent` and `PrinterLiveStatusError` gain error details. New audit actions `printer_errors.cleared`, `printer_error_code.saved`, `printer_error_code.deleted`, `printer_notification_settings.updated`, `machine_run.timelapse_trimmed`. Printer error notifications now go to the operator of the running print and an optional role instead of everyone with `printer_connectors.read`.
+- **Connector.** Printer error codes are reported in the form the printer shows (`0300-0D00-0001-0001`, print errors as eight hex digits) instead of decimals; an error open at the moment of the upgrade is reported once more under the new form. An upload the proxy in front of Core refuses with 413 is given up with reason `artifact_rejected` / `artifact_too_large` instead of being retried for a day. Deploy the connector together with this Core.
+
+### Added
+
+- **Printer errors you can read.** The printer setup shows each error with its level, the code as the printer shows it, the meaning your makerspace recorded for it and a link to the Bambu wiki page; notices (common, info) are folded away. The machine's error history can be cleared. Settings › Machines gains an **Error catalog** (code → meaning, description, link; also reachable from an error without a meaning) and **Printer notifications** (which role is told besides the operator of the running print, and from which level on).
+- **Timelapse limits.** Settings › Machines › Recording sets the largest accepted video, how many videos are kept in all and how much storage they may take; the oldest go first.
+- **Machine events with meaning.** The run page's event list names what happened (printing started with the file name, paused, resumed, printer error with code, level, meaning and link, filament change between slots, consumption, outcome) and shows a repeated state once.
+
+### Fixed
+
+- **H2D print files never arrived.** The connector uploads 3MF files through Core's public address; the proxy in front of Core answered 413 for the larger H2D archives and the connector retried every two minutes for a day without telling anyone. It now gives up once, the run page says why (proxy body limit), and the print's material estimate still comes from the printer's report. The proxy's body size limit has to be raised, or the connector pointed at Core directly, for those files to arrive.
+- **Printer error codes were decimals.** Codes such as `196610` are now `0501-0400-0003-0002`, so they can be looked up.
+
 ### Changed
 
 - **Preview tile of an internal-storage print.** The tile now says only that Core has no print file, like any run without a 3MF; the warning on the page keeps the explanation.

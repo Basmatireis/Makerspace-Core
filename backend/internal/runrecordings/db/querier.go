@@ -31,6 +31,8 @@ type Querier interface {
 	InsertRunTimelapse(ctx context.Context, arg InsertRunTimelapseParams) (MachineRunTimelapse, error)
 	ListExpiredTimelapsesForUpdate(ctx context.Context, arg ListExpiredTimelapsesForUpdateParams) ([]ListExpiredTimelapsesForUpdateRow, error)
 	ListLatestRunCommands(ctx context.Context, runIds []uuid.UUID) ([]MachineRunCommand, error)
+	// Oldest first, for the count and storage limits.
+	ListOldestTimelapsesForUpdate(ctx context.Context, rowLimit int32) ([]ListOldestTimelapsesForUpdateRow, error)
 	ListOpenConnectorCommands(ctx context.Context, connectorID *uuid.UUID) ([]MachineRunCommand, error)
 	ListRunArtifactFiles(ctx context.Context, runIds []uuid.UUID) ([]ListRunArtifactFilesRow, error)
 	ListRunPreviews(ctx context.Context, runIds []uuid.UUID) ([]ListRunPreviewsRow, error)
@@ -38,6 +40,7 @@ type Querier interface {
 	ListRunTimelapses(ctx context.Context, runIds []uuid.UUID) ([]ListRunTimelapsesRow, error)
 	MarkConnectorCommandsPolled(ctx context.Context, id uuid.UUID) error
 	SetRunCommandState(ctx context.Context, arg SetRunCommandStateParams) (MachineRunCommand, error)
+	SummarizeTimelapses(ctx context.Context) (SummarizeTimelapsesRow, error)
 	UpdateRecordingSettings(ctx context.Context, arg UpdateRecordingSettingsParams) (RunRecordingSetting, error)
 	UpsertRunConsumptionReport(ctx context.Context, arg UpsertRunConsumptionReportParams) error
 	UpsertRunTimelapseReport(ctx context.Context, arg UpsertRunTimelapseReportParams) error

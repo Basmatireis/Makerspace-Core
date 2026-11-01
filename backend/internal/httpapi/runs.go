@@ -396,6 +396,15 @@ func mlRunDetailDTO(item machinelogbook.RunDetail) openapi.MachineRunDetail {
 				State:           nullableString(e.State),
 				ProgressPercent: nullableInt(e.ProgressPercent),
 				Quantity:        nullableDecimalValue(e.Quantity),
+				SourceFamily:    nullableString(e.SourceFamily),
+				Code:            nullableString(e.Code),
+				Transition:      runEventTransition(e.Transition),
+				Severity:        printerErrorSeverity(e.Severity),
+				Title:           nullableString(e.Title),
+				Link:            nullableString(e.Link),
+				FromSlot:        nullableString(e.FromSlot),
+				ToSlot:          nullableString(e.ToSlot),
+				FileName:        nullableString(e.FileName),
 			},
 		)
 	}
@@ -602,4 +611,11 @@ func (s *Server) BulkAttachMachineRuns(
 		return nil, err
 	}
 	return openapi.BulkAttachMachineRuns200JSONResponse(mlJobDTO(item)), nil
+}
+
+func runEventTransition(value *string) nullable.Nullable[openapi.MachineRunEventTransition] {
+	if value == nil {
+		return nullable.NewNullNullable[openapi.MachineRunEventTransition]()
+	}
+	return nullable.NewNullableWithValue(openapi.MachineRunEventTransition(*value))
 }

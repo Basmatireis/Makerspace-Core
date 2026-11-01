@@ -215,17 +215,72 @@ INSERT INTO machine_run_reported_usage_items (
 -- name: UpsertPrinterErrorOccurrence :one
 -- inserted is true when this is the first observation of a still open occurrence.
 INSERT INTO printer_error_occurrences (
-    id, machine_id, assignment_id, run_id, source_family, original_code,
+    id, machine_id, assignment_id, run_id, source_family, original_code, severity,
     first_observed_at, last_observed_at, context
 ) VALUES (
     sqlc.arg(id), sqlc.arg(machine_id), sqlc.arg(assignment_id), sqlc.narg(run_id),
-    sqlc.arg(source_family), sqlc.arg(original_code), sqlc.arg(observed_at), sqlc.arg(observed_at), sqlc.arg(context)
+    sqlc.arg(source_family), sqlc.arg(original_code), sqlc.narg(severity), sqlc.arg(observed_at), sqlc.arg(observed_at), sqlc.arg(context)
 )
 ON CONFLICT (assignment_id, source_family, original_code) WHERE resolved_at IS NULL
 DO UPDATE SET last_observed_at=GREATEST(printer_error_occurrences.last_observed_at, EXCLUDED.last_observed_at),
               run_id=COALESCE(printer_error_occurrences.run_id, EXCLUDED.run_id),
+              severity=COALESCE(EXCLUDED.severity, printer_error_occurrences.severity),
               context=EXCLUDED.context, updated_at=now()
 RETURNING (xmax = 0)::boolean AS inserted;
+
+-- name: ListPrinterErrorOccurrences :many
+-- Open errors first (newest first), then errors resolved within the window, newest first.
+SELECT o.id, o.source_family, o.original_code, o.severity, o.first_observed_at, o.last_observed_at, o.resolved_at, o.run_id,
+       c.title AS catalog_title, c.description AS catalog_description, c.link AS catalog_link
+FROM printer_error_occurrences o
+LEFT JOIN printer_error_codes c ON c.source_family = o.source_family AND c.code = o.original_code
+WHERE o.machine_id = sqlc.arg(machine_id)
+  AND (o.resolved_at IS NULL OR o.resolved_at >= sqlc.arg(resolved_since)::timestamptz)
+ORDER BY (o.resolved_at IS NULL) DESC, o.last_observed_at DESC, o.id DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: ResolveOpenPrinterErrorOccurrences :execrows
+UPDATE printer_error_occurrences
+SET resolved_at = GREATEST(first_observed_at, sqlc.arg(now)::timestamptz), cleared_by_account_id = sqlc.arg(account_id), updated_at = now()
+WHERE machine_id = sqlc.arg(machine_id) AND resolved_at IS NULL;
+
+-- name: DeleteResolvedPrinterErrorOccurrences :execrows
+DELETE FROM printer_error_occurrences WHERE machine_id = sqlc.arg(machine_id) AND resolved_at IS NOT NULL;
+
+-- name: ListPrinterErrorCodes :many
+SELECT * FROM printer_error_codes ORDER BY source_family, code;
+
+-- name: ListPrinterErrorCodesByCodes :many
+SELECT * FROM printer_error_codes WHERE code = ANY(sqlc.arg(codes)::text[]);
+
+-- name: UpsertPrinterErrorCode :one
+INSERT INTO printer_error_codes (id, source_family, code, title, description, link)
+VALUES (sqlc.arg(id), sqlc.arg(source_family), sqlc.arg(code), sqlc.arg(title), sqlc.arg(description), sqlc.narg(link))
+ON CONFLICT (source_family, code)
+DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, link = EXCLUDED.link, updated_at = now()
+RETURNING *;
+
+-- name: DeletePrinterErrorCode :execrows
+DELETE FROM printer_error_codes WHERE source_family = sqlc.arg(source_family) AND code = sqlc.arg(code);
+
+-- name: GetPrinterNotificationSettings :one
+SELECT s.error_role_id, s.error_min_severity, s.version, s.updated_at, r.name AS error_role_name
+FROM printer_notification_settings s
+LEFT JOIN roles r ON r.id = s.error_role_id
+WHERE s.singleton;
+
+-- name: UpdatePrinterNotificationSettings :one
+UPDATE printer_notification_settings
+SET error_role_id = sqlc.narg(error_role_id), error_min_severity = sqlc.arg(error_min_severity),
+    version = version + 1, updated_at = now()
+WHERE singleton AND version = sqlc.arg(expected_version)
+RETURNING *;
+
+-- name: MachineExists :one
+SELECT EXISTS(SELECT 1 FROM machines WHERE id = sqlc.arg(id))::boolean;
+
+-- name: CountRolesByID :one
+SELECT count(*) FROM roles WHERE id = sqlc.arg(id);
 
 -- name: ResolvePrinterErrorOccurrence :exec
 UPDATE printer_error_occurrences

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/printererrors"
 	"net/http"
 	"strings"
 	"time"
@@ -468,6 +469,7 @@ func applyPrinterError(
 			},
 		)
 	}
+	severity := printererrors.Severity(value.SourceFamily, value.Code)
 	first, err := q.UpsertPrinterErrorOccurrence(
 		ctx,
 		db.UpsertPrinterErrorOccurrenceParams{
@@ -477,6 +479,7 @@ func applyPrinterError(
 			RunID:        runID,
 			SourceFamily: value.SourceFamily,
 			OriginalCode: value.Code,
+			Severity:     severity,
 			ObservedAt:   observedAt.UTC(),
 			Context:      json.RawMessage(`{}`),
 		},
@@ -484,7 +487,7 @@ func applyPrinterError(
 	if err != nil || !first || emitter == nil {
 		return err
 	}
-	return emitter.PrinterError(ctx, tx, machineID, value.SourceFamily, value.Code)
+	return emitter.PrinterError(ctx, tx, machineID, value.SourceFamily, value.Code, severity)
 }
 
 func recordedRunState(kind printing.EventKind, payload json.RawMessage) (RunState, error) {

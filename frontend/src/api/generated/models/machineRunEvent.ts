@@ -20,6 +20,8 @@
  */
 import type { Decimal } from './decimal';
 import type { MachineRunEventKind } from './machineRunEventKind';
+import type { MachineRunEventTransition } from './machineRunEventTransition';
+import type { PrinterErrorSeverity } from './printerErrorSeverity';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface MachineRunEvent {
@@ -39,4 +41,45 @@ export interface MachineRunEvent {
   progressPercent?: number | null;
   /** Reported grams (consumption reports). */
   quantity?: Decimal | null;
+  /**
+     * Printer errors: print or hms.
+     * @nullable
+     */
+  sourceFamily?: string | null;
+  /**
+     * Printer errors: the code as the printer shows it.
+     * @nullable
+     */
+  code?: string | null;
+  /**
+     * Printer errors: whether the error appeared or cleared.
+     * @nullable
+     */
+  transition?: MachineRunEventTransition;
+  severity?: PrinterErrorSeverity | null;
+  /**
+     * Printer errors: the catalog's meaning of the code.
+     * @nullable
+     */
+  title?: string | null;
+  /**
+     * Printer errors: where to read more.
+     * @nullable
+     */
+  link?: string | null;
+  /**
+     * Filament changes: the slot the printer switched from.
+     * @nullable
+     */
+  fromSlot?: string | null;
+  /**
+     * Filament changes: the slot the printer switched to.
+     * @nullable
+     */
+  toSlot?: string | null;
+  /**
+     * Operational states: the print file the printer named.
+     * @nullable
+     */
+  fileName?: string | null;
 }

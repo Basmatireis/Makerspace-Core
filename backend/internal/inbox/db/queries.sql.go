@@ -244,6 +244,45 @@ func (q *Queries) GetOpenDayPeriodFacts(ctx context.Context, id uuid.UUID) (GetO
 	return i, err
 }
 
+const getPrinterErrorCodeFacts = `-- name: GetPrinterErrorCodeFacts :one
+SELECT title, description, link FROM printer_error_codes
+WHERE source_family = $1 AND code = $2
+`
+
+type GetPrinterErrorCodeFactsParams struct {
+	SourceFamily string
+	Code         string
+}
+
+type GetPrinterErrorCodeFactsRow struct {
+	Title       string
+	Description string
+	Link        *string
+}
+
+func (q *Queries) GetPrinterErrorCodeFacts(ctx context.Context, arg GetPrinterErrorCodeFactsParams) (GetPrinterErrorCodeFactsRow, error) {
+	row := q.db.QueryRow(ctx, getPrinterErrorCodeFacts, arg.SourceFamily, arg.Code)
+	var i GetPrinterErrorCodeFactsRow
+	err := row.Scan(&i.Title, &i.Description, &i.Link)
+	return i, err
+}
+
+const getPrinterNotificationPolicy = `-- name: GetPrinterNotificationPolicy :one
+SELECT error_role_id, error_min_severity FROM printer_notification_settings WHERE singleton
+`
+
+type GetPrinterNotificationPolicyRow struct {
+	ErrorRoleID      *uuid.UUID
+	ErrorMinSeverity string
+}
+
+func (q *Queries) GetPrinterNotificationPolicy(ctx context.Context) (GetPrinterNotificationPolicyRow, error) {
+	row := q.db.QueryRow(ctx, getPrinterNotificationPolicy)
+	var i GetPrinterNotificationPolicyRow
+	err := row.Scan(&i.ErrorRoleID, &i.ErrorMinSeverity)
+	return i, err
+}
+
 const getRunNotificationFacts = `-- name: GetRunNotificationFacts :one
 SELECT r.id, r.display_id, r.outcome, r.state, m.name AS machine_name,
        j.id AS job_id, j.title AS job_title, j.operator_person_id

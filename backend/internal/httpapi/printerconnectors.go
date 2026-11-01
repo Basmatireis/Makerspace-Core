@@ -436,6 +436,10 @@ func (s *Server) GetPrinterConnectorConfiguration(
 	if err != nil {
 		return nil, err
 	}
+	timelapseMaxBytes, err := s.runRecordings.EffectiveTimelapseMaxBytes(ctx)
+	if err != nil {
+		return nil, err
+	}
 	assignments := make([]openapi.PrinterConnectorRuntimeAssignment, 0, len(configuration.Assignments))
 	for _, value := range configuration.Assignments {
 		settings := map[string]any{}
@@ -466,7 +470,7 @@ func (s *Server) GetPrinterConnectorConfiguration(
 			// Announces run reports, run commands and timelapse uploads to connectors that support them.
 			Recordings: nullable.NewNullableWithValue(openapi.PrinterConnectorRecordingFeatures{
 				TimelapseEnabled:  configuration.TimelapseEnabled,
-				TimelapseMaxBytes: s.runRecordings.TimelapseMaxBytes(),
+				TimelapseMaxBytes: timelapseMaxBytes,
 			}),
 		},
 		Headers: openapi.GetPrinterConnectorConfiguration200ResponseHeaders{CacheControl: "no-store"},

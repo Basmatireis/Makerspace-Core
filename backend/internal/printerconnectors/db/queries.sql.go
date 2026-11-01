@@ -300,6 +300,17 @@ func (q *Queries) CountConnectorActivity(ctx context.Context, connectorID uuid.U
 	return column_1, err
 }
 
+const countRolesByID = `-- name: CountRolesByID :one
+SELECT count(*) FROM roles WHERE id = $1
+`
+
+func (q *Queries) CountRolesByID(ctx context.Context, id uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countRolesByID, id)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAssignment = `-- name: CreateAssignment :one
 INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, enabled, camera_streaming)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, configuration_version, enabled, applied_configuration_version, runtime_state, runtime_error_code, activated_at, ended_at, version, created_at, updated_at, camera_streaming, camera_health, camera_viewers, camera_reported_at
@@ -569,6 +580,35 @@ DELETE FROM printer_connector_assignments WHERE connector_id=$1
 func (q *Queries) DeleteConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteConnectorAssignments, connectorID)
 	return err
+}
+
+const deletePrinterErrorCode = `-- name: DeletePrinterErrorCode :execrows
+DELETE FROM printer_error_codes WHERE source_family = $1 AND code = $2
+`
+
+type DeletePrinterErrorCodeParams struct {
+	SourceFamily string
+	Code         string
+}
+
+func (q *Queries) DeletePrinterErrorCode(ctx context.Context, arg DeletePrinterErrorCodeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePrinterErrorCode, arg.SourceFamily, arg.Code)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteResolvedPrinterErrorOccurrences = `-- name: DeleteResolvedPrinterErrorOccurrences :execrows
+DELETE FROM printer_error_occurrences WHERE machine_id = $1 AND resolved_at IS NOT NULL
+`
+
+func (q *Queries) DeleteResolvedPrinterErrorOccurrences(ctx context.Context, machineID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteResolvedPrinterErrorOccurrences, machineID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteUnreferencedConnectorEvents = `-- name: DeleteUnreferencedConnectorEvents :exec
@@ -1153,6 +1193,34 @@ func (q *Queries) GetOpenMountSpoolForSlot(ctx context.Context, slotID uuid.UUID
 	var spool_id uuid.UUID
 	err := row.Scan(&spool_id)
 	return spool_id, err
+}
+
+const getPrinterNotificationSettings = `-- name: GetPrinterNotificationSettings :one
+SELECT s.error_role_id, s.error_min_severity, s.version, s.updated_at, r.name AS error_role_name
+FROM printer_notification_settings s
+LEFT JOIN roles r ON r.id = s.error_role_id
+WHERE s.singleton
+`
+
+type GetPrinterNotificationSettingsRow struct {
+	ErrorRoleID      *uuid.UUID
+	ErrorMinSeverity string
+	Version          int64
+	UpdatedAt        time.Time
+	ErrorRoleName    *string
+}
+
+func (q *Queries) GetPrinterNotificationSettings(ctx context.Context) (GetPrinterNotificationSettingsRow, error) {
+	row := q.db.QueryRow(ctx, getPrinterNotificationSettings)
+	var i GetPrinterNotificationSettingsRow
+	err := row.Scan(
+		&i.ErrorRoleID,
+		&i.ErrorMinSeverity,
+		&i.Version,
+		&i.UpdatedAt,
+		&i.ErrorRoleName,
+	)
+	return i, err
 }
 
 const getSlotByExternalIDs = `-- name: GetSlotByExternalIDs :one
@@ -1995,6 +2063,136 @@ func (q *Queries) ListObservedRuns(ctx context.Context, connectorID uuid.UUID) (
 	return items, nil
 }
 
+const listPrinterErrorCodes = `-- name: ListPrinterErrorCodes :many
+SELECT id, source_family, code, title, description, link, created_at, updated_at FROM printer_error_codes ORDER BY source_family, code
+`
+
+func (q *Queries) ListPrinterErrorCodes(ctx context.Context) ([]PrinterErrorCode, error) {
+	rows, err := q.db.Query(ctx, listPrinterErrorCodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PrinterErrorCode{}
+	for rows.Next() {
+		var i PrinterErrorCode
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceFamily,
+			&i.Code,
+			&i.Title,
+			&i.Description,
+			&i.Link,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPrinterErrorCodesByCodes = `-- name: ListPrinterErrorCodesByCodes :many
+SELECT id, source_family, code, title, description, link, created_at, updated_at FROM printer_error_codes WHERE code = ANY($1::text[])
+`
+
+func (q *Queries) ListPrinterErrorCodesByCodes(ctx context.Context, codes []string) ([]PrinterErrorCode, error) {
+	rows, err := q.db.Query(ctx, listPrinterErrorCodesByCodes, codes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PrinterErrorCode{}
+	for rows.Next() {
+		var i PrinterErrorCode
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceFamily,
+			&i.Code,
+			&i.Title,
+			&i.Description,
+			&i.Link,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPrinterErrorOccurrences = `-- name: ListPrinterErrorOccurrences :many
+SELECT o.id, o.source_family, o.original_code, o.severity, o.first_observed_at, o.last_observed_at, o.resolved_at, o.run_id,
+       c.title AS catalog_title, c.description AS catalog_description, c.link AS catalog_link
+FROM printer_error_occurrences o
+LEFT JOIN printer_error_codes c ON c.source_family = o.source_family AND c.code = o.original_code
+WHERE o.machine_id = $1
+  AND (o.resolved_at IS NULL OR o.resolved_at >= $2::timestamptz)
+ORDER BY (o.resolved_at IS NULL) DESC, o.last_observed_at DESC, o.id DESC
+LIMIT $3
+`
+
+type ListPrinterErrorOccurrencesParams struct {
+	MachineID     uuid.UUID
+	ResolvedSince time.Time
+	RowLimit      int32
+}
+
+type ListPrinterErrorOccurrencesRow struct {
+	ID                 uuid.UUID
+	SourceFamily       string
+	OriginalCode       string
+	Severity           *string
+	FirstObservedAt    time.Time
+	LastObservedAt     time.Time
+	ResolvedAt         pgtype.Timestamptz
+	RunID              *uuid.UUID
+	CatalogTitle       *string
+	CatalogDescription *string
+	CatalogLink        *string
+}
+
+// Open errors first (newest first), then errors resolved within the window, newest first.
+func (q *Queries) ListPrinterErrorOccurrences(ctx context.Context, arg ListPrinterErrorOccurrencesParams) ([]ListPrinterErrorOccurrencesRow, error) {
+	rows, err := q.db.Query(ctx, listPrinterErrorOccurrences, arg.MachineID, arg.ResolvedSince, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPrinterErrorOccurrencesRow{}
+	for rows.Next() {
+		var i ListPrinterErrorOccurrencesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SourceFamily,
+			&i.OriginalCode,
+			&i.Severity,
+			&i.FirstObservedAt,
+			&i.LastObservedAt,
+			&i.ResolvedAt,
+			&i.RunID,
+			&i.CatalogTitle,
+			&i.CatalogDescription,
+			&i.CatalogLink,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSlotSpoolsAt = `-- name: ListSlotSpoolsAt :many
 SELECT a.spool_id
 FROM printer_spool_assignments a
@@ -2134,6 +2332,17 @@ func (q *Queries) LockOpenMountForSpool(ctx context.Context, spoolID uuid.UUID) 
 		&i.MountedAt,
 	)
 	return i, err
+}
+
+const machineExists = `-- name: MachineExists :one
+SELECT EXISTS(SELECT 1 FROM machines WHERE id = $1)::boolean
+`
+
+func (q *Queries) MachineExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, machineExists, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const nextPrintSequence = `-- name: NextPrintSequence :one
@@ -2335,6 +2544,26 @@ WHERE resolved_at IS NULL
 func (q *Queries) ResolveErrorOccurrencesOfConnector(ctx context.Context, connectorID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, resolveErrorOccurrencesOfConnector, connectorID)
 	return err
+}
+
+const resolveOpenPrinterErrorOccurrences = `-- name: ResolveOpenPrinterErrorOccurrences :execrows
+UPDATE printer_error_occurrences
+SET resolved_at = GREATEST(first_observed_at, $1::timestamptz), cleared_by_account_id = $2, updated_at = now()
+WHERE machine_id = $3 AND resolved_at IS NULL
+`
+
+type ResolveOpenPrinterErrorOccurrencesParams struct {
+	Now       time.Time
+	AccountID *uuid.UUID
+	MachineID uuid.UUID
+}
+
+func (q *Queries) ResolveOpenPrinterErrorOccurrences(ctx context.Context, arg ResolveOpenPrinterErrorOccurrencesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, resolveOpenPrinterErrorOccurrences, arg.Now, arg.AccountID, arg.MachineID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const resolvePrinterErrorOccurrence = `-- name: ResolvePrinterErrorOccurrence :exec
@@ -2848,17 +3077,85 @@ func (q *Queries) UpdateObservedRunFacts(ctx context.Context, arg UpdateObserved
 	return err
 }
 
+const updatePrinterNotificationSettings = `-- name: UpdatePrinterNotificationSettings :one
+UPDATE printer_notification_settings
+SET error_role_id = $1, error_min_severity = $2,
+    version = version + 1, updated_at = now()
+WHERE singleton AND version = $3
+RETURNING singleton, error_role_id, error_min_severity, version, updated_at
+`
+
+type UpdatePrinterNotificationSettingsParams struct {
+	ErrorRoleID      *uuid.UUID
+	ErrorMinSeverity string
+	ExpectedVersion  int64
+}
+
+func (q *Queries) UpdatePrinterNotificationSettings(ctx context.Context, arg UpdatePrinterNotificationSettingsParams) (PrinterNotificationSetting, error) {
+	row := q.db.QueryRow(ctx, updatePrinterNotificationSettings, arg.ErrorRoleID, arg.ErrorMinSeverity, arg.ExpectedVersion)
+	var i PrinterNotificationSetting
+	err := row.Scan(
+		&i.Singleton,
+		&i.ErrorRoleID,
+		&i.ErrorMinSeverity,
+		&i.Version,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertPrinterErrorCode = `-- name: UpsertPrinterErrorCode :one
+INSERT INTO printer_error_codes (id, source_family, code, title, description, link)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (source_family, code)
+DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description, link = EXCLUDED.link, updated_at = now()
+RETURNING id, source_family, code, title, description, link, created_at, updated_at
+`
+
+type UpsertPrinterErrorCodeParams struct {
+	ID           uuid.UUID
+	SourceFamily string
+	Code         string
+	Title        string
+	Description  string
+	Link         *string
+}
+
+func (q *Queries) UpsertPrinterErrorCode(ctx context.Context, arg UpsertPrinterErrorCodeParams) (PrinterErrorCode, error) {
+	row := q.db.QueryRow(ctx, upsertPrinterErrorCode,
+		arg.ID,
+		arg.SourceFamily,
+		arg.Code,
+		arg.Title,
+		arg.Description,
+		arg.Link,
+	)
+	var i PrinterErrorCode
+	err := row.Scan(
+		&i.ID,
+		&i.SourceFamily,
+		&i.Code,
+		&i.Title,
+		&i.Description,
+		&i.Link,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const upsertPrinterErrorOccurrence = `-- name: UpsertPrinterErrorOccurrence :one
 INSERT INTO printer_error_occurrences (
-    id, machine_id, assignment_id, run_id, source_family, original_code,
+    id, machine_id, assignment_id, run_id, source_family, original_code, severity,
     first_observed_at, last_observed_at, context
 ) VALUES (
     $1, $2, $3, $4,
-    $5, $6, $7, $7, $8
+    $5, $6, $7, $8, $8, $9
 )
 ON CONFLICT (assignment_id, source_family, original_code) WHERE resolved_at IS NULL
 DO UPDATE SET last_observed_at=GREATEST(printer_error_occurrences.last_observed_at, EXCLUDED.last_observed_at),
               run_id=COALESCE(printer_error_occurrences.run_id, EXCLUDED.run_id),
+              severity=COALESCE(EXCLUDED.severity, printer_error_occurrences.severity),
               context=EXCLUDED.context, updated_at=now()
 RETURNING (xmax = 0)::boolean AS inserted
 `
@@ -2870,6 +3167,7 @@ type UpsertPrinterErrorOccurrenceParams struct {
 	RunID        *uuid.UUID
 	SourceFamily string
 	OriginalCode string
+	Severity     *string
 	ObservedAt   time.Time
 	Context      []byte
 }
@@ -2883,6 +3181,7 @@ func (q *Queries) UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPr
 		arg.RunID,
 		arg.SourceFamily,
 		arg.OriginalCode,
+		arg.Severity,
 		arg.ObservedAt,
 		arg.Context,
 	)

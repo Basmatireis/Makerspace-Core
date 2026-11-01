@@ -208,5 +208,12 @@ WHERE s.id = sqlc.arg(id)
 ORDER BY f.fill_number DESC NULLS LAST
 LIMIT 1;
 
+-- name: GetPrinterNotificationPolicy :one
+SELECT error_role_id, error_min_severity FROM printer_notification_settings WHERE singleton;
+
+-- name: GetPrinterErrorCodeFacts :one
+SELECT title, description, link FROM printer_error_codes
+WHERE source_family = sqlc.arg(source_family) AND code = sqlc.arg(code);
+
 -- name: DeleteNotificationsCreatedBefore :execrows
 DELETE FROM inbox_notifications WHERE created_at < sqlc.arg(before_time);

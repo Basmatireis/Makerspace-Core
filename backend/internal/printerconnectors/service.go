@@ -41,7 +41,7 @@ type Service struct {
 // machine logbook needs. It writes inside the caller's transaction.
 type InboxEmitter interface {
 	machinelogbook.InboxEmitter
-	PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, family, code string) error
+	PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, family, code string, severity *string) error
 	FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, change inbox.FilamentChange) error
 }
 

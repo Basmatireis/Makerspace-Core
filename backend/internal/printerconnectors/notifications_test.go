@@ -9,6 +9,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
 )
@@ -77,37 +78,153 @@ func (h *ingestHarness) runWithOperator(at time.Time) uuid.UUID {
 	return runID
 }
 
-func TestIngestPrinterErrorNotifiesReadersAndTheOperatorOnce(t *testing.T) {
+func TestIngestPrinterErrorNotifiesTheOperatorAndTheChosenRoleOnce(t *testing.T) {
 	h := newIngestHarness(t)
+	ctx := t.Context()
 	t0 := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+	supervisor := h.principalWith("supervisor", authorization.MachinesRead)
 	reader := h.principalWith("reader", authorization.PrinterConnectorsRead)
-	bystander := h.principalWith("bystander", authorization.MachineJobsRead)
-	h.cleanupNotifications(reader.AccountID, bystander.AccountID, h.principal.AccountID)
+	h.cleanupNotifications(supervisor.AccountID, reader.AccountID, h.principal.AccountID)
+	var roleID uuid.UUID
+	if err := h.pool.QueryRow(ctx, `SELECT role_id FROM person_roles WHERE person_id = $1`, supervisor.PersonID).Scan(&roleID); err != nil {
+		t.Fatal(err)
+	}
+	// The chosen role is told from "serious" on; the test resets the singleton afterwards.
+	if _, err := h.pool.Exec(ctx, `UPDATE printer_notification_settings SET error_role_id = $1, error_min_severity = 'serious'`, roleID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_settings SET error_role_id = NULL, error_min_severity = 'serious'`)
+	})
+	if _, err := h.pool.Exec(ctx, `INSERT INTO printer_error_codes (id, source_family, code, title) VALUES ($1, 'hms', '0300-0D00-0002-0001', 'Filament ran out')
+		ON CONFLICT (source_family, code) DO UPDATE SET title = EXCLUDED.title`, ids.New()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = h.pool.Exec(context.Background(), `DELETE FROM printer_error_codes WHERE code = '0300-0D00-0002-0001'`)
+	})
 	runID := h.runWithOperator(t0)
 
-	appeared := `{"transition":"appeared","sourceFamily":"hms","code":"0300-0D00-0001-0001"}`
+	appeared := `{"transition":"appeared","sourceFamily":"hms","code":"0300-0D00-0002-0001"}`
 	h.accepted(runID, EventPrinterError, t0.Add(time.Minute), appeared)
 	// The same open error reported again, and its clearing, say nothing new.
 	h.accepted(runID, EventPrinterError, t0.Add(2*time.Minute), appeared)
-	h.accepted(runID, EventPrinterError, t0.Add(3*time.Minute), `{"transition":"cleared","sourceFamily":"hms","code":"0300-0D00-0001-0001"}`)
+	h.accepted(runID, EventPrinterError, t0.Add(3*time.Minute), `{"transition":"cleared","sourceFamily":"hms","code":"0300-0D00-0002-0001"}`)
+	// A notice below the minimum severity (third group 0004 = info) stays quiet.
+	h.accepted(runID, EventPrinterError, t0.Add(4*time.Minute), `{"transition":"appeared","sourceFamily":"hms","code":"0500-0100-0004-0001"}`)
 
-	titles, bodies, links := h.notifications(reader.AccountID, "printer_error")
+	titles, bodies, links := h.notifications(supervisor.AccountID, "printer_error")
 	if len(titles) != 1 || titles[0] != "Printer error on "+h.machine.Name ||
-		!strings.Contains(bodies[0], "0300-0D00-0001-0001") || !strings.Contains(bodies[0], "during run R-") ||
+		!strings.Contains(bodies[0], "0300-0D00-0002-0001 (serious): Filament ran out") || !strings.Contains(bodies[0], "during run R-") ||
 		links[0] != "/machine-logbook/machines/"+h.machine.ID.String()+"?tab=printer" {
-		t.Fatalf("reader notifications: %q %q %q", titles, bodies, links)
+		t.Fatalf("role holder notifications: %q %q %q", titles, bodies, links)
 	}
 	if operator, _, _ := h.notifications(h.principal.AccountID, "printer_error"); len(operator) != 1 {
 		t.Fatalf("operator notifications = %q, want one", operator)
 	}
-	if other, _, _ := h.notifications(bystander.AccountID, "printer_error"); len(other) != 0 {
-		t.Fatalf("bystander notifications = %q, want none", other)
+	if other, _, _ := h.notifications(reader.AccountID, "printer_error"); len(other) != 0 {
+		t.Fatalf("connector reader notifications = %q, want none", other)
 	}
-	// A different error is told again, and so is the same error once it was cleared.
-	h.accepted(runID, EventPrinterError, t0.Add(4*time.Minute), `{"transition":"appeared","sourceFamily":"print_error","code":"83902465"}`)
-	h.accepted(runID, EventPrinterError, t0.Add(5*time.Minute), appeared)
-	if titles, _, _ = h.notifications(reader.AccountID, "printer_error"); len(titles) != 3 {
-		t.Fatalf("reader notifications after new errors = %q, want three", titles)
+	// A print error has no level and is always announced; the same HMS error is told again once it reappears.
+	h.accepted(runID, EventPrinterError, t0.Add(5*time.Minute), `{"transition":"appeared","sourceFamily":"print","code":"07FF8003"}`)
+	h.accepted(runID, EventPrinterError, t0.Add(6*time.Minute), appeared)
+	if titles, _, _ = h.notifications(supervisor.AccountID, "printer_error"); len(titles) != 3 {
+		t.Fatalf("role holder notifications after new errors = %q, want three", titles)
+	}
+	var severity *string
+	if err := h.pool.QueryRow(ctx, `SELECT severity FROM printer_error_occurrences WHERE run_id = $1 AND original_code = '0300-0D00-0002-0001' ORDER BY first_observed_at DESC LIMIT 1`, runID).Scan(&severity); err != nil || severity == nil || *severity != "serious" {
+		t.Fatalf("stored severity = %v, %v", severity, err)
+	}
+}
+
+func TestPrinterErrorsAreListedDescribedAndCleared(t *testing.T) {
+	h := newIngestHarness(t)
+	ctx := t.Context()
+	t0 := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+	runID := h.runWithOperator(t0)
+	h.cleanupNotifications(h.principal.AccountID)
+	h.accepted(runID, EventPrinterError, t0.Add(time.Minute), `{"transition":"appeared","sourceFamily":"hms","code":"0300-0D00-0001-0001"}`)
+	h.accepted(runID, EventPrinterError, t0.Add(2*time.Minute), `{"transition":"appeared","sourceFamily":"print","code":"07FF8003"}`)
+	h.accepted(runID, EventPrinterError, t0.Add(3*time.Minute), `{"transition":"cleared","sourceFamily":"print","code":"07FF8003"}`)
+
+	reader := h.principalWith("lister", authorization.MachinesRead)
+	errorsListed, err := h.service.ListPrinterErrors(ctx, reader, h.machine.ID)
+	if err != nil || len(errorsListed) != 2 {
+		t.Fatalf("listed errors = %+v, %v", errorsListed, err)
+	}
+	open, resolved := errorsListed[0], errorsListed[1]
+	if open.Code != "0300-0D00-0001-0001" || open.ResolvedAt != nil || open.Severity == nil || *open.Severity != "fatal" ||
+		open.Link == nil || *open.Link != "https://wiki.bambulab.com/en/x1/troubleshooting/hmscode/0300_0D00_0001_0001" ||
+		open.Title != nil || open.RunID == nil || *open.RunID != runID {
+		t.Fatalf("open error = %+v", open)
+	}
+	if resolved.Code != "07FF8003" || resolved.ResolvedAt == nil || resolved.Severity != nil || resolved.Link != nil {
+		t.Fatalf("resolved error = %+v", resolved)
+	}
+	if _, err = h.service.ListPrinterErrors(ctx, reader, ids.New()); !apperror.IsCode(err, "not_found") {
+		t.Fatalf("unknown machine: %v", err)
+	}
+	if _, err = h.service.PutErrorCode(ctx, reader, "hms", "0300-0D00-0001-0001", ErrorCodeInput{Title: "x"}, nil); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("catalog without manage: %v", err)
+	}
+	custom := "https://example.org/help"
+	code, err := h.service.PutErrorCode(ctx, h.principal, "hms", "0300-0D00-0001-0001", ErrorCodeInput{
+		Title: "  AMS  motor stalled ", Description: "Open the AMS lid and free the spool.", Link: &custom,
+	}, nil)
+	if err != nil || code.Title != "AMS motor stalled" || code.Link == nil || *code.Link != custom {
+		t.Fatalf("saved code = %+v, %v", code, err)
+	}
+	t.Cleanup(func() {
+		_, _ = h.pool.Exec(context.Background(), `DELETE FROM printer_error_codes WHERE code = '0300-0D00-0001-0001'`)
+	})
+	bad := "http://insecure.example"
+	if _, err = h.service.PutErrorCode(ctx, h.principal, "hms", "0300-0D00-0001-0001", ErrorCodeInput{Title: "x", Link: &bad}, nil); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("insecure link: %v", err)
+	}
+	errorsListed, err = h.service.ListPrinterErrors(ctx, reader, h.machine.ID)
+	if err != nil || errorsListed[0].Title == nil || *errorsListed[0].Title != "AMS motor stalled" || *errorsListed[0].Link != custom {
+		t.Fatalf("described error = %+v, %v", errorsListed[0], err)
+	}
+	facts, err := h.service.ErrorFacts(ctx, [][2]string{{"hms", "0300-0D00-0001-0001"}, {"hms", "0501-0400-0003-0002"}})
+	if err != nil || *facts["hms:0300-0D00-0001-0001"].Title != "AMS motor stalled" || *facts["hms:0501-0400-0003-0002"].Severity != "common" ||
+		facts["hms:0501-0400-0003-0002"].Title != nil {
+		t.Fatalf("facts = %+v, %v", facts, err)
+	}
+
+	if err = h.service.ClearPrinterErrors(ctx, reader, h.machine.ID, nil); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("clear without manage: %v", err)
+	}
+	if err = h.service.ClearPrinterErrors(ctx, h.principal, h.machine.ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	var remaining int
+	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM printer_error_occurrences WHERE machine_id = $1`, h.machine.ID).Scan(&remaining); err != nil || remaining != 0 {
+		t.Fatalf("occurrences after clearing = %d, %v", remaining, err)
+	}
+	var audited int
+	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'printer_errors.cleared' AND resource_id = $1`, h.machine.ID).Scan(&audited); err != nil || audited != 1 {
+		t.Fatalf("clear audit events = %d, %v", audited, err)
+	}
+
+	settings, err := h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{ErrorMinSeverity: "fatal", ExpectedVersion: 1}, nil)
+	if err != nil || settings.ErrorMinSeverity != "fatal" || settings.ErrorRoleID != nil || settings.Version != 2 {
+		t.Fatalf("settings = %+v, %v", settings, err)
+	}
+	t.Cleanup(func() {
+		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_settings SET error_role_id = NULL, error_min_severity = 'serious', version = 1`)
+	})
+	if _, err = h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{ErrorMinSeverity: "fatal", ExpectedVersion: 1}, nil); !apperror.IsCode(err, "stale_write") {
+		t.Fatalf("stale settings write: %v", err)
+	}
+	unknown := ids.New()
+	if _, err = h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{ErrorRoleID: &unknown, ErrorMinSeverity: "info", ExpectedVersion: 2}, nil); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("unknown role: %v", err)
+	}
+	if err = h.service.DeleteErrorCode(ctx, h.principal, "hms", "0300-0D00-0001-0001", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err = h.service.DeleteErrorCode(ctx, h.principal, "hms", "0300-0D00-0001-0001", nil); !apperror.IsCode(err, "not_found") {
+		t.Fatalf("second delete: %v", err)
 	}
 }
 

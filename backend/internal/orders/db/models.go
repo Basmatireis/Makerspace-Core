@@ -1354,6 +1354,17 @@ type PrinterDiscoveryRequest struct {
 	UpdatedAt            time.Time
 }
 
+type PrinterErrorCode struct {
+	ID           uuid.UUID
+	SourceFamily string
+	Code         string
+	Title        string
+	Description  string
+	Link         *string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type PrinterErrorOccurrence struct {
 	ID                  uuid.UUID
 	MachineID           uuid.UUID
@@ -1368,6 +1379,8 @@ type PrinterErrorOccurrence struct {
 	VerifiedDescription *string
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	Severity            *string
+	ClearedByAccountID  *uuid.UUID
 }
 
 type PrinterEvent struct {
@@ -1412,6 +1425,14 @@ type PrinterLiveStatus struct {
 	ReceivedAt           time.Time
 	ConfigurationVersion int64
 	Snapshot             []byte
+}
+
+type PrinterNotificationSetting struct {
+	Singleton        bool
+	ErrorRoleID      *uuid.UUID
+	ErrorMinSeverity string
+	Version          int64
+	UpdatedAt        time.Time
 }
 
 type PrinterProfile struct {
@@ -1619,6 +1640,9 @@ type RunRecordingSetting struct {
 	TimelapseRetentionDays int32
 	Version                int64
 	UpdatedAt              time.Time
+	TimelapseMaxBytes      int64
+	TimelapseMaxCount      int32
+	TimelapseMaxTotalBytes int64
 }
 
 type ScimConnector struct {

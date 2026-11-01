@@ -1141,7 +1141,7 @@ ON CONFLICT (assignment_id, source_family, original_code) WHERE resolved_at IS N
 DO UPDATE SET last_observed_at = GREATEST(printer_error_occurrences.last_observed_at, EXCLUDED.last_observed_at),
               run_id = COALESCE(EXCLUDED.run_id, printer_error_occurrences.run_id),
               context = EXCLUDED.context, updated_at = now()
-RETURNING id, machine_id, assignment_id, run_id, source_family, original_code, first_observed_at, last_observed_at, resolved_at, context, verified_description, created_at, updated_at
+RETURNING id, machine_id, assignment_id, run_id, source_family, original_code, first_observed_at, last_observed_at, resolved_at, context, verified_description, created_at, updated_at, severity, cleared_by_account_id
 `
 
 type UpsertPrinterErrorOccurrenceParams struct {
@@ -1183,6 +1183,8 @@ func (q *Queries) UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPr
 		&i.VerifiedDescription,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Severity,
+		&i.ClearedByAccountID,
 	)
 	return i, err
 }

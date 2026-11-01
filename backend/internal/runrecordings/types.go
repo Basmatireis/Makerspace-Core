@@ -133,6 +133,12 @@ type Recording struct {
 type Settings struct {
 	TimelapseEnabled       bool
 	TimelapseRetentionDays int
+	// TimelapseMaxBytes is the largest video accepted; TimelapseMaxBytesLimit the deployment's ceiling for it.
+	TimelapseMaxBytes      int64
+	TimelapseMaxBytesLimit int64
+	// TimelapseMaxCount and TimelapseMaxTotalBytes bound how many videos are kept and their storage; 0 means no limit.
+	TimelapseMaxCount      int
+	TimelapseMaxTotalBytes int64
 	Version                int64
 	UpdatedAt              time.Time
 }
@@ -141,6 +147,9 @@ type Settings struct {
 type SettingsInput struct {
 	TimelapseEnabled       bool
 	TimelapseRetentionDays int
+	TimelapseMaxBytes      int64
+	TimelapseMaxCount      int
+	TimelapseMaxTotalBytes int64
 	ExpectedVersion        int64
 }
 

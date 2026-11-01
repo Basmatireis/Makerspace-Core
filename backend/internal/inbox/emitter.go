@@ -214,21 +214,31 @@ func runEnding(outcome, state *string) (string, bool) {
 	return "", false
 }
 
-// PrinterError tells everyone who may read printer connectors, plus the operator of the run that is
-// printing on the machine, that the printer reported an error for the first time. Repeated reports of
-// an open error and cleared errors stay quiet. family and code are the printer's own words; the body
-// repeats them because the connector knows no plain-language description at this point.
-func (e *Emitter) PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, family, code string) error {
+// PrinterError tells the operator of the run that is printing on the machine and the holders of the role chosen in
+// the printer notification settings that the printer reported an error for the first time. Errors below the
+// configured minimum severity stay quiet, as do repeats of an open error and cleared errors. The body names the
+// code as the printer shows it and the meaning the catalog records for it.
+func (e *Emitter) PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, family, code string, severity *string) error {
 	queries := inboxdb.New(tx)
+	policy, err := queries.GetPrinterNotificationPolicy(ctx)
+	if err != nil {
+		return fmt.Errorf("load printer notification policy: %w", err)
+	}
+	minimum := policy.ErrorMinSeverity
+	if severity != nil && severityRank(*severity) < severityRank(minimum) {
+		return nil
+	}
 	machine, err := queries.GetMachineNotificationFacts(ctx, machineID)
 	if err != nil {
 		return fmt.Errorf("load machine: %w", err)
 	}
-	recipients, err := queries.ListEnabledAccountIDsWithPermission(ctx, inboxdb.ListEnabledAccountIDsWithPermissionParams{
-		PermissionID: string(authorization.PrinterConnectorsRead), ExcludedAccountIds: []string{},
-	})
-	if err != nil {
-		return fmt.Errorf("resolve printer connector readers: %w", err)
+	var recipients []uuid.UUID
+	if policy.ErrorRoleID != nil {
+		holders, err := queries.ListEnabledAccountIDsByRoles(ctx, []string{policy.ErrorRoleID.String()})
+		if err != nil {
+			return fmt.Errorf("resolve printer error role: %w", err)
+		}
+		recipients = append(recipients, holders...)
 	}
 	if machine.OperatorPersonID != nil {
 		operators, err := queries.ListEnabledAccountIDsOfPerson(ctx, *machine.OperatorPersonID)
@@ -237,9 +247,23 @@ func (e *Emitter) PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UU
 		}
 		recipients = append(recipients, operators...)
 	}
-	body := fmt.Sprintf("%s reports the error %s (%s).", machine.MachineName, code, family)
+	meaning := ""
+	facts, err := queries.GetPrinterErrorCodeFacts(ctx, inboxdb.GetPrinterErrorCodeFactsParams{SourceFamily: family, Code: code})
+	switch {
+	case err == nil:
+		meaning = ": " + facts.Title
+	case !errors.Is(err, pgx.ErrNoRows):
+		return fmt.Errorf("load printer error code: %w", err)
+	}
+	level := ""
+	if severity != nil {
+		level = " (" + *severity + ")"
+	}
+	body := fmt.Sprintf("%s reports the error %s%s%s.", machine.MachineName, code, level, meaning)
 	if machine.RunDisplayID != nil {
-		body = fmt.Sprintf("%s reports the error %s (%s) during run %s.", machine.MachineName, code, family, *machine.RunDisplayID)
+		body = fmt.Sprintf(
+			"%s reports the error %s%s%s during run %s.", machine.MachineName, code, level, meaning, *machine.RunDisplayID,
+		)
 	}
 	return e.deliver(ctx, tx, notice{
 		kind:  KindPrinterError,
@@ -247,6 +271,21 @@ func (e *Emitter) PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UU
 		body:  body,
 		link:  machinePrinterLink(machineID),
 	}, recipients)
+}
+
+// severityRank orders printer error levels; an unknown level ranks highest so it is never filtered away.
+func severityRank(severity string) int {
+	switch severity {
+	case "fatal":
+		return 4
+	case "serious":
+		return 3
+	case "common":
+		return 2
+	case "info":
+		return 1
+	}
+	return 5
 }
 
 // FilamentChangeKind is what happened in a printer slot.

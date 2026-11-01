@@ -18,15 +18,29 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PrinterErrorSeverity } from './printerErrorSeverity';
 import type { PrinterLiveStatusErrorSourceFamily } from './printerLiveStatusErrorSourceFamily';
 
 export interface PrinterLiveStatusError {
   sourceFamily: PrinterLiveStatusErrorSourceFamily;
   /**
+     * HMS codes as the printer shows them, AAAA-BBBB-CCCC-DDDD; print errors as eight hex digits.
      * @minLength 1
      * @maxLength 120
      */
   code: string;
   /** @nullable */
   observedAt: string | null;
+  /** Filled by Core from the code; absent in connector reports. */
+  severity?: PrinterErrorSeverity | null;
+  /**
+     * The meaning kept in the printer error catalog, when one is recorded.
+     * @nullable
+     */
+  title?: string | null;
+  /**
+     * The catalog's link or, for HMS codes, the Bambu wiki page of the code.
+     * @nullable
+     */
+  link?: string | null;
 }
