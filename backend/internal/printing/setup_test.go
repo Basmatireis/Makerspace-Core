@@ -54,11 +54,11 @@ func newSetupFixture(t *testing.T) *setupFixture {
 	); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := f.jobs.CreateMachineType(
+	process, err := f.jobs.CreateProcess(
 		ctx,
 		f.principal,
 		"Setup printer "+f.suffix,
-		"fdm_printing",
+		machinelogbook.IntegrationFDMPrinter, nil,
 		&f.request,
 	)
 	if err != nil {
@@ -67,7 +67,7 @@ func newSetupFixture(t *testing.T) *setupFixture {
 	machine, err := f.jobs.CreateMachine(
 		ctx,
 		f.principal,
-		machineType.ID,
+		process.ID,
 		"Setup machine "+f.suffix,
 		"active",
 		nil,
@@ -388,7 +388,7 @@ func TestSaveSetupRefusesToRemoveAMountedSlotAndRollsBack(t *testing.T) {
 		"PLA "+f.suffix,
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		nil,
 		nil,
 	)
 	if err != nil {

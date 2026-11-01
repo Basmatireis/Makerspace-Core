@@ -180,7 +180,7 @@ func TestFilamentSpoolFillsCleanupOverHTTP(t *testing.T) {
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
 	diameter := "1.75"
-	plaType, err := logbook.CreateMaterialType(ctx, master, "HTTP PLA", "filament", "g", []string{"fdm_printing"}, nil)
+	plaType, err := logbook.CreateMaterialType(ctx, master, "HTTP PLA", "filament", "g", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

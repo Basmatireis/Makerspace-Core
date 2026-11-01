@@ -109,17 +109,7 @@
   color: theme.$text-secondary;
 }
 
-// Process specific run fields: ink volumes per colour and the area helper of cutting machines.
-.mj-ink-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
-  gap: $spacing-05;
-}
-.mj-ink-label {
-  display: inline-flex;
-  align-items: center;
-  gap: $spacing-03;
-}
+// The area helper of cm² material rows.
 .mj-area-helper {
   grid-column: 1 / -1;
   display: grid;

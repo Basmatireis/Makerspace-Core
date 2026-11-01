@@ -62,19 +62,19 @@ DELETE FROM training_competencies WHERE training_id = sqlc.arg(training_id);
 -- name: InsertTrainingCompetency :exec
 INSERT INTO training_competencies (training_id, competency_id) VALUES (sqlc.arg(training_id), sqlc.arg(competency_id));
 
--- name: ListTrainingMachineTypes :many
-SELECT training_id, machine_type_id FROM training_machine_types
+-- name: ListTrainingProcesses :many
+SELECT training_id, process_id FROM training_processes
 WHERE training_id = ANY(sqlc.arg(training_ids)::uuid[])
-ORDER BY training_id, machine_type_id;
+ORDER BY training_id, process_id;
 
--- name: DeleteTrainingMachineTypes :exec
-DELETE FROM training_machine_types WHERE training_id = sqlc.arg(training_id);
+-- name: DeleteTrainingProcesses :exec
+DELETE FROM training_processes WHERE training_id = sqlc.arg(training_id);
 
--- name: InsertTrainingMachineType :exec
-INSERT INTO training_machine_types (training_id, machine_type_id) VALUES (sqlc.arg(training_id), sqlc.arg(machine_type_id));
+-- name: InsertTrainingProcess :exec
+INSERT INTO training_processes (training_id, process_id) VALUES (sqlc.arg(training_id), sqlc.arg(process_id));
 
--- name: CountExistingMachineTypes :one
-SELECT count(*) FROM machine_types WHERE id = ANY(sqlc.arg(ids)::uuid[]);
+-- name: CountExistingProcesses :one
+SELECT count(*) FROM processes WHERE id = ANY(sqlc.arg(ids)::uuid[]);
 
 -- name: PersonExists :one
 SELECT EXISTS (SELECT 1 FROM people WHERE id = sqlc.arg(id))::boolean;

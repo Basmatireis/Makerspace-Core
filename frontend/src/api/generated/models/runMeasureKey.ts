@@ -19,9 +19,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type RunMeasureKey = typeof RunMeasureKey[keyof typeof RunMeasureKey];
-
-
-export const RunMeasureKey = {
-  stitches: 'stitches',
-} as const;
+/**
+ * The key of a measure defined on the process (for example stitches).
+ * @pattern ^[a-z][a-z0-9_]{1,39}$
+ */
+export type RunMeasureKey = string;

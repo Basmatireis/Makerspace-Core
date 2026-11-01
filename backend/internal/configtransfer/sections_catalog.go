@@ -18,48 +18,102 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// Machine types ("machine processes" in the UI): natural key name. They have no delete path, so an overwrite
-// deactivates machine types missing from the file.
+// Processes: natural key name; they carry their measures. They have no delete path, so an overwrite deactivates
+// processes missing from the file.
 
-type machineTypeEntry struct {
-	Name    string `json:"name"`
-	Process string `json:"process"`
-	Active  bool   `json:"active"`
+type processMeasureEntry struct {
+	Key       string `json:"key"`
+	Label     string `json:"label"`
+	Unit      string `json:"unit"`
+	BlockSize int32  `json:"blockSize"`
 }
 
-func machineTypesSection() section {
+type processEntry struct {
+	Name        string                `json:"name"`
+	Integration string                `json:"integration"`
+	Measures    []processMeasureEntry `json:"measures"`
+	Active      bool                  `json:"active"`
+}
+
+func processesSection() section {
 	return define(
-		SectionMachineTypes,
+		SectionProcesses,
 		permissions(authorization.MachinesRead),
 		permissions(authorization.MachinesManage),
-		func(ctx context.Context, q *configtransferdb.Queries) ([]machineTypeEntry, error) {
-			rows, err := q.ListMachineTypes(ctx)
+		func(ctx context.Context, q *configtransferdb.Queries) ([]processEntry, error) {
+			rows, err := q.ListProcesses(ctx)
 			if err != nil {
 				return nil, err
 			}
-			items := make([]machineTypeEntry, 0, len(rows))
+			measures, err := processMeasuresByProcess(ctx, q)
+			if err != nil {
+				return nil, err
+			}
+			items := make([]processEntry, 0, len(rows))
 			for _, row := range rows {
-				items = append(items, machineTypeEntry{Name: row.Name, Process: row.Process, Active: row.Active})
+				items = append(items, processEntry{
+					Name:        row.Name,
+					Integration: row.Integration,
+					Measures:    withMeasures(measures[row.ID]),
+					Active:      row.Active,
+				})
 			}
 			return items, nil
 		},
-		func(items *[]machineTypeEntry) error {
+		func(items *[]processEntry) error {
 			names := make([]*string, len(*items))
 			for i := range *items {
 				names[i] = &(*items)[i].Name
+				if (*items)[i].Measures == nil {
+					(*items)[i].Measures = []processMeasureEntry{}
+				}
 			}
-			return checkNames("machine type", names, 120)
+			return checkNames("process", names, 120)
 		},
-		applyMachineTypes,
+		applyProcesses,
 	)
 }
 
-func applyMachineTypes(r *run, items *[]machineTypeEntry) (func() error, error) {
-	rows, err := r.q.ListMachineTypes(r.ctx)
+func withMeasures(list []processMeasureEntry) []processMeasureEntry {
+	if list == nil {
+		return []processMeasureEntry{}
+	}
+	return list
+}
+
+func processMeasuresByProcess(ctx context.Context, q *configtransferdb.Queries) (map[uuid.UUID][]processMeasureEntry, error) {
+	rows, err := q.ListProcessMeasures(ctx)
 	if err != nil {
 		return nil, err
 	}
-	existing := map[string]configtransferdb.ListMachineTypesRow{}
+	result := map[uuid.UUID][]processMeasureEntry{}
+	for _, row := range rows {
+		result[row.ProcessID] = append(
+			result[row.ProcessID],
+			processMeasureEntry{Key: row.Key, Label: row.Label, Unit: row.Unit, BlockSize: row.BlockSize},
+		)
+	}
+	return result, nil
+}
+
+func processMeasuresOf(entries []processMeasureEntry) []machinelogbook.ProcessMeasure {
+	result := make([]machinelogbook.ProcessMeasure, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, machinelogbook.ProcessMeasure{Key: e.Key, Label: e.Label, Unit: e.Unit, BlockSize: e.BlockSize})
+	}
+	return result
+}
+
+func applyProcesses(r *run, items *[]processEntry) (func() error, error) {
+	rows, err := r.q.ListProcesses(r.ctx)
+	if err != nil {
+		return nil, err
+	}
+	stored, err := processMeasuresByProcess(r.ctx, r.q)
+	if err != nil {
+		return nil, err
+	}
+	existing := map[string]configtransferdb.ListProcessesRow{}
 	for _, row := range rows {
 		existing[nameKey(row.Name)] = row
 	}
@@ -67,26 +121,36 @@ func applyMachineTypes(r *run, items *[]machineTypeEntry) (func() error, error) 
 	for _, item := range *items {
 		inFile[nameKey(item.Name)] = true
 		current, found := existing[nameKey(item.Name)]
+		integration := machinelogbook.ProcessIntegration(item.Integration)
+		measures := processMeasuresOf(item.Measures)
 		switch {
 		case !found:
 			_, err = r.attempt(item.Name, ActionCreate, "", func(tx pgx.Tx) error {
-				created, err := r.svc.MachineLogbook.CreateMachineTypeTx(r.ctx, tx, r.p, item.Name, item.Process, r.requestID)
+				created, err := r.svc.MachineLogbook.CreateProcessTx(
+					r.ctx, tx, r.p, item.Name, integration, measures, r.requestID,
+				)
 				if err != nil || item.Active {
 					return err
 				}
-				_, err = r.svc.MachineLogbook.UpdateMachineTypeTx(
-					r.ctx, tx, r.p, created.ID, created.Version, nil, ptr(false), nil, r.requestID,
+				_, err = r.svc.MachineLogbook.UpdateProcessTx(
+					r.ctx, tx, r.p, created.ID, created.Version, machinelogbook.ProcessChanges{Active: ptr(false)},
+					r.requestID,
 				)
 				return err
 			})
 		case r.mode == ModeInsert:
 			r.skip(item.Name, reasonExists)
-		case current.Name == item.Name && current.Process == item.Process && current.Active == item.Active:
+		case current.Name == item.Name && current.Integration == item.Integration && current.Active == item.Active &&
+			slices.Equal(withMeasures(stored[current.ID]), item.Measures):
 			r.skip(item.Name, reasonUnchanged)
 		default:
 			_, err = r.attempt(item.Name, ActionUpdate, "", func(tx pgx.Tx) error {
-				_, err := r.svc.MachineLogbook.UpdateMachineTypeTx(
-					r.ctx, tx, r.p, current.ID, current.Version, &item.Name, &item.Active, &item.Process, r.requestID,
+				_, err := r.svc.MachineLogbook.UpdateProcessTx(
+					r.ctx, tx, r.p, current.ID, current.Version,
+					machinelogbook.ProcessChanges{
+						Name: &item.Name, Active: &item.Active, Integration: &integration, Measures: &measures,
+					},
+					r.requestID,
 				)
 				return err
 			})
@@ -101,12 +165,12 @@ func applyMachineTypes(r *run, items *[]machineTypeEntry) (func() error, error) 
 				continue
 			}
 			if !row.Active {
-				r.keep(row.Name, "Machine types cannot be deleted; it stays inactive.")
+				r.keep(row.Name, "Processes cannot be deleted; it stays inactive.")
 				continue
 			}
-			if _, err := r.attempt(row.Name, ActionDeactivate, "Machine types cannot be deleted.", func(tx pgx.Tx) error {
-				_, err := r.svc.MachineLogbook.UpdateMachineTypeTx(
-					r.ctx, tx, r.p, row.ID, row.Version, nil, ptr(false), nil, r.requestID,
+			if _, err := r.attempt(row.Name, ActionDeactivate, "Processes cannot be deleted.", func(tx pgx.Tx) error {
+				_, err := r.svc.MachineLogbook.UpdateProcessTx(
+					r.ctx, tx, r.p, row.ID, row.Version, machinelogbook.ProcessChanges{Active: ptr(false)}, r.requestID,
 				)
 				return err
 			}); err != nil {
@@ -120,9 +184,10 @@ func applyMachineTypes(r *run, items *[]machineTypeEntry) (func() error, error) 
 // Material types: natural key name.
 
 type materialTypeEntry struct {
-	Name      string   `json:"name"`
-	Kind      string   `json:"kind"`
-	Unit      string   `json:"unit"`
+	Name string `json:"name"`
+	Kind string `json:"kind"`
+	Unit string `json:"unit"`
+	// Processes are names of entries in the processes section.
 	Processes []string `json:"processes"`
 	Active    bool     `json:"active"`
 }
@@ -175,6 +240,10 @@ func applyMaterialTypes(r *run, items *[]materialTypeEntry) (func() error, error
 	if err != nil {
 		return nil, err
 	}
+	processes, err := processIDsByName(r.ctx, r.q)
+	if err != nil {
+		return nil, err
+	}
 	existing := map[string]configtransferdb.ListMaterialTypesRow{}
 	for _, row := range rows {
 		existing[nameKey(row.Name)] = row
@@ -183,12 +252,21 @@ func applyMaterialTypes(r *run, items *[]materialTypeEntry) (func() error, error
 	for _, item := range *items {
 		inFile[nameKey(item.Name)] = true
 		current, found := existing[nameKey(item.Name)]
+		if found && r.mode == ModeInsert {
+			r.skip(item.Name, reasonExists)
+			continue
+		}
 		kind := machinelogbook.MaterialKind(item.Kind)
+		processIDs, missing := resolveProcessNames(processes, item.Processes)
+		if missing != "" {
+			r.conflict(item.Name, "process_missing", fmt.Sprintf("The process %q does not exist.", missing))
+			continue
+		}
 		switch {
 		case !found:
 			_, err = r.attempt(item.Name, ActionCreate, "", func(tx pgx.Tx) error {
 				created, err := r.svc.MachineLogbook.CreateMaterialTypeTx(
-					r.ctx, tx, r.p, item.Name, kind, item.Unit, item.Processes, r.requestID,
+					r.ctx, tx, r.p, item.Name, kind, item.Unit, processIDs, r.requestID,
 				)
 				if err != nil || item.Active {
 					return err
@@ -206,7 +284,7 @@ func applyMaterialTypes(r *run, items *[]materialTypeEntry) (func() error, error
 		default:
 			_, err = r.attempt(item.Name, ActionUpdate, "", func(tx pgx.Tx) error {
 				_, err := r.svc.MachineLogbook.UpdateMaterialTypeTx(
-					r.ctx, tx, r.p, current.ID, current.Version, item.Name, kind, item.Unit, item.Processes,
+					r.ctx, tx, r.p, current.ID, current.Version, item.Name, kind, item.Unit, processIDs,
 					item.Active, r.requestID,
 				)
 				return err
@@ -274,7 +352,7 @@ func (r *run) retractInUseConflict(name, code string) bool {
 	return true
 }
 
-// Machines: natural key name; the machine type is referenced by name. The printer setup (model, input units and
+// Machines: natural key name; the process is referenced by name. The printer setup (model, input units and
 // slots) is part of the machine; units and slots are matched by name. A machine without printer in the file keeps
 // any printer setup it has. Connector assignments, identities, live status and mounted spools are runtime data and
 // never transferred.
@@ -300,7 +378,7 @@ type printerEntry struct {
 
 type machineEntry struct {
 	Name                       string        `json:"name"`
-	MachineType                string        `json:"machineType"`
+	Process                    string        `json:"process"`
 	Status                     string        `json:"status"`
 	ExternalIdentifier         *string       `json:"externalIdentifier"`
 	AutomaticCollectionEnabled bool          `json:"automaticCollectionEnabled"`
@@ -318,7 +396,7 @@ func machinesSection() section {
 			for i := range *items {
 				item := &(*items)[i]
 				names[i] = &item.Name
-				item.MachineType = strings.TrimSpace(item.MachineType)
+				item.Process = strings.TrimSpace(item.Process)
 				item.ExternalIdentifier = trimmed(item.ExternalIdentifier)
 				if item.Printer != nil {
 					normalizePrinter(item.Printer)
@@ -434,7 +512,7 @@ func exportMachines(ctx context.Context, q *configtransferdb.Queries) ([]machine
 	for _, row := range rows {
 		item := machineEntry{
 			Name:                       row.Name,
-			MachineType:                row.MachineTypeName,
+			Process:                    row.ProcessName,
 			Status:                     row.Status,
 			ExternalIdentifier:         row.ExternalIdentifier,
 			AutomaticCollectionEnabled: row.AutomaticCollectionEnabled,
@@ -521,8 +599,8 @@ func setupInput(desired printerEntry, current *storedPrinter) printing.SetupInpu
 	return input
 }
 
-func machineTypeIDs(ctx context.Context, q *configtransferdb.Queries) (map[string]uuid.UUID, error) {
-	rows, err := q.ListMachineTypes(ctx)
+func processIDsByName(ctx context.Context, q *configtransferdb.Queries) (map[string]uuid.UUID, error) {
+	rows, err := q.ListProcesses(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -531,6 +609,19 @@ func machineTypeIDs(ctx context.Context, q *configtransferdb.Queries) (map[strin
 		result[nameKey(row.Name)] = row.ID
 	}
 	return result, nil
+}
+
+// resolveProcessNames maps process names to ids; missing is the first name that does not exist.
+func resolveProcessNames(byName map[string]uuid.UUID, names []string) (ids []uuid.UUID, missing string) {
+	ids = make([]uuid.UUID, 0, len(names))
+	for _, name := range names {
+		id, ok := byName[nameKey(name)]
+		if !ok {
+			return nil, name
+		}
+		ids = append(ids, id)
+	}
+	return ids, ""
 }
 
 func applyMachines(r *run, items *[]machineEntry) (func() error, error) {
@@ -542,7 +633,7 @@ func applyMachines(r *run, items *[]machineEntry) (func() error, error) {
 	if err != nil {
 		return nil, err
 	}
-	types, err := machineTypeIDs(r.ctx, r.q)
+	types, err := processIDsByName(r.ctx, r.q)
 	if err != nil {
 		return nil, err
 	}
@@ -558,9 +649,9 @@ func applyMachines(r *run, items *[]machineEntry) (func() error, error) {
 			r.skip(item.Name, reasonExists)
 			continue
 		}
-		typeID, ok := types[nameKey(item.MachineType)]
+		typeID, ok := types[nameKey(item.Process)]
 		if !ok {
-			r.conflict(item.Name, "machine_type_missing", fmt.Sprintf("The machine type %q does not exist.", item.MachineType))
+			r.conflict(item.Name, "process_missing", fmt.Sprintf("The process %q does not exist.", item.Process))
 			continue
 		}
 		status := machinelogbook.MachineStatus(item.Status)
@@ -581,7 +672,7 @@ func applyMachines(r *run, items *[]machineEntry) (func() error, error) {
 			}
 			continue
 		}
-		machineChanged := current.Name != item.Name || nameKey(current.MachineTypeName) != nameKey(item.MachineType) ||
+		machineChanged := current.Name != item.Name || nameKey(current.ProcessName) != nameKey(item.Process) ||
 			current.Status != item.Status || !sameText(current.ExternalIdentifier, item.ExternalIdentifier) ||
 			current.AutomaticCollectionEnabled != item.AutomaticCollectionEnabled
 		stored := printers[current.ID]
@@ -637,9 +728,9 @@ func applyMachines(r *run, items *[]machineEntry) (func() error, error) {
 				ActionDeactivate,
 				"The machine has history or connected devices, so it is retired instead of deleted.",
 				func(tx pgx.Tx) error {
-					typeID, ok := types[nameKey(row.MachineTypeName)]
+					typeID, ok := types[nameKey(row.ProcessName)]
 					if !ok {
-						return errors.New("machine type of a stored machine is missing")
+						return errors.New("process of a stored machine is missing")
 					}
 					_, err := r.svc.MachineLogbook.UpdateMachineTx(
 						r.ctx, tx, r.p, row.ID, row.Version, typeID, row.Name, machinelogbook.MachineStatusRetired,

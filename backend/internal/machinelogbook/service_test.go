@@ -37,14 +37,14 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		name string
 		call func() error
 	}{
-		{"machines.read", func() error { _, err := s.ListMachineTypes(ctx, p); return err }},
+		{"machines.read", func() error { _, err := s.ListProcesses(ctx, p); return err }},
 		{
 			"machines.manage",
-			func() error { _, err := s.CreateMachineType(ctx, p, "Printer", "other", nil); return err },
+			func() error { _, err := s.CreateProcess(ctx, p, "Printer", IntegrationNone, nil, nil); return err },
 		},
-		{"machines.manage update machine type process", func() error {
-			process := "embroidery"
-			_, err := s.UpdateMachineType(ctx, p, id, 1, nil, nil, &process, nil)
+		{"machines.manage update process", func() error {
+			integration := IntegrationFDMPrinter
+			_, err := s.UpdateProcess(ctx, p, id, 1, ProcessChanges{Integration: &integration}, nil)
 			return err
 		}},
 		{"machine_jobs.read", func() error { _, err := s.GetJob(ctx, p, id); return err }},
@@ -137,7 +137,7 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		{"inventory.read material types", func() error { _, err := s.ListMaterialTypes(ctx, p); return err }},
 		{"inventory.read material type", func() error { _, err := s.GetMaterialType(ctx, p, id); return err }},
 		{"inventory.manage create material type", func() error {
-			_, err := s.CreateMaterialType(ctx, p, "PLA", "filament", "g", []string{"fdm_printing"}, nil)
+			_, err := s.CreateMaterialType(ctx, p, "PLA", "filament", "g", nil, nil)
 			return err
 		}},
 		{
@@ -250,7 +250,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var machineID, machineTypeID, materialID, materialTypeID, pricingGroupID uuid.UUID
+	var machineID, processID, materialID, materialTypeID, pricingGroupID uuid.UUID
 	organizationIDs := make([]uuid.UUID, 0, 2)
 	t.Cleanup(func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -278,23 +278,23 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		if materialTypeID != uuid.Nil {
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM material_types WHERE id = $1`, materialTypeID)
 		}
-		if machineTypeID != uuid.Nil {
-			_, _ = pool.Exec(cleanupCtx, `DELETE FROM machine_types WHERE id = $1`, machineTypeID)
+		if processID != uuid.Nil {
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM processes WHERE id = $1`, processID)
 		}
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM accounts WHERE id = $1`, accountID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM people WHERE id = $1`, personID)
 	})
 
-	machineType, err := s.CreateMachineType(ctx, p, "Test printer "+suffix, "fdm_printing", &requestID)
+	process, err := s.CreateProcess(ctx, p, "Test printer "+suffix, IntegrationFDMPrinter, nil, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	machineTypeID = machineType.ID
+	processID = process.ID
 	externalIdentifier := "collector-" + suffix
 	machine, err := s.CreateMachine(
 		ctx,
 		p,
-		machineType.ID,
+		process.ID,
 		"Test machine "+suffix,
 		"active",
 		&externalIdentifier,
@@ -312,7 +312,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		"Test PLA "+suffix,
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		[]uuid.UUID{process.ID},
 		&requestID,
 	)
 	if err != nil {
@@ -377,7 +377,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		p,
 		group.ID,
 		"machine_runtime",
-		&machineType.ID,
+		&process.ID,
 		nil,
 		nil,
 		"0.5",

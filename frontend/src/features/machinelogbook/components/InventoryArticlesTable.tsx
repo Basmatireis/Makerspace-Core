@@ -4,10 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Material } from '../../../api/generated/models';
 import { allMaterialsQuery, materialTypesQuery } from '../inventoryQueries';
-import { processOptions } from '../processConfig';
+import { processesQuery } from '../queries';
 import { DirectoryTable, useUrlState, type Column, type Option } from '../shared/DirectoryTable';
 import { formatMoney } from '../shared/format';
 import { machineLogbookPaths } from '../shared/paths';
+import { useCan } from '../shared/useCan';
 import { QueryBoundary } from '../shared/QueryBoundary';
 import { ArticleKindTag, formatQuantity, isFilament, kindNames, StockTag, stockStateOptions } from './inventoryShared';
 
@@ -141,6 +142,7 @@ function ArticlesTable({
   switcher: ReactNode;
 }) {
   const navigate = useNavigate();
+  const can = useCan();
   const parts = scope === 'parts';
   // Plain parameters (q, stock, type, ...) so a link can name a filter without knowing the tab.
   const url = useUrlState('');
@@ -151,7 +153,9 @@ function ArticlesTable({
   const stockIds = url.list('stock');
   const showInactive = url.get('inactive') === '1';
   const types = useQuery({ ...materialTypesQuery(), enabled: !parts });
-  const processesOf = new Map((types.data ?? []).map((type) => [type.id, type.processes as string[]]));
+  const processes = useQuery({ ...processesQuery(), enabled: !parts && can('machines.read') });
+  const processOptions: Option[] = (processes.data?.items ?? []).map(({ id, name }) => ({ id, label: name }));
+  const processesOf = new Map((types.data ?? []).map((type) => [type.id, type.processIds as string[]]));
 
   const inScope = articles.filter((article) => (article.kind === 'part') === parts);
   const rows = inScope.filter(
@@ -198,9 +202,9 @@ function ArticlesTable({
         { key: 'type', label: parts ? 'Category' : 'Material type', options: typeOptions },
         ...(parts ? [] : [{ key: 'variant', label: 'Variant', options: uniqueOptions(inScope.map((r) => r.variant)) }]),
         { key: 'manufacturer', label: 'Manufacturer', options: uniqueOptions(inScope.map((r) => r.manufacturer)) },
-        ...(parts
+        ...(parts || processOptions.length === 0
           ? []
-          : [{ key: 'process', label: 'Process', options: processOptions.map(({ id, label }) => ({ id, label })) }]),
+          : [{ key: 'process', label: 'Process', options: processOptions }]),
         { key: 'stock', label: 'Stock state', options: stockStateOptions },
         { key: 'inactive', label: 'Show', options: [{ id: '1', label: 'Inactive articles' }] },
       ]}

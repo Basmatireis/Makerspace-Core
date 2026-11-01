@@ -38,7 +38,7 @@ func TestInventoryArticlesMigrationFoldsProducts(t *testing.T) {
 	for _, path := range all {
 		if filepath.Base(path) < "00056_" {
 			before = append(before, path)
-		} else {
+		} else if filepath.Base(path) < "00088_" { // later renames are covered by their own tests
 			from = append(from, path)
 		}
 	}

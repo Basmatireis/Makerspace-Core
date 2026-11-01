@@ -96,7 +96,7 @@ func (s *Server) CreatePricingRule(
 		p,
 		r.PricingGroupId,
 		machinelogbook.PricingRuleKind(r.Body.Kind),
-		uuidNullable(r.Body.MachineTypeId),
+		uuidNullable(r.Body.ProcessId),
 		uuidNullable(r.Body.MaterialTypeId),
 		runMeasureKeyNullable(r.Body.Measure),
 		r.Body.Rate,
@@ -125,7 +125,7 @@ func (s *Server) UpdatePricingRule(
 		r.PricingRuleId,
 		r.Body.ExpectedVersion,
 		machinelogbook.PricingRuleKind(r.Body.Kind),
-		uuidNullable(r.Body.MachineTypeId),
+		uuidNullable(r.Body.ProcessId),
 		uuidNullable(r.Body.MaterialTypeId),
 		runMeasureKeyNullable(r.Body.Measure),
 		r.Body.Rate,
@@ -259,7 +259,7 @@ func priceQuoteDTO(quote machinelogbook.PriceQuote) openapi.PriceQuote {
 	}
 	if m := quote.Machine; m != nil {
 		dto.Machine = nullable.NewNullableWithValue(
-			openapi.PriceQuoteMachine{Id: m.ID, Name: m.Name, MachineTypeName: m.MachineTypeName},
+			openapi.PriceQuoteMachine{Id: m.ID, Name: m.Name, ProcessName: m.ProcessName},
 		)
 	}
 	if m := quote.Material; m != nil {

@@ -185,7 +185,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
-	machineType, err := logbook.CreateMachineType(ctx, master, "Delete printer", "fdm_printing", nil)
+	process, err := logbook.CreateProcess(ctx, master, "Delete printer", machinelogbook.IntegrationFDMPrinter, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 			http.StatusCreated,
 			map[string]any{
 				"name":                       name,
-				"machineTypeId":              machineType.ID,
+				"processId":                  process.ID,
 				"status":                     "active",
 				"automaticCollectionEnabled": false,
 			},
@@ -219,7 +219,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	plain := newMachine("Plain printer")
 	update := map[string]any{
 		"name":                       "Plain printer renamed",
-		"machineTypeId":              machineType.ID,
+		"processId":                  process.ID,
 		"status":                     "maintenance",
 		"automaticCollectionEnabled": true,
 		"externalIdentifier":         "SN-1",

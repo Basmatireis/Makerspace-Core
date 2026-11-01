@@ -173,7 +173,7 @@ describe('Printer settings tabs', () => {
     server.use(
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
       http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
-      http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/processes', () => HttpResponse.json({ items: [] })),
     );
   const renderTab = (tab: string) =>
     renderRoute(
@@ -268,7 +268,7 @@ describe('Printer settings tabs', () => {
     auth.permissions = [PermissionId.machinesread];
     serveBase();
     renderTab('machines');
-    expect(await screen.findByRole('tab', { name: 'Machine types' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Processes' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Printer notifications' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Error catalog' })).not.toBeInTheDocument();
   });

@@ -20,12 +20,6 @@
  */
 
 /**
- * Counted facts of a run that are priced per block. Only the keys the machine's process supports are accepted (embroidery: stitches).
+ * Counted facts of a run that are priced per block, keyed by the measure keys the machine's process defines.
  */
-export interface RunMeasures {
-  /**
-     * Exact stitch count.
-     * @minimum 0
-     */
-  stitches?: number;
-}
+export interface RunMeasures {[key: string]: number}

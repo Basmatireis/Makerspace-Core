@@ -248,10 +248,10 @@ func (q *Queries) GetWirefDeliverySettings(ctx context.Context) (GetWirefDeliver
 }
 
 const listActivePricingRules = `-- name: ListActivePricingRules :many
-SELECT r.id, r.pricing_group_id, r.kind, mt.name AS machine_type_name, mat.name AS material_type_name,
-    r.measure, r.rate, r.machine_type_id, r.material_type_id, r.version
+SELECT r.id, r.pricing_group_id, r.kind, mt.name AS process_name, mat.name AS material_type_name,
+    r.measure, r.rate, r.process_id, r.material_type_id, r.version
 FROM pricing_rules r
-LEFT JOIN machine_types mt ON mt.id = r.machine_type_id
+LEFT JOIN processes mt ON mt.id = r.process_id
 LEFT JOIN material_types mat ON mat.id = r.material_type_id
 WHERE r.active
 ORDER BY r.pricing_group_id, r.kind, lower(COALESCE(mt.name, mat.name)), r.measure, r.id
@@ -261,11 +261,11 @@ type ListActivePricingRulesRow struct {
 	ID               uuid.UUID
 	PricingGroupID   uuid.UUID
 	Kind             string
-	MachineTypeName  *string
+	ProcessName      *string
 	MaterialTypeName *string
 	Measure          *string
 	Rate             pgtype.Numeric
-	MachineTypeID    *uuid.UUID
+	ProcessID        *uuid.UUID
 	MaterialTypeID   *uuid.UUID
 	Version          int64
 }
@@ -283,11 +283,11 @@ func (q *Queries) ListActivePricingRules(ctx context.Context) ([]ListActivePrici
 			&i.ID,
 			&i.PricingGroupID,
 			&i.Kind,
-			&i.MachineTypeName,
+			&i.ProcessName,
 			&i.MaterialTypeName,
 			&i.Measure,
 			&i.Rate,
-			&i.MachineTypeID,
+			&i.ProcessID,
 			&i.MaterialTypeID,
 			&i.Version,
 		); err != nil {
@@ -474,56 +474,18 @@ func (q *Queries) ListLabRulesVersions(ctx context.Context) ([]ListLabRulesVersi
 	return items, nil
 }
 
-const listMachineTypes = `-- name: ListMachineTypes :many
-SELECT id, name, process, active, version FROM machine_types ORDER BY lower(name), id
-`
-
-type ListMachineTypesRow struct {
-	ID      uuid.UUID
-	Name    string
-	Process string
-	Active  bool
-	Version int64
-}
-
-func (q *Queries) ListMachineTypes(ctx context.Context) ([]ListMachineTypesRow, error) {
-	rows, err := q.db.Query(ctx, listMachineTypes)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListMachineTypesRow{}
-	for rows.Next() {
-		var i ListMachineTypesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Process,
-			&i.Active,
-			&i.Version,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listMachines = `-- name: ListMachines :many
-SELECT m.id, m.name, t.name AS machine_type_name, m.status, m.external_identifier, m.automatic_collection_enabled,
+SELECT m.id, m.name, t.name AS process_name, m.status, m.external_identifier, m.automatic_collection_enabled,
     m.version
 FROM machines m
-JOIN machine_types t ON t.id = m.machine_type_id
+JOIN processes t ON t.id = m.process_id
 ORDER BY lower(m.name), m.id
 `
 
 type ListMachinesRow struct {
 	ID                         uuid.UUID
 	Name                       string
-	MachineTypeName            string
+	ProcessName                string
 	Status                     string
 	ExternalIdentifier         *string
 	AutomaticCollectionEnabled bool
@@ -542,7 +504,7 @@ func (q *Queries) ListMachines(ctx context.Context) ([]ListMachinesRow, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.MachineTypeName,
+			&i.ProcessName,
 			&i.Status,
 			&i.ExternalIdentifier,
 			&i.AutomaticCollectionEnabled,
@@ -561,7 +523,7 @@ func (q *Queries) ListMachines(ctx context.Context) ([]ListMachinesRow, error) {
 const listMaterialTypes = `-- name: ListMaterialTypes :many
 SELECT t.id, t.name, t.kind, t.unit, t.active, t.version,
     COALESCE(
-        (SELECT array_agg(p.process ORDER BY p.process) FROM material_type_processes p WHERE p.material_type_id = t.id),
+        (SELECT array_agg(pr.name ORDER BY lower(pr.name)) FROM material_type_processes p JOIN processes pr ON pr.id = p.process_id WHERE p.material_type_id = t.id),
         '{}'
     )::text[] AS processes
 FROM material_types t
@@ -822,6 +784,82 @@ func (q *Queries) ListPrinterSlots(ctx context.Context) ([]ListPrinterSlotsRow, 
 			&i.Position,
 			&i.ExternalIdentifier,
 			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProcessMeasures = `-- name: ListProcessMeasures :many
+SELECT process_id, key, label, unit, block_size FROM process_measures ORDER BY process_id, position, key
+`
+
+type ListProcessMeasuresRow struct {
+	ProcessID uuid.UUID
+	Key       string
+	Label     string
+	Unit      string
+	BlockSize int32
+}
+
+func (q *Queries) ListProcessMeasures(ctx context.Context) ([]ListProcessMeasuresRow, error) {
+	rows, err := q.db.Query(ctx, listProcessMeasures)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProcessMeasuresRow{}
+	for rows.Next() {
+		var i ListProcessMeasuresRow
+		if err := rows.Scan(
+			&i.ProcessID,
+			&i.Key,
+			&i.Label,
+			&i.Unit,
+			&i.BlockSize,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProcesses = `-- name: ListProcesses :many
+SELECT id, name, integration, active, version FROM processes ORDER BY lower(name), id
+`
+
+type ListProcessesRow struct {
+	ID          uuid.UUID
+	Name        string
+	Integration string
+	Active      bool
+	Version     int64
+}
+
+func (q *Queries) ListProcesses(ctx context.Context) ([]ListProcessesRow, error) {
+	rows, err := q.db.Query(ctx, listProcesses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProcessesRow{}
+	for rows.Next() {
+		var i ListProcessesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Integration,
+			&i.Active,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -1238,8 +1276,8 @@ SELECT t.id, t.name, t.description, t.active, t.sort_order, t.version,
        (SELECT count(*) FROM training_records r WHERE r.training_id = t.id)::bigint AS record_count,
        ARRAY(SELECT c.name FROM training_competencies tc JOIN competency_categories c ON c.id = tc.competency_id
              WHERE tc.training_id = t.id ORDER BY lower(c.name))::text[] AS competencies,
-       ARRAY(SELECT m.name FROM training_machine_types tm JOIN machine_types m ON m.id = tm.machine_type_id
-             WHERE tm.training_id = t.id ORDER BY lower(m.name))::text[] AS machine_types
+       ARRAY(SELECT m.name FROM training_processes tm JOIN processes m ON m.id = tm.process_id
+             WHERE tm.training_id = t.id ORDER BY lower(m.name))::text[] AS processes
 FROM trainings t ORDER BY lower(t.name), t.id
 `
 
@@ -1252,7 +1290,7 @@ type ListTrainingsRow struct {
 	Version      int64
 	RecordCount  int64
 	Competencies []string
-	MachineTypes []string
+	Processes    []string
 }
 
 // Trainings with their competency and machine type names, the natural keys the file uses.
@@ -1274,7 +1312,7 @@ func (q *Queries) ListTrainings(ctx context.Context) ([]ListTrainingsRow, error)
 			&i.Version,
 			&i.RecordCount,
 			&i.Competencies,
-			&i.MachineTypes,
+			&i.Processes,
 		); err != nil {
 			return nil, err
 		}

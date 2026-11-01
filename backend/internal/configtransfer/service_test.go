@@ -196,12 +196,13 @@ func (e *env) seed() {
 		}, true, laborordnung.ModeWarning, ptr(roles.StaffingSupervisor), ptr(1), nil))
 	visitorRole := must(e.s.Roles.Create(ctx, p, "Visitor", nil, nil, nil))
 	logbook := e.s.MachineLogbook
-	fdm := must(logbook.CreateMachineType(ctx, p, "FDM printers", "fdm_printing", nil))
-	embroidery := must(logbook.CreateMachineType(ctx, p, "Embroidery", "embroidery", nil))
+	fdm := must(logbook.CreateProcess(ctx, p, "FDM printers", machinelogbook.IntegrationFDMPrinter, nil, nil))
+	embroidery := must(logbook.CreateProcess(ctx, p, "Embroidery", machinelogbook.IntegrationNone,
+		[]machinelogbook.ProcessMeasure{{Key: "stitches", Label: "Stitches", Unit: "stitch", BlockSize: 1000}}, nil))
 	pla := must(logbook.CreateMaterialType(ctx, p, "PLA", machinelogbook.KindFilament, "g",
-		[]string{"fdm_printing"}, nil))
+		[]uuid.UUID{fdm.ID}, nil))
 	must(logbook.CreateMaterialType(ctx, p, "Thread", machinelogbook.KindConsumable, "m",
-		[]string{"embroidery"}, nil))
+		[]uuid.UUID{embroidery.ID}, nil))
 	printer := must(logbook.CreateMachine(ctx, p, fdm.ID, "Prusa 1", machinelogbook.MachineStatusActive, nil,
 		false, nil))
 	model := printing.ModelPrusaCoreOne
@@ -279,7 +280,7 @@ func (e *env) seed() {
 	}, nil))
 	must(e.s.Trainings.CreateTraining(ctx, p, trainings.TrainingInput{
 		Name: "Prusa – operation", Description: ptr("Loading filament"), Active: true, SortOrder: 1,
-		CompetencyIDs: []uuid.UUID{printingCompetency.ID, electronics.ID}, MachineTypeIDs: []uuid.UUID{fdm.ID},
+		CompetencyIDs: []uuid.UUID{printingCompetency.ID, electronics.ID}, ProcessIDs: []uuid.UUID{fdm.ID},
 	}, nil))
 	must(e.s.Trainings.CreateTraining(ctx, p, trainings.TrainingInput{Name: "Soldering", Active: false}, nil))
 	privacySettings := must(e.s.Privacy.GetSettings(ctx, p))
@@ -462,7 +463,7 @@ func TestRoundTripIntoAFreshInstanceReproducesEverySection(t *testing.T) {
 		}
 		got := sectionsOf(t, target.export(target.master))
 		for _, key := range []SectionKey{
-			SectionDeviceTypes, SectionSessionPolicies, SectionRoles, SectionMachineTypes, SectionMaterialTypes,
+			SectionDeviceTypes, SectionSessionPolicies, SectionRoles, SectionProcesses, SectionMaterialTypes,
 			SectionMachines, SectionInventoryArticles, SectionPricing, SectionLabRules, SectionSurveys,
 		} {
 			if canonical(t, got[key]) != canonical(t, want[key]) {
@@ -561,17 +562,17 @@ func TestOverwriteDeletesUnusedEntriesAndKeepsOrDeactivatesUsedOnes(t *testing.T
 	used := must(e.s.Roles.Create(ctx, p, "Assigned", nil, nil, nil))
 	_, person := e.account("holder")
 	e.exec(`INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, person, used.ID)
-	oldType := must(logbook.CreateMachineType(ctx, p, "Old lasers", "laser_cutting", nil))
+	oldType := must(logbook.CreateProcess(ctx, p, "Old lasers", machinelogbook.IntegrationNone, nil, nil))
 	legacy := must(logbook.CreateMaterialType(ctx, p, "Legacy resin", machinelogbook.KindConsumable, "ml",
-		[]string{"other"}, nil))
+		[]uuid.UUID{oldType.ID}, nil))
 	article := must(logbook.CreateMaterial(ctx, p, machinelogbook.MaterialInput{
 		Name: "Legacy resin bottle", MaterialTypeID: legacy.ID,
 	}, nil))
 	must(logbook.CreateMachine(ctx, p, oldType.ID, "Spare laser", machinelogbook.MachineStatusActive, nil, false, nil))
 
-	// Roles, machine types, machines and material types only: the legacy article stays and keeps its type in use.
+	// Roles, processes, machines and material types only: the legacy article stays and keeps its type in use.
 	report := e.importFile(p, ModeOverwrite, data,
-		SectionRoles, SectionMachineTypes, SectionMachines, SectionMaterialTypes)
+		SectionRoles, SectionProcesses, SectionMachines, SectionMaterialTypes)
 	expectations := []struct {
 		key    SectionKey
 		name   string
@@ -579,7 +580,7 @@ func TestOverwriteDeletesUnusedEntriesAndKeepsOrDeactivatesUsedOnes(t *testing.T
 	}{
 		{SectionRoles, "Temporary", ActionDelete},
 		{SectionRoles, "Assigned", ActionKeep},
-		{SectionMachineTypes, "Old lasers", ActionDeactivate},
+		{SectionProcesses, "Old lasers", ActionDeactivate},
 		{SectionMachines, "Spare laser", ActionDelete},
 		{SectionMaterialTypes, "Legacy resin", ActionDeactivate},
 	}
@@ -628,7 +629,7 @@ func missingReferences(t *testing.T, data []byte) {
 	report := must(target.svc.Preview(target.ctx, target.master, ModeInsert,
 		[]SectionKey{SectionMachines, SectionRoles}, bytes.NewReader(data)))
 	if got := item(t, report, SectionMachines, "Prusa 1"); got.Action != ActionConflict ||
-		got.Code != "machine_type_missing" {
+		got.Code != "process_missing" {
 		t.Fatalf("machine = %+v", got)
 	}
 	if got := item(t, report, SectionRoles, "Supervisor"); got.Action != ActionConflict ||
@@ -834,7 +835,7 @@ func TestInvoicingSectionAuthorizationAndValidation(t *testing.T) {
 func TestTrainingsTravelWithoutRecordsAndOverwriteKeepsUsedOnes(t *testing.T) {
 	source := newEnv(t)
 	source.seed()
-	keys := []SectionKey{SectionMachineTypes, SectionCompetencies, SectionTrainings}
+	keys := []SectionKey{SectionProcesses, SectionCompetencies, SectionTrainings}
 	data := source.export(source.master, keys...)
 	sections := sectionsOf(t, data)
 	var exported []trainingEntry
@@ -843,7 +844,7 @@ func TestTrainingsTravelWithoutRecordsAndOverwriteKeepsUsedOnes(t *testing.T) {
 	}
 	if len(exported) != 2 || exported[0].Name != "Prusa – operation" ||
 		fmt.Sprint(exported[0].Competencies) != "[3D printing Electronics]" ||
-		fmt.Sprint(exported[0].MachineTypes) != "[FDM printers]" {
+		fmt.Sprint(exported[0].Processes) != "[FDM printers]" {
 		t.Fatalf("trainings = %+v", exported)
 	}
 
@@ -885,7 +886,7 @@ func TestTrainingsTravelWithoutRecordsAndOverwriteKeepsUsedOnes(t *testing.T) {
 
 	})
 
-	// Without the competencies and machine types a training is a conflict.
+	// Without the competencies and processes a training is a conflict.
 	t.Run("missing references", func(t *testing.T) {
 		empty := newEnv(t)
 		preview := must(empty.svc.Preview(empty.ctx, empty.master, ModeInsert, []SectionKey{SectionTrainings},
@@ -1025,6 +1026,89 @@ func TestPrivacyDecisionsImportAsDraftsAndAreNeverRemoved(t *testing.T) {
 		}
 		if got := item(t, insert, SectionPrivacy, privacySettingsItem); got.Action != ActionSkip {
 			t.Fatalf("settings in insert mode = %+v", got)
+		}
+	})
+}
+
+func TestProcessesTravelWithMeasuresAndMaterialTypesResolveThemByName(t *testing.T) {
+	source := newEnv(t)
+	source.seed()
+	data := source.export(source.master, SectionProcesses, SectionMaterialTypes)
+	sections := sectionsOf(t, data)
+	var processes []processEntry
+	if err := json.Unmarshal(sections[SectionProcesses], &processes); err != nil {
+		t.Fatal(err)
+	}
+	var embroidery *processEntry
+	for i := range processes {
+		if processes[i].Name == "Embroidery" {
+			embroidery = &processes[i]
+		}
+	}
+	if embroidery == nil || embroidery.Integration != "none" || !embroidery.Active ||
+		fmt.Sprint(embroidery.Measures) != "[{stitches Stitches stitch 1000}]" {
+		t.Fatalf("exported processes = %+v", processes)
+	}
+
+	// A material type names processes the target does not have: a conflict, nothing imported.
+	t.Run("missing process", func(t *testing.T) {
+		empty := newEnv(t)
+		preview := must(empty.svc.Preview(empty.ctx, empty.master, ModeInsert, []SectionKey{SectionMaterialTypes},
+			bytes.NewReader(data)))
+		if got := item(t, preview, SectionMaterialTypes, "Thread"); got.Action != ActionConflict ||
+			got.Code != "process_missing" {
+			t.Fatalf("Thread = %+v", got)
+		}
+	})
+
+	// With the processes section the ids are those of the target instance.
+	t.Run("names resolve to the ids of the target", func(t *testing.T) {
+		target := newEnv(t)
+		target.importFile(target.master, ModeInsert, data, SectionProcesses, SectionMaterialTypes)
+		var linked string
+		if err := target.pool.QueryRow(target.ctx, `SELECT string_agg(p.name, ',' ORDER BY p.name)
+			FROM material_type_processes l
+			JOIN material_types t ON t.id = l.material_type_id
+			JOIN processes p ON p.id = l.process_id
+			WHERE t.name = 'Thread'`).Scan(&linked); err != nil || linked != "Embroidery" {
+			t.Fatalf("Thread processes = %q, %v", linked, err)
+		}
+		again := sectionsOf(t, target.export(target.master, SectionProcesses, SectionMaterialTypes))
+		for _, key := range []SectionKey{SectionProcesses, SectionMaterialTypes} {
+			if canonical(t, again[key]) != canonical(t, sections[key]) {
+				t.Errorf("section %s differs after import:\n got %s\nwant %s", key, again[key], sections[key])
+			}
+		}
+	})
+
+	// An overwrite that drops a measure pricing rules still use is refused for that process only.
+	t.Run("measure in use", func(t *testing.T) {
+		target := newEnv(t)
+		target.importFile(target.master, ModeInsert, data, SectionProcesses)
+		row := must(target.s.MachineLogbook.ListProcesses(target.ctx, target.master))
+		var id uuid.UUID
+		for _, process := range row {
+			if process.Name == "Embroidery" {
+				id = process.ID
+			}
+		}
+		group := must(target.s.MachineLogbook.CreatePricingGroup(target.ctx, target.master, "Stitchers", nil, false, nil))
+		stitches := "stitches"
+		must(target.s.MachineLogbook.CreatePricingRule(target.ctx, target.master, group.ID, "machine_measure", &id, nil,
+			&stitches, "0.5", nil))
+		parsed := file{}
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			t.Fatal(err)
+		}
+		parsed.Sections = map[SectionKey]json.RawMessage{
+			SectionProcesses: json.RawMessage(`[{"name":"Embroidery","integration":"none","measures":[],"active":true}]`),
+		}
+		trimmed := must(json.Marshal(parsed))
+		preview := must(target.svc.Preview(target.ctx, target.master, ModeOverwrite, []SectionKey{SectionProcesses},
+			bytes.NewReader(trimmed)))
+		if got := item(t, preview, SectionProcesses, "Embroidery"); got.Action != ActionConflict ||
+			got.Code != "measure_in_use" {
+			t.Fatalf("Embroidery = %+v", got)
 		}
 	})
 }

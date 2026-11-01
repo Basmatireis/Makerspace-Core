@@ -41,7 +41,7 @@ function RateCell({ group, selector, canEdit }: { group: PricingGroup; selector:
     mutationFn: () => {
       const target = {
         kind: selector.kind,
-        machineTypeId: selector.machineTypeId ?? null,
+        processId: selector.processId ?? null,
         materialTypeId: selector.materialTypeId ?? null,
         measure: selector.measure ?? null,
         rate: parsed!,
@@ -253,7 +253,7 @@ export function RatesTab({
           lowContrast
           hideCloseButton
           title="Some rates are not shown"
-          subtitle="Machine types need the permission to read machines, material types the permission to read inventory."
+          subtitle="Processes need the permission to read machines, material types the permission to read inventory."
         />
       )}
       <TableContainer

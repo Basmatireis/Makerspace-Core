@@ -17,7 +17,7 @@ import {
   renderPage,
   templateProfile,
   tray,
-  types,
+  processes,
 } from './printerTestData';
 
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
@@ -58,7 +58,7 @@ function setup(
   auth.permissions = permissions;
   server.use(
     http.get('*/api/v1/machines', () => HttpResponse.json({ items: [printer], page: 1, pageSize: 100, total: 1 })),
-    http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: types })),
+    http.get('*/api/v1/processes', () => HttpResponse.json({ items: processes })),
     http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/printer-connectors', () => HttpResponse.json({ items: connectors })),
     http.get(`*/api/v1/printer-connectors/${connectorId}/assignments`, () => HttpResponse.json({ items: assignments })),

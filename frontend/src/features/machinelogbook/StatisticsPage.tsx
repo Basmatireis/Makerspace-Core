@@ -33,7 +33,7 @@ type DateRange = { from: string; to: string };
 type MachineRow = {
   id: string;
   name: string;
-  typeName: string;
+  processName: string;
   jobs: number;
   runtimeHours: number;
   failureRate: number;
@@ -243,7 +243,7 @@ export function StatisticsPage() {
         : { period: next === '6m' ? null : next, from: null, to: null },
     );
 
-  const typeIds = url.list('type');
+  const processIds = url.list('process');
 
   const renderBody = (stats: MachineLogbookStatistics) => {
     if (stats.totals.jobs === 0)
@@ -258,7 +258,7 @@ export function StatisticsPage() {
     const machines: MachineRow[] = stats.machines.map((row) => ({
       id: row.machineId,
       name: row.name,
-      typeName: row.machineTypeName,
+      processName: row.processName,
       jobs: row.jobs,
       runtimeHours: Number(row.runtimeHours),
       failureRate: Number(row.failureRate),
@@ -293,10 +293,10 @@ export function StatisticsPage() {
         ),
       materialByType: stats.materialCostByType.map((point) => ({ label: point.label, value: Number(point.value) })),
     };
-    const typeOptions: Option[] = [...new Set(machines.map((row) => row.typeName))]
+    const processOptions: Option[] = [...new Set(machines.map((row) => row.processName))]
       .sort()
       .map((name) => ({ id: name, label: name }));
-    const filtered = machines.filter((row) => typeIds.length === 0 || typeIds.includes(row.typeName));
+    const filtered = machines.filter((row) => processIds.length === 0 || processIds.includes(row.processName));
     return (
       <>
         <section aria-label="Key figures" className="mj-stats-metrics">
@@ -339,10 +339,10 @@ export function StatisticsPage() {
           columns={columns}
           rows={filtered}
           totalCount={machines.length}
-          searchText={(row) => `${row.name} ${row.typeName}`}
+          searchText={(row) => `${row.name} ${row.processName}`}
           defaultSort={{ key: 'runtime', direction: 'DESC' }}
           empty={{ title: 'No machines found', description: 'Try different search terms or filters.' }}
-          filterCategories={[{ key: 'type', label: 'Type', options: typeOptions }]}
+          filterCategories={[{ key: 'process', label: 'Process', options: processOptions }]}
         />
       </>
     );

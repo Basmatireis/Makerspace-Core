@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"math"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
@@ -10,21 +11,55 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-func mlMachineTypeDTO(item machinelogbook.MachineType) openapi.MachineType {
-	return openapi.MachineType{
-		Id:        item.ID,
-		Name:      item.Name,
-		Active:    item.Active,
-		Process:   openapi.MachineProcess(item.Process),
-		Version:   item.Version,
-		CreatedAt: item.CreatedAt,
-		UpdatedAt: item.UpdatedAt,
+func mlProcessDTO(item machinelogbook.Process) openapi.Process {
+	measures := make([]openapi.ProcessMeasure, 0, len(item.Measures))
+	for _, m := range item.Measures {
+		measures = append(
+			measures,
+			openapi.ProcessMeasure{Key: m.Key, Label: m.Label, Unit: m.Unit, BlockSize: int(m.BlockSize)},
+		)
 	}
+	return openapi.Process{
+		Id:          item.ID,
+		Name:        item.Name,
+		Active:      item.Active,
+		Integration: openapi.ProcessIntegration(item.Integration),
+		Measures:    measures,
+		Version:     item.Version,
+		CreatedAt:   item.CreatedAt,
+		UpdatedAt:   item.UpdatedAt,
+	}
+}
+
+// processMeasuresInput converts the measure list of a request.
+func processMeasuresInput(values []openapi.ProcessMeasure) []machinelogbook.ProcessMeasure {
+	result := make([]machinelogbook.ProcessMeasure, 0, len(values))
+	for _, value := range values {
+		result = append(result, machinelogbook.ProcessMeasure{
+			Key:       value.Key,
+			Label:     value.Label,
+			Unit:      value.Unit,
+			BlockSize: clampInt32(value.BlockSize),
+		})
+	}
+	return result
+}
+
+// clampInt32 keeps an out-of-range number out of the int32 columns; validation then rejects it as not positive or
+// accepts the largest value.
+func clampInt32(value int) int32 {
+	switch {
+	case value > math.MaxInt32:
+		return math.MaxInt32
+	case value < math.MinInt32:
+		return math.MinInt32
+	}
+	return int32(value)
 }
 func mlMachineDTO(item machinelogbook.Machine) openapi.Machine {
 	return openapi.Machine{
 		Id:                         item.ID,
-		MachineType:                mlMachineTypeDTO(item.MachineType),
+		Process:                    mlProcessDTO(item.Process),
 		Name:                       item.Name,
 		Status:                     openapi.MachineStatus(item.Status),
 		ExternalIdentifier:         nullableString(item.ExternalIdentifier),
@@ -94,7 +129,7 @@ func mlPricingRuleDTO(item machinelogbook.PricingRule) openapi.PricingRule {
 		Id:               item.ID,
 		PricingGroupId:   item.PricingGroupID,
 		Kind:             openapi.PricingRuleKind(item.Kind),
-		MachineTypeId:    nullableUUIDValue(item.MachineTypeID),
+		ProcessId:        nullableUUIDValue(item.ProcessID),
 		MaterialTypeId:   nullableUUIDValue(item.MaterialTypeID),
 		MaterialTypeName: nullableString(item.MaterialTypeName),
 		MaterialUnit:     unit,
@@ -111,7 +146,7 @@ func mlMaterialTypeDTO(item machinelogbook.MaterialType) openapi.MaterialType {
 		Name:             item.Name,
 		Kind:             openapi.MaterialKind(item.Kind),
 		Unit:             openapi.MaterialUnit(item.Unit),
-		Processes:        machineProcessDTOs(item.Processes),
+		ProcessIds:       uuidSlice(item.ProcessIDs),
 		Active:           item.Active,
 		MaterialCount:    item.MaterialCount,
 		PricingRuleCount: item.PricingRuleCount,
@@ -119,35 +154,6 @@ func mlMaterialTypeDTO(item machinelogbook.MaterialType) openapi.MaterialType {
 		CreatedAt:        item.CreatedAt,
 		UpdatedAt:        item.UpdatedAt,
 	}
-}
-func machineProcessDTOs(values []string) []openapi.MachineProcess {
-	result := make([]openapi.MachineProcess, 0, len(values))
-	for _, value := range values {
-		result = append(result, openapi.MachineProcess(value))
-	}
-	return result
-}
-func machineProcessStrings(values []openapi.MachineProcess) []string {
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		result = append(result, string(value))
-	}
-	return result
-}
-
-// machineProcessStringsPointer keeps "omitted" (nil) apart from an empty list.
-func machineProcessStringsPointer(values *[]openapi.MachineProcess) []string {
-	if values == nil {
-		return nil
-	}
-	return machineProcessStrings(*values)
-}
-func machineProcessPointer(value *openapi.MachineProcess) *string {
-	if value == nil {
-		return nil
-	}
-	process := string(*value)
-	return &process
 }
 func runMeasureKeyNullable(value nullable.Nullable[openapi.RunMeasureKey]) *string {
 	if !value.IsSpecified() || value.IsNull() {
@@ -165,9 +171,9 @@ func runMeasureKeyValue(value *string) nullable.Nullable[openapi.RunMeasureKey] 
 
 // mlMeasuresDTO converts run measures; only measures with a value are present.
 func mlMeasuresDTO(values machinelogbook.RunMeasures) openapi.RunMeasures {
-	var result openapi.RunMeasures
-	if value, ok := values[machinelogbook.MeasureStitches]; ok {
-		result.Stitches = &value
+	result := make(openapi.RunMeasures, len(values))
+	for key, value := range values {
+		result[key] = value
 	}
 	return result
 }
@@ -177,9 +183,9 @@ func runMeasuresInput(value *openapi.RunMeasures) machinelogbook.RunMeasures {
 	if value == nil {
 		return nil
 	}
-	result := machinelogbook.RunMeasures{}
-	if value.Stitches != nil {
-		result[machinelogbook.MeasureStitches] = *value.Stitches
+	result := make(machinelogbook.RunMeasures, len(*value))
+	for key, measure := range *value {
+		result[key] = measure
 	}
 	return result
 }
@@ -446,14 +452,14 @@ func mlStatisticsDTO(item machinelogbook.Statistics) openapi.MachineLogbookStati
 		machines = append(
 			machines,
 			openapi.StatisticMachine{
-				MachineId:       m.MachineID,
-				Name:            m.Name,
-				MachineTypeName: m.MachineTypeName,
-				Jobs:            m.Jobs,
-				RuntimeHours:    m.RuntimeHours,
-				FailureRate:     m.FailureRate,
-				Charges:         m.Charges,
-				RuntimeShare:    m.RuntimeShare,
+				MachineId:    m.MachineID,
+				Name:         m.Name,
+				ProcessName:  m.ProcessName,
+				Jobs:         m.Jobs,
+				RuntimeHours: m.RuntimeHours,
+				FailureRate:  m.FailureRate,
+				Charges:      m.Charges,
+				RuntimeShare: m.RuntimeShare,
 			},
 		)
 	}
@@ -714,4 +720,12 @@ func mlMemberOrganizationsDTO(items []machinelogbook.OrganizationReference) *[]o
 		out = append(out, openapi.OrganizationReference{Id: item.ID, Name: item.Name})
 	}
 	return &out
+}
+
+// processIDsPointer keeps "omitted" (nil) apart from an empty list.
+func processIDsPointer(values *[]openapi.UUIDv7) []uuid.UUID {
+	if values == nil {
+		return nil
+	}
+	return uuidSlice(*values)
 }

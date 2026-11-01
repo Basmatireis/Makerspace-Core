@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -179,7 +180,27 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	response := doJSON(t, nobodyClient, http.MethodGet, base, "", "", nil)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
-	create := map[string]any{"name": "PLA", "kind": "filament", "unit": "g", "processes": []string{"fdm_printing"}}
+	createProcess := func(name, integration string, measures []map[string]any) openapi.Process {
+		t.Helper()
+		body := map[string]any{"name": name + " " + uuid.NewString()[:8], "integration": integration, "measures": measures}
+		response := doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/processes", origin, adminCSRF, body)
+		assertStatus(t, response, http.StatusCreated)
+		var process openapi.Process
+		decodeResponse(t, response, &process)
+		t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM processes WHERE id = $1`, process.Id) })
+		return process
+	}
+	fdmProcess := createProcess("FDM", "fdm_printer", nil)
+	stitching := createProcess(
+		"Embroidery",
+		"none",
+		[]map[string]any{{"key": "stitches", "label": "Stitches", "unit": "stitch", "blockSize": 1000}},
+	)
+	if len(stitching.Measures) != 1 || stitching.Measures[0].Key != "stitches" || stitching.Measures[0].BlockSize != 1000 ||
+		stitching.Integration != openapi.ProcessIntegrationNone {
+		t.Fatalf("created process = %+v", stitching)
+	}
+	create := map[string]any{"name": "PLA", "kind": "filament", "unit": "g", "processIds": []string{fdmProcess.Id.String()}}
 	for name, who := range map[string]struct {
 		client *http.Client
 		csrf   string
@@ -199,8 +220,8 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	if created.Name != "PLA" || created.Unit != "g" || !created.Active || created.MaterialCount != 0 {
 		t.Fatalf("created = %+v", created)
 	}
-	if len(created.Processes) != 1 || created.Processes[0] != openapi.MachineProcessFdmPrinting {
-		t.Fatalf("processes = %v", created.Processes)
+	if len(created.ProcessIds) != 1 || created.ProcessIds[0] != fdmProcess.Id {
+		t.Fatalf("processIds = %v", created.ProcessIds)
 	}
 	response = doJSON(
 		t,
@@ -209,7 +230,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		base,
 		origin,
 		managerCSRF,
-		map[string]any{"name": "No process", "kind": "consumable", "unit": "g", "processes": []string{}},
+		map[string]any{"name": "No process", "kind": "consumable", "unit": "g", "processIds": []string{}},
 	)
 	assertStatus(t, response, http.StatusUnprocessableEntity)
 	response.Body.Close()
@@ -220,7 +241,20 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		base,
 		origin,
 		managerCSRF,
-		map[string]any{"name": "pla", "kind": "filament", "unit": "g", "processes": []string{"fdm_printing"}},
+		map[string]any{
+			"name": "Unknown process", "kind": "consumable", "unit": "g", "processIds": []string{uuid.NewString()},
+		},
+	)
+	assertStatus(t, response, http.StatusUnprocessableEntity)
+	response.Body.Close()
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPost,
+		base,
+		origin,
+		managerCSRF,
+		map[string]any{"name": "pla", "kind": "filament", "unit": "g", "processIds": []string{fdmProcess.Id.String()}},
 	)
 	assertStatus(t, response, http.StatusConflict)
 	response.Body.Close()
@@ -326,7 +360,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		base,
 		origin,
 		managerCSRF,
-		map[string]any{"name": "Unused", "kind": "consumable", "unit": "m", "processes": []string{"embroidery"}},
+		map[string]any{"name": "Unused", "kind": "consumable", "unit": "m", "processIds": []string{stitching.Id.String()}},
 	)
 	assertStatus(t, response, http.StatusCreated)
 	var unused openapi.MaterialType

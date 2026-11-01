@@ -13,18 +13,17 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FormProvider, useForm } from 'react-hook-form';
 import { addManualMachineRun, updateMachineRun } from '../../../api/generated/machine-runs/machine-runs';
-import type { MachineJob, MachineProcess, MachineRun } from '../../../api/generated/models';
+import type { MachineJob, MachineRun, Process } from '../../../api/generated/models';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
-import { processConfig } from '../processConfig';
 import { machineLogbookKeys, machineQuery } from '../queries';
 import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
 import { blankUsage, saveError, toUsageInputs, type UsagesValues } from './jobFormHelpers';
 import { RunOutcomeField, RunTimingFields } from './RunFields';
 import { resolveTimes, runDefaults, runOutcomeChoices, type RunValues } from './runFormHelpers';
-import { inkUsageInputs, toMeasures } from './processFormHelpers';
-import { StitchesField } from './ProcessRunFields';
+import { measureValuesFrom, toMeasures } from './processFormHelpers';
+import { MeasureFields } from './ProcessRunFields';
 import { UsageRowsEditor } from './UsageFormModal';
 import '../styles/jobs.scss';
 
@@ -34,10 +33,9 @@ type EditProps = { mode: 'edit'; run: MachineRun };
 function AddRunForm({ onClose, job }: { onClose: () => void; job: MachineJob }) {
   const client = useQueryClient();
   const notify = useNotify();
-  const process = job.machine.machineType.process;
-  const config = processConfig[process];
+  const process = job.machine.process;
   const form = useForm<RunValues & UsagesValues>({
-    defaultValues: { ...runDefaults(), usages: config.inkGroup ? [] : [blankUsage()], stitches: '', ink: {} },
+    defaultValues: { ...runDefaults(), usages: [blankUsage()], measures: measureValuesFrom(process.measures) },
   });
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +52,8 @@ function AddRunForm({ onClose, job }: { onClose: () => void; job: MachineJob }) 
           ...times,
           // The outcome only exists once the run has ended.
           outcome: new Date(times.endsAt).getTime() > Date.now() || !values.outcome ? null : values.outcome,
-          usages: [...toUsageInputs(values.usages), ...inkUsageInputs(values.ink ?? {})],
-          measures: toMeasures({ stitches: values.stitches ?? '' }, process),
+          usages: toUsageInputs(values.usages),
+          measures: toMeasures(values.measures, process.measures),
         },
         expectedJobVersion: job.version,
       }),
@@ -109,7 +107,7 @@ function AddRunForm({ onClose, job }: { onClose: () => void; job: MachineJob }) 
               )}
               <RunTimingFields idPrefix="add-run" />
               <RunOutcomeField idPrefix="add-run" />
-              {config.measures.includes('stitches') && <StitchesField idPrefix="add-run" />}
+              <MeasureFields idPrefix="add-run" measures={process.measures} />
               <Stack gap={5}>
                 <div>
                   <h3 className="mj-section-title">Material usage</h3>
@@ -142,27 +140,19 @@ function EditRunForm({ onClose, run }: { onClose: () => void; run: MachineRun })
   const machine = useQuery({ ...machineQuery(run.machineId), enabled: can('machines.read') });
   // Built once the process is known, so the process fields start with the run's values.
   if (can('machines.read') && machine.isPending) return null;
-  return <EditRunFormBody onClose={onClose} run={run} process={machine.data?.machineType.process} />;
+  return <EditRunFormBody onClose={onClose} run={run} process={machine.data?.process} />;
 }
 
-function EditRunFormBody({
-  onClose,
-  run,
-  process,
-}: {
-  onClose: () => void;
-  run: MachineRun;
-  process?: MachineProcess;
-}) {
+function EditRunFormBody({ onClose, run, process }: { onClose: () => void; run: MachineRun; process?: Process }) {
   const client = useQueryClient();
   const notify = useNotify();
   const manual = run.source === 'manual';
-  const showStitches = manual && !!process && processConfig[process].measures.includes('stitches');
+  const measureDefinitions = manual ? (process?.measures ?? []) : [];
   const endsAt = run.endedAt ?? run.estimatedEndAt ?? run.startedAt;
-  const form = useForm<RunValues & { stitches: string }>({
+  const form = useForm<RunValues & Pick<UsagesValues, 'measures'>>({
     defaultValues: {
       ...runDefaults({ startsAt: run.startedAt, endsAt, outcome: run.outcome ?? null }, false),
-      stitches: run.measures.stitches == null ? '' : String(run.measures.stitches),
+      measures: measureValuesFrom(measureDefinitions, run.measures),
     },
   });
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
@@ -172,15 +162,15 @@ function EditRunFormBody({
       values,
       times,
     }: {
-      values: RunValues & { stitches: string };
+      values: RunValues & Pick<UsagesValues, 'measures'>;
       times?: { startsAt: string; endsAt: string };
     }) =>
       updateMachineRun(run.id, {
         // Start and end exist only on manual runs; a running run cannot have an outcome yet.
         ...(times ?? {}),
         outcome: values.outcome && (!times || new Date(times.endsAt).getTime() <= Date.now()) ? values.outcome : null,
-        // Measures only exist on manual runs; sending them replaces the stored ones, so an emptied field clears the stitches.
-        ...(showStitches ? { measures: toMeasures({ stitches: values.stitches }, process) } : {}),
+        // Measures only exist on manual runs; sending them replaces the stored ones, so an emptied field clears the count.
+        ...(measureDefinitions.length ? { measures: toMeasures(values.measures, measureDefinitions) } : {}),
         expectedVersion: run.version,
       }),
     onSuccess: async () => {
@@ -240,7 +230,7 @@ function EditRunFormBody({
                 <>
                   <RunTimingFields idPrefix="edit-run" />
                   <RunOutcomeField idPrefix="edit-run" />
-                  {showStitches && <StitchesField idPrefix="edit-run" />}
+                  {measureDefinitions.length > 0 && <MeasureFields idPrefix="edit-run" measures={measureDefinitions} />}
                 </>
               ) : (
                 <Select

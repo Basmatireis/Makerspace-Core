@@ -20,14 +20,14 @@
  */
 import type { Decimal } from './decimal';
 import type { MachineStatus } from './machineStatus';
-import type { MachineType } from './machineType';
+import type { Process } from './process';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
 export interface Machine {
   id: UUIDv7;
   name: string;
-  machineType: MachineType;
+  process: Process;
   status: MachineStatus;
   /** @nullable */
   externalIdentifier?: string | null;

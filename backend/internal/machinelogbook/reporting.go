@@ -361,10 +361,10 @@ func (s *Service) fillPeriodStatistics(
 		result.Machines = append(
 			result.Machines,
 			StatisticMachine{
-				MachineID:       row.MachineID,
-				Name:            row.Name,
-				MachineTypeName: row.MachineTypeName,
-				Jobs:            row.Jobs,
+				MachineID:   row.MachineID,
+				Name:        row.Name,
+				ProcessName: row.ProcessName,
+				Jobs:        row.Jobs,
 				RuntimeHours: decimalString(
 					row.RuntimeHours,
 				),

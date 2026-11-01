@@ -169,7 +169,7 @@ func TestStatisticsTotalsRuntimeAndCostSplit(t *testing.T) {
 	assertDecimal(t, "bare share", bare.RuntimeShare, "22.22")
 	assertDecimal(t, "main failure rate", main.FailureRate, "66.67")
 	assertDecimal(t, "bare failure rate", bare.FailureRate, "0")
-	if main.Jobs != 4 || bare.Jobs != 1 || main.MachineTypeName != f.machine.MachineType.Name {
+	if main.Jobs != 4 || bare.Jobs != 1 || main.ProcessName != f.machine.Process.Name {
 		t.Fatalf("machine summaries = %+v / %+v", main, bare)
 	}
 	assertDecimal(t, "bare charges", bare.Charges, "0")

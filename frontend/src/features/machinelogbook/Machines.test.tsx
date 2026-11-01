@@ -10,13 +10,13 @@ import {
   type FilamentSpool,
   type Machine,
   type MachineActivity,
-  type MachineType,
   type PrinterProfile,
 } from '../../api/generated/models';
 import { server } from '../../test/server';
 import { testQueryClient } from '../../test/render';
 import { MachineDetailPage } from './MachineDetailPage';
 import { MachinesPage } from './MachinesPage';
+import { laserProcessId, printerProcessId, processes } from './printerTestData';
 import { LocalServicesPage } from '../localservices/LocalServicesPage';
 import { ToastProvider } from './shared/toasts';
 
@@ -55,34 +55,15 @@ function renderPage(route: string) {
 }
 
 const now = '2026-09-15T11:26:00Z';
-const laserTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8b001';
-const printerTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
-const types: MachineType[] = [
-  {
-    id: laserTypeId,
-    name: 'Laser',
-    active: true,
-    process: 'laser_cutting',
-    version: 3,
-    createdAt: now,
-    updatedAt: now,
-  },
-  {
-    id: printerTypeId,
-    name: '3D printer',
-    active: true,
-    process: 'fdm_printing',
-    version: 1,
-    createdAt: now,
-    updatedAt: now,
-  },
-];
+const laserTypeId = laserProcessId;
+const printerTypeId = printerProcessId;
+const types = processes;
 
 function machine(id: string, name: string, overrides: Partial<Machine> = {}): Machine {
   return {
     id,
     name,
-    machineType: types[0],
+    process: types[0],
     status: 'active',
     automaticCollectionEnabled: false,
     jobCount: 3,
@@ -97,7 +78,7 @@ function machine(id: string, name: string, overrides: Partial<Machine> = {}): Ma
 
 const laser = machine('0192f6f8-743e-7c77-a349-cd07c3e8c001', 'Laser cutter');
 const bambu = machine('0192f6f8-743e-7c77-a349-cd07c3e8c002', 'Bambu H2D', {
-  machineType: types[1],
+  process: types[1],
   automaticCollectionEnabled: true,
   externalIdentifier: 'BH2D-1',
   lastIngestedAt: now,
@@ -106,6 +87,7 @@ const bambu = machine('0192f6f8-743e-7c77-a349-cd07c3e8c002', 'Bambu H2D', {
 });
 const saw = machine('0192f6f8-743e-7c77-a349-cd07c3e8c003', 'Old saw', { status: 'retired' });
 const mill = machine('0192f6f8-743e-7c77-a349-cd07c3e8c004', 'CNC mill', { status: 'maintenance' });
+const embroideryStitches = { key: 'stitches', label: 'Stitches', unit: 'stitch', blockSize: 1000 };
 const runId = '0192f6f8-743e-7c77-a349-cd07c3e8d001';
 
 const activity: MachineActivity[] = [
@@ -178,7 +160,7 @@ function setup(
     http.get('*/api/v1/machines', () =>
       HttpResponse.json({ items: [laser, bambu, saw, mill], page: 1, pageSize: 100, total: 4 }),
     ),
-    http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: types })),
+    http.get('*/api/v1/processes', () => HttpResponse.json({ items: types })),
     http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: activity })),
     http.get(`*/api/v1/machines/${bambu.id}`, () => HttpResponse.json(bambu)),
     http.get(`*/api/v1/machines/${laser.id}`, () => HttpResponse.json(laser)),
@@ -241,10 +223,10 @@ describe('Machines list', () => {
     expect(within(rowFor('Old saw')).getByText('Retired', { selector: '.mj-secondary' })).toBeInTheDocument();
   });
 
-  it('filters by type, collection and connector from the URL and searches by name', async () => {
+  it('filters by process, collection and connector from the URL and searches by name', async () => {
     setup([PermissionId.machinesread]);
     const user = userEvent.setup();
-    const { unmount } = renderPage(`/machine-logbook/machines?type=${printerTypeId}`);
+    const { unmount } = renderPage(`/machine-logbook/machines?process=${printerTypeId}`);
     await screen.findByRole('link', { name: 'Bambu H2D' }, { timeout: 5000 });
     expect(screen.queryByRole('link', { name: 'Laser cutter' })).not.toBeInTheDocument();
     unmount();
@@ -263,7 +245,7 @@ describe('Machines list', () => {
     expect(await screen.findByRole('link', { name: 'Laser cutter' })).toBeInTheDocument();
   });
 
-  it('searches the availability label, the process label and a connector issue', async () => {
+  it('searches the availability label, the process name and a connector issue', async () => {
     setup([PermissionId.machinesread]);
     const user = userEvent.setup();
     renderPage('/machine-logbook/machines');
@@ -273,16 +255,16 @@ describe('Machines list', () => {
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Laser cutter' })).not.toBeInTheDocument());
     expect(screen.getByRole('link', { name: 'CNC mill' })).toBeInTheDocument();
     await user.clear(search);
-    await user.type(search, 'FDM 3D');
+    await user.type(search, '3D printer');
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Laser cutter' })).not.toBeInTheDocument());
     expect(screen.getByRole('link', { name: 'Bambu H2D' })).toBeInTheDocument();
   });
 
-  it('keeps Machines and Machine types and sends the former Connectors tab to Settings, Local services', async () => {
+  it('keeps Machines and Processes and sends the former Connectors tab to Settings, Local services', async () => {
     setup([PermissionId.machinesread]);
     const readOnly = renderPage('/machine-logbook/machines');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Machines', 'Machine types']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Machines', 'Processes']);
     readOnly.unmount();
 
     setup([PermissionId.machinesread, PermissionId.printer_connectorsread]);
@@ -310,41 +292,57 @@ describe('Machines list', () => {
     ).toBeInTheDocument();
   });
 
-  it('lists the machine types with their process and offers changes only with machines.manage', async () => {
+  it('lists the processes with integration and measures and offers changes only with machines.manage', async () => {
+    const withEmbroidery = () => {
+      server.use(
+        http.get('*/api/v1/processes', () =>
+          HttpResponse.json({
+            items: [...types, { ...types[0], id: 'emb', name: 'Embroidery', measures: [embroideryStitches] }],
+          }),
+        ),
+      );
+    };
     setup([PermissionId.machinesread]);
-    const readOnly = renderPage('/machine-logbook/machines?tab=types');
-    const table = await screen.findByRole('table', { name: 'Machine types' }, { timeout: 5000 });
+    withEmbroidery();
+    const readOnly = renderPage('/machine-logbook/machines?tab=processes');
+    const table = await screen.findByRole('table', { name: 'Processes' }, { timeout: 5000 });
+    expect(await within(table).findByText('Embroidery')).toBeInTheDocument();
     expect(within(table).getByText('Laser')).toBeInTheDocument();
-    expect(within(table).getByText('3D printer')).toBeInTheDocument();
-    expect(within(table).getByText('FDM 3D printing')).toBeInTheDocument();
-    expect(within(table).getByText('Laser cutting')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add type' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+    expect(within(table).getByText('3D printer (FDM)')).toBeInTheDocument();
+    expect(within(table).getByText('Stitches · per 1000 stitch')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add process' })).not.toBeInTheDocument();
     readOnly.unmount();
 
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);
-    renderPage('/machine-logbook/machines?tab=types');
-    expect(await screen.findByRole('button', { name: 'Add type' }, { timeout: 5000 })).toBeInTheDocument();
+    withEmbroidery();
+    renderPage('/machine-logbook/machines?tab=processes');
+    expect(await screen.findByRole('button', { name: 'Add process' }, { timeout: 5000 })).toBeInTheDocument();
     expect(iconButton('Actions for Laser')).toBeInTheDocument();
   });
 
-  it('creates, renames and deactivates machine types and picks their process with their version', async () => {
+  it('sends the former Machine types tab link to the Processes tab', async () => {
+    setup([PermissionId.machinesread]);
+    renderPage('/machine-logbook/machines?tab=types');
+    expect(await screen.findByRole('table', { name: 'Processes' }, { timeout: 5000 })).toBeInTheDocument();
+  });
+
+  it('creates a process with a measure, renames and deactivates processes with their version', async () => {
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);
     const patches: unknown[] = [];
     let created: unknown;
     server.use(
-      http.post('*/api/v1/machine-types', async ({ request }) => {
+      http.post('*/api/v1/processes', async ({ request }) => {
         created = await request.json();
-        return HttpResponse.json({ ...types[0], id: 'new-type', name: 'Vinyl', version: 1 }, { status: 201 });
+        return HttpResponse.json({ ...types[0], id: 'new-process', name: 'Embroidery', version: 1 }, { status: 201 });
       }),
-      http.patch(`*/api/v1/machine-types/${laserTypeId}`, async ({ request }) => {
+      http.patch(`*/api/v1/processes/${laserTypeId}`, async ({ request }) => {
         patches.push(await request.json());
         return HttpResponse.json(types[0]);
       }),
     );
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=types');
-    await screen.findByRole('table', { name: 'Machine types' }, { timeout: 5000 });
+    renderPage('/machine-logbook/machines?tab=processes');
+    await screen.findByRole('table', { name: 'Processes' }, { timeout: 5000 });
     await user.click(iconButton('Actions for Laser'));
     await user.click(
       await screen.findByText('Deactivate', { selector: '.cds--overflow-menu-options__option-content' }),
@@ -353,32 +351,81 @@ describe('Machines list', () => {
 
     await user.click(iconButton('Actions for Laser'));
     await user.click(await screen.findByText('Edit', { selector: '.cds--overflow-menu-options__option-content' }));
-    const rename = await screen.findByRole('dialog', { name: 'Edit machine type' });
+    const rename = await screen.findByRole('dialog', { name: 'Edit process' });
     await user.clear(within(rename).getByLabelText('Name'));
     await user.type(within(rename).getByLabelText('Name'), 'Laser line');
     await user.click(within(rename).getByRole('button', { name: 'Save' }));
+    // Unchanged measures are left out so the stored list stays as it is.
     await waitFor(() =>
-      expect(patches).toContainEqual({ name: 'Laser line', process: 'laser_cutting', expectedVersion: 3 }),
+      expect(patches).toContainEqual({ name: 'Laser line', integration: 'none', active: true, expectedVersion: 3 }),
     );
 
-    await user.click(screen.getByRole('button', { name: 'Add type' }));
-    const add = await screen.findByRole('dialog', { name: 'Add machine type' });
-    await user.type(within(add).getByLabelText('Name'), 'Vinyl');
-    await user.selectOptions(within(add).getByLabelText('Process'), 'vinyl_cutting');
-    expect(within(add).getByText(/Plotter runtime/)).toBeInTheDocument();
-    await user.click(within(add).getByRole('button', { name: 'Add type' }));
-    await waitFor(() => expect(created).toEqual({ name: 'Vinyl', process: 'vinyl_cutting' }));
+    await user.click(screen.getByRole('button', { name: 'Add process' }));
+    const add = await screen.findByRole('dialog', { name: 'Add process' });
+    await user.type(within(add).getByLabelText('Name'), 'Embroidery');
+    await user.click(within(add).getByRole('button', { name: 'Add measure' }));
+    await user.type(within(add).getByLabelText('Key'), 'Bad Key');
+    await user.type(within(add).getByLabelText('Label'), 'Stitches');
+    await user.type(within(add).getByLabelText('Unit'), 'stitch');
+    await user.clear(within(add).getByLabelText('Block size'));
+    await user.type(within(add).getByLabelText('Block size'), '1000');
+    await user.click(within(add).getByRole('button', { name: 'Add process' }));
+    expect(await within(add).findByText(/Use 2 to 40 lowercase letters/)).toBeInTheDocument();
+    expect(created).toBeUndefined();
+    await user.clear(within(add).getByLabelText('Key'));
+    await user.type(within(add).getByLabelText('Key'), 'stitches');
+    await user.click(within(add).getByRole('button', { name: 'Add process' }));
+    await waitFor(() =>
+      expect(created).toEqual({
+        name: 'Embroidery',
+        integration: 'none',
+        measures: [embroideryStitches],
+      }),
+    );
   });
 
-  it('rejects a machine type name that is already used', async () => {
+  it('names the measure when removing it is refused because pricing rules or runs use it', async () => {
+    setup([PermissionId.machinesread, PermissionId.machinesmanage]);
+    const embroidery = { ...types[0], id: 'emb', name: 'Embroidery', measures: [embroideryStitches] };
+    server.use(
+      http.get('*/api/v1/processes', () => HttpResponse.json({ items: [embroidery] })),
+      http.patch('*/api/v1/processes/emb', () =>
+        HttpResponse.json(
+          {
+            code: 'measure_in_use',
+            message: 'The measure "Stitches" is used by pricing rules or runs and cannot be removed',
+          },
+          { status: 409 },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=processes');
+    await screen.findByRole('table', { name: 'Processes' }, { timeout: 5000 });
+    await user.click(await waitFor(() => iconButton('Actions for Embroidery')));
+    await user.click(await screen.findByText('Edit', { selector: '.cds--overflow-menu-options__option-content' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit process' });
+    expect(within(dialog).getByLabelText('Key')).toHaveValue('stitches');
+    await user.click(
+      within(dialog)
+        .getByText('Remove measure 1', { selector: '.cds--tooltip-content' })
+        .closest('.cds--popover-container')!
+        .querySelector('button') as HTMLElement,
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await within(dialog).findByText(/The measure "Stitches" is used/)).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Edit process' })).toBeInTheDocument();
+  });
+
+  it('rejects a process name that is already used', async () => {
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=types');
-    await user.click(await screen.findByRole('button', { name: 'Add type' }, { timeout: 5000 }));
-    const add = await screen.findByRole('dialog', { name: 'Add machine type' });
+    renderPage('/machine-logbook/machines?tab=processes');
+    await user.click(await screen.findByRole('button', { name: 'Add process' }, { timeout: 5000 }));
+    const add = await screen.findByRole('dialog', { name: 'Add process' });
     await user.type(within(add).getByLabelText('Name'), 'laser');
+    await user.click(within(add).getByRole('button', { name: 'Add process' }));
     expect(await within(add).findByText('This name is already used.')).toBeInTheDocument();
-    expect(within(add).getByRole('button', { name: 'Add type' })).toBeDisabled();
   });
 
   it('creates a machine of a non-printer type with the Add machine wizard, skipping connection and spool inputs', async () => {
@@ -400,13 +447,13 @@ describe('Machines list', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Add machine' });
     await user.type(within(dialog).getByLabelText('Name'), ' Vinyl cutter ');
     await waitFor(() => expect(within(dialog).getByRole('option', { name: 'Laser' })).toBeInTheDocument());
-    await user.selectOptions(within(dialog).getByLabelText('Machine type'), laserTypeId);
+    await user.selectOptions(within(dialog).getByLabelText('Process'), laserTypeId);
     expect(within(dialog).queryByText('Model')).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Create and continue' }));
     await waitFor(() =>
       expect(body).toEqual({
         name: 'Vinyl cutter',
-        machineTypeId: laserTypeId,
+        processId: laserTypeId,
         status: 'active',
         externalIdentifier: null,
         automaticCollectionEnabled: false,
@@ -631,7 +678,7 @@ describe('Delete machine', () => {
     await waitFor(() =>
       expect(body).toEqual({
         name: 'Laser cutter',
-        machineTypeId: laserTypeId,
+        processId: laserTypeId,
         status: 'maintenance',
         externalIdentifier: null,
         automaticCollectionEnabled: false,

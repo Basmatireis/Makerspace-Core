@@ -23,5 +23,5 @@ import type { UUIDv7 } from './uUIDv7';
 export interface PriceQuoteMachine {
   id: UUIDv7;
   name: string;
-  machineTypeName: string;
+  processName: string;
 }

@@ -46,10 +46,13 @@ func NewService(pool *pgxpool.Pool, emitter InboxEmitter, options ...Option) *Se
 	return s
 }
 
-type MachineType struct {
+// Process is what a machine does: the unit that carries pricing, trainings, eligible materials and the counted
+// measures of its runs.
+type Process struct {
 	ID                   uuid.UUID
 	Name                 string
-	Process              string
+	Integration          ProcessIntegration
+	Measures             []ProcessMeasure
 	Active               bool
 	Version              int64
 	CreatedAt, UpdatedAt time.Time
@@ -57,7 +60,7 @@ type MachineType struct {
 
 type Machine struct {
 	ID                                uuid.UUID
-	MachineType                       MachineType
+	Process                           Process
 	Name                              string
 	Status                            MachineStatus
 	ExternalIdentifier                *string
@@ -135,14 +138,14 @@ type Operator struct {
 type PricingRule struct {
 	ID, PricingGroupID uuid.UUID
 	Kind               PricingRuleKind
-	MachineTypeID      *uuid.UUID
+	ProcessID          *uuid.UUID
 	// MaterialTypeID, its name and MaterialUnit are set on material rules only;
 	// the unit is the unit of the type.
 	MaterialTypeID   *uuid.UUID
 	MaterialTypeName *string
 	MaterialUnit     *string
 	// Measure and BlockSize are set on machine_measure rules: Rate is the price
-	// per BlockSize units of the measure on machines of MachineTypeID.
+	// per BlockSize units of the measure on machines of ProcessID.
 	Measure   *string
 	BlockSize *int32
 	Rate      string
@@ -156,7 +159,7 @@ type MaterialType struct {
 	ID                              uuid.UUID
 	Name, Unit                      string
 	Kind                            MaterialKind
-	Processes                       []string
+	ProcessIDs                      []uuid.UUID
 	Active                          bool
 	MaterialCount, PricingRuleCount int64
 	Version                         int64
@@ -530,9 +533,9 @@ type StatisticRuntimePoint struct {
 }
 
 type StatisticMachine struct {
-	MachineID                                                               uuid.UUID
-	Name, MachineTypeName, RuntimeHours, FailureRate, Charges, RuntimeShare string
-	Jobs                                                                    int64
+	MachineID                                                           uuid.UUID
+	Name, ProcessName, RuntimeHours, FailureRate, Charges, RuntimeShare string
+	Jobs                                                                int64
 }
 
 func pageBounds(page, pageSize int) (int32, int32, error) {
@@ -662,15 +665,19 @@ func writeAudit(
 	return audit.Write(ctx, tx, event)
 }
 
-func machineTypeFromRow(row machinelogbookdb.MachineType) MachineType {
-	return MachineType{
-		ID:        row.ID,
-		Name:      row.Name,
-		Active:    row.Active,
-		Process:   row.Process,
-		Version:   row.Version,
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
+func processFromRow(row machinelogbookdb.Process, measures []ProcessMeasure) Process {
+	if measures == nil {
+		measures = []ProcessMeasure{}
+	}
+	return Process{
+		ID:          row.ID,
+		Name:        row.Name,
+		Integration: ProcessIntegration(row.Integration),
+		Measures:    measures,
+		Active:      row.Active,
+		Version:     row.Version,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
 	}
 }
 

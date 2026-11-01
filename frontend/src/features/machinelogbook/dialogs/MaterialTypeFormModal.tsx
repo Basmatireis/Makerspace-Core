@@ -1,27 +1,17 @@
 import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import {
-  Checkbox,
-  CheckboxGroup,
-  InlineNotification,
-  Modal,
-  Select,
-  SelectItem,
-  Stack,
-  TextInput,
-  Toggle,
-} from '@carbon/react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { InlineNotification, Modal, MultiSelect, Select, SelectItem, Stack, TextInput, Toggle } from '@carbon/react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createMaterialType, updateMaterialType } from '../../../api/generated/inventory/inventory';
-import type { MachineProcess, MaterialKind, MaterialType, MaterialUnit } from '../../../api/generated/models';
+import type { MaterialKind, MaterialType, MaterialUnit, Process } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
 import { typeNounLower } from '../components/inventoryShared';
-import { processOptions } from '../processConfig';
-import { machineLogbookKeys } from '../queries';
+import { machineLogbookKeys, processesQuery } from '../queries';
+import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
 import { useLatestCallback } from '../../../app/useLatestCallback';
 
-type Values = { name: string; unit: MaterialUnit; processes: MachineProcess[]; active: boolean };
+type Values = { name: string; unit: MaterialUnit; processIds: string[]; active: boolean };
 
 const materialUnits: MaterialUnit[] = ['g', 'm', 'ml', 'cm2', 'm2', 'piece'];
 const unitNames: Record<MaterialUnit, string> = {
@@ -52,15 +42,22 @@ export function MaterialTypeFormModal({
 }) {
   const kind = materialType?.kind ?? requestedKind;
   const noun = typeNounLower(kind);
-  const options =
-    kind === 'consumable' ? processOptions.filter((option) => option.id !== 'fdm_printing') : processOptions;
+  const can = useCan();
+  // Without permission to read processes the list stays out and the type keeps the processes it has.
+  const processesList = useQuery({
+    ...processesQuery(),
+    enabled: open && kind === 'consumable' && can('machines.read'),
+  });
+  const options = (processesList.data?.items ?? []).filter(
+    (item) => item.active || materialType?.processIds.includes(item.id),
+  );
   const client = useQueryClient();
   const notify = useNotify();
   const inUse = Boolean(materialType && (materialType.materialCount > 0 || materialType.pricingRuleCount > 0));
   const defaults = (): Values => ({
     name: materialType?.name ?? '',
     unit: materialType?.unit ?? (kind === 'filament' ? 'g' : 'piece'),
-    processes: materialType?.processes ?? (kind === 'consumable' ? ['other'] : []),
+    processIds: materialType?.processIds ?? [],
     active: materialType?.active ?? true,
   });
   const {
@@ -78,7 +75,7 @@ export function MaterialTypeFormModal({
         ? updateMaterialType(materialType.id, {
             name: values.name.trim(),
             unit: inUse || kind === 'filament' ? materialType.unit : values.unit,
-            ...(kind === 'consumable' ? { processes: values.processes } : {}),
+            ...(kind === 'consumable' && processesList.isSuccess ? { processIds: values.processIds } : {}),
             active: values.active,
             expectedVersion: materialType.version,
           })
@@ -86,7 +83,7 @@ export function MaterialTypeFormModal({
             name: values.name.trim(),
             kind,
             unit: kind === 'filament' ? 'g' : values.unit,
-            ...(kind === 'consumable' ? { processes: values.processes } : {}),
+            ...(kind === 'consumable' && processesList.isSuccess ? { processIds: values.processIds } : {}),
           }),
     onSuccess: async (saved) => {
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
@@ -184,32 +181,25 @@ export function MaterialTypeFormModal({
               <SelectItem key={item} value={item} text={unitNames[item]} />
             ))}
           </Select>
-          {kind === 'consumable' && (
+          {kind === 'consumable' && processesList.isSuccess && (
             <Controller
               control={control}
-              name="processes"
+              name="processIds"
               rules={{ validate: (value) => value.length > 0 || 'Choose at least one process.' }}
               render={({ field }) => (
-                <CheckboxGroup
-                  legendText="Used for processes"
+                <MultiSelect<Process>
+                  autoAlign
+                  id="material-type-processes"
+                  titleText="Used for processes"
+                  label="Choose processes"
                   helperText="Manual runs only offer this material on machines of these processes."
-                  invalid={Boolean(errors.processes)}
-                  invalidText={errors.processes?.message}
-                >
-                  {options.map((option) => (
-                    <Checkbox
-                      key={option.id}
-                      id={`material-type-process-${option.id}`}
-                      labelText={option.label}
-                      checked={field.value.includes(option.id)}
-                      onChange={(_event, { checked }) =>
-                        field.onChange(
-                          checked ? [...field.value, option.id] : field.value.filter((item) => item !== option.id),
-                        )
-                      }
-                    />
-                  ))}
-                </CheckboxGroup>
+                  invalid={Boolean(errors.processIds)}
+                  invalidText={errors.processIds?.message}
+                  items={options}
+                  itemToString={(item) => item?.name ?? ''}
+                  selectedItems={options.filter((item) => field.value.includes(item.id))}
+                  onChange={({ selectedItems }) => field.onChange((selectedItems ?? []).map((item) => item.id))}
+                />
               )}
             />
           )}

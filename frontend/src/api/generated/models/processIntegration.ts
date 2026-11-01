@@ -18,8 +18,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { MachineType } from './machineType';
 
-export interface MachineTypeList {
-  items: MachineType[];
-}
+/**
+ * What Core can do for machines of a process beyond runtime and materials. fdm_printer machines have a printer setup (profile, spool inputs, connector, print files, live status); none have no integration.
+ */
+export type ProcessIntegration = typeof ProcessIntegration[keyof typeof ProcessIntegration];
+
+
+export const ProcessIntegration = {
+  none: 'none',
+  fdm_printer: 'fdm_printer',
+} as const;

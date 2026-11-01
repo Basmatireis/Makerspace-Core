@@ -298,7 +298,7 @@ func TestTrainingRecordsOverHTTP(t *testing.T) {
 	csrf := cookieValue(t, client, server.URL, cfg.CSRFCookieName)
 
 	response = doJSON(t, client, http.MethodPost, server.URL+"/api/v1/trainings", origin, csrf, map[string]any{
-		"name": "Soldering basics", "active": true, "sortOrder": 0, "competencyIds": []string{}, "machineTypeIds": []string{},
+		"name": "Soldering basics", "active": true, "sortOrder": 0, "competencyIds": []string{}, "processIds": []string{},
 	})
 	assertStatus(t, response, http.StatusCreated)
 	var training openapi.Training

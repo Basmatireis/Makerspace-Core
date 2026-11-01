@@ -40,7 +40,7 @@ The Inventory page (`/machine-logbook/inventory?tab=filament|consumables|parts|s
 
 ## Gated by process
 
-Everything on this page exists for machines whose machine type has the **FDM printing** process (`fdm_printing`, see [Processes](machine-logbook.md#processes)): the printer setup and wizard, connector assignments, spool inputs and mounting, artifacts, live status and reported grams. Other processes (embroidery, UV printing, cutting, other) have no printer setup; the backend answers `409 machine_not_fdm_printing` when one is requested, and the frontend neither shows the printer tab nor the wizard steps for them. Spool logic stays filament-only (grams).
+Everything on this page exists for machines whose process has the **FDM printer** integration (`fdm_printer`, see [Processes](machine-logbook.md#processes)): the printer setup and wizard, connector assignments, spool inputs and mounting, artifacts, live status and reported grams. Other processes (integration `none`) have no printer setup; the backend answers `409 machine_not_fdm_printing` when one is requested, and the frontend neither shows the printer tab nor the wizard steps for them. Spool logic stays filament-only (grams).
 
 ## Generic printer topology
 

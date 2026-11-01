@@ -15,10 +15,10 @@ import {
 import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useWatch } from 'react-hook-form';
-import type { MachineProcess, MachineStatus } from '../../../../api/generated/models';
-import { createMachineType } from '../../../../api/generated/machines/machines';
-import { machineLogbookKeys, machineTypesQuery } from '../../queries';
-import { processOptions } from '../../processConfig';
+import type { MachineStatus, ProcessIntegration } from '../../../../api/generated/models';
+import { createProcess } from '../../../../api/generated/machines/machines';
+import { machineLogbookKeys, processesQuery } from '../../queries';
+import { integrationLabel, isFdm } from '../../processConfig';
 import { printerModels, type PrinterModelId } from '../../printerSetup';
 import { useNotify } from '../../shared/toasts';
 import { useCan } from '../../shared/useCan';
@@ -49,29 +49,29 @@ export function MachineStep({
     formState: { errors },
   } = form;
   const [adding, setAdding] = useState(false);
-  const [newType, setNewType] = useState('');
-  const [newProcess, setNewProcess] = useState<MachineProcess>('fdm_printing');
-  const typesQuery = useQuery(machineTypesQuery());
-  const allTypes = typesQuery.data?.items ?? [];
-  const typeId = useWatch({ control, name: 'machineTypeId' });
+  const [newName, setNewName] = useState('');
+  const [newIntegration, setNewIntegration] = useState<ProcessIntegration>('none');
+  const processesQ = useQuery(processesQuery());
+  const allProcesses = processesQ.data?.items ?? [];
+  const processId = useWatch({ control, name: 'processId' });
   const automatic = useWatch({ control, name: 'automaticCollectionEnabled' });
-  const types = allTypes.filter((type) => type.active || type.id === machine?.machineType.id);
-  const selectedType = allTypes.find((type) => type.id === typeId);
-  const trimmed = newType.trim();
-  const taken = Boolean(trimmed) && allTypes.some((type) => type.name.toLowerCase() === trimmed.toLowerCase());
+  const processes = allProcesses.filter((item) => item.active || item.id === machine?.process.id);
+  const selected = allProcesses.find((item) => item.id === processId);
+  const trimmed = newName.trim();
+  const taken = Boolean(trimmed) && allProcesses.some((item) => item.name.toLowerCase() === trimmed.toLowerCase());
 
   const create = useMutation({
-    mutationFn: () => createMachineType({ name: trimmed, process: newProcess }),
+    mutationFn: () => createProcess({ name: trimmed, integration: newIntegration }),
     onSuccess: async (created) => {
-      notify({ kind: 'success', title: 'Machine type added', subtitle: created.name });
-      await client.invalidateQueries({ queryKey: machineLogbookKeys.machineTypes() });
-      setValue('machineTypeId', created.id, { shouldValidate: true });
-      setNewType('');
-      setNewProcess('fdm_printing');
+      notify({ kind: 'success', title: 'Process added', subtitle: created.name });
+      await client.invalidateQueries({ queryKey: machineLogbookKeys.processes() });
+      setValue('processId', created.id, { shouldValidate: true });
+      setNewName('');
+      setNewIntegration('none');
       setAdding(false);
     },
   });
-  const addType = () => {
+  const addProcess = () => {
     if (trimmed && !taken && !create.isPending) create.mutate();
   };
 
@@ -90,64 +90,67 @@ export function MachineStep({
       />
       <div>
         <Select
-          key={typesQuery.isSuccess ? 'loaded' : 'loading'}
-          id="setup-type"
-          labelText="Machine type"
-          helperText="Inactive types stay on existing machines but can't be chosen for new ones."
-          invalid={Boolean(errors.machineTypeId)}
-          invalidText={errors.machineTypeId?.message}
-          {...register('machineTypeId', { required: 'Choose a machine type.' })}
+          key={processesQ.isSuccess ? 'loaded' : 'loading'}
+          id="setup-process"
+          labelText="Process"
+          helperText="Inactive processes stay on existing machines but can't be chosen for new ones."
+          invalid={Boolean(errors.processId)}
+          invalidText={errors.processId?.message}
+          {...register('processId', { required: 'Choose a process.' })}
         >
-          <SelectItem value="" text="Choose a type" />
-          {types.map((type) => (
-            <SelectItem key={type.id} value={type.id} text={type.active ? type.name : `${type.name} (inactive)`} />
+          <SelectItem value="" text="Choose a process" />
+          {processes.map((item) => (
+            <SelectItem key={item.id} value={item.id} text={item.active ? item.name : `${item.name} (inactive)`} />
           ))}
         </Select>
-        {typesQuery.isError && (
+        {isFdm(selected) && (
+          <p className="mj-secondary">A printer setup is available because this process is an FDM printer.</p>
+        )}
+        {processesQ.isError && (
           <InlineNotification
             kind="error"
             lowContrast
             hideCloseButton
-            title="Machine types could not be loaded"
+            title="Processes could not be loaded"
             subtitle="Close and reopen this dialog to retry."
           />
         )}
         {can('machines.manage') && !adding && (
           <Button kind="ghost" size="sm" renderIcon={Add} onClick={() => setAdding(true)}>
-            New type
+            New process
           </Button>
         )}
         {adding && (
           <div className="mj-inline-form">
             <TextInput
-              id="setup-new-type"
-              labelText="New type name"
+              id="setup-new-process"
+              labelText="New process name"
               size="sm"
-              value={newType}
+              value={newName}
               autoComplete="off"
               invalid={taken}
               invalidText="This name is already used."
-              onChange={(event) => setNewType(event.target.value)}
+              onChange={(event) => setNewName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault();
-                  addType();
+                  addProcess();
                 }
               }}
             />
             <span className="mj-inline">
               <Select
-                id="setup-new-type-process"
-                labelText="Process"
+                id="setup-new-process-integration"
+                labelText="Integration"
                 size="sm"
-                value={newProcess}
-                onChange={(event) => setNewProcess(event.target.value as MachineProcess)}
+                value={newIntegration}
+                onChange={(event) => setNewIntegration(event.target.value as ProcessIntegration)}
               >
-                {processOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id} text={option.label} />
+                {(['none', 'fdm_printer'] as const).map((option) => (
+                  <SelectItem key={option} value={option} text={integrationLabel(option)} />
                 ))}
               </Select>
-              <Button kind="tertiary" size="sm" disabled={!trimmed || taken || create.isPending} onClick={addType}>
+              <Button kind="tertiary" size="sm" disabled={!trimmed || taken || create.isPending} onClick={addProcess}>
                 Add
               </Button>
               <Button
@@ -155,7 +158,7 @@ export function MachineStep({
                 size="sm"
                 onClick={() => {
                   setAdding(false);
-                  setNewType('');
+                  setNewName('');
                 }}
               >
                 Cancel
@@ -166,7 +169,7 @@ export function MachineStep({
                 kind="error"
                 lowContrast
                 hideCloseButton
-                title="Machine type not added"
+                title="Process not added"
                 subtitle="Check that the name is unique and try again."
               />
             )}
@@ -218,7 +221,7 @@ export function MachineStep({
         helperText="Serial number or ID used by the machine's connector. Needs automatic collection."
         {...register('externalIdentifier', { maxLength: 200 })}
       />
-      {selectedType?.process === 'fdm_printing' && (
+      {isFdm(selected) && (
         <Controller
           control={control}
           name="modelId"

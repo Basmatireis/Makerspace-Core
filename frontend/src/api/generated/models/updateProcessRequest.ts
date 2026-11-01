@@ -18,18 +18,22 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ProcessIntegration } from './processIntegration';
+import type { ProcessMeasure } from './processMeasure';
+import type { Version } from './version';
 
-/**
- * What a machine type does. It decides what a run records and which materials fit. Only fdm_printing machines have a printer setup (profile, spool inputs, connector).
- */
-export type MachineProcess = typeof MachineProcess[keyof typeof MachineProcess];
-
-
-export const MachineProcess = {
-  fdm_printing: 'fdm_printing',
-  embroidery: 'embroidery',
-  uv_printing: 'uv_printing',
-  laser_cutting: 'laser_cutting',
-  vinyl_cutting: 'vinyl_cutting',
-  other: 'other',
-} as const;
+export interface UpdateProcessRequest {
+  expectedVersion: Version;
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  name?: string;
+  active?: boolean;
+  integration?: ProcessIntegration;
+  /**
+     * Omitted keeps the current measures. Removing a measure that pricing rules or runs use answers 409 measure_in_use.
+     * @maxItems 20
+     */
+  measures?: ProcessMeasure[];
+}

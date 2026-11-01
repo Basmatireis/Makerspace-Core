@@ -35,7 +35,8 @@ import {
   type DraftUnit,
   type PrinterModelId,
 } from '../printerSetup';
-import { machineLogbookKeys, machineTypesQuery } from '../queries';
+import { isFdm } from '../processConfig';
+import { machineLogbookKeys, processesQuery } from '../queries';
 import { machineLogbookPaths } from '../shared/paths';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
@@ -121,7 +122,7 @@ function WizardBody({
   const [skipped, setSkipped] = useState(false);
   const [completed, setCompleted] = useState(false);
   const test = useConnectionTest();
-  const typesQuery = useQuery(machineTypesQuery());
+  const processesQ = useQuery(processesQuery());
   const connectors = useQuery({ ...connectorsQuery(), enabled: canConnect });
   const [units, setUnits] = useState<DraftUnit[] | null>(() => {
     if (!(editing && initialStep === 'spools')) return null;
@@ -135,7 +136,7 @@ function WizardBody({
   const form = useForm<SetupValues>({
     defaultValues: {
       name: machine?.name ?? '',
-      machineTypeId: machine?.machineType.id ?? '',
+      processId: machine?.process.id ?? '',
       status: machine?.status ?? 'active',
       automaticCollectionEnabled: machine?.automaticCollectionEnabled ?? false,
       externalIdentifier: machine?.externalIdentifier ?? '',
@@ -168,8 +169,8 @@ function WizardBody({
     });
     return () => subscription.unsubscribe();
   }, [form, resetTest]);
-  const type = (typesQuery.data?.items ?? []).find((item) => item.id === values.machineTypeId);
-  const printer = type?.process === 'fdm_printing';
+  const process = (processesQ.data?.items ?? []).find((item) => item.id === values.processId);
+  const printer = isFdm(process);
   const modelId = (values.modelId || null) as PrinterModelId | null;
   const model = modelById(modelId);
   const steps: StepKey[] = editing
@@ -192,7 +193,7 @@ function WizardBody({
   };
 
   const stepValid = async (key: StepKey) => {
-    if (key === 'machine') return (await form.trigger(['name', 'machineTypeId', 'externalIdentifier'])) && !needsModel;
+    if (key === 'machine') return (await form.trigger(['name', 'processId', 'externalIdentifier'])) && !needsModel;
     if (key === 'connection')
       return (
         !canConnect ||
@@ -203,12 +204,12 @@ function WizardBody({
     return true;
   };
 
-  /** Persists the machine step: the machine itself and, for printer types, its profile with the model's template. */
+  /** Persists the machine step: the machine itself and, for FDM printer processes, its profile with the model's template. */
   const saveMachine = async () => {
     const v = form.getValues();
     const input = {
       name: v.name.trim(),
-      machineTypeId: v.machineTypeId,
+      processId: v.processId,
       status: v.status,
       // The database only allows an external identifier together with automatic collection.
       externalIdentifier: v.automaticCollectionEnabled ? v.externalIdentifier.trim() || null : null,
@@ -219,7 +220,7 @@ function WizardBody({
     else if (
       editing ||
       input.name !== machineNow.name ||
-      input.machineTypeId !== machineNow.machineType.id ||
+      input.processId !== machineNow.process.id ||
       input.status !== machineNow.status ||
       input.externalIdentifier !== (machineNow.externalIdentifier ?? null) ||
       input.automaticCollectionEnabled !== machineNow.automaticCollectionEnabled
@@ -485,7 +486,7 @@ function WizardBody({
           {current === 'review' && (
             <ReviewStep
               values={values}
-              typeName={type?.name ?? '—'}
+              processName={process?.name ?? '—'}
               printer={printer}
               model={model}
               units={profile ? draftFromProfile(profile) : []}
@@ -509,7 +510,7 @@ function WizardBody({
             testBusy ||
             (current === 'spools' && !draftsValid) ||
             needsModel ||
-            (current === 'machine' && typesQuery.isPending)
+            (current === 'machine' && processesQ.isPending)
           }
           onClick={() => {
             void advance();

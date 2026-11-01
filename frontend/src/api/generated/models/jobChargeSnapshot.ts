@@ -29,8 +29,8 @@ export interface JobChargeSnapshot {
   displayId: string;
   machineId: UUIDv7;
   machineName: string;
-  machineTypeId: UUIDv7;
-  machineTypeName: string;
+  processId: UUIDv7;
+  processName: string;
   startsAt: string;
   endsAt: string;
   durationNanoseconds: string;

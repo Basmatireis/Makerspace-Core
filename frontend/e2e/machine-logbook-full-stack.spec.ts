@@ -51,14 +51,14 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   const put = (path: string, data: unknown) => page.request.put(`${origin}/api/v1${path}`, { headers, data });
 
   const me = await parse<{ person: { id: string } }>(await get('/auth/me'), 'current user');
-  const machineType = await parse<Identified>(
-    await post('/machine-types', { name: 'E2E additive manufacturing', process: 'fdm_printing' }),
-    'create machine type',
+  const workProcess = await parse<Identified>(
+    await post('/processes', { name: 'E2E additive manufacturing', integration: 'fdm_printer' }),
+    'create process',
   );
   const machine = await parse<Identified>(
     await post('/machines', {
       name: 'E2E printer',
-      machineTypeId: machineType.id,
+      processId: workProcess.id,
       status: 'active',
       externalIdentifier: 'E2E-PRINTER-01',
       automaticCollectionEnabled: true,
@@ -70,7 +70,7 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
       name: `E2E PLA ${Date.now()}`,
       kind: 'filament',
       unit: 'g',
-      processes: ['fdm_printing'],
+      processIds: [workProcess.id],
     }),
     'create material type',
   );
@@ -111,7 +111,7 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   await parse<Identified>(
     await post(`/pricing-groups/${pricingGroup.id}/rules`, {
       kind: 'machine_runtime',
-      machineTypeId: machineType.id,
+      processId: workProcess.id,
       rate: '5.00',
     }),
     'create runtime rule',

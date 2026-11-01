@@ -14,11 +14,12 @@ const now = '2026-09-15T11:26:00Z';
 const machine: Machine = {
   id: machineId,
   name: 'Laser cutter',
-  machineType: {
+  process: {
     id: typeId,
     name: 'Laser',
     active: true,
-    process: 'laser_cutting',
+    integration: 'none',
+    measures: [],
     version: 3,
     createdAt: now,
     updatedAt: now,
@@ -38,7 +39,7 @@ function auth(permissions: PermissionId[]) {
 function catalog() {
   server.use(
     http.get(`*/api/v1/machines/${machineId}`, () => HttpResponse.json(machine)),
-    http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: [machine.machineType] })),
+    http.get('*/api/v1/processes', () => HttpResponse.json({ items: [machine.process] })),
     http.get('*/api/v1/machine-logbook/machine-activity', () =>
       HttpResponse.json({ items: [{ machineId, availability: 'available' }] }),
     ),
@@ -109,7 +110,7 @@ describe('Machine catalog and printer workflows', () => {
     await within(dialog).findByText('Not saved');
     expect(input).toEqual({
       name: 'New cutter',
-      machineTypeId: typeId,
+      processId: typeId,
       status: 'retired',
       externalIdentifier: null,
       automaticCollectionEnabled: false,

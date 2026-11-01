@@ -39,16 +39,26 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	var typeIDs []uuid.UUID
+	var typeIDs, processIDs []uuid.UUID
 	t.Cleanup(func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_, _ = pool.Exec(cleanup, `DELETE FROM audit_events WHERE request_id = $1`, request)
 		_, _ = pool.Exec(cleanup, `DELETE FROM materials WHERE material_type_id = ANY($1)`, typeIDs)
 		_, _ = pool.Exec(cleanup, `DELETE FROM material_types WHERE id = ANY($1)`, typeIDs)
+		_, _ = pool.Exec(cleanup, `DELETE FROM processes WHERE id = ANY($1)`, processIDs)
 		_, _ = pool.Exec(cleanup, `DELETE FROM accounts WHERE id = $1`, account)
 		_, _ = pool.Exec(cleanup, `DELETE FROM people WHERE id = $1`, person)
 	})
+	fdm, err := s.CreateProcess(ctx, p, "Types FDM "+suffix, IntegrationFDMPrinter, nil, &request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := s.CreateProcess(ctx, p, "Types plain "+suffix, IntegrationNone, nil, &request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	processIDs = append(processIDs, fdm.ID, plain.ID)
 
 	created, err := s.CreateMaterialType(
 		ctx,
@@ -56,7 +66,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		"  PETG-CF "+suffix+"  ",
 		"consumable",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]uuid.UUID{fdm.ID, plain.ID},
 		&request,
 	)
 	if err != nil {
@@ -74,7 +84,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		strings.ToLower(created.Name),
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		[]uuid.UUID{fdm.ID},
 		&request,
 	); !apperror.IsCode(
 		err,
@@ -82,13 +92,13 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 	) {
 		t.Fatalf("duplicate name: %v", err)
 	}
-	if _, err = s.CreateMaterialType(ctx, p, "Bad unit "+suffix, "consumable", "kg", []string{"other"}, &request); !apperror.IsCode(
+	if _, err = s.CreateMaterialType(ctx, p, "Bad unit "+suffix, "consumable", "kg", []uuid.UUID{plain.ID}, &request); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
 		t.Fatalf("invalid unit: %v", err)
 	}
-	if _, err = s.CreateMaterialType(ctx, p, "   ", "filament", "g", []string{"fdm_printing"}, &request); !apperror.IsCode(
+	if _, err = s.CreateMaterialType(ctx, p, "   ", "filament", "g", []uuid.UUID{fdm.ID}, &request); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -151,7 +161,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		"Resin "+suffix,
 		"consumable",
 		"ml",
-		[]string{"fdm_printing", "other"},
+		[]uuid.UUID{fdm.ID, plain.ID},
 		&request,
 	)
 	if err != nil {
@@ -309,7 +319,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 		"Nope "+suffix,
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		[]uuid.UUID{fdm.ID},
 		nil,
 	); !apperror.IsCode(
 		err,
@@ -352,7 +362,7 @@ func TestPricingPerMaterialTypeIncompleteZeroAndSnapshotStability(t *testing.T) 
 		"Jobs TPU "+suffix,
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		nil,
 		&f.request,
 	)
 	must(err)

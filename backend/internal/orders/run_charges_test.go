@@ -19,7 +19,7 @@ func (f *fixture) stockedMaterial(t *testing.T, name string) uuid.UUID {
 		"PLA "+ids.New().String(),
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		nil,
 		nil,
 	)
 	if e != nil {

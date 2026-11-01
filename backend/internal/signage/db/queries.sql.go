@@ -2238,7 +2238,7 @@ func (q *Queries) ListSignageMachineNames(ctx context.Context, ids []string) ([]
 
 const listSignageMachines = `-- name: ListSignageMachines :many
 SELECT m.id, m.name, mt.name AS kind
-FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
+FROM machines m JOIN processes mt ON mt.id = m.process_id
 ORDER BY lower(m.name), m.id
 `
 

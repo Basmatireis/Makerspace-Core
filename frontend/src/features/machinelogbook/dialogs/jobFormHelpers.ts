@@ -25,7 +25,7 @@ export type UsageRow = {
   materialLabel?: string;
   spoolLabel?: string;
 };
-export type UsagesValues = { usages: UsageRow[]; stitches?: string; ink?: Record<string, string> };
+export type UsagesValues = { usages: UsageRow[]; measures?: Record<string, string> };
 export type PartyValues = { customer: BillingParty | null; operator: Operator | null; notes: string };
 
 export const blankUsage = (): UsageRow => ({

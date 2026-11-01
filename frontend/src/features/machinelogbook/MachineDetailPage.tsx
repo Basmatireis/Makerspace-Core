@@ -26,6 +26,7 @@ import { DeleteMachineModal } from './dialogs/DeleteMachineModal';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
 import { usePrinterConnection } from './connectorQueries';
+import { isFdm } from './processConfig';
 import { modelById } from './printerSetup';
 import { machineActivityQuery, machineQuery, printerQuery, workItemsQuery } from './queries';
 import { formatDateTime, formatHours, formatQuantity, formatRelative, formatTime } from './shared/format';
@@ -73,7 +74,7 @@ export function MachineDetailPage() {
   const machine = machineResult.data;
   const profile: PrinterProfile | undefined = printer.data;
   const profileAbsent = printer.isError && printer.error instanceof ApiError && printer.error.status === 404;
-  const showPrinterTab = Boolean(profile) || (canManage && machine?.machineType.process === 'fdm_printing');
+  const showPrinterTab = Boolean(profile) || (canManage && isFdm(machine?.process));
   const canReadConnectors = can('printer_connectors.read');
   const { connection } = usePrinterConnection(
     machineId,
@@ -159,8 +160,8 @@ export function MachineDetailPage() {
           <div>
             <dt>Type</dt>
             <dd>
-              {machine.machineType.name}{' '}
-              {!machine.machineType.active && (
+              {machine.process.name}{' '}
+              {!machine.process.active && (
                 <Tag size="sm" type="gray">
                   Inactive type
                 </Tag>
@@ -278,7 +279,7 @@ export function MachineDetailPage() {
     <PageShell
       title={machine.name}
       titleAdornment={<AvailabilityTag availability={availability} />}
-      description={machine.machineType.name}
+      description={machine.process.name}
       breadcrumbs={[...breadcrumbs, { label: machine.name }]}
       actions={actions}
       width="wide"

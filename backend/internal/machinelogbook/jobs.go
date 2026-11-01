@@ -64,10 +64,10 @@ func (s *Service) storeManualRun(
 	if err != nil {
 		return machinelogbookdb.MachineRun{}, err
 	}
-	if err = validateMeasures(process, plan.Measures); err != nil {
+	if err = validateMeasures(process.Measures, plan.Measures); err != nil {
 		return machinelogbookdb.MachineRun{}, err
 	}
-	if err = requireMaterialsForProcess(ctx, q, process, plan.Usages, nil); err != nil {
+	if err = requireMaterialsForProcess(ctx, q, process.ID, plan.Usages, nil); err != nil {
 		return machinelogbookdb.MachineRun{}, err
 	}
 	sequence, err := q.NextMachineRunSequence(ctx)
@@ -305,11 +305,15 @@ func (s *Service) jobFromRow(
 	if err != nil {
 		return MachineJob{}, err
 	}
+	machine := machineFromGet(machineRow)
+	if err = attachProcessMeasures(ctx, q, &machine); err != nil {
+		return MachineJob{}, err
+	}
 	item := MachineJob{
 		ID:                row.ID,
 		DisplayID:         row.DisplayID,
 		Title:             row.Title,
-		Machine:           machineFromGet(machineRow),
+		Machine:           machine,
 		Runs:              runs,
 		Outcome:           JobOutcomeUnknown,
 		OutcomeOverridden: row.OutcomeOverride != nil,
@@ -565,7 +569,7 @@ func (s *Service) UpdateJobFacts(
 				"The machine of a job with recorded runs cannot change",
 			)
 		}
-		if oldMachine.MachineTypeID != newMachine.MachineTypeID {
+		if oldMachine.ProcessID != newMachine.ProcessID {
 			process, processErr := machineProcess(ctx, q, newMachine.ID)
 			if processErr != nil {
 				return MachineJob{}, processErr
@@ -583,7 +587,7 @@ func (s *Service) UpdateJobFacts(
 				return MachineJob{}, measuresErr
 			}
 			for _, m := range measures {
-				if m.Value > 0 && !processSupportsMeasure(process, m.Measure) {
+				if m.Value > 0 && !process.supports(m.Measure) {
 					return MachineJob{}, apperror.New(
 						422,
 						"run_measure_unsupported",
@@ -645,7 +649,7 @@ func (s *Service) UpdateJobFacts(
 	}
 	partyChanged := !sameUUID(current.CustomerPersonID, personID) ||
 		!sameUUID(current.CustomerOrganizationID, organizationID)
-	if partyChanged || oldMachine.MachineTypeID != newMachine.MachineTypeID || input.PricingGroupID != nil {
+	if partyChanged || oldMachine.ProcessID != newMachine.ProcessID || input.PricingGroupID != nil {
 		group, err := resolvePricingGroup(ctx, q, personID, organizationID, input.PricingGroupID)
 		if err != nil {
 			return MachineJob{}, err

@@ -188,11 +188,11 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
 	orderService := orders.NewService(pool, logbook)
-	machineType, err := logbook.CreateMachineType(ctx, master, "Printer", "other", nil)
+	process, err := logbook.CreateProcess(ctx, master, "Printer", machinelogbook.IntegrationNone, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	machine, err := logbook.CreateMachine(ctx, master, machineType.ID, "Printer 1", "active", nil, false, nil)
+	machine, err := logbook.CreateMachine(ctx, master, process.ID, "Printer 1", "active", nil, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestDeletionAndEventClearingOverHTTP(t *testing.T) {
 		master,
 		group.ID,
 		"machine_runtime",
-		&machineType.ID,
+		&process.ID,
 		nil,
 		nil,
 		"10",

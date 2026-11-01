@@ -176,11 +176,11 @@ func TestRepriceMachineJobOverHTTP(t *testing.T) {
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
-	machineType, err := logbook.CreateMachineType(ctx, master, "Reprice HTTP printer", "fdm_printing", nil)
+	process, err := logbook.CreateProcess(ctx, master, "Reprice HTTP printer", machinelogbook.IntegrationFDMPrinter, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	machine, err := logbook.CreateMachine(ctx, master, machineType.ID, "Reprice HTTP machine", "active", nil, false, nil)
+	machine, err := logbook.CreateMachine(ctx, master, process.ID, "Reprice HTTP machine", "active", nil, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestRepriceMachineJobOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "machine_runtime", &machineType.ID, nil, nil, "10", nil); err != nil {
+	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "machine_runtime", &process.ID, nil, nil, "10", nil); err != nil {
 		t.Fatal(err)
 	}
 	start := time.Now().UTC().Add(-3 * time.Hour).Truncate(time.Second)

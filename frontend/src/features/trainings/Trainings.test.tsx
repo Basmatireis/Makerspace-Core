@@ -158,7 +158,7 @@ describe('trainings settings', () => {
     active: true,
     sortOrder: 0,
     competencyIds: [printingId],
-    machineTypeIds: [],
+    processIds: [],
     recordCount: 2,
     version: 1,
     createdAt: '2026-10-01T00:00:00Z',

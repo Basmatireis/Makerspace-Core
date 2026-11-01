@@ -206,11 +206,11 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
-	machineType, err := logbook.CreateMachineType(ctx, master, "Setup printer", "fdm_printing", nil)
+	process, err := logbook.CreateProcess(ctx, master, "Setup printer", machinelogbook.IntegrationFDMPrinter, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	machine, err := logbook.CreateMachine(ctx, master, machineType.ID, "Setup printer 1", "active", nil, false, nil)
+	machine, err := logbook.CreateMachine(ctx, master, process.ID, "Setup printer 1", "active", nil, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +257,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 
 	// Only FDM printing machines have a printer setup: a machine of another process
 	// refuses both the setup and the profile endpoint, even for a manager.
-	embroideryType, err := logbook.CreateMachineType(ctx, master, "Setup embroidery", "embroidery", nil)
+	embroideryType, err := logbook.CreateProcess(ctx, master, "Setup embroidery", machinelogbook.IntegrationNone, []machinelogbook.ProcessMeasure{{Key: "stitches", Label: "Stitches", Unit: "stitch", BlockSize: 1000}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,6 +287,32 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 		response.Body.Close()
 	}
 	assertCount(t, pool, `SELECT count(*) FROM printer_profiles WHERE machine_id = $1`, 0, embroidery.ID)
+	// The gate follows the integration of the process, not its name: once the process has the fdm_printer
+	// integration the same machine accepts a printer profile.
+	fdmPrinter := machinelogbook.IntegrationFDMPrinter
+	if _, err = logbook.UpdateProcess(
+		ctx,
+		master,
+		embroideryType.ID,
+		embroideryType.Version,
+		machinelogbook.ProcessChanges{Integration: &fdmPrinter},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPut,
+		server.URL+"/api/v1/machines/"+embroidery.ID.String()+"/printer",
+		origin,
+		managerCSRF,
+		map[string]any{"enabled": true, "expectedVersion": 0},
+	)
+	if response.StatusCode == http.StatusConflict {
+		t.Fatalf("profile after the integration changed = %d", response.StatusCode)
+	}
+	response.Body.Close()
 
 	// Live status is readable with machines.read and absent until a connector reports.
 	for _, who := range []struct {

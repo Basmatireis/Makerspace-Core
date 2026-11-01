@@ -8,7 +8,7 @@ export type AdapterKind = 'simulator' | 'bambu_h2d' | 'bambu_x1c';
 
 export type SetupValues = {
   name: string;
-  machineTypeId: string;
+  processId: string;
   status: MachineStatus;
   automaticCollectionEnabled: boolean;
   externalIdentifier: string;

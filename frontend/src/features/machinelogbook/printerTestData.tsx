@@ -3,13 +3,13 @@ import { render } from '@testing-library/react';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router-dom';
 import type {
   Machine,
-  MachineType,
   PrinterConnector,
   PrinterConnectorAssignment,
   PrinterLiveStatus,
   PrinterLiveStatusTray,
   PrinterLiveStatusUnit,
   PrinterProfile,
+  Process,
 } from '../../api/generated/models';
 import { testQueryClient } from '../../test/render';
 import { MachineDetailPage } from './MachineDetailPage';
@@ -50,23 +50,25 @@ export function renderPage(route: string) {
 }
 
 export const now = '2026-09-15T11:26:00Z';
-export const printerTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
-export const laserTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8b001';
-export const types: MachineType[] = [
+export const printerProcessId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
+export const laserProcessId = '0192f6f8-743e-7c77-a349-cd07c3e8b001';
+export const processes: Process[] = [
   {
-    id: laserTypeId,
+    id: laserProcessId,
     name: 'Laser',
     active: true,
-    process: 'laser_cutting',
+    integration: 'none',
+    measures: [],
     version: 3,
     createdAt: now,
     updatedAt: now,
   },
   {
-    id: printerTypeId,
+    id: printerProcessId,
     name: '3D printer',
     active: true,
-    process: 'fdm_printing',
+    integration: 'fdm_printer',
+    measures: [],
     version: 1,
     createdAt: now,
     updatedAt: now,
@@ -77,7 +79,7 @@ export function machineOf(id: string, name: string, overrides: Partial<Machine> 
   return {
     id,
     name,
-    machineType: types[1],
+    process: processes[1],
     status: 'active',
     automaticCollectionEnabled: false,
     jobCount: 0,

@@ -532,19 +532,19 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 
 	// A referenced organization (here by a machine job) is refused with
 	// organization_in_use, and the reference is untouched.
-	machineTypeID, machineID, jobID := ids.New(), ids.New(), ids.New()
+	processID, machineID, jobID := ids.New(), ids.New(), ids.New()
 	if _, err = pool.Exec(
 		ctx,
-		`INSERT INTO machine_types (id, name) VALUES ($1, 'Delete test type')`,
-		machineTypeID,
+		`INSERT INTO processes (id, name, integration) VALUES ($1, 'Delete test type', 'none')`,
+		processID,
 	); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = pool.Exec(
 		ctx,
-		`INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, 'Delete test machine')`,
+		`INSERT INTO machines (id, process_id, name) VALUES ($1, $2, 'Delete test machine')`,
 		machineID,
-		machineTypeID,
+		processID,
 	); err != nil {
 		t.Fatal(err)
 	}

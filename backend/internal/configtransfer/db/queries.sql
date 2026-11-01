@@ -39,14 +39,14 @@ SELECT (
     OR EXISTS (SELECT 1 FROM open_day_staff_requirement_roles orr WHERE orr.role_id = sqlc.arg(id))
 )::boolean AS in_use;
 
--- name: ListMachineTypes :many
-SELECT id, name, process, active, version FROM machine_types ORDER BY lower(name), id;
+-- name: ListProcesses :many
+SELECT id, name, integration, active, version FROM processes ORDER BY lower(name), id;
 
 -- name: ListMachines :many
-SELECT m.id, m.name, t.name AS machine_type_name, m.status, m.external_identifier, m.automatic_collection_enabled,
+SELECT m.id, m.name, t.name AS process_name, m.status, m.external_identifier, m.automatic_collection_enabled,
     m.version
 FROM machines m
-JOIN machine_types t ON t.id = m.machine_type_id
+JOIN processes t ON t.id = m.process_id
 ORDER BY lower(m.name), m.id;
 
 -- name: MachineInUse :one
@@ -81,7 +81,7 @@ ORDER BY input_unit_id, position, id;
 -- name: ListMaterialTypes :many
 SELECT t.id, t.name, t.kind, t.unit, t.active, t.version,
     COALESCE(
-        (SELECT array_agg(p.process ORDER BY p.process) FROM material_type_processes p WHERE p.material_type_id = t.id),
+        (SELECT array_agg(pr.name ORDER BY lower(pr.name)) FROM material_type_processes p JOIN processes pr ON pr.id = p.process_id WHERE p.material_type_id = t.id),
         '{}'
     )::text[] AS processes
 FROM material_types t
@@ -101,10 +101,10 @@ ORDER BY lower(m.name), m.id;
 SELECT id, name, description, active, is_default, version FROM pricing_groups ORDER BY lower(name), id;
 
 -- name: ListActivePricingRules :many
-SELECT r.id, r.pricing_group_id, r.kind, mt.name AS machine_type_name, mat.name AS material_type_name,
-    r.measure, r.rate, r.machine_type_id, r.material_type_id, r.version
+SELECT r.id, r.pricing_group_id, r.kind, mt.name AS process_name, mat.name AS material_type_name,
+    r.measure, r.rate, r.process_id, r.material_type_id, r.version
 FROM pricing_rules r
-LEFT JOIN machine_types mt ON mt.id = r.machine_type_id
+LEFT JOIN processes mt ON mt.id = r.process_id
 LEFT JOIN material_types mat ON mat.id = r.material_type_id
 WHERE r.active
 ORDER BY r.pricing_group_id, r.kind, lower(COALESCE(mt.name, mat.name)), r.measure, r.id;
@@ -207,8 +207,8 @@ SELECT t.id, t.name, t.description, t.active, t.sort_order, t.version,
        (SELECT count(*) FROM training_records r WHERE r.training_id = t.id)::bigint AS record_count,
        ARRAY(SELECT c.name FROM training_competencies tc JOIN competency_categories c ON c.id = tc.competency_id
              WHERE tc.training_id = t.id ORDER BY lower(c.name))::text[] AS competencies,
-       ARRAY(SELECT m.name FROM training_machine_types tm JOIN machine_types m ON m.id = tm.machine_type_id
-             WHERE tm.training_id = t.id ORDER BY lower(m.name))::text[] AS machine_types
+       ARRAY(SELECT m.name FROM training_processes tm JOIN processes m ON m.id = tm.process_id
+             WHERE tm.training_id = t.id ORDER BY lower(m.name))::text[] AS processes
 FROM trainings t ORDER BY lower(t.name), t.id;
 
 -- Privacy: the controller, every retention decision that is not retired, and the record of processing activities.
@@ -224,3 +224,6 @@ FROM privacy_policy_versions WHERE status <> 'retired' ORDER BY category_id, ver
 -- name: ListProcessingActivitiesForTransfer :many
 SELECT id, name, purpose, legal_basis, category_ids, recipients, retention_note, version
 FROM privacy_processing_activities ORDER BY lower(name), id;
+
+-- name: ListProcessMeasures :many
+SELECT process_id, key, label, unit, block_size FROM process_measures ORDER BY process_id, position, key;

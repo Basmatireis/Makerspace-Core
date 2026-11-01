@@ -31,7 +31,6 @@ type Querier interface {
 	// pool-bound list methods. Orderings are by natural key so exports are stable.
 	ListDeviceTypes(ctx context.Context) ([]ListDeviceTypesRow, error)
 	ListLabRulesVersions(ctx context.Context) ([]ListLabRulesVersionsRow, error)
-	ListMachineTypes(ctx context.Context) ([]ListMachineTypesRow, error)
 	ListMachines(ctx context.Context) ([]ListMachinesRow, error)
 	ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow, error)
 	ListMaterials(ctx context.Context) ([]ListMaterialsRow, error)
@@ -39,6 +38,8 @@ type Querier interface {
 	ListPrinterInputUnits(ctx context.Context) ([]ListPrinterInputUnitsRow, error)
 	ListPrinterProfiles(ctx context.Context) ([]ListPrinterProfilesRow, error)
 	ListPrinterSlots(ctx context.Context) ([]ListPrinterSlotsRow, error)
+	ListProcessMeasures(ctx context.Context) ([]ListProcessMeasuresRow, error)
+	ListProcesses(ctx context.Context) ([]ListProcessesRow, error)
 	ListProcessingActivitiesForTransfer(ctx context.Context) ([]ListProcessingActivitiesForTransferRow, error)
 	ListRolePermissionGrants(ctx context.Context) ([]ListRolePermissionGrantsRow, error)
 	ListRolePricingGroups(ctx context.Context) ([]ListRolePricingGroupsRow, error)

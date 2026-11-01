@@ -332,7 +332,7 @@ func (s *Service) UpdateRun(
 			if processErr != nil {
 				return RunUpdateResult{}, processErr
 			}
-			if err = validateMeasures(process, input.Measures); err != nil {
+			if err = validateMeasures(process.Measures, input.Measures); err != nil {
 				return RunUpdateResult{}, err
 			}
 			if err = storeRunMeasures(ctx, q, id, input.Measures); err != nil {
@@ -448,7 +448,7 @@ func (s *Service) ReplaceRunUsages(
 			keep[*u.MaterialID] = true
 		}
 	}
-	if err = requireMaterialsForProcess(ctx, q, process, parsed, keep); err != nil {
+	if err = requireMaterialsForProcess(ctx, q, process.ID, parsed, keep); err != nil {
 		return RunUpdateResult{}, err
 	}
 	if err = s.replaceRunUsages(ctx, tx, q, p, id, old, parsed, time.Now().UTC(), requestID); err != nil {

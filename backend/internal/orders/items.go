@@ -92,13 +92,13 @@ func snapshot(job machinelogbook.MachineJob) (*JobChargeSnapshot, error) {
 		endsAt = *job.ExpectedEndAt
 	}
 	return &JobChargeSnapshot{
-		DisplayID:       job.DisplayID,
-		MachineID:       job.Machine.ID,
-		MachineName:     job.Machine.Name,
-		MachineTypeID:   job.Machine.MachineType.ID,
-		MachineTypeName: job.Machine.MachineType.Name,
-		StartsAt:        startsAt,
-		EndsAt:          endsAt,
+		DisplayID:   job.DisplayID,
+		MachineID:   job.Machine.ID,
+		MachineName: job.Machine.Name,
+		ProcessID:   job.Machine.Process.ID,
+		ProcessName: job.Machine.Process.Name,
+		StartsAt:    startsAt,
+		EndsAt:      endsAt,
 		DurationNanoseconds: decimal.NewFromInt(job.DurationSeconds).
 			Mul(decimal.NewFromInt(int64(time.Second))).
 			String(),

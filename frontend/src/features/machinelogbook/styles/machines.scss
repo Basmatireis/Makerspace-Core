@@ -157,3 +157,18 @@
   fill: theme.$support-warning;
   flex: none;
 }
+
+// One counted measure of a process: key, label, unit, block size and the remove button.
+.mj-measures {
+  display: grid;
+  gap: $spacing-04;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.mj-measure-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)) auto;
+  align-items: start;
+  gap: $spacing-03;
+}

@@ -18,16 +18,19 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { MachineProcess } from './machineProcess';
-import type { UUIDv7 } from './uUIDv7';
-import type { Version } from './version';
+import type { ProcessIntegration } from './processIntegration';
+import type { ProcessMeasure } from './processMeasure';
 
-export interface MachineType {
-  id: UUIDv7;
+export interface CreateProcessRequest {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
   name: string;
-  active: boolean;
-  process: MachineProcess;
-  version: Version;
-  createdAt: string;
-  updatedAt: string;
+  integration: ProcessIntegration;
+  /**
+     * Omitted means none.
+     * @maxItems 20
+     */
+  measures?: ProcessMeasure[];
 }

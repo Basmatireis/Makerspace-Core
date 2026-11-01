@@ -29,14 +29,14 @@ export interface PricingRule {
   id: UUIDv7;
   pricingGroupId: UUIDv7;
   kind: PricingRuleKind;
-  machineTypeId?: UUIDv7 | null;
+  processId?: UUIDv7 | null;
   /** Set on material rules; the rate is per unit of this material type. */
   materialTypeId?: UUIDv7 | null;
   /** @nullable */
   materialTypeName?: string | null;
   /** The unit of the material type. */
   materialUnit?: MaterialUnit | null;
-  /** Set on machine_measure rules together with machineTypeId. */
+  /** Set on machine_measure rules together with processId. */
   measure?: RunMeasureKey | null;
   /**
      * Set on machine_measure rules: the rate is per this many units of the measure (1000 for stitches).

@@ -49,6 +49,25 @@ func (s *seeder) createOrgsAndPricing() {
 	staff, staffNew := group("University staff", "Employees of the university and its institutes", false)
 	ext, extNew := group("External", "Companies and private persons", false)
 
+	process := func(name string, integration machinelogbook.ProcessIntegration, measures ...machinelogbook.ProcessMeasure) uuid.UUID {
+		id, create := s.claim("processes", name, "active")
+		if create != "" {
+			pr, err := ml.CreateProcess(s.ctx, s.actor, create, integration, measures, nil)
+			check("process", err)
+			id = pr.ID
+		}
+		return id
+	}
+	ftype := process("FDM 3D printer", machinelogbook.IntegrationFDMPrinter)
+	ltype := process("Laser cutter", machinelogbook.IntegrationNone)
+	etype := process(
+		"Embroidery machine",
+		machinelogbook.IntegrationNone,
+		machinelogbook.ProcessMeasure{Key: "stitches", Label: "Stitches", Unit: "stitch", BlockSize: 1000},
+	)
+	utype := process("UV printer", machinelogbook.IntegrationNone)
+	ptype := process("Vinyl plotter", machinelogbook.IntegrationNone)
+
 	// Material types are what prices attach to; materials are variants of them.
 	for _, t := range [][2]string{
 		{"PLA", "g"},
@@ -62,7 +81,7 @@ func (s *seeder) createOrgsAndPricing() {
 		if t[1] == "g" {
 			s.materialType(t[0], machinelogbook.KindFilament, t[1])
 		} else {
-			s.materialType(t[0], machinelogbook.KindConsumable, t[1], "laser_cutting", "other")
+			s.materialType(t[0], machinelogbook.KindConsumable, t[1], ltype)
 		}
 	}
 	// Categories of parts: stock that is counted and sold but never used in a machine run.
@@ -71,32 +90,17 @@ func (s *seeder) createOrgsAndPricing() {
 	// Types for the other processes (embroidery, UV printing, plotting, cm2 sheets).
 	for _, t := range []struct {
 		name, unit string
-		processes  []string
+		processes  []uuid.UUID
 	}{
-		{"Stabilizer (tear-away)", "m", []string{"embroidery"}},
-		{"UV ink", "ml", []string{"uv_printing"}},
-		{"DTF sticker paper", "cm2", []string{"uv_printing"}},
-		{"Roll-to-film", "m", []string{"uv_printing"}},
-		{"Birch plywood", "cm2", []string{"laser_cutting", "other"}},
-		{"Vinyl foil", "cm2", []string{"vinyl_cutting", "other"}},
+		{"Stabilizer (tear-away)", "m", []uuid.UUID{etype}},
+		{"UV ink", "ml", []uuid.UUID{utype}},
+		{"DTF sticker paper", "cm2", []uuid.UUID{utype}},
+		{"Roll-to-film", "m", []uuid.UUID{utype}},
+		{"Birch plywood", "cm2", []uuid.UUID{ltype}},
+		{"Vinyl foil", "cm2", []uuid.UUID{ptype}},
 	} {
 		s.materialType(t.name, machinelogbook.KindConsumable, t.unit, t.processes...)
 	}
-	machineType := func(name, process string) uuid.UUID {
-		id, create := s.claim("machine_types", name, "active")
-		if create != "" {
-			mt, err := ml.CreateMachineType(s.ctx, s.actor, create, process, nil)
-			check("mt", err)
-			id = mt.ID
-		}
-		return id
-	}
-	ftype := machineType("FDM 3D printer", "fdm_printing")
-	ltype := machineType("Laser cutter", "laser_cutting")
-	etype := machineType("Embroidery machine", "embroidery")
-	utype := machineType("UV printer", "uv_printing")
-	ptype := machineType("Vinyl plotter", "vinyl_cutting")
-
 	// Rules are only added to groups this run created; reused groups keep
 	// their pricing.
 	type rates struct{ fdm, laser, fil, ply, acr, mdf float64 }
@@ -138,7 +142,7 @@ func (s *seeder) createOrgsAndPricing() {
 		rule("material", nil, material("MDF"), g.r.mdf)
 	}
 	// Rules for the other processes. They are added to every group that does not
-	// price the machine type or material type yet, so reused databases get them too.
+	// price the process or material type yet, so reused databases get them too.
 	type processRates struct{ embroidery, stitches, uv, ink, dtf, film, stabilizer, plywood, vinyl, plotter float64 }
 	for _, g := range []struct {
 		id uuid.UUID
@@ -157,7 +161,7 @@ func (s *seeder) createOrgsAndPricing() {
 				selector = *material
 			}
 			if _, taken := s.existing(
-				"SELECT id FROM pricing_rules WHERE pricing_group_id = $1 AND kind = $2 AND active AND COALESCE(machine_type_id, material_type_id) = $3 AND measure IS NOT DISTINCT FROM $4::text",
+				"SELECT id FROM pricing_rules WHERE pricing_group_id = $1 AND kind = $2 AND active AND COALESCE(process_id, material_type_id) = $3 AND measure IS NOT DISTINCT FROM $4::text",
 				g.id,
 				kind,
 				selector,
@@ -210,12 +214,13 @@ func (s *seeder) createOrgsAndPricing() {
 }
 
 // materialType returns the material type with this name, creating it when it
-// does not exist yet. An existing type keeps its unit and processes.
+// does not exist yet. An existing type keeps its unit and processes. Filament without processes serves every
+// FDM printer process.
 func (s *seeder) materialType(
 	name string,
 	kind machinelogbook.MaterialKind,
 	unit string,
-	processes ...string,
+	processes ...uuid.UUID,
 ) uuid.UUID {
 	if id, ok := s.matTypes[name]; ok {
 		return id

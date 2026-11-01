@@ -14,13 +14,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Pricing: groups by name; their active rules by kind and target (machine type or material type by name, and the
+// Pricing: groups by name; their active rules by kind and target (process or material type by name, and the
 // measure); the role mapping by role name, pointing at a group by name. Groups and rules have no delete path: an
 // overwrite deactivates groups and rules missing from the file.
 
 type pricingRuleEntry struct {
 	Kind         string  `json:"kind"`
-	MachineType  *string `json:"machineType"`
+	Process      *string `json:"process"`
 	MaterialType *string `json:"materialType"`
 	Measure      *string `json:"measure"`
 	Rate         string  `json:"rate"`
@@ -58,8 +58,8 @@ func pricingSection() section {
 
 func ruleKey(rule pricingRuleEntry) string {
 	target := ""
-	if rule.MachineType != nil {
-		target = nameKey(*rule.MachineType)
+	if rule.Process != nil {
+		target = nameKey(*rule.Process)
 	}
 	material := ""
 	if rule.MaterialType != nil {
@@ -100,7 +100,7 @@ func validatePricing(data *pricingData) error {
 		seen := map[string]bool{}
 		for j := range group.Rules {
 			rule := &group.Rules[j]
-			rule.MachineType, rule.MaterialType, rule.Measure = trimmed(rule.MachineType), trimmed(rule.MaterialType),
+			rule.Process, rule.MaterialType, rule.Measure = trimmed(rule.Process), trimmed(rule.MaterialType),
 				trimmed(rule.Measure)
 			rate, err := normalizeDecimal(&rule.Rate)
 			if err != nil || rate == nil {
@@ -163,7 +163,7 @@ func ruleEntry(row configtransferdb.ListActivePricingRulesRow) pricingRuleEntry 
 	}
 	return pricingRuleEntry{
 		Kind:         row.Kind,
-		MachineType:  row.MachineTypeName,
+		Process:      row.ProcessName,
 		MaterialType: row.MaterialTypeName,
 		Measure:      row.Measure,
 		Rate:         rate,
@@ -256,16 +256,16 @@ func summarizeRules(changes []ruleChange) string {
 	return fmt.Sprintf("Rules: %d created, %d updated, %d deactivated.", created, updated, deactivated)
 }
 
-type targetIDs struct{ machineTypes, materialTypes map[string]uuid.UUID }
+type targetIDs struct{ processes, materialTypes map[string]uuid.UUID }
 
 func (t targetIDs) resolve(rule pricingRuleEntry) (*uuid.UUID, *uuid.UUID, string) {
-	var machineTypeID, materialTypeID *uuid.UUID
-	if rule.MachineType != nil {
-		id, ok := t.machineTypes[nameKey(*rule.MachineType)]
+	var processID, materialTypeID *uuid.UUID
+	if rule.Process != nil {
+		id, ok := t.processes[nameKey(*rule.Process)]
 		if !ok {
-			return nil, nil, fmt.Sprintf("The machine type %q does not exist.", *rule.MachineType)
+			return nil, nil, fmt.Sprintf("The process %q does not exist.", *rule.Process)
 		}
-		machineTypeID = &id
+		processID = &id
 	}
 	if rule.MaterialType != nil {
 		id, ok := t.materialTypes[nameKey(*rule.MaterialType)]
@@ -274,7 +274,7 @@ func (t targetIDs) resolve(rule pricingRuleEntry) (*uuid.UUID, *uuid.UUID, strin
 		}
 		materialTypeID = &id
 	}
-	return machineTypeID, materialTypeID, ""
+	return processID, materialTypeID, ""
 }
 
 func pricingGroupRow(ctx context.Context, tx pgx.Tx, id uuid.UUID) (configtransferdb.ListPricingGroupsRow, error) {
@@ -296,21 +296,21 @@ func (r *run) applyRuleChanges(tx pgx.Tx, groupID uuid.UUID, changes []ruleChang
 		var err error
 		switch {
 		case change.create != nil:
-			machineTypeID, materialTypeID, _ := targets.resolve(*change.create)
+			processID, materialTypeID, _ := targets.resolve(*change.create)
 			_, err = logbook.CreatePricingRuleTx(
-				r.ctx, tx, r.p, groupID, machinelogbook.PricingRuleKind(change.create.Kind), machineTypeID,
+				r.ctx, tx, r.p, groupID, machinelogbook.PricingRuleKind(change.create.Kind), processID,
 				materialTypeID, change.create.Measure, change.create.Rate, r.requestID,
 			)
 		case change.update != nil:
 			row := change.update
 			_, err = logbook.UpdatePricingRuleTx(
-				r.ctx, tx, r.p, row.ID, row.Version, machinelogbook.PricingRuleKind(row.Kind), row.MachineTypeID,
+				r.ctx, tx, r.p, row.ID, row.Version, machinelogbook.PricingRuleKind(row.Kind), row.ProcessID,
 				row.MaterialTypeID, row.Measure, change.rate, true, r.requestID,
 			)
 		default:
 			row := change.deactivate
 			_, err = logbook.UpdatePricingRuleTx(
-				r.ctx, tx, r.p, row.ID, row.Version, machinelogbook.PricingRuleKind(row.Kind), row.MachineTypeID,
+				r.ctx, tx, r.p, row.ID, row.Version, machinelogbook.PricingRuleKind(row.Kind), row.ProcessID,
 				row.MaterialTypeID, row.Measure, ruleEntry(*row).Rate, false, r.requestID,
 			)
 		}
@@ -327,7 +327,7 @@ func applyPricing(r *run, data *pricingData) (func() error, error) {
 		return nil, err
 	}
 	var targets targetIDs
-	if targets.machineTypes, err = machineTypeIDs(r.ctx, r.q); err != nil {
+	if targets.processes, err = processIDsByName(r.ctx, r.q); err != nil {
 		return nil, err
 	}
 	if targets.materialTypes, err = materialTypeIDs(r.ctx, r.q); err != nil {

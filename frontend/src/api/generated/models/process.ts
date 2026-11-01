@@ -18,16 +18,22 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { MachineProcess } from './machineProcess';
+import type { ProcessIntegration } from './processIntegration';
+import type { ProcessMeasure } from './processMeasure';
+import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
-export interface UpdateMachineTypeRequest {
-  expectedVersion: Version;
-  /**
-     * @minLength 1
-     * @maxLength 120
-     */
-  name?: string;
-  active?: boolean;
-  process?: MachineProcess;
+/**
+ * What a machine does (3D printing, laser cutting, embroidery, …). Machines, pricing rules, trainings and material eligibility hang on it.
+ */
+export interface Process {
+  id: UUIDv7;
+  name: string;
+  active: boolean;
+  integration: ProcessIntegration;
+  /** The counted measures runs of this process record. */
+  measures: ProcessMeasure[];
+  version: Version;
+  createdAt: string;
+  updatedAt: string;
 }

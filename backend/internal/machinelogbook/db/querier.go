@@ -46,13 +46,14 @@ type Querier interface {
 	CountMaterialUses(ctx context.Context, id uuid.UUID) (CountMaterialUsesRow, error)
 	CountMaterials(ctx context.Context, arg CountMaterialsParams) (int64, error)
 	CountMaterialsOfType(ctx context.Context, materialTypeID uuid.UUID) (int64, error)
+	// Pricing rules and runs that use a measure of the process; removing the measure must not strand them.
+	CountMeasureUses(ctx context.Context, arg CountMeasureUsesParams) (int32, error)
 	CountOrganizations(ctx context.Context, arg CountOrganizationsParams) (int64, error)
 	CountOverviewJobs(ctx context.Context) (CountOverviewJobsRow, error)
 	CountRunUsages(ctx context.Context, runID uuid.UUID) (int64, error)
 	CreateFilamentSpool(ctx context.Context, arg CreateFilamentSpoolParams) (FilamentSpool, error)
 	CreateMachine(ctx context.Context, arg CreateMachineParams) (Machine, error)
 	CreateMachineJob(ctx context.Context, arg CreateMachineJobParams) (MachineJob, error)
-	CreateMachineType(ctx context.Context, arg CreateMachineTypeParams) (MachineType, error)
 	CreateMaterial(ctx context.Context, arg CreateMaterialParams) (Material, error)
 	CreateMaterialBalance(ctx context.Context, materialID uuid.UUID) (MaterialBalance, error)
 	CreateMaterialType(ctx context.Context, arg CreateMaterialTypeParams) (MaterialType, error)
@@ -60,6 +61,7 @@ type Querier interface {
 	CreatePricingGroup(ctx context.Context, arg CreatePricingGroupParams) (PricingGroup, error)
 	CreatePricingRule(ctx context.Context, arg CreatePricingRuleParams) (PricingRule, error)
 	CreatePricingSnapshot(ctx context.Context, arg CreatePricingSnapshotParams) (MachineJobPricingSnapshot, error)
+	CreateProcess(ctx context.Context, arg CreateProcessParams) (Process, error)
 	DeactivateRunUsage(ctx context.Context, id uuid.UUID) error
 	DeleteFilamentSpool(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteFilamentSpoolIdentifier(ctx context.Context, arg DeleteFilamentSpoolIdentifierParams) (int64, error)
@@ -113,9 +115,7 @@ type Querier interface {
 	GetMachineJobForUpdate(ctx context.Context, id uuid.UUID) (MachineJob, error)
 	GetMachineJobOperator(ctx context.Context, id uuid.UUID) (GetMachineJobOperatorRow, error)
 	GetMachineJobRunSummary(ctx context.Context, jobID *uuid.UUID) (GetMachineJobRunSummaryRow, error)
-	GetMachineProcess(ctx context.Context, machineID uuid.UUID) (string, error)
-	GetMachineType(ctx context.Context, id uuid.UUID) (MachineType, error)
-	GetMachineTypeForUpdate(ctx context.Context, id uuid.UUID) (MachineType, error)
+	GetMachineProcess(ctx context.Context, machineID uuid.UUID) (GetMachineProcessRow, error)
 	GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow, error)
 	GetMaterialForUpdate(ctx context.Context, id uuid.UUID) (GetMaterialForUpdateRow, error)
 	GetMaterialType(ctx context.Context, id uuid.UUID) (GetMaterialTypeRow, error)
@@ -137,6 +137,8 @@ type Querier interface {
 	GetPricingGroupForUpdate(ctx context.Context, id uuid.UUID) (PricingGroup, error)
 	GetPricingRuleForUpdate(ctx context.Context, id uuid.UUID) (PricingRule, error)
 	GetPricingSnapshot(ctx context.Context, id uuid.UUID) (MachineJobPricingSnapshot, error)
+	GetProcess(ctx context.Context, id uuid.UUID) (Process, error)
+	GetProcessForUpdate(ctx context.Context, id uuid.UUID) (Process, error)
 	GetRunBase(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	GetRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	// Whether staff ever set the run's usage, whether a report was applied, and
@@ -147,6 +149,7 @@ type Querier interface {
 	InsertManualRun(ctx context.Context, arg InsertManualRunParams) (MachineRun, error)
 	InsertMaterialTypeProcess(ctx context.Context, arg InsertMaterialTypeProcessParams) error
 	InsertPricingSnapshotRule(ctx context.Context, arg InsertPricingSnapshotRuleParams) (MachineJobPricingSnapshotRule, error)
+	InsertProcessMeasure(ctx context.Context, arg InsertProcessMeasureParams) error
 	InsertRolePricingGroup(ctx context.Context, arg InsertRolePricingGroupParams) error
 	InsertRunUsage(ctx context.Context, arg InsertRunUsageParams) (MachineRunUsage, error)
 	InsertSpoolInventoryTransaction(ctx context.Context, arg InsertSpoolInventoryTransactionParams) (InventoryTransaction, error)
@@ -154,6 +157,7 @@ type Querier interface {
 	// A job is on an order while an order item that was not removed references it
 	// or while it is claimed, whatever the state of the order.
 	JobIsOnOrder(ctx context.Context, jobID uuid.UUID) (bool, error)
+	ListActiveFDMProcessIDs(ctx context.Context) ([]uuid.UUID, error)
 	ListActiveJobRunIDs(ctx context.Context, jobID *uuid.UUID) ([]uuid.UUID, error)
 	ListActiveOrganizationsOfPeople(ctx context.Context, personIds []uuid.UUID) ([]ListActiveOrganizationsOfPeopleRow, error)
 	ListActiveRunUsagesForUpdate(ctx context.Context, runID uuid.UUID) ([]MachineRunUsage, error)
@@ -178,9 +182,8 @@ type Querier interface {
 	ListMachineJobIDs(ctx context.Context, arg ListMachineJobIDsParams) ([]uuid.UUID, error)
 	ListMachineLastJobStarts(ctx context.Context, now time.Time) ([]ListMachineLastJobStartsRow, error)
 	ListMachineRunningRuns(ctx context.Context, now time.Time) ([]ListMachineRunningRunsRow, error)
-	ListMachineTypes(ctx context.Context) ([]MachineType, error)
 	ListMachines(ctx context.Context, arg ListMachinesParams) ([]ListMachinesRow, error)
-	ListMaterialTypeProcessNames(ctx context.Context, materialTypeID uuid.UUID) ([]string, error)
+	ListMaterialTypeProcessNames(ctx context.Context, materialTypeID uuid.UUID) ([]uuid.UUID, error)
 	ListMaterialTypeProcesses(ctx context.Context, materialTypeIds []uuid.UUID) ([]MaterialTypeProcess, error)
 	ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow, error)
 	ListMaterials(ctx context.Context, arg ListMaterialsParams) ([]ListMaterialsRow, error)
@@ -199,6 +202,9 @@ type Querier interface {
 	ListPricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]ListPricingRulesByGroupRow, error)
 	ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.UUID) ([]MachineJobPricingSnapshotRule, error)
 	ListPrinterErrorCodeFacts(ctx context.Context, codes []string) ([]ListPrinterErrorCodeFactsRow, error)
+	ListProcessMeasures(ctx context.Context, processIds []uuid.UUID) ([]ProcessMeasure, error)
+	ListProcesses(ctx context.Context) ([]Process, error)
+	ListProcessesByIDs(ctx context.Context, processIds []uuid.UUID) ([]ListProcessesByIDsRow, error)
 	ListRecentJobIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
 	ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error)
 	ListRolePricingGroups(ctx context.Context) ([]ListRolePricingGroupsRow, error)
@@ -245,6 +251,7 @@ type Querier interface {
 	// Keeps the price of a running job current without bumping its version.
 	RefreshMachineJobPrice(ctx context.Context, arg RefreshMachineJobPriceParams) (MachineJob, error)
 	RemoveOrganizationMember(ctx context.Context, arg RemoveOrganizationMemberParams) (uuid.UUID, error)
+	ReplaceProcessMeasures(ctx context.Context, processID uuid.UUID) error
 	RestoreMachineJob(ctx context.Context, id uuid.UUID) error
 	// Back into its former job when that job is alive; otherwise unassigned.
 	RestoreMachineRun(ctx context.Context, arg RestoreMachineRunParams) error
@@ -279,7 +286,6 @@ type Querier interface {
 	// The runs of the job move with it in the same statement: the composite
 	// foreign key (job_id, machine_id) is checked at the end of the statement.
 	UpdateMachineJobFacts(ctx context.Context, arg UpdateMachineJobFactsParams) (MachineJob, error)
-	UpdateMachineType(ctx context.Context, arg UpdateMachineTypeParams) (MachineType, error)
 	UpdateManualRunFacts(ctx context.Context, arg UpdateManualRunFactsParams) (MachineRun, error)
 	UpdateMaterial(ctx context.Context, arg UpdateMaterialParams) (Material, error)
 	UpdateMaterialBalance(ctx context.Context, arg UpdateMaterialBalanceParams) (MaterialBalance, error)
@@ -288,6 +294,7 @@ type Querier interface {
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
 	UpdatePricingGroup(ctx context.Context, arg UpdatePricingGroupParams) (PricingGroup, error)
 	UpdatePricingRule(ctx context.Context, arg UpdatePricingRuleParams) (PricingRule, error)
+	UpdateProcess(ctx context.Context, arg UpdateProcessParams) (Process, error)
 	UpdateRecordedRunOutcome(ctx context.Context, arg UpdateRecordedRunOutcomeParams) (MachineRun, error)
 	UpsertMaterialFilamentProperties(ctx context.Context, arg UpsertMaterialFilamentPropertiesParams) (MaterialFilamentProperty, error)
 	UpsertOrganizationPricingAssignment(ctx context.Context, arg UpsertOrganizationPricingAssignmentParams) (OrganizationPricingGroupAssignment, error)

@@ -247,14 +247,14 @@ func (q *Queries) CreatePrinterSpoolAssignment(ctx context.Context, arg CreatePr
 }
 
 const getMachineProcess = `-- name: GetMachineProcess :one
-SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = $1
+SELECT mt.integration FROM machines m JOIN processes mt ON mt.id = m.process_id WHERE m.id = $1
 `
 
 func (q *Queries) GetMachineProcess(ctx context.Context, machineID uuid.UUID) (string, error) {
 	row := q.db.QueryRow(ctx, getMachineProcess, machineID)
-	var process string
-	err := row.Scan(&process)
-	return process, err
+	var integration string
+	err := row.Scan(&integration)
+	return integration, err
 }
 
 const getOpenAssignmentForSlot = `-- name: GetOpenAssignmentForSlot :one

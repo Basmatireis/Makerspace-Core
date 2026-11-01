@@ -111,7 +111,7 @@ func TestDeleteMaterialOverHTTP(t *testing.T) {
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
 	diameter := "1.75"
-	materialType, err := logbook.CreateMaterialType(ctx, master, "Delete PLA", "filament", "g", []string{"fdm_printing"}, nil)
+	materialType, err := logbook.CreateMaterialType(ctx, master, "Delete PLA", "filament", "g", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

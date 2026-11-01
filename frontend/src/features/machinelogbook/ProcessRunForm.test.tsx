@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   AddManualMachineRunRequest,
-  MachineProcess,
+  Process,
   Material,
   MaterialType,
   ReplaceMachineRunUsagesRequest,
@@ -22,18 +22,39 @@ vi.mock('../auth/auth', () => ({
 }));
 
 const now = '2026-09-15T11:26:00Z';
+const processOf = (
+  n: number,
+  name: string,
+  integration: Process['integration'] = 'none',
+  measures: Process['measures'] = [],
+): Process => ({
+  id: `0192f6f8-743e-7c77-a349-cd07c3e8d0${String(n).padStart(2, '0')}`,
+  name,
+  active: true,
+  integration,
+  measures,
+  version: 1,
+  createdAt: now,
+  updatedAt: now,
+});
+const fdm = processOf(1, '3D printer', 'fdm_printer');
+const embroidery = processOf(2, 'Embroidery', 'none', [
+  { key: 'stitches', label: 'Stitches', unit: 'stitch', blockSize: 1000 },
+]);
+const uv = processOf(3, 'UV printing');
+const laser = processOf(4, 'Laser cutting');
 const typeOf = (
   id: string,
   name: string,
   unit: MaterialType['unit'],
-  processes: MachineProcess[],
+  processes: Process[],
   active = true,
 ): MaterialType => ({
   id,
   name,
-  kind: processes.includes('fdm_printing') ? 'filament' : 'consumable',
+  kind: processes.includes(fdm) ? 'filament' : 'consumable',
   unit,
-  processes,
+  processIds: processes.map((item) => item.id),
   active,
   materialCount: 1,
   pricingRuleCount: 0,
@@ -70,11 +91,11 @@ const materialOf = (
 });
 const t = (n: number) => `0192f6f8-743e-7c77-a349-cd07c3e8e0${String(n).padStart(2, '0')}`;
 const types = [
-  typeOf(t(1), 'PLA', 'g', ['fdm_printing']),
-  typeOf(t(2), 'Stabilizer', 'm', ['embroidery']),
-  typeOf(t(3), 'UV ink', 'ml', ['uv_printing']),
-  typeOf(t(4), 'DTF paper', 'cm2', ['uv_printing']),
-  typeOf(t(5), 'Plywood', 'cm2', ['laser_cutting', 'other']),
+  typeOf(t(1), 'PLA', 'g', [fdm]),
+  typeOf(t(2), 'Stabilizer', 'm', [embroidery]),
+  typeOf(t(3), 'UV ink', 'ml', [uv]),
+  typeOf(t(4), 'DTF paper', 'cm2', [uv]),
+  typeOf(t(5), 'Plywood', 'cm2', [laser]),
 ];
 const materials = [
   materialOf(t(11), 'PLA Black', t(1), 'g'),
@@ -93,21 +114,20 @@ const lookups = [
   http.get('*/api/v1/material-types', () => HttpResponse.json({ items: types })),
 ];
 
-const jobOn = (process: MachineProcess) =>
-  jobFixture({ machine: { ...machine, machineType: { ...machine.machineType, process } } });
+const jobOn = (process: Process) => jobFixture({ machine: { ...machine, process } });
 
 describe('material picker by process', () => {
   it('offers only active materials whose type includes the process, plus the one already chosen', () => {
-    const embroidery = materialsForProcess(materials, types, 'embroidery').map((item) => item.name);
-    expect(embroidery).toEqual(['Tear-away']);
-    expect(materialsForProcess(materials, types, 'fdm_printing').map((item) => item.name)).toEqual(['PLA Black']);
+    const forEmbroidery = materialsForProcess(materials, types, embroidery).map((item) => item.name);
+    expect(forEmbroidery).toEqual(['Tear-away']);
+    expect(materialsForProcess(materials, types, fdm).map((item) => item.name)).toEqual(['PLA Black']);
     // An old usage keeps its material even when the type no longer fits or the material is inactive.
-    expect(materialsForProcess(materials, types, 'embroidery', t(15)).map((item) => item.name)).toEqual([
+    expect(materialsForProcess(materials, types, embroidery, t(15)).map((item) => item.name)).toEqual([
       'Tear-away',
       'Old ink',
     ]);
     // Without the type list or the process the backend decides.
-    expect(materialsForProcess(materials, undefined, 'embroidery')).toHaveLength(materials.length - 1);
+    expect(materialsForProcess(materials, undefined, embroidery)).toHaveLength(materials.length - 1);
   });
 
   it('shows only matching materials in the run form and keeps a current non-matching one', async () => {
@@ -115,7 +135,7 @@ describe('material picker by process', () => {
     const user = userEvent.setup();
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn('embroidery')} onClose={() => undefined} />
+        <RunFormModal open mode="add" job={jobOn(embroidery)} onClose={() => undefined} />
       </ToastProvider>,
     );
     const dialog = await screen.findByRole('dialog');
@@ -149,9 +169,7 @@ describe('material picker by process', () => {
       ],
     });
     server.use(
-      http.get(`*/api/v1/machines/${ids.machine}`, () =>
-        HttpResponse.json({ ...machine, machineType: { ...machine.machineType, process: 'embroidery' } }),
-      ),
+      http.get(`*/api/v1/machines/${ids.machine}`, () => HttpResponse.json({ ...machine, process: embroidery })),
     );
     renderRoute(
       <ToastProvider>
@@ -180,17 +198,17 @@ describe('process driven run form', () => {
       ...lookups,
       http.post(`*/api/v1/machine-jobs/${ids.job}/runs`, async ({ request }) => {
         body = (await request.json()) as AddManualMachineRunRequest;
-        return HttpResponse.json(jobOn('embroidery'), { status: 201 });
+        return HttpResponse.json(jobOn(embroidery), { status: 201 });
       }),
     );
     const user = userEvent.setup();
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn('embroidery')} onClose={() => undefined} />
+        <RunFormModal open mode="add" job={jobOn(embroidery)} onClose={() => undefined} />
       </ToastProvider>,
     );
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Stitches'), '12400');
+    await user.type(within(dialog).getByLabelText('Stitches (stitch)'), '12400');
     await waitFor(() => expect(within(dialog).getByLabelText('Material')).toBeInTheDocument());
     await user.selectOptions(within(dialog).getByLabelText('Material'), t(12));
     expect(within(dialog).getByLabelText('Quantity (m)')).toBeInTheDocument();
@@ -204,57 +222,16 @@ describe('process driven run form', () => {
     ]);
   });
 
-  it('does not offer stitches on other processes', async () => {
+  it('does not offer measure inputs on processes without measures', async () => {
     server.use(...lookups);
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn('fdm_printing')} onClose={() => undefined} />
+        <RunFormModal open mode="add" job={jobOn(fdm)} onClose={() => undefined} />
       </ToastProvider>,
     );
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).queryByLabelText('Stitches')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText(/Stitches/)).not.toBeInTheDocument();
     expect(await within(dialog).findByLabelText(/Spool/)).toBeInTheDocument();
-  });
-
-  it('shows one coloured ml row per active ink and sends them with two decimals', async () => {
-    let body: AddManualMachineRunRequest | undefined;
-    server.use(
-      ...lookups,
-      http.post(`*/api/v1/machine-jobs/${ids.job}/runs`, async ({ request }) => {
-        body = (await request.json()) as AddManualMachineRunRequest;
-        return HttpResponse.json(jobOn('uv_printing'), { status: 201 });
-      }),
-    );
-    const user = userEvent.setup();
-    renderRoute(
-      <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn('uv_printing')} onClose={() => undefined} />
-      </ToastProvider>,
-    );
-    const dialog = await screen.findByRole('dialog');
-    const cyan = await within(dialog).findByLabelText('Cyan (ml)');
-    expect(within(dialog).getByLabelText('Magenta (ml)')).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText(/Old ink/)).not.toBeInTheDocument(); // inactive
-    expect(dialog.querySelectorAll('.mj-swatch')).toHaveLength(2);
-    expect(cyan).toHaveAttribute('inputmode', 'decimal');
-    await user.type(cyan, '0.4');
-    // Substrates are added as rows; the picker offers them, not the ink.
-    await user.click(within(dialog).getByRole('button', { name: 'Add material' }));
-    const picker = within(dialog).getByLabelText('Material');
-    expect(
-      within(picker)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['Select a material', 'DTF A4 (cm²)']);
-    await user.selectOptions(picker, t(16));
-    await user.type(within(dialog).getByLabelText('Quantity (cm²)'), '180');
-    await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
-    await waitFor(() => expect(body).toBeDefined());
-    expect(body?.run.usages).toEqual([
-      expect.objectContaining({ materialId: t(16), quantity: '180' }),
-      expect.objectContaining({ materialId: t(13), quantity: '0.40' }),
-    ]);
-    expect(body?.run.measures).toEqual({});
   });
 
   it('calculates cm² from width, height and count for cutting machines and keeps the result editable', async () => {
@@ -263,13 +240,13 @@ describe('process driven run form', () => {
       ...lookups,
       http.post(`*/api/v1/machine-jobs/${ids.job}/runs`, async ({ request }) => {
         body = (await request.json()) as AddManualMachineRunRequest;
-        return HttpResponse.json(jobOn('laser_cutting'), { status: 201 });
+        return HttpResponse.json(jobOn(laser), { status: 201 });
       }),
     );
     const user = userEvent.setup();
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn('laser_cutting')} onClose={() => undefined} />
+        <RunFormModal open mode="add" job={jobOn(laser)} onClose={() => undefined} />
       </ToastProvider>,
     );
     const dialog = await screen.findByRole('dialog');
@@ -286,48 +263,39 @@ describe('process driven run form', () => {
     await waitFor(() => expect(body).toBeDefined());
     expect(body?.run.usages).toEqual([expect.objectContaining({ materialId: t(17), quantity: '575' })]);
   });
+});
 
-  it('puts existing ink usages into the ink rows when editing a run', async () => {
-    let body: ReplaceMachineRunUsagesRequest | undefined;
+describe('measures from the process', () => {
+  it('renders one input per measure of the process and sends them as a map', async () => {
+    const sewing = processOf(9, 'Sewing', 'none', [
+      { key: 'stitches', label: 'Stitches', unit: 'stitch', blockSize: 1000 },
+      { key: 'thread_length', label: 'Thread', unit: 'm', blockSize: 10 },
+    ]);
+    let body: AddManualMachineRunRequest | undefined;
     server.use(
       ...lookups,
-      http.get(`*/api/v1/machines/${ids.machine}`, () =>
-        HttpResponse.json({ ...machine, machineType: { ...machine.machineType, process: 'uv_printing' } }),
-      ),
-      http.put(`*/api/v1/machine-runs/${ids.manualRun}/usages`, async ({ request }) => {
-        body = (await request.json()) as ReplaceMachineRunUsagesRequest;
-        return HttpResponse.json({ run: manualRun() });
+      http.post(`*/api/v1/machine-jobs/${ids.job}/runs`, async ({ request }) => {
+        body = (await request.json()) as AddManualMachineRunRequest;
+        return HttpResponse.json(jobOn(sewing), { status: 201 });
       }),
     );
     const user = userEvent.setup();
-    const run = manualRun({
-      usages: [
-        {
-          id: ids.usage,
-          ownership: 'makerspace',
-          materialId: t(13),
-          spoolId: null,
-          spoolDisplayId: null,
-          materialName: 'Cyan',
-          materialTypeId: t(3),
-          materialTypeName: 'UV ink',
-          unit: 'ml',
-          quantity: '3.200000',
-          quantityBasis: 'actual',
-          staffCorrected: false,
-        },
-      ],
-    });
     renderRoute(
       <ToastProvider>
-        <UsageFormModal open run={run} onClose={() => undefined} />
+        <RunFormModal open mode="add" job={jobOn(sewing)} onClose={() => undefined} />
       </ToastProvider>,
     );
-    const dialog = await screen.findByRole('dialog', { name: 'Edit material usage' });
-    expect(await within(dialog).findByLabelText('Cyan (ml)')).toHaveValue('3.2');
-    await user.click(within(dialog).getByRole('button', { name: 'Save usage' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Thread (m)'), '35');
+    expect(within(dialog).getByLabelText('Stitches (stitch)')).toHaveValue('');
+    await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
     await waitFor(() => expect(body).toBeDefined());
-    expect(body?.usages).toEqual([expect.objectContaining({ materialId: t(13), quantity: '3.20' })]);
+    // Empty measures are not recorded.
+    expect(body?.run.measures).toEqual({ thread_length: 35 });
+  });
+
+  it('summarises recorded measures by their key', () => {
+    expect(consumptionSummary([], { thread_length: 35 })).toBe('35 thread length');
   });
 });
 
@@ -336,9 +304,7 @@ describe('decimal entry', () => {
     let body: ReplaceMachineRunUsagesRequest | undefined;
     server.use(
       ...lookups,
-      http.get(`*/api/v1/machines/${ids.machine}`, () =>
-        HttpResponse.json({ ...machine, machineType: { ...machine.machineType, process: 'fdm_printing' } }),
-      ),
+      http.get(`*/api/v1/machines/${ids.machine}`, () => HttpResponse.json({ ...machine, process: fdm })),
       http.put(`*/api/v1/machine-runs/${ids.manualRun}/usages`, async ({ request }) => {
         body = (await request.json()) as ReplaceMachineRunUsagesRequest;
         return HttpResponse.json({ run: manualRun() });
@@ -388,9 +354,7 @@ describe('decimal entry', () => {
   it('rejects thousands separators in a quantity', async () => {
     server.use(
       ...lookups,
-      http.get(`*/api/v1/machines/${ids.machine}`, () =>
-        HttpResponse.json({ ...machine, machineType: { ...machine.machineType, process: 'fdm_printing' } }),
-      ),
+      http.get(`*/api/v1/machines/${ids.machine}`, () => HttpResponse.json({ ...machine, process: fdm })),
     );
     const user = userEvent.setup();
     const run = manualRun({
@@ -432,38 +396,16 @@ describe('decimal entry', () => {
     const user = userEvent.setup();
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn('embroidery')} onClose={() => undefined} />
+        <RunFormModal open mode="add" job={jobOn(embroidery)} onClose={() => undefined} />
       </ToastProvider>,
     );
     const dialog = await screen.findByRole('dialog');
-    const stitches = within(dialog).getByLabelText('Stitches');
+    const stitches = within(dialog).getByLabelText('Stitches (stitch)');
     await user.type(stitches, '1,5');
     expect(stitches).toHaveValue('1,5');
     await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
-    expect(await within(dialog).findByText('Enter a whole number of stitches.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Enter a whole number of stitch.')).toBeInTheDocument();
     expect(stitches).toHaveValue('1,5');
-  });
-
-  it('accepts a comma in an ink amount', async () => {
-    let body: AddManualMachineRunRequest | undefined;
-    server.use(
-      ...lookups,
-      http.post(`*/api/v1/machine-jobs/${ids.job}/runs`, async ({ request }) => {
-        body = (await request.json()) as AddManualMachineRunRequest;
-        return HttpResponse.json(jobOn('uv_printing'), { status: 201 });
-      }),
-    );
-    const user = userEvent.setup();
-    renderRoute(
-      <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn('uv_printing')} onClose={() => undefined} />
-      </ToastProvider>,
-    );
-    const dialog = await screen.findByRole('dialog');
-    await user.type(await within(dialog).findByLabelText('Cyan (ml)'), '0,4');
-    await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
-    await waitFor(() => expect(body).toBeDefined());
-    expect(body?.run.usages).toEqual([expect.objectContaining({ materialId: t(13), quantity: '0.40' })]);
   });
 });
 

@@ -25,7 +25,7 @@ const group: PricingGroup = {
       id: 'rule-1',
       pricingGroupId: 'group-1',
       kind: 'machine_runtime',
-      machineTypeId: 'type-1',
+      processId: 'type-1',
       materialTypeId: null,
       materialTypeName: null,
       materialUnit: null,
@@ -37,7 +37,7 @@ const group: PricingGroup = {
       id: 'rule-2',
       pricingGroupId: 'group-1',
       kind: 'machine_measure',
-      machineTypeId: 'type-emb',
+      processId: 'type-emb',
       materialTypeId: null,
       materialTypeName: null,
       materialUnit: null,
@@ -49,11 +49,12 @@ const group: PricingGroup = {
     },
   ],
 };
-const machineType = (id: string, name: string, process: string) => ({
+const processOf = (id: string, name: string, measures: unknown[] = []) => ({
   id,
   name,
   active: true,
-  process,
+  integration: 'none',
+  measures,
   version: 1,
   createdAt: now,
   updatedAt: now,
@@ -63,9 +64,14 @@ function configure(permissions: PermissionId[]) {
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
     http.get('*/api/v1/pricing-groups', () => HttpResponse.json({ items: [group] })),
-    http.get('*/api/v1/machine-types', () =>
+    http.get('*/api/v1/processes', () =>
       HttpResponse.json({
-        items: [machineType('type-1', 'Laser', 'laser_cutting'), machineType('type-emb', 'Embroidery', 'embroidery')],
+        items: [
+          processOf('type-1', 'Laser'),
+          processOf('type-emb', 'Embroidery', [
+            { key: 'stitches', label: 'Stitches', unit: 'stitch', blockSize: 1000 },
+          ]),
+        ],
       }),
     ),
     http.get('*/api/v1/material-types', () =>
@@ -135,6 +141,7 @@ describe('pricing page', () => {
     const table = await screen.findByRole('table', { name: 'Rates' });
     expect(within(table).getByText('Laser runtime')).toBeInTheDocument();
     expect(within(table).getByText('Embroidery · Stitches')).toBeInTheDocument();
+    expect(within(table).getByText('Per block of 1000 stitch')).toBeInTheDocument();
     expect(within(table).getByText('0,35')).toBeInTheDocument();
     expect(within(table).getAllByText('Missing')).toHaveLength(2);
     expect(screen.queryByRole('button', { name: /Set rate/ })).not.toBeInTheDocument();
@@ -171,7 +178,7 @@ describe('pricing page', () => {
       expect(update).toMatchObject({
         expectedVersion: 3,
         kind: 'machine_runtime',
-        machineTypeId: 'type-1',
+        processId: 'type-1',
         rate: '0.75',
         active: true,
       }),
@@ -182,7 +189,7 @@ describe('pricing page', () => {
     await waitFor(() =>
       expect(create).toEqual({
         kind: 'material',
-        machineTypeId: null,
+        processId: null,
         materialTypeId: 'mat-pla',
         measure: null,
         rate: '0.03',

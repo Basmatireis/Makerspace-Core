@@ -1,34 +1,34 @@
--- name: CreateMachineType :one
-INSERT INTO machine_types (id, name, process) VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(process)) RETURNING *;
+-- name: CreateProcess :one
+INSERT INTO processes (id, name, integration) VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(integration)) RETURNING *;
 
--- name: ListMachineTypes :many
-SELECT * FROM machine_types ORDER BY active DESC, lower(name), id;
+-- name: ListProcesses :many
+SELECT * FROM processes ORDER BY active DESC, lower(name), id;
 
--- name: GetMachineType :one
-SELECT * FROM machine_types WHERE id = sqlc.arg(id);
+-- name: GetProcess :one
+SELECT * FROM processes WHERE id = sqlc.arg(id);
 
--- name: GetMachineTypeForUpdate :one
-SELECT * FROM machine_types WHERE id = sqlc.arg(id) FOR UPDATE;
+-- name: GetProcessForUpdate :one
+SELECT * FROM processes WHERE id = sqlc.arg(id) FOR UPDATE;
 
--- name: UpdateMachineType :one
-UPDATE machine_types SET name = sqlc.arg(name), active = sqlc.arg(active), process = sqlc.arg(process),
+-- name: UpdateProcess :one
+UPDATE processes SET name = sqlc.arg(name), active = sqlc.arg(active), integration = sqlc.arg(integration),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: CreateMachine :one
-INSERT INTO machines (id, machine_type_id, name, status, external_identifier, automatic_collection_enabled)
-VALUES (sqlc.arg(id), sqlc.arg(machine_type_id), sqlc.arg(name), sqlc.arg(status), sqlc.narg(external_identifier), sqlc.arg(automatic_collection_enabled))
+INSERT INTO machines (id, process_id, name, status, external_identifier, automatic_collection_enabled)
+VALUES (sqlc.arg(id), sqlc.arg(process_id), sqlc.arg(name), sqlc.arg(status), sqlc.narg(external_identifier), sqlc.arg(automatic_collection_enabled))
 RETURNING *;
 
 -- name: GetMachine :one
-SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.process AS machine_type_process, mt.version AS machine_type_version,
-       mt.created_at AS machine_type_created_at, mt.updated_at AS machine_type_updated_at,
+SELECT m.*, mt.name AS process_name, mt.active AS process_active, mt.integration AS process_integration, mt.version AS process_version,
+       mt.created_at AS process_created_at, mt.updated_at AS process_updated_at,
        count(j.id)::bigint AS job_count,
        COALESCE(sum(s.runtime_seconds)::bigint, 0)::bigint AS runtime_seconds,
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE NOT s.running AND COALESCE(j.outcome_override, s.derived_outcome) IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS failure_rate
 FROM machines m
-JOIN machine_types mt ON mt.id = m.machine_type_id
+JOIN processes mt ON mt.id = m.process_id
 LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.deleted_at IS NULL
 LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
 WHERE m.id = sqlc.arg(id)
@@ -38,13 +38,13 @@ GROUP BY m.id, mt.id;
 SELECT * FROM machines WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: ListMachines :many
-SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.process AS machine_type_process, mt.version AS machine_type_version,
-       mt.created_at AS machine_type_created_at, mt.updated_at AS machine_type_updated_at,
+SELECT m.*, mt.name AS process_name, mt.active AS process_active, mt.integration AS process_integration, mt.version AS process_version,
+       mt.created_at AS process_created_at, mt.updated_at AS process_updated_at,
        count(j.id)::bigint AS job_count,
        COALESCE(sum(s.runtime_seconds)::bigint, 0)::bigint AS runtime_seconds,
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE NOT s.running AND COALESCE(j.outcome_override, s.derived_outcome) IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS failure_rate
 FROM machines m
-JOIN machine_types mt ON mt.id = m.machine_type_id
+JOIN processes mt ON mt.id = m.process_id
 LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.deleted_at IS NULL
 LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
 WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(mt.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
@@ -55,13 +55,13 @@ ORDER BY CASE m.status WHEN 'active' THEN 0 WHEN 'maintenance' THEN 1 ELSE 2 END
 LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 
 -- name: CountMachines :one
-SELECT count(*) FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
+SELECT count(*) FROM machines m JOIN processes mt ON mt.id = m.process_id
 WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(mt.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR lower(COALESCE(m.external_identifier, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.narg(status)::text IS NULL OR m.status = sqlc.narg(status)::text);
 
 -- name: UpdateMachine :one
-UPDATE machines SET machine_type_id = sqlc.arg(machine_type_id), name = sqlc.arg(name), status = sqlc.arg(status),
+UPDATE machines SET process_id = sqlc.arg(process_id), name = sqlc.arg(name), status = sqlc.arg(status),
     external_identifier = sqlc.narg(external_identifier), automatic_collection_enabled = sqlc.arg(automatic_collection_enabled),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
@@ -243,21 +243,21 @@ WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: CreatePricingRule :one
-INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, material_type_id, material_unit, measure, block_size, rate)
-VALUES (sqlc.arg(id), sqlc.arg(pricing_group_id), sqlc.arg(kind), sqlc.narg(machine_type_id), sqlc.narg(material_type_id), sqlc.narg(material_unit), sqlc.narg(measure), sqlc.narg(block_size), sqlc.arg(rate))
+INSERT INTO pricing_rules (id, pricing_group_id, kind, process_id, material_type_id, material_unit, measure, block_size, rate)
+VALUES (sqlc.arg(id), sqlc.arg(pricing_group_id), sqlc.arg(kind), sqlc.narg(process_id), sqlc.narg(material_type_id), sqlc.narg(material_unit), sqlc.narg(measure), sqlc.narg(block_size), sqlc.arg(rate))
 RETURNING *;
 
 -- name: ListPricingRulesByGroup :many
 SELECT r.*, mt.name AS material_type_name FROM pricing_rules r
 LEFT JOIN material_types mt ON mt.id = r.material_type_id
 WHERE r.pricing_group_id = sqlc.arg(pricing_group_id)
-ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, r.machine_type_id NULLS FIRST, r.measure NULLS FIRST, r.id;
+ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, r.process_id NULLS FIRST, r.measure NULLS FIRST, r.id;
 
 -- name: GetPricingRuleForUpdate :one
 SELECT * FROM pricing_rules WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: UpdatePricingRule :one
-UPDATE pricing_rules SET kind = sqlc.arg(kind), machine_type_id = sqlc.narg(machine_type_id),
+UPDATE pricing_rules SET kind = sqlc.arg(kind), process_id = sqlc.narg(process_id),
     material_type_id = sqlc.narg(material_type_id), material_unit = sqlc.narg(material_unit), measure = sqlc.narg(measure),
     block_size = sqlc.narg(block_size), rate = sqlc.arg(rate),
     active = sqlc.arg(active), version = version + 1, updated_at = now()
@@ -266,7 +266,7 @@ RETURNING *;
 
 -- name: GetActivePricingRulesByGroup :many
 SELECT * FROM pricing_rules WHERE pricing_group_id = sqlc.arg(pricing_group_id) AND active
-ORDER BY kind, material_type_id NULLS FIRST, machine_type_id NULLS FIRST, id;
+ORDER BY kind, material_type_id NULLS FIRST, process_id NULLS FIRST, id;
 
 -- The active group of the person's highest-priority mapped role (larger priority wins).
 -- name: GetPersonRolePricingGroup :one
@@ -1336,12 +1336,12 @@ WITH jobs AS (
     FROM machine_jobs j JOIN machine_job_run_summaries s ON s.job_id = j.id
     WHERE s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time)
 )
-SELECT m.id AS machine_id, m.name, mt.name AS machine_type_name, count(j.id)::bigint AS jobs,
+SELECT m.id AS machine_id, m.name, mt.name AS process_name, count(j.id)::bigint AS jobs,
        round(COALESCE(sum(j.seconds), 0) / 3600.0, 4)::numeric AS runtime_hours,
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE j.outcome IN ('failed', 'partial_failure')) / NULLIF(count(j.id) FILTER (WHERE j.outcome <> 'unknown'), 0), 2), 0)::numeric AS failure_rate,
        COALESCE(sum(j.effective_price), 0)::numeric AS charges
 FROM machines m
-JOIN machine_types mt ON mt.id = m.machine_type_id
+JOIN processes mt ON mt.id = m.process_id
 JOIN jobs j ON j.machine_id = m.id
 GROUP BY m.id, m.name, mt.name ORDER BY lower(m.name), m.id;
 
@@ -1445,24 +1445,24 @@ FROM inventory_transactions WHERE run_usage_id = sqlc.arg(run_usage_id);
 INSERT INTO material_types (id, name, unit, kind) VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(unit), sqlc.arg(kind)) RETURNING *;
 
 -- name: InsertMaterialTypeProcess :exec
-INSERT INTO material_type_processes (material_type_id, process) VALUES (sqlc.arg(material_type_id), sqlc.arg(process));
+INSERT INTO material_type_processes (material_type_id, process_id) VALUES (sqlc.arg(material_type_id), sqlc.arg(process_id));
 
 -- name: DeleteMaterialTypeProcesses :exec
 DELETE FROM material_type_processes WHERE material_type_id = sqlc.arg(material_type_id);
 
 -- name: ListMaterialTypeProcesses :many
-SELECT material_type_id, process FROM material_type_processes
+SELECT material_type_id, process_id FROM material_type_processes
 WHERE material_type_id = ANY(sqlc.arg(material_type_ids)::uuid[])
-ORDER BY material_type_id, process;
+ORDER BY material_type_id, process_id;
 
 -- name: GetMachineProcess :one
-SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = sqlc.arg(machine_id);
+SELECT mt.id AS process_id, mt.integration FROM machines m JOIN processes mt ON mt.id = m.process_id WHERE m.id = sqlc.arg(machine_id);
 
 -- name: ListMaterialsOutsideProcess :many
 -- Materials of the given ones whose type is not usable for the process.
 SELECT m.id, m.name FROM materials m
 WHERE m.id = ANY(sqlc.arg(material_ids)::uuid[])
-  AND NOT EXISTS (SELECT 1 FROM material_type_processes p WHERE p.material_type_id = m.material_type_id AND p.process = sqlc.arg(process)::text)
+  AND NOT EXISTS (SELECT 1 FROM material_type_processes p WHERE p.material_type_id = m.material_type_id AND p.process_id = sqlc.arg(process_id)::uuid)
 ORDER BY lower(m.name), m.id;
 
 -- name: UpsertRunMeasure :exec
@@ -1586,7 +1586,7 @@ SELECT count(*) FROM materials WHERE material_type_id = sqlc.arg(material_type_i
 SELECT id FROM materials WHERE lower(name) = lower(sqlc.arg(name)::text);
 
 -- name: ListMaterialTypeProcessNames :many
-SELECT process FROM material_type_processes WHERE material_type_id = sqlc.arg(material_type_id) ORDER BY process;
+SELECT process_id FROM material_type_processes WHERE material_type_id = sqlc.arg(material_type_id) ORDER BY process_id;
 
 -- name: ListInventoryVariantSuggestions :many
 -- Distinct variants by frequency, optionally restricted to one material type.
@@ -1747,3 +1747,27 @@ WITH deleted AS (
 )
 INSERT INTO file_blob_deletions (storage_key) SELECT storage_key FROM deleted
 ON CONFLICT (storage_key) DO NOTHING;
+
+-- name: ListProcessMeasures :many
+SELECT process_id, key, label, unit, block_size, position FROM process_measures
+WHERE process_id = ANY(sqlc.arg(process_ids)::uuid[])
+ORDER BY process_id, position, key;
+
+-- name: ReplaceProcessMeasures :exec
+DELETE FROM process_measures WHERE process_id = sqlc.arg(process_id);
+
+-- name: InsertProcessMeasure :exec
+INSERT INTO process_measures (process_id, key, label, unit, block_size, position)
+VALUES (sqlc.arg(process_id), sqlc.arg(key), sqlc.arg(label), sqlc.arg(unit), sqlc.arg(block_size), sqlc.arg(position));
+
+-- name: CountMeasureUses :one
+-- Pricing rules and runs that use a measure of the process; removing the measure must not strand them.
+SELECT (SELECT count(*) FROM pricing_rules r WHERE r.process_id = sqlc.arg(process_id) AND r.measure = sqlc.arg(key))
+     + (SELECT count(*) FROM machine_run_measures rm JOIN machine_runs ru ON ru.id = rm.run_id
+        WHERE rm.measure = sqlc.arg(key) AND ru.machine_id IN (SELECT id FROM machines WHERE process_id = sqlc.arg(process_id)));
+
+-- name: ListProcessesByIDs :many
+SELECT id, integration FROM processes WHERE id = ANY(sqlc.arg(process_ids)::uuid[]);
+
+-- name: ListActiveFDMProcessIDs :many
+SELECT id FROM processes WHERE integration = 'fdm_printer' AND active ORDER BY id;

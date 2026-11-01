@@ -1,11 +1,11 @@
 package machinelogbook
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -22,16 +22,16 @@ import (
 
 var colorHexPattern = regexp.MustCompile(`^#[0-9A-F]{6}$`)
 
-func materialTypeFromList(row machinelogbookdb.ListMaterialTypesRow, processes []string) MaterialType {
-	if processes == nil {
-		processes = []string{}
+func materialTypeFromList(row machinelogbookdb.ListMaterialTypesRow, processIDs []uuid.UUID) MaterialType {
+	if processIDs == nil {
+		processIDs = []uuid.UUID{}
 	}
 	return MaterialType{
 		ID:               row.ID,
 		Name:             row.Name,
 		Kind:             MaterialKind(row.Kind),
 		Unit:             row.Unit,
-		Processes:        processes,
+		ProcessIDs:       processIDs,
 		Active:           row.Active,
 		MaterialCount:    row.MaterialCount,
 		PricingRuleCount: row.PricingRuleCount,
@@ -49,26 +49,31 @@ func validateMaterialTypeName(name string) (string, error) {
 	return name, nil
 }
 
-// validateProcesses checks a type's process list: at least one, all known, no
-// duplicates. The result is ordered like machineProcesses.
-func validateProcesses(processes []string) ([]string, error) {
-	if len(processes) == 0 {
-		return nil, apperror.Invalid("at least one process is required")
+// validateProcesses checks a type's process list: at least one, no duplicates, every id a known process. The
+// result is ordered by id and the integrations of the processes are returned alongside.
+func validateProcesses(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	processIDs []uuid.UUID,
+) ([]uuid.UUID, map[uuid.UUID]ProcessIntegration, error) {
+	if len(processIDs) == 0 {
+		return nil, nil, apperror.Invalid("at least one process is required")
 	}
-	chosen := map[string]bool{}
-	for _, process := range processes {
-		if !validProcess(process) {
-			return nil, apperror.Invalid("invalid process")
-		}
-		chosen[process] = true
+	unique := slices.Clone(processIDs)
+	slices.SortFunc(unique, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+	unique = slices.Compact(unique)
+	rows, err := q.ListProcessesByIDs(ctx, unique)
+	if err != nil {
+		return nil, nil, err
 	}
-	ordered := make([]string, 0, len(chosen))
-	for _, process := range machineProcesses {
-		if chosen[process] {
-			ordered = append(ordered, process)
-		}
+	if len(rows) != len(unique) {
+		return nil, nil, apperror.Invalid("processIds refers to an unknown process")
 	}
-	return ordered, nil
+	integrations := make(map[uuid.UUID]ProcessIntegration, len(rows))
+	for _, row := range rows {
+		integrations[row.ID] = ProcessIntegration(row.Integration)
+	}
+	return unique, integrations, nil
 }
 
 func validMaterialKind(kind MaterialKind) bool {
@@ -76,80 +81,84 @@ func validMaterialKind(kind MaterialKind) bool {
 }
 
 // shapeMaterialType checks unit and processes against the kind and returns the
-// normalised process list: filament is measured in grams and serves FDM
-// printing (the default), possibly next to other processes, a consumable
-// serves at least one process, a part serves none, so it can never be used in
-// a machine run.
-func shapeMaterialType(kind MaterialKind, unit string, processes []string) ([]string, error) {
+// normalised process list: filament is measured in grams and serves the
+// processes with an FDM printer integration (every active one by default),
+// possibly next to other processes, a consumable serves at least one process,
+// a part serves none, so it can never be used in a machine run.
+func shapeMaterialType(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	kind MaterialKind,
+	unit string,
+	processIDs []uuid.UUID,
+) ([]uuid.UUID, error) {
 	switch kind {
 	case KindFilament:
 		if MaterialUnit(unit) != UnitGram {
 			return nil, apperror.Invalid("filament material types are measured in grams")
 		}
-		if len(processes) == 0 {
-			return []string{ProcessFDMPrinting}, nil
+		if len(processIDs) == 0 {
+			defaults, err := q.ListActiveFDMProcessIDs(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if defaults == nil {
+				defaults = []uuid.UUID{}
+			}
+			return defaults, nil
 		}
-		ordered, err := validateProcesses(processes)
+		ordered, integrations, err := validateProcesses(ctx, q, processIDs)
 		if err != nil {
 			return nil, err
 		}
-		if !slices.Contains(ordered, ProcessFDMPrinting) {
-			return nil, apperror.Invalid("filament material types serve the process fdm_printing")
+		for _, id := range ordered {
+			if integrations[id] == IntegrationFDMPrinter {
+				return ordered, nil
+			}
 		}
-		return ordered, nil
+		return nil, apperror.Invalid("filament material types serve a process with the fdm_printer integration")
 	case KindConsumable:
-		return validateProcesses(processes)
+		ordered, _, err := validateProcesses(ctx, q, processIDs)
+		return ordered, err
 	case KindPart:
-		if len(processes) > 0 {
+		if len(processIDs) > 0 {
 			return nil, apperror.Invalid("part material types take no processes")
 		}
-		return []string{}, nil
+		return []uuid.UUID{}, nil
 	}
 	return nil, apperror.Invalid("invalid material kind")
 }
 
-// materialTypeProcesses loads the processes of the given types.
+// materialTypeProcesses loads the process ids of the given types.
 func materialTypeProcesses(
 	ctx context.Context,
 	q *machinelogbookdb.Queries,
 	ids []uuid.UUID,
-) (map[uuid.UUID][]string, error) {
+) (map[uuid.UUID][]uuid.UUID, error) {
 	rows, err := q.ListMaterialTypeProcesses(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	byType := map[uuid.UUID][]string{}
+	byType := map[uuid.UUID][]uuid.UUID{}
 	for _, row := range rows {
-		byType[row.MaterialTypeID] = append(byType[row.MaterialTypeID], row.Process)
-	}
-	for _, list := range byType {
-		sort.Slice(list, func(i, j int) bool { return processRank(list[i]) < processRank(list[j]) })
+		byType[row.MaterialTypeID] = append(byType[row.MaterialTypeID], row.ProcessID)
 	}
 	return byType, nil
-}
-
-func processRank(process string) int {
-	for i, candidate := range machineProcesses {
-		if candidate == process {
-			return i
-		}
-	}
-	return len(machineProcesses)
 }
 
 func replaceMaterialTypeProcesses(
 	ctx context.Context,
 	q *machinelogbookdb.Queries,
 	id uuid.UUID,
-	processes []string,
+	processIDs []uuid.UUID,
 ) error {
 	if err := q.DeleteMaterialTypeProcesses(ctx, id); err != nil {
 		return err
 	}
-	for _, process := range processes {
+	for _, processID := range processIDs {
 		if err := q.InsertMaterialTypeProcess(
 			ctx,
-			machinelogbookdb.InsertMaterialTypeProcessParams{MaterialTypeID: id, Process: process},
+			machinelogbookdb.InsertMaterialTypeProcessParams{MaterialTypeID: id, ProcessID: processID},
 		); err != nil {
 			return databaseError(err)
 		}
@@ -179,13 +188,13 @@ func (s *Service) ListMaterialTypes(ctx context.Context, p authorization.Princip
 	for _, row := range rows {
 		ids = append(ids, row.ID)
 	}
-	processes, err := materialTypeProcesses(ctx, machinelogbookdb.New(s.pool), ids)
+	processIDs, err := materialTypeProcesses(ctx, machinelogbookdb.New(s.pool), ids)
 	if err != nil {
 		return nil, err
 	}
 	items := make([]MaterialType, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, materialTypeFromList(row, processes[row.ID]))
+		items = append(items, materialTypeFromList(row, processIDs[row.ID]))
 	}
 	return items, nil
 }
@@ -199,11 +208,11 @@ func (s *Service) GetMaterialType(ctx context.Context, p authorization.Principal
 	if err != nil {
 		return MaterialType{}, noRows(err)
 	}
-	processes, err := materialTypeProcesses(ctx, q, []uuid.UUID{id})
+	processIDs, err := materialTypeProcesses(ctx, q, []uuid.UUID{id})
 	if err != nil {
 		return MaterialType{}, err
 	}
-	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processes[id]), nil
+	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processIDs[id]), nil
 }
 
 func (s *Service) CreateMaterialType(
@@ -212,7 +221,7 @@ func (s *Service) CreateMaterialType(
 	name string,
 	kind MaterialKind,
 	unit string,
-	processes []string,
+	processIDs []uuid.UUID,
 	requestID *uuid.UUID,
 ) (MaterialType, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
@@ -220,7 +229,7 @@ func (s *Service) CreateMaterialType(
 	}
 	var result MaterialType
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.CreateMaterialTypeTx(ctx, tx, p, name, kind, unit, processes, requestID)
+		result, err = s.CreateMaterialTypeTx(ctx, tx, p, name, kind, unit, processIDs, requestID)
 		return err
 	})
 	return result, err
@@ -234,7 +243,7 @@ func (s *Service) CreateMaterialTypeTx(
 	name string,
 	kind MaterialKind,
 	unit string,
-	processes []string,
+	processIDs []uuid.UUID,
 	requestID *uuid.UUID,
 ) (MaterialType, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
@@ -250,11 +259,11 @@ func (s *Service) CreateMaterialTypeTx(
 	if !validMaterialKind(kind) {
 		return MaterialType{}, apperror.Invalid("invalid material kind")
 	}
-	processes, err = shapeMaterialType(kind, unit, processes)
+	q := machinelogbookdb.New(tx)
+	processIDs, err = shapeMaterialType(ctx, q, kind, unit, processIDs)
 	if err != nil {
 		return MaterialType{}, err
 	}
-	q := machinelogbookdb.New(tx)
 	id := ids.New()
 	if _, err = q.CreateMaterialType(
 		ctx,
@@ -262,7 +271,7 @@ func (s *Service) CreateMaterialTypeTx(
 	); err != nil {
 		return MaterialType{}, materialTypeConflict(err)
 	}
-	if err = replaceMaterialTypeProcesses(ctx, q, id, processes); err != nil {
+	if err = replaceMaterialTypeProcesses(ctx, q, id, processIDs); err != nil {
 		return MaterialType{}, err
 	}
 	if err = writeAudit(
@@ -273,7 +282,7 @@ func (s *Service) CreateMaterialTypeTx(
 		"material_type",
 		id,
 		requestID,
-		[]string{"name", "kind", "unit", "processes"},
+		[]string{"name", "kind", "unit", "processIds"},
 	); err != nil {
 		return MaterialType{}, err
 	}
@@ -281,7 +290,7 @@ func (s *Service) CreateMaterialTypeTx(
 	if err != nil {
 		return MaterialType{}, err
 	}
-	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processes), nil
+	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processIDs), nil
 }
 
 // UpdateMaterialType renames, deactivates or reactivates a type. Its unit can
@@ -297,7 +306,7 @@ func (s *Service) UpdateMaterialType(
 	name string,
 	kind MaterialKind,
 	unit string,
-	processes []string,
+	processIDs []uuid.UUID,
 	active bool,
 	requestID *uuid.UUID,
 ) (MaterialType, error) {
@@ -306,7 +315,7 @@ func (s *Service) UpdateMaterialType(
 	}
 	var result MaterialType
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.UpdateMaterialTypeTx(ctx, tx, p, id, expected, name, kind, unit, processes, active, requestID)
+		result, err = s.UpdateMaterialTypeTx(ctx, tx, p, id, expected, name, kind, unit, processIDs, active, requestID)
 		return err
 	})
 	return result, err
@@ -322,7 +331,7 @@ func (s *Service) UpdateMaterialTypeTx(
 	name string,
 	kind MaterialKind,
 	unit string,
-	processes []string,
+	processIDs []uuid.UUID,
 	active bool,
 	requestID *uuid.UUID,
 ) (MaterialType, error) {
@@ -359,19 +368,14 @@ func (s *Service) UpdateMaterialTypeTx(
 			return MaterialType{}, err
 		}
 	}
-	effective := processes
-	if effective == nil && kind == currentKind {
+	if processIDs != nil || kind != currentKind {
 		// A new kind needs processes of its own; the defaults apply when none were given.
-		if effective, err = q.ListMaterialTypeProcessNames(ctx, id); err != nil {
+		if processIDs, err = shapeMaterialType(ctx, q, kind, unit, processIDs); err != nil {
 			return MaterialType{}, err
 		}
-	}
-	shaped, err := shapeMaterialType(kind, unit, effective)
-	if err != nil {
-		return MaterialType{}, err
-	}
-	if processes != nil || kind != currentKind {
-		processes = shaped
+	} else if kind == KindFilament && MaterialUnit(unit) != UnitGram {
+		// The stored processes stay as they are, even if an integration changed since.
+		return MaterialType{}, apperror.Invalid("filament material types are measured in grams")
 	}
 	if current.Unit != unit {
 		referenced, refErr := q.MaterialTypeIsReferenced(ctx, id)
@@ -401,8 +405,8 @@ func (s *Service) UpdateMaterialTypeTx(
 		}
 		return MaterialType{}, materialTypeConflict(err)
 	}
-	if processes != nil {
-		if err = replaceMaterialTypeProcesses(ctx, q, id, processes); err != nil {
+	if processIDs != nil {
+		if err = replaceMaterialTypeProcesses(ctx, q, id, processIDs); err != nil {
 			return MaterialType{}, err
 		}
 	}
@@ -414,7 +418,7 @@ func (s *Service) UpdateMaterialTypeTx(
 		"material_type",
 		id,
 		requestID,
-		[]string{"name", "kind", "unit", "processes", "active"},
+		[]string{"name", "kind", "unit", "processIds", "active"},
 	); err != nil {
 		return MaterialType{}, err
 	}

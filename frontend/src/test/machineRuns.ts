@@ -20,11 +20,12 @@ export const iso = (offsetMinutes: number) => new Date(Date.now() + offsetMinute
 
 export const machine: Machine = {
   id: ids.machine,
-  machineType: {
+  process: {
     id: ids.type,
     name: '3D printer',
     active: true,
-    process: 'fdm_printing',
+    integration: 'fdm_printer',
+    measures: [],
     version: 1,
     createdAt: '2026-09-01T00:00:00Z',
     updatedAt: '2026-09-01T00:00:00Z',

@@ -14,6 +14,8 @@ import { KindChoiceModal } from './dialogs/KindChoiceModal';
 import { MaterialFormModal } from './dialogs/MaterialFormModal';
 import { ReceiveStockModal } from './dialogs/ReceiveStockModal';
 import { allMaterialsQuery } from './inventoryQueries';
+import { isFdm } from './processConfig';
+import { processesQuery } from './queries';
 import { formatMoney } from './shared/format';
 import { machineLogbookPaths, type InventoryTab } from './shared/paths';
 import { useCan } from './shared/useCan';
@@ -37,26 +39,25 @@ export function InventoryPage() {
   const canManage = can('inventory.manage');
   const canRead = can('inventory.read');
   const totals = useQuery({ ...allMaterialsQuery(), enabled: canRead });
+  const processes = useQuery({ ...processesQuery(), enabled: can('machines.read') });
 
   // Links and bookmarks of the former Filament and Consumables tabs land on Materials.
   if (requested === 'filament' || requested === 'consumables') {
     const next = new URLSearchParams(params);
     next.set('tab', 'materials');
-    if (requested === 'filament' && !next.has('process')) next.set('process', 'fdm_printing');
     return <Navigate to={{ search: next.toString() }} replace />;
   }
   // Tab values of the former page (materials, material-types, products) fall back to the first tab.
   const tab = SECTIONS.find((section) => section.id === requested)?.id ?? 'materials';
 
-  // Which kind a new article or a receipt is for: parts are clear, filament follows an FDM-only process filter,
-  // and the combined Materials list asks.
+  // Which kind a new article or a receipt is for: parts are clear, filament follows a process filter that only
+  // names FDM printer processes, and the combined Materials list asks.
   const processFilter = (params.get('process') ?? '').split(',').filter(Boolean);
+  const fdmOnly =
+    processFilter.length > 0 &&
+    processFilter.every((id) => isFdm((processes.data?.items ?? []).find((item) => item.id === id)));
   const knownKind: MaterialKind | undefined =
-    tab === 'parts'
-      ? 'part'
-      : tab === 'spools' || (processFilter.length === 1 && processFilter[0] === 'fdm_printing')
-        ? 'filament'
-        : undefined;
+    tab === 'parts' ? 'part' : tab === 'spools' || fdmOnly ? 'filament' : undefined;
   const start = (name: 'receive' | 'new') => setDialog({ name, kind: knownKind });
 
   const switcher = (

@@ -1,10 +1,7 @@
 package printing
 
-// MachineProcess is the manufacturing process of a machine type.
-type MachineProcess string
-
-// ProcessFDMPrinting is the only process that has a printer setup.
-const ProcessFDMPrinting MachineProcess = "fdm_printing"
+// integrationFDMPrinter is the only process integration that has a printer setup.
+const integrationFDMPrinter = "fdm_printer"
 
 // SpoolLifecycle is whether a spool is in use.
 type SpoolLifecycle string

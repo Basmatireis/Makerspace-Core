@@ -26,7 +26,7 @@ export const ConfigurationSection = {
   ConfigurationSectionDeviceTypes: 'deviceTypes',
   ConfigurationSectionSessionPolicies: 'sessionPolicies',
   ConfigurationSectionRoles: 'roles',
-  ConfigurationSectionMachineTypes: 'machineTypes',
+  ConfigurationSectionProcesses: 'processes',
   ConfigurationSectionCompetencies: 'competencies',
   ConfigurationSectionTrainings: 'trainings',
   ConfigurationSectionMaterialTypes: 'materialTypes',

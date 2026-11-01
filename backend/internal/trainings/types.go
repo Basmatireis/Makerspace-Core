@@ -29,27 +29,27 @@ type CompetencyCategoryInput struct {
 
 // Training is an internal training type. It feeds competency categories and may name the machine types it covers.
 type Training struct {
-	ID             uuid.UUID
-	Name           string
-	Description    *string
-	Active         bool
-	SortOrder      int32
-	CompetencyIDs  []uuid.UUID
-	MachineTypeIDs []uuid.UUID
-	RecordCount    int64
-	Version        int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID            uuid.UUID
+	Name          string
+	Description   *string
+	Active        bool
+	SortOrder     int32
+	CompetencyIDs []uuid.UUID
+	ProcessIDs    []uuid.UUID
+	RecordCount   int64
+	Version       int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // TrainingInput is the editable part of a training; the link lists replace the stored ones.
 type TrainingInput struct {
-	Name           string
-	Description    *string
-	Active         bool
-	SortOrder      int32
-	CompetencyIDs  []uuid.UUID
-	MachineTypeIDs []uuid.UUID
+	Name          string
+	Description   *string
+	Active        bool
+	SortOrder     int32
+	CompetencyIDs []uuid.UUID
+	ProcessIDs    []uuid.UUID
 }
 
 // Status is a person's state for one training. NotTrained is never stored: it is the absence of a record.

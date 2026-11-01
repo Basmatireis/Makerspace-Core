@@ -11,7 +11,7 @@ import {
   listMachineJobs,
   searchMachineJobOperators,
 } from '../../api/generated/machine-jobs/machine-jobs';
-import { getMachine, listMachineTypes, listMachines } from '../../api/generated/machines/machines';
+import { getMachine, listMachines, listProcesses } from '../../api/generated/machines/machines';
 import { getMaterial, listMaterials, listMaterialTransactions } from '../../api/generated/inventory/inventory';
 import { searchBillingParties } from '../../api/generated/organizations/organizations';
 import { listPricingGroups } from '../../api/generated/pricing/pricing';
@@ -52,7 +52,7 @@ export const machineLogbookKeys = {
   job: (id: string) => [...machineLogbookKeys.all, 'job', id] as const,
   machines: (params: ListMachinesParams) => [...machineLogbookKeys.all, 'machines', params] as const,
   machine: (id: string) => [...machineLogbookKeys.all, 'machine', id] as const,
-  machineTypes: () => [...machineLogbookKeys.all, 'machine-types'] as const,
+  processes: () => [...machineLogbookKeys.all, 'processes'] as const,
   materials: (params: ListMaterialsParams) => [...machineLogbookKeys.all, 'materials', params] as const,
   material: (id: string) => [...machineLogbookKeys.all, 'material', id] as const,
   transactions: (id: string, page: number) => [...machineLogbookKeys.all, 'transactions', id, page] as const,
@@ -89,8 +89,8 @@ export const machinesQuery = (params: ListMachinesParams) =>
   queryOptions({ queryKey: machineLogbookKeys.machines(params), queryFn: () => listMachines(params) });
 export const machineQuery = (id: string) =>
   queryOptions({ queryKey: machineLogbookKeys.machine(id), queryFn: () => getMachine(id) });
-export const machineTypesQuery = () =>
-  queryOptions({ queryKey: machineLogbookKeys.machineTypes(), queryFn: () => listMachineTypes() });
+export const processesQuery = () =>
+  queryOptions({ queryKey: machineLogbookKeys.processes(), queryFn: () => listProcesses() });
 export const materialsQuery = (params: ListMaterialsParams) =>
   queryOptions({ queryKey: machineLogbookKeys.materials(params), queryFn: () => listMaterials(params) });
 export const materialQuery = (id: string) =>

@@ -42,5 +42,5 @@ export interface UpdateTrainingRequest {
   /** @maxItems 50 */
   competencyIds: UUIDv7[];
   /** @maxItems 100 */
-  machineTypeIds: UUIDv7[];
+  processIds: UUIDv7[];
 }

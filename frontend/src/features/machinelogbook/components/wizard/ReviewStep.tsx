@@ -26,7 +26,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 /** The saved result: everything shown here is already stored, "Done" only closes the dialog. */
 export function ReviewStep({
   values,
-  typeName,
+  processName,
   printer,
   model,
   units,
@@ -36,7 +36,7 @@ export function ReviewStep({
   hasCode,
 }: {
   values: SetupValues;
-  typeName: string;
+  processName: string;
   printer: boolean;
   model: PrinterModelInfo | undefined;
   units: DraftUnit[];
@@ -54,7 +54,7 @@ export function ReviewStep({
         <StructuredListWrapper isCondensed aria-label="Machine summary">
           <StructuredListBody>
             <Row label="Name">{values.name.trim()}</Row>
-            <Row label="Type">{typeName}</Row>
+            <Row label="Process">{processName}</Row>
             <Row label="Status">{statusLabel[values.status]}</Row>
             {printer && <Row label="Model">{model?.label ?? '—'}</Row>}
           </StructuredListBody>

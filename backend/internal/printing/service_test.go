@@ -90,14 +90,14 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := jobs.CreateMachineType(ctx, p, "Printer "+suffix, "fdm_printing", &requestID)
+	process, err := jobs.CreateProcess(ctx, p, "Printer "+suffix, machinelogbook.IntegrationFDMPrinter, nil, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	machine, err := jobs.CreateMachine(
 		ctx,
 		p,
-		machineType.ID,
+		process.ID,
 		"Generic printer "+suffix,
 		"active",
 		nil,
@@ -114,7 +114,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 		"PLA "+suffix,
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		nil,
 		&requestID,
 	)
 	if err != nil {

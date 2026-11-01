@@ -29,6 +29,8 @@ type fillFixture struct {
 	suffix  string
 	counter int
 	typeID  uuid.UUID
+	// fdm is the FDM printer process the PLA serves; plain serves consumables.
+	fdm, plain Process
 }
 
 func newFillFixture(t *testing.T) *fillFixture {
@@ -58,13 +60,23 @@ func newFillFixture(t *testing.T) *fillFixture {
 		_, _ = pool.Exec(cleanup, `DELETE FROM accounts WHERE id = $1`, account)
 		_, _ = pool.Exec(cleanup, `DELETE FROM people WHERE id = $1`, person)
 	})
+	var err error
+	if f.fdm, err = f.s.CreateProcess(ctx, f.p, "Fill FDM "+f.suffix, IntegrationFDMPrinter, nil, &f.request); err != nil {
+		t.Fatal(err)
+	}
+	if f.plain, err = f.s.CreateProcess(ctx, f.p, "Fill plain "+f.suffix, IntegrationNone, nil, &f.request); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM processes WHERE id = ANY($1)`, []uuid.UUID{f.fdm.ID, f.plain.ID})
+	})
 	materialType, err := f.s.CreateMaterialType(
 		ctx,
 		f.p,
 		"Fill PLA "+f.suffix,
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		[]uuid.UUID{f.fdm.ID},
 		&f.request,
 	)
 	if err != nil {
@@ -854,7 +866,7 @@ func TestFinishFilamentSpool(t *testing.T) {
 
 	mount := func(spool FilamentSpool) {
 		t.Helper()
-		typ, err := f.s.CreateMachineType(ctx, f.p, f.unique("Finish type"), "fdm_printing", &f.request)
+		typ, err := f.s.CreateProcess(ctx, f.p, f.unique("Finish type"), IntegrationFDMPrinter, nil, &f.request)
 		if err != nil {
 			t.Fatal(err)
 		}

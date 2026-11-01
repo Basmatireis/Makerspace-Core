@@ -126,9 +126,9 @@ type trainingEntry struct {
 	Description *string `json:"description"`
 	Active      bool    `json:"active"`
 	SortOrder   int32   `json:"sortOrder"`
-	// Competencies and MachineTypes are names of entries in those sections.
+	// Competencies and Processes are names of entries in those sections.
 	Competencies []string `json:"competencies"`
-	MachineTypes []string `json:"machineTypes"`
+	Processes    []string `json:"processes"`
 }
 
 func trainingsSection() section {
@@ -149,7 +149,7 @@ func trainingsSection() section {
 					Active:       row.Active,
 					SortOrder:    row.SortOrder,
 					Competencies: sortedStrings(row.Competencies),
-					MachineTypes: sortedStrings(row.MachineTypes),
+					Processes:    sortedStrings(row.Processes),
 				})
 			}
 			return items, nil
@@ -160,11 +160,11 @@ func trainingsSection() section {
 				item := &(*items)[i]
 				names[i] = &item.Name
 				item.Description = trimmed(item.Description)
-				if len(item.Competencies) > 50 || len(item.MachineTypes) > 100 {
-					return fmt.Errorf("training %q links too many competencies or machine types", item.Name)
+				if len(item.Competencies) > 50 || len(item.Processes) > 100 {
+					return fmt.Errorf("training %q links too many competencies or processes", item.Name)
 				}
 				item.Competencies = sortedStrings(item.Competencies)
-				item.MachineTypes = sortedStrings(item.MachineTypes)
+				item.Processes = sortedStrings(item.Processes)
 			}
 			return checkNames("training", names, 150)
 		},
@@ -202,13 +202,13 @@ func applyTrainings(r *run, items *[]trainingEntry) (func() error, error) {
 	for _, row := range competencyRows {
 		competencies[nameKey(row.Name)] = row.ID
 	}
-	typeRows, err := r.q.ListMachineTypes(r.ctx)
+	typeRows, err := r.q.ListProcesses(r.ctx)
 	if err != nil {
 		return nil, err
 	}
-	machineTypes := map[string]uuid.UUID{}
+	processes := map[string]uuid.UUID{}
 	for _, row := range typeRows {
-		machineTypes[nameKey(row.Name)] = row.ID
+		processes[nameKey(row.Name)] = row.ID
 	}
 	inFile := map[string]bool{}
 	for _, item := range *items {
@@ -220,7 +220,7 @@ func applyTrainings(r *run, items *[]trainingEntry) (func() error, error) {
 		}
 		input := trainings.TrainingInput{
 			Name: item.Name, Description: item.Description, Active: item.Active, SortOrder: item.SortOrder,
-			CompetencyIDs: []uuid.UUID{}, MachineTypeIDs: []uuid.UUID{},
+			CompetencyIDs: []uuid.UUID{}, ProcessIDs: []uuid.UUID{},
 		}
 		missing := ""
 		for _, name := range item.Competencies {
@@ -235,14 +235,14 @@ func applyTrainings(r *run, items *[]trainingEntry) (func() error, error) {
 		if missing != "" {
 			continue
 		}
-		for _, name := range item.MachineTypes {
-			id, ok := machineTypes[nameKey(name)]
+		for _, name := range item.Processes {
+			id, ok := processes[nameKey(name)]
 			if !ok {
-				missing = fmt.Sprintf("The machine type %q does not exist.", name)
-				r.conflict(item.Name, "machine_type_missing", missing)
+				missing = fmt.Sprintf("The process %q does not exist.", name)
+				r.conflict(item.Name, "process_missing", missing)
 				break
 			}
-			input.MachineTypeIDs = append(input.MachineTypeIDs, id)
+			input.ProcessIDs = append(input.ProcessIDs, id)
 		}
 		if missing != "" {
 			continue
@@ -255,7 +255,7 @@ func applyTrainings(r *run, items *[]trainingEntry) (func() error, error) {
 			})
 		case current.Name == item.Name && sameText(current.Description, item.Description) &&
 			current.Active == item.Active && current.SortOrder == item.SortOrder &&
-			sameNames(current.Competencies, item.Competencies) && sameNames(current.MachineTypes, item.MachineTypes):
+			sameNames(current.Competencies, item.Competencies) && sameNames(current.Processes, item.Processes):
 			r.skip(item.Name, reasonUnchanged)
 		default:
 			_, err = r.attempt(item.Name, ActionUpdate, "", func(tx pgx.Tx) error {
@@ -291,7 +291,7 @@ func applyTrainings(r *run, items *[]trainingEntry) (func() error, error) {
 				}
 				_, err = r.svc.Trainings.UpdateTrainingTx(r.ctx, tx, r.p, row.ID, row.Version, trainings.TrainingInput{
 					Name: training.Name, Description: training.Description, Active: false, SortOrder: training.SortOrder,
-					CompetencyIDs: training.CompetencyIDs, MachineTypeIDs: training.MachineTypeIDs,
+					CompetencyIDs: training.CompetencyIDs, ProcessIDs: training.ProcessIDs,
 				}, r.requestID)
 				return err
 			}); err != nil {

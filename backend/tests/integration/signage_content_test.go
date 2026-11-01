@@ -143,7 +143,7 @@ func (f signageFixture) machine(t *testing.T, name string) uuid.UUID {
 	typeID, machineID := ids.New(), ids.New()
 	if _, err := f.pool.Exec(
 		testContext(t),
-		`INSERT INTO machine_types (id, name) VALUES ($1, $2)`,
+		`INSERT INTO processes (id, name, integration) VALUES ($1, $2, 'none')`,
 		typeID,
 		name+" type",
 	); err != nil {
@@ -151,7 +151,7 @@ func (f signageFixture) machine(t *testing.T, name string) uuid.UUID {
 	}
 	if _, err := f.pool.Exec(
 		testContext(t),
-		`INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, $3)`,
+		`INSERT INTO machines (id, process_id, name) VALUES ($1, $2, $3)`,
 		machineID,
 		typeID,
 		name,

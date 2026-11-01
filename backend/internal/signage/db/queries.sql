@@ -35,7 +35,7 @@ DELETE FROM signage_assets WHERE id = sqlc.arg(id) RETURNING file_id;
 
 -- name: ListSignageMachines :many
 SELECT m.id, m.name, mt.name AS kind
-FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
+FROM machines m JOIN processes mt ON mt.id = m.process_id
 ORDER BY lower(m.name), m.id;
 
 -- name: ListSignageCameraMachineIDs :many

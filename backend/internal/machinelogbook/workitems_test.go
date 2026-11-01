@@ -588,7 +588,7 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 		m, err := h.s.CreateMachine(
 			ctx,
 			h.p,
-			h.machine.MachineType.ID,
+			h.machine.Process.ID,
 			name+" "+h.machine.ID.String()[:8],
 			status,
 			nil,

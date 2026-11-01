@@ -26,7 +26,7 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { SettingsTabs } from '../settings/SettingsTabs';
-import { machineTypesQuery } from '../machinelogbook/queries';
+import { processesQuery } from '../machinelogbook/queries';
 import { CategoryFormModal, TrainingFormModal } from './CatalogFormModals';
 import { competencyCategoriesOptions, trainingKeys, trainingsOptions } from './queries';
 
@@ -60,10 +60,10 @@ function ActiveTag({ active }: { active: boolean }) {
 function TrainingsPanel() {
   const client = useQueryClient();
   const currentUser = useCurrentUser();
-  const canReadMachineTypes = hasPermission(currentUser, PermissionId.machinesread);
+  const canReadProcesses = hasPermission(currentUser, PermissionId.machinesread);
   const trainings = useQuery(trainingsOptions);
   const categories = useQuery(competencyCategoriesOptions);
-  const machineTypes = useQuery({ ...machineTypesQuery(), enabled: canReadMachineTypes });
+  const processes = useQuery({ ...processesQuery(), enabled: canReadProcesses });
   const [editing, setEditing] = useState<Training | 'new' | null>(null);
   const [deleting, setDeleting] = useState<Training | null>(null);
   const remove = useMutation({
@@ -168,7 +168,7 @@ function TrainingsPanel() {
         <TrainingFormModal
           training={editing === 'new' ? undefined : editing}
           categories={categories.data.items}
-          machineTypes={canReadMachineTypes ? (machineTypes.data?.items ?? []) : undefined}
+          processes={canReadProcesses ? (processes.data?.items ?? []) : undefined}
           onClose={() => setEditing(null)}
         />
       )}

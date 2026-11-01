@@ -17,7 +17,7 @@ func (f *jobFixture) setRuntimeRate(t *testing.T, typeID uuid.UUID, rate string)
 	var version int64
 	if err := f.pool.QueryRow(
 		t.Context(),
-		`SELECT id, version FROM pricing_rules WHERE pricing_group_id = $1 AND kind = 'machine_runtime' AND machine_type_id = $2`,
+		`SELECT id, version FROM pricing_rules WHERE pricing_group_id = $1 AND kind = 'machine_runtime' AND process_id = $2`,
 		f.group.ID,
 		typeID,
 	).Scan(&id, &version); err != nil {
@@ -45,7 +45,7 @@ func TestRepriceMachineJobUsesTheCurrentRates(t *testing.T) {
 	if price(job.CalculatedPrice) != "10" || job.PricingSnapshot.Revision != 1 {
 		t.Fatalf("created: %s revision %d", price(job.CalculatedPrice), job.PricingSnapshot.Revision)
 	}
-	f.setRuntimeRate(t, f.machine.MachineType.ID, "30")
+	f.setRuntimeRate(t, f.machine.Process.ID, "30")
 	// Changing a rate alone leaves the job on its snapshot.
 	unchanged, err := f.s.GetJob(t.Context(), f.p, job.ID)
 	if err != nil || price(unchanged.CalculatedPrice) != "10" {
@@ -91,7 +91,7 @@ func TestRepriceCompletesAnIncompleteJobAndKeepsTheAdjustment(t *testing.T) {
 		t.Fatalf("status = %s", job.PricingStatus)
 	}
 	job = f.adjust(t, job, "discount_percent", "50")
-	typeID := f.bareMachine.MachineType.ID
+	typeID := f.bareMachine.Process.ID
 	if _, err := f.s.CreatePricingRule(
 		t.Context(), f.p, f.group.ID, "machine_runtime", &typeID, nil, nil, "40", &f.request,
 	); err != nil {
@@ -117,7 +117,7 @@ func TestRepriceFallsBackWhenTheSnapshotGroupIsInactive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	typeID := f.machine.MachineType.ID
+	typeID := f.machine.Process.ID
 	if _, err = f.s.CreatePricingRule(
 		ctx, f.p, fallback.ID, "machine_runtime", &typeID, nil, nil, "20", &f.request,
 	); err != nil {

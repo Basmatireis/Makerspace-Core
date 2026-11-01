@@ -53,11 +53,11 @@ func newHarness(t *testing.T) *harness {
 	mustExec(t, pool, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Rec', 'Ording', $2)`, personID, "rec-"+suffix+"@example.test")
 	mustExec(t, pool, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID)
 	h.master = authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	machineType, err := h.logbook.CreateMachineType(ctx, h.master, "Recording printer "+suffix, "fdm_printing", nil)
+	process, err := h.logbook.CreateProcess(ctx, h.master, "Recording printer "+suffix, machinelogbook.IntegrationFDMPrinter, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	machine, err := h.logbook.CreateMachine(ctx, h.master, machineType.ID, "Recording machine "+suffix, "active", nil, false, nil)
+	machine, err := h.logbook.CreateMachine(ctx, h.master, process.ID, "Recording machine "+suffix, "active", nil, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

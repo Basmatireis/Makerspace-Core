@@ -36,7 +36,6 @@ import { machineLogbookPaths } from '../shared/paths';
 import { nameFromFile } from '../shared/status';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
-import { processConfig } from '../processConfig';
 import {
   blankUsage,
   signedInOperator,
@@ -49,8 +48,8 @@ import {
 } from './jobFormHelpers';
 import { RunOutcomeField, RunTimingFields } from './RunFields';
 import { resolveTimes, runDefaults, runOutcomeChoices, type RunValues } from './runFormHelpers';
-import { inkUsageInputs, toMeasures } from './processFormHelpers';
-import { StitchesField } from './ProcessRunFields';
+import { toMeasures } from './processFormHelpers';
+import { MeasureFields } from './ProcessRunFields';
 import { UsageRowsEditor } from './UsageFormModal';
 import '../styles/jobs.scss';
 
@@ -218,8 +217,7 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
       outcomeOverride: job?.outcomeOverridden && job.outcome !== 'unknown' ? (job.outcome as MachineRunOutcome) : '',
       ...runDefaults(),
       usages: mode === 'create' && !fromRun ? [blankUsage()] : [],
-      stitches: '',
-      ink: {},
+      measures: {},
     },
   });
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
@@ -230,8 +228,7 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
   const canReadPricing = can('pricing.read');
   const pricing = useQuery({ ...pricingQuery(), enabled: canReadPricing && mode === 'create' });
   const machineId = form.watch('machineId');
-  const process = (machines.data?.items ?? []).find((machine) => machine.id === machineId)?.machineType.process;
-  const config = process ? processConfig[process] : undefined;
+  const process = (machines.data?.items ?? []).find((machine) => machine.id === machineId)?.process;
   const machineChoices = (machines.data?.items ?? [])
     .filter((machine) => machine.status !== 'retired' || machine.id === job?.machine.id)
     .map((machine) => ({ id: machine.id, name: machine.name }));
@@ -270,8 +267,8 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
         run: {
           ...first,
           outcome: new Date(first.endsAt).getTime() > Date.now() || !values.outcome ? null : values.outcome,
-          usages: [...toUsageInputs(values.usages), ...inkUsageInputs(values.ink ?? {})],
-          measures: toMeasures({ stitches: values.stitches ?? '' }, process),
+          usages: toUsageInputs(values.usages),
+          measures: toMeasures(values.measures, process?.measures ?? []),
         },
       });
     },
@@ -461,7 +458,7 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
                   </div>
                   <RunTimingFields idPrefix="job-form" />
                   <RunOutcomeField idPrefix="job-form" />
-                  {config?.measures.includes('stitches') && <StitchesField idPrefix="job-form" />}
+                  {process && <MeasureFields idPrefix="job-form" measures={process.measures} />}
                   <div>
                     <h3 className="mj-section-title">Material usage</h3>
                     <p className="mj-secondary">

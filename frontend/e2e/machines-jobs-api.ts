@@ -1,7 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import type {
   BillingParty,
-  MachineProcess,
   MaterialType,
   FilamentSpool,
   Machine,
@@ -90,18 +89,19 @@ const minutes = (offset: number) => new Date(Date.now() + offset * 60_000).toISO
 const created = '2026-09-01T00:00:00Z';
 const pageOf = <T>(items: T[], total = items.length) => ({ items, page: 1, pageSize: 100, total });
 
-const machineType = (typeId: string, name: string, process: MachineProcess) => ({
-  id: typeId,
+const processOf = (processId: string, name: string, integration: 'none' | 'fdm_printer') => ({
+  id: processId,
   name,
   active: true,
-  process,
+  integration,
+  measures: [],
   version: 1,
   createdAt: created,
   updatedAt: created,
 });
 const types = [
-  machineType(ids.typePrinter, '3D printer', 'fdm_printing'),
-  machineType(ids.typeLaser, 'Laser cutter', 'laser_cutting'),
+  processOf(ids.typePrinter, '3D printer', 'fdm_printer'),
+  processOf(ids.typeLaser, 'Laser cutter', 'none'),
 ];
 
 const materialTypes: MaterialType[] = [
@@ -109,7 +109,7 @@ const materialTypes: MaterialType[] = [
     id: id(900),
     name: 'PLA',
     unit: 'g',
-    processes: ['fdm_printing'],
+    processIds: [ids.typePrinter],
     active: true,
     materialCount: 1,
     pricingRuleCount: 1,
@@ -121,7 +121,7 @@ const materialTypes: MaterialType[] = [
     id: id(901),
     name: 'Plywood',
     unit: 'm2',
-    processes: ['laser_cutting'],
+    processIds: [ids.typeLaser],
     active: true,
     materialCount: 1,
     pricingRuleCount: 0,
@@ -139,7 +139,7 @@ const machine = (
 ): Machine => ({
   id: machineId,
   name,
-  machineType: type,
+  process: type,
   status: 'active',
   externalIdentifier: null,
   automaticCollectionEnabled: false,
@@ -620,7 +620,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
   const statMachine = (machineId: string, name: string, typeName: string, runtimeHours: string, count: number) => ({
     machineId,
     name,
-    machineTypeName: typeName,
+    processName: typeName,
     jobs: count,
     runtimeHours,
     failureRate: '5.0',
@@ -919,7 +919,7 @@ const pricingGroup = {
     {
       id: id(150),
       kind: 'machine_runtime',
-      machineTypeId: ids.typePrinter,
+      processId: ids.typePrinter,
       materialTypeId: null,
       materialTypeName: null,
       materialUnit: null,
@@ -932,7 +932,7 @@ const pricingGroup = {
     {
       id: id(151),
       kind: 'material',
-      machineTypeId: null,
+      processId: null,
       materialTypeId: id(900),
       materialTypeName: 'PLA',
       materialUnit: 'g',
@@ -1069,14 +1069,14 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
     if (path === '/api/v1/pricing-groups') return ok(route, { items: [pricingGroup] });
 
     // Machines
-    if (path === '/api/v1/machine-types') return ok(route, { items: types });
+    if (path === '/api/v1/processes') return ok(route, { items: types });
     if (path === '/api/v1/material-types') return ok(route, { items: materialTypes });
     if (path === '/api/v1/machines' && method === 'GET') return ok(route, pageOf(world.machines));
     if (path === '/api/v1/machines' && method === 'POST') {
       const created_ = machine(
         id(160),
         String(body?.name),
-        types.find((type) => type.id === body?.machineTypeId) ?? types[0],
+        types.find((type) => type.id === body?.processId) ?? types[0],
         { status: 'active', version: 1 },
       );
       world.machines.push(created_);

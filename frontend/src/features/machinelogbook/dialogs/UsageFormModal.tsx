@@ -15,13 +15,13 @@ import { Add, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, FormProvider, useFieldArray, useForm, useFormContext } from 'react-hook-form';
 import { replaceMachineRunUsages } from '../../../api/generated/machine-runs/machine-runs';
-import type { MachineProcess, MachineRun } from '../../../api/generated/models';
+import type { MachineRun, Process } from '../../../api/generated/models';
 import { DecimalField } from '../../../app/DecimalField';
 import { decimalNumber, decimalValidator, parseDecimalText } from '../../../app/decimalInput';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import { materialTypesQuery } from '../inventoryQueries';
-import { materialsForProcess, processConfig, unitText } from '../processConfig';
+import { isFdm, materialsForProcess, unitText } from '../processConfig';
 import { machineLogbookKeys, machineQuery, materialsQuery, spoolsQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
 import { useCan } from '../shared/useCan';
@@ -35,8 +35,6 @@ import {
   usageRowsFromUsages,
   type UsagesValues,
 } from './jobFormHelpers';
-import { inkUsageInputs, splitInkUsages } from './processFormHelpers';
-import { InkFields } from './ProcessRunFields';
 import '../styles/jobs.scss';
 
 /** Width x height x count in centimetres gives the square centimetres of cut material; the result stays editable. */
@@ -95,7 +93,7 @@ function UsageRowFields({
   index: number;
   onRemove: () => void;
   canReadInventory: boolean;
-  process?: MachineProcess;
+  process?: Process;
 }) {
   const { control, register, watch, setValue } = useFormContext<UsagesValues>();
   const row = watch(`usages.${index}`);
@@ -105,13 +103,12 @@ function UsageRowFields({
     enabled: canReadInventory && row.ownership === 'makerspace' && !!row.materialId,
   });
   const types = useQuery({ ...materialTypesQuery(), enabled: canReadInventory });
-  const config = process ? processConfig[process] : undefined;
   // New choices are limited to active materials whose type fits the machine's process; the row's current material stays.
-  const materialItems = materialsForProcess(materials.data?.items ?? [], types.data, process, row.materialId, config);
+  const materialItems = materialsForProcess(materials.data?.items ?? [], types.data, process, row.materialId);
   const unit = (materials.data?.items ?? []).find((item) => item.id === row.materialId)?.unit;
   const spoolItems = spools.data?.items ?? [];
-  const showSpools = !process || process === 'fdm_printing';
-  const showArea = Boolean(config?.areaHelper && unit === 'cm2');
+  const showSpools = !process || isFdm(process);
+  const showArea = unit === 'cm2';
   return (
     <div className="mj-usage-row">
       <Select id={`${idPrefix}-ownership`} labelText="Ownership" {...register(`usages.${index}.ownership`)}>
@@ -224,8 +221,8 @@ function UsageRowFields({
   );
 }
 
-/** Material rows of a run. `process` limits the materials to the ones the machine's process can use; the ink group of UV printing has its own fields. */
-export function UsageRowsEditor({ idPrefix, process }: { idPrefix: string; process?: MachineProcess }) {
+/** Material rows of a run. `process` limits the materials to the ones the machine's process can use. */
+export function UsageRowsEditor({ idPrefix, process }: { idPrefix: string; process?: Process }) {
   const can = useCan();
   const canReadInventory = can('inventory.read');
   const { control } = useFormContext<UsagesValues>();
@@ -241,7 +238,6 @@ export function UsageRowsEditor({ idPrefix, process }: { idPrefix: string; proce
           subtitle="Inventory read access is needed to choose other materials or spools. Existing rows keep their material."
         />
       )}
-      {process && processConfig[process].inkGroup && <InkFields idPrefix={idPrefix} process={process} />}
       {fields.length === 0 ? (
         <p className="mj-secondary">No material recorded. The run is priced for machine time only.</p>
       ) : (
@@ -270,8 +266,8 @@ function UsageForm({ onClose, run }: { onClose: () => void; run: MachineRun }) {
   const can = useCan();
   const association = useQuery({ ...jobOrderQuery(run.job?.id ?? ''), enabled: can('orders.read') && !!run.job });
   const machine = useQuery({ ...machineQuery(run.machineId), enabled: can('machines.read') });
-  const process = machine.data?.machineType.process;
-  // The form is built once the machine's process is known, so ink usages land in their own fields.
+  const process = machine.data?.process;
+  // The form is built once the machine's process is known, so spool inputs only show for printers.
   if (can('machines.read') && machine.isPending) return null;
   return <UsageFormBody onClose={onClose} run={run} process={process} association={association.data} />;
 }
@@ -284,19 +280,18 @@ function UsageFormBody({
 }: {
   onClose: () => void;
   run: MachineRun;
-  process?: MachineProcess;
+  process?: Process;
   association?: { orderId?: string | null; orderReference?: string | null };
 }) {
   const client = useQueryClient();
   const notify = useNotify();
-  const { ink, rest } = splitInkUsages(run.usages, process);
-  const form = useForm<UsagesValues>({ defaultValues: { usages: usageRowsFromUsages(rest), ink } });
+  const form = useForm<UsagesValues>({ defaultValues: { usages: usageRowsFromUsages(run.usages) } });
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: (values: UsagesValues) =>
       replaceMachineRunUsages(run.id, {
-        usages: [...toUsageInputs(values.usages), ...inkUsageInputs(values.ink ?? {})],
+        usages: toUsageInputs(values.usages),
         expectedVersion: run.version,
       }),
     onSuccess: async () => {

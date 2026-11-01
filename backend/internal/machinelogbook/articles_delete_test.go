@@ -51,7 +51,7 @@ func TestDeleteMaterialRemovesAnUnusedArticle(t *testing.T) {
 		t.Fatalf("filament: %+v", filament)
 	}
 	consumableType, err := f.s.CreateMaterialType(
-		ctx, f.p, "Delete glue "+f.suffix, "consumable", "ml", []string{"other"}, &f.request,
+		ctx, f.p, "Delete glue "+f.suffix, "consumable", "ml", []uuid.UUID{f.plain.ID}, &f.request,
 	)
 	if err != nil {
 		t.Fatal(err)

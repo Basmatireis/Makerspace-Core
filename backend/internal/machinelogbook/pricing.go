@@ -21,7 +21,7 @@ func pricingRuleFromRow(row machinelogbookdb.PricingRule, materialTypeName *stri
 		ID:               row.ID,
 		PricingGroupID:   row.PricingGroupID,
 		Kind:             PricingRuleKind(row.Kind),
-		MachineTypeID:    row.MachineTypeID,
+		ProcessID:        row.ProcessID,
 		MaterialTypeID:   row.MaterialTypeID,
 		MaterialTypeName: materialTypeName,
 		MaterialUnit:     row.MaterialUnit,
@@ -61,7 +61,7 @@ func (s *Service) pricingGroupFromRow(
 					ID:             r.ID,
 					PricingGroupID: r.PricingGroupID,
 					Kind:           r.Kind,
-					MachineTypeID:  r.MachineTypeID,
+					ProcessID:      r.ProcessID,
 					MaterialUnit:   r.MaterialUnit,
 					Measure:        r.Measure,
 					BlockSize:      r.BlockSize,
@@ -268,24 +268,23 @@ type ruleTarget struct {
 
 // resolveRuleTarget checks which selector a rule needs for its kind. For
 // material rules it loads the material type whose unit the rule takes over; for
-// measure rules it checks the machine type's process supports the measure and
-// takes the block size of the measure.
+// measure rules it checks the process records the measure and takes its block size.
 func resolveRuleTarget(
 	ctx context.Context,
 	q *machinelogbookdb.Queries,
 	kind PricingRuleKind,
-	machineTypeID, materialTypeID *uuid.UUID,
+	processID, materialTypeID *uuid.UUID,
 	measure *string,
 	requireActiveType bool,
 ) (ruleTarget, error) {
 	switch kind {
 	case PricingRuleMachineRuntime:
-		if machineTypeID == nil || materialTypeID != nil || measure != nil {
-			return ruleTarget{}, apperror.Invalid("machine runtime rules require only machineTypeId")
+		if processID == nil || materialTypeID != nil || measure != nil {
+			return ruleTarget{}, apperror.Invalid("machine runtime rules require only processId")
 		}
 		return ruleTarget{}, nil
 	case PricingRuleMaterial:
-		if machineTypeID != nil || materialTypeID == nil || measure != nil {
+		if processID != nil || materialTypeID == nil || measure != nil {
 			return ruleTarget{}, apperror.Invalid("material rules require only materialTypeId")
 		}
 		materialType, err := resolveMaterialType(ctx, q, *materialTypeID, requireActiveType)
@@ -301,29 +300,30 @@ func resolveRuleTarget(
 		unit, name := materialType.Unit, materialType.Name
 		return ruleTarget{MaterialUnit: &unit, MaterialTypeName: &name}, nil
 	case PricingRuleMachineMeasure:
-		if machineTypeID == nil || materialTypeID != nil || measure == nil {
-			return ruleTarget{}, apperror.Invalid("machine measure rules require machineTypeId and measure")
+		if processID == nil || materialTypeID != nil || measure == nil {
+			return ruleTarget{}, apperror.Invalid("machine measure rules require processId and measure")
 		}
-		definition, known := measureDefinitions[*measure]
-		if !known {
+		if !measureKeyPattern.MatchString(*measure) {
 			return ruleTarget{}, apperror.Invalid("unknown measure")
 		}
-		machineType, err := q.GetMachineType(ctx, *machineTypeID)
+		process, err := q.GetProcess(ctx, *processID)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ruleTarget{}, apperror.Invalid("machineTypeId does not refer to a machine type")
+			return ruleTarget{}, apperror.Invalid("processId does not refer to a process")
 		}
 		if err != nil {
 			return ruleTarget{}, err
 		}
-		if !processSupportsMeasure(machineType.Process, definition.Key) {
-			return ruleTarget{}, apperror.New(
-				422,
-				"run_measure_unsupported",
-				"The machine type's process does not record this measure",
-			)
+		measures, err := processMeasureMap(ctx, q, process.ID)
+		if err != nil {
+			return ruleTarget{}, err
+		}
+		definition, supported := measures[*measure]
+		if !supported {
+			return ruleTarget{}, unprocessable("run_measure_unsupported", "The process does not record this measure")
 		}
 		block := definition.BlockSize
-		return ruleTarget{Measure: &definition.Key, BlockSize: &block}, nil
+		key := definition.Key
+		return ruleTarget{Measure: &key, BlockSize: &block}, nil
 	}
 	return ruleTarget{}, apperror.Invalid("invalid pricing rule kind")
 }
@@ -333,7 +333,7 @@ func (s *Service) CreatePricingRule(
 	p authorization.Principal,
 	groupID uuid.UUID,
 	kind PricingRuleKind,
-	machineTypeID, materialTypeID *uuid.UUID,
+	processID, materialTypeID *uuid.UUID,
 	measure *string,
 	rate string,
 	requestID *uuid.UUID,
@@ -343,7 +343,7 @@ func (s *Service) CreatePricingRule(
 	}
 	var result PricingRule
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.CreatePricingRuleTx(ctx, tx, p, groupID, kind, machineTypeID, materialTypeID, measure, rate, requestID)
+		result, err = s.CreatePricingRuleTx(ctx, tx, p, groupID, kind, processID, materialTypeID, measure, rate, requestID)
 		return err
 	})
 	return result, err
@@ -356,7 +356,7 @@ func (s *Service) CreatePricingRuleTx(
 	p authorization.Principal,
 	groupID uuid.UUID,
 	kind PricingRuleKind,
-	machineTypeID, materialTypeID *uuid.UUID,
+	processID, materialTypeID *uuid.UUID,
 	measure *string,
 	rate string,
 	requestID *uuid.UUID,
@@ -369,7 +369,7 @@ func (s *Service) CreatePricingRuleTx(
 		return PricingRule{}, apperror.Invalid("rate must be non-negative")
 	}
 	q := machinelogbookdb.New(tx)
-	target, err := resolveRuleTarget(ctx, q, kind, machineTypeID, materialTypeID, measure, true)
+	target, err := resolveRuleTarget(ctx, q, kind, processID, materialTypeID, measure, true)
 	if err != nil {
 		return PricingRule{}, err
 	}
@@ -387,7 +387,7 @@ func (s *Service) CreatePricingRuleTx(
 			ID:             id,
 			PricingGroupID: groupID,
 			Kind:           string(kind),
-			MachineTypeID:  machineTypeID,
+			ProcessID:      processID,
 			MaterialTypeID: materialTypeID,
 			MaterialUnit:   target.MaterialUnit,
 			Measure:        target.Measure,
@@ -419,7 +419,7 @@ func (s *Service) UpdatePricingRule(
 	id uuid.UUID,
 	expected int64,
 	kind PricingRuleKind,
-	machineTypeID, materialTypeID *uuid.UUID,
+	processID, materialTypeID *uuid.UUID,
 	measure *string,
 	rate string,
 	active bool,
@@ -430,7 +430,7 @@ func (s *Service) UpdatePricingRule(
 	}
 	var result PricingRule
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.UpdatePricingRuleTx(ctx, tx, p, id, expected, kind, machineTypeID, materialTypeID, measure, rate, active, requestID)
+		result, err = s.UpdatePricingRuleTx(ctx, tx, p, id, expected, kind, processID, materialTypeID, measure, rate, active, requestID)
 		return err
 	})
 	return result, err
@@ -444,7 +444,7 @@ func (s *Service) UpdatePricingRuleTx(
 	id uuid.UUID,
 	expected int64,
 	kind PricingRuleKind,
-	machineTypeID, materialTypeID *uuid.UUID,
+	processID, materialTypeID *uuid.UUID,
 	measure *string,
 	rate string,
 	active bool,
@@ -473,7 +473,7 @@ func (s *Service) UpdatePricingRuleTx(
 		ctx,
 		q,
 		kind,
-		machineTypeID,
+		processID,
 		materialTypeID,
 		measure,
 		!sameUUID(current.MaterialTypeID, materialTypeID),
@@ -485,7 +485,7 @@ func (s *Service) UpdatePricingRuleTx(
 		ctx,
 		machinelogbookdb.UpdatePricingRuleParams{
 			Kind:            string(kind),
-			MachineTypeID:   machineTypeID,
+			ProcessID:       processID,
 			MaterialTypeID:  materialTypeID,
 			MaterialUnit:    target.MaterialUnit,
 			Measure:         target.Measure,

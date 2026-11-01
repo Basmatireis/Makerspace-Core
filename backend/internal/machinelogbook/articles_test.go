@@ -52,11 +52,11 @@ func TestMaterialTypeKindRules(t *testing.T) {
 	) {
 		t.Fatalf("filament in metres: %v", err)
 	}
-	if _, err := s.CreateMaterialType(ctx, p, name("Bad filament"), "filament", "g", []string{"other"}, &f.request); !apperror.IsCode(
+	if _, err := s.CreateMaterialType(ctx, p, name("Bad filament"), "filament", "g", []uuid.UUID{f.plain.ID}, &f.request); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
-		t.Fatalf("filament without fdm_printing: %v", err)
+		t.Fatalf("filament without an fdm_printer process: %v", err)
 	}
 	mixed, err := s.CreateMaterialType(
 		ctx,
@@ -64,7 +64,7 @@ func TestMaterialTypeKindRules(t *testing.T) {
 		name("Mixed filament"),
 		"filament",
 		"g",
-		[]string{"fdm_printing", "other"},
+		[]uuid.UUID{f.fdm.ID, f.plain.ID},
 		&f.request,
 	)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestMaterialTypeKindRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	typeIDs = append(typeIDs, filament.ID)
-	if filament.Kind != KindFilament || len(filament.Processes) != 1 || filament.Processes[0] != ProcessFDMPrinting {
+	if filament.Kind != KindFilament || !sameUUIDSet(filament.ProcessIDs, []uuid.UUID{f.fdm.ID}) {
 		t.Fatalf("filament type: %+v", filament)
 	}
 	// Consumables need a process, parts take none.
@@ -86,7 +86,7 @@ func TestMaterialTypeKindRules(t *testing.T) {
 	) {
 		t.Fatalf("consumable without process: %v", err)
 	}
-	if _, err = s.CreateMaterialType(ctx, p, name("Bad part"), "part", "piece", []string{"other"}, &f.request); !apperror.IsCode(
+	if _, err = s.CreateMaterialType(ctx, p, name("Bad part"), "part", "piece", []uuid.UUID{f.plain.ID}, &f.request); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -103,7 +103,7 @@ func TestMaterialTypeKindRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	typeIDs = append(typeIDs, part.ID)
-	if part.Kind != KindPart || len(part.Processes) != 0 {
+	if part.Kind != KindPart || len(part.ProcessIDs) != 0 {
 		t.Fatalf("part type: %+v", part)
 	}
 
@@ -116,11 +116,11 @@ func TestMaterialTypeKindRules(t *testing.T) {
 		part.Name,
 		"consumable",
 		"piece",
-		[]string{"other"},
+		[]uuid.UUID{f.plain.ID},
 		true,
 		&f.request,
 	)
-	if err != nil || updated.Kind != KindConsumable || len(updated.Processes) != 1 {
+	if err != nil || updated.Kind != KindConsumable || len(updated.ProcessIDs) != 1 {
 		t.Fatalf("kind change without materials: %+v %v", updated, err)
 	}
 	updated, err = s.UpdateMaterialType(
@@ -135,7 +135,7 @@ func TestMaterialTypeKindRules(t *testing.T) {
 		true,
 		&f.request,
 	)
-	if err != nil || updated.Kind != KindPart || len(updated.Processes) != 0 {
+	if err != nil || updated.Kind != KindPart || len(updated.ProcessIDs) != 0 {
 		t.Fatalf("back to part: %+v %v", updated, err)
 	}
 	screw, err := s.CreateMaterial(ctx, p, MaterialInput{Name: name("M3 screw"), MaterialTypeID: part.ID}, &f.request)
@@ -145,7 +145,7 @@ func TestMaterialTypeKindRules(t *testing.T) {
 	if screw.Kind != KindPart || screw.FilamentDiameterMM != nil {
 		t.Fatalf("part article: %+v", screw)
 	}
-	if _, err = s.UpdateMaterialType(ctx, p, part.ID, updated.Version, part.Name, "consumable", "piece", []string{"other"}, true, &f.request); !apperror.IsCode(
+	if _, err = s.UpdateMaterialType(ctx, p, part.ID, updated.Version, part.Name, "consumable", "piece", []uuid.UUID{f.plain.ID}, true, &f.request); !apperror.IsCode(
 		err,
 		"material_type_in_use",
 	) {
@@ -170,7 +170,7 @@ func TestMaterialTypeKindRules(t *testing.T) {
 	) {
 		t.Fatalf("pricing rule on a part type: %v", err)
 	}
-	priced, err := s.CreateMaterialType(ctx, p, name("Priced"), "consumable", "piece", []string{"other"}, &f.request)
+	priced, err := s.CreateMaterialType(ctx, p, name("Priced"), "consumable", "piece", []uuid.UUID{f.plain.ID}, &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +260,7 @@ func TestArticleNamesDiameterAndFields(t *testing.T) {
 		"Acrylic "+f.suffix,
 		"consumable",
 		"cm2",
-		[]string{"laser_cutting"},
+		[]uuid.UUID{f.plain.ID},
 		&f.request,
 	)
 	if err != nil {

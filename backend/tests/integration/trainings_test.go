@@ -82,9 +82,9 @@ func TestTrainingCatalogPermissionsLinksAndDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	machineTypeID := ids.New()
-	if _, err := pool.Exec(ctx, `INSERT INTO machine_types(id,name,process) VALUES($1,'Bambu Lab H2D','fdm_printing')`,
-		machineTypeID); err != nil {
+	processID := ids.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO processes(id,name,integration) VALUES($1,'Bambu Lab H2D','fdm_printer')`,
+		processID); err != nil {
 		t.Fatal(err)
 	}
 	_, err = service.CreateTraining(ctx, manager, trainings.TrainingInput{
@@ -92,21 +92,21 @@ func TestTrainingCatalogPermissionsLinksAndDeletion(t *testing.T) {
 	}, nil)
 	requireAppError(t, err, http.StatusUnprocessableEntity, "")
 	_, err = service.CreateTraining(ctx, manager, trainings.TrainingInput{
-		Name: "H2D", Active: true, MachineTypeIDs: []uuid.UUID{ids.New()},
+		Name: "H2D", Active: true, ProcessIDs: []uuid.UUID{ids.New()},
 	}, nil)
 	requireAppError(t, err, http.StatusUnprocessableEntity, "")
 	assertCount(t, pool, `SELECT count(*) FROM trainings`, 0)
 
 	h2d, err := service.CreateTraining(ctx, manager, trainings.TrainingInput{
-		Name:           "Bambu Lab H2D – operation",
-		Active:         true,
-		CompetencyIDs:  []uuid.UUID{printing.ID, printing.ID},
-		MachineTypeIDs: []uuid.UUID{machineTypeID},
+		Name:          "Bambu Lab H2D – operation",
+		Active:        true,
+		CompetencyIDs: []uuid.UUID{printing.ID, printing.ID},
+		ProcessIDs:    []uuid.UUID{processID},
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(h2d.CompetencyIDs) != 1 || h2d.CompetencyIDs[0] != printing.ID || len(h2d.MachineTypeIDs) != 1 {
+	if len(h2d.CompetencyIDs) != 1 || h2d.CompetencyIDs[0] != printing.ID || len(h2d.ProcessIDs) != 1 {
 		t.Fatalf("training = %+v", h2d)
 	}
 
@@ -135,7 +135,7 @@ func TestTrainingCatalogPermissionsLinksAndDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(h2d.CompetencyIDs) != 2 || len(h2d.MachineTypeIDs) != 0 || h2d.Version != 2 {
+	if len(h2d.CompetencyIDs) != 2 || len(h2d.ProcessIDs) != 0 || h2d.Version != 2 {
 		t.Fatalf("updated training = %+v", h2d)
 	}
 	var changed []string
@@ -144,7 +144,7 @@ func TestTrainingCatalogPermissionsLinksAndDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(changed) != 3 || changed[0] != "description" || changed[1] != "competencyIds" ||
-		changed[2] != "machineTypeIds" {
+		changed[2] != "processIds" {
 		t.Fatalf("changed fields = %v", changed)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE metadata::text LIKE '%Internal note%'`, 0)
@@ -254,7 +254,7 @@ func TestTrainingCatalogOverHTTP(t *testing.T) {
 	}
 	response = doJSON(t, client, http.MethodPost, server.URL+"/api/v1/trainings", origin, csrf, map[string]any{
 		"name": "Soldering basics", "active": true, "sortOrder": 0,
-		"competencyIds": []string{category.Id.String()}, "machineTypeIds": []string{},
+		"competencyIds": []string{category.Id.String()}, "processIds": []string{},
 	})
 	assertStatus(t, response, http.StatusCreated)
 	var training openapi.Training
@@ -262,7 +262,7 @@ func TestTrainingCatalogOverHTTP(t *testing.T) {
 	response = doJSON(t, client, http.MethodPatch, server.URL+"/api/v1/trainings/"+training.Id.String(), origin, csrf,
 		map[string]any{
 			"expectedVersion": training.Version, "name": "Soldering basics", "description": "Iron and fumes",
-			"active": false, "sortOrder": 5, "competencyIds": []string{}, "machineTypeIds": []string{},
+			"active": false, "sortOrder": 5, "competencyIds": []string{}, "processIds": []string{},
 		})
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &training)

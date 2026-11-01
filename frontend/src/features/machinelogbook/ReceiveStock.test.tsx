@@ -9,6 +9,7 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { ReceiveStockModal } from './dialogs/ReceiveStockModal';
 import { ToastProvider } from './shared/toasts';
+import { printerProcessId } from './printerTestData';
 
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.permissions }) }));
@@ -23,7 +24,7 @@ const plaType: MaterialType = {
   name: 'PLA',
   kind: 'filament',
   unit: 'g',
-  processes: ['fdm_printing'],
+  processIds: [printerProcessId],
   active: true,
   materialCount: 1,
   pricingRuleCount: 0,
@@ -36,7 +37,7 @@ const partType: MaterialType = {
   name: 'Fasteners',
   kind: 'part',
   unit: 'piece',
-  processes: [],
+  processIds: [],
   active: true,
   materialCount: 1,
   pricingRuleCount: 0,

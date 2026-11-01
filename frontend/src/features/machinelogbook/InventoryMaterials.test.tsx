@@ -19,6 +19,7 @@ import { InventoryPage } from './InventoryPage';
 import { MaterialDetailPage } from './MaterialDetailPage';
 import { machineLogbookPaths } from './shared/paths';
 import { ToastProvider } from './shared/toasts';
+import { printerProcessId, laserProcessId, processes } from './printerTestData';
 
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.permissions }) }));
@@ -191,7 +192,7 @@ const materialTypes: MaterialType[] = [
     name: 'PLA',
     kind: 'filament',
     unit: 'g',
-    processes: ['fdm_printing'],
+    processIds: [printerProcessId],
     active: true,
     materialCount: 1,
     pricingRuleCount: 2,
@@ -204,7 +205,7 @@ const materialTypes: MaterialType[] = [
     name: 'Plywood',
     kind: 'consumable',
     unit: 'm2',
-    processes: ['laser_cutting'],
+    processIds: [laserProcessId],
     active: true,
     materialCount: 1,
     pricingRuleCount: 0,
@@ -217,7 +218,7 @@ const materialTypes: MaterialType[] = [
     name: 'Fasteners',
     kind: 'part',
     unit: 'piece',
-    processes: [],
+    processIds: [],
     active: true,
     materialCount: 1,
     pricingRuleCount: 0,
@@ -231,6 +232,7 @@ function serveInventory(materials: Material[] = [filament, lowFilament, sheet, i
   server.use(
     http.get('*/api/v1/materials', () => HttpResponse.json({ ...page(materials), totalInventoryValue: '218' })),
     http.get('*/api/v1/material-types', () => HttpResponse.json({ items: materialTypes })),
+    http.get('*/api/v1/processes', () => HttpResponse.json({ items: processes })),
     http.get('*/api/v1/inventory/suggestions', () =>
       HttpResponse.json({ variants: [], manufacturers: [], suppliers: [], storageLocations: [] }),
     ),
@@ -272,7 +274,8 @@ describe('Inventory page', () => {
     expect(await screen.findByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
     const search = new URLSearchParams(router.state.location.search);
     expect(search.get('tab')).toBe('materials');
-    expect(search.get('process')).toBe('fdm_printing');
+    // Processes are ids now, so the old filament link only opens Materials.
+    expect(search.has('process')).toBe(false);
     expect(search.get('stock')).toBe('low_stock');
     cleanup();
     const second = renderPage(<InventoryPage />, '/machine-logbook/inventory?tab=consumables');
@@ -339,23 +342,25 @@ describe('Inventory page', () => {
   });
 
   it('narrows Materials to filament or consumables with the Process filter', async () => {
-    auth.permissions = [PermissionId.inventoryread];
+    auth.permissions = [PermissionId.inventoryread, PermissionId.machinesread];
     serveInventory();
     const user = userEvent.setup();
     const { router } = renderPage(<InventoryPage />, machineLogbookPaths.inventory('materials'));
 
     const table = await screen.findByRole('table', { name: 'Materials' });
     expect(await within(table).findByRole('link', { name: 'Birch plywood' })).toBeInTheDocument();
+    await screen.findByLabelText('Filters', { selector: 'button' });
+    await waitFor(() => expect(screen.getByLabelText('Filters', { selector: 'button' })).toBeEnabled());
     await user.click(screen.getByLabelText('Filters', { selector: 'button' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Laser cutting' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Laser' }));
     await user.click(screen.getByRole('button', { name: 'Apply filters' }));
-    expect(router.state.location.search).toContain('process=laser_cutting');
+    expect(router.state.location.search).toContain(`process=${laserProcessId}`);
     expect(await screen.findByRole('link', { name: 'Birch plywood' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Black' })).not.toBeInTheDocument();
 
     await user.click(screen.getByLabelText('Filters (1 applied)', { selector: 'button' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Laser cutting' }));
-    await user.click(screen.getByRole('checkbox', { name: 'FDM 3D printing' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Laser' }));
+    await user.click(screen.getByRole('checkbox', { name: '3D printer' }));
     await user.click(screen.getByRole('button', { name: 'Apply filters' }));
     expect(await screen.findByRole('link', { name: 'Black' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Birch plywood' })).not.toBeInTheDocument();

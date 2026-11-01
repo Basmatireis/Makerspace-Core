@@ -16,168 +16,273 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (s *Service) ListMachineTypes(ctx context.Context, p authorization.Principal) ([]MachineType, error) {
+func (s *Service) ListProcesses(ctx context.Context, p authorization.Principal) ([]Process, error) {
 	if err := require(p, authorization.MachinesRead); err != nil {
 		return nil, err
 	}
-	rows, err := machinelogbookdb.New(s.pool).ListMachineTypes(ctx)
+	q := machinelogbookdb.New(s.pool)
+	rows, err := q.ListProcesses(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items := make([]MachineType, 0, len(rows))
+	processIDs := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, machineTypeFromRow(row))
+		processIDs = append(processIDs, row.ID)
+	}
+	measures, err := loadProcessMeasures(ctx, q, processIDs)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]Process, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, processFromRow(row, measures[row.ID]))
 	}
 	return items, nil
 }
 
-func (s *Service) CreateMachineType(
+func (s *Service) CreateProcess(
 	ctx context.Context,
 	p authorization.Principal,
-	name, process string,
+	name string,
+	integration ProcessIntegration,
+	measures []ProcessMeasure,
 	requestID *uuid.UUID,
-) (MachineType, error) {
+) (Process, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
-		return MachineType{}, err
+		return Process{}, err
 	}
-	var result MachineType
+	var result Process
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.CreateMachineTypeTx(ctx, tx, p, name, process, requestID)
+		result, err = s.CreateProcessTx(ctx, tx, p, name, integration, measures, requestID)
 		return err
 	})
 	return result, err
 }
 
-// CreateMachineTypeTx is CreateMachineType inside the caller's transaction; the configuration import uses it.
-func (s *Service) CreateMachineTypeTx(
+// CreateProcessTx is CreateProcess inside the caller's transaction; the configuration import uses it.
+func (s *Service) CreateProcessTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	p authorization.Principal,
-	name, process string,
+	name string,
+	integration ProcessIntegration,
+	measures []ProcessMeasure,
 	requestID *uuid.UUID,
-) (MachineType, error) {
+) (Process, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
-		return MachineType{}, err
+		return Process{}, err
 	}
 	name, err := validateName(name)
 	if err != nil {
-		return MachineType{}, err
+		return Process{}, err
 	}
-	if !validProcess(process) {
-		return MachineType{}, apperror.Invalid("invalid machine process")
+	if !validIntegration(integration) {
+		return Process{}, apperror.Invalid("invalid process integration")
+	}
+	measures, err = validateProcessMeasures(measures)
+	if err != nil {
+		return Process{}, err
 	}
 	id := ids.New()
-	row, err := machinelogbookdb.New(tx).
-		CreateMachineType(ctx, machinelogbookdb.CreateMachineTypeParams{ID: id, Name: name, Process: process})
+	q := machinelogbookdb.New(tx)
+	row, err := q.CreateProcess(
+		ctx,
+		machinelogbookdb.CreateProcessParams{ID: id, Name: name, Integration: string(integration)},
+	)
 	if err != nil {
-		return MachineType{}, databaseError(err)
+		return Process{}, databaseError(err)
+	}
+	if err = storeProcessMeasures(ctx, q, id, measures); err != nil {
+		return Process{}, err
 	}
 	if err = writeAudit(
 		ctx,
 		tx,
 		p,
-		"machine_type.created",
-		"machine_type",
+		"process.created",
+		"process",
 		id,
 		requestID,
-		[]string{"name", "process"},
+		[]string{"name", "integration", "measures"},
 	); err != nil {
-		return MachineType{}, err
+		return Process{}, err
 	}
-	return machineTypeFromRow(row), nil
+	return processFromRow(row, measures), nil
 }
 
-func (s *Service) UpdateMachineType(
+// storeProcessMeasures replaces the stored measures of a process; the list order is kept.
+func storeProcessMeasures(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	processID uuid.UUID,
+	measures []ProcessMeasure,
+) error {
+	if err := q.ReplaceProcessMeasures(ctx, processID); err != nil {
+		return err
+	}
+	for i, m := range measures {
+		if err := q.InsertProcessMeasure(
+			ctx,
+			machinelogbookdb.InsertProcessMeasureParams{
+				ProcessID: processID,
+				Key:       m.Key,
+				Label:     m.Label,
+				Unit:      m.Unit,
+				BlockSize: m.BlockSize,
+				Position:  int32(i), //nolint:gosec // bounded by maxProcessMeasures
+			},
+		); err != nil {
+			return databaseError(err)
+		}
+	}
+	return nil
+}
+
+// requireMeasuresUnused refuses to drop a measure that pricing rules or runs still refer to.
+func requireMeasuresUnused(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	processID uuid.UUID,
+	current, next []ProcessMeasure,
+) error {
+	kept := map[string]bool{}
+	for _, m := range next {
+		kept[m.Key] = true
+	}
+	for _, m := range current {
+		if kept[m.Key] {
+			continue
+		}
+		uses, err := q.CountMeasureUses(ctx, machinelogbookdb.CountMeasureUsesParams{ProcessID: &processID, Key: &m.Key})
+		if err != nil {
+			return err
+		}
+		if uses > 0 {
+			return apperror.Conflicting(
+				"measure_in_use",
+				"The measure \""+m.Label+"\" is used by pricing rules or runs and cannot be removed",
+			)
+		}
+	}
+	return nil
+}
+
+// ProcessChanges is the part of a process an update changes; nil fields stay as they are and non-nil Measures
+// replace the whole list.
+type ProcessChanges struct {
+	Name        *string
+	Active      *bool
+	Integration *ProcessIntegration
+	Measures    *[]ProcessMeasure
+}
+
+func (s *Service) UpdateProcess(
 	ctx context.Context,
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
-	name *string,
-	active *bool,
-	process *string,
+	changes ProcessChanges,
 	requestID *uuid.UUID,
-) (MachineType, error) {
+) (Process, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
-		return MachineType{}, err
+		return Process{}, err
 	}
-	var result MachineType
+	var result Process
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.UpdateMachineTypeTx(ctx, tx, p, id, expected, name, active, process, requestID)
+		result, err = s.UpdateProcessTx(ctx, tx, p, id, expected, changes, requestID)
 		return err
 	})
 	return result, err
 }
 
-// UpdateMachineTypeTx is UpdateMachineType inside the caller's transaction; the configuration import uses it.
-func (s *Service) UpdateMachineTypeTx(
+// UpdateProcessTx is UpdateProcess inside the caller's transaction; the configuration import uses it.
+func (s *Service) UpdateProcessTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
-	name *string,
-	active *bool,
-	process *string,
+	changes ProcessChanges,
 	requestID *uuid.UUID,
-) (MachineType, error) {
+) (Process, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
-		return MachineType{}, err
+		return Process{}, err
 	}
 	if expected < 1 {
-		return MachineType{}, apperror.Invalid("expectedVersion must be positive")
+		return Process{}, apperror.Invalid("expectedVersion must be positive")
 	}
 	q := machinelogbookdb.New(tx)
-	current, err := q.GetMachineTypeForUpdate(ctx, id)
+	current, err := q.GetProcessForUpdate(ctx, id)
 	if err != nil {
-		return MachineType{}, noRows(err)
+		return Process{}, noRows(err)
 	}
 	if current.Version != expected {
-		return MachineType{}, apperror.StaleWrite
+		return Process{}, apperror.StaleWrite
 	}
-	if name != nil {
-		current.Name, err = validateName(*name)
+	if changes.Name != nil {
+		current.Name, err = validateName(*changes.Name)
 		if err != nil {
-			return MachineType{}, err
+			return Process{}, err
 		}
 	}
-	if active != nil {
-		current.Active = *active
+	if changes.Active != nil {
+		current.Active = *changes.Active
 	}
-	if process != nil {
-		if !validProcess(*process) {
-			return MachineType{}, apperror.Invalid("invalid machine process")
+	if changes.Integration != nil {
+		if !validIntegration(*changes.Integration) {
+			return Process{}, apperror.Invalid("invalid process integration")
 		}
-		current.Process = *process
+		current.Integration = string(*changes.Integration)
 	}
-	row, err := q.UpdateMachineType(
+	stored, err := loadProcessMeasures(ctx, q, []uuid.UUID{id})
+	if err != nil {
+		return Process{}, err
+	}
+	measures := stored[id]
+	if changes.Measures != nil {
+		next, validationErr := validateProcessMeasures(*changes.Measures)
+		if validationErr != nil {
+			return Process{}, validationErr
+		}
+		if err = requireMeasuresUnused(ctx, q, id, measures, next); err != nil {
+			return Process{}, err
+		}
+		measures = next
+	}
+	row, err := q.UpdateProcess(
 		ctx,
-		machinelogbookdb.UpdateMachineTypeParams{
+		machinelogbookdb.UpdateProcessParams{
 			Name:            current.Name,
 			Active:          current.Active,
-			Process:         current.Process,
+			Integration:     current.Integration,
 			ID:              id,
 			ExpectedVersion: expected,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return MachineType{}, apperror.StaleWrite
+		return Process{}, apperror.StaleWrite
 	}
 	if err != nil {
-		return MachineType{}, databaseError(err)
+		return Process{}, databaseError(err)
+	}
+	if changes.Measures != nil {
+		if err = storeProcessMeasures(ctx, q, id, measures); err != nil {
+			return Process{}, err
+		}
 	}
 	if err = writeAudit(
 		ctx,
 		tx,
 		p,
-		"machine_type.updated",
-		"machine_type",
+		"process.updated",
+		"process",
 		id,
 		requestID,
-		[]string{"name", "active", "process"},
+		[]string{"name", "active", "integration", "measures"},
 	); err != nil {
-		return MachineType{}, err
+		return Process{}, err
 	}
-	return machineTypeFromRow(row), nil
+	return processFromRow(row, measures), nil
 }
 
 func validateMachine(status MachineStatus, automatic bool, external *string) error {
@@ -193,14 +298,15 @@ func validateMachine(status MachineStatus, automatic bool, external *string) err
 func machineFromGet(row machinelogbookdb.GetMachineRow) Machine {
 	return Machine{
 		ID: row.ID,
-		MachineType: MachineType{
-			ID:        row.MachineTypeID,
-			Name:      row.MachineTypeName,
-			Active:    row.MachineTypeActive,
-			Process:   row.MachineTypeProcess,
-			Version:   row.MachineTypeVersion,
-			CreatedAt: row.MachineTypeCreatedAt,
-			UpdatedAt: row.MachineTypeUpdatedAt,
+		Process: Process{
+			ID:          row.ProcessID,
+			Name:        row.ProcessName,
+			Integration: ProcessIntegration(row.ProcessIntegration),
+			Measures:    []ProcessMeasure{},
+			Active:      row.ProcessActive,
+			Version:     row.ProcessVersion,
+			CreatedAt:   row.ProcessCreatedAt,
+			UpdatedAt:   row.ProcessUpdatedAt,
 		},
 		Name:                       row.Name,
 		Status:                     MachineStatus(row.Status),
@@ -217,29 +323,25 @@ func machineFromGet(row machinelogbookdb.GetMachineRow) Machine {
 }
 
 func machineFromList(row machinelogbookdb.ListMachinesRow) Machine {
-	return Machine{
-		ID: row.ID,
-		MachineType: MachineType{
-			ID:        row.MachineTypeID,
-			Name:      row.MachineTypeName,
-			Active:    row.MachineTypeActive,
-			Process:   row.MachineTypeProcess,
-			Version:   row.MachineTypeVersion,
-			CreatedAt: row.MachineTypeCreatedAt,
-			UpdatedAt: row.MachineTypeUpdatedAt,
-		},
-		Name:                       row.Name,
-		Status:                     MachineStatus(row.Status),
-		ExternalIdentifier:         row.ExternalIdentifier,
-		AutomaticCollectionEnabled: row.AutomaticCollectionEnabled,
-		LastIngestedAt:             nullableTime(row.LastIngestedAt),
-		Version:                    row.Version,
-		JobCount:                   row.JobCount,
-		RuntimeSeconds:             row.RuntimeSeconds,
-		FailureRate:                decimalString(row.FailureRate),
-		CreatedAt:                  row.CreatedAt,
-		UpdatedAt:                  row.UpdatedAt,
+	return machineFromGet(machinelogbookdb.GetMachineRow(row))
+}
+
+// attachProcessMeasures fills the measure lists of the processes embedded in the machines.
+func attachProcessMeasures(ctx context.Context, q *machinelogbookdb.Queries, machines ...*Machine) error {
+	processIDs := make([]uuid.UUID, 0, len(machines))
+	for _, m := range machines {
+		processIDs = append(processIDs, m.Process.ID)
 	}
+	measures, err := loadProcessMeasures(ctx, q, processIDs)
+	if err != nil {
+		return err
+	}
+	for _, m := range machines {
+		if list := measures[m.Process.ID]; list != nil {
+			m.Process.Measures = list
+		}
+	}
+	return nil
 }
 
 func (s *Service) GetMachine(ctx context.Context, p authorization.Principal, id uuid.UUID) (Machine, error) {
@@ -258,7 +360,11 @@ func loadMachineFrom(ctx context.Context, q *machinelogbookdb.Queries, id uuid.U
 	if err != nil {
 		return Machine{}, noRows(err)
 	}
-	return machineFromGet(row), nil
+	machine := machineFromGet(row)
+	if err = attachProcessMeasures(ctx, q, &machine); err != nil {
+		return Machine{}, err
+	}
+	return machine, nil
 }
 
 func (s *Service) ListMachines(
@@ -299,13 +405,20 @@ func (s *Service) ListMachines(
 	for _, row := range rows {
 		items = append(items, machineFromList(row))
 	}
+	pointers := make([]*Machine, len(items))
+	for i := range items {
+		pointers[i] = &items[i]
+	}
+	if err = attachProcessMeasures(ctx, q, pointers...); err != nil {
+		return nil, 0, err
+	}
 	return items, total, nil
 }
 
 func (s *Service) CreateMachine(
 	ctx context.Context,
 	p authorization.Principal,
-	machineTypeID uuid.UUID,
+	processID uuid.UUID,
 	name string,
 	status MachineStatus,
 	external *string,
@@ -317,7 +430,7 @@ func (s *Service) CreateMachine(
 	}
 	var result Machine
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.CreateMachineTx(ctx, tx, p, machineTypeID, name, status, external, automatic, requestID)
+		result, err = s.CreateMachineTx(ctx, tx, p, processID, name, status, external, automatic, requestID)
 		return err
 	})
 	return result, err
@@ -328,7 +441,7 @@ func (s *Service) CreateMachineTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	p authorization.Principal,
-	machineTypeID uuid.UUID,
+	processID uuid.UUID,
 	name string,
 	status MachineStatus,
 	external *string,
@@ -348,19 +461,19 @@ func (s *Service) CreateMachineTx(
 		return Machine{}, err
 	}
 	q := machinelogbookdb.New(tx)
-	typeRow, err := q.GetMachineType(ctx, machineTypeID)
+	processRow, err := q.GetProcess(ctx, processID)
 	if err != nil {
 		return Machine{}, noRows(err)
 	}
-	if !typeRow.Active {
-		return Machine{}, apperror.Conflicting("machine_type_inactive", "Machine type is inactive")
+	if !processRow.Active {
+		return Machine{}, apperror.Conflicting("process_inactive", "Process is inactive")
 	}
 	id := ids.New()
 	_, err = q.CreateMachine(
 		ctx,
 		machinelogbookdb.CreateMachineParams{
 			ID:                         id,
-			MachineTypeID:              machineTypeID,
+			ProcessID:                  processID,
 			Name:                       name,
 			Status:                     string(status),
 			ExternalIdentifier:         external,
@@ -378,7 +491,7 @@ func (s *Service) CreateMachineTx(
 		"machine",
 		id,
 		requestID,
-		[]string{"machineTypeId", "name", "status", "externalIdentifier", "automaticCollectionEnabled"},
+		[]string{"processId", "name", "status", "externalIdentifier", "automaticCollectionEnabled"},
 	); err != nil {
 		return Machine{}, err
 	}
@@ -390,7 +503,7 @@ func (s *Service) UpdateMachine(
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
-	machineTypeID uuid.UUID,
+	processID uuid.UUID,
 	name string,
 	status MachineStatus,
 	external *string,
@@ -402,7 +515,7 @@ func (s *Service) UpdateMachine(
 	}
 	var result Machine
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.UpdateMachineTx(ctx, tx, p, id, expected, machineTypeID, name, status, external, automatic, requestID)
+		result, err = s.UpdateMachineTx(ctx, tx, p, id, expected, processID, name, status, external, automatic, requestID)
 		return err
 	})
 	return result, err
@@ -415,7 +528,7 @@ func (s *Service) UpdateMachineTx(
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
-	machineTypeID uuid.UUID,
+	processID uuid.UUID,
 	name string,
 	status MachineStatus,
 	external *string,
@@ -445,17 +558,17 @@ func (s *Service) UpdateMachineTx(
 	if current.Version != expected {
 		return Machine{}, apperror.StaleWrite
 	}
-	typeRow, err := q.GetMachineType(ctx, machineTypeID)
+	processRow, err := q.GetProcess(ctx, processID)
 	if err != nil {
 		return Machine{}, noRows(err)
 	}
-	if !typeRow.Active && machineTypeID != current.MachineTypeID {
-		return Machine{}, apperror.Conflicting("machine_type_inactive", "Machine type is inactive")
+	if !processRow.Active && processID != current.ProcessID {
+		return Machine{}, apperror.Conflicting("process_inactive", "Process is inactive")
 	}
 	_, err = q.UpdateMachine(
 		ctx,
 		machinelogbookdb.UpdateMachineParams{
-			MachineTypeID:              machineTypeID,
+			ProcessID:                  processID,
 			Name:                       name,
 			Status:                     string(status),
 			ExternalIdentifier:         external,
@@ -478,7 +591,7 @@ func (s *Service) UpdateMachineTx(
 		"machine",
 		id,
 		requestID,
-		[]string{"machineTypeId", "name", "status", "externalIdentifier", "automaticCollectionEnabled"},
+		[]string{"processId", "name", "status", "externalIdentifier", "automaticCollectionEnabled"},
 	); err != nil {
 		return Machine{}, err
 	}

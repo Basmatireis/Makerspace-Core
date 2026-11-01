@@ -184,11 +184,11 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
-	machineType, err := logbook.CreateMachineType(ctx, master, "Printer", "fdm_printing", nil)
+	process, err := logbook.CreateProcess(ctx, master, "Printer", machinelogbook.IntegrationFDMPrinter, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	machine, err := logbook.CreateMachine(ctx, master, machineType.ID, "Printer 1", "active", nil, false, nil)
+	machine, err := logbook.CreateMachine(ctx, master, process.ID, "Printer 1", "active", nil, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 		master,
 		group.ID,
 		"machine_runtime",
-		&machineType.ID,
+		&process.ID,
 		nil,
 		nil,
 		"10",

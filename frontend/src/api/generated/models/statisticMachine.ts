@@ -25,7 +25,7 @@ import type { UUIDv7 } from './uUIDv7';
 export interface StatisticMachine {
   machineId: UUIDv7;
   name: string;
-  machineTypeName: string;
+  processName: string;
   /** @minimum 0 */
   jobs: number;
   runtimeHours: Decimal;

@@ -18,9 +18,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { MachineProcess } from './machineProcess';
 import type { MaterialKind } from './materialKind';
 import type { MaterialUnit } from './materialUnit';
+import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
 export interface UpdateMaterialTypeRequest {
@@ -32,8 +32,8 @@ export interface UpdateMaterialTypeRequest {
   unit: MaterialUnit;
   /** Omitted keeps the current kind. The kind cannot change while materials use the type (409 material_type_in_use). */
   kind?: MaterialKind;
-  /** Omitted keeps the current processes. The kind decides which lists are valid. */
-  processes?: MachineProcess[];
+  /** Omitted keeps the current processes. The kind decides which processes are valid. */
+  processIds?: UUIDv7[];
   expectedVersion: Version;
   active: boolean;
 }

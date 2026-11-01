@@ -506,7 +506,7 @@ describe('Recording settings', () => {
     server.use(
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
       http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
-      http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/processes', () => HttpResponse.json({ items: [] })),
       http.get('*/api/v1/machine-logbook/recording-settings', () => HttpResponse.json(settings)),
     );
 
@@ -607,7 +607,7 @@ describe('Recording settings', () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machinesread];
     serve();
     renderWith('/machine-logbook/machines?tab=recording', '/machine-logbook/machines', <MachinesPage />);
-    expect(await screen.findByRole('tab', { name: 'Machine types' })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: 'Processes' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Recording' })).not.toBeInTheDocument();
   });
 });

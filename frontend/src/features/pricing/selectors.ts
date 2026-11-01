@@ -1,12 +1,12 @@
 import type {
-  MachineType,
   MaterialType,
   MaterialUnit,
   PricingGroup,
   PricingRule,
+  Process,
   RunMeasureKey,
 } from '../../api/generated/models';
-import { measureLabels, processConfig, unitText } from '../machinelogbook/processConfig';
+import { measureRateLabel, unitText } from '../machinelogbook/processConfig';
 
 /** One row of the rates matrix: something that has a price per pricing group. */
 export type RateSelector = {
@@ -15,31 +15,31 @@ export type RateSelector = {
   description: string;
   unit: string;
   kind: PricingRule['kind'];
-  machineTypeId?: string;
+  processId?: string;
   materialTypeId?: string;
   measure?: RunMeasureKey;
 };
 
-export function rateSelectors(machineTypes: MachineType[], materialTypes: MaterialType[]): RateSelector[] {
-  const machines = machineTypes
-    .filter((type) => type.active)
-    .flatMap((type): RateSelector[] => [
+export function rateSelectors(processes: Process[], materialTypes: MaterialType[]): RateSelector[] {
+  const machines = processes
+    .filter((process) => process.active)
+    .flatMap((process): RateSelector[] => [
       {
-        key: `runtime-${type.id}`,
-        label: `${type.name} runtime`,
+        key: `runtime-${process.id}`,
+        label: `${process.name} runtime`,
         description: 'Per hour of machine time',
         unit: '€/h',
         kind: 'machine_runtime',
-        machineTypeId: type.id,
+        processId: process.id,
       },
-      ...processConfig[type.process].measures.map((measure): RateSelector => ({
-        key: `measure-${type.id}-${measure}`,
-        label: `${type.name} · ${measureLabels[measure]}`,
-        description: `Per 1000 ${measure}`,
-        unit: `€ per 1000 ${measure}`,
+      ...process.measures.map((measure): RateSelector => ({
+        key: `measure-${process.id}-${measure.key}`,
+        label: `${process.name} · ${measure.label}`,
+        description: `Per block of ${measure.blockSize} ${measure.unit}`,
+        unit: measureRateLabel(measure),
         kind: 'machine_measure',
-        machineTypeId: type.id,
-        measure: measure as RunMeasureKey,
+        processId: process.id,
+        measure: measure.key,
       })),
     ]);
   const materials = materialTypes
@@ -61,7 +61,7 @@ export const ruleOf = (group: PricingGroup, selector: RateSelector): PricingRule
     (rule) =>
       rule.active &&
       rule.kind === selector.kind &&
-      (rule.machineTypeId ?? undefined) === selector.machineTypeId &&
+      (rule.processId ?? undefined) === selector.processId &&
       (rule.materialTypeId ?? undefined) === selector.materialTypeId &&
       (rule.measure ?? undefined) === selector.measure,
   );

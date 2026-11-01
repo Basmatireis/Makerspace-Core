@@ -1678,11 +1678,11 @@ func (e *signageEnv) printer(name string) signagePrinter {
 		e.t.Fatal(err)
 	}
 	requestID := ids.New()
-	machineType, err := logbook.CreateMachineType(ctx, admin, name+" type", "fdm_printing", &requestID)
+	process, err := logbook.CreateProcess(ctx, admin, name+" type", machinelogbook.IntegrationFDMPrinter, nil, &requestID)
 	if err != nil {
 		e.t.Fatal(err)
 	}
-	machine, err := logbook.CreateMachine(ctx, admin, machineType.ID, name, "active", nil, false, &requestID)
+	machine, err := logbook.CreateMachine(ctx, admin, process.ID, name, "active", nil, false, &requestID)
 	if err != nil {
 		e.t.Fatal(err)
 	}

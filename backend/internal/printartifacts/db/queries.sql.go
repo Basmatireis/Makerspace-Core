@@ -597,14 +597,14 @@ func (q *Queries) GetConnectorArtifactUploadTarget(ctx context.Context, arg GetC
 }
 
 const getMachineForArtifactJob = `-- name: GetMachineForArtifactJob :one
-SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.automatic_collection_enabled, m.last_ingested_at, m.version, m.created_at, m.updated_at, p.machine_id AS profile_machine_id, p.enabled AS profile_enabled
+SELECT m.id, m.process_id, m.name, m.status, m.external_identifier, m.automatic_collection_enabled, m.last_ingested_at, m.version, m.created_at, m.updated_at, p.machine_id AS profile_machine_id, p.enabled AS profile_enabled
 FROM machines m JOIN printer_profiles p ON p.machine_id = m.id
 WHERE m.id = $1 FOR UPDATE OF m, p
 `
 
 type GetMachineForArtifactJobRow struct {
 	ID                         uuid.UUID
-	MachineTypeID              uuid.UUID
+	ProcessID                  uuid.UUID
 	Name                       string
 	Status                     string
 	ExternalIdentifier         *string
@@ -622,7 +622,7 @@ func (q *Queries) GetMachineForArtifactJob(ctx context.Context, id uuid.UUID) (G
 	var i GetMachineForArtifactJobRow
 	err := row.Scan(
 		&i.ID,
-		&i.MachineTypeID,
+		&i.ProcessID,
 		&i.Name,
 		&i.Status,
 		&i.ExternalIdentifier,
@@ -815,7 +815,7 @@ SELECT uuidv7(), $1, r.id, r.kind,
        CASE WHEN r.kind = 'machine_runtime' THEN 'hour' ELSE COALESCE(r.material_unit, 'g') END,
        r.rate, false
 FROM pricing_rules r
-LEFT JOIN machine_types mt ON mt.id = r.machine_type_id
+LEFT JOIN processes mt ON mt.id = r.process_id
 LEFT JOIN material_types mat ON mat.id = r.material_type_id
 WHERE r.pricing_group_id = $2 AND r.active
 `

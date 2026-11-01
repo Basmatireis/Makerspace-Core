@@ -280,7 +280,7 @@ func TestInsufficientLooseStockFailsTheWholeFinalization(t *testing.T) {
 		"PETG "+ids.New().String(),
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		nil,
 		nil,
 	)
 	if e != nil {

@@ -14,10 +14,10 @@ import {
   machineOf,
   printer,
   printerId,
-  printerTypeId,
+  printerProcessId,
   renderPage,
   templateProfile,
-  types,
+  processes,
 } from './printerTestData';
 
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
@@ -60,7 +60,7 @@ function backend(
     templateProfile({ machineId: newId, machineName: 'Lab printer', version });
   server.use(
     http.get('*/api/v1/machines', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
-    http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: types })),
+    http.get('*/api/v1/processes', () => HttpResponse.json({ items: processes })),
     http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/printer-connectors', () => HttpResponse.json({ items: [connectorOf()] })),
     http.post('*/api/v1/machines', async ({ request }) => {
@@ -119,7 +119,7 @@ function backend(
 async function fillMachineStep(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) {
   await user.type(within(dialog).getByLabelText('Name'), ' Lab printer ');
   await waitFor(() => expect(within(dialog).getByRole('option', { name: '3D printer' })).toBeInTheDocument());
-  await user.selectOptions(within(dialog).getByLabelText('Machine type'), printerTypeId);
+  await user.selectOptions(within(dialog).getByLabelText('Process'), printerProcessId);
   expect(within(dialog).getByRole('button', { name: 'Create and continue' })).toBeDisabled(); // a printer needs a model first
   await user.click(within(dialog).getByRole('radio', { name: /Bambu Lab H2D/ }));
 }
@@ -144,7 +144,7 @@ describe('Add machine wizard for a printer', () => {
     const dialog = await openWizard(user);
     await user.type(within(dialog).getByLabelText('Name'), 'X1 printer');
     await waitFor(() => expect(within(dialog).getByRole('option', { name: '3D printer' })).toBeInTheDocument());
-    await user.selectOptions(within(dialog).getByLabelText('Machine type'), printerTypeId);
+    await user.selectOptions(within(dialog).getByLabelText('Process'), printerProcessId);
     await user.click(within(dialog).getByRole('radio', { name: /Bambu Lab X1C/ }));
     await user.click(within(dialog).getByRole('button', { name: 'Create and continue' }));
     await waitFor(() => expect(recorded.setup).toHaveLength(1));
@@ -170,7 +170,7 @@ describe('Add machine wizard for a printer', () => {
     await waitFor(() =>
       expect(recorded.machine).toEqual({
         name: 'Lab printer',
-        machineTypeId: printerTypeId,
+        processId: printerProcessId,
         status: 'active',
         externalIdentifier: null,
         automaticCollectionEnabled: false,
@@ -409,7 +409,7 @@ describe('Printer setup tab', () => {
     let currentProfile = profile;
     server.use(
       http.get(`*/api/v1/machines/${printerId}`, () => HttpResponse.json(printer)),
-      http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: types })),
+      http.get('*/api/v1/processes', () => HttpResponse.json({ items: processes })),
       http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
       http.get(`*/api/v1/machines/${printerId}/printer`, () => HttpResponse.json(currentProfile)),
       http.get(`*/api/v1/machines/${printerId}/printer/live-status`, () =>
@@ -573,7 +573,7 @@ describe('Printer setup tab', () => {
     let patched = false;
     server.use(
       http.get(`*/api/v1/machines/${printerId}`, () => HttpResponse.json(printer)),
-      http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: types })),
+      http.get('*/api/v1/processes', () => HttpResponse.json({ items: processes })),
       http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
       http.get(`*/api/v1/machines/${printerId}/printer`, () =>
         HttpResponse.json({ code: 'not_found' }, { status: 404 }),

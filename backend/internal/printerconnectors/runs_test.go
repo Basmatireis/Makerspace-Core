@@ -63,11 +63,11 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := h.logbook.CreateMachineType(
+	process, err := h.logbook.CreateProcess(
 		ctx,
 		h.principal,
 		"Ingest printer "+h.suffix,
-		"fdm_printing",
+		machinelogbook.IntegrationFDMPrinter, nil,
 		&requestID,
 	)
 	if err != nil {
@@ -76,7 +76,7 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	h.machine, err = h.logbook.CreateMachine(
 		ctx,
 		h.principal,
-		machineType.ID,
+		process.ID,
 		"Ingest machine "+h.suffix,
 		"active",
 		nil,
@@ -267,7 +267,7 @@ func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt 
 		"PLA "+name+" "+h.suffix,
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		nil,
 		nil,
 	)
 	if err != nil {
@@ -778,7 +778,7 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		h.principal,
 		group.ID,
 		"machine_runtime",
-		&h.machine.MachineType.ID,
+		&h.machine.Process.ID,
 		nil,
 		nil,
 		rate,

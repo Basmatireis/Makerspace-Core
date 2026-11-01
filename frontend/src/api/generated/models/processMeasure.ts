@@ -18,13 +18,25 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { MachineProcess } from './machineProcess';
+import type { RunMeasureKey } from './runMeasureKey';
 
-export interface CreateMachineTypeRequest {
+export interface ProcessMeasure {
+  key: RunMeasureKey;
   /**
+     * Shown to people (for example Stitches).
      * @minLength 1
-     * @maxLength 120
+     * @maxLength 60
      */
-  name: string;
-  process: MachineProcess;
+  label: string;
+  /**
+     * The unit of one counted value (for example stitch).
+     * @minLength 1
+     * @maxLength 20
+     */
+  unit: string;
+  /**
+     * Pricing rules for this measure give a rate per this many units (1000 for stitches).
+     * @minimum 1
+     */
+  blockSize: number;
 }

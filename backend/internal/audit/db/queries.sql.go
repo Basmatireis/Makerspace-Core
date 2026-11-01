@@ -137,7 +137,8 @@ SELECT ae.id, ae.actor_account_id, ae.action, ae.resource_type, ae.resource_id, 
                FROM scim_users su JOIN people p ON p.id = su.person_id
                WHERE su.id = ae.resource_id
            )
-           WHEN 'machine_type' THEN (SELECT mt.name FROM machine_types mt WHERE mt.id = ae.resource_id)
+           WHEN 'machine_type' THEN (SELECT mt.name FROM processes mt WHERE mt.id = ae.resource_id)
+           WHEN 'process' THEN (SELECT mt.name FROM processes mt WHERE mt.id = ae.resource_id)
            WHEN 'machine' THEN (SELECT m.name FROM machines m WHERE m.id = ae.resource_id)
            WHEN 'organization' THEN (SELECT o.name FROM organizations o WHERE o.id = ae.resource_id)
            WHEN 'pricing_group' THEN (SELECT pg.name FROM pricing_groups pg WHERE pg.id = ae.resource_id)

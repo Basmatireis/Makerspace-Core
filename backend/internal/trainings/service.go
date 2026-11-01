@@ -25,7 +25,7 @@ const (
 	maxDescriptionRunes  = 2000
 	maxSortOrder         = 10000
 	maxCompetencyLinks   = 50
-	maxMachineTypeLinks  = 100
+	maxProcessLinks      = 100
 )
 
 // Service owns trainings, competency categories and training records.
@@ -280,7 +280,7 @@ func (s *Service) CreateTrainingTx(
 		return Training{}, err
 	}
 	if err := writeAudit(ctx, tx, p, "training.created", "training", id, requestID,
-		[]string{"name", "description", "active", "sortOrder", "competencyIds", "machineTypeIds"}); err != nil {
+		[]string{"name", "description", "active", "sortOrder", "competencyIds", "processIds"}); err != nil {
 		return Training{}, err
 	}
 	return getTraining(ctx, q, id)
@@ -428,8 +428,8 @@ func validateTraining(input TrainingInput) (TrainingInput, error) {
 		return input, apperror.Invalid("sortOrder must be between -10000 and 10000")
 	}
 	input.CompetencyIDs = distinct(input.CompetencyIDs)
-	input.MachineTypeIDs = distinct(input.MachineTypeIDs)
-	if len(input.CompetencyIDs) > maxCompetencyLinks || len(input.MachineTypeIDs) > maxMachineTypeLinks {
+	input.ProcessIDs = distinct(input.ProcessIDs)
+	if len(input.CompetencyIDs) > maxCompetencyLinks || len(input.ProcessIDs) > maxProcessLinks {
 		return input, apperror.Invalid("a training links at most 50 competency categories and 100 machine types")
 	}
 	return input, nil
@@ -476,12 +476,12 @@ func replaceLinks(ctx context.Context, q *trainingsdb.Queries, id uuid.UUID, inp
 	if categories != int64(len(input.CompetencyIDs)) {
 		return apperror.Invalid("competencyIds contains an unknown competency category")
 	}
-	machineTypes, err := q.CountExistingMachineTypes(ctx, input.MachineTypeIDs)
+	processes, err := q.CountExistingProcesses(ctx, input.ProcessIDs)
 	if err != nil {
 		return err
 	}
-	if machineTypes != int64(len(input.MachineTypeIDs)) {
-		return apperror.Invalid("machineTypeIds contains an unknown machine type")
+	if processes != int64(len(input.ProcessIDs)) {
+		return apperror.Invalid("processIds contains an unknown process")
 	}
 	if err := q.DeleteTrainingCompetencies(ctx, id); err != nil {
 		return err
@@ -493,12 +493,12 @@ func replaceLinks(ctx context.Context, q *trainingsdb.Queries, id uuid.UUID, inp
 			return err
 		}
 	}
-	if err := q.DeleteTrainingMachineTypes(ctx, id); err != nil {
+	if err := q.DeleteTrainingProcesses(ctx, id); err != nil {
 		return err
 	}
-	for _, machineTypeID := range input.MachineTypeIDs {
-		if err := q.InsertTrainingMachineType(ctx, trainingsdb.InsertTrainingMachineTypeParams{
-			TrainingID: id, MachineTypeID: machineTypeID,
+	for _, processID := range input.ProcessIDs {
+		if err := q.InsertTrainingProcess(ctx, trainingsdb.InsertTrainingProcessParams{
+			TrainingID: id, ProcessID: processID,
 		}); err != nil {
 			return err
 		}
@@ -507,11 +507,11 @@ func replaceLinks(ctx context.Context, q *trainingsdb.Queries, id uuid.UUID, inp
 }
 
 type trainingLinks struct {
-	competencies, machineTypes map[uuid.UUID][]uuid.UUID
+	competencies, processes map[uuid.UUID][]uuid.UUID
 }
 
 func loadLinks(ctx context.Context, q *trainingsdb.Queries, trainingIDs []uuid.UUID) (trainingLinks, error) {
-	links := trainingLinks{competencies: map[uuid.UUID][]uuid.UUID{}, machineTypes: map[uuid.UUID][]uuid.UUID{}}
+	links := trainingLinks{competencies: map[uuid.UUID][]uuid.UUID{}, processes: map[uuid.UUID][]uuid.UUID{}}
 	competencies, err := q.ListTrainingCompetencies(ctx, trainingIDs)
 	if err != nil {
 		return links, err
@@ -519,12 +519,12 @@ func loadLinks(ctx context.Context, q *trainingsdb.Queries, trainingIDs []uuid.U
 	for _, row := range competencies {
 		links.competencies[row.TrainingID] = append(links.competencies[row.TrainingID], row.CompetencyID)
 	}
-	machineTypes, err := q.ListTrainingMachineTypes(ctx, trainingIDs)
+	processes, err := q.ListTrainingProcesses(ctx, trainingIDs)
 	if err != nil {
 		return links, err
 	}
-	for _, row := range machineTypes {
-		links.machineTypes[row.TrainingID] = append(links.machineTypes[row.TrainingID], row.MachineTypeID)
+	for _, row := range processes {
+		links.processes[row.TrainingID] = append(links.processes[row.TrainingID], row.ProcessID)
 	}
 	return links, nil
 }
@@ -551,22 +551,22 @@ func trainingFromRow(row trainingsdb.GetTrainingRow, links trainingLinks) Traini
 	if competencyIDs == nil {
 		competencyIDs = []uuid.UUID{}
 	}
-	machineTypeIDs := links.machineTypes[row.ID]
-	if machineTypeIDs == nil {
-		machineTypeIDs = []uuid.UUID{}
+	processIDs := links.processes[row.ID]
+	if processIDs == nil {
+		processIDs = []uuid.UUID{}
 	}
 	return Training{
-		ID:             row.ID,
-		Name:           row.Name,
-		Description:    row.Description,
-		Active:         row.Active,
-		SortOrder:      row.SortOrder,
-		CompetencyIDs:  competencyIDs,
-		MachineTypeIDs: machineTypeIDs,
-		RecordCount:    row.RecordCount,
-		Version:        row.Version,
-		CreatedAt:      row.CreatedAt,
-		UpdatedAt:      row.UpdatedAt,
+		ID:            row.ID,
+		Name:          row.Name,
+		Description:   row.Description,
+		Active:        row.Active,
+		SortOrder:     row.SortOrder,
+		CompetencyIDs: competencyIDs,
+		ProcessIDs:    processIDs,
+		RecordCount:   row.RecordCount,
+		Version:       row.Version,
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
 	}
 }
 
@@ -618,8 +618,8 @@ func changedTrainingFields(current Training, input TrainingInput) []string {
 	if !slices.Equal(distinct(current.CompetencyIDs), input.CompetencyIDs) {
 		changed = append(changed, "competencyIds")
 	}
-	if !slices.Equal(distinct(current.MachineTypeIDs), input.MachineTypeIDs) {
-		changed = append(changed, "machineTypeIds")
+	if !slices.Equal(distinct(current.ProcessIDs), input.ProcessIDs) {
+		changed = append(changed, "processIds")
 	}
 	return changed
 }

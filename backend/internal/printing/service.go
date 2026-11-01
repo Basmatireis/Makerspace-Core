@@ -244,17 +244,18 @@ func loadProfile(ctx context.Context, q *db.Queries, machineID uuid.UUID) (Profi
 }
 
 // requireFDMPrinting answers 404 for an unknown machine and 409
-// machine_not_fdm_printing when the machine's type has another process: only
-// FDM printers have a printer setup.
+// machine_not_fdm_printing when the machine's process has another integration:
+// only machines of a process with the fdm_printer integration have a printer
+// setup. The error code predates editable processes and stays for clients.
 func requireFDMPrinting(ctx context.Context, tx pgx.Tx, machineID uuid.UUID) error {
-	process, err := db.New(tx).GetMachineProcess(ctx, machineID)
+	integration, err := db.New(tx).GetMachineProcess(ctx, machineID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.NotFound
 	}
 	if err != nil {
 		return err
 	}
-	if MachineProcess(process) != ProcessFDMPrinting {
+	if integration != integrationFDMPrinter {
 		return apperror.Conflicting(
 			"machine_not_fdm_printing",
 			"Only machines with the FDM printing process have a printer setup",

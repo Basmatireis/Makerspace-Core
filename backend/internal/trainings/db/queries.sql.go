@@ -24,12 +24,12 @@ func (q *Queries) CountExistingCompetencyCategories(ctx context.Context, ids []u
 	return count, err
 }
 
-const countExistingMachineTypes = `-- name: CountExistingMachineTypes :one
-SELECT count(*) FROM machine_types WHERE id = ANY($1::uuid[])
+const countExistingProcesses = `-- name: CountExistingProcesses :one
+SELECT count(*) FROM processes WHERE id = ANY($1::uuid[])
 `
 
-func (q *Queries) CountExistingMachineTypes(ctx context.Context, ids []uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countExistingMachineTypes, ids)
+func (q *Queries) CountExistingProcesses(ctx context.Context, ids []uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countExistingProcesses, ids)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -126,12 +126,12 @@ func (q *Queries) DeleteTrainingCompetencies(ctx context.Context, trainingID uui
 	return err
 }
 
-const deleteTrainingMachineTypes = `-- name: DeleteTrainingMachineTypes :exec
-DELETE FROM training_machine_types WHERE training_id = $1
+const deleteTrainingProcesses = `-- name: DeleteTrainingProcesses :exec
+DELETE FROM training_processes WHERE training_id = $1
 `
 
-func (q *Queries) DeleteTrainingMachineTypes(ctx context.Context, trainingID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteTrainingMachineTypes, trainingID)
+func (q *Queries) DeleteTrainingProcesses(ctx context.Context, trainingID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteTrainingProcesses, trainingID)
 	return err
 }
 
@@ -324,17 +324,17 @@ func (q *Queries) InsertTrainingCompetency(ctx context.Context, arg InsertTraini
 	return err
 }
 
-const insertTrainingMachineType = `-- name: InsertTrainingMachineType :exec
-INSERT INTO training_machine_types (training_id, machine_type_id) VALUES ($1, $2)
+const insertTrainingProcess = `-- name: InsertTrainingProcess :exec
+INSERT INTO training_processes (training_id, process_id) VALUES ($1, $2)
 `
 
-type InsertTrainingMachineTypeParams struct {
-	TrainingID    uuid.UUID
-	MachineTypeID uuid.UUID
+type InsertTrainingProcessParams struct {
+	TrainingID uuid.UUID
+	ProcessID  uuid.UUID
 }
 
-func (q *Queries) InsertTrainingMachineType(ctx context.Context, arg InsertTrainingMachineTypeParams) error {
-	_, err := q.db.Exec(ctx, insertTrainingMachineType, arg.TrainingID, arg.MachineTypeID)
+func (q *Queries) InsertTrainingProcess(ctx context.Context, arg InsertTrainingProcessParams) error {
+	_, err := q.db.Exec(ctx, insertTrainingProcess, arg.TrainingID, arg.ProcessID)
 	return err
 }
 
@@ -539,22 +539,22 @@ func (q *Queries) ListTrainingCompetencies(ctx context.Context, trainingIds []uu
 	return items, nil
 }
 
-const listTrainingMachineTypes = `-- name: ListTrainingMachineTypes :many
-SELECT training_id, machine_type_id FROM training_machine_types
+const listTrainingProcesses = `-- name: ListTrainingProcesses :many
+SELECT training_id, process_id FROM training_processes
 WHERE training_id = ANY($1::uuid[])
-ORDER BY training_id, machine_type_id
+ORDER BY training_id, process_id
 `
 
-func (q *Queries) ListTrainingMachineTypes(ctx context.Context, trainingIds []uuid.UUID) ([]TrainingMachineType, error) {
-	rows, err := q.db.Query(ctx, listTrainingMachineTypes, trainingIds)
+func (q *Queries) ListTrainingProcesses(ctx context.Context, trainingIds []uuid.UUID) ([]TrainingProcess, error) {
+	rows, err := q.db.Query(ctx, listTrainingProcesses, trainingIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []TrainingMachineType{}
+	items := []TrainingProcess{}
 	for rows.Next() {
-		var i TrainingMachineType
-		if err := rows.Scan(&i.TrainingID, &i.MachineTypeID); err != nil {
+		var i TrainingProcess
+		if err := rows.Scan(&i.TrainingID, &i.ProcessID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

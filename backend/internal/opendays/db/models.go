@@ -514,7 +514,7 @@ type LegacyMaterialType struct {
 
 type Machine struct {
 	ID                         uuid.UUID
-	MachineTypeID              uuid.UUID
+	ProcessID                  uuid.UUID
 	Name                       string
 	Status                     string
 	ExternalIdentifier         *string
@@ -710,16 +710,6 @@ type MachineRunUsage struct {
 	StaffCorrected       bool
 }
 
-type MachineType struct {
-	ID        uuid.UUID
-	Name      string
-	Active    bool
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Process   string
-}
-
 type MailConfiguration struct {
 	Singleton             bool
 	Enabled               bool
@@ -831,7 +821,7 @@ type MaterialType struct {
 
 type MaterialTypeProcess struct {
 	MaterialTypeID uuid.UUID
-	Process        string
+	ProcessID      uuid.UUID
 }
 
 type MfaRecoveryCode struct {
@@ -1187,7 +1177,7 @@ type PricingRule struct {
 	ID             uuid.UUID
 	PricingGroupID uuid.UUID
 	Kind           string
-	MachineTypeID  *uuid.UUID
+	ProcessID      *uuid.UUID
 	MaterialUnit   *string
 	Rate           pgtype.Numeric
 	Active         bool
@@ -1597,6 +1587,25 @@ type PrivacySubjectRequestStep struct {
 	ActorAccountID *uuid.UUID
 	OccurredAt     time.Time
 	Note           string
+}
+
+type Process struct {
+	ID          uuid.UUID
+	Name        string
+	Active      bool
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Integration string
+}
+
+type ProcessMeasure struct {
+	ProcessID uuid.UUID
+	Key       string
+	Label     string
+	Unit      string
+	BlockSize int32
+	Position  int32
 }
 
 type Role struct {
@@ -2028,9 +2037,9 @@ type TrainingCompetency struct {
 	CompetencyID uuid.UUID
 }
 
-type TrainingMachineType struct {
-	TrainingID    uuid.UUID
-	MachineTypeID uuid.UUID
+type TrainingProcess struct {
+	TrainingID uuid.UUID
+	ProcessID  uuid.UUID
 }
 
 type TrainingRecord struct {

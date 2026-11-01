@@ -6278,42 +6278,42 @@ paths:
         "404": {description: User not found., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
         "409": {description: Deprovisioning would violate an account security invariant., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
 
-  /machine-types:
+  /processes:
     get:
       tags: [Machines]
-      operationId: listMachineTypes
-      summary: List machine types
+      operationId: listProcesses
+      summary: List processes
       security: [{sessionCookie: []}]
       responses:
-        "200": {description: Machine types., content: {application/json: {schema: {$ref: "#/components/schemas/MachineTypeList"}}}}
+        "200": {description: Processes., content: {application/json: {schema: {$ref: "#/components/schemas/ProcessList"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
     post:
       tags: [Machines]
-      operationId: createMachineType
-      summary: Create a machine type
+      operationId: createProcess
+      summary: Create a process
       security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateMachineTypeRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateProcessRequest"}}}}
       responses:
-        "201": {description: Machine type created., content: {application/json: {schema: {$ref: "#/components/schemas/MachineType"}}}}
+        "201": {description: Process created., content: {application/json: {schema: {$ref: "#/components/schemas/Process"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /machine-types/{machineTypeId}:
+  /processes/{processId}:
     parameters:
-      - {name: machineTypeId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: processId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
     patch:
       tags: [Machines]
-      operationId: updateMachineType
-      summary: Update a machine type
+      operationId: updateProcess
+      summary: Update a process
       security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateMachineTypeRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateProcessRequest"}}}}
       responses:
-        "200": {description: Machine type updated., content: {application/json: {schema: {$ref: "#/components/schemas/MachineType"}}}}
+        "200": {description: Process updated., content: {application/json: {schema: {$ref: "#/components/schemas/Process"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -11009,8 +11009,8 @@ components:
 
     ConfigurationSection:
       type: string
-      enum: [deviceTypes, sessionPolicies, roles, machineTypes, competencies, trainings, materialTypes, machines, inventoryArticles, pricing, openDayRequirements, visitorEnrollment, branding, labRules, surveys, mail, invoicing, privacy]
-      x-enum-varnames: [ConfigurationSectionDeviceTypes, ConfigurationSectionSessionPolicies, ConfigurationSectionRoles, ConfigurationSectionMachineTypes, ConfigurationSectionCompetencies, ConfigurationSectionTrainings, ConfigurationSectionMaterialTypes, ConfigurationSectionMachines, ConfigurationSectionInventoryArticles, ConfigurationSectionPricing, ConfigurationSectionOpenDayRequirements, ConfigurationSectionVisitorEnrollment, ConfigurationSectionBranding, ConfigurationSectionLabRules, ConfigurationSectionSurveys, ConfigurationSectionMail, ConfigurationSectionInvoicing, ConfigurationSectionPrivacy]
+      enum: [deviceTypes, sessionPolicies, roles, processes, competencies, trainings, materialTypes, machines, inventoryArticles, pricing, openDayRequirements, visitorEnrollment, branding, labRules, surveys, mail, invoicing, privacy]
+      x-enum-varnames: [ConfigurationSectionDeviceTypes, ConfigurationSectionSessionPolicies, ConfigurationSectionRoles, ConfigurationSectionProcesses, ConfigurationSectionCompetencies, ConfigurationSectionTrainings, ConfigurationSectionMaterialTypes, ConfigurationSectionMachines, ConfigurationSectionInventoryArticles, ConfigurationSectionPricing, ConfigurationSectionOpenDayRequirements, ConfigurationSectionVisitorEnrollment, ConfigurationSectionBranding, ConfigurationSectionLabRules, ConfigurationSectionSurveys, ConfigurationSectionMail, ConfigurationSectionInvoicing, ConfigurationSectionPrivacy]
 
     ConfigurationImportMode:
       type: string
@@ -15814,57 +15814,69 @@ components:
       enum: [g, m, ml, m2, cm2, piece]
       description: "m2 stays for existing data; new square-measure material uses cm2."
 
-    MachineProcess:
+    ProcessIntegration:
       type: string
-      enum: [fdm_printing, embroidery, uv_printing, laser_cutting, vinyl_cutting, other]
+      enum: [none, fdm_printer]
       description: >-
-        What a machine type does. It decides what a run records and which materials fit. Only fdm_printing machines
-        have a printer setup (profile, spool inputs, connector).
+        What Core can do for machines of a process beyond runtime and materials. fdm_printer machines have a printer
+        setup (profile, spool inputs, connector, print files, live status); none have no integration.
 
     RunMeasureKey:
       type: string
-      enum: [stitches]
+      pattern: "^[a-z][a-z0-9_]{1,39}$"
+      description: The key of a measure defined on the process (for example stitches).
+
+    ProcessMeasure:
+      type: object
+      additionalProperties: false
+      required: [key, label, unit, blockSize]
+      properties:
+        key: {$ref: "#/components/schemas/RunMeasureKey"}
+        label: {type: string, minLength: 1, maxLength: 60, description: Shown to people (for example Stitches).}
+        unit: {type: string, minLength: 1, maxLength: 20, description: The unit of one counted value (for example stitch).}
+        blockSize: {type: integer, minimum: 1, description: "Pricing rules for this measure give a rate per this many units (1000 for stitches)."}
 
     RunMeasures:
       type: object
-      additionalProperties: false
-      description: "Counted facts of a run that are priced per block. Only the keys the machine's process supports are accepted (embroidery: stitches)."
-      properties:
-        stitches: {type: integer, format: int64, minimum: 0, description: Exact stitch count.}
+      description: "Counted facts of a run that are priced per block, keyed by the measure keys the machine's process defines."
+      additionalProperties: {type: integer, format: int64, minimum: 0}
 
     MachineStatus:
       type: string
       enum: [active, maintenance, retired]
 
-    MachineType:
+    Process:
       type: object
       additionalProperties: false
-      required: [id, name, active, process, version, createdAt, updatedAt]
+      description: "What a machine does (3D printing, laser cutting, embroidery, …). Machines, pricing rules, trainings and material eligibility hang on it."
+      required: [id, name, active, integration, measures, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         active: {type: boolean}
-        process: {$ref: "#/components/schemas/MachineProcess"}
+        integration: {$ref: "#/components/schemas/ProcessIntegration"}
+        measures: {type: array, items: {$ref: "#/components/schemas/ProcessMeasure"}, description: The counted measures runs of this process record.}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
 
-    MachineTypeList:
+    ProcessList:
       type: object
       additionalProperties: false
       required: [items]
       properties:
-        items: {type: array, items: {$ref: "#/components/schemas/MachineType"}}
+        items: {type: array, items: {$ref: "#/components/schemas/Process"}}
 
-    CreateMachineTypeRequest:
+    CreateProcessRequest:
       type: object
       additionalProperties: false
-      required: [name, process]
+      required: [name, integration]
       properties:
         name: {type: string, minLength: 1, maxLength: 120}
-        process: {$ref: "#/components/schemas/MachineProcess"}
+        integration: {$ref: "#/components/schemas/ProcessIntegration"}
+        measures: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/ProcessMeasure"}, description: Omitted means none.}
 
-    UpdateMachineTypeRequest:
+    UpdateProcessRequest:
       type: object
       additionalProperties: false
       required: [expectedVersion]
@@ -15872,7 +15884,8 @@ components:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string, minLength: 1, maxLength: 120}
         active: {type: boolean}
-        process: {$ref: "#/components/schemas/MachineProcess"}
+        integration: {$ref: "#/components/schemas/ProcessIntegration"}
+        measures: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/ProcessMeasure"}, description: "Omitted keeps the current measures. Removing a measure that pricing rules or runs use answers 409 measure_in_use."}
 
     CompetencyCategory:
       type: object
@@ -15920,7 +15933,7 @@ components:
     Training:
       type: object
       additionalProperties: false
-      required: [id, name, active, sortOrder, competencyIds, machineTypeIds, recordCount, version, createdAt, updatedAt]
+      required: [id, name, active, sortOrder, competencyIds, processIds, recordCount, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
@@ -15928,7 +15941,7 @@ components:
         active: {type: boolean}
         sortOrder: {type: integer, format: int32}
         competencyIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}}
-        machineTypeIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}}
+        processIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}}
         recordCount: {type: integer, format: int64, minimum: 0, description: People holding a training record (trained or trainer).}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
@@ -15944,19 +15957,19 @@ components:
     TrainingInput:
       type: object
       additionalProperties: false
-      required: [name, active, sortOrder, competencyIds, machineTypeIds]
+      required: [name, active, sortOrder, competencyIds, processIds]
       properties:
         name: {type: string, minLength: 1, maxLength: 150}
         description: {type: string, maxLength: 2000, nullable: true}
         active: {type: boolean}
         sortOrder: {type: integer, format: int32, minimum: -10000, maximum: 10000}
         competencyIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
-        machineTypeIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
+        processIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
 
     UpdateTrainingRequest:
       type: object
       additionalProperties: false
-      required: [expectedVersion, name, active, sortOrder, competencyIds, machineTypeIds]
+      required: [expectedVersion, name, active, sortOrder, competencyIds, processIds]
       properties:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string, minLength: 1, maxLength: 150}
@@ -15964,7 +15977,7 @@ components:
         active: {type: boolean}
         sortOrder: {type: integer, format: int32, minimum: -10000, maximum: 10000}
         competencyIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
-        machineTypeIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
+        processIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
 
     TrainingStatus:
       type: string
@@ -16006,11 +16019,11 @@ components:
     Machine:
       type: object
       additionalProperties: false
-      required: [id, name, machineType, status, automaticCollectionEnabled, jobCount, runtimeSeconds, failureRate, version, createdAt, updatedAt]
+      required: [id, name, process, status, automaticCollectionEnabled, jobCount, runtimeSeconds, failureRate, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
-        machineType: {$ref: "#/components/schemas/MachineType"}
+        process: {$ref: "#/components/schemas/Process"}
         status: {$ref: "#/components/schemas/MachineStatus"}
         externalIdentifier: {type: string, nullable: true}
         automaticCollectionEnabled: {type: boolean}
@@ -16035,10 +16048,10 @@ components:
     CreateMachineRequest:
       type: object
       additionalProperties: false
-      required: [name, machineTypeId, status, automaticCollectionEnabled]
+      required: [name, processId, status, automaticCollectionEnabled]
       properties:
         name: {type: string, minLength: 1, maxLength: 150}
-        machineTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        processId: {$ref: "#/components/schemas/UUIDv7"}
         status: {$ref: "#/components/schemas/MachineStatus"}
         externalIdentifier: {type: string, maxLength: 200, nullable: true}
         automaticCollectionEnabled: {type: boolean}
@@ -16047,10 +16060,10 @@ components:
       # Not an allOf over CreateMachineRequest: its additionalProperties: false would reject expectedVersion during request validation.
       type: object
       additionalProperties: false
-      required: [name, machineTypeId, status, automaticCollectionEnabled, expectedVersion]
+      required: [name, processId, status, automaticCollectionEnabled, expectedVersion]
       properties:
         name: {type: string, minLength: 1, maxLength: 150}
-        machineTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        processId: {$ref: "#/components/schemas/UUIDv7"}
         status: {$ref: "#/components/schemas/MachineStatus"}
         externalIdentifier: {type: string, maxLength: 200, nullable: true}
         automaticCollectionEnabled: {type: boolean}
@@ -16224,11 +16237,11 @@ components:
         id: {$ref: "#/components/schemas/UUIDv7"}
         pricingGroupId: {$ref: "#/components/schemas/UUIDv7"}
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
-        machineTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        processId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set on material rules; the rate is per unit of this material type."}
         materialTypeName: {type: string, nullable: true}
         materialUnit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true, description: The unit of the material type.}
-        measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Set on machine_measure rules together with machineTypeId."}
+        measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Set on machine_measure rules together with processId."}
         blockSize: {type: integer, minimum: 1, nullable: true, description: "Set on machine_measure rules: the rate is per this many units of the measure (1000 for stitches)."}
         rate: {$ref: "#/components/schemas/Decimal"}
         active: {type: boolean}
@@ -16249,11 +16262,11 @@ components:
     PriceQuoteMachine:
       type: object
       additionalProperties: false
-      required: [id, name, machineTypeName]
+      required: [id, name, processName]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
-        machineTypeName: {type: string}
+        processName: {type: string}
 
     PriceQuoteMaterial:
       type: object
@@ -16329,9 +16342,9 @@ components:
       required: [kind, rate]
       properties:
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
-        machineTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        processId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden for runtime and measure rules."}
-        measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Required for machine_measure rules (with machineTypeId), forbidden otherwise. The machine type's process must support the measure."}
+        measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Required for machine_measure rules (with processId), forbidden otherwise. The machine type's process must support the measure."}
         rate: {$ref: "#/components/schemas/Decimal"}
 
     UpdatePricingRuleRequest:
@@ -16340,9 +16353,9 @@ components:
       required: [kind, rate, expectedVersion, active]
       properties:
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
-        machineTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        processId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden for runtime and measure rules."}
-        measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Required for machine_measure rules (with machineTypeId), forbidden otherwise."}
+        measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Required for machine_measure rules (with processId), forbidden otherwise."}
         rate: {$ref: "#/components/schemas/Decimal"}
         expectedVersion: {$ref: "#/components/schemas/Version"}
         active: {type: boolean}
@@ -16417,13 +16430,13 @@ components:
     MaterialType:
       type: object
       additionalProperties: false
-      required: [id, name, kind, unit, processes, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
+      required: [id, name, kind, unit, processIds, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         kind: {$ref: "#/components/schemas/MaterialKind"}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
-        processes: {type: array, items: {$ref: "#/components/schemas/MachineProcess"}, description: "Processes whose machines can consume materials of this type in new runs."}
+        processIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Processes whose machines can consume materials of this type in new runs."}
         active: {type: boolean}
         materialCount: {type: integer, format: int64, minimum: 0, description: Materials of this type.}
         pricingRuleCount: {type: integer, format: int64, minimum: 0, description: "Material pricing rules for this type, active or not."}
@@ -16449,7 +16462,7 @@ components:
         name: {type: string, minLength: 1, maxLength: 120}
         kind: {$ref: "#/components/schemas/MaterialKind"}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
-        processes: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/MachineProcess"}}
+        processIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
 
     UpdateMaterialTypeRequest:
       type: object
@@ -16459,7 +16472,7 @@ components:
         name: {type: string, minLength: 1, maxLength: 120}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         kind: {allOf: [{$ref: "#/components/schemas/MaterialKind"}], description: "Omitted keeps the current kind. The kind cannot change while materials use the type (409 material_type_in_use)."}
-        processes: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/MachineProcess"}, description: "Omitted keeps the current processes. The kind decides which lists are valid."}
+        processIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Omitted keeps the current processes. The kind decides which processes are valid."}
         expectedVersion: {$ref: "#/components/schemas/Version"}
         active: {type: boolean}
 
@@ -18334,11 +18347,11 @@ components:
     StatisticMachine:
       type: object
       additionalProperties: false
-      required: [machineId, name, machineTypeName, jobs, runtimeHours, failureRate, charges, runtimeShare]
+      required: [machineId, name, processName, jobs, runtimeHours, failureRate, charges, runtimeShare]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
-        machineTypeName: {type: string}
+        processName: {type: string}
         jobs: {type: integer, format: int64, minimum: 0}
         runtimeHours: {$ref: "#/components/schemas/Decimal"}
         failureRate: {$ref: "#/components/schemas/Decimal"}
@@ -18572,9 +18585,9 @@ components:
           $ref: "#/components/schemas/UUIDv7"
         machineName:
           type: "string"
-        machineTypeId:
+        processId:
           $ref: "#/components/schemas/UUIDv7"
-        machineTypeName:
+        processName:
           type: "string"
         startsAt:
           type: "string"
@@ -18624,8 +18637,8 @@ components:
         - "displayId"
         - "machineId"
         - "machineName"
-        - "machineTypeId"
-        - "machineTypeName"
+        - "processId"
+        - "processName"
         - "startsAt"
         - "endsAt"
         - "durationNanoseconds"

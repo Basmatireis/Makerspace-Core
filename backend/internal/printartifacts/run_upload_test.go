@@ -52,11 +52,11 @@ func newUploadHarness(t *testing.T) *uploadHarness {
 	mustExec(t, pool, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Up', 'Loader', $2)`, personID, "up-"+suffix+"@example.test")
 	mustExec(t, pool, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID)
 	h.master = authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	machineType, err := logbook.CreateMachineType(ctx, h.master, "Upload printer "+suffix, "fdm_printing", nil)
+	process, err := logbook.CreateProcess(ctx, h.master, "Upload printer "+suffix, machinelogbook.IntegrationFDMPrinter, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	machine, err := logbook.CreateMachine(ctx, h.master, machineType.ID, "Upload machine "+suffix, "active", nil, false, nil)
+	machine, err := logbook.CreateMachine(ctx, h.master, process.ID, "Upload machine "+suffix, "active", nil, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

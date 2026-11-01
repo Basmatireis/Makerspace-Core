@@ -299,7 +299,7 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 		"PLA "+ids.New().String(),
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		nil,
 		nil,
 	)
 	if e != nil {

@@ -36,7 +36,7 @@ var registry = []section{
 	deviceTypesSection(),
 	sessionPoliciesSection(),
 	rolesSection(),
-	machineTypesSection(),
+	processesSection(),
 	competenciesSection(),
 	trainingsSection(),
 	materialTypesSection(),

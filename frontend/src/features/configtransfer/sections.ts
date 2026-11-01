@@ -34,9 +34,9 @@ export const sectionDefinitions: SectionDefinition[] = [
     manage: [PermissionId.rolesmanage],
   },
   {
-    key: 'machineTypes',
-    label: 'Machine types',
-    description: 'Machine types and their processes.',
+    key: 'processes',
+    label: 'Processes',
+    description: 'Processes with their integration and counted measures.',
     read: [PermissionId.machinesread],
     manage: [PermissionId.machinesmanage],
   },
@@ -50,7 +50,7 @@ export const sectionDefinitions: SectionDefinition[] = [
   {
     key: 'trainings',
     label: 'Trainings',
-    description: 'Trainings with their competencies and machine types; no training records.',
+    description: 'Trainings with their competencies and processes; no training records.',
     read: [PermissionId.trainingsmanage],
     manage: [PermissionId.trainingsmanage],
   },

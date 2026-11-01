@@ -8,29 +8,29 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 )
 
-func (s *Server) ListMachineTypes(
+func (s *Server) ListProcesses(
 	ctx context.Context,
-	_ openapi.ListMachineTypesRequestObject,
-) (openapi.ListMachineTypesResponseObject, error) {
+	_ openapi.ListProcessesRequestObject,
+) (openapi.ListProcessesResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.machineLogbook.ListMachineTypes(ctx, p)
+	items, err := s.machineLogbook.ListProcesses(ctx, p)
 	if err != nil {
 		return nil, err
 	}
-	dto := make([]openapi.MachineType, 0, len(items))
+	dto := make([]openapi.Process, 0, len(items))
 	for _, item := range items {
-		dto = append(dto, mlMachineTypeDTO(item))
+		dto = append(dto, mlProcessDTO(item))
 	}
-	return openapi.ListMachineTypes200JSONResponse{Items: dto}, nil
+	return openapi.ListProcesses200JSONResponse{Items: dto}, nil
 }
 
-func (s *Server) CreateMachineType(
+func (s *Server) CreateProcess(
 	ctx context.Context,
-	r openapi.CreateMachineTypeRequestObject,
-) (openapi.CreateMachineTypeResponseObject, error) {
+	r openapi.CreateProcessRequestObject,
+) (openapi.CreateProcessResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -38,38 +38,56 @@ func (s *Server) CreateMachineType(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreateMachineType(ctx, p, r.Body.Name, string(r.Body.Process), requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
+	var measures []machinelogbook.ProcessMeasure
+	if r.Body.Measures != nil {
+		measures = processMeasuresInput(*r.Body.Measures)
 	}
-	return openapi.CreateMachineType201JSONResponse(mlMachineTypeDTO(item)), nil
-}
-
-func (s *Server) UpdateMachineType(
-	ctx context.Context,
-	r openapi.UpdateMachineTypeRequestObject,
-) (openapi.UpdateMachineTypeResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	item, err := s.machineLogbook.UpdateMachineType(
+	item, err := s.machineLogbook.CreateProcess(
 		ctx,
 		p,
-		r.MachineTypeId,
-		r.Body.ExpectedVersion,
 		r.Body.Name,
-		r.Body.Active,
-		machineProcessPointer(r.Body.Process),
+		machinelogbook.ProcessIntegration(r.Body.Integration),
+		measures,
 		requestIDPointer(ctx),
 	)
 	if err != nil {
 		return nil, err
 	}
-	return openapi.UpdateMachineType200JSONResponse(mlMachineTypeDTO(item)), nil
+	return openapi.CreateProcess201JSONResponse(mlProcessDTO(item)), nil
+}
+
+func (s *Server) UpdateProcess(
+	ctx context.Context,
+	r openapi.UpdateProcessRequestObject,
+) (openapi.UpdateProcessResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	changes := machinelogbook.ProcessChanges{Name: r.Body.Name, Active: r.Body.Active}
+	if r.Body.Integration != nil {
+		integration := machinelogbook.ProcessIntegration(*r.Body.Integration)
+		changes.Integration = &integration
+	}
+	if r.Body.Measures != nil {
+		measures := processMeasuresInput(*r.Body.Measures)
+		changes.Measures = &measures
+	}
+	item, err := s.machineLogbook.UpdateProcess(
+		ctx,
+		p,
+		r.ProcessId,
+		r.Body.ExpectedVersion,
+		changes,
+		requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.UpdateProcess200JSONResponse(mlProcessDTO(item)), nil
 }
 
 func (s *Server) ListMachines(
@@ -117,7 +135,7 @@ func (s *Server) CreateMachine(
 	item, err := s.machineLogbook.CreateMachine(
 		ctx,
 		p,
-		r.Body.MachineTypeId,
+		r.Body.ProcessId,
 		r.Body.Name,
 		machinelogbook.MachineStatus(r.Body.Status),
 		nullableStringPointer(r.Body.ExternalIdentifier),
@@ -161,7 +179,7 @@ func (s *Server) UpdateMachine(
 		p,
 		r.MachineId,
 		r.Body.ExpectedVersion,
-		r.Body.MachineTypeId,
+		r.Body.ProcessId,
 		r.Body.Name,
 		machinelogbook.MachineStatus(r.Body.Status),
 		nullableStringPointer(r.Body.ExternalIdentifier),

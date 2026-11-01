@@ -1,7 +1,7 @@
 import { Controller, useForm } from 'react-hook-form';
 import { InlineNotification, Modal, MultiSelect, NumberInput, Stack, TextArea, TextInput, Toggle } from '@carbon/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { CompetencyCategory, MachineType, Training } from '../../api/generated/models';
+import type { CompetencyCategory, Process, Training } from '../../api/generated/models';
 import {
   createCompetencyCategory,
   createTraining,
@@ -152,20 +152,20 @@ type TrainingValues = {
   active: boolean;
   sortOrder: number;
   competencyIds: string[];
-  machineTypeIds: string[];
+  processIds: string[];
 };
 
-/** Creates or edits a training, the competencies it feeds and the machine types it covers. */
+/** Creates or edits a training, the competencies it feeds and the processes it covers. */
 export function TrainingFormModal({
   training,
   categories,
-  machineTypes,
+  processes,
   onClose,
 }: {
   training?: Training;
   categories: readonly CompetencyCategory[];
-  /** Undefined when the person may not read machine types; the links are then kept as they are. */
-  machineTypes: readonly MachineType[] | undefined;
+  /** Undefined when the person may not read processes; the links are then kept as they are. */
+  processes: readonly Process[] | undefined;
   onClose: () => void;
 }) {
   const client = useQueryClient();
@@ -176,7 +176,7 @@ export function TrainingFormModal({
       active: training?.active ?? true,
       sortOrder: training?.sortOrder ?? 0,
       competencyIds: training?.competencyIds ?? [],
-      machineTypeIds: training?.machineTypeIds ?? [],
+      processIds: training?.processIds ?? [],
     },
   });
   const save = useMutation({
@@ -187,7 +187,7 @@ export function TrainingFormModal({
         active: values.active,
         sortOrder: Number(values.sortOrder),
         competencyIds: values.competencyIds,
-        machineTypeIds: values.machineTypeIds,
+        processIds: values.processIds,
       };
       return training
         ? updateTraining(training.id, { ...body, expectedVersion: training.version })
@@ -206,9 +206,7 @@ export function TrainingFormModal({
   const categoryItems = categories.filter(
     (category) => category.active || training?.competencyIds.includes(category.id),
   );
-  const machineTypeItems = (machineTypes ?? []).filter(
-    (type) => type.active || training?.machineTypeIds.includes(type.id),
-  );
+  const processItems = (processes ?? []).filter((item) => item.active || training?.processIds.includes(item.id));
   return (
     <Modal
       open
@@ -281,19 +279,19 @@ export function TrainingFormModal({
               />
             )}
           />
-          {machineTypes && (
+          {processes && (
             <Controller
               control={control}
-              name="machineTypeIds"
+              name="processIds"
               render={({ field }) => (
-                <MultiSelect<MachineType>
+                <MultiSelect<Process>
                   autoAlign
-                  id="training-machine-types"
-                  titleText="Machine types (optional)"
-                  label="Choose machine types"
-                  items={machineTypeItems}
+                  id="training-processes"
+                  titleText="Processes (optional)"
+                  label="Choose processes"
+                  items={processItems}
                   itemToString={(item) => item?.name ?? ''}
-                  selectedItems={machineTypeItems.filter((item) => field.value.includes(item.id))}
+                  selectedItems={processItems.filter((item) => field.value.includes(item.id))}
                   onChange={({ selectedItems }) => field.onChange((selectedItems ?? []).map((item) => item.id))}
                 />
               )}

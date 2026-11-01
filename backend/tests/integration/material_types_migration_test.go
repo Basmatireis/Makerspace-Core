@@ -66,10 +66,10 @@ func TestMaterialTypesMigrationMapsCategoriesAndKeepsPricing(t *testing.T) {
 		)
 		exec(`INSERT INTO material_balances (material_id) VALUES ($1)`, m.id)
 	}
-	group, machineType, machine, job, snapshot := id(), id(), id(), id(), id()
+	group, process, machine, job, snapshot := id(), id(), id(), id(), id()
 	exec(`INSERT INTO pricing_groups (id, name) VALUES ($1, 'Legacy group')`, group)
-	exec(`INSERT INTO machine_types (id, name) VALUES ($1, 'Legacy type')`, machineType)
-	exec(`INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, 'Legacy machine')`, machine, machineType)
+	exec(`INSERT INTO machine_types (id, name) VALUES ($1, 'Legacy type')`, process)
+	exec(`INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, 'Legacy machine')`, machine, process)
 	rule := func(ruleID uuid.UUID, category, unit, rate string) {
 		exec(
 			`INSERT INTO pricing_rules (id, pricing_group_id, kind, material_category, material_unit, rate) VALUES ($1, $2, 'material', $3, $4, $5::numeric)`,

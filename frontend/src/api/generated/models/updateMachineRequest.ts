@@ -28,7 +28,7 @@ export interface UpdateMachineRequest {
      * @maxLength 150
      */
   name: string;
-  machineTypeId: UUIDv7;
+  processId: UUIDv7;
   status: MachineStatus;
   /**
      * @maxLength 200

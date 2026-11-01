@@ -19,9 +19,9 @@ type PriceQuoteInput struct {
 }
 
 type PriceQuoteMachine struct {
-	ID              uuid.UUID
-	Name            string
-	MachineTypeName string
+	ID          uuid.UUID
+	Name        string
+	ProcessName string
 }
 
 type PriceQuoteMaterial struct {
@@ -76,15 +76,15 @@ func (s *Service) QuotePrice(ctx context.Context, p authorization.Principal, in 
 	}
 	q := machinelogbookdb.New(s.pool)
 	quote := PriceQuote{}
-	var machineTypeID, materialTypeID uuid.UUID
+	var processID, materialTypeID uuid.UUID
 	var unit string
 	if in.MachineID != nil {
 		machine, err := q.GetMachine(ctx, *in.MachineID)
 		if err != nil {
 			return PriceQuote{}, noRows(err)
 		}
-		machineTypeID = machine.MachineTypeID
-		quote.Machine = &PriceQuoteMachine{ID: machine.ID, Name: machine.Name, MachineTypeName: machine.MachineTypeName}
+		processID = machine.ProcessID
+		quote.Machine = &PriceQuoteMachine{ID: machine.ID, Name: machine.Name, ProcessName: machine.ProcessName}
 		quote.Hours = decimalPointer(hours)
 	}
 	if in.MaterialID != nil {
@@ -123,7 +123,7 @@ func (s *Service) QuotePrice(ctx context.Context, p authorization.Principal, in 
 		item := PriceQuoteGroup{PricingGroupID: group.ID, Name: group.Name, IsDefault: group.IsDefault, Complete: true}
 		total := decimal.Zero
 		if in.MachineID != nil {
-			if rule := runtimeRuleFor(rules, machineTypeID); rule != nil {
+			if rule := runtimeRuleFor(rules, processID); rule != nil {
 				rate := decimalFromNumeric(rule.Rate)
 				amount := hours.Mul(rate)
 				item.MachineRate, item.MachineAmount = decimalPointer(rate), decimalPointer(amount.Round(2))
@@ -184,10 +184,10 @@ func parseNonNegativeDecimal(value string) (decimal.Decimal, error) {
 	return d, nil
 }
 
-func runtimeRuleFor(rules []machinelogbookdb.PricingRule, machineTypeID uuid.UUID) *machinelogbookdb.PricingRule {
+func runtimeRuleFor(rules []machinelogbookdb.PricingRule, processID uuid.UUID) *machinelogbookdb.PricingRule {
 	for i := range rules {
-		if PricingRuleKind(rules[i].Kind) == PricingRuleMachineRuntime && rules[i].MachineTypeID != nil &&
-			*rules[i].MachineTypeID == machineTypeID {
+		if PricingRuleKind(rules[i].Kind) == PricingRuleMachineRuntime && rules[i].ProcessID != nil &&
+			*rules[i].ProcessID == processID {
 			return &rules[i]
 		}
 	}

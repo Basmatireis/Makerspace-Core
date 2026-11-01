@@ -178,15 +178,15 @@ func TestPriceQuoteOverHTTP(t *testing.T) {
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
-	machineType, err := logbook.CreateMachineType(ctx, master, "Quote printer", "fdm_printing", nil)
+	process, err := logbook.CreateProcess(ctx, master, "Quote printer", machinelogbook.IntegrationFDMPrinter, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	machine, err := logbook.CreateMachine(ctx, master, machineType.ID, "Quote machine", "active", nil, false, nil)
+	machine, err := logbook.CreateMachine(ctx, master, process.ID, "Quote machine", "active", nil, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	materialType, err := logbook.CreateMaterialType(ctx, master, "Quote PLA", "filament", "g", []string{"fdm_printing"}, nil)
+	materialType, err := logbook.CreateMaterialType(ctx, master, "Quote PLA", "filament", "g", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestPriceQuoteOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "machine_runtime", &machineType.ID, nil, nil, "12", nil); err != nil {
+	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "machine_runtime", &process.ID, nil, nil, "12", nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "material", nil, &materialType.ID, nil, "0.5", nil); err != nil {

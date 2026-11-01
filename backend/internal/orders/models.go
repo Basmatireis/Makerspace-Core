@@ -87,8 +87,8 @@ type JobChargeSnapshot struct {
 	DisplayID           string                       `json:"displayId"`
 	MachineID           uuid.UUID                    `json:"machineId"`
 	MachineName         string                       `json:"machineName"`
-	MachineTypeID       uuid.UUID                    `json:"machineTypeId"`
-	MachineTypeName     string                       `json:"machineTypeName"`
+	ProcessID           uuid.UUID                    `json:"processId"`
+	ProcessName         string                       `json:"processName"`
 	StartsAt            time.Time                    `json:"startsAt"`
 	EndsAt              time.Time                    `json:"endsAt"`
 	DurationNanoseconds string                       `json:"durationNanoseconds"`

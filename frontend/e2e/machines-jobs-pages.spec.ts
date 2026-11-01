@@ -61,9 +61,9 @@ const targets: Target[] = [
     ready: (page) => page.getByRole('switch', { name: 'Printer profile enabled' }),
   },
   {
-    name: 'Machines, Machine types tab',
-    path: `${base}/machines?tab=types`,
-    ready: (page) => page.getByRole('table', { name: 'Machine types' }),
+    name: 'Machines, Processes tab',
+    path: `${base}/machines?tab=processes`,
+    ready: (page) => page.getByRole('table', { name: 'Processes' }),
   },
   {
     name: 'Inventory, Filament tab',
@@ -276,7 +276,7 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
     await page.goto(`${base}/machines`);
     await page.locator('.cds--table-toolbar').getByRole('button', { name: 'Add machine' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add machine' });
-    await dialog.getByLabel('Machine type').selectOption({ label: '3D printer' });
+    await dialog.getByLabel('Process').selectOption({ label: '3D printer' });
     await expect(dialog.getByRole('radio', { name: /Bambu Lab H2D/ })).toBeVisible();
     await checkDialog(page, dialog);
   });

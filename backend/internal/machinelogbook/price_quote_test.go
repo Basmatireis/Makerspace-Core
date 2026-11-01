@@ -27,7 +27,7 @@ func newQuoteFixture(t *testing.T) *quoteFixture {
 			t.Fatal(err)
 		}
 	}
-	typeID, materialTypeID := f.machine.MachineType.ID, f.materialType.ID
+	typeID, materialTypeID := f.machine.Process.ID, f.materialType.ID
 	suffix := f.person.String()[:8]
 	newGroup := func(name string) PricingGroup {
 		group, err := f.s.CreatePricingGroup(ctx, f.p, "Quote "+name+" "+suffix, nil, false, &f.request)
@@ -242,7 +242,7 @@ func TestQuotePriceIgnoresInactiveRules(t *testing.T) {
 		}
 	}
 	if _, err = f.s.UpdatePricingRule(
-		ctx, f.p, r.ID, r.Version, r.Kind, r.MachineTypeID, r.MaterialTypeID, r.Measure, "7", false, &f.request,
+		ctx, f.p, r.ID, r.Version, r.Kind, r.ProcessID, r.MaterialTypeID, r.Measure, "7", false, &f.request,
 	); err != nil {
 		t.Fatal(err)
 	}

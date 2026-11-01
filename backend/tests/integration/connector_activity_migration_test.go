@@ -39,9 +39,9 @@ func TestConnectorActivityMigrationMovesRuntimeAuditRows(t *testing.T) {
 		}
 	}
 	id := func() uuid.UUID { return uuid.Must(uuid.NewV7()) }
-	machineType, machine, connector, assignment, event := id(), id(), id(), id(), id()
-	exec(`INSERT INTO machine_types (id, name) VALUES ($1, 'Migration printer type')`, machineType)
-	exec(`INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, 'Migration printer')`, machine, machineType)
+	process, machine, connector, assignment, event := id(), id(), id(), id(), id()
+	exec(`INSERT INTO machine_types (id, name) VALUES ($1, 'Migration printer type')`, process)
+	exec(`INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, 'Migration printer')`, machine, process)
 	exec(`INSERT INTO printer_profiles (machine_id) VALUES ($1)`, machine)
 	exec(`INSERT INTO printer_connectors (id, name) VALUES ($1, 'Migration connector')`, connector)
 	exec(

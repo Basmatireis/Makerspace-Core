@@ -109,11 +109,11 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := logbook.CreateMachineType(
+	process, err := logbook.CreateProcess(
 		ctx,
 		principal,
 		"Connector printer "+suffix,
-		"fdm_printing",
+		machinelogbook.IntegrationFDMPrinter, nil,
 		&requestID,
 	)
 	if err != nil {
@@ -122,7 +122,7 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	machine, err := logbook.CreateMachine(
 		ctx,
 		principal,
-		machineType.ID,
+		process.ID,
 		"Simulated printer "+suffix,
 		"active",
 		nil,

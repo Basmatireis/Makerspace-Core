@@ -126,12 +126,12 @@ func (s *Server) CreateTraining(
 		return nil, invalidRequest("request body is required")
 	}
 	item, err := s.trainings.CreateTraining(ctx, p, trainings.TrainingInput{
-		Name:           r.Body.Name,
-		Description:    nullableStringPointer(r.Body.Description),
-		Active:         r.Body.Active,
-		SortOrder:      r.Body.SortOrder,
-		CompetencyIDs:  r.Body.CompetencyIds,
-		MachineTypeIDs: r.Body.MachineTypeIds,
+		Name:          r.Body.Name,
+		Description:   nullableStringPointer(r.Body.Description),
+		Active:        r.Body.Active,
+		SortOrder:     r.Body.SortOrder,
+		CompetencyIDs: r.Body.CompetencyIds,
+		ProcessIDs:    r.Body.ProcessIds,
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -151,12 +151,12 @@ func (s *Server) UpdateTraining(
 		return nil, invalidRequest("request body is required")
 	}
 	item, err := s.trainings.UpdateTraining(ctx, p, r.TrainingId, r.Body.ExpectedVersion, trainings.TrainingInput{
-		Name:           r.Body.Name,
-		Description:    nullableStringPointer(r.Body.Description),
-		Active:         r.Body.Active,
-		SortOrder:      r.Body.SortOrder,
-		CompetencyIDs:  r.Body.CompetencyIds,
-		MachineTypeIDs: r.Body.MachineTypeIds,
+		Name:          r.Body.Name,
+		Description:   nullableStringPointer(r.Body.Description),
+		Active:        r.Body.Active,
+		SortOrder:     r.Body.SortOrder,
+		CompetencyIDs: r.Body.CompetencyIds,
+		ProcessIDs:    r.Body.ProcessIds,
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -197,17 +197,17 @@ func competencyCategoryDTO(item trainings.CompetencyCategory) openapi.Competency
 
 func trainingDTO(item trainings.Training) openapi.Training {
 	return openapi.Training{
-		Id:             item.ID,
-		Name:           item.Name,
-		Description:    nullableString(item.Description),
-		Active:         item.Active,
-		SortOrder:      item.SortOrder,
-		CompetencyIds:  item.CompetencyIDs,
-		MachineTypeIds: item.MachineTypeIDs,
-		RecordCount:    item.RecordCount,
-		Version:        item.Version,
-		CreatedAt:      item.CreatedAt,
-		UpdatedAt:      item.UpdatedAt,
+		Id:            item.ID,
+		Name:          item.Name,
+		Description:   nullableString(item.Description),
+		Active:        item.Active,
+		SortOrder:     item.SortOrder,
+		CompetencyIds: item.CompetencyIDs,
+		ProcessIds:    item.ProcessIDs,
+		RecordCount:   item.RecordCount,
+		Version:       item.Version,
+		CreatedAt:     item.CreatedAt,
+		UpdatedAt:     item.UpdatedAt,
 	}
 }
 

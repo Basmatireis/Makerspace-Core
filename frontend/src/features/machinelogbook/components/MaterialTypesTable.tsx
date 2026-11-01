@@ -7,7 +7,8 @@ import { DeleteMaterialTypeModal } from '../dialogs/DeleteMaterialTypeModal';
 import { KindChoiceModal } from '../dialogs/KindChoiceModal';
 import { MaterialTypeFormModal } from '../dialogs/MaterialTypeFormModal';
 import { materialTypesQuery } from '../inventoryQueries';
-import { processConfig, processOptions } from '../processConfig';
+import { processesQuery } from '../queries';
+import { useCan } from '../shared/useCan';
 import { DirectoryTable, useUrlState, type Column } from '../shared/DirectoryTable';
 import { QueryBoundary } from '../shared/QueryBoundary';
 import { ArticleKindTag, articleKinds, kindNames, unitLabel } from './inventoryShared';
@@ -33,6 +34,12 @@ function TypesTable({
   switcher: ReactNode;
 }) {
   const [dialog, setDialog] = useState<Dialog | null>(null);
+  const can = useCan();
+  const processes = useQuery({ ...processesQuery(), enabled: can('machines.read') });
+  const processNames = new Map((processes.data?.items ?? []).map((item) => [item.id, item.name]));
+  // Without permission to read processes the column and filter stay out; the links themselves are unaffected.
+  const processLabels = (row: MaterialType) =>
+    row.processIds.map((id) => processNames.get(id)).filter((name): name is string => Boolean(name));
   const url = useUrlState('');
   const kindIds = url.list('kind');
   const processIds = url.list('process');
@@ -40,7 +47,7 @@ function TypesTable({
   const rows = types.filter(
     (row) =>
       (kindIds.length === 0 || kindIds.includes(row.kind)) &&
-      (processIds.length === 0 || processIds.some((process) => (row.processes as string[]).includes(process))) &&
+      (processIds.length === 0 || processIds.some((id) => row.processIds.includes(id))) &&
       (statusIds.length === 0 || statusIds.includes(row.active ? 'active' : 'inactive')),
   );
   const close = () => setDialog(null);
@@ -75,7 +82,7 @@ function TypesTable({
       key: 'processes',
       header: 'Processes',
       narrow: true,
-      render: (row) => row.processes.map((process) => processConfig[process].label).join(', ') || '—',
+      render: (row) => processLabels(row).join(', ') || '—',
     },
     {
       key: 'articles',
@@ -120,7 +127,7 @@ function TypesTable({
             row.name,
             kindNames[row.kind],
             unitLabel(row.unit),
-            ...row.processes.map((process) => processConfig[process].label),
+            ...processLabels(row),
             row.active ? 'Active' : 'Inactive',
           ].join(' ')
         }
@@ -128,7 +135,15 @@ function TypesTable({
         onRowClick={canManage ? (row) => setDialog({ name: 'form', type: row }) : undefined}
         filterCategories={[
           { key: 'kind', label: 'Kind', options: articleKinds.map((id) => ({ id, label: choiceLabels[id] })) },
-          { key: 'process', label: 'Process', options: processOptions.map(({ id, label }) => ({ id, label })) },
+          ...(processes.data
+            ? [
+                {
+                  key: 'process',
+                  label: 'Process',
+                  options: processes.data.items.map(({ id, name }) => ({ id, label: name })),
+                },
+              ]
+            : []),
           {
             key: 'status',
             label: 'Status',

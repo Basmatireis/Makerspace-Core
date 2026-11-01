@@ -5,7 +5,7 @@ Training records say who completed which training. Open days derive from them wh
 ## Model
 
 - **Competency** (`competency_categories`): what may be shown publicly, for example "3D printing" or "Laser cutting". Its name is the public label. It has an internal description, a sort order and an active flag.
-- **Training** (`trainings`): an internal course type, for example "Bambu Lab H2D – operation". It feeds one or more competencies (`training_competencies`) and may name the machine types it covers (`training_machine_types`, informational only). It has a description, a sort order and an active flag.
+- **Training** (`trainings`): an internal course type, for example "Bambu Lab H2D – operation". It feeds one or more competencies (`training_competencies`) and may name the processes it covers (`training_processes`, `processIds`, informational only). It has a description, a sort order and an active flag.
 - **Training record** (`training_records`, one per person and training): `trained` or `trainer`, with an optional completion date and internal notes. **Not trained is the absence of a record**; the API reports it as `not_trained`. `trainer` includes `trained`: the person completed the training and may give it. Records hang on people, so people without accounts can hold them, and hard-deleting a person deletes their records.
 
 Schema: migration 00071.
@@ -56,7 +56,7 @@ Public output never contains people, training names or IDs, notes, or whether so
 
 - **People › person › Trainings**: status per training. With `training_records.update` an edit button opens a dialog with the three-state choice (Not trained / Trained / Can train others), completion date and internal notes. On the own person the button needs `training_records.update.self` instead.
 - **Profile**: the own trainings, read-only with `training_records.read.self`, editable with `training_records.update.self`.
-- **Settings › Lab operations › Trainings & competencies** (`trainings.manage`): the trainings with their competencies and machine types, and the competencies with public label, sort order and active flag.
+- **Settings › Lab operations › Trainings & competencies** (`trainings.manage`): the trainings with their competencies and processes, and the competencies with public label, sort order and active flag.
 
 ## Configuration transfer
 

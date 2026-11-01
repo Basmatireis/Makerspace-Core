@@ -20,34 +20,34 @@
  */
 import type {
   CreateMachineRequest,
-  CreateMachineTypeRequest,
+  CreateProcessRequest,
   ListMachinesParams,
   Machine,
   MachinePage,
-  MachineType,
-  MachineTypeList,
+  Process,
+  ProcessList,
   UUIDv7,
   UpdateMachineRequest,
-  UpdateMachineTypeRequest,
+  UpdateProcessRequest,
   VersionRequest
 } from '../models';
 
 import { apiFetch } from '../../http-client';
 
-export const getListMachineTypesUrl = () => {
+export const getListProcessesUrl = () => {
 
 
 
 
-  return `/api/v1/machine-types`
+  return `/api/v1/processes`
 }
 
 /**
- * @summary List machine types
+ * @summary List processes
  */
-export const listMachineTypes = async ( options?: Parameters<typeof apiFetch>[1]): Promise<MachineTypeList> => {
+export const listProcesses = async ( options?: Parameters<typeof apiFetch>[1]): Promise<ProcessList> => {
 
-  return apiFetch<MachineTypeList>(getListMachineTypesUrl(),
+  return apiFetch<ProcessList>(getListProcessesUrl(),
   {
     ...options,
     method: 'GET'
@@ -57,18 +57,18 @@ export const listMachineTypes = async ( options?: Parameters<typeof apiFetch>[1]
 );}
 
 
-export const getCreateMachineTypeUrl = () => {
+export const getCreateProcessUrl = () => {
 
 
 
 
-  return `/api/v1/machine-types`
+  return `/api/v1/processes`
 }
 
 /**
- * @summary Create a machine type
+ * @summary Create a process
  */
-export const createMachineType = async (createMachineTypeRequest: CreateMachineTypeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineType> => {
+export const createProcess = async (createProcessRequest: CreateProcessRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Process> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -84,29 +84,29 @@ export const createMachineType = async (createMachineTypeRequest: CreateMachineT
     }
     return headers;
   };
-return apiFetch<MachineType>(getCreateMachineTypeUrl(),
+return apiFetch<Process>(getCreateProcessUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(createMachineTypeRequest)
+    body: JSON.stringify(createProcessRequest)
   }
 );}
 
 
-export const getUpdateMachineTypeUrl = (machineTypeId: UUIDv7,) => {
+export const getUpdateProcessUrl = (processId: UUIDv7,) => {
 
 
 
 
-  return `/api/v1/machine-types/${machineTypeId}`
+  return `/api/v1/processes/${processId}`
 }
 
 /**
- * @summary Update a machine type
+ * @summary Update a process
  */
-export const updateMachineType = async (machineTypeId: UUIDv7,
-    updateMachineTypeRequest: UpdateMachineTypeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MachineType> => {
+export const updateProcess = async (processId: UUIDv7,
+    updateProcessRequest: UpdateProcessRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Process> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -122,12 +122,12 @@ export const updateMachineType = async (machineTypeId: UUIDv7,
     }
     return headers;
   };
-return apiFetch<MachineType>(getUpdateMachineTypeUrl(machineTypeId),
+return apiFetch<Process>(getUpdateProcessUrl(processId),
   {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(updateMachineTypeRequest)
+    body: JSON.stringify(updateProcessRequest)
   }
 );}
 

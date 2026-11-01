@@ -12,13 +12,13 @@ import (
 
 type Querier interface {
 	CountExistingCompetencyCategories(ctx context.Context, ids []uuid.UUID) (int64, error)
-	CountExistingMachineTypes(ctx context.Context, ids []uuid.UUID) (int64, error)
+	CountExistingProcesses(ctx context.Context, ids []uuid.UUID) (int64, error)
 	CreateCompetencyCategory(ctx context.Context, arg CreateCompetencyCategoryParams) error
 	CreateTraining(ctx context.Context, arg CreateTrainingParams) error
 	DeleteCompetencyCategory(ctx context.Context, arg DeleteCompetencyCategoryParams) (int64, error)
 	DeleteTraining(ctx context.Context, arg DeleteTrainingParams) (int64, error)
 	DeleteTrainingCompetencies(ctx context.Context, trainingID uuid.UUID) error
-	DeleteTrainingMachineTypes(ctx context.Context, trainingID uuid.UUID) error
+	DeleteTrainingProcesses(ctx context.Context, trainingID uuid.UUID) error
 	DeleteTrainingRecord(ctx context.Context, arg DeleteTrainingRecordParams) (int64, error)
 	GetCompetencyCategory(ctx context.Context, id uuid.UUID) (GetCompetencyCategoryRow, error)
 	GetCompetencyCategoryForUpdate(ctx context.Context, id uuid.UUID) (CompetencyCategory, error)
@@ -27,7 +27,7 @@ type Querier interface {
 	GetTrainingForUpdate(ctx context.Context, id uuid.UUID) (Training, error)
 	GetTrainingRecordForUpdate(ctx context.Context, arg GetTrainingRecordForUpdateParams) (TrainingRecord, error)
 	InsertTrainingCompetency(ctx context.Context, arg InsertTrainingCompetencyParams) error
-	InsertTrainingMachineType(ctx context.Context, arg InsertTrainingMachineTypeParams) error
+	InsertTrainingProcess(ctx context.Context, arg InsertTrainingProcessParams) error
 	InsertTrainingRecord(ctx context.Context, arg InsertTrainingRecordParams) error
 	ListCompetencyCategories(ctx context.Context) ([]ListCompetencyCategoriesRow, error)
 	// The active competency categories the supervisors assigned to scheduled open days are trained for. Trainee places,
@@ -37,7 +37,7 @@ type Querier interface {
 	// Every active training plus inactive ones the person holds a record of; no record means not trained.
 	ListPersonTrainingRecords(ctx context.Context, personID uuid.UUID) ([]ListPersonTrainingRecordsRow, error)
 	ListTrainingCompetencies(ctx context.Context, trainingIds []uuid.UUID) ([]TrainingCompetency, error)
-	ListTrainingMachineTypes(ctx context.Context, trainingIds []uuid.UUID) ([]TrainingMachineType, error)
+	ListTrainingProcesses(ctx context.Context, trainingIds []uuid.UUID) ([]TrainingProcess, error)
 	ListTrainings(ctx context.Context) ([]ListTrainingsRow, error)
 	LockPersonForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	PersonExists(ctx context.Context, id uuid.UUID) (bool, error)

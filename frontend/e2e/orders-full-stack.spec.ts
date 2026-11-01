@@ -64,16 +64,16 @@ test('sells billable jobs and manual items, takes cash and card, runs the wiRef 
   const organization = await parse<Identified & { pricingGroupAssignmentVersion: number }>(
     await post('/organizations', { name: organizationName, kind: 'institute' }),
   );
-  const machineType = await parse<Identified>(
-    await post('/machine-types', {
+  const workProcess = await parse<Identified>(
+    await post('/processes', {
       name: 'Orders E2E workshop ' + runTag,
-      process: 'other',
+      integration: 'none',
     }),
   );
   const machine = await parse<Identified>(
     await post('/machines', {
       name: 'Orders E2E machine ' + runTag,
-      machineTypeId: machineType.id,
+      processId: workProcess.id,
       status: 'active',
       automaticCollectionEnabled: false,
     }),
@@ -87,7 +87,7 @@ test('sells billable jobs and manual items, takes cash and card, runs the wiRef 
   await parse<Identified>(
     await post(`/pricing-groups/${pricingGroup.id}/rules`, {
       kind: 'machine_runtime',
-      machineTypeId: machineType.id,
+      processId: workProcess.id,
       rate: '5.00',
     }),
   );

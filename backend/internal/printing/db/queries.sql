@@ -124,7 +124,7 @@ UPDATE printer_slots SET name=sqlc.arg(name), position=sqlc.arg(position), exter
 WHERE id=sqlc.arg(id);
 
 -- name: GetMachineProcess :one
-SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = sqlc.arg(machine_id);
+SELECT mt.integration FROM machines m JOIN processes mt ON mt.id = m.process_id WHERE m.id = sqlc.arg(machine_id);
 
 -- name: LockSpoolLifecycle :one
 SELECT lifecycle FROM filament_spools WHERE id=sqlc.arg(id) FOR UPDATE;

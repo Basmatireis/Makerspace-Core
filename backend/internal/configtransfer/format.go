@@ -33,7 +33,7 @@ const (
 	SectionDeviceTypes         SectionKey = "deviceTypes"
 	SectionSessionPolicies     SectionKey = "sessionPolicies"
 	SectionRoles               SectionKey = "roles"
-	SectionMachineTypes        SectionKey = "machineTypes"
+	SectionProcesses           SectionKey = "processes"
 	SectionCompetencies        SectionKey = "competencies"
 	SectionTrainings           SectionKey = "trainings"
 	SectionMaterialTypes       SectionKey = "materialTypes"

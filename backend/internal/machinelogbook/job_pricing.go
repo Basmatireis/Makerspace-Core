@@ -213,17 +213,21 @@ func (s *Service) capturePricingSnapshot(
 		return job, err
 	}
 	runtimeSeconds, usages := inputs.RuntimeSeconds, inputs.Usages
-	machineType, err := q.GetMachineType(ctx, machine.MachineTypeID)
+	processMeasures, err := loadProcessMeasures(ctx, q, []uuid.UUID{machine.ProcessID})
 	if err != nil {
-		return job, noRows(err)
+		return job, err
+	}
+	definitions := map[string]ProcessMeasure{}
+	for _, m := range processMeasures[machine.ProcessID] {
+		definitions[m.Key] = m
 	}
 	complete := true
 	total := decimal.Zero
 	snapshotRules := make([]machinelogbookdb.InsertPricingSnapshotRuleParams, 0, len(usages)+2)
 	var runtime *machinelogbookdb.PricingRule
 	for i := range rules {
-		if PricingRuleKind(rules[i].Kind) == PricingRuleMachineRuntime && rules[i].MachineTypeID != nil &&
-			*rules[i].MachineTypeID == machine.MachineTypeID {
+		if PricingRuleKind(rules[i].Kind) == PricingRuleMachineRuntime && rules[i].ProcessID != nil &&
+			*rules[i].ProcessID == machine.ProcessID {
 			r := rules[i]
 			runtime = &r
 			break
@@ -233,7 +237,7 @@ func (s *Service) capturePricingSnapshot(
 		ID:       ids.New(),
 		Kind:     string(PricingRuleMachineRuntime),
 		Label:    "Machine runtime",
-		Selector: machine.MachineTypeID.String(),
+		Selector: machine.ProcessID.String(),
 		Unit:     "hour",
 	}
 	if runtime == nil {
@@ -249,7 +253,7 @@ func (s *Service) capturePricingSnapshot(
 	// Every measure the machine's process records gets an entry so the rate is
 	// fixed with the snapshot, plus any measure that already has a value.
 	measureSet := RunMeasures{}
-	for _, key := range processMeasures[machineType.Process] {
+	for key := range definitions {
 		measureSet[key] = 0
 	}
 	for key, value := range inputs.Measures {
@@ -258,21 +262,26 @@ func (s *Service) capturePricingSnapshot(
 		}
 	}
 	for _, key := range sortedMeasureKeys(measureSet) {
-		definition := measureDefinitions[key]
+		definition, defined := definitions[key]
+		if !defined {
+			// A measure of an older version of the process: keep its value, with the stored rule's block size.
+			definition = ProcessMeasure{Key: key, Label: key, Unit: key, BlockSize: 1}
+		}
 		block := definition.BlockSize
+		measureKey := definition.Key
 		entry := machinelogbookdb.InsertPricingSnapshotRuleParams{
 			ID:        ids.New(),
 			Kind:      string(PricingRuleMachineMeasure),
 			Label:     definition.Label,
 			Selector:  key,
-			Measure:   &definition.Key,
+			Measure:   &measureKey,
 			BlockSize: &block,
 			Unit:      definition.Unit,
 		}
 		var matched *machinelogbookdb.PricingRule
 		for i := range rules {
-			if PricingRuleKind(rules[i].Kind) == PricingRuleMachineMeasure && rules[i].MachineTypeID != nil &&
-				*rules[i].MachineTypeID == machine.MachineTypeID &&
+			if PricingRuleKind(rules[i].Kind) == PricingRuleMachineMeasure && rules[i].ProcessID != nil &&
+				*rules[i].ProcessID == machine.ProcessID &&
 				rules[i].Measure != nil &&
 				*rules[i].Measure == key {
 				r := rules[i]

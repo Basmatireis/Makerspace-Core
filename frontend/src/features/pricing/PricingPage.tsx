@@ -21,7 +21,7 @@ import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { materialTypesQuery } from '../machinelogbook/inventoryQueries';
-import { machineTypesQuery, pricingQuery } from '../machinelogbook/queries';
+import { processesQuery, pricingQuery } from '../machinelogbook/queries';
 import { listOrganizations } from '../../api/generated/organizations/organizations';
 import { pricingGaps, rateSelectors } from './selectors';
 import { RatesTab } from './RatesTab';
@@ -93,12 +93,12 @@ export function PricingPage() {
   const canEdit = hasPermission(user, PermissionId.pricingmanage);
   const canOrganizations = hasPermission(user, PermissionId.organizationsread);
   const pricing = useQuery(pricingQuery());
-  const machineTypes = useQuery({ ...machineTypesQuery(), enabled: canMachines });
+  const processes = useQuery({ ...processesQuery(), enabled: canMachines });
   const materialTypes = useQuery({ ...materialTypesQuery(), enabled: canInventory });
   const tabs = TABS.filter((id) => id !== 'organizations' || canOrganizations);
   const tab = Math.max(0, tabs.indexOf((params.get('tab') ?? 'rates') as (typeof TABS)[number]));
   const groups = pricing.data?.items ?? [];
-  const selectors = rateSelectors(machineTypes.data?.items ?? [], materialTypes.data ?? []);
+  const selectors = rateSelectors(processes.data?.items ?? [], materialTypes.data ?? []);
   const gaps = pricingGaps(groups, selectors).length;
   const defaultName = groups.find((group) => group.isDefault)?.name ?? 'none';
   return (

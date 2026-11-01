@@ -52,7 +52,7 @@ OpenDayPeriod 1 ─── * OpenDay 1 ─── 2 StaffRequirement
 
 AcademicBreak provides independently versioned calendar context.
 
-MachineType 1 ─── * Machine 1 ─── * MachineJob ─── * MaterialUsage ─── 1 Material
+Process 1 ─── * Machine 1 ─── * MachineJob ─── * MaterialUsage ─── 1 Material
                                       │     │                              │
                                       │     └── * immutable PricingSnapshot│
                                       └── customer Person xor Organization │

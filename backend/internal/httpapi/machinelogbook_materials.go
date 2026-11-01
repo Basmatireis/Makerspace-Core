@@ -286,7 +286,7 @@ func (s *Server) CreateMaterialType(
 		r.Body.Name,
 		machinelogbook.MaterialKind(r.Body.Kind),
 		string(r.Body.Unit),
-		machineProcessStringsPointer(r.Body.Processes),
+		processIDsPointer(r.Body.ProcessIds),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -329,7 +329,7 @@ func (s *Server) UpdateMaterialType(
 		r.Body.Name,
 		machinelogbook.MaterialKind(valueString(r.Body.Kind)),
 		string(r.Body.Unit),
-		machineProcessStringsPointer(r.Body.Processes),
+		processIDsPointer(r.Body.ProcessIds),
 		r.Body.Active,
 		requestIDPointer(ctx),
 	)

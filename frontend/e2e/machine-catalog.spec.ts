@@ -70,12 +70,12 @@ test('adds a machine from the list', async ({ page, world }) => {
   await page.locator('.cds--table-toolbar').getByRole('button', { name: 'Add machine' }).click();
   const dialog = page.getByRole('dialog', { name: 'Add machine' });
   await dialog.getByLabel('Name', { exact: true }).fill('Vinyl cutter');
-  await dialog.getByLabel('Machine type').selectOption({ label: 'Laser cutter' });
+  await dialog.getByLabel('Process').selectOption({ label: 'Laser cutter' });
   await dialog.getByRole('button', { name: 'Create and continue' }).click();
   await expect.poll(() => world.sent('POST', '/api/v1/machines')).toHaveLength(1);
   expect(world.bodyOf('POST', '/api/v1/machines')).toEqual({
     name: 'Vinyl cutter',
-    machineTypeId: ids.typeLaser,
+    processId: ids.typeLaser,
     status: 'active',
     externalIdentifier: null,
     automaticCollectionEnabled: false,

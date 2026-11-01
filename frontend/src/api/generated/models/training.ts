@@ -29,7 +29,7 @@ export interface Training {
   active: boolean;
   sortOrder: number;
   competencyIds: UUIDv7[];
-  machineTypeIds: UUIDv7[];
+  processIds: UUIDv7[];
   /**
      * People holding a training record (trained or trainer).
      * @minimum 0

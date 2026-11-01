@@ -26,10 +26,10 @@ import type { Version } from './version';
 
 export interface UpdatePricingRuleRequest {
   kind: PricingRuleKind;
-  machineTypeId?: UUIDv7 | null;
+  processId?: UUIDv7 | null;
   /** Required for material rules, forbidden for runtime and measure rules. */
   materialTypeId?: UUIDv7 | null;
-  /** Required for machine_measure rules (with machineTypeId), forbidden otherwise. */
+  /** Required for machine_measure rules (with processId), forbidden otherwise. */
   measure?: RunMeasureKey | null;
   rate: Decimal;
   expectedVersion: Version;

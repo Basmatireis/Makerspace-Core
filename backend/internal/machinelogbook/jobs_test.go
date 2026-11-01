@@ -94,7 +94,7 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 			_, _ = pool.Exec(cleanup, `DELETE FROM material_types WHERE id = $1`, f.materialType.ID)
 		}
 		for _, id := range typeIDs {
-			_, _ = pool.Exec(cleanup, `DELETE FROM machine_types WHERE id = $1`, id)
+			_, _ = pool.Exec(cleanup, `DELETE FROM processes WHERE id = $1`, id)
 		}
 		_, _ = pool.Exec(cleanup, `DELETE FROM accounts WHERE id = $1`, accountID)
 		_, _ = pool.Exec(cleanup, `DELETE FROM people WHERE id = $1`, f.person)
@@ -105,13 +105,13 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 			t.Fatal(err)
 		}
 	}
-	typ, err := f.s.CreateMachineType(ctx, f.p, "Jobs printer "+suffix, "fdm_printing", &f.request)
+	typ, err := f.s.CreateProcess(ctx, f.p, "Jobs printer "+suffix, IntegrationFDMPrinter, nil, &f.request)
 	must(err)
 	typeIDs = append(typeIDs, typ.ID)
 	f.machine, err = f.s.CreateMachine(ctx, f.p, typ.ID, "Jobs machine "+suffix, "active", nil, false, &f.request)
 	must(err)
 	machineIDs = append(machineIDs, f.machine.ID)
-	bareType, err := f.s.CreateMachineType(ctx, f.p, "Jobs bare "+suffix, "fdm_printing", &f.request)
+	bareType, err := f.s.CreateProcess(ctx, f.p, "Jobs bare "+suffix, IntegrationFDMPrinter, nil, &f.request)
 	must(err)
 	typeIDs = append(typeIDs, bareType.ID)
 	f.bareMachine, err = f.s.CreateMachine(
@@ -132,7 +132,7 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 		"Jobs PLA "+suffix,
 		"filament",
 		"g",
-		[]string{"fdm_printing"},
+		[]uuid.UUID{typ.ID, bareType.ID},
 		&f.request,
 	)
 	must(err)
