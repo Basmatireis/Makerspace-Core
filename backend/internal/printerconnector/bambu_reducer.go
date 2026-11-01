@@ -991,13 +991,13 @@ func (p *bambuProcessor) errorTransitions(
 	historyComplete bool,
 ) []Observation {
 	current := map[string]bool{}
-	if code := scalarString(state["print_error"]); code != "" && code != "0" {
+	if code := bambuPrintErrorCode(state["print_error"]); code != "" {
 		current["print:"+code] = true
 	}
 	if hms, ok := state["hms"].([]any); ok {
 		for _, raw := range hms {
 			entry, _ := raw.(map[string]any)
-			if code := firstScalar(entry, "code", "attr"); code != "" && code != "0" {
+			if code := bambuHMSCode(entry); code != "" {
 				current["hms:"+code] = true
 			}
 		}
@@ -1135,6 +1135,44 @@ func scalarString(value any) string {
 	default:
 		return ""
 	}
+}
+
+// bambuPrintErrorCode formats a print_error number the way Bambu shows it: eight upper-case hex digits
+// (134184963 becomes 07FF8003). It returns "" for no error. A value that is not a 32-bit number keeps
+// its text.
+//
+// Error keys are persisted as "family:code" (ActiveErrors). Keys stored in the former decimal form no
+// longer match, so they clear on the next status and the error is re-reported in the new form.
+func bambuPrintErrorCode(value any) string {
+	text := scalarString(value)
+	if text == "" || text == "0" {
+		return ""
+	}
+	number, err := strconv.ParseUint(text, 10, 32)
+	if err != nil {
+		return text
+	}
+	return fmt.Sprintf("%08X", number)
+}
+
+// bambuHMSCode formats an HMS entry as Bambu names it, AAAA-BBBB-CCCC-DDDD: the high and low 16 bits of
+// attr followed by the high and low 16 bits of code (the third group is the severity). An entry with
+// code 0 is no error. If attr or code is missing or not a 32-bit number, the plain decimal of whichever
+// is present is used so nothing is lost.
+func bambuHMSCode(entry map[string]any) string {
+	code, attr := scalarString(entry["code"]), scalarString(entry["attr"])
+	if code == "0" {
+		return ""
+	}
+	codeNumber, codeErr := strconv.ParseUint(code, 10, 32)
+	attrNumber, attrErr := strconv.ParseUint(attr, 10, 32)
+	if codeErr == nil && attrErr == nil {
+		return fmt.Sprintf("%04X-%04X-%04X-%04X", attrNumber>>16, attrNumber&0xFFFF, codeNumber>>16, codeNumber&0xFFFF)
+	}
+	if fallback := firstScalar(entry, "code", "attr"); fallback != "0" {
+		return fallback
+	}
+	return ""
 }
 
 func firstScalar(value map[string]any, keys ...string) string {

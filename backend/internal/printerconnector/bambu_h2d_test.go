@@ -465,7 +465,7 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 		if observation.Kind == "printer_error" {
 			var payload map[string]any
 			if json.Unmarshal(observation.Payload, &payload) != nil || payload["transition"] != "appeared" ||
-				payload["code"] != "134184963" {
+				payload["code"] != "07FF8003" {
 				t.Fatalf("unexpected printer error payload: %s", observation.Payload)
 			}
 		}
@@ -1480,6 +1480,112 @@ func TestRuntimeQuarantinesArtifactsCoreRejectsPermanently(t *testing.T) {
 			queued != 0 {
 			t.Fatalf("status %d: rejected transfer still counts as queued: %d %v", status, queued, err)
 		}
+	}
+}
+
+func TestRuntimeQuarantinesArtifactsThatAreTooLargeForCore(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	assignmentID, runID := ids.New(), ids.New()
+	archive := syntheticZIP(t, "3D/3dmodel.model", "model")
+	transfer, err := store.StageArtifact(
+		ctx, assignmentID, runID, 3, "/cache/part.3mf", "part.3mf", bytes.NewReader(archive),
+		time.Now().UTC().Add(time.Hour),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient("http://core.test", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.http.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		_, _ = io.Copy(io.Discard, request.Body)
+		return &http.Response{
+			StatusCode: http.StatusRequestEntityTooLarge,
+			Status:     http.StatusText(http.StatusRequestEntityTooLarge),
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader("<html>413 Request Entity Too Large</html>")),
+			Request:    request,
+		}, nil
+	})
+	var logs bytes.Buffer
+	runtime := &Runtime{client: client, store: store, logger: slog.New(slog.NewTextHandler(&logs, nil))}
+	if err = runtime.deliverArtifacts(ctx, Identity{CredentialSecret: "token"}); err != nil {
+		t.Fatalf("oversized artifact was reported as a delivery failure: %v", err)
+	}
+	pending, err := store.PendingArtifactTransfers(ctx, 20)
+	if err != nil || len(pending) != 0 {
+		t.Fatalf("oversized artifact is still pending: %#v %v", pending, err)
+	}
+	if _, err = os.Stat(transfer.StagedPath); !os.IsNotExist(err) {
+		t.Fatalf("oversized staged file was kept: %v", err)
+	}
+	line := logs.String()
+	if strings.Count(line, "level=WARN") != 1 || !strings.Contains(line, "status=413") ||
+		!strings.Contains(line, fmt.Sprintf("size_bytes=%d", len(archive))) {
+		t.Fatalf("oversized log = %s", line)
+	}
+	reports, err := store.PendingRunReports(ctx, 10)
+	if err != nil || len(reports) != 1 || reports[0].RunID != runID || reports[0].Consumption == nil ||
+		reports[0].Consumption.Reason == nil || *reports[0].Consumption.Reason != string(machineArtifactRejected) ||
+		reports[0].Consumption.Detail == nil || *reports[0].Consumption.Detail != "artifact_too_large" {
+		t.Fatalf("oversized artifact report = %+v %v", reports, err)
+	}
+}
+
+func TestRuntimeLogsRepeatedArtifactFailuresBelowWarn(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if _, err = store.StageArtifact(
+		ctx, ids.New(), ids.New(), 3, "/cache/part.3mf", "part.3mf",
+		bytes.NewReader(syntheticZIP(t, "3D/3dmodel.model", "model")), time.Now().UTC().Add(time.Hour),
+	); err != nil {
+		t.Fatal(err)
+	}
+	client, err := NewClient("http://core.test", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.http.Transport = roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		_, _ = io.Copy(io.Discard, request.Body)
+		return &http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Status:     "503 Service Unavailable",
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(`{"code":"temporarily_unavailable"}`)),
+			Request:    request,
+		}, nil
+	})
+	var logs bytes.Buffer
+	runtime := &Runtime{
+		client: client,
+		store:  store,
+		logger: slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+	}
+	for range 3 {
+		// The retry delay is irrelevant here; make the transfer due again.
+		if _, err = store.db.ExecContext(ctx, `UPDATE artifact_transfers SET next_attempt_at='2000-01-01T00:00:00Z'`); err != nil {
+			t.Fatal(err)
+		}
+		err = runtime.deliverArtifacts(ctx, Identity{CredentialSecret: "token"})
+		runtime.logFailureAt(slog.LevelWarn, "artifact delivery failed", err)
+	}
+	if got := strings.Count(logs.String(), "level=WARN"); got != 1 {
+		t.Fatalf("WARN lines = %d, want 1: %s", got, logs.String())
+	}
+	if got := strings.Count(logs.String(), "level=DEBUG"); got != 2 {
+		t.Fatalf("DEBUG lines = %d, want 2: %s", got, logs.String())
 	}
 }
 

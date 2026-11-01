@@ -367,11 +367,11 @@ func bambuLiveErrors(printState map[string]any, since map[string]time.Time, now 
 		observed := first
 		active[key] = liveError{SourceFamily: family, Code: code, ObservedAt: &observed}
 	}
-	add("print", scalarString(printState["print_error"]))
+	add("print", bambuPrintErrorCode(printState["print_error"]))
 	if hms, ok := printState["hms"].([]any); ok {
 		for _, raw := range hms {
 			entry, _ := raw.(map[string]any)
-			add("hms", firstScalar(entry, "code", "attr"))
+			add("hms", bambuHMSCode(entry))
 		}
 	}
 	for key := range since {

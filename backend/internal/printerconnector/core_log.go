@@ -1,10 +1,12 @@
 package printerconnector
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -45,9 +47,22 @@ func safeCode(code string) string {
 // answers from Core, the error type otherwise. A rejected credential additionally gets the rate-limited
 // actionable error.
 func (r *Runtime) logFailure(message string, err error) {
+	r.logFailureAt(slog.LevelWarn, message, err)
+}
+
+// logFailureAt is logFailure with a level; a repeatedFailureError is lowered to DEBUG.
+func (r *Runtime) logFailureAt(level slog.Level, message string, err error) {
+	var repeated *repeatedFailureError
+	if errors.As(err, &repeated) {
+		level = slog.LevelDebug
+		err = repeated.err
+	}
+	ctx := context.Background()
 	var coreErr *CoreError
 	if errors.As(err, &coreErr) {
-		r.logger.Warn(
+		r.logger.Log(
+			ctx,
+			level,
 			message,
 			"error_type",
 			fmt.Sprintf("%T", err),
@@ -57,7 +72,7 @@ func (r *Runtime) logFailure(message string, err error) {
 			safeCode(coreErr.Code),
 		)
 	} else {
-		r.logger.Warn(message, "error_type", fmt.Sprintf("%T", err))
+		r.logger.Log(ctx, level, message, "error_type", fmt.Sprintf("%T", err))
 	}
 	if credentialRejected(err) {
 		r.logCredentialRejected()

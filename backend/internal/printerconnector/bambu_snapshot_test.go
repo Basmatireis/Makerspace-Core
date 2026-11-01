@@ -136,7 +136,7 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 		t.Fatalf("tray_now 1 identifies exactly AMS 0 tray 1: %+v", snapshot.ActiveTray)
 	}
 
-	if len(snapshot.Errors) != 1 || snapshot.Errors[0].SourceFamily != "hms" || snapshot.Errors[0].Code != "196610" ||
+	if len(snapshot.Errors) != 1 || snapshot.Errors[0].SourceFamily != "hms" || snapshot.Errors[0].Code != "0501-0400-0003-0002" ||
 		!snapshot.Errors[0].ObservedAt.Equal(now) {
 		t.Fatalf("errors = %+v", snapshot.Errors)
 	}
@@ -690,5 +690,41 @@ func TestBuildBambuLiveSnapshotReportsRealTagUIDOnly(t *testing.T) {
 	encoded, err = json.Marshal(trays[0])
 	if err != nil || !strings.Contains(string(encoded), `"tagUid":"E2C92C29AABB"`) {
 		t.Fatalf("tagUid missing from the wire format: %s %v", encoded, err)
+	}
+}
+
+func TestBambuErrorCodesUseTheFormatBambuShows(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		entry map[string]any
+		want  string
+	}{
+		{"attr and code", map[string]any{"attr": float64(0x05010400), "code": float64(0x00030002)}, "0501-0400-0003-0002"},
+		{"string numbers", map[string]any{"attr": "83952640", "code": "196610"}, "0501-0400-0003-0002"},
+		{"code zero is no error", map[string]any{"attr": float64(1), "code": float64(0)}, ""},
+		{"only code keeps decimal", map[string]any{"code": float64(196610)}, "196610"},
+		{"only attr keeps decimal", map[string]any{"attr": float64(83952640)}, "83952640"},
+		{"empty", map[string]any{}, ""},
+	}
+	for _, tc := range cases {
+		if got := bambuHMSCode(tc.entry); got != tc.want {
+			t.Errorf("%s: bambuHMSCode = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+	printCases := []struct {
+		value any
+		want  string
+	}{
+		{float64(134184963), "07FF8003"},
+		{json.Number("134184963"), "07FF8003"},
+		{float64(0), ""},
+		{nil, ""},
+		{"not-a-number", "not-a-number"},
+	}
+	for _, tc := range printCases {
+		if got := bambuPrintErrorCode(tc.value); got != tc.want {
+			t.Errorf("bambuPrintErrorCode(%v) = %q, want %q", tc.value, got, tc.want)
+		}
 	}
 }

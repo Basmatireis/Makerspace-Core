@@ -44,6 +44,8 @@ type Runtime struct {
 
 	now             func() time.Time
 	lastRejectedLog time.Time
+	// lastArtifactFailure is the transfer and diagnostic of the last logged upload failure.
+	lastArtifactFailure artifactFailureKey
 
 	// exchange hands Core's update requests to the bundle's updater sidecar; updateSupported is true
 	// once Core's configuration showed that it accepts the updater report.
@@ -183,7 +185,7 @@ func (r *Runtime) Run(ctx context.Context) error {
 				r.logFailure("event delivery failed", err)
 			}
 			if err = r.deliverArtifacts(ctx, identity); err != nil {
-				r.logFailure("artifact delivery failed", err)
+				r.logFailureAt(slog.LevelWarn, "artifact delivery failed", err)
 			}
 			if err = r.deliverRunReports(ctx, identity); err != nil {
 				r.logFailure("run report delivery failed", err)
@@ -686,6 +688,17 @@ func (r *Runtime) deliverLiveStatus(ctx context.Context, identity Identity) {
 	}
 }
 
+type artifactFailureKey struct {
+	transferID uuid.UUID
+	diagnostic string
+}
+
+// repeatedFailureError marks an error that was already reported once, so it is logged below WARN.
+type repeatedFailureError struct{ err error }
+
+func (e *repeatedFailureError) Error() string { return e.err.Error() }
+func (e *repeatedFailureError) Unwrap() error { return e.err }
+
 func (r *Runtime) deliverArtifacts(ctx context.Context, identity Identity) error {
 	expired, err := r.store.ExpireArtifactTransfers(ctx)
 	if err != nil {
@@ -705,6 +718,22 @@ func (r *Runtime) deliverArtifacts(ctx context.Context, identity Identity) error
 			// 404 and 409 do not heal on retry: the assignment ended, the run
 			// is unknown or deleted, or the configuration changed.
 			var coreErr *CoreError
+			if errors.As(uploadErr, &coreErr) && coreErr.Status == http.StatusRequestEntityTooLarge {
+				// A proxy or Core limit refuses this archive's size; a retry cannot change that.
+				r.logger.Warn(
+					"artifact too large for Core; transfer quarantined",
+					"status", coreErr.Status,
+					"size_bytes", transfer.SizeBytes,
+				)
+				if queueErr := r.store.QuarantineRejectedArtifactTransfer(ctx, transfer.ID); queueErr != nil {
+					return fmt.Errorf("quarantine oversized artifact: %w", queueErr)
+				}
+				if reportErr := r.reportUploadProblem(ctx, transfer.AssignmentID, transfer.RunID, "unavailable",
+					machineArtifactRejected, "artifact_too_large"); reportErr != nil {
+					return reportErr
+				}
+				continue
+			}
 			if errors.As(uploadErr, &coreErr) && (coreErr.Status == 404 || coreErr.Status == 409 ||
 				coreErr.Status == http.StatusUnprocessableEntity) {
 				r.logFailure("artifact rejected by Core; transfer quarantined", uploadErr)
@@ -728,11 +757,26 @@ func (r *Runtime) deliverArtifacts(ctx context.Context, identity Identity) error
 				machineArtifactUploadFailed, diagnostic); reportErr != nil {
 				return reportErr
 			}
+			// The same transfer failing again for the same reason is retried every few seconds; only
+			// the first occurrence is worth a WARN.
+			failure := artifactFailureKey{transferID: transfer.ID, diagnostic: diagnostic}
+			r.mu.Lock()
+			repeated := r.lastArtifactFailure == failure
+			r.lastArtifactFailure = failure
+			r.mu.Unlock()
+			if repeated {
+				return &repeatedFailureError{err: uploadErr}
+			}
 			return uploadErr
 		}
 		if err = r.store.CompleteArtifactTransfer(ctx, transfer.ID); err != nil {
 			return err
 		}
+		r.mu.Lock()
+		if r.lastArtifactFailure.transferID == transfer.ID {
+			r.lastArtifactFailure = artifactFailureKey{}
+		}
+		r.mu.Unlock()
 	}
 	return nil
 }
