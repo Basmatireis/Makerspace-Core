@@ -178,7 +178,7 @@ function SurveyDetail({ survey }: { survey: Survey }) {
         onConfirm={() => remove.mutate()}
         onClose={() => setConfirm(null)}
       >
-        The survey with its questions, share links and invitations is permanently deleted. This cannot be undone.
+        The survey with its questions, share links and invitations is permanently deleted.
       </DestructiveActionDialog>
     </PageShell>
   );

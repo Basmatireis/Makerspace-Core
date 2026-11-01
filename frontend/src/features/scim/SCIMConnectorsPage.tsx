@@ -11,6 +11,7 @@ import {
   updateSCIMConnector,
 } from '../../api/generated/scim-administration/scim-administration';
 import type { SCIMConnector, SCIMConnectorTokenIssue, SCIMReconciliationReport } from '../../api/generated/models';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { EmptyState, ErrorState } from '../../app/PageState';
 import { SettingsLoading, SettingsSection } from '../settings/SettingsPageLayout';
 import { DateTimeInput } from '../../app/DateInput';
@@ -210,11 +211,15 @@ function ConnectorEditor({
       await onChanged();
     },
   });
+  const [revoking, setRevoking] = useState(false);
   const revoke = useMutation({
     mutationFn: () => revokeSCIMConnectorToken(connector.id, { expectedVersion: connector.version }),
-    onSuccess: onChanged,
+    onSuccess: async () => {
+      setRevoking(false);
+      await onChanged();
+    },
   });
-  const failed = save.isError || rotate.isError || revoke.isError;
+  const failed = save.isError || rotate.isError;
 
   return (
     <Tile>
@@ -260,7 +265,7 @@ function ConnectorEditor({
           <Button
             kind="danger--tertiary"
             disabled={revoke.isPending || !connector.tokenExpiresAt}
-            onClick={() => revoke.mutate()}
+            onClick={() => setRevoking(true)}
           >
             Revoke token
           </Button>
@@ -281,6 +286,21 @@ function ConnectorEditor({
           </Button>
         </div>
       </Stack>
+      <DestructiveActionDialog
+        open={revoking}
+        title="Revoke the token?"
+        fate="permanent"
+        confirmLabel="Revoke token"
+        pending={revoke.isPending}
+        error={revoke.isError ? 'The token could not be revoked. Reload and try again.' : undefined}
+        onClose={() => {
+          setRevoking(false);
+          revoke.reset();
+        }}
+        onConfirm={() => revoke.mutate()}
+      >
+        <p>{connector.name} can no longer provision people until a new token is issued.</p>
+      </DestructiveActionDialog>
     </Tile>
   );
 }

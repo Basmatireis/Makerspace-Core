@@ -57,6 +57,7 @@ import {
   ReceiptPage,
   ResetPasswordPage,
   RolesPage,
+  RecycleBinPage,
   RunDetailPage,
   OpenDayRequirementsPage,
   TrainingsSettingsPage,
@@ -169,6 +170,14 @@ export function App() {
                 element={
                   <PermissionRoute allOf={['machine_jobs.read']}>
                     <JobsPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route
+                path="recycle-bin"
+                element={
+                  <PermissionRoute allOf={['machine_jobs.delete']}>
+                    <RecycleBinPage />
                   </PermissionRoute>
                 }
               />

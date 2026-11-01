@@ -1,5 +1,6 @@
 import { InlineNotification, Modal, Stack } from '@carbon/react';
 import type { ReactNode } from 'react';
+import { DestructiveFateNote, type DestructiveFate } from '../../../app/DestructiveActionDialog';
 
 /**
  * Confirmation for lifecycle changes and deletions. Body order: the blocking reason (if any), one sentence of
@@ -11,6 +12,7 @@ export function ConfirmDialog({
   label,
   confirmText,
   danger = false,
+  fate = 'none',
   blocked,
   pending = false,
   error,
@@ -23,6 +25,8 @@ export function ConfirmDialog({
   label?: string;
   confirmText: string;
   danger?: boolean;
+  /** Set on deletions: appends the standard sentence about what happens to the deleted thing. */
+  fate?: DestructiveFate;
   blocked?: string;
   pending?: boolean;
   error?: string;
@@ -53,6 +57,7 @@ export function ConfirmDialog({
         )}
         <div className="evf-confirm">
           {children}
+          <DestructiveFateNote fate={fate} />
           {details && details.length > 0 && (
             <ul>
               {details.map((detail) => (

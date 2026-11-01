@@ -14,7 +14,7 @@ import {
   UnorderedList,
 } from '@carbon/react';
 import type { Person } from '../../../api/generated/models';
-import { DestructiveActionDialog } from '../../../app/DestructiveActionDialog';
+import { DestructiveActionDialog, DestructiveFateNote } from '../../../app/DestructiveActionDialog';
 import { formatDateTime } from '../../../app/dateTime';
 import { InlineLoadingState } from '../../../app/PageState';
 import type { PersonDetailActions } from './usePersonDetailActions';
@@ -143,6 +143,9 @@ export function RoleAndConfirmationDialogs({ person, ctrl }: { person: Person; c
         <ModalBody>
           <Stack gap={5}>
             <p>{selectedConfirmation?.[1]}</p>
+            {(confirmKind === 'delete-account' || confirmKind === 'remove-auth-method') && (
+              <DestructiveFateNote fate="permanent" />
+            )}
             {confirmationErrors.length === 1 && (
               <InlineNotification
                 kind="error"

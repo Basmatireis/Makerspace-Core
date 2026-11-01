@@ -287,6 +287,9 @@ describe('Organization page', () => {
         .closest('.cds--popover-container')!
         .querySelector('button') as HTMLElement,
     );
+    const confirmation = await screen.findByRole('alertdialog', { name: 'Remove this person?' });
+    expect(calls.removed).toBeUndefined();
+    await user.click(within(confirmation).getByRole('button', { name: 'Remove person' }));
     await waitFor(() => expect(calls.removed).toBe(personId));
   });
 });

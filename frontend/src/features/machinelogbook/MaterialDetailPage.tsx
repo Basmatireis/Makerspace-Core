@@ -314,7 +314,7 @@ function MaterialDetail({ material }: { material: Material }) {
         }
         onConfirm={() => removal.mutate()}
       >
-        <p>{material.name} will be deleted permanently. This cannot be undone.</p>
+        <p>{material.name} will be deleted permanently.</p>
       </DestructiveActionDialog>
     </PageShell>
   );

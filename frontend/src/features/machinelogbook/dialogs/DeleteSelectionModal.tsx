@@ -3,6 +3,7 @@ import { Checkbox, Modal, RadioButton, RadioButtonGroup, Stack } from '@carbon/r
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { bulkDeleteMachineWork } from '../../../api/generated/machine-jobs/machine-jobs';
 import type { WorkItem } from '../../../api/generated/models';
+import { DestructiveFateNote } from '../../../app/DestructiveActionDialog';
 import { LinkifiedText } from '../../../app/RefLink';
 import { RichNotification } from '../../../app/RichNotification';
 import { deleteBlocker, hasBookedMaterial, plural, referenceTargets } from '../bulkWork';
@@ -92,11 +93,8 @@ function DeleteSelectionDialog({ onClose, items, onDone }: Omit<Props, 'open'>) 
       }}
     >
       <Stack gap={5}>
-        <p>
-          {deletable.length === 0
-            ? 'None of the selected items can be deleted.'
-            : `${summary} will be deleted. This can't be undone.`}
-        </p>
+        <p>{deletable.length === 0 ? 'None of the selected items can be deleted.' : `${summary} will be deleted.`}</p>
+        {deletable.length > 0 && <DestructiveFateNote fate="recycle" />}
         {skipped.length > 0 && (
           <RichNotification kind="warning" title={`${plural(skipped.length, 'item')} will be skipped`}>
             <ul className="mj-skip-list">

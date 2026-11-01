@@ -437,7 +437,7 @@ function RequestView({
         onConfirm={() => execute.mutate()}
       >
         <Stack gap={4}>
-          <p>This deletes {personLabel(request)} and cannot be undone.</p>
+          <p>This deletes {personLabel(request)}.</p>
           <ul>
             {lines('erased').length > 0 && (
               <li>

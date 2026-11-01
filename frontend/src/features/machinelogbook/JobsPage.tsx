@@ -429,10 +429,25 @@ export function JobsPage() {
             }
             filterCategories={filterCategories}
             toolbarAction={
-              canCreate ? (
-                <Button kind="primary" size="lg" onClick={() => setJobOpen(true)}>
-                  New job
-                </Button>
+              canDelete || canCreate ? (
+                <>
+                  {canDelete && (
+                    <Button
+                      kind="ghost"
+                      size="lg"
+                      renderIcon={TrashCan}
+                      as={Link}
+                      to={machineLogbookPaths.recycleBin()}
+                    >
+                      Recycle bin
+                    </Button>
+                  )}
+                  {canCreate && (
+                    <Button kind="primary" size="lg" onClick={() => setJobOpen(true)}>
+                      New job
+                    </Button>
+                  )}
+                </>
               ) : undefined
             }
             empty={{

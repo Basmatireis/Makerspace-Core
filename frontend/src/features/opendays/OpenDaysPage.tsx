@@ -495,7 +495,7 @@ export function OpenDaysPage() {
       >
         <p>
           <strong>{deletePeriod?.name}</strong> and all its Open Days, staffing requirements, eligibility role rules,
-          and assignments will be permanently deleted. Audit history is retained. This cannot be undone.
+          and assignments will be permanently deleted. Audit history is retained.
         </p>
       </DestructiveActionDialog>
       <UnsavedChangesDialog guard={guard} />

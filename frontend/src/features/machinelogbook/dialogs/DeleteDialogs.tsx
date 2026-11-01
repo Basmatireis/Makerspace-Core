@@ -15,6 +15,7 @@ import { deleteMachineJob } from '../../../api/generated/machine-jobs/machine-jo
 import { deleteMachineRun } from '../../../api/generated/machine-runs/machine-runs';
 import type { MachineJob, MachineJobUsage, MachineRun } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
+import { DestructiveFateNote } from '../../../app/DestructiveActionDialog';
 import { jobOrderQuery, saveError } from './jobFormHelpers';
 import { machineLogbookKeys, runQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
@@ -108,6 +109,7 @@ function DeleteShell({
     >
       <Stack gap={5}>
         {children}
+        <DestructiveFateNote fate="recycle" />
         {asksChoice && (
           <RadioButtonGroup
             legendText="Material consumption"

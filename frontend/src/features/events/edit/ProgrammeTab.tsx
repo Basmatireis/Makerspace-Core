@@ -322,6 +322,7 @@ export function ProgrammeTab({
           heading="Delete session"
           label={event.name}
           confirmText="Delete session"
+          fate="permanent"
           danger
           pending={run.isPending}
           error={failure}
@@ -360,6 +361,7 @@ export function ProgrammeTab({
           heading="Delete shift"
           label={event.name}
           confirmText="Delete shift"
+          fate="permanent"
           danger
           pending={run.isPending}
           error={failure}

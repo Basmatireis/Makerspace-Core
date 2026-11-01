@@ -20,6 +20,7 @@ export const machineLogbookPaths = {
   jobs: (query?: Record<string, string | undefined>) => withQuery(`${root}/jobs`, query),
   job: (id: string) => `${root}/jobs/${segment(id)}`,
   run: (id: string) => `${root}/jobs/runs/${segment(id)}`,
+  recycleBin: () => `${root}/recycle-bin`,
   machines: () => `${root}/machines`,
   machine: (id: string, tab?: MachineTab) => withQuery(`${root}/machines/${segment(id)}`, { tab }),
   inventory: (tab?: InventoryTab) => withQuery(`${root}/inventory`, { tab }),

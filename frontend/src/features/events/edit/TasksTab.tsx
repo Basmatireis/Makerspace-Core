@@ -250,6 +250,7 @@ export function TasksTab({ event, now, canManage }: { event: Event; now: number;
           heading="Delete list"
           label={event.name}
           confirmText="Delete list"
+          fate="permanent"
           danger
           pending={change.isPending}
           error={failure}
@@ -266,6 +267,7 @@ export function TasksTab({ event, now, canManage }: { event: Event; now: number;
           heading="Delete task"
           label={event.name}
           confirmText="Delete task"
+          fate="permanent"
           danger
           pending={change.isPending}
           error={failure}

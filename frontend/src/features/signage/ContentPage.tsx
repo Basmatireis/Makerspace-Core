@@ -320,7 +320,7 @@ export function ContentPage() {
         >
           <p>
             Ended announcements made from it are removed too. A template that active announcements, display rules or
-            scenes still use cannot be deleted. This cannot be undone.
+            scenes still use cannot be deleted.
           </p>
         </DeleteDialog>
       )}

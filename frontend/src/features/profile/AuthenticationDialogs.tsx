@@ -10,7 +10,7 @@ import {
   Stack,
   TextInput,
 } from '@carbon/react';
-import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
+import { DestructiveActionDialog, DestructiveFateNote } from '../../app/DestructiveActionDialog';
 import { validatePasswordLength } from '../auth/password-validation';
 import type { ProfileAuthentication } from './useProfileAuthentication';
 
@@ -127,6 +127,7 @@ export function AuthenticationDialogs({ authentication }: { authentication: Prof
                 You will be signed out. Your account remains active, but you will need another authentication method to
                 sign in again.
               </p>
+              <DestructiveFateNote fate="permanent" />
               {removePasswordMutation.isError && (
                 <InlineNotification
                   kind="error"
@@ -245,6 +246,7 @@ export function AuthenticationDialogs({ authentication }: { authentication: Prof
               Your account remains active or inactive independently. You will need another authentication method to sign
               in.
             </p>
+            <DestructiveFateNote fate="permanent" />
             {removePINMutation.isError && (
               <InlineNotification
                 kind="error"

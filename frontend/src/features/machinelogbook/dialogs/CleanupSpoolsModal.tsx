@@ -1,3 +1,4 @@
+import { DestructiveFateNote } from '../../../app/DestructiveActionDialog';
 import { useEffect, useState } from 'react';
 import {
   InlineNotification,
@@ -136,6 +137,7 @@ export function CleanupSpoolsModal({ open, onClose }: { open: boolean; onClose: 
               {matches} archived single-use {matches === 1 ? 'spool matches' : 'spools match'} and will be deleted
               permanently.
             </p>
+            <DestructiveFateNote fate="permanent" />
             <StructuredListWrapper isCondensed aria-label="Spools that will be deleted">
               <StructuredListHead>
                 <StructuredListRow head>

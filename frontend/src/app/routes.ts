@@ -94,6 +94,9 @@ export const MachineDetailPage = lazy(() =>
 export const StatisticsPage = lazy(() =>
   import('../features/machinelogbook/StatisticsPage').then(({ StatisticsPage }) => ({ default: StatisticsPage })),
 );
+export const RecycleBinPage = lazy(() =>
+  import('../features/machinelogbook/RecycleBinPage').then(({ RecycleBinPage }) => ({ default: RecycleBinPage })),
+);
 export const SignageDisplaysPage = lazy(() =>
   import('../features/signage/DisplaysPage').then(({ DisplaysPage }) => ({ default: DisplaysPage })),
 );

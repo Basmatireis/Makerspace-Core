@@ -29,6 +29,7 @@ import {
   updateOrganizationInvoicingRequirements,
 } from '../../api/generated/organizations/organizations';
 import { setBillingPartyPricingGroup } from '../../api/generated/pricing/pricing';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { DetailSection } from '../../app/DetailSection';
 import { PageShell } from '../../app/PageShell';
 import { useCurrentUser } from '../auth/auth';
@@ -412,8 +413,10 @@ function MembersSection({
       await refresh();
     },
   });
+  const [removing, setRemoving] = useState<{ id: string; displayName: string } | null>(null);
   const remove = useMutation({
     mutationFn: (personId: string) => removeOrganizationMember(organization.id, personId),
+    onSuccess: () => setRemoving(null),
     onSettled: refresh,
   });
   return (
@@ -459,7 +462,7 @@ function MembersSection({
                           iconDescription={`Remove ${member.displayName}`}
                           tooltipPosition="left"
                           disabled={remove.isPending}
-                          onClick={() => remove.mutate(member.personId)}
+                          onClick={() => setRemoving({ id: member.personId, displayName: member.displayName })}
                         />
                       </StructuredListCell>
                     )}
@@ -512,15 +515,21 @@ function MembersSection({
           subtitle="The person may already be associated or no longer exist."
         />
       )}
-      {remove.isError && (
-        <InlineNotification
-          kind="error"
-          lowContrast
-          hideCloseButton
-          title="Person not removed"
-          subtitle="Reload the organization and try again."
-        />
-      )}
+      <DestructiveActionDialog
+        open={removing !== null}
+        title="Remove this person?"
+        fate="permanent"
+        confirmLabel="Remove person"
+        pending={remove.isPending}
+        error={remove.isError ? 'Reload the organization and try again.' : undefined}
+        onClose={() => {
+          setRemoving(null);
+          remove.reset();
+        }}
+        onConfirm={() => removing && remove.mutate(removing.id)}
+      >
+        <p>{removing?.displayName} is no longer listed as a person of this organization.</p>
+      </DestructiveActionDialog>
     </DetailSection>
   );
 }

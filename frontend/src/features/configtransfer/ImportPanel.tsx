@@ -292,8 +292,7 @@ export function ImportPanel({ sections }: { sections: SectionDefinition[] }) {
           The chosen sections will match the file.{' '}
           {counts && counts.delete + counts.deactivate > 0
             ? `Deleted: ${counts.delete}. Deactivated: ${counts.deactivate}.`
-            : 'No entries will be deleted or deactivated.'}{' '}
-          This cannot be undone.
+            : 'No entries will be deleted or deactivated.'}
         </p>
       </DestructiveActionDialog>
     </Tile>

@@ -116,9 +116,7 @@ export function CustomLayoutsTable({
           onDeleted={() => setDeleting(null)}
           onClose={() => setDeleting(null)}
         >
-          <p>
-            The layout is removed for good. A layout that scenes still use cannot be deleted. This cannot be undone.
-          </p>
+          <p>The layout is removed for good. A layout that scenes still use cannot be deleted.</p>
         </DeleteDialog>
       )}
     </>

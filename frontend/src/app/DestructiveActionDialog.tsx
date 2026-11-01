@@ -2,13 +2,21 @@ import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { InlineNotification, Modal, Stack } from '@carbon/react';
 import { useLatestCallback } from './useLatestCallback';
 
-/** What happens to the thing the action removes: gone for good, or moved to the recycle bin. */
-export type DestructiveFate = 'permanent' | 'recycle';
+/**
+ * What happens to the thing the action removes: gone for good, or moved to the recycle bin. `none` is for confirmations
+ * that are not deletions (cancel, archive, disable, leave), where neither sentence would be true.
+ */
+export type DestructiveFate = 'permanent' | 'recycle' | 'none';
 
-export const destructiveFateSentence: Record<DestructiveFate, string> = {
+const destructiveFateSentence: Record<Exclude<DestructiveFate, 'none'>, string> = {
   permanent: 'This cannot be undone.',
   recycle: 'It moves to the recycle bin, where it can be restored or deleted for good.',
 };
+
+/** The standard sentence for dialogs that build their own danger Modal instead of using DestructiveActionDialog. */
+export function DestructiveFateNote({ fate }: { fate: DestructiveFate }) {
+  return fate === 'none' ? null : <p>{destructiveFateSentence[fate]}</p>;
+}
 
 export type DestructiveActionDialogProps = {
   open: boolean;
@@ -91,7 +99,7 @@ export function DestructiveActionDialog({
     >
       <Stack gap={5}>
         {children}
-        <p>{destructiveFateSentence[fate]}</p>
+        <DestructiveFateNote fate={fate} />
         {error && (
           <InlineNotification kind="error" lowContrast hideCloseButton title="Action failed" subtitle={error} />
         )}

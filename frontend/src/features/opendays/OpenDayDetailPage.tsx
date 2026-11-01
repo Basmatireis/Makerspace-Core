@@ -17,7 +17,7 @@ import {
 } from '../../api/generated/open-days/open-days';
 import type { OpenDayAssignment, OpenDayPeriodStatus, OpenDayStaffRequirement } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
-import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
+import { DestructiveActionDialog, DestructiveFateNote } from '../../app/DestructiveActionDialog';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { CompetencyTags } from '../trainings/CompetencyTags';
@@ -340,7 +340,7 @@ function OpenDayDetails({
       ? 'Your place will become available to another eligible person.'
       : `${assignmentRemoval?.displayName ?? 'This person'} will be removed from this Open Day. The place will become available again.`;
   const removalText = removesDraft
-    ? 'This draft Open Day and its requirements will be permanently removed. This cannot be undone.'
+    ? 'This draft Open Day and its requirements will be permanently removed.'
     : 'The Open Day will be marked as cancelled. Existing assignments and history will be kept.';
   const assignContent = (
     <Stack gap={4}>
@@ -410,6 +410,14 @@ function OpenDayDetails({
   // A single Carbon dialog changes content between detail, assignment and confirmation.
   if (presentation === 'modal') {
     const confirming = removeOpen || Boolean(assignmentRemoval);
+    // Cancelling an Open Day and leaving one are not deletions; deleting a draft and removing someone else are.
+    const modalFate = removeOpen
+      ? removesDraft
+        ? 'permanent'
+        : 'none'
+      : assignmentRemoval === 'self'
+        ? 'none'
+        : 'permanent';
     const dialogTitle = assignRequirement
       ? `Assign ${assignRequirement.kind}`
       : removeOpen
@@ -466,6 +474,7 @@ function OpenDayDetails({
               />
             )}
             <p>{removeOpen ? removalText : assignmentRemovalText}</p>
+            <DestructiveFateNote fate={modalFate} />
           </Stack>
         ) : (
           <Stack gap={6} className="open-day-registration-modal">
@@ -514,7 +523,7 @@ function OpenDayDetails({
         <DestructiveActionDialog
           open
           title={assignmentRemoval === 'self' ? 'Leave Open Day?' : 'Remove assignment?'}
-          fate="permanent"
+          fate={assignmentRemoval === 'self' ? 'none' : 'permanent'}
           confirmLabel={assignmentRemoval === 'self' ? 'Leave Open Day' : 'Remove assignment'}
           pending={mutationPending}
           error={

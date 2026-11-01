@@ -912,10 +912,9 @@ describe('Open Day table and calendar filters', () => {
 
     const confirmation = await screen.findByRole('dialog', { name: 'Delete Open Day?' });
     expect(
-      within(confirmation).getByText(
-        'This draft Open Day and its requirements will be permanently removed. This cannot be undone.',
-      ),
+      within(confirmation).getByText('This draft Open Day and its requirements will be permanently removed.'),
     ).toBeInTheDocument();
+    expect(within(confirmation).getByText('This cannot be undone.')).toBeInTheDocument();
     await user.click(within(confirmation).getByRole('button', { name: 'Delete Open Day' }));
 
     await waitFor(() => expect(submittedVersion).toEqual({ expectedVersion: supervisorVacancy.version }));

@@ -38,7 +38,7 @@ export function ConfirmationModal({
     >
       <p>
         {revoke
-          ? 'Its token and all device-scoped privileges stop working immediately. Revocation cannot be reversed.'
+          ? 'Its token and all device-scoped privileges stop working immediately.'
           : deletingType
             ? 'The device type will be permanently deleted. Deletion is blocked while a device or role permission still references it.'
             : 'The revoked device record, capability configuration, and device reports will be permanently deleted. Audit history is retained.'}

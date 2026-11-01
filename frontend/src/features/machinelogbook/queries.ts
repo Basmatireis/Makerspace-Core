@@ -22,6 +22,7 @@ import {
 } from '../../api/generated/filament-spools/filament-spools';
 import {
   getMachineRun,
+  getRecycleBin,
   getMachineRunRecording,
   getRunRecordingSettings,
   listMachineRuns,
@@ -72,9 +73,12 @@ export const machineLogbookKeys = {
   printerNotificationSettings: () => [...machineLogbookKeys.all, 'printer-notification-settings'] as const,
   artifact: (id: string) => [...machineLogbookKeys.all, 'artifact', id] as const,
   pricing: () => [...machineLogbookKeys.all, 'pricing'] as const,
+  recycleBin: () => [...machineLogbookKeys.all, 'recycle-bin'] as const,
   statistics: (params: GetMachineLogbookStatisticsParams) => [...machineLogbookKeys.all, 'statistics', params] as const,
 };
 
+export const recycleBinQuery = () =>
+  queryOptions({ queryKey: machineLogbookKeys.recycleBin(), queryFn: () => getRecycleBin() });
 export const overviewQuery = () =>
   queryOptions({ queryKey: machineLogbookKeys.overview(), queryFn: () => getMachineLogbookOverview() });
 export const jobsQuery = (params: ListMachineJobsParams) =>

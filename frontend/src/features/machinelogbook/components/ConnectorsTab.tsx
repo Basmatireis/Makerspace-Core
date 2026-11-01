@@ -470,7 +470,7 @@ export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
         }}
       >
         <p>
-          The connector can no longer deliver events, and this can't be undone.
+          The connector can no longer deliver events.
           {revoking && printersOf(revoking.id).length > 0
             ? ` ${printersOf(revoking.id)
                 .map((assignment) => assignment.machineName)

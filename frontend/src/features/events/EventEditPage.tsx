@@ -400,6 +400,7 @@ export function EventEditPage() {
           heading="Delete event"
           label={event.name}
           confirmText="Delete event"
+          fate="permanent"
           danger
           blocked={deleteBlocked}
           pending={lifecycle.isPending}

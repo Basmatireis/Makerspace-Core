@@ -54,6 +54,41 @@ describe('shared application components', () => {
 });
 
 describe('DestructiveActionDialog', () => {
+  it.each([
+    ['permanent', 'This cannot be undone.'],
+    ['recycle', 'It moves to the recycle bin, where it can be restored or deleted for good.'],
+  ] as const)('states the %s fate under the content', (fate, sentence) => {
+    renderRoute(
+      <DestructiveActionDialog
+        open
+        title="Remove record?"
+        fate={fate}
+        confirmLabel="Remove record"
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      >
+        <p>The selected record will be removed.</p>
+      </DestructiveActionDialog>,
+    );
+    expect(within(screen.getByRole('alertdialog')).getByText(sentence)).toBeInTheDocument();
+  });
+
+  it('adds no fate sentence for confirmations that are not deletions', () => {
+    renderRoute(
+      <DestructiveActionDialog
+        open
+        title="Cancel run?"
+        fate="none"
+        confirmLabel="Cancel run"
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      >
+        <p>The run stops.</p>
+      </DestructiveActionDialog>,
+    );
+    expect(screen.queryByText(/cannot be undone|recycle bin/)).not.toBeInTheDocument();
+  });
+
   it('blocks Escape when a mutation starts after the dialog has opened', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -63,6 +98,7 @@ describe('DestructiveActionDialog', () => {
         <DestructiveActionDialog
           open
           title="Remove record?"
+          fate="permanent"
           confirmLabel="Remove record"
           pending={pending}
           onClose={onClose}
@@ -91,6 +127,7 @@ describe('DestructiveActionDialog', () => {
             <DestructiveActionDialog
               open
               title="Remove record?"
+              fate="permanent"
               confirmLabel="Remove record"
               onClose={() => setOpen(false)}
               onConfirm={() => setOpen(false)}
@@ -125,6 +162,7 @@ describe('DestructiveActionDialog', () => {
           <DestructiveActionDialog
             open={open}
             title="Delete person?"
+            fate="permanent"
             confirmLabel="Delete person"
             launcherButtonRef={launcherRef}
             onClose={() => {
@@ -161,6 +199,7 @@ describe('DestructiveActionDialog', () => {
       <DestructiveActionDialog
         open
         title="Delete person?"
+        fate="permanent"
         confirmLabel="Delete person"
         pending
         error="The person could not be deleted."

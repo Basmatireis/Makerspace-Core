@@ -378,7 +378,7 @@ export function DeleteRoleDialog({
     >
       <p>
         {role.name} will be removed from every person who has it. The role and its permission grants will be permanently
-        deleted. This cannot be undone.
+        deleted.
       </p>
     </DestructiveActionDialog>
   );
