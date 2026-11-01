@@ -16,7 +16,7 @@ import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { detachMachineRun, setMachineRunSignageVisibility } from '../../api/generated/machine-runs/machine-runs';
-import type { MachineRunArtifactUploadResult, MachineRunEvent } from '../../api/generated/models';
+import type { MachineRunArtifactUploadResult } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
@@ -54,38 +54,12 @@ import {
 } from './shared/status';
 import { useNotify } from './shared/toasts';
 import { useCan } from './shared/useCan';
+import { eventLines } from './shared/runEvents';
 import { useNow } from './shared/useNow';
 import './styles/runs.scss';
 
-const words = (value: string) => value.replace(/_/g, ' ');
 const RUN_REFRESH_MS = 5000;
 const COMMAND_REFRESH_MS = 3000;
-
-/** One readable line per machine event (never the raw payload). */
-function eventSummary(event: MachineRunEvent) {
-  switch (event.kind) {
-    case 'identity':
-      return 'Machine identified';
-    case 'connectivity':
-      return event.state ? `Connectivity: ${words(event.state)}` : 'Connectivity changed';
-    case 'operational_state':
-      return event.state ? `State: ${words(event.state)}` : 'State changed';
-    case 'progress':
-      return event.progressPercent != null ? `Progress ${event.progressPercent} %` : 'Progress reported';
-    case 'slot_observation':
-      return 'Material slot observed';
-    case 'consumption_report':
-      return event.quantity != null
-        ? `Consumption reported: ${formatQuantity(event.quantity)} g`
-        : 'Consumption reported';
-    case 'terminal_outcome':
-      return event.state ? `Outcome: ${words(event.state)}` : 'Outcome reported';
-    case 'printer_error':
-      return 'Printer error changed';
-    case 'filament_change':
-      return 'Filament changed';
-  }
-}
 
 export function RunDetailPage() {
   const { runId = '' } = useParams();
@@ -490,10 +464,25 @@ export function RunDetailPage() {
                           <p className="mj-secondary">No events received from the machine.</p>
                         ) : (
                           <ul className="mj-runs__events">
-                            {run.events.map((event) => (
+                            {eventLines(run.events).map(({ event, line }) => (
                               <li key={event.id} className="mj-runs__event">
                                 <span className="mj-cell-stack">
-                                  <span>{eventSummary(event)}</span>
+                                  <span>
+                                    {line.text}
+                                    {line.link && (
+                                      <>
+                                        {' '}
+                                        <CarbonLink
+                                          href={line.link}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          size="sm"
+                                        >
+                                          Read more
+                                        </CarbonLink>
+                                      </>
+                                    )}
+                                  </span>
                                   <span className="mj-secondary">{formatDateTime(event.occurredAt)}</span>
                                 </span>
                               </li>
