@@ -414,25 +414,25 @@ describe('open day, event and agenda lists', () => {
     { title: 'Laser night', startsAt: '2026-10-24T15:30:00Z', endsAt: '2026-10-24T17:00:00Z', location: null },
   ];
 
-  it('keeps the previous row layout without a template and the default heading', () => {
+  it('keeps the previous row layout without a template and the default heading', async () => {
     render(<SceneRenderer scene={scene({ main: { type: 'open_days', count: 5 } })} data={data({ openDays })} />);
-    expect(screen.getByText('Next open days')).toBeInTheDocument();
+    expect(await screen.findByText('Next open days')).toBeInTheDocument();
     expect(screen.getByText('Fri 23 Oct')).toBeInTheDocument();
     expect(screen.getByText('16:00–20:00')).toBeInTheDocument();
   });
 
-  it('honours title, empty title and empty text', () => {
+  it('honours title, empty title and empty text', async () => {
     const { rerender } = render(
       <SceneRenderer
         scene={scene({ main: { type: 'events', count: 5, title: 'Soon', emptyText: 'Nothing here' } })}
         data={data()}
       />,
     );
-    expect(screen.getByText('Soon')).toBeInTheDocument();
+    expect(await screen.findByText('Soon')).toBeInTheDocument();
     expect(screen.getByText('Nothing here')).toBeInTheDocument();
     rerender(<SceneRenderer scene={scene({ main: { type: 'events', count: 5, title: '' } })} data={data()} />);
+    expect(await screen.findByText('No events planned')).toBeInTheDocument();
     expect(screen.queryByText('Upcoming events')).not.toBeInTheDocument();
-    expect(screen.getByText('No events planned')).toBeInTheDocument();
   });
 
   it('renders one rich document with a wrapped entry per item and escaped placeholder values', async () => {

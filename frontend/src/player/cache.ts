@@ -4,10 +4,10 @@ import type {
   SignagePlayerLive,
   SignagePlayerManifest,
 } from '../api/generated/models';
-import { ASSET_CACHE, assetKey, LIVE_KEY, MANIFEST_KEY, STATE_CACHE } from './cacheKeys';
+import { ASSET_CACHE, assetKey, LIVE_KEY, MANIFEST_KEY, STATE_CACHE, TIMELAPSE_CACHE } from './cacheKeys';
 
 // The offline cache. Only published signage content lives here (the manifest, its assets and the last announcements, open
-// days, events and calendar): the same things the display shows on the wall. Never credentials, tokens or machine status.
+// days, events, calendar and timelapse list; the clips themselves are in timelapseCache.ts): the same things the display shows on the wall. Never credentials, tokens or machine status.
 
 /** The device ran out of storage (or would). The old revision keeps playing. */
 export class CacheQuotaError extends Error {
@@ -26,6 +26,7 @@ export type PersistedLive = {
   events: SignagePlayerLive['events'];
   /** Absent in data saved by an older player. */
   calendar?: SignagePlayerLive['calendar'];
+  timelapses?: SignagePlayerLive['timelapses'];
 };
 
 export type StorageUse = { usedBytes: number; quotaBytes: number };
@@ -134,7 +135,7 @@ export function createPlayerStore(env: Partial<StoreEnv> = {}): PlayerStore | nu
     saveLive: (live) => writeJson(LIVE_KEY, live),
     loadLive: () => readJson<PersistedLive>(LIVE_KEY),
     async clear() {
-      await Promise.all([cacheStorage.delete(ASSET_CACHE), cacheStorage.delete(STATE_CACHE)]);
+      await Promise.all([ASSET_CACHE, STATE_CACHE, TIMELAPSE_CACHE].map((name) => cacheStorage.delete(name)));
     },
     usage,
     async requestPersistence() {

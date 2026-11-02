@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, type CSSProperties, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, type CSSProperties, type ReactNode } from 'react';
 import type {
   SignageAnnouncementWidget,
   SignageAspectRatio,
@@ -7,8 +7,6 @@ import type {
   SignageWidget,
 } from '../../../api/generated/models';
 import { resolveLayout, type CustomLayoutShape } from '../layouts';
-import { ListWidget } from './ListWidget';
-import { qrModules } from './qr';
 import { RichText } from './RichTextView';
 import {
   fontAssetIdsOf,
@@ -26,8 +24,11 @@ import './render.css';
 // The one renderer behind preview frames, thumbnails, the editor canvas and (later) the player.
 // Sizes use the container-relative unit --u (1u = 1 % of the design width), so a scene looks the same at any scale.
 
-// Only scenes with a calendar need the widget; the player's initial JavaScript has a budget (its chunk is precached).
+// Only scenes with a QR code, a list, a calendar or timelapses need these widgets; the player's initial JavaScript has a budget (its chunk is precached).
+const QrCode = lazy(() => import('./QrCode').then((module) => ({ default: module.QrCode })));
+const ListWidget = lazy(() => import('./ListWidget').then((module) => ({ default: module.ListWidget })));
 const CalendarWidget = lazy(() => import('./CalendarWidget').then((module) => ({ default: module.CalendarWidget })));
+const TimelapseWidget = lazy(() => import('./TimelapseWidget').then((module) => ({ default: module.TimelapseWidget })));
 
 const TEXT_SIZE = { s: 3, m: 4.6, l: 7, xl: 10 } as const;
 const STATE_LABEL: Record<RenderMachine['state'], string> = {
@@ -49,37 +50,6 @@ const clockTime = (instant: number | string, timeZone?: string) =>
 function MediaImage({ url, fit, label }: { url: string | null; fit: 'contain' | 'cover'; label: string }) {
   if (!url) return <div className="sg-placeholder">{label}</div>;
   return <img className="sg-media" src={url} alt="" style={{ objectFit: fit }} />;
-}
-
-function QrCode({ url, caption }: { url: string; caption: string }) {
-  // Encoding a QR code is real work; the matrix only changes with the URL.
-  const modules = useMemo(() => qrModules(url), [url]);
-  return (
-    <div className="sg-qr">
-      {modules ? (
-        <svg
-          viewBox={`-2 -2 ${modules.length + 4} ${modules.length + 4}`}
-          className="sg-qr__code"
-          role="img"
-          aria-label={`QR code for ${url}`}
-          shapeRendering="crispEdges"
-        >
-          <rect x="-2" y="-2" width={modules.length + 4} height={modules.length + 4} fill="#fff" />
-          {modules.flatMap((row, y) =>
-            row.map((on, x) =>
-              on ? <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="#161616" /> : null,
-            ),
-          )}
-        </svg>
-      ) : (
-        <div className="sg-placeholder">Link too long for a QR code</div>
-      )}
-      <div className="sg-qr__text">
-        <strong>{caption}</strong>
-        <span>{url.replace(/^https?:\/\//, '')}</span>
-      </div>
-    </div>
-  );
 }
 
 function Progress({ value }: { value: number }) {
@@ -335,7 +305,11 @@ function WidgetView({
       );
     }
     case 'qr':
-      return <QrCode url={widget.url} caption={widget.caption} />;
+      return (
+        <Suspense fallback={null}>
+          <QrCode url={widget.url} caption={widget.caption} />
+        </Suspense>
+      );
     case 'clock':
       return (
         <div className="sg-center">
@@ -362,11 +336,23 @@ function WidgetView({
     case 'open_days':
     case 'events':
     case 'agenda':
-      return <ListWidget widget={widget} data={data} />;
+      return (
+        <Suspense fallback={null}>
+          <ListWidget widget={widget} data={data} />
+        </Suspense>
+      );
     case 'calendar':
       return (
         <Suspense fallback={null}>
           <CalendarWidget widget={widget} data={data} />
+        </Suspense>
+      );
+    case 'timelapse':
+      // Nothing to load without clips: the zone shows only its style box.
+      if (!data.timelapses?.length) return null;
+      return (
+        <Suspense fallback={null}>
+          <TimelapseWidget widget={widget} data={data} />
         </Suspense>
       );
   }

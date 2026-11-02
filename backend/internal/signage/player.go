@@ -229,6 +229,8 @@ type LiveData struct {
 	// Calendar is set only while the display's publication has a calendar widget.
 	Calendar *CalendarBlock
 	Streams  []Stream
+	// Timelapses is non-nil only while the display's publication has a timelapse widget.
+	Timelapses []LiveTimelapse
 }
 
 var knownLiveStates = map[LiveState]struct{}{
@@ -308,6 +310,9 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 			if live.Calendar, err = s.buildCalendar(ctx, now, categories); err != nil {
 				return LiveData{}, err
 			}
+		}
+		if live.Timelapses, _, err = s.timelapseSelection(ctx, q, manifest, now); err != nil {
+			return LiveData{}, err
 		}
 		revision := manifest.Revision
 		live.Revision = &revision

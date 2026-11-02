@@ -192,6 +192,7 @@ export const previewFixture = (overrides: Partial<SignageDisplayPreview> = {}): 
     openDays: [],
     events: [],
     calendar: null,
+    timelapses: null,
     streams: [],
   },
   ...overrides,

@@ -1,5 +1,10 @@
 import type { ReactNode } from 'react';
-import type { SignagePlayerCalendar, SignageScene, SignageTone } from '../../../api/generated/models';
+import type {
+  SignagePlayerCalendar,
+  SignagePlayerTimelapse,
+  SignageScene,
+  SignageTone,
+} from '../../../api/generated/models';
 import type { CustomLayoutShape } from '../layouts';
 import type { RichTextFormat } from './escape';
 
@@ -58,6 +63,12 @@ export type RenderAnnouncement = {
 export type RenderOpenDay = { startsAt: string; endsAt: string; status: string; competencies?: readonly string[] };
 export type RenderEvent = { title: string; startsAt: string; endsAt?: string | null; location: string | null };
 
+/** A timelapse clip of a finished print, as the live data lists it (newest first). */
+export type RenderTimelapse = Pick<
+  SignagePlayerTimelapse,
+  'runId' | 'machineId' | 'machineName' | 'endedAt' | 'sha256' | 'url'
+>;
+
 export type RenderData = {
   /** Epoch milliseconds; drives clocks, slideshows, rotation. */
   now: number;
@@ -71,6 +82,10 @@ export type RenderData = {
   events: readonly RenderEvent[];
   /** Data of the calendar widget; null or absent renders the grid without entries. */
   calendar?: SignagePlayerCalendar | null;
+  /** Clips for timelapse widgets; null or absent shows only the widget's style box. */
+  timelapses?: readonly RenderTimelapse[] | null;
+  /** The URL a clip plays from; null skips the clip (the player has not cached it yet). Absent plays nothing. */
+  timelapseUrl?: (clip: RenderTimelapse) => string | null;
   /** The custom layouts scenes may use (the manifest's, or the admin list). */
   customLayouts?: readonly CustomLayoutShape[];
   /** Asset id to URL; null when the asset is unknown (it renders as a placeholder). */

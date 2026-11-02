@@ -1953,7 +1953,10 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	if err := json.Unmarshal(raw, &live); err != nil {
 		t.Fatal(err)
 	}
-	if len(live) != 8 || live["revision"] != float64(1) || len(live["streams"].([]any)) != 0 ||
+	if timelapses, present := live["timelapses"]; !present || timelapses != nil {
+		t.Fatalf("live timelapses without a timelapse widget = %v (present=%v)", timelapses, present)
+	}
+	if len(live) != 9 || live["revision"] != float64(1) || len(live["streams"].([]any)) != 0 ||
 		live["serverTime"] == nil {
 		t.Fatalf("live = %v", live)
 	}

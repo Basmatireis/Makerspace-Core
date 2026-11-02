@@ -5,7 +5,8 @@ import { PlayerApp } from './PlayerApp';
 import { fakeApi } from './testFixtures';
 
 describe('PlayerApp', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await import('./PairingScreen'); // The lazy pairing screen resolves within the fake-timer steps below.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
   });
   afterEach(() => {

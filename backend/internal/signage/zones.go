@@ -39,6 +39,10 @@ const (
 	maxQRURLRunes       = 500
 	maxCaptionRunes     = 200
 	maxFallbackTextRune = 500
+	maxTimelapseCount   = 20
+	maxTimelapseAgeDays = 365
+	minTimelapseSeconds = 5
+	maxTimelapseSeconds = 600
 )
 
 // WidgetRefs lists the entities a set of widgets points at; the service verifies they exist.
@@ -187,6 +191,21 @@ type calendarW struct {
 	ShowCompetencies bool `json:"showCompetencies,omitempty"`
 	styled
 }
+
+// timelapseW is the slideshow of recent finished prints' timelapse videos.
+type timelapseW struct {
+	Type        WidgetType      `json:"type"`
+	Source      TimelapseSource `json:"source"`
+	MachineIDs  []uuid.UUID     `json:"machineIds"`
+	Count       int             `json:"count"`
+	MaxAgeDays  int             `json:"maxAgeDays"`
+	MaxSeconds  int             `json:"maxSeconds"`
+	Transition  Transition      `json:"transition"`
+	ShowCaption bool            `json:"showCaption"`
+	Fit         MediaFit        `json:"fit"`
+	styled
+}
+
 type announcementW struct {
 	Type          WidgetType        `json:"type"`
 	TemplateIDs   []uuid.UUID       `json:"templateIds"`
@@ -576,6 +595,42 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		if !validHeading(w.Title) {
 			return nil, refs, zoneError(zone, "calendar title is limited to %d characters of single-line text", maxListTitleRunes)
 		}
+	case WidgetTimelapse:
+		var w timelapseW
+		if err := decode(&w); err != nil {
+			return nil, refs, err
+		}
+		if !inSet(w.Source, TimelapseSourceAll, TimelapseSourceMachines) {
+			return nil, refs, zoneError(zone, "timelapse source must be all or machines")
+		}
+		if w.MachineIDs == nil {
+			w.MachineIDs = []uuid.UUID{}
+		}
+		switch {
+		case w.Source == TimelapseSourceAll && len(w.MachineIDs) > 0:
+			return nil, refs, zoneError(zone, "a timelapse widget showing all machines lists no machines")
+		case w.Source == TimelapseSourceMachines && len(w.MachineIDs) == 0:
+			return nil, refs, zoneError(zone, "a timelapse widget for chosen machines needs machineIds")
+		case len(w.MachineIDs) > maxStatusMachines:
+			return nil, refs, zoneError(zone, "a timelapse widget lists at most %d machines", maxStatusMachines)
+		case len(distinct(w.MachineIDs)) != len(w.MachineIDs):
+			return nil, refs, zoneError(zone, "timelapse machines must be distinct")
+		}
+		if w.Count < 1 || w.Count > maxTimelapseCount {
+			return nil, refs, zoneError(zone, "count must be between 1 and %d", maxTimelapseCount)
+		}
+		if w.MaxAgeDays < 0 || w.MaxAgeDays > maxTimelapseAgeDays {
+			return nil, refs, zoneError(zone, "maxAgeDays must be between 0 and %d", maxTimelapseAgeDays)
+		}
+		if w.MaxSeconds < minTimelapseSeconds || w.MaxSeconds > maxTimelapseSeconds {
+			return nil, refs, zoneError(zone, "maxSeconds must be between %d and %d", minTimelapseSeconds, maxTimelapseSeconds)
+		}
+		if !inSet(w.Transition, TransitionCut, TransitionFade) || !inSet(w.Fit, MediaFitContain, MediaFitCover) {
+			return nil, refs, zoneError(zone, "transition must be cut or fade and fit contain or cover")
+		}
+		// Only checked to exist: the clips never add machines to the live machine list.
+		refs.Machines = append(refs.Machines, w.MachineIDs...)
+		value = &w
 	case WidgetAnnouncement:
 		var w announcementW
 		if err := decode(&w); err != nil {

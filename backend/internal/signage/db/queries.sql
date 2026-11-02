@@ -72,6 +72,29 @@ WHERE r.hidden_from_signage AND r.deleted_at IS NULL
            THEN COALESCE(r.state, CASE WHEN r.ended_at > sqlc.arg(now)::timestamptz THEN 'running' ELSE 'finished' END)
            ELSE r.state END = 'running';
 
+-- name: ListSignageTimelapses :many
+-- Finished recorded runs with a stored timelapse that were not opted out of signage, newest first. Without
+-- all_machines only the given machines; ended_after NULL means any age.
+SELECT r.id AS run_id, r.machine_id, m.name AS machine_name, r.ended_at::timestamptz AS ended_at,
+       t.sha256, t.size_bytes, t.file_id
+FROM machine_runs r
+JOIN machine_run_timelapses t ON t.run_id = r.id
+JOIN machines m ON m.id = r.machine_id
+WHERE r.source = 'recorded' AND r.state = 'finished' AND r.deleted_at IS NULL AND NOT r.hidden_from_signage
+  AND r.ended_at IS NOT NULL
+  AND (sqlc.arg(all_machines)::boolean OR r.machine_id = ANY(sqlc.arg(machine_ids)::text[]::uuid[]))
+  AND (sqlc.narg(ended_after)::timestamptz IS NULL OR r.ended_at >= sqlc.narg(ended_after)::timestamptz)
+ORDER BY r.ended_at DESC, r.id DESC
+LIMIT sqlc.arg(row_limit)::int;
+
+-- name: GetSignageTimelapse :one
+-- The timelapse of one run, only while the run is a finished recorded run not opted out of signage.
+SELECT r.id AS run_id, t.sha256, t.size_bytes, t.file_id
+FROM machine_runs r
+JOIN machine_run_timelapses t ON t.run_id = r.id
+WHERE r.id = sqlc.arg(run_id) AND r.source = 'recorded' AND r.state = 'finished' AND r.deleted_at IS NULL
+  AND NOT r.hidden_from_signage AND r.ended_at IS NOT NULL;
+
 -- name: ListSignageAssetKinds :many
 SELECT id, kind FROM signage_assets WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) FOR SHARE;
 

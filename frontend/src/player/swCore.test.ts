@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ASSET_CACHE, assetKey, respond, type WorkerDeps } from './swCore';
+import { ASSET_CACHE, assetKey, respond, TIMELAPSE_CACHE, type WorkerDeps } from './swCore';
 import { fakeCaches } from './testCaches';
 
 const SHA = 'cd'.repeat(32);
@@ -48,6 +48,22 @@ describe('player service worker', () => {
     const suffix = await respond(request(url, { range: 'bytes=-3' }), deps);
     expect(await suffix?.text()).toBe('789');
     expect((await respond(request(url, { range: 'bytes=50-' }), deps))?.status).toBe(416);
+  });
+
+  it('serves cached timelapse clips with byte ranges and leaves uncached ones to the network', async () => {
+    const { deps, caches } = await setup();
+    const url = `/api/v1/signage/player/timelapses/run-1/${SHA}`;
+    await (
+      await caches.open(TIMELAPSE_CACHE)
+    ).put(url, new Response('abcdefghij', { headers: { 'Content-Type': 'video/mp4' } }));
+    expect(await (await respond(request(url), deps))?.text()).toBe('abcdefghij');
+    const part = await respond(request(url, { range: 'bytes=2-4' }), deps);
+    expect(part?.status).toBe(206);
+    expect(part?.headers.get('Content-Range')).toBe('bytes 2-4/10');
+    expect(part?.headers.get('Content-Type')).toBe('video/mp4');
+    expect(await part?.text()).toBe('cde');
+    expect(await respond(request(`/api/v1/signage/player/timelapses/run-2/${SHA}`), deps)).toBeNull();
+    expect(await respond(request('/api/v1/signage/player/timelapses/run-1/not-a-sha'), deps)).toBeNull();
   });
 
   it('leaves uncached assets, the API and other methods to the network', async () => {

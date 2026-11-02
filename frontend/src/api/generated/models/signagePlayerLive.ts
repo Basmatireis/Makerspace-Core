@@ -24,6 +24,7 @@ import type { SignagePlayerLiveAnnouncement } from './signagePlayerLiveAnnouncem
 import type { SignagePlayerLiveMachine } from './signagePlayerLiveMachine';
 import type { SignagePlayerOpenDay } from './signagePlayerOpenDay';
 import type { SignagePlayerStream } from './signagePlayerStream';
+import type { SignagePlayerTimelapse } from './signagePlayerTimelapse';
 
 export interface SignagePlayerLive {
   serverTime: string;
@@ -47,4 +48,10 @@ export interface SignagePlayerLive {
      * @maxItems 20
      */
   streams: SignagePlayerStream[];
+  /**
+     * Present only while the display's publication contains a timelapse widget: the union of the clips the published timelapse widgets need, newest first, at most 50. Only finished recorded runs with a stored timelapse that are not hidden from signage.
+     * @maxItems 50
+     * @nullable
+     */
+  timelapses: SignagePlayerTimelapse[] | null;
 }

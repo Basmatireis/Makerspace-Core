@@ -758,7 +758,102 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 		Machines:      machines,
 		Announcements: announcements,
 		OpenDays:      openDays, Events: events, Calendar: signageCalendarBlockDTO(live.Calendar), Streams: streams,
+		Timelapses: signageTimelapsesDTO(live.Timelapses),
 	}
+}
+
+// signageTimelapsesDTO is null while the publication has no timelapse widget.
+func signageTimelapsesDTO(clips []signage.LiveTimelapse) nullable.Nullable[[]openapi.SignagePlayerTimelapse] {
+	if clips == nil {
+		return nullable.NewNullNullable[[]openapi.SignagePlayerTimelapse]()
+	}
+	items := make([]openapi.SignagePlayerTimelapse, 0, len(clips))
+	for _, clip := range clips {
+		items = append(items, openapi.SignagePlayerTimelapse{
+			RunId:       clip.RunID,
+			MachineId:   clip.MachineID,
+			MachineName: clip.MachineName,
+			EndedAt:     clip.EndedAt,
+			Sha256:      clip.SHA256,
+			SizeBytes:   clip.SizeBytes,
+			Url:         apiBasePath + "/signage/player/timelapses/" + clip.RunID.String() + "/" + clip.SHA256,
+		})
+	}
+	return nullable.NewNullableWithValue(items)
+}
+
+// signageTimelapseResponse serves a run's timelapse video like a content-addressed asset: through
+// http.ServeContent with HTTP Range support when storage can seek, otherwise the whole body.
+type signageTimelapseResponse struct {
+	file         signage.TimelapseFile
+	cacheControl string
+	request      *http.Request
+}
+
+func (response signageTimelapseResponse) serve(w http.ResponseWriter) error {
+	defer func() { _ = response.file.Reader.Close() }()
+	header := w.Header()
+	header.Set("Content-Type", signage.TimelapseContentType)
+	header.Set("Cache-Control", response.cacheControl)
+	header.Set("ETag", `"`+response.file.SHA256+`"`)
+	header.Set("X-Content-Type-Options", "nosniff")
+	header.Set("Content-Security-Policy", signageAssetCSP)
+	if seeker, ok := response.file.Reader.(io.ReadSeeker); ok && response.request != nil {
+		http.ServeContent(w, response.request, "", time.Time{}, seeker)
+		return nil
+	}
+	header.Set("Accept-Ranges", "none")
+	header.Set("Content-Length", strconv.FormatInt(response.file.SizeBytes, 10))
+	w.WriteHeader(http.StatusOK)
+	_, err := io.Copy(w, response.file.Reader)
+	return err
+}
+
+func (response signageTimelapseResponse) VisitGetSignagePlayerTimelapseResponse(w http.ResponseWriter) error {
+	return response.serve(w)
+}
+
+func (response signageTimelapseResponse) VisitDownloadSignageTimelapseResponse(w http.ResponseWriter) error {
+	return response.serve(w)
+}
+
+func (s *Server) GetSignagePlayerTimelapse(
+	ctx context.Context,
+	r openapi.GetSignagePlayerTimelapseRequestObject,
+) (openapi.GetSignagePlayerTimelapseResponseObject, error) {
+	display, err := s.signagePlayerDisplay(ctx)
+	if err != nil {
+		return nil, err
+	}
+	file, err := s.signage.OpenPlayerTimelapse(ctx, display, r.RunId, r.Sha256)
+	if err != nil {
+		return nil, err
+	}
+	return signageTimelapseResponse{
+		file:         file,
+		cacheControl: "private, max-age=31536000, immutable",
+		request:      httpRequest(ctx),
+	}, nil
+}
+
+func (s *Server) DownloadSignageTimelapse(
+	ctx context.Context,
+	r openapi.DownloadSignageTimelapseRequestObject,
+) (openapi.DownloadSignageTimelapseResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	file, err := s.signage.OpenTimelapse(ctx, p, r.RunId)
+	if err != nil {
+		return nil, err
+	}
+	// Content-addressed only when the caller passes the timelapse's digest, as for asset downloads.
+	cacheControl := "private, no-store"
+	if r.Params.V != nil && *r.Params.V == file.SHA256 {
+		cacheControl = "private, max-age=31536000, immutable"
+	}
+	return signageTimelapseResponse{file: file, cacheControl: cacheControl, request: httpRequest(ctx)}, nil
 }
 
 func (s *Server) GetSignagePlayerLive(

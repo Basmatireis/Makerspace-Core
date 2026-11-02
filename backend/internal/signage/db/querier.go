@@ -81,6 +81,8 @@ type Querier interface {
 	GetSignageStreamingCamera(ctx context.Context, machineID uuid.UUID) (GetSignageStreamingCameraRow, error)
 	GetSignageTemplate(ctx context.Context, id uuid.UUID) (SignageAnnouncementTemplate, error)
 	GetSignageTemplateForUpdate(ctx context.Context, id uuid.UUID) (SignageAnnouncementTemplate, error)
+	// The timelapse of one run, only while the run is a finished recorded run not opted out of signage.
+	GetSignageTimelapse(ctx context.Context, runID uuid.UUID) (GetSignageTimelapseRow, error)
 	InsertSignageAnnouncementDisplay(ctx context.Context, arg InsertSignageAnnouncementDisplayParams) error
 	InsertSignageAnnouncementGroup(ctx context.Context, arg InsertSignageAnnouncementGroupParams) error
 	InsertSignageAnnouncementValue(ctx context.Context, arg InsertSignageAnnouncementValueParams) error
@@ -142,6 +144,9 @@ type Querier interface {
 	ListSignageTemplateIDsForShare(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListSignageTemplateNames(ctx context.Context) ([]string, error)
 	ListSignageTemplates(ctx context.Context) ([]SignageAnnouncementTemplate, error)
+	// Finished recorded runs with a stored timelapse that were not opted out of signage, newest first. Without
+	// all_machines only the given machines; ended_after NULL means any age.
+	ListSignageTimelapses(ctx context.Context, arg ListSignageTimelapsesParams) ([]ListSignageTimelapsesRow, error)
 	// The scenes a scene list refers to, share-locked so that a concurrent deletion or change of a scene's ratio
 	// either waits for this transaction or is seen by it.
 	LockSignageScenesForShare(ctx context.Context, ids []string) ([]LockSignageScenesForShareRow, error)

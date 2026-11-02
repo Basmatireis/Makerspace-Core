@@ -10,7 +10,12 @@ import {
   type PlaybackResult,
   type PlaybackRule,
 } from '../features/signage/engine/playback';
-import { isPrinting, type RenderData, type RenderMachine } from '../features/signage/render/types';
+import {
+  isPrinting,
+  type RenderData,
+  type RenderMachine,
+  type RenderTimelapse,
+} from '../features/signage/render/types';
 import type { CameraSource } from './camera';
 
 // Decides what is on screen: the shared engine picks the winning rule, the player adds the minimum display time
@@ -52,7 +57,7 @@ export function holdResult(
 /** Live data as the player keeps it between polls. */
 export type LiveSnapshot = Pick<
   SignagePlayerLive,
-  'machines' | 'announcements' | 'openDays' | 'events' | 'calendar' | 'streams'
+  'machines' | 'announcements' | 'openDays' | 'events' | 'calendar' | 'timelapses' | 'streams'
 > & {
   /** Server clock minus device clock in milliseconds, so announcement windows follow the server. */
   skewMs: number;
@@ -79,6 +84,8 @@ export type ViewInput = {
   assetUrl: (assetId: string) => string | null;
   /** Asset names, so fonts are registered under the name CSS uses. */
   assetName?: (assetId: string) => string | null;
+  /** Where a timelapse clip plays from; null while it is not cached. Defaults to the clip's own URL (network). */
+  timelapseUrl?: (clip: RenderTimelapse) => string | null;
 };
 
 export const liveAvailable = (lastLiveAt: number | null, now: number) =>
@@ -140,6 +147,8 @@ export function resolveView(input: ViewInput): { view: PlayerView; hold: Hold } 
     openDays: live?.openDays ?? [],
     events: live?.events ?? [],
     calendar: live?.calendar ?? null,
+    timelapses: live?.timelapses ?? null,
+    timelapseUrl: input.timelapseUrl ?? ((clip) => clip.url),
     // A manifest cached before custom layouts has none.
     customLayouts: manifest.customLayouts ?? [],
     assetUrl: input.assetUrl,

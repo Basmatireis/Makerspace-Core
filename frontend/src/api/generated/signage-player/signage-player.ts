@@ -85,6 +85,32 @@ export const getSignagePlayerAsset = async (assetId: string,
 );}
 
 
+export const getGetSignagePlayerTimelapseUrl = (runId: UUIDv7,
+    sha256: string,) => {
+
+
+
+
+  return `/api/v1/signage/player/timelapses/${runId}/${sha256}`
+}
+
+/**
+ * Device credential of a signage player only. Serves the video only while the run is in the display's current timelapse selection (recomputed from the latest publication on every request, see `SignagePlayerLive.timelapses`) and the checksum matches; 404 otherwise. Content-addressed, so responses are immutable (`Cache-Control: private, max-age=31536000, immutable`). HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`. Rate-limited like asset downloads (600 per minute and device).
+ * @summary Timelapse video listed in the display's live timelapses
+ */
+export const getSignagePlayerTimelapse = async (runId: UUIDv7,
+    sha256: string, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getGetSignagePlayerTimelapseUrl(runId,sha256),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 export const getGetSignagePlayerLiveUrl = () => {
 
 

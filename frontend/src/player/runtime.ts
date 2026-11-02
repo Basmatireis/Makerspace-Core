@@ -8,7 +8,8 @@ import { isRevoked, PlayerApiError, type PlayerApi } from './api';
 import { loadAsset as defaultLoadAsset, settleLimited, type AssetLoader } from './assets';
 import { CacheQuotaError, createPlayerStore, type PersistedLive, type PlayerStore } from './cache';
 import type { CameraSource } from './camera';
-import { CameraManager } from './cameraManager';
+import { LazyCameraSource } from './lazyCamera';
+import type { TimelapseCache, TimelapseEnv } from './timelapseCache';
 import { backoffMs } from './timing';
 import { resolveView, type Hold, type LiveSnapshot, type PlayerView } from './view';
 import { PLAYER_VERSION } from './version';
@@ -47,9 +48,15 @@ export type RuntimeDeps = {
   /** The offline cache; `null` (no Cache Storage) falls back to in-memory preloading. Defaults to the browser's. */
   store?: PlayerStore | null;
   camera?: CameraSource;
+  /** Opens the timelapse clip cache; defaults to the lazily imported Cache Storage one. Only used with a `store`. */
+  openTimelapses?: (env: TimelapseEnv) => Promise<TimelapseCache | null>;
   now?: () => number;
   playerVersion?: string;
 };
+
+// The clip cache is only needed by displays that show timelapses, so it is loaded on the first live payload listing clips.
+const openDefaultTimelapses = (env: TimelapseEnv) =>
+  import('./timelapseCache').then((module) => module.openTimelapseCache(env));
 
 type Active = { manifest: SignagePlayerManifest; urls: Map<string, string>; names: Map<string, string> };
 const activeOf = (manifest: SignagePlayerManifest): Active => ({
@@ -63,6 +70,10 @@ export class PlayerRuntime {
   private readonly loadAsset: AssetLoader;
   private readonly store: PlayerStore | null;
   private readonly camera: CameraSource;
+  private readonly openTimelapses: (env: TimelapseEnv) => Promise<TimelapseCache | null>;
+  /** `pending` until the clip cache is loaded; null without one (clips stream from the network). */
+  private timelapses: TimelapseCache | null | 'pending' = 'pending';
+  private timelapsesOpening: Promise<TimelapseCache | null> | null = null;
   private readonly now: () => number;
   private readonly playerVersion: string;
   private readonly listeners = new Set<() => void>();
@@ -95,11 +106,13 @@ export class PlayerRuntime {
     this.api = deps.api;
     this.loadAsset = deps.loadAsset ?? defaultLoadAsset;
     this.store = deps.store === undefined ? createPlayerStore() : deps.store;
-    this.camera = deps.camera ?? new CameraManager();
+    this.camera = deps.camera ?? new LazyCameraSource();
     this.camera.setErrorSink?.((message) => this.note(message));
     this.camera.subscribe?.(() => {
       if (!this.stopped) this.publish();
     });
+    this.openTimelapses = deps.openTimelapses ?? openDefaultTimelapses;
+    if (!this.store) this.timelapses = null;
     this.now = deps.now ?? Date.now;
     this.playerVersion = deps.playerVersion ?? PLAYER_VERSION;
   }
@@ -171,9 +184,11 @@ export class PlayerRuntime {
           openDays: saved.openDays,
           events: saved.events,
           calendar: saved.calendar ?? null,
+          timelapses: saved.timelapses ?? null,
           streams: [],
           skewMs: saved.skewMs,
         };
+        this.syncTimelapses(this.live.timelapses);
       }
     } catch {
       /* An unreadable cache just means a normal start. */
@@ -296,17 +311,52 @@ export class PlayerRuntime {
       openDays: live.openDays,
       events: live.events,
       calendar: live.calendar ?? null,
+      timelapses: live.timelapses ?? null,
       streams: live.streams,
       skewMs: Date.parse(live.serverTime) - this.now() || 0,
     };
     this.camera.setStreams?.(live.streams);
+    this.syncTimelapses(this.live.timelapses);
     this.persistLive(this.live);
+  }
+
+  /** Keeps the listed timelapse clips on disk, after the assets of a revision that is being loaded. */
+  private syncTimelapses(clips: SignagePlayerLive['timelapses']) {
+    if (this.timelapses === null) return;
+    // Nothing listed and nothing loaded: a display without timelapses never loads the clip code.
+    if (this.timelapses === 'pending' && !this.timelapsesOpening && !clips?.length) return;
+    this.timelapsesOpening ??= this.openTimelapses({
+      report: (message) => this.note(message),
+      changed: () => {
+        if (!this.stopped) this.publish();
+      },
+    }).then(
+      (cache) => {
+        this.timelapses = cache;
+        if (!this.stopped) this.publish();
+        return cache;
+      },
+      () => {
+        // The chunk could not load (offline before it was cached): the next live poll tries again.
+        this.timelapsesOpening = null;
+        return null;
+      },
+    );
+    void this.timelapsesOpening
+      .then((cache) => cache?.sync(this.live?.timelapses ?? [], () => this.manifestInFlight ?? Promise.resolve()))
+      .catch(() => undefined); // An unreadable cache only means the clips are tried again on the next poll.
+  }
+
+  /** The URL a clip plays from: the cached one, or the network without Cache Storage; null while it is not cached. */
+  private timelapseUrl(url: string): string | null {
+    if (this.timelapses === null) return url;
+    return this.timelapses !== 'pending' && this.timelapses.isCached(url) ? url : null;
   }
 
   /** Keeps the parts of live data that may outlive a restart (never machines). */
   private persistLive(live: LiveSnapshot) {
     if (!this.store) return;
-    const key = JSON.stringify([live.announcements, live.openDays, live.events, live.calendar]);
+    const key = JSON.stringify([live.announcements, live.openDays, live.events, live.calendar, live.timelapses]);
     const now = this.now();
     if (this.savedLive && this.savedLive.key === key && now - this.savedLive.at < LIVE_SAVE_INTERVAL_MS) return;
     this.savedLive = { key, at: now };
@@ -317,6 +367,7 @@ export class PlayerRuntime {
       openDays: live.openDays,
       events: live.events,
       calendar: live.calendar,
+      timelapses: live.timelapses,
     };
     void this.store.saveLive(payload).catch(() => undefined);
   }
@@ -435,6 +486,7 @@ export class PlayerRuntime {
         camera: this.camera,
         assetUrl: (id) => urls.get(id) ?? null,
         assetName: (id) => names.get(id) ?? null,
+        timelapseUrl: (clip) => this.timelapseUrl(clip.url),
       });
       this.hold = resolved.hold;
       view = resolved.view;

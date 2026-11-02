@@ -200,6 +200,31 @@ describe('resolveView', () => {
     expect(view.data.announcements[0]).toMatchObject({ bodyFormat: 'markdown', bodyCss: 'p{}', body: '**b**' });
   });
 
+  it('hands the timelapse clips and their playable URL to the renderer', () => {
+    const clip = {
+      runId: 'r1',
+      machineId: 'm1',
+      machineName: 'MK4',
+      endedAt: new Date(0).toISOString(),
+      sha256: 'ab'.repeat(32),
+      sizeBytes: 10,
+      url: `/api/v1/signage/player/timelapses/r1/${'ab'.repeat(32)}`,
+    };
+    const input = {
+      ...base,
+      manifest: manifest(1),
+      live: snapshot({ timelapses: [clip] }),
+      lastLiveAt: 1_000,
+      now: 1_000,
+    };
+    const network = resolveView(input).view.data;
+    expect(network.timelapses).toEqual([clip]);
+    expect(network.timelapseUrl?.(clip)).toBe(clip.url);
+    const notCached = resolveView({ ...input, timelapseUrl: () => null }).view.data;
+    expect(notCached.timelapseUrl?.(clip)).toBeNull();
+    expect(resolveView({ ...input, live: snapshot() }).view.data.timelapses).toBeNull();
+  });
+
   it('copes with a manifest and announcements cached before custom layouts and rich text', () => {
     const old = manifest(1);
     delete (old as Partial<typeof old>).customLayouts;

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
-import { getDownloadSignageAssetUrl } from '../../api/generated/signage/signage';
+import { getDownloadSignageAssetUrl, getDownloadSignageTimelapseUrl } from '../../api/generated/signage/signage';
 import type { SignageAnnouncementTemplate, SignagePlayerCalendar } from '../../api/generated/models';
 import { renderAnnouncement } from './engine/announcements';
 import type { RenderAnnouncement, RenderData, RenderMachine } from './render/types';
@@ -12,7 +12,8 @@ import { assetsQuery, calendarQuery, machinesQuery, templatesQuery } from './que
 
 // Data for the admin previews (editor canvas, thumbnails, scene list preview). Machine states and announcements are
 // simulated (the editor lets people check fallbacks by picking a "Preview as" situation); open days, events and the
-// calendar block are the real upcoming public ones, so an empty calendar shows the widgets' normal empty text.
+// calendar block are the real upcoming public ones, so an empty calendar shows the widgets' normal empty text. Timelapse
+// clips need a display's live selection: they appear in the display preview (publishedView.ts), not in the editor.
 
 export type PreviewPresetId = 'idle' | 'first' | 'all' | 'camera' | 'stale' | 'announcement';
 export const PREVIEW_PRESETS: { id: PreviewPresetId; label: string }[] = [
@@ -27,6 +28,10 @@ export const PREVIEW_PRESETS: { id: PreviewPresetId; label: string }[] = [
 /** Content-addressed URL: the digest lets the browser cache the bytes for a year. Without a known digest the URL is uncached. */
 export const assetContentUrl = (assetId: string, sha256?: string) =>
   getDownloadSignageAssetUrl(assetId, sha256 ? { v: sha256 } : undefined);
+
+/** A timelapse clip for staff previews; content-addressed by the video's digest like assets. */
+export const timelapseContentUrl = (runId: string, sha256: string) =>
+  getDownloadSignageTimelapseUrl(runId, { v: sha256 });
 
 /** The makerspace time zone from the public configuration (same zone the server renders announcements in). */
 export function useMakerspaceTimeZone(): string {

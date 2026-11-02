@@ -201,3 +201,57 @@ describe('Widget fields', () => {
     expect(seen.current).toMatchObject({ showCompetencies: true });
   });
 });
+
+describe('Timelapse widget', () => {
+  const machine = '0192f6f8-743e-7c77-a349-cd07c3e8a001';
+  const timelapse = (patch: Record<string, unknown> = {}) =>
+    ({ ...defaultWidget('timelapse'), ...patch }) as SignageWidget;
+
+  it('starts valid and checks machines and ranges like the backend', () => {
+    expect(defaultWidget('timelapse')).toEqual({
+      type: 'timelapse',
+      source: 'all',
+      machineIds: [],
+      count: 5,
+      maxAgeDays: 30,
+      maxSeconds: 30,
+      transition: 'fade',
+      showCaption: true,
+      fit: 'cover',
+    });
+    expect(widgetError(timelapse())).toBeNull();
+    expect(widgetError(timelapse({ source: 'machines' }))).toBe('Choose at least one machine.');
+    expect(widgetError(timelapse({ source: 'machines', machineIds: [machine] }))).toBeNull();
+    expect(widgetError(timelapse({ source: 'machines', machineIds: [machine, machine] }))).toMatch(/once/);
+    expect(widgetError(timelapse({ machineIds: [machine] }))).not.toBeNull();
+    const many = Array.from({ length: 21 }, (_, index) => `${machine.slice(0, -2)}${String(index).padStart(2, '0')}`);
+    expect(widgetError(timelapse({ source: 'machines', machineIds: many }))).toMatch(/at most 20/);
+    expect(widgetError(timelapse({ count: 0 }))).not.toBeNull();
+    expect(widgetError(timelapse({ count: 21 }))).not.toBeNull();
+    expect(widgetError(timelapse({ maxAgeDays: 0 }))).toBeNull();
+    expect(widgetError(timelapse({ maxAgeDays: 366 }))).not.toBeNull();
+    expect(widgetError(timelapse({ maxSeconds: 4 }))).not.toBeNull();
+    expect(widgetError(timelapse({ maxSeconds: 601 }))).not.toBeNull();
+  });
+
+  it('edits the clip settings and clears the machines when all machines are chosen', async () => {
+    const seen = setup(timelapse({ source: 'machines', machineIds: [machine] }));
+    const user = userEvent.setup();
+    expect(screen.getByText(/this editor preview stays empty/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Number of clips'), { target: { value: '8' } });
+    fireEvent.change(screen.getByLabelText('Maximum age in days'), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText('Maximum seconds per clip'), { target: { value: '45' } });
+    await user.selectOptions(screen.getByLabelText('Transition'), 'cut');
+    await user.click(screen.getByRole('switch', { name: /Caption with machine and day/ }));
+    await user.click(screen.getByText('All machines'));
+    expect(seen.current).toMatchObject({
+      source: 'all',
+      machineIds: [],
+      count: 8,
+      maxAgeDays: 0,
+      maxSeconds: 45,
+      transition: 'cut',
+      showCaption: false,
+    });
+  });
+});

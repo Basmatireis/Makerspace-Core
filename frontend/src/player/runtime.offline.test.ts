@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlayerApiError, PlayerNetworkError, type PlayerApi } from './api';
 import { createPlayerStore, type PlayerStore } from './cache';
-import { ASSET_CACHE, assetKey } from './cacheKeys';
+import { ASSET_CACHE, assetKey, TIMELAPSE_CACHE } from './cacheKeys';
+import { openTimelapseCache, type TimelapseEnv } from './timelapseCache';
 import { PERSISTED_LIVE_MAX_AGE_MS, PlayerRuntime } from './runtime';
 import { fakeCaches, type FakeCaches } from './testCaches';
 import { asset, fakeApi, live, manifest, only, rule, scene } from './testFixtures';
@@ -512,5 +513,123 @@ describe('PlayerRuntime offline cache', () => {
     await settle(5_000);
     expect(runtime.getSnapshot().view).toBeNull();
     runtime.stop();
+  });
+
+  describe('timelapses', () => {
+    const SHA = 'ab'.repeat(32);
+    const clip = {
+      runId: 'r1',
+      machineId: 'm1',
+      machineName: 'MK4',
+      endedAt: new Date(2026, 9, 18).toISOString(),
+      sha256: SHA,
+      sizeBytes: 100,
+      url: `/api/v1/signage/player/timelapses/r1/${SHA}`,
+    };
+    const opener = (setup: Env) => {
+      const opened: string[] = [];
+      const open = (hooks: TimelapseEnv) => {
+        opened.push('open');
+        return openTimelapseCache({
+          ...hooks,
+          caches: setup.caches,
+          fetch: (async (url: string) => {
+            setup.downloads.push(url);
+            return new Response('video');
+          }) as unknown as typeof fetch,
+          storage: { estimate: async () => ({ ...setup.usage }) },
+        });
+      };
+      return { opened, open };
+    };
+
+    it('plays a clip once it is cached, persists the list and restores it offline', async () => {
+      const setup = env();
+      const { opened, open } = opener(setup);
+      const online = new PlayerRuntime({
+        api: fakeApi({
+          manifest: async () => ({ unchanged: false, manifest: manifest(1) }),
+          live: async () => live({ timelapses: [clip] }),
+        }),
+        store: setup.store,
+        openTimelapses: open,
+      });
+      online.start();
+      await settle(5_000);
+      const data = online.getSnapshot().view?.data;
+      expect(data?.timelapses).toEqual([clip]);
+      expect(data?.timelapseUrl?.(clip)).toBe(clip.url);
+      expect(setup.caches.keysOf(TIMELAPSE_CACHE)).toEqual([clip.url]);
+      expect(data?.timelapseUrl?.({ ...clip, url: '/api/v1/signage/player/timelapses/r2/x' })).toBeNull();
+      expect(opened).toHaveLength(1);
+      online.stop();
+      expect((await setup.store.loadLive())?.timelapses).toEqual([clip]);
+
+      const offline = new PlayerRuntime({ api: offlineApi(), store: setup.store, openTimelapses: open });
+      offline.start();
+      await settle(5_000);
+      const restored = offline.getSnapshot().view?.data;
+      expect(restored?.timelapses).toEqual([clip]);
+      expect(restored?.timelapseUrl?.(clip)).toBe(clip.url);
+      offline.stop();
+    });
+
+    it('never loads the clip cache for a display without timelapses', async () => {
+      const setup = env();
+      const { opened, open } = opener(setup);
+      const runtime = new PlayerRuntime({
+        api: fakeApi({ manifest: async () => ({ unchanged: false, manifest: manifest(1) }), live: async () => live() }),
+        store: setup.store,
+        openTimelapses: open,
+      });
+      runtime.start();
+      await settle(15_000);
+      expect(opened).toEqual([]);
+      expect(runtime.getSnapshot().view?.data.timelapses).toBeNull();
+      runtime.stop();
+    });
+
+    it('streams the clips from the network without Cache Storage', async () => {
+      const setup = env();
+      const { opened, open } = opener(setup);
+      const runtime = new PlayerRuntime({
+        api: fakeApi({
+          manifest: async () => ({ unchanged: false, manifest: manifest(1) }),
+          live: async () => live({ timelapses: [clip] }),
+        }),
+        store: null,
+        loadAsset: async () => 'ready',
+        openTimelapses: open,
+      });
+      runtime.start();
+      await settle(5_000);
+      expect(runtime.getSnapshot().view?.data.timelapseUrl?.(clip)).toBe(clip.url);
+      expect(opened).toEqual([]);
+      runtime.stop();
+    });
+
+    it('removes the clips when the display is revoked', async () => {
+      const setup = env();
+      const { open } = opener(setup);
+      let revoked = false;
+      const runtime = new PlayerRuntime({
+        api: fakeApi({
+          manifest: async () => ({ unchanged: false, manifest: manifest(1) }),
+          live: async () => {
+            if (revoked) throw new PlayerApiError(401, null, 'x');
+            return live({ timelapses: [clip] });
+          },
+        }),
+        store: setup.store,
+        openTimelapses: open,
+      });
+      runtime.start();
+      await settle(5_000);
+      expect(setup.caches.keysOf(TIMELAPSE_CACHE)).toEqual([clip.url]);
+      revoked = true;
+      await settle(11_000);
+      expect(setup.caches.keysOf(TIMELAPSE_CACHE)).toEqual([]);
+      runtime.stop();
+    });
   });
 });

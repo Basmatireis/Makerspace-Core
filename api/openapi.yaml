@@ -4850,6 +4850,39 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/timelapses/{runId}/content:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Signage]
+      operationId: downloadSignageTimelapse
+      summary: Timelapse video of a run for the admin preview of a timelapse widget
+      description: >-
+        Needs `signage.read`. 404 unless the run is a finished recorded run that is not hidden from signage and has a stored timelapse.
+        With `v` equal to the timelapse's `sha256` the response is cacheable for a year (the URL is content-addressed); otherwise it is never cached.
+        HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: v, in: query, description: "The timelapse's sha256; enables long-lived private caching when it matches.", schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+      responses:
+        "200":
+          description: Video bytes, private; immutable-cached only when `v` matches the sha256, otherwise no-store.
+          headers:
+            Cache-Control: {schema: {type: string}}
+            X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
+            Content-Security-Policy: {schema: {type: string}}
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "206":
+          description: Partial content for a Range request.
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "416": {description: Range not satisfiable.}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /signage/scenes:
     get:
       tags: [Signage]
@@ -5550,6 +5583,38 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "416": {description: Range not satisfiable.}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/player/timelapses/{runId}/{sha256}:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: sha256, in: path, required: true, schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+    get:
+      tags: [Signage Player]
+      operationId: getSignagePlayerTimelapse
+      summary: Timelapse video listed in the display's live timelapses
+      description: |
+        Device credential of a signage player only. Serves the video only while the run is in the display's current timelapse selection (recomputed from the latest publication on every request, see `SignagePlayerLive.timelapses`) and the checksum matches; 404 otherwise. Content-addressed, so responses are immutable (`Cache-Control: private, max-age=31536000, immutable`). HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`. Rate-limited like asset downloads (600 per minute and device).
+      security: [{managedDeviceCookie: []}, {managedDeviceToken: []}]
+      responses:
+        "200":
+          description: Video bytes.
+          headers:
+            Cache-Control: {schema: {type: string}}
+            ETag: {schema: {type: string}}
+            X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
+            Content-Security-Policy: {schema: {type: string}}
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "206":
+          description: Partial content for a Range request.
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "416": {description: Range not satisfiable.}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /signage/player/live:
@@ -20553,6 +20618,22 @@ components:
         title: {type: string, maxLength: 200, description: Heading; empty hides it.}
         showCompetencies: {type: boolean, description: "Weeks view: adds the planned competencies to open days, the first two and +N; absent means false."}
         style: {$ref: "#/components/schemas/SignageWidgetStyle"}
+    SignageTimelapseWidget:
+      type: object
+      additionalProperties: false
+      required: [type, source, machineIds, count, maxAgeDays, maxSeconds, transition, showCaption, fit]
+      description: Timelapse videos of recent finished prints as a slideshow, newest first. The player receives the clips in `SignagePlayerLive.timelapses`.
+      properties:
+        type: {type: string, enum: [timelapse], x-enum-varnames: [SignageTimelapseWidgetTypeTimelapse]}
+        source: {type: string, enum: [all, machines], x-enum-varnames: [SignageTimelapseWidgetSourceAll, SignageTimelapseWidgetSourceMachines], description: "`all` shows clips of every machine, `machines` only those of `machineIds`."}
+        machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Distinct, existing machines; required non-empty with `machines`, must be empty with `all`."}
+        count: {type: integer, minimum: 1, maximum: 20, description: Number of newest clips.}
+        maxAgeDays: {type: integer, minimum: 0, maximum: 365, description: "Only runs that ended within this many days; 0 means any age."}
+        maxSeconds: {type: integer, minimum: 5, maximum: 600, description: "A clip plays from the start until it ends, but at most this long."}
+        transition: {$ref: "#/components/schemas/SignageTransition"}
+        showCaption: {type: boolean, description: "Shows the machine name and the day the print ended; never the job, file or person."}
+        fit: {$ref: "#/components/schemas/SignageFit"}
+        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageAnnouncementWidget:
       type: object
       additionalProperties: false
@@ -20584,6 +20665,7 @@ components:
         - $ref: "#/components/schemas/SignageAnnouncementWidget"
         - $ref: "#/components/schemas/SignageAgendaWidget"
         - $ref: "#/components/schemas/SignageCalendarWidget"
+        - $ref: "#/components/schemas/SignageTimelapseWidget"
       discriminator:
         propertyName: type
         mapping:
@@ -20601,6 +20683,7 @@ components:
           announcement: "#/components/schemas/SignageAnnouncementWidget"
           agenda: "#/components/schemas/SignageAgendaWidget"
           calendar: "#/components/schemas/SignageCalendarWidget"
+          timelapse: "#/components/schemas/SignageTimelapseWidget"
     SignageZones:
       type: object
       description: Widget per zone id of the scene's layout.
@@ -21248,10 +21331,23 @@ components:
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         path: {type: string, maxLength: 200, description: "Relative URL of the camera websocket (`/api/v1/signage/player/cameras/{machineId}/stream`). Open it on the player's own origin (ws/wss); the device credential authorizes it, there is no ticket."}
+    SignagePlayerTimelapse:
+      type: object
+      additionalProperties: false
+      required: [runId, machineId, machineName, endedAt, sha256, sizeBytes, url]
+      description: A timelapse clip of a finished print. Never names the job, file or person.
+      properties:
+        runId: {$ref: "#/components/schemas/UUIDv7"}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        machineName: {type: string, maxLength: 200}
+        endedAt: {type: string, format: date-time}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+        sizeBytes: {type: integer, format: int64, minimum: 1}
+        url: {type: string, maxLength: 200, description: "Relative URL of the video (`/api/v1/signage/player/timelapses/{runId}/{sha256}`)."}
     SignagePlayerLive:
       type: object
       additionalProperties: false
-      required: [serverTime, revision, machines, announcements, openDays, events, calendar, streams]
+      required: [serverTime, revision, machines, announcements, openDays, events, calendar, streams, timelapses]
       properties:
         serverTime: {type: string, format: date-time}
         revision: {type: integer, nullable: true, description: Latest published revision; null before the first publication.}
@@ -21264,6 +21360,14 @@ components:
           nullable: true
           description: Present only while the display's publication contains a calendar widget; holds only the categories a published calendar widget shows.
         streams: {type: array, maxItems: 20, description: "Camera streams the device may watch right now: machines used by a camera widget of the published scene whose assignment has camera streaming on, respecting the display's `allowCameraOutside` setting.", items: {$ref: "#/components/schemas/SignagePlayerStream"}}
+        timelapses:
+          type: array
+          nullable: true
+          maxItems: 50
+          items: {$ref: "#/components/schemas/SignagePlayerTimelapse"}
+          description: >-
+            Present only while the display's publication contains a timelapse widget: the union of the clips the published timelapse widgets
+            need, newest first, at most 50. Only finished recorded runs with a stored timelapse that are not hidden from signage.
     SignageCalendar:
       type: object
       additionalProperties: false

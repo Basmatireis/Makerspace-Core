@@ -1321,6 +1321,34 @@ func (q *Queries) GetSignageTemplateForUpdate(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
+const getSignageTimelapse = `-- name: GetSignageTimelapse :one
+SELECT r.id AS run_id, t.sha256, t.size_bytes, t.file_id
+FROM machine_runs r
+JOIN machine_run_timelapses t ON t.run_id = r.id
+WHERE r.id = $1 AND r.source = 'recorded' AND r.state = 'finished' AND r.deleted_at IS NULL
+  AND NOT r.hidden_from_signage AND r.ended_at IS NOT NULL
+`
+
+type GetSignageTimelapseRow struct {
+	RunID     uuid.UUID
+	Sha256    []byte
+	SizeBytes int64
+	FileID    uuid.UUID
+}
+
+// The timelapse of one run, only while the run is a finished recorded run not opted out of signage.
+func (q *Queries) GetSignageTimelapse(ctx context.Context, runID uuid.UUID) (GetSignageTimelapseRow, error) {
+	row := q.db.QueryRow(ctx, getSignageTimelapse, runID)
+	var i GetSignageTimelapseRow
+	err := row.Scan(
+		&i.RunID,
+		&i.Sha256,
+		&i.SizeBytes,
+		&i.FileID,
+	)
+	return i, err
+}
+
 const insertSignageAnnouncementDisplay = `-- name: InsertSignageAnnouncementDisplay :exec
 INSERT INTO signage_announcement_displays (announcement_id, display_id) VALUES ($1, $2)
 `
@@ -2989,6 +3017,72 @@ func (q *Queries) ListSignageTemplates(ctx context.Context) ([]SignageAnnounceme
 			&i.UpdatedAt,
 			&i.BodyFormat,
 			&i.BodyCss,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageTimelapses = `-- name: ListSignageTimelapses :many
+SELECT r.id AS run_id, r.machine_id, m.name AS machine_name, r.ended_at::timestamptz AS ended_at,
+       t.sha256, t.size_bytes, t.file_id
+FROM machine_runs r
+JOIN machine_run_timelapses t ON t.run_id = r.id
+JOIN machines m ON m.id = r.machine_id
+WHERE r.source = 'recorded' AND r.state = 'finished' AND r.deleted_at IS NULL AND NOT r.hidden_from_signage
+  AND r.ended_at IS NOT NULL
+  AND ($1::boolean OR r.machine_id = ANY($2::text[]::uuid[]))
+  AND ($3::timestamptz IS NULL OR r.ended_at >= $3::timestamptz)
+ORDER BY r.ended_at DESC, r.id DESC
+LIMIT $4::int
+`
+
+type ListSignageTimelapsesParams struct {
+	AllMachines bool
+	MachineIds  []string
+	EndedAfter  pgtype.Timestamptz
+	RowLimit    int32
+}
+
+type ListSignageTimelapsesRow struct {
+	RunID       uuid.UUID
+	MachineID   uuid.UUID
+	MachineName string
+	EndedAt     time.Time
+	Sha256      []byte
+	SizeBytes   int64
+	FileID      uuid.UUID
+}
+
+// Finished recorded runs with a stored timelapse that were not opted out of signage, newest first. Without
+// all_machines only the given machines; ended_after NULL means any age.
+func (q *Queries) ListSignageTimelapses(ctx context.Context, arg ListSignageTimelapsesParams) ([]ListSignageTimelapsesRow, error) {
+	rows, err := q.db.Query(ctx, listSignageTimelapses,
+		arg.AllMachines,
+		arg.MachineIds,
+		arg.EndedAfter,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignageTimelapsesRow{}
+	for rows.Next() {
+		var i ListSignageTimelapsesRow
+		if err := rows.Scan(
+			&i.RunID,
+			&i.MachineID,
+			&i.MachineName,
+			&i.EndedAt,
+			&i.Sha256,
+			&i.SizeBytes,
+			&i.FileID,
 		); err != nil {
 			return nil, err
 		}

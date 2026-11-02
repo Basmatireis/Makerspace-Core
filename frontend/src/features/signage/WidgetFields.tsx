@@ -30,6 +30,7 @@ import { AssetPicker, FitField } from './components';
 import { ListFields } from './ListFields';
 import type { MachineOption } from './preview';
 import { CodeArea, FormatSelect, RichTextAdvanced } from './RichTextFields';
+import { TimelapseFields } from './TimelapseFields';
 import { WidgetStyleFields } from './WidgetStyleFields';
 import { clampInt, formatOf, LIMITS, styleOf, widgetError, withRichText, withStyle } from './widgets';
 
@@ -454,6 +455,8 @@ function TypeFields({ widget, assets, templates, machines, machinesKnown = true,
       return <ListFields widget={widget} assets={assets} error={error} onChange={onChange} />;
     case 'calendar':
       return <CalendarFields widget={widget} onChange={onChange} />;
+    case 'timelapse':
+      return <TimelapseFields widget={widget} machines={machines} onChange={onChange} />;
     case 'announcement':
       return (
         <>

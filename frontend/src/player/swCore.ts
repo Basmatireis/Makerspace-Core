@@ -3,9 +3,12 @@
 // chunk shared with the page). The asset key is therefore repeated here; swCore.test.ts checks it against cacheKeys.ts.
 
 export const ASSET_CACHE = 'signage-assets-v1';
+export const TIMELAPSE_CACHE = 'signage-timelapses-v1';
 export const SHELL_CACHE_PREFIX = 'signage-player-shell-';
 export const PLAYER_PAGE = '/player/';
 const ASSET_URL = /^\/api\/v1\/signage\/player\/assets\/[^/]+\/([0-9a-f]{64})$/;
+/** Timelapse clips are cached under their own URL, which names the run and the sha256 of the video. */
+const TIMELAPSE_URL = /^\/api\/v1\/signage\/player\/timelapses\/[^/]+\/[0-9a-f]{64}$/;
 /** A player start must not wait for a hung network: after this long the cached shell is used. */
 export const NAVIGATION_TIMEOUT_MS = 4_000;
 
@@ -73,8 +76,9 @@ export async function respond(request: Request, deps: WorkerDeps): Promise<Respo
   if (request.method !== 'GET') return null;
   const url = new URL(request.url);
   const sha = assetSha(url.pathname);
-  if (sha) {
-    const cached = await (await deps.caches.open(ASSET_CACHE)).match(assetKey(sha));
+  const key = sha ? assetKey(sha) : TIMELAPSE_URL.test(url.pathname) ? url.pathname : null;
+  if (key) {
+    const cached = await (await deps.caches.open(sha ? ASSET_CACHE : TIMELAPSE_CACHE)).match(key);
     return cached ? rangeResponse(request, cached) : null;
   }
   if (url.pathname === '/player' || url.pathname === PLAYER_PAGE) {

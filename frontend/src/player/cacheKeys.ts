@@ -3,6 +3,8 @@
 
 export const ASSET_CACHE = 'signage-assets-v1';
 export const STATE_CACHE = 'signage-state-v1';
+/** Timelapse clips, keyed by their player URL (which embeds the video's sha256); see timelapseCache.ts. */
+export const TIMELAPSE_CACHE = 'signage-timelapses-v1';
 export const SHELL_CACHE_PREFIX = 'signage-player-shell-';
 
 /** Asset responses are stored under their content hash, so an unchanged file is never downloaded twice. */

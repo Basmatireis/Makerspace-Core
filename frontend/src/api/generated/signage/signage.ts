@@ -24,6 +24,7 @@ import type {
   CreateSignageDisplayGroupRequest,
   CreateSignageSceneRequest,
   DownloadSignageAssetParams,
+  DownloadSignageTimelapseParams,
   ListSignageAssetsParams,
   PairSignageDisplayRequest,
   RenameSignageAssetRequest,
@@ -52,6 +53,7 @@ import type {
   SignageScene,
   SignageSceneList,
   StartSignageAnnouncementRequest,
+  UUIDv7,
   UpdateSignageAnnouncementRequest,
   UpdateSignageAnnouncementTemplateRequest,
   UpdateSignageCustomLayoutRequest,
@@ -491,6 +493,39 @@ export const downloadSignageAsset = async (assetId: string,
     params?: DownloadSignageAssetParams, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
 
   return apiFetch<Blob>(getDownloadSignageAssetUrl(assetId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getDownloadSignageTimelapseUrl = (runId: UUIDv7,
+    params?: DownloadSignageTimelapseParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/signage/timelapses/${runId}/content?${stringifiedParams}` : `/api/v1/signage/timelapses/${runId}/content`
+}
+
+/**
+ * Needs `signage.read`. 404 unless the run is a finished recorded run that is not hidden from signage and has a stored timelapse. With `v` equal to the timelapse's `sha256` the response is cacheable for a year (the URL is content-addressed); otherwise it is never cached. HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`.
+ * @summary Timelapse video of a run for the admin preview of a timelapse widget
+ */
+export const downloadSignageTimelapse = async (runId: UUIDv7,
+    params?: DownloadSignageTimelapseParams, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getDownloadSignageTimelapseUrl(runId,params),
   {
     ...options,
     method: 'GET'

@@ -489,6 +489,21 @@
 .sg-thumb {
   pointer-events: none;
 }
+.sg-timelapse {
+  position: relative;
+  inline-size: 100%;
+  block-size: 100%;
+}
+.sg-timelapse__caption {
+  position: absolute;
+  inset-block-end: calc(var(--u) * 1);
+  inset-inline-start: calc(var(--u) * 1);
+  padding: calc(var(--u) * 0.4) calc(var(--u) * 1);
+  border-radius: calc(var(--u) * 0.4);
+  background: rgb(0 0 0 / 60%);
+  color: #fff;
+  font-size: calc(var(--u) * 1.8);
+}
 
 /* Zone selection on the editor canvas: real buttons, so zones work with the keyboard. */
 .sg-zone__select {

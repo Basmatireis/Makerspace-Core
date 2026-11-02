@@ -187,6 +187,7 @@ const (
 	WidgetAnnouncement WidgetType = "announcement"
 	WidgetAgenda       WidgetType = "agenda"
 	WidgetCalendar     WidgetType = "calendar"
+	WidgetTimelapse    WidgetType = "timelapse"
 )
 
 // TextSize is the type size of a text or announcement widget.
@@ -223,6 +224,14 @@ type CameraSource string
 const (
 	CameraSourceMachine CameraSource = "machine"
 	CameraSourceAuto    CameraSource = "auto"
+)
+
+// TimelapseSource is which machines a timelapse widget shows clips of.
+type TimelapseSource string
+
+const (
+	TimelapseSourceAll      TimelapseSource = "all"
+	TimelapseSourceMachines TimelapseSource = "machines"
 )
 
 // CameraFallback is what a camera widget shows without a picture.

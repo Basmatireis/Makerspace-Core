@@ -22,6 +22,7 @@ export const WIDGET_LABELS: Record<WidgetType, string> = {
   events: 'Events',
   agenda: 'Agenda',
   calendar: 'Calendar',
+  timelapse: 'Timelapses',
   announcement: 'Announcement',
 };
 export const WIDGET_TYPES = Object.keys(WIDGET_LABELS) as WidgetType[];
@@ -37,6 +38,11 @@ export const LIMITS = {
   entryTemplate: 5000,
   calendarWeeks: 6,
   announcementBody: 5000,
+  timelapseMachines: 20,
+  timelapseCount: 20,
+  timelapseMaxAgeDays: 365,
+  timelapseMinSeconds: 5,
+  timelapseMaxSeconds: 600,
 } as const;
 
 export const DEFAULT_CALENDAR_COLORS: SignageCalendarColors = {
@@ -106,6 +112,18 @@ export function defaultWidget(type: WidgetType): SignageWidget {
         showEvents: true,
         colors: { ...DEFAULT_CALENDAR_COLORS },
         showWeekNumbers: false,
+      };
+    case 'timelapse':
+      return {
+        type,
+        source: 'all',
+        machineIds: [],
+        count: 5,
+        maxAgeDays: 30,
+        maxSeconds: 30,
+        transition: 'fade',
+        showCaption: true,
+        fit: 'cover',
       };
     case 'announcement':
       return {
@@ -258,6 +276,22 @@ function listError(widget: Extract<SignageWidget, { type: 'open_days' | 'events'
   return richTextError(widget);
 }
 
+function timelapseError(widget: Extract<SignageWidget, { type: 'timelapse' }>): string | null {
+  const within = (value: number, min: number, max: number) => Number.isInteger(value) && value >= min && value <= max;
+  const distinct = new Set(widget.machineIds).size;
+  if (widget.source === 'machines' && distinct === 0) return 'Choose at least one machine.';
+  if (widget.source === 'all' && widget.machineIds.length > 0) return 'All machines lists no machines.';
+  if (distinct !== widget.machineIds.length) return 'Each machine can be chosen once.';
+  if (widget.machineIds.length > LIMITS.timelapseMachines)
+    return `A timelapse widget lists at most ${LIMITS.timelapseMachines} machines.`;
+  if (!within(widget.count, 1, LIMITS.timelapseCount)) return `Show between 1 and ${LIMITS.timelapseCount} clips.`;
+  if (!within(widget.maxAgeDays, 0, LIMITS.timelapseMaxAgeDays))
+    return `The maximum age is 0 (any) to ${LIMITS.timelapseMaxAgeDays} days.`;
+  return within(widget.maxSeconds, LIMITS.timelapseMinSeconds, LIMITS.timelapseMaxSeconds)
+    ? null
+    : `A clip plays ${LIMITS.timelapseMinSeconds} to ${LIMITS.timelapseMaxSeconds} seconds.`;
+}
+
 /** Mirrors the backend widget validation (zones.go) so autosave does not send what is certain to be rejected. */
 export function widgetError(widget: SignageWidget): string | null {
   const style = styleOf(widget);
@@ -298,6 +332,8 @@ export function widgetError(widget: SignageWidget): string | null {
       return widget.title !== undefined && (widget.title.length > LIMITS.listTitle || SINGLE_LINE.test(widget.title))
         ? `The title is one line of up to ${LIMITS.listTitle} characters.`
         : null;
+    case 'timelapse':
+      return timelapseError(widget);
     case 'announcement':
       if (widget.rotateSeconds < 3 || widget.rotateSeconds > 300) return 'Rotate every 3 to 300 seconds.';
       return widget.fallbackText.length > 500 ? 'The fallback text is limited to 500 characters.' : null;

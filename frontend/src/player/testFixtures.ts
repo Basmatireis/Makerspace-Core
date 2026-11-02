@@ -68,6 +68,7 @@ export const live = (patch: Partial<SignagePlayerLive> = {}): SignagePlayerLive 
   openDays: [],
   events: [],
   calendar: null,
+  timelapses: null,
   streams: [],
   ...patch,
 });

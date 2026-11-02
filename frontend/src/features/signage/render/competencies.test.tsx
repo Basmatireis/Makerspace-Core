@@ -54,17 +54,19 @@ describe('planned competencies on signage', () => {
     expect(entryValues(openDayEntry(openDays[2]), 'Europe/Vienna').competencies).toBe('');
   });
 
-  it('leaves the open day list as it was without the option', () => {
+  it('leaves the open day list as it was without the option', async () => {
     const { container } = render(<SceneRenderer scene={scene({ type: 'open_days', count: 3 })} data={data()} />);
+    await screen.findByText('Next open days');
     expect(container.querySelectorAll('.sg-list__row')).toHaveLength(3);
     expect(container.querySelector('.sg-chips')).toBeNull();
     expect(container.querySelector('.sg-list__item')).toBeNull();
   });
 
-  it('adds the first four as chips and the rest as +n', () => {
+  it('adds the first four as chips and the rest as +n', async () => {
     const { container } = render(
       <SceneRenderer scene={scene({ type: 'open_days', count: 3, showCompetencies: true })} data={data()} />,
     );
+    await screen.findByText('Next open days');
     const chips = container.querySelectorAll('.sg-chips');
     // Only the first day has competencies; empty and missing lists render no chips.
     expect(chips).toHaveLength(1);
@@ -78,14 +80,14 @@ describe('planned competencies on signage', () => {
     expect(container.querySelectorAll('.sg-list__row')).toHaveLength(3);
   });
 
-  it('shows them on open-day entries of the agenda only', () => {
+  it('shows them on open-day entries of the agenda only', async () => {
     const { container } = render(
       <SceneRenderer
         scene={scene({ type: 'agenda', count: 4, includeOpenDays: true, includeEvents: true, showCompetencies: true })}
         data={data()}
       />,
     );
-    expect(screen.getByText('Soldering workshop')).toBeInTheDocument();
+    expect(await screen.findByText('Soldering workshop')).toBeInTheDocument();
     expect(container.querySelectorAll('.sg-chips')).toHaveLength(1);
   });
 

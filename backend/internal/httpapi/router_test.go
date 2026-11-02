@@ -166,6 +166,20 @@ func TestBrowserManagedDeviceProvisioningNeverExposesTokenToJavaScript(t *testin
 	}
 }
 
+func TestSignagePlayerDownloadsShareTheDownloadRateLimit(t *testing.T) {
+	for path, want := range map[string]bool{
+		apiBasePath + "/signage/player/assets/x/y":     true,
+		apiBasePath + "/signage/player/timelapses/x/y": true,
+		apiBasePath + "/signage/player/live":           false,
+		apiBasePath + "/signage/player/manifest":       false,
+		apiBasePath + "/signage/timelapses/x/content":  false,
+	} {
+		if got := isSignagePlayerDownloadPath(path); got != want {
+			t.Errorf("isSignagePlayerDownloadPath(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
 func TestVisitorEnrollmentCookiesUseStrictOneReadableCSRFPattern(t *testing.T) {
 	cfg := testConfig(t)
 	cfg.SessionCookieSecure = true

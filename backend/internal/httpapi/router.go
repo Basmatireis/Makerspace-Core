@@ -496,7 +496,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			}
 			if !s.allowSignagePlayerRequest(
 				device.ID,
-				strings.HasPrefix(r.URL.Path, apiBasePath+"/signage/player/assets/"),
+				isSignagePlayerDownloadPath(r.URL.Path),
 				time.Now().UTC(),
 			) {
 				writeAPIError(
@@ -1084,6 +1084,13 @@ func cookieValue(cookie *http.Cookie) string {
 
 func isSignagePlayerPath(path string) bool {
 	return strings.HasPrefix(path, apiBasePath+"/signage/player/")
+}
+
+// isSignagePlayerDownloadPath reports the player's content downloads (assets and timelapse clips), which
+// share the larger download rate limit.
+func isSignagePlayerDownloadPath(path string) bool {
+	return strings.HasPrefix(path, apiBasePath+"/signage/player/assets/") ||
+		strings.HasPrefix(path, apiBasePath+"/signage/player/timelapses/")
 }
 
 func isSignagePairingPath(path string) bool {

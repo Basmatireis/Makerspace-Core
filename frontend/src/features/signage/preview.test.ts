@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { assetContentUrl, buildPreviewData, renderSample } from './preview';
-import { templateFixture } from './testFixtures';
+import { resolvePublished } from './publishedView';
+import { previewFixture, templateFixture } from './testFixtures';
 
 const template = { ...templateFixture(), title: 'Until {ends_at}', body: '', fields: [] };
 const now = new Date('2026-10-20T22:30:00Z');
@@ -104,5 +105,29 @@ describe('signage preview helpers', () => {
     };
     const message = renderSample(rich, {}, now, 'Europe/Vienna');
     expect(message).toMatchObject({ body: '**a\\*b**', bodyFormat: 'markdown', bodyCss: 'strong{color:red}' });
+  });
+});
+
+describe('published view timelapses', () => {
+  it('plays the live clips from the staff content URL addressed by digest', () => {
+    const sha = 'ab'.repeat(32);
+    const clip = {
+      runId: 'run-1',
+      machineId: 'm1',
+      machineName: 'MK4',
+      endedAt: '2026-10-21T10:00:00Z',
+      sha256: sha,
+      sizeBytes: 10,
+      url: `/api/v1/signage/player/timelapses/run-1/${sha}`,
+    };
+    const base = previewFixture();
+    const view = resolvePublished(
+      { ...base, live: { ...base.live, timelapses: [clip] } },
+      { now: Date.parse('2026-10-22T10:00:00Z'), timeZone: 'Europe/Vienna' },
+    );
+    expect(view?.data.timelapses).toEqual([clip]);
+    expect(view?.data.timelapseUrl?.(clip)).toBe(`/api/v1/signage/timelapses/run-1/content?v=${sha}`);
+    const editor = buildPreviewData({ preset: 'idle', now: 0, machines: [], templates: [], timeZone: 'UTC' });
+    expect(editor.timelapses).toBeUndefined();
   });
 });
