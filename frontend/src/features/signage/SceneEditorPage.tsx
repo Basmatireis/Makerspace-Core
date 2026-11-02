@@ -1,10 +1,9 @@
 import './styles.scss';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   ContainedList,
   ContainedListItem,
-  InlineLoading,
   InlineNotification,
   NumberInput,
   RadioButton,
@@ -15,7 +14,7 @@ import {
   TextInput,
   Tile,
 } from '@carbon/react';
-import { TrashCan } from '@carbon/icons-react';
+import { Redo, Save, TrashCan, Undo } from '@carbon/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SignageCustomLayout, SignageScene, SignageWidget, SignageZones } from '../../api/generated/models';
@@ -24,6 +23,7 @@ import { ApiError } from '../../api/http-client';
 import { ColorFieldRow, ColorPicker } from '../../app/ColorPicker';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState, ErrorState, FullPageLoading } from '../../app/PageState';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../app/useUnsavedChanges';
 import { useCurrentUser } from '../auth/auth';
@@ -40,20 +40,26 @@ import { PREVIEW_PRESETS, useMachineOptions, useNow, usePreviewData, type Previe
 import { assetsQuery, sceneQuery, signageKeys, templatesQuery } from './queries';
 import { SceneRenderer, ScreenFrame } from './render/SceneRenderer';
 import { WidgetFields } from './WidgetFields';
+import { canRedo, canUndo, createHistory, deepEqual, pushEdit, redo, undo, type History } from './editorHistory';
 import { draftError, toDraft, type Draft } from './sceneDraft';
 import { defaultWidget, HEX_COLOR, sceneMachineIds, WIDGET_LABELS, WIDGET_TYPES, type WidgetType } from './widgets';
 
-const SAVE_DELAY_MS = 700;
+type SaveState = 'idle' | 'saving' | 'error' | 'conflict';
 
-type SaveState = 'saved' | 'pending' | 'saving' | 'invalid' | 'error' | 'conflict';
-const SAVE_TEXT: Record<SaveState, string> = {
-  saved: 'Saved · draft',
-  pending: 'Unsaved changes…',
-  saving: 'Saving…',
-  invalid: 'Not saved · fix the error',
-  error: 'Not saved',
-  conflict: 'Not saved · changed elsewhere',
-};
+/** The draft as it is sent: trimmed name and lower-case colour, so a saved scene does not look edited. */
+const normalized = (draft: Draft): Draft => ({
+  ...draft,
+  name: draft.name.trim(),
+  backgroundColor: draft.backgroundColor.toLowerCase(),
+});
+
+/** Z and Y belong to the browser's own text undo while a text field has focus. */
+const isTextTarget = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  (target.isContentEditable ||
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLInputElement &&
+      !['button', 'checkbox', 'radio', 'range', 'submit', 'reset', 'file', 'color'].includes(target.type)));
 
 export function SceneEditorPage() {
   const { sceneId = '' } = useParams();
@@ -118,9 +124,11 @@ function Editor({
   const { machines, known: machinesKnown } = useMachineOptions();
   const blockedDisplays = useCameraBlockedDisplays(scene.id);
 
-  const [draft, setDraft] = useState<Draft>(() => toDraft(scene));
-  const [saveState, setSaveState] = useState<SaveState>('saved');
+  const [history, setHistory] = useState<History<Draft>>(() => createHistory(toDraft(scene)));
+  const [saved, setSaved] = useState<SignageScene>(scene);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [discarding, setDiscarding] = useState(false);
   const [zoneId, setZoneId] = useState(
     () => resolveLayout(scene.layoutId, scene.customLayoutId, customLayouts).zones[0].id,
   );
@@ -128,130 +136,88 @@ function Editor({
   const [changingLayout, setChangingLayout] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Autosave bookkeeping lives in refs: the debounce timer and the in-flight request must not re-trigger renders.
-  const latest = useRef(draft);
-  const version = useRef(scene.version);
-  const revision = useRef(0);
-  const savedRevision = useRef(0);
-  const inFlight = useRef(false);
-  const timer = useRef<number | null>(null);
-  const gone = useRef(false);
-  const hold = useRef(false);
-  // The layout list can refresh while editing; saves read the latest one without changing identity.
-  const layoutsRef = useRef(customLayouts);
-  useEffect(() => {
-    layoutsRef.current = customLayouts;
-  });
+  const draft = history.present;
+  const dirty = !deepEqual(normalized(draft), toDraft(saved));
+  const problem = draftError(draft, customLayouts);
+  const saving = saveState === 'saving';
+  const canSave = canEdit && dirty && problem === null && !saving;
 
-  // Stable identity: the autosave timer and the leave-page effect call the latest save through this callback.
-  const save = useCallback(
-    async function saveScene(): Promise<void> {
-      if (gone.current || hold.current || inFlight.current || revision.current === savedRevision.current) return;
-      const current = latest.current;
-      const problem = draftError(current, layoutsRef.current);
-      if (problem) {
-        setSaveState('invalid');
-        setSaveMessage(problem);
-        return;
-      }
-      const sent = revision.current;
-      inFlight.current = true;
-      setSaveState('saving');
-      try {
-        const saved = await updateSignageScene(scene.id, {
-          expectedVersion: version.current,
-          ...current,
-          name: current.name.trim(),
-          backgroundColor: current.backgroundColor.toLowerCase(),
-        });
-        version.current = saved.version;
-        savedRevision.current = sent;
-        queryClient.setQueryData(signageKeys.scene(scene.id), saved);
-        void queryClient.invalidateQueries({ queryKey: signageKeys.scenes() });
-        inFlight.current = false;
-        if (revision.current !== sent) void saveScene();
-        else {
-          setSaveState('saved');
-          setSaveMessage(null);
-        }
-      } catch (error) {
-        inFlight.current = false;
-        if (isStaleWrite(error)) {
-          hold.current = true;
-          setSaveState('conflict');
-          setSaveMessage(null);
-        } else {
-          setSaveState('error');
-          setSaveMessage(errorMessage(error));
-        }
-      }
-    },
-    [queryClient, scene.id],
-  );
-
-  const edit = (change: (current: Draft) => Draft) => {
-    const next = change(latest.current);
-    latest.current = next;
-    revision.current += 1;
-    setDraft(next);
-    if (!hold.current) setSaveState('pending');
-    if (timer.current !== null) window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      timer.current = null;
-      void save();
-    }, SAVE_DELAY_MS);
+  /** `key` names the field being typed in: edits of it within half a second form one undo step. */
+  const edit = (change: (current: Draft) => Draft, key: string | null = null) => {
+    const now = Date.now();
+    setHistory((current) => pushEdit(current, change(current.present), key, now));
   };
 
-  // Leaving the page sends pending changes instead of dropping them.
-  useEffect(
-    () => () => {
-      if (timer.current !== null) window.clearTimeout(timer.current);
-      if (
-        !gone.current &&
-        !hold.current &&
-        revision.current !== savedRevision.current &&
-        !inFlight.current &&
-        draftError(latest.current, layoutsRef.current) === null
-      ) {
-        const current = latest.current;
-        void updateSignageScene(scene.id, {
-          expectedVersion: version.current,
-          ...current,
-          name: current.name.trim(),
-          backgroundColor: current.backgroundColor.toLowerCase(),
-        }).then(
-          () => queryClient.invalidateQueries({ queryKey: signageKeys.all }),
-          () => undefined,
-        );
+  const save = async (expectedVersion = saved.version): Promise<void> => {
+    if (!canEdit || saving || draftError(draft, customLayouts) !== null) return;
+    setSaveState('saving');
+    setSaveMessage(null);
+    try {
+      const next = await updateSignageScene(scene.id, { expectedVersion, ...normalized(draft) });
+      setSaved(next);
+      setSaveState('idle');
+      queryClient.setQueryData(signageKeys.scene(scene.id), next);
+      void queryClient.invalidateQueries({ queryKey: signageKeys.scenes() });
+    } catch (error) {
+      if (isStaleWrite(error)) setSaveState('conflict');
+      else {
+        setSaveState('error');
+        setSaveMessage(errorMessage(error));
       }
-    },
-    [queryClient, scene.id],
-  );
+    }
+  };
+
+  const resetTo = (fresh: SignageScene) => {
+    setSaved(fresh);
+    setHistory(createHistory(toDraft(fresh)));
+    setSaveState('idle');
+    setSaveMessage(null);
+  };
 
   const resolveConflict = async (keepMine: boolean) => {
     try {
       const fresh = await queryClient.fetchQuery({ ...sceneQuery(scene.id), staleTime: 0 });
-      version.current = fresh.version;
-      hold.current = false;
       if (keepMine) {
-        revision.current += 1;
-        setSaveState('pending');
-        void save();
+        setSaved(fresh);
+        setSaveState('idle');
+        await save(fresh.version);
       } else {
-        latest.current = toDraft(fresh);
-        setDraft(latest.current);
-        savedRevision.current = revision.current;
-        setSaveState('saved');
-        setSaveMessage(null);
+        resetTo(fresh);
+        queryClient.setQueryData(signageKeys.scene(scene.id), fresh);
       }
     } catch (error) {
       setSaveMessage(errorMessage(error, 'The latest version could not be loaded.'));
     }
   };
 
-  const unsaved = useUnsavedChanges({
-    isDirty: saveState === 'invalid' || saveState === 'error' || saveState === 'conflict',
+  const discard = () => {
+    setHistory(createHistory(toDraft(saved)));
+    setSaveState('idle');
+    setSaveMessage(null);
+    setDiscarding(false);
+  };
+
+  // The listener is re-attached on each render so it always sees the current draft.
+  useEffect(() => {
+    if (!canEdit) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const letter = event.key.toLowerCase();
+      if (letter === 's') {
+        event.preventDefault();
+        if (canSave) void save();
+        return;
+      }
+      if ((letter !== 'z' && letter !== 'y') || isTextTarget(event.target)) return;
+      event.preventDefault();
+      if (letter === 'y' || event.shiftKey) setHistory((current) => redo(current));
+      else setHistory((current) => undo(current));
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   });
+
+  const unsaved = useUnsavedChanges({ isDirty: dirty });
 
   const layout = resolveLayout(draft.layoutId, draft.customLayoutId, customLayouts);
   const layoutName =
@@ -261,8 +227,8 @@ function Editor({
   const selectedId = layout.zones.some((zone) => zone.id === zoneId) ? zoneId : layout.zones[0].id;
   const zone = layout.zones.find((item) => item.id === selectedId)!;
   const widget: SignageWidget = draft.zones[selectedId] ?? { type: 'empty' };
-  const setWidget = (next: SignageWidget) =>
-    edit((current) => ({ ...current, zones: { ...current.zones, [selectedId]: next } }));
+  const setWidget = (next: SignageWidget, key: string | null = null) =>
+    edit((current) => ({ ...current, zones: { ...current.zones, [selectedId]: next } }), key);
   const changeLayout = (choice: LayoutChoice) =>
     edit((current) => ({
       ...current,
@@ -277,7 +243,7 @@ function Editor({
   const colourValid = HEX_COLOR.test(draft.backgroundColor);
   const referencedMachineIds = sceneMachineIds(draft.zones);
   const data = usePreviewData(preset, { now, referencedMachineIds });
-  const status = SAVE_TEXT[saveState];
+  const status = saving ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved';
 
   return (
     <PageShell
@@ -287,9 +253,35 @@ function Editor({
       description={`${status} · ${aspectLabel(draft.aspectRatio)}`}
       actions={
         canEdit ? (
-          <Button kind="danger--tertiary" renderIcon={TrashCan} onClick={() => setDeleting(true)}>
-            Delete scene
-          </Button>
+          <div className="sg-editor__actions">
+            <Button
+              kind="ghost"
+              hasIconOnly
+              renderIcon={Undo}
+              iconDescription="Undo"
+              tooltipPosition="bottom"
+              disabled={!canUndo(history)}
+              onClick={() => setHistory((current) => undo(current))}
+            />
+            <Button
+              kind="ghost"
+              hasIconOnly
+              renderIcon={Redo}
+              iconDescription="Redo"
+              tooltipPosition="bottom"
+              disabled={!canRedo(history)}
+              onClick={() => setHistory((current) => redo(current))}
+            />
+            <Button kind="ghost" disabled={!dirty || saving} onClick={() => setDiscarding(true)}>
+              Discard
+            </Button>
+            <Button kind="primary" renderIcon={Save} disabled={!canSave} onClick={() => void save()}>
+              Save
+            </Button>
+            <Button kind="danger--tertiary" renderIcon={TrashCan} onClick={() => setDeleting(true)}>
+              Delete scene
+            </Button>
+          </div>
         ) : undefined
       }
     >
@@ -315,29 +307,14 @@ function Editor({
           </div>
         </>
       )}
-      {(saveState === 'invalid' || saveState === 'error') && saveMessage && (
-        <>
-          <InlineNotification
-            kind={saveState === 'invalid' ? 'warning' : 'error'}
-            lowContrast
-            hideCloseButton
-            title={saveState === 'invalid' ? 'Not saved yet' : 'Saving failed'}
-            subtitle={saveMessage}
-          />
-          {saveState === 'error' && (
-            <div className="sg-conflict-actions">
-              <Button
-                size="sm"
-                kind="tertiary"
-                onClick={() => {
-                  void save();
-                }}
-              >
-                Try again
-              </Button>
-            </div>
-          )}
-        </>
+      {saveState === 'error' && saveMessage && (
+        <InlineNotification kind="error" lowContrast hideCloseButton title="Saving failed" subtitle={saveMessage} />
+      )}
+      {saveState === 'conflict' && saveMessage && (
+        <InlineNotification kind="error" lowContrast hideCloseButton title="Loading failed" subtitle={saveMessage} />
+      )}
+      {canEdit && dirty && problem && (
+        <InlineNotification kind="warning" lowContrast hideCloseButton title="Cannot save yet" subtitle={problem} />
       )}
       <div className="sg-editor">
         <div className="sg-stack sg-editor__structure">
@@ -388,7 +365,7 @@ function Editor({
                   value={draft.name}
                   invalid={draft.name.trim() === ''}
                   invalidText="A scene needs a name"
-                  onChange={(event) => edit((current) => ({ ...current, name: event.target.value }))}
+                  onChange={(event) => edit((current) => ({ ...current, name: event.target.value }), 'name')}
                 />
                 <AspectRatioSelect
                   idPrefix="scene-settings"
@@ -404,12 +381,14 @@ function Editor({
                     value={draft.backgroundColor}
                     invalid={!colourValid}
                     invalidText="Enter a hex colour like #161616"
-                    onChange={(event) => edit((current) => ({ ...current, backgroundColor: event.target.value }))}
+                    onChange={(event) =>
+                      edit((current) => ({ ...current, backgroundColor: event.target.value }), 'colour')
+                    }
                   />
                   <ColorPicker
                     label="Background colour"
                     value={draft.backgroundColor}
-                    onChange={(backgroundColor) => edit((current) => ({ ...current, backgroundColor }))}
+                    onChange={(backgroundColor) => edit((current) => ({ ...current, backgroundColor }), 'colour')}
                   />
                 </ColorFieldRow>
                 <AssetPicker
@@ -438,10 +417,13 @@ function Editor({
                       onChange={(_event, { value }) => {
                         const dim = Number(value);
                         if (value !== '' && Number.isFinite(dim))
-                          edit((current) => ({
-                            ...current,
-                            backgroundDim: Math.min(80, Math.max(0, Math.round(dim))),
-                          }));
+                          edit(
+                            (current) => ({
+                              ...current,
+                              backgroundDim: Math.min(80, Math.max(0, Math.round(dim))),
+                            }),
+                            'dim',
+                          );
                       }}
                     />
                   </>
@@ -455,6 +437,40 @@ function Editor({
                   <RadioButton id="scene-theme-dark" value="dark" labelText="Light text on dark" />
                   <RadioButton id="scene-theme-light" value="light" labelText="Dark text on light" />
                 </RadioButtonGroup>
+                <Select
+                  id="scene-settings-font"
+                  labelText="Scene font"
+                  helperText="Zones whose style font is “As the scene” use it."
+                  value={draft.fontFamily}
+                  onChange={(event) => {
+                    const fontFamily = event.target.value as SignageScene['fontFamily'];
+                    edit((current) => ({
+                      ...current,
+                      fontFamily,
+                      fontAssetId: fontFamily === 'custom' ? current.fontAssetId : null,
+                    }));
+                  }}
+                >
+                  <SelectItem value="sans" text="Sans-serif" />
+                  <SelectItem value="serif" text="Serif" />
+                  <SelectItem value="mono" text="Monospace" />
+                  <SelectItem value="custom" text="Uploaded font" />
+                </Select>
+                {draft.fontFamily === 'custom' && (
+                  <AssetPicker
+                    id="scene-settings-font-asset"
+                    label="Font"
+                    kind="font"
+                    assets={assets}
+                    value={draft.fontAssetId}
+                    onChange={(fontAssetId) => edit((current) => ({ ...current, fontAssetId }))}
+                    disabledHint={
+                      assets.some((asset) => asset.kind === 'font')
+                        ? undefined
+                        : 'Upload a WOFF2 font under Media first.'
+                    }
+                  />
+                )}
               </div>
             </Tile>
           )}
@@ -509,7 +525,7 @@ function Editor({
                 machines={machines}
                 machinesKnown={machinesKnown}
                 outsideDisplays={blockedDisplays}
-                onChange={setWidget}
+                onChange={(next) => setWidget(next, `zone:${selectedId}:${next.type}`)}
               />
             </div>
           ) : (
@@ -528,8 +544,18 @@ function Editor({
           )}
         </Tile>
       </div>
-      {saveState === 'saving' && (
-        <InlineLoading className="cds--visually-hidden" description="Saving" status="active" />
+      {discarding && (
+        <DestructiveActionDialog
+          open
+          title="Discard changes?"
+          fate="none"
+          confirmLabel="Discard changes"
+          cancelLabel="Keep editing"
+          onClose={() => setDiscarding(false)}
+          onConfirm={discard}
+        >
+          <p>All edits since the last save are dropped, and undo history is cleared.</p>
+        </DestructiveActionDialog>
       )}
       {changingLayout && (
         <ChangeLayoutModal
@@ -546,11 +572,8 @@ function Editor({
           title={`Delete “${scene.name}”?`}
           noun="Scene"
           confirmLabel="Delete scene"
-          remove={() => deleteSignageScene(scene.id, { expectedVersion: version.current })}
-          onDeleted={() => {
-            gone.current = true;
-            navigate(signagePaths.content());
-          }}
+          remove={() => deleteSignageScene(scene.id, { expectedVersion: saved.version })}
+          onDeleted={() => unsaved.bypassAfterSubmit(() => navigate(signagePaths.content()))}
           onClose={() => setDeleting(false)}
         >
           <p>

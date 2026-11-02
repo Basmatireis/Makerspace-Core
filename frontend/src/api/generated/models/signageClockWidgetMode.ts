@@ -25,4 +25,5 @@ export type SignageClockWidgetMode = typeof SignageClockWidgetMode[keyof typeof 
 export const SignageClockWidgetMode = {
   SignageClockWidgetModeTime: 'time',
   SignageClockWidgetModeDatetime: 'datetime',
+  SignageClockWidgetModeDate: 'date',
 } as const;

@@ -39,6 +39,12 @@
   gap: $spacing-03;
   margin-block: $spacing-03;
 }
+.sg-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
 @include breakpoint-down(md) {
   .sg-hide-narrow {
     display: none;
@@ -117,6 +123,17 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
   gap: $spacing-05;
+}
+.sg-scene-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-02;
+  min-inline-size: 0;
+}
+.sg-scene-card > .sg-scene-tile {
+  inline-size: 100%;
+  flex: 1 1 auto;
 }
 .sg-tile-grid--media {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));

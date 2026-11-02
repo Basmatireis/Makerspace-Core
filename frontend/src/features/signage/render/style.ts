@@ -4,7 +4,7 @@ import type { SignageStyleAlign, SignageWidget, SignageWidgetStyle } from '../..
 // Widget style: colours, padding, radius, border, font scale, font family and alignment of a zone box, plus the font
 // assets a scene needs. Sizes use --sg-u, the unscaled unit of the scene; --u inside the box is scaled by `fontScale`.
 
-const FONT_STACKS = {
+export const FONT_STACKS = {
   sans: "'IBM Plex Sans', system-ui, sans-serif",
   serif: "'IBM Plex Serif', Georgia, 'Times New Roman', serif",
   mono: "'IBM Plex Mono', ui-monospace, 'Courier New', monospace",
@@ -26,6 +26,16 @@ export function fontAssetIdsOf(widget: SignageWidget): string[] {
     ...('fontAssetIds' in widget ? (widget.fontAssetIds ?? []) : []),
   ];
   return [...new Set(ids)];
+}
+
+/** The scene's `font-family`; a custom font whose name is unknown falls back to sans-serif. */
+export function sceneFontCss(
+  scene: { fontFamily?: 'sans' | 'serif' | 'mono' | 'custom' },
+  fontName: string | null,
+): string {
+  const family = scene.fontFamily ?? 'sans';
+  if (family !== 'custom') return FONT_STACKS[family];
+  return fontName ? `${cssString(fontName)}, ${FONT_STACKS.sans}` : FONT_STACKS.sans;
 }
 
 /** `rgba()` of a `#rrggbb` colour. */
@@ -77,20 +87,66 @@ export function zoneBoxCss(style: SignageWidgetStyle, fontName: string | null): 
 
 export type FontFace = { family: string; url: string };
 
-const registered = new WeakMap<Document, Set<string>>();
+type LoadedFace = InstanceType<typeof globalThis.FontFace>;
+type FontState = {
+  faces: Map<string, LoadedFace>;
+  timers: Map<string, number>;
+  failures: Map<string, number>;
+  styles: Set<string>;
+};
 
-/** Adds `@font-face` rules to the document, each family and URL once. Fonts are loaded from the asset URL. */
+const registered = new WeakMap<Document, FontState>();
+const RETRY_MS = [5_000, 30_000, 120_000, 600_000, 1_800_000];
+
+function loadFace(state: FontState, doc: Document, key: string, font: FontFace): void {
+  const face = new globalThis.FontFace(font.family, `url(${cssString(font.url)}) format("woff2")`, { display: 'swap' });
+  state.faces.set(key, face);
+  doc.fonts.add(face);
+  face.load().catch(() => {
+    if (state.faces.get(key) !== face || state.timers.has(key)) return;
+    const attempt = state.failures.get(key) ?? 0;
+    state.failures.set(key, attempt + 1);
+    state.timers.set(
+      key,
+      window.setTimeout(
+        () => {
+          state.timers.delete(key);
+          doc.fonts.delete(face);
+          loadFace(state, doc, key, font);
+        },
+        RETRY_MS[Math.min(attempt, RETRY_MS.length - 1)],
+      ),
+    );
+  });
+}
+
+/**
+ * Registers the fonts with the document, each family and URL once. Uses the Font Loading API so a failed load is retried
+ * (with backoff, and at once on the next call); without it, `@font-face` rules are added to a style element.
+ */
 export function registerFontFaces(fonts: readonly FontFace[], doc: Document = document): void {
-  let seen = registered.get(doc);
-  if (!seen) {
-    seen = new Set();
-    registered.set(doc, seen);
+  let state = registered.get(doc);
+  if (!state) {
+    state = { faces: new Map(), timers: new Map(), failures: new Map(), styles: new Set() };
+    registered.set(doc, state);
   }
+  const api = typeof globalThis.FontFace !== 'undefined' && !!doc.fonts;
   const rules: string[] = [];
   for (const font of fonts) {
     const key = `${font.family}\n${font.url}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (api) {
+      const face = state.faces.get(key);
+      if (face && face.status !== 'error') continue;
+      if (face) {
+        window.clearTimeout(state.timers.get(key));
+        state.timers.delete(key);
+        doc.fonts.delete(face);
+      }
+      loadFace(state, doc, key, font);
+      continue;
+    }
+    if (state.styles.has(key)) continue;
+    state.styles.add(key);
     rules.push(
       `@font-face { font-family: ${cssString(font.family)}; src: url(${cssString(font.url)}) format("woff2"); font-display: swap; }`,
     );

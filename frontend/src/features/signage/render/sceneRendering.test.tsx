@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { SignagePlayerCalendar, SignageWidget, SignageWidgetStyle } from '../../../api/generated/models';
 import type { CustomLayoutShape } from '../layouts';
+import { buildPreviewData } from '../preview';
 import { SceneRenderer } from './SceneRenderer';
 import type { RenderData, RenderScene } from './types';
 
@@ -228,6 +229,72 @@ describe('widget style', () => {
     expect(rules[0]).toContain('url("/api/v1/signage/assets/font/content?v=abc")');
     expect(rules[0]).toContain('format("woff2")');
     expect(zoneEl(container, 'text').style.fontFamily).toContain('Fira');
+  });
+});
+
+describe('fonts', () => {
+  const fontRules = () =>
+    [...document.head.querySelectorAll('style[data-signage-fonts]')].map((item) => item.textContent ?? '').join('\n');
+
+  it('registers the font of a widget style from the data the admin previews build', () => {
+    const id = '0192f6f8-743e-7c77-a349-cd07c3e8f0a1';
+    const preview = buildPreviewData({
+      preset: 'idle',
+      now: NOW,
+      machines: [],
+      templates: [],
+      timeZone: 'Europe/Vienna',
+      assets: [{ id, sha256: 'a'.repeat(64), name: 'Preview Display' }],
+    });
+    const widget = text({ style: style({ fontFamily: 'custom', fontAssetId: id }) });
+    const { container } = render(<SceneRenderer scene={scene({ main: widget })} data={preview} />);
+    expect(fontRules()).toContain(`font-family: "Preview Display"; src: url("/api/v1/signage/assets/${id}/content?v=`);
+    expect(zoneEl(container, 'text').style.fontFamily).toMatch(/^"Preview Display", /);
+  });
+
+  it('gives the scene root the scene font and lets zones inherit it', () => {
+    const id = '0192f6f8-743e-7c77-a349-cd07c3e8f0a2';
+    const withFont = data({
+      assetUrl: (asset) => (asset === id ? `/api/v1/signage/assets/${id}/content?v=abc` : null),
+      assetName: (asset) => (asset === id ? 'Scene Display' : null),
+    });
+    const widget = text({ style: style({ fontFamily: 'inherit' }) });
+    const { container } = render(
+      <SceneRenderer scene={scene({ main: widget }, { fontFamily: 'custom', fontAssetId: id })} data={withFont} />,
+    );
+    expect(fontRules()).toContain('font-family: "Scene Display"');
+    expect(container.querySelector<HTMLElement>('.sg-scene')!.style.fontFamily).toMatch(/^"Scene Display", /);
+    expect(zoneEl(container, 'text').style.fontFamily).toBe('');
+  });
+
+  it('uses the font stacks for sans, serif and mono and falls back to sans for an unknown uploaded font', () => {
+    const family = (patch: Partial<RenderScene>) =>
+      render(
+        <SceneRenderer scene={scene({ main: text() }, patch)} data={data()} />,
+      ).container.querySelector<HTMLElement>('.sg-scene')!.style.fontFamily;
+    expect(family({ fontFamily: 'sans' })).toContain('IBM Plex Sans');
+    expect(family({})).toContain('IBM Plex Sans');
+    expect(family({ fontFamily: 'serif' })).toContain('IBM Plex Serif');
+    expect(family({ fontFamily: 'mono' })).toContain('IBM Plex Mono');
+    expect(family({ fontFamily: 'custom', fontAssetId: FONT.replace(/1$/, '2') })).toContain('IBM Plex Sans');
+  });
+});
+
+describe('clock widget', () => {
+  const clock = (mode: 'time' | 'datetime' | 'date') =>
+    render(<SceneRenderer scene={scene({ main: { type: 'clock', mode } as SignageWidget })} data={data()} />).container;
+
+  it('date mode shows weekday, day, month and year without a time', () => {
+    const container = clock('date');
+    expect(container.querySelector('.sg-clock')).toHaveTextContent(/Thursday,? 22 October 2026/);
+    expect(container.textContent).not.toMatch(/\d\d:\d\d/);
+  });
+
+  it('keeps time and datetime unchanged', () => {
+    expect(clock('time').querySelector('.sg-clock')).toHaveTextContent('12:00');
+    const container = clock('datetime');
+    expect(container).toHaveTextContent('12:00');
+    expect(container).toHaveTextContent(/Thursday,? 22 October/);
   });
 });
 

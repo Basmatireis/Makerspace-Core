@@ -70,6 +70,16 @@ const (
 	ThemeLight Theme = "light"
 )
 
+// SceneFontFamily is the font a scene's text uses; widgets whose font family is "inherit" take it.
+type SceneFontFamily string
+
+const (
+	SceneFontSans   SceneFontFamily = "sans"
+	SceneFontSerif  SceneFontFamily = "serif"
+	SceneFontMono   SceneFontFamily = "mono"
+	SceneFontCustom SceneFontFamily = "custom"
+)
+
 // AssetKind is the media type of an uploaded asset.
 type AssetKind string
 
@@ -204,6 +214,7 @@ type ClockMode string
 const (
 	ClockTime     ClockMode = "time"
 	ClockDateTime ClockMode = "datetime"
+	ClockDate     ClockMode = "date"
 )
 
 // CameraSource is how a camera widget picks its machine.

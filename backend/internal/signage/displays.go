@@ -245,6 +245,8 @@ func (s *Service) buildManifests(
 			BackgroundFit:     scene.BackgroundFit,
 			BackgroundDim:     scene.BackgroundDim,
 			Theme:             scene.Theme,
+			FontFamily:        scene.FontFamily,
+			FontAssetID:       scene.FontAssetID,
 			Zones:             zones, Version: scene.Version,
 		}
 		ids, err := sceneAssetIDs(published)

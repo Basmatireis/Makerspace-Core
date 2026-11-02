@@ -110,6 +110,7 @@ type Querier interface {
 	ListSignageAssetsByIDs(ctx context.Context, ids []string) ([]ListSignageAssetsByIDsRow, error)
 	// Machines whose active, enabled printer-connector assignment relays the printer camera.
 	ListSignageCameraMachineIDs(ctx context.Context) ([]uuid.UUID, error)
+	ListSignageCustomLayoutNames(ctx context.Context) ([]string, error)
 	ListSignageCustomLayouts(ctx context.Context) ([]ListSignageCustomLayoutsRow, error)
 	ListSignageCustomLayoutsByIDs(ctx context.Context, ids []string) ([]SignageCustomLayout, error)
 	ListSignageDisplayGroupIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
@@ -128,6 +129,8 @@ type Querier interface {
 	// Rules -------------------------------------------------------------------------------------------------------
 	ListSignageRules(ctx context.Context, arg ListSignageRulesParams) ([]ListSignageRulesRow, error)
 	ListSignageSceneIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
+	// Duplicates --------------------------------------------------------------------------------------------------
+	ListSignageSceneNames(ctx context.Context) ([]string, error)
 	ListSignageScenes(ctx context.Context) ([]SignageScene, error)
 	// Publications and manifest content ---------------------------------------------------------------------------
 	ListSignageScenesByIDs(ctx context.Context, ids []string) ([]SignageScene, error)
@@ -137,6 +140,7 @@ type Querier interface {
 	ListSignageTemplateFields(ctx context.Context, templateIds []string) ([]SignageAnnouncementTemplateField, error)
 	ListSignageTemplateIDsByIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListSignageTemplateIDsForShare(ctx context.Context, ids []string) ([]uuid.UUID, error)
+	ListSignageTemplateNames(ctx context.Context) ([]string, error)
 	ListSignageTemplates(ctx context.Context) ([]SignageAnnouncementTemplate, error)
 	// The scenes a scene list refers to, share-locked so that a concurrent deletion or change of a scene's ratio
 	// either waits for this transaction or is seen by it.

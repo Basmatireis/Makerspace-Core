@@ -22,6 +22,7 @@ import type { CreateSignageSceneRequestTheme } from './createSignageSceneRequest
 import type { SignageAspectRatio } from './signageAspectRatio';
 import type { SignageFit } from './signageFit';
 import type { SignageLayoutId } from './signageLayoutId';
+import type { SignageSceneFontFamily } from './signageSceneFontFamily';
 import type { SignageZones } from './signageZones';
 import type { UUIDv7 } from './uUIDv7';
 
@@ -46,5 +47,8 @@ export interface CreateSignageSceneRequest {
      */
   backgroundDim: number;
   theme: CreateSignageSceneRequestTheme;
+  fontFamily?: SignageSceneFontFamily;
+  /** Font asset; set exactly when `fontFamily` is `custom`. */
+  fontAssetId?: UUIDv7 | null;
   zones?: SignageZones;
 }

@@ -4664,6 +4664,21 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/custom-layouts/{customLayoutId}/duplicate:
+    parameters: [{$ref: "#/components/parameters/SignageCustomLayoutId"}]
+    post:
+      tags: [Signage]
+      operationId: duplicateSignageCustomLayout
+      summary: Duplicate a custom layout
+      description: Copies every field of the layout, including its zones. The copy has a fresh id and version 1 and is named `<name> (copy)`, `<name> (copy 2)`, … (the first name not taken, truncated to fit 100 characters). Needs `signage.content.manage`. Audited as `signage_custom_layout.created`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "201": {description: Copy created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageCustomLayout"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /signage/custom-layouts/{customLayoutId}:
     parameters: [{$ref: "#/components/parameters/SignageCustomLayoutId"}]
     get:
@@ -4857,6 +4872,21 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/scenes/{sceneId}/duplicate:
+    parameters: [{$ref: "#/components/parameters/SignageSceneId"}]
+    post:
+      tags: [Signage]
+      operationId: duplicateSignageScene
+      summary: Duplicate a scene
+      description: Copies every field of the scene, including its widgets. The copy has a fresh id and version 1 and is named `<name> (copy)`, `<name> (copy 2)`, … (the first name not taken, truncated to fit 100 characters). Needs `signage.content.manage`. Audited as `signage_scene.created`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "201": {description: Copy created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageScene"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /signage/scenes/{sceneId}:
     parameters: [{$ref: "#/components/parameters/SignageSceneId"}]
     get:
@@ -4918,6 +4948,21 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/announcement-templates/{templateId}/duplicate:
+    parameters: [{$ref: "#/components/parameters/SignageTemplateId"}]
+    post:
+      tags: [Signage]
+      operationId: duplicateSignageAnnouncementTemplate
+      summary: Duplicate an announcement template
+      description: Copies every field of the template, including its fields. The copy has a fresh id and version 1 and is named `<name> (copy)`, `<name> (copy 2)`, … (the first name not taken, truncated to fit 100 characters). Needs `signage.content.manage`. Audited as `signage_announcement_template.created`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "201": {description: Copy created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAnnouncementTemplate"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /signage/announcement-templates/{templateId}:
@@ -20406,7 +20451,7 @@ components:
       required: [type, mode]
       properties:
         type: {type: string, enum: [clock], x-enum-varnames: [SignageClockWidgetTypeClock]}
-        mode: {type: string, enum: [time, datetime], x-enum-varnames: [SignageClockWidgetModeTime, SignageClockWidgetModeDatetime]}
+        mode: {type: string, enum: [time, datetime, date], x-enum-varnames: [SignageClockWidgetModeTime, SignageClockWidgetModeDatetime, SignageClockWidgetModeDate]}
         style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageCameraWidget:
       type: object
@@ -20561,10 +20606,15 @@ components:
       description: Widget per zone id of the scene's layout.
       maxProperties: 12
       additionalProperties: {$ref: "#/components/schemas/SignageWidget"}
+    SignageSceneFontFamily:
+      type: string
+      enum: [sans, serif, mono, custom]
+      x-enum-varnames: [SignageSceneFontFamilySans, SignageSceneFontFamilySerif, SignageSceneFontFamilyMono, SignageSceneFontFamilyCustom]
+      description: The font of the scene; widgets with the font family `inherit` use it. `custom` needs `fontAssetId`.
     SignageScene:
       type: object
       additionalProperties: false
-      required: [id, name, aspectRatio, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version, createdAt, updatedAt]
+      required: [id, name, aspectRatio, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, fontFamily, fontAssetId, zones, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -20576,6 +20626,8 @@ components:
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
         backgroundDim: {type: integer, minimum: 0, maximum: 80}
         theme: {type: string, enum: [dark, light], x-enum-varnames: [SignageSceneThemeDark, SignageSceneThemeLight]}
+        fontFamily: {$ref: "#/components/schemas/SignageSceneFontFamily"}
+        fontAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Font asset; set exactly when `fontFamily` is `custom`."}
         zones: {$ref: "#/components/schemas/SignageZones"}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
@@ -20599,11 +20651,13 @@ components:
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
         backgroundDim: {type: integer, minimum: 0, maximum: 80}
         theme: {type: string, enum: [dark, light], x-enum-varnames: [CreateSignageSceneRequestThemeDark, CreateSignageSceneRequestThemeLight]}
+        fontFamily: {$ref: "#/components/schemas/SignageSceneFontFamily"}
+        fontAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Font asset; set exactly when `fontFamily` is `custom`."}
         zones: {$ref: "#/components/schemas/SignageZones"}
     UpdateSignageSceneRequest:
       type: object
       additionalProperties: false
-      required: [expectedVersion, name, aspectRatio, layoutId, backgroundColor, backgroundFit, backgroundDim, theme]
+      required: [expectedVersion, name, aspectRatio, layoutId, backgroundColor, backgroundFit, backgroundDim, theme, fontFamily, fontAssetId]
       properties:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -20615,6 +20669,8 @@ components:
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
         backgroundDim: {type: integer, minimum: 0, maximum: 80}
         theme: {type: string, enum: [dark, light], x-enum-varnames: [UpdateSignageSceneRequestThemeDark, UpdateSignageSceneRequestThemeLight]}
+        fontFamily: {$ref: "#/components/schemas/SignageSceneFontFamily"}
+        fontAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Font asset; set exactly when `fontFamily` is `custom`."}
         zones: {$ref: "#/components/schemas/SignageZones"}
 
     SignageTransition:
@@ -21027,7 +21083,7 @@ components:
     SignagePlayerScene:
       type: object
       additionalProperties: false
-      required: [id, name, aspectRatio, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version]
+      required: [id, name, aspectRatio, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, fontFamily, fontAssetId, zones, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
@@ -21039,6 +21095,8 @@ components:
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
         backgroundDim: {type: integer, minimum: 0, maximum: 80}
         theme: {type: string, enum: [dark, light], x-enum-varnames: [SignagePlayerSceneThemeDark, SignagePlayerSceneThemeLight]}
+        fontFamily: {$ref: "#/components/schemas/SignageSceneFontFamily"}
+        fontAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Font asset; set exactly when `fontFamily` is `custom`."}
         zones: {$ref: "#/components/schemas/SignageZones"}
         version: {$ref: "#/components/schemas/Version"}
     SignagePlayerCustomLayout:

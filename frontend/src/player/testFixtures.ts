@@ -18,6 +18,8 @@ export const scene = (id: string, patch: Partial<SignagePlayerScene> = {}): Sign
     backgroundAssetId: null,
     backgroundFit: 'cover',
     backgroundDim: 0,
+    fontFamily: 'sans',
+    fontAssetId: null,
     customLayoutId: null,
     theme: 'dark',
     zones: { main: { type: 'text', text: id, size: 'm', align: 'start' } },

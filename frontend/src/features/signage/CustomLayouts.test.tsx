@@ -246,4 +246,18 @@ describe('Custom layouts', () => {
     expect(await screen.findByText(/Somebody else changed this layout/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Load latest version' })).toBeInTheDocument();
   });
+
+  it('duplicates a layout and opens the copy in the editor', async () => {
+    mockSignage(writer);
+    mockCustomLayouts([gridLayoutFixture()]);
+    server.use(
+      http.post('*/api/v1/signage/custom-layouts/:id/duplicate', () =>
+        HttpResponse.json(gridLayoutFixture({ id: layoutIds.free, name: 'Poster with side (copy)' }), { status: 201 }),
+      ),
+    );
+    const { router } = renderRoute(<App />, list);
+    const actions = await screen.findByRole('group', { name: 'Actions for Poster with side' });
+    await userEvent.setup().click(within(actions).getByRole('button', { name: 'Duplicate' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/signage/layouts/${layoutIds.free}`));
+  });
 });

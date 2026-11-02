@@ -19,6 +19,9 @@ export type RenderScene = Pick<
 > & {
   /** Names the custom layout (in `RenderData.customLayouts`) when `layoutId` is `custom`. */
   customLayoutId?: string | null;
+  /** The scene font; absent (a manifest cached before scene fonts) means sans-serif. */
+  fontFamily?: SignageScene['fontFamily'];
+  fontAssetId?: string | null;
 };
 
 export type MachineState = 'idle' | 'preparing' | 'printing' | 'paused' | 'finished' | 'failed' | 'unknown';

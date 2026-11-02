@@ -1936,6 +1936,8 @@ type SignageScene struct {
 	CustomLayoutID    *uuid.UUID
 	AspectWidth       int16
 	AspectHeight      int16
+	FontFamily        string
+	FontAssetID       *uuid.UUID
 }
 
 type Survey struct {

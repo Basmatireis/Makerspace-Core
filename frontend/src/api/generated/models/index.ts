@@ -934,6 +934,7 @@ export * from './signageRuleConditionKind';
 export * from './signageRuleList';
 export * from './signageRuleRequest';
 export * from './signageScene';
+export * from './signageSceneFontFamily';
 export * from './signageSceneList';
 export * from './signageSceneListItem';
 export * from './signageSceneListItems';

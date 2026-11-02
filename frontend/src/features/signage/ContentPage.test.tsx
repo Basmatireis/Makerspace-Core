@@ -155,4 +155,40 @@ describe('Content page', () => {
       }),
     );
   });
+
+  it('duplicates a scene and opens the copy; read-only people get no button', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    server.use(
+      http.post('*/api/v1/signage/scenes/:id/duplicate', () =>
+        HttpResponse.json(sceneFixture({ id: ids.scene2, name: 'Open days poster (copy)' }), { status: 201 }),
+      ),
+    );
+    const { router } = renderRoute(<App />, '/signage/content');
+    await userEvent.setup().click(await screen.findByRole('button', { name: /Duplicate/ }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/signage/scenes/${ids.scene2}`));
+  });
+
+  it('shows no duplicate button without signage.content.manage', async () => {
+    mockSignage([PermissionId.signageread], { templates: [templateFixture()] });
+    renderRoute(<App />, '/signage/content');
+    await screen.findByRole('link', { name: 'Scene Open days poster' });
+    expect(screen.queryByRole('button', { name: /Duplicate/ })).not.toBeInTheDocument();
+  });
+
+  it('duplicates an announcement template and opens the copy for editing', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { templates: [templateFixture()] });
+    server.use(
+      http.post('*/api/v1/signage/announcement-templates/:id/duplicate', () =>
+        HttpResponse.json(templateFixture({ id: ids.template.replace(/1$/, '2'), name: 'Closed (copy)' }), {
+          status: 201,
+        }),
+      ),
+    );
+    renderRoute(<App />, '/signage/content?section=announcements');
+    const user = userEvent.setup();
+    const actions = await screen.findByRole('group', { name: 'Actions for Closed' });
+    await user.click(within(actions).getByRole('button', { name: 'Duplicate' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Closed (copy)');
+  });
 });

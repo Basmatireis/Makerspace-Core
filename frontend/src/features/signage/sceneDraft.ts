@@ -13,6 +13,8 @@ export type Draft = Pick<
   | 'backgroundFit'
   | 'backgroundDim'
   | 'theme'
+  | 'fontFamily'
+  | 'fontAssetId'
   | 'zones'
 >;
 export const toDraft = (scene: SignageScene): Draft => ({
@@ -25,6 +27,8 @@ export const toDraft = (scene: SignageScene): Draft => ({
   backgroundFit: scene.backgroundFit,
   backgroundDim: scene.backgroundDim,
   theme: scene.theme,
+  fontFamily: scene.fontFamily,
+  fontAssetId: scene.fontAssetId,
   zones: scene.zones,
 });
 
@@ -33,6 +37,7 @@ export function draftError(draft: Draft, customLayouts: readonly SignageCustomLa
   if (draft.name.trim() === '') return 'Give the scene a name.';
   if (draft.name.length > 100) return 'The name is limited to 100 characters.';
   if (!HEX_COLOR.test(draft.backgroundColor)) return 'Enter the background colour as #rrggbb.';
+  if (draft.fontFamily === 'custom' && !draft.fontAssetId) return 'Choose an uploaded font.';
   for (const zone of resolveLayout(draft.layoutId, draft.customLayoutId, customLayouts).zones) {
     const message = widgetError(draft.zones[zone.id] ?? { type: 'empty' });
     if (message) return `Zone ${zone.label}: ${message}`;

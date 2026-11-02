@@ -40,6 +40,8 @@ export const sceneFixture = (overrides: Partial<SignageScene> = {}): SignageScen
   backgroundAssetId: null,
   backgroundFit: 'cover',
   backgroundDim: 30,
+  fontFamily: 'sans',
+  fontAssetId: null,
   theme: 'dark',
   zones: {
     header: { type: 'text', text: 'Welcome', size: 'l', align: 'center' },

@@ -55,6 +55,8 @@ type ManifestScene struct {
 	BackgroundFit     MediaFit                   `json:"backgroundFit"`
 	BackgroundDim     int                        `json:"backgroundDim"`
 	Theme             Theme                      `json:"theme"`
+	FontFamily        SceneFontFamily            `json:"fontFamily"`
+	FontAssetID       *uuid.UUID                 `json:"fontAssetId"`
 	Zones             map[string]json.RawMessage `json:"zones"`
 	Version           int64                      `json:"version"`
 }
@@ -120,6 +122,9 @@ func sceneAssetIDs(scene ManifestScene) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
 	if scene.BackgroundAssetID != nil {
 		ids = append(ids, *scene.BackgroundAssetID)
+	}
+	if scene.FontAssetID != nil {
+		ids = append(ids, *scene.FontAssetID)
 	}
 	keys := make([]string, 0, len(scene.Zones))
 	for key := range scene.Zones {
@@ -457,6 +462,12 @@ func upgradeManifest(raw []byte) (Manifest, error) {
 	if err := json.Unmarshal(raw, &manifest); err != nil {
 		return Manifest{}, err
 	}
+	// Publications made before scene fonts have no font; their scenes use the default one.
+	for index := range manifest.Scenes {
+		if manifest.Scenes[index].FontFamily == "" {
+			manifest.Scenes[index].FontFamily = SceneFontSans
+		}
+	}
 	if manifest.ManifestVersion >= ManifestVersion {
 		return manifest, nil
 	}
@@ -526,6 +537,7 @@ func fallbackScene(manifest *Manifest) uuid.UUID {
 		BackgroundColor: "#000000",
 		BackgroundFit:   MediaFitCover,
 		Theme:           ThemeDark,
+		FontFamily:      SceneFontSans,
 		Zones:           map[string]json.RawMessage{"main": json.RawMessage(`{"type":"empty"}`)},
 		Version:         1,
 	})

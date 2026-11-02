@@ -10,7 +10,15 @@ import { resolveLayout, type CustomLayoutShape } from '../layouts';
 import { ListWidget } from './ListWidget';
 import { qrModules } from './qr';
 import { RichText } from './RichTextView';
-import { fontAssetIdsOf, registerFontFaces, styleTextAlign, widgetStyleOf, zoneBoxCss, type FontFace } from './style';
+import {
+  fontAssetIdsOf,
+  registerFontFaces,
+  sceneFontCss,
+  styleTextAlign,
+  widgetStyleOf,
+  zoneBoxCss,
+  type FontFace,
+} from './style';
 import { orientationOf, type Orientation } from './aspect';
 import { isPrinting, type RenderData, type RenderMachine, type RenderScene } from './types';
 import './render.css';
@@ -331,7 +339,13 @@ function WidgetView({
     case 'clock':
       return (
         <div className="sg-center">
-          <strong className="sg-clock">{clockTime(data.now, data.timeZone)}</strong>
+          <strong className={widget.mode === 'date' ? 'sg-clock sg-clock--date' : 'sg-clock'}>
+            {widget.mode === 'date'
+              ? formatter(data.timeZone, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(
+                  new Date(data.now),
+                )
+              : clockTime(data.now, data.timeZone)}
+          </strong>
           {widget.mode === 'datetime' && (
             <span>
               {formatter(data.timeZone, { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(data.now))}
@@ -409,12 +423,14 @@ export type SceneRendererProps = {
 /** Font assets of every widget in the scene, named by their asset name (the @font-face family). */
 function sceneFonts(scene: RenderScene, data: RenderData): FontFace[] {
   const fonts = new Map<string, FontFace>();
-  for (const widget of Object.values(scene.zones)) {
-    for (const id of fontAssetIdsOf(widget)) {
-      const family = data.assetName?.(id);
-      const url = data.assetUrl(id);
-      if (family && url) fonts.set(id, { family, url });
-    }
+  const ids = [
+    ...(scene.fontFamily === 'custom' && scene.fontAssetId ? [scene.fontAssetId] : []),
+    ...Object.values(scene.zones).flatMap(fontAssetIdsOf),
+  ];
+  for (const id of ids) {
+    const family = data.assetName?.(id);
+    const url = data.assetUrl(id);
+    if (family && url) fonts.set(id, { family, url });
   }
   return [...fonts.values()];
 }
@@ -444,6 +460,10 @@ export function SceneRenderer({
     // The unscaled unit: zone padding and borders keep their size when a widget scales its font.
     '--sg-u': unit,
     background: sceneBackground(scene, data),
+    fontFamily: sceneFontCss(
+      scene,
+      scene.fontFamily === 'custom' && scene.fontAssetId ? (data.assetName?.(scene.fontAssetId) ?? null) : null,
+    ),
     ...(layout.kind === 'grid' ? { gridTemplateColumns: layout.columns, gridTemplateRows: layout.rows } : {}),
   } as CSSProperties;
   return (

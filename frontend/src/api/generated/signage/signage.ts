@@ -148,6 +148,30 @@ return apiFetch<SignageCustomLayout>(getCreateSignageCustomLayoutUrl(),
 );}
 
 
+export const getDuplicateSignageCustomLayoutUrl = (customLayoutId: string,) => {
+
+
+
+
+  return `/api/v1/signage/custom-layouts/${customLayoutId}/duplicate`
+}
+
+/**
+ * Copies every field of the layout, including its zones. The copy has a fresh id and version 1 and is named `<name> (copy)`, `<name> (copy 2)`, … (the first name not taken, truncated to fit 100 characters). Needs `signage.content.manage`. Audited as `signage_custom_layout.created`.
+ * @summary Duplicate a custom layout
+ */
+export const duplicateSignageCustomLayout = async (customLayoutId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
+
+  return apiFetch<SignageCustomLayout>(getDuplicateSignageCustomLayoutUrl(customLayoutId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
 export const getGetSignageCustomLayoutUrl = (customLayoutId: string,) => {
 
 
@@ -530,6 +554,30 @@ return apiFetch<SignageScene>(getCreateSignageSceneUrl(),
 );}
 
 
+export const getDuplicateSignageSceneUrl = (sceneId: string,) => {
+
+
+
+
+  return `/api/v1/signage/scenes/${sceneId}/duplicate`
+}
+
+/**
+ * Copies every field of the scene, including its widgets. The copy has a fresh id and version 1 and is named `<name> (copy)`, `<name> (copy 2)`, … (the first name not taken, truncated to fit 100 characters). Needs `signage.content.manage`. Audited as `signage_scene.created`.
+ * @summary Duplicate a scene
+ */
+export const duplicateSignageScene = async (sceneId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageScene> => {
+
+  return apiFetch<SignageScene>(getDuplicateSignageSceneUrl(sceneId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
 export const getGetSignageSceneUrl = (sceneId: string,) => {
 
 
@@ -677,6 +725,30 @@ return apiFetch<SignageAnnouncementTemplate>(getCreateSignageAnnouncementTemplat
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(createSignageAnnouncementTemplateRequest)
+  }
+);}
+
+
+export const getDuplicateSignageAnnouncementTemplateUrl = (templateId: string,) => {
+
+
+
+
+  return `/api/v1/signage/announcement-templates/${templateId}/duplicate`
+}
+
+/**
+ * Copies every field of the template, including its fields. The copy has a fresh id and version 1 and is named `<name> (copy)`, `<name> (copy 2)`, … (the first name not taken, truncated to fit 100 characters). Needs `signage.content.manage`. Audited as `signage_announcement_template.created`.
+ * @summary Duplicate an announcement template
+ */
+export const duplicateSignageAnnouncementTemplate = async (templateId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageAnnouncementTemplate> => {
+
+  return apiFetch<SignageAnnouncementTemplate>(getDuplicateSignageAnnouncementTemplateUrl(templateId),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 

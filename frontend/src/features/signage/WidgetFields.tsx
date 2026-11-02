@@ -16,7 +16,12 @@ import {
 } from '@carbon/react';
 import { ArrowDown, ArrowUp, TrashCan } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
-import type { SignageAnnouncementTemplate, SignageAsset, SignageWidget } from '../../api/generated/models';
+import type {
+  SignageAnnouncementTemplate,
+  SignageAsset,
+  SignageClockWidget,
+  SignageWidget,
+} from '../../api/generated/models';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { machineLogbookPaths } from '../machinelogbook/shared/paths';
@@ -273,10 +278,11 @@ function TypeFields({ widget, assets, templates, machines, machinesKnown = true,
           legendText="Shows"
           name="wf-clock"
           valueSelected={widget.mode}
-          onChange={(value) => onChange({ ...widget, mode: value as 'time' | 'datetime' })}
+          onChange={(value) => onChange({ ...widget, mode: value as SignageClockWidget['mode'] })}
         >
           <RadioButton id="wf-clock-time" value="time" labelText="Time" />
           <RadioButton id="wf-clock-datetime" value="datetime" labelText="Date and time" />
+          <RadioButton id="wf-clock-date" value="date" labelText="Date only" />
         </RadioButtonGroup>
       );
     case 'camera': {

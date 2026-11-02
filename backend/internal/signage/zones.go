@@ -471,8 +471,8 @@ func ValidateWidget(zone string, raw json.RawMessage) (RawWidget, WidgetRefs, er
 		if err := decode(&w); err != nil {
 			return nil, refs, err
 		}
-		if !inSet(w.Mode, ClockTime, ClockDateTime) {
-			return nil, refs, zoneError(zone, "clock mode must be time or datetime")
+		if !inSet(w.Mode, ClockTime, ClockDateTime, ClockDate) {
+			return nil, refs, zoneError(zone, "clock mode must be time, datetime or date")
 		}
 	case WidgetCamera:
 		var w cameraW

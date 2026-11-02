@@ -361,10 +361,10 @@ func (q *Queries) CreateSignagePairingRequest(ctx context.Context, arg CreateSig
 
 const createSignageScene = `-- name: CreateSignageScene :one
 
-INSERT INTO signage_scenes (id, name, aspect_width, aspect_height, layout_id, custom_layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones)
+INSERT INTO signage_scenes (id, name, aspect_width, aspect_height, layout_id, custom_layout_id, background_color, background_asset_id, background_fit, background_dim, theme, font_family, font_asset_id, zones)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12::text::jsonb)
-RETURNING id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height
+        $9, $10, $11, $12, $13, $14::text::jsonb)
+RETURNING id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height, font_family, font_asset_id
 `
 
 type CreateSignageSceneParams struct {
@@ -379,6 +379,8 @@ type CreateSignageSceneParams struct {
 	BackgroundFit     string
 	BackgroundDim     int32
 	Theme             string
+	FontFamily        string
+	FontAssetID       *uuid.UUID
 	Zones             string
 }
 
@@ -396,6 +398,8 @@ func (q *Queries) CreateSignageScene(ctx context.Context, arg CreateSignageScene
 		arg.BackgroundFit,
 		arg.BackgroundDim,
 		arg.Theme,
+		arg.FontFamily,
+		arg.FontAssetID,
 		arg.Zones,
 	)
 	var i SignageScene
@@ -415,6 +419,8 @@ func (q *Queries) CreateSignageScene(ctx context.Context, arg CreateSignageScene
 		&i.CustomLayoutID,
 		&i.AspectWidth,
 		&i.AspectHeight,
+		&i.FontFamily,
+		&i.FontAssetID,
 	)
 	return i, err
 }
@@ -1191,7 +1197,7 @@ func (q *Queries) GetSignagePairingRequestForPoll(ctx context.Context, pollSecre
 }
 
 const getSignageScene = `-- name: GetSignageScene :one
-SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height FROM signage_scenes WHERE id = $1
+SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height, font_family, font_asset_id FROM signage_scenes WHERE id = $1
 `
 
 func (q *Queries) GetSignageScene(ctx context.Context, id uuid.UUID) (SignageScene, error) {
@@ -1213,12 +1219,14 @@ func (q *Queries) GetSignageScene(ctx context.Context, id uuid.UUID) (SignageSce
 		&i.CustomLayoutID,
 		&i.AspectWidth,
 		&i.AspectHeight,
+		&i.FontFamily,
+		&i.FontAssetID,
 	)
 	return i, err
 }
 
 const getSignageSceneForUpdate = `-- name: GetSignageSceneForUpdate :one
-SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height FROM signage_scenes WHERE id = $1 FOR UPDATE
+SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height, font_family, font_asset_id FROM signage_scenes WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetSignageSceneForUpdate(ctx context.Context, id uuid.UUID) (SignageScene, error) {
@@ -1240,6 +1248,8 @@ func (q *Queries) GetSignageSceneForUpdate(ctx context.Context, id uuid.UUID) (S
 		&i.CustomLayoutID,
 		&i.AspectWidth,
 		&i.AspectHeight,
+		&i.FontFamily,
+		&i.FontAssetID,
 	)
 	return i, err
 }
@@ -1801,7 +1811,7 @@ func (q *Queries) ListRulesReferencingScene(ctx context.Context, sceneID uuid.UU
 
 const listScenesReferencingAsset = `-- name: ListScenesReferencingAsset :many
 SELECT id, name FROM signage_scenes
-WHERE background_asset_id = $1::uuid OR position(($1::uuid)::text in zones::text) > 0
+WHERE background_asset_id = $1::uuid OR font_asset_id = $1::uuid OR position(($1::uuid)::text in zones::text) > 0
 ORDER BY lower(name), id
 `
 
@@ -2119,6 +2129,30 @@ func (q *Queries) ListSignageCameraMachineIDs(ctx context.Context) ([]uuid.UUID,
 			return nil, err
 		}
 		items = append(items, machine_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageCustomLayoutNames = `-- name: ListSignageCustomLayoutNames :many
+SELECT name FROM signage_custom_layouts
+`
+
+func (q *Queries) ListSignageCustomLayoutNames(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listSignageCustomLayoutNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2675,8 +2709,34 @@ func (q *Queries) ListSignageSceneIDs(ctx context.Context, ids []string) ([]uuid
 	return items, nil
 }
 
+const listSignageSceneNames = `-- name: ListSignageSceneNames :many
+
+SELECT name FROM signage_scenes
+`
+
+// Duplicates --------------------------------------------------------------------------------------------------
+func (q *Queries) ListSignageSceneNames(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listSignageSceneNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSignageScenes = `-- name: ListSignageScenes :many
-SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height FROM signage_scenes ORDER BY lower(name), id
+SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height, font_family, font_asset_id FROM signage_scenes ORDER BY lower(name), id
 `
 
 func (q *Queries) ListSignageScenes(ctx context.Context) ([]SignageScene, error) {
@@ -2704,6 +2764,8 @@ func (q *Queries) ListSignageScenes(ctx context.Context) ([]SignageScene, error)
 			&i.CustomLayoutID,
 			&i.AspectWidth,
 			&i.AspectHeight,
+			&i.FontFamily,
+			&i.FontAssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -2717,7 +2779,7 @@ func (q *Queries) ListSignageScenes(ctx context.Context) ([]SignageScene, error)
 
 const listSignageScenesByIDs = `-- name: ListSignageScenesByIDs :many
 
-SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height FROM signage_scenes WHERE id = ANY($1::text[]::uuid[]) ORDER BY id
+SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height, font_family, font_asset_id FROM signage_scenes WHERE id = ANY($1::text[]::uuid[]) ORDER BY id
 `
 
 // Publications and manifest content ---------------------------------------------------------------------------
@@ -2746,6 +2808,8 @@ func (q *Queries) ListSignageScenesByIDs(ctx context.Context, ids []string) ([]S
 			&i.CustomLayoutID,
 			&i.AspectWidth,
 			&i.AspectHeight,
+			&i.FontFamily,
+			&i.FontAssetID,
 		); err != nil {
 			return nil, err
 		}
@@ -2870,6 +2934,30 @@ func (q *Queries) ListSignageTemplateIDsForShare(ctx context.Context, ids []stri
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageTemplateNames = `-- name: ListSignageTemplateNames :many
+SELECT name FROM signage_announcement_templates
+`
+
+func (q *Queries) ListSignageTemplateNames(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listSignageTemplateNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -3262,9 +3350,9 @@ UPDATE signage_scenes
 SET name = $1, aspect_width = $2, aspect_height = $3, layout_id = $4, custom_layout_id = $5,
     background_color = $6,
     background_asset_id = $7, background_fit = $8, background_dim = $9,
-    theme = $10, zones = $11::text::jsonb, version = version + 1, updated_at = now()
-WHERE id = $12 AND version = $13
-RETURNING id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height
+    theme = $10, font_family = $11, font_asset_id = $12, zones = $13::text::jsonb, version = version + 1, updated_at = now()
+WHERE id = $14 AND version = $15
+RETURNING id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height, font_family, font_asset_id
 `
 
 type UpdateSignageSceneParams struct {
@@ -3278,6 +3366,8 @@ type UpdateSignageSceneParams struct {
 	BackgroundFit     string
 	BackgroundDim     int32
 	Theme             string
+	FontFamily        string
+	FontAssetID       *uuid.UUID
 	Zones             string
 	ID                uuid.UUID
 	ExpectedVersion   int64
@@ -3295,6 +3385,8 @@ func (q *Queries) UpdateSignageScene(ctx context.Context, arg UpdateSignageScene
 		arg.BackgroundFit,
 		arg.BackgroundDim,
 		arg.Theme,
+		arg.FontFamily,
+		arg.FontAssetID,
 		arg.Zones,
 		arg.ID,
 		arg.ExpectedVersion,
@@ -3316,6 +3408,8 @@ func (q *Queries) UpdateSignageScene(ctx context.Context, arg UpdateSignageScene
 		&i.CustomLayoutID,
 		&i.AspectWidth,
 		&i.AspectHeight,
+		&i.FontFamily,
+		&i.FontAssetID,
 	)
 	return i, err
 }

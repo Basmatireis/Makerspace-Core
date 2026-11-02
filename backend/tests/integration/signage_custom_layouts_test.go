@@ -44,6 +44,7 @@ func sceneBody(layout, customLayoutID string, zones map[string]any) map[string]a
 	body := map[string]any{
 		"name": "Scene " + uuid.NewString()[:8], "aspectRatio": map[string]any{"width": 16, "height": 9}, "layoutId": layout,
 		"backgroundColor": "#101820", "backgroundFit": "cover", "backgroundDim": 0, "theme": "dark",
+		"fontFamily": "sans", "fontAssetId": nil,
 	}
 	if customLayoutID != "" {
 		body["customLayoutId"] = customLayoutID

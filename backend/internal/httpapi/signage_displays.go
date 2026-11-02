@@ -536,6 +536,8 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 			BackgroundFit:     openapi.SignageFit(scene.BackgroundFit),
 			BackgroundDim:     scene.BackgroundDim,
 			Theme:             openapi.SignagePlayerSceneTheme(scene.Theme),
+			FontFamily:        openapi.SignageSceneFontFamily(scene.FontFamily),
+			FontAssetId:       nullableValue(scene.FontAssetID),
 			Zones:             zones,
 			Version:           scene.Version,
 		})

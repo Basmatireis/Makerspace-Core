@@ -292,6 +292,7 @@ func signageSceneDTO(scene signage.Scene) (openapi.SignageScene, error) {
 		BackgroundAssetId: nullableValue(scene.BackgroundAssetID),
 		BackgroundFit:     openapi.SignageFit(scene.BackgroundFit),
 		BackgroundDim:     scene.BackgroundDim, Theme: openapi.SignageSceneTheme(scene.Theme), Zones: zones,
+		FontFamily: openapi.SignageSceneFontFamily(scene.FontFamily), FontAssetId: nullableValue(scene.FontAssetID),
 		Version: scene.Version, CreatedAt: scene.CreatedAt, UpdatedAt: scene.UpdatedAt,
 	}, nil
 }
@@ -344,6 +345,7 @@ func (s *Server) CreateSignageScene(
 			r.Body.BackgroundAssetId,
 		), BackgroundFit: signage.MediaFit(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
 		Theme: signage.Theme(r.Body.Theme), Zones: zones,
+		FontFamily: signage.SceneFontFamily(sceneFontOrDefault(r.Body.FontFamily)), FontAssetID: uuidNullable(r.Body.FontAssetId),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -399,6 +401,7 @@ func (s *Server) UpdateSignageScene(
 			r.Body.BackgroundAssetId,
 		), BackgroundFit: signage.MediaFit(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
 		Theme: signage.Theme(r.Body.Theme), Zones: zones,
+		FontFamily: signage.SceneFontFamily(r.Body.FontFamily), FontAssetID: uuidNullable(r.Body.FontAssetId),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err

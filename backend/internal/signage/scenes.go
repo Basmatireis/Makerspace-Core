@@ -31,6 +31,8 @@ type Scene struct {
 	BackgroundFit     MediaFit
 	BackgroundDim     int
 	Theme             Theme
+	FontFamily        SceneFontFamily
+	FontAssetID       *uuid.UUID
 	Zones             map[string]RawWidget
 	Version           int64
 	CreatedAt         time.Time
@@ -49,7 +51,10 @@ type SceneInput struct {
 	BackgroundFit     MediaFit
 	BackgroundDim     int
 	Theme             Theme
-	Zones             map[string]json.RawMessage
+	// FontFamily empty means sans.
+	FontFamily  SceneFontFamily
+	FontAssetID *uuid.UUID
+	Zones       map[string]json.RawMessage
 }
 
 func sceneFromRow(row signagedb.SignageScene) (Scene, error) {
@@ -77,6 +82,8 @@ func sceneFromRow(row signagedb.SignageScene) (Scene, error) {
 		BackgroundFit:     MediaFit(row.BackgroundFit),
 		BackgroundDim:     int(row.BackgroundDim),
 		Theme:             Theme(row.Theme),
+		FontFamily:        SceneFontFamily(row.FontFamily),
+		FontAssetID:       row.FontAssetID,
 		Zones:             zones, Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
 	}, nil
 }
@@ -124,6 +131,17 @@ func validateSceneInput(input SceneInput) (validatedScene, error) {
 	}
 	if input.Theme != ThemeDark && input.Theme != ThemeLight {
 		return validatedScene{}, validation("theme must be dark or light")
+	}
+	if input.FontFamily == "" {
+		input.FontFamily = SceneFontSans
+	}
+	switch input.FontFamily {
+	case SceneFontSans, SceneFontSerif, SceneFontMono, SceneFontCustom:
+	default:
+		return validatedScene{}, validation("fontFamily must be sans, serif, mono or custom")
+	}
+	if (input.FontFamily == SceneFontCustom) != (input.FontAssetID != nil) {
+		return validatedScene{}, validation("fontAssetId is required exactly when fontFamily is custom")
 	}
 	return validatedScene{SceneInput: input, name: name, builtin: builtin}, nil
 }
@@ -181,10 +199,13 @@ func samePointer(a, b *uuid.UUID) bool {
 func (s *Service) verifyReferences(
 	ctx context.Context,
 	q *signagedb.Queries,
-	background *uuid.UUID,
+	background, sceneFont *uuid.UUID,
 	refs WidgetRefs,
 ) error {
 	images, videos, fonts := refs.ImageAssets, refs.VideoAssets, refs.FontAssets
+	if sceneFont != nil {
+		fonts = append(append([]uuid.UUID{}, fonts...), *sceneFont)
+	}
 	if background != nil {
 		images = append(append([]uuid.UUID{}, images...), *background)
 	}
@@ -316,7 +337,7 @@ func (s *Service) CreateScene(
 	if err != nil {
 		return Scene{}, err
 	}
-	if err := s.verifyReferences(ctx, q, input.BackgroundAssetID, refs); err != nil {
+	if err := s.verifyReferences(ctx, q, input.BackgroundAssetID, input.FontAssetID, refs); err != nil {
 		return Scene{}, err
 	}
 	id := ids.New()
@@ -332,6 +353,8 @@ func (s *Service) CreateScene(
 		BackgroundFit:     string(input.BackgroundFit),
 		BackgroundDim:     int32(input.BackgroundDim),
 		Theme:             string(input.Theme),
+		FontFamily:        string(checked.FontFamily),
+		FontAssetID:       input.FontAssetID,
 		Zones:             string(encoded),
 	})
 	if err != nil {
@@ -345,7 +368,7 @@ func (s *Service) CreateScene(
 		"signage_scene",
 		id,
 		requestID,
-		[]string{"name", "aspectRatio", "layoutId", "background", "theme", "zones"},
+		[]string{"name", "aspectRatio", "layoutId", "background", "theme", "font", "zones"},
 	); err != nil {
 		return Scene{}, err
 	}
@@ -431,7 +454,7 @@ func (s *Service) UpdateScene(
 			)
 		}
 	}
-	changed := []string{"name", "aspectRatio", "layoutId", "background", "theme"}
+	changed := []string{"name", "aspectRatio", "layoutId", "background", "theme", "font"}
 	zones := parsed
 	if zones == nil {
 		stored := map[string]RawWidget{}
@@ -452,7 +475,7 @@ func (s *Service) UpdateScene(
 	} else {
 		changed = append(changed, "zones")
 	}
-	if err := s.verifyReferences(ctx, q, input.BackgroundAssetID, refs); err != nil {
+	if err := s.verifyReferences(ctx, q, input.BackgroundAssetID, input.FontAssetID, refs); err != nil {
 		return Scene{}, err
 	}
 	encoded, err := marshalZones(zones)
@@ -470,6 +493,8 @@ func (s *Service) UpdateScene(
 		BackgroundFit:     string(input.BackgroundFit),
 		BackgroundDim:     int32(input.BackgroundDim),
 		Theme:             string(input.Theme),
+		FontFamily:        string(checked.FontFamily),
+		FontAssetID:       input.FontAssetID,
 		Zones:             string(encoded), ID: id, ExpectedVersion: expected,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {

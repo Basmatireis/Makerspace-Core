@@ -13,11 +13,15 @@ import {
   TableRow,
   Tag,
 } from '@carbon/react';
-import { Add, Edit, TrashCan } from '@carbon/icons-react';
+import { Add, Copy, Edit, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { SignageAnnouncementTemplate, SignageTone } from '../../api/generated/models';
-import { deleteSignageAnnouncementTemplate } from '../../api/generated/signage/signage';
+import {
+  deleteSignageAnnouncementTemplate,
+  duplicateSignageAnnouncementTemplate,
+  duplicateSignageScene,
+} from '../../api/generated/signage/signage';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { RowActions } from '../../app/RowActions';
@@ -25,6 +29,7 @@ import { SectionSwitcher } from '../../app/SectionSwitcher';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { AnnouncementTemplateModal } from './AnnouncementTemplateModal';
+import { useDuplicate } from './duplicate';
 import { DeleteDialog, QueryBoundary, SceneThumbnail } from './components';
 import { aspectLabel, orientationOf, pluralize } from './helpers';
 import { NewSceneModal } from './NewContentModals';
@@ -61,6 +66,8 @@ export function ContentPage() {
   const [creating, setCreating] = useState<'scene' | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<SignageAnnouncementTemplate | 'new' | null>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<SignageAnnouncementTemplate | null>(null);
+  const duplicateScene = useDuplicate(duplicateSignageScene, (copy) => navigate(signagePaths.scene(copy.id)));
+  const duplicateTemplate = useDuplicate(duplicateSignageAnnouncementTemplate, (copy) => setEditingTemplate(copy));
   const scenes = useQuery(scenesQuery());
   const templates = useQuery(templatesQuery());
   const announcements = useQuery(announcementsQuery());
@@ -100,6 +107,8 @@ export function ContentPage() {
           selected={section}
           onChange={(id) => setParams(id === 'scenes' ? {} : { section: id }, { replace: true })}
         />
+        {duplicateScene.error}
+        {duplicateTemplate.error}
         <QueryBoundary
           query={query}
           label={section === 'scenes' ? 'scenes' : section === 'layouts' ? 'layouts' : 'announcement templates'}
@@ -117,25 +126,38 @@ export function ContentPage() {
             ) : (
               <div className="sg-tile-grid">
                 {scenes.data?.items.map((scene) => (
-                  <ClickableTile
-                    key={scene.id}
-                    className="sg-scene-tile"
-                    href={signagePaths.scene(scene.id)}
-                    aria-label={`Scene ${scene.name}`}
-                    onClick={(event: { preventDefault: () => void }) => open(event, signagePaths.scene(scene.id))}
-                  >
-                    <div className={`sg-scene-tile__thumb sg-scene-tile__thumb--${orientationOf(scene.aspectRatio)}`}>
-                      <SceneThumbnail scene={scene} />
-                    </div>
-                    <div className="sg-scene-tile__text">
-                      <strong>{scene.name}</strong>
-                      <div className="sg-inline">
-                        <Tag size="sm" type="cool-gray">
-                          {aspectLabel(scene.aspectRatio)}
-                        </Tag>
+                  <div key={scene.id} className="sg-scene-card">
+                    <ClickableTile
+                      className="sg-scene-tile"
+                      href={signagePaths.scene(scene.id)}
+                      aria-label={`Scene ${scene.name}`}
+                      onClick={(event: { preventDefault: () => void }) => open(event, signagePaths.scene(scene.id))}
+                    >
+                      <div className={`sg-scene-tile__thumb sg-scene-tile__thumb--${orientationOf(scene.aspectRatio)}`}>
+                        <SceneThumbnail scene={scene} />
                       </div>
-                    </div>
-                  </ClickableTile>
+                      <div className="sg-scene-tile__text">
+                        <strong>{scene.name}</strong>
+                        <div className="sg-inline">
+                          <Tag size="sm" type="cool-gray">
+                            {aspectLabel(scene.aspectRatio)}
+                          </Tag>
+                        </div>
+                      </div>
+                    </ClickableTile>
+                    {canEdit && (
+                      <Button
+                        kind="ghost"
+                        size="sm"
+                        renderIcon={Copy}
+                        disabled={duplicateScene.pending}
+                        onClick={() => duplicateScene.duplicate(scene.id)}
+                      >
+                        Duplicate
+                        <span className="cds--visually-hidden"> {scene.name}</span>
+                      </Button>
+                    )}
+                  </div>
                 ))}
               </div>
             ))}
@@ -215,6 +237,15 @@ export function ContentPage() {
                                   onClick={() => setEditingTemplate(template)}
                                 >
                                   Edit
+                                </Button>
+                                <Button
+                                  kind="ghost"
+                                  size="sm"
+                                  renderIcon={Copy}
+                                  disabled={duplicateTemplate.pending}
+                                  onClick={() => duplicateTemplate.duplicate(template.id)}
+                                >
+                                  Duplicate
                                 </Button>
                                 <Button
                                   kind="danger--ghost"

@@ -11,13 +11,14 @@ import {
   TableRow,
   Tag,
 } from '@carbon/react';
-import { Edit, TrashCan, View } from '@carbon/icons-react';
-import { Link } from 'react-router-dom';
+import { Copy, Edit, TrashCan, View } from '@carbon/icons-react';
+import { Link, useNavigate } from 'react-router-dom';
 import type { SignageCustomLayout } from '../../api/generated/models';
-import { deleteSignageCustomLayout } from '../../api/generated/signage/signage';
+import { deleteSignageCustomLayout, duplicateSignageCustomLayout } from '../../api/generated/signage/signage';
 import { EmptyState } from '../../app/PageState';
 import { RowActions } from '../../app/RowActions';
 import { DeleteDialog } from './components';
+import { useDuplicate } from './duplicate';
 import { pluralize } from './helpers';
 import { LayoutDiagram } from './LayoutDiagram';
 import { resolveLayout } from './layouts';
@@ -34,6 +35,8 @@ export function CustomLayoutsTable({
   create?: React.ReactNode;
 }) {
   const [deleting, setDeleting] = useState<SignageCustomLayout | null>(null);
+  const navigate = useNavigate();
+  const copy = useDuplicate(duplicateSignageCustomLayout, (layout) => navigate(signagePaths.layout(layout.id)));
   if (layouts.length === 0)
     return (
       <EmptyState
@@ -44,6 +47,7 @@ export function CustomLayoutsTable({
     );
   return (
     <>
+      {copy.error}
       <TableContainer>
         <Table aria-label="Custom layouts">
           <TableHead>
@@ -95,6 +99,17 @@ export function CustomLayoutsTable({
                     >
                       {canEdit ? 'Edit' : 'View'}
                     </Button>
+                    {canEdit && (
+                      <Button
+                        kind="ghost"
+                        size="sm"
+                        renderIcon={Copy}
+                        disabled={copy.pending}
+                        onClick={() => copy.duplicate(layout.id)}
+                      >
+                        Duplicate
+                      </Button>
+                    )}
                     {canEdit && (
                       <Button kind="danger--ghost" size="sm" renderIcon={TrashCan} onClick={() => setDeleting(layout)}>
                         Delete

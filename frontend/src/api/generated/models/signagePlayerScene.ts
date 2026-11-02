@@ -22,6 +22,7 @@ import type { SignageAspectRatio } from './signageAspectRatio';
 import type { SignageFit } from './signageFit';
 import type { SignageLayoutId } from './signageLayoutId';
 import type { SignagePlayerSceneTheme } from './signagePlayerSceneTheme';
+import type { SignageSceneFontFamily } from './signageSceneFontFamily';
 import type { SignageZones } from './signageZones';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
@@ -43,6 +44,9 @@ export interface SignagePlayerScene {
      */
   backgroundDim: number;
   theme: SignagePlayerSceneTheme;
+  fontFamily: SignageSceneFontFamily;
+  /** Font asset; set exactly when `fontFamily` is `custom`. */
+  fontAssetId: UUIDv7 | null;
   zones: SignageZones;
   version: Version;
 }

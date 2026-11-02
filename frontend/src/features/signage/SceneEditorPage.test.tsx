@@ -13,20 +13,32 @@ import { gridLayoutFixture, layoutIds, mockCustomLayouts } from './layoutFixture
 const editor = `/signage/scenes/${ids.scene}`;
 
 describe('Scene editor', () => {
-  it('autosaves edits with the expected version', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+  const clickSave = () => userEvent.setup().click(screen.getByRole('button', { name: 'Save' }));
+  const mockPut = (version = 4) => {
     const bodies: Record<string, unknown>[] = [];
     server.use(
       http.put('*/api/v1/signage/scenes/:id', async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
         bodies.push(body);
-        return HttpResponse.json(sceneFixture({ name: String(body.name), version: 4 }));
+        return HttpResponse.json(sceneFixture({ ...(body as object), version } as never));
       }),
     );
+    return bodies;
+  };
+  const rename = async (name: string) =>
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: name } });
+
+  it('saves on click with the expected version and not before', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    const bodies = mockPut();
     renderRoute(<App />, editor);
-    expect((await screen.findAllByText(/Saved · draft/)).length).toBeGreaterThan(0);
-    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Renamed poster' } });
-    expect(screen.getAllByText(/Unsaved changes/).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Saved')).length).toBeGreaterThan(0);
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeDisabled();
+    await rename('Renamed poster');
+    expect(screen.getAllByText('Unsaved changes').length).toBeGreaterThan(0);
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    expect(bodies).toHaveLength(0);
+    await clickSave();
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]).toMatchObject({
       expectedVersion: 3,
@@ -36,7 +48,104 @@ describe('Scene editor', () => {
       backgroundColor: '#161616',
     });
     expect(await screen.findByRole('heading', { name: 'Renamed poster' })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getAllByText(/Saved · draft/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText('Saved').length).toBeGreaterThan(0));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  it('saves with Ctrl+S even while typing in a field', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    const bodies = mockPut();
+    renderRoute(<App />, editor);
+    await rename('Via keyboard');
+    screen.getByLabelText('Name').focus();
+    await userEvent.setup().keyboard('{Control>}s{/Control}');
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toMatchObject({ expectedVersion: 3, name: 'Via keyboard' });
+  });
+
+  it('undoes and redoes edits, with typing in one field as one step', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    const name = await screen.findByLabelText('Name');
+    const original = (name as HTMLInputElement).value;
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Redo' })).toBeDisabled();
+    fireEvent.change(name, { target: { value: 'A' } });
+    fireEvent.change(name, { target: { value: 'AB' } });
+    fireEvent.change(name, { target: { value: 'ABC' } });
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(screen.getByLabelText('Name')).toHaveValue(original);
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(screen.getAllByText('Saved').length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: 'Redo' }));
+    expect(screen.getByLabelText('Name')).toHaveValue('ABC');
+    expect(screen.getByRole('button', { name: 'Redo' })).toBeDisabled();
+    // Outside text fields the shortcuts work; inside them the browser keeps its own undo.
+    (document.activeElement as HTMLElement | null)?.blur();
+    await user.keyboard('{Control>}z{/Control}');
+    expect(screen.getByLabelText('Name')).toHaveValue(original);
+    await user.keyboard('{Control>}{Shift>}z{/Shift}{/Control}');
+    expect(screen.getByLabelText('Name')).toHaveValue('ABC');
+    await user.keyboard('{Control>}z{/Control}{Control>}y{/Control}');
+    expect(screen.getByLabelText('Name')).toHaveValue('ABC');
+    screen.getByLabelText('Name').focus();
+    await user.keyboard('{Control>}z{/Control}');
+    expect(screen.getByLabelText('Name')).toHaveValue('ABC');
+  });
+
+  it('keeps edits as separate steps when typing pauses and can undo past a save', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    mockPut();
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    const name = await screen.findByLabelText('Name');
+    const original = (name as HTMLInputElement).value;
+    fireEvent.change(name, { target: { value: 'One' } });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    fireEvent.change(name, { target: { value: 'Two' } });
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(screen.getByLabelText('Name')).toHaveValue('One');
+    await user.click(screen.getByRole('button', { name: 'Redo' }));
+    await clickSave();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled());
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(screen.getByLabelText('Name')).toHaveValue(original);
+    expect(screen.getAllByText('Unsaved changes').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+  });
+
+  it('discards the edits after confirmation', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    const bodies = mockPut();
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    const original = ((await screen.findByLabelText('Name')) as HTMLInputElement).value;
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeDisabled();
+    await rename('Throw away');
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue(original));
+    expect(screen.getAllByText('Saved').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(bodies).toHaveLength(0);
+  });
+
+  it('asks before leaving with unsaved changes', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    const bodies = mockPut();
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await rename('Not saved');
+    await user.click(screen.getAllByRole('link', { name: 'Content' })[0]);
+    const dialog = await screen.findByRole('alertdialog', { name: /Leave without saving/ });
+    await user.click(within(dialog).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText('Name')).toHaveValue('Not saved');
+    await user.click(screen.getAllByRole('link', { name: 'Content' })[0]);
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Leave' }));
+    await waitFor(() => expect(screen.queryByLabelText('Name')).not.toBeInTheDocument());
+    expect(bodies).toHaveLength(0);
   });
 
   it('offers to reload or overwrite after a stale write (409)', async () => {
@@ -57,11 +166,36 @@ describe('Scene editor', () => {
       }),
     );
     renderRoute(<App />, editor);
-    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Mine' } });
+    const user = userEvent.setup();
+    await rename('Mine');
+    await clickSave();
     expect(await screen.findByText('This scene was changed somewhere else')).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Keep my changes' }));
+    await user.click(screen.getByRole('button', { name: 'Keep my changes' }));
     await waitFor(() => expect(puts).toBe(2));
     await waitFor(() => expect(screen.queryByText('This scene was changed somewhere else')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled());
+  });
+
+  it('drops the local edits and the history when loading the latest version', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    let gets = 0;
+    server.use(
+      http.put('*/api/v1/signage/scenes/:id', () =>
+        HttpResponse.json({ code: 'stale_write', message: 'Stale' }, { status: 409 }),
+      ),
+      http.get('*/api/v1/signage/scenes/:id', () => {
+        gets += 1;
+        return HttpResponse.json(gets === 1 ? sceneFixture() : sceneFixture({ name: 'Edited elsewhere', version: 7 }));
+      }),
+    );
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await rename('Mine');
+    await clickSave();
+    await user.click(await screen.findByRole('button', { name: 'Load latest' }));
+    await waitFor(() => expect(screen.getByLabelText('Name')).toHaveValue('Edited elsewhere'));
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
   it('does not send what the backend would reject and says why', async () => {
@@ -76,6 +210,7 @@ describe('Scene editor', () => {
     renderRoute(<App />, editor);
     fireEvent.change(await screen.findByLabelText('Background colour'), { target: { value: 'red' } });
     expect(await screen.findByText('Enter the background colour as #rrggbb.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(puts).toBe(0);
   });
 
@@ -158,9 +293,11 @@ describe('Scene editor', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
     await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(zones?.footer).toMatchObject({ type: 'camera', source: 'auto', machineIds: [] }));
     await user.click(await screen.findByRole('combobox', { name: /Machines/ }));
     await user.click(await screen.findByRole('option', { name: 'Bambu X1C' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(zones?.footer).toMatchObject({ type: 'camera', source: 'auto', machineId: null, machineIds: [x1c.id] }),
     );
@@ -181,6 +318,7 @@ describe('Scene editor', () => {
     await user.selectOptions(screen.getByLabelText('Widget type'), 'status');
     await user.click(await screen.findByRole('combobox', { name: /Machines/ }));
     await user.click(await screen.findByRole('option', { name: 'Prusa MK4' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(zones?.footer).toMatchObject({ type: 'status', machineIds: [prusa.id] }));
   });
 
@@ -261,6 +399,7 @@ describe('Scene editor', () => {
     await user.selectOptions(screen.getByLabelText('Widget type'), 'qr');
     expect(await screen.findByText('Enter an https:// URL without credentials.')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('URL'), { target: { value: 'https://makerspace.example/open' } });
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(zones?.footer).toMatchObject({ type: 'qr', url: 'https://makerspace.example/open' }));
     expect(zones?.header).toMatchObject({ type: 'text' });
   });
@@ -359,6 +498,7 @@ describe('draftError', () => {
     const dialog = await screen.findByRole('dialog');
     await user.click(await within(dialog).findByText('Poster with side'));
     await user.click(within(dialog).getByRole('button', { name: 'Change layout' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(bodies[0]).toMatchObject({ layoutId: 'custom', customLayoutId: layoutIds.grid });
     // The header widget moves to the first custom zone; the others start empty.

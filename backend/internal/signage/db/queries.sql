@@ -77,15 +77,15 @@ SELECT id, kind FROM signage_assets WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]
 
 -- name: ListScenesReferencingAsset :many
 SELECT id, name FROM signage_scenes
-WHERE background_asset_id = sqlc.arg(id)::uuid OR position((sqlc.arg(id)::uuid)::text in zones::text) > 0
+WHERE background_asset_id = sqlc.arg(id)::uuid OR font_asset_id = sqlc.arg(id)::uuid OR position((sqlc.arg(id)::uuid)::text in zones::text) > 0
 ORDER BY lower(name), id;
 
 -- Scenes ------------------------------------------------------------------------------------------------------
 
 -- name: CreateSignageScene :one
-INSERT INTO signage_scenes (id, name, aspect_width, aspect_height, layout_id, custom_layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones)
+INSERT INTO signage_scenes (id, name, aspect_width, aspect_height, layout_id, custom_layout_id, background_color, background_asset_id, background_fit, background_dim, theme, font_family, font_asset_id, zones)
 VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(aspect_width), sqlc.arg(aspect_height), sqlc.arg(layout_id), sqlc.narg(custom_layout_id), sqlc.arg(background_color), sqlc.narg(background_asset_id),
-        sqlc.arg(background_fit), sqlc.arg(background_dim), sqlc.arg(theme), sqlc.arg(zones)::text::jsonb)
+        sqlc.arg(background_fit), sqlc.arg(background_dim), sqlc.arg(theme), sqlc.arg(font_family), sqlc.narg(font_asset_id), sqlc.arg(zones)::text::jsonb)
 RETURNING *;
 
 -- name: GetSignageScene :one
@@ -102,7 +102,7 @@ UPDATE signage_scenes
 SET name = sqlc.arg(name), aspect_width = sqlc.arg(aspect_width), aspect_height = sqlc.arg(aspect_height), layout_id = sqlc.arg(layout_id), custom_layout_id = sqlc.narg(custom_layout_id),
     background_color = sqlc.arg(background_color),
     background_asset_id = sqlc.narg(background_asset_id), background_fit = sqlc.arg(background_fit), background_dim = sqlc.arg(background_dim),
-    theme = sqlc.arg(theme), zones = sqlc.arg(zones)::text::jsonb, version = version + 1, updated_at = now()
+    theme = sqlc.arg(theme), font_family = sqlc.arg(font_family), font_asset_id = sqlc.narg(font_asset_id), zones = sqlc.arg(zones)::text::jsonb, version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
@@ -585,3 +585,14 @@ SELECT d.id, d.group_id::uuid AS group_id, d.name, d.aspect_width, d.aspect_heig
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.group_id = ANY(sqlc.arg(group_ids)::text[]::uuid[])
 ORDER BY lower(d.name), d.id;
+
+-- Duplicates --------------------------------------------------------------------------------------------------
+
+-- name: ListSignageSceneNames :many
+SELECT name FROM signage_scenes;
+
+-- name: ListSignageTemplateNames :many
+SELECT name FROM signage_announcement_templates;
+
+-- name: ListSignageCustomLayoutNames :many
+SELECT name FROM signage_custom_layouts;

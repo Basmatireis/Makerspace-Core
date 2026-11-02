@@ -117,6 +117,11 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
+.sg-clock--date {
+  font-size: calc(var(--u) * 6);
+  line-height: 1.15;
+  text-align: center;
+}
 .sg-qr {
   display: flex;
   align-items: center;

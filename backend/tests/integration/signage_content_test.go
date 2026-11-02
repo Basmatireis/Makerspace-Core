@@ -1706,6 +1706,8 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 		"backgroundFit":   "cover",
 		"backgroundDim":   10,
 		"theme":           "dark",
+		"fontFamily":      "sans",
+		"fontAssetId":     nil,
 	}
 	response = send(editorClient, editorCSRF, http.MethodPut, "/signage/scenes/"+sceneID, update, nil)
 	assertStatus(t, response, http.StatusOK)
