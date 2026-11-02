@@ -2,6 +2,36 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Upgrade notes
+
+- **Migration 00093 (scene font).** Adds `signage_scenes.font_family` (`sans`, `serif`, `mono`, `custom`; default `sans`) and `font_asset_id`. New fields `fontFamily` and `fontAssetId` on `SignageScene` and `SignagePlayerScene`; the create request takes them optionally.
+- **Migration 00092 (display groups).** New tables `signage_display_groups` and `signage_announcement_groups`; `signage_displays.group_id`; `signage_rules.display_id` becomes nullable and `signage_rules.group_id` is added (exactly one of them is set); `signage_default_scenes` can belong to a group. New endpoints `GET|POST /signage/groups`, `GET|PUT|DELETE /signage/groups/{groupId}`, `POST /signage/groups/{groupId}/publish`, `GET /signage/groups/{groupId}/preview` and the rule endpoints under `/signage/groups/{groupId}/rules…`; `groupId` on `SignageDisplay`, `PairSignageDisplayRequest` and `UpdateSignageDisplayRequest`; `groupIds` on announcements; the error `display_in_group` (409) for rule writes on a display in a group; the reference kind `group`. `SignageRuleList.displayVersion` is renamed `ownerVersion`. New audit actions `signage_display_group.created|updated|deleted|published|rules_reordered`. Rolling back copies each group's rules and default list to its members.
+- **Migration 00091 (scene lists).** Rules and the display default now carry an ordered list of scenes: new tables `signage_rule_scenes` and `signage_default_scenes`; `signage_rules` loses `target_kind`, `target_scene_id` and `target_playlist_id`, `signage_displays` loses `default_playlist_id`, and `signage_playlists` and `signage_playlist_items` are dropped. Playlists are embedded in the rules and defaults that used them; a rule whose playlist was empty is deleted, and a display whose default playlist was empty gets a one-item list with a scene named `Blank` created by the migration. Removed API: `/signage/playlists*`, `SignagePlaylist*`, `SignagePlayerPlaylist`, `SignageRuleTargetKind`, `targetKind` and `targetId` on rules, `defaultPlaylistId`, and the pending-change kind `playlist`. New: `scenes` on rules and `defaultScenes` on displays and groups (`SignageSceneListItem`), `defaultScenes` and `manifestVersion: 3` in the manifest.
+- **Migration 00090 (aspect ratio).** `signage_displays` and `signage_scenes` get `aspect_width` and `aspect_height` (the stored pixel size or orientation, reduced); `orientation`, `resolution_width` and `resolution_height` are gone. API: `SignageAspectRatio` replaces `orientation` and `resolution` (and the schemas `SignageOrientation` and `SignageResolution`) on displays, scenes, their requests and the player manifest.
+- **Stored publications.** Publications made before this release are upgraded in memory when they are read (player manifest, preview, pending changes) and are not rewritten. Players drop a persisted manifest of the old shape and fetch the current one. Republish each display (or group) once so that the new manifest shape is stored; until then, pending changes may list "Default scenes" for displays whose default playlist was empty.
+
+### Added
+
+- **Aspect ratios.** Displays and scenes have an aspect ratio instead of an orientation and a pixel resolution: 16:9, 9:16, 21:9, 32:9, 4:3, 3:4 or a custom ratio, reduced by the server. A rule can only show scenes with the ratio of its display.
+- **Scene lists in rules and as the default.** A rule and a display's default show an ordered list of scenes with seconds and a transition; a one-scene list shows that scene continuously. The Playlists section is gone.
+- **Display groups.** Displays with the same aspect ratio can be put in a group that owns their rules and default scenes and is published at once (Signage › Displays › Groups). Joining a group replaces a display's own rules, leaving keeps a copy of the group's.
+- **Announcements for groups.** An announcement can target groups next to displays.
+- **Scene font.** A scene has its own font (sans, serif, mono or an uploaded WOFF2) that widgets set to "As the scene" follow.
+- **Date-only clock.** The clock widget can show just the weekday and date.
+- **Duplicate.** Scenes, announcement templates and custom layouts can be duplicated from the Content page.
+- **Scene editor saves on request.** Save, Discard, Undo and Redo (Ctrl/Cmd+S, Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z) replace autosave, and leaving with unsaved changes asks first.
+- **Timelapse widget.** Plays the timelapse videos of recent finished prints (all machines or selected ones, newest N, maximum age and length, optional caption); runs hidden from signage never appear. Core lists the clips in the live payload (`SignagePlayerLive.timelapses`), serves them to players (`GET /signage/player/timelapses/{runId}/{sha256}`) and to the admin preview (`GET /signage/timelapses/{runId}/content`), and players cache them.
+
+### Changed
+
+- **Player chunks.** The camera manager, QR codes, the open-day, event and agenda lists, the calendar, the timelapse widget and the pairing screen are loaded on demand, so the player stays inside its bundle budget.
+
+### Fixed
+
+- **Uploaded fonts vanished after a failed load.** A font whose first load failed (network blip, restart, token rotation) stayed missing in the preview and on the display for the rest of the session. Fonts are now registered through the Font Loading API and retried with backoff.
+
 ## [0.13.0] - 2026-11-01
 
 ### Upgrade notes
