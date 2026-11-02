@@ -1,11 +1,11 @@
 import { TextInput } from '@carbon/react';
-import type { SignageCustomLayoutZone } from '../../api/generated/models';
+import type { SignageAspectRatio, SignageCustomLayoutZone } from '../../api/generated/models';
 import type { LayoutDraft } from './customLayoutModel';
 
 export type LayoutEditorProps = {
   layout: LayoutDraft;
-  /** Shape of the preview only; the layout itself is independent of the screen orientation. */
-  orientation: 'landscape' | 'portrait';
+  /** Shape of the preview only; the layout itself is independent of the screen ratio. */
+  aspectRatio: SignageAspectRatio;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onChange: (patch: Partial<LayoutDraft>) => void;

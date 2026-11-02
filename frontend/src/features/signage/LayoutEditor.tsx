@@ -18,7 +18,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm, useWatch } from 'react-hook-form';
-import type { SignageCustomLayout, SignageCustomLayoutMode } from '../../api/generated/models';
+import type { SignageAspectRatio, SignageCustomLayout, SignageCustomLayoutMode } from '../../api/generated/models';
 import { createSignageCustomLayout, updateSignageCustomLayout } from '../../api/generated/signage/signage';
 import { PageShell } from '../../app/PageShell';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
@@ -35,6 +35,7 @@ import {
   type GridConversion,
   type LayoutDraft,
 } from './customLayoutModel';
+import { AspectRatioSelect } from './AspectRatioFields';
 import { FreeLayoutEditor } from './FreeLayoutEditor';
 import { GridLayoutEditor } from './GridLayoutEditor';
 import { errorMessage, isStaleWrite, pluralize } from './helpers';
@@ -43,8 +44,6 @@ import { LayoutDiagram } from './LayoutDiagram';
 import { resolveLayout } from './layouts';
 import { signagePaths } from './paths';
 import { scenesQuery, signageKeys } from './queries';
-
-type Orientation = 'landscape' | 'portrait';
 
 /** Zones that would lose widgets, or null when the scenes could not be checked. */
 type RemovalCheck = { scenes: AffectedScene[] | null; values: LayoutDraft };
@@ -65,7 +64,7 @@ export function LayoutEditor({ layout, canEdit, onReload }: Props) {
   const form = useForm<LayoutDraft>({ defaultValues: initial });
   const draft = useWatch({ control: form.control }) as LayoutDraft;
   const [selectedId, setSelectedId] = useState<string | null>(initial.zones[0]?.id ?? null);
-  const [orientation, setOrientation] = useState<Orientation>('landscape');
+  const [previewRatio, setPreviewRatio] = useState<SignageAspectRatio>({ width: 16, height: 9 });
   const [conversion, setConversion] = useState<GridConversion | null>(null);
   const [removal, setRemoval] = useState<RemovalCheck | null>(null);
   const [checking, setChecking] = useState(false);
@@ -137,7 +136,7 @@ export function LayoutEditor({ layout, canEdit, onReload }: Props) {
 
   const common = {
     layout: draft,
-    orientation,
+    aspectRatio: previewRatio,
     selectedId,
     onSelect: setSelectedId,
     onChange: update,
@@ -214,18 +213,14 @@ export function LayoutEditor({ layout, canEdit, onReload }: Props) {
                 <RadioButton id="layout-mode-grid" value="grid" labelText="Grid (rows and columns)" />
                 <RadioButton id="layout-mode-free" value="free" labelText="Free (rectangles)" />
               </RadioButtonGroup>
-              <RadioButtonGroup
-                legendText="Preview shape"
-                name="layout-preview"
-                valueSelected={orientation}
-                onChange={(value) => setOrientation(value as Orientation)}
-              >
-                <RadioButton id="layout-preview-landscape" value="landscape" labelText="Landscape" />
-                <RadioButton id="layout-preview-portrait" value="portrait" labelText="Portrait" />
-              </RadioButtonGroup>
+              <AspectRatioSelect
+                idPrefix="layout-preview"
+                labelText="Preview ratio"
+                value={previewRatio}
+                onChange={setPreviewRatio}
+              />
               <p className="sg-secondary">
-                The preview shape does not change the layout. Scenes on portrait and landscape displays use the same
-                zones.
+                The preview ratio does not change the layout. Scenes of every aspect ratio use the same zones.
               </p>
             </Stack>
             <div className="sg-layout-editor__work">

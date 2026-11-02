@@ -137,11 +137,7 @@ textarea.sg-code {
   touch-action: none;
   user-select: none;
 }
-.sg-grid-canvas--landscape {
-  aspect-ratio: 16 / 9;
-}
 .sg-grid-canvas--portrait {
-  aspect-ratio: 9 / 16;
   max-inline-size: 22rem;
 }
 .sg-grid-cell {
@@ -220,11 +216,7 @@ textarea.sg-code {
   user-select: none;
   overflow: hidden;
 }
-.sg-free-canvas--landscape {
-  aspect-ratio: 16 / 9;
-}
 .sg-free-canvas--portrait {
-  aspect-ratio: 9 / 16;
   max-inline-size: 22rem;
 }
 .sg-free-zone {

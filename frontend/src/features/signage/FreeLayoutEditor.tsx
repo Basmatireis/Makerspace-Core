@@ -14,6 +14,7 @@ import {
   replaceZone,
   type ResizeHandle,
 } from './customLayoutModel';
+import { orientationOf } from './render/aspect';
 import { ZoneLabelField, type LayoutEditorProps } from './layoutEditorShared';
 
 const HANDLES: { name: string; handle: ResizeHandle }[] = [
@@ -34,7 +35,7 @@ type Drag = { id: string; handle?: ResizeHandle; x: number; y: number; start: Si
  * 0.5 %). The number fields and the arrow keys do the same without a pointer. Later zones are drawn on top.
  * Carbon has no canvas or resize control, so the rectangles and handles are plain elements.
  */
-export function FreeLayoutEditor({ layout, orientation, selectedId, onSelect, onChange }: LayoutEditorProps) {
+export function FreeLayoutEditor({ layout, aspectRatio, selectedId, onSelect, onChange }: LayoutEditorProps) {
   const { zones } = layout;
   const canvas = useRef<HTMLDivElement | null>(null);
   const drag = useRef<Drag | null>(null);
@@ -90,7 +91,13 @@ export function FreeLayoutEditor({ layout, orientation, selectedId, onSelect, on
         Drag a zone to move it and its handles to resize. Arrow keys move the selected zone by 0.5 % (Shift: 5 %). Zones
         may overlap; the one lower in the list is drawn on top.
       </p>
-      <div className={`sg-free-canvas sg-free-canvas--${orientation}`} ref={canvas} role="group" aria-label="Screen">
+      <div
+        className={`sg-free-canvas sg-free-canvas--${orientationOf(aspectRatio)}`}
+        style={{ aspectRatio: `${aspectRatio.width} / ${aspectRatio.height}` }}
+        ref={canvas}
+        role="group"
+        aria-label="Screen"
+      >
         {zones.map((zone, index) => {
           const rect = zone.rect;
           if (!rect) return null;

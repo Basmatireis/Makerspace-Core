@@ -19,6 +19,7 @@ import {
 } from './customLayoutModel';
 import { ZoneLabelField, type LayoutEditorProps } from './layoutEditorShared';
 import { pluralize } from './helpers';
+import { orientationOf } from './render/aspect';
 
 type Cell = { col: number; row: number };
 
@@ -30,7 +31,7 @@ const span = (from: number, count: number) => (count === 1 ? `${from}` : `${from
  * because Carbon has no grid-selection control. Everything a drag does is also possible with the number fields and the
  * keyboard (Enter on a first cell, then Enter on the last cell).
  */
-export function GridLayoutEditor({ layout, orientation, selectedId, onSelect, onChange }: LayoutEditorProps) {
+export function GridLayoutEditor({ layout, aspectRatio, selectedId, onSelect, onChange }: LayoutEditorProps) {
   const { columns, rows, zones } = layout;
   const [anchor, setAnchor] = useState<Cell | null>(null);
   const [hover, setHover] = useState<Cell | null>(null);
@@ -228,8 +229,9 @@ export function GridLayoutEditor({ layout, orientation, selectedId, onSelect, on
           : 'Drag over empty cells to create a zone. Select a zone by clicking one of its cells. With the keyboard, press Enter on the first cell and again on the last.'}
       </p>
       <div
-        className={`sg-grid-canvas sg-grid-canvas--${orientation}`}
+        className={`sg-grid-canvas sg-grid-canvas--${orientationOf(aspectRatio)}`}
         style={{
+          aspectRatio: `${aspectRatio.width} / ${aspectRatio.height}`,
           gridTemplateColumns: columns.map((weight) => `${weight}fr`).join(' '),
           gridTemplateRows: rows.map((weight) => `${weight}fr`).join(' '),
         }}
