@@ -205,34 +205,48 @@
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
-.sg-playlist-row {
-  display: grid;
-  grid-template-columns: 5rem minmax(6rem, 1fr) 7rem 7rem auto;
-  align-items: end;
-  gap: $spacing-04;
-  inline-size: 100%;
-  padding-block: $spacing-03;
-}
-.sg-playlist-row__name {
-  align-self: center;
-  overflow-wrap: anywhere;
-}
-.sg-playlist-row__thumb {
-  align-self: center;
-}
-.sg-playlist-row__thumb .sg-frame {
-  inline-size: 100%;
-}
-.sg-playlist-row__buttons {
+.sg-scene-list {
   display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+.sg-scene-row {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  align-items: start;
+  gap: $spacing-04;
+  padding-block: $spacing-03;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+.sg-scene-row__thumb .sg-frame {
+  inline-size: 100%;
+}
+.sg-scene-row__fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: $spacing-03;
+}
+.sg-scene-row__fields > .cds--form-item:first-child {
+  flex: 1 1 100%;
+}
+.sg-scene-row__fields > .cds--form-item:not(:first-child) {
+  flex: 0 0 7rem;
+}
+.sg-scene-row__buttons {
+  display: flex;
+  margin-inline-start: auto;
+}
+.sg-scene-list__footer {
+  display: flex;
+  align-items: center;
+  gap: $spacing-05;
 }
 @media (max-width: 41.98rem) {
-  .sg-playlist-row {
-    grid-template-columns: 4rem minmax(0, 1fr);
-  }
-  .sg-playlist-row__buttons {
-    grid-column: 1 / -1;
-  }
   .sg-form-row {
     grid-template-columns: minmax(0, 1fr);
   }

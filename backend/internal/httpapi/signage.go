@@ -427,144 +427,26 @@ func (s *Server) DeleteSignageScene(
 	return openapi.DeleteSignageScene204Response{}, nil
 }
 
-// Playlists ---------------------------------------------------------------------------------------------------
+// Scene lists ------------------------------------------------------------------------------------------------
 
-func signagePlaylistDTO(playlist signage.Playlist) openapi.SignagePlaylist {
-	items := make([]openapi.SignagePlaylistItem, 0, len(playlist.Items))
-	for _, item := range playlist.Items {
-		items = append(
-			items,
-			openapi.SignagePlaylistItem{
-				SceneId:    item.SceneID,
-				Seconds:    item.Seconds,
-				Transition: openapi.SignageTransition(item.Transition),
-			},
-		)
+func signageSceneListDTO(list []signage.SceneListItem) openapi.SignageSceneListItems {
+	items := make(openapi.SignageSceneListItems, 0, len(list))
+	for _, item := range list {
+		items = append(items, openapi.SignageSceneListItem{
+			SceneId: item.SceneID, Seconds: item.Seconds, Transition: openapi.SignageTransition(item.Transition),
+		})
 	}
-	return openapi.SignagePlaylist{
-		Id:        playlist.ID,
-		Name:      playlist.Name,
-		Items:     items,
-		Version:   playlist.Version,
-		CreatedAt: playlist.CreatedAt,
-		UpdatedAt: playlist.UpdatedAt,
-	}
+	return items
 }
 
-func signagePlaylistItems(items []openapi.SignagePlaylistItem) []signage.PlaylistItem {
-	result := make([]signage.PlaylistItem, 0, len(items))
+func signageSceneList(items openapi.SignageSceneListItems) []signage.SceneListItem {
+	list := make([]signage.SceneListItem, 0, len(items))
 	for _, item := range items {
-		result = append(
-			result,
-			signage.PlaylistItem{SceneID: item.SceneId, Seconds: item.Seconds, Transition: signage.Transition(item.Transition)},
-		)
+		list = append(list, signage.SceneListItem{
+			SceneID: item.SceneId, Seconds: item.Seconds, Transition: signage.Transition(item.Transition),
+		})
 	}
-	return result
-}
-
-func (s *Server) ListSignagePlaylists(
-	ctx context.Context,
-	_ openapi.ListSignagePlaylistsRequestObject,
-) (openapi.ListSignagePlaylistsResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	playlists, err := s.signage.ListPlaylists(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]openapi.SignagePlaylist, 0, len(playlists))
-	for _, playlist := range playlists {
-		items = append(items, signagePlaylistDTO(playlist))
-	}
-	return openapi.ListSignagePlaylists200JSONResponse{Items: items}, nil
-}
-
-func (s *Server) CreateSignagePlaylist(
-	ctx context.Context,
-	r openapi.CreateSignagePlaylistRequestObject,
-) (openapi.CreateSignagePlaylistResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	playlist, err := s.signage.CreatePlaylist(
-		ctx,
-		p,
-		signage.PlaylistInput{Name: r.Body.Name, Items: signagePlaylistItems(r.Body.Items)},
-		requestIDPointer(ctx),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return openapi.CreateSignagePlaylist201JSONResponse(signagePlaylistDTO(playlist)), nil
-}
-
-func (s *Server) GetSignagePlaylist(
-	ctx context.Context,
-	r openapi.GetSignagePlaylistRequestObject,
-) (openapi.GetSignagePlaylistResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	playlist, err := s.signage.GetPlaylist(ctx, p, r.PlaylistId)
-	if err != nil {
-		return nil, err
-	}
-	return openapi.GetSignagePlaylist200JSONResponse(signagePlaylistDTO(playlist)), nil
-}
-
-func (s *Server) UpdateSignagePlaylist(
-	ctx context.Context,
-	r openapi.UpdateSignagePlaylistRequestObject,
-) (openapi.UpdateSignagePlaylistResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	playlist, err := s.signage.UpdatePlaylist(
-		ctx,
-		p,
-		r.PlaylistId,
-		r.Body.ExpectedVersion,
-		signage.PlaylistInput{Name: r.Body.Name, Items: signagePlaylistItems(r.Body.Items)},
-		requestIDPointer(ctx),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return openapi.UpdateSignagePlaylist200JSONResponse(signagePlaylistDTO(playlist)), nil
-}
-
-func (s *Server) DeleteSignagePlaylist(
-	ctx context.Context,
-	r openapi.DeleteSignagePlaylistRequestObject,
-) (openapi.DeleteSignagePlaylistResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	if err := s.signage.DeletePlaylist(
-		ctx,
-		p,
-		r.PlaylistId,
-		r.Body.ExpectedVersion,
-		requestIDPointer(ctx),
-	); err != nil {
-		return nil, err
-	}
-	return openapi.DeleteSignagePlaylist204Response{}, nil
+	return list
 }
 
 // Announcement templates --------------------------------------------------------------------------------------

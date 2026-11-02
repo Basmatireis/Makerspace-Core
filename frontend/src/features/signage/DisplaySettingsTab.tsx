@@ -1,8 +1,6 @@
 import {
   Button,
   InlineNotification,
-  Select,
-  SelectItem,
   Stack,
   StructuredListBody,
   StructuredListCell,
@@ -11,21 +9,18 @@ import {
   TextInput,
   Toggle,
 } from '@carbon/react';
-import { useQuery } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import type { SignageDisplay, UpdateSignageDisplayRequest } from '../../api/generated/models';
 import { useUpdateDisplay } from './displayMutations';
 import { aspectFieldsOf, aspectOfFields, type AspectFields } from './aspectFields';
 import { AspectRatioFields } from './AspectRatioFields';
-import { aspectLabel, errorMessage, isStaleWrite } from './helpers';
-import { playlistsQuery } from './queries';
+import { aspectLabel, errorMessage, isStaleWrite, sameRatio } from './helpers';
 
 type Values = AspectFields & {
   name: string;
   location: string;
   visibleFromOutside: boolean;
   allowCameraOutside: boolean;
-  defaultPlaylistId: string;
 };
 
 const valuesOf = (display: SignageDisplay): Values => ({
@@ -34,14 +29,14 @@ const valuesOf = (display: SignageDisplay): Values => ({
   ...aspectFieldsOf(display.aspectRatio),
   visibleFromOutside: display.visibleFromOutside,
   allowCameraOutside: display.allowCameraOutside,
-  defaultPlaylistId: display.defaultPlaylistId,
 });
 
 export function DisplaySettingsTab({ display, canManage }: { display: SignageDisplay; canManage: boolean }) {
-  const playlists = useQuery(playlistsQuery());
   const update = useUpdateDisplay(display.id);
   const form = useForm<Values>({ defaultValues: valuesOf(display) });
   const { errors, isDirty } = form.formState;
+  const [aspectPreset, aspectCustom] = form.watch(['aspectPreset', 'aspectCustom']);
+  const ratioChanged = !sameRatio(aspectOfFields({ aspectPreset, aspectCustom }), display.aspectRatio);
 
   if (!canManage || display.status === 'revoked') {
     return (
@@ -82,7 +77,7 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
       aspectRatio: aspectOfFields(values),
       visibleFromOutside: values.visibleFromOutside,
       allowCameraOutside: values.visibleFromOutside && values.allowCameraOutside,
-      defaultPlaylistId: values.defaultPlaylistId,
+      defaultScenes: display.defaultScenes,
     };
     update.mutate(request, { onSuccess: (saved) => form.reset(valuesOf(saved)) });
   });
@@ -134,16 +129,15 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
           Only enable if the camera never shows people, documents or other private content.
         </p>
       )}
-      <Select
-        id="ds-playlist"
-        labelText="Default playlist"
-        helperText="Changing it needs publishing."
-        {...form.register('defaultPlaylistId')}
-      >
-        {(playlists.data?.items ?? []).map((playlist) => (
-          <SelectItem key={playlist.id} value={playlist.id} text={playlist.name} />
-        ))}
-      </Select>
+      {ratioChanged && (
+        <InlineNotification
+          kind="warning"
+          lowContrast
+          hideCloseButton
+          title="The aspect ratio changes"
+          subtitle="The default scenes and the scenes of every rule must already have the new aspect ratio; otherwise saving is refused. Edit them under Playback first."
+        />
+      )}
       {update.isError && (
         <InlineNotification
           kind="error"

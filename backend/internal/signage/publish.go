@@ -19,8 +19,8 @@ import (
 // retainedPublications is how many publications per display are kept.
 const retainedPublications = 5
 
-// PublishDisplay snapshots the display's drafts (settings, enabled rules, default playlist and every
-// scene, playlist and asset they reach) into the next immutable publication. The snapshot is read in a
+// PublishDisplay snapshots the display's drafts (settings, enabled rules, the default scene list and every
+// scene, custom layout and asset they reach) into the next immutable publication. The snapshot is read in a
 // repeatable-read transaction so all content comes from one consistent point; revisions are
 // assigned under the display row lock. Older publications beyond the latest five are pruned.
 func (s *Service) PublishDisplay(
@@ -68,9 +68,13 @@ func (s *Service) publishDisplay(
 	if err != nil {
 		return Display{}, err
 	}
+	defaultScenes, err := decodeSceneList(current.DefaultScenes)
+	if err != nil {
+		return Display{}, err
+	}
 	draft := displayDraft{
 		ID: id, Name: current.Name, AspectRatio: aspectRatioOf(current.AspectWidth, current.AspectHeight),
-		VisibleFromOutside: current.VisibleFromOutside, DefaultPlaylistID: current.DefaultPlaylistID, Rules: rules[id],
+		VisibleFromOutside: current.VisibleFromOutside, DefaultScenes: defaultScenes, Rules: rules[id],
 	}
 	manifests, err := s.buildManifests(ctx, q, []displayDraft{draft})
 	if err != nil {

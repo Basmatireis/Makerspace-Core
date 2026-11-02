@@ -15,7 +15,7 @@ import {
 } from '@carbon/react';
 import { Add, Edit, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { SignageAnnouncementTemplate, SignageTone } from '../../api/generated/models';
 import { deleteSignageAnnouncementTemplate } from '../../api/generated/signage/signage';
 import { PageShell } from '../../app/PageShell';
@@ -26,18 +26,16 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { AnnouncementTemplateModal } from './AnnouncementTemplateModal';
 import { DeleteDialog, QueryBoundary, SceneThumbnail } from './components';
-import { aspectLabel, formatLoop, orientationOf, pluralize } from './helpers';
-import { loopSeconds } from './engine/playback';
-import { NewPlaylistModal, NewSceneModal } from './NewContentModals';
+import { aspectLabel, orientationOf, pluralize } from './helpers';
+import { NewSceneModal } from './NewContentModals';
 import { signagePaths } from './paths';
 import { CustomLayoutsTable } from './CustomLayoutsTable';
 import { customLayoutsQuery } from './layoutQueries';
-import { announcementsQuery, playlistsQuery, scenesQuery, templatesQuery } from './queries';
+import { announcementsQuery, scenesQuery, templatesQuery } from './queries';
 
-type Section = 'scenes' | 'playlists' | 'announcements' | 'layouts';
+type Section = 'scenes' | 'announcements' | 'layouts';
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'scenes', label: 'Scenes' },
-  { id: 'playlists', label: 'Playlists' },
   { id: 'announcements', label: 'Announcements' },
   { id: 'layouts', label: 'Layouts' },
 ];
@@ -59,34 +57,24 @@ export function ContentPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const requested = params.get('section');
-  const section: Section =
-    requested === 'playlists' || requested === 'announcements' || requested === 'layouts' ? requested : 'scenes';
-  const [creating, setCreating] = useState<'scene' | 'playlist' | null>(null);
+  const section: Section = requested === 'announcements' || requested === 'layouts' ? requested : 'scenes';
+  const [creating, setCreating] = useState<'scene' | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<SignageAnnouncementTemplate | 'new' | null>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<SignageAnnouncementTemplate | null>(null);
   const scenes = useQuery(scenesQuery());
-  const playlists = useQuery(playlistsQuery());
   const templates = useQuery(templatesQuery());
   const announcements = useQuery(announcementsQuery());
   const layouts = useQuery(customLayoutsQuery());
-  const query =
-    section === 'scenes' ? scenes : section === 'playlists' ? playlists : section === 'layouts' ? layouts : templates;
+  const query = section === 'scenes' ? scenes : section === 'layouts' ? layouts : templates;
 
-  const createLabel =
-    section === 'scenes'
-      ? 'New scene'
-      : section === 'playlists'
-        ? 'New playlist'
-        : section === 'layouts'
-          ? 'New layout'
-          : 'New template';
+  const createLabel = section === 'scenes' ? 'New scene' : section === 'layouts' ? 'New layout' : 'New template';
   const create = canEdit ? (
     <Button
       renderIcon={Add}
       onClick={() => {
         if (section === 'announcements') setEditingTemplate('new');
         else if (section === 'layouts') navigate(signagePaths.newLayout);
-        else setCreating(section === 'scenes' ? 'scene' : 'playlist');
+        else setCreating('scene');
       }}
     >
       {createLabel}
@@ -103,7 +91,7 @@ export function ContentPage() {
       width="wide"
       breadcrumbs={[{ label: 'Signage' }]}
       actions={create}
-      description="Scenes are single screens built from a layout; playlists play scenes in a loop; announcement templates define live messages; custom layouts split the screen into your own zones. Scene and playlist edits are drafts until a display is published."
+      description="Scenes are single screens built from a layout; announcement templates define live messages; custom layouts split the screen into your own zones. Displays and rules play lists of scenes. Scene edits are drafts until a display is published."
     >
       <div className="sg-stack">
         <SectionSwitcher
@@ -114,15 +102,7 @@ export function ContentPage() {
         />
         <QueryBoundary
           query={query}
-          label={
-            section === 'scenes'
-              ? 'scenes'
-              : section === 'playlists'
-                ? 'playlists'
-                : section === 'layouts'
-                  ? 'layouts'
-                  : 'announcement templates'
-          }
+          label={section === 'scenes' ? 'scenes' : section === 'layouts' ? 'layouts' : 'announcement templates'}
         >
           {section === 'layouts' && (
             <CustomLayoutsTable layouts={layouts.data?.items ?? []} canEdit={canEdit} create={create} />
@@ -136,71 +116,28 @@ export function ContentPage() {
               />
             ) : (
               <div className="sg-tile-grid">
-                {scenes.data?.items.map((scene) => {
-                  const usedBy = (playlists.data?.items ?? []).filter((playlist) =>
-                    playlist.items.some((item) => item.sceneId === scene.id),
-                  ).length;
-                  return (
-                    <ClickableTile
-                      key={scene.id}
-                      className="sg-scene-tile"
-                      href={signagePaths.scene(scene.id)}
-                      aria-label={`Scene ${scene.name}`}
-                      onClick={(event: { preventDefault: () => void }) => open(event, signagePaths.scene(scene.id))}
-                    >
-                      <div className={`sg-scene-tile__thumb sg-scene-tile__thumb--${orientationOf(scene.aspectRatio)}`}>
-                        <SceneThumbnail scene={scene} />
+                {scenes.data?.items.map((scene) => (
+                  <ClickableTile
+                    key={scene.id}
+                    className="sg-scene-tile"
+                    href={signagePaths.scene(scene.id)}
+                    aria-label={`Scene ${scene.name}`}
+                    onClick={(event: { preventDefault: () => void }) => open(event, signagePaths.scene(scene.id))}
+                  >
+                    <div className={`sg-scene-tile__thumb sg-scene-tile__thumb--${orientationOf(scene.aspectRatio)}`}>
+                      <SceneThumbnail scene={scene} />
+                    </div>
+                    <div className="sg-scene-tile__text">
+                      <strong>{scene.name}</strong>
+                      <div className="sg-inline">
+                        <Tag size="sm" type="cool-gray">
+                          {aspectLabel(scene.aspectRatio)}
+                        </Tag>
                       </div>
-                      <div className="sg-scene-tile__text">
-                        <strong>{scene.name}</strong>
-                        <div className="sg-inline">
-                          <Tag size="sm" type="cool-gray">
-                            {aspectLabel(scene.aspectRatio)}
-                          </Tag>
-                        </div>
-                        {playlists.isSuccess && (
-                          <span className="sg-secondary">Used in {pluralize(usedBy, 'playlist')}</span>
-                        )}
-                      </div>
-                    </ClickableTile>
-                  );
-                })}
+                    </div>
+                  </ClickableTile>
+                ))}
               </div>
-            ))}
-          {section === 'playlists' &&
-            (playlists.data?.items.length === 0 ? (
-              <EmptyState
-                title="No playlists yet"
-                description="A playlist plays scenes one after another."
-                action={create}
-              />
-            ) : (
-              <TableContainer>
-                <Table aria-label="Playlists">
-                  <TableHead>
-                    <TableRow>
-                      <TableHeader>Name</TableHeader>
-                      <TableHeader>Scenes</TableHeader>
-                      <TableHeader>Loop length</TableHeader>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {playlists.data?.items.map((playlist) => (
-                      <TableRow key={playlist.id}>
-                        <TableCell>
-                          <CarbonLink as={Link} to={signagePaths.playlist(playlist.id)}>
-                            {playlist.name}
-                          </CarbonLink>
-                        </TableCell>
-                        <TableCell>{playlist.items.length}</TableCell>
-                        <TableCell>
-                          {playlist.items.length === 0 ? '—' : formatLoop(loopSeconds(playlist.items))}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
             ))}
           {section === 'announcements' &&
             (templates.data?.items.length === 0 ? (
@@ -300,7 +237,6 @@ export function ContentPage() {
         </QueryBoundary>
       </div>
       {creating === 'scene' && <NewSceneModal onClose={() => setCreating(null)} />}
-      {creating === 'playlist' && <NewPlaylistModal onClose={() => setCreating(null)} />}
       {editingTemplate && (
         <AnnouncementTemplateModal
           template={editingTemplate === 'new' ? undefined : editingTemplate}

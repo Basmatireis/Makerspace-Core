@@ -42,7 +42,7 @@ func signageDisplayDTO(display signage.Display) openapi.SignageDisplay {
 		AspectRatio:        signageAspectRatioDTO(display.AspectRatio),
 		VisibleFromOutside: display.VisibleFromOutside,
 		AllowCameraOutside: display.AllowCameraOutside,
-		DefaultPlaylistId:  display.DefaultPlaylistID,
+		DefaultScenes:      signageSceneListDTO(display.DefaultScenes),
 		Status:             openapi.SignageDisplayStatus(display.Status),
 		RevokedAt:          nullableTimeValue(display.RevokedAt), LastHeartbeatAt: nullableTimeValue(display.LastHeartbeatAt),
 		PublishedRevision: nullableValue(
@@ -106,7 +106,7 @@ func (s *Server) PairSignageDisplay(
 	display, err := s.signage.PairDisplay(ctx, p, r.Body.Code, signage.DisplayInput{
 		Name: r.Body.Name, Location: r.Body.Location, AspectRatio: signageAspectRatio(r.Body.AspectRatio),
 		VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
-		DefaultPlaylistID: r.Body.DefaultPlaylistId,
+		DefaultScenes: signageSceneList(r.Body.DefaultScenes),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func (s *Server) UpdateSignageDisplay(
 	display, err := s.signage.UpdateDisplay(ctx, p, r.DisplayId, r.Body.ExpectedVersion, signage.DisplayInput{
 		Name: r.Body.Name, Location: r.Body.Location, AspectRatio: signageAspectRatio(r.Body.AspectRatio),
 		VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
-		DefaultPlaylistID: r.Body.DefaultPlaylistId,
+		DefaultScenes: signageSceneList(r.Body.DefaultScenes),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -208,8 +208,7 @@ func signageRuleListDTO(list signage.RuleList) openapi.SignageRuleList {
 			MachineIds:              rule.MachineIDs,
 			MachineMatch:            match,
 			AnnouncementTemplateIds: rule.AnnouncementTemplateIDs,
-			TargetKind:              openapi.SignageRuleTargetKind(rule.TargetKind),
-			TargetId:                rule.TargetID,
+			Scenes:                  signageSceneListDTO(rule.Scenes),
 			MinSeconds:              rule.MinSeconds,
 			MultiMode:               openapi.SignageMultiMode(rule.MultiMode),
 			AlternateSeconds:        rule.AlternateSeconds,
@@ -228,8 +227,7 @@ func signageRuleInput(body *openapi.SignageRuleRequest) signage.RuleInput {
 		MachineIDs: derefSlice(
 			body.MachineIds,
 		), MachineMatch: optional.Convert[signage.MachineMatch](body.MachineMatch), AnnouncementTemplateIDs: derefSlice(body.AnnouncementTemplateIds),
-		TargetKind:       signage.TargetKind(body.TargetKind),
-		TargetID:         body.TargetId,
+		Scenes:           signageSceneList(body.Scenes),
 		MinSeconds:       body.MinSeconds,
 		MultiMode:        signage.MultiMode(body.MultiMode),
 		AlternateSeconds: body.AlternateSeconds,
@@ -501,8 +499,7 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 			MachineIds:              rule.MachineIDs,
 			MachineMatch:            match,
 			AnnouncementTemplateIds: rule.AnnouncementTemplateIDs,
-			TargetKind:              openapi.SignageRuleTargetKind(rule.TargetKind),
-			TargetId:                rule.TargetID,
+			Scenes:                  signageSceneListDTO(rule.Scenes),
 			MinSeconds:              rule.MinSeconds,
 			MultiMode:               openapi.SignageMultiMode(rule.MultiMode),
 			AlternateSeconds:        rule.AlternateSeconds,
@@ -533,29 +530,6 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 			Version:           scene.Version,
 		})
 	}
-	playlists := make([]openapi.SignagePlayerPlaylist, 0, len(manifest.Playlists))
-	for _, playlist := range manifest.Playlists {
-		items := make([]openapi.SignagePlaylistItem, 0, len(playlist.Items))
-		for _, item := range playlist.Items {
-			items = append(
-				items,
-				openapi.SignagePlaylistItem{
-					SceneId:    item.SceneID,
-					Seconds:    item.Seconds,
-					Transition: openapi.SignageTransition(item.Transition),
-				},
-			)
-		}
-		playlists = append(
-			playlists,
-			openapi.SignagePlayerPlaylist{
-				Id:      playlist.ID,
-				Name:    playlist.Name,
-				Items:   items,
-				Version: playlist.Version,
-			},
-		)
-	}
 	assets := make([]openapi.SignagePlayerAsset, 0, len(manifest.Assets))
 	for _, asset := range manifest.Assets {
 		assets = append(assets, openapi.SignagePlayerAsset{
@@ -584,15 +558,16 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 		})
 	}
 	return openapi.SignagePlayerManifest{
-		Revision:          manifest.Revision,
-		DefaultPlaylistId: manifest.DefaultPlaylistID,
-		CustomLayouts:     customLayouts,
-		LayoutsVersion:    manifest.LayoutsVersion,
+		ManifestVersion: manifest.ManifestVersion,
+		Revision:        manifest.Revision,
+		DefaultScenes:   signageSceneListDTO(manifest.DefaultScenes),
+		CustomLayouts:   customLayouts,
+		LayoutsVersion:  manifest.LayoutsVersion,
 		Display: openapi.SignagePlayerManifestDisplay{
 			AspectRatio:        signageAspectRatioDTO(manifest.Display.AspectRatio),
 			VisibleFromOutside: manifest.Display.VisibleFromOutside,
 		},
-		Rules: rules, Scenes: scenes, Playlists: playlists, Assets: assets,
+		Rules: rules, Scenes: scenes, Assets: assets,
 	}, nil
 }
 

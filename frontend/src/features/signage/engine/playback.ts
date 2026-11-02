@@ -1,10 +1,13 @@
-// Playback resolution: the first matching enabled rule wins, the display's default playlist sits fixed at the bottom.
+// Playback resolution: the first matching enabled rule wins, the display's default scenes sit fixed at the bottom.
 // There is no implicit priority; the position in the rule list is the only priority. Pure TS (no Carbon, no src/app):
 // the admin preview and the player run the same code. Time windows use the clock of the device the code runs on.
 
+import type { SignageSceneListItem } from '../../../api/generated/models';
+
 export type RuleKind = 'time_window' | 'machine_printing' | 'announcement_active' | 'live_data_unavailable';
-export type TargetKind = 'scene' | 'playlist';
 export type MultiMode = 'split' | 'alternate';
+/** One entry of a scene list: the scene, how long it stays and the transition into it. */
+export type SceneListItem = Pick<SignageSceneListItem, 'sceneId' | 'seconds' | 'transition'>;
 
 /** The fields of an API rule (admin) or a published player rule that the engine reads. Player rules have no `enabled`. */
 export type PlaybackRule = {
@@ -20,8 +23,7 @@ export type PlaybackRule = {
   machineMatch: 'any' | 'all' | null;
   /** Empty means any template. */
   announcementTemplateIds: readonly string[];
-  targetKind: TargetKind;
-  targetId: string;
+  scenes: readonly SceneListItem[];
   minSeconds: number;
   multiMode: MultiMode;
   alternateSeconds: number;
@@ -42,9 +44,10 @@ const defaultNames: Names = { machine: (id) => id, template: (id) => id };
 
 export type PlaybackResult = {
   ruleId: string;
-  /** 1-based position of the winning rule; null for the default playlist. */
+  /** 1-based position of the winning rule; null for the default scenes. */
   rulePosition: number | null;
-  target: { kind: TargetKind; id: string };
+  /** The scene list that wins; a single item never changes. */
+  scenes: readonly SceneListItem[];
   reason: string;
   activeMachineIds: string[];
   multiMode: MultiMode | null;
@@ -147,7 +150,7 @@ function reasonOf(rule: PlaybackRule, names: Names): string {
 }
 
 export function resolvePlayback(
-  defaultPlaylistId: string,
+  defaultScenes: readonly SceneListItem[],
   rules: readonly PlaybackRule[],
   context: PlaybackContext,
   names: Names = defaultNames,
@@ -159,7 +162,7 @@ export function resolvePlayback(
     return {
       ruleId: rule.id,
       rulePosition: index + 1,
-      target: { kind: rule.targetKind, id: rule.targetId },
+      scenes: rule.scenes,
       reason: `Rule ${index + 1}: ${reasonOf(rule, names)}`,
       activeMachineIds,
       multiMode: rule.multiMode,
@@ -170,8 +173,8 @@ export function resolvePlayback(
   return {
     ruleId: DEFAULT_RULE_ID,
     rulePosition: null,
-    target: { kind: 'playlist', id: defaultPlaylistId },
-    reason: 'Otherwise: default playlist',
+    scenes: defaultScenes,
+    reason: 'Otherwise: default scenes',
     activeMachineIds,
     multiMode: null,
     alternateSeconds: 10,
@@ -179,12 +182,12 @@ export function resolvePlayback(
   };
 }
 
-/** Seconds of one pass through a playlist. */
+/** Seconds of one pass through a scene list. */
 export const loopSeconds = (items: readonly { seconds: number }[]) =>
   items.reduce((sum, item) => sum + item.seconds, 0);
 
-/** The playlist item that is on screen `elapsedSeconds` after the loop started, and the seconds left of it. */
-export function playlistPosition<T extends { seconds: number }>(
+/** The scene list item that is on screen `elapsedSeconds` after the loop started, and the seconds left of it. */
+export function sceneListPosition<T extends { seconds: number }>(
   items: readonly T[],
   elapsedSeconds: number,
 ): { item: T; index: number; secondsLeft: number } | null {

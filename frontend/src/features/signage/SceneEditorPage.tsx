@@ -553,7 +553,9 @@ function Editor({
           }}
           onClose={() => setDeleting(false)}
         >
-          <p>The scene is removed for good. A scene that playlists or display rules still use cannot be deleted.</p>
+          <p>
+            The scene is removed for good. A scene that a display's default scenes or rules still use cannot be deleted.
+          </p>
         </DeleteDialog>
       )}
       <UnsavedChangesDialog

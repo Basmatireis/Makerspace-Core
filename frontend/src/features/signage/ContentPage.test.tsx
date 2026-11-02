@@ -6,35 +6,19 @@ import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
-import { announcementFixture, ids, mockSignage, playlistFixture, sceneFixture, templateFixture } from './testFixtures';
+import { announcementFixture, ids, mockSignage, sceneFixture, templateFixture } from './testFixtures';
 
 describe('Content page', () => {
-  it('shows scene tiles and playlists read-only with signage.read', async () => {
-    mockSignage([PermissionId.signageread], {
-      playlists: [
-        playlistFixture({
-          items: [
-            { sceneId: ids.scene, seconds: 20, transition: 'fade' },
-            { sceneId: ids.scene, seconds: 40, transition: 'cut' },
-          ],
-        }),
-      ],
-    });
+  it('shows scene tiles read-only with signage.read and no playlists', async () => {
+    mockSignage([PermissionId.signageread]);
     renderRoute(<App />, '/signage/content');
     expect(await screen.findByRole('heading', { name: 'Content' })).toBeInTheDocument();
     const tile = await screen.findByRole('link', { name: 'Scene Open days poster' });
     expect(tile).toHaveAttribute('href', `/signage/scenes/${ids.scene}`);
     expect(within(tile).getByText('9:16')).toBeInTheDocument();
-    expect(await within(tile).findByText('Used in 1 playlist')).toBeInTheDocument();
+    expect(within(tile).queryByText(/Used in/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New scene' })).not.toBeInTheDocument();
-
-    await userEvent.setup().click(screen.getByRole('tab', { name: 'Playlists' }));
-    expect(await screen.findByRole('link', { name: 'Ads' })).toHaveAttribute(
-      'href',
-      `/signage/playlists/${ids.playlist}`,
-    );
-    expect(screen.getByText('1 min')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'New playlist' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Playlists' })).not.toBeInTheDocument();
   });
 
   it('creates a scene with a layout and opens the editor', async () => {
@@ -92,7 +76,7 @@ describe('Content page', () => {
             details: {
               references: [
                 { kind: 'scene', id: ids.scene, name: 'Open days poster' },
-                { kind: 'display_rule', id: ids.display, name: 'Entrance window' },
+                { kind: 'rule', id: ids.display, name: 'Entrance window' },
               ],
             },
           },
@@ -111,7 +95,10 @@ describe('Content page', () => {
       'href',
       `/signage/scenes/${ids.scene}`,
     );
-    expect(within(blocked).getByText('Entrance window')).toBeInTheDocument();
+    expect(within(blocked).getByRole('link', { name: 'Entrance window' })).toHaveAttribute(
+      'href',
+      `/signage/displays/${ids.display}`,
+    );
   });
 
   it('deletes an unused template', async () => {

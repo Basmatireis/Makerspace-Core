@@ -202,13 +202,13 @@ func hasAspectRatio(object map[string]any, width, height int) bool {
 }
 
 // pair runs the whole player/staff handshake and returns the display plus the paired player client.
-func (e *signageEnv) pair(staff staffSession, name string, playlistID uuid.UUID) (map[string]any, *http.Client) {
+func (e *signageEnv) pair(staff staffSession, name string, defaultScenes []signage.SceneListItem) (map[string]any, *http.Client) {
 	e.t.Helper()
 	player := e.newPlayer()
 	start := e.expect(e.do(player, "", http.MethodPost, "/public/signage/pairing", nil), http.StatusCreated)
 	display := e.expect(e.as(staff, http.MethodPost, "/signage/displays", map[string]any{
 		"code": start["code"], "name": name, "location": "Entrance hall",
-		"aspectRatio": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": false, "defaultPlaylistId": playlistID.String(),
+		"aspectRatio": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": false, "defaultScenes": defaultScenes,
 	}), http.StatusCreated)
 	// The pixel size is stored and returned reduced.
 	if !hasAspectRatio(display, 16, 9) {
@@ -228,10 +228,11 @@ func (e *signageEnv) deviceToken(player *http.Client) string {
 	return cookieValue(e.t, player, e.server.URL, signageDeviceCookie)
 }
 
-func (e *signageEnv) seedContent(name string) (signage.Scene, signage.Playlist) {
+// seedContent creates a 16:9 scene and the one-item scene list that shows it.
+func (e *signageEnv) seedContent(name string) (signage.Scene, []signage.SceneListItem) {
 	e.t.Helper()
 	scene := e.fixture.scene(e.t, name+" scene")
-	return scene, e.fixture.playlist(e.t, name+" playlist", scene.ID)
+	return scene, sceneList(scene.ID)
 }
 
 func (e *signageEnv) displayVersion(staff staffSession, id string) int64 {
@@ -267,7 +268,7 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 	e := newSignageEnv(t)
 	ctx := testContext(t)
 	staff := e.allStaff()
-	_, playlist := e.seedContent("Pairing")
+	_, defaults := e.seedContent("Pairing")
 	player := e.newPlayer()
 
 	// Without the poll cookie there is nothing to poll.
@@ -322,7 +323,7 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 	claim := func(s staffSession, code string) *http.Response {
 		return e.as(s, http.MethodPost, "/signage/displays", map[string]any{
 			"code": code, "name": "Entrance", "location": "Hall", "aspectRatio": map[string]any{"width": 16, "height": 9},
-			"visibleFromOutside": true, "defaultPlaylistId": playlist.ID.String(),
+			"visibleFromOutside": true, "defaultScenes": defaults,
 		})
 	}
 	// A wrong code and an expired code give the identical answer.
@@ -429,13 +430,13 @@ func TestSignagePairingRateLimitsAndCleanup(t *testing.T) {
 	e := newSignageEnv(t)
 	ctx := testContext(t)
 	staff := e.allStaff()
-	_, playlist := e.seedContent("Limits")
+	_, defaults := e.seedContent("Limits")
 
 	// Per account: ten wrong codes, then 429 even for a code that would be right.
 	attempt := func(code string) *http.Response {
 		return e.as(staff, http.MethodPost, "/signage/displays", map[string]any{
 			"code": code, "name": "X", "location": "", "aspectRatio": map[string]any{"width": 16, "height": 9},
-			"visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+			"visibleFromOutside": false, "defaultScenes": defaults,
 		})
 	}
 	for i := 0; i < 10; i++ {
@@ -447,7 +448,7 @@ func TestSignagePairingRateLimitsAndCleanup(t *testing.T) {
 	other := e.allStaff()
 	e.expect(e.as(other, http.MethodPost, "/signage/displays", map[string]any{
 		"code": start["code"], "name": "Y", "location": "", "aspectRatio": map[string]any{"width": 16, "height": 9},
-		"visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		"visibleFromOutside": false, "defaultScenes": defaults,
 	}), http.StatusCreated)
 
 	// Per client IP: ten codes per hour (one was used above), then 429.
@@ -489,8 +490,8 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 	e := newSignageEnv(t)
 	ctx := testContext(t)
 	staff := e.allStaff()
-	scene, playlist := e.seedContent("Isolation")
-	display, player := e.pair(staff, "Isolated", playlist.ID)
+	scene, defaults := e.seedContent("Isolation")
+	display, player := e.pair(staff, "Isolated", defaults)
 	token := e.deviceToken(player)
 	displayID := display["id"].(string)
 	_ = scene
@@ -685,7 +686,7 @@ func TestSignageDeviceModeIsolation(t *testing.T) {
 	}
 
 	// Revoking only the managed device through the generic endpoint also cuts the display off.
-	second, secondPlayer := e.pair(staff, "Second", playlist.ID)
+	second, secondPlayer := e.pair(staff, "Second", defaults)
 	devManager := e.staff("devices", authorization.ManagedDevicesRead, authorization.ManagedDevicesManage)
 	device := e.expect(
 		e.as(devManager, http.MethodGet, "/managed-devices/"+second["managedDeviceId"].(string), nil),
@@ -723,10 +724,10 @@ func TestSignageDisplayCanBeDeletedInAnyState(t *testing.T) {
 	e := newSignageEnv(t)
 	ctx := testContext(t)
 	staff := e.allStaff()
-	_, playlist := e.seedContent("Delete")
+	_, defaults := e.seedContent("Delete")
 
 	// Denied without signage.manage; stale versions are refused; nothing changes.
-	display, player := e.pair(staff, "Active", playlist.ID)
+	display, player := e.pair(staff, "Active", defaults)
 	id := display["id"].(string)
 	readOnly := e.staff("reader", authorization.SignageRead)
 	version := e.displayVersion(staff, id)
@@ -773,7 +774,7 @@ func TestSignageDisplayCanBeDeletedInAnyState(t *testing.T) {
 	)
 
 	// A revoked display can still be deleted.
-	second, _ := e.pair(staff, "Revoked", playlist.ID)
+	second, _ := e.pair(staff, "Revoked", defaults)
 	secondID := second["id"].(string)
 	revoked := e.expect(
 		e.as(
@@ -799,8 +800,8 @@ func TestSignageDisplayCanBeDeletedInAnyState(t *testing.T) {
 func TestSignagePlayerModeCannotBeCreatedThroughGenericManagedDeviceEndpoints(t *testing.T) {
 	e := newSignageEnv(t)
 	staff := e.allStaff()
-	_, playlist := e.seedContent("Generic")
-	display, _ := e.pair(staff, "Generic", playlist.ID)
+	_, defaults := e.seedContent("Generic")
+	display, _ := e.pair(staff, "Generic", defaults)
 	manager := e.staff("manager", authorization.ManagedDevicesRead, authorization.ManagedDevicesManage)
 	deviceService := manageddevices.NewService(e.pool)
 	deviceType, err := deviceService.CreateType(testContext(t), e.fixture.admin, "Generic type", nil, nil)
@@ -880,9 +881,9 @@ func TestSignagePlayerModeCannotBeCreatedThroughGenericManagedDeviceEndpoints(t 
 
 func TestSignagePermissionsForDisplayOperations(t *testing.T) {
 	e := newSignageEnv(t)
-	scene, playlist := e.seedContent("Permissions")
+	scene, defaults := e.seedContent("Permissions")
 	owner := e.allStaff()
-	display, _ := e.pair(owner, "Permissions", playlist.ID)
+	display, _ := e.pair(owner, "Permissions", defaults)
 	displayID := display["id"].(string)
 	machine := e.fixture.machine(t, "Permission machine")
 
@@ -901,8 +902,7 @@ func TestSignagePermissionsForDisplayOperations(t *testing.T) {
 			"conditionKind":    "machine_printing",
 			"machineIds":       []string{machine.String()},
 			"machineMatch":     "any",
-			"targetKind":       "scene",
-			"targetId":         scene.ID.String(),
+			"scenes":           sceneList(scene.ID),
 			"minSeconds":       20,
 			"multiMode":        "split",
 			"alternateSeconds": 10,
@@ -911,12 +911,12 @@ func TestSignagePermissionsForDisplayOperations(t *testing.T) {
 	settings := func() map[string]any {
 		return map[string]any{
 			"expectedVersion": version(), "name": "Permissions", "location": "Hall", "aspectRatio": map[string]any{"width": 16, "height": 9},
-			"visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+			"visibleFromOutside": false, "defaultScenes": defaults,
 		}
 	}
 	pairBody := map[string]any{
 		"code": "AAAAAA", "name": "X", "location": "", "aspectRatio": map[string]any{"width": 16, "height": 9},
-		"visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		"visibleFromOutside": false, "defaultScenes": defaults,
 	}
 
 	// Reads need signage.read.
@@ -1077,7 +1077,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	e := newSignageEnv(t)
 	ctx := testContext(t)
 	staff := e.allStaff()
-	scene, playlist := e.seedContent("Rules")
+	scene, defaults := e.seedContent("Rules")
 	portrait, err := e.fixture.service.CreateScene(ctx, e.fixture.admin, signage.SceneInput{
 		Name:            "Portrait scene",
 		AspectRatio:     signage.AspectRatio{Width: 9, Height: 16},
@@ -1099,7 +1099,12 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	machine := e.fixture.machine(t, "Rule machine")
-	display, _ := e.pair(staff, "Rules", playlist.ID)
+	second := e.fixture.scene(t, "Rules second scene")
+	twoScenes := []signage.SceneListItem{
+		{SceneID: second.ID, Seconds: 15, Transition: signage.TransitionFade},
+		{SceneID: scene.ID, Seconds: 20, Transition: signage.TransitionCut},
+	}
+	display, _ := e.pair(staff, "Rules", defaults)
 	displayID := display["id"].(string)
 	base := "/signage/displays/" + displayID
 	body := func(overrides map[string]any) map[string]any {
@@ -1108,8 +1113,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 				staff,
 				displayID,
 			), "enabled": true, "conditionKind": "live_data_unavailable",
-			"targetKind":       "scene",
-			"targetId":         scene.ID.String(),
+			"scenes":           sceneList(scene.ID),
 			"minSeconds":       20,
 			"multiMode":        "split",
 			"alternateSeconds": 10,
@@ -1151,13 +1155,19 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		weekdays[1] != float64(5) {
 		t.Fatalf("weekdays = %v", first["weekdays"])
 	}
-	e.expect(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{
+	withList := e.expect(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{
 		"conditionKind": "machine_printing",
 		"machineIds":    []string{machine.String()},
 		"machineMatch":  "all",
-		"targetKind":    "playlist",
-		"targetId":      playlist.ID.String(),
+		"scenes":        twoScenes,
 	})), http.StatusCreated)
+	// A two-item list round-trips in order with its seconds and transitions.
+	if got := withList["items"].([]any)[1].(map[string]any)["scenes"].([]any); len(got) != 2 ||
+		got[0].(map[string]any)["sceneId"] != second.ID.String() || got[0].(map[string]any)["seconds"] != float64(15) ||
+		got[0].(map[string]any)["transition"] != "fade" || got[1].(map[string]any)["sceneId"] != scene.ID.String() ||
+		got[1].(map[string]any)["seconds"] != float64(20) || got[1].(map[string]any)["transition"] != "cut" {
+		t.Fatalf("rule scene list = %v", got)
+	}
 	e.expect(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{
 		"conditionKind": "announcement_active", "announcementTemplateIds": []string{template.ID.String()},
 	})), http.StatusCreated)
@@ -1207,10 +1217,11 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 			"conditionKind":           "announcement_active",
 			"announcementTemplateIds": []string{uuid.Must(uuid.NewV7()).String()},
 		},
-		"live rule with weekdays":       {"weekdays": []int{1}},
-		"unknown scene":                 {"targetId": uuid.Must(uuid.NewV7()).String()},
-		"unknown playlist":              {"targetKind": "playlist", "targetId": uuid.Must(uuid.NewV7()).String()},
-		"scene of another aspect ratio": {"targetId": portrait.ID.String()},
+		"live rule with weekdays":            {"weekdays": []int{1}},
+		"unknown scene":                      {"scenes": sceneList(scene.ID, uuid.Must(uuid.NewV7()))},
+		"scene of another aspect ratio":      {"scenes": sceneList(portrait.ID)},
+		"list item of another aspect ratio":  {"scenes": sceneList(scene.ID, second.ID, portrait.ID)},
+		"announcement rule of another ratio": {"conditionKind": "announcement_active", "scenes": sceneList(portrait.ID)},
 	} {
 		response := e.as(staff, http.MethodPost, base+"/rules", body(overrides))
 		if response.StatusCode != http.StatusUnprocessableEntity {
@@ -1232,6 +1243,13 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 			"timeTo":        "09:00",
 		},
 		"minimum too long": {"minSeconds": 601},
+		"empty scene list": {"scenes": []any{}},
+		"item seconds too short": {
+			"scenes": []any{map[string]any{"sceneId": scene.ID.String(), "seconds": 2, "transition": "cut"}},
+		},
+		"unknown transition": {
+			"scenes": []any{map[string]any{"sceneId": scene.ID.String(), "seconds": 10, "transition": "wipe"}},
+		},
 	} {
 		response := e.as(staff, http.MethodPost, base+"/rules", body(overrides))
 		if response.StatusCode != http.StatusBadRequest {
@@ -1239,15 +1257,16 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		}
 		response.Body.Close()
 	}
-	// A playlist may hold scenes of any aspect ratio.
-	playlistWithPortrait := e.fixture.playlist(t, "Mixed", portrait.ID)
+	// The service checks the list shape itself too: an empty list is 422 there.
+	displayUUID := uuid.MustParse(displayID)
+	_, err = e.fixture.service.CreateRule(ctx, e.fixture.admin, displayUUID, e.displayVersion(staff, displayID),
+		signage.RuleInput{Enabled: true, ConditionKind: "live_data_unavailable", MultiMode: "split", AlternateSeconds: 10}, nil)
+	if !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("empty scene list = %v, want validation_failed", err)
+	}
+	// A fifth rule with a list of two scenes of the display's ratio, deleted again below.
 	e.expect(
-		e.as(
-			staff,
-			http.MethodPost,
-			base+"/rules",
-			body(map[string]any{"targetKind": "playlist", "targetId": playlistWithPortrait.ID.String()}),
-		),
+		e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{"scenes": sceneList(second.ID, scene.ID)})),
 		http.StatusCreated,
 	)
 	list = e.expect(e.as(staff, http.MethodGet, base+"/rules", nil), http.StatusOK)
@@ -1350,41 +1369,76 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		t.Fatalf("after delete = %v", afterDelete)
 	}
 
-	// Drafts that rules point at cannot be deleted; settings cannot strand rules on another aspect ratio.
-	expectInUse(
-		t,
-		e.fixture.service.DeleteScene(ctx, e.fixture.admin, scene.ID, scene.Version, nil),
-		"playlist",
-		"display_rule",
-		"display_rule",
-	)
-	expectInUse(
-		t,
-		e.fixture.service.DeletePlaylist(ctx, e.fixture.admin, playlist.ID, playlist.Version, nil),
-		"display_default",
-		"display_rule",
-	)
+	// Scenes that rules or the default list show cannot be deleted: every remaining rule shows the scene, and
+	// so does the default list. Rule references name the rule by its position and point at the display.
+	sceneInUse := e.fixture.service.DeleteScene(ctx, e.fixture.admin, scene.ID, scene.Version, nil)
+	expectInUse(t, sceneInUse, "rule", "rule", "rule", "display")
+	var inUseErr *apperror.Error
+	if !errors.As(sceneInUse, &inUseErr) {
+		t.Fatal(sceneInUse)
+	}
+	references := inUseErr.Details["references"].([]map[string]any)
+	if references[0]["name"] != "Rule 1 of Rules" || references[2]["name"] != "Rule 3 of Rules" ||
+		references[0]["id"] != displayID || references[3]["name"] != "Default scenes of Rules" ||
+		references[3]["id"] != displayID {
+		t.Fatalf("references = %v", references)
+	}
+	// A scene only one rule list shows is blocked by that rule alone.
+	expectInUse(t, e.fixture.service.DeleteScene(ctx, e.fixture.admin, second.ID, second.Version, nil), "rule")
+
+	// Settings cannot strand rules on another aspect ratio, even with a default list of the new ratio.
 	settings := map[string]any{
 		"expectedVersion": e.displayVersion(
 			staff,
 			displayID,
-		), "name": "Rules", "location": "",
-		"aspectRatio": map[string]any{"width": 9, "height": 16}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		), "name": "Rules", "location": "Entrance hall",
+		"aspectRatio": map[string]any{"width": 9, "height": 16}, "visibleFromOutside": false,
+		"defaultScenes": sceneList(portrait.ID),
 	}
 	stranded := e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity)
 	if stranded["code"] != "validation_failed" ||
 		!strings.Contains(stranded["message"].(string), "rule(s) show a scene with another aspect ratio") {
 		t.Fatalf("ratio change with stranded rules = %v", stranded)
 	}
-	// 32:18 is 16:9 once reduced, so it is no ratio change; only the unknown playlist fails.
-	settings["defaultPlaylistId"] = uuid.Must(uuid.NewV7()).String()
-	settings["aspectRatio"] = map[string]any{"width": 32, "height": 18}
-	unknownPlaylist := e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity)
-	if unknownPlaylist["message"] != "the default playlist does not exist" {
-		t.Fatalf("unknown default playlist = %v", unknownPlaylist)
+	// The default list must have the (new) ratio of the display.
+	settings["defaultScenes"] = defaults
+	mismatchedDefault := e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity)
+	if !strings.Contains(mismatchedDefault["message"].(string), "every scene of defaultScenes must have the display's aspect ratio") {
+		t.Fatalf("default list of another ratio = %v", mismatchedDefault)
 	}
-	// Nor can a scene change its ratio while a display rule of another ratio shows it. A scene that is only
-	// reached through a playlist may change.
+	// 32:18 is 16:9 once reduced, so it is no ratio change; only the unknown default scene fails.
+	settings["defaultScenes"] = sceneList(uuid.Must(uuid.NewV7()))
+	settings["aspectRatio"] = map[string]any{"width": 32, "height": 18}
+	unknownDefault := e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity)
+	if unknownDefault["message"] != "a scene of defaultScenes does not exist" {
+		t.Fatalf("unknown default scene = %v", unknownDefault)
+	}
+	settings["defaultScenes"] = []any{}
+	e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusBadRequest)
+	// A new default list of two scenes is stored in order and audited as defaultScenes.
+	settings["defaultScenes"] = twoScenes
+	changedDefault := e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusOK)
+	if got := changedDefault["defaultScenes"].([]any); len(got) != 2 ||
+		got[0].(map[string]any)["sceneId"] != second.ID.String() || got[1].(map[string]any)["sceneId"] != scene.ID.String() {
+		t.Fatalf("default scenes = %v", changedDefault["defaultScenes"])
+	}
+	var defaultFields []string
+	if err := e.fixture.pool.QueryRow(ctx, `SELECT changed_fields FROM audit_events WHERE action='signage_display.updated'
+		AND resource_id=$1 ORDER BY occurred_at DESC LIMIT 1`, displayID).Scan(&defaultFields); err != nil ||
+		strings.Join(defaultFields, ",") != "defaultScenes" {
+		t.Fatalf("display update audit fields = %v, %v", defaultFields, err)
+	}
+	// Nor can a scene change its ratio while a rule or a default list of a display of another ratio shows it,
+	// and a scene that only a default list shows counts too. An unreferenced scene may change.
+	onlyDefault := e.fixture.scene(t, "Default only")
+	e.pair(staff, "Default only display", sceneList(onlyDefault.ID))
+	onlyDefaultTurned := sceneInput(onlyDefault.Name, "full")
+	onlyDefaultTurned.AspectRatio = signage.AspectRatio{Width: 9, Height: 16}
+	if _, err := e.fixture.service.UpdateScene(
+		ctx, e.fixture.admin, onlyDefault.ID, onlyDefault.Version, onlyDefaultTurned, nil,
+	); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("ratio change of a default-list scene = %v", err)
+	}
 	current, err := e.fixture.service.GetScene(ctx, e.fixture.admin, scene.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -1406,7 +1460,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	if updated, err := e.fixture.service.UpdateScene(
 		ctx, e.fixture.admin, portrait.ID, portraitNow.Version, square, nil,
 	); err != nil || updated.AspectRatio != (signage.AspectRatio{Width: 4, Height: 3}) {
-		t.Fatalf("playlist-only scene ratio change = %v, %v", updated.AspectRatio, err)
+		t.Fatalf("unreferenced scene ratio change = %v, %v", updated.AspectRatio, err)
 	}
 
 	for action, want := range map[string]int{
@@ -1479,26 +1533,28 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	sceneA := mkScene("Scene A", `{"type":"image","mediaId":"`+image.ID.String()+`","fit":"cover"}`)
 	sceneB := mkScene("Scene B", `{"type":"video","mediaId":"`+video.ID.String()+`","fit":"contain"}`)
 	sceneC := mkScene("Scene C", `{"type":"empty"}`)
-	playlist := e.fixture.playlist(t, "Default", sceneA.ID)
+	defaults := sceneList(sceneA.ID)
 
-	display, player := e.pair(staff, "Publisher", playlist.ID)
+	display, player := e.pair(staff, "Publisher", defaults)
 	displayID := display["id"].(string)
 	base := "/signage/displays/" + displayID
-	addRule := func(enabled bool, scene signage.Scene) {
+	addRule := func(enabled bool, scenes []signage.SceneListItem) {
 		e.expect(e.as(staff, http.MethodPost, base+"/rules", map[string]any{
 			"expectedVersion": e.displayVersion(
 				staff,
 				displayID,
 			), "enabled": enabled, "conditionKind": "live_data_unavailable",
-			"targetKind":       "scene",
-			"targetId":         scene.ID.String(),
+			"scenes":           scenes,
 			"minSeconds":       20,
 			"multiMode":        "split",
 			"alternateSeconds": 10,
 		}), http.StatusCreated)
 	}
-	addRule(true, sceneB)
-	addRule(false, sceneC)
+	addRule(true, []signage.SceneListItem{
+		{SceneID: sceneB.ID, Seconds: 15, Transition: signage.TransitionFade},
+		{SceneID: sceneA.ID, Seconds: 20, Transition: signage.TransitionCut},
+	})
+	addRule(false, sceneList(sceneC.ID))
 
 	// Nothing published yet.
 	if pending := e.expect(e.as(staff, http.MethodGet, base, nil), http.StatusOK); len(
@@ -1529,20 +1585,30 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	envelope := e.expect(response, http.StatusOK)
 	manifest := envelope["manifest"].(map[string]any)
 	if envelope["unchanged"] != false || manifest["revision"] != float64(1) ||
-		manifest["layoutsVersion"] != float64(2) ||
-		manifest["defaultPlaylistId"] != playlist.ID.String() {
+		manifest["layoutsVersion"] != float64(2) || manifest["manifestVersion"] != float64(3) {
 		t.Fatalf("manifest = %v", manifest)
 	}
+	if _, ok := manifest["playlists"]; ok {
+		t.Fatalf("manifest still lists playlists: %v", manifest)
+	}
+	if defaultScenes := manifest["defaultScenes"].([]any); len(defaultScenes) != 1 ||
+		defaultScenes[0].(map[string]any)["sceneId"] != sceneA.ID.String() {
+		t.Fatalf("manifest default scenes = %v", defaultScenes)
+	}
 	if len(manifest["rules"].([]any)) != 1 || len(manifest["scenes"].([]any)) != 2 ||
-		len(manifest["playlists"].([]any)) != 1 ||
 		len(manifest["assets"].([]any)) != 2 {
 		t.Fatalf(
-			"manifest content rules=%d scenes=%d playlists=%d assets=%d",
+			"manifest content rules=%d scenes=%d assets=%d",
 			len(manifest["rules"].([]any)),
 			len(manifest["scenes"].([]any)),
-			len(manifest["playlists"].([]any)),
 			len(manifest["assets"].([]any)),
 		)
+	}
+	// The enabled rule's list is published in order with its seconds and transitions.
+	if scenes := manifest["rules"].([]any)[0].(map[string]any)["scenes"].([]any); len(scenes) != 2 ||
+		scenes[0].(map[string]any)["sceneId"] != sceneB.ID.String() || scenes[0].(map[string]any)["seconds"] != float64(15) ||
+		scenes[0].(map[string]any)["transition"] != "fade" || scenes[1].(map[string]any)["sceneId"] != sceneA.ID.String() {
+		t.Fatalf("published rule scenes = %v", scenes)
 	}
 	if d := manifest["display"].(map[string]any); !hasAspectRatio(d, 16, 9) {
 		t.Fatalf("manifest display = %v", d)
@@ -1599,7 +1665,7 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	)
 	e.expectCode(e.as(staff, http.MethodGet, assetPath(image), nil), http.StatusUnauthorized, "unauthenticated")
 	// Another display never gets this display's assets.
-	_, otherPlayer := e.pair(staff, "Other", e.fixture.playlist(t, "Other", sceneC.ID).ID)
+	_, otherPlayer := e.pair(staff, "Other", sceneList(sceneC.ID))
 	e.expectCode(e.do(otherPlayer, "", http.MethodGet, assetPath(image), nil), http.StatusNotFound, "not_found")
 	e.expectCode(
 		e.do(otherPlayer, "", http.MethodPost, "/signage/displays/"+displayID+"/publish", nil),
@@ -1613,11 +1679,21 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 	if _, err = svc.UpdateScene(ctx, admin, sceneA.ID, sceneA.Version, input, nil); err != nil {
 		t.Fatal(err)
 	}
-	addRule(true, sceneC)
+	addRule(true, sceneList(sceneC.ID))
 	view := e.expect(e.as(staff, http.MethodGet, base, nil), http.StatusOK)
 	pending := pendingSet(view)
-	if !pending["scene|Scene A renamed|modified"] || !pending["rule|Rule 2 (live_data_unavailable)|added"] {
+	if !pending["scene|Scene A renamed|modified"] || !pending["rule|Rule 2 (live_data_unavailable)|added"] ||
+		pending["display|Default scenes|modified"] {
 		t.Fatalf("pending = %v", pending)
+	}
+	// A changed default list is a display change named "Default scenes".
+	view = e.expect(e.as(staff, http.MethodPut, base, map[string]any{
+		"expectedVersion": view["version"], "name": "Publisher", "location": "Entrance hall",
+		"aspectRatio": map[string]any{"width": 16, "height": 9}, "visibleFromOutside": false,
+		"defaultScenes": sceneList(sceneA.ID, sceneC.ID),
+	}), http.StatusOK)
+	if pending = pendingSet(view); !pending["display|Default scenes|modified"] || pending["display|Display settings|modified"] {
+		t.Fatalf("pending after default change = %v", pending)
 	}
 	list := e.expect(e.as(staff, http.MethodGet, base+"/rules", nil), http.StatusOK)
 	first := list["items"].([]any)[0].(map[string]any)["id"].(string)
@@ -1775,10 +1851,10 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	playlist := e.fixture.playlist(t, "Live", scene.ID)
-	display, player := e.pair(staff, "Live display", playlist.ID)
+	defaults := sceneList(scene.ID)
+	display, player := e.pair(staff, "Live display", defaults)
 	displayID := display["id"].(string)
-	otherDisplay, _ := e.pair(staff, "Other display", playlist.ID)
+	otherDisplay, _ := e.pair(staff, "Other display", defaults)
 	e.expect(e.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil), http.StatusOK)
 
 	template, err := svc.CreateTemplate(

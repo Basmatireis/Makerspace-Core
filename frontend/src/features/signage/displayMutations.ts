@@ -38,5 +38,5 @@ export const settingsOf = (display: SignageDisplay): Omit<UpdateSignageDisplayRe
   location: display.location,
   aspectRatio: display.aspectRatio,
   visibleFromOutside: display.visibleFromOutside,
-  defaultPlaylistId: display.defaultPlaylistId,
+  defaultScenes: display.defaultScenes,
 });

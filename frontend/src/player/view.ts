@@ -5,7 +5,7 @@ import type {
   SignageTransition,
 } from '../api/generated/models';
 import {
-  playlistPosition,
+  sceneListPosition,
   resolvePlayback,
   type PlaybackResult,
   type PlaybackRule,
@@ -14,7 +14,7 @@ import { isPrinting, type RenderData, type RenderMachine } from '../features/sig
 import type { CameraSource } from './camera';
 
 // Decides what is on screen: the shared engine picks the winning rule, the player adds the minimum display time
-// (hysteresis) and resolves playlists. Pure functions; the runtime owns the clock and the held state.
+// (hysteresis) and resolves scene lists. Pure functions; the runtime owns the clock and the held state.
 
 /** Live data older than this counts as unavailable (the engine's `live_data_unavailable` rule and "Status unknown"). */
 export const LIVE_TTL_MS = 60_000;
@@ -30,7 +30,7 @@ export type Hold = {
 
 /**
  * Applies the minimum display time: a rule that took the screen keeps it for `minSeconds` unless a rule of higher
- * priority (smaller position; the default playlist ranks last) matches. Afterwards the engine's result is followed.
+ * priority (smaller position; the default scenes rank last) matches. Afterwards the engine's result is followed.
  */
 export function holdResult(
   previous: Hold | null,
@@ -110,7 +110,7 @@ export function resolveView(input: ViewInput): { view: PlayerView; hold: Hold } 
       bodyCss: item.bodyCss ?? '',
       startsAt: Date.parse(item.startsAt),
     }));
-  const engineResult = resolvePlayback(manifest.defaultPlaylistId, manifest.rules as PlaybackRule[], {
+  const engineResult = resolvePlayback(manifest.defaultScenes, manifest.rules as PlaybackRule[], {
     now: new Date(now),
     printingMachineIds: available ? machines.filter(isPrinting).map((machine) => machine.machineId) : [],
     activeAnnouncementTemplateIds: announcements.map((item) => item.templateId),
@@ -120,18 +120,14 @@ export function resolveView(input: ViewInput): { view: PlayerView; hold: Hold } 
 
   let scene: SignagePlayerScene | null = null;
   let transition: SignageTransition = 'cut';
-  let sceneKey = result.target.id;
-  if (result.target.kind === 'scene') {
-    scene = manifest.scenes.find((item) => item.id === result.target.id) ?? null;
-  } else {
-    const playlist = manifest.playlists.find((item) => item.id === result.target.id);
-    const items = (playlist?.items ?? []).filter((item) => manifest.scenes.some((entry) => entry.id === item.sceneId));
-    const current = playlistPosition(items, (now - hold.since) / 1000);
-    if (current) {
-      scene = manifest.scenes.find((item) => item.id === current.item.sceneId) ?? null;
-      transition = current.item.transition;
-      sceneKey = `${result.target.id}:${current.index}`;
-    }
+  let sceneKey = result.ruleId;
+  // Items whose scene is missing from the manifest are skipped.
+  const items = result.scenes.filter((item) => manifest.scenes.some((entry) => entry.id === item.sceneId));
+  const current = sceneListPosition(items, (now - hold.since) / 1000);
+  if (current) {
+    scene = manifest.scenes.find((item) => item.id === current.item.sceneId) ?? null;
+    transition = current.item.transition;
+    sceneKey = `${result.ruleId}:${current.index}`;
   }
   const data: RenderData = {
     now,

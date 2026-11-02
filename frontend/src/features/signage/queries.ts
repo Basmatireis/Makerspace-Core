@@ -4,14 +4,12 @@ import {
   getSignageCalendar,
   getSignageDisplay,
   getSignageDisplayPreview,
-  getSignagePlaylist,
   getSignageScene,
   listSignageAnnouncementTemplates,
   listSignageAnnouncements,
   listSignageAssets,
   listSignageDisplays,
   listSignageMachines,
-  listSignagePlaylists,
   listSignageRules,
   listSignageScenes,
 } from '../../api/generated/signage/signage';
@@ -20,8 +18,6 @@ export const signageKeys = {
   all: ['signage'] as const,
   scenes: () => [...signageKeys.all, 'scenes'] as const,
   scene: (id: string) => [...signageKeys.all, 'scene', id] as const,
-  playlists: () => [...signageKeys.all, 'playlists'] as const,
-  playlist: (id: string) => [...signageKeys.all, 'playlist', id] as const,
   templates: () => [...signageKeys.all, 'templates'] as const,
   announcements: () => [...signageKeys.all, 'announcements'] as const,
   assets: () => [...signageKeys.all, 'assets'] as const,
@@ -38,10 +34,6 @@ export const scenesQuery = () =>
   queryOptions({ queryKey: signageKeys.scenes(), queryFn: ({ signal }) => listSignageScenes({ signal }) });
 export const sceneQuery = (id: string) =>
   queryOptions({ queryKey: signageKeys.scene(id), queryFn: ({ signal }) => getSignageScene(id, { signal }) });
-export const playlistsQuery = () =>
-  queryOptions({ queryKey: signageKeys.playlists(), queryFn: ({ signal }) => listSignagePlaylists({ signal }) });
-export const playlistQuery = (id: string) =>
-  queryOptions({ queryKey: signageKeys.playlist(id), queryFn: ({ signal }) => getSignagePlaylist(id, { signal }) });
 export const templatesQuery = () =>
   queryOptions({
     queryKey: signageKeys.templates(),

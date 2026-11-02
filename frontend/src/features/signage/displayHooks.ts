@@ -3,7 +3,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import type { Names } from './engine/playback';
 import { useMachineOptions, useMakerspaceTimeZone, useNow } from './preview';
 import { resolvePublished, type PublishedOptions, type PublishedView } from './publishedView';
-import { displaysQuery, playlistsQuery, previewQuery, rulesQuery, templatesQuery } from './queries';
+import { displaysQuery, previewQuery, rulesQuery, templatesQuery } from './queries';
 
 /** Machine and template names for describing rules; unknown ids read as removed. */
 export function useRuleNames(): Names {
@@ -41,12 +41,11 @@ export function usePublishedView(
 }
 
 /**
- * Names of the outside-visible displays that play the scene (default playlist or a rule) but do not allow live cameras:
+ * Names of the outside-visible displays that play the scene (default scenes or a rule) but do not allow live cameras:
  * a camera widget in the scene shows its fallback there.
  */
 export function useCameraBlockedDisplays(sceneId: string): string[] {
   const displays = useQuery(displaysQuery()).data?.items;
-  const playlists = useQuery(playlistsQuery()).data?.items;
   const blocked = useMemo(
     () =>
       (displays ?? []).filter(
@@ -55,15 +54,11 @@ export function useCameraBlockedDisplays(sceneId: string): string[] {
     [displays],
   );
   const rules = useQueries({ queries: blocked.map((display) => rulesQuery(display.id)) });
-  const plays = (playlistId: string) =>
-    playlists?.find((item) => item.id === playlistId)?.items.some((item) => item.sceneId === sceneId) ?? false;
+  const plays = (items: readonly { sceneId: string }[]) => items.some((item) => item.sceneId === sceneId);
   return blocked
     .filter(
       (display, index) =>
-        plays(display.defaultPlaylistId) ||
-        (rules[index]?.data?.items ?? []).some((rule) =>
-          rule.targetKind === 'scene' ? rule.targetId === sceneId : plays(rule.targetId),
-        ),
+        plays(display.defaultScenes) || (rules[index]?.data?.items ?? []).some((rule) => plays(rule.scenes)),
     )
     .map((display) => display.name);
 }

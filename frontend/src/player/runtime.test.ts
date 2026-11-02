@@ -4,7 +4,7 @@ import { PlayerApiError, PlayerNetworkError } from './api';
 import type { AssetLoader } from './assets';
 import { noCameraSource, type CameraSource } from './camera';
 import { PlayerRuntime } from './runtime';
-import { asset, fakeApi, live, manifest, rule, scene } from './testFixtures';
+import { asset, fakeApi, live, manifest, only, rule, scene } from './testFixtures';
 
 const settle = async (ms = 0) => {
   await vi.advanceTimersByTimeAsync(ms);
@@ -58,7 +58,7 @@ describe('PlayerRuntime', () => {
     latest = manifest(2, {
       assets: [asset('img-1'), asset('img-2')],
       scenes: [scene('scene-a'), scene('scene-b')],
-      rules: [rule('r', { targetId: 'scene-b' })],
+      rules: [rule('r', { scenes: only('scene-b') })],
     });
     await settle(10_000); // the next live poll reports revision 2
     expect(loaded).toEqual(['img-1', 'img-2']);
@@ -206,7 +206,7 @@ describe('PlayerRuntime', () => {
     const api = fakeApi({
       manifest: async () => ({
         unchanged: false,
-        manifest: manifest(1, { rules: [rule('offline', { targetId: 'scene-b' })] }),
+        manifest: manifest(1, { rules: [rule('offline', { scenes: only('scene-b') })] }),
       }),
       live: async () => {
         if (failing) throw new PlayerNetworkError();
@@ -246,7 +246,7 @@ describe('PlayerRuntime', () => {
               kind: 'machine_printing',
               machineIds: ['m1'],
               machineMatch: 'any',
-              targetId: 'scene-b',
+              scenes: only('scene-b'),
               minSeconds: 45,
             }),
           ],

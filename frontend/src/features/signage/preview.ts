@@ -10,7 +10,7 @@ import { publicConfigurationOptions } from '../branding/branding';
 import { customLayoutsQuery } from './layoutQueries';
 import { assetsQuery, calendarQuery, machinesQuery, templatesQuery } from './queries';
 
-// Data for the admin previews (editor canvas, thumbnails, playlist preview). Machine states and announcements are
+// Data for the admin previews (editor canvas, thumbnails, scene list preview). Machine states and announcements are
 // simulated (the editor lets people check fallbacks by picking a "Preview as" situation); open days, events and the
 // calendar block are the real upcoming public ones, so an empty calendar shows the widgets' normal empty text.
 

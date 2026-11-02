@@ -414,10 +414,10 @@ func (s *Service) UpdateScene(
 		return Scene{}, apperror.StaleWrite
 	}
 	if aspectRatioOf(current.AspectWidth, current.AspectHeight) != checked.AspectRatio {
-		mismatched, err := q.CountDisplayRulesWithOtherAspectRatioForScene(
+		mismatched, err := q.CountSceneListsWithOtherAspectRatioForScene(
 			ctx,
-			signagedb.CountDisplayRulesWithOtherAspectRatioForSceneParams{
-				SceneID:     &id,
+			signagedb.CountSceneListsWithOtherAspectRatioForSceneParams{
+				SceneID:     id,
 				AspectWidth: int16(checked.AspectRatio.Width), AspectHeight: int16(checked.AspectRatio.Height),
 			},
 		)
@@ -426,7 +426,7 @@ func (s *Service) UpdateScene(
 		}
 		if mismatched > 0 {
 			return Scene{}, validation(
-				"%d rule(s) show this scene on a display with another aspect ratio; change those rules first",
+				"%d rule(s) or default list(s) show this scene on a display with another aspect ratio; change those first",
 				mismatched,
 			)
 		}
@@ -496,7 +496,8 @@ func (s *Service) UpdateScene(
 	return sceneFromRow(row)
 }
 
-// DeleteScene removes a scene that no playlist or rule references.
+// DeleteScene removes a scene that no rule's scene list and no default scene list refers to. Scenes only
+// referenced by older publications may be deleted; the publications keep their copy.
 func (s *Service) DeleteScene(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -527,19 +528,22 @@ func (s *Service) DeleteScene(
 		return apperror.StaleWrite
 	}
 	var references []Reference
-	playlists, err := q.ListPlaylistsReferencingScene(ctx, id)
-	if err != nil {
-		return err
-	}
-	for _, playlist := range playlists {
-		references = append(references, Reference{Kind: ReferencePlaylist, ID: playlist.ID, Name: playlist.Name})
-	}
-	rules, err := q.ListRulesReferencingScene(ctx, &id)
+	rules, err := q.ListRulesReferencingScene(ctx, id)
 	if err != nil {
 		return err
 	}
 	for _, rule := range rules {
-		references = append(references, Reference{Kind: ReferenceDisplayRule, ID: rule.DisplayID, Name: rule.DisplayName})
+		references = append(references, ruleReference(rule.DisplayID, rule.DisplayName, rule.Position))
+	}
+	displays, err := q.ListDisplaysWithDefaultScene(ctx, id)
+	if err != nil {
+		return err
+	}
+	for _, display := range displays {
+		references = append(
+			references,
+			Reference{Kind: ReferenceDisplay, ID: display.ID, Name: "Default scenes of " + display.Name},
+		)
 	}
 	if len(references) > 0 {
 		return inUse("Scene", references)

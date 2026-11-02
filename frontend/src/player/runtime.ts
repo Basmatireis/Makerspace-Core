@@ -159,7 +159,8 @@ export class PlayerRuntime {
     if (!this.store) return;
     try {
       const manifest = await this.store.loadManifest();
-      if (!manifest || !(await this.store.hasAll(manifest.assets))) return;
+      // A manifest stored before scene lists has another shape: fetch the current one instead.
+      if (!manifest || (manifest.manifestVersion ?? 0) < 3 || !(await this.store.hasAll(manifest.assets))) return;
       this.active = activeOf(manifest);
       const saved = await this.store.loadLive();
       if (saved && this.now() - saved.savedAt <= PERSISTED_LIVE_MAX_AGE_MS) {

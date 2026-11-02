@@ -545,7 +545,7 @@ func (s *Service) DeleteTemplate(
 		return err
 	}
 	for _, rule := range rules {
-		references = append(references, Reference{Kind: ReferenceDisplayRule, ID: rule.DisplayID, Name: rule.DisplayName})
+		references = append(references, ruleReference(rule.DisplayID, rule.DisplayName, rule.Position))
 	}
 	scenes, err := q.ListScenesReferencingTemplate(ctx, id)
 	if err != nil {

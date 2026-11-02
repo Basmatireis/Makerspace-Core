@@ -21,6 +21,7 @@
 import type { SignageAspectRatio } from './signageAspectRatio';
 import type { SignageDisplayStatus } from './signageDisplayStatus';
 import type { SignagePendingChange } from './signagePendingChange';
+import type { SignageSceneListItems } from './signageSceneListItems';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
@@ -38,7 +39,7 @@ export interface SignageDisplay {
   visibleFromOutside: boolean;
   /** Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams. Takes effect immediately (no publication needed). */
   allowCameraOutside: boolean;
-  defaultPlaylistId: UUIDv7;
+  defaultScenes: SignageSceneListItems;
   status: SignageDisplayStatus;
   /** @nullable */
   revokedAt: string | null;

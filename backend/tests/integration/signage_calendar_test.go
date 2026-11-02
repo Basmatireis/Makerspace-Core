@@ -26,8 +26,8 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 	ctx := testContext(t)
 	admin := e.fixture.admin
 	staff := e.allStaff()
-	_, playlist := e.seedContent("Calendar")
-	display, player := e.pair(staff, "Calendar display", playlist.ID)
+	_, defaults := e.seedContent("Calendar")
+	display, player := e.pair(staff, "Calendar display", defaults)
 	e.expect(e.as(staff, http.MethodPost, "/signage/displays/"+display["id"].(string)+"/publish", nil), http.StatusOK)
 
 	openDays, err := opendays.NewService(e.pool, inbox.NewEmitter(), config.Config{MakerspaceTimeZone: "Europe/Vienna"})
@@ -301,8 +301,8 @@ func TestSignageCalendarPermissions(t *testing.T) {
 		e.expect(e.do(e.newPlayer(), "", http.MethodGet, "/signage/calendar", nil), http.StatusUnauthorized)
 	})
 	t.Run("pairing-less player", func(t *testing.T) {
-		_, playlist := e.seedContent("Calendar permissions")
-		_, player := e.pair(e.allStaff(), "Calendar device", playlist.ID)
+		_, defaults := e.seedContent("Calendar permissions")
+		_, player := e.pair(e.allStaff(), "Calendar device", defaults)
 		// A paired player has no staff session and may not read the staff calendar.
 		status := e.do(player, "", http.MethodGet, "/signage/calendar", nil).StatusCode
 		if status != http.StatusUnauthorized && status != http.StatusForbidden {

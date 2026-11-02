@@ -2,19 +2,19 @@ import { useState } from 'react';
 import { Button, ContainedList, ContainedListItem, IconButton, InlineNotification, Tag, Toggle } from '@carbon/react';
 import { Add, ArrowDown, ArrowRight, ArrowUp, Edit, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SignageDisplay, SignageRule, SignageRuleList } from '../../api/generated/models';
+import type { SignageDisplay, SignageRule, SignageRuleList, SignageSceneListItems } from '../../api/generated/models';
 import { deleteSignageRule, reorderSignageRules, setSignageRuleEnabled } from '../../api/generated/signage/signage';
 import { DeleteDialog, QueryBoundary } from './components';
-import { DefaultPlaylistModal } from './DisplayDialogs';
+import { DefaultScenesModal } from './DisplayDialogs';
 import { useRefreshDisplay } from './displayMutations';
 import { useRuleNames } from './displayHooks';
-import { DEFAULT_RULE_ID, describeCondition } from './engine/playback';
-import { errorMessage, isStaleWrite } from './helpers';
+import { DEFAULT_RULE_ID, describeCondition, loopSeconds } from './engine/playback';
+import { errorMessage, formatLoop, isStaleWrite } from './helpers';
 import { toPlaybackRule } from './publishedView';
-import { playlistsQuery, rulesQuery, scenesQuery, signageKeys } from './queries';
+import { rulesQuery, scenesQuery, signageKeys } from './queries';
 import { RuleModal } from './RuleModal';
 
-/** Ordered "When … show …" rules, first match wins, with the default playlist fixed at the bottom. */
+/** Ordered "When … show …" rules, first match wins, with the default scenes fixed at the bottom. */
 export function PlaybackTab({
   display,
   canManage,
@@ -28,7 +28,6 @@ export function PlaybackTab({
   const refresh = useRefreshDisplay(display.id);
   const rulesResult = useQuery(rulesQuery(display.id));
   const scenes = useQuery(scenesQuery()).data?.items;
-  const playlists = useQuery(playlistsQuery()).data?.items;
   const names = useRuleNames();
   const [editing, setEditing] = useState<SignageRule | 'new' | null>(null);
   const [editingDefault, setEditingDefault] = useState(false);
@@ -51,13 +50,12 @@ export function PlaybackTab({
     [ids[index], ids[index + direction]] = [ids[index + direction], ids[index]];
     write.mutate((expectedVersion) => reorderSignageRules(display.id, { expectedVersion, ruleIds: ids }));
   };
-  const targetName = (rule: SignageRule) =>
-    (rule.targetKind === 'scene'
-      ? scenes?.find((item) => item.id === rule.targetId)?.name
-      : playlists?.find((item) => item.id === rule.targetId)?.name) ?? 'Removed';
-  const targetLabel = (rule: SignageRule) =>
-    `${rule.targetKind === 'scene' ? 'Scene' : 'Playlist'} ${targetName(rule)}`;
-  const defaultName = playlists?.find((item) => item.id === display.defaultPlaylistId)?.name ?? '…';
+  // "Scene X" for a single item, "3 scenes · 45 s loop" for a list.
+  const describeScenes = (items: SignageSceneListItems) => {
+    if (items.length === 1)
+      return `Scene ${scenes?.find((item) => item.id === items[0].sceneId)?.name ?? (scenes ? 'Removed' : '…')}`;
+    return `${items.length} scenes · ${formatLoop(loopSeconds(items))} loop`;
+  };
   const editable = canManage && display.status !== 'revoked';
 
   return (
@@ -99,7 +97,7 @@ export function PlaybackTab({
                   </span>
                   <ArrowRight size={16} aria-hidden="true" />
                   <span>
-                    <strong>{targetLabel(rule)}</strong>{' '}
+                    <strong>{describeScenes(rule.scenes)}</strong>{' '}
                     <span className="sg-secondary">· min. {rule.minSeconds} s</span>
                   </span>
                 </div>
@@ -173,7 +171,7 @@ export function PlaybackTab({
               <div className="sg-rule__body">
                 <strong>Otherwise</strong>
                 <ArrowRight size={16} aria-hidden="true" />
-                <strong>Default playlist {defaultName}</strong>
+                <strong>Default: {describeScenes(display.defaultScenes)}</strong>
               </div>
               <div className="sg-rule__controls">
                 {activeRuleId === DEFAULT_RULE_ID && (
@@ -183,7 +181,7 @@ export function PlaybackTab({
                 )}
                 {editable && (
                   <IconButton
-                    label="Edit default playlist"
+                    label="Edit default scenes"
                     kind="ghost"
                     size="sm"
                     onClick={() => setEditingDefault(true)}
@@ -196,7 +194,7 @@ export function PlaybackTab({
           </ContainedListItem>
         </ContainedList>
         {rules?.items.length === 0 && (
-          <p className="sg-secondary">No rules yet. The display always shows its default playlist.</p>
+          <p className="sg-secondary">No rules yet. The display always shows its default scenes.</p>
         )}
       </QueryBoundary>
       {editing && rules && (
@@ -204,11 +202,12 @@ export function PlaybackTab({
           displayId={display.id}
           displayName={display.name}
           displayVersion={rules.displayVersion}
+          aspectRatio={display.aspectRatio}
           rule={editing === 'new' ? undefined : editing}
           onClose={() => setEditing(null)}
         />
       )}
-      {editingDefault && <DefaultPlaylistModal display={display} onClose={() => setEditingDefault(false)} />}
+      {editingDefault && <DefaultScenesModal display={display} onClose={() => setEditingDefault(false)} />}
       {deleting && rules && (
         <DeleteDialog
           title={`Delete rule ${deleting.position}?`}

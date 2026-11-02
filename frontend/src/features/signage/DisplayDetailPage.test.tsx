@@ -6,7 +6,15 @@ import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
-import { announcementFixture, displayFixture, ids, mockSignage, previewFixture, ruleFixture } from './testFixtures';
+import {
+  announcementFixture,
+  displayFixture,
+  ids,
+  mockSignage,
+  previewFixture,
+  ruleFixture,
+  sceneFixture,
+} from './testFixtures';
 
 const route = `/signage/displays/${ids.display}`;
 /** The default publication with a camera widget in the main zone of its scene. */
@@ -89,8 +97,7 @@ describe('Display detail', () => {
       machineIds: [],
       machineMatch: null,
       announcementTemplateIds: [],
-      targetKind: 'scene' as const,
-      targetId: ids.scene2,
+      scenes: [{ sceneId: ids.scene2, seconds: 20, transition: 'cut' as const }],
       minSeconds: 20,
       multiMode: 'split' as const,
       alternateSeconds: 10,
@@ -121,7 +128,12 @@ describe('Display detail', () => {
     });
     mockSignage([PermissionId.signageread], {
       displays: [displayFixture({ currentRule: ids.rule, currentSceneId: ids.scene2 })],
-      rules: [ruleFixture({ conditionKind: 'announcement_active', targetId: ids.scene2 })],
+      rules: [
+        ruleFixture({
+          conditionKind: 'announcement_active',
+          scenes: [{ sceneId: ids.scene2, seconds: 20, transition: 'cut' }],
+        }),
+      ],
       preview,
     });
     renderRoute(<App />, route);
@@ -217,8 +229,7 @@ describe('Display detail', () => {
     await user.selectOptions(within(dialog).getByLabelText('When'), 'machine_printing');
     await user.click(await within(dialog).findByRole('combobox', { name: /Machines/ }));
     await user.click(await screen.findByLabelText('H2D', { selector: '[role="option"]' }));
-    await user.click(within(dialog).getByRole('combobox', { name: 'Show' }));
-    await user.click(await screen.findByRole('option', { name: 'Scene Open days poster' }));
+    await user.selectOptions(await within(dialog).findByLabelText('Scene 1'), 'Open days poster');
     await user.click(within(dialog).getByRole('button', { name: 'Add rule' }));
     await waitFor(() =>
       expect(body).toEqual({
@@ -227,11 +238,81 @@ describe('Display detail', () => {
         conditionKind: 'machine_printing',
         machineIds: [ids.machine],
         machineMatch: 'any',
-        targetKind: 'scene',
-        targetId: ids.scene,
+        scenes: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }],
         minSeconds: 20,
         multiMode: 'split',
         alternateSeconds: 10,
+      }),
+    );
+  });
+
+  it('saves a rule with a two-item scene list', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture()],
+      scenes: [sceneFixture(), sceneFixture({ id: ids.scene2, name: 'Closed notice' })],
+    });
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/signage/displays/:id/rules', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ items: [ruleFixture()], displayVersion: 6 }, { status: 201 });
+      }),
+    );
+    renderRoute(<App />, route);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Add rule' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Add rule' }));
+    expect(await within(dialog).findByText('Choose a scene for every item')).toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByLabelText('Scene 1'), 'Open days poster');
+    await user.click(within(dialog).getByRole('button', { name: 'Add scene' }));
+    await user.selectOptions(within(dialog).getByLabelText('Scene 2'), 'Closed notice');
+    expect(within(dialog).getByText('Loop 40 s')).toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByLabelText('Transition', { selector: '#rule-transition-1' }), 'cut');
+    await user.click(within(dialog).getByRole('button', { name: 'Add rule' }));
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        scenes: [
+          { sceneId: ids.scene, seconds: 20, transition: 'fade' },
+          { sceneId: ids.scene2, seconds: 20, transition: 'cut' },
+        ],
+      }),
+    );
+  });
+
+  it('summarises scene lists and saves the default scenes', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture()],
+      rules: [
+        ruleFixture({
+          scenes: [
+            { sceneId: ids.scene, seconds: 20, transition: 'fade' },
+            { sceneId: ids.scene2, seconds: 25, transition: 'cut' },
+          ],
+        }),
+      ],
+      scenes: [sceneFixture(), sceneFixture({ id: ids.scene2, name: 'Closed notice' })],
+    });
+    let body: { defaultScenes?: unknown; name?: string } | undefined;
+    server.use(
+      http.put('*/api/v1/signage/displays/:id', async ({ request }) => {
+        body = (await request.json()) as typeof body;
+        return HttpResponse.json(displayFixture({ version: 6 }));
+      }),
+    );
+    renderRoute(<App />, route);
+    expect(await screen.findByText('2 scenes · 45 s loop')).toBeInTheDocument();
+    expect(await screen.findByText('Default: Scene Open days poster')).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Edit default scenes' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.selectOptions(await within(dialog).findByLabelText('Scene 1'), 'Closed notice');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        expectedVersion: 5,
+        name: 'Entrance window',
+        defaultScenes: [{ sceneId: ids.scene2, seconds: 20, transition: 'fade' }],
       }),
     );
   });

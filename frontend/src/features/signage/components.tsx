@@ -67,7 +67,7 @@ export function QueryBoundary({
 // Thumbnails share one clock so they do not re-render every second.
 const THUMBNAIL_NOW = Date.now();
 
-/** Small static rendering of a scene for tiles and playlist rows. */
+/** Small static rendering of a scene for tiles and scene list rows. */
 export function SceneThumbnail({
   scene,
   className,

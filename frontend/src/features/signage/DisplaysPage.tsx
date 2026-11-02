@@ -30,12 +30,11 @@ import { useNow } from './preview';
 import { PairDisplayModal } from './PairDisplayModal';
 import { signagePaths } from './paths';
 import { toPlaybackRule } from './publishedView';
-import { displaysQuery, playlistsQuery, rulesQuery, scenesQuery } from './queries';
+import { displaysQuery, rulesQuery, scenesQuery } from './queries';
 
 /** What the display reported it plays (heartbeat), with names; a rule is spelled out from the display's rule list. */
 function NowShowing({ display }: { display: SignageDisplay }) {
   const scenes = useQuery(scenesQuery());
-  const playlists = useQuery(playlistsQuery());
   const names = useRuleNames();
   const byRule = display.currentRule !== null && display.currentRule !== DEFAULT_RULE_ID;
   const rules = useQuery(rulesQuery(display.id, byRule));
@@ -45,11 +44,10 @@ function NowShowing({ display }: { display: SignageDisplay }) {
       <span className="sg-secondary">{display.lastHeartbeatAt ? 'Nothing reported' : 'Waiting for the player'}</span>
     );
   const scene = scenes.data?.items.find((item) => item.id === display.currentSceneId);
-  const defaultPlaylist = playlists.data?.items.find((item) => item.id === display.defaultPlaylistId);
   const index = byRule ? (rules.data?.items.findIndex((item) => item.id === display.currentRule) ?? -1) : -1;
   const rule = index >= 0 ? rules.data?.items[index] : undefined;
   let reason = 'Rule';
-  if (!byRule) reason = defaultPlaylist ? `Default playlist ${defaultPlaylist.name}` : 'Default playlist';
+  if (!byRule) reason = 'Default scenes';
   else if (rule) reason = `Rule ${index + 1}: ${describeCondition(toPlaybackRule(rule), names)}`;
   return (
     <div className="sg-cell-stack">
@@ -75,7 +73,7 @@ export function DisplaysPage() {
   ).length;
   const description = query.isSuccess
     ? `${pluralize(displays.length, 'display')} · ${online} online · ${needsPublishing} ${needsPublishing === 1 ? 'needs' : 'need'} publishing`
-    : 'Screens that show scenes and playlists in the makerspace.';
+    : 'Screens that show scenes in the makerspace.';
   const pairButton = canPair ? (
     <Button renderIcon={Add} onClick={() => setPairing(true)}>
       Pair display

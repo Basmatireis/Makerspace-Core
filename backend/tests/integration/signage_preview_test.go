@@ -31,9 +31,9 @@ func TestSignageDisplayPreview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	playlist := e.fixture.playlist(t, "Preview", scene.ID)
-	display, _ := e.pair(staff, "Preview display", playlist.ID)
-	other, _ := e.pair(staff, "Other display", playlist.ID)
+	defaults := sceneList(scene.ID)
+	display, _ := e.pair(staff, "Preview display", defaults)
+	other, _ := e.pair(staff, "Other display", defaults)
 	displayID := display["id"].(string)
 	path := "/signage/displays/" + displayID + "/preview"
 

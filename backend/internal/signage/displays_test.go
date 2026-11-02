@@ -63,8 +63,7 @@ func validTimeWindow() RuleInput {
 			1,
 			1,
 		}, TimeFrom: str("22:00"), TimeTo: str("06:00"),
-		TargetKind:       "scene",
-		TargetID:         ids.New(),
+		Scenes:           []SceneListItem{{SceneID: ids.New(), Seconds: 10, Transition: TransitionCut}},
 		MinSeconds:       20,
 		MultiMode:        "split",
 		AlternateSeconds: 10,
@@ -96,8 +95,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 				ConditionKind:    "machine_printing",
 				MachineIDs:       []uuid.UUID{machine},
 				MachineMatch:     optional.Of(MachineMatchAny),
-				TargetKind:       "playlist",
-				TargetID:         r.TargetID,
+				Scenes:           r.Scenes,
 				MinSeconds:       0,
 				MultiMode:        "alternate",
 				AlternateSeconds: 3,
@@ -107,8 +105,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 			*r = RuleInput{
 				ConditionKind:    "machine_printing",
 				MachineMatch:     optional.Of(MachineMatchAny),
-				TargetKind:       "scene",
-				TargetID:         r.TargetID,
+				Scenes:           r.Scenes,
 				MultiMode:        "split",
 				AlternateSeconds: 10,
 			}
@@ -117,8 +114,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 			*r = RuleInput{
 				ConditionKind:    "machine_printing",
 				MachineIDs:       []uuid.UUID{machine},
-				TargetKind:       "scene",
-				TargetID:         r.TargetID,
+				Scenes:           r.Scenes,
 				MultiMode:        "split",
 				AlternateSeconds: 10,
 			}
@@ -129,8 +125,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 				Weekdays:         []int{1},
 				MachineIDs:       []uuid.UUID{machine},
 				MachineMatch:     optional.Of(MachineMatchAll),
-				TargetKind:       "scene",
-				TargetID:         r.TargetID,
+				Scenes:           r.Scenes,
 				MultiMode:        "split",
 				AlternateSeconds: 10,
 			}
@@ -138,8 +133,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 		{"announcement rule any template", func(r *RuleInput) {
 			*r = RuleInput{
 				ConditionKind:    "announcement_active",
-				TargetKind:       "scene",
-				TargetID:         r.TargetID,
+				Scenes:           r.Scenes,
 				MultiMode:        "split",
 				AlternateSeconds: 10,
 			}
@@ -148,8 +142,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 			*r = RuleInput{
 				ConditionKind:           "announcement_active",
 				AnnouncementTemplateIDs: []uuid.UUID{template},
-				TargetKind:              "scene",
-				TargetID:                r.TargetID,
+				Scenes:                  r.Scenes,
 				MultiMode:               "split",
 				AlternateSeconds:        10,
 			}
@@ -158,8 +151,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 			*r = RuleInput{
 				ConditionKind:    "announcement_active",
 				MachineIDs:       []uuid.UUID{machine},
-				TargetKind:       "scene",
-				TargetID:         r.TargetID,
+				Scenes:           r.Scenes,
 				MultiMode:        "split",
 				AlternateSeconds: 10,
 			}
@@ -167,8 +159,7 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 		{"live data rule", func(r *RuleInput) {
 			*r = RuleInput{
 				ConditionKind:    "live_data_unavailable",
-				TargetKind:       "scene",
-				TargetID:         r.TargetID,
+				Scenes:           r.Scenes,
 				MultiMode:        "split",
 				AlternateSeconds: 10,
 			}
@@ -177,15 +168,29 @@ func TestValidateRuleInputPerKind(t *testing.T) {
 			*r = RuleInput{
 				ConditionKind:           "live_data_unavailable",
 				AnnouncementTemplateIDs: []uuid.UUID{template},
-				TargetKind:              "scene",
-				TargetID:                r.TargetID,
+				Scenes:                  r.Scenes,
 				MultiMode:               "split",
 				AlternateSeconds:        10,
 			}
 		}, false},
 		{"unknown kind", func(r *RuleInput) { r.ConditionKind = "weather" }, false},
-		{"unknown target kind", func(r *RuleInput) { r.TargetKind = "stream" }, false},
-		{"missing target", func(r *RuleInput) { r.TargetID = uuid.Nil }, false},
+		{"empty scene list", func(r *RuleInput) { r.Scenes = nil }, false},
+		{"scene list too long", func(r *RuleInput) {
+			r.Scenes = make([]SceneListItem, 101)
+			for index := range r.Scenes {
+				r.Scenes[index] = SceneListItem{SceneID: ids.New(), Seconds: 10, Transition: TransitionCut}
+			}
+		}, false},
+		{"scene list of 100", func(r *RuleInput) {
+			r.Scenes = make([]SceneListItem, 100)
+			for index := range r.Scenes {
+				r.Scenes[index] = SceneListItem{SceneID: ids.New(), Seconds: 10, Transition: TransitionFade}
+			}
+		}, true},
+		{"item without scene", func(r *RuleInput) { r.Scenes[0].SceneID = uuid.Nil }, false},
+		{"item seconds too short", func(r *RuleInput) { r.Scenes[0].Seconds = 2 }, false},
+		{"item seconds too long", func(r *RuleInput) { r.Scenes[0].Seconds = 3601 }, false},
+		{"item transition", func(r *RuleInput) { r.Scenes[0].Transition = "wipe" }, false},
 		{"minimum seconds range", func(r *RuleInput) { r.MinSeconds = 601 }, false},
 		{"alternate seconds range", func(r *RuleInput) { r.AlternateSeconds = 2 }, false},
 		{"multi mode", func(r *RuleInput) { r.MultiMode = "grid" }, false},
@@ -227,22 +232,16 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 	ruleScene := sampleScene("Rule scene", 1, map[string]json.RawMessage{
 		"main": json.RawMessage(`{"type":"video","mediaId":"` + video.String() + `","fit":"cover"}`),
 	})
-	listScene := sampleScene("Playlist scene", 1, map[string]json.RawMessage{
+	listScene := sampleScene("Default scene", 1, map[string]json.RawMessage{
 		"main": json.RawMessage(
 			`{"type":"status","machineIds":["` + machine.String() + `"],"showProgress":true,"showRemaining":true}`,
 		),
 	})
 	listScene.BackgroundAssetID = &image
 	orphan := sampleScene("Orphan", 1, map[string]json.RawMessage{"main": json.RawMessage(`{"type":"empty"}`)})
-	playlist := ManifestPlaylist{
-		ID:      ids.New(),
-		Name:    "Default",
-		Version: 3,
-		Items:   []ManifestPlaylistItem{{SceneID: listScene.ID, Seconds: 10, Transition: "cut"}},
-	}
+	defaultScenes := []SceneListItem{{SceneID: listScene.ID, Seconds: 10, Transition: "cut"}}
 	content := manifestContent{
-		scenes:    map[uuid.UUID]ManifestScene{ruleScene.ID: ruleScene, listScene.ID: listScene, orphan.ID: orphan},
-		playlists: map[uuid.UUID]ManifestPlaylist{playlist.ID: playlist},
+		scenes: map[uuid.UUID]ManifestScene{ruleScene.ID: ruleScene, listScene.ID: listScene, orphan.ID: orphan},
 		assets: map[uuid.UUID]ManifestAsset{
 			image:  {ID: image, Kind: "image", SHA256: strings.Repeat("a", 64)},
 			video:  {ID: video, Kind: "video", SHA256: strings.Repeat("b", 64)},
@@ -253,8 +252,7 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 		ID:               ids.New(),
 		Enabled:          true,
 		ConditionKind:    "live_data_unavailable",
-		TargetKind:       "scene",
-		TargetID:         ruleScene.ID,
+		Scenes:           []SceneListItem{{SceneID: ruleScene.ID, Seconds: 10, Transition: "cut"}},
 		MinSeconds:       20,
 		MultiMode:        "split",
 		AlternateSeconds: 10,
@@ -263,11 +261,10 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 		ID:            ids.New(),
 		Enabled:       false,
 		ConditionKind: "live_data_unavailable",
-		TargetKind:    "scene",
-		TargetID:      orphan.ID,
+		Scenes:        []SceneListItem{{SceneID: orphan.ID, Seconds: 10, Transition: "cut"}},
 	}
 	manifest, err := assembleManifest(displayDraft{
-		AspectRatio: AspectRatio{Width: 16, Height: 9}, DefaultPlaylistID: playlist.ID, Rules: []Rule{enabled, disabled},
+		AspectRatio: AspectRatio{Width: 16, Height: 9}, DefaultScenes: defaultScenes, Rules: []Rule{enabled, disabled},
 	}, content)
 	if err != nil {
 		t.Fatal(err)
@@ -275,13 +272,17 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 	if len(manifest.Rules) != 1 || manifest.Rules[0].ID != enabled.ID {
 		t.Fatalf("rules = %#v, want only the enabled rule", manifest.Rules)
 	}
-	if len(manifest.Scenes) != 2 || len(manifest.Playlists) != 1 || len(manifest.Assets) != 2 {
+	if len(manifest.Scenes) != 2 || len(manifest.Assets) != 2 {
 		t.Fatalf(
-			"scenes=%d playlists=%d assets=%d, want 2/1/2 (no orphan scene, no unused asset)",
+			"scenes=%d assets=%d, want 2/2 (no orphan scene, no unused asset)",
 			len(manifest.Scenes),
-			len(manifest.Playlists),
 			len(manifest.Assets),
 		)
+	}
+	if manifest.ManifestVersion != ManifestVersion || len(manifest.DefaultScenes) != 1 ||
+		manifest.DefaultScenes[0].SceneID != listScene.ID || len(manifest.Rules[0].Scenes) != 1 {
+		t.Fatalf("manifest version %d, default %#v, rule scenes %#v", manifest.ManifestVersion,
+			manifest.DefaultScenes, manifest.Rules[0].Scenes)
 	}
 	if machines := ManifestMachineIDs(manifest); len(machines) != 1 || machines[0] != machine {
 		t.Fatalf("machine ids = %v, want [%s]", machines, machine)
@@ -291,9 +292,9 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 	}
 	again, err := assembleManifest(
 		displayDraft{
-			AspectRatio:       AspectRatio{Width: 16, Height: 9},
-			DefaultPlaylistID: playlist.ID,
-			Rules:             []Rule{enabled, disabled},
+			AspectRatio:   AspectRatio{Width: 16, Height: 9},
+			DefaultScenes: defaultScenes,
+			Rules:         []Rule{enabled, disabled},
 		},
 		content,
 	)
@@ -305,35 +306,37 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 	if string(first) != string(second) {
 		t.Fatal("equal drafts produced different manifests")
 	}
-	if _, err := assembleManifest(displayDraft{DefaultPlaylistID: ids.New()}, content); err == nil {
-		t.Fatal("a missing default playlist was accepted")
+	missing := []SceneListItem{{SceneID: ids.New(), Seconds: 10, Transition: "cut"}}
+	if _, err := assembleManifest(displayDraft{DefaultScenes: missing}, content); err == nil {
+		t.Fatal("a missing default scene was accepted")
+	}
+	if _, err := assembleManifest(displayDraft{}, content); err == nil {
+		t.Fatal("an empty default list was accepted")
 	}
 }
 
 func TestDiffManifests(t *testing.T) {
 	sceneA := ManifestScene{ID: ids.New(), Name: "A", Version: 1}
 	sceneB := ManifestScene{ID: ids.New(), Name: "B", Version: 1}
-	playlist := ManifestPlaylist{ID: ids.New(), Name: "P", Version: 1}
 	rule1 := ManifestRule{
 		ID:         ids.New(),
 		Kind:       "live_data_unavailable",
-		TargetKind: "scene",
-		TargetID:   sceneA.ID,
+		Scenes:     []SceneListItem{{SceneID: sceneA.ID, Seconds: 10, Transition: "cut"}},
 		MinSeconds: 20,
 	}
 	rule2 := ManifestRule{
 		ID:         ids.New(),
 		Kind:       "announcement_active",
-		TargetKind: "scene",
-		TargetID:   sceneB.ID,
+		Scenes:     []SceneListItem{{SceneID: sceneB.ID, Seconds: 10, Transition: "cut"}},
 		MinSeconds: 20,
 	}
 	base := Manifest{
-		Display: ManifestDisplay{AspectRatio: AspectRatio{Width: 16, Height: 9}}, DefaultPlaylistID: playlist.ID,
+		Display:       ManifestDisplay{AspectRatio: AspectRatio{Width: 16, Height: 9}},
+		DefaultScenes: []SceneListItem{{SceneID: sceneA.ID, Seconds: 10, Transition: "cut"}},
 		Rules: []ManifestRule{
 			rule1,
 			rule2,
-		}, Scenes: []ManifestScene{sceneA, sceneB}, Playlists: []ManifestPlaylist{playlist},
+		}, Scenes: []ManifestScene{sceneA, sceneB},
 		Assets: []ManifestAsset{{ID: ids.New(), Name: "logo", SHA256: "x"}},
 	}
 	if changes := diffManifests(base, base); len(changes) != 0 {
@@ -352,7 +355,10 @@ func TestDiffManifests(t *testing.T) {
 	changed.Rules = []ManifestRule{rule2, rule1}
 	removedScene := ManifestScene{ID: ids.New(), Name: "C", Version: 1}
 	changed.Scenes = []ManifestScene{sceneA, removedScene}
-	changed.Playlists = nil
+	changed.DefaultScenes = []SceneListItem{
+		{SceneID: sceneA.ID, Seconds: 10, Transition: "cut"},
+		{SceneID: sceneB.ID, Seconds: 20, Transition: "fade"},
+	}
 	changed.Assets = []ManifestAsset{{ID: base.Assets[0].ID, Name: "logo", SHA256: "y"}}
 	got := map[PendingChange]bool{}
 	for _, change := range diffManifests(base, changed) {
@@ -363,7 +369,7 @@ func TestDiffManifests(t *testing.T) {
 		{Kind: "rule", Name: "Rule order", Change: "modified"},
 		{Kind: "scene", Name: "C", Change: "added"},
 		{Kind: "scene", Name: "B", Change: "removed"},
-		{Kind: "playlist", Name: "P", Change: "removed"},
+		{Kind: "display", Name: "Default scenes", Change: "modified"},
 		{Kind: "asset", Name: "logo", Change: "modified"},
 	} {
 		if !got[want] {
@@ -374,7 +380,7 @@ func TestDiffManifests(t *testing.T) {
 	edited := base
 	edited.Rules = []ManifestRule{
 		rule1,
-		{ID: rule2.ID, Kind: "announcement_active", TargetKind: "scene", TargetID: sceneB.ID, MinSeconds: 30},
+		{ID: rule2.ID, Kind: "announcement_active", Scenes: rule2.Scenes, MinSeconds: 30},
 		{ID: ids.New(), Kind: "live_data_unavailable"},
 	}
 	changes := diffManifests(base, edited)

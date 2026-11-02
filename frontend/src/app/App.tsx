@@ -71,7 +71,6 @@ import {
   SignageDisplayDetailPage,
   SignageDisplaysPage,
   SignageMediaPage,
-  SignagePlaylistDetailPage,
   SignageSceneEditorPage,
   StatisticsPage,
   SupervisorStaffingPage,
@@ -351,14 +350,6 @@ export function App() {
               element={
                 <PermissionRoute allOf={['signage.read']}>
                   <SignageSceneEditorPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="signage/playlists/:playlistId"
-              element={
-                <PermissionRoute allOf={['signage.read']}>
-                  <SignagePlaylistDetailPage />
                 </PermissionRoute>
               }
             />

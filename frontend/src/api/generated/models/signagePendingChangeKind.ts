@@ -19,6 +19,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * A changed default scene list is reported as `display` with the name `Default scenes`.
+ */
 export type SignagePendingChangeKind = typeof SignagePendingChangeKind[keyof typeof SignagePendingChangeKind];
 
 
@@ -26,7 +29,6 @@ export const SignagePendingChangeKind = {
   SignagePendingChangeKindDisplay: 'display',
   SignagePendingChangeKindRule: 'rule',
   SignagePendingChangeKindScene: 'scene',
-  SignagePendingChangeKindPlaylist: 'playlist',
   SignagePendingChangeKindAsset: 'asset',
   SignagePendingChangeKindLayout: 'layout',
 } as const;

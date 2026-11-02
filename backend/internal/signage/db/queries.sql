@@ -116,13 +116,15 @@ DELETE FROM signage_scenes WHERE id = sqlc.arg(id) AND version = sqlc.arg(expect
 -- name: ListSignageSceneIDs :many
 SELECT id FROM signage_scenes WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
 
--- name: ListPlaylistsReferencingScene :many
-SELECT DISTINCT p.id, p.name FROM signage_playlist_items i JOIN signage_playlists p ON p.id = i.playlist_id
-WHERE i.scene_id = sqlc.arg(scene_id) ORDER BY p.name, p.id;
-
 -- name: ListRulesReferencingScene :many
-SELECT r.id AS rule_id, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
-WHERE r.target_scene_id = sqlc.arg(scene_id) ORDER BY d.name, r.position;
+SELECT r.id AS rule_id, r.position, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
+WHERE EXISTS (SELECT 1 FROM signage_rule_scenes rs WHERE rs.rule_id = r.id AND rs.scene_id = sqlc.arg(scene_id))
+ORDER BY d.name, d.id, r.position;
+
+-- name: ListDisplaysWithDefaultScene :many
+SELECT d.id, d.name FROM signage_displays d
+WHERE EXISTS (SELECT 1 FROM signage_default_scenes ds WHERE ds.display_id = d.id AND ds.scene_id = sqlc.arg(scene_id))
+ORDER BY d.name, d.id;
 
 -- Custom layouts ----------------------------------------------------------------------------------------------
 
@@ -165,44 +167,6 @@ DELETE FROM signage_custom_layouts WHERE id = sqlc.arg(id) AND version = sqlc.ar
 -- name: ListScenesUsingCustomLayoutForUpdate :many
 -- Locks every scene that uses the layout (in id order) before the layout zones change.
 SELECT id, name, zones FROM signage_scenes WHERE custom_layout_id = sqlc.arg(id)::uuid ORDER BY id FOR UPDATE;
-
--- Playlists ---------------------------------------------------------------------------------------------------
-
--- name: CreateSignagePlaylist :one
-INSERT INTO signage_playlists (id, name) VALUES (sqlc.arg(id), sqlc.arg(name)) RETURNING *;
-
--- name: GetSignagePlaylist :one
-SELECT * FROM signage_playlists WHERE id = sqlc.arg(id);
-
--- name: GetSignagePlaylistForUpdate :one
-SELECT * FROM signage_playlists WHERE id = sqlc.arg(id) FOR UPDATE;
-
--- name: ListSignagePlaylists :many
-SELECT * FROM signage_playlists ORDER BY lower(name), id;
-
--- name: UpdateSignagePlaylist :one
-UPDATE signage_playlists SET name = sqlc.arg(name), version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING *;
-
--- name: DeleteSignagePlaylist :one
-DELETE FROM signage_playlists WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING id;
-
--- name: InsertSignagePlaylistItem :exec
-INSERT INTO signage_playlist_items (playlist_id, position, scene_id, seconds, transition)
-VALUES (sqlc.arg(playlist_id), sqlc.arg(position), sqlc.arg(scene_id), sqlc.arg(seconds), sqlc.arg(transition));
-
--- name: DeleteSignagePlaylistItems :exec
-DELETE FROM signage_playlist_items WHERE playlist_id = sqlc.arg(playlist_id);
-
--- name: ListSignagePlaylistItems :many
-SELECT * FROM signage_playlist_items WHERE playlist_id = ANY(sqlc.arg(playlist_ids)::text[]::uuid[]) ORDER BY playlist_id, position;
-
--- name: ListDisplaysByDefaultPlaylist :many
-SELECT id, name FROM signage_displays WHERE default_playlist_id = sqlc.arg(playlist_id) ORDER BY name, id;
-
--- name: ListRulesReferencingPlaylist :many
-SELECT r.id AS rule_id, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
-WHERE r.target_playlist_id = sqlc.arg(playlist_id) ORDER BY d.name, r.position;
 
 -- Announcement templates --------------------------------------------------------------------------------------
 
@@ -250,7 +214,7 @@ SELECT id FROM signage_announcements WHERE template_id = sqlc.arg(template_id) A
 DELETE FROM signage_announcements WHERE template_id = sqlc.arg(template_id) AND ends_at IS NOT NULL AND ends_at <= sqlc.arg(now)::timestamptz;
 
 -- name: ListRulesFilteringTemplate :many
-SELECT r.id AS rule_id, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
+SELECT r.id AS rule_id, r.position, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
 WHERE r.announcement_template_ids @> ARRAY[sqlc.arg(template_id)::uuid] ORDER BY d.name, r.position;
 
 -- name: ListSignageTemplateIDsForShare :many
@@ -313,14 +277,16 @@ SELECT id, name FROM machines WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
 -- Displays ----------------------------------------------------------------------------------------------------
 
 -- name: CreateSignageDisplay :one
-INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, visible_from_outside, allow_camera_outside, default_playlist_id)
+INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, visible_from_outside, allow_camera_outside)
 VALUES (sqlc.arg(id), sqlc.arg(managed_device_id), sqlc.arg(name), sqlc.arg(location), sqlc.arg(aspect_width), sqlc.arg(aspect_height),
-        sqlc.arg(visible_from_outside), sqlc.arg(allow_camera_outside), sqlc.arg(default_playlist_id))
+        sqlc.arg(visible_from_outside), sqlc.arg(allow_camera_outside))
 RETURNING id;
 
 -- name: ListSignageDisplayViews :many
 SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
-       d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
+                 FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
+       d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
        COALESCE((SELECT revision FROM signage_publications WHERE display_id = d.id ORDER BY revision DESC LIMIT 1), 0)::int AS published_revision,
@@ -332,7 +298,9 @@ ORDER BY lower(d.name), d.id;
 
 -- name: GetSignageDisplayView :one
 SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
-       d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
+                 FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
+       d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
        COALESCE((SELECT revision FROM signage_publications WHERE display_id = d.id ORDER BY revision DESC LIMIT 1), 0)::int AS published_revision,
@@ -344,7 +312,9 @@ WHERE d.id = sqlc.arg(id);
 
 -- name: GetSignageDisplayForUpdate :one
 SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
-       d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
+                 FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
+       d.revoked_at, md.revoked_at AS device_revoked_at, d.version
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.id = sqlc.arg(id) FOR UPDATE OF d;
 
@@ -356,7 +326,7 @@ WHERE d.managed_device_id = sqlc.arg(managed_device_id);
 -- name: UpdateSignageDisplay :one
 UPDATE signage_displays
 SET name = sqlc.arg(name), location = sqlc.arg(location), aspect_width = sqlc.arg(aspect_width), aspect_height = sqlc.arg(aspect_height),
-    visible_from_outside = sqlc.arg(visible_from_outside), allow_camera_outside = sqlc.arg(allow_camera_outside), default_playlist_id = sqlc.arg(default_playlist_id),
+    visible_from_outside = sqlc.arg(visible_from_outside), allow_camera_outside = sqlc.arg(allow_camera_outside),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND revoked_at IS NULL
 RETURNING id;
@@ -372,27 +342,45 @@ WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND revoked_at 
 -- name: DeleteSignageDisplay :one
 DELETE FROM signage_displays WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING managed_device_id;
 
--- name: LockSignagePlaylistForShare :one
-SELECT id FROM signage_playlists WHERE id = sqlc.arg(id) FOR SHARE;
-
--- name: LockSignageSceneForShare :one
-SELECT id, aspect_width, aspect_height FROM signage_scenes WHERE id = sqlc.arg(id) FOR SHARE;
+-- name: LockSignageScenesForShare :many
+-- The scenes a scene list refers to, share-locked so that a concurrent deletion or change of a scene's ratio
+-- either waits for this transaction or is seen by it.
+SELECT id, aspect_width, aspect_height FROM signage_scenes WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) ORDER BY id FOR SHARE;
 
 -- name: CountSceneRulesWithOtherAspectRatio :one
--- Rules of a display whose target scene has another aspect ratio. The scenes are share-locked so that a
--- concurrent change of a scene's ratio either waits for this transaction or is seen by it.
-SELECT count(*) FROM (
-    SELECT r.id FROM signage_rules r JOIN signage_scenes s ON s.id = r.target_scene_id
+-- Rules of a display whose scene list shows a scene with another aspect ratio. The scenes are share-locked so
+-- that a concurrent change of a scene's ratio either waits for this transaction or is seen by it.
+SELECT count(DISTINCT mismatched.rule_id) FROM (
+    SELECT r.id AS rule_id FROM signage_rules r
+    JOIN signage_rule_scenes rs ON rs.rule_id = r.id
+    JOIN signage_scenes s ON s.id = rs.scene_id
     WHERE r.display_id = sqlc.arg(display_id)
       AND (s.aspect_width <> sqlc.arg(aspect_width)::smallint OR s.aspect_height <> sqlc.arg(aspect_height)::smallint)
     FOR SHARE OF s
 ) mismatched;
 
--- name: CountDisplayRulesWithOtherAspectRatioForScene :one
--- Rules that show the scene on a display with another aspect ratio.
-SELECT count(*) FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
-WHERE r.target_scene_id = sqlc.arg(scene_id)
-  AND (d.aspect_width <> sqlc.arg(aspect_width)::smallint OR d.aspect_height <> sqlc.arg(aspect_height)::smallint);
+-- name: CountSceneListsWithOtherAspectRatioForScene :one
+-- Rule lists and default lists that show the scene on a display with another aspect ratio.
+SELECT (
+    SELECT count(DISTINCT r.id) FROM signage_rules r
+    JOIN signage_rule_scenes rs ON rs.rule_id = r.id
+    JOIN signage_displays d ON d.id = r.display_id
+    WHERE rs.scene_id = sqlc.arg(scene_id)
+      AND (d.aspect_width <> sqlc.arg(aspect_width)::smallint OR d.aspect_height <> sqlc.arg(aspect_height)::smallint)
+) + (
+    SELECT count(DISTINCT d.id) FROM signage_default_scenes ds
+    JOIN signage_displays d ON d.id = ds.display_id
+    WHERE ds.scene_id = sqlc.arg(scene_id)
+      AND (d.aspect_width <> sqlc.arg(aspect_width)::smallint OR d.aspect_height <> sqlc.arg(aspect_height)::smallint)
+)::bigint AS mismatched;
+
+-- name: DeleteSignageDefaultScenes :exec
+DELETE FROM signage_default_scenes WHERE display_id = sqlc.arg(display_id);
+
+-- name: InsertSignageDefaultScenes :exec
+INSERT INTO signage_default_scenes (display_id, position, scene_id, seconds, transition)
+SELECT sqlc.arg(display_id)::uuid, unnest(sqlc.arg(positions)::int[]), unnest(sqlc.arg(scene_ids)::text[]::uuid[]),
+       unnest(sqlc.arg(seconds)::int[]), unnest(sqlc.arg(transitions)::text[]);
 
 -- Pairing -----------------------------------------------------------------------------------------------------
 
@@ -428,25 +416,26 @@ DELETE FROM signage_pairing_requests WHERE id = sqlc.arg(id);
 -- Rules -------------------------------------------------------------------------------------------------------
 
 -- name: ListSignageRules :many
-SELECT id, display_id, position, enabled, condition_kind, weekdays, COALESCE(time_from::text, '')::text AS time_from, COALESCE(time_to::text, '')::text AS time_to,
-       machine_ids::text[] AS machine_ids, machine_match, announcement_template_ids::text[] AS announcement_template_ids,
-       target_kind, target_scene_id, target_playlist_id, min_seconds, multi_mode, alternate_seconds
-FROM signage_rules WHERE display_id = ANY(sqlc.arg(display_ids)::text[]::uuid[]) ORDER BY display_id, position;
+SELECT r.id, r.display_id, r.position, r.enabled, r.condition_kind, r.weekdays,
+       COALESCE(r.time_from::text, '')::text AS time_from, COALESCE(r.time_to::text, '')::text AS time_to,
+       r.machine_ids::text[] AS machine_ids, r.machine_match, r.announcement_template_ids::text[] AS announcement_template_ids,
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', rs.scene_id, 'seconds', rs.seconds, 'transition', rs.transition) ORDER BY rs.position)
+                 FROM signage_rule_scenes rs WHERE rs.rule_id = r.id), '[]'::jsonb)::text AS scenes,
+       r.min_seconds, r.multi_mode, r.alternate_seconds
+FROM signage_rules r WHERE r.display_id = ANY(sqlc.arg(display_ids)::text[]::uuid[]) ORDER BY r.display_id, r.position;
 
 -- name: InsertSignageRule :exec
 INSERT INTO signage_rules (id, display_id, position, enabled, condition_kind, weekdays, time_from, time_to, machine_ids, machine_match,
-                           announcement_template_ids, target_kind, target_scene_id, target_playlist_id, min_seconds, multi_mode, alternate_seconds)
+                           announcement_template_ids, min_seconds, multi_mode, alternate_seconds)
 VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(position), sqlc.arg(enabled), sqlc.arg(condition_kind), sqlc.arg(weekdays)::smallint[],
         sqlc.narg(time_from)::text::time, sqlc.narg(time_to)::text::time, sqlc.arg(machine_ids)::text[]::uuid[], sqlc.narg(machine_match),
-        sqlc.arg(announcement_template_ids)::text[]::uuid[], sqlc.arg(target_kind), sqlc.narg(target_scene_id), sqlc.narg(target_playlist_id),
-        sqlc.arg(min_seconds), sqlc.arg(multi_mode), sqlc.arg(alternate_seconds));
+        sqlc.arg(announcement_template_ids)::text[]::uuid[], sqlc.arg(min_seconds), sqlc.arg(multi_mode), sqlc.arg(alternate_seconds));
 
 -- name: UpdateSignageRule :execrows
 UPDATE signage_rules
 SET enabled = sqlc.arg(enabled), condition_kind = sqlc.arg(condition_kind), weekdays = sqlc.arg(weekdays)::smallint[],
     time_from = sqlc.narg(time_from)::text::time, time_to = sqlc.narg(time_to)::text::time, machine_ids = sqlc.arg(machine_ids)::text[]::uuid[],
     machine_match = sqlc.narg(machine_match), announcement_template_ids = sqlc.arg(announcement_template_ids)::text[]::uuid[],
-    target_kind = sqlc.arg(target_kind), target_scene_id = sqlc.narg(target_scene_id), target_playlist_id = sqlc.narg(target_playlist_id),
     min_seconds = sqlc.arg(min_seconds), multi_mode = sqlc.arg(multi_mode), alternate_seconds = sqlc.arg(alternate_seconds)
 WHERE id = sqlc.arg(id) AND display_id = sqlc.arg(display_id);
 
@@ -459,6 +448,14 @@ UPDATE signage_rules SET position = sqlc.arg(position) WHERE id = sqlc.arg(id) A
 -- name: DeleteSignageRule :execrows
 DELETE FROM signage_rules WHERE id = sqlc.arg(id) AND display_id = sqlc.arg(display_id);
 
+-- name: DeleteSignageRuleScenes :exec
+DELETE FROM signage_rule_scenes WHERE rule_id = sqlc.arg(rule_id);
+
+-- name: InsertSignageRuleScenes :exec
+INSERT INTO signage_rule_scenes (rule_id, position, scene_id, seconds, transition)
+SELECT sqlc.arg(rule_id)::uuid, unnest(sqlc.arg(positions)::int[]), unnest(sqlc.arg(scene_ids)::text[]::uuid[]),
+       unnest(sqlc.arg(seconds)::int[]), unnest(sqlc.arg(transitions)::text[]);
+
 -- name: ListSignageTemplateIDsByIDs :many
 SELECT id FROM signage_announcement_templates WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) FOR SHARE;
 
@@ -466,9 +463,6 @@ SELECT id FROM signage_announcement_templates WHERE id = ANY(sqlc.arg(ids)::text
 
 -- name: ListSignageScenesByIDs :many
 SELECT * FROM signage_scenes WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) ORDER BY id;
-
--- name: ListSignagePlaylistsByIDs :many
-SELECT * FROM signage_playlists WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) ORDER BY id;
 
 -- name: ListSignageAssetsByIDs :many
 SELECT a.id, a.kind, a.name, a.width, a.height, a.duration_ms, f.content_type, f.size_bytes, f.sha256

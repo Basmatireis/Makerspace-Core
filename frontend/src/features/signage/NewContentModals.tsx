@@ -2,7 +2,7 @@ import { InlineNotification, Modal, Stack, TextInput } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { createSignagePlaylist, createSignageScene } from '../../api/generated/signage/signage';
+import { createSignageScene } from '../../api/generated/signage/signage';
 import { aspectFieldsOf, aspectOfFields, type AspectFields } from './aspectFields';
 import { AspectRatioFields } from './AspectRatioFields';
 import { LayoutPicker, type LayoutChoice } from './components';
@@ -92,60 +92,6 @@ export function NewSceneModal({ onClose }: { onClose: () => void }) {
               lowContrast
               hideCloseButton
               title="Scene not created"
-              subtitle={errorMessage(mutation.error)}
-            />
-          )}
-        </Stack>
-        <button type="submit" hidden />
-      </form>
-    </Modal>
-  );
-}
-
-export function NewPlaylistModal({ onClose }: { onClose: () => void }) {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const form = useForm<{ name: string }>({ defaultValues: { name: '' } });
-  const mutation = useMutation({
-    mutationFn: (values: { name: string }) => createSignagePlaylist({ name: values.name.trim(), items: [] }),
-    onSuccess: async (playlist) => {
-      await queryClient.invalidateQueries({ queryKey: signageKeys.playlists() });
-      onClose();
-      navigate(signagePaths.playlist(playlist.id));
-    },
-  });
-  const submit = form.handleSubmit((values) => mutation.mutate(values));
-  return (
-    <Modal
-      open
-      size="xs"
-      modalHeading="New playlist"
-      modalLabel="Content"
-      primaryButtonText={mutation.isPending ? 'Creating…' : 'Create playlist'}
-      secondaryButtonText="Cancel"
-      primaryButtonDisabled={mutation.isPending}
-      preventCloseOnClickOutside
-      onRequestClose={() => {
-        if (!mutation.isPending) onClose();
-      }}
-      onRequestSubmit={submit}
-    >
-      <form noValidate onSubmit={submit}>
-        <Stack gap={5}>
-          <TextInput
-            id="playlist-name"
-            labelText="Name"
-            maxLength={100}
-            invalid={Boolean(form.formState.errors.name)}
-            invalidText="Give the playlist a name"
-            {...form.register('name', { validate: (value) => value.trim() !== '' })}
-          />
-          {mutation.isError && (
-            <InlineNotification
-              kind="error"
-              lowContrast
-              hideCloseButton
-              title="Playlist not created"
               subtitle={errorMessage(mutation.error)}
             />
           )}

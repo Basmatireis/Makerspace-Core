@@ -6,7 +6,7 @@ import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
-import { displayFixture, ids, mockSignage } from './testFixtures';
+import { displayFixture, ids, mockSignage, sceneFixture } from './testFixtures';
 
 const offline = displayFixture({
   id: '0192f6f8-743e-7c77-a349-cd07c3e8a152',
@@ -32,7 +32,7 @@ describe('Displays page', () => {
     const entrance = within(await within(table).findByRole('row', { name: /Entrance window/ }));
     expect(entrance.getByText('Online')).toBeInTheDocument();
     expect(await entrance.findByText('Open days poster')).toBeInTheDocument();
-    expect(entrance.getByText('Default playlist Ads')).toBeInTheDocument();
+    expect(entrance.getByText('Default scenes')).toBeInTheDocument();
     expect(entrance.getByText('Up to date')).toBeInTheDocument();
     const laser = within(within(table).getByRole('row', { name: /Laser room/ }));
     expect(laser.getByText('Offline')).toBeInTheDocument();
@@ -71,7 +71,7 @@ describe('Displays page', () => {
     await user.type(within(dialog).getByLabelText('Pairing code'), 'k7f 2qx');
     await user.type(within(dialog).getByLabelText('Name'), 'Workshop');
     await user.selectOptions(within(dialog).getByLabelText('Aspect ratio'), '9:16 (portrait)');
-    await user.selectOptions(within(dialog).getByLabelText('Default playlist'), 'Ads');
+    await user.selectOptions(within(dialog).getByLabelText('Scene 1'), 'Open days poster');
     await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
     await waitFor(() =>
       expect(body).toEqual({
@@ -80,14 +80,17 @@ describe('Displays page', () => {
         location: '',
         aspectRatio: { width: 9, height: 16 },
         visibleFromOutside: false,
-        defaultPlaylistId: ids.playlist,
+        defaultScenes: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }],
       }),
     );
     expect(await screen.findByRole('heading', { name: 'Entrance window' })).toBeInTheDocument();
   });
 
   it('pairs with a custom aspect ratio and reduces a pixel size', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture()],
+      scenes: [sceneFixture({ aspectRatio: { width: 8, height: 5 } })],
+    });
     let body: { aspectRatio?: unknown } = {};
     server.use(
       http.post('*/api/v1/signage/displays', async ({ request }) => {
@@ -105,18 +108,21 @@ describe('Displays page', () => {
     const custom = within(dialog).getByLabelText('Custom ratio (width:height)');
     await user.clear(custom);
     await user.type(custom, 'abc');
-    await user.selectOptions(within(dialog).getByLabelText('Default playlist'), 'Ads');
     await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
     expect(await within(dialog).findByText(/Enter the ratio as width:height/)).toBeInTheDocument();
     expect(body.aspectRatio).toBeUndefined();
     await user.clear(custom);
     await user.type(custom, '1920x1200');
+    await user.selectOptions(within(dialog).getByLabelText('Scene 1'), 'Open days poster');
     await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
     await waitFor(() => expect(body.aspectRatio).toEqual({ width: 8, height: 5 }));
   });
 
   it('submits the pair modal on Enter from a single-line field', async () => {
-    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture()],
+      scenes: [sceneFixture({ aspectRatio: { width: 16, height: 9 } })],
+    });
     let posts = 0;
     server.use(
       http.post('*/api/v1/signage/displays', () => {
@@ -132,7 +138,7 @@ describe('Displays page', () => {
     expect(await within(dialog).findByText('Give the display a name')).toBeInTheDocument();
     expect(posts).toBe(0);
     await user.type(within(dialog).getByLabelText('Name'), 'Workshop');
-    await user.selectOptions(within(dialog).getByLabelText('Default playlist'), 'Ads');
+    await user.selectOptions(within(dialog).getByLabelText('Scene 1'), 'Open days poster');
     await user.type(within(dialog).getByLabelText('Name'), '{Enter}');
     await waitFor(() => expect(posts).toBe(1));
     expect(await screen.findByRole('heading', { name: 'Entrance window' })).toBeInTheDocument();
@@ -156,7 +162,10 @@ describe('Displays page', () => {
     [422, { code: 'pairing_code_invalid', message: 'The code is not valid' }],
     [429, { code: 'rate_limited', message: 'Too many attempts' }],
   ])('answers a rejected code (%s) the same way', async (status, error) => {
-    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture()],
+      scenes: [sceneFixture({ aspectRatio: { width: 16, height: 9 } })],
+    });
     server.use(http.post('*/api/v1/signage/displays', () => HttpResponse.json(error, { status })));
     renderRoute(<App />, '/signage');
     const user = userEvent.setup();
@@ -164,10 +173,43 @@ describe('Displays page', () => {
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('Pairing code'), 'AAAAAA');
     await user.type(within(dialog).getByLabelText('Name'), 'Workshop');
-    await user.selectOptions(within(dialog).getByLabelText('Default playlist'), 'Ads');
+    await user.selectOptions(within(dialog).getByLabelText('Scene 1'), 'Open days poster');
     await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
     expect(await within(dialog).findByText(/This code was not accepted/)).toBeInTheDocument();
     expect(screen.queryByText('Too many attempts')).not.toBeInTheDocument();
+  });
+
+  it('requires at least one chosen scene before pairing', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture()],
+      scenes: [sceneFixture({ aspectRatio: { width: 16, height: 9 } })],
+    });
+    let body: { defaultScenes?: unknown } | undefined;
+    server.use(
+      http.post('*/api/v1/signage/displays', async ({ request }) => {
+        body = (await request.json()) as typeof body;
+        return HttpResponse.json(displayFixture({ name: 'Workshop' }), { status: 201 });
+      }),
+    );
+    renderRoute(<App />, '/signage');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Pair display' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Pairing code'), 'k7f2qx');
+    await user.type(within(dialog).getByLabelText('Name'), 'Workshop');
+    await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
+    expect(await within(dialog).findByText('Choose a scene for every item')).toBeInTheDocument();
+    expect(body).toBeUndefined();
+    await user.click(within(dialog).getByRole('button', { name: 'Add scene' }));
+    await user.selectOptions(within(dialog).getByLabelText('Scene 1'), 'Open days poster');
+    await user.selectOptions(within(dialog).getByLabelText('Scene 2'), 'Open days poster');
+    await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
+    await waitFor(() =>
+      expect(body?.defaultScenes).toEqual([
+        { sceneId: ids.scene, seconds: 20, transition: 'fade' },
+        { sceneId: ids.scene, seconds: 20, transition: 'fade' },
+      ]),
+    );
   });
 
   it('checks the code format before sending', async () => {

@@ -52,26 +52,6 @@ func (q *Queries) ClaimSignagePairingRequest(ctx context.Context, arg ClaimSigna
 	return err
 }
 
-const countDisplayRulesWithOtherAspectRatioForScene = `-- name: CountDisplayRulesWithOtherAspectRatioForScene :one
-SELECT count(*) FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
-WHERE r.target_scene_id = $1
-  AND (d.aspect_width <> $2::smallint OR d.aspect_height <> $3::smallint)
-`
-
-type CountDisplayRulesWithOtherAspectRatioForSceneParams struct {
-	SceneID      *uuid.UUID
-	AspectWidth  int16
-	AspectHeight int16
-}
-
-// Rules that show the scene on a display with another aspect ratio.
-func (q *Queries) CountDisplayRulesWithOtherAspectRatioForScene(ctx context.Context, arg CountDisplayRulesWithOtherAspectRatioForSceneParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countDisplayRulesWithOtherAspectRatioForScene, arg.SceneID, arg.AspectWidth, arg.AspectHeight)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const countOpenSignagePairingRequests = `-- name: CountOpenSignagePairingRequests :one
 SELECT count(*) FROM signage_pairing_requests WHERE expires_at > $1::timestamptz
 `
@@ -83,9 +63,40 @@ func (q *Queries) CountOpenSignagePairingRequests(ctx context.Context, now time.
 	return count, err
 }
 
+const countSceneListsWithOtherAspectRatioForScene = `-- name: CountSceneListsWithOtherAspectRatioForScene :one
+SELECT (
+    SELECT count(DISTINCT r.id) FROM signage_rules r
+    JOIN signage_rule_scenes rs ON rs.rule_id = r.id
+    JOIN signage_displays d ON d.id = r.display_id
+    WHERE rs.scene_id = $1
+      AND (d.aspect_width <> $2::smallint OR d.aspect_height <> $3::smallint)
+) + (
+    SELECT count(DISTINCT d.id) FROM signage_default_scenes ds
+    JOIN signage_displays d ON d.id = ds.display_id
+    WHERE ds.scene_id = $1
+      AND (d.aspect_width <> $2::smallint OR d.aspect_height <> $3::smallint)
+)::bigint AS mismatched
+`
+
+type CountSceneListsWithOtherAspectRatioForSceneParams struct {
+	SceneID      uuid.UUID
+	AspectWidth  int16
+	AspectHeight int16
+}
+
+// Rule lists and default lists that show the scene on a display with another aspect ratio.
+func (q *Queries) CountSceneListsWithOtherAspectRatioForScene(ctx context.Context, arg CountSceneListsWithOtherAspectRatioForSceneParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countSceneListsWithOtherAspectRatioForScene, arg.SceneID, arg.AspectWidth, arg.AspectHeight)
+	var mismatched int32
+	err := row.Scan(&mismatched)
+	return mismatched, err
+}
+
 const countSceneRulesWithOtherAspectRatio = `-- name: CountSceneRulesWithOtherAspectRatio :one
-SELECT count(*) FROM (
-    SELECT r.id FROM signage_rules r JOIN signage_scenes s ON s.id = r.target_scene_id
+SELECT count(DISTINCT mismatched.rule_id) FROM (
+    SELECT r.id AS rule_id FROM signage_rules r
+    JOIN signage_rule_scenes rs ON rs.rule_id = r.id
+    JOIN signage_scenes s ON s.id = rs.scene_id
     WHERE r.display_id = $1
       AND (s.aspect_width <> $2::smallint OR s.aspect_height <> $3::smallint)
     FOR SHARE OF s
@@ -98,8 +109,8 @@ type CountSceneRulesWithOtherAspectRatioParams struct {
 	AspectHeight int16
 }
 
-// Rules of a display whose target scene has another aspect ratio. The scenes are share-locked so that a
-// concurrent change of a scene's ratio either waits for this transaction or is seen by it.
+// Rules of a display whose scene list shows a scene with another aspect ratio. The scenes are share-locked so
+// that a concurrent change of a scene's ratio either waits for this transaction or is seen by it.
 func (q *Queries) CountSceneRulesWithOtherAspectRatio(ctx context.Context, arg CountSceneRulesWithOtherAspectRatioParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countSceneRulesWithOtherAspectRatio, arg.DisplayID, arg.AspectWidth, arg.AspectHeight)
 	var count int64
@@ -237,9 +248,9 @@ func (q *Queries) CreateSignageCustomLayout(ctx context.Context, arg CreateSigna
 
 const createSignageDisplay = `-- name: CreateSignageDisplay :one
 
-INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, visible_from_outside, allow_camera_outside, default_playlist_id)
+INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, visible_from_outside, allow_camera_outside)
 VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8, $9)
+        $7, $8)
 RETURNING id
 `
 
@@ -252,7 +263,6 @@ type CreateSignageDisplayParams struct {
 	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
-	DefaultPlaylistID  uuid.UUID
 }
 
 // Displays ----------------------------------------------------------------------------------------------------
@@ -266,7 +276,6 @@ func (q *Queries) CreateSignageDisplay(ctx context.Context, arg CreateSignageDis
 		arg.AspectHeight,
 		arg.VisibleFromOutside,
 		arg.AllowCameraOutside,
-		arg.DefaultPlaylistID,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -295,30 +304,6 @@ func (q *Queries) CreateSignagePairingRequest(ctx context.Context, arg CreateSig
 		arg.ExpiresAt,
 	)
 	return err
-}
-
-const createSignagePlaylist = `-- name: CreateSignagePlaylist :one
-
-INSERT INTO signage_playlists (id, name) VALUES ($1, $2) RETURNING id, name, version, created_at, updated_at
-`
-
-type CreateSignagePlaylistParams struct {
-	ID   uuid.UUID
-	Name string
-}
-
-// Playlists ---------------------------------------------------------------------------------------------------
-func (q *Queries) CreateSignagePlaylist(ctx context.Context, arg CreateSignagePlaylistParams) (SignagePlaylist, error) {
-	row := q.db.QueryRow(ctx, createSignagePlaylist, arg.ID, arg.Name)
-	var i SignagePlaylist
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
 }
 
 const createSignageScene = `-- name: CreateSignageScene :one
@@ -549,6 +534,15 @@ func (q *Queries) DeleteSignageCustomLayout(ctx context.Context, arg DeleteSigna
 	return id, err
 }
 
+const deleteSignageDefaultScenes = `-- name: DeleteSignageDefaultScenes :exec
+DELETE FROM signage_default_scenes WHERE display_id = $1
+`
+
+func (q *Queries) DeleteSignageDefaultScenes(ctx context.Context, displayID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSignageDefaultScenes, displayID)
+	return err
+}
+
 const deleteSignageDisplay = `-- name: DeleteSignageDisplay :one
 DELETE FROM signage_displays WHERE id = $1 AND version = $2 RETURNING managed_device_id
 `
@@ -583,31 +577,6 @@ func (q *Queries) DeleteSignagePairingRequestByPollDigest(ctx context.Context, p
 	return err
 }
 
-const deleteSignagePlaylist = `-- name: DeleteSignagePlaylist :one
-DELETE FROM signage_playlists WHERE id = $1 AND version = $2 RETURNING id
-`
-
-type DeleteSignagePlaylistParams struct {
-	ID              uuid.UUID
-	ExpectedVersion int64
-}
-
-func (q *Queries) DeleteSignagePlaylist(ctx context.Context, arg DeleteSignagePlaylistParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, deleteSignagePlaylist, arg.ID, arg.ExpectedVersion)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
-}
-
-const deleteSignagePlaylistItems = `-- name: DeleteSignagePlaylistItems :exec
-DELETE FROM signage_playlist_items WHERE playlist_id = $1
-`
-
-func (q *Queries) DeleteSignagePlaylistItems(ctx context.Context, playlistID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteSignagePlaylistItems, playlistID)
-	return err
-}
-
 const deleteSignageRule = `-- name: DeleteSignageRule :execrows
 DELETE FROM signage_rules WHERE id = $1 AND display_id = $2
 `
@@ -623,6 +592,15 @@ func (q *Queries) DeleteSignageRule(ctx context.Context, arg DeleteSignageRulePa
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteSignageRuleScenes = `-- name: DeleteSignageRuleScenes :exec
+DELETE FROM signage_rule_scenes WHERE rule_id = $1
+`
+
+func (q *Queries) DeleteSignageRuleScenes(ctx context.Context, ruleID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSignageRuleScenes, ruleID)
+	return err
 }
 
 const deleteSignageScene = `-- name: DeleteSignageScene :one
@@ -919,7 +897,9 @@ func (q *Queries) GetSignageDisplayByDevice(ctx context.Context, managedDeviceID
 
 const getSignageDisplayForUpdate = `-- name: GetSignageDisplayForUpdate :one
 SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
-       d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
+                 FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
+       d.revoked_at, md.revoked_at AS device_revoked_at, d.version
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.id = $1 FOR UPDATE OF d
 `
@@ -933,7 +913,7 @@ type GetSignageDisplayForUpdateRow struct {
 	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
-	DefaultPlaylistID  uuid.UUID
+	DefaultScenes      string
 	RevokedAt          pgtype.Timestamptz
 	DeviceRevokedAt    pgtype.Timestamptz
 	Version            int64
@@ -951,7 +931,7 @@ func (q *Queries) GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) 
 		&i.AspectHeight,
 		&i.VisibleFromOutside,
 		&i.AllowCameraOutside,
-		&i.DefaultPlaylistID,
+		&i.DefaultScenes,
 		&i.RevokedAt,
 		&i.DeviceRevokedAt,
 		&i.Version,
@@ -961,7 +941,9 @@ func (q *Queries) GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) 
 
 const getSignageDisplayView = `-- name: GetSignageDisplayView :one
 SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
-       d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
+                 FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
+       d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
        COALESCE((SELECT revision FROM signage_publications WHERE display_id = d.id ORDER BY revision DESC LIMIT 1), 0)::int AS published_revision,
@@ -981,7 +963,7 @@ type GetSignageDisplayViewRow struct {
 	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
-	DefaultPlaylistID  uuid.UUID
+	DefaultScenes      string
 	RevokedAt          pgtype.Timestamptz
 	DeviceRevokedAt    pgtype.Timestamptz
 	Version            int64
@@ -1011,7 +993,7 @@ func (q *Queries) GetSignageDisplayView(ctx context.Context, id uuid.UUID) (GetS
 		&i.AspectHeight,
 		&i.VisibleFromOutside,
 		&i.AllowCameraOutside,
-		&i.DefaultPlaylistID,
+		&i.DefaultScenes,
 		&i.RevokedAt,
 		&i.DeviceRevokedAt,
 		&i.Version,
@@ -1052,40 +1034,6 @@ func (q *Queries) GetSignagePairingRequestForPoll(ctx context.Context, pollSecre
 		&i.ExpiresAt,
 		&i.ClaimedDisplayID,
 		&i.ManagedDeviceID,
-	)
-	return i, err
-}
-
-const getSignagePlaylist = `-- name: GetSignagePlaylist :one
-SELECT id, name, version, created_at, updated_at FROM signage_playlists WHERE id = $1
-`
-
-func (q *Queries) GetSignagePlaylist(ctx context.Context, id uuid.UUID) (SignagePlaylist, error) {
-	row := q.db.QueryRow(ctx, getSignagePlaylist, id)
-	var i SignagePlaylist
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getSignagePlaylistForUpdate = `-- name: GetSignagePlaylistForUpdate :one
-SELECT id, name, version, created_at, updated_at FROM signage_playlists WHERE id = $1 FOR UPDATE
-`
-
-func (q *Queries) GetSignagePlaylistForUpdate(ctx context.Context, id uuid.UUID) (SignagePlaylist, error) {
-	row := q.db.QueryRow(ctx, getSignagePlaylistForUpdate, id)
-	var i SignagePlaylist
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -1240,26 +1188,27 @@ func (q *Queries) InsertSignageAnnouncementValue(ctx context.Context, arg Insert
 	return err
 }
 
-const insertSignagePlaylistItem = `-- name: InsertSignagePlaylistItem :exec
-INSERT INTO signage_playlist_items (playlist_id, position, scene_id, seconds, transition)
-VALUES ($1, $2, $3, $4, $5)
+const insertSignageDefaultScenes = `-- name: InsertSignageDefaultScenes :exec
+INSERT INTO signage_default_scenes (display_id, position, scene_id, seconds, transition)
+SELECT $1::uuid, unnest($2::int[]), unnest($3::text[]::uuid[]),
+       unnest($4::int[]), unnest($5::text[])
 `
 
-type InsertSignagePlaylistItemParams struct {
-	PlaylistID uuid.UUID
-	Position   int32
-	SceneID    uuid.UUID
-	Seconds    int32
-	Transition string
+type InsertSignageDefaultScenesParams struct {
+	DisplayID   uuid.UUID
+	Positions   []int32
+	SceneIds    []string
+	Seconds     []int32
+	Transitions []string
 }
 
-func (q *Queries) InsertSignagePlaylistItem(ctx context.Context, arg InsertSignagePlaylistItemParams) error {
-	_, err := q.db.Exec(ctx, insertSignagePlaylistItem,
-		arg.PlaylistID,
-		arg.Position,
-		arg.SceneID,
+func (q *Queries) InsertSignageDefaultScenes(ctx context.Context, arg InsertSignageDefaultScenesParams) error {
+	_, err := q.db.Exec(ctx, insertSignageDefaultScenes,
+		arg.DisplayID,
+		arg.Positions,
+		arg.SceneIds,
 		arg.Seconds,
-		arg.Transition,
+		arg.Transitions,
 	)
 	return err
 }
@@ -1294,11 +1243,10 @@ func (q *Queries) InsertSignagePublication(ctx context.Context, arg InsertSignag
 
 const insertSignageRule = `-- name: InsertSignageRule :exec
 INSERT INTO signage_rules (id, display_id, position, enabled, condition_kind, weekdays, time_from, time_to, machine_ids, machine_match,
-                           announcement_template_ids, target_kind, target_scene_id, target_playlist_id, min_seconds, multi_mode, alternate_seconds)
+                           announcement_template_ids, min_seconds, multi_mode, alternate_seconds)
 VALUES ($1, $2, $3, $4, $5, $6::smallint[],
         $7::text::time, $8::text::time, $9::text[]::uuid[], $10,
-        $11::text[]::uuid[], $12, $13, $14,
-        $15, $16, $17)
+        $11::text[]::uuid[], $12, $13, $14)
 `
 
 type InsertSignageRuleParams struct {
@@ -1313,9 +1261,6 @@ type InsertSignageRuleParams struct {
 	MachineIds              []string
 	MachineMatch            *string
 	AnnouncementTemplateIds []string
-	TargetKind              string
-	TargetSceneID           *uuid.UUID
-	TargetPlaylistID        *uuid.UUID
 	MinSeconds              int32
 	MultiMode               string
 	AlternateSeconds        int32
@@ -1334,12 +1279,34 @@ func (q *Queries) InsertSignageRule(ctx context.Context, arg InsertSignageRulePa
 		arg.MachineIds,
 		arg.MachineMatch,
 		arg.AnnouncementTemplateIds,
-		arg.TargetKind,
-		arg.TargetSceneID,
-		arg.TargetPlaylistID,
 		arg.MinSeconds,
 		arg.MultiMode,
 		arg.AlternateSeconds,
+	)
+	return err
+}
+
+const insertSignageRuleScenes = `-- name: InsertSignageRuleScenes :exec
+INSERT INTO signage_rule_scenes (rule_id, position, scene_id, seconds, transition)
+SELECT $1::uuid, unnest($2::int[]), unnest($3::text[]::uuid[]),
+       unnest($4::int[]), unnest($5::text[])
+`
+
+type InsertSignageRuleScenesParams struct {
+	RuleID      uuid.UUID
+	Positions   []int32
+	SceneIds    []string
+	Seconds     []int32
+	Transitions []string
+}
+
+func (q *Queries) InsertSignageRuleScenes(ctx context.Context, arg InsertSignageRuleScenesParams) error {
+	_, err := q.db.Exec(ctx, insertSignageRuleScenes,
+		arg.RuleID,
+		arg.Positions,
+		arg.SceneIds,
+		arg.Seconds,
+		arg.Transitions,
 	)
 	return err
 }
@@ -1406,24 +1373,26 @@ func (q *Queries) ListAnnouncementsUsingTemplate(ctx context.Context, arg ListAn
 	return items, nil
 }
 
-const listDisplaysByDefaultPlaylist = `-- name: ListDisplaysByDefaultPlaylist :many
-SELECT id, name FROM signage_displays WHERE default_playlist_id = $1 ORDER BY name, id
+const listDisplaysWithDefaultScene = `-- name: ListDisplaysWithDefaultScene :many
+SELECT d.id, d.name FROM signage_displays d
+WHERE EXISTS (SELECT 1 FROM signage_default_scenes ds WHERE ds.display_id = d.id AND ds.scene_id = $1)
+ORDER BY d.name, d.id
 `
 
-type ListDisplaysByDefaultPlaylistRow struct {
+type ListDisplaysWithDefaultSceneRow struct {
 	ID   uuid.UUID
 	Name string
 }
 
-func (q *Queries) ListDisplaysByDefaultPlaylist(ctx context.Context, playlistID uuid.UUID) ([]ListDisplaysByDefaultPlaylistRow, error) {
-	rows, err := q.db.Query(ctx, listDisplaysByDefaultPlaylist, playlistID)
+func (q *Queries) ListDisplaysWithDefaultScene(ctx context.Context, sceneID uuid.UUID) ([]ListDisplaysWithDefaultSceneRow, error) {
+	rows, err := q.db.Query(ctx, listDisplaysWithDefaultScene, sceneID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListDisplaysByDefaultPlaylistRow{}
+	items := []ListDisplaysWithDefaultSceneRow{}
 	for rows.Next() {
-		var i ListDisplaysByDefaultPlaylistRow
+		var i ListDisplaysWithDefaultSceneRow
 		if err := rows.Scan(&i.ID, &i.Name); err != nil {
 			return nil, err
 		}
@@ -1542,43 +1511,14 @@ func (q *Queries) ListLiveSignageAnnouncementsForDisplay(ctx context.Context, ar
 	return items, nil
 }
 
-const listPlaylistsReferencingScene = `-- name: ListPlaylistsReferencingScene :many
-SELECT DISTINCT p.id, p.name FROM signage_playlist_items i JOIN signage_playlists p ON p.id = i.playlist_id
-WHERE i.scene_id = $1 ORDER BY p.name, p.id
-`
-
-type ListPlaylistsReferencingSceneRow struct {
-	ID   uuid.UUID
-	Name string
-}
-
-func (q *Queries) ListPlaylistsReferencingScene(ctx context.Context, sceneID uuid.UUID) ([]ListPlaylistsReferencingSceneRow, error) {
-	rows, err := q.db.Query(ctx, listPlaylistsReferencingScene, sceneID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListPlaylistsReferencingSceneRow{}
-	for rows.Next() {
-		var i ListPlaylistsReferencingSceneRow
-		if err := rows.Scan(&i.ID, &i.Name); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listRulesFilteringTemplate = `-- name: ListRulesFilteringTemplate :many
-SELECT r.id AS rule_id, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
+SELECT r.id AS rule_id, r.position, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
 WHERE r.announcement_template_ids @> ARRAY[$1::uuid] ORDER BY d.name, r.position
 `
 
 type ListRulesFilteringTemplateRow struct {
 	RuleID      uuid.UUID
+	Position    int32
 	DisplayID   uuid.UUID
 	DisplayName string
 }
@@ -1592,38 +1532,12 @@ func (q *Queries) ListRulesFilteringTemplate(ctx context.Context, templateID uui
 	items := []ListRulesFilteringTemplateRow{}
 	for rows.Next() {
 		var i ListRulesFilteringTemplateRow
-		if err := rows.Scan(&i.RuleID, &i.DisplayID, &i.DisplayName); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listRulesReferencingPlaylist = `-- name: ListRulesReferencingPlaylist :many
-SELECT r.id AS rule_id, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
-WHERE r.target_playlist_id = $1 ORDER BY d.name, r.position
-`
-
-type ListRulesReferencingPlaylistRow struct {
-	RuleID      uuid.UUID
-	DisplayID   uuid.UUID
-	DisplayName string
-}
-
-func (q *Queries) ListRulesReferencingPlaylist(ctx context.Context, playlistID *uuid.UUID) ([]ListRulesReferencingPlaylistRow, error) {
-	rows, err := q.db.Query(ctx, listRulesReferencingPlaylist, playlistID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListRulesReferencingPlaylistRow{}
-	for rows.Next() {
-		var i ListRulesReferencingPlaylistRow
-		if err := rows.Scan(&i.RuleID, &i.DisplayID, &i.DisplayName); err != nil {
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.Position,
+			&i.DisplayID,
+			&i.DisplayName,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1635,17 +1549,19 @@ func (q *Queries) ListRulesReferencingPlaylist(ctx context.Context, playlistID *
 }
 
 const listRulesReferencingScene = `-- name: ListRulesReferencingScene :many
-SELECT r.id AS rule_id, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
-WHERE r.target_scene_id = $1 ORDER BY d.name, r.position
+SELECT r.id AS rule_id, r.position, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
+WHERE EXISTS (SELECT 1 FROM signage_rule_scenes rs WHERE rs.rule_id = r.id AND rs.scene_id = $1)
+ORDER BY d.name, d.id, r.position
 `
 
 type ListRulesReferencingSceneRow struct {
 	RuleID      uuid.UUID
+	Position    int32
 	DisplayID   uuid.UUID
 	DisplayName string
 }
 
-func (q *Queries) ListRulesReferencingScene(ctx context.Context, sceneID *uuid.UUID) ([]ListRulesReferencingSceneRow, error) {
+func (q *Queries) ListRulesReferencingScene(ctx context.Context, sceneID uuid.UUID) ([]ListRulesReferencingSceneRow, error) {
 	rows, err := q.db.Query(ctx, listRulesReferencingScene, sceneID)
 	if err != nil {
 		return nil, err
@@ -1654,7 +1570,12 @@ func (q *Queries) ListRulesReferencingScene(ctx context.Context, sceneID *uuid.U
 	items := []ListRulesReferencingSceneRow{}
 	for rows.Next() {
 		var i ListRulesReferencingSceneRow
-		if err := rows.Scan(&i.RuleID, &i.DisplayID, &i.DisplayName); err != nil {
+		if err := rows.Scan(
+			&i.RuleID,
+			&i.Position,
+			&i.DisplayID,
+			&i.DisplayName,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2078,7 +1999,9 @@ func (q *Queries) ListSignageDisplayIDs(ctx context.Context, ids []string) ([]uu
 
 const listSignageDisplayViews = `-- name: ListSignageDisplayViews :many
 SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
-       d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
+                 FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
+       d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
        COALESCE((SELECT revision FROM signage_publications WHERE display_id = d.id ORDER BY revision DESC LIMIT 1), 0)::int AS published_revision,
@@ -2098,7 +2021,7 @@ type ListSignageDisplayViewsRow struct {
 	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
-	DefaultPlaylistID  uuid.UUID
+	DefaultScenes      string
 	RevokedAt          pgtype.Timestamptz
 	DeviceRevokedAt    pgtype.Timestamptz
 	Version            int64
@@ -2134,7 +2057,7 @@ func (q *Queries) ListSignageDisplayViews(ctx context.Context) ([]ListSignageDis
 			&i.AspectHeight,
 			&i.VisibleFromOutside,
 			&i.AllowCameraOutside,
-			&i.DefaultPlaylistID,
+			&i.DefaultScenes,
 			&i.RevokedAt,
 			&i.DeviceRevokedAt,
 			&i.Version,
@@ -2290,102 +2213,15 @@ func (q *Queries) ListSignageMachines(ctx context.Context) ([]ListSignageMachine
 	return items, nil
 }
 
-const listSignagePlaylistItems = `-- name: ListSignagePlaylistItems :many
-SELECT playlist_id, position, scene_id, seconds, transition FROM signage_playlist_items WHERE playlist_id = ANY($1::text[]::uuid[]) ORDER BY playlist_id, position
-`
-
-func (q *Queries) ListSignagePlaylistItems(ctx context.Context, playlistIds []string) ([]SignagePlaylistItem, error) {
-	rows, err := q.db.Query(ctx, listSignagePlaylistItems, playlistIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SignagePlaylistItem{}
-	for rows.Next() {
-		var i SignagePlaylistItem
-		if err := rows.Scan(
-			&i.PlaylistID,
-			&i.Position,
-			&i.SceneID,
-			&i.Seconds,
-			&i.Transition,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSignagePlaylists = `-- name: ListSignagePlaylists :many
-SELECT id, name, version, created_at, updated_at FROM signage_playlists ORDER BY lower(name), id
-`
-
-func (q *Queries) ListSignagePlaylists(ctx context.Context) ([]SignagePlaylist, error) {
-	rows, err := q.db.Query(ctx, listSignagePlaylists)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SignagePlaylist{}
-	for rows.Next() {
-		var i SignagePlaylist
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Version,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listSignagePlaylistsByIDs = `-- name: ListSignagePlaylistsByIDs :many
-SELECT id, name, version, created_at, updated_at FROM signage_playlists WHERE id = ANY($1::text[]::uuid[]) ORDER BY id
-`
-
-func (q *Queries) ListSignagePlaylistsByIDs(ctx context.Context, ids []string) ([]SignagePlaylist, error) {
-	rows, err := q.db.Query(ctx, listSignagePlaylistsByIDs, ids)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []SignagePlaylist{}
-	for rows.Next() {
-		var i SignagePlaylist
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Version,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listSignageRules = `-- name: ListSignageRules :many
 
-SELECT id, display_id, position, enabled, condition_kind, weekdays, COALESCE(time_from::text, '')::text AS time_from, COALESCE(time_to::text, '')::text AS time_to,
-       machine_ids::text[] AS machine_ids, machine_match, announcement_template_ids::text[] AS announcement_template_ids,
-       target_kind, target_scene_id, target_playlist_id, min_seconds, multi_mode, alternate_seconds
-FROM signage_rules WHERE display_id = ANY($1::text[]::uuid[]) ORDER BY display_id, position
+SELECT r.id, r.display_id, r.position, r.enabled, r.condition_kind, r.weekdays,
+       COALESCE(r.time_from::text, '')::text AS time_from, COALESCE(r.time_to::text, '')::text AS time_to,
+       r.machine_ids::text[] AS machine_ids, r.machine_match, r.announcement_template_ids::text[] AS announcement_template_ids,
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', rs.scene_id, 'seconds', rs.seconds, 'transition', rs.transition) ORDER BY rs.position)
+                 FROM signage_rule_scenes rs WHERE rs.rule_id = r.id), '[]'::jsonb)::text AS scenes,
+       r.min_seconds, r.multi_mode, r.alternate_seconds
+FROM signage_rules r WHERE r.display_id = ANY($1::text[]::uuid[]) ORDER BY r.display_id, r.position
 `
 
 type ListSignageRulesRow struct {
@@ -2400,9 +2236,7 @@ type ListSignageRulesRow struct {
 	MachineIds              []string
 	MachineMatch            *string
 	AnnouncementTemplateIds []string
-	TargetKind              string
-	TargetSceneID           *uuid.UUID
-	TargetPlaylistID        *uuid.UUID
+	Scenes                  string
 	MinSeconds              int32
 	MultiMode               string
 	AlternateSeconds        int32
@@ -2430,9 +2264,7 @@ func (q *Queries) ListSignageRules(ctx context.Context, displayIds []string) ([]
 			&i.MachineIds,
 			&i.MachineMatch,
 			&i.AnnouncementTemplateIds,
-			&i.TargetKind,
-			&i.TargetSceneID,
-			&i.TargetPlaylistID,
+			&i.Scenes,
 			&i.MinSeconds,
 			&i.MultiMode,
 			&i.AlternateSeconds,
@@ -2708,32 +2540,36 @@ func (q *Queries) ListSignageTemplates(ctx context.Context) ([]SignageAnnounceme
 	return items, nil
 }
 
-const lockSignagePlaylistForShare = `-- name: LockSignagePlaylistForShare :one
-SELECT id FROM signage_playlists WHERE id = $1 FOR SHARE
+const lockSignageScenesForShare = `-- name: LockSignageScenesForShare :many
+SELECT id, aspect_width, aspect_height FROM signage_scenes WHERE id = ANY($1::text[]::uuid[]) ORDER BY id FOR SHARE
 `
 
-func (q *Queries) LockSignagePlaylistForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, lockSignagePlaylistForShare, id)
-	var id_2 uuid.UUID
-	err := row.Scan(&id_2)
-	return id_2, err
-}
-
-const lockSignageSceneForShare = `-- name: LockSignageSceneForShare :one
-SELECT id, aspect_width, aspect_height FROM signage_scenes WHERE id = $1 FOR SHARE
-`
-
-type LockSignageSceneForShareRow struct {
+type LockSignageScenesForShareRow struct {
 	ID           uuid.UUID
 	AspectWidth  int16
 	AspectHeight int16
 }
 
-func (q *Queries) LockSignageSceneForShare(ctx context.Context, id uuid.UUID) (LockSignageSceneForShareRow, error) {
-	row := q.db.QueryRow(ctx, lockSignageSceneForShare, id)
-	var i LockSignageSceneForShareRow
-	err := row.Scan(&i.ID, &i.AspectWidth, &i.AspectHeight)
-	return i, err
+// The scenes a scene list refers to, share-locked so that a concurrent deletion or change of a scene's ratio
+// either waits for this transaction or is seen by it.
+func (q *Queries) LockSignageScenesForShare(ctx context.Context, ids []string) ([]LockSignageScenesForShareRow, error) {
+	rows, err := q.db.Query(ctx, lockSignageScenesForShare, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LockSignageScenesForShareRow{}
+	for rows.Next() {
+		var i LockSignageScenesForShareRow
+		if err := rows.Scan(&i.ID, &i.AspectWidth, &i.AspectHeight); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const nextSignagePublicationRevision = `-- name: NextSignagePublicationRevision :one
@@ -2926,9 +2762,9 @@ func (q *Queries) UpdateSignageCustomLayout(ctx context.Context, arg UpdateSigna
 const updateSignageDisplay = `-- name: UpdateSignageDisplay :one
 UPDATE signage_displays
 SET name = $1, location = $2, aspect_width = $3, aspect_height = $4,
-    visible_from_outside = $5, allow_camera_outside = $6, default_playlist_id = $7,
+    visible_from_outside = $5, allow_camera_outside = $6,
     version = version + 1, updated_at = now()
-WHERE id = $8 AND version = $9 AND revoked_at IS NULL
+WHERE id = $7 AND version = $8 AND revoked_at IS NULL
 RETURNING id
 `
 
@@ -2939,7 +2775,6 @@ type UpdateSignageDisplayParams struct {
 	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
-	DefaultPlaylistID  uuid.UUID
 	ID                 uuid.UUID
 	ExpectedVersion    int64
 }
@@ -2952,7 +2787,6 @@ func (q *Queries) UpdateSignageDisplay(ctx context.Context, arg UpdateSignageDis
 		arg.AspectHeight,
 		arg.VisibleFromOutside,
 		arg.AllowCameraOutside,
-		arg.DefaultPlaylistID,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -2961,38 +2795,13 @@ func (q *Queries) UpdateSignageDisplay(ctx context.Context, arg UpdateSignageDis
 	return id, err
 }
 
-const updateSignagePlaylist = `-- name: UpdateSignagePlaylist :one
-UPDATE signage_playlists SET name = $1, version = version + 1, updated_at = now()
-WHERE id = $2 AND version = $3 RETURNING id, name, version, created_at, updated_at
-`
-
-type UpdateSignagePlaylistParams struct {
-	Name            string
-	ID              uuid.UUID
-	ExpectedVersion int64
-}
-
-func (q *Queries) UpdateSignagePlaylist(ctx context.Context, arg UpdateSignagePlaylistParams) (SignagePlaylist, error) {
-	row := q.db.QueryRow(ctx, updateSignagePlaylist, arg.Name, arg.ID, arg.ExpectedVersion)
-	var i SignagePlaylist
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const updateSignageRule = `-- name: UpdateSignageRule :execrows
 UPDATE signage_rules
 SET enabled = $1, condition_kind = $2, weekdays = $3::smallint[],
     time_from = $4::text::time, time_to = $5::text::time, machine_ids = $6::text[]::uuid[],
     machine_match = $7, announcement_template_ids = $8::text[]::uuid[],
-    target_kind = $9, target_scene_id = $10, target_playlist_id = $11,
-    min_seconds = $12, multi_mode = $13, alternate_seconds = $14
-WHERE id = $15 AND display_id = $16
+    min_seconds = $9, multi_mode = $10, alternate_seconds = $11
+WHERE id = $12 AND display_id = $13
 `
 
 type UpdateSignageRuleParams struct {
@@ -3004,9 +2813,6 @@ type UpdateSignageRuleParams struct {
 	MachineIds              []string
 	MachineMatch            *string
 	AnnouncementTemplateIds []string
-	TargetKind              string
-	TargetSceneID           *uuid.UUID
-	TargetPlaylistID        *uuid.UUID
 	MinSeconds              int32
 	MultiMode               string
 	AlternateSeconds        int32
@@ -3024,9 +2830,6 @@ func (q *Queries) UpdateSignageRule(ctx context.Context, arg UpdateSignageRulePa
 		arg.MachineIds,
 		arg.MachineMatch,
 		arg.AnnouncementTemplateIds,
-		arg.TargetKind,
-		arg.TargetSceneID,
-		arg.TargetPlaylistID,
 		arg.MinSeconds,
 		arg.MultiMode,
 		arg.AlternateSeconds,

@@ -21,7 +21,7 @@
 import type { SignageMachineMatch } from './signageMachineMatch';
 import type { SignageMultiMode } from './signageMultiMode';
 import type { SignageRuleConditionKind } from './signageRuleConditionKind';
-import type { SignageRuleTargetKind } from './signageRuleTargetKind';
+import type { SignageSceneListItems } from './signageSceneListItems';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageRule {
@@ -55,8 +55,7 @@ export interface SignageRule {
      * @maxItems 50
      */
   announcementTemplateIds: UUIDv7[];
-  targetKind: SignageRuleTargetKind;
-  targetId: UUIDv7;
+  scenes: SignageSceneListItems;
   /**
      * @minimum 0
      * @maximum 600

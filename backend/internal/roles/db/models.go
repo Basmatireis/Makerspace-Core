@@ -1821,13 +1821,20 @@ type SignageCustomLayout struct {
 	UpdatedAt time.Time
 }
 
+type SignageDefaultScene struct {
+	DisplayID  uuid.UUID
+	Position   int32
+	SceneID    uuid.UUID
+	Seconds    int32
+	Transition string
+}
+
 type SignageDisplay struct {
 	ID                 uuid.UUID
 	ManagedDeviceID    uuid.UUID
 	Name               string
 	Location           string
 	VisibleFromOutside bool
-	DefaultPlaylistID  uuid.UUID
 	RevokedAt          pgtype.Timestamptz
 	Version            int64
 	CreatedAt          time.Time
@@ -1860,22 +1867,6 @@ type SignagePairingRequest struct {
 	DeliveredAt      pgtype.Timestamptz
 }
 
-type SignagePlaylist struct {
-	ID        uuid.UUID
-	Name      string
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
-type SignagePlaylistItem struct {
-	PlaylistID uuid.UUID
-	Position   int32
-	SceneID    uuid.UUID
-	Seconds    int32
-	Transition string
-}
-
 type SignagePublication struct {
 	ID                   uuid.UUID
 	DisplayID            uuid.UUID
@@ -1898,12 +1889,17 @@ type SignageRule struct {
 	MachineIds              []uuid.UUID
 	MachineMatch            *string
 	AnnouncementTemplateIds []uuid.UUID
-	TargetKind              string
-	TargetSceneID           *uuid.UUID
-	TargetPlaylistID        *uuid.UUID
 	MinSeconds              int32
 	MultiMode               string
 	AlternateSeconds        int32
+}
+
+type SignageRuleScene struct {
+	RuleID     uuid.UUID
+	Position   int32
+	SceneID    uuid.UUID
+	Seconds    int32
+	Transition string
 }
 
 type SignageScene struct {

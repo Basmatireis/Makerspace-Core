@@ -1,6 +1,6 @@
-// Package signage owns digital-signage content: layouts, media assets, scenes, playlists,
-// announcement templates and announcements. Displays, pairing, rules, publications and the player
-// API build on the same tables in a later phase.
+// Package signage owns digital-signage content (layouts, media assets, scenes, announcement templates and
+// announcements) and the displays that show it: pairing, rules with their scene lists, the default scene
+// list, publications and the player API.
 package signage
 
 import (
@@ -106,6 +106,12 @@ func requireOverride(principal authorization.Principal) error {
 
 func validation(format string, args ...any) error {
 	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", fmt.Sprintf(format, args...))
+}
+
+// ruleReference names a rule of a display that blocks a deletion ("Rule 2 of Entrance"); its id is the
+// display's, whose page lists the rule.
+func ruleReference(displayID uuid.UUID, displayName string, position int32) Reference {
+	return Reference{Kind: ReferenceRule, ID: displayID, Name: fmt.Sprintf("Rule %d of %s", position+1, displayName)}
 }
 
 // inUse reports the references that block a deletion as 409 signage_in_use.

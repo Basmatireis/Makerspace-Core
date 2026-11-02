@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	"image/jpeg"
 	"io"
@@ -161,8 +162,8 @@ func (f signageFixture) machine(t *testing.T, name string) uuid.UUID {
 	return machineID
 }
 
-// display inserts a paired display (managed device included) that uses the given default playlist.
-func (f signageFixture) display(t *testing.T, name string, playlistID uuid.UUID) uuid.UUID {
+// display inserts a paired 16:9 display (managed device included) with the given default scene list.
+func (f signageFixture) display(t *testing.T, name string, defaultScenes []signage.SceneListItem) uuid.UUID {
 	t.Helper()
 	ctx := testContext(t)
 	typeID, deviceID, displayID := ids.New(), ids.New(), ids.New()
@@ -183,11 +184,40 @@ func (f signageFixture) display(t *testing.T, name string, playlistID uuid.UUID)
 	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(ctx, `INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, default_playlist_id)
-		VALUES ($1, $2, $3, 'Ground floor', 16, 9, $4)`, displayID, deviceID, name, playlistID); err != nil {
+	if _, err := f.pool.Exec(ctx, `INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height)
+		VALUES ($1, $2, $3, 'Ground floor', 16, 9)`, displayID, deviceID, name); err != nil {
 		t.Fatal(err)
 	}
+	for position, item := range defaultScenes {
+		if _, err := f.pool.Exec(ctx, `INSERT INTO signage_default_scenes (display_id, position, scene_id, seconds, transition)
+			VALUES ($1, $2, $3, $4, $5)`, displayID, position, item.SceneID, item.Seconds, item.Transition); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return displayID
+}
+
+// insertRule stores a rule of the display directly, showing the given scenes, and returns its id.
+func (f signageFixture) insertRule(t *testing.T, displayID uuid.UUID, position int, columns string, values []any, scenes ...uuid.UUID) uuid.UUID {
+	t.Helper()
+	ctx := testContext(t)
+	ruleID := ids.New()
+	placeholders := ""
+	for index := range values {
+		placeholders += fmt.Sprintf(", $%d", index+4)
+	}
+	args := append([]any{ruleID, displayID, position}, values...)
+	if _, err := f.pool.Exec(ctx, `INSERT INTO signage_rules (id, display_id, position, `+columns+`)
+		VALUES ($1, $2, $3`+placeholders+`)`, args...); err != nil {
+		t.Fatal(err)
+	}
+	for index, scene := range scenes {
+		if _, err := f.pool.Exec(ctx, `INSERT INTO signage_rule_scenes (rule_id, position, scene_id, seconds, transition)
+			VALUES ($1, $2, $3, 10, 'cut')`, ruleID, index, scene); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return ruleID
 }
 
 func emptyZonesJSON(ids ...string) map[string]json.RawMessage {
@@ -219,22 +249,13 @@ func (f signageFixture) scene(t *testing.T, name string) signage.Scene {
 	return scene
 }
 
-func (f signageFixture) playlist(t *testing.T, name string, scenes ...uuid.UUID) signage.Playlist {
-	t.Helper()
-	items := make([]signage.PlaylistItem, 0, len(scenes))
+// sceneList is a scene list showing the scenes for ten seconds each with a cut.
+func sceneList(scenes ...uuid.UUID) []signage.SceneListItem {
+	list := make([]signage.SceneListItem, 0, len(scenes))
 	for _, id := range scenes {
-		items = append(items, signage.PlaylistItem{SceneID: id, Seconds: 10, Transition: "cut"})
+		list = append(list, signage.SceneListItem{SceneID: id, Seconds: 10, Transition: signage.TransitionCut})
 	}
-	playlist, err := f.service.CreatePlaylist(
-		testContext(t),
-		f.admin,
-		signage.PlaylistInput{Name: name, Items: items},
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return playlist
+	return list
 }
 
 func expectInUse(t *testing.T, err error, kinds ...string) {
@@ -274,7 +295,6 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 
 	asset := f.uploadImage(t, "seed.jpg")
 	scene := f.scene(t, "Seed scene")
-	playlist := f.playlist(t, "Seed playlist", scene.ID)
 	template, err := f.service.CreateTemplate(
 		ctx,
 		f.admin,
@@ -377,44 +397,6 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 			[]authorization.Principal{nobody, reader, override, manager},
 			func(p authorization.Principal) error {
 				_, err := f.service.UpdateScene(ctx, p, scene.ID, 99, sceneInput("Seed scene", "full"), nil)
-				if apperror.IsCode(err, "stale_write") {
-					return nil
-				}
-				return err
-			},
-		},
-		{
-			"list playlists",
-			reader,
-			[]authorization.Principal{nobody, content},
-			func(p authorization.Principal) error { _, err := f.service.ListPlaylists(ctx, p); return err },
-		},
-		{"get playlist", reader, []authorization.Principal{nobody, content}, func(p authorization.Principal) error {
-			_, err := f.service.GetPlaylist(ctx, p, playlist.ID)
-			return err
-		}},
-		{
-			"create playlist",
-			content,
-			[]authorization.Principal{nobody, reader, override, manager},
-			func(p authorization.Principal) error {
-				_, err := f.service.CreatePlaylist(ctx, p, signage.PlaylistInput{Name: "Permission playlist"}, nil)
-				return err
-			},
-		},
-		{
-			"update playlist",
-			content,
-			[]authorization.Principal{nobody, reader, override, manager},
-			func(p authorization.Principal) error {
-				_, err := f.service.UpdatePlaylist(
-					ctx,
-					p,
-					playlist.ID,
-					99,
-					signage.PlaylistInput{Name: "Seed playlist"},
-					nil,
-				)
 				if apperror.IsCode(err, "stale_write") {
 					return nil
 				}
@@ -536,18 +518,6 @@ func TestSignagePermissionsAllowedAndDenied(t *testing.T) {
 			[]authorization.Principal{nobody, reader, override, manager},
 			func(p authorization.Principal) error {
 				err := f.service.DeleteScene(ctx, p, scene.ID, 99, nil)
-				if apperror.IsCode(err, "stale_write") {
-					return nil
-				}
-				return err
-			},
-		},
-		{
-			"delete playlist",
-			content,
-			[]authorization.Principal{nobody, reader, override, manager},
-			func(p authorization.Principal) error {
-				err := f.service.DeletePlaylist(ctx, p, playlist.ID, 99, nil)
 				if apperror.IsCode(err, "stale_write") {
 					return nil
 				}
@@ -972,17 +942,15 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 		t.Fatalf("explicit zones = %#v, %v", replaced, err)
 	}
 
-	// Playlists block scene deletion, and so do rules.
-	playlist := f.playlist(t, "Loop", scene.ID)
+	// A default scene list blocks scene deletion, and so does a rule's scene list.
 	scene, _ = f.service.GetScene(ctx, f.admin, scene.ID)
-	expectInUse(t, f.service.DeleteScene(ctx, f.admin, scene.ID, scene.Version, nil), "playlist")
-	display := f.display(t, "Entrance", playlist.ID)
+	display := f.display(t, "Entrance", sceneList(scene.ID))
+	expectInUse(t, f.service.DeleteScene(ctx, f.admin, scene.ID, scene.Version, nil), "display")
 	ruleScene := f.scene(t, "Rule target")
-	if _, err := f.pool.Exec(ctx, `INSERT INTO signage_rules (id, display_id, position, condition_kind, weekdays, time_from, time_to, target_kind, target_scene_id)
-		VALUES (uuidv7(), $1, 0, 'time_window', '{1,2,3}', '08:00', '12:00', 'scene', $2)`, display, ruleScene.ID); err != nil {
-		t.Fatal(err)
-	}
-	expectInUse(t, f.service.DeleteScene(ctx, f.admin, ruleScene.ID, ruleScene.Version, nil), "display_rule")
+	f.insertRule(t, display, 0, "condition_kind, weekdays, time_from, time_to",
+		[]any{"time_window", "{1,2,3}", "08:00", "12:00"}, scene.ID, ruleScene.ID)
+	expectInUse(t, f.service.DeleteScene(ctx, f.admin, ruleScene.ID, ruleScene.Version, nil), "rule")
+	expectInUse(t, f.service.DeleteScene(ctx, f.admin, scene.ID, scene.Version, nil), "rule", "display")
 	if _, err := f.pool.Exec(ctx, `DELETE FROM signage_rules`); err != nil {
 		t.Fatal(err)
 	}
@@ -1013,153 +981,13 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 	}
 }
 
-func TestSignagePlaylistsReplaceItemsAtomicallyAndGuardDeletion(t *testing.T) {
-	f := newSignageFixture(t)
-	ctx := testContext(t)
-	one, two, three := f.scene(t, "One"), f.scene(t, "Two"), f.scene(t, "Three")
-
-	playlist, err := f.service.CreatePlaylist(
-		ctx,
-		f.admin,
-		signage.PlaylistInput{Name: "Morning", Items: []signage.PlaylistItem{
-			{SceneID: one.ID, Seconds: 10, Transition: "cut"}, {SceneID: two.ID, Seconds: 20, Transition: "fade"},
-		}},
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if playlist.Version != 1 || len(playlist.Items) != 2 || playlist.Items[1].SceneID != two.ID ||
-		playlist.Items[1].Transition != "fade" {
-		t.Fatalf("playlist = %#v", playlist)
-	}
-	// The same scene may appear twice; order is the item order.
-	reordered, err := f.service.UpdatePlaylist(
-		ctx,
-		f.admin,
-		playlist.ID,
-		playlist.Version,
-		signage.PlaylistInput{Name: "Morning loop", Items: []signage.PlaylistItem{
-			{
-				SceneID:    two.ID,
-				Seconds:    5,
-				Transition: "cut",
-			}, {SceneID: one.ID, Seconds: 3600, Transition: "fade"}, {SceneID: two.ID, Seconds: 3, Transition: "cut"},
-		}},
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if reordered.Version != 2 || reordered.Name != "Morning loop" || len(reordered.Items) != 3 ||
-		reordered.Items[0].SceneID != two.ID ||
-		reordered.Items[1].SceneID != one.ID ||
-		reordered.Items[2].Seconds != 3 {
-		t.Fatalf("reordered = %#v", reordered)
-	}
-	if _, err := f.service.UpdatePlaylist(
-		ctx,
-		f.admin,
-		playlist.ID,
-		playlist.Version,
-		signage.PlaylistInput{Name: "Stale"},
-		nil,
-	); !apperror.IsCode(
-		err,
-		"stale_write",
-	) {
-		t.Fatalf("stale update: %v", err)
-	}
-
-	// A failing replacement leaves name, version and items untouched.
-	missing := ids.New()
-	for name, items := range map[string][]signage.PlaylistItem{
-		"missing scene": {
-			{SceneID: three.ID, Seconds: 10, Transition: "cut"},
-			{SceneID: missing, Seconds: 10, Transition: "cut"},
-		},
-		"seconds low":    {{SceneID: three.ID, Seconds: 2, Transition: "cut"}},
-		"seconds high":   {{SceneID: three.ID, Seconds: 3601, Transition: "cut"}},
-		"bad transition": {{SceneID: three.ID, Seconds: 10, Transition: "wipe"}},
-		"too many":       make([]signage.PlaylistItem, 101),
-	} {
-		if name == "too many" {
-			for index := range items {
-				items[index] = signage.PlaylistItem{SceneID: three.ID, Seconds: 10, Transition: "cut"}
-			}
-		}
-		if _, err := f.service.UpdatePlaylist(
-			ctx,
-			f.admin,
-			playlist.ID,
-			reordered.Version,
-			signage.PlaylistInput{Name: "Broken", Items: items},
-			nil,
-		); !apperror.IsCode(
-			err,
-			"validation_failed",
-		) {
-			t.Errorf("%s: error = %v", name, err)
-		}
-	}
-	unchanged, err := f.service.GetPlaylist(ctx, f.admin, playlist.ID)
-	if err != nil || unchanged.Version != 2 || unchanged.Name != "Morning loop" || len(unchanged.Items) != 3 {
-		t.Fatalf("failed replacement changed the playlist: %#v, %v", unchanged, err)
-	}
-	if _, err := f.service.CreatePlaylist(
-		ctx,
-		f.admin,
-		signage.PlaylistInput{
-			Name:  "Orphan",
-			Items: []signage.PlaylistItem{{SceneID: missing, Seconds: 10, Transition: "cut"}},
-		},
-		nil,
-	); !apperror.IsCode(
-		err,
-		"validation_failed",
-	) {
-		t.Fatalf("create with missing scene: %v", err)
-	}
-	assertCount(t, f.pool, `SELECT count(*) FROM signage_playlists`, 1)
-
-	list, err := f.service.ListPlaylists(ctx, f.admin)
-	if err != nil || len(list) != 1 || len(list[0].Items) != 3 {
-		t.Fatalf("list = %#v, %v", list, err)
-	}
-
-	// Deletion is blocked by displays (default playlist) and by rules.
-	display := f.display(t, "Hall", playlist.ID)
-	expectInUse(t, f.service.DeletePlaylist(ctx, f.admin, playlist.ID, unchanged.Version, nil), "display_default")
-	other := f.playlist(t, "Other", three.ID)
-	if _, err := f.pool.Exec(ctx, `INSERT INTO signage_rules (id, display_id, position, condition_kind, target_kind, target_playlist_id)
-		VALUES (uuidv7(), $1, 0, 'live_data_unavailable', 'playlist', $2)`, display, other.ID); err != nil {
-		t.Fatal(err)
-	}
-	expectInUse(t, f.service.DeletePlaylist(ctx, f.admin, other.ID, other.Version, nil), "display_rule")
-	if err := f.service.DeletePlaylist(ctx, f.admin, other.ID, other.Version+1, nil); !apperror.IsCode(
-		err,
-		"stale_write",
-	) {
-		t.Fatalf("stale delete: %v", err)
-	}
-	if _, err := f.pool.Exec(ctx, `DELETE FROM signage_rules`); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.service.DeletePlaylist(ctx, f.admin, other.ID, other.Version, nil); err != nil {
-		t.Fatal(err)
-	}
-	assertCount(t, f.pool, `SELECT count(*) FROM signage_playlist_items WHERE playlist_id=$1`, 0, other.ID)
-	// A scene that sits in a playlist cannot be deleted.
-	expectInUse(t, f.service.DeleteScene(ctx, f.admin, one.ID, one.Version, nil), "playlist")
-}
-
 func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 	f := newSignageFixture(t)
 	ctx := testContext(t)
 	machine := f.machine(t, "Laser")
-	playlist := f.playlist(t, "Default")
-	display := f.display(t, "Entrance", playlist.ID)
-	otherDisplay := f.display(t, "Workshop", playlist.ID)
+	defaults := sceneList(f.scene(t, "Default").ID)
+	display := f.display(t, "Entrance", defaults)
+	otherDisplay := f.display(t, "Workshop", defaults)
 
 	input := signage.TemplateInput{
 		Name:  "Machine down",
@@ -1439,11 +1267,9 @@ func TestSignageTemplatesAndAnnouncementLifecycle(t *testing.T) {
 
 	// A rule filtering this template also blocks deletion.
 	scene := f.scene(t, "Rule scene")
-	if _, err := f.pool.Exec(ctx, `INSERT INTO signage_rules (id, display_id, position, condition_kind, announcement_template_ids, target_kind, target_scene_id)
-		VALUES (uuidv7(), $1, 0, 'announcement_active', ARRAY[$2]::uuid[], 'scene', $3)`, display, template.ID, scene.ID); err != nil {
-		t.Fatal(err)
-	}
-	expectInUse(t, f.service.DeleteTemplate(ctx, f.admin, template.ID, template.Version, nil), "display_rule")
+	f.insertRule(t, display, 0, "condition_kind, announcement_template_ids",
+		[]any{"announcement_active", "{" + template.ID.String() + "}"}, scene.ID)
+	expectInUse(t, f.service.DeleteTemplate(ctx, f.admin, template.ID, template.Version, nil), "rule")
 	if _, err := f.pool.Exec(ctx, `DELETE FROM signage_rules`); err != nil {
 		t.Fatal(err)
 	}
@@ -1537,7 +1363,6 @@ func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	playlist := f.playlist(t, "P", scene.ID)
 	announcement, err := f.service.StartAnnouncement(
 		ctx,
 		f.admin,
@@ -1571,27 +1396,6 @@ func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 	}
 	if err := f.service.DeleteScene(ctx, f.admin, scene.ID, scene.Version, nil); err == nil {
 		t.Fatal("scene delete committed without audit")
-	}
-	if _, err := f.service.CreatePlaylist(
-		ctx,
-		f.admin,
-		signage.PlaylistInput{
-			Name:  "Never",
-			Items: []signage.PlaylistItem{{SceneID: scene.ID, Seconds: 10, Transition: "cut"}},
-		},
-		nil,
-	); err == nil {
-		t.Fatal("playlist committed without audit")
-	}
-	if _, err := f.service.UpdatePlaylist(
-		ctx,
-		f.admin,
-		playlist.ID,
-		playlist.Version,
-		signage.PlaylistInput{Name: "Renamed"},
-		nil,
-	); err == nil {
-		t.Fatal("playlist update committed without audit")
 	}
 	if _, err := f.service.CreateTemplate(
 		ctx,
@@ -1649,9 +1453,6 @@ func TestSignageMutationsAndAuditShareOneTransaction(t *testing.T) {
 
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_scenes WHERE name='Existing'`, 1)
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_scenes`, 1)
-	assertCount(t, f.pool, `SELECT count(*) FROM signage_playlists WHERE name='P'`, 1)
-	assertCount(t, f.pool, `SELECT count(*) FROM signage_playlists`, 1)
-	assertCount(t, f.pool, `SELECT count(*) FROM signage_playlist_items WHERE playlist_id=$1`, 1, playlist.ID)
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcement_templates WHERE name='T' AND version=1`, 1)
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcement_templates`, 1)
 	assertCount(t, f.pool, `SELECT count(*) FROM signage_announcements WHERE version=1`, 1)
@@ -1934,22 +1735,7 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
 
-	// Playlist, template and announcement round trip over HTTP.
-	response = send(
-		editorClient,
-		editorCSRF,
-		http.MethodPost,
-		"/signage/playlists",
-		map[string]any{
-			"name":  "Loop",
-			"items": []any{map[string]any{"sceneId": sceneID, "seconds": 12, "transition": "fade"}},
-		},
-		nil,
-	)
-	assertStatus(t, response, http.StatusCreated)
-	if playlist := decode(response); len(playlist["items"].([]any)) != 1 {
-		t.Fatalf("playlist = %#v", playlist)
-	}
+	// Template and announcement round trip over HTTP.
 	response = send(editorClient, editorCSRF, http.MethodPost, "/signage/announcement-templates", map[string]any{
 		"name": "Closed", "tone": "warning", "title": "Closed until {back_on}", "body": "{ends}",
 		"fields": []any{

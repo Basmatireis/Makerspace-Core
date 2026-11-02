@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { InlineNotification, Modal, Select, SelectItem, Stack, TextInput } from '@carbon/react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { InlineNotification, Modal, Stack, TextInput } from '@carbon/react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { SignageDisplay } from '../../api/generated/models';
 import { deleteSignageDisplay } from '../../api/generated/signage/signage';
@@ -8,7 +8,9 @@ import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { errorMessage, isStaleWrite } from './helpers';
 import { signagePaths } from './paths';
 import { settingsOf, useUpdateDisplay } from './displayMutations';
-import { playlistsQuery, signageKeys } from './queries';
+import { signageKeys } from './queries';
+import { SceneListFields } from './SceneListFields';
+import { sceneListDraftOf, sceneListError, type SceneListDraftItem } from './sceneListDraft';
 
 const staleText = 'This display was changed somewhere else. It was refreshed; try again.';
 
@@ -69,20 +71,34 @@ export function RenameDisplayModal({ display, onClose }: { display: SignageDispl
   );
 }
 
-export function DefaultPlaylistModal({ display, onClose }: { display: SignageDisplay; onClose: () => void }) {
-  const playlists = useQuery(playlistsQuery());
-  const [playlistId, setPlaylistId] = useState(display.defaultPlaylistId);
+export function DefaultScenesModal({ display, onClose }: { display: SignageDisplay; onClose: () => void }) {
+  const [scenes, setScenes] = useState<SceneListDraftItem[]>(() => sceneListDraftOf(display.defaultScenes));
+  const [showError, setShowError] = useState(false);
   const update = useUpdateDisplay(display.id);
-  const save = () =>
+  const error = sceneListError(scenes);
+  const save = () => {
+    if (error) {
+      setShowError(true);
+      return;
+    }
     update.mutate(
-      { ...settingsOf(display), expectedVersion: display.version, defaultPlaylistId: playlistId },
+      {
+        ...settingsOf(display),
+        expectedVersion: display.version,
+        defaultScenes: scenes.map(({ sceneId, seconds, transition }) => ({
+          sceneId,
+          seconds: seconds >= 3 && seconds <= 3600 ? seconds : 20,
+          transition,
+        })),
+      },
       { onSuccess: onClose },
     );
+  };
   return (
     <Modal
       open
-      size="xs"
-      modalHeading="Default playlist"
+      size="md"
+      modalHeading="Default scenes"
       modalLabel={display.name}
       primaryButtonText={update.isPending ? 'Saving…' : 'Save'}
       secondaryButtonText="Cancel"
@@ -92,17 +108,15 @@ export function DefaultPlaylistModal({ display, onClose }: { display: SignageDis
       onRequestSubmit={save}
     >
       <Stack gap={5}>
-        <Select
-          id="default-playlist"
-          labelText="Plays when no rule matches"
-          helperText="Changing it needs publishing."
-          value={playlistId}
-          onChange={(event) => setPlaylistId(event.target.value)}
-        >
-          {(playlists.data?.items ?? []).map((playlist) => (
-            <SelectItem key={playlist.id} value={playlist.id} text={playlist.name} />
-          ))}
-        </Select>
+        <p className="sg-secondary">Shown when no rule matches. Changing them needs publishing.</p>
+        <SceneListFields
+          idPrefix="default"
+          label="Show"
+          value={scenes}
+          onChange={setScenes}
+          aspectRatio={display.aspectRatio}
+          invalidText={showError && error ? error : undefined}
+        />
         {update.isError && (
           <InlineNotification
             kind="error"

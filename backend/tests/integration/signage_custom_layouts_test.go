@@ -224,8 +224,8 @@ func TestSignageCustomLayoutReachesManifestAndPendingChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	playlist := e.fixture.playlist(t, "Custom playlist", sceneID)
-	display, player := e.pair(staff, "Custom display", playlist.ID)
+	defaults := sceneList(sceneID)
+	display, player := e.pair(staff, "Custom display", defaults)
 	displayID := display["id"].(string)
 	e.expect(e.as(staff, http.MethodPost, "/signage/displays/"+displayID+"/publish", nil), http.StatusOK)
 
@@ -423,8 +423,8 @@ func TestSignageCalendarBlockOnlyWithPublishedCalendarWidget(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		playlist := e.fixture.playlist(t, "Calendar "+uuid.NewString()[:8], sceneID)
-		display, player := e.pair(staff, "Calendar "+uuid.NewString()[:8], playlist.ID)
+		defaults := sceneList(sceneID)
+		display, player := e.pair(staff, "Calendar "+uuid.NewString()[:8], defaults)
 		e.expect(e.as(staff, http.MethodPost, "/signage/displays/"+display["id"].(string)+"/publish", nil), http.StatusOK)
 		live := e.expect(e.do(player, "", http.MethodGet, "/signage/player/live", nil), http.StatusOK)
 		block, _ := live["calendar"].(map[string]any)

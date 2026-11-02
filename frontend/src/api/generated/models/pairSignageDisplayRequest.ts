@@ -19,7 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignageAspectRatio } from './signageAspectRatio';
-import type { UUIDv7 } from './uUIDv7';
+import type { SignageSceneListItems } from './signageSceneListItems';
 
 export interface PairSignageDisplayRequest {
   /**
@@ -39,5 +39,5 @@ export interface PairSignageDisplayRequest {
   visibleFromOutside: boolean;
   /** Optional; omitted means unchanged on update and false on pairing. */
   allowCameraOutside?: boolean;
-  defaultPlaylistId: UUIDv7;
+  defaultScenes: SignageSceneListItems;
 }

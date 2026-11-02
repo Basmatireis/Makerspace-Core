@@ -70,10 +70,8 @@ export function referenceHref(reference: SignageReference): string | null {
   switch (reference.kind) {
     case 'scene':
       return `/signage/scenes/${encodeURIComponent(reference.id)}`;
-    case 'playlist':
-      return `/signage/playlists/${encodeURIComponent(reference.id)}`;
-    case 'display_default':
-    case 'display_rule':
+    case 'rule':
+    case 'display':
       return `/signage/displays/${encodeURIComponent(reference.id)}`;
     case 'announcement':
       return '/signage/announcements';
@@ -86,9 +84,8 @@ export const referenceLabel = (reference: SignageReference) =>
   (
     ({
       scene: 'Scene',
-      playlist: 'Playlist',
-      display_default: 'Display (default playlist)',
-      display_rule: 'Display (rule)',
+      rule: 'Display rule',
+      display: 'Display (default scenes)',
       announcement: 'Announcement',
     }) as Record<string, string>
   )[reference.kind] ?? reference.kind;
@@ -116,7 +113,6 @@ const PENDING_KIND: Record<string, string> = {
   display: 'Display settings',
   rule: 'Rule',
   scene: 'Scene',
-  playlist: 'Playlist',
   asset: 'Media',
 };
 const PENDING_CHANGE: Record<string, string> = { added: 'added', modified: 'edited', removed: 'removed' };

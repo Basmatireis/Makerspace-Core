@@ -7,7 +7,7 @@ import type {
 } from '../../api/generated/models';
 import { assetContentUrl } from './preview';
 import {
-  playlistPosition,
+  sceneListPosition,
   resolvePlayback,
   type Names,
   type PlaybackResult,
@@ -19,13 +19,10 @@ import { isPrinting, type RenderAnnouncement, type RenderData, type RenderMachin
 export type PublishedView = {
   manifest: SignagePlayerManifest;
   result: PlaybackResult;
-  /** Scene on screen now (the playlist's current item for a playlist target). */
+  /** Scene on screen now (the current item of the winning scene list). */
   scene: SignagePlayerScene | null;
-  /** Name of the winning rule's scene or playlist. */
-  targetName: string;
-  targetKind: 'scene' | 'playlist';
   transition: SignageTransition;
-  /** Changes when another playlist item takes over, so a fade can restart. */
+  /** Changes when another list item takes over, so a fade can restart. */
   itemKey: string;
   secondsLeft: number | null;
   data: RenderData;
@@ -76,7 +73,7 @@ export function resolvePublished(preview: SignageDisplayPreview, options: Publis
   const digests = new Map(manifest.assets.map((asset) => [asset.id, asset.sha256]));
   const assetNames = new Map(manifest.assets.map((asset) => [asset.id, asset.name]));
   const result = resolvePlayback(
-    manifest.defaultPlaylistId,
+    manifest.defaultScenes,
     manifest.rules as PlaybackRule[],
     {
       now: new Date(now),
@@ -102,31 +99,23 @@ export function resolvePublished(preview: SignageDisplayPreview, options: Publis
     assetName: (assetId) => assetNames.get(assetId) ?? null,
   };
   let scene: SignagePlayerScene | null = null;
-  let targetName: string;
   let transition: SignageTransition = 'cut';
-  let itemKey = result.target.id;
+  let itemKey = result.ruleId;
   let secondsLeft: number | null = null;
-  if (result.target.kind === 'scene') {
-    scene = manifest.scenes.find((item) => item.id === result.target.id) ?? null;
-    targetName = scene?.name ?? '';
-  } else {
-    const playlist = manifest.playlists.find((item) => item.id === result.target.id);
-    targetName = playlist?.name ?? '';
-    const items = (playlist?.items ?? []).filter((item) => manifest.scenes.some((entry) => entry.id === item.sceneId));
-    const current = playlistPosition(items, now / 1000);
-    if (current) {
-      scene = manifest.scenes.find((item) => item.id === current.item.sceneId) ?? null;
-      transition = current.item.transition;
-      itemKey = `${result.target.id}-${current.index}`;
-      secondsLeft = current.secondsLeft;
-    }
+  // Items whose scene is missing from the manifest are skipped.
+  const items = result.scenes.filter((item) => manifest.scenes.some((entry) => entry.id === item.sceneId));
+  const current = sceneListPosition(items, now / 1000);
+  if (current) {
+    scene = manifest.scenes.find((item) => item.id === current.item.sceneId) ?? null;
+    transition = current.item.transition;
+    itemKey = `${result.ruleId}-${current.index}`;
+    // A single scene never changes, so there is no countdown.
+    secondsLeft = items.length > 1 ? current.secondsLeft : null;
   }
   return {
     manifest,
     result,
     scene,
-    targetName,
-    targetKind: result.target.kind,
     transition,
     itemKey,
     secondsLeft,
@@ -145,8 +134,7 @@ export const toPlaybackRule = (rule: SignageRule): PlaybackRule => ({
   machineIds: rule.machineIds,
   machineMatch: rule.machineMatch,
   announcementTemplateIds: rule.announcementTemplateIds,
-  targetKind: rule.targetKind,
-  targetId: rule.targetId,
+  scenes: rule.scenes,
   minSeconds: rule.minSeconds,
   multiMode: rule.multiMode,
   alternateSeconds: rule.alternateSeconds,

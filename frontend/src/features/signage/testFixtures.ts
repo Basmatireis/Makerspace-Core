@@ -8,7 +8,6 @@ import type {
   SignageDisplay,
   SignageDisplayPreview,
   SignageMachine,
-  SignagePlaylist,
   SignageRule,
   SignageScene,
 } from '../../api/generated/models';
@@ -18,7 +17,6 @@ import { server } from '../../test/server';
 export const ids = {
   scene: '0192f6f8-743e-7c77-a349-cd07c3e8a111',
   scene2: '0192f6f8-743e-7c77-a349-cd07c3e8a112',
-  playlist: '0192f6f8-743e-7c77-a349-cd07c3e8a121',
   template: '0192f6f8-743e-7c77-a349-cd07c3e8a131',
   asset: '0192f6f8-743e-7c77-a349-cd07c3e8a141',
   video: '0192f6f8-743e-7c77-a349-cd07c3e8a142',
@@ -47,16 +45,6 @@ export const sceneFixture = (overrides: Partial<SignageScene> = {}): SignageScen
     footer: { type: 'empty' },
   },
   version: 3,
-  createdAt: stamp,
-  updatedAt: stamp,
-  ...overrides,
-});
-
-export const playlistFixture = (overrides: Partial<SignagePlaylist> = {}): SignagePlaylist => ({
-  id: ids.playlist,
-  name: 'Ads',
-  items: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }],
-  version: 2,
   createdAt: stamp,
   updatedAt: stamp,
   ...overrides,
@@ -126,7 +114,7 @@ export const displayFixture = (overrides: Partial<SignageDisplay> = {}): Signage
   aspectRatio: { width: 9, height: 16 },
   visibleFromOutside: true,
   allowCameraOutside: false,
-  defaultPlaylistId: ids.playlist,
+  defaultScenes: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }],
   status: 'online',
   revokedAt: null,
   lastHeartbeatAt: new Date().toISOString(),
@@ -157,27 +145,24 @@ export const ruleFixture = (overrides: Partial<SignageRule> = {}): SignageRule =
   machineIds: [],
   machineMatch: null,
   announcementTemplateIds: [],
-  targetKind: 'scene',
-  targetId: ids.scene,
+  scenes: [{ sceneId: ids.scene, seconds: 10, transition: 'cut' }],
   minSeconds: 20,
   multiMode: 'split',
   alternateSeconds: 10,
   ...overrides,
 });
 
-/** A preview whose publication plays the default playlist (one scene) unless a rule matches. */
+/** A preview whose publication plays the default scenes (one scene) unless a rule matches. */
 export const previewFixture = (overrides: Partial<SignageDisplayPreview> = {}): SignageDisplayPreview => ({
   manifest: {
     revision: 2,
     display: { aspectRatio: { width: 9, height: 16 }, visibleFromOutside: true },
     rules: [],
-    defaultPlaylistId: ids.playlist,
+    manifestVersion: 3,
+    defaultScenes: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }],
     layoutsVersion: 2,
     customLayouts: [],
     scenes: [{ ...sceneFixture(), version: 3 }],
-    playlists: [
-      { id: ids.playlist, name: 'Ads', items: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }], version: 2 },
-    ],
     assets: [],
   },
   live: {
@@ -198,7 +183,6 @@ type Content = {
   rules?: SignageRule[];
   preview?: SignageDisplayPreview;
   scenes?: SignageScene[];
-  playlists?: SignagePlaylist[];
   templates?: SignageAnnouncementTemplate[];
   assets?: SignageAsset[];
   announcements?: SignageAnnouncement[];
@@ -210,7 +194,6 @@ type Content = {
 export function mockSignage(permissions: PermissionId[], content: Content = {}) {
   const {
     scenes = [sceneFixture()],
-    playlists = [playlistFixture()],
     templates = [templateFixture()],
     assets = [assetFixture()],
     announcements = [],
@@ -227,13 +210,6 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
       const scene = scenes.find((item) => item.id === params.id);
       return scene
         ? HttpResponse.json(scene)
-        : HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 });
-    }),
-    http.get('*/api/v1/signage/playlists', () => HttpResponse.json({ items: playlists })),
-    http.get('*/api/v1/signage/playlists/:id', ({ params }) => {
-      const playlist = playlists.find((item) => item.id === params.id);
-      return playlist
-        ? HttpResponse.json(playlist)
         : HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 });
     }),
     http.get('*/api/v1/signage/announcement-templates', () => HttpResponse.json({ items: templates })),

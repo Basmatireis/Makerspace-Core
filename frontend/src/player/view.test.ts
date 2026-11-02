@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_RULE_ID, resolvePlayback, type PlaybackRule } from '../features/signage/engine/playback';
 import { noCameraSource } from './camera';
-import { live, manifest, rule, scene } from './testFixtures';
+import { live, manifest, only, rule, scene } from './testFixtures';
 import { holdResult, resolveView, LIVE_TTL_MS, type Hold, type LiveSnapshot } from './view';
 
 const result = (rules: PlaybackRule[], printing: string[] = []) =>
-  resolvePlayback('pl-default', rules, {
+  resolvePlayback(only('scene-a'), rules, {
     now: new Date(2026, 9, 19, 12),
     printingMachineIds: printing,
     activeAnnouncementTemplateIds: [],
@@ -36,7 +36,7 @@ describe('minimum display time', () => {
     const rules = [announcementRule('urgent'), printingRule('print', 30)];
     const { hold } = holdResult(
       null,
-      resolvePlayback('pl-default', rules.slice(1), {
+      resolvePlayback(only('scene-a'), rules.slice(1), {
         now: new Date(),
         printingMachineIds: ['m1'],
         activeAnnouncementTemplateIds: [],
@@ -44,7 +44,7 @@ describe('minimum display time', () => {
       }),
       0,
     );
-    const urgent = resolvePlayback('pl-default', rules, {
+    const urgent = resolvePlayback(only('scene-a'), rules, {
       now: new Date(),
       printingMachineIds: ['m1'],
       activeAnnouncementTemplateIds: ['t'],
@@ -58,7 +58,7 @@ describe('minimum display time', () => {
     const rules = [printingRule('print', 30), announcementRule('note')];
     const { hold } = holdResult(
       null,
-      resolvePlayback('pl-default', rules, {
+      resolvePlayback(only('scene-a'), rules, {
         now: new Date(),
         printingMachineIds: ['m1'],
         activeAnnouncementTemplateIds: [],
@@ -66,7 +66,7 @@ describe('minimum display time', () => {
       }),
       0,
     );
-    const lower = resolvePlayback('pl-default', [rules[1]], {
+    const lower = resolvePlayback(only('scene-a'), [rules[1]], {
       now: new Date(),
       printingMachineIds: [],
       activeAnnouncementTemplateIds: ['t'],
@@ -86,7 +86,7 @@ describe('resolveView', () => {
   const snapshot = (patch: Partial<LiveSnapshot> = {}): LiveSnapshot => ({ ...live(), skewMs: 0, ...patch });
 
   it('shows the live_data_unavailable rule when the last live poll is older than 60 s', () => {
-    const m = manifest(1, { rules: [rule('offline', { targetId: 'scene-b' })] });
+    const m = manifest(1, { rules: [rule('offline', { scenes: only('scene-b') })] });
     const now = 1_000_000;
     expect(
       resolveView({ ...base, manifest: m, live: snapshot(), lastLiveAt: now - LIVE_TTL_MS, now }).view.sceneId,
@@ -113,7 +113,7 @@ describe('resolveView', () => {
     ];
     const m = manifest(1, {
       rules: [
-        rule('print', { kind: 'machine_printing', machineIds: ['m1'], machineMatch: 'any', targetId: 'scene-b' }),
+        rule('print', { kind: 'machine_printing', machineIds: ['m1'], machineMatch: 'any', scenes: only('scene-b') }),
       ],
     });
     expect(
@@ -152,19 +152,12 @@ describe('resolveView', () => {
     expect(view.data.unavailableCameras?.has('m1')).toBe(true);
   });
 
-  it('rotates a playlist from the moment it took the screen, with the item transition', () => {
+  it('rotates a scene list from the moment it took the screen, with the item transition', () => {
     const m = manifest(1, {
       scenes: [scene('scene-a'), scene('scene-b')],
-      playlists: [
-        {
-          id: 'pl-default',
-          name: 'Default',
-          version: 1,
-          items: [
-            { sceneId: 'scene-a', seconds: 10, transition: 'cut' },
-            { sceneId: 'scene-b', seconds: 10, transition: 'fade' },
-          ],
-        },
+      defaultScenes: [
+        { sceneId: 'scene-a', seconds: 10, transition: 'cut' },
+        { sceneId: 'scene-b', seconds: 10, transition: 'fade' },
       ],
     });
     const first = resolveView({ ...base, manifest: m, live: null, lastLiveAt: null, now: 100_000 });
@@ -254,5 +247,22 @@ describe('resolveView', () => {
     expect(view(5_000, 0).data.announcements).toHaveLength(1);
     expect(view(5_000, 6_000).data.announcements).toHaveLength(0);
     expect(view(20_000, 0).data.announcements).toHaveLength(0);
+  });
+});
+
+describe('scene lists with missing scenes', () => {
+  const base = { camera: noCameraSource, assetUrl: () => null, hold: null as Hold | null };
+  it('skips items whose scene is not in the manifest and shows nothing when none is left', () => {
+    const skipped = manifest(1, {
+      defaultScenes: [
+        { sceneId: 'gone', seconds: 10, transition: 'fade' },
+        { sceneId: 'scene-b', seconds: 10, transition: 'cut' },
+      ],
+    });
+    expect(resolveView({ ...base, manifest: skipped, live: null, lastLiveAt: null, now: 0 }).view.sceneId).toBe(
+      'scene-b',
+    );
+    const none = manifest(1, { defaultScenes: only('gone') });
+    expect(resolveView({ ...base, manifest: none, live: null, lastLiveAt: null, now: 0 }).view.scene).toBeNull();
   });
 });

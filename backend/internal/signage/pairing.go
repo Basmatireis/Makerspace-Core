@@ -282,9 +282,7 @@ func (s *Service) PairDisplay(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	if _, err := q.LockSignagePlaylistForShare(ctx, checked.DefaultPlaylistID); errors.Is(err, pgx.ErrNoRows) {
-		return Display{}, validation("the default playlist does not exist")
-	} else if err != nil {
+	if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, "defaultScenes"); err != nil {
 		return Display{}, err
 	}
 	requestRowID, err := q.GetOpenSignagePairingRequestByCode(
@@ -311,9 +309,11 @@ func (s *Service) PairDisplay(
 		AspectWidth:     int16(checked.AspectRatio.Width), AspectHeight: int16(checked.AspectRatio.Height),
 		VisibleFromOutside: checked.VisibleFromOutside,
 		AllowCameraOutside: checked.AllowCameraOutside != nil && *checked.AllowCameraOutside,
-		DefaultPlaylistID:  checked.DefaultPlaylistID,
 	}); err != nil {
 		return Display{}, databaseError(err)
+	}
+	if err := replaceDefaultScenes(ctx, q, ruleOwner{DisplayID: displayID}, checked.DefaultScenes); err != nil {
+		return Display{}, err
 	}
 	if err := q.ClaimSignagePairingRequest(ctx, signagedb.ClaimSignagePairingRequestParams{
 		DisplayID: &displayID, Now: now, DeliveryDeadline: now.Add(deliveryGrace), ID: requestRowID,
@@ -321,7 +321,7 @@ func (s *Service) PairDisplay(
 		return Display{}, err
 	}
 	if err := writeAudit(ctx, tx, principal, "signage_display.paired", "signage_display", displayID, requestID,
-		[]string{"name", "location", "aspectRatio", "visibleFromOutside", "defaultPlaylistId"}); err != nil {
+		[]string{"name", "location", "aspectRatio", "visibleFromOutside", "defaultScenes"}); err != nil {
 		return Display{}, err
 	}
 	result, err := s.getDisplay(ctx, q, displayID)

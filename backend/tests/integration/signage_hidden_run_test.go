@@ -39,7 +39,7 @@ func TestHiddenRunRemovesMachineFromSignageLive(t *testing.T) {
 		t.Fatal(err)
 	}
 	display := func(name string, scene uuid.UUID) *http.Client {
-		shown, player := g.pair(staff, name, g.fixture.playlist(t, name, scene).ID)
+		shown, player := g.pair(staff, name, sceneList(scene))
 		g.expect(g.as(staff, http.MethodPost, "/signage/displays/"+shown["id"].(string)+"/publish", nil), http.StatusOK)
 		return player
 	}

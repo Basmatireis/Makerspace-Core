@@ -4,10 +4,9 @@ export const signagePaths = {
   display: (id: string) => `/signage/displays/${encodeURIComponent(id)}`,
   /** The separate player app (phase 3); displays open this address to pair. */
   player: '/player/',
-  content: (section?: 'scenes' | 'playlists' | 'announcements' | 'layouts') =>
+  content: (section?: 'scenes' | 'announcements' | 'layouts') =>
     section && section !== 'scenes' ? `/signage/content?section=${section}` : '/signage/content',
   scene: (id: string) => `/signage/scenes/${encodeURIComponent(id)}`,
-  playlist: (id: string) => `/signage/playlists/${encodeURIComponent(id)}`,
   newLayout: '/signage/layouts/new',
   layout: (id: string) => `/signage/layouts/${encodeURIComponent(id)}`,
   media: '/signage/media',

@@ -97,7 +97,7 @@ func (s *Service) latestManifest(
 	if err != nil {
 		return Manifest{}, false, err
 	}
-	manifest, err := decodeManifest(row.Manifest)
+	manifest, err := upgradeManifest(row.Manifest)
 	if err != nil {
 		return Manifest{}, false, err
 	}

@@ -101,14 +101,6 @@ const (
 // CustomLayoutID is the scene layout id that selects a custom layout.
 const CustomLayoutID = "custom"
 
-// TargetKind is what a display rule shows.
-type TargetKind string
-
-const (
-	TargetKindScene    TargetKind = "scene"
-	TargetKindPlaylist TargetKind = "playlist"
-)
-
 // MultiMode is how several matches share a screen or camera widget.
 type MultiMode string
 
@@ -135,7 +127,7 @@ const (
 	MachineMatchAll MachineMatch = "all"
 )
 
-// Transition is how a playlist item changes to the next.
+// Transition is how a scene list item changes to the next.
 type Transition string
 
 const (
@@ -300,23 +292,23 @@ const (
 type ReferenceKind string
 
 const (
-	ReferenceScene          ReferenceKind = "scene"
-	ReferencePlaylist       ReferenceKind = "playlist"
-	ReferenceAnnouncement   ReferenceKind = "announcement"
-	ReferenceDisplayDefault ReferenceKind = "display_default"
-	ReferenceDisplayRule    ReferenceKind = "display_rule"
+	ReferenceScene        ReferenceKind = "scene"
+	ReferenceAnnouncement ReferenceKind = "announcement"
+	// ReferenceRule is a rule of a display; the reference id is the display's.
+	ReferenceRule ReferenceKind = "rule"
+	// ReferenceDisplay is a display's default scene list; the reference id is the display's.
+	ReferenceDisplay ReferenceKind = "display"
 )
 
 // ChangeTarget is the kind of draft entity a pending change names.
 type ChangeTarget string
 
 const (
-	ChangeTargetDisplay  ChangeTarget = "display"
-	ChangeTargetRule     ChangeTarget = "rule"
-	ChangeTargetScene    ChangeTarget = "scene"
-	ChangeTargetPlaylist ChangeTarget = "playlist"
-	ChangeTargetAsset    ChangeTarget = "asset"
-	ChangeTargetLayout   ChangeTarget = "layout"
+	ChangeTargetDisplay ChangeTarget = "display"
+	ChangeTargetRule    ChangeTarget = "rule"
+	ChangeTargetScene   ChangeTarget = "scene"
+	ChangeTargetAsset   ChangeTarget = "asset"
+	ChangeTargetLayout  ChangeTarget = "layout"
 )
 
 // ChangeKind is how a draft differs from the published state.

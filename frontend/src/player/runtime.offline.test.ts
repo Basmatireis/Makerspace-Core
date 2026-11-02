@@ -4,7 +4,7 @@ import { createPlayerStore, type PlayerStore } from './cache';
 import { ASSET_CACHE, assetKey } from './cacheKeys';
 import { PERSISTED_LIVE_MAX_AGE_MS, PlayerRuntime } from './runtime';
 import { fakeCaches, type FakeCaches } from './testCaches';
-import { asset, fakeApi, live, manifest, rule, scene } from './testFixtures';
+import { asset, fakeApi, live, manifest, only, rule, scene } from './testFixtures';
 
 /** Advances the fake clock and lets the chains of cache promises finish. */
 const settle = async (ms = 0) => {
@@ -496,11 +496,21 @@ describe('PlayerRuntime offline cache', () => {
 
   it('uses rules with the persisted manifest offline (time windows keep working)', async () => {
     const { store } = env();
-    await store.saveManifest(manifest(1, { rules: [rule('offline', { targetId: 'scene-b' })] }));
+    await store.saveManifest(manifest(1, { rules: [rule('offline', { scenes: only('scene-b') })] }));
     const runtime = new PlayerRuntime({ api: offlineApi(), store });
     runtime.start();
     await settle(5_000);
     expect(runtime.getSnapshot().view?.sceneId).toBe('scene-b'); // live_data_unavailable matches
+    runtime.stop();
+  });
+
+  it('does not restore a persisted manifest of the older shape (no manifestVersion)', async () => {
+    const { store } = env();
+    await store.saveManifest({ ...manifest(1), manifestVersion: undefined } as unknown as ReturnType<typeof manifest>);
+    const runtime = new PlayerRuntime({ api: offlineApi(), store });
+    runtime.start();
+    await settle(5_000);
+    expect(runtime.getSnapshot().view).toBeNull();
     runtime.stop();
   });
 });

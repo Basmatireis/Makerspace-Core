@@ -18,16 +18,11 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SignagePlaylistItem } from './signagePlaylistItem';
-import type { Version } from './version';
+import type { SignageSceneListItem } from './signageSceneListItem';
 
-export interface UpdateSignagePlaylistRequest {
-  expectedVersion: Version;
-  /**
-     * @minLength 1
-     * @maxLength 100
-     */
-  name: string;
-  /** @maxItems 100 */
-  items: SignagePlaylistItem[];
-}
+/**
+ * Ordered scenes that a rule or a display's default shows. A one-item list shows its scene continuously; a longer list loops with the per-item seconds and transition. Every scene must have the aspect ratio of the display the list belongs to (422 otherwise).
+ * @minItems 1
+ * @maxItems 100
+ */
+export type SignageSceneListItems = SignageSceneListItem[];

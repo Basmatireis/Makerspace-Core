@@ -18,8 +18,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SignagePlaylist } from './signagePlaylist';
+import type { SignageTransition } from './signageTransition';
+import type { UUIDv7 } from './uUIDv7';
 
-export interface SignagePlaylistList {
-  items: SignagePlaylist[];
+export interface SignageSceneListItem {
+  sceneId: UUIDv7;
+  /**
+     * How long the item shows before the next one; ignored in a one-item list.
+     * @minimum 3
+     * @maximum 3600
+     */
+  seconds: number;
+  transition: SignageTransition;
 }

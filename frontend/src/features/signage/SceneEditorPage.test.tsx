@@ -224,14 +224,12 @@ describe('Scene editor', () => {
         displayFixture({
           name: 'Entrance window',
           visibleFromOutside: true,
-          defaultPlaylistId: ids.playlist,
           allowCameraOutside: false,
         } as never),
         displayFixture({
           id: '0192f6f8-743e-7c77-a349-cd07c3e8a152',
           name: 'Workshop',
           visibleFromOutside: true,
-          defaultPlaylistId: ids.playlist,
           allowCameraOutside: true,
         } as never),
       ],
@@ -284,7 +282,7 @@ describe('Scene editor', () => {
           {
             code: 'signage_in_use',
             message: 'in use',
-            details: { references: [{ kind: 'playlist', id: ids.playlist, name: 'Ads' }] },
+            details: { references: [{ kind: 'rule', id: ids.display, name: 'Rule 1 of Entrance window' }] },
           },
           { status: 409 },
         ),
@@ -295,10 +293,9 @@ describe('Scene editor', () => {
     await user.click(await screen.findByRole('button', { name: 'Delete scene' }));
     const confirm = await screen.findByRole('alertdialog');
     await user.click(within(confirm).getByRole('button', { name: 'Delete scene' }));
-    expect(await within(await screen.findByRole('dialog')).findByRole('link', { name: 'Ads' })).toHaveAttribute(
-      'href',
-      `/signage/playlists/${ids.playlist}`,
-    );
+    expect(
+      await within(await screen.findByRole('dialog')).findByRole('link', { name: 'Rule 1 of Entrance window' }),
+    ).toHaveAttribute('href', `/signage/displays/${ids.display}`);
   });
 });
 

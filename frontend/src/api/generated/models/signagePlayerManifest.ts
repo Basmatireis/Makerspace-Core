@@ -21,12 +21,16 @@
 import type { SignagePlayerAsset } from './signagePlayerAsset';
 import type { SignagePlayerCustomLayout } from './signagePlayerCustomLayout';
 import type { SignagePlayerManifestDisplay } from './signagePlayerManifestDisplay';
-import type { SignagePlayerPlaylist } from './signagePlayerPlaylist';
 import type { SignagePlayerRule } from './signagePlayerRule';
 import type { SignagePlayerScene } from './signagePlayerScene';
-import type { UUIDv7 } from './uUIDv7';
+import type { SignageSceneListItems } from './signageSceneListItems';
 
 export interface SignagePlayerManifest {
+  /**
+     * Shape of the manifest; 3 since rules and the default carry scene lists instead of playlists. Publications stored in an older shape (without this field) are upgraded when they are read, so this endpoint always answers 3.
+     * @minimum 3
+     */
+  manifestVersion: number;
   /** @minimum 1 */
   revision: number;
   display: SignagePlayerManifestDisplay;
@@ -35,9 +39,8 @@ export interface SignagePlayerManifest {
      * @maxItems 50
      */
   rules: SignagePlayerRule[];
-  defaultPlaylistId: UUIDv7;
+  defaultScenes: SignageSceneListItems;
   scenes: SignagePlayerScene[];
-  playlists: SignagePlayerPlaylist[];
   assets: SignagePlayerAsset[];
   /** The custom layouts the published scenes use; empty in publications made before custom layouts. */
   customLayouts: SignagePlayerCustomLayout[];

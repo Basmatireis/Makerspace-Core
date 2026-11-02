@@ -126,7 +126,7 @@ func TestSignageImageDimensionCaps(t *testing.T) {
 func TestSignagePairingHardening(t *testing.T) {
 	e := newSignageEnv(t)
 	staff := e.allStaff()
-	_, playlist := e.seedContent("Hardening")
+	_, defaults := e.seedContent("Hardening")
 
 	// A garbage cookie never reaches the database or the rate limiter.
 	for i := 0; i < 80; i++ {
@@ -151,7 +151,7 @@ func TestSignagePairingHardening(t *testing.T) {
 	start := e.expect(e.do(player, "", http.MethodPost, "/public/signage/pairing", nil), http.StatusCreated)
 	e.expect(e.as(staff, http.MethodPost, "/signage/displays", map[string]any{
 		"code": start["code"], "name": "Restart", "location": "", "aspectRatio": map[string]any{"width": 16, "height": 9},
-		"visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		"visibleFromOutside": false, "defaultScenes": defaults,
 	}), http.StatusCreated)
 	e.expectCode(
 		e.do(player, "", http.MethodPost, "/public/signage/pairing", nil),
@@ -205,9 +205,9 @@ func TestSignagePairingAllowedCIDRs(t *testing.T) {
 func TestSignagePlayerRequestsAreRateLimitedPerDevice(t *testing.T) {
 	e := newSignageEnv(t)
 	staff := e.allStaff()
-	_, playlist := e.seedContent("Rate")
-	_, player := e.pair(staff, "Rate", playlist.ID)
-	_, other := e.pair(staff, "Rate two", playlist.ID)
+	_, defaults := e.seedContent("Rate")
+	_, player := e.pair(staff, "Rate", defaults)
+	_, other := e.pair(staff, "Rate two", defaults)
 	statuses := map[int]int{}
 	for i := 0; i < 125; i++ {
 		response := e.do(player, "", http.MethodGet, "/signage/player/manifest", nil)
@@ -228,8 +228,8 @@ func TestSignagePlayerRequestsAreRateLimitedPerDevice(t *testing.T) {
 func TestSignagePublishSerializationFailureIsStaleWrite(t *testing.T) {
 	f := newSignageFixture(t)
 	ctx := testContext(t)
-	playlist := f.playlist(t, "Race", f.scene(t, "Race scene").ID)
-	displayID := f.display(t, "Race display", playlist.ID)
+	defaults := sceneList(f.scene(t, "Race scene").ID)
+	displayID := f.display(t, "Race display", defaults)
 	writer, err := f.pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)

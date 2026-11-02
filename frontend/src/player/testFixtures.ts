@@ -25,6 +25,9 @@ export const scene = (id: string, patch: Partial<SignagePlayerScene> = {}): Sign
     ...patch,
   }) as SignagePlayerScene;
 
+/** A scene list with one scene. */
+export const only = (sceneId: string) => [{ sceneId, seconds: 10, transition: 'cut' as const }];
+
 export const rule = (id: string, patch: Partial<SignagePlayerRule>): SignagePlayerRule =>
   ({
     id,
@@ -35,8 +38,7 @@ export const rule = (id: string, patch: Partial<SignagePlayerRule>): SignagePlay
     machineIds: [],
     machineMatch: null,
     announcementTemplateIds: [],
-    targetKind: 'scene',
-    targetId: 'scene-a',
+    scenes: only('scene-a'),
     minSeconds: 0,
     multiMode: 'split',
     alternateSeconds: 10,
@@ -47,11 +49,9 @@ export const manifest = (revision: number, patch: Partial<SignagePlayerManifest>
   revision,
   display: { aspectRatio: { width: 16, height: 9 }, visibleFromOutside: false },
   rules: [],
-  defaultPlaylistId: 'pl-default',
+  manifestVersion: 3,
+  defaultScenes: only('scene-a'),
   scenes: [scene('scene-a'), scene('scene-b')],
-  playlists: [
-    { id: 'pl-default', name: 'Default', version: 1, items: [{ sceneId: 'scene-a', seconds: 10, transition: 'cut' }] },
-  ],
   assets: [],
   customLayouts: [],
   layoutsVersion: 2,

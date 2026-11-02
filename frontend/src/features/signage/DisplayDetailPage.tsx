@@ -38,7 +38,7 @@ import { PlayerAddress } from './components';
 import { signagePaths } from './paths';
 import { displayQuery, rulesQuery, signageKeys } from './queries';
 import { toPlaybackRule, type PublishedView } from './publishedView';
-import { describeCondition } from './engine/playback';
+import { describeCondition, sceneListPosition } from './engine/playback';
 
 export function DisplayDetailPage() {
   const { displayId = '' } = useParams();
@@ -87,7 +87,7 @@ function reportedDifference(
   const sameScene = display.currentSceneId === null || view.scene === null || display.currentSceneId === view.scene.id;
   if (sameRule && sameScene) return null;
   const rule =
-    display.currentRule === 'default' ? 'the default playlist' : (describeRule(display.currentRule) ?? 'another rule');
+    display.currentRule === 'default' ? 'the default scenes' : (describeRule(display.currentRule) ?? 'another rule');
   const scene = display.currentSceneId ? sceneName(display.currentSceneId) : undefined;
   return `Display reports: ${rule}${scene ? `, showing “${scene}”` : ''}. Its clock, minimum display times or live data may differ from this preview.`;
 }
@@ -106,6 +106,14 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
   const [announcing, setAnnouncing] = useState(false);
   const [confirm, setConfirm] = useState<'revoke' | 'delete' | null>(null);
   const { preview, view, now } = usePublishedView(display.id);
+  // Position in the winning scene list (items whose scene is missing from the manifest are skipped, as in the player).
+  const listItems = view?.result.scenes.filter((item) =>
+    view.manifest.scenes.some((entry) => entry.id === item.sceneId),
+  );
+  const listPosition =
+    listItems && listItems.length > 1
+      ? { index: sceneListPosition(listItems, now / 1000)?.index ?? 0, count: listItems.length }
+      : null;
   const rules = useQuery(rulesQuery(display.id)).data;
   const pending = display.pendingChanges;
   const neverPublished = display.publishedRevision === null;
@@ -273,9 +281,12 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
                 </div>
                 <div className="sg-now">
                   <p>
-                    Now showing <strong>{view.scene?.name ?? view.targetName ?? '—'}</strong>
-                    {view.targetKind === 'playlist' && view.scene && view.targetName ? (
-                      <span className="sg-secondary"> in playlist {view.targetName}</span>
+                    Now showing <strong>{view.scene?.name ?? '—'}</strong>
+                    {listPosition && view.secondsLeft !== null ? (
+                      <span className="sg-secondary">
+                        {' '}
+                        (item {listPosition.index + 1} of {listPosition.count}, {view.secondsLeft} s left)
+                      </span>
                     ) : null}
                     {' — '}
                     <span className="sg-secondary">{view.result.reason}</span>

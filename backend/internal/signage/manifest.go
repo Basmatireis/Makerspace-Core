@@ -13,6 +13,14 @@ import (
 // custom layouts to the manifest. Bump it whenever the layout list or its meaning changes incompatibly.
 const LayoutsVersion = 2
 
+// ManifestVersion is the shape of the manifests this code publishes: 3 replaced playlists with scene lists
+// on rules and the default. Stored manifests without the field are upgraded when they are read.
+const ManifestVersion = 3
+
+// blankSceneID is the id of the synthetic scene that an upgraded publication shows when its default playlist
+// was empty and it holds no scene with the display's aspect ratio.
+var blankSceneID = uuid.MustParse("00000000-0000-7000-8000-000000000001")
+
 // ManifestDisplay carries the display settings a player needs.
 type ManifestDisplay struct {
 	AspectRatio        AspectRatio `json:"aspectRatio"`
@@ -21,19 +29,18 @@ type ManifestDisplay struct {
 
 // ManifestRule is an enabled rule; rules are listed in evaluation order (first match wins).
 type ManifestRule struct {
-	ID                      uuid.UUID     `json:"id"`
-	Kind                    ConditionKind `json:"kind"`
-	Weekdays                []int         `json:"weekdays"`
-	TimeFrom                *string       `json:"timeFrom"`
-	TimeTo                  *string       `json:"timeTo"`
-	MachineIDs              []uuid.UUID   `json:"machineIds"`
-	MachineMatch            *MachineMatch `json:"machineMatch"`
-	AnnouncementTemplateIDs []uuid.UUID   `json:"announcementTemplateIds"`
-	TargetKind              TargetKind    `json:"targetKind"`
-	TargetID                uuid.UUID     `json:"targetId"`
-	MinSeconds              int           `json:"minSeconds"`
-	MultiMode               MultiMode     `json:"multiMode"`
-	AlternateSeconds        int           `json:"alternateSeconds"`
+	ID                      uuid.UUID       `json:"id"`
+	Kind                    ConditionKind   `json:"kind"`
+	Weekdays                []int           `json:"weekdays"`
+	TimeFrom                *string         `json:"timeFrom"`
+	TimeTo                  *string         `json:"timeTo"`
+	MachineIDs              []uuid.UUID     `json:"machineIds"`
+	MachineMatch            *MachineMatch   `json:"machineMatch"`
+	AnnouncementTemplateIDs []uuid.UUID     `json:"announcementTemplateIds"`
+	Scenes                  []SceneListItem `json:"scenes"`
+	MinSeconds              int             `json:"minSeconds"`
+	MultiMode               MultiMode       `json:"multiMode"`
+	AlternateSeconds        int             `json:"alternateSeconds"`
 }
 
 // ManifestScene is a scene as published; the version identifies the draft it was taken from.
@@ -63,21 +70,6 @@ type ManifestCustomLayout struct {
 	Version int64            `json:"version"`
 }
 
-// ManifestPlaylistItem is one scene slot of a published playlist.
-type ManifestPlaylistItem struct {
-	SceneID    uuid.UUID  `json:"sceneId"`
-	Seconds    int        `json:"seconds"`
-	Transition Transition `json:"transition"`
-}
-
-// ManifestPlaylist is a playlist as published.
-type ManifestPlaylist struct {
-	ID      uuid.UUID              `json:"id"`
-	Name    string                 `json:"name"`
-	Items   []ManifestPlaylistItem `json:"items"`
-	Version int64                  `json:"version"`
-}
-
 // ManifestAsset is a media file a published scene uses; players fetch it by id and sha256.
 type ManifestAsset struct {
 	ID          uuid.UUID `json:"id"`
@@ -93,13 +85,13 @@ type ManifestAsset struct {
 
 // Manifest is the immutable content of one publication.
 type Manifest struct {
-	Revision          int                `json:"revision"`
-	Display           ManifestDisplay    `json:"display"`
-	DefaultPlaylistID uuid.UUID          `json:"defaultPlaylistId"`
-	Rules             []ManifestRule     `json:"rules"`
-	Scenes            []ManifestScene    `json:"scenes"`
-	Playlists         []ManifestPlaylist `json:"playlists"`
-	Assets            []ManifestAsset    `json:"assets"`
+	ManifestVersion int             `json:"manifestVersion"`
+	Revision        int             `json:"revision"`
+	Display         ManifestDisplay `json:"display"`
+	DefaultScenes   []SceneListItem `json:"defaultScenes"`
+	Rules           []ManifestRule  `json:"rules"`
+	Scenes          []ManifestScene `json:"scenes"`
+	Assets          []ManifestAsset `json:"assets"`
 	// CustomLayouts holds the custom layouts the published scenes use; publications made before custom
 	// layouts existed do not have the field.
 	CustomLayouts  []ManifestCustomLayout `json:"customLayouts"`
@@ -112,14 +104,13 @@ type displayDraft struct {
 	Name               string
 	AspectRatio        AspectRatio
 	VisibleFromOutside bool
-	DefaultPlaylistID  uuid.UUID
+	DefaultScenes      []SceneListItem
 	Rules              []Rule
 }
 
-// manifestContent holds the scenes, playlists and assets that drafts can reach.
+// manifestContent holds the scenes, assets and custom layouts that drafts can reach.
 type manifestContent struct {
 	scenes        map[uuid.UUID]ManifestScene
-	playlists     map[uuid.UUID]ManifestPlaylist
 	assets        map[uuid.UUID]ManifestAsset
 	customLayouts map[uuid.UUID]ManifestCustomLayout
 }
@@ -146,42 +137,35 @@ func sceneAssetIDs(scene ManifestScene) ([]uuid.UUID, error) {
 }
 
 // assembleManifest builds the revision-less manifest of a draft from the content it reaches.
-// Only enabled rules are published. Scenes, playlists and assets are ordered by id so that equal
-// drafts always produce equal manifests.
+// Only enabled rules are published. Scenes and assets are ordered by id so that equal drafts always
+// produce equal manifests.
 func assembleManifest(draft displayDraft, content manifestContent) (Manifest, error) {
+	if len(draft.DefaultScenes) == 0 {
+		return Manifest{}, fmt.Errorf("display %s has no default scenes", draft.ID)
+	}
 	manifest := Manifest{
+		ManifestVersion: ManifestVersion,
 		Display: ManifestDisplay{
 			AspectRatio:        draft.AspectRatio,
 			VisibleFromOutside: draft.VisibleFromOutside,
 		},
-		DefaultPlaylistID: draft.DefaultPlaylistID,
-		Rules:             []ManifestRule{},
-		Scenes:            []ManifestScene{},
-		Playlists:         []ManifestPlaylist{},
-		Assets:            []ManifestAsset{},
-		CustomLayouts:     []ManifestCustomLayout{},
-		LayoutsVersion:    LayoutsVersion,
+		DefaultScenes:  append([]SceneListItem{}, draft.DefaultScenes...),
+		Rules:          []ManifestRule{},
+		Scenes:         []ManifestScene{},
+		Assets:         []ManifestAsset{},
+		CustomLayouts:  []ManifestCustomLayout{},
+		LayoutsVersion: LayoutsVersion,
 	}
-	playlistIDs := map[uuid.UUID]struct{}{draft.DefaultPlaylistID: {}}
 	sceneIDs := map[uuid.UUID]struct{}{}
+	for _, item := range draft.DefaultScenes {
+		sceneIDs[item.SceneID] = struct{}{}
+	}
 	for _, rule := range draft.Rules {
 		if !rule.Enabled {
 			continue
 		}
 		manifest.Rules = append(manifest.Rules, manifestRuleFrom(rule))
-		if rule.TargetKind == TargetKindPlaylist {
-			playlistIDs[rule.TargetID] = struct{}{}
-		} else {
-			sceneIDs[rule.TargetID] = struct{}{}
-		}
-	}
-	for _, id := range sortedIDs(playlistIDs) {
-		playlist, ok := content.playlists[id]
-		if !ok {
-			return Manifest{}, fmt.Errorf("playlist %s is missing", id)
-		}
-		manifest.Playlists = append(manifest.Playlists, playlist)
-		for _, item := range playlist.Items {
+		for _, item := range rule.Scenes {
 			sceneIDs[item.SceneID] = struct{}{}
 		}
 	}
@@ -229,8 +213,7 @@ func manifestRuleFrom(rule Rule) ManifestRule {
 		), TimeFrom: rule.TimeFrom, TimeTo: rule.TimeTo,
 		MachineIDs: append([]uuid.UUID{}, rule.MachineIDs...), MachineMatch: rule.MachineMatch,
 		AnnouncementTemplateIDs: append([]uuid.UUID{}, rule.AnnouncementTemplateIDs...),
-		TargetKind:              rule.TargetKind,
-		TargetID:                rule.TargetID,
+		Scenes:                  append([]SceneListItem{}, rule.Scenes...),
 		MinSeconds:              rule.MinSeconds,
 		MultiMode:               rule.MultiMode,
 		AlternateSeconds:        rule.AlternateSeconds,
@@ -328,24 +311,21 @@ type PendingChange struct {
 }
 
 // diffManifests lists what publishing the draft would change compared with the published manifest.
-// Scenes and playlists are compared by id and version, assets by id and checksum, rules by content.
+// Scenes and layouts are compared by id and version, assets by id and checksum, rules and the default scene
+// list by content.
 func diffManifests(published, draft Manifest) []PendingChange {
 	changes := []PendingChange{}
-	if published.Display != draft.Display || published.DefaultPlaylistID != draft.DefaultPlaylistID {
+	if published.Display != draft.Display {
 		changes = append(changes, PendingChange{Kind: ChangeTargetDisplay, Name: "Display settings", Change: ChangeModified})
+	}
+	if !sceneListsEqual(published.DefaultScenes, draft.DefaultScenes) {
+		changes = append(changes, PendingChange{Kind: ChangeTargetDisplay, Name: "Default scenes", Change: ChangeModified})
 	}
 	changes = append(changes, diffRules(published.Rules, draft.Rules)...)
 	scenes := func(manifest Manifest) map[uuid.UUID]versioned {
 		result := map[uuid.UUID]versioned{}
 		for _, scene := range manifest.Scenes {
 			result[scene.ID] = versioned{name: scene.Name, marker: fmt.Sprint(scene.Version)}
-		}
-		return result
-	}
-	playlists := func(manifest Manifest) map[uuid.UUID]versioned {
-		result := map[uuid.UUID]versioned{}
-		for _, playlist := range manifest.Playlists {
-			result[playlist.ID] = versioned{name: playlist.Name, marker: fmt.Sprint(playlist.Version)}
 		}
 		return result
 	}
@@ -365,7 +345,6 @@ func diffManifests(published, draft Manifest) []PendingChange {
 	}
 	changes = append(changes, diffEntities(ChangeTargetScene, scenes(published), scenes(draft))...)
 	changes = append(changes, diffEntities(ChangeTargetLayout, layouts(published), layouts(draft))...)
-	changes = append(changes, diffEntities(ChangeTargetPlaylist, playlists(published), playlists(draft))...)
 	changes = append(changes, diffEntities(ChangeTargetAsset, assets(published), assets(draft))...)
 	return changes
 }
@@ -439,7 +418,9 @@ func diffRules(published, draft []ManifestRule) []PendingChange {
 	return changes
 }
 
-// legacyManifestShape holds the fields that publications stored before aspect ratios carried instead.
+// legacyManifestShape holds the fields that publications stored before manifest version 3 carried instead:
+// orientation and resolution before aspect ratios, and rule targets, the default playlist and the playlists
+// before scene lists.
 type legacyManifestShape struct {
 	Display struct {
 		Orientation string `json:"orientation"`
@@ -451,30 +432,39 @@ type legacyManifestShape struct {
 	Scenes []struct {
 		Orientation string `json:"orientation"`
 	} `json:"scenes"`
+	Rules []struct {
+		TargetKind string    `json:"targetKind"`
+		TargetID   uuid.UUID `json:"targetId"`
+	} `json:"rules"`
+	DefaultPlaylistID uuid.UUID `json:"defaultPlaylistId"`
+	Playlists         []struct {
+		ID    uuid.UUID       `json:"id"`
+		Items []SceneListItem `json:"items"`
+	} `json:"playlists"`
 }
 
-// decodeManifest reads a stored publication. Stored rows are never rewritten, so a publication made
-// before aspect ratios still carries orientation and resolution; it gets the ratios that migration 00090
-// gave its display and scenes (the reduced resolution, or 16:9 / 9:16 when that does not fit 1–100;
-// scenes 16:9 when landscape and 9:16 when portrait).
-func decodeManifest(raw []byte) (Manifest, error) {
+// upgradeManifest reads a stored publication. Stored rows are never rewritten, so a publication made before
+// manifest version 3 still has the older shape; it is converted in memory:
+//   - a publication made before aspect ratios gets the ratios that migration 00090 gave its display and scenes
+//     (the reduced resolution, or 16:9 / 9:16 when that does not fit 1–100; scenes 16:9 when landscape and
+//     9:16 when portrait);
+//   - a rule that showed a scene shows a one-item list (10 seconds, cut), a rule that showed a playlist shows
+//     the published playlist's items, and a rule whose playlist was empty is dropped (it showed nothing);
+//   - the default playlist's items become the default list; an empty default playlist becomes the first scene
+//     with the display's ratio, or a synthetic black Blank scene when there is none.
+func upgradeManifest(raw []byte) (Manifest, error) {
 	var manifest Manifest
 	if err := json.Unmarshal(raw, &manifest); err != nil {
 		return Manifest{}, err
 	}
-	legacyDisplay := manifest.Display.AspectRatio == AspectRatio{}
-	legacyScene := false
-	for _, scene := range manifest.Scenes {
-		legacyScene = legacyScene || scene.AspectRatio == AspectRatio{}
-	}
-	if !legacyDisplay && !legacyScene {
+	if manifest.ManifestVersion >= ManifestVersion {
 		return manifest, nil
 	}
 	var legacy legacyManifestShape
 	if err := json.Unmarshal(raw, &legacy); err != nil {
 		return Manifest{}, err
 	}
-	if legacyDisplay {
+	if manifest.Display.AspectRatio == (AspectRatio{}) {
 		resolution := AspectRatio{Width: legacy.Display.Resolution.Width, Height: legacy.Display.Resolution.Height}
 		ratio := resolution.Reduce()
 		if !ratio.Valid() {
@@ -487,7 +477,59 @@ func decodeManifest(raw []byte) (Manifest, error) {
 			manifest.Scenes[index].AspectRatio = ratioOfOrientation(legacy.Scenes[index].Orientation != "portrait")
 		}
 	}
+	if manifest.Scenes == nil {
+		manifest.Scenes = []ManifestScene{}
+	}
+	playlists := make(map[uuid.UUID][]SceneListItem, len(legacy.Playlists))
+	for _, playlist := range legacy.Playlists {
+		playlists[playlist.ID] = playlist.Items
+	}
+	rules := make([]ManifestRule, 0, len(manifest.Rules))
+	for index, rule := range manifest.Rules {
+		if len(rule.Scenes) == 0 && index < len(legacy.Rules) {
+			target := legacy.Rules[index]
+			if target.TargetKind == "playlist" {
+				rule.Scenes = append([]SceneListItem{}, playlists[target.TargetID]...)
+			} else if target.TargetID != uuid.Nil {
+				rule.Scenes = []SceneListItem{{SceneID: target.TargetID, Seconds: defaultItemSeconds, Transition: TransitionCut}}
+			}
+		}
+		if len(rule.Scenes) == 0 {
+			continue // an empty playlist showed nothing; the rule never matched visibly
+		}
+		rules = append(rules, rule)
+	}
+	manifest.Rules = rules
+	if len(manifest.DefaultScenes) == 0 {
+		manifest.DefaultScenes = append([]SceneListItem{}, playlists[legacy.DefaultPlaylistID]...)
+	}
+	if len(manifest.DefaultScenes) == 0 {
+		manifest.DefaultScenes = []SceneListItem{{SceneID: fallbackScene(&manifest), Seconds: defaultItemSeconds, Transition: TransitionCut}}
+	}
+	manifest.ManifestVersion = ManifestVersion
 	return manifest, nil
+}
+
+// fallbackScene is the default an upgraded publication shows when its default playlist was empty: the first
+// scene with the display's ratio, or a synthetic black Blank scene that it appends to the manifest.
+func fallbackScene(manifest *Manifest) uuid.UUID {
+	for _, scene := range manifest.Scenes {
+		if scene.AspectRatio == manifest.Display.AspectRatio {
+			return scene.ID
+		}
+	}
+	manifest.Scenes = append(manifest.Scenes, ManifestScene{
+		ID:              blankSceneID,
+		Name:            "Blank",
+		AspectRatio:     manifest.Display.AspectRatio,
+		LayoutID:        "full",
+		BackgroundColor: "#000000",
+		BackgroundFit:   MediaFitCover,
+		Theme:           ThemeDark,
+		Zones:           map[string]json.RawMessage{"main": json.RawMessage(`{"type":"empty"}`)},
+		Version:         1,
+	})
+	return blankSceneID
 }
 
 // ratioOfOrientation is 16:9 for landscape and 9:16 for portrait.

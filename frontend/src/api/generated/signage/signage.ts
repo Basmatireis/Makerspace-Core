@@ -21,7 +21,6 @@
 import type {
   CreateSignageAnnouncementTemplateRequest,
   CreateSignageCustomLayoutRequest,
-  CreateSignagePlaylistRequest,
   CreateSignageSceneRequest,
   DownloadSignageAssetParams,
   ListSignageAssetsParams,
@@ -45,8 +44,6 @@ import type {
   SignageMachineList,
   SignagePairingPoll,
   SignagePairingStart,
-  SignagePlaylist,
-  SignagePlaylistList,
   SignageRuleList,
   SignageRuleRequest,
   SignageScene,
@@ -56,7 +53,6 @@ import type {
   UpdateSignageAnnouncementTemplateRequest,
   UpdateSignageCustomLayoutRequest,
   UpdateSignageDisplayRequest,
-  UpdateSignagePlaylistRequest,
   UpdateSignageSceneRequest,
   VersionRequest
 } from '../models';
@@ -598,7 +594,7 @@ export const getDeleteSignageSceneUrl = (sceneId: string,) => {
 }
 
 /**
- * Answers 409 `signage_in_use` with `details.references` while a playlist or rule uses the scene.
+ * Answers 409 `signage_in_use` with `details.references` while a rule's scene list (reference kind `rule`, id of the display) or a display's default scene list (kind `display`) uses the scene. Scenes only referenced by older publications may be deleted.
  */
 export const deleteSignageScene = async (sceneId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -618,156 +614,6 @@ export const deleteSignageScene = async (sceneId: string,
     return headers;
   };
 return apiFetch<void>(getDeleteSignageSceneUrl(sceneId),
-  {
-    ...options,
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(versionRequest)
-  }
-);}
-
-
-export const getListSignagePlaylistsUrl = () => {
-
-
-
-
-  return `/api/v1/signage/playlists`
-}
-
-export const listSignagePlaylists = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignagePlaylistList> => {
-
-  return apiFetch<SignagePlaylistList>(getListSignagePlaylistsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getCreateSignagePlaylistUrl = () => {
-
-
-
-
-  return `/api/v1/signage/playlists`
-}
-
-export const createSignagePlaylist = async (createSignagePlaylistRequest: CreateSignagePlaylistRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignagePlaylist> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignagePlaylist>(getCreateSignagePlaylistUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(createSignagePlaylistRequest)
-  }
-);}
-
-
-export const getGetSignagePlaylistUrl = (playlistId: string,) => {
-
-
-
-
-  return `/api/v1/signage/playlists/${playlistId}`
-}
-
-export const getSignagePlaylist = async (playlistId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignagePlaylist> => {
-
-  return apiFetch<SignagePlaylist>(getGetSignagePlaylistUrl(playlistId),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getUpdateSignagePlaylistUrl = (playlistId: string,) => {
-
-
-
-
-  return `/api/v1/signage/playlists/${playlistId}`
-}
-
-/**
- * @summary Rename a playlist and atomically replace its items
- */
-export const updateSignagePlaylist = async (playlistId: string,
-    updateSignagePlaylistRequest: UpdateSignagePlaylistRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignagePlaylist> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignagePlaylist>(getUpdateSignagePlaylistUrl(playlistId),
-  {
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(updateSignagePlaylistRequest)
-  }
-);}
-
-
-export const getDeleteSignagePlaylistUrl = (playlistId: string,) => {
-
-
-
-
-  return `/api/v1/signage/playlists/${playlistId}`
-}
-
-/**
- * Answers 409 `signage_in_use` with `details.references` while a display or rule uses the playlist.
- */
-export const deleteSignagePlaylist = async (playlistId: string,
-    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteSignagePlaylistUrl(playlistId),
   {
     ...options,
     method: 'DELETE',

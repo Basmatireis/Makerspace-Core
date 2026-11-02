@@ -36,7 +36,7 @@ type relayEnv struct {
 	scene                   signage.Scene
 	sceneVersion            int64
 	displayID               string
-	playlistID              string
+	defaultScenes           []signage.SceneListItem
 	player                  *http.Client
 	deviceToken             string
 	displayName, displayLoc string
@@ -60,9 +60,9 @@ func newRelayEnv(t *testing.T) *relayEnv {
 		t.Fatal(err)
 	}
 	r.scene, r.sceneVersion = scene, 1
-	playlist := g.fixture.playlist(t, "Relay", scene.ID)
-	r.playlistID = playlist.ID.String()
-	display, player := g.pair(r.staff, r.displayName, playlist.ID)
+	defaults := sceneList(scene.ID)
+	r.defaultScenes = defaults
+	display, player := g.pair(r.staff, r.displayName, defaults)
 	r.displayID, r.player = display["id"].(string), player
 	r.deviceToken = g.deviceToken(player)
 	r.publish()
@@ -105,7 +105,7 @@ func (r *relayEnv) updateDisplay(visible bool, allowOutside bool) {
 	r.expect(r.as(r.staff, http.MethodPut, "/signage/displays/"+r.displayID, map[string]any{
 		"expectedVersion": r.displayVersion(r.staff, r.displayID), "name": r.displayName, "location": r.displayLoc,
 		"aspectRatio":        map[string]any{"width": 16, "height": 9},
-		"visibleFromOutside": visible, "allowCameraOutside": allowOutside, "defaultPlaylistId": r.playlistID,
+		"visibleFromOutside": visible, "allowCameraOutside": allowOutside, "defaultScenes": r.defaultScenes,
 	}), http.StatusOK)
 }
 
@@ -376,7 +376,7 @@ func TestCameraRelayRefusesViewersThatMayNotWatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plain, plainPlayer := r.pair(r.staff, "Status display", r.fixture.playlist(t, "Status", scene.ID).ID)
+	plain, plainPlayer := r.pair(r.staff, "Status display", sceneList(scene.ID))
 	r.expect(r.as(r.staff, http.MethodPost, "/signage/displays/"+plain["id"].(string)+"/publish", nil), http.StatusOK)
 	plainToken := r.deviceToken
 	r.deviceToken = r.connectorEnv.deviceToken(plainPlayer)

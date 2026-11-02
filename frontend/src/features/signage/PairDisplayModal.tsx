@@ -1,5 +1,6 @@
-import { Modal, Select, SelectItem, Stack, TextInput, Toggle, InlineNotification } from '@carbon/react';
+import { Modal, Stack, TextInput, Toggle, InlineNotification } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { pairSignageDisplay } from '../../api/generated/signage/signage';
@@ -7,9 +8,11 @@ import { ApiError } from '../../api/http-client';
 import { PlayerAddress } from './components';
 import { aspectFieldsOf, aspectOfFields, type AspectFields } from './aspectFields';
 import { AspectRatioFields } from './AspectRatioFields';
-import { errorMessage, ASPECT_PRESETS } from './helpers';
+import { errorMessage, ASPECT_PRESETS, aspectLabel, sameRatio } from './helpers';
 import { signagePaths } from './paths';
-import { playlistsQuery, signageKeys } from './queries';
+import { scenesQuery, signageKeys } from './queries';
+import { SceneListFields } from './SceneListFields';
+import { newSceneListItem, sceneListError, type SceneListDraftItem } from './sceneListDraft';
 
 /** Characters the player's pairing codes are made of (no I, O, 0 or 1). */
 const CODE_PATTERN = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/;
@@ -22,14 +25,14 @@ type Values = AspectFields & {
   name: string;
   location: string;
   visibleFromOutside: boolean;
-  defaultPlaylistId: string;
+  defaultScenes: SceneListDraftItem[];
 };
 
 /** Pairs a screen by the code its player shows. An unknown, expired or rate-limited code all read the same. */
 export function PairDisplayModal({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const playlists = useQuery(playlistsQuery());
+  const scenes = useQuery(scenesQuery());
   const form = useForm<Values>({
     defaultValues: {
       code: '',
@@ -37,11 +40,27 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
       location: '',
       ...aspectFieldsOf(ASPECT_PRESETS[0].ratio),
       visibleFromOutside: false,
-      defaultPlaylistId: '',
+      defaultScenes: [newSceneListItem()],
     },
   });
   const { errors } = form.formState;
-  const items = playlists.data?.items ?? [];
+  const [aspectPreset, aspectCustom] = form.watch(['aspectPreset', 'aspectCustom']);
+  const ratio = aspectOfFields({ aspectPreset, aspectCustom });
+  const ratioKey = aspectLabel(ratio);
+
+  // Scenes of another ratio cannot be default scenes: drop them when the ratio changes.
+  useEffect(() => {
+    const all = scenes.data?.items;
+    if (!all) return;
+    const current = form.getValues('defaultScenes');
+    const kept = current.filter((item) => {
+      const scene = all.find((entry) => entry.id === item.sceneId);
+      return !scene || sameRatio(scene.aspectRatio, ratio);
+    });
+    if (kept.length !== current.length) form.setValue('defaultScenes', kept.length > 0 ? kept : [newSceneListItem()]);
+    // `ratio` is derived from `ratioKey`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ratioKey, scenes.data, form]);
 
   const mutation = useMutation({
     mutationFn: (values: Values) =>
@@ -51,7 +70,11 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
         location: values.location.trim(),
         aspectRatio: aspectOfFields(values),
         visibleFromOutside: values.visibleFromOutside,
-        defaultPlaylistId: values.defaultPlaylistId,
+        defaultScenes: values.defaultScenes.map(({ sceneId, seconds, transition }) => ({
+          sceneId,
+          seconds: seconds >= 3 && seconds <= 3600 ? seconds : 20,
+          transition,
+        })),
       }),
     onSuccess: async (display) => {
       await queryClient.invalidateQueries({ queryKey: signageKeys.displays() });
@@ -78,7 +101,7 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
       modalLabel="Displays"
       primaryButtonText={mutation.isPending ? 'Pairing…' : 'Pair display'}
       secondaryButtonText="Cancel"
-      primaryButtonDisabled={mutation.isPending || items.length === 0}
+      primaryButtonDisabled={mutation.isPending}
       preventCloseOnClickOutside
       onRequestClose={() => {
         if (!mutation.isPending) onClose();
@@ -149,27 +172,31 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
             )}
           />
           <p className="sg-secondary">Camera zones then need confirmation; no customer data is ever shown.</p>
-          <Select
-            id="pair-playlist"
-            labelText="Default playlist"
-            helperText="Plays when no rule matches."
-            invalid={Boolean(errors.defaultPlaylistId)}
-            invalidText="Choose a default playlist"
-            disabled={playlists.isPending}
-            {...form.register('defaultPlaylistId', { validate: (value) => value !== '' })}
-          >
-            <SelectItem value="" text="Choose a playlist…" />
-            {items.map((playlist) => (
-              <SelectItem key={playlist.id} value={playlist.id} text={playlist.name} />
-            ))}
-          </Select>
-          {playlists.isSuccess && items.length === 0 && (
+          <Controller
+            control={form.control}
+            name="defaultScenes"
+            rules={{ validate: (value) => sceneListError(value) ?? true }}
+            render={({ field }) => (
+              <SceneListFields
+                idPrefix="pair"
+                label="Default scenes"
+                value={field.value}
+                onChange={field.onChange}
+                aspectRatio={ratio}
+                invalidText={errors.defaultScenes?.message}
+              />
+            )}
+          />
+          <p className="sg-secondary">
+            Shown when no rule matches. Only scenes of the chosen aspect ratio are offered.
+          </p>
+          {scenes.isSuccess && scenes.data.items.every((scene) => !sameRatio(scene.aspectRatio, ratio)) && (
             <InlineNotification
               kind="info"
               lowContrast
               hideCloseButton
-              title="No playlists yet"
-              subtitle="A display needs a default playlist. Create one under Content first."
+              title="No scenes for this aspect ratio"
+              subtitle="A display needs at least one default scene. Create one under Content first."
             />
           )}
           {mutation.isError && !codeRejected && (

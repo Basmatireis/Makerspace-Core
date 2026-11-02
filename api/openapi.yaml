@@ -4887,73 +4887,11 @@ paths:
     delete:
       tags: [Signage]
       operationId: deleteSignageScene
-      description: Answers 409 `signage_in_use` with `details.references` while a playlist or rule uses the scene.
+      description: Answers 409 `signage_in_use` with `details.references` while a rule's scene list (reference kind `rule`, id of the display) or a display's default scene list (kind `display`) uses the scene. Scenes only referenced by older publications may be deleted.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:
         "204": {description: Scene deleted.}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /signage/playlists:
-    get:
-      tags: [Signage]
-      operationId: listSignagePlaylists
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Playlists with their items., content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlaylistList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    post:
-      tags: [Signage]
-      operationId: createSignagePlaylist
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSignagePlaylistRequest"}}}}
-      responses:
-        "201": {description: Playlist created., content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlaylist"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /signage/playlists/{playlistId}:
-    parameters: [{$ref: "#/components/parameters/SignagePlaylistId"}]
-    get:
-      tags: [Signage]
-      operationId: getSignagePlaylist
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Playlist., content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlaylist"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    put:
-      tags: [Signage]
-      operationId: updateSignagePlaylist
-      summary: Rename a playlist and atomically replace its items
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignagePlaylistRequest"}}}}
-      responses:
-        "200": {description: Updated playlist., content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlaylist"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    delete:
-      tags: [Signage]
-      operationId: deleteSignagePlaylist
-      description: Answers 409 `signage_in_use` with `details.references` while a display or rule uses the playlist.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
-      responses:
-        "204": {description: Playlist deleted.}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -10688,11 +10626,6 @@ components:
       schema: {$ref: "#/components/schemas/UUIDv7"}
     SignageSceneId:
       name: sceneId
-      in: path
-      required: true
-      schema: {$ref: "#/components/schemas/UUIDv7"}
-    SignagePlaylistId:
-      name: playlistId
       in: path
       required: true
       schema: {$ref: "#/components/schemas/UUIDv7"}
@@ -20482,45 +20415,23 @@ components:
       type: string
       enum: [cut, fade]
       x-enum-varnames: [SignageTransitionCut, SignageTransitionFade]
-    SignagePlaylistItem:
+    SignageSceneListItem:
       type: object
       additionalProperties: false
       required: [sceneId, seconds, transition]
       properties:
         sceneId: {$ref: "#/components/schemas/UUIDv7"}
-        seconds: {type: integer, minimum: 3, maximum: 3600}
+        seconds: {type: integer, minimum: 3, maximum: 3600, description: How long the item shows before the next one; ignored in a one-item list.}
         transition: {$ref: "#/components/schemas/SignageTransition"}
-    SignagePlaylist:
-      type: object
-      additionalProperties: false
-      required: [id, name, items, version, createdAt, updatedAt]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        name: {type: string, minLength: 1, maxLength: 100}
-        items: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlaylistItem"}}
-        version: {$ref: "#/components/schemas/Version"}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
-    SignagePlaylistList:
-      type: object
-      additionalProperties: false
-      required: [items]
-      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignagePlaylist"}}}
-    CreateSignagePlaylistRequest:
-      type: object
-      additionalProperties: false
-      required: [name, items]
-      properties:
-        name: {type: string, minLength: 1, maxLength: 100}
-        items: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlaylistItem"}}
-    UpdateSignagePlaylistRequest:
-      type: object
-      additionalProperties: false
-      required: [expectedVersion, name, items]
-      properties:
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-        name: {type: string, minLength: 1, maxLength: 100}
-        items: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlaylistItem"}}
+    SignageSceneListItems:
+      type: array
+      description: >-
+        Ordered scenes that a rule or a display's default shows. A one-item list shows its scene continuously; a longer
+        list loops with the per-item seconds and transition. Every scene must have the aspect ratio of the display the
+        list belongs to (422 otherwise).
+      minItems: 1
+      maxItems: 100
+      items: {$ref: "#/components/schemas/SignageSceneListItem"}
 
     SignageTone:
       type: string
@@ -20662,8 +20573,9 @@ components:
       x-enum-varnames: [SignageDisplayStatusOnline, SignageDisplayStatusOffline, SignageDisplayStatusRevoked]
     SignagePendingChangeKind:
       type: string
-      enum: [display, rule, scene, playlist, asset, layout]
-      x-enum-varnames: [SignagePendingChangeKindDisplay, SignagePendingChangeKindRule, SignagePendingChangeKindScene, SignagePendingChangeKindPlaylist, SignagePendingChangeKindAsset, SignagePendingChangeKindLayout]
+      description: "A changed default scene list is reported as `display` with the name `Default scenes`."
+      enum: [display, rule, scene, asset, layout]
+      x-enum-varnames: [SignagePendingChangeKindDisplay, SignagePendingChangeKindRule, SignagePendingChangeKindScene, SignagePendingChangeKindAsset, SignagePendingChangeKindLayout]
     SignagePendingChangeType:
       type: string
       enum: [added, modified, removed]
@@ -20679,7 +20591,7 @@ components:
     SignageDisplay:
       type: object
       additionalProperties: false
-      required: [id, managedDeviceId, name, location, aspectRatio, visibleFromOutside, allowCameraOutside, defaultPlaylistId, status, revokedAt, lastHeartbeatAt, publishedRevision, publishedAt, pendingChanges, reportedRevision, currentRule, currentSceneId, playerVersion, cacheUsedBytes, cacheQuotaBytes, errors, version, createdAt, updatedAt]
+      required: [id, managedDeviceId, name, location, aspectRatio, visibleFromOutside, allowCameraOutside, defaultScenes, status, revokedAt, lastHeartbeatAt, publishedRevision, publishedAt, pendingChanges, reportedRevision, currentRule, currentSceneId, playerVersion, cacheUsedBytes, cacheQuotaBytes, errors, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         managedDeviceId: {$ref: "#/components/schemas/UUIDv7"}
@@ -20688,7 +20600,7 @@ components:
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
         allowCameraOutside: {type: boolean, description: "Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams. Takes effect immediately (no publication needed)."}
-        defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
+        defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
         status: {$ref: "#/components/schemas/SignageDisplayStatus"}
         revokedAt: {type: string, format: date-time, nullable: true}
         lastHeartbeatAt: {type: string, format: date-time, nullable: true}
@@ -20717,7 +20629,7 @@ components:
     PairSignageDisplayRequest:
       type: object
       additionalProperties: false
-      required: [code, name, location, aspectRatio, visibleFromOutside, defaultPlaylistId]
+      required: [code, name, location, aspectRatio, visibleFromOutside, defaultScenes]
       properties:
         code: {type: string, minLength: 1, maxLength: 20, description: The code shown on the screen; case and spaces are ignored.}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -20725,11 +20637,11 @@ components:
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
         allowCameraOutside: {type: boolean, description: "Optional; omitted means unchanged on update and false on pairing."}
-        defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
+        defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
     UpdateSignageDisplayRequest:
       type: object
       additionalProperties: false
-      required: [expectedVersion, name, location, aspectRatio, visibleFromOutside, defaultPlaylistId]
+      required: [expectedVersion, name, location, aspectRatio, visibleFromOutside, defaultScenes]
       properties:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -20737,7 +20649,7 @@ components:
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
         allowCameraOutside: {type: boolean, description: "Optional; omitted means unchanged on update and false on pairing."}
-        defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
+        defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
 
     SignageRuleConditionKind:
       type: string
@@ -20747,10 +20659,6 @@ components:
       type: string
       enum: [any, all]
       x-enum-varnames: [SignageMachineMatchAny, SignageMachineMatchAll]
-    SignageRuleTargetKind:
-      type: string
-      enum: [scene, playlist]
-      x-enum-varnames: [SignageRuleTargetKindScene, SignageRuleTargetKindPlaylist]
     SignageMultiMode:
       type: string
       enum: [split, alternate]
@@ -20758,7 +20666,7 @@ components:
     SignageRule:
       type: object
       additionalProperties: false
-      required: [id, position, enabled, conditionKind, weekdays, timeFrom, timeTo, machineIds, machineMatch, announcementTemplateIds, targetKind, targetId, minSeconds, multiMode, alternateSeconds]
+      required: [id, position, enabled, conditionKind, weekdays, timeFrom, timeTo, machineIds, machineMatch, announcementTemplateIds, scenes, minSeconds, multiMode, alternateSeconds]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         position: {type: integer, minimum: 0}
@@ -20770,8 +20678,7 @@ components:
         machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}, description: Machine rules only.}
         machineMatch: {allOf: [{$ref: "#/components/schemas/SignageMachineMatch"}], nullable: true}
         announcementTemplateIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}, description: Announcement rules only; empty means any template.}
-        targetKind: {$ref: "#/components/schemas/SignageRuleTargetKind"}
-        targetId: {$ref: "#/components/schemas/UUIDv7"}
+        scenes: {$ref: "#/components/schemas/SignageSceneListItems"}
         minSeconds: {type: integer, minimum: 0, maximum: 600}
         multiMode: {$ref: "#/components/schemas/SignageMultiMode"}
         alternateSeconds: {type: integer, minimum: 3, maximum: 600}
@@ -20785,7 +20692,7 @@ components:
     SignageRuleRequest:
       type: object
       additionalProperties: false
-      required: [expectedVersion, enabled, conditionKind, targetKind, targetId, minSeconds, multiMode, alternateSeconds]
+      required: [expectedVersion, enabled, conditionKind, scenes, minSeconds, multiMode, alternateSeconds]
       description: Fields that do not belong to the condition kind must be omitted or empty; otherwise 422.
       properties:
         expectedVersion: {$ref: "#/components/schemas/Version"}
@@ -20797,8 +20704,7 @@ components:
         machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
         machineMatch: {$ref: "#/components/schemas/SignageMachineMatch"}
         announcementTemplateIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
-        targetKind: {$ref: "#/components/schemas/SignageRuleTargetKind"}
-        targetId: {$ref: "#/components/schemas/UUIDv7"}
+        scenes: {$ref: "#/components/schemas/SignageSceneListItems"}
         minSeconds: {type: integer, minimum: 0, maximum: 600}
         multiMode: {$ref: "#/components/schemas/SignageMultiMode"}
         alternateSeconds: {type: integer, minimum: 3, maximum: 600}
@@ -20834,7 +20740,7 @@ components:
     SignagePlayerRule:
       type: object
       additionalProperties: false
-      required: [id, kind, weekdays, timeFrom, timeTo, machineIds, machineMatch, announcementTemplateIds, targetKind, targetId, minSeconds, multiMode, alternateSeconds]
+      required: [id, kind, weekdays, timeFrom, timeTo, machineIds, machineMatch, announcementTemplateIds, scenes, minSeconds, multiMode, alternateSeconds]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         kind: {$ref: "#/components/schemas/SignageRuleConditionKind"}
@@ -20844,8 +20750,7 @@ components:
         machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
         machineMatch: {allOf: [{$ref: "#/components/schemas/SignageMachineMatch"}], nullable: true}
         announcementTemplateIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
-        targetKind: {$ref: "#/components/schemas/SignageRuleTargetKind"}
-        targetId: {$ref: "#/components/schemas/UUIDv7"}
+        scenes: {$ref: "#/components/schemas/SignageSceneListItems"}
         minSeconds: {type: integer, minimum: 0, maximum: 600}
         multiMode: {$ref: "#/components/schemas/SignageMultiMode"}
         alternateSeconds: {type: integer, minimum: 3, maximum: 600}
@@ -20878,15 +20783,6 @@ components:
         rows: {type: array, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
         zones: {type: array, maxItems: 12, items: {$ref: "#/components/schemas/SignageCustomLayoutZone"}}
         version: {$ref: "#/components/schemas/Version"}
-    SignagePlayerPlaylist:
-      type: object
-      additionalProperties: false
-      required: [id, name, items, version]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        name: {type: string}
-        items: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlaylistItem"}}
-        version: {$ref: "#/components/schemas/Version"}
     SignagePlayerAsset:
       type: object
       additionalProperties: false
@@ -20912,14 +20808,20 @@ components:
     SignagePlayerManifest:
       type: object
       additionalProperties: false
-      required: [revision, display, rules, defaultPlaylistId, scenes, playlists, assets, customLayouts, layoutsVersion]
+      required: [manifestVersion, revision, display, rules, defaultScenes, scenes, assets, customLayouts, layoutsVersion]
       properties:
+        manifestVersion:
+          type: integer
+          minimum: 3
+          description: >-
+            Shape of the manifest; 3 since rules and the default carry scene lists instead of playlists. Publications
+            stored in an older shape (without this field) are upgraded when they are read, so this endpoint always
+            answers 3.
         revision: {type: integer, minimum: 1}
         display: {$ref: "#/components/schemas/SignagePlayerManifestDisplay"}
         rules: {type: array, maxItems: 50, description: Enabled rules in evaluation order., items: {$ref: "#/components/schemas/SignagePlayerRule"}}
-        defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
+        defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
         scenes: {type: array, items: {$ref: "#/components/schemas/SignagePlayerScene"}}
-        playlists: {type: array, items: {$ref: "#/components/schemas/SignagePlayerPlaylist"}}
         assets: {type: array, items: {$ref: "#/components/schemas/SignagePlayerAsset"}}
         customLayouts: {type: array, description: The custom layouts the published scenes use; empty in publications made before custom layouts., items: {$ref: "#/components/schemas/SignagePlayerCustomLayout"}}
         layoutsVersion: {type: integer, minimum: 1, description: "2 for publications that carry `customLayouts`."}

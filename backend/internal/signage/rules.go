@@ -28,7 +28,7 @@ const (
 
 var clockPattern = regexp.MustCompile(`^([01]\d|2[0-3]):([0-5]\d)$`)
 
-// Rule is one entry of a display's ordered rule list: "when condition show target".
+// Rule is one entry of a display's ordered rule list: "when condition show this scene list".
 // Rules are drafts; they reach players only through a publication.
 type Rule struct {
 	ID                      uuid.UUID
@@ -41,8 +41,7 @@ type Rule struct {
 	MachineIDs              []uuid.UUID
 	MachineMatch            *MachineMatch
 	AnnouncementTemplateIDs []uuid.UUID
-	TargetKind              TargetKind
-	TargetID                uuid.UUID
+	Scenes                  []SceneListItem
 	MinSeconds              int
 	MultiMode               MultiMode
 	AlternateSeconds        int
@@ -57,8 +56,7 @@ type RuleInput struct {
 	MachineIDs              []uuid.UUID
 	MachineMatch            *MachineMatch
 	AnnouncementTemplateIDs []uuid.UUID
-	TargetKind              TargetKind
-	TargetID                uuid.UUID
+	Scenes                  []SceneListItem
 	MinSeconds              int
 	MultiMode               MultiMode
 	AlternateSeconds        int
@@ -95,12 +93,11 @@ func ValidateRuleInput(input RuleInput) (RuleInput, error) {
 	if input.AlternateSeconds < 3 || input.AlternateSeconds > 600 {
 		return input, validation("alternateSeconds must be between 3 and 600")
 	}
-	if input.TargetKind != TargetKindScene && input.TargetKind != TargetKindPlaylist {
-		return input, validation("targetKind must be scene or playlist")
+	scenes, err := checkSceneList(input.Scenes, "scenes")
+	if err != nil {
+		return input, err
 	}
-	if input.TargetID == uuid.Nil {
-		return input, validation("targetId is required")
-	}
+	input.Scenes = scenes
 	weekdays := map[int]struct{}{}
 	for _, day := range input.Weekdays {
 		if day < 1 || day > 7 {
@@ -177,7 +174,6 @@ func ruleFromRow(row signagedb.ListSignageRulesRow) (Rule, error) {
 		Enabled:       row.Enabled,
 		ConditionKind: ConditionKind(row.ConditionKind),
 		Weekdays:      make([]int, 0, len(row.Weekdays)), MachineMatch: optional.Convert[MachineMatch](row.MachineMatch),
-		TargetKind: TargetKind(row.TargetKind),
 		MinSeconds: int(row.MinSeconds), MultiMode: MultiMode(row.MultiMode), AlternateSeconds: int(row.AlternateSeconds),
 		MachineIDs: []uuid.UUID{}, AnnouncementTemplateIDs: []uuid.UUID{},
 	}
@@ -202,14 +198,14 @@ func ruleFromRow(row signagedb.ListSignageRulesRow) (Rule, error) {
 		}
 		rule.AnnouncementTemplateIDs = append(rule.AnnouncementTemplateIDs, id)
 	}
-	switch {
-	case TargetKind(row.TargetKind) == TargetKindScene && row.TargetSceneID != nil:
-		rule.TargetID = *row.TargetSceneID
-	case TargetKind(row.TargetKind) == TargetKindPlaylist && row.TargetPlaylistID != nil:
-		rule.TargetID = *row.TargetPlaylistID
-	default:
-		return Rule{}, errors.New("rule has no target")
+	scenes, err := decodeSceneList(row.Scenes)
+	if err != nil {
+		return Rule{}, err
 	}
+	if len(scenes) == 0 {
+		return Rule{}, errors.New("rule has no scenes")
+	}
+	rule.Scenes = scenes
 	return rule, nil
 }
 
@@ -237,9 +233,9 @@ func loadRules(ctx context.Context, q *signagedb.Queries, displayIDs []uuid.UUID
 	return result, nil
 }
 
-// verifyRuleReferences checks that the machines, templates and target of a rule exist and share-locks
-// them so a concurrent deletion either waits for this transaction or finds the new reference. A scene
-// target must have exactly the display's aspect ratio; playlists may hold scenes of any ratio.
+// verifyRuleReferences checks that the machines, templates and scenes of a rule exist and share-locks
+// them so a concurrent deletion either waits for this transaction or finds the new reference. Every scene
+// of the list must have exactly the owner's aspect ratio.
 func verifyRuleReferences(ctx context.Context, q *signagedb.Queries, ratio AspectRatio, input RuleInput) error {
 	if len(input.MachineIDs) > 0 {
 		rows, err := q.ListSignageMachineNames(ctx, uuidStrings(input.MachineIDs))
@@ -259,35 +255,17 @@ func verifyRuleReferences(ctx context.Context, q *signagedb.Queries, ratio Aspec
 			return validation("a referenced announcement template does not exist")
 		}
 	}
-	if input.TargetKind == TargetKindScene {
-		scene, err := q.LockSignageSceneForShare(ctx, input.TargetID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return validation("the target scene does not exist")
-		}
-		if err != nil {
-			return err
-		}
-		if aspectRatioOf(scene.AspectWidth, scene.AspectHeight) != ratio {
-			return validation("the target scene must have the display's aspect ratio (%s)", ratio)
-		}
-		return nil
-	}
-	if _, err := q.LockSignagePlaylistForShare(ctx, input.TargetID); errors.Is(err, pgx.ErrNoRows) {
-		return validation("the target playlist does not exist")
-	} else if err != nil {
-		return err
-	}
-	return nil
+	return verifySceneList(ctx, q, ratio, input.Scenes, "scenes")
 }
 
-func ruleParams(displayID, ruleID uuid.UUID, position int, input RuleInput) signagedb.InsertSignageRuleParams {
+func ruleParams(owner ruleOwner, ruleID uuid.UUID, position int, input RuleInput) signagedb.InsertSignageRuleParams {
 	weekdays := make([]int16, 0, len(input.Weekdays))
 	for _, day := range input.Weekdays {
 		weekdays = append(weekdays, int16(day))
 	}
-	params := signagedb.InsertSignageRuleParams{
+	return signagedb.InsertSignageRuleParams{
 		ID:                      ruleID,
-		DisplayID:               displayID,
+		DisplayID:               owner.DisplayID,
 		Position:                int32(position),
 		Enabled:                 input.Enabled,
 		ConditionKind:           string(input.ConditionKind),
@@ -296,18 +274,11 @@ func ruleParams(displayID, ruleID uuid.UUID, position int, input RuleInput) sign
 		TimeTo:                  input.TimeTo,
 		MachineIds:              uuidStrings(input.MachineIDs),
 		MachineMatch:            optional.Convert[string](input.MachineMatch),
-		AnnouncementTemplateIds: uuidStrings(input.AnnouncementTemplateIDs), TargetKind: string(input.TargetKind),
-		MinSeconds: int32(
-			input.MinSeconds,
-		), MultiMode: string(input.MultiMode), AlternateSeconds: int32(input.AlternateSeconds),
+		AnnouncementTemplateIds: uuidStrings(input.AnnouncementTemplateIDs),
+		MinSeconds:              int32(input.MinSeconds),
+		MultiMode:               string(input.MultiMode),
+		AlternateSeconds:        int32(input.AlternateSeconds),
 	}
-	target := input.TargetID
-	if input.TargetKind == TargetKindScene {
-		params.TargetSceneID = &target
-	} else {
-		params.TargetPlaylistID = &target
-	}
-	return params
 }
 
 // ListRules returns a display's rules in evaluation order.
@@ -338,19 +309,19 @@ func (s *Service) ListRules(
 	return RuleList{Items: items, DisplayVersion: display.Version}, nil
 }
 
-// ruleMutation runs one rule write under the display lock. Rules share the display version:
-// every write must quote the current display version and bumps it, so concurrent edits of the same
+// ruleMutation runs one rule write under the owner's lock. Rules share the owner's version:
+// every write must quote the current version and bumps it, so concurrent edits of the same
 // rule list conflict as a whole (409 stale_write) and a reorder is atomic by construction.
 func (s *Service) ruleMutation(
 	ctx context.Context,
 	principal authorization.Principal,
-	displayID uuid.UUID,
+	owner ruleOwner,
 	expected int64,
 	requestID *uuid.UUID,
 	action, resource string,
 	resourceID func() uuid.UUID,
 	fields []string,
-	apply func(q *signagedb.Queries, display signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error,
+	apply func(q *signagedb.Queries, ratio AspectRatio, rules []Rule) error,
 ) (RuleList, error) {
 	if !principal.Has(authorization.SignageManage) {
 		return RuleList{}, apperror.PermissionDenied
@@ -364,6 +335,7 @@ func (s *Service) ruleMutation(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
+	displayID := owner.DisplayID
 	display, err := q.GetSignageDisplayForUpdate(ctx, displayID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RuleList{}, apperror.NotFound
@@ -381,7 +353,7 @@ func (s *Service) ruleMutation(
 	if err != nil {
 		return RuleList{}, err
 	}
-	if err := apply(q, display, loaded[displayID]); err != nil {
+	if err := apply(q, aspectRatioOf(display.AspectWidth, display.AspectHeight), loaded[displayID]); err != nil {
 		return RuleList{}, err
 	}
 	version, err := q.BumpSignageDisplayVersion(
@@ -412,7 +384,7 @@ func displayRevoked() error {
 	return apperror.New(http.StatusConflict, "signage_display_revoked", "The display is revoked")
 }
 
-var ruleFields = []string{"enabled", "condition", "target", "minSeconds", "multiMode", "alternateSeconds"}
+var ruleFields = []string{"enabled", "condition", "scenes", "minSeconds", "multiMode", "alternateSeconds"}
 
 // CreateRule appends a rule to the end of the display's rule list.
 func (s *Service) CreateRule(
@@ -431,24 +403,28 @@ func (s *Service) CreateRule(
 		return RuleList{}, err
 	}
 	id := ids.New()
+	owner := ruleOwner{DisplayID: displayID}
 	return s.ruleMutation(
 		ctx,
 		principal,
-		displayID,
+		owner,
 		expected,
 		requestID,
 		"signage_rule.created",
 		"signage_rule",
 		func() uuid.UUID { return id },
 		ruleFields,
-		func(q *signagedb.Queries, display signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error {
+		func(q *signagedb.Queries, ratio AspectRatio, rules []Rule) error {
 			if len(rules) >= maxRulesPerDisplay {
 				return validation("a display has at most %d rules", maxRulesPerDisplay)
 			}
-			if err := verifyRuleReferences(ctx, q, aspectRatioOf(display.AspectWidth, display.AspectHeight), checked); err != nil {
+			if err := verifyRuleReferences(ctx, q, ratio, checked); err != nil {
 				return err
 			}
-			return databaseError(q.InsertSignageRule(ctx, ruleParams(displayID, id, len(rules), checked)))
+			if err := databaseError(q.InsertSignageRule(ctx, ruleParams(owner, id, len(rules), checked))); err != nil {
+				return err
+			}
+			return replaceRuleScenes(ctx, q, id, checked.Scenes)
 		},
 	)
 }
@@ -478,24 +454,25 @@ func (s *Service) UpdateRule(
 	if err != nil {
 		return RuleList{}, err
 	}
+	owner := ruleOwner{DisplayID: displayID}
 	return s.ruleMutation(
 		ctx,
 		principal,
-		displayID,
+		owner,
 		expected,
 		requestID,
 		"signage_rule.updated",
 		"signage_rule",
 		func() uuid.UUID { return ruleID },
 		ruleFields,
-		func(q *signagedb.Queries, display signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error {
+		func(q *signagedb.Queries, ratio AspectRatio, rules []Rule) error {
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
 			}
-			if err := verifyRuleReferences(ctx, q, aspectRatioOf(display.AspectWidth, display.AspectHeight), checked); err != nil {
+			if err := verifyRuleReferences(ctx, q, ratio, checked); err != nil {
 				return err
 			}
-			params := ruleParams(displayID, ruleID, 0, checked)
+			params := ruleParams(owner, ruleID, 0, checked)
 			_, err := q.UpdateSignageRule(ctx, signagedb.UpdateSignageRuleParams{
 				Enabled:                 params.Enabled,
 				ConditionKind:           params.ConditionKind,
@@ -505,16 +482,16 @@ func (s *Service) UpdateRule(
 				MachineIds:              params.MachineIds,
 				MachineMatch:            params.MachineMatch,
 				AnnouncementTemplateIds: params.AnnouncementTemplateIds,
-				TargetKind:              params.TargetKind,
-				TargetSceneID:           params.TargetSceneID,
-				TargetPlaylistID:        params.TargetPlaylistID,
 				MinSeconds:              params.MinSeconds,
 				MultiMode:               params.MultiMode,
 				AlternateSeconds:        params.AlternateSeconds,
 				ID:                      ruleID,
-				DisplayID:               displayID,
+				DisplayID:               owner.DisplayID,
 			})
-			return databaseError(err)
+			if err := databaseError(err); err != nil {
+				return err
+			}
+			return replaceRuleScenes(ctx, q, ruleID, checked.Scenes)
 		},
 	)
 }
@@ -531,14 +508,14 @@ func (s *Service) SetRuleEnabled(
 	return s.ruleMutation(
 		ctx,
 		principal,
-		displayID,
+		ruleOwner{DisplayID: displayID},
 		expected,
 		requestID,
 		"signage_rule.updated",
 		"signage_rule",
 		func() uuid.UUID { return ruleID },
 		[]string{"enabled"},
-		func(q *signagedb.Queries, _ signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error {
+		func(q *signagedb.Queries, _ AspectRatio, rules []Rule) error {
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
 			}
@@ -562,14 +539,14 @@ func (s *Service) DeleteRule(
 	return s.ruleMutation(
 		ctx,
 		principal,
-		displayID,
+		ruleOwner{DisplayID: displayID},
 		expected,
 		requestID,
 		"signage_rule.deleted",
 		"signage_rule",
 		func() uuid.UUID { return ruleID },
 		nil,
-		func(q *signagedb.Queries, _ signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error {
+		func(q *signagedb.Queries, _ AspectRatio, rules []Rule) error {
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
 			}
@@ -614,14 +591,14 @@ func (s *Service) ReorderRules(
 	return s.ruleMutation(
 		ctx,
 		principal,
-		displayID,
+		ruleOwner{DisplayID: displayID},
 		expected,
 		requestID,
 		"signage_display.rules_reordered",
 		"signage_display",
 		func() uuid.UUID { return displayID },
 		[]string{"ruleOrder"},
-		func(q *signagedb.Queries, _ signagedb.GetSignageDisplayForUpdateRow, rules []Rule) error {
+		func(q *signagedb.Queries, _ AspectRatio, rules []Rule) error {
 			if len(ruleIDs) != len(rules) || len(distinct(ruleIDs)) != len(ruleIDs) {
 				return validation("ruleIds must list every rule of the display exactly once")
 			}

@@ -3,7 +3,7 @@ import {
   describeCondition,
   describeDays,
   loopSeconds,
-  playlistPosition,
+  sceneListPosition,
   resolvePlayback,
   timeWindowActive,
   type PlaybackContext,
@@ -24,8 +24,7 @@ const base: Omit<PlaybackRule, 'id'> = {
   machineIds: [],
   machineMatch: null,
   announcementTemplateIds: [],
-  targetKind: 'scene',
-  targetId: 'scene-x',
+  scenes: [{ sceneId: 'scene-x', seconds: 10, transition: 'cut' }],
   minSeconds: 20,
   multiMode: 'split',
   alternateSeconds: 10,
@@ -34,7 +33,7 @@ const base: Omit<PlaybackRule, 'id'> = {
 const rule = (id: string, patch: Partial<PlaybackRule>): PlaybackRule => ({
   ...base,
   id,
-  targetId: `scene-${id}`,
+  scenes: [{ sceneId: `scene-${id}`, seconds: 10, transition: 'cut' }],
   ...patch,
 });
 const weekdays = rule('time', { kind: 'time_window', weekdays: [1, 2, 3, 4, 5], timeFrom: '08:00', timeTo: '10:00' });
@@ -50,7 +49,8 @@ const idle = (now: Date, patch: Partial<PlaybackContext> = {}): PlaybackContext 
   liveDataAvailable: true,
   ...patch,
 });
-const resolve = (rules: PlaybackRule[], context: PlaybackContext) => resolvePlayback('pl-ads', rules, context);
+const defaults = [{ sceneId: 'scene-ads', seconds: 20, transition: 'fade' as const }];
+const resolve = (rules: PlaybackRule[], context: PlaybackContext) => resolvePlayback(defaults, rules, context);
 
 describe('time windows', () => {
   it('match inside the window on a listed weekday, start inclusive and end exclusive', () => {
@@ -78,15 +78,15 @@ describe('time windows', () => {
 });
 
 describe('resolvePlayback', () => {
-  it('falls back to the default playlist', () => {
+  it('falls back to the default scenes', () => {
     const result = resolve([printing('a', [H2D, X1C], 'any')], idle(monday(12)));
     expect(result.ruleId).toBe('default');
     expect(result.rulePosition).toBeNull();
-    expect(result.target).toEqual({ kind: 'playlist', id: 'pl-ads' });
+    expect(result.scenes).toEqual(defaults);
   });
   it('matches "any" machines and names the reason', () => {
     const result = resolvePlayback(
-      'pl-ads',
+      defaults,
       [printing('a', [H2D, X1C], 'any')],
       idle(monday(12), { printingMachineIds: [X1C] }),
       { machine: (id) => id.replace('machine-', '').toUpperCase(), template: (id) => id },
@@ -177,14 +177,17 @@ describe('descriptions', () => {
   });
 });
 
-describe('playlists', () => {
+describe('scene lists', () => {
   const items = [{ seconds: 10 }, { seconds: 20 }, { seconds: 5 }];
   it('sums the loop', () => expect(loopSeconds(items)).toBe(35));
   it('finds the item on screen and the seconds left', () => {
-    expect(playlistPosition(items, 0)).toMatchObject({ index: 0, secondsLeft: 10 });
-    expect(playlistPosition(items, 12.5)).toMatchObject({ index: 1, secondsLeft: 18 });
-    expect(playlistPosition(items, 34)).toMatchObject({ index: 2, secondsLeft: 1 });
-    expect(playlistPosition(items, 35)).toMatchObject({ index: 0 });
-    expect(playlistPosition([], 3)).toBeNull();
+    expect(sceneListPosition(items, 0)).toMatchObject({ index: 0, secondsLeft: 10 });
+    expect(sceneListPosition(items, 12.5)).toMatchObject({ index: 1, secondsLeft: 18 });
+    expect(sceneListPosition(items, 34)).toMatchObject({ index: 2, secondsLeft: 1 });
+    expect(sceneListPosition(items, 35)).toMatchObject({ index: 0 });
+    expect(sceneListPosition([], 3)).toBeNull();
+  });
+  it('never changes a single item', () => {
+    expect(sceneListPosition([{ seconds: 10 }], 95)).toMatchObject({ index: 0, secondsLeft: 5 });
   });
 });

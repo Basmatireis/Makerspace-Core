@@ -25,7 +25,7 @@ type Display struct {
 	AspectRatio         AspectRatio
 	VisibleFromOutside  bool
 	AllowCameraOutside  bool
-	DefaultPlaylistID   uuid.UUID
+	DefaultScenes       []SceneListItem
 	Status              DisplayStatus // online | offline | revoked
 	RevokedAt           *time.Time
 	LastHeartbeatAt     *time.Time
@@ -51,7 +51,7 @@ type DisplayInput struct {
 	VisibleFromOutside bool
 	// AllowCameraOutside nil means unchanged on update and false when pairing.
 	AllowCameraOutside *bool
-	DefaultPlaylistID  uuid.UUID
+	DefaultScenes      []SceneListItem
 }
 
 // viewRow abstracts the two generated row types of the display view queries.
@@ -63,8 +63,12 @@ func viewFromList(row signagedb.ListSignageDisplayViewsRow) viewRow {
 	return viewRow{signagedb.GetSignageDisplayViewRow(row)}
 }
 
-func (s *Service) displayFromView(row viewRow) Display {
+func (s *Service) displayFromView(row viewRow) (Display, error) {
 	now := s.now()
+	defaultScenes, err := decodeSceneList(row.DefaultScenes)
+	if err != nil {
+		return Display{}, err
+	}
 	display := Display{
 		ID:                 row.ID,
 		ManagedDeviceID:    row.ManagedDeviceID,
@@ -72,9 +76,9 @@ func (s *Service) displayFromView(row viewRow) Display {
 		Location:           row.Location,
 		AspectRatio:        aspectRatioOf(row.AspectWidth, row.AspectHeight),
 		VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
-		DefaultPlaylistID: row.DefaultPlaylistID,
-		LastHeartbeatAt:   fromPgTime(row.LastHeartbeatAt),
-		PendingChanges:    []PendingChange{},
+		DefaultScenes:   defaultScenes,
+		LastHeartbeatAt: fromPgTime(row.LastHeartbeatAt),
+		PendingChanges:  []PendingChange{},
 		ReportedRevision: intPointer(
 			row.ReportedRevision,
 		), CurrentRule: row.CurrentRule, CurrentSceneID: row.CurrentSceneID,
@@ -106,7 +110,7 @@ func (s *Service) displayFromView(row viewRow) Display {
 			display.Errors = messages
 		}
 	}
-	return display
+	return display, nil
 }
 
 // loadDisplays reads displays with their pending changes (drafts compared with the latest
@@ -115,7 +119,11 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 	displays := make([]Display, 0, len(rows))
 	ids := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
-		displays = append(displays, s.displayFromView(row))
+		display, err := s.displayFromView(row)
+		if err != nil {
+			return nil, err
+		}
+		displays = append(displays, display)
 		ids = append(ids, row.ID)
 	}
 	if len(ids) == 0 {
@@ -131,7 +139,7 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 	}
 	published := map[uuid.UUID]Manifest{}
 	for _, publication := range publications {
-		manifest, err := decodeManifest(publication.Manifest)
+		manifest, err := upgradeManifest(publication.Manifest)
 		if err != nil {
 			return nil, err
 		}
@@ -143,7 +151,7 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 			drafts = append(drafts, displayDraft{
 				ID: display.ID, Name: display.Name, AspectRatio: display.AspectRatio,
 				VisibleFromOutside: display.VisibleFromOutside,
-				DefaultPlaylistID:  display.DefaultPlaylistID,
+				DefaultScenes:      display.DefaultScenes,
 				Rules:              rules[display.ID],
 			})
 		}
@@ -170,45 +178,24 @@ func (s *Service) buildManifests(
 	if len(drafts) == 0 {
 		return result, nil
 	}
-	playlistSet, sceneSet := map[uuid.UUID]struct{}{}, map[uuid.UUID]struct{}{}
+	sceneSet := map[uuid.UUID]struct{}{}
 	for _, draft := range drafts {
-		playlistSet[draft.DefaultPlaylistID] = struct{}{}
+		for _, item := range draft.DefaultScenes {
+			sceneSet[item.SceneID] = struct{}{}
+		}
 		for _, rule := range draft.Rules {
 			if !rule.Enabled {
 				continue
 			}
-			if rule.TargetKind == TargetKindPlaylist {
-				playlistSet[rule.TargetID] = struct{}{}
-			} else {
-				sceneSet[rule.TargetID] = struct{}{}
+			for _, item := range rule.Scenes {
+				sceneSet[item.SceneID] = struct{}{}
 			}
 		}
 	}
 	content := manifestContent{
 		scenes:        map[uuid.UUID]ManifestScene{},
-		playlists:     map[uuid.UUID]ManifestPlaylist{},
 		assets:        map[uuid.UUID]ManifestAsset{},
 		customLayouts: map[uuid.UUID]ManifestCustomLayout{},
-	}
-	playlistRows, err := q.ListSignagePlaylistsByIDs(ctx, uuidStrings(sortedIDs(playlistSet)))
-	if err != nil {
-		return nil, err
-	}
-	itemRows, err := q.ListSignagePlaylistItems(ctx, uuidStrings(sortedIDs(playlistSet)))
-	if err != nil {
-		return nil, err
-	}
-	items := itemsByPlaylist(itemRows)
-	for _, row := range playlistRows {
-		playlist := ManifestPlaylist{ID: row.ID, Name: row.Name, Items: []ManifestPlaylistItem{}, Version: row.Version}
-		for _, item := range items[row.ID] {
-			playlist.Items = append(
-				playlist.Items,
-				ManifestPlaylistItem(item),
-			)
-			sceneSet[item.SceneID] = struct{}{}
-		}
-		content.playlists[row.ID] = playlist
 	}
 	sceneRows, err := q.ListSignageScenesByIDs(ctx, uuidStrings(sortedIDs(sceneSet)))
 	if err != nil {
@@ -378,10 +365,11 @@ func validateDisplayInput(input DisplayInput) (DisplayInput, error) {
 	if err != nil {
 		return input, err
 	}
-	if input.DefaultPlaylistID == uuid.Nil {
-		return input, validation("defaultPlaylistId is required")
+	defaultScenes, err := checkSceneList(input.DefaultScenes, "defaultScenes")
+	if err != nil {
+		return input, err
 	}
-	input.Name, input.Location, input.AspectRatio = name, location, ratio
+	input.Name, input.Location, input.AspectRatio, input.DefaultScenes = name, location, ratio, defaultScenes
 	return input, nil
 }
 
@@ -423,9 +411,13 @@ func (s *Service) UpdateDisplay(
 	if current.RevokedAt.Valid || current.DeviceRevokedAt.Valid {
 		return Display{}, displayRevoked()
 	}
-	if _, err := q.LockSignagePlaylistForShare(ctx, checked.DefaultPlaylistID); errors.Is(err, pgx.ErrNoRows) {
-		return Display{}, validation("the default playlist does not exist")
-	} else if err != nil {
+	// The default list is checked against the requested ratio, so a ratio change and a matching new
+	// default list can be saved together.
+	if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, "defaultScenes"); err != nil {
+		return Display{}, err
+	}
+	currentDefault, err := decodeSceneList(current.DefaultScenes)
+	if err != nil {
 		return Display{}, err
 	}
 	ratioChanged := aspectRatioOf(current.AspectWidth, current.AspectHeight) != checked.AspectRatio
@@ -458,12 +450,17 @@ func (s *Service) UpdateDisplay(
 		AspectHeight:       int16(checked.AspectRatio.Height),
 		VisibleFromOutside: checked.VisibleFromOutside,
 		AllowCameraOutside: allowOutside,
-		DefaultPlaylistID:  checked.DefaultPlaylistID,
 		ID:                 id, ExpectedVersion: expected,
 	}); errors.Is(err, pgx.ErrNoRows) {
 		return Display{}, apperror.StaleWrite
 	} else if err != nil {
 		return Display{}, databaseError(err)
+	}
+	defaultChanged := !sceneListsEqual(currentDefault, checked.DefaultScenes)
+	if defaultChanged {
+		if err := replaceDefaultScenes(ctx, q, ruleOwner{DisplayID: id}, checked.DefaultScenes); err != nil {
+			return Display{}, err
+		}
 	}
 	var changed []string
 	if current.Name != checked.Name {
@@ -481,8 +478,8 @@ func (s *Service) UpdateDisplay(
 	if current.AllowCameraOutside != allowOutside {
 		changed = append(changed, "allowCameraOutside")
 	}
-	if current.DefaultPlaylistID != checked.DefaultPlaylistID {
-		changed = append(changed, "defaultPlaylistId")
+	if defaultChanged {
+		changed = append(changed, "defaultScenes")
 	}
 	if err := writeAudit(
 		ctx,

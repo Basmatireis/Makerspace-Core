@@ -1,7 +1,6 @@
 import {
   Checkbox,
   CheckboxGroup,
-  ComboBox,
   InlineNotification,
   Modal,
   MultiSelect,
@@ -21,10 +20,13 @@ import type {
   SignageRuleConditionKind,
   SignageRuleRequest,
 } from '../../api/generated/models';
+import type { SignageAspectRatio } from '../../api/generated/models';
 import { createSignageRule, updateSignageRule } from '../../api/generated/signage/signage';
 import { errorMessage, isStaleWrite } from './helpers';
 import { useMachineOptions } from './preview';
-import { playlistsQuery, scenesQuery, signageKeys, templatesQuery } from './queries';
+import { SceneListFields } from './SceneListFields';
+import { newSceneListItem, sceneListDraftOf, sceneListError, type SceneListDraftItem } from './sceneListDraft';
+import { scenesQuery, signageKeys, templatesQuery } from './queries';
 
 const WEEKDAYS = [
   ['Mon', 1],
@@ -45,7 +47,7 @@ type Values = {
   machineMatch: 'any' | 'all';
   onlyTemplates: boolean;
   templateIds: string[];
-  target: string;
+  scenes: SceneListDraftItem[];
   multiMode: SignageMultiMode;
   alternateSeconds: number;
   minSeconds: number;
@@ -60,7 +62,7 @@ const initialValues = (rule?: SignageRule): Values => ({
   machineMatch: rule?.machineMatch ?? 'any',
   onlyTemplates: (rule?.announcementTemplateIds.length ?? 0) > 0,
   templateIds: rule?.announcementTemplateIds ?? [],
-  target: rule ? `${rule.targetKind}:${rule.targetId}` : '',
+  scenes: rule ? sceneListDraftOf(rule.scenes) : [newSceneListItem()],
   multiMode: rule?.multiMode ?? 'split',
   alternateSeconds: rule?.alternateSeconds ?? 10,
   minSeconds: rule?.minSeconds ?? 20,
@@ -71,51 +73,51 @@ export function RuleModal({
   displayId,
   displayName,
   displayVersion,
+  aspectRatio,
   rule,
   onClose,
 }: {
   displayId: string;
   displayName: string;
   displayVersion: number;
+  aspectRatio: SignageAspectRatio;
   rule?: SignageRule;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const { machines } = useMachineOptions();
   const scenes = useQuery(scenesQuery()).data?.items;
-  const playlists = useQuery(playlistsQuery()).data?.items;
   const templates = useQuery(templatesQuery()).data?.items;
   const form = useForm<Values>({ defaultValues: initialValues(rule) });
   const { errors } = form.formState;
-  const [kind, machineIds, target, multiMode, onlyTemplates] = form.watch([
+  const [kind, machineIds, chosenScenes, multiMode, onlyTemplates] = form.watch([
     'kind',
     'machineIds',
-    'target',
+    'scenes',
     'multiMode',
     'onlyTemplates',
   ]);
 
-  const targets: Option[] = [
-    ...(scenes ?? []).map((scene) => ({ id: `scene:${scene.id}`, label: `Scene ${scene.name}` })),
-    ...(playlists ?? []).map((playlist) => ({ id: `playlist:${playlist.id}`, label: `Playlist ${playlist.name}` })),
-  ];
-  const targetScene = target.startsWith('scene:') ? scenes?.find((scene) => scene.id === target.slice(6)) : undefined;
-  const askMulti =
-    kind === 'machine_printing' &&
-    machineIds.length > 1 &&
-    Object.values(targetScene?.zones ?? {}).some((widget) => widget.type === 'camera');
+  const hasCamera = chosenScenes.some((item) =>
+    Object.values(scenes?.find((scene) => scene.id === item.sceneId)?.zones ?? {}).some(
+      (widget) => widget.type === 'camera',
+    ),
+  );
+  const askMulti = kind === 'machine_printing' && machineIds.length > 1 && hasCamera;
   const machineItems: Option[] = machines.map((machine) => ({ id: machine.id, label: machine.name }));
   const templateItems: Option[] = (templates ?? []).map((template) => ({ id: template.id, label: template.name }));
 
   const mutation = useMutation({
     mutationFn: (values: Values) => {
-      const [targetKind, targetId] = values.target.split(':') as ['scene' | 'playlist', string];
       const request: SignageRuleRequest = {
         expectedVersion: displayVersion,
         enabled: rule?.enabled ?? true,
         conditionKind: values.kind,
-        targetKind,
-        targetId,
+        scenes: values.scenes.map(({ sceneId, seconds, transition }) => ({
+          sceneId,
+          seconds: seconds >= 3 && seconds <= 3600 ? seconds : 20,
+          transition,
+        })),
         minSeconds: values.minSeconds,
         multiMode: askMulti ? values.multiMode : (rule?.multiMode ?? 'split'),
         alternateSeconds:
@@ -337,20 +339,16 @@ export function RuleModal({
         )}
         <Controller
           control={form.control}
-          name="target"
-          rules={{ validate: (value) => value !== '' || 'Choose what to show' }}
+          name="scenes"
+          rules={{ validate: (value) => sceneListError(value) ?? true }}
           render={({ field }) => (
-            <ComboBox<Option>
-              autoAlign
-              id="rule-target"
-              titleText="Show"
-              placeholder="Choose a scene or playlist"
-              items={targets}
-              itemToString={(item) => item?.label ?? ''}
-              selectedItem={targets.find((item) => item.id === field.value) ?? null}
-              invalid={Boolean(errors.target)}
-              invalidText={errors.target?.message}
-              onChange={({ selectedItem }) => field.onChange(selectedItem?.id ?? '')}
+            <SceneListFields
+              idPrefix="rule"
+              label="Show"
+              value={field.value}
+              onChange={field.onChange}
+              aspectRatio={aspectRatio}
+              invalidText={errors.scenes?.message}
             />
           )}
         />
