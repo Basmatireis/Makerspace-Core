@@ -5,6 +5,7 @@ import { HEX_COLOR, widgetError } from './widgets';
 export type Draft = Pick<
   SignageScene,
   | 'name'
+  | 'aspectRatio'
   | 'layoutId'
   | 'customLayoutId'
   | 'backgroundColor'
@@ -16,6 +17,7 @@ export type Draft = Pick<
 >;
 export const toDraft = (scene: SignageScene): Draft => ({
   name: scene.name,
+  aspectRatio: scene.aspectRatio,
   layoutId: scene.layoutId,
   customLayoutId: scene.customLayoutId,
   backgroundColor: scene.backgroundColor,

@@ -36,8 +36,7 @@ export const settingsOf = (display: SignageDisplay): Omit<UpdateSignageDisplayRe
   allowCameraOutside: display.allowCameraOutside,
   name: display.name,
   location: display.location,
-  orientation: display.orientation,
-  resolution: display.resolution,
+  aspectRatio: display.aspectRatio,
   visibleFromOutside: display.visibleFromOutside,
   defaultPlaylistId: display.defaultPlaylistId,
 });

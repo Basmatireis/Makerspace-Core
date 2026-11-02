@@ -23,7 +23,7 @@ var colorPattern = regexp.MustCompile(`^#[0-9a-f]{6}$`)
 type Scene struct {
 	ID                uuid.UUID
 	Name              string
-	Orientation       Orientation
+	AspectRatio       AspectRatio
 	LayoutID          string
 	CustomLayoutID    *uuid.UUID
 	BackgroundColor   string
@@ -41,7 +41,7 @@ type Scene struct {
 // position when the layout changes) on update and creates empty zones on create.
 type SceneInput struct {
 	Name              string
-	Orientation       Orientation
+	AspectRatio       AspectRatio
 	LayoutID          string
 	CustomLayoutID    *uuid.UUID
 	BackgroundColor   string
@@ -69,7 +69,7 @@ func sceneFromRow(row signagedb.SignageScene) (Scene, error) {
 	return Scene{
 		ID:                row.ID,
 		Name:              row.Name,
-		Orientation:       Orientation(row.Orientation),
+		AspectRatio:       aspectRatioOf(row.AspectWidth, row.AspectHeight),
 		LayoutID:          row.LayoutID,
 		CustomLayoutID:    row.CustomLayoutID,
 		BackgroundColor:   row.BackgroundColor,
@@ -108,9 +108,11 @@ func validateSceneInput(input SceneInput) (validatedScene, error) {
 		}
 		builtin = &layout
 	}
-	if input.Orientation != OrientationPortrait && input.Orientation != OrientationLandscape {
-		return validatedScene{}, validation("orientation must be portrait or landscape")
+	ratio, err := checkAspectRatio(input.AspectRatio)
+	if err != nil {
+		return validatedScene{}, err
 	}
+	input.AspectRatio = ratio
 	if !colorPattern.MatchString(input.BackgroundColor) {
 		return validatedScene{}, validation("backgroundColor must be a lowercase #rrggbb colour")
 	}
@@ -321,7 +323,8 @@ func (s *Service) CreateScene(
 	row, err := q.CreateSignageScene(ctx, signagedb.CreateSignageSceneParams{
 		ID:                id,
 		Name:              checked.name,
-		Orientation:       string(input.Orientation),
+		AspectWidth:       int16(checked.AspectRatio.Width),
+		AspectHeight:      int16(checked.AspectRatio.Height),
 		LayoutID:          input.LayoutID,
 		CustomLayoutID:    input.CustomLayoutID,
 		BackgroundColor:   input.BackgroundColor,
@@ -342,7 +345,7 @@ func (s *Service) CreateScene(
 		"signage_scene",
 		id,
 		requestID,
-		[]string{"name", "orientation", "layoutId", "background", "theme", "zones"},
+		[]string{"name", "aspectRatio", "layoutId", "background", "theme", "zones"},
 	); err != nil {
 		return Scene{}, err
 	}
@@ -410,7 +413,25 @@ func (s *Service) UpdateScene(
 	if current.Version != expected {
 		return Scene{}, apperror.StaleWrite
 	}
-	changed := []string{"name", "orientation", "layoutId", "background", "theme"}
+	if aspectRatioOf(current.AspectWidth, current.AspectHeight) != checked.AspectRatio {
+		mismatched, err := q.CountDisplayRulesWithOtherAspectRatioForScene(
+			ctx,
+			signagedb.CountDisplayRulesWithOtherAspectRatioForSceneParams{
+				SceneID:     &id,
+				AspectWidth: int16(checked.AspectRatio.Width), AspectHeight: int16(checked.AspectRatio.Height),
+			},
+		)
+		if err != nil {
+			return Scene{}, err
+		}
+		if mismatched > 0 {
+			return Scene{}, validation(
+				"%d rule(s) show this scene on a display with another aspect ratio; change those rules first",
+				mismatched,
+			)
+		}
+	}
+	changed := []string{"name", "aspectRatio", "layoutId", "background", "theme"}
 	zones := parsed
 	if zones == nil {
 		stored := map[string]RawWidget{}
@@ -440,7 +461,8 @@ func (s *Service) UpdateScene(
 	}
 	row, err := q.UpdateSignageScene(ctx, signagedb.UpdateSignageSceneParams{
 		Name:              checked.name,
-		Orientation:       string(input.Orientation),
+		AspectWidth:       int16(checked.AspectRatio.Width),
+		AspectHeight:      int16(checked.AspectRatio.Height),
 		LayoutID:          input.LayoutID,
 		CustomLayoutID:    input.CustomLayoutID,
 		BackgroundColor:   input.BackgroundColor,

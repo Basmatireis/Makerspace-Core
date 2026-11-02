@@ -308,8 +308,7 @@ func (s *Service) PairDisplay(
 		ManagedDeviceID: deviceID,
 		Name:            checked.Name,
 		Location:        checked.Location,
-		Orientation:     string(checked.Orientation),
-		ResolutionWidth: int32(checked.Resolution.Width), ResolutionHeight: int32(checked.Resolution.Height),
+		AspectWidth:     int16(checked.AspectRatio.Width), AspectHeight: int16(checked.AspectRatio.Height),
 		VisibleFromOutside: checked.VisibleFromOutside,
 		AllowCameraOutside: checked.AllowCameraOutside != nil && *checked.AllowCameraOutside,
 		DefaultPlaylistID:  checked.DefaultPlaylistID,
@@ -322,7 +321,7 @@ func (s *Service) PairDisplay(
 		return Display{}, err
 	}
 	if err := writeAudit(ctx, tx, principal, "signage_display.paired", "signage_display", displayID, requestID,
-		[]string{"name", "location", "orientation", "resolution", "visibleFromOutside", "defaultPlaylistId"}); err != nil {
+		[]string{"name", "location", "aspectRatio", "visibleFromOutside", "defaultPlaylistId"}); err != nil {
 		return Display{}, err
 	}
 	result, err := s.getDisplay(ctx, q, displayID)

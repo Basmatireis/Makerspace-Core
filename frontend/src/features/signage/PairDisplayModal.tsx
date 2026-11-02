@@ -1,22 +1,13 @@
-import {
-  Modal,
-  RadioButton,
-  RadioButtonGroup,
-  Select,
-  SelectItem,
-  Stack,
-  TextInput,
-  Toggle,
-  InlineNotification,
-} from '@carbon/react';
+import { Modal, Select, SelectItem, Stack, TextInput, Toggle, InlineNotification } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import type { SignageOrientation } from '../../api/generated/models';
 import { pairSignageDisplay } from '../../api/generated/signage/signage';
 import { ApiError } from '../../api/http-client';
 import { PlayerAddress } from './components';
-import { errorMessage, resolutionLabel, resolutionOptions } from './helpers';
+import { aspectFieldsOf, aspectOfFields, type AspectFields } from './aspectFields';
+import { AspectRatioFields } from './AspectRatioFields';
+import { errorMessage, ASPECT_PRESETS } from './helpers';
 import { signagePaths } from './paths';
 import { playlistsQuery, signageKeys } from './queries';
 
@@ -26,12 +17,10 @@ const normalizeCode = (value: string) => value.replace(/\s+/g, '').toUpperCase()
 const CODE_REJECTED =
   'This code was not accepted. Check the code on the screen; codes expire after 15 minutes. After several wrong attempts, wait a few minutes.';
 
-type Values = {
+type Values = AspectFields & {
   code: string;
   name: string;
   location: string;
-  orientation: SignageOrientation;
-  resolution: string;
   visibleFromOutside: boolean;
   defaultPlaylistId: string;
 };
@@ -46,29 +35,24 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
       code: '',
       name: '',
       location: '',
-      orientation: 'landscape',
-      resolution: '0',
+      ...aspectFieldsOf(ASPECT_PRESETS[0].ratio),
       visibleFromOutside: false,
       defaultPlaylistId: '',
     },
   });
   const { errors } = form.formState;
-  const orientation = form.watch('orientation');
   const items = playlists.data?.items ?? [];
 
   const mutation = useMutation({
-    mutationFn: (values: Values) => {
-      const resolution = resolutionOptions(values.orientation)[Number(values.resolution)];
-      return pairSignageDisplay({
+    mutationFn: (values: Values) =>
+      pairSignageDisplay({
         code: normalizeCode(values.code),
         name: values.name.trim(),
         location: values.location.trim(),
-        orientation: values.orientation,
-        resolution,
+        aspectRatio: aspectOfFields(values),
         visibleFromOutside: values.visibleFromOutside,
         defaultPlaylistId: values.defaultPlaylistId,
-      });
-    },
+      }),
     onSuccess: async (display) => {
       await queryClient.invalidateQueries({ queryKey: signageKeys.displays() });
       navigate(signagePaths.display(display.id));
@@ -149,29 +133,7 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
             maxLength={150}
             {...form.register('location')}
           />
-          <Controller
-            control={form.control}
-            name="orientation"
-            render={({ field }) => (
-              <RadioButtonGroup
-                legendText="Orientation"
-                name="pair-orientation"
-                valueSelected={field.value}
-                onChange={(value) => {
-                  field.onChange(value);
-                  form.setValue('resolution', '0');
-                }}
-              >
-                <RadioButton id="pair-portrait" value="portrait" labelText="Portrait" />
-                <RadioButton id="pair-landscape" value="landscape" labelText="Landscape" />
-              </RadioButtonGroup>
-            )}
-          />
-          <Select id="pair-resolution" labelText="Resolution" {...form.register('resolution')}>
-            {resolutionOptions(orientation).map((item, index) => (
-              <SelectItem key={resolutionLabel(item)} value={String(index)} text={resolutionLabel(item)} />
-            ))}
-          </Select>
+          <AspectRatioFields form={form} idPrefix="pair" />
           <Controller
             control={form.control}
             name="visibleFromOutside"

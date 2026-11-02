@@ -104,7 +104,7 @@ func (r *relayEnv) updateDisplay(visible bool, allowOutside bool) {
 	r.t.Helper()
 	r.expect(r.as(r.staff, http.MethodPut, "/signage/displays/"+r.displayID, map[string]any{
 		"expectedVersion": r.displayVersion(r.staff, r.displayID), "name": r.displayName, "location": r.displayLoc,
-		"orientation": "landscape", "resolution": map[string]any{"width": 1920, "height": 1080},
+		"aspectRatio":        map[string]any{"width": 16, "height": 9},
 		"visibleFromOutside": visible, "allowCameraOutside": allowOutside, "defaultPlaylistId": r.playlistID,
 	}), http.StatusOK)
 }

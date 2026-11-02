@@ -1,12 +1,58 @@
 package signage
 
-// Orientation is how a screen or scene is turned.
-type Orientation string
+import "strconv"
 
-const (
-	OrientationPortrait  Orientation = "portrait"
-	OrientationLandscape Orientation = "landscape"
-)
+// MaxAspectPart is the largest width or height of a reduced aspect ratio.
+const MaxAspectPart = 100
+
+// AspectRatio is the width:height ratio of a display or scene. It is stored and returned reduced.
+type AspectRatio struct {
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+// Reduce divides both parts by their greatest common divisor. A ratio with a part below 1 is returned
+// unchanged.
+func (r AspectRatio) Reduce() AspectRatio {
+	if r.Width < 1 || r.Height < 1 {
+		return r
+	}
+	a, b := r.Width, r.Height
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return AspectRatio{Width: r.Width / a, Height: r.Height / a}
+}
+
+// Valid reports whether both parts are between 1 and MaxAspectPart.
+func (r AspectRatio) Valid() bool {
+	return r.Width >= 1 && r.Width <= MaxAspectPart && r.Height >= 1 && r.Height <= MaxAspectPart
+}
+
+// String formats the ratio as width:height.
+func (r AspectRatio) String() string {
+	return strconv.Itoa(r.Width) + ":" + strconv.Itoa(r.Height)
+}
+
+// aspectRatioOf converts stored columns.
+func aspectRatioOf(width, height int16) AspectRatio {
+	return AspectRatio{Width: int(width), Height: int(height)}
+}
+
+// checkAspectRatio reduces a requested ratio and rejects one that is not 1–100 in both parts afterwards.
+func checkAspectRatio(ratio AspectRatio) (AspectRatio, error) {
+	if ratio.Width < 1 || ratio.Height < 1 {
+		return ratio, validation("aspectRatio width and height must be at least 1")
+	}
+	reduced := ratio.Reduce()
+	if !reduced.Valid() {
+		return ratio, validation(
+			"aspectRatio %s reduces to %s; width and height must be at most %d after reduction",
+			ratio, reduced, MaxAspectPart,
+		)
+	}
+	return reduced, nil
+}
 
 // MediaFit is how media fills its box.
 type MediaFit string

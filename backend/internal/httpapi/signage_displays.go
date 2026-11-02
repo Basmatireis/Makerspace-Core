@@ -39,9 +39,7 @@ func signageDisplayDTO(display signage.Display) openapi.SignageDisplay {
 	}
 	return openapi.SignageDisplay{
 		Id: display.ID, ManagedDeviceId: display.ManagedDeviceID, Name: display.Name, Location: display.Location,
-		Orientation: openapi.SignageOrientation(
-			display.Orientation,
-		), Resolution: openapi.SignageResolution{Width: display.Resolution.Width, Height: display.Resolution.Height},
+		AspectRatio:        signageAspectRatioDTO(display.AspectRatio),
 		VisibleFromOutside: display.VisibleFromOutside,
 		AllowCameraOutside: display.AllowCameraOutside,
 		DefaultPlaylistId:  display.DefaultPlaylistID,
@@ -106,11 +104,8 @@ func (s *Server) PairSignageDisplay(
 		return nil, invalidRequest("request body is required")
 	}
 	display, err := s.signage.PairDisplay(ctx, p, r.Body.Code, signage.DisplayInput{
-		Name: r.Body.Name, Location: r.Body.Location, Orientation: signage.Orientation(r.Body.Orientation),
-		Resolution: signage.Resolution{
-			Width:  r.Body.Resolution.Width,
-			Height: r.Body.Resolution.Height,
-		}, VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
+		Name: r.Body.Name, Location: r.Body.Location, AspectRatio: signageAspectRatio(r.Body.AspectRatio),
+		VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
 		DefaultPlaylistID: r.Body.DefaultPlaylistId,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -131,11 +126,8 @@ func (s *Server) UpdateSignageDisplay(
 		return nil, invalidRequest("request body is required")
 	}
 	display, err := s.signage.UpdateDisplay(ctx, p, r.DisplayId, r.Body.ExpectedVersion, signage.DisplayInput{
-		Name: r.Body.Name, Location: r.Body.Location, Orientation: signage.Orientation(r.Body.Orientation),
-		Resolution: signage.Resolution{
-			Width:  r.Body.Resolution.Width,
-			Height: r.Body.Resolution.Height,
-		}, VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
+		Name: r.Body.Name, Location: r.Body.Location, AspectRatio: signageAspectRatio(r.Body.AspectRatio),
+		VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
 		DefaultPlaylistID: r.Body.DefaultPlaylistId,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -529,7 +521,7 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 		scenes = append(scenes, openapi.SignagePlayerScene{
 			Id:                scene.ID,
 			Name:              scene.Name,
-			Orientation:       openapi.SignageOrientation(scene.Orientation),
+			AspectRatio:       signageAspectRatioDTO(scene.AspectRatio),
 			LayoutId:          openapi.SignageLayoutId(scene.LayoutID),
 			CustomLayoutId:    nullableValue(scene.CustomLayoutID),
 			BackgroundColor:   scene.BackgroundColor,
@@ -597,11 +589,7 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 		CustomLayouts:     customLayouts,
 		LayoutsVersion:    manifest.LayoutsVersion,
 		Display: openapi.SignagePlayerManifestDisplay{
-			Orientation: openapi.SignageOrientation(manifest.Display.Orientation),
-			Resolution: openapi.SignageResolution{
-				Width:  manifest.Display.Resolution.Width,
-				Height: manifest.Display.Resolution.Height,
-			},
+			AspectRatio:        signageAspectRatioDTO(manifest.Display.AspectRatio),
 			VisibleFromOutside: manifest.Display.VisibleFromOutside,
 		},
 		Rules: rules, Scenes: scenes, Playlists: playlists, Assets: assets,

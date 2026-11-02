@@ -32,7 +32,7 @@ describe('Scene editor', () => {
       expectedVersion: 3,
       name: 'Renamed poster',
       layoutId: 'stack3',
-      orientation: 'portrait',
+      aspectRatio: { width: 9, height: 16 },
       backgroundColor: '#161616',
     });
     expect(await screen.findByRole('heading', { name: 'Renamed poster' })).toBeInTheDocument();

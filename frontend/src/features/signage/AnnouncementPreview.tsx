@@ -3,7 +3,7 @@ import { SceneRenderer, ScreenFrame } from './render/SceneRenderer';
 import type { RenderData, RenderScene } from './render/types';
 
 const SCENE: RenderScene = {
-  orientation: 'landscape',
+  aspectRatio: { width: 16, height: 9 },
   layoutId: 'full',
   backgroundColor: '#161616',
   backgroundAssetId: null,
@@ -42,7 +42,7 @@ export function AnnouncementPreview({
   };
   return (
     <div className="sg-ann-preview">
-      <ScreenFrame orientation="landscape">
+      <ScreenFrame aspectRatio={SCENE.aspectRatio}>
         <SceneRenderer scene={SCENE} data={data} />
       </ScreenFrame>
     </div>

@@ -1,6 +1,10 @@
 import { ApiError } from '../../api/http-client';
 import { signagePaths } from './paths';
+import type { SignageAspectRatio } from '../../api/generated/models';
+import { aspectLabel, orientationOf, reduceRatio, sameRatio } from './render/aspect';
 import { cssString } from './render/style';
+
+export { aspectLabel, orientationOf, reduceRatio, sameRatio };
 
 /** The address staff open on a screen to start the player: this app's origin plus the player path. */
 export const playerAddress = () => `${window.location.origin}${signagePaths.player}`;
@@ -33,9 +37,6 @@ export const formatDateTime = (iso: string) =>
 
 export const pluralize = (count: number, singular: string, plural = `${singular}s`) =>
   `${count} ${count === 1 ? singular : plural}`;
-
-export const orientationLabel = (orientation: 'portrait' | 'landscape') =>
-  orientation === 'portrait' ? 'Portrait' : 'Landscape';
 
 export function errorMessage(error: unknown, fallback = 'The request failed. Try again.'): string {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -123,30 +124,29 @@ const PENDING_CHANGE: Record<string, string> = { added: 'added', modified: 'edit
 export const describePendingChange = (change: { kind: string; name: string; change: string }) =>
   `${PENDING_KIND[change.kind] ?? change.kind}${change.name ? ` “${change.name}”` : ''} ${PENDING_CHANGE[change.change] ?? change.change}`;
 
-export type DisplayResolution = { width: number; height: number };
-/** Common panel sizes per orientation; the first is the default. */
-export const RESOLUTIONS: Record<'portrait' | 'landscape', DisplayResolution[]> = {
-  portrait: [
-    { width: 1080, height: 1920 },
-    { width: 2160, height: 3840 },
-    { width: 720, height: 1280 },
-  ],
-  landscape: [
-    { width: 1920, height: 1080 },
-    { width: 3840, height: 2160 },
-    { width: 1280, height: 720 },
-  ],
-};
-export const resolutionLabel = (resolution: DisplayResolution) => `${resolution.width} × ${resolution.height}`;
-/** The presets of an orientation, plus the current size when it is none of them. */
-export function resolutionOptions(
-  orientation: 'portrait' | 'landscape',
-  current?: DisplayResolution,
-): DisplayResolution[] {
-  const presets = RESOLUTIONS[orientation];
-  return current && !presets.some((item) => item.width === current.width && item.height === current.height)
-    ? [current, ...presets]
-    : presets;
+export type AspectPreset = { ratio: SignageAspectRatio; label: string };
+/** The aspect ratios offered in the UI; the first is the default. Anything else is entered as a custom `W:H`. */
+export const ASPECT_PRESETS: AspectPreset[] = [
+  { ratio: { width: 16, height: 9 }, label: '16:9 (landscape)' },
+  { ratio: { width: 9, height: 16 }, label: '9:16 (portrait)' },
+  { ratio: { width: 21, height: 9 }, label: '21:9 (ultrawide)' },
+  { ratio: { width: 32, height: 9 }, label: '32:9 (super ultrawide)' },
+  { ratio: { width: 4, height: 3 }, label: '4:3 (landscape)' },
+  { ratio: { width: 3, height: 4 }, label: '3:4 (portrait)' },
+];
+
+/**
+ * Parses a custom ratio typed as `W:H`, `W/H` or `WxH` (so a pixel size like 1920x1080 works too) and reduces it.
+ * Both parts must be integers from 1 to 100 after reduction; anything else is null.
+ */
+export function parseAspectRatio(text: string): SignageAspectRatio | null {
+  const match = /^\s*(\d{1,5})\s*[:x×/]\s*(\d{1,5})\s*$/i.exec(text);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (width < 1 || height < 1) return null;
+  const reduced = reduceRatio({ width, height });
+  return reduced.width > 100 || reduced.height > 100 ? null : reduced;
 }
 
 /** The CSS line that uses an uploaded font by its name in a widget's CSS. */

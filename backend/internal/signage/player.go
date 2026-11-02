@@ -61,8 +61,7 @@ type PublicCalendar interface {
 type PlayerDisplay struct {
 	ID                 uuid.UUID
 	Name, Location     string
-	Orientation        Orientation
-	Resolution         Resolution
+	AspectRatio        AspectRatio
 	VisibleFromOutside bool
 	AllowCameraOutside bool
 }
@@ -81,11 +80,8 @@ func (s *Service) PlayerDisplayFor(ctx context.Context, deviceID uuid.UUID) (Pla
 		return PlayerDisplay{}, apperror.New(http.StatusForbidden, "signage_display_revoked", "The display is revoked")
 	}
 	return PlayerDisplay{
-		ID: row.ID, Name: row.Name, Location: row.Location, Orientation: Orientation(row.Orientation),
-		Resolution: Resolution{
-			Width:  int(row.ResolutionWidth),
-			Height: int(row.ResolutionHeight),
-		}, VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
+		ID: row.ID, Name: row.Name, Location: row.Location, AspectRatio: aspectRatioOf(row.AspectWidth, row.AspectHeight),
+		VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
 	}, nil
 }
 
@@ -101,8 +97,8 @@ func (s *Service) latestManifest(
 	if err != nil {
 		return Manifest{}, false, err
 	}
-	var manifest Manifest
-	if err := json.Unmarshal(row.Manifest, &manifest); err != nil {
+	manifest, err := decodeManifest(row.Manifest)
+	if err != nil {
 		return Manifest{}, false, err
 	}
 	return manifest, true, nil

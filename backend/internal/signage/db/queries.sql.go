@@ -52,6 +52,26 @@ func (q *Queries) ClaimSignagePairingRequest(ctx context.Context, arg ClaimSigna
 	return err
 }
 
+const countDisplayRulesWithOtherAspectRatioForScene = `-- name: CountDisplayRulesWithOtherAspectRatioForScene :one
+SELECT count(*) FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
+WHERE r.target_scene_id = $1
+  AND (d.aspect_width <> $2::smallint OR d.aspect_height <> $3::smallint)
+`
+
+type CountDisplayRulesWithOtherAspectRatioForSceneParams struct {
+	SceneID      *uuid.UUID
+	AspectWidth  int16
+	AspectHeight int16
+}
+
+// Rules that show the scene on a display with another aspect ratio.
+func (q *Queries) CountDisplayRulesWithOtherAspectRatioForScene(ctx context.Context, arg CountDisplayRulesWithOtherAspectRatioForSceneParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDisplayRulesWithOtherAspectRatioForScene, arg.SceneID, arg.AspectWidth, arg.AspectHeight)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countOpenSignagePairingRequests = `-- name: CountOpenSignagePairingRequests :one
 SELECT count(*) FROM signage_pairing_requests WHERE expires_at > $1::timestamptz
 `
@@ -63,18 +83,25 @@ func (q *Queries) CountOpenSignagePairingRequests(ctx context.Context, now time.
 	return count, err
 }
 
-const countSceneRulesWithOtherOrientation = `-- name: CountSceneRulesWithOtherOrientation :one
-SELECT count(*) FROM signage_rules r JOIN signage_scenes s ON s.id = r.target_scene_id
-WHERE r.display_id = $1 AND s.orientation <> $2::text
+const countSceneRulesWithOtherAspectRatio = `-- name: CountSceneRulesWithOtherAspectRatio :one
+SELECT count(*) FROM (
+    SELECT r.id FROM signage_rules r JOIN signage_scenes s ON s.id = r.target_scene_id
+    WHERE r.display_id = $1
+      AND (s.aspect_width <> $2::smallint OR s.aspect_height <> $3::smallint)
+    FOR SHARE OF s
+) mismatched
 `
 
-type CountSceneRulesWithOtherOrientationParams struct {
-	DisplayID   uuid.UUID
-	Orientation string
+type CountSceneRulesWithOtherAspectRatioParams struct {
+	DisplayID    uuid.UUID
+	AspectWidth  int16
+	AspectHeight int16
 }
 
-func (q *Queries) CountSceneRulesWithOtherOrientation(ctx context.Context, arg CountSceneRulesWithOtherOrientationParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countSceneRulesWithOtherOrientation, arg.DisplayID, arg.Orientation)
+// Rules of a display whose target scene has another aspect ratio. The scenes are share-locked so that a
+// concurrent change of a scene's ratio either waits for this transaction or is seen by it.
+func (q *Queries) CountSceneRulesWithOtherAspectRatio(ctx context.Context, arg CountSceneRulesWithOtherAspectRatioParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countSceneRulesWithOtherAspectRatio, arg.DisplayID, arg.AspectWidth, arg.AspectHeight)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -210,9 +237,9 @@ func (q *Queries) CreateSignageCustomLayout(ctx context.Context, arg CreateSigna
 
 const createSignageDisplay = `-- name: CreateSignageDisplay :one
 
-INSERT INTO signage_displays (id, managed_device_id, name, location, orientation, resolution_width, resolution_height, visible_from_outside, allow_camera_outside, default_playlist_id)
+INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, visible_from_outside, allow_camera_outside, default_playlist_id)
 VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8, $9, $10)
+        $7, $8, $9)
 RETURNING id
 `
 
@@ -221,9 +248,8 @@ type CreateSignageDisplayParams struct {
 	ManagedDeviceID    uuid.UUID
 	Name               string
 	Location           string
-	Orientation        string
-	ResolutionWidth    int32
-	ResolutionHeight   int32
+	AspectWidth        int16
+	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
 	DefaultPlaylistID  uuid.UUID
@@ -236,9 +262,8 @@ func (q *Queries) CreateSignageDisplay(ctx context.Context, arg CreateSignageDis
 		arg.ManagedDeviceID,
 		arg.Name,
 		arg.Location,
-		arg.Orientation,
-		arg.ResolutionWidth,
-		arg.ResolutionHeight,
+		arg.AspectWidth,
+		arg.AspectHeight,
 		arg.VisibleFromOutside,
 		arg.AllowCameraOutside,
 		arg.DefaultPlaylistID,
@@ -298,16 +323,17 @@ func (q *Queries) CreateSignagePlaylist(ctx context.Context, arg CreateSignagePl
 
 const createSignageScene = `-- name: CreateSignageScene :one
 
-INSERT INTO signage_scenes (id, name, orientation, layout_id, custom_layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones)
-VALUES ($1, $2, $3, $4, $5, $6, $7,
-        $8, $9, $10, $11::text::jsonb)
-RETURNING id, name, orientation, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id
+INSERT INTO signage_scenes (id, name, aspect_width, aspect_height, layout_id, custom_layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10, $11, $12::text::jsonb)
+RETURNING id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height
 `
 
 type CreateSignageSceneParams struct {
 	ID                uuid.UUID
 	Name              string
-	Orientation       string
+	AspectWidth       int16
+	AspectHeight      int16
 	LayoutID          string
 	CustomLayoutID    *uuid.UUID
 	BackgroundColor   string
@@ -323,7 +349,8 @@ func (q *Queries) CreateSignageScene(ctx context.Context, arg CreateSignageScene
 	row := q.db.QueryRow(ctx, createSignageScene,
 		arg.ID,
 		arg.Name,
-		arg.Orientation,
+		arg.AspectWidth,
+		arg.AspectHeight,
 		arg.LayoutID,
 		arg.CustomLayoutID,
 		arg.BackgroundColor,
@@ -337,7 +364,6 @@ func (q *Queries) CreateSignageScene(ctx context.Context, arg CreateSignageScene
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Orientation,
 		&i.LayoutID,
 		&i.BackgroundColor,
 		&i.BackgroundAssetID,
@@ -349,6 +375,8 @@ func (q *Queries) CreateSignageScene(ctx context.Context, arg CreateSignageScene
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CustomLayoutID,
+		&i.AspectWidth,
+		&i.AspectHeight,
 	)
 	return i, err
 }
@@ -855,7 +883,7 @@ func (q *Queries) GetSignageCustomLayoutForUpdate(ctx context.Context, id uuid.U
 }
 
 const getSignageDisplayByDevice = `-- name: GetSignageDisplayByDevice :one
-SELECT d.id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside, d.revoked_at, md.revoked_at AS device_revoked_at
+SELECT d.id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.revoked_at, md.revoked_at AS device_revoked_at
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.managed_device_id = $1
 `
@@ -864,9 +892,8 @@ type GetSignageDisplayByDeviceRow struct {
 	ID                 uuid.UUID
 	Name               string
 	Location           string
-	Orientation        string
-	ResolutionWidth    int32
-	ResolutionHeight   int32
+	AspectWidth        int16
+	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
 	RevokedAt          pgtype.Timestamptz
@@ -880,9 +907,8 @@ func (q *Queries) GetSignageDisplayByDevice(ctx context.Context, managedDeviceID
 		&i.ID,
 		&i.Name,
 		&i.Location,
-		&i.Orientation,
-		&i.ResolutionWidth,
-		&i.ResolutionHeight,
+		&i.AspectWidth,
+		&i.AspectHeight,
 		&i.VisibleFromOutside,
 		&i.AllowCameraOutside,
 		&i.RevokedAt,
@@ -892,7 +918,7 @@ func (q *Queries) GetSignageDisplayByDevice(ctx context.Context, managedDeviceID
 }
 
 const getSignageDisplayForUpdate = `-- name: GetSignageDisplayForUpdate :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.id = $1 FOR UPDATE OF d
@@ -903,9 +929,8 @@ type GetSignageDisplayForUpdateRow struct {
 	ManagedDeviceID    uuid.UUID
 	Name               string
 	Location           string
-	Orientation        string
-	ResolutionWidth    int32
-	ResolutionHeight   int32
+	AspectWidth        int16
+	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
 	DefaultPlaylistID  uuid.UUID
@@ -922,9 +947,8 @@ func (q *Queries) GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) 
 		&i.ManagedDeviceID,
 		&i.Name,
 		&i.Location,
-		&i.Orientation,
-		&i.ResolutionWidth,
-		&i.ResolutionHeight,
+		&i.AspectWidth,
+		&i.AspectHeight,
 		&i.VisibleFromOutside,
 		&i.AllowCameraOutside,
 		&i.DefaultPlaylistID,
@@ -936,7 +960,7 @@ func (q *Queries) GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) 
 }
 
 const getSignageDisplayView = `-- name: GetSignageDisplayView :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
@@ -953,9 +977,8 @@ type GetSignageDisplayViewRow struct {
 	ManagedDeviceID    uuid.UUID
 	Name               string
 	Location           string
-	Orientation        string
-	ResolutionWidth    int32
-	ResolutionHeight   int32
+	AspectWidth        int16
+	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
 	DefaultPlaylistID  uuid.UUID
@@ -984,9 +1007,8 @@ func (q *Queries) GetSignageDisplayView(ctx context.Context, id uuid.UUID) (GetS
 		&i.ManagedDeviceID,
 		&i.Name,
 		&i.Location,
-		&i.Orientation,
-		&i.ResolutionWidth,
-		&i.ResolutionHeight,
+		&i.AspectWidth,
+		&i.AspectHeight,
 		&i.VisibleFromOutside,
 		&i.AllowCameraOutside,
 		&i.DefaultPlaylistID,
@@ -1069,7 +1091,7 @@ func (q *Queries) GetSignagePlaylistForUpdate(ctx context.Context, id uuid.UUID)
 }
 
 const getSignageScene = `-- name: GetSignageScene :one
-SELECT id, name, orientation, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id FROM signage_scenes WHERE id = $1
+SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height FROM signage_scenes WHERE id = $1
 `
 
 func (q *Queries) GetSignageScene(ctx context.Context, id uuid.UUID) (SignageScene, error) {
@@ -1078,7 +1100,6 @@ func (q *Queries) GetSignageScene(ctx context.Context, id uuid.UUID) (SignageSce
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Orientation,
 		&i.LayoutID,
 		&i.BackgroundColor,
 		&i.BackgroundAssetID,
@@ -1090,12 +1111,14 @@ func (q *Queries) GetSignageScene(ctx context.Context, id uuid.UUID) (SignageSce
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CustomLayoutID,
+		&i.AspectWidth,
+		&i.AspectHeight,
 	)
 	return i, err
 }
 
 const getSignageSceneForUpdate = `-- name: GetSignageSceneForUpdate :one
-SELECT id, name, orientation, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id FROM signage_scenes WHERE id = $1 FOR UPDATE
+SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height FROM signage_scenes WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetSignageSceneForUpdate(ctx context.Context, id uuid.UUID) (SignageScene, error) {
@@ -1104,7 +1127,6 @@ func (q *Queries) GetSignageSceneForUpdate(ctx context.Context, id uuid.UUID) (S
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Orientation,
 		&i.LayoutID,
 		&i.BackgroundColor,
 		&i.BackgroundAssetID,
@@ -1116,6 +1138,8 @@ func (q *Queries) GetSignageSceneForUpdate(ctx context.Context, id uuid.UUID) (S
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CustomLayoutID,
+		&i.AspectWidth,
+		&i.AspectHeight,
 	)
 	return i, err
 }
@@ -2053,7 +2077,7 @@ func (q *Queries) ListSignageDisplayIDs(ctx context.Context, ids []string) ([]uu
 }
 
 const listSignageDisplayViews = `-- name: ListSignageDisplayViews :many
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
@@ -2070,9 +2094,8 @@ type ListSignageDisplayViewsRow struct {
 	ManagedDeviceID    uuid.UUID
 	Name               string
 	Location           string
-	Orientation        string
-	ResolutionWidth    int32
-	ResolutionHeight   int32
+	AspectWidth        int16
+	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
 	DefaultPlaylistID  uuid.UUID
@@ -2107,9 +2130,8 @@ func (q *Queries) ListSignageDisplayViews(ctx context.Context) ([]ListSignageDis
 			&i.ManagedDeviceID,
 			&i.Name,
 			&i.Location,
-			&i.Orientation,
-			&i.ResolutionWidth,
-			&i.ResolutionHeight,
+			&i.AspectWidth,
+			&i.AspectHeight,
 			&i.VisibleFromOutside,
 			&i.AllowCameraOutside,
 			&i.DefaultPlaylistID,
@@ -2450,7 +2472,7 @@ func (q *Queries) ListSignageSceneIDs(ctx context.Context, ids []string) ([]uuid
 }
 
 const listSignageScenes = `-- name: ListSignageScenes :many
-SELECT id, name, orientation, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id FROM signage_scenes ORDER BY lower(name), id
+SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height FROM signage_scenes ORDER BY lower(name), id
 `
 
 func (q *Queries) ListSignageScenes(ctx context.Context) ([]SignageScene, error) {
@@ -2465,7 +2487,6 @@ func (q *Queries) ListSignageScenes(ctx context.Context) ([]SignageScene, error)
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.Orientation,
 			&i.LayoutID,
 			&i.BackgroundColor,
 			&i.BackgroundAssetID,
@@ -2477,6 +2498,8 @@ func (q *Queries) ListSignageScenes(ctx context.Context) ([]SignageScene, error)
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CustomLayoutID,
+			&i.AspectWidth,
+			&i.AspectHeight,
 		); err != nil {
 			return nil, err
 		}
@@ -2490,7 +2513,7 @@ func (q *Queries) ListSignageScenes(ctx context.Context) ([]SignageScene, error)
 
 const listSignageScenesByIDs = `-- name: ListSignageScenesByIDs :many
 
-SELECT id, name, orientation, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id FROM signage_scenes WHERE id = ANY($1::text[]::uuid[]) ORDER BY id
+SELECT id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height FROM signage_scenes WHERE id = ANY($1::text[]::uuid[]) ORDER BY id
 `
 
 // Publications and manifest content ---------------------------------------------------------------------------
@@ -2506,7 +2529,6 @@ func (q *Queries) ListSignageScenesByIDs(ctx context.Context, ids []string) ([]S
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.Orientation,
 			&i.LayoutID,
 			&i.BackgroundColor,
 			&i.BackgroundAssetID,
@@ -2518,6 +2540,8 @@ func (q *Queries) ListSignageScenesByIDs(ctx context.Context, ids []string) ([]S
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CustomLayoutID,
+			&i.AspectWidth,
+			&i.AspectHeight,
 		); err != nil {
 			return nil, err
 		}
@@ -2696,18 +2720,19 @@ func (q *Queries) LockSignagePlaylistForShare(ctx context.Context, id uuid.UUID)
 }
 
 const lockSignageSceneForShare = `-- name: LockSignageSceneForShare :one
-SELECT id, orientation FROM signage_scenes WHERE id = $1 FOR SHARE
+SELECT id, aspect_width, aspect_height FROM signage_scenes WHERE id = $1 FOR SHARE
 `
 
 type LockSignageSceneForShareRow struct {
-	ID          uuid.UUID
-	Orientation string
+	ID           uuid.UUID
+	AspectWidth  int16
+	AspectHeight int16
 }
 
 func (q *Queries) LockSignageSceneForShare(ctx context.Context, id uuid.UUID) (LockSignageSceneForShareRow, error) {
 	row := q.db.QueryRow(ctx, lockSignageSceneForShare, id)
 	var i LockSignageSceneForShareRow
-	err := row.Scan(&i.ID, &i.Orientation)
+	err := row.Scan(&i.ID, &i.AspectWidth, &i.AspectHeight)
 	return i, err
 }
 
@@ -2900,19 +2925,18 @@ func (q *Queries) UpdateSignageCustomLayout(ctx context.Context, arg UpdateSigna
 
 const updateSignageDisplay = `-- name: UpdateSignageDisplay :one
 UPDATE signage_displays
-SET name = $1, location = $2, orientation = $3, resolution_width = $4,
-    resolution_height = $5, visible_from_outside = $6, allow_camera_outside = $7, default_playlist_id = $8,
+SET name = $1, location = $2, aspect_width = $3, aspect_height = $4,
+    visible_from_outside = $5, allow_camera_outside = $6, default_playlist_id = $7,
     version = version + 1, updated_at = now()
-WHERE id = $9 AND version = $10 AND revoked_at IS NULL
+WHERE id = $8 AND version = $9 AND revoked_at IS NULL
 RETURNING id
 `
 
 type UpdateSignageDisplayParams struct {
 	Name               string
 	Location           string
-	Orientation        string
-	ResolutionWidth    int32
-	ResolutionHeight   int32
+	AspectWidth        int16
+	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
 	DefaultPlaylistID  uuid.UUID
@@ -2924,9 +2948,8 @@ func (q *Queries) UpdateSignageDisplay(ctx context.Context, arg UpdateSignageDis
 	row := q.db.QueryRow(ctx, updateSignageDisplay,
 		arg.Name,
 		arg.Location,
-		arg.Orientation,
-		arg.ResolutionWidth,
-		arg.ResolutionHeight,
+		arg.AspectWidth,
+		arg.AspectHeight,
 		arg.VisibleFromOutside,
 		arg.AllowCameraOutside,
 		arg.DefaultPlaylistID,
@@ -3018,17 +3041,18 @@ func (q *Queries) UpdateSignageRule(ctx context.Context, arg UpdateSignageRulePa
 
 const updateSignageScene = `-- name: UpdateSignageScene :one
 UPDATE signage_scenes
-SET name = $1, orientation = $2, layout_id = $3, custom_layout_id = $4,
-    background_color = $5,
-    background_asset_id = $6, background_fit = $7, background_dim = $8,
-    theme = $9, zones = $10::text::jsonb, version = version + 1, updated_at = now()
-WHERE id = $11 AND version = $12
-RETURNING id, name, orientation, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id
+SET name = $1, aspect_width = $2, aspect_height = $3, layout_id = $4, custom_layout_id = $5,
+    background_color = $6,
+    background_asset_id = $7, background_fit = $8, background_dim = $9,
+    theme = $10, zones = $11::text::jsonb, version = version + 1, updated_at = now()
+WHERE id = $12 AND version = $13
+RETURNING id, name, layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones, version, created_at, updated_at, custom_layout_id, aspect_width, aspect_height
 `
 
 type UpdateSignageSceneParams struct {
 	Name              string
-	Orientation       string
+	AspectWidth       int16
+	AspectHeight      int16
 	LayoutID          string
 	CustomLayoutID    *uuid.UUID
 	BackgroundColor   string
@@ -3044,7 +3068,8 @@ type UpdateSignageSceneParams struct {
 func (q *Queries) UpdateSignageScene(ctx context.Context, arg UpdateSignageSceneParams) (SignageScene, error) {
 	row := q.db.QueryRow(ctx, updateSignageScene,
 		arg.Name,
-		arg.Orientation,
+		arg.AspectWidth,
+		arg.AspectHeight,
 		arg.LayoutID,
 		arg.CustomLayoutID,
 		arg.BackgroundColor,
@@ -3060,7 +3085,6 @@ func (q *Queries) UpdateSignageScene(ctx context.Context, arg UpdateSignageScene
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Orientation,
 		&i.LayoutID,
 		&i.BackgroundColor,
 		&i.BackgroundAssetID,
@@ -3072,6 +3096,8 @@ func (q *Queries) UpdateSignageScene(ctx context.Context, arg UpdateSignageScene
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CustomLayoutID,
+		&i.AspectWidth,
+		&i.AspectHeight,
 	)
 	return i, err
 }

@@ -31,7 +31,8 @@ import { hasPermission, PermissionId } from '../auth/permissions';
 import { useCameraBlockedDisplays } from './displayHooks';
 import { ChangeLayoutModal } from './ChangeLayoutModal';
 import { AssetPicker, DeleteDialog, FitField, LayoutSketch, type LayoutChoice } from './components';
-import { errorMessage, isStaleWrite, orientationLabel, pluralize } from './helpers';
+import { AspectRatioSelect } from './AspectRatioFields';
+import { aspectLabel, errorMessage, isStaleWrite, orientationOf, pluralize } from './helpers';
 import { customLayoutsQuery } from './layoutQueries';
 import { layoutById, remapZones, resolveLayout } from './layouts';
 import { signagePaths } from './paths';
@@ -161,7 +162,6 @@ function Editor({
           expectedVersion: version.current,
           ...current,
           name: current.name.trim(),
-          orientation: scene.orientation,
           backgroundColor: current.backgroundColor.toLowerCase(),
         });
         version.current = saved.version;
@@ -186,7 +186,7 @@ function Editor({
         }
       }
     },
-    [queryClient, scene.id, scene.orientation],
+    [queryClient, scene.id],
   );
 
   const edit = (change: (current: Draft) => Draft) => {
@@ -218,7 +218,6 @@ function Editor({
           expectedVersion: version.current,
           ...current,
           name: current.name.trim(),
-          orientation: scene.orientation,
           backgroundColor: current.backgroundColor.toLowerCase(),
         }).then(
           () => queryClient.invalidateQueries({ queryKey: signageKeys.all }),
@@ -226,7 +225,7 @@ function Editor({
         );
       }
     },
-    [queryClient, scene.id, scene.orientation],
+    [queryClient, scene.id],
   );
 
   const resolveConflict = async (keepMine: boolean) => {
@@ -285,7 +284,7 @@ function Editor({
       title={draft.name.trim() === '' ? scene.name : draft.name}
       width="fluid"
       breadcrumbs={crumbs}
-      description={`${status} · ${orientationLabel(scene.orientation)}`}
+      description={`${status} · ${aspectLabel(draft.aspectRatio)}`}
       actions={
         canEdit ? (
           <Button kind="danger--tertiary" renderIcon={TrashCan} onClick={() => setDeleting(true)}>
@@ -349,7 +348,7 @@ function Editor({
                 layoutId={draft.layoutId}
                 customLayoutId={draft.customLayoutId}
                 customLayouts={customLayouts}
-                orientation={scene.orientation}
+                orientation={orientationOf(draft.aspectRatio)}
               />
               <div className="sg-cell-stack">
                 <strong>{layoutName}</strong>
@@ -390,6 +389,11 @@ function Editor({
                   invalid={draft.name.trim() === ''}
                   invalidText="A scene needs a name"
                   onChange={(event) => edit((current) => ({ ...current, name: event.target.value }))}
+                />
+                <AspectRatioSelect
+                  idPrefix="scene-settings"
+                  value={draft.aspectRatio}
+                  onChange={(aspectRatio) => edit((current) => ({ ...current, aspectRatio }))}
                 />
                 <ColorFieldRow>
                   <TextInput
@@ -467,10 +471,10 @@ function Editor({
               <SelectItem key={item.id} value={item.id} text={item.label} />
             ))}
           </Select>
-          <div className={`sg-editor__frame sg-editor__frame--${scene.orientation}`}>
-            <ScreenFrame orientation={scene.orientation} className="sg-canvas">
+          <div className={`sg-editor__frame sg-editor__frame--${orientationOf(draft.aspectRatio)}`}>
+            <ScreenFrame aspectRatio={draft.aspectRatio} className="sg-canvas">
               <SceneRenderer
-                scene={{ ...draft, orientation: scene.orientation }}
+                scene={draft}
                 data={data}
                 customLayouts={customLayouts}
                 selectedZone={selectedId}
@@ -532,7 +536,7 @@ function Editor({
           sceneName={draft.name}
           current={{ layoutId: draft.layoutId, customLayoutId: draft.customLayoutId }}
           customLayouts={customLayouts}
-          orientation={scene.orientation}
+          orientation={orientationOf(draft.aspectRatio)}
           onSave={changeLayout}
           onClose={() => setChangingLayout(false)}
         />

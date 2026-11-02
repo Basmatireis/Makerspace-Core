@@ -25,7 +25,7 @@ import { DeleteDisplayDialog } from './DisplayDialogs';
 import { useRuleNames } from './displayHooks';
 import { PublicationTag, StatusTag } from './displayParts';
 import { DEFAULT_RULE_ID, describeCondition } from './engine/playback';
-import { orientationLabel, pluralize, resolutionLabel } from './helpers';
+import { aspectLabel, pluralize } from './helpers';
 import { useNow } from './preview';
 import { PairDisplayModal } from './PairDisplayModal';
 import { signagePaths } from './paths';
@@ -108,7 +108,7 @@ export function DisplaysPage() {
               <TableHead>
                 <TableRow>
                   <TableHeader>Name</TableHeader>
-                  <TableHeader className="sg-hide-narrow">Orientation</TableHeader>
+                  <TableHeader className="sg-hide-narrow">Aspect ratio</TableHeader>
                   <TableHeader>Status</TableHeader>
                   <TableHeader>Now showing</TableHeader>
                   <TableHeader className="sg-hide-narrow">Publication</TableHeader>
@@ -138,10 +138,7 @@ export function DisplaysPage() {
                         {display.location && <span className="sg-secondary">{display.location}</span>}
                       </div>
                     </TableCell>
-                    <TableCell className="sg-hide-narrow">
-                      {orientationLabel(display.orientation)}{' '}
-                      <span className="sg-secondary">{resolutionLabel(display.resolution)}</span>
-                    </TableCell>
+                    <TableCell className="sg-hide-narrow">{aspectLabel(display.aspectRatio)}</TableCell>
                     <TableCell>
                       <StatusTag display={display} now={now} />
                     </TableCell>

@@ -31,14 +31,7 @@ import { useRefreshDisplay } from './displayMutations';
 import { DisplaySettingsTab } from './DisplaySettingsTab';
 import { usePublishedView, useRuleNames } from './displayHooks';
 import { PublishedScreen, StatusTag } from './displayParts';
-import {
-  describePendingChange,
-  errorMessage,
-  isStaleWrite,
-  orientationLabel,
-  pluralize,
-  resolutionLabel,
-} from './helpers';
+import { aspectLabel, describePendingChange, errorMessage, isStaleWrite, orientationOf, pluralize } from './helpers';
 import { HealthTab } from './HealthTab';
 import { PlaybackTab } from './PlaybackTab';
 import { PlayerAddress } from './components';
@@ -196,9 +189,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
       width="wide"
       breadcrumbs={crumbs}
       actions={actions}
-      description={[display.location, `${orientationLabel(display.orientation)} ${resolutionLabel(display.resolution)}`]
-        .filter(Boolean)
-        .join(' · ')}
+      description={[display.location, aspectLabel(display.aspectRatio)].filter(Boolean).join(' · ')}
       titleAdornment={
         revoked ? (
           <Tag type="gray">Revoked</Tag>
@@ -273,12 +264,11 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
             )}
             {view && (
               <>
-                <div className={`sg-detail__frame sg-detail__frame--${display.orientation}`}>
+                <div className={`sg-detail__frame sg-detail__frame--${orientationOf(display.aspectRatio)}`}>
                   <PublishedScreen
                     view={view}
-                    orientation={display.orientation}
-                    resolution={display.resolution}
-                    width={display.orientation === 'portrait' ? '14rem' : '100%'}
+                    aspectRatio={display.aspectRatio}
+                    width={orientationOf(display.aspectRatio) === 'portrait' ? '14rem' : '100%'}
                   />
                 </div>
                 <div className="sg-now">

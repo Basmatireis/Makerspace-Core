@@ -183,8 +183,8 @@ func (f signageFixture) display(t *testing.T, name string, playlistID uuid.UUID)
 	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(ctx, `INSERT INTO signage_displays (id, managed_device_id, name, location, orientation, resolution_width, resolution_height, default_playlist_id)
-		VALUES ($1, $2, $3, 'Ground floor', 'landscape', 1920, 1080, $4)`, displayID, deviceID, name, playlistID); err != nil {
+	if _, err := f.pool.Exec(ctx, `INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, default_playlist_id)
+		VALUES ($1, $2, $3, 'Ground floor', 16, 9, $4)`, displayID, deviceID, name, playlistID); err != nil {
 		t.Fatal(err)
 	}
 	return displayID
@@ -201,7 +201,7 @@ func emptyZonesJSON(ids ...string) map[string]json.RawMessage {
 func sceneInput(name string, layout string) signage.SceneInput {
 	return signage.SceneInput{
 		Name:            name,
-		Orientation:     "landscape",
+		AspectRatio:     signage.AspectRatio{Width: 16, Height: 9},
 		LayoutID:        layout,
 		BackgroundColor: "#101820",
 		BackgroundFit:   "cover",
@@ -838,7 +838,8 @@ func TestSignageScenesValidationConcurrencyLayoutChangeAndReferences(t *testing.
 		change func(*signage.SceneInput)
 	}{
 		"unknown layout":        {func(i *signage.SceneInput) { i.LayoutID = "carousel" }},
-		"bad orientation":       {func(i *signage.SceneInput) { i.Orientation = "square" }},
+		"zero aspect ratio":     {func(i *signage.SceneInput) { i.AspectRatio = signage.AspectRatio{Width: 0, Height: 9} }},
+		"irreducible ratio":     {func(i *signage.SceneInput) { i.AspectRatio = signage.AspectRatio{Width: 1366, Height: 768} }},
 		"bad colour":            {func(i *signage.SceneInput) { i.BackgroundColor = "red" }},
 		"upper-case colour":     {func(i *signage.SceneInput) { i.BackgroundColor = "#ABCDEF" }},
 		"dim too high":          {func(i *signage.SceneInput) { i.BackgroundDim = 81 }},
@@ -1854,7 +1855,7 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	// Scenes through the union-typed zones schema.
 	scene := map[string]any{
 		"name":            "Welcome",
-		"orientation":     "landscape",
+		"aspectRatio":     map[string]any{"width": 16, "height": 9},
 		"layoutId":        "split",
 		"backgroundColor": "#102030",
 		"backgroundFit":   "cover",
@@ -1898,7 +1899,7 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 	update := map[string]any{
 		"expectedVersion": 1,
 		"name":            "Welcome",
-		"orientation":     "landscape",
+		"aspectRatio":     map[string]any{"width": 16, "height": 9},
 		"layoutId":        "stack3",
 		"backgroundColor": "#102030",
 		"backgroundFit":   "cover",

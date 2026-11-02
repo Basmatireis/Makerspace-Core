@@ -26,7 +26,7 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { AnnouncementTemplateModal } from './AnnouncementTemplateModal';
 import { DeleteDialog, QueryBoundary, SceneThumbnail } from './components';
-import { formatLoop, orientationLabel, pluralize } from './helpers';
+import { aspectLabel, formatLoop, orientationOf, pluralize } from './helpers';
 import { loopSeconds } from './engine/playback';
 import { NewPlaylistModal, NewSceneModal } from './NewContentModals';
 import { signagePaths } from './paths';
@@ -148,14 +148,14 @@ export function ContentPage() {
                       aria-label={`Scene ${scene.name}`}
                       onClick={(event: { preventDefault: () => void }) => open(event, signagePaths.scene(scene.id))}
                     >
-                      <div className={`sg-scene-tile__thumb sg-scene-tile__thumb--${scene.orientation}`}>
+                      <div className={`sg-scene-tile__thumb sg-scene-tile__thumb--${orientationOf(scene.aspectRatio)}`}>
                         <SceneThumbnail scene={scene} />
                       </div>
                       <div className="sg-scene-tile__text">
                         <strong>{scene.name}</strong>
                         <div className="sg-inline">
                           <Tag size="sm" type="cool-gray">
-                            {orientationLabel(scene.orientation)}
+                            {aspectLabel(scene.aspectRatio)}
                           </Tag>
                         </div>
                         {playlists.isSuccess && (

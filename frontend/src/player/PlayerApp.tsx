@@ -100,12 +100,11 @@ export function PlayingScreen({ api, onRevoked }: { api: PlayerApi; onRevoked: (
     <div className="pl-stage">
       {view && display ? (
         <ScreenFrame
-          orientation={display.orientation}
-          resolution={display.resolution}
-          width={`min(100vw, calc(100vh * ${display.resolution.width / display.resolution.height}))`}
+          aspectRatio={display.aspectRatio}
+          width={`min(100vw, calc(100vh * ${display.aspectRatio.width / display.aspectRatio.height}))`}
         >
           <div key={view.sceneKey} className={`pl-layer${view.transition === 'fade' ? ' sg-fade' : ''}`}>
-            <SceneRenderer scene={view.scene} data={view.data} screenOrientation={display.orientation} />
+            <SceneRenderer scene={view.scene} data={view.data} screenAspectRatio={display.aspectRatio} />
           </div>
         </ScreenFrame>
       ) : (

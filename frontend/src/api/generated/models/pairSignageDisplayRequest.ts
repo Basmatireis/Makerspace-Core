@@ -18,8 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SignageOrientation } from './signageOrientation';
-import type { SignageResolution } from './signageResolution';
+import type { SignageAspectRatio } from './signageAspectRatio';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface PairSignageDisplayRequest {
@@ -36,8 +35,7 @@ export interface PairSignageDisplayRequest {
   name: string;
   /** @maxLength 150 */
   location: string;
-  orientation: SignageOrientation;
-  resolution: SignageResolution;
+  aspectRatio: SignageAspectRatio;
   visibleFromOutside: boolean;
   /** Optional; omitted means unchanged on update and false on pairing. */
   allowCameraOutside?: boolean;

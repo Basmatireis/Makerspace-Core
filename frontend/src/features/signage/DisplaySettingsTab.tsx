@@ -1,8 +1,6 @@
 import {
   Button,
   InlineNotification,
-  RadioButton,
-  RadioButtonGroup,
   Select,
   SelectItem,
   Stack,
@@ -15,16 +13,16 @@ import {
 } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
-import type { SignageDisplay, SignageOrientation, UpdateSignageDisplayRequest } from '../../api/generated/models';
+import type { SignageDisplay, UpdateSignageDisplayRequest } from '../../api/generated/models';
 import { useUpdateDisplay } from './displayMutations';
-import { errorMessage, isStaleWrite, orientationLabel, resolutionLabel, resolutionOptions } from './helpers';
+import { aspectFieldsOf, aspectOfFields, type AspectFields } from './aspectFields';
+import { AspectRatioFields } from './AspectRatioFields';
+import { aspectLabel, errorMessage, isStaleWrite } from './helpers';
 import { playlistsQuery } from './queries';
 
-type Values = {
+type Values = AspectFields & {
   name: string;
   location: string;
-  orientation: SignageOrientation;
-  resolution: string;
   visibleFromOutside: boolean;
   allowCameraOutside: boolean;
   defaultPlaylistId: string;
@@ -33,12 +31,7 @@ type Values = {
 const valuesOf = (display: SignageDisplay): Values => ({
   name: display.name,
   location: display.location,
-  orientation: display.orientation,
-  resolution: String(
-    resolutionOptions(display.orientation, display.resolution).findIndex(
-      (item) => item.width === display.resolution.width && item.height === display.resolution.height,
-    ),
-  ),
+  ...aspectFieldsOf(display.aspectRatio),
   visibleFromOutside: display.visibleFromOutside,
   allowCameraOutside: display.allowCameraOutside,
   defaultPlaylistId: display.defaultPlaylistId,
@@ -48,7 +41,6 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
   const playlists = useQuery(playlistsQuery());
   const update = useUpdateDisplay(display.id);
   const form = useForm<Values>({ defaultValues: valuesOf(display) });
-  const orientation = form.watch('orientation');
   const { errors, isDirty } = form.formState;
 
   if (!canManage || display.status === 'revoked') {
@@ -64,10 +56,8 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
             <StructuredListCell>{display.location || '—'}</StructuredListCell>
           </StructuredListRow>
           <StructuredListRow>
-            <StructuredListCell noWrap>Format</StructuredListCell>
-            <StructuredListCell>
-              {orientationLabel(display.orientation)} {resolutionLabel(display.resolution)}
-            </StructuredListCell>
+            <StructuredListCell noWrap>Aspect ratio</StructuredListCell>
+            <StructuredListCell>{aspectLabel(display.aspectRatio)}</StructuredListCell>
           </StructuredListRow>
           <StructuredListRow>
             <StructuredListCell noWrap>Visible from outside</StructuredListCell>
@@ -85,16 +75,11 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
   }
 
   const save = form.handleSubmit((values) => {
-    const resolution = resolutionOptions(
-      values.orientation,
-      values.orientation === display.orientation ? display.resolution : undefined,
-    )[Number(values.resolution)];
     const request: UpdateSignageDisplayRequest = {
       expectedVersion: display.version,
       name: values.name.trim(),
       location: values.location.trim(),
-      orientation: values.orientation,
-      resolution,
+      aspectRatio: aspectOfFields(values),
       visibleFromOutside: values.visibleFromOutside,
       allowCameraOutside: values.visibleFromOutside && values.allowCameraOutside,
       defaultPlaylistId: values.defaultPlaylistId,
@@ -113,31 +98,7 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
         {...form.register('name', { validate: (value) => value.trim() !== '' })}
       />
       <TextInput id="ds-location" labelText="Location" maxLength={150} {...form.register('location')} />
-      <Controller
-        control={form.control}
-        name="orientation"
-        render={({ field }) => (
-          <RadioButtonGroup
-            legendText="Orientation"
-            name="ds-orientation"
-            valueSelected={field.value}
-            onChange={(value) => {
-              field.onChange(value);
-              form.setValue('resolution', '0', { shouldDirty: true });
-            }}
-          >
-            <RadioButton id="ds-portrait" value="portrait" labelText="Portrait" />
-            <RadioButton id="ds-landscape" value="landscape" labelText="Landscape" />
-          </RadioButtonGroup>
-        )}
-      />
-      <Select id="ds-resolution" labelText="Resolution" {...form.register('resolution')}>
-        {resolutionOptions(orientation, orientation === display.orientation ? display.resolution : undefined).map(
-          (item, index) => (
-            <SelectItem key={resolutionLabel(item)} value={String(index)} text={resolutionLabel(item)} />
-          ),
-        )}
-      </Select>
+      <AspectRatioFields form={form} idPrefix="ds" />
       <Controller
         control={form.control}
         name="visibleFromOutside"

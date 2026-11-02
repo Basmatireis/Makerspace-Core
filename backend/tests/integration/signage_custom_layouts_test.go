@@ -42,7 +42,7 @@ func versionOf(body map[string]any) int64 { return int64(body["version"].(float6
 
 func sceneBody(layout, customLayoutID string, zones map[string]any) map[string]any {
 	body := map[string]any{
-		"name": "Scene " + uuid.NewString()[:8], "orientation": "landscape", "layoutId": layout,
+		"name": "Scene " + uuid.NewString()[:8], "aspectRatio": map[string]any{"width": 16, "height": 9}, "layoutId": layout,
 		"backgroundColor": "#101820", "backgroundFit": "cover", "backgroundDim": 0, "theme": "dark",
 	}
 	if customLayoutID != "" {

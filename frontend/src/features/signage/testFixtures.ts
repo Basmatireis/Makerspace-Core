@@ -33,7 +33,7 @@ const stamp = '2026-10-19T08:00:00Z';
 export const sceneFixture = (overrides: Partial<SignageScene> = {}): SignageScene => ({
   id: ids.scene,
   name: 'Open days poster',
-  orientation: 'portrait',
+  aspectRatio: { width: 9, height: 16 },
   layoutId: 'stack3',
   customLayoutId: null,
   backgroundColor: '#161616',
@@ -123,8 +123,7 @@ export const displayFixture = (overrides: Partial<SignageDisplay> = {}): Signage
   managedDeviceId: '0192f6f8-743e-7c77-a349-cd07c3e8a191',
   name: 'Entrance window',
   location: 'Ground floor',
-  orientation: 'portrait',
-  resolution: { width: 1080, height: 1920 },
+  aspectRatio: { width: 9, height: 16 },
   visibleFromOutside: true,
   allowCameraOutside: false,
   defaultPlaylistId: ids.playlist,
@@ -170,7 +169,7 @@ export const ruleFixture = (overrides: Partial<SignageRule> = {}): SignageRule =
 export const previewFixture = (overrides: Partial<SignageDisplayPreview> = {}): SignageDisplayPreview => ({
   manifest: {
     revision: 2,
-    display: { orientation: 'portrait', resolution: { width: 1080, height: 1920 }, visibleFromOutside: true },
+    display: { aspectRatio: { width: 9, height: 16 }, visibleFromOutside: true },
     rules: [],
     defaultPlaylistId: ids.playlist,
     layoutsVersion: 2,

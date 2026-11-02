@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, type CSSProperties, type ReactNode } from 'react';
 import type {
   SignageAnnouncementWidget,
+  SignageAspectRatio,
   SignageCameraWidget,
   SignageStatusWidget,
   SignageWidget,
@@ -10,7 +11,8 @@ import { ListWidget } from './ListWidget';
 import { qrModules } from './qr';
 import { RichText } from './RichTextView';
 import { fontAssetIdsOf, registerFontFaces, styleTextAlign, widgetStyleOf, zoneBoxCss, type FontFace } from './style';
-import { isPrinting, type RenderData, type RenderMachine, type RenderScene, type SignageOrientation } from './types';
+import { orientationOf, type Orientation } from './aspect';
+import { isPrinting, type RenderData, type RenderMachine, type RenderScene } from './types';
 import './render.css';
 
 // The one renderer behind preview frames, thumbnails, the editor canvas and (later) the player.
@@ -129,7 +131,7 @@ function CameraWidget({
 }: {
   widget: SignageCameraWidget;
   data: RenderData;
-  orientation: SignageOrientation;
+  orientation: Orientation;
 }) {
   const candidates =
     widget.source === 'machine'
@@ -278,7 +280,7 @@ function WidgetView({
 }: {
   widget: SignageWidget;
   data: RenderData;
-  orientation: SignageOrientation;
+  orientation: Orientation;
 }) {
   switch (widget.type) {
     case 'empty':
@@ -358,26 +360,25 @@ function WidgetView({
 
 /** Aspect-ratio box that also provides the container for the relative units. */
 export function ScreenFrame({
-  orientation,
-  resolution,
+  aspectRatio,
   width,
   className,
   children,
 }: {
-  orientation: SignageOrientation;
-  resolution?: { width: number; height: number };
+  aspectRatio: SignageAspectRatio;
   width?: string;
   className?: string;
   children: ReactNode;
 }) {
-  const size =
-    resolution ?? (orientation === 'portrait' ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 });
   const style: CSSProperties = {
-    aspectRatio: `${size.width} / ${size.height}`,
+    aspectRatio: `${aspectRatio.width} / ${aspectRatio.height}`,
     ...(width ? { inlineSize: width } : {}),
   };
   return (
-    <div className={`sg-frame sg-frame--${orientation}${className ? ` ${className}` : ''}`} style={style}>
+    <div
+      className={`sg-frame sg-frame--${orientationOf(aspectRatio)}${className ? ` ${className}` : ''}`}
+      style={style}
+    >
       {children}
     </div>
   );
@@ -397,8 +398,8 @@ function sceneBackground(scene: RenderScene, data: RenderData): string {
 export type SceneRendererProps = {
   scene: RenderScene | null;
   data: RenderData;
-  /** Orientation of the screen the scene is shown on (sets the unit scale). Defaults to the scene's own. */
-  screenOrientation?: SignageOrientation;
+  /** Aspect ratio of the screen the scene is shown on (sets the unit scale). Defaults to the scene's own. */
+  screenAspectRatio?: SignageAspectRatio;
   selectedZone?: string | null;
   onSelectZone?: (zoneId: string) => void;
   /** Custom layouts for this scene; defaults to `data.customLayouts` (the editor passes its own list). */
@@ -421,7 +422,7 @@ function sceneFonts(scene: RenderScene, data: RenderData): FontFace[] {
 export function SceneRenderer({
   scene,
   data,
-  screenOrientation,
+  screenAspectRatio,
   selectedZone,
   onSelectZone,
   customLayouts,
@@ -432,9 +433,12 @@ export function SceneRenderer({
     registerFontFaces(JSON.parse(fontKey) as FontFace[]);
   }, [fontKey]);
   if (!scene) return <div className="sg-scene sg-scene--empty" />;
-  const orientation = screenOrientation ?? scene.orientation;
+  const ratio = screenAspectRatio ?? scene.aspectRatio;
+  const orientation = orientationOf(ratio);
   const layout = resolveLayout(scene.layoutId, scene.customLayoutId, customLayouts ?? data.customLayouts);
-  const unit = orientation === 'portrait' ? '1cqw' : '0.5625cqw';
+  // `u` is 1 % of the design width. Portrait screens design against their full width (1cqw); landscape screens design
+  // against a 16:9-style width tied to the height: height / width cqw (0.5625 for 16:9, 0.4286 for 21:9, 0.75 for 4:3).
+  const unit = orientation === 'portrait' ? '1cqw' : `${Number((ratio.height / ratio.width).toFixed(4))}cqw`;
   const style = {
     '--u': unit,
     // The unscaled unit: zone padding and borders keep their size when a widget scales its font.

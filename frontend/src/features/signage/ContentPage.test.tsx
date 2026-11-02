@@ -24,7 +24,7 @@ describe('Content page', () => {
     expect(await screen.findByRole('heading', { name: 'Content' })).toBeInTheDocument();
     const tile = await screen.findByRole('link', { name: 'Scene Open days poster' });
     expect(tile).toHaveAttribute('href', `/signage/scenes/${ids.scene}`);
-    expect(within(tile).getByText('Portrait')).toBeInTheDocument();
+    expect(within(tile).getByText('9:16')).toBeInTheDocument();
     expect(await within(tile).findByText('Used in 1 playlist')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New scene' })).not.toBeInTheDocument();
 
@@ -66,7 +66,7 @@ describe('Content page', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(`/signage/scenes/${ids.scene2}`));
     expect(body).toMatchObject({
       name: 'Lobby',
-      orientation: 'portrait',
+      aspectRatio: { width: 9, height: 16 },
       layoutId: 'split',
       zones: { left: { type: 'empty' }, right: { type: 'empty' } },
     });

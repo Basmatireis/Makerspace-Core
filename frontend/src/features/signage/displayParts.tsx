@@ -58,19 +58,17 @@ export function PublicationTag({ display }: { display: Pick<SignageDisplay, 'pub
 /** The scene on screen, in a frame of the display's aspect ratio. */
 export function PublishedScreen({
   view,
-  orientation,
-  resolution,
+  aspectRatio,
   width,
 }: {
   view: PublishedView;
-  orientation: SignageDisplay['orientation'];
-  resolution?: SignageDisplay['resolution'];
+  aspectRatio: SignageDisplay['aspectRatio'];
   width?: string;
 }) {
   return (
-    <ScreenFrame orientation={orientation} resolution={resolution} width={width}>
+    <ScreenFrame aspectRatio={aspectRatio} width={width}>
       <div className={`sg-screen${view.transition === 'fade' ? ' sg-fade' : ''}`} key={view.itemKey}>
-        <SceneRenderer scene={view.scene} data={view.data} screenOrientation={orientation} />
+        <SceneRenderer scene={view.scene} data={view.data} screenAspectRatio={aspectRatio} />
       </div>
     </ScreenFrame>
   );

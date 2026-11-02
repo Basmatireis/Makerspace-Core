@@ -285,7 +285,7 @@ func signageSceneDTO(scene signage.Scene) (openapi.SignageScene, error) {
 	return openapi.SignageScene{
 		Id:                scene.ID,
 		Name:              scene.Name,
-		Orientation:       openapi.SignageOrientation(scene.Orientation),
+		AspectRatio:       signageAspectRatioDTO(scene.AspectRatio),
 		LayoutId:          openapi.SignageLayoutId(scene.LayoutID),
 		CustomLayoutId:    nullableValue(scene.CustomLayoutID),
 		BackgroundColor:   scene.BackgroundColor,
@@ -336,7 +336,7 @@ func (s *Server) CreateSignageScene(
 	}
 	scene, err := s.signage.CreateScene(ctx, p, signage.SceneInput{
 		Name:            r.Body.Name,
-		Orientation:     signage.Orientation(r.Body.Orientation),
+		AspectRatio:     signageAspectRatio(r.Body.AspectRatio),
 		LayoutID:        string(r.Body.LayoutId),
 		CustomLayoutID:  uuidNullable(r.Body.CustomLayoutId),
 		BackgroundColor: r.Body.BackgroundColor,
@@ -391,7 +391,7 @@ func (s *Server) UpdateSignageScene(
 	}
 	scene, err := s.signage.UpdateScene(ctx, p, r.SceneId, r.Body.ExpectedVersion, signage.SceneInput{
 		Name:            r.Body.Name,
-		Orientation:     signage.Orientation(r.Body.Orientation),
+		AspectRatio:     signageAspectRatio(r.Body.AspectRatio),
 		LayoutID:        string(r.Body.LayoutId),
 		CustomLayoutID:  uuidNullable(r.Body.CustomLayoutId),
 		BackgroundColor: r.Body.BackgroundColor,
@@ -883,4 +883,12 @@ func decodeUploadFileName(raw string) (string, error) {
 		}
 	}
 	return name, nil
+}
+
+func signageAspectRatioDTO(ratio signage.AspectRatio) openapi.SignageAspectRatio {
+	return openapi.SignageAspectRatio{Width: ratio.Width, Height: ratio.Height}
+}
+
+func signageAspectRatio(ratio openapi.SignageAspectRatio) signage.AspectRatio {
+	return signage.AspectRatio{Width: ratio.Width, Height: ratio.Height}
 }

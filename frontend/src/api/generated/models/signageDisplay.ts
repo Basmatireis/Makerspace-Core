@@ -18,10 +18,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignageAspectRatio } from './signageAspectRatio';
 import type { SignageDisplayStatus } from './signageDisplayStatus';
-import type { SignageOrientation } from './signageOrientation';
 import type { SignagePendingChange } from './signagePendingChange';
-import type { SignageResolution } from './signageResolution';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
@@ -35,8 +34,7 @@ export interface SignageDisplay {
   name: string;
   /** @maxLength 150 */
   location: string;
-  orientation: SignageOrientation;
-  resolution: SignageResolution;
+  aspectRatio: SignageAspectRatio;
   visibleFromOutside: boolean;
   /** Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams. Takes effect immediately (no publication needed). */
   allowCameraOutside: boolean;

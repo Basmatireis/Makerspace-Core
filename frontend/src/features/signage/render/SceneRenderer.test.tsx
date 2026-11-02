@@ -22,7 +22,7 @@ const data = (machines: RenderMachine[]): RenderData => ({
 });
 const scene = (camera: Record<string, unknown>): RenderScene =>
   ({
-    orientation: 'landscape',
+    aspectRatio: { width: 16, height: 9 },
     layoutId: 'full',
     backgroundColor: '#161616',
     backgroundAssetId: null,

@@ -13,16 +13,9 @@ import (
 // custom layouts to the manifest. Bump it whenever the layout list or its meaning changes incompatibly.
 const LayoutsVersion = 2
 
-// Resolution is a display's pixel size.
-type Resolution struct {
-	Width  int `json:"width"`
-	Height int `json:"height"`
-}
-
 // ManifestDisplay carries the display settings a player needs.
 type ManifestDisplay struct {
-	Orientation        Orientation `json:"orientation"`
-	Resolution         Resolution  `json:"resolution"`
+	AspectRatio        AspectRatio `json:"aspectRatio"`
 	VisibleFromOutside bool        `json:"visibleFromOutside"`
 }
 
@@ -47,7 +40,7 @@ type ManifestRule struct {
 type ManifestScene struct {
 	ID                uuid.UUID                  `json:"id"`
 	Name              string                     `json:"name"`
-	Orientation       Orientation                `json:"orientation"`
+	AspectRatio       AspectRatio                `json:"aspectRatio"`
 	LayoutID          string                     `json:"layoutId"`
 	CustomLayoutID    *uuid.UUID                 `json:"customLayoutId"`
 	BackgroundColor   string                     `json:"backgroundColor"`
@@ -117,8 +110,7 @@ type Manifest struct {
 type displayDraft struct {
 	ID                 uuid.UUID
 	Name               string
-	Orientation        Orientation
-	Resolution         Resolution
+	AspectRatio        AspectRatio
 	VisibleFromOutside bool
 	DefaultPlaylistID  uuid.UUID
 	Rules              []Rule
@@ -159,8 +151,7 @@ func sceneAssetIDs(scene ManifestScene) ([]uuid.UUID, error) {
 func assembleManifest(draft displayDraft, content manifestContent) (Manifest, error) {
 	manifest := Manifest{
 		Display: ManifestDisplay{
-			Orientation:        draft.Orientation,
-			Resolution:         draft.Resolution,
+			AspectRatio:        draft.AspectRatio,
 			VisibleFromOutside: draft.VisibleFromOutside,
 		},
 		DefaultPlaylistID: draft.DefaultPlaylistID,
@@ -446,4 +437,63 @@ func diffRules(published, draft []ManifestRule) []PendingChange {
 		}
 	}
 	return changes
+}
+
+// legacyManifestShape holds the fields that publications stored before aspect ratios carried instead.
+type legacyManifestShape struct {
+	Display struct {
+		Orientation string `json:"orientation"`
+		Resolution  struct {
+			Width  int `json:"width"`
+			Height int `json:"height"`
+		} `json:"resolution"`
+	} `json:"display"`
+	Scenes []struct {
+		Orientation string `json:"orientation"`
+	} `json:"scenes"`
+}
+
+// decodeManifest reads a stored publication. Stored rows are never rewritten, so a publication made
+// before aspect ratios still carries orientation and resolution; it gets the ratios that migration 00090
+// gave its display and scenes (the reduced resolution, or 16:9 / 9:16 when that does not fit 1–100;
+// scenes 16:9 when landscape and 9:16 when portrait).
+func decodeManifest(raw []byte) (Manifest, error) {
+	var manifest Manifest
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		return Manifest{}, err
+	}
+	legacyDisplay := manifest.Display.AspectRatio == AspectRatio{}
+	legacyScene := false
+	for _, scene := range manifest.Scenes {
+		legacyScene = legacyScene || scene.AspectRatio == AspectRatio{}
+	}
+	if !legacyDisplay && !legacyScene {
+		return manifest, nil
+	}
+	var legacy legacyManifestShape
+	if err := json.Unmarshal(raw, &legacy); err != nil {
+		return Manifest{}, err
+	}
+	if legacyDisplay {
+		resolution := AspectRatio{Width: legacy.Display.Resolution.Width, Height: legacy.Display.Resolution.Height}
+		ratio := resolution.Reduce()
+		if !ratio.Valid() {
+			ratio = ratioOfOrientation(legacy.Display.Orientation != "portrait")
+		}
+		manifest.Display.AspectRatio = ratio
+	}
+	for index := range manifest.Scenes {
+		if manifest.Scenes[index].AspectRatio == (AspectRatio{}) && index < len(legacy.Scenes) {
+			manifest.Scenes[index].AspectRatio = ratioOfOrientation(legacy.Scenes[index].Orientation != "portrait")
+		}
+	}
+	return manifest, nil
+}
+
+// ratioOfOrientation is 16:9 for landscape and 9:16 for portrait.
+func ratioOfOrientation(landscape bool) AspectRatio {
+	if landscape {
+		return AspectRatio{Width: 16, Height: 9}
+	}
+	return AspectRatio{Width: 9, Height: 16}
 }

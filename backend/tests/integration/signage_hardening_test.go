@@ -150,11 +150,8 @@ func TestSignagePairingHardening(t *testing.T) {
 	player := e.newPlayer()
 	start := e.expect(e.do(player, "", http.MethodPost, "/public/signage/pairing", nil), http.StatusCreated)
 	e.expect(e.as(staff, http.MethodPost, "/signage/displays", map[string]any{
-		"code": start["code"], "name": "Restart", "location": "", "orientation": "landscape",
-		"resolution": map[string]any{
-			"width":  1920,
-			"height": 1080,
-		}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		"code": start["code"], "name": "Restart", "location": "", "aspectRatio": map[string]any{"width": 16, "height": 9},
+		"visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 	}), http.StatusCreated)
 	e.expectCode(
 		e.do(player, "", http.MethodPost, "/public/signage/pairing", nil),

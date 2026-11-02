@@ -27,7 +27,7 @@ import {
 import { usePublishedView } from './displayHooks';
 import { PublishedScreen } from './displayParts';
 import { renderAnnouncement } from './engine/announcements';
-import { isStaleWrite } from './helpers';
+import { isStaleWrite, orientationOf } from './helpers';
 import { useMachineOptions, useMakerspaceTimeZone } from './preview';
 import { displaysQuery, signageKeys, templatesQuery } from './queries';
 import type { RenderAnnouncement } from './render/types';
@@ -390,9 +390,8 @@ export function AnnouncementStartModal({
                 <div className="sg-ann-preview">
                   <PublishedScreen
                     view={frame.view}
-                    orientation={previewDisplay.orientation}
-                    resolution={previewDisplay.resolution}
-                    width={previewDisplay.orientation === 'portrait' ? '8rem' : '100%'}
+                    aspectRatio={previewDisplay.aspectRatio}
+                    width={orientationOf(previewDisplay.aspectRatio) === 'portrait' ? '8rem' : '100%'}
                   />
                 </div>
               ) : (

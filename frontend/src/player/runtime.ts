@@ -2,7 +2,7 @@ import type {
   SignagePlayerHeartbeat,
   SignagePlayerLive,
   SignagePlayerManifest,
-  SignageResolution,
+  SignageAspectRatio,
 } from '../api/generated/models';
 import { isRevoked, PlayerApiError, type PlayerApi } from './api';
 import { loadAsset as defaultLoadAsset, settleLimited, type AssetLoader } from './assets';
@@ -35,7 +35,7 @@ export type RuntimeSnapshot = {
   status: RuntimeStatus;
   /** Null until a revision is active and the first live poll has finished (or the grace period passed). */
   view: PlayerView | null;
-  display: { orientation: SignagePlayerManifest['display']['orientation']; resolution: SignageResolution } | null;
+  display: { aspectRatio: SignageAspectRatio } | null;
   /** False while the server cannot be reached; the screen shows a small dot and keeps playing. */
   online: boolean;
   revision: number | null;
@@ -439,9 +439,7 @@ export class PlayerRuntime {
       view = resolved.view;
     }
     if (this.revoked) status = 'revoked';
-    const display = this.active
-      ? { orientation: this.active.manifest.display.orientation, resolution: this.active.manifest.display.resolution }
-      : null;
+    const display = this.active ? { aspectRatio: this.active.manifest.display.aspectRatio } : null;
     this.snapshot = { status, view, display, online: this.online, revision: this.active?.manifest.revision ?? null };
     this.listeners.forEach((listener) => listener());
   }

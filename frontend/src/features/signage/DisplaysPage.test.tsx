@@ -12,8 +12,7 @@ const offline = displayFixture({
   id: '0192f6f8-743e-7c77-a349-cd07c3e8a152',
   name: 'Laser room',
   location: '',
-  orientation: 'landscape',
-  resolution: { width: 1920, height: 1080 },
+  aspectRatio: { width: 16, height: 9 },
   status: 'offline',
   lastHeartbeatAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
   publishedRevision: 1,
@@ -71,7 +70,7 @@ describe('Displays page', () => {
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('Pairing code'), 'k7f 2qx');
     await user.type(within(dialog).getByLabelText('Name'), 'Workshop');
-    await user.click(within(dialog).getByRole('radio', { name: 'Portrait' }));
+    await user.selectOptions(within(dialog).getByLabelText('Aspect ratio'), '9:16 (portrait)');
     await user.selectOptions(within(dialog).getByLabelText('Default playlist'), 'Ads');
     await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
     await waitFor(() =>
@@ -79,13 +78,41 @@ describe('Displays page', () => {
         code: 'K7F2QX',
         name: 'Workshop',
         location: '',
-        orientation: 'portrait',
-        resolution: { width: 1080, height: 1920 },
+        aspectRatio: { width: 9, height: 16 },
         visibleFromOutside: false,
         defaultPlaylistId: ids.playlist,
       }),
     );
     expect(await screen.findByRole('heading', { name: 'Entrance window' })).toBeInTheDocument();
+  });
+
+  it('pairs with a custom aspect ratio and reduces a pixel size', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], { displays: [displayFixture()] });
+    let body: { aspectRatio?: unknown } = {};
+    server.use(
+      http.post('*/api/v1/signage/displays', async ({ request }) => {
+        body = (await request.json()) as typeof body;
+        return HttpResponse.json(displayFixture({ name: 'Workshop' }), { status: 201 });
+      }),
+    );
+    renderRoute(<App />, '/signage');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Pair display' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Pairing code'), 'k7f2qx');
+    await user.type(within(dialog).getByLabelText('Name'), 'Workshop');
+    await user.selectOptions(within(dialog).getByLabelText('Aspect ratio'), 'Custom…');
+    const custom = within(dialog).getByLabelText('Custom ratio (width:height)');
+    await user.clear(custom);
+    await user.type(custom, 'abc');
+    await user.selectOptions(within(dialog).getByLabelText('Default playlist'), 'Ads');
+    await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
+    expect(await within(dialog).findByText(/Enter the ratio as width:height/)).toBeInTheDocument();
+    expect(body.aspectRatio).toBeUndefined();
+    await user.clear(custom);
+    await user.type(custom, '1920x1200');
+    await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
+    await waitFor(() => expect(body.aspectRatio).toEqual({ width: 8, height: 5 }));
   });
 
   it('submits the pair modal on Enter from a single-line field', async () => {

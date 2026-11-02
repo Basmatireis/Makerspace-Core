@@ -19,14 +19,17 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface SignageResolution {
+/**
+ * Aspect ratio of a display or scene as `width:height`. The server reduces it by the greatest common divisor, so a pixel size may be sent (`1920:1080` is stored and returned as `16:9`). Both parts must be between 1 and 100 after reduction (422 `validation` otherwise); responses always carry the reduced ratio.
+ */
+export interface SignageAspectRatio {
   /**
-     * @minimum 320
+     * @minimum 1
      * @maximum 16384
      */
   width: number;
   /**
-     * @minimum 320
+     * @minimum 1
      * @maximum 16384
      */
   height: number;

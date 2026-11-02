@@ -20009,10 +20009,14 @@ components:
       description: Fixed, code-defined layouts shared by backend validation and frontend rendering, or `custom` (then `customLayoutId` names the custom layout).
       enum: [full, stack3, stack4, split, grid2x2, quad_banner, main_side, main_footer, banner_main, custom]
       x-enum-varnames: [SignageLayoutIdFull, SignageLayoutIdStack3, SignageLayoutIdStack4, SignageLayoutIdSplit, SignageLayoutIdGrid2x2, SignageLayoutIdQuadBanner, SignageLayoutIdMainSide, SignageLayoutIdMainFooter, SignageLayoutIdBannerMain, SignageLayoutIdCustom]
-    SignageOrientation:
-      type: string
-      enum: [portrait, landscape]
-      x-enum-varnames: [SignageOrientationPortrait, SignageOrientationLandscape]
+    SignageAspectRatio:
+      type: object
+      additionalProperties: false
+      required: [width, height]
+      description: "Aspect ratio of a display or scene as `width:height`. The server reduces it by the greatest common divisor, so a pixel size may be sent (`1920:1080` is stored and returned as `16:9`). Both parts must be between 1 and 100 after reduction (422 `validation` otherwise); responses always carry the reduced ratio."
+      properties:
+        width: {type: integer, minimum: 1, maximum: 16384}
+        height: {type: integer, minimum: 1, maximum: 16384}
     SignageLayoutZone:
       type: object
       additionalProperties: false
@@ -20421,11 +20425,11 @@ components:
     SignageScene:
       type: object
       additionalProperties: false
-      required: [id, name, orientation, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version, createdAt, updatedAt]
+      required: [id, name, aspectRatio, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
-        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
         customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The custom layout; set exactly when `layoutId` is `custom`."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
@@ -20445,10 +20449,10 @@ components:
     CreateSignageSceneRequest:
       type: object
       additionalProperties: false
-      required: [name, orientation, layoutId, backgroundColor, backgroundFit, backgroundDim, theme]
+      required: [name, aspectRatio, layoutId, backgroundColor, backgroundFit, backgroundDim, theme]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
-        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
         customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required with `layoutId` `custom`, otherwise omitted or null."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
@@ -20460,11 +20464,11 @@ components:
     UpdateSignageSceneRequest:
       type: object
       additionalProperties: false
-      required: [expectedVersion, name, orientation, layoutId, backgroundColor, backgroundFit, backgroundDim, theme]
+      required: [expectedVersion, name, aspectRatio, layoutId, backgroundColor, backgroundFit, backgroundDim, theme]
       properties:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string, minLength: 1, maxLength: 100}
-        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
         customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required with `layoutId` `custom`, otherwise omitted or null."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
@@ -20656,13 +20660,6 @@ components:
       description: "`online` when the last heartbeat is under 90 seconds old."
       enum: [online, offline, revoked]
       x-enum-varnames: [SignageDisplayStatusOnline, SignageDisplayStatusOffline, SignageDisplayStatusRevoked]
-    SignageResolution:
-      type: object
-      additionalProperties: false
-      required: [width, height]
-      properties:
-        width: {type: integer, minimum: 320, maximum: 16384}
-        height: {type: integer, minimum: 320, maximum: 16384}
     SignagePendingChangeKind:
       type: string
       enum: [display, rule, scene, playlist, asset, layout]
@@ -20682,14 +20679,13 @@ components:
     SignageDisplay:
       type: object
       additionalProperties: false
-      required: [id, managedDeviceId, name, location, orientation, resolution, visibleFromOutside, allowCameraOutside, defaultPlaylistId, status, revokedAt, lastHeartbeatAt, publishedRevision, publishedAt, pendingChanges, reportedRevision, currentRule, currentSceneId, playerVersion, cacheUsedBytes, cacheQuotaBytes, errors, version, createdAt, updatedAt]
+      required: [id, managedDeviceId, name, location, aspectRatio, visibleFromOutside, allowCameraOutside, defaultPlaylistId, status, revokedAt, lastHeartbeatAt, publishedRevision, publishedAt, pendingChanges, reportedRevision, currentRule, currentSceneId, playerVersion, cacheUsedBytes, cacheQuotaBytes, errors, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         managedDeviceId: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
         location: {type: string, maxLength: 150}
-        orientation: {$ref: "#/components/schemas/SignageOrientation"}
-        resolution: {$ref: "#/components/schemas/SignageResolution"}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
         allowCameraOutside: {type: boolean, description: "Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams. Takes effect immediately (no publication needed)."}
         defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
@@ -20721,26 +20717,24 @@ components:
     PairSignageDisplayRequest:
       type: object
       additionalProperties: false
-      required: [code, name, location, orientation, resolution, visibleFromOutside, defaultPlaylistId]
+      required: [code, name, location, aspectRatio, visibleFromOutside, defaultPlaylistId]
       properties:
         code: {type: string, minLength: 1, maxLength: 20, description: The code shown on the screen; case and spaces are ignored.}
         name: {type: string, minLength: 1, maxLength: 100}
         location: {type: string, maxLength: 150}
-        orientation: {$ref: "#/components/schemas/SignageOrientation"}
-        resolution: {$ref: "#/components/schemas/SignageResolution"}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
         allowCameraOutside: {type: boolean, description: "Optional; omitted means unchanged on update and false on pairing."}
         defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
     UpdateSignageDisplayRequest:
       type: object
       additionalProperties: false
-      required: [expectedVersion, name, location, orientation, resolution, visibleFromOutside, defaultPlaylistId]
+      required: [expectedVersion, name, location, aspectRatio, visibleFromOutside, defaultPlaylistId]
       properties:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string, minLength: 1, maxLength: 100}
         location: {type: string, maxLength: 150}
-        orientation: {$ref: "#/components/schemas/SignageOrientation"}
-        resolution: {$ref: "#/components/schemas/SignageResolution"}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
         allowCameraOutside: {type: boolean, description: "Optional; omitted means unchanged on update and false on pairing."}
         defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
@@ -20858,11 +20852,11 @@ components:
     SignagePlayerScene:
       type: object
       additionalProperties: false
-      required: [id, name, orientation, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version]
+      required: [id, name, aspectRatio, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
-        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
         customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set exactly when `layoutId` is `custom`; the layout is in the manifest's `customLayouts`."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
@@ -20911,10 +20905,9 @@ components:
     SignagePlayerManifestDisplay:
       type: object
       additionalProperties: false
-      required: [orientation, resolution, visibleFromOutside]
+      required: [aspectRatio, visibleFromOutside]
       properties:
-        orientation: {$ref: "#/components/schemas/SignageOrientation"}
-        resolution: {$ref: "#/components/schemas/SignageResolution"}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
     SignagePlayerManifest:
       type: object

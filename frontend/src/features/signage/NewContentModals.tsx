@@ -1,32 +1,38 @@
-import { InlineNotification, Modal, RadioButton, RadioButtonGroup, Stack, TextInput } from '@carbon/react';
+import { InlineNotification, Modal, Stack, TextInput } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import type { SignageOrientation } from '../../api/generated/models';
 import { createSignagePlaylist, createSignageScene } from '../../api/generated/signage/signage';
+import { aspectFieldsOf, aspectOfFields, type AspectFields } from './aspectFields';
+import { AspectRatioFields } from './AspectRatioFields';
 import { LayoutPicker, type LayoutChoice } from './components';
-import { errorMessage } from './helpers';
+import { ASPECT_PRESETS, errorMessage, orientationOf } from './helpers';
 import { customLayoutsQuery } from './layoutQueries';
 import { emptyZones, resolveLayout } from './layouts';
 import { signagePaths } from './paths';
 import { signageKeys } from './queries';
 
-type SceneFields = { name: string; orientation: SignageOrientation; layout: LayoutChoice };
+type SceneFields = AspectFields & { name: string; layout: LayoutChoice };
 
 /** New scenes start dark with an empty widget in every zone; everything else is edited in the scene editor. */
 export function NewSceneModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const form = useForm<SceneFields>({
-    defaultValues: { name: '', orientation: 'portrait', layout: { layoutId: 'stack3', customLayoutId: null } },
+    defaultValues: {
+      name: '',
+      ...aspectFieldsOf(ASPECT_PRESETS[1].ratio),
+      layout: { layoutId: 'stack3', customLayoutId: null },
+    },
   });
-  const orientation = form.watch('orientation');
+  const [aspectPreset, aspectCustom] = form.watch(['aspectPreset', 'aspectCustom']);
+  const orientation = orientationOf(aspectOfFields({ aspectPreset, aspectCustom }));
   const customLayouts = useQuery(customLayoutsQuery()).data?.items ?? [];
   const mutation = useMutation({
     mutationFn: (values: SceneFields) =>
       createSignageScene({
         name: values.name.trim(),
-        orientation: values.orientation,
+        aspectRatio: aspectOfFields(values),
         layoutId: values.layout.layoutId,
         customLayoutId: values.layout.customLayoutId,
         backgroundColor: '#161616',
@@ -67,21 +73,7 @@ export function NewSceneModal({ onClose }: { onClose: () => void }) {
             invalidText="Give the scene a name"
             {...form.register('name', { validate: (value) => value.trim() !== '' })}
           />
-          <Controller
-            control={form.control}
-            name="orientation"
-            render={({ field }) => (
-              <RadioButtonGroup
-                legendText="Orientation"
-                name="scene-orientation"
-                valueSelected={field.value}
-                onChange={(value) => field.onChange(value)}
-              >
-                <RadioButton id="scene-portrait" value="portrait" labelText="Portrait" />
-                <RadioButton id="scene-landscape" value="landscape" labelText="Landscape" />
-              </RadioButtonGroup>
-            )}
-          />
+          <AspectRatioFields form={form} idPrefix="scene" />
           <Controller
             control={form.control}
             name="layout"

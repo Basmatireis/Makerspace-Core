@@ -1,10 +1,5 @@
 import type { ReactNode } from 'react';
-import type {
-  SignageOrientation,
-  SignagePlayerCalendar,
-  SignageScene,
-  SignageTone,
-} from '../../../api/generated/models';
+import type { SignagePlayerCalendar, SignageScene, SignageTone } from '../../../api/generated/models';
 import type { CustomLayoutShape } from '../layouts';
 import type { RichTextFormat } from './escape';
 
@@ -13,7 +8,7 @@ import type { RichTextFormat } from './escape';
 
 export type RenderScene = Pick<
   SignageScene,
-  | 'orientation'
+  | 'aspectRatio'
   | 'layoutId'
   | 'backgroundColor'
   | 'backgroundAssetId'
@@ -89,5 +84,3 @@ export type RenderData = {
   /** Thumbnails: videos and slideshows stay still. */
   still?: boolean;
 };
-
-export type { SignageOrientation };

@@ -18,11 +18,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SignageOrientation } from './signageOrientation';
-import type { SignageResolution } from './signageResolution';
+import type { SignageAspectRatio } from './signageAspectRatio';
 
 export interface SignagePlayerManifestDisplay {
-  orientation: SignageOrientation;
-  resolution: SignageResolution;
+  aspectRatio: SignageAspectRatio;
   visibleFromOutside: boolean;
 }

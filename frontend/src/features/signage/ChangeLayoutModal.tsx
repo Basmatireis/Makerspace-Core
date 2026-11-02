@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { InlineNotification, Modal, Stack } from '@carbon/react';
-import type { SignageCustomLayout, SignageOrientation } from '../../api/generated/models';
+import type { SignageCustomLayout } from '../../api/generated/models';
 import { LayoutPicker, type LayoutChoice } from './components';
 import { samePickedLayout } from './customLayoutModel';
 
@@ -15,7 +15,7 @@ export function ChangeLayoutModal({
   sceneName: string;
   current: LayoutChoice;
   customLayouts: readonly SignageCustomLayout[];
-  orientation: SignageOrientation;
+  orientation: 'landscape' | 'portrait';
   onSave: (choice: LayoutChoice) => void;
   onClose: () => void;
 }) {

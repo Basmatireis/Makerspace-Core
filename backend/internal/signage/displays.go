@@ -22,8 +22,7 @@ const onlineWindow = 90 * time.Second
 type Display struct {
 	ID, ManagedDeviceID uuid.UUID
 	Name, Location      string
-	Orientation         Orientation
-	Resolution          Resolution
+	AspectRatio         AspectRatio
 	VisibleFromOutside  bool
 	AllowCameraOutside  bool
 	DefaultPlaylistID   uuid.UUID
@@ -48,8 +47,7 @@ type Display struct {
 // DisplayInput is the writable part of a display.
 type DisplayInput struct {
 	Name, Location     string
-	Orientation        Orientation
-	Resolution         Resolution
+	AspectRatio        AspectRatio
 	VisibleFromOutside bool
 	// AllowCameraOutside nil means unchanged on update and false when pairing.
 	AllowCameraOutside *bool
@@ -68,15 +66,12 @@ func viewFromList(row signagedb.ListSignageDisplayViewsRow) viewRow {
 func (s *Service) displayFromView(row viewRow) Display {
 	now := s.now()
 	display := Display{
-		ID:              row.ID,
-		ManagedDeviceID: row.ManagedDeviceID,
-		Name:            row.Name,
-		Location:        row.Location,
-		Orientation:     Orientation(row.Orientation),
-		Resolution: Resolution{
-			Width:  int(row.ResolutionWidth),
-			Height: int(row.ResolutionHeight),
-		}, VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
+		ID:                 row.ID,
+		ManagedDeviceID:    row.ManagedDeviceID,
+		Name:               row.Name,
+		Location:           row.Location,
+		AspectRatio:        aspectRatioOf(row.AspectWidth, row.AspectHeight),
+		VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
 		DefaultPlaylistID: row.DefaultPlaylistID,
 		LastHeartbeatAt:   fromPgTime(row.LastHeartbeatAt),
 		PendingChanges:    []PendingChange{},
@@ -136,8 +131,8 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 	}
 	published := map[uuid.UUID]Manifest{}
 	for _, publication := range publications {
-		var manifest Manifest
-		if err := json.Unmarshal(publication.Manifest, &manifest); err != nil {
+		manifest, err := decodeManifest(publication.Manifest)
+		if err != nil {
 			return nil, err
 		}
 		published[publication.DisplayID] = manifest
@@ -146,7 +141,7 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 	for _, display := range displays {
 		if _, ok := published[display.ID]; ok {
 			drafts = append(drafts, displayDraft{
-				ID: display.ID, Name: display.Name, Orientation: display.Orientation, Resolution: display.Resolution,
+				ID: display.ID, Name: display.Name, AspectRatio: display.AspectRatio,
 				VisibleFromOutside: display.VisibleFromOutside,
 				DefaultPlaylistID:  display.DefaultPlaylistID,
 				Rules:              rules[display.ID],
@@ -233,7 +228,7 @@ func (s *Service) buildManifests(
 		published := ManifestScene{
 			ID:                scene.ID,
 			Name:              scene.Name,
-			Orientation:       scene.Orientation,
+			AspectRatio:       scene.AspectRatio,
 			LayoutID:          scene.LayoutID,
 			CustomLayoutID:    scene.CustomLayoutID,
 			BackgroundColor:   scene.BackgroundColor,
@@ -379,17 +374,14 @@ func validateDisplayInput(input DisplayInput) (DisplayInput, error) {
 	if err != nil {
 		return input, err
 	}
-	if input.Orientation != OrientationPortrait && input.Orientation != OrientationLandscape {
-		return input, validation("orientation must be portrait or landscape")
-	}
-	if input.Resolution.Width < 320 || input.Resolution.Width > 16384 || input.Resolution.Height < 320 ||
-		input.Resolution.Height > 16384 {
-		return input, validation("resolution width and height must be between 320 and 16384")
+	ratio, err := checkAspectRatio(input.AspectRatio)
+	if err != nil {
+		return input, err
 	}
 	if input.DefaultPlaylistID == uuid.Nil {
 		return input, validation("defaultPlaylistId is required")
 	}
-	input.Name, input.Location = name, location
+	input.Name, input.Location, input.AspectRatio = name, location, ratio
 	return input, nil
 }
 
@@ -436,17 +428,21 @@ func (s *Service) UpdateDisplay(
 	} else if err != nil {
 		return Display{}, err
 	}
-	if Orientation(current.Orientation) != checked.Orientation {
-		mismatched, err := q.CountSceneRulesWithOtherOrientation(
+	ratioChanged := aspectRatioOf(current.AspectWidth, current.AspectHeight) != checked.AspectRatio
+	if ratioChanged {
+		mismatched, err := q.CountSceneRulesWithOtherAspectRatio(
 			ctx,
-			signagedb.CountSceneRulesWithOtherOrientationParams{DisplayID: id, Orientation: string(checked.Orientation)},
+			signagedb.CountSceneRulesWithOtherAspectRatioParams{
+				DisplayID:   id,
+				AspectWidth: int16(checked.AspectRatio.Width), AspectHeight: int16(checked.AspectRatio.Height),
+			},
 		)
 		if err != nil {
 			return Display{}, err
 		}
 		if mismatched > 0 {
 			return Display{}, validation(
-				"%d rule(s) show a scene with another orientation; change those rules first",
+				"%d rule(s) show a scene with another aspect ratio; change those rules first",
 				mismatched,
 			)
 		}
@@ -458,9 +454,8 @@ func (s *Service) UpdateDisplay(
 	if _, err := q.UpdateSignageDisplay(ctx, signagedb.UpdateSignageDisplayParams{
 		Name:               checked.Name,
 		Location:           checked.Location,
-		Orientation:        string(checked.Orientation),
-		ResolutionWidth:    int32(checked.Resolution.Width),
-		ResolutionHeight:   int32(checked.Resolution.Height),
+		AspectWidth:        int16(checked.AspectRatio.Width),
+		AspectHeight:       int16(checked.AspectRatio.Height),
 		VisibleFromOutside: checked.VisibleFromOutside,
 		AllowCameraOutside: allowOutside,
 		DefaultPlaylistID:  checked.DefaultPlaylistID,
@@ -477,12 +472,8 @@ func (s *Service) UpdateDisplay(
 	if current.Location != checked.Location {
 		changed = append(changed, "location")
 	}
-	if Orientation(current.Orientation) != checked.Orientation {
-		changed = append(changed, "orientation")
-	}
-	if int(current.ResolutionWidth) != checked.Resolution.Width ||
-		int(current.ResolutionHeight) != checked.Resolution.Height {
-		changed = append(changed, "resolution")
+	if ratioChanged {
+		changed = append(changed, "aspectRatio")
 	}
 	if current.VisibleFromOutside != checked.VisibleFromOutside {
 		changed = append(changed, "visibleFromOutside")

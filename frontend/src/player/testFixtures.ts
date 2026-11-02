@@ -12,7 +12,7 @@ export const scene = (id: string, patch: Partial<SignagePlayerScene> = {}): Sign
   ({
     id,
     name: id,
-    orientation: 'landscape',
+    aspectRatio: { width: 16, height: 9 },
     layoutId: 'full',
     backgroundColor: '#000000',
     backgroundAssetId: null,
@@ -45,7 +45,7 @@ export const rule = (id: string, patch: Partial<SignagePlayerRule>): SignagePlay
 
 export const manifest = (revision: number, patch: Partial<SignagePlayerManifest> = {}): SignagePlayerManifest => ({
   revision,
-  display: { orientation: 'landscape', resolution: { width: 1920, height: 1080 }, visibleFromOutside: false },
+  display: { aspectRatio: { width: 16, height: 9 }, visibleFromOutside: false },
   rules: [],
   defaultPlaylistId: 'pl-default',
   scenes: [scene('scene-a'), scene('scene-b')],

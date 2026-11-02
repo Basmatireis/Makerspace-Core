@@ -69,8 +69,7 @@ func (s *Service) publishDisplay(
 		return Display{}, err
 	}
 	draft := displayDraft{
-		ID: id, Name: current.Name, Orientation: Orientation(current.Orientation),
-		Resolution:         Resolution{Width: int(current.ResolutionWidth), Height: int(current.ResolutionHeight)},
+		ID: id, Name: current.Name, AspectRatio: aspectRatioOf(current.AspectWidth, current.AspectHeight),
 		VisibleFromOutside: current.VisibleFromOutside, DefaultPlaylistID: current.DefaultPlaylistID, Rules: rules[id],
 	}
 	manifests, err := s.buildManifests(ctx, q, []displayDraft{draft})

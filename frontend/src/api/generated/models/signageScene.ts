@@ -18,9 +18,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SignageAspectRatio } from './signageAspectRatio';
 import type { SignageFit } from './signageFit';
 import type { SignageLayoutId } from './signageLayoutId';
-import type { SignageOrientation } from './signageOrientation';
 import type { SignageSceneTheme } from './signageSceneTheme';
 import type { SignageZones } from './signageZones';
 import type { UUIDv7 } from './uUIDv7';
@@ -33,7 +33,7 @@ export interface SignageScene {
      * @maxLength 100
      */
   name: string;
-  orientation: SignageOrientation;
+  aspectRatio: SignageAspectRatio;
   layoutId: SignageLayoutId;
   /** The custom layout; set exactly when `layoutId` is `custom`. */
   customLayoutId: UUIDv7 | null;

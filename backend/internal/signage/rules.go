@@ -239,8 +239,8 @@ func loadRules(ctx context.Context, q *signagedb.Queries, displayIDs []uuid.UUID
 
 // verifyRuleReferences checks that the machines, templates and target of a rule exist and share-locks
 // them so a concurrent deletion either waits for this transaction or finds the new reference. A scene
-// target must match the display orientation; playlists may hold scenes of either orientation.
-func verifyRuleReferences(ctx context.Context, q *signagedb.Queries, orientation string, input RuleInput) error {
+// target must have exactly the display's aspect ratio; playlists may hold scenes of any ratio.
+func verifyRuleReferences(ctx context.Context, q *signagedb.Queries, ratio AspectRatio, input RuleInput) error {
 	if len(input.MachineIDs) > 0 {
 		rows, err := q.ListSignageMachineNames(ctx, uuidStrings(input.MachineIDs))
 		if err != nil {
@@ -267,8 +267,8 @@ func verifyRuleReferences(ctx context.Context, q *signagedb.Queries, orientation
 		if err != nil {
 			return err
 		}
-		if scene.Orientation != orientation {
-			return validation("the target scene must have the display orientation (%s)", orientation)
+		if aspectRatioOf(scene.AspectWidth, scene.AspectHeight) != ratio {
+			return validation("the target scene must have the display's aspect ratio (%s)", ratio)
 		}
 		return nil
 	}
@@ -445,7 +445,7 @@ func (s *Service) CreateRule(
 			if len(rules) >= maxRulesPerDisplay {
 				return validation("a display has at most %d rules", maxRulesPerDisplay)
 			}
-			if err := verifyRuleReferences(ctx, q, display.Orientation, checked); err != nil {
+			if err := verifyRuleReferences(ctx, q, aspectRatioOf(display.AspectWidth, display.AspectHeight), checked); err != nil {
 				return err
 			}
 			return databaseError(q.InsertSignageRule(ctx, ruleParams(displayID, id, len(rules), checked)))
@@ -492,7 +492,7 @@ func (s *Service) UpdateRule(
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
 			}
-			if err := verifyRuleReferences(ctx, q, display.Orientation, checked); err != nil {
+			if err := verifyRuleReferences(ctx, q, aspectRatioOf(display.AspectWidth, display.AspectHeight), checked); err != nil {
 				return err
 			}
 			params := ruleParams(displayID, ruleID, 0, checked)

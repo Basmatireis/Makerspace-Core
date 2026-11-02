@@ -83,8 +83,8 @@ ORDER BY lower(name), id;
 -- Scenes ------------------------------------------------------------------------------------------------------
 
 -- name: CreateSignageScene :one
-INSERT INTO signage_scenes (id, name, orientation, layout_id, custom_layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(orientation), sqlc.arg(layout_id), sqlc.narg(custom_layout_id), sqlc.arg(background_color), sqlc.narg(background_asset_id),
+INSERT INTO signage_scenes (id, name, aspect_width, aspect_height, layout_id, custom_layout_id, background_color, background_asset_id, background_fit, background_dim, theme, zones)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(aspect_width), sqlc.arg(aspect_height), sqlc.arg(layout_id), sqlc.narg(custom_layout_id), sqlc.arg(background_color), sqlc.narg(background_asset_id),
         sqlc.arg(background_fit), sqlc.arg(background_dim), sqlc.arg(theme), sqlc.arg(zones)::text::jsonb)
 RETURNING *;
 
@@ -99,7 +99,7 @@ SELECT * FROM signage_scenes ORDER BY lower(name), id;
 
 -- name: UpdateSignageScene :one
 UPDATE signage_scenes
-SET name = sqlc.arg(name), orientation = sqlc.arg(orientation), layout_id = sqlc.arg(layout_id), custom_layout_id = sqlc.narg(custom_layout_id),
+SET name = sqlc.arg(name), aspect_width = sqlc.arg(aspect_width), aspect_height = sqlc.arg(aspect_height), layout_id = sqlc.arg(layout_id), custom_layout_id = sqlc.narg(custom_layout_id),
     background_color = sqlc.arg(background_color),
     background_asset_id = sqlc.narg(background_asset_id), background_fit = sqlc.arg(background_fit), background_dim = sqlc.arg(background_dim),
     theme = sqlc.arg(theme), zones = sqlc.arg(zones)::text::jsonb, version = version + 1, updated_at = now()
@@ -313,13 +313,13 @@ SELECT id, name FROM machines WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
 -- Displays ----------------------------------------------------------------------------------------------------
 
 -- name: CreateSignageDisplay :one
-INSERT INTO signage_displays (id, managed_device_id, name, location, orientation, resolution_width, resolution_height, visible_from_outside, allow_camera_outside, default_playlist_id)
-VALUES (sqlc.arg(id), sqlc.arg(managed_device_id), sqlc.arg(name), sqlc.arg(location), sqlc.arg(orientation), sqlc.arg(resolution_width),
-        sqlc.arg(resolution_height), sqlc.arg(visible_from_outside), sqlc.arg(allow_camera_outside), sqlc.arg(default_playlist_id))
+INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, visible_from_outside, allow_camera_outside, default_playlist_id)
+VALUES (sqlc.arg(id), sqlc.arg(managed_device_id), sqlc.arg(name), sqlc.arg(location), sqlc.arg(aspect_width), sqlc.arg(aspect_height),
+        sqlc.arg(visible_from_outside), sqlc.arg(allow_camera_outside), sqlc.arg(default_playlist_id))
 RETURNING id;
 
 -- name: ListSignageDisplayViews :many
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
@@ -331,7 +331,7 @@ LEFT JOIN signage_display_states s ON s.display_id = d.id
 ORDER BY lower(d.name), d.id;
 
 -- name: GetSignageDisplayView :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
        s.last_heartbeat_at, s.publication_revision AS reported_revision, s.current_rule, s.current_scene_id, s.player_version,
        s.cache_used_bytes, s.cache_quota_bytes, s.errors,
@@ -343,20 +343,20 @@ LEFT JOIN signage_display_states s ON s.display_id = d.id
 WHERE d.id = sqlc.arg(id);
 
 -- name: GetSignageDisplayForUpdate :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
        d.default_playlist_id, d.revoked_at, md.revoked_at AS device_revoked_at, d.version
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.id = sqlc.arg(id) FOR UPDATE OF d;
 
 -- name: GetSignageDisplayByDevice :one
-SELECT d.id, d.name, d.location, d.orientation, d.resolution_width, d.resolution_height, d.visible_from_outside, d.allow_camera_outside, d.revoked_at, md.revoked_at AS device_revoked_at
+SELECT d.id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.revoked_at, md.revoked_at AS device_revoked_at
 FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
 WHERE d.managed_device_id = sqlc.arg(managed_device_id);
 
 -- name: UpdateSignageDisplay :one
 UPDATE signage_displays
-SET name = sqlc.arg(name), location = sqlc.arg(location), orientation = sqlc.arg(orientation), resolution_width = sqlc.arg(resolution_width),
-    resolution_height = sqlc.arg(resolution_height), visible_from_outside = sqlc.arg(visible_from_outside), allow_camera_outside = sqlc.arg(allow_camera_outside), default_playlist_id = sqlc.arg(default_playlist_id),
+SET name = sqlc.arg(name), location = sqlc.arg(location), aspect_width = sqlc.arg(aspect_width), aspect_height = sqlc.arg(aspect_height),
+    visible_from_outside = sqlc.arg(visible_from_outside), allow_camera_outside = sqlc.arg(allow_camera_outside), default_playlist_id = sqlc.arg(default_playlist_id),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND revoked_at IS NULL
 RETURNING id;
@@ -376,11 +376,23 @@ DELETE FROM signage_displays WHERE id = sqlc.arg(id) AND version = sqlc.arg(expe
 SELECT id FROM signage_playlists WHERE id = sqlc.arg(id) FOR SHARE;
 
 -- name: LockSignageSceneForShare :one
-SELECT id, orientation FROM signage_scenes WHERE id = sqlc.arg(id) FOR SHARE;
+SELECT id, aspect_width, aspect_height FROM signage_scenes WHERE id = sqlc.arg(id) FOR SHARE;
 
--- name: CountSceneRulesWithOtherOrientation :one
-SELECT count(*) FROM signage_rules r JOIN signage_scenes s ON s.id = r.target_scene_id
-WHERE r.display_id = sqlc.arg(display_id) AND s.orientation <> sqlc.arg(orientation)::text;
+-- name: CountSceneRulesWithOtherAspectRatio :one
+-- Rules of a display whose target scene has another aspect ratio. The scenes are share-locked so that a
+-- concurrent change of a scene's ratio either waits for this transaction or is seen by it.
+SELECT count(*) FROM (
+    SELECT r.id FROM signage_rules r JOIN signage_scenes s ON s.id = r.target_scene_id
+    WHERE r.display_id = sqlc.arg(display_id)
+      AND (s.aspect_width <> sqlc.arg(aspect_width)::smallint OR s.aspect_height <> sqlc.arg(aspect_height)::smallint)
+    FOR SHARE OF s
+) mismatched;
+
+-- name: CountDisplayRulesWithOtherAspectRatioForScene :one
+-- Rules that show the scene on a display with another aspect ratio.
+SELECT count(*) FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
+WHERE r.target_scene_id = sqlc.arg(scene_id)
+  AND (d.aspect_width <> sqlc.arg(aspect_width)::smallint OR d.aspect_height <> sqlc.arg(aspect_height)::smallint);
 
 -- Pairing -----------------------------------------------------------------------------------------------------
 

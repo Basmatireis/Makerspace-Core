@@ -97,6 +97,10 @@ func TestSignageDisplayPreview(t *testing.T) {
 	if manifest == nil || manifest["revision"] != float64(1) || len(manifest["scenes"].([]any)) != 1 {
 		t.Fatalf("published preview manifest = %v", body["manifest"])
 	}
+	if display := manifest["display"].(map[string]any); !hasAspectRatio(display, 16, 9) ||
+		!hasAspectRatio(manifest["scenes"].([]any)[0].(map[string]any), 16, 9) {
+		t.Fatalf("preview manifest aspect ratios = %v / %v", display, manifest["scenes"])
+	}
 	live = body["live"].(map[string]any)
 	machines := live["machines"].([]any)
 	if live["revision"] != float64(1) || len(machines) != 1 || machines[0].(map[string]any)["state"] != "printing" ||

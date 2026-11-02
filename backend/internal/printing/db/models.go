@@ -1826,9 +1826,6 @@ type SignageDisplay struct {
 	ManagedDeviceID    uuid.UUID
 	Name               string
 	Location           string
-	Orientation        string
-	ResolutionWidth    int32
-	ResolutionHeight   int32
 	VisibleFromOutside bool
 	DefaultPlaylistID  uuid.UUID
 	RevokedAt          pgtype.Timestamptz
@@ -1836,6 +1833,8 @@ type SignageDisplay struct {
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	AllowCameraOutside bool
+	AspectWidth        int16
+	AspectHeight       int16
 }
 
 type SignageDisplayState struct {
@@ -1910,7 +1909,6 @@ type SignageRule struct {
 type SignageScene struct {
 	ID                uuid.UUID
 	Name              string
-	Orientation       string
 	LayoutID          string
 	BackgroundColor   string
 	BackgroundAssetID *uuid.UUID
@@ -1922,6 +1920,8 @@ type SignageScene struct {
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 	CustomLayoutID    *uuid.UUID
+	AspectWidth       int16
+	AspectHeight      int16
 }
 
 type Survey struct {

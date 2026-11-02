@@ -15,13 +15,7 @@ import {
 import { useMutation, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type {
-  SignageAsset,
-  SignageCustomLayout,
-  SignageLayoutId,
-  SignageOrientation,
-  SignageScene,
-} from '../../api/generated/models';
+import type { SignageAsset, SignageCustomLayout, SignageLayoutId, SignageScene } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import {
@@ -80,7 +74,7 @@ export function SceneThumbnail({
 }: {
   scene: Pick<
     SignageScene,
-    | 'orientation'
+    | 'aspectRatio'
     | 'layoutId'
     | 'customLayoutId'
     | 'backgroundColor'
@@ -96,7 +90,7 @@ export function SceneThumbnail({
   // Only scenes on a custom layout need the list; the query is shared with the editors and cached.
   const customLayouts = useQuery({ ...customLayoutsQuery(), enabled: scene.layoutId === 'custom' }).data?.items;
   return (
-    <ScreenFrame orientation={scene.orientation} className={`sg-thumb${className ? ` ${className}` : ''}`}>
+    <ScreenFrame aspectRatio={scene.aspectRatio} className={`sg-thumb${className ? ` ${className}` : ''}`}>
       <SceneRenderer scene={scene} data={data} customLayouts={customLayouts} />
     </ScreenFrame>
   );
@@ -114,7 +108,7 @@ export function LayoutSketch({
   layoutId: SignageLayoutId;
   customLayoutId?: string | null;
   customLayouts?: readonly SignageCustomLayout[];
-  orientation: SignageOrientation;
+  orientation: 'landscape' | 'portrait';
 }) {
   return <LayoutDiagram layout={resolveLayout(layoutId, customLayoutId, customLayouts)} orientation={orientation} />;
 }
@@ -130,7 +124,7 @@ export function LayoutPicker({
   legend = 'Layout',
 }: {
   value: LayoutChoice;
-  orientation: SignageOrientation;
+  orientation: 'landscape' | 'portrait';
   /** Custom layouts offered after the built-in ones. */
   customLayouts?: readonly SignageCustomLayout[];
   onChange: (choice: LayoutChoice) => void;

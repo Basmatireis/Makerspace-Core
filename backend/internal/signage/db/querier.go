@@ -14,8 +14,12 @@ import (
 type Querier interface {
 	BumpSignageDisplayVersion(ctx context.Context, arg BumpSignageDisplayVersionParams) (int64, error)
 	ClaimSignagePairingRequest(ctx context.Context, arg ClaimSignagePairingRequestParams) error
+	// Rules that show the scene on a display with another aspect ratio.
+	CountDisplayRulesWithOtherAspectRatioForScene(ctx context.Context, arg CountDisplayRulesWithOtherAspectRatioForSceneParams) (int64, error)
 	CountOpenSignagePairingRequests(ctx context.Context, now time.Time) (int64, error)
-	CountSceneRulesWithOtherOrientation(ctx context.Context, arg CountSceneRulesWithOtherOrientationParams) (int64, error)
+	// Rules of a display whose target scene has another aspect ratio. The scenes are share-locked so that a
+	// concurrent change of a scene's ratio either waits for this transaction or is seen by it.
+	CountSceneRulesWithOtherAspectRatio(ctx context.Context, arg CountSceneRulesWithOtherAspectRatioParams) (int64, error)
 	CountScenesUsingCustomLayout(ctx context.Context, id uuid.UUID) (int32, error)
 	// Announcements -----------------------------------------------------------------------------------------------
 	CreateSignageAnnouncement(ctx context.Context, arg CreateSignageAnnouncementParams) (SignageAnnouncement, error)

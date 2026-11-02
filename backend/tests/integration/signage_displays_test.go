@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"github.com/jackc/pgx/v5"
 	"io"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -193,18 +195,25 @@ func (e *signageEnv) expectCode(response *http.Response, status int, code string
 	}
 }
 
+// hasAspectRatio reports whether the object's aspectRatio is width:height.
+func hasAspectRatio(object map[string]any, width, height int) bool {
+	ratio, ok := object["aspectRatio"].(map[string]any)
+	return ok && ratio["width"] == float64(width) && ratio["height"] == float64(height) && len(ratio) == 2
+}
+
 // pair runs the whole player/staff handshake and returns the display plus the paired player client.
 func (e *signageEnv) pair(staff staffSession, name string, playlistID uuid.UUID) (map[string]any, *http.Client) {
 	e.t.Helper()
 	player := e.newPlayer()
 	start := e.expect(e.do(player, "", http.MethodPost, "/public/signage/pairing", nil), http.StatusCreated)
 	display := e.expect(e.as(staff, http.MethodPost, "/signage/displays", map[string]any{
-		"code": start["code"], "name": name, "location": "Entrance hall", "orientation": "landscape",
-		"resolution": map[string]any{
-			"width":  1920,
-			"height": 1080,
-		}, "visibleFromOutside": false, "defaultPlaylistId": playlistID.String(),
+		"code": start["code"], "name": name, "location": "Entrance hall",
+		"aspectRatio": map[string]any{"width": 1920, "height": 1080}, "visibleFromOutside": false, "defaultPlaylistId": playlistID.String(),
 	}), http.StatusCreated)
+	// The pixel size is stored and returned reduced.
+	if !hasAspectRatio(display, 16, 9) {
+		e.t.Fatalf("paired display aspect ratio = %v, want 16:9", display["aspectRatio"])
+	}
 	if poll := e.expect(
 		e.do(player, "", http.MethodGet, "/public/signage/pairing", nil),
 		http.StatusOK,
@@ -312,11 +321,8 @@ func TestSignagePairingFlowEndToEnd(t *testing.T) {
 
 	claim := func(s staffSession, code string) *http.Response {
 		return e.as(s, http.MethodPost, "/signage/displays", map[string]any{
-			"code": code, "name": "Entrance", "location": "Hall", "orientation": "landscape",
-			"resolution": map[string]any{
-				"width":  1920,
-				"height": 1080,
-			}, "visibleFromOutside": true, "defaultPlaylistId": playlist.ID.String(),
+			"code": code, "name": "Entrance", "location": "Hall", "aspectRatio": map[string]any{"width": 16, "height": 9},
+			"visibleFromOutside": true, "defaultPlaylistId": playlist.ID.String(),
 		})
 	}
 	// A wrong code and an expired code give the identical answer.
@@ -428,11 +434,8 @@ func TestSignagePairingRateLimitsAndCleanup(t *testing.T) {
 	// Per account: ten wrong codes, then 429 even for a code that would be right.
 	attempt := func(code string) *http.Response {
 		return e.as(staff, http.MethodPost, "/signage/displays", map[string]any{
-			"code": code, "name": "X", "location": "", "orientation": "landscape",
-			"resolution": map[string]any{
-				"width":  1920,
-				"height": 1080,
-			}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+			"code": code, "name": "X", "location": "", "aspectRatio": map[string]any{"width": 16, "height": 9},
+			"visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 		})
 	}
 	for i := 0; i < 10; i++ {
@@ -443,11 +446,8 @@ func TestSignagePairingRateLimitsAndCleanup(t *testing.T) {
 	// Another account is unaffected.
 	other := e.allStaff()
 	e.expect(e.as(other, http.MethodPost, "/signage/displays", map[string]any{
-		"code": start["code"], "name": "Y", "location": "", "orientation": "landscape",
-		"resolution": map[string]any{
-			"width":  1920,
-			"height": 1080,
-		}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		"code": start["code"], "name": "Y", "location": "", "aspectRatio": map[string]any{"width": 16, "height": 9},
+		"visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 	}), http.StatusCreated)
 
 	// Per client IP: ten codes per hour (one was used above), then 429.
@@ -910,19 +910,13 @@ func TestSignagePermissionsForDisplayOperations(t *testing.T) {
 	}
 	settings := func() map[string]any {
 		return map[string]any{
-			"expectedVersion": version(), "name": "Permissions", "location": "Hall", "orientation": "landscape",
-			"resolution": map[string]any{
-				"width":  1920,
-				"height": 1080,
-			}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+			"expectedVersion": version(), "name": "Permissions", "location": "Hall", "aspectRatio": map[string]any{"width": 16, "height": 9},
+			"visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 		}
 	}
 	pairBody := map[string]any{
-		"code": "AAAAAA", "name": "X", "location": "", "orientation": "landscape",
-		"resolution": map[string]any{
-			"width":  1920,
-			"height": 1080,
-		}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		"code": "AAAAAA", "name": "X", "location": "", "aspectRatio": map[string]any{"width": 16, "height": 9},
+		"visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 	}
 
 	// Reads need signage.read.
@@ -1086,7 +1080,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	scene, playlist := e.seedContent("Rules")
 	portrait, err := e.fixture.service.CreateScene(ctx, e.fixture.admin, signage.SceneInput{
 		Name:            "Portrait scene",
-		Orientation:     "portrait",
+		AspectRatio:     signage.AspectRatio{Width: 9, Height: 16},
 		LayoutID:        "full",
 		BackgroundColor: "#101820",
 		BackgroundFit:   "cover",
@@ -1183,7 +1177,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		"stale_write",
 	)
 
-	// Validation: kind-specific fields, references, orientation.
+	// Validation: kind-specific fields, references, aspect ratio.
 	for name, overrides := range map[string]map[string]any{
 		"time window with machines": {
 			"conditionKind": "time_window",
@@ -1213,10 +1207,10 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 			"conditionKind":           "announcement_active",
 			"announcementTemplateIds": []string{uuid.Must(uuid.NewV7()).String()},
 		},
-		"live rule with weekdays":      {"weekdays": []int{1}},
-		"unknown scene":                {"targetId": uuid.Must(uuid.NewV7()).String()},
-		"unknown playlist":             {"targetKind": "playlist", "targetId": uuid.Must(uuid.NewV7()).String()},
-		"scene of another orientation": {"targetId": portrait.ID.String()},
+		"live rule with weekdays":       {"weekdays": []int{1}},
+		"unknown scene":                 {"targetId": uuid.Must(uuid.NewV7()).String()},
+		"unknown playlist":              {"targetKind": "playlist", "targetId": uuid.Must(uuid.NewV7()).String()},
+		"scene of another aspect ratio": {"targetId": portrait.ID.String()},
 	} {
 		response := e.as(staff, http.MethodPost, base+"/rules", body(overrides))
 		if response.StatusCode != http.StatusUnprocessableEntity {
@@ -1245,7 +1239,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		}
 		response.Body.Close()
 	}
-	// A playlist may hold scenes of any orientation.
+	// A playlist may hold scenes of any aspect ratio.
 	playlistWithPortrait := e.fixture.playlist(t, "Mixed", portrait.ID)
 	e.expect(
 		e.as(
@@ -1356,7 +1350,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		t.Fatalf("after delete = %v", afterDelete)
 	}
 
-	// Drafts that rules point at cannot be deleted; settings cannot strand rules on another orientation.
+	// Drafts that rules point at cannot be deleted; settings cannot strand rules on another aspect ratio.
 	expectInUse(
 		t,
 		e.fixture.service.DeleteScene(ctx, e.fixture.admin, scene.ID, scene.Version, nil),
@@ -1374,16 +1368,46 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		"expectedVersion": e.displayVersion(
 			staff,
 			displayID,
-		), "name": "Rules", "location": "", "orientation": "portrait",
-		"resolution": map[string]any{
-			"width":  1080,
-			"height": 1920,
-		}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
+		), "name": "Rules", "location": "",
+		"aspectRatio": map[string]any{"width": 9, "height": 16}, "visibleFromOutside": false, "defaultPlaylistId": playlist.ID.String(),
 	}
-	e.expectCode(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity, "validation_failed")
+	stranded := e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity)
+	if stranded["code"] != "validation_failed" ||
+		!strings.Contains(stranded["message"].(string), "rule(s) show a scene with another aspect ratio") {
+		t.Fatalf("ratio change with stranded rules = %v", stranded)
+	}
+	// 32:18 is 16:9 once reduced, so it is no ratio change; only the unknown playlist fails.
 	settings["defaultPlaylistId"] = uuid.Must(uuid.NewV7()).String()
-	settings["orientation"] = "landscape"
-	e.expectCode(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity, "validation_failed")
+	settings["aspectRatio"] = map[string]any{"width": 32, "height": 18}
+	unknownPlaylist := e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity)
+	if unknownPlaylist["message"] != "the default playlist does not exist" {
+		t.Fatalf("unknown default playlist = %v", unknownPlaylist)
+	}
+	// Nor can a scene change its ratio while a display rule of another ratio shows it. A scene that is only
+	// reached through a playlist may change.
+	current, err := e.fixture.service.GetScene(ctx, e.fixture.admin, scene.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turned := sceneInput(current.Name, "full")
+	turned.AspectRatio = signage.AspectRatio{Width: 1080, Height: 1920}
+	_, err = e.fixture.service.UpdateScene(ctx, e.fixture.admin, scene.ID, current.Version, turned, nil)
+	var appErr *apperror.Error
+	if !errors.As(err, &appErr) || appErr.HTTPStatus != http.StatusUnprocessableEntity ||
+		!strings.Contains(appErr.Message, "show this scene on a display with another aspect ratio") {
+		t.Fatalf("scene ratio change with display rules = %v", err)
+	}
+	portraitNow, err := e.fixture.service.GetScene(ctx, e.fixture.admin, portrait.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	square := sceneInput(portraitNow.Name, "full")
+	square.AspectRatio = signage.AspectRatio{Width: 4, Height: 3}
+	if updated, err := e.fixture.service.UpdateScene(
+		ctx, e.fixture.admin, portrait.ID, portraitNow.Version, square, nil,
+	); err != nil || updated.AspectRatio != (signage.AspectRatio{Width: 4, Height: 3}) {
+		t.Fatalf("playlist-only scene ratio change = %v, %v", updated.AspectRatio, err)
+	}
 
 	for action, want := range map[string]int{
 		"signage_rule.created":            5,
@@ -1520,8 +1544,7 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 			len(manifest["assets"].([]any)),
 		)
 	}
-	if d := manifest["display"].(map[string]any); d["orientation"] != "landscape" ||
-		d["resolution"].(map[string]any)["width"] != float64(1920) {
+	if d := manifest["display"].(map[string]any); !hasAspectRatio(d, 16, 9) {
 		t.Fatalf("manifest display = %v", d)
 	}
 	digest := sha256.Sum256(imageBytes)

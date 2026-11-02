@@ -216,7 +216,7 @@ func sampleScene(name string, version int64, zones map[string]json.RawMessage) M
 	return ManifestScene{
 		ID: uuid.Must(
 			uuid.NewV7(),
-		), Name: name, Orientation: "landscape", LayoutID: "full", BackgroundColor: "#101820", BackgroundFit: "cover", Theme: "dark",
+		), Name: name, AspectRatio: AspectRatio{Width: 16, Height: 9}, LayoutID: "full", BackgroundColor: "#101820", BackgroundFit: "cover", Theme: "dark",
 		Zones: zones, Version: version,
 	}
 }
@@ -267,10 +267,7 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 		TargetID:      orphan.ID,
 	}
 	manifest, err := assembleManifest(displayDraft{
-		Orientation: "landscape", Resolution: Resolution{
-			Width:  1920,
-			Height: 1080,
-		}, DefaultPlaylistID: playlist.ID, Rules: []Rule{enabled, disabled},
+		AspectRatio: AspectRatio{Width: 16, Height: 9}, DefaultPlaylistID: playlist.ID, Rules: []Rule{enabled, disabled},
 	}, content)
 	if err != nil {
 		t.Fatal(err)
@@ -294,8 +291,7 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 	}
 	again, err := assembleManifest(
 		displayDraft{
-			Orientation:       "landscape",
-			Resolution:        Resolution{Width: 1920, Height: 1080},
+			AspectRatio:       AspectRatio{Width: 16, Height: 9},
 			DefaultPlaylistID: playlist.ID,
 			Rules:             []Rule{enabled, disabled},
 		},
@@ -333,7 +329,7 @@ func TestDiffManifests(t *testing.T) {
 		MinSeconds: 20,
 	}
 	base := Manifest{
-		Display: ManifestDisplay{Orientation: "landscape"}, DefaultPlaylistID: playlist.ID,
+		Display: ManifestDisplay{AspectRatio: AspectRatio{Width: 16, Height: 9}}, DefaultPlaylistID: playlist.ID,
 		Rules: []ManifestRule{
 			rule1,
 			rule2,
@@ -352,7 +348,7 @@ func TestDiffManifests(t *testing.T) {
 	}
 
 	changed := base
-	changed.Display.Orientation = "portrait"
+	changed.Display.AspectRatio = AspectRatio{Width: 9, Height: 16}
 	changed.Rules = []ManifestRule{rule2, rule1}
 	removedScene := ManifestScene{ID: ids.New(), Name: "C", Version: 1}
 	changed.Scenes = []ManifestScene{sceneA, removedScene}

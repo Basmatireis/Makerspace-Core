@@ -22,7 +22,7 @@ const data = (patch: Partial<RenderData> = {}): RenderData => ({
 });
 
 const scene = (zones: Record<string, SignageWidget>, patch: Partial<RenderScene> = {}): RenderScene => ({
-  orientation: 'landscape',
+  aspectRatio: { width: 16, height: 9 },
   layoutId: 'full',
   customLayoutId: null,
   backgroundColor: '#161616',

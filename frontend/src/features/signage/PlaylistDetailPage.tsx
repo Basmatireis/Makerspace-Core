@@ -27,7 +27,7 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { DeleteDialog, SceneThumbnail } from './components';
 import { loopSeconds, playlistPosition } from './engine/playback';
-import { errorMessage, formatLoop, isStaleWrite, pluralize } from './helpers';
+import { errorMessage, formatLoop, isStaleWrite, orientationOf, pluralize } from './helpers';
 import { signagePaths } from './paths';
 import { useNow, usePreviewData } from './preview';
 import { playlistQuery, scenesQuery, signageKeys } from './queries';
@@ -88,8 +88,11 @@ function PlaylistPreview({ rows, scenes }: { rows: Row[]; scenes: SignageScene[]
   const scene = scenes.find((item) => item.id === current.item.sceneId)!;
   return (
     <div className="sg-stack">
-      <div className={`sg-detail__frame sg-detail__frame--${scene.orientation}`}>
-        <ScreenFrame orientation={scene.orientation} width={scene.orientation === 'portrait' ? '12rem' : '100%'}>
+      <div className={`sg-detail__frame sg-detail__frame--${orientationOf(scene.aspectRatio)}`}>
+        <ScreenFrame
+          aspectRatio={scene.aspectRatio}
+          width={orientationOf(scene.aspectRatio) === 'portrait' ? '12rem' : '100%'}
+        >
           <div
             className={`sg-screen${current.item.transition === 'fade' ? ' sg-fade' : ''}`}
             key={`${current.index}-${current.item.key}`}
