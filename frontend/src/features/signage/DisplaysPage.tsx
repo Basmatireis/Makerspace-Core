@@ -10,11 +10,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Tag,
 } from '@carbon/react';
 import { Add, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import type { SignageDisplay } from '../../api/generated/models';
+import type { SignageDisplay, SignageDisplayGroup } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
@@ -22,6 +23,7 @@ import { hasPermission, PermissionId } from '../auth/permissions';
 import { RowActions } from '../../app/RowActions';
 import { PlayerAddress, QueryBoundary } from './components';
 import { DeleteDisplayDialog } from './DisplayDialogs';
+import { NewGroupModal } from './GroupDialogs';
 import { useRuleNames } from './displayHooks';
 import { PublicationTag, StatusTag } from './displayParts';
 import { DEFAULT_RULE_ID, describeCondition } from './engine/playback';
@@ -30,7 +32,7 @@ import { useNow } from './preview';
 import { PairDisplayModal } from './PairDisplayModal';
 import { signagePaths } from './paths';
 import { toPlaybackRule } from './publishedView';
-import { displaysQuery, rulesQuery, scenesQuery } from './queries';
+import { displaysQuery, groupsQuery, rulesQuery, scenesQuery } from './queries';
 
 /** What the display reported it plays (heartbeat), with names; a rule is spelled out from the display's rule list. */
 function NowShowing({ display }: { display: SignageDisplay }) {
@@ -54,6 +56,87 @@ function NowShowing({ display }: { display: SignageDisplay }) {
       <span>{scene?.name ?? (display.currentSceneId ? 'Scene removed' : '—')}</span>
       <span className="sg-secondary">{reason}</span>
     </div>
+  );
+}
+
+/** Display groups: displays that share rules and default scenes and are published together. */
+function GroupsSection({ canManage }: { canManage: boolean }) {
+  const navigate = useNavigate();
+  const [creating, setCreating] = useState(false);
+  const query = useQuery(groupsQuery());
+  const groups: SignageDisplayGroup[] = query.data?.items ?? [];
+  const newButton = canManage ? (
+    <Button kind="tertiary" size="md" renderIcon={Add} onClick={() => setCreating(true)}>
+      New group
+    </Button>
+  ) : undefined;
+  return (
+    <section className="sg-stack" aria-labelledby="signage-groups-title">
+      <div className="sg-tab__bar">
+        <div>
+          <h2 id="signage-groups-title" className="sg-section-title">
+            Groups
+          </h2>
+          <p className="sg-secondary">Displays of a group show the same thing and are published together.</p>
+        </div>
+        {newButton}
+      </div>
+      <QueryBoundary query={query} label="groups">
+        {groups.length === 0 ? (
+          <EmptyState
+            title="No groups yet"
+            description="Put displays with the same aspect ratio into a group to manage their rules and default scenes in one place."
+            action={newButton}
+          />
+        ) : (
+          <TableContainer>
+            <Table aria-label="Groups">
+              <TableHead>
+                <TableRow>
+                  <TableHeader>Name</TableHeader>
+                  <TableHeader className="sg-hide-narrow">Aspect ratio</TableHeader>
+                  <TableHeader>Members</TableHeader>
+                  <TableHeader>Publication</TableHeader>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {groups.map((group) => (
+                  <TableRow
+                    key={group.id}
+                    className="sg-row-link"
+                    onClick={() => navigate(signagePaths.group(group.id))}
+                  >
+                    <TableCell>
+                      <CarbonLink
+                        as={Link}
+                        to={signagePaths.group(group.id)}
+                        onClick={(event: React.MouseEvent) => event.stopPropagation()}
+                      >
+                        {group.name}
+                      </CarbonLink>
+                    </TableCell>
+                    <TableCell className="sg-hide-narrow">{aspectLabel(group.aspectRatio)}</TableCell>
+                    <TableCell>{group.displayIds.length}</TableCell>
+                    <TableCell>
+                      {group.pendingChanges.length > 0 ? (
+                        <Tag type="warm-gray" size="md">
+                          {pluralize(group.pendingChanges.length, 'unpublished change')}
+                        </Tag>
+                      ) : (
+                        <Tag type="green" size="md">
+                          Up to date
+                        </Tag>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </QueryBoundary>
+      {creating && <NewGroupModal onClose={() => setCreating(false)} />}
+    </section>
   );
 }
 
@@ -167,6 +250,7 @@ export function DisplaysPage() {
           </TableContainer>
         )}
       </QueryBoundary>
+      <GroupsSection canManage={canManage} />
       {deleting && <DeleteDisplayDialog display={deleting} onClose={() => setDeleting(null)} />}
       {pairing && <PairDisplayModal onClose={() => setPairing(false)} />}
     </PageShell>

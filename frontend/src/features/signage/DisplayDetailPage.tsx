@@ -16,7 +16,7 @@ import {
 } from '@carbon/react';
 import { Bullhorn, Upload } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { SignageDisplay } from '../../api/generated/models';
 import { publishSignageDisplay, revokeSignageDisplay } from '../../api/generated/signage/signage';
 import { ApiError } from '../../api/http-client';
@@ -36,7 +36,7 @@ import { HealthTab } from './HealthTab';
 import { PlaybackTab } from './PlaybackTab';
 import { PlayerAddress } from './components';
 import { signagePaths } from './paths';
-import { displayQuery, rulesQuery, signageKeys } from './queries';
+import { displayQuery, groupQuery, rulesQuery, signageKeys } from './queries';
 import { toPlaybackRule, type PublishedView } from './publishedView';
 import { describeCondition, sceneListPosition } from './engine/playback';
 
@@ -115,6 +115,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
       ? { index: sceneListPosition(listItems, now / 1000)?.index ?? 0, count: listItems.length }
       : null;
   const rules = useQuery(rulesQuery(display.id)).data;
+  const group = useQuery({ ...groupQuery(display.groupId ?? ''), enabled: display.groupId !== null }).data;
   const pending = display.pendingChanges;
   const neverPublished = display.publishedRevision === null;
   const upToDate = !neverPublished && pending.length === 0;
@@ -209,6 +210,12 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
       }
     >
       <div className="sg-stack">
+        {display.groupId !== null && (
+          <p className="sg-secondary">
+            Managed by group <Link to={signagePaths.group(display.groupId)}>{group?.name ?? 'this group'}</Link>. Its
+            rules and default scenes are edited there; the group can be published as a whole too.
+          </p>
+        )}
         {publish.isError && (
           <InlineNotification
             kind="error"
@@ -314,7 +321,10 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
               </TabList>
               <TabPanels>
                 <TabPanel>
-                  <PlaybackTab display={display} canManage={canManage} activeRuleId={view?.result.ruleId ?? null} />
+                  <PlaybackTab
+                    owner={{ kind: 'display', display, canManage }}
+                    activeRuleId={view?.result.ruleId ?? null}
+                  />
                 </TabPanel>
                 <TabPanel>
                   <HealthTab display={display} now={now} />

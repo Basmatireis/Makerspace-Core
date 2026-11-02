@@ -6,7 +6,7 @@ import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
-import { displayFixture, ids, mockSignage, sceneFixture } from './testFixtures';
+import { displayFixture, groupFixture, ids, mockSignage, sceneFixture } from './testFixtures';
 
 const offline = displayFixture({
   id: '0192f6f8-743e-7c77-a349-cd07c3e8a152',
@@ -256,5 +256,81 @@ describe('Displays page', () => {
     renderRoute(<App />, '/signage');
     await screen.findByRole('table', { name: 'Displays' });
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+  });
+
+  it('lists groups and creates one', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture()],
+      groups: [
+        groupFixture({ displayIds: [ids.display], pendingChanges: [{ kind: 'rule', name: '', change: 'added' }] }),
+      ],
+    });
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/signage/groups', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(groupFixture({ name: 'Workshop' }), { status: 201 });
+      }),
+    );
+    renderRoute(<App />, '/signage');
+    const table = await screen.findByRole('table', { name: 'Groups' });
+    const row = within(await within(table).findByRole('row', { name: /Hallway screens/ }));
+    expect(row.getByRole('link', { name: 'Hallway screens' })).toHaveAttribute('href', `/signage/groups/${ids.group}`);
+    expect(row.getByText('1 unpublished change')).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'New group' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Name'), 'Workshop');
+    await user.selectOptions(within(dialog).getByLabelText('Aspect ratio'), '9:16 (portrait)');
+    await user.selectOptions(within(dialog).getByLabelText('Scene 1'), 'Open days poster');
+    await user.click(within(dialog).getByRole('button', { name: 'Create group' }));
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        name: 'Workshop',
+        aspectRatio: { width: 9, height: 16 },
+        defaultScenes: [{ sceneId: ids.scene }],
+      }),
+    );
+  });
+
+  it('shows an empty state for groups', async () => {
+    mockSignage([PermissionId.signageread], { displays: [displayFixture()] });
+    renderRoute(<App />, '/signage');
+    expect(await screen.findByText('No groups yet')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New group' })).not.toBeInTheDocument();
+  });
+
+  it('pairs into a group of the same ratio without default scenes', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture()],
+      groups: [groupFixture()],
+    });
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/signage/displays', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(displayFixture({ name: 'Workshop' }), { status: 201 });
+      }),
+    );
+    renderRoute(<App />, '/signage');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Pair display' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Pairing code'), 'k7f2qx');
+    await user.type(within(dialog).getByLabelText('Name'), 'Workshop');
+    // The group has the ratio 9:16, so it is not offered for the default 16:9.
+    expect(within(dialog).queryByRole('option', { name: 'Hallway screens' })).not.toBeInTheDocument();
+    await user.selectOptions(within(dialog).getByLabelText('Aspect ratio'), '9:16 (portrait)');
+    await user.selectOptions(await within(dialog).findByLabelText('Group'), 'Hallway screens');
+    expect(within(dialog).queryByLabelText('Scene 1')).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Pair display' }));
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        name: 'Workshop',
+        aspectRatio: { width: 9, height: 16 },
+        groupId: ids.group,
+        defaultScenes: [],
+      }),
+    );
   });
 });

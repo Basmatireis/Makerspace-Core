@@ -4887,7 +4887,7 @@ paths:
     delete:
       tags: [Signage]
       operationId: deleteSignageScene
-      description: Answers 409 `signage_in_use` with `details.references` while a rule's scene list (reference kind `rule`, id of the display) or a display's default scene list (kind `display`) uses the scene. Scenes only referenced by older publications may be deleted.
+      description: Answers 409 `signage_in_use` with `details.references` while a rule's scene list (reference kind `rule`, id of the display), a display's default scene list (kind `display`) or a group's rule or default scene list (kind `group`, id of the group) uses the scene. Scenes only referenced by older publications may be deleted.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:
@@ -5068,7 +5068,9 @@ paths:
       tags: [Signage]
       operationId: updateSignageDisplay
       summary: Change the draft settings of a display
-      description: Requires `signage.manage`. Changes reach the player only with the next publication. A revoked display answers 409 `signage_display_revoked`.
+      description: |
+        Requires `signage.manage`. Changes reach the player only with the next publication. A revoked display answers 409 `signage_display_revoked`.
+        Joining a group (`groupId`) needs the group's aspect ratio (422) and deletes the display's own rules and default list; while in a group the display cannot change its ratio (422, leave the group first). Leaving a group (`groupId` null) gives the display a copy of the group's rules, and of its default list when `defaultScenes` is empty.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageDisplayRequest"}}}}
       responses:
@@ -5148,6 +5150,7 @@ paths:
       tags: [Signage]
       operationId: listSignageRules
       summary: List the rules of a display in evaluation order
+      description: While the display is in a group this returns the group's rules (read-only here) and `ownerVersion` is the group's version.
       security: [{sessionCookie: []}]
       responses:
         "200": {description: Ordered rules and the display version every rule write must quote., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
@@ -5159,7 +5162,7 @@ paths:
       tags: [Signage]
       operationId: createSignageRule
       summary: Append a rule to the display
-      description: Requires `signage.manage`. Rules share the display's optimistic-concurrency version (`expectedVersion` is the display version) and every rule write bumps it. The response carries the new version.
+      description: Requires `signage.manage`. Rules share the display's optimistic-concurrency version (`expectedVersion` is the display version) and every rule write bumps it. The response carries the new version. Every display rule write answers 409 `display_in_group` while the display is in a group; edit the group's rules instead.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleRequest"}}}}
       responses:
@@ -5177,6 +5180,7 @@ paths:
       tags: [Signage]
       operationId: updateSignageRule
       summary: Replace all writable fields of a rule
+      description: Requires `signage.manage`. 409 `display_in_group` while the display is in a group.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleRequest"}}}}
       responses:
@@ -5191,6 +5195,7 @@ paths:
       tags: [Signage]
       operationId: setSignageRuleEnabled
       summary: Enable or disable a rule
+      description: Requires `signage.manage`. 409 `display_in_group` while the display is in a group.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetSignageRuleEnabledRequest"}}}}
       responses:
@@ -5204,6 +5209,7 @@ paths:
       tags: [Signage]
       operationId: deleteSignageRule
       summary: Delete a rule
+      description: Requires `signage.manage`. 409 `display_in_group` while the display is in a group.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:
@@ -5220,7 +5226,202 @@ paths:
       tags: [Signage]
       operationId: reorderSignageRules
       summary: Set the complete rule order atomically
-      description: Requires `signage.manage`. `ruleIds` must list every rule of the display exactly once, first match wins.
+      description: Requires `signage.manage`. `ruleIds` must list every rule of the display exactly once, first match wins. 409 `display_in_group` while the display is in a group.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReorderSignageRulesRequest"}}}}
+      responses:
+        "200": {description: Rules in the new order., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/groups:
+    get:
+      tags: [Signage]
+      operationId: listSignageDisplayGroups
+      summary: List display groups with members and pending changes
+      description: Requires `signage.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: "Groups by name.", content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplayGroupList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: createSignageDisplayGroup
+      summary: Create a display group
+      description: Requires `signage.manage`. Every scene of `defaultScenes` must have the group's aspect ratio (422 otherwise). Displays join a group through their own settings (`groupId`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSignageDisplayGroupRequest"}}}}
+      responses:
+        "201": {description: Group created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplayGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/groups/{groupId}:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayGroupId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageDisplayGroup
+      description: Requires `signage.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Group., content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplayGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: updateSignageDisplayGroup
+      summary: Change name, aspect ratio and default scene list of a group
+      description: |
+        Requires `signage.manage`. Changes reach the members only with the next publication. Changing the aspect ratio is 422 while a rule of the group shows a scene with another ratio or while the group has members (members cannot change their ratio on their own); the default list is checked against the requested ratio.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageDisplayGroupRequest"}}}}
+      responses:
+        "200": {description: Updated group., content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplayGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignageDisplayGroup
+      summary: Delete a group without members
+      description: Requires `signage.manage`. Answers 409 `signage_in_use` with `details.references` (kind `display`) while displays are members. The group's rules, default list and announcement targets are deleted with it.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Group deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/groups/{groupId}/publish:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayGroupId"}]
+    post:
+      tags: [Signage]
+      operationId: publishSignageDisplayGroup
+      summary: Publish the group's drafts to every member
+      description: Requires `signage.publish`. Stores one publication per member that is not revoked (same content, each with its own settings) in one transaction. A concurrent change answers 409 `stale_write`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Group after publishing., content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplayGroup"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/groups/{groupId}/preview:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayGroupId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageDisplayGroupPreview
+      summary: What the group's members play, for the admin live preview
+      description: Requires `signage.read`. The latest publication of the first member (by name) that has one, with that member's live data; `manifest` is null when no member has a publication. Never cached.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Latest publication and live data., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplayPreview"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/groups/{groupId}/rules:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayGroupId"}]
+    get:
+      tags: [Signage]
+      operationId: listSignageGroupRules
+      summary: List the rules of a group in evaluation order
+      description: Requires `signage.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Ordered rules and the group version every rule write must quote., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: createSignageGroupRule
+      summary: Append a rule to the group
+      description: Requires `signage.manage`. Rules share the group's optimistic-concurrency version (`expectedVersion` is the group version) and every rule write bumps it.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleRequest"}}}}
+      responses:
+        "201": {description: Rule created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/groups/{groupId}/rules/{ruleId}:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayGroupId"}, {$ref: "#/components/parameters/SignageRuleId"}]
+    put:
+      tags: [Signage]
+      operationId: updateSignageGroupRule
+      summary: Replace all writable fields of a group rule
+      description: Requires `signage.manage`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleRequest"}}}}
+      responses:
+        "200": {description: Updated rule list., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Signage]
+      operationId: setSignageGroupRuleEnabled
+      summary: Enable or disable a group rule
+      description: Requires `signage.manage`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetSignageRuleEnabledRequest"}}}}
+      responses:
+        "200": {description: Updated rule list., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignageGroupRule
+      summary: Delete a group rule
+      description: Requires `signage.manage`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Remaining rules in order., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/groups/{groupId}/rule-order:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayGroupId"}]
+    put:
+      tags: [Signage]
+      operationId: reorderSignageGroupRules
+      summary: Set the complete rule order of a group atomically
+      description: Requires `signage.manage`. `ruleIds` must list every rule of the group exactly once, first match wins.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReorderSignageRulesRequest"}}}}
       responses:
@@ -10641,6 +10842,11 @@ components:
       schema: {$ref: "#/components/schemas/UUIDv7"}
     SignageDisplayId:
       name: displayId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageDisplayGroupId:
+      name: groupId
       in: path
       required: true
       schema: {$ref: "#/components/schemas/UUIDv7"}
@@ -20522,13 +20728,14 @@ components:
     SignageAnnouncement:
       type: object
       additionalProperties: false
-      required: [id, templateId, values, allDisplays, displayIds, startsAt, status, rendered, version, createdAt, updatedAt]
+      required: [id, templateId, values, allDisplays, displayIds, groupIds, startsAt, status, rendered, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         templateId: {$ref: "#/components/schemas/UUIDv7"}
         values: {$ref: "#/components/schemas/SignageAnnouncementValues"}
         allDisplays: {type: boolean}
         displayIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
+        groupIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Display groups; the announcement is in force on their current members."}
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
         status: {$ref: "#/components/schemas/SignageAnnouncementStatus"}
@@ -20546,23 +20753,25 @@ components:
     StartSignageAnnouncementRequest:
       type: object
       additionalProperties: false
-      required: [templateId, values, allDisplays, displayIds]
+      required: [templateId, values, allDisplays, displayIds, groupIds]
       properties:
         templateId: {$ref: "#/components/schemas/UUIDv7"}
         values: {$ref: "#/components/schemas/SignageAnnouncementValues"}
         allDisplays: {type: boolean}
-        displayIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}, description: Must be empty when `allDisplays` is true and non-empty otherwise.}
+        displayIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}, description: "With `allDisplays` both `displayIds` and `groupIds` must be empty; without it at least one of them must be non-empty."}
+        groupIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Display groups; the announcement is in force on their current members."}
         startsAt: {type: string, format: date-time, description: Defaults to now.}
         endsAt: {type: string, format: date-time, nullable: true, description: Omitted or null means until stopped.}
     UpdateSignageAnnouncementRequest:
       type: object
       additionalProperties: false
-      required: [expectedVersion, values, allDisplays, displayIds, startsAt]
+      required: [expectedVersion, values, allDisplays, displayIds, groupIds, startsAt]
       properties:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         values: {$ref: "#/components/schemas/SignageAnnouncementValues"}
         allDisplays: {type: boolean}
-        displayIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
+        displayIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}, description: "With `allDisplays` both `displayIds` and `groupIds` must be empty; without it at least one of them must be non-empty."}
+        groupIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
 
@@ -20591,7 +20800,7 @@ components:
     SignageDisplay:
       type: object
       additionalProperties: false
-      required: [id, managedDeviceId, name, location, aspectRatio, visibleFromOutside, allowCameraOutside, defaultScenes, status, revokedAt, lastHeartbeatAt, publishedRevision, publishedAt, pendingChanges, reportedRevision, currentRule, currentSceneId, playerVersion, cacheUsedBytes, cacheQuotaBytes, errors, version, createdAt, updatedAt]
+      required: [id, managedDeviceId, name, location, aspectRatio, visibleFromOutside, allowCameraOutside, defaultScenes, groupId, status, revokedAt, lastHeartbeatAt, publishedRevision, publishedAt, pendingChanges, reportedRevision, currentRule, currentSceneId, playerVersion, cacheUsedBytes, cacheQuotaBytes, errors, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         managedDeviceId: {$ref: "#/components/schemas/UUIDv7"}
@@ -20600,7 +20809,12 @@ components:
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
         allowCameraOutside: {type: boolean, description: "Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams. Takes effect immediately (no publication needed)."}
-        defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
+        defaultScenes:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items: {$ref: "#/components/schemas/SignageSceneListItem"}
+          description: The display's own default scene list; empty while the display is in a group (the group's list applies).
         status: {$ref: "#/components/schemas/SignageDisplayStatus"}
         revokedAt: {type: string, format: date-time, nullable: true}
         lastHeartbeatAt: {type: string, format: date-time, nullable: true}
@@ -20618,6 +20832,7 @@ components:
         cacheUsedBytes: {type: integer, format: int64, nullable: true}
         cacheQuotaBytes: {type: integer, format: int64, nullable: true}
         errors: {type: array, maxItems: 20, items: {type: string, maxLength: 200}}
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The group the display belongs to; its rules and default list are then the group's."}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -20626,6 +20841,47 @@ components:
       additionalProperties: false
       required: [items]
       properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageDisplay"}}}
+    SignageDisplayGroup:
+      type: object
+      additionalProperties: false
+      description: A set of displays with one aspect ratio that show the same content; the group owns the rules and the default scene list.
+      required: [id, name, aspectRatio, defaultScenes, displayIds, pendingChanges, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+        defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
+        displayIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}, description: Member displays by display name.}
+        pendingChanges:
+          type: array
+          maxItems: 500
+          description: Union of the differences between the group's drafts and each member's latest publication; members that were never published contribute nothing.
+          items: {$ref: "#/components/schemas/SignagePendingChange"}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SignageDisplayGroupList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageDisplayGroup"}}}
+    CreateSignageDisplayGroupRequest:
+      type: object
+      additionalProperties: false
+      required: [name, aspectRatio, defaultScenes]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+        defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
+    UpdateSignageDisplayGroupRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, name, aspectRatio, defaultScenes]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+        defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
     PairSignageDisplayRequest:
       type: object
       additionalProperties: false
@@ -20637,7 +20893,13 @@ components:
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
         allowCameraOutside: {type: boolean, description: "Optional; omitted means unchanged on update and false on pairing."}
-        defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
+        defaultScenes:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items: {$ref: "#/components/schemas/SignageSceneListItem"}
+          description: "Must be empty with `groupId` and list at least one scene without it (422 otherwise). When a display leaves its group with an empty list it keeps a copy of the group's default list."
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional; omitted or null means standalone. Joining needs the group's aspect ratio."}
     UpdateSignageDisplayRequest:
       type: object
       additionalProperties: false
@@ -20649,7 +20911,13 @@ components:
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
         allowCameraOutside: {type: boolean, description: "Optional; omitted means unchanged on update and false on pairing."}
-        defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
+        defaultScenes:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items: {$ref: "#/components/schemas/SignageSceneListItem"}
+          description: "Must be empty with `groupId` and list at least one scene without it (422 otherwise). When a display leaves its group with an empty list it keeps a copy of the group's default list."
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional; omitted or null means standalone. Joining needs the group's aspect ratio."}
 
     SignageRuleConditionKind:
       type: string
@@ -20685,10 +20953,12 @@ components:
     SignageRuleList:
       type: object
       additionalProperties: false
-      required: [items, displayVersion]
+      required: [items, ownerVersion]
       properties:
         items: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/SignageRule"}}
-        displayVersion: {$ref: "#/components/schemas/Version"}
+        ownerVersion:
+          allOf: [{$ref: "#/components/schemas/Version"}]
+          description: Version of the display or group the rules belong to; every rule write quotes it as `expectedVersion`.
     SignageRuleRequest:
       type: object
       additionalProperties: false

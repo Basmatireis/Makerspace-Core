@@ -73,6 +73,8 @@ export function referenceHref(reference: SignageReference): string | null {
     case 'rule':
     case 'display':
       return `/signage/displays/${encodeURIComponent(reference.id)}`;
+    case 'group':
+      return signagePaths.group(reference.id);
     case 'announcement':
       return '/signage/announcements';
     default:
@@ -86,6 +88,7 @@ export const referenceLabel = (reference: SignageReference) =>
       scene: 'Scene',
       rule: 'Display rule',
       display: 'Display (default scenes)',
+      group: 'Group',
       announcement: 'Announcement',
     }) as Record<string, string>
   )[reference.kind] ?? reference.kind;

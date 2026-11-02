@@ -26,10 +26,15 @@ export interface StartSignageAnnouncementRequest {
   values: SignageAnnouncementValues;
   allDisplays: boolean;
   /**
-     * Must be empty when `allDisplays` is true and non-empty otherwise.
+     * With `allDisplays` both `displayIds` and `groupIds` must be empty; without it at least one of them must be non-empty.
      * @maxItems 100
      */
   displayIds: UUIDv7[];
+  /**
+     * Display groups; the announcement is in force on their current members.
+     * @maxItems 50
+     */
+  groupIds: UUIDv7[];
   /** Defaults to now. */
   startsAt?: string;
   /**

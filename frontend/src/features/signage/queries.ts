@@ -3,12 +3,16 @@ import {
   getSignageAsset,
   getSignageCalendar,
   getSignageDisplay,
+  getSignageDisplayGroup,
+  getSignageDisplayGroupPreview,
   getSignageDisplayPreview,
   getSignageScene,
   listSignageAnnouncementTemplates,
   listSignageAnnouncements,
   listSignageAssets,
+  listSignageDisplayGroups,
   listSignageDisplays,
+  listSignageGroupRules,
   listSignageMachines,
   listSignageRules,
   listSignageScenes,
@@ -28,6 +32,10 @@ export const signageKeys = {
   display: (id: string) => [...signageKeys.all, 'display', id] as const,
   rules: (id: string) => [...signageKeys.all, 'rules', id] as const,
   preview: (id: string) => [...signageKeys.all, 'preview', id] as const,
+  groups: () => [...signageKeys.all, 'groups'] as const,
+  group: (id: string) => [...signageKeys.all, 'group', id] as const,
+  groupRules: (id: string) => [...signageKeys.all, 'group-rules', id] as const,
+  groupPreview: (id: string) => [...signageKeys.all, 'group-preview', id] as const,
 };
 
 export const scenesQuery = () =>
@@ -91,6 +99,37 @@ export const previewQuery = (displayId: string, enabled = true) =>
   queryOptions({
     queryKey: signageKeys.preview(displayId),
     queryFn: ({ signal }) => getSignageDisplayPreview(displayId, { signal }),
+    refetchInterval: 10_000,
+    enabled,
+  });
+
+export const groupsQuery = () =>
+  queryOptions({
+    queryKey: signageKeys.groups(),
+    queryFn: ({ signal }) => listSignageDisplayGroups({ signal }),
+    refetchInterval: 30_000,
+  });
+export const groupQuery = (id: string) =>
+  queryOptions({
+    queryKey: signageKeys.group(id),
+    queryFn: ({ signal }) => getSignageDisplayGroup(id, { signal }),
+    refetchInterval: 30_000,
+  });
+/** The rules and the version every rule write quotes, of a display (its own, or its group's while it is a member) or of a group. */
+export const ownerRulesQuery = (owner: { kind: 'display' | 'group'; id: string }, enabled = true) =>
+  queryOptions({
+    queryKey: (owner.kind === 'group'
+      ? signageKeys.groupRules(owner.id)
+      : signageKeys.rules(owner.id)) as readonly unknown[],
+    queryFn: ({ signal }) =>
+      owner.kind === 'group' ? listSignageGroupRules(owner.id, { signal }) : listSignageRules(owner.id, { signal }),
+    enabled,
+  });
+/** The latest publication of the group's first member that has one, with that member's live data. */
+export const groupPreviewQuery = (groupId: string, enabled = true) =>
+  queryOptions({
+    queryKey: signageKeys.groupPreview(groupId),
+    queryFn: ({ signal }) => getSignageDisplayGroupPreview(groupId, { signal }),
     refetchInterval: 10_000,
     enabled,
   });

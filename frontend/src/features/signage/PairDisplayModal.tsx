@@ -6,11 +6,12 @@ import { useNavigate } from 'react-router-dom';
 import { pairSignageDisplay } from '../../api/generated/signage/signage';
 import { ApiError } from '../../api/http-client';
 import { PlayerAddress } from './components';
+import { DisplayGroupSelect } from './DisplayGroupSelect';
 import { aspectFieldsOf, aspectOfFields, type AspectFields } from './aspectFields';
 import { AspectRatioFields } from './AspectRatioFields';
 import { errorMessage, ASPECT_PRESETS, aspectLabel, sameRatio } from './helpers';
 import { signagePaths } from './paths';
-import { scenesQuery, signageKeys } from './queries';
+import { groupsQuery, scenesQuery, signageKeys } from './queries';
 import { SceneListFields } from './SceneListFields';
 import { newSceneListItem, sceneListError, type SceneListDraftItem } from './sceneListDraft';
 
@@ -25,6 +26,7 @@ type Values = AspectFields & {
   name: string;
   location: string;
   visibleFromOutside: boolean;
+  groupId: string;
   defaultScenes: SceneListDraftItem[];
 };
 
@@ -33,6 +35,7 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const scenes = useQuery(scenesQuery());
+  const groups = useQuery(groupsQuery()).data?.items;
   const form = useForm<Values>({
     defaultValues: {
       code: '',
@@ -40,6 +43,7 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
       location: '',
       ...aspectFieldsOf(ASPECT_PRESETS[0].ratio),
       visibleFromOutside: false,
+      groupId: '',
       defaultScenes: [newSceneListItem()],
     },
   });
@@ -47,6 +51,7 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
   const [aspectPreset, aspectCustom] = form.watch(['aspectPreset', 'aspectCustom']);
   const ratio = aspectOfFields({ aspectPreset, aspectCustom });
   const ratioKey = aspectLabel(ratio);
+  const groupId = form.watch('groupId');
 
   // Scenes of another ratio cannot be default scenes: drop them when the ratio changes.
   useEffect(() => {
@@ -62,6 +67,16 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ratioKey, scenes.data, form]);
 
+  // A group of another ratio cannot be joined: reset it when the ratio changes.
+  useEffect(() => {
+    const chosen = form.getValues('groupId');
+    if (!chosen || !groups) return;
+    const group = groups.find((item) => item.id === chosen);
+    if (!group || !sameRatio(group.aspectRatio, ratio)) form.setValue('groupId', '');
+    // `ratio` is derived from `ratioKey`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ratioKey, groups, form]);
+
   const mutation = useMutation({
     mutationFn: (values: Values) =>
       pairSignageDisplay({
@@ -70,11 +85,14 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
         location: values.location.trim(),
         aspectRatio: aspectOfFields(values),
         visibleFromOutside: values.visibleFromOutside,
-        defaultScenes: values.defaultScenes.map(({ sceneId, seconds, transition }) => ({
-          sceneId,
-          seconds: seconds >= 3 && seconds <= 3600 ? seconds : 20,
-          transition,
-        })),
+        ...(values.groupId ? { groupId: values.groupId } : {}),
+        defaultScenes: values.groupId
+          ? []
+          : values.defaultScenes.map(({ sceneId, seconds, transition }) => ({
+              sceneId,
+              seconds: seconds >= 3 && seconds <= 3600 ? seconds : 20,
+              transition,
+            })),
       }),
     onSuccess: async (display) => {
       await queryClient.invalidateQueries({ queryKey: signageKeys.displays() });
@@ -172,32 +190,45 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
             )}
           />
           <p className="sg-secondary">Camera zones then need confirmation; no customer data is ever shown.</p>
-          <Controller
-            control={form.control}
-            name="defaultScenes"
-            rules={{ validate: (value) => sceneListError(value) ?? true }}
-            render={({ field }) => (
-              <SceneListFields
-                idPrefix="pair"
-                label="Default scenes"
-                value={field.value}
-                onChange={field.onChange}
-                aspectRatio={ratio}
-                invalidText={errors.defaultScenes?.message}
-              />
-            )}
+          <DisplayGroupSelect
+            id="pair-group"
+            ratio={ratio}
+            value={groupId}
+            onChange={(value) => form.setValue('groupId', value)}
+            helperText="A display in a group plays the group's rules and default scenes."
           />
-          <p className="sg-secondary">
-            Shown when no rule matches. Only scenes of the chosen aspect ratio are offered.
-          </p>
-          {scenes.isSuccess && scenes.data.items.every((scene) => !sameRatio(scene.aspectRatio, ratio)) && (
-            <InlineNotification
-              kind="info"
-              lowContrast
-              hideCloseButton
-              title="No scenes for this aspect ratio"
-              subtitle="A display needs at least one default scene. Create one under Content first."
-            />
+          {groupId ? (
+            <p className="sg-secondary">The group's default scenes and rules apply to this display.</p>
+          ) : (
+            <>
+              <Controller
+                control={form.control}
+                name="defaultScenes"
+                rules={{ validate: (value) => sceneListError(value) ?? true }}
+                render={({ field }) => (
+                  <SceneListFields
+                    idPrefix="pair"
+                    label="Default scenes"
+                    value={field.value}
+                    onChange={field.onChange}
+                    aspectRatio={ratio}
+                    invalidText={errors.defaultScenes?.message}
+                  />
+                )}
+              />
+              <p className="sg-secondary">
+                Shown when no rule matches. Only scenes of the chosen aspect ratio are offered.
+              </p>
+              {scenes.isSuccess && scenes.data.items.every((scene) => !sameRatio(scene.aspectRatio, ratio)) && (
+                <InlineNotification
+                  kind="info"
+                  lowContrast
+                  hideCloseButton
+                  title="No scenes for this aspect ratio"
+                  subtitle="A display needs at least one default scene. Create one under Content first."
+                />
+              )}
+            </>
           )}
           {mutation.isError && !codeRejected && (
             <InlineNotification

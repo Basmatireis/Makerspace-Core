@@ -616,6 +616,7 @@ func signageAnnouncementDTO(item signage.Announcement) openapi.SignageAnnounceme
 		Values:      item.Values,
 		AllDisplays: item.AllDisplays,
 		DisplayIds:  displayIDs,
+		GroupIds:    append([]openapi.UUIDv7{}, item.GroupIDs...),
 		StartsAt:    item.StartsAt,
 		EndsAt:      nullableValue(item.EndsAt),
 		Status:      openapi.SignageAnnouncementStatus(item.Status),
@@ -667,6 +668,7 @@ func (s *Server) StartSignageAnnouncement(
 		Values:      r.Body.Values,
 		AllDisplays: r.Body.AllDisplays,
 		DisplayIDs:  uuidSlice(r.Body.DisplayIds),
+		GroupIDs:    uuidSlice(r.Body.GroupIds),
 		StartsAt:    r.Body.StartsAt, EndsAt: nullableTime(r.Body.EndsAt),
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -711,6 +713,7 @@ func (s *Server) UpdateSignageAnnouncement(
 			Values:      r.Body.Values,
 			AllDisplays: r.Body.AllDisplays,
 			DisplayIDs:  uuidSlice(r.Body.DisplayIds),
+			GroupIDs:    uuidSlice(r.Body.GroupIds),
 			StartsAt:    &startsAt,
 			EndsAt:      nullableTime(r.Body.EndsAt),
 		},

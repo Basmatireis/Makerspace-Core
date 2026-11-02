@@ -21,7 +21,7 @@
 import type { SignageAspectRatio } from './signageAspectRatio';
 import type { SignageDisplayStatus } from './signageDisplayStatus';
 import type { SignagePendingChange } from './signagePendingChange';
-import type { SignageSceneListItems } from './signageSceneListItems';
+import type { SignageSceneListItem } from './signageSceneListItem';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
@@ -39,7 +39,12 @@ export interface SignageDisplay {
   visibleFromOutside: boolean;
   /** Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams. Takes effect immediately (no publication needed). */
   allowCameraOutside: boolean;
-  defaultScenes: SignageSceneListItems;
+  /**
+     * The display's own default scene list; empty while the display is in a group (the group's list applies).
+     * @minItems 0
+     * @maxItems 100
+     */
+  defaultScenes: SignageSceneListItem[];
   status: SignageDisplayStatus;
   /** @nullable */
   revokedAt: string | null;
@@ -79,6 +84,8 @@ export interface SignageDisplay {
      * @items.maxLength 200
      */
   errors: string[];
+  /** The group the display belongs to; its rules and default list are then the group's. */
+  groupId: UUIDv7 | null;
   version: Version;
   createdAt: string;
   updatedAt: string;

@@ -6,7 +6,7 @@ import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
-import { announcementFixture, displayFixture, ids, mockSignage } from './testFixtures';
+import { announcementFixture, displayFixture, groupFixture, ids, mockSignage } from './testFixtures';
 
 describe('Announcements page', () => {
   it('lists active and scheduled announcements without write controls for readers', async () => {
@@ -79,6 +79,7 @@ describe('Announcements page', () => {
         values: { reason: 'Holiday' },
         allDisplays: true,
         displayIds: [],
+        groupIds: [],
         endsAt: expect.any(String),
       }),
     );
@@ -108,14 +109,38 @@ describe('Announcements page', () => {
     await user.click((await screen.findAllByRole('button', { name: 'New announcement' }))[0]);
     const dialog = await screen.findByRole('dialog');
     await user.selectOptions(within(dialog).getByLabelText('Reason'), 'Holiday');
-    await user.click(within(dialog).getByRole('radio', { name: 'Selected displays' }));
+    await user.click(within(dialog).getByRole('radio', { name: 'Selected displays and groups' }));
     await user.click(within(dialog).getByRole('button', { name: 'Start now' }));
-    expect(await within(dialog).findByText('Choose at least one display')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Choose at least one display or group')).toBeInTheDocument();
   });
 
   it('explains that listing needs signage.read', async () => {
     mockSignage([PermissionId.signageoverride]);
     renderRoute(<App />, '/signage/announcements');
     expect(await screen.findByText('Announcements cannot be listed')).toBeInTheDocument();
+  });
+
+  it('starts an announcement on a group', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signageoverride], {
+      displays: [displayFixture()],
+      groups: [groupFixture({ displayIds: [ids.display] })],
+    });
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/signage/announcements', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(announcementFixture(), { status: 201 });
+      }),
+    );
+    renderRoute(<App />, '/signage/announcements');
+    const user = userEvent.setup();
+    await user.click((await screen.findAllByRole('button', { name: 'New announcement' }))[0]);
+    const dialog = await screen.findByRole('dialog');
+    await user.selectOptions(within(dialog).getByLabelText('Reason'), 'Holiday');
+    await user.click(within(dialog).getByRole('radio', { name: 'Selected displays and groups' }));
+    await user.click(within(dialog).getByRole('combobox', { name: /Groups/ }));
+    await user.click(await screen.findByText('Hallway screens'));
+    await user.click(within(dialog).getByRole('button', { name: 'Start now' }));
+    await waitFor(() => expect(body).toMatchObject({ allDisplays: false, displayIds: [], groupIds: [ids.group] }));
   });
 });

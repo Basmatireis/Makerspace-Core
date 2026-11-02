@@ -13,11 +13,13 @@ export function AspectRatioFields<T extends FieldValues & AspectFields>({
   idPrefix,
   labelText = 'Aspect ratio',
   helperText,
+  disabled = false,
 }: {
   form: UseFormReturn<T>;
   idPrefix: string;
   labelText?: string;
   helperText?: string;
+  disabled?: boolean;
 }) {
   const presetName = 'aspectPreset' as Path<T>;
   const customName = 'aspectCustom' as Path<T>;
@@ -30,6 +32,7 @@ export function AspectRatioFields<T extends FieldValues & AspectFields>({
         id={`${idPrefix}-aspect`}
         labelText={labelText}
         helperText={helperText}
+        disabled={disabled}
         {...presetField}
         onChange={(event: ChangeEvent<HTMLSelectElement>) => {
           void presetField.onChange(event);
@@ -50,6 +53,7 @@ export function AspectRatioFields<T extends FieldValues & AspectFields>({
           placeholder="e.g. 16:10"
           autoComplete="off"
           spellCheck={false}
+          disabled={disabled}
           invalid={Boolean(error)}
           invalidText={error?.message ?? ASPECT_ERROR}
           {...form.register(customName, {

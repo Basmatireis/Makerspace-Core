@@ -29,7 +29,7 @@ import { PublishedScreen } from './displayParts';
 import { renderAnnouncement } from './engine/announcements';
 import { isStaleWrite, orientationOf } from './helpers';
 import { useMachineOptions, useMakerspaceTimeZone } from './preview';
-import { displaysQuery, signageKeys, templatesQuery } from './queries';
+import { displaysQuery, groupsQuery, signageKeys, templatesQuery } from './queries';
 import type { RenderAnnouncement } from './render/types';
 
 type EndMode = 'stopped' | 'at' | 'after';
@@ -38,6 +38,7 @@ type Values = {
   values: Record<string, string>;
   target: 'all' | 'selected';
   displayIds: string[];
+  groupIds: string[];
   startMode: 'now' | 'at';
   startAt: string;
   endMode: EndMode;
@@ -71,6 +72,7 @@ export function AnnouncementStartModal({
   const { machines } = useMachineOptions();
   const templates = useQuery(templatesQuery()).data?.items ?? [];
   const displays = (useQuery(displaysQuery()).data?.items ?? []).filter((item) => item.status !== 'revoked');
+  const groups = useQuery(groupsQuery()).data?.items ?? [];
   const initialTemplate = templates.find((item) => item.id === announcement?.templateId) ?? templates[0];
   const [showErrors, setShowErrors] = useState(false);
   const [serverErrors, setServerErrors] = useState<ServerErrors>({ fields: {} });
@@ -80,6 +82,7 @@ export function AnnouncementStartModal({
       values: announcement?.values ?? defaultsOf(initialTemplate?.fields ?? []),
       target: announcement ? (announcement.allDisplays ? 'all' : 'selected') : display ? 'selected' : 'all',
       displayIds: announcement?.displayIds ?? (display ? [display.id] : []),
+      groupIds: announcement?.groupIds ?? [],
       startMode: announcement ? 'at' : 'now',
       startAt: announcement ? toLocalValue(new Date(announcement.startsAt)) : nextHour(new Date(), 1),
       endMode: announcement?.endsAt ? 'at' : 'stopped',
@@ -110,7 +113,10 @@ export function AnnouncementStartModal({
   );
   const errors = {
     template: template ? null : 'Choose a template',
-    displays: draft.target === 'selected' && draft.displayIds.length === 0 ? 'Choose at least one display' : null,
+    displays:
+      draft.target === 'selected' && draft.displayIds.length === 0 && draft.groupIds.length === 0
+        ? 'Choose at least one display or group'
+        : null,
     start: draft.startMode === 'at' && !startsAt ? 'Choose when it starts' : null,
     end:
       (draft.endMode === 'at' &&
@@ -124,8 +130,12 @@ export function AnnouncementStartModal({
   const valid = missing.size === 0 && Object.values(errors).every((error) => error === null);
 
   // {display} and {location} depend on the screen; the preview uses the first one targeted.
+  const groupMembers = groups.filter((group) => draft.groupIds.includes(group.id)).flatMap((group) => group.displayIds);
   const previewDisplay =
-    (draft.target === 'selected' ? displays.find((item) => draft.displayIds.includes(item.id)) : undefined) ??
+    (draft.target === 'selected'
+      ? (displays.find((item) => draft.displayIds.includes(item.id)) ??
+        displays.find((item) => groupMembers.includes(item.id)))
+      : undefined) ??
     display ??
     displays[0];
   const machineNames = Object.fromEntries(machines.map((machine) => [machine.id, machine.name]));
@@ -169,8 +179,8 @@ export function AnnouncementStartModal({
     mutationFn: () => {
       const targets =
         draft.target === 'all'
-          ? { allDisplays: true, displayIds: [] }
-          : { allDisplays: false, displayIds: draft.displayIds };
+          ? { allDisplays: true, displayIds: [], groupIds: [] }
+          : { allDisplays: false, displayIds: draft.displayIds, groupIds: draft.groupIds };
       const window = { endsAt: endsAt ? endsAt.toISOString() : null };
       return announcement
         ? updateSignageAnnouncement(announcement.id, {
@@ -213,6 +223,7 @@ export function AnnouncementStartModal({
     clearServer();
   };
   const displayItems: Option[] = displays.map((item) => ({ id: item.id, label: item.name }));
+  const groupItems: Option[] = groups.map((item) => ({ id: item.id, label: item.name }));
   const primary = announcement ? 'Save changes' : draft.startMode === 'now' ? 'Start now' : 'Schedule';
 
   return (
@@ -281,7 +292,7 @@ export function AnnouncementStartModal({
           }}
         >
           <RadioButton id="ann-target-all" value="all" labelText="All displays" />
-          <RadioButton id="ann-target-selected" value="selected" labelText="Selected displays" />
+          <RadioButton id="ann-target-selected" value="selected" labelText="Selected displays and groups" />
         </RadioButtonGroup>
         {draft.target === 'selected' && (
           <MultiSelect<Option>
@@ -298,6 +309,25 @@ export function AnnouncementStartModal({
             onChange={({ selectedItems }) => {
               form.setValue(
                 'displayIds',
+                (selectedItems ?? []).map((item) => item.id),
+              );
+              clearServer();
+            }}
+          />
+        )}
+        {draft.target === 'selected' && (
+          <MultiSelect<Option>
+            autoAlign
+            key={`groups-${groupItems.length}`}
+            id="ann-groups"
+            titleText="Groups"
+            label="Choose groups"
+            items={groupItems}
+            itemToString={(item) => item?.label ?? ''}
+            initialSelectedItems={groupItems.filter((item) => draft.groupIds.includes(item.id))}
+            onChange={({ selectedItems }) => {
+              form.setValue(
+                'groupIds',
                 (selectedItems ?? []).map((item) => item.id),
               );
               clearServer();

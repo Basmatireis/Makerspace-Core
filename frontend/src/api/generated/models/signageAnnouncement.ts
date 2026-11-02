@@ -31,6 +31,11 @@ export interface SignageAnnouncement {
   allDisplays: boolean;
   /** @maxItems 100 */
   displayIds: UUIDv7[];
+  /**
+     * Display groups; the announcement is in force on their current members.
+     * @maxItems 50
+     */
+  groupIds: UUIDv7[];
   startsAt: string;
   /** @nullable */
   endsAt?: string | null;

@@ -6,6 +6,7 @@ import type {
   SignageAsset,
   SignageCalendar,
   SignageDisplay,
+  SignageDisplayGroup,
   SignageDisplayPreview,
   SignageMachine,
   SignageRule,
@@ -22,6 +23,7 @@ export const ids = {
   video: '0192f6f8-743e-7c77-a349-cd07c3e8a142',
   display: '0192f6f8-743e-7c77-a349-cd07c3e8a151',
   announcement: '0192f6f8-743e-7c77-a349-cd07c3e8a161',
+  group: '0192f6f8-743e-7c77-a349-cd07c3e8a1b1',
   rule: '0192f6f8-743e-7c77-a349-cd07c3e8a171',
   rule2: '0192f6f8-743e-7c77-a349-cd07c3e8a172',
   machine: '0192f6f8-743e-7c77-a349-cd07c3e8a181',
@@ -96,6 +98,7 @@ export const announcementFixture = (overrides: Partial<SignageAnnouncement> = {}
   values: { reason: 'Holiday' },
   allDisplays: true,
   displayIds: [],
+  groupIds: [],
   startsAt: stamp,
   endsAt: null,
   status: 'active',
@@ -109,6 +112,7 @@ export const announcementFixture = (overrides: Partial<SignageAnnouncement> = {}
 export const displayFixture = (overrides: Partial<SignageDisplay> = {}): SignageDisplay => ({
   id: ids.display,
   managedDeviceId: '0192f6f8-743e-7c77-a349-cd07c3e8a191',
+  groupId: null,
   name: 'Entrance window',
   location: 'Ground floor',
   aspectRatio: { width: 9, height: 16 },
@@ -129,6 +133,19 @@ export const displayFixture = (overrides: Partial<SignageDisplay> = {}): Signage
   cacheQuotaBytes: 8_589_934_592,
   errors: [],
   version: 5,
+  createdAt: stamp,
+  updatedAt: stamp,
+  ...overrides,
+});
+
+export const groupFixture = (overrides: Partial<SignageDisplayGroup> = {}): SignageDisplayGroup => ({
+  id: ids.group,
+  name: 'Hallway screens',
+  aspectRatio: { width: 9, height: 16 },
+  defaultScenes: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }],
+  displayIds: [],
+  pendingChanges: [],
+  version: 4,
   createdAt: stamp,
   updatedAt: stamp,
   ...overrides,
@@ -179,6 +196,8 @@ export const previewFixture = (overrides: Partial<SignageDisplayPreview> = {}): 
 });
 
 type Content = {
+  groups?: SignageDisplayGroup[];
+  groupRules?: SignageRule[];
   displays?: SignageDisplay[];
   rules?: SignageRule[];
   preview?: SignageDisplayPreview;
@@ -199,7 +218,9 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
     announcements = [],
     machines = [],
     displays = [],
+    groups = [],
     rules = [],
+    groupRules = [],
     preview = previewFixture(),
     calendar = { openDays: [], events: [], calendar: null },
   } = content;
@@ -225,8 +246,22 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
         : HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 });
     }),
     http.get('*/api/v1/signage/displays/:id/rules', () =>
-      HttpResponse.json({ items: rules, displayVersion: displays[0]?.version ?? 1 }),
+      HttpResponse.json({ items: rules, ownerVersion: displays[0]?.version ?? 1 }),
     ),
+    http.get('*/api/v1/signage/groups', () => HttpResponse.json({ items: groups })),
+    http.get('*/api/v1/signage/groups/:id', ({ params }) => {
+      const group = groups.find((item) => item.id === params.id);
+      return group
+        ? HttpResponse.json(group)
+        : HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 });
+    }),
+    http.get('*/api/v1/signage/groups/:id/rules', ({ params }) =>
+      HttpResponse.json({
+        items: groupRules,
+        ownerVersion: groups.find((item) => item.id === params.id)?.version ?? 1,
+      }),
+    ),
+    http.get('*/api/v1/signage/groups/:id/preview', () => HttpResponse.json(preview)),
     http.get('*/api/v1/signage/displays/:id/preview', () => HttpResponse.json(preview)),
     http.get('*/api/v1/signage/assets', () => HttpResponse.json({ items: assets })),
     http.get('*/api/v1/signage/assets/:id/content', () => new HttpResponse(null, { status: 404 })),

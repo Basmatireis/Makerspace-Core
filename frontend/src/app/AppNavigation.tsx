@@ -177,7 +177,8 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
     signage.push({
       label: 'Displays',
       to: '/signage',
-      active: pathname === '/signage' || pathname.startsWith('/signage/displays'),
+      active:
+        pathname === '/signage' || pathname.startsWith('/signage/displays') || pathname.startsWith('/signage/groups'),
     });
   }
   if (canReadSignage || hasPermission(currentUser, 'signage.override')) {

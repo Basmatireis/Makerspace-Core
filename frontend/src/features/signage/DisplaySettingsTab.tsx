@@ -11,6 +11,7 @@ import {
 } from '@carbon/react';
 import { Controller, useForm } from 'react-hook-form';
 import type { SignageDisplay, UpdateSignageDisplayRequest } from '../../api/generated/models';
+import { DisplayGroupSelect } from './DisplayGroupSelect';
 import { useUpdateDisplay } from './displayMutations';
 import { aspectFieldsOf, aspectOfFields, type AspectFields } from './aspectFields';
 import { AspectRatioFields } from './AspectRatioFields';
@@ -21,6 +22,7 @@ type Values = AspectFields & {
   location: string;
   visibleFromOutside: boolean;
   allowCameraOutside: boolean;
+  groupId: string;
 };
 
 const valuesOf = (display: SignageDisplay): Values => ({
@@ -29,6 +31,7 @@ const valuesOf = (display: SignageDisplay): Values => ({
   ...aspectFieldsOf(display.aspectRatio),
   visibleFromOutside: display.visibleFromOutside,
   allowCameraOutside: display.allowCameraOutside,
+  groupId: display.groupId ?? '',
 });
 
 export function DisplaySettingsTab({ display, canManage }: { display: SignageDisplay; canManage: boolean }) {
@@ -36,7 +39,12 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
   const form = useForm<Values>({ defaultValues: valuesOf(display) });
   const { errors, isDirty } = form.formState;
   const [aspectPreset, aspectCustom] = form.watch(['aspectPreset', 'aspectCustom']);
-  const ratioChanged = !sameRatio(aspectOfFields({ aspectPreset, aspectCustom }), display.aspectRatio);
+  const ratio = aspectOfFields({ aspectPreset, aspectCustom });
+  const ratioChanged = !sameRatio(ratio, display.aspectRatio);
+  const groupId = form.watch('groupId');
+  const joining = groupId !== '' && groupId !== display.groupId;
+  const leaving = groupId === '' && display.groupId !== null;
+  const inGroup = display.groupId !== null;
 
   if (!canManage || display.status === 'revoked') {
     return (
@@ -77,7 +85,9 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
       aspectRatio: aspectOfFields(values),
       visibleFromOutside: values.visibleFromOutside,
       allowCameraOutside: values.visibleFromOutside && values.allowCameraOutside,
-      defaultScenes: display.defaultScenes,
+      groupId: values.groupId || null,
+      // A member's own list is empty; leaving with an empty list copies the group's.
+      defaultScenes: values.groupId || display.groupId ? [] : display.defaultScenes,
     };
     update.mutate(request, { onSuccess: (saved) => form.reset(valuesOf(saved)) });
   });
@@ -93,7 +103,44 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
         {...form.register('name', { validate: (value) => value.trim() !== '' })}
       />
       <TextInput id="ds-location" labelText="Location" maxLength={150} {...form.register('location')} />
-      <AspectRatioFields form={form} idPrefix="ds" />
+      <AspectRatioFields
+        form={form}
+        idPrefix="ds"
+        disabled={inGroup}
+        helperText={
+          inGroup ? 'The aspect ratio of a display in a group cannot be changed. Leave the group first.' : undefined
+        }
+      />
+      <DisplayGroupSelect
+        id="ds-group"
+        ratio={ratio}
+        value={groupId}
+        disabled={ratioChanged}
+        onChange={(value) => form.setValue('groupId', value, { shouldDirty: true })}
+        helperText={
+          ratioChanged
+            ? 'Save the new aspect ratio before joining a group.'
+            : 'A display in a group plays the group’s rules and default scenes.'
+        }
+      />
+      {joining && (
+        <InlineNotification
+          kind="warning"
+          lowContrast
+          hideCloseButton
+          title="Joining a group replaces the playback"
+          subtitle="The display's own rules and default scenes are deleted and replaced by the group's."
+        />
+      )}
+      {leaving && (
+        <InlineNotification
+          kind="info"
+          lowContrast
+          hideCloseButton
+          title="Leaving the group"
+          subtitle="The display keeps a copy of the group's rules and default scenes, which it can then change on its own."
+        />
+      )}
       <Controller
         control={form.control}
         name="visibleFromOutside"

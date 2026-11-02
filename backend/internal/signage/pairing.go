@@ -258,6 +258,9 @@ func (s *Service) PairDisplay(
 	if err != nil {
 		return Display{}, err
 	}
+	if checked.GroupID == nil && len(checked.DefaultScenes) == 0 {
+		return Display{}, defaultScenesRequired()
+	}
 	now := s.now()
 	account := principal.AccountID.String()
 	// Reserve an attempt before looking at the code so concurrent guesses cannot all pass the
@@ -282,7 +285,11 @@ func (s *Service) PairDisplay(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, "defaultScenes"); err != nil {
+	if checked.GroupID != nil {
+		if err := lockJoinedGroup(ctx, q, *checked.GroupID, checked.AspectRatio, false); err != nil {
+			return Display{}, err
+		}
+	} else if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, "defaultScenes"); err != nil {
 		return Display{}, err
 	}
 	requestRowID, err := q.GetOpenSignagePairingRequestByCode(
@@ -309,11 +316,16 @@ func (s *Service) PairDisplay(
 		AspectWidth:     int16(checked.AspectRatio.Width), AspectHeight: int16(checked.AspectRatio.Height),
 		VisibleFromOutside: checked.VisibleFromOutside,
 		AllowCameraOutside: checked.AllowCameraOutside != nil && *checked.AllowCameraOutside,
+		GroupID:            checked.GroupID,
 	}); err != nil {
 		return Display{}, databaseError(err)
 	}
 	if err := replaceDefaultScenes(ctx, q, ruleOwner{DisplayID: displayID}, checked.DefaultScenes); err != nil {
 		return Display{}, err
+	}
+	fields := []string{"name", "location", "aspectRatio", "visibleFromOutside", "defaultScenes"}
+	if checked.GroupID != nil {
+		fields = []string{"name", "location", "aspectRatio", "visibleFromOutside", "groupId"}
 	}
 	if err := q.ClaimSignagePairingRequest(ctx, signagedb.ClaimSignagePairingRequestParams{
 		DisplayID: &displayID, Now: now, DeliveryDeadline: now.Add(deliveryGrace), ID: requestRowID,
@@ -321,7 +333,7 @@ func (s *Service) PairDisplay(
 		return Display{}, err
 	}
 	if err := writeAudit(ctx, tx, principal, "signage_display.paired", "signage_display", displayID, requestID,
-		[]string{"name", "location", "aspectRatio", "visibleFromOutside", "defaultScenes"}); err != nil {
+		fields); err != nil {
 		return Display{}, err
 	}
 	result, err := s.getDisplay(ctx, q, displayID)

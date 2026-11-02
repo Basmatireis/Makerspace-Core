@@ -533,7 +533,7 @@ func (s *Service) DeleteScene(
 		return err
 	}
 	for _, rule := range rules {
-		references = append(references, ruleReference(rule.DisplayID, rule.DisplayName, rule.Position))
+		references = append(references, ruleReference(rule.OwnerID, rule.GroupOwned, rule.OwnerName, rule.Position))
 	}
 	displays, err := q.ListDisplaysWithDefaultScene(ctx, id)
 	if err != nil {
@@ -543,6 +543,16 @@ func (s *Service) DeleteScene(
 		references = append(
 			references,
 			Reference{Kind: ReferenceDisplay, ID: display.ID, Name: "Default scenes of " + display.Name},
+		)
+	}
+	groups, err := q.ListGroupsWithDefaultScene(ctx, id)
+	if err != nil {
+		return err
+	}
+	for _, group := range groups {
+		references = append(
+			references,
+			Reference{Kind: ReferenceGroup, ID: group.ID, Name: "Default scenes of " + group.Name},
 		)
 	}
 	if len(references) > 0 {

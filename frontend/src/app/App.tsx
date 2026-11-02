@@ -69,6 +69,7 @@ import {
   SignageContentPage,
   SignageCustomLayoutEditorPage,
   SignageDisplayDetailPage,
+  SignageGroupDetailPage,
   SignageDisplaysPage,
   SignageMediaPage,
   SignageSceneEditorPage,
@@ -326,6 +327,14 @@ export function App() {
               element={
                 <PermissionRoute allOf={['signage.read']}>
                   <SignageDisplayDetailPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="signage/groups/:groupId"
+              element={
+                <PermissionRoute allOf={['signage.read']}>
+                  <SignageGroupDetailPage />
                 </PermissionRoute>
               }
             />

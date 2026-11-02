@@ -21,6 +21,7 @@
 import type {
   CreateSignageAnnouncementTemplateRequest,
   CreateSignageCustomLayoutRequest,
+  CreateSignageDisplayGroupRequest,
   CreateSignageSceneRequest,
   DownloadSignageAssetParams,
   ListSignageAssetsParams,
@@ -38,6 +39,8 @@ import type {
   SignageCustomLayout,
   SignageCustomLayoutList,
   SignageDisplay,
+  SignageDisplayGroup,
+  SignageDisplayGroupList,
   SignageDisplayList,
   SignageDisplayPreview,
   SignageLayoutList,
@@ -52,6 +55,7 @@ import type {
   UpdateSignageAnnouncementRequest,
   UpdateSignageAnnouncementTemplateRequest,
   UpdateSignageCustomLayoutRequest,
+  UpdateSignageDisplayGroupRequest,
   UpdateSignageDisplayRequest,
   UpdateSignageSceneRequest,
   VersionRequest
@@ -594,7 +598,7 @@ export const getDeleteSignageSceneUrl = (sceneId: string,) => {
 }
 
 /**
- * Answers 409 `signage_in_use` with `details.references` while a rule's scene list (reference kind `rule`, id of the display) or a display's default scene list (kind `display`) uses the scene. Scenes only referenced by older publications may be deleted.
+ * Answers 409 `signage_in_use` with `details.references` while a rule's scene list (reference kind `rule`, id of the display), a display's default scene list (kind `display`) or a group's rule or default scene list (kind `group`, id of the group) uses the scene. Scenes only referenced by older publications may be deleted.
  */
 export const deleteSignageScene = async (sceneId: string,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -1019,6 +1023,7 @@ export const getUpdateSignageDisplayUrl = (displayId: string,) => {
 
 /**
  * Requires `signage.manage`. Changes reach the player only with the next publication. A revoked display answers 409 `signage_display_revoked`.
+ * Joining a group (`groupId`) needs the group's aspect ratio (422) and deletes the display's own rules and default list; while in a group the display cannot change its ratio (422, leave the group first). Leaving a group (`groupId` null) gives the display a copy of the group's rules, and of its default list when `defaultScenes` is empty.
  * @summary Change the draft settings of a display
  */
 export const updateSignageDisplay = async (displayId: string,
@@ -1183,6 +1188,7 @@ export const getListSignageRulesUrl = (displayId: string,) => {
 }
 
 /**
+ * While the display is in a group this returns the group's rules (read-only here) and `ownerVersion` is the group's version.
  * @summary List the rules of a display in evaluation order
  */
 export const listSignageRules = async (displayId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
@@ -1206,7 +1212,7 @@ export const getCreateSignageRuleUrl = (displayId: string,) => {
 }
 
 /**
- * Requires `signage.manage`. Rules share the display's optimistic-concurrency version (`expectedVersion` is the display version) and every rule write bumps it. The response carries the new version.
+ * Requires `signage.manage`. Rules share the display's optimistic-concurrency version (`expectedVersion` is the display version) and every rule write bumps it. The response carries the new version. Every display rule write answers 409 `display_in_group` while the display is in a group; edit the group's rules instead.
  * @summary Append a rule to the display
  */
 export const createSignageRule = async (displayId: string,
@@ -1246,6 +1252,7 @@ export const getUpdateSignageRuleUrl = (displayId: string,
 }
 
 /**
+ * Requires `signage.manage`. 409 `display_in_group` while the display is in a group.
  * @summary Replace all writable fields of a rule
  */
 export const updateSignageRule = async (displayId: string,
@@ -1286,6 +1293,7 @@ export const getSetSignageRuleEnabledUrl = (displayId: string,
 }
 
 /**
+ * Requires `signage.manage`. 409 `display_in_group` while the display is in a group.
  * @summary Enable or disable a rule
  */
 export const setSignageRuleEnabled = async (displayId: string,
@@ -1326,6 +1334,7 @@ export const getDeleteSignageRuleUrl = (displayId: string,
 }
 
 /**
+ * Requires `signage.manage`. 409 `display_in_group` while the display is in a group.
  * @summary Delete a rule
  */
 export const deleteSignageRule = async (displayId: string,
@@ -1365,7 +1374,7 @@ export const getReorderSignageRulesUrl = (displayId: string,) => {
 }
 
 /**
- * Requires `signage.manage`. `ruleIds` must list every rule of the display exactly once, first match wins.
+ * Requires `signage.manage`. `ruleIds` must list every rule of the display exactly once, first match wins. 409 `display_in_group` while the display is in a group.
  * @summary Set the complete rule order atomically
  */
 export const reorderSignageRules = async (displayId: string,
@@ -1386,6 +1395,442 @@ export const reorderSignageRules = async (displayId: string,
     return headers;
   };
 return apiFetch<SignageRuleList>(getReorderSignageRulesUrl(displayId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(reorderSignageRulesRequest)
+  }
+);}
+
+
+export const getListSignageDisplayGroupsUrl = () => {
+
+
+
+
+  return `/api/v1/signage/groups`
+}
+
+/**
+ * Requires `signage.read`.
+ * @summary List display groups with members and pending changes
+ */
+export const listSignageDisplayGroups = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplayGroupList> => {
+
+  return apiFetch<SignageDisplayGroupList>(getListSignageDisplayGroupsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateSignageDisplayGroupUrl = () => {
+
+
+
+
+  return `/api/v1/signage/groups`
+}
+
+/**
+ * Requires `signage.manage`. Every scene of `defaultScenes` must have the group's aspect ratio (422 otherwise). Displays join a group through their own settings (`groupId`).
+ * @summary Create a display group
+ */
+export const createSignageDisplayGroup = async (createSignageDisplayGroupRequest: CreateSignageDisplayGroupRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplayGroup> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageDisplayGroup>(getCreateSignageDisplayGroupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createSignageDisplayGroupRequest)
+  }
+);}
+
+
+export const getGetSignageDisplayGroupUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}`
+}
+
+/**
+ * Requires `signage.read`.
+ */
+export const getSignageDisplayGroup = async (groupId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplayGroup> => {
+
+  return apiFetch<SignageDisplayGroup>(getGetSignageDisplayGroupUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateSignageDisplayGroupUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}`
+}
+
+/**
+ * Requires `signage.manage`. Changes reach the members only with the next publication. Changing the aspect ratio is 422 while a rule of the group shows a scene with another ratio or while the group has members (members cannot change their ratio on their own); the default list is checked against the requested ratio.
+ * @summary Change name, aspect ratio and default scene list of a group
+ */
+export const updateSignageDisplayGroup = async (groupId: string,
+    updateSignageDisplayGroupRequest: UpdateSignageDisplayGroupRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplayGroup> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageDisplayGroup>(getUpdateSignageDisplayGroupUrl(groupId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateSignageDisplayGroupRequest)
+  }
+);}
+
+
+export const getDeleteSignageDisplayGroupUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}`
+}
+
+/**
+ * Requires `signage.manage`. Answers 409 `signage_in_use` with `details.references` (kind `display`) while displays are members. The group's rules, default list and announcement targets are deleted with it.
+ * @summary Delete a group without members
+ */
+export const deleteSignageDisplayGroup = async (groupId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getDeleteSignageDisplayGroupUrl(groupId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getPublishSignageDisplayGroupUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/publish`
+}
+
+/**
+ * Requires `signage.publish`. Stores one publication per member that is not revoked (same content, each with its own settings) in one transaction. A concurrent change answers 409 `stale_write`.
+ * @summary Publish the group's drafts to every member
+ */
+export const publishSignageDisplayGroup = async (groupId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplayGroup> => {
+
+  return apiFetch<SignageDisplayGroup>(getPublishSignageDisplayGroupUrl(groupId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getGetSignageDisplayGroupPreviewUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/preview`
+}
+
+/**
+ * Requires `signage.read`. The latest publication of the first member (by name) that has one, with that member's live data; `manifest` is null when no member has a publication. Never cached.
+ * @summary What the group's members play, for the admin live preview
+ */
+export const getSignageDisplayGroupPreview = async (groupId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageDisplayPreview> => {
+
+  return apiFetch<SignageDisplayPreview>(getGetSignageDisplayGroupPreviewUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListSignageGroupRulesUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/rules`
+}
+
+/**
+ * Requires `signage.read`.
+ * @summary List the rules of a group in evaluation order
+ */
+export const listSignageGroupRules = async (groupId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
+
+  return apiFetch<SignageRuleList>(getListSignageGroupRulesUrl(groupId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateSignageGroupRuleUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/rules`
+}
+
+/**
+ * Requires `signage.manage`. Rules share the group's optimistic-concurrency version (`expectedVersion` is the group version) and every rule write bumps it.
+ * @summary Append a rule to the group
+ */
+export const createSignageGroupRule = async (groupId: string,
+    signageRuleRequest: SignageRuleRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageRuleList>(getCreateSignageGroupRuleUrl(groupId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(signageRuleRequest)
+  }
+);}
+
+
+export const getUpdateSignageGroupRuleUrl = (groupId: string,
+    ruleId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/rules/${ruleId}`
+}
+
+/**
+ * Requires `signage.manage`.
+ * @summary Replace all writable fields of a group rule
+ */
+export const updateSignageGroupRule = async (groupId: string,
+    ruleId: string,
+    signageRuleRequest: SignageRuleRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageRuleList>(getUpdateSignageGroupRuleUrl(groupId,ruleId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(signageRuleRequest)
+  }
+);}
+
+
+export const getSetSignageGroupRuleEnabledUrl = (groupId: string,
+    ruleId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/rules/${ruleId}`
+}
+
+/**
+ * Requires `signage.manage`.
+ * @summary Enable or disable a group rule
+ */
+export const setSignageGroupRuleEnabled = async (groupId: string,
+    ruleId: string,
+    setSignageRuleEnabledRequest: SetSignageRuleEnabledRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageRuleList>(getSetSignageGroupRuleEnabledUrl(groupId,ruleId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setSignageRuleEnabledRequest)
+  }
+);}
+
+
+export const getDeleteSignageGroupRuleUrl = (groupId: string,
+    ruleId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/rules/${ruleId}`
+}
+
+/**
+ * Requires `signage.manage`.
+ * @summary Delete a group rule
+ */
+export const deleteSignageGroupRule = async (groupId: string,
+    ruleId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageRuleList>(getDeleteSignageGroupRuleUrl(groupId,ruleId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getReorderSignageGroupRulesUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/signage/groups/${groupId}/rule-order`
+}
+
+/**
+ * Requires `signage.manage`. `ruleIds` must list every rule of the group exactly once, first match wins.
+ * @summary Set the complete rule order of a group atomically
+ */
+export const reorderSignageGroupRules = async (groupId: string,
+    reorderSignageRulesRequest: ReorderSignageRulesRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageRuleList> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageRuleList>(getReorderSignageGroupRulesUrl(groupId),
   {
     ...options,
     method: 'PUT',

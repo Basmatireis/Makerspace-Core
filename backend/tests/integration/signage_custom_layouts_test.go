@@ -342,7 +342,7 @@ func TestSignageOldScenesAndAnnouncementBodyFormats(t *testing.T) {
 		t.Fatalf("template = %v", template)
 	}
 	started := e.expect(e.as(staff, http.MethodPost, "/signage/announcements", map[string]any{
-		"templateId": template["id"], "values": map[string]string{"note": "<b>1. a_b</b>"}, "allDisplays": true, "displayIds": []string{},
+		"templateId": template["id"], "values": map[string]string{"note": "<b>1. a_b</b>"}, "allDisplays": true, "displayIds": []string{}, "groupIds": []string{},
 	}), http.StatusCreated)
 	rendered := started["rendered"].(map[string]any)
 	if rendered["bodyFormat"] != "markdown" || rendered["bodyCss"] != "strong { color: red }" ||

@@ -298,6 +298,9 @@ const (
 	ReferenceRule ReferenceKind = "rule"
 	// ReferenceDisplay is a display's default scene list; the reference id is the display's.
 	ReferenceDisplay ReferenceKind = "display"
+	// ReferenceGroup is a display group: one of its rules, its default scene list or a member display; the
+	// reference id is the group's (for a member, the display's under kind display).
+	ReferenceGroup ReferenceKind = "group"
 )
 
 // ChangeTarget is the kind of draft entity a pending change names.

@@ -13,6 +13,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bumpSignageDisplayGroupVersion = `-- name: BumpSignageDisplayGroupVersion :one
+UPDATE signage_display_groups SET version = version + 1, updated_at = now()
+WHERE id = $1 AND version = $2 RETURNING version
+`
+
+type BumpSignageDisplayGroupVersionParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) BumpSignageDisplayGroupVersion(ctx context.Context, arg BumpSignageDisplayGroupVersionParams) (int64, error) {
+	row := q.db.QueryRow(ctx, bumpSignageDisplayGroupVersion, arg.ID, arg.ExpectedVersion)
+	var version int64
+	err := row.Scan(&version)
+	return version, err
+}
+
 const bumpSignageDisplayVersion = `-- name: BumpSignageDisplayVersion :one
 UPDATE signage_displays SET version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2 RETURNING version
@@ -67,14 +84,18 @@ const countSceneListsWithOtherAspectRatioForScene = `-- name: CountSceneListsWit
 SELECT (
     SELECT count(DISTINCT r.id) FROM signage_rules r
     JOIN signage_rule_scenes rs ON rs.rule_id = r.id
-    JOIN signage_displays d ON d.id = r.display_id
+    LEFT JOIN signage_displays d ON d.id = r.display_id
+    LEFT JOIN signage_display_groups g ON g.id = r.group_id
     WHERE rs.scene_id = $1
-      AND (d.aspect_width <> $2::smallint OR d.aspect_height <> $3::smallint)
+      AND (COALESCE(d.aspect_width, g.aspect_width) <> $2::smallint
+           OR COALESCE(d.aspect_height, g.aspect_height) <> $3::smallint)
 ) + (
-    SELECT count(DISTINCT d.id) FROM signage_default_scenes ds
-    JOIN signage_displays d ON d.id = ds.display_id
+    SELECT count(DISTINCT COALESCE(ds.display_id, ds.group_id)) FROM signage_default_scenes ds
+    LEFT JOIN signage_displays d ON d.id = ds.display_id
+    LEFT JOIN signage_display_groups g ON g.id = ds.group_id
     WHERE ds.scene_id = $1
-      AND (d.aspect_width <> $2::smallint OR d.aspect_height <> $3::smallint)
+      AND (COALESCE(d.aspect_width, g.aspect_width) <> $2::smallint
+           OR COALESCE(d.aspect_height, g.aspect_height) <> $3::smallint)
 )::bigint AS mismatched
 `
 
@@ -84,7 +105,7 @@ type CountSceneListsWithOtherAspectRatioForSceneParams struct {
 	AspectHeight int16
 }
 
-// Rule lists and default lists that show the scene on a display with another aspect ratio.
+// Rule lists and default lists that show the scene on a display or a group with another aspect ratio.
 func (q *Queries) CountSceneListsWithOtherAspectRatioForScene(ctx context.Context, arg CountSceneListsWithOtherAspectRatioForSceneParams) (int32, error) {
 	row := q.db.QueryRow(ctx, countSceneListsWithOtherAspectRatioForScene, arg.SceneID, arg.AspectWidth, arg.AspectHeight)
 	var mismatched int32
@@ -97,22 +118,28 @@ SELECT count(DISTINCT mismatched.rule_id) FROM (
     SELECT r.id AS rule_id FROM signage_rules r
     JOIN signage_rule_scenes rs ON rs.rule_id = r.id
     JOIN signage_scenes s ON s.id = rs.scene_id
-    WHERE r.display_id = $1
-      AND (s.aspect_width <> $2::smallint OR s.aspect_height <> $3::smallint)
+    WHERE (r.display_id = $1::uuid OR r.group_id = $2::uuid)
+      AND (s.aspect_width <> $3::smallint OR s.aspect_height <> $4::smallint)
     FOR SHARE OF s
 ) mismatched
 `
 
 type CountSceneRulesWithOtherAspectRatioParams struct {
-	DisplayID    uuid.UUID
+	DisplayID    *uuid.UUID
+	GroupID      *uuid.UUID
 	AspectWidth  int16
 	AspectHeight int16
 }
 
-// Rules of a display whose scene list shows a scene with another aspect ratio. The scenes are share-locked so
+// Rules of a display or a group whose scene list shows a scene with another aspect ratio. The scenes are share-locked so
 // that a concurrent change of a scene's ratio either waits for this transaction or is seen by it.
 func (q *Queries) CountSceneRulesWithOtherAspectRatio(ctx context.Context, arg CountSceneRulesWithOtherAspectRatioParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countSceneRulesWithOtherAspectRatio, arg.DisplayID, arg.AspectWidth, arg.AspectHeight)
+	row := q.db.QueryRow(ctx, countSceneRulesWithOtherAspectRatio,
+		arg.DisplayID,
+		arg.GroupID,
+		arg.AspectWidth,
+		arg.AspectHeight,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -248,9 +275,9 @@ func (q *Queries) CreateSignageCustomLayout(ctx context.Context, arg CreateSigna
 
 const createSignageDisplay = `-- name: CreateSignageDisplay :one
 
-INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, visible_from_outside, allow_camera_outside)
+INSERT INTO signage_displays (id, managed_device_id, name, location, aspect_width, aspect_height, visible_from_outside, allow_camera_outside, group_id)
 VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8)
+        $7, $8, $9)
 RETURNING id
 `
 
@@ -263,6 +290,7 @@ type CreateSignageDisplayParams struct {
 	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
+	GroupID            *uuid.UUID
 }
 
 // Displays ----------------------------------------------------------------------------------------------------
@@ -276,10 +304,35 @@ func (q *Queries) CreateSignageDisplay(ctx context.Context, arg CreateSignageDis
 		arg.AspectHeight,
 		arg.VisibleFromOutside,
 		arg.AllowCameraOutside,
+		arg.GroupID,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const createSignageDisplayGroup = `-- name: CreateSignageDisplayGroup :exec
+
+INSERT INTO signage_display_groups (id, name, aspect_width, aspect_height)
+VALUES ($1, $2, $3, $4)
+`
+
+type CreateSignageDisplayGroupParams struct {
+	ID           uuid.UUID
+	Name         string
+	AspectWidth  int16
+	AspectHeight int16
+}
+
+// Display groups ----------------------------------------------------------------------------------------------
+func (q *Queries) CreateSignageDisplayGroup(ctx context.Context, arg CreateSignageDisplayGroupParams) error {
+	_, err := q.db.Exec(ctx, createSignageDisplayGroup,
+		arg.ID,
+		arg.Name,
+		arg.AspectWidth,
+		arg.AspectHeight,
+	)
+	return err
 }
 
 const createSignagePairingRequest = `-- name: CreateSignagePairingRequest :exec
@@ -483,6 +536,15 @@ func (q *Queries) DeleteSignageAnnouncementDisplays(ctx context.Context, announc
 	return err
 }
 
+const deleteSignageAnnouncementGroups = `-- name: DeleteSignageAnnouncementGroups :exec
+DELETE FROM signage_announcement_groups WHERE announcement_id = $1
+`
+
+func (q *Queries) DeleteSignageAnnouncementGroups(ctx context.Context, announcementID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSignageAnnouncementGroups, announcementID)
+	return err
+}
+
 const deleteSignageAnnouncementValues = `-- name: DeleteSignageAnnouncementValues :exec
 DELETE FROM signage_announcement_values WHERE announcement_id = $1
 `
@@ -535,11 +597,16 @@ func (q *Queries) DeleteSignageCustomLayout(ctx context.Context, arg DeleteSigna
 }
 
 const deleteSignageDefaultScenes = `-- name: DeleteSignageDefaultScenes :exec
-DELETE FROM signage_default_scenes WHERE display_id = $1
+DELETE FROM signage_default_scenes WHERE display_id = $1::uuid OR group_id = $2::uuid
 `
 
-func (q *Queries) DeleteSignageDefaultScenes(ctx context.Context, displayID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteSignageDefaultScenes, displayID)
+type DeleteSignageDefaultScenesParams struct {
+	DisplayID *uuid.UUID
+	GroupID   *uuid.UUID
+}
+
+func (q *Queries) DeleteSignageDefaultScenes(ctx context.Context, arg DeleteSignageDefaultScenesParams) error {
+	_, err := q.db.Exec(ctx, deleteSignageDefaultScenes, arg.DisplayID, arg.GroupID)
 	return err
 }
 
@@ -557,6 +624,22 @@ func (q *Queries) DeleteSignageDisplay(ctx context.Context, arg DeleteSignageDis
 	var managed_device_id uuid.UUID
 	err := row.Scan(&managed_device_id)
 	return managed_device_id, err
+}
+
+const deleteSignageDisplayGroup = `-- name: DeleteSignageDisplayGroup :one
+DELETE FROM signage_display_groups WHERE id = $1 AND version = $2 RETURNING id
+`
+
+type DeleteSignageDisplayGroupParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) DeleteSignageDisplayGroup(ctx context.Context, arg DeleteSignageDisplayGroupParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, deleteSignageDisplayGroup, arg.ID, arg.ExpectedVersion)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const deleteSignagePairingRequest = `-- name: DeleteSignagePairingRequest :exec
@@ -578,16 +661,17 @@ func (q *Queries) DeleteSignagePairingRequestByPollDigest(ctx context.Context, p
 }
 
 const deleteSignageRule = `-- name: DeleteSignageRule :execrows
-DELETE FROM signage_rules WHERE id = $1 AND display_id = $2
+DELETE FROM signage_rules WHERE id = $1 AND (display_id = $2::uuid OR group_id = $3::uuid)
 `
 
 type DeleteSignageRuleParams struct {
 	ID        uuid.UUID
-	DisplayID uuid.UUID
+	DisplayID *uuid.UUID
+	GroupID   *uuid.UUID
 }
 
 func (q *Queries) DeleteSignageRule(ctx context.Context, arg DeleteSignageRuleParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteSignageRule, arg.ID, arg.DisplayID)
+	result, err := q.db.Exec(ctx, deleteSignageRule, arg.ID, arg.DisplayID, arg.GroupID)
 	if err != nil {
 		return 0, err
 	}
@@ -600,6 +684,15 @@ DELETE FROM signage_rule_scenes WHERE rule_id = $1
 
 func (q *Queries) DeleteSignageRuleScenes(ctx context.Context, ruleID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteSignageRuleScenes, ruleID)
+	return err
+}
+
+const deleteSignageRulesOfDisplay = `-- name: DeleteSignageRulesOfDisplay :exec
+DELETE FROM signage_rules WHERE display_id = $1
+`
+
+func (q *Queries) DeleteSignageRulesOfDisplay(ctx context.Context, displayID *uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSignageRulesOfDisplay, displayID)
 	return err
 }
 
@@ -896,7 +989,7 @@ func (q *Queries) GetSignageDisplayByDevice(ctx context.Context, managedDeviceID
 }
 
 const getSignageDisplayForUpdate = `-- name: GetSignageDisplayForUpdate :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.group_id,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
                  FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
        d.revoked_at, md.revoked_at AS device_revoked_at, d.version
@@ -913,6 +1006,7 @@ type GetSignageDisplayForUpdateRow struct {
 	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
+	GroupID            *uuid.UUID
 	DefaultScenes      string
 	RevokedAt          pgtype.Timestamptz
 	DeviceRevokedAt    pgtype.Timestamptz
@@ -931,6 +1025,7 @@ func (q *Queries) GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) 
 		&i.AspectHeight,
 		&i.VisibleFromOutside,
 		&i.AllowCameraOutside,
+		&i.GroupID,
 		&i.DefaultScenes,
 		&i.RevokedAt,
 		&i.DeviceRevokedAt,
@@ -939,8 +1034,63 @@ func (q *Queries) GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) 
 	return i, err
 }
 
+const getSignageDisplayGroupForShare = `-- name: GetSignageDisplayGroupForShare :one
+SELECT g.id, g.name, g.aspect_width, g.aspect_height, g.version FROM signage_display_groups g WHERE g.id = $1 FOR SHARE
+`
+
+type GetSignageDisplayGroupForShareRow struct {
+	ID           uuid.UUID
+	Name         string
+	AspectWidth  int16
+	AspectHeight int16
+	Version      int64
+}
+
+func (q *Queries) GetSignageDisplayGroupForShare(ctx context.Context, id uuid.UUID) (GetSignageDisplayGroupForShareRow, error) {
+	row := q.db.QueryRow(ctx, getSignageDisplayGroupForShare, id)
+	var i GetSignageDisplayGroupForShareRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.AspectWidth,
+		&i.AspectHeight,
+		&i.Version,
+	)
+	return i, err
+}
+
+const getSignageDisplayGroupForUpdate = `-- name: GetSignageDisplayGroupForUpdate :one
+SELECT g.id, g.name, g.aspect_width, g.aspect_height, g.version,
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
+                 FROM signage_default_scenes ds WHERE ds.group_id = g.id), '[]'::jsonb)::text AS default_scenes
+FROM signage_display_groups g WHERE g.id = $1 FOR UPDATE
+`
+
+type GetSignageDisplayGroupForUpdateRow struct {
+	ID            uuid.UUID
+	Name          string
+	AspectWidth   int16
+	AspectHeight  int16
+	Version       int64
+	DefaultScenes string
+}
+
+func (q *Queries) GetSignageDisplayGroupForUpdate(ctx context.Context, id uuid.UUID) (GetSignageDisplayGroupForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getSignageDisplayGroupForUpdate, id)
+	var i GetSignageDisplayGroupForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.AspectWidth,
+		&i.AspectHeight,
+		&i.Version,
+		&i.DefaultScenes,
+	)
+	return i, err
+}
+
 const getSignageDisplayView = `-- name: GetSignageDisplayView :one
-SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.group_id,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
                  FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
        d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
@@ -963,6 +1113,7 @@ type GetSignageDisplayViewRow struct {
 	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
+	GroupID            *uuid.UUID
 	DefaultScenes      string
 	RevokedAt          pgtype.Timestamptz
 	DeviceRevokedAt    pgtype.Timestamptz
@@ -993,6 +1144,7 @@ func (q *Queries) GetSignageDisplayView(ctx context.Context, id uuid.UUID) (GetS
 		&i.AspectHeight,
 		&i.VisibleFromOutside,
 		&i.AllowCameraOutside,
+		&i.GroupID,
 		&i.DefaultScenes,
 		&i.RevokedAt,
 		&i.DeviceRevokedAt,
@@ -1173,6 +1325,20 @@ func (q *Queries) InsertSignageAnnouncementDisplay(ctx context.Context, arg Inse
 	return err
 }
 
+const insertSignageAnnouncementGroup = `-- name: InsertSignageAnnouncementGroup :exec
+INSERT INTO signage_announcement_groups (announcement_id, group_id) VALUES ($1, $2)
+`
+
+type InsertSignageAnnouncementGroupParams struct {
+	AnnouncementID uuid.UUID
+	GroupID        uuid.UUID
+}
+
+func (q *Queries) InsertSignageAnnouncementGroup(ctx context.Context, arg InsertSignageAnnouncementGroupParams) error {
+	_, err := q.db.Exec(ctx, insertSignageAnnouncementGroup, arg.AnnouncementID, arg.GroupID)
+	return err
+}
+
 const insertSignageAnnouncementValue = `-- name: InsertSignageAnnouncementValue :exec
 INSERT INTO signage_announcement_values (announcement_id, key, value) VALUES ($1, $2, $3)
 `
@@ -1189,13 +1355,14 @@ func (q *Queries) InsertSignageAnnouncementValue(ctx context.Context, arg Insert
 }
 
 const insertSignageDefaultScenes = `-- name: InsertSignageDefaultScenes :exec
-INSERT INTO signage_default_scenes (display_id, position, scene_id, seconds, transition)
-SELECT $1::uuid, unnest($2::int[]), unnest($3::text[]::uuid[]),
-       unnest($4::int[]), unnest($5::text[])
+INSERT INTO signage_default_scenes (display_id, group_id, position, scene_id, seconds, transition)
+SELECT $1::uuid, $2::uuid, unnest($3::int[]), unnest($4::text[]::uuid[]),
+       unnest($5::int[]), unnest($6::text[])
 `
 
 type InsertSignageDefaultScenesParams struct {
-	DisplayID   uuid.UUID
+	DisplayID   *uuid.UUID
+	GroupID     *uuid.UUID
 	Positions   []int32
 	SceneIds    []string
 	Seconds     []int32
@@ -1205,6 +1372,7 @@ type InsertSignageDefaultScenesParams struct {
 func (q *Queries) InsertSignageDefaultScenes(ctx context.Context, arg InsertSignageDefaultScenesParams) error {
 	_, err := q.db.Exec(ctx, insertSignageDefaultScenes,
 		arg.DisplayID,
+		arg.GroupID,
 		arg.Positions,
 		arg.SceneIds,
 		arg.Seconds,
@@ -1242,16 +1410,17 @@ func (q *Queries) InsertSignagePublication(ctx context.Context, arg InsertSignag
 }
 
 const insertSignageRule = `-- name: InsertSignageRule :exec
-INSERT INTO signage_rules (id, display_id, position, enabled, condition_kind, weekdays, time_from, time_to, machine_ids, machine_match,
+INSERT INTO signage_rules (id, display_id, group_id, position, enabled, condition_kind, weekdays, time_from, time_to, machine_ids, machine_match,
                            announcement_template_ids, min_seconds, multi_mode, alternate_seconds)
-VALUES ($1, $2, $3, $4, $5, $6::smallint[],
-        $7::text::time, $8::text::time, $9::text[]::uuid[], $10,
-        $11::text[]::uuid[], $12, $13, $14)
+VALUES ($1, $2, $3, $4, $5, $6, $7::smallint[],
+        $8::text::time, $9::text::time, $10::text[]::uuid[], $11,
+        $12::text[]::uuid[], $13, $14, $15)
 `
 
 type InsertSignageRuleParams struct {
 	ID                      uuid.UUID
-	DisplayID               uuid.UUID
+	DisplayID               *uuid.UUID
+	GroupID                 *uuid.UUID
 	Position                int32
 	Enabled                 bool
 	ConditionKind           string
@@ -1270,6 +1439,7 @@ func (q *Queries) InsertSignageRule(ctx context.Context, arg InsertSignageRulePa
 	_, err := q.db.Exec(ctx, insertSignageRule,
 		arg.ID,
 		arg.DisplayID,
+		arg.GroupID,
 		arg.Position,
 		arg.Enabled,
 		arg.ConditionKind,
@@ -1404,6 +1574,37 @@ func (q *Queries) ListDisplaysWithDefaultScene(ctx context.Context, sceneID uuid
 	return items, nil
 }
 
+const listGroupsWithDefaultScene = `-- name: ListGroupsWithDefaultScene :many
+SELECT g.id, g.name FROM signage_display_groups g
+WHERE EXISTS (SELECT 1 FROM signage_default_scenes ds WHERE ds.group_id = g.id AND ds.scene_id = $1)
+ORDER BY g.name, g.id
+`
+
+type ListGroupsWithDefaultSceneRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+func (q *Queries) ListGroupsWithDefaultScene(ctx context.Context, sceneID uuid.UUID) ([]ListGroupsWithDefaultSceneRow, error) {
+	rows, err := q.db.Query(ctx, listGroupsWithDefaultScene, sceneID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGroupsWithDefaultSceneRow{}
+	for rows.Next() {
+		var i ListGroupsWithDefaultSceneRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLatestSignagePublications = `-- name: ListLatestSignagePublications :many
 SELECT DISTINCT ON (display_id) display_id, revision, manifest FROM signage_publications
 WHERE display_id = ANY($1::text[]::uuid[]) ORDER BY display_id, revision DESC
@@ -1472,7 +1673,10 @@ func (q *Queries) ListLiveSignageAnnouncements(ctx context.Context, now time.Tim
 const listLiveSignageAnnouncementsForDisplay = `-- name: ListLiveSignageAnnouncementsForDisplay :many
 SELECT a.id, a.template_id, a.all_displays, a.starts_at, a.ends_at, a.created_by_account_id, a.version, a.created_at, a.updated_at FROM signage_announcements a
 WHERE a.starts_at <= $1::timestamptz AND (a.ends_at IS NULL OR a.ends_at > $1::timestamptz)
-  AND (a.all_displays OR EXISTS (SELECT 1 FROM signage_announcement_displays ad WHERE ad.announcement_id = a.id AND ad.display_id = $2))
+  AND (a.all_displays
+       OR EXISTS (SELECT 1 FROM signage_announcement_displays ad WHERE ad.announcement_id = a.id AND ad.display_id = $2)
+       OR EXISTS (SELECT 1 FROM signage_announcement_groups ag JOIN signage_displays d ON d.group_id = ag.group_id
+                  WHERE ag.announcement_id = a.id AND d.id = $2))
 ORDER BY a.starts_at, a.id
 `
 
@@ -1512,15 +1716,18 @@ func (q *Queries) ListLiveSignageAnnouncementsForDisplay(ctx context.Context, ar
 }
 
 const listRulesFilteringTemplate = `-- name: ListRulesFilteringTemplate :many
-SELECT r.id AS rule_id, r.position, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
-WHERE r.announcement_template_ids @> ARRAY[$1::uuid] ORDER BY d.name, r.position
+SELECT r.id AS rule_id, r.position, COALESCE(r.display_id, r.group_id)::uuid AS owner_id, (r.group_id IS NOT NULL)::boolean AS group_owned,
+       COALESCE(d.name, g.name)::text AS owner_name
+FROM signage_rules r LEFT JOIN signage_displays d ON d.id = r.display_id LEFT JOIN signage_display_groups g ON g.id = r.group_id
+WHERE r.announcement_template_ids @> ARRAY[$1::uuid] ORDER BY 4, 5, r.position
 `
 
 type ListRulesFilteringTemplateRow struct {
-	RuleID      uuid.UUID
-	Position    int32
-	DisplayID   uuid.UUID
-	DisplayName string
+	RuleID     uuid.UUID
+	Position   int32
+	OwnerID    uuid.UUID
+	GroupOwned bool
+	OwnerName  string
 }
 
 func (q *Queries) ListRulesFilteringTemplate(ctx context.Context, templateID uuid.UUID) ([]ListRulesFilteringTemplateRow, error) {
@@ -1535,8 +1742,9 @@ func (q *Queries) ListRulesFilteringTemplate(ctx context.Context, templateID uui
 		if err := rows.Scan(
 			&i.RuleID,
 			&i.Position,
-			&i.DisplayID,
-			&i.DisplayName,
+			&i.OwnerID,
+			&i.GroupOwned,
+			&i.OwnerName,
 		); err != nil {
 			return nil, err
 		}
@@ -1549,18 +1757,22 @@ func (q *Queries) ListRulesFilteringTemplate(ctx context.Context, templateID uui
 }
 
 const listRulesReferencingScene = `-- name: ListRulesReferencingScene :many
-SELECT r.id AS rule_id, r.position, d.id AS display_id, d.name AS display_name FROM signage_rules r JOIN signage_displays d ON d.id = r.display_id
+SELECT r.id AS rule_id, r.position, COALESCE(r.display_id, r.group_id)::uuid AS owner_id, (r.group_id IS NOT NULL)::boolean AS group_owned,
+       COALESCE(d.name, g.name)::text AS owner_name
+FROM signage_rules r LEFT JOIN signage_displays d ON d.id = r.display_id LEFT JOIN signage_display_groups g ON g.id = r.group_id
 WHERE EXISTS (SELECT 1 FROM signage_rule_scenes rs WHERE rs.rule_id = r.id AND rs.scene_id = $1)
-ORDER BY d.name, d.id, r.position
+ORDER BY 4, 5, 3, r.position
 `
 
 type ListRulesReferencingSceneRow struct {
-	RuleID      uuid.UUID
-	Position    int32
-	DisplayID   uuid.UUID
-	DisplayName string
+	RuleID     uuid.UUID
+	Position   int32
+	OwnerID    uuid.UUID
+	GroupOwned bool
+	OwnerName  string
 }
 
+// Rules of displays and of groups whose scene list shows the scene; owner_id is the display's or the group's.
 func (q *Queries) ListRulesReferencingScene(ctx context.Context, sceneID uuid.UUID) ([]ListRulesReferencingSceneRow, error) {
 	rows, err := q.db.Query(ctx, listRulesReferencingScene, sceneID)
 	if err != nil {
@@ -1573,8 +1785,9 @@ func (q *Queries) ListRulesReferencingScene(ctx context.Context, sceneID uuid.UU
 		if err := rows.Scan(
 			&i.RuleID,
 			&i.Position,
-			&i.DisplayID,
-			&i.DisplayName,
+			&i.OwnerID,
+			&i.GroupOwned,
+			&i.OwnerName,
 		); err != nil {
 			return nil, err
 		}
@@ -1691,6 +1904,30 @@ func (q *Queries) ListSignageAnnouncementDisplays(ctx context.Context, announcem
 	for rows.Next() {
 		var i SignageAnnouncementDisplay
 		if err := rows.Scan(&i.AnnouncementID, &i.DisplayID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageAnnouncementGroups = `-- name: ListSignageAnnouncementGroups :many
+SELECT announcement_id, group_id FROM signage_announcement_groups WHERE announcement_id = ANY($1::text[]::uuid[]) ORDER BY announcement_id, group_id
+`
+
+func (q *Queries) ListSignageAnnouncementGroups(ctx context.Context, announcementIds []string) ([]SignageAnnouncementGroup, error) {
+	rows, err := q.db.Query(ctx, listSignageAnnouncementGroups, announcementIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SignageAnnouncementGroup{}
+	for rows.Next() {
+		var i SignageAnnouncementGroup
+		if err := rows.Scan(&i.AnnouncementID, &i.GroupID); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1973,6 +2210,83 @@ func (q *Queries) ListSignageCustomLayoutsByIDs(ctx context.Context, ids []strin
 	return items, nil
 }
 
+const listSignageDisplayGroupIDs = `-- name: ListSignageDisplayGroupIDs :many
+SELECT id FROM signage_display_groups WHERE id = ANY($1::text[]::uuid[]) FOR SHARE
+`
+
+func (q *Queries) ListSignageDisplayGroupIDs(ctx context.Context, ids []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listSignageDisplayGroupIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageDisplayGroupViews = `-- name: ListSignageDisplayGroupViews :many
+SELECT g.id, g.name, g.aspect_width, g.aspect_height, g.version, g.created_at, g.updated_at,
+       COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
+                 FROM signage_default_scenes ds WHERE ds.group_id = g.id), '[]'::jsonb)::text AS default_scenes,
+       COALESCE((SELECT array_agg(d.id::text ORDER BY lower(d.name), d.id) FROM signage_displays d WHERE d.group_id = g.id), '{}')::text[] AS display_ids
+FROM signage_display_groups g
+WHERE cardinality($1::text[]) = 0 OR g.id = ANY($1::text[]::uuid[])
+ORDER BY lower(g.name), g.id
+`
+
+type ListSignageDisplayGroupViewsRow struct {
+	ID            uuid.UUID
+	Name          string
+	AspectWidth   int16
+	AspectHeight  int16
+	Version       int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	DefaultScenes string
+	DisplayIds    []string
+}
+
+// Groups with their default list (as JSON) and their member display ids by display name. ids empty means all.
+func (q *Queries) ListSignageDisplayGroupViews(ctx context.Context, ids []string) ([]ListSignageDisplayGroupViewsRow, error) {
+	rows, err := q.db.Query(ctx, listSignageDisplayGroupViews, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignageDisplayGroupViewsRow{}
+	for rows.Next() {
+		var i ListSignageDisplayGroupViewsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.AspectWidth,
+			&i.AspectHeight,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DefaultScenes,
+			&i.DisplayIds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSignageDisplayIDs = `-- name: ListSignageDisplayIDs :many
 SELECT id FROM signage_displays WHERE id = ANY($1::text[]::uuid[])
 `
@@ -1998,7 +2312,7 @@ func (q *Queries) ListSignageDisplayIDs(ctx context.Context, ids []string) ([]uu
 }
 
 const listSignageDisplayViews = `-- name: ListSignageDisplayViews :many
-SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside,
+SELECT d.id, d.managed_device_id, d.name, d.location, d.aspect_width, d.aspect_height, d.visible_from_outside, d.allow_camera_outside, d.group_id,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', ds.scene_id, 'seconds', ds.seconds, 'transition', ds.transition) ORDER BY ds.position)
                  FROM signage_default_scenes ds WHERE ds.display_id = d.id), '[]'::jsonb)::text AS default_scenes,
        d.revoked_at, md.revoked_at AS device_revoked_at, d.version, d.created_at, d.updated_at,
@@ -2021,6 +2335,7 @@ type ListSignageDisplayViewsRow struct {
 	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
+	GroupID            *uuid.UUID
 	DefaultScenes      string
 	RevokedAt          pgtype.Timestamptz
 	DeviceRevokedAt    pgtype.Timestamptz
@@ -2057,6 +2372,7 @@ func (q *Queries) ListSignageDisplayViews(ctx context.Context) ([]ListSignageDis
 			&i.AspectHeight,
 			&i.VisibleFromOutside,
 			&i.AllowCameraOutside,
+			&i.GroupID,
 			&i.DefaultScenes,
 			&i.RevokedAt,
 			&i.DeviceRevokedAt,
@@ -2073,6 +2389,53 @@ func (q *Queries) ListSignageDisplayViews(ctx context.Context) ([]ListSignageDis
 			&i.Errors,
 			&i.PublishedRevision,
 			&i.PublishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageGroupMembers = `-- name: ListSignageGroupMembers :many
+SELECT d.id, d.group_id::uuid AS group_id, d.name, d.aspect_width, d.aspect_height, d.visible_from_outside,
+       (d.revoked_at IS NOT NULL OR md.revoked_at IS NOT NULL)::boolean AS revoked
+FROM signage_displays d JOIN managed_devices md ON md.id = d.managed_device_id
+WHERE d.group_id = ANY($1::text[]::uuid[])
+ORDER BY lower(d.name), d.id
+`
+
+type ListSignageGroupMembersRow struct {
+	ID                 uuid.UUID
+	GroupID            uuid.UUID
+	Name               string
+	AspectWidth        int16
+	AspectHeight       int16
+	VisibleFromOutside bool
+	Revoked            bool
+}
+
+// Member displays of groups by name, with what a group publication and the pending-change diff need.
+func (q *Queries) ListSignageGroupMembers(ctx context.Context, groupIds []string) ([]ListSignageGroupMembersRow, error) {
+	rows, err := q.db.Query(ctx, listSignageGroupMembers, groupIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignageGroupMembersRow{}
+	for rows.Next() {
+		var i ListSignageGroupMembersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GroupID,
+			&i.Name,
+			&i.AspectWidth,
+			&i.AspectHeight,
+			&i.VisibleFromOutside,
+			&i.Revoked,
 		); err != nil {
 			return nil, err
 		}
@@ -2215,18 +2578,26 @@ func (q *Queries) ListSignageMachines(ctx context.Context) ([]ListSignageMachine
 
 const listSignageRules = `-- name: ListSignageRules :many
 
-SELECT r.id, r.display_id, r.position, r.enabled, r.condition_kind, r.weekdays,
+SELECT r.id, r.display_id, r.group_id, r.position, r.enabled, r.condition_kind, r.weekdays,
        COALESCE(r.time_from::text, '')::text AS time_from, COALESCE(r.time_to::text, '')::text AS time_to,
        r.machine_ids::text[] AS machine_ids, r.machine_match, r.announcement_template_ids::text[] AS announcement_template_ids,
        COALESCE((SELECT jsonb_agg(jsonb_build_object('sceneId', rs.scene_id, 'seconds', rs.seconds, 'transition', rs.transition) ORDER BY rs.position)
                  FROM signage_rule_scenes rs WHERE rs.rule_id = r.id), '[]'::jsonb)::text AS scenes,
        r.min_seconds, r.multi_mode, r.alternate_seconds
-FROM signage_rules r WHERE r.display_id = ANY($1::text[]::uuid[]) ORDER BY r.display_id, r.position
+FROM signage_rules r
+WHERE r.display_id = ANY($1::text[]::uuid[]) OR r.group_id = ANY($2::text[]::uuid[])
+ORDER BY r.display_id, r.group_id, r.position
 `
+
+type ListSignageRulesParams struct {
+	DisplayIds []string
+	GroupIds   []string
+}
 
 type ListSignageRulesRow struct {
 	ID                      uuid.UUID
-	DisplayID               uuid.UUID
+	DisplayID               *uuid.UUID
+	GroupID                 *uuid.UUID
 	Position                int32
 	Enabled                 bool
 	ConditionKind           string
@@ -2243,8 +2614,8 @@ type ListSignageRulesRow struct {
 }
 
 // Rules -------------------------------------------------------------------------------------------------------
-func (q *Queries) ListSignageRules(ctx context.Context, displayIds []string) ([]ListSignageRulesRow, error) {
-	rows, err := q.db.Query(ctx, listSignageRules, displayIds)
+func (q *Queries) ListSignageRules(ctx context.Context, arg ListSignageRulesParams) ([]ListSignageRulesRow, error) {
+	rows, err := q.db.Query(ctx, listSignageRules, arg.DisplayIds, arg.GroupIds)
 	if err != nil {
 		return nil, err
 	}
@@ -2255,6 +2626,7 @@ func (q *Queries) ListSignageRules(ctx context.Context, displayIds []string) ([]
 		if err := rows.Scan(
 			&i.ID,
 			&i.DisplayID,
+			&i.GroupID,
 			&i.Position,
 			&i.Enabled,
 			&i.ConditionKind,
@@ -2632,17 +3004,23 @@ func (q *Queries) RevokeSignageDisplay(ctx context.Context, arg RevokeSignageDis
 }
 
 const setSignageRuleEnabled = `-- name: SetSignageRuleEnabled :execrows
-UPDATE signage_rules SET enabled = $1 WHERE id = $2 AND display_id = $3
+UPDATE signage_rules SET enabled = $1 WHERE id = $2 AND (display_id = $3::uuid OR group_id = $4::uuid)
 `
 
 type SetSignageRuleEnabledParams struct {
 	Enabled   bool
 	ID        uuid.UUID
-	DisplayID uuid.UUID
+	DisplayID *uuid.UUID
+	GroupID   *uuid.UUID
 }
 
 func (q *Queries) SetSignageRuleEnabled(ctx context.Context, arg SetSignageRuleEnabledParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setSignageRuleEnabled, arg.Enabled, arg.ID, arg.DisplayID)
+	result, err := q.db.Exec(ctx, setSignageRuleEnabled,
+		arg.Enabled,
+		arg.ID,
+		arg.DisplayID,
+		arg.GroupID,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -2650,17 +3028,23 @@ func (q *Queries) SetSignageRuleEnabled(ctx context.Context, arg SetSignageRuleE
 }
 
 const setSignageRulePosition = `-- name: SetSignageRulePosition :exec
-UPDATE signage_rules SET position = $1 WHERE id = $2 AND display_id = $3
+UPDATE signage_rules SET position = $1 WHERE id = $2 AND (display_id = $3::uuid OR group_id = $4::uuid)
 `
 
 type SetSignageRulePositionParams struct {
 	Position  int32
 	ID        uuid.UUID
-	DisplayID uuid.UUID
+	DisplayID *uuid.UUID
+	GroupID   *uuid.UUID
 }
 
 func (q *Queries) SetSignageRulePosition(ctx context.Context, arg SetSignageRulePositionParams) error {
-	_, err := q.db.Exec(ctx, setSignageRulePosition, arg.Position, arg.ID, arg.DisplayID)
+	_, err := q.db.Exec(ctx, setSignageRulePosition,
+		arg.Position,
+		arg.ID,
+		arg.DisplayID,
+		arg.GroupID,
+	)
 	return err
 }
 
@@ -2763,8 +3147,8 @@ const updateSignageDisplay = `-- name: UpdateSignageDisplay :one
 UPDATE signage_displays
 SET name = $1, location = $2, aspect_width = $3, aspect_height = $4,
     visible_from_outside = $5, allow_camera_outside = $6,
-    version = version + 1, updated_at = now()
-WHERE id = $7 AND version = $8 AND revoked_at IS NULL
+    group_id = $7, version = version + 1, updated_at = now()
+WHERE id = $8 AND version = $9 AND revoked_at IS NULL
 RETURNING id
 `
 
@@ -2775,6 +3159,7 @@ type UpdateSignageDisplayParams struct {
 	AspectHeight       int16
 	VisibleFromOutside bool
 	AllowCameraOutside bool
+	GroupID            *uuid.UUID
 	ID                 uuid.UUID
 	ExpectedVersion    int64
 }
@@ -2787,6 +3172,7 @@ func (q *Queries) UpdateSignageDisplay(ctx context.Context, arg UpdateSignageDis
 		arg.AspectHeight,
 		arg.VisibleFromOutside,
 		arg.AllowCameraOutside,
+		arg.GroupID,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -2795,13 +3181,40 @@ func (q *Queries) UpdateSignageDisplay(ctx context.Context, arg UpdateSignageDis
 	return id, err
 }
 
+const updateSignageDisplayGroup = `-- name: UpdateSignageDisplayGroup :one
+UPDATE signage_display_groups
+SET name = $1, aspect_width = $2, aspect_height = $3, version = version + 1, updated_at = now()
+WHERE id = $4 AND version = $5 RETURNING version
+`
+
+type UpdateSignageDisplayGroupParams struct {
+	Name            string
+	AspectWidth     int16
+	AspectHeight    int16
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) UpdateSignageDisplayGroup(ctx context.Context, arg UpdateSignageDisplayGroupParams) (int64, error) {
+	row := q.db.QueryRow(ctx, updateSignageDisplayGroup,
+		arg.Name,
+		arg.AspectWidth,
+		arg.AspectHeight,
+		arg.ID,
+		arg.ExpectedVersion,
+	)
+	var version int64
+	err := row.Scan(&version)
+	return version, err
+}
+
 const updateSignageRule = `-- name: UpdateSignageRule :execrows
 UPDATE signage_rules
 SET enabled = $1, condition_kind = $2, weekdays = $3::smallint[],
     time_from = $4::text::time, time_to = $5::text::time, machine_ids = $6::text[]::uuid[],
     machine_match = $7, announcement_template_ids = $8::text[]::uuid[],
     min_seconds = $9, multi_mode = $10, alternate_seconds = $11
-WHERE id = $12 AND display_id = $13
+WHERE id = $12 AND (display_id = $13::uuid OR group_id = $14::uuid)
 `
 
 type UpdateSignageRuleParams struct {
@@ -2817,7 +3230,8 @@ type UpdateSignageRuleParams struct {
 	MultiMode               string
 	AlternateSeconds        int32
 	ID                      uuid.UUID
-	DisplayID               uuid.UUID
+	DisplayID               *uuid.UUID
+	GroupID                 *uuid.UUID
 }
 
 func (q *Queries) UpdateSignageRule(ctx context.Context, arg UpdateSignageRuleParams) (int64, error) {
@@ -2835,6 +3249,7 @@ func (q *Queries) UpdateSignageRule(ctx context.Context, arg UpdateSignageRulePa
 		arg.AlternateSeconds,
 		arg.ID,
 		arg.DisplayID,
+		arg.GroupID,
 	)
 	if err != nil {
 		return 0, err

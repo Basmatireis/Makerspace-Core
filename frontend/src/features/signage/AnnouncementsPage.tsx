@@ -26,7 +26,7 @@ import { QueryBoundary } from './components';
 import { renderAnnouncement } from './engine/announcements';
 import { errorMessage, formatMoment, isStaleWrite, pluralize } from './helpers';
 import { useMachineOptions, useMakerspaceTimeZone, useNow } from './preview';
-import { announcementsQuery, displaysQuery, signageKeys, templatesQuery } from './queries';
+import { announcementsQuery, displaysQuery, groupsQuery, signageKeys, templatesQuery } from './queries';
 
 const TONE_TAG: Record<SignageTone, 'blue' | 'warm-gray' | 'red' | 'gray'> = {
   info: 'blue',
@@ -49,6 +49,7 @@ export function AnnouncementsPage() {
   const query = useQuery({ ...announcementsQuery(), enabled: canRead, refetchInterval: 30_000 });
   const templates = useQuery({ ...templatesQuery(), enabled: canRead }).data?.items ?? [];
   const displays = useQuery({ ...displaysQuery(), enabled: canRead }).data?.items ?? [];
+  const groups = useQuery({ ...groupsQuery(), enabled: canRead }).data?.items ?? [];
 
   const stop = useMutation({
     mutationFn: ({ announcement }: { announcement: SignageAnnouncement }) =>
@@ -107,9 +108,13 @@ export function AnnouncementsPage() {
           {items.map((item) => {
             const template = templates.find((entry) => entry.id === item.templateId);
             const targets = item.allDisplays ? [] : displays.filter((display) => item.displayIds.includes(display.id));
+            const groupTargets = item.allDisplays ? [] : groups.filter((group) => item.groupIds.includes(group.id));
             const displayNames = item.allDisplays
               ? 'All displays'
-              : targets.map((display) => display.name).join(', ') || 'No display';
+              : [
+                  ...targets.map((display) => display.name),
+                  ...groupTargets.map((group) => `${group.name} (group)`),
+                ].join(', ') || 'No display';
             // {display} and {location} need a screen: the first target stands in, several displays read as typed by the server.
             const rendered = template
               ? renderAnnouncement(

@@ -1139,14 +1139,14 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	if len(list["items"].([]any)) != 0 {
 		t.Fatalf("new display has rules: %v", list)
 	}
-	startVersion := list["displayVersion"].(float64)
+	startVersion := list["ownerVersion"].(float64)
 
 	// One rule per condition kind; every write bumps the display version by one.
 	created := e.expect(e.as(staff, http.MethodPost, base+"/rules", body(map[string]any{
 		"conditionKind": "time_window", "weekdays": []int{5, 1, 1}, "timeFrom": "22:00", "timeTo": "06:00",
 	})), http.StatusCreated)
 	first := created["items"].([]any)[0].(map[string]any)
-	if created["displayVersion"] != startVersion+1 || first["conditionKind"] != "time_window" ||
+	if created["ownerVersion"] != startVersion+1 || first["conditionKind"] != "time_window" ||
 		first["timeFrom"] != "22:00" ||
 		first["machineMatch"] != nil {
 		t.Fatalf("created = %v", created)
@@ -1176,7 +1176,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		http.StatusCreated,
 	)
 	ids := ruleIDs(list)
-	if len(ids) != 4 || list["displayVersion"] != startVersion+4 {
+	if len(ids) != 4 || list["ownerVersion"] != startVersion+4 {
 		t.Fatalf("list = %v", list)
 	}
 
@@ -1276,7 +1276,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 			staff,
 			http.MethodDelete,
 			base+"/rules/"+ids[4],
-			map[string]any{"expectedVersion": list["displayVersion"]},
+			map[string]any{"expectedVersion": list["ownerVersion"]},
 		),
 		http.StatusOK,
 	)
@@ -1295,7 +1295,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 			staff,
 			http.MethodPatch,
 			base+"/rules/"+ids[3],
-			map[string]any{"expectedVersion": updated["displayVersion"], "enabled": false},
+			map[string]any{"expectedVersion": updated["ownerVersion"], "enabled": false},
 		),
 		http.StatusOK,
 	)
@@ -1344,7 +1344,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 		http.StatusOK,
 	)
 	newOrder := ruleIDs(reordered)
-	if newOrder[0] != ids[3] || newOrder[3] != ids[0] || reordered["displayVersion"] != float64(before+1) {
+	if newOrder[0] != ids[3] || newOrder[3] != ids[0] || reordered["ownerVersion"] != float64(before+1) {
 		t.Fatalf("reordered = %v", reordered)
 	}
 	e.expectCode(
@@ -1359,7 +1359,7 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 			staff,
 			http.MethodDelete,
 			base+"/rules/"+newOrder[1],
-			map[string]any{"expectedVersion": reordered["displayVersion"]},
+			map[string]any{"expectedVersion": reordered["ownerVersion"]},
 		),
 		http.StatusOK,
 	)
@@ -1413,8 +1413,9 @@ func TestSignageRulesLifecycleValidationAndReferences(t *testing.T) {
 	if unknownDefault["message"] != "a scene of defaultScenes does not exist" {
 		t.Fatalf("unknown default scene = %v", unknownDefault)
 	}
+	// Without a group the default list needs at least one scene (the schema allows an empty list for members).
 	settings["defaultScenes"] = []any{}
-	e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusBadRequest)
+	e.expectCode(e.as(staff, http.MethodPut, base, settings), http.StatusUnprocessableEntity, "validation_failed")
 	// A new default list of two scenes is stored in order and audited as defaultScenes.
 	settings["defaultScenes"] = twoScenes
 	changedDefault := e.expect(e.as(staff, http.MethodPut, base, settings), http.StatusOK)
@@ -1702,7 +1703,7 @@ func TestSignagePublishManifestPendingChangesAssetsAndPruning(t *testing.T) {
 			staff,
 			http.MethodPatch,
 			base+"/rules/"+first,
-			map[string]any{"expectedVersion": list["displayVersion"], "enabled": false},
+			map[string]any{"expectedVersion": list["ownerVersion"], "enabled": false},
 		),
 		http.StatusOK,
 	)

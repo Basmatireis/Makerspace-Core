@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -25,7 +26,8 @@ type Display struct {
 	AspectRatio         AspectRatio
 	VisibleFromOutside  bool
 	AllowCameraOutside  bool
-	DefaultScenes       []SceneListItem
+	DefaultScenes       []SceneListItem // own list; empty while the display is in a group
+	GroupID             *uuid.UUID
 	Status              DisplayStatus // online | offline | revoked
 	RevokedAt           *time.Time
 	LastHeartbeatAt     *time.Time
@@ -51,7 +53,10 @@ type DisplayInput struct {
 	VisibleFromOutside bool
 	// AllowCameraOutside nil means unchanged on update and false when pairing.
 	AllowCameraOutside *bool
-	DefaultScenes      []SceneListItem
+	// DefaultScenes must be empty with a GroupID and list at least one scene without one (except when the
+	// display leaves its group: empty then keeps a copy of the group's list).
+	DefaultScenes []SceneListItem
+	GroupID       *uuid.UUID
 }
 
 // viewRow abstracts the two generated row types of the display view queries.
@@ -77,6 +82,7 @@ func (s *Service) displayFromView(row viewRow) (Display, error) {
 		AspectRatio:        aspectRatioOf(row.AspectWidth, row.AspectHeight),
 		VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside,
 		DefaultScenes:   defaultScenes,
+		GroupID:         row.GroupID,
 		LastHeartbeatAt: fromPgTime(row.LastHeartbeatAt),
 		PendingChanges:  []PendingChange{},
 		ReportedRevision: intPointer(
@@ -133,6 +139,17 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 	if err != nil {
 		return nil, err
 	}
+	// A member of a group is compared with the group's content.
+	var groupIDs []uuid.UUID
+	for _, display := range displays {
+		if display.GroupID != nil {
+			groupIDs = append(groupIDs, *display.GroupID)
+		}
+	}
+	groups, err := loadGroupContent(ctx, q, groupIDs)
+	if err != nil {
+		return nil, err
+	}
 	publications, err := q.ListLatestSignagePublications(ctx, uuidStrings(ids))
 	if err != nil {
 		return nil, err
@@ -148,12 +165,17 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 	drafts := make([]displayDraft, 0, len(published))
 	for _, display := range displays {
 		if _, ok := published[display.ID]; ok {
-			drafts = append(drafts, displayDraft{
+			draft := displayDraft{
 				ID: display.ID, Name: display.Name, AspectRatio: display.AspectRatio,
 				VisibleFromOutside: display.VisibleFromOutside,
 				DefaultScenes:      display.DefaultScenes,
 				Rules:              rules[display.ID],
-			})
+			}
+			if display.GroupID != nil {
+				group := groups[*display.GroupID]
+				draft.DefaultScenes, draft.Rules = group.DefaultScenes, group.Rules
+			}
+			drafts = append(drafts, draft)
 		}
 	}
 	manifests, err := s.buildManifests(ctx, q, drafts)
@@ -352,6 +374,8 @@ func cleanLocation(value string) (string, error) {
 	return cleanName(trimmed, "location", 150)
 }
 
+// validateDisplayInput checks the fields and the shape of a non-empty default list. Whether an empty default
+// list is allowed depends on the group membership before and after the write, so callers check that.
 func validateDisplayInput(input DisplayInput) (DisplayInput, error) {
 	name, err := cleanName(input.Name, "display name", 100)
 	if err != nil {
@@ -365,15 +389,59 @@ func validateDisplayInput(input DisplayInput) (DisplayInput, error) {
 	if err != nil {
 		return input, err
 	}
-	defaultScenes, err := checkSceneList(input.DefaultScenes, "defaultScenes")
-	if err != nil {
-		return input, err
+	defaultScenes := []SceneListItem{}
+	if input.GroupID != nil {
+		if len(input.DefaultScenes) > 0 {
+			return input, validation("defaultScenes must be empty for a display in a group (the group's list applies)")
+		}
+	} else if len(input.DefaultScenes) > 0 {
+		if defaultScenes, err = checkSceneList(input.DefaultScenes, "defaultScenes"); err != nil {
+			return input, err
+		}
 	}
 	input.Name, input.Location, input.AspectRatio, input.DefaultScenes = name, location, ratio, defaultScenes
 	return input, nil
 }
 
-// UpdateDisplay changes the draft settings of a display.
+func defaultScenesRequired() error {
+	return validation("defaultScenes must list 1 to %d scenes for a display without a group", maxSceneListItems)
+}
+
+// lockJoinedGroup share-locks the group a display joins or stays in and checks that it exists and has the
+// display's aspect ratio. The share lock makes a concurrent ratio change of the group wait for this write.
+func lockJoinedGroup(
+	ctx context.Context,
+	q *signagedb.Queries,
+	groupID uuid.UUID,
+	ratio AspectRatio,
+	staying bool,
+) error {
+	group, err := q.GetSignageDisplayGroupForShare(ctx, groupID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return validation("the selected display group does not exist")
+	}
+	if err != nil {
+		return err
+	}
+	if groupRatio := aspectRatioOf(group.AspectWidth, group.AspectHeight); groupRatio != ratio {
+		if staying {
+			return validation(
+				"a display in a group has the group's aspect ratio (%s); leave the group first",
+				groupRatio,
+			)
+		}
+		return validation("a display may only join a group with its aspect ratio (the group has %s)", groupRatio)
+	}
+	return nil
+}
+
+func sameGroup(a, b *uuid.UUID) bool {
+	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
+}
+
+// UpdateDisplay changes the draft settings of a display. Joining a group deletes the display's own rules and
+// default list; leaving one copies the group's rules (with new ids) and, when the request's default list is
+// empty, the group's default list, so the display keeps showing the same.
 func (s *Service) UpdateDisplay(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -411,21 +479,55 @@ func (s *Service) UpdateDisplay(
 	if current.RevokedAt.Valid || current.DeviceRevokedAt.Valid {
 		return Display{}, displayRevoked()
 	}
-	// The default list is checked against the requested ratio, so a ratio change and a matching new
-	// default list can be saved together.
-	if err := verifySceneList(ctx, q, checked.AspectRatio, checked.DefaultScenes, "defaultScenes"); err != nil {
-		return Display{}, err
+	groupChanged := !sameGroup(current.GroupID, checked.GroupID)
+	leaving := current.GroupID != nil && checked.GroupID == nil
+	if checked.GroupID == nil && len(checked.DefaultScenes) == 0 && !leaving {
+		return Display{}, defaultScenesRequired()
+	}
+	if checked.GroupID != nil {
+		if err := lockJoinedGroup(ctx, q, *checked.GroupID, checked.AspectRatio, !groupChanged); err != nil {
+			return Display{}, err
+		}
 	}
 	currentDefault, err := decodeSceneList(current.DefaultScenes)
 	if err != nil {
 		return Display{}, err
 	}
+	finalDefault := checked.DefaultScenes
+	if leaving {
+		contents, err := loadGroupContent(ctx, q, []uuid.UUID{*current.GroupID})
+		if err != nil {
+			return Display{}, err
+		}
+		group := contents[*current.GroupID]
+		for position, rule := range group.Rules {
+			if err := insertRule(ctx, q, ruleOwner{DisplayID: id}, ids.New(), position, ruleInputOf(rule)); err != nil {
+				return Display{}, err
+			}
+		}
+		if len(finalDefault) == 0 {
+			finalDefault = group.DefaultScenes
+		}
+	}
+	if groupChanged && checked.GroupID != nil {
+		// Joining: the display shows the group's content and keeps nothing of its own.
+		if err := q.DeleteSignageRulesOfDisplay(ctx, &id); err != nil {
+			return Display{}, err
+		}
+	}
+	// The default list is checked against the requested ratio, so a ratio change and a matching new
+	// default list can be saved together.
+	if len(finalDefault) > 0 {
+		if err := verifySceneList(ctx, q, checked.AspectRatio, finalDefault, "defaultScenes"); err != nil {
+			return Display{}, err
+		}
+	}
 	ratioChanged := aspectRatioOf(current.AspectWidth, current.AspectHeight) != checked.AspectRatio
-	if ratioChanged {
+	if ratioChanged && checked.GroupID == nil {
 		mismatched, err := q.CountSceneRulesWithOtherAspectRatio(
 			ctx,
 			signagedb.CountSceneRulesWithOtherAspectRatioParams{
-				DisplayID:   id,
+				DisplayID:   &id,
 				AspectWidth: int16(checked.AspectRatio.Width), AspectHeight: int16(checked.AspectRatio.Height),
 			},
 		)
@@ -450,19 +552,23 @@ func (s *Service) UpdateDisplay(
 		AspectHeight:       int16(checked.AspectRatio.Height),
 		VisibleFromOutside: checked.VisibleFromOutside,
 		AllowCameraOutside: allowOutside,
+		GroupID:            checked.GroupID,
 		ID:                 id, ExpectedVersion: expected,
 	}); errors.Is(err, pgx.ErrNoRows) {
 		return Display{}, apperror.StaleWrite
 	} else if err != nil {
 		return Display{}, databaseError(err)
 	}
-	defaultChanged := !sceneListsEqual(currentDefault, checked.DefaultScenes)
+	defaultChanged := !sceneListsEqual(currentDefault, finalDefault)
 	if defaultChanged {
-		if err := replaceDefaultScenes(ctx, q, ruleOwner{DisplayID: id}, checked.DefaultScenes); err != nil {
+		if err := replaceDefaultScenes(ctx, q, ruleOwner{DisplayID: id}, finalDefault); err != nil {
 			return Display{}, err
 		}
 	}
 	var changed []string
+	if groupChanged {
+		changed = append(changed, "groupId")
+	}
 	if current.Name != checked.Name {
 		changed = append(changed, "name")
 	}

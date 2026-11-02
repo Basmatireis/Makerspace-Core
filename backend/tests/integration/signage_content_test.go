@@ -1762,6 +1762,7 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 			"values":      map[string]any{"back_on": "14:30"},
 			"allDisplays": true,
 			"displayIds":  []any{},
+			"groupIds":    []any{},
 		},
 		nil,
 	)
@@ -1783,6 +1784,7 @@ func TestSignageHTTPContractUploadDownloadScenesAndPermissions(t *testing.T) {
 			"values":      map[string]any{"back_on": "14:30"},
 			"allDisplays": true,
 			"displayIds":  []any{},
+			"groupIds":    []any{},
 		},
 		nil,
 	)

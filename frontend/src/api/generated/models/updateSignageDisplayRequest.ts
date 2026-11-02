@@ -19,7 +19,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignageAspectRatio } from './signageAspectRatio';
-import type { SignageSceneListItems } from './signageSceneListItems';
+import type { SignageSceneListItem } from './signageSceneListItem';
+import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
 export interface UpdateSignageDisplayRequest {
@@ -35,5 +36,12 @@ export interface UpdateSignageDisplayRequest {
   visibleFromOutside: boolean;
   /** Optional; omitted means unchanged on update and false on pairing. */
   allowCameraOutside?: boolean;
-  defaultScenes: SignageSceneListItems;
+  /**
+     * Must be empty with `groupId` and list at least one scene without it (422 otherwise). When a display leaves its group with an empty list it keeps a copy of the group's default list.
+     * @minItems 0
+     * @maxItems 100
+     */
+  defaultScenes: SignageSceneListItem[];
+  /** Optional; omitted or null means standalone. Joining needs the group's aspect ratio. */
+  groupId?: UUIDv7 | null;
 }

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { aspectLabel, orientationOf, parseAspectRatio, reduceRatio, sameRatio } from './helpers';
+import {
+  aspectLabel,
+  referenceHref,
+  referenceLabel,
+  orientationOf,
+  parseAspectRatio,
+  reduceRatio,
+  sameRatio,
+} from './helpers';
 
 describe('aspect ratios', () => {
   it('derives the orientation: landscape unless the screen is taller than wide', () => {
@@ -31,5 +39,13 @@ describe('aspect ratios', () => {
   it('rejects input that is not two integers from 1 to 100 after reduction', () => {
     for (const text of ['', '16', '16:', ':9', 'a:b', '0:9', '16:0', '101:1', '1.5:1', '-4:3', '16:9:1', '1921:1080'])
       expect(parseAspectRatio(text), text).toBeNull();
+  });
+});
+
+describe('references', () => {
+  it('links a group reference to the group page', () => {
+    const reference = { kind: 'group', id: 'g 1', name: 'Hallway screens' };
+    expect(referenceHref(reference)).toBe('/signage/groups/g%201');
+    expect(referenceLabel(reference)).toBe('Group');
   });
 });

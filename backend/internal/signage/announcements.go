@@ -17,6 +17,7 @@ import (
 
 const (
 	maxAnnouncementDisplays = 100
+	maxAnnouncementGroups   = 50
 )
 
 // Announcement is a started instance of a template: live data that is never published.
@@ -25,6 +26,7 @@ type Announcement struct {
 	Values         map[string]string
 	AllDisplays    bool
 	DisplayIDs     []uuid.UUID
+	GroupIDs       []uuid.UUID
 	StartsAt       time.Time
 	EndsAt         *time.Time
 	Status         AnnouncementState // scheduled | active
@@ -40,6 +42,7 @@ type AnnouncementInput struct {
 	Values      map[string]string
 	AllDisplays bool
 	DisplayIDs  []uuid.UUID
+	GroupIDs    []uuid.UUID
 	StartsAt    *time.Time
 	EndsAt      *time.Time
 }
@@ -110,6 +113,14 @@ func (s *Service) hydrateFor(
 	for _, row := range displayRows {
 		displays[row.AnnouncementID] = append(displays[row.AnnouncementID], row.DisplayID)
 	}
+	groupRows, err := q.ListSignageAnnouncementGroups(ctx, uuidStrings(ids))
+	if err != nil {
+		return nil, err
+	}
+	groups := map[uuid.UUID][]uuid.UUID{}
+	for _, row := range groupRows {
+		groups[row.AnnouncementID] = append(groups[row.AnnouncementID], row.GroupID)
+	}
 	// Machine names for machine-type fields.
 	var machineIDs []uuid.UUID
 	for _, row := range rows {
@@ -144,6 +155,10 @@ func (s *Service) hydrateFor(
 		if displayIDs == nil {
 			displayIDs = []uuid.UUID{}
 		}
+		groupIDs := groups[row.ID]
+		if groupIDs == nil {
+			groupIDs = []uuid.UUID{}
+		}
 		endsAt := fromPgTime(row.EndsAt)
 		rendered := RenderAnnouncement(
 			RenderTemplate{
@@ -170,6 +185,7 @@ func (s *Service) hydrateFor(
 			Values:      announcementValues,
 			AllDisplays: row.AllDisplays,
 			DisplayIDs:  displayIDs,
+			GroupIDs:    groupIDs,
 			StartsAt:    row.StartsAt.UTC(), EndsAt: endsAt, Status: s.statusOf(row.StartsAt, now), Rendered: rendered,
 			Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
 		})
@@ -256,29 +272,47 @@ func (s *Service) validateTargets(
 	ctx context.Context,
 	q *signagedb.Queries,
 	input AnnouncementInput,
-) ([]uuid.UUID, error) {
+) (displayIDs, groupIDs []uuid.UUID, err error) {
 	if input.AllDisplays {
-		if len(input.DisplayIDs) > 0 {
-			return nil, validation("displayIds must be empty when the announcement targets all displays")
+		if len(input.DisplayIDs) > 0 || len(input.GroupIDs) > 0 {
+			return nil, nil, validation(
+				"displayIds and groupIds must be empty when the announcement targets all displays",
+			)
 		}
-		return []uuid.UUID{}, nil
+		return []uuid.UUID{}, []uuid.UUID{}, nil
 	}
-	ids := distinct(input.DisplayIDs)
-	if len(ids) == 0 {
-		return nil, validation("select at least one display or target all displays")
+	displayIDs, groupIDs = distinct(input.DisplayIDs), distinct(input.GroupIDs)
+	if len(displayIDs) == 0 && len(groupIDs) == 0 {
+		return nil, nil, validation("select at least one display or group, or target all displays")
 	}
-	if len(ids) > maxAnnouncementDisplays {
-		return nil, validation("an announcement targets at most %d displays", maxAnnouncementDisplays)
+	if len(displayIDs) > maxAnnouncementDisplays {
+		return nil, nil, validation("an announcement targets at most %d displays", maxAnnouncementDisplays)
 	}
-	found, err := q.ListSignageDisplayIDs(ctx, uuidStrings(ids))
-	if err != nil {
-		return nil, err
+	if len(groupIDs) > maxAnnouncementGroups {
+		return nil, nil, validation("an announcement targets at most %d display groups", maxAnnouncementGroups)
 	}
-	if len(found) != len(ids) {
-		return nil, validation("a selected display does not exist")
+	if len(displayIDs) > 0 {
+		found, err := q.ListSignageDisplayIDs(ctx, uuidStrings(displayIDs))
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(found) != len(displayIDs) {
+			return nil, nil, validation("a selected display does not exist")
+		}
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
-	return ids, nil
+	if len(groupIDs) > 0 {
+		// Share-locked so that a concurrent group deletion waits for this write or fails on the reference.
+		found, err := q.ListSignageDisplayGroupIDs(ctx, uuidStrings(groupIDs))
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(found) != len(groupIDs) {
+			return nil, nil, validation("a selected display group does not exist")
+		}
+	}
+	sort.Slice(displayIDs, func(i, j int) bool { return displayIDs[i].String() < displayIDs[j].String() })
+	sort.Slice(groupIDs, func(i, j int) bool { return groupIDs[i].String() < groupIDs[j].String() })
+	return displayIDs, groupIDs, nil
 }
 
 func (s *Service) validateWindow(input AnnouncementInput, now time.Time) (time.Time, *time.Time, error) {
@@ -302,13 +336,24 @@ func writeValuesAndTargets(
 	q *signagedb.Queries,
 	id uuid.UUID,
 	values map[string]string,
-	displayIDs []uuid.UUID,
+	displayIDs, groupIDs []uuid.UUID,
 ) error {
 	if err := q.DeleteSignageAnnouncementValues(ctx, id); err != nil {
 		return err
 	}
 	if err := q.DeleteSignageAnnouncementDisplays(ctx, id); err != nil {
 		return err
+	}
+	if err := q.DeleteSignageAnnouncementGroups(ctx, id); err != nil {
+		return err
+	}
+	for _, groupID := range groupIDs {
+		if err := q.InsertSignageAnnouncementGroup(
+			ctx,
+			signagedb.InsertSignageAnnouncementGroupParams{AnnouncementID: id, GroupID: groupID},
+		); err != nil {
+			return databaseError(err)
+		}
 	}
 	keys := make([]string, 0, len(values))
 	for key := range values {
@@ -361,7 +406,7 @@ func (s *Service) StartAnnouncement(
 	if err != nil {
 		return Announcement{}, err
 	}
-	displayIDs, err := s.validateTargets(ctx, q, input)
+	displayIDs, groupIDs, err := s.validateTargets(ctx, q, input)
 	if err != nil {
 		return Announcement{}, err
 	}
@@ -385,7 +430,7 @@ func (s *Service) StartAnnouncement(
 	if err != nil {
 		return Announcement{}, databaseError(err)
 	}
-	if err := writeValuesAndTargets(ctx, q, id, values, displayIDs); err != nil {
+	if err := writeValuesAndTargets(ctx, q, id, values, displayIDs, groupIDs); err != nil {
 		return Announcement{}, err
 	}
 	if err := writeAudit(
@@ -480,7 +525,7 @@ func (s *Service) UpdateAnnouncement(
 	if err != nil {
 		return Announcement{}, err
 	}
-	displayIDs, err := s.validateTargets(ctx, q, input)
+	displayIDs, groupIDs, err := s.validateTargets(ctx, q, input)
 	if err != nil {
 		return Announcement{}, err
 	}
@@ -500,7 +545,7 @@ func (s *Service) UpdateAnnouncement(
 	if err != nil {
 		return Announcement{}, databaseError(err)
 	}
-	if err := writeValuesAndTargets(ctx, q, id, values, displayIDs); err != nil {
+	if err := writeValuesAndTargets(ctx, q, id, values, displayIDs, groupIDs); err != nil {
 		return Announcement{}, err
 	}
 	if err := writeAudit(

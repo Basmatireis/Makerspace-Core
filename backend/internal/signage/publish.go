@@ -19,10 +19,21 @@ import (
 // retainedPublications is how many publications per display are kept.
 const retainedPublications = 5
 
+// serializationConflict maps a repeatable-read serialization failure to 409 stale_write: a row changed after
+// the transaction's snapshot (e.g. a concurrent edit or publish), so the client must reload and publish again.
+func serializationConflict(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "40001" {
+		return apperror.StaleWrite
+	}
+	return err
+}
+
 // PublishDisplay snapshots the display's drafts (settings, enabled rules, the default scene list and every
-// scene, custom layout and asset they reach) into the next immutable publication. The snapshot is read in a
-// repeatable-read transaction so all content comes from one consistent point; revisions are
-// assigned under the display row lock. Older publications beyond the latest five are pruned.
+// scene, custom layout and asset they reach) into the next immutable publication. A display in a group
+// publishes the group's rules and default list. The snapshot is read in a repeatable-read transaction so all
+// content comes from one consistent point; revisions are assigned under the display row lock. Older
+// publications beyond the latest five are pruned.
 func (s *Service) PublishDisplay(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -30,13 +41,10 @@ func (s *Service) PublishDisplay(
 	requestID *uuid.UUID,
 ) (Display, error) {
 	display, err := s.publishDisplay(ctx, principal, id, requestID)
-	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "40001" {
-		// The display row changed after this transaction's snapshot (e.g. a concurrent edit or
-		// publish): the client must reload and publish again.
-		return Display{}, apperror.StaleWrite
+	if err != nil {
+		return Display{}, serializationConflict(err)
 	}
-	return display, err
+	return display, nil
 }
 
 func (s *Service) publishDisplay(
@@ -64,48 +72,32 @@ func (s *Service) publishDisplay(
 	if current.RevokedAt.Valid || current.DeviceRevokedAt.Valid {
 		return Display{}, displayRevoked()
 	}
-	rules, err := loadRules(ctx, q, []uuid.UUID{id})
-	if err != nil {
-		return Display{}, err
-	}
-	defaultScenes, err := decodeSceneList(current.DefaultScenes)
-	if err != nil {
-		return Display{}, err
-	}
 	draft := displayDraft{
 		ID: id, Name: current.Name, AspectRatio: aspectRatioOf(current.AspectWidth, current.AspectHeight),
-		VisibleFromOutside: current.VisibleFromOutside, DefaultScenes: defaultScenes, Rules: rules[id],
+		VisibleFromOutside: current.VisibleFromOutside,
+	}
+	if current.GroupID != nil {
+		contents, err := loadGroupContent(ctx, q, []uuid.UUID{*current.GroupID})
+		if err != nil {
+			return Display{}, err
+		}
+		content := contents[*current.GroupID]
+		draft.DefaultScenes, draft.Rules = content.DefaultScenes, content.Rules
+	} else {
+		rules, err := loadRules(ctx, q, []uuid.UUID{id})
+		if err != nil {
+			return Display{}, err
+		}
+		if draft.DefaultScenes, err = decodeSceneList(current.DefaultScenes); err != nil {
+			return Display{}, err
+		}
+		draft.Rules = rules[id]
 	}
 	manifests, err := s.buildManifests(ctx, q, []displayDraft{draft})
 	if err != nil {
 		return Display{}, err
 	}
-	manifest := manifests[id]
-	revision, err := q.NextSignagePublicationRevision(ctx, id)
-	if err != nil {
-		return Display{}, err
-	}
-	manifest.Revision = int(revision)
-	encoded, err := json.Marshal(manifest)
-	if err != nil {
-		return Display{}, err
-	}
-	digest := sha256.Sum256(encoded)
-	actor := principal.AccountID
-	if err := q.InsertSignagePublication(ctx, signagedb.InsertSignagePublicationParams{
-		ID:                   ids.New(),
-		DisplayID:            id,
-		Revision:             revision,
-		Manifest:             string(encoded),
-		ManifestSha256:       digest[:],
-		PublishedByAccountID: &actor, PublishedAt: s.now(),
-	}); err != nil {
-		return Display{}, databaseError(err)
-	}
-	if err := q.PruneSignagePublications(
-		ctx,
-		signagedb.PruneSignagePublicationsParams{DisplayID: id, MaxRevision: revision - retainedPublications},
-	); err != nil {
+	if err := s.storePublication(ctx, q, principal, id, manifests[id]); err != nil {
 		return Display{}, err
 	}
 	if err := writeAudit(
@@ -125,4 +117,40 @@ func (s *Service) publishDisplay(
 		return Display{}, err
 	}
 	return result, tx.Commit(ctx)
+}
+
+// storePublication stores a manifest as the display's next revision and prunes the oldest publications. The
+// caller holds the display's row lock.
+func (s *Service) storePublication(
+	ctx context.Context,
+	q *signagedb.Queries,
+	principal authorization.Principal,
+	displayID uuid.UUID,
+	manifest Manifest,
+) error {
+	revision, err := q.NextSignagePublicationRevision(ctx, displayID)
+	if err != nil {
+		return err
+	}
+	manifest.Revision = int(revision)
+	encoded, err := json.Marshal(manifest)
+	if err != nil {
+		return err
+	}
+	digest := sha256.Sum256(encoded)
+	actor := principal.AccountID
+	if err := q.InsertSignagePublication(ctx, signagedb.InsertSignagePublicationParams{
+		ID:                   ids.New(),
+		DisplayID:            displayID,
+		Revision:             revision,
+		Manifest:             string(encoded),
+		ManifestSha256:       digest[:],
+		PublishedByAccountID: &actor, PublishedAt: s.now(),
+	}); err != nil {
+		return databaseError(err)
+	}
+	return q.PruneSignagePublications(
+		ctx,
+		signagedb.PruneSignagePublicationsParams{DisplayID: displayID, MaxRevision: revision - retainedPublications},
+	)
 }

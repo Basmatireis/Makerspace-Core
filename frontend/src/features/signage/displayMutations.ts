@@ -9,9 +9,13 @@ export function useRefreshDisplay(displayId: string) {
   const queryClient = useQueryClient();
   return (...extra: (readonly unknown[])[]) =>
     Promise.all(
-      [signageKeys.display(displayId), signageKeys.displays(), signageKeys.preview(displayId), ...extra].map(
-        (queryKey) => queryClient.invalidateQueries({ queryKey }),
-      ),
+      [
+        signageKeys.display(displayId),
+        signageKeys.displays(),
+        signageKeys.groups(),
+        signageKeys.preview(displayId),
+        ...extra,
+      ].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
     );
 }
 
@@ -22,8 +26,18 @@ export function useUpdateDisplay(displayId: string) {
   return useMutation({
     mutationFn: (request: UpdateSignageDisplayRequest) => updateSignageDisplay(displayId, request),
     onSuccess: async (updated: SignageDisplay) => {
+      const before = queryClient.getQueryData<SignageDisplay>(signageKeys.display(displayId));
       queryClient.setQueryData(signageKeys.display(displayId), updated);
-      await refresh(signageKeys.rules(displayId));
+      // The old and the new group list this display as a member and own the rules it plays.
+      const groupIds = new Set([before?.groupId, updated.groupId].filter((id): id is string => Boolean(id)));
+      await refresh(
+        signageKeys.rules(displayId),
+        ...[...groupIds].flatMap((id) => [
+          signageKeys.group(id),
+          signageKeys.groupRules(id),
+          signageKeys.groupPreview(id),
+        ]),
+      );
     },
     onError: (error) => {
       if (isStaleWrite(error)) void refresh(signageKeys.rules(displayId));
@@ -38,5 +52,6 @@ export const settingsOf = (display: SignageDisplay): Omit<UpdateSignageDisplayRe
   location: display.location,
   aspectRatio: display.aspectRatio,
   visibleFromOutside: display.visibleFromOutside,
+  groupId: display.groupId,
   defaultScenes: display.defaultScenes,
 });

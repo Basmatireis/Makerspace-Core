@@ -20,9 +20,8 @@ import type {
   SignageRuleConditionKind,
   SignageRuleRequest,
 } from '../../api/generated/models';
-import type { SignageAspectRatio } from '../../api/generated/models';
-import { createSignageRule, updateSignageRule } from '../../api/generated/signage/signage';
 import { errorMessage, isStaleWrite } from './helpers';
+import { ownerInfo, ownerRulesKey, ruleApi, type PlaybackOwner } from './playbackOwner';
 import { useMachineOptions } from './preview';
 import { SceneListFields } from './SceneListFields';
 import { newSceneListItem, sceneListDraftOf, sceneListError, type SceneListDraftItem } from './sceneListDraft';
@@ -68,23 +67,23 @@ const initialValues = (rule?: SignageRule): Values => ({
   minSeconds: rule?.minSeconds ?? 20,
 });
 
-/** Adds a rule ("When … show …") to a display or edits one. Rules are drafts until the display is published. */
+/**
+ * Adds a rule ("When … show …") to a display or a group, or edits one. Rules are drafts until the owner is published.
+ * `version` is the owner version from the rule list that is shown.
+ */
 export function RuleModal({
-  displayId,
-  displayName,
-  displayVersion,
-  aspectRatio,
+  owner,
+  version,
   rule,
   onClose,
 }: {
-  displayId: string;
-  displayName: string;
-  displayVersion: number;
-  aspectRatio: SignageAspectRatio;
+  owner: PlaybackOwner;
+  version: number;
   rule?: SignageRule;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { id: ownerId, kind: ownerKind, name: ownerName, aspectRatio } = ownerInfo(owner);
   const { machines } = useMachineOptions();
   const scenes = useQuery(scenesQuery()).data?.items;
   const templates = useQuery(templatesQuery()).data?.items;
@@ -107,10 +106,16 @@ export function RuleModal({
   const machineItems: Option[] = machines.map((machine) => ({ id: machine.id, label: machine.name }));
   const templateItems: Option[] = (templates ?? []).map((template) => ({ id: template.id, label: template.name }));
 
+  // The owner, the lists and the preview follow the owner's drafts (a group's members' pending changes too).
+  const ownerKeys =
+    ownerKind === 'group'
+      ? [signageKeys.group(ownerId), signageKeys.groups(), signageKeys.groupPreview(ownerId), signageKeys.displays()]
+      : [signageKeys.display(ownerId), signageKeys.displays(), signageKeys.preview(ownerId)];
+
   const mutation = useMutation({
     mutationFn: (values: Values) => {
       const request: SignageRuleRequest = {
-        expectedVersion: displayVersion,
+        expectedVersion: version,
         enabled: rule?.enabled ?? true,
         conditionKind: values.kind,
         scenes: values.scenes.map(({ sceneId, seconds, transition }) => ({
@@ -132,21 +137,18 @@ export function RuleModal({
           ? { announcementTemplateIds: values.onlyTemplates ? values.templateIds : [] }
           : {}),
       };
-      return rule ? updateSignageRule(displayId, rule.id, request) : createSignageRule(displayId, request);
+      const api = ruleApi({ kind: ownerKind, id: ownerId });
+      return rule ? api.update(rule.id, request) : api.create(request);
     },
     onSuccess: async (list) => {
-      queryClient.setQueryData(signageKeys.rules(displayId), list);
-      await Promise.all(
-        [signageKeys.display(displayId), signageKeys.displays(), signageKeys.preview(displayId)].map((queryKey) =>
-          queryClient.invalidateQueries({ queryKey }),
-        ),
-      );
+      queryClient.setQueryData(ownerRulesKey({ kind: ownerKind, id: ownerId }), list);
+      await Promise.all(ownerKeys.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
       onClose();
     },
     onError: (error) => {
       if (isStaleWrite(error))
         void Promise.all(
-          [signageKeys.rules(displayId), signageKeys.display(displayId)].map((queryKey) =>
+          [ownerRulesKey({ kind: ownerKind, id: ownerId }), ownerKeys[0]].map((queryKey) =>
             queryClient.invalidateQueries({ queryKey }),
           ),
         );
@@ -158,7 +160,7 @@ export function RuleModal({
       open
       size="md"
       modalHeading={rule ? 'Edit rule' : 'Add rule'}
-      modalLabel={displayName}
+      modalLabel={ownerName}
       primaryButtonText={mutation.isPending ? 'Saving…' : rule ? 'Save rule' : 'Add rule'}
       secondaryButtonText="Cancel"
       primaryButtonDisabled={mutation.isPending}
@@ -327,7 +329,7 @@ export function RuleModal({
               />
             )}
             <p className="sg-secondary">
-              Matches while a matching announcement is active on this display. The position in the list is the only
+              Matches while a matching announcement is active on the display. The position in the list is the only
               priority.
             </p>
           </>
@@ -418,7 +420,7 @@ export function RuleModal({
             title="Rule not saved"
             subtitle={
               isStaleWrite(mutation.error)
-                ? 'The rules of this display were changed somewhere else. The list was refreshed; save again to apply your rule on top.'
+                ? `The rules of this ${ownerKind} were changed somewhere else. The list was refreshed; save again to apply your rule on top.`
                 : errorMessage(mutation.error)
             }
           />

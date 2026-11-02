@@ -8,6 +8,8 @@ import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { errorMessage, isStaleWrite } from './helpers';
 import { signagePaths } from './paths';
 import { settingsOf, useUpdateDisplay } from './displayMutations';
+import { useUpdateGroup } from './groupMutations';
+import { ownerInfo, type PlaybackOwner } from './playbackOwner';
 import { signageKeys } from './queries';
 import { SceneListFields } from './SceneListFields';
 import { sceneListDraftOf, sceneListError, type SceneListDraftItem } from './sceneListDraft';
@@ -71,35 +73,46 @@ export function RenameDisplayModal({ display, onClose }: { display: SignageDispl
   );
 }
 
-export function DefaultScenesModal({ display, onClose }: { display: SignageDisplay; onClose: () => void }) {
-  const [scenes, setScenes] = useState<SceneListDraftItem[]>(() => sceneListDraftOf(display.defaultScenes));
+export function DefaultScenesModal({ owner, onClose }: { owner: PlaybackOwner; onClose: () => void }) {
+  const info = ownerInfo(owner);
+  const [scenes, setScenes] = useState<SceneListDraftItem[]>(() => sceneListDraftOf(info.defaultScenes));
   const [showError, setShowError] = useState(false);
-  const update = useUpdateDisplay(display.id);
+  const updateDisplay = useUpdateDisplay(info.id);
+  const updateGroup = useUpdateGroup(info.id);
+  const update = owner.kind === 'group' ? updateGroup : updateDisplay;
   const error = sceneListError(scenes);
   const save = () => {
     if (error) {
       setShowError(true);
       return;
     }
-    update.mutate(
-      {
-        ...settingsOf(display),
-        expectedVersion: display.version,
-        defaultScenes: scenes.map(({ sceneId, seconds, transition }) => ({
-          sceneId,
-          seconds: seconds >= 3 && seconds <= 3600 ? seconds : 20,
-          transition,
-        })),
-      },
-      { onSuccess: onClose },
-    );
+    const defaultScenes = scenes.map(({ sceneId, seconds, transition }) => ({
+      sceneId,
+      seconds: seconds >= 3 && seconds <= 3600 ? seconds : 20,
+      transition,
+    }));
+    if (owner.kind === 'group')
+      updateGroup.mutate(
+        {
+          expectedVersion: owner.group.version,
+          name: owner.group.name,
+          aspectRatio: owner.group.aspectRatio,
+          defaultScenes,
+        },
+        { onSuccess: onClose },
+      );
+    else
+      updateDisplay.mutate(
+        { ...settingsOf(owner.display), expectedVersion: owner.display.version, defaultScenes },
+        { onSuccess: onClose },
+      );
   };
   return (
     <Modal
       open
       size="md"
       modalHeading="Default scenes"
-      modalLabel={display.name}
+      modalLabel={info.name}
       primaryButtonText={update.isPending ? 'Saving…' : 'Save'}
       secondaryButtonText="Cancel"
       primaryButtonDisabled={update.isPending}
@@ -114,7 +127,7 @@ export function DefaultScenesModal({ display, onClose }: { display: SignageDispl
           label="Show"
           value={scenes}
           onChange={setScenes}
-          aspectRatio={display.aspectRatio}
+          aspectRatio={info.aspectRatio}
           invalidText={showError && error ? error : undefined}
         />
         {update.isError && (
@@ -123,7 +136,11 @@ export function DefaultScenesModal({ display, onClose }: { display: SignageDispl
             lowContrast
             hideCloseButton
             title="Not saved"
-            subtitle={isStaleWrite(update.error) ? staleText : errorMessage(update.error)}
+            subtitle={
+              isStaleWrite(update.error)
+                ? `This ${info.kind} was changed somewhere else. It was refreshed; try again.`
+                : errorMessage(update.error)
+            }
           />
         )}
       </Stack>

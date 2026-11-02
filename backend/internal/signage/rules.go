@@ -28,11 +28,10 @@ const (
 
 var clockPattern = regexp.MustCompile(`^([01]\d|2[0-3]):([0-5]\d)$`)
 
-// Rule is one entry of a display's ordered rule list: "when condition show this scene list".
+// Rule is one entry of a display's or a group's ordered rule list: "when condition show this scene list".
 // Rules are drafts; they reach players only through a publication.
 type Rule struct {
 	ID                      uuid.UUID
-	DisplayID               uuid.UUID
 	Position                int
 	Enabled                 bool
 	ConditionKind           ConditionKind
@@ -62,11 +61,11 @@ type RuleInput struct {
 	AlternateSeconds        int
 }
 
-// RuleList is the ordered rule list of a display together with the display version that every
-// rule write must quote (rules share the display's optimistic-concurrency version).
+// RuleList is the ordered rule list of a display or a group together with the owner version that every
+// rule write must quote (rules share the owner's optimistic-concurrency version).
 type RuleList struct {
-	Items          []Rule
-	DisplayVersion int64
+	Items        []Rule
+	OwnerVersion int64
 }
 
 func normalizeClock(value *string, label string) (*string, error) {
@@ -169,7 +168,6 @@ func ValidateRuleInput(input RuleInput) (RuleInput, error) {
 func ruleFromRow(row signagedb.ListSignageRulesRow) (Rule, error) {
 	rule := Rule{
 		ID:            row.ID,
-		DisplayID:     row.DisplayID,
 		Position:      int(row.Position),
 		Enabled:       row.Enabled,
 		ConditionKind: ConditionKind(row.ConditionKind),
@@ -217,20 +215,62 @@ func clockText(value string) string {
 	return value
 }
 
-func loadRules(ctx context.Context, q *signagedb.Queries, displayIDs []uuid.UUID) (map[uuid.UUID][]Rule, error) {
-	rows, err := q.ListSignageRules(ctx, uuidStrings(displayIDs))
-	if err != nil {
-		return nil, err
+// loadRuleLists reads the rules of displays and of groups, each keyed by its owner's id.
+func loadRuleLists(
+	ctx context.Context,
+	q *signagedb.Queries,
+	displayIDs, groupIDs []uuid.UUID,
+) (byDisplay, byGroup map[uuid.UUID][]Rule, err error) {
+	byDisplay, byGroup = map[uuid.UUID][]Rule{}, map[uuid.UUID][]Rule{}
+	if len(displayIDs) == 0 && len(groupIDs) == 0 {
+		return byDisplay, byGroup, nil
 	}
-	result := map[uuid.UUID][]Rule{}
+	rows, err := q.ListSignageRules(ctx, signagedb.ListSignageRulesParams{
+		DisplayIds: uuidStrings(displayIDs), GroupIds: uuidStrings(groupIDs),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
 	for _, row := range rows {
 		rule, err := ruleFromRow(row)
 		if err != nil {
+			return nil, nil, err
+		}
+		if row.DisplayID != nil {
+			byDisplay[*row.DisplayID] = append(byDisplay[*row.DisplayID], rule)
+		} else if row.GroupID != nil {
+			byGroup[*row.GroupID] = append(byGroup[*row.GroupID], rule)
+		}
+	}
+	return byDisplay, byGroup, nil
+}
+
+// loadRules reads the own rules of displays.
+func loadRules(ctx context.Context, q *signagedb.Queries, displayIDs []uuid.UUID) (map[uuid.UUID][]Rule, error) {
+	byDisplay, _, err := loadRuleLists(ctx, q, displayIDs, nil)
+	return byDisplay, err
+}
+
+// loadOwnerRules reads the rules of one owner in order, never nil.
+func loadOwnerRules(ctx context.Context, q *signagedb.Queries, owner ruleOwner) ([]Rule, error) {
+	var rules []Rule
+	if owner.isGroup() {
+		_, byGroup, err := loadRuleLists(ctx, q, nil, []uuid.UUID{owner.GroupID})
+		if err != nil {
 			return nil, err
 		}
-		result[row.DisplayID] = append(result[row.DisplayID], rule)
+		rules = byGroup[owner.GroupID]
+	} else {
+		byDisplay, err := loadRules(ctx, q, []uuid.UUID{owner.DisplayID})
+		if err != nil {
+			return nil, err
+		}
+		rules = byDisplay[owner.DisplayID]
 	}
-	return result, nil
+	if rules == nil {
+		rules = []Rule{}
+	}
+	return rules, nil
 }
 
 // verifyRuleReferences checks that the machines, templates and scenes of a rule exist and share-locks
@@ -265,7 +305,8 @@ func ruleParams(owner ruleOwner, ruleID uuid.UUID, position int, input RuleInput
 	}
 	return signagedb.InsertSignageRuleParams{
 		ID:                      ruleID,
-		DisplayID:               owner.DisplayID,
+		DisplayID:               owner.displayArg(),
+		GroupID:                 owner.groupArg(),
 		Position:                int32(position),
 		Enabled:                 input.Enabled,
 		ConditionKind:           string(input.ConditionKind),
@@ -281,7 +322,34 @@ func ruleParams(owner ruleOwner, ruleID uuid.UUID, position int, input RuleInput
 	}
 }
 
-// ListRules returns a display's rules in evaluation order.
+// ruleInputOf is the writable part of a stored rule (used when a display leaves its group and copies the
+// group's rules).
+func ruleInputOf(rule Rule) RuleInput {
+	return RuleInput{
+		Enabled: rule.Enabled, ConditionKind: rule.ConditionKind, Weekdays: rule.Weekdays,
+		TimeFrom: rule.TimeFrom, TimeTo: rule.TimeTo, MachineIDs: rule.MachineIDs, MachineMatch: rule.MachineMatch,
+		AnnouncementTemplateIDs: rule.AnnouncementTemplateIDs, Scenes: rule.Scenes,
+		MinSeconds: rule.MinSeconds, MultiMode: rule.MultiMode, AlternateSeconds: rule.AlternateSeconds,
+	}
+}
+
+// insertRule stores a rule with its scene list at the given position.
+func insertRule(
+	ctx context.Context,
+	q *signagedb.Queries,
+	owner ruleOwner,
+	id uuid.UUID,
+	position int,
+	input RuleInput,
+) error {
+	if err := databaseError(q.InsertSignageRule(ctx, ruleParams(owner, id, position, input))); err != nil {
+		return err
+	}
+	return replaceRuleScenes(ctx, q, id, input.Scenes)
+}
+
+// ListRules returns a display's rules in evaluation order. A display in a group shows the group's rules,
+// and the version is then the group's.
 func (s *Service) ListRules(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -298,15 +366,98 @@ func (s *Service) ListRules(
 	if err != nil {
 		return RuleList{}, err
 	}
-	rules, err := loadRules(ctx, q, []uuid.UUID{displayID})
+	if display.GroupID != nil {
+		return s.listGroupRules(ctx, q, *display.GroupID)
+	}
+	items, err := loadOwnerRules(ctx, q, ruleOwner{DisplayID: displayID})
 	if err != nil {
 		return RuleList{}, err
 	}
-	items := rules[displayID]
-	if items == nil {
-		items = []Rule{}
+	return RuleList{Items: items, OwnerVersion: display.Version}, nil
+}
+
+// ListGroupRules returns a group's rules in evaluation order.
+func (s *Service) ListGroupRules(
+	ctx context.Context,
+	principal authorization.Principal,
+	groupID uuid.UUID,
+) (RuleList, error) {
+	if err := requireRead(principal); err != nil {
+		return RuleList{}, err
 	}
-	return RuleList{Items: items, DisplayVersion: display.Version}, nil
+	return s.listGroupRules(ctx, signagedb.New(s.pool), groupID)
+}
+
+func (s *Service) listGroupRules(ctx context.Context, q *signagedb.Queries, groupID uuid.UUID) (RuleList, error) {
+	groups, err := q.ListSignageDisplayGroupViews(ctx, []string{groupID.String()})
+	if err != nil {
+		return RuleList{}, err
+	}
+	if len(groups) == 0 {
+		return RuleList{}, apperror.NotFound
+	}
+	items, err := loadOwnerRules(ctx, q, ruleOwner{GroupID: groupID})
+	if err != nil {
+		return RuleList{}, err
+	}
+	return RuleList{Items: items, OwnerVersion: groups[0].Version}, nil
+}
+
+func displayInGroup() error {
+	return apperror.New(
+		http.StatusConflict,
+		"display_in_group",
+		"The display is in a group; edit the group's rules or leave the group first",
+	)
+}
+
+// lockOwner locks the owner of a rule list, checks the expected version and returns the owner's aspect ratio.
+// A display in a group has no rules of its own (409 display_in_group); a revoked display cannot be edited.
+func lockOwner(ctx context.Context, q *signagedb.Queries, owner ruleOwner, expected int64) (AspectRatio, error) {
+	if owner.isGroup() {
+		group, err := q.GetSignageDisplayGroupForUpdate(ctx, owner.GroupID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return AspectRatio{}, apperror.NotFound
+		}
+		if err != nil {
+			return AspectRatio{}, err
+		}
+		if group.Version != expected {
+			return AspectRatio{}, apperror.StaleWrite
+		}
+		return aspectRatioOf(group.AspectWidth, group.AspectHeight), nil
+	}
+	display, err := q.GetSignageDisplayForUpdate(ctx, owner.DisplayID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AspectRatio{}, apperror.NotFound
+	}
+	if err != nil {
+		return AspectRatio{}, err
+	}
+	if display.GroupID != nil {
+		return AspectRatio{}, displayInGroup()
+	}
+	if display.Version != expected {
+		return AspectRatio{}, apperror.StaleWrite
+	}
+	if display.RevokedAt.Valid || display.DeviceRevokedAt.Valid {
+		return AspectRatio{}, displayRevoked()
+	}
+	return aspectRatioOf(display.AspectWidth, display.AspectHeight), nil
+}
+
+// bumpOwnerVersion increments the version of a rule list's owner.
+func bumpOwnerVersion(ctx context.Context, q *signagedb.Queries, owner ruleOwner, expected int64) (int64, error) {
+	if owner.isGroup() {
+		return q.BumpSignageDisplayGroupVersion(
+			ctx,
+			signagedb.BumpSignageDisplayGroupVersionParams{ID: owner.GroupID, ExpectedVersion: expected},
+		)
+	}
+	return q.BumpSignageDisplayVersion(
+		ctx,
+		signagedb.BumpSignageDisplayVersionParams{ID: owner.DisplayID, ExpectedVersion: expected},
+	)
 }
 
 // ruleMutation runs one rule write under the owner's lock. Rules share the owner's version:
@@ -335,49 +486,32 @@ func (s *Service) ruleMutation(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	displayID := owner.DisplayID
-	display, err := q.GetSignageDisplayForUpdate(ctx, displayID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return RuleList{}, apperror.NotFound
-	}
+	ratio, err := lockOwner(ctx, q, owner, expected)
 	if err != nil {
 		return RuleList{}, err
 	}
-	if display.Version != expected {
-		return RuleList{}, apperror.StaleWrite
-	}
-	if display.RevokedAt.Valid || display.DeviceRevokedAt.Valid {
-		return RuleList{}, displayRevoked()
-	}
-	loaded, err := loadRules(ctx, q, []uuid.UUID{displayID})
+	loaded, err := loadOwnerRules(ctx, q, owner)
 	if err != nil {
 		return RuleList{}, err
 	}
-	if err := apply(q, aspectRatioOf(display.AspectWidth, display.AspectHeight), loaded[displayID]); err != nil {
+	if err := apply(q, ratio, loaded); err != nil {
 		return RuleList{}, err
 	}
-	version, err := q.BumpSignageDisplayVersion(
-		ctx,
-		signagedb.BumpSignageDisplayVersionParams{ID: displayID, ExpectedVersion: expected},
-	)
+	version, err := bumpOwnerVersion(ctx, q, owner, expected)
 	if err != nil {
 		return RuleList{}, err
 	}
 	if err := writeAudit(ctx, tx, principal, action, resource, resourceID(), requestID, fields); err != nil {
 		return RuleList{}, err
 	}
-	reloaded, err := loadRules(ctx, q, []uuid.UUID{displayID})
+	items, err := loadOwnerRules(ctx, q, owner)
 	if err != nil {
 		return RuleList{}, err
-	}
-	items := reloaded[displayID]
-	if items == nil {
-		items = []Rule{}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return RuleList{}, err
 	}
-	return RuleList{Items: items, DisplayVersion: version}, nil
+	return RuleList{Items: items, OwnerVersion: version}, nil
 }
 
 func displayRevoked() error {
@@ -386,11 +520,43 @@ func displayRevoked() error {
 
 var ruleFields = []string{"enabled", "condition", "scenes", "minSeconds", "multiMode", "alternateSeconds"}
 
+// ruleFieldsOf names the changed fields of a rule audit; a group's rule also names groupId so that the
+// audit trail tells group rules from display rules.
+func ruleFieldsOf(owner ruleOwner, fields []string) []string {
+	if !owner.isGroup() {
+		return fields
+	}
+	return append([]string{"groupId"}, fields...)
+}
+
 // CreateRule appends a rule to the end of the display's rule list.
 func (s *Service) CreateRule(
 	ctx context.Context,
 	principal authorization.Principal,
 	displayID uuid.UUID,
+	expected int64,
+	input RuleInput,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	return s.createRule(ctx, principal, ruleOwner{DisplayID: displayID}, expected, input, requestID)
+}
+
+// CreateGroupRule appends a rule to the end of the group's rule list.
+func (s *Service) CreateGroupRule(
+	ctx context.Context,
+	principal authorization.Principal,
+	groupID uuid.UUID,
+	expected int64,
+	input RuleInput,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	return s.createRule(ctx, principal, ruleOwner{GroupID: groupID}, expected, input, requestID)
+}
+
+func (s *Service) createRule(
+	ctx context.Context,
+	principal authorization.Principal,
+	owner ruleOwner,
 	expected int64,
 	input RuleInput,
 	requestID *uuid.UUID,
@@ -403,7 +569,6 @@ func (s *Service) CreateRule(
 		return RuleList{}, err
 	}
 	id := ids.New()
-	owner := ruleOwner{DisplayID: displayID}
 	return s.ruleMutation(
 		ctx,
 		principal,
@@ -413,18 +578,15 @@ func (s *Service) CreateRule(
 		"signage_rule.created",
 		"signage_rule",
 		func() uuid.UUID { return id },
-		ruleFields,
+		ruleFieldsOf(owner, ruleFields),
 		func(q *signagedb.Queries, ratio AspectRatio, rules []Rule) error {
 			if len(rules) >= maxRulesPerDisplay {
-				return validation("a display has at most %d rules", maxRulesPerDisplay)
+				return validation("a display or group has at most %d rules", maxRulesPerDisplay)
 			}
 			if err := verifyRuleReferences(ctx, q, ratio, checked); err != nil {
 				return err
 			}
-			if err := databaseError(q.InsertSignageRule(ctx, ruleParams(owner, id, len(rules), checked))); err != nil {
-				return err
-			}
-			return replaceRuleScenes(ctx, q, id, checked.Scenes)
+			return insertRule(ctx, q, owner, id, len(rules), checked)
 		},
 	)
 }
@@ -438,11 +600,35 @@ func findRule(rules []Rule, id uuid.UUID) (Rule, bool) {
 	return Rule{}, false
 }
 
-// UpdateRule replaces all writable fields of a rule.
+// UpdateRule replaces all writable fields of a display's rule.
 func (s *Service) UpdateRule(
 	ctx context.Context,
 	principal authorization.Principal,
 	displayID, ruleID uuid.UUID,
+	expected int64,
+	input RuleInput,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	return s.updateRule(ctx, principal, ruleOwner{DisplayID: displayID}, ruleID, expected, input, requestID)
+}
+
+// UpdateGroupRule replaces all writable fields of a group's rule.
+func (s *Service) UpdateGroupRule(
+	ctx context.Context,
+	principal authorization.Principal,
+	groupID, ruleID uuid.UUID,
+	expected int64,
+	input RuleInput,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	return s.updateRule(ctx, principal, ruleOwner{GroupID: groupID}, ruleID, expected, input, requestID)
+}
+
+func (s *Service) updateRule(
+	ctx context.Context,
+	principal authorization.Principal,
+	owner ruleOwner,
+	ruleID uuid.UUID,
 	expected int64,
 	input RuleInput,
 	requestID *uuid.UUID,
@@ -454,7 +640,6 @@ func (s *Service) UpdateRule(
 	if err != nil {
 		return RuleList{}, err
 	}
-	owner := ruleOwner{DisplayID: displayID}
 	return s.ruleMutation(
 		ctx,
 		principal,
@@ -464,7 +649,7 @@ func (s *Service) UpdateRule(
 		"signage_rule.updated",
 		"signage_rule",
 		func() uuid.UUID { return ruleID },
-		ruleFields,
+		ruleFieldsOf(owner, ruleFields),
 		func(q *signagedb.Queries, ratio AspectRatio, rules []Rule) error {
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
@@ -486,7 +671,8 @@ func (s *Service) UpdateRule(
 				MultiMode:               params.MultiMode,
 				AlternateSeconds:        params.AlternateSeconds,
 				ID:                      ruleID,
-				DisplayID:               owner.DisplayID,
+				DisplayID:               owner.displayArg(),
+				GroupID:                 owner.groupArg(),
 			})
 			if err := databaseError(err); err != nil {
 				return err
@@ -496,7 +682,7 @@ func (s *Service) UpdateRule(
 	)
 }
 
-// SetRuleEnabled switches a rule on or off without touching anything else.
+// SetRuleEnabled switches a display's rule on or off without touching anything else.
 func (s *Service) SetRuleEnabled(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -505,30 +691,53 @@ func (s *Service) SetRuleEnabled(
 	enabled bool,
 	requestID *uuid.UUID,
 ) (RuleList, error) {
+	return s.setRuleEnabled(ctx, principal, ruleOwner{DisplayID: displayID}, ruleID, expected, enabled, requestID)
+}
+
+// SetGroupRuleEnabled switches a group's rule on or off without touching anything else.
+func (s *Service) SetGroupRuleEnabled(
+	ctx context.Context,
+	principal authorization.Principal,
+	groupID, ruleID uuid.UUID,
+	expected int64,
+	enabled bool,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	return s.setRuleEnabled(ctx, principal, ruleOwner{GroupID: groupID}, ruleID, expected, enabled, requestID)
+}
+
+func (s *Service) setRuleEnabled(
+	ctx context.Context,
+	principal authorization.Principal,
+	owner ruleOwner,
+	ruleID uuid.UUID,
+	expected int64,
+	enabled bool,
+	requestID *uuid.UUID,
+) (RuleList, error) {
 	return s.ruleMutation(
 		ctx,
 		principal,
-		ruleOwner{DisplayID: displayID},
+		owner,
 		expected,
 		requestID,
 		"signage_rule.updated",
 		"signage_rule",
 		func() uuid.UUID { return ruleID },
-		[]string{"enabled"},
+		ruleFieldsOf(owner, []string{"enabled"}),
 		func(q *signagedb.Queries, _ AspectRatio, rules []Rule) error {
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
 			}
-			_, err := q.SetSignageRuleEnabled(
-				ctx,
-				signagedb.SetSignageRuleEnabledParams{Enabled: enabled, ID: ruleID, DisplayID: displayID},
-			)
+			_, err := q.SetSignageRuleEnabled(ctx, signagedb.SetSignageRuleEnabledParams{
+				Enabled: enabled, ID: ruleID, DisplayID: owner.displayArg(), GroupID: owner.groupArg(),
+			})
 			return err
 		},
 	)
 }
 
-// DeleteRule removes a rule and closes the gap in the order.
+// DeleteRule removes a display's rule and closes the gap in the order.
 func (s *Service) DeleteRule(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -536,24 +745,45 @@ func (s *Service) DeleteRule(
 	expected int64,
 	requestID *uuid.UUID,
 ) (RuleList, error) {
+	return s.deleteRule(ctx, principal, ruleOwner{DisplayID: displayID}, ruleID, expected, requestID)
+}
+
+// DeleteGroupRule removes a group's rule and closes the gap in the order.
+func (s *Service) DeleteGroupRule(
+	ctx context.Context,
+	principal authorization.Principal,
+	groupID, ruleID uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	return s.deleteRule(ctx, principal, ruleOwner{GroupID: groupID}, ruleID, expected, requestID)
+}
+
+func (s *Service) deleteRule(
+	ctx context.Context,
+	principal authorization.Principal,
+	owner ruleOwner,
+	ruleID uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) (RuleList, error) {
 	return s.ruleMutation(
 		ctx,
 		principal,
-		ruleOwner{DisplayID: displayID},
+		owner,
 		expected,
 		requestID,
 		"signage_rule.deleted",
 		"signage_rule",
 		func() uuid.UUID { return ruleID },
-		nil,
+		ruleFieldsOf(owner, nil),
 		func(q *signagedb.Queries, _ AspectRatio, rules []Rule) error {
 			if _, ok := findRule(rules, ruleID); !ok {
 				return apperror.NotFound
 			}
-			if _, err := q.DeleteSignageRule(
-				ctx,
-				signagedb.DeleteSignageRuleParams{ID: ruleID, DisplayID: displayID},
-			); err != nil {
+			if _, err := q.DeleteSignageRule(ctx, signagedb.DeleteSignageRuleParams{
+				ID: ruleID, DisplayID: owner.displayArg(), GroupID: owner.groupArg(),
+			}); err != nil {
 				return err
 			}
 			position := 0
@@ -561,14 +791,9 @@ func (s *Service) DeleteRule(
 				if rule.ID == ruleID {
 					continue
 				}
-				if err := q.SetSignageRulePosition(
-					ctx,
-					signagedb.SetSignageRulePositionParams{
-						Position:  int32(position),
-						ID:        rule.ID,
-						DisplayID: displayID,
-					},
-				); err != nil {
+				if err := q.SetSignageRulePosition(ctx, signagedb.SetSignageRulePositionParams{
+					Position: int32(position), ID: rule.ID, DisplayID: owner.displayArg(), GroupID: owner.groupArg(),
+				}); err != nil {
 					return err
 				}
 				position++
@@ -578,8 +803,8 @@ func (s *Service) DeleteRule(
 	)
 }
 
-// ReorderRules sets the complete evaluation order in one transaction. ruleIDs must name every rule
-// of the display exactly once.
+// ReorderRules sets the complete evaluation order of a display's rules in one transaction. ruleIDs must
+// name every rule of the display exactly once.
 func (s *Service) ReorderRules(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -588,30 +813,56 @@ func (s *Service) ReorderRules(
 	ruleIDs []uuid.UUID,
 	requestID *uuid.UUID,
 ) (RuleList, error) {
+	return s.reorderRules(ctx, principal, ruleOwner{DisplayID: displayID}, expected, ruleIDs, requestID)
+}
+
+// ReorderGroupRules sets the complete evaluation order of a group's rules in one transaction.
+func (s *Service) ReorderGroupRules(
+	ctx context.Context,
+	principal authorization.Principal,
+	groupID uuid.UUID,
+	expected int64,
+	ruleIDs []uuid.UUID,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	return s.reorderRules(ctx, principal, ruleOwner{GroupID: groupID}, expected, ruleIDs, requestID)
+}
+
+func (s *Service) reorderRules(
+	ctx context.Context,
+	principal authorization.Principal,
+	owner ruleOwner,
+	expected int64,
+	ruleIDs []uuid.UUID,
+	requestID *uuid.UUID,
+) (RuleList, error) {
+	action, resource, resourceID := "signage_display.rules_reordered", "signage_display", owner.DisplayID
+	if owner.isGroup() {
+		action, resource, resourceID = "signage_display_group.rules_reordered", "signage_display_group", owner.GroupID
+	}
 	return s.ruleMutation(
 		ctx,
 		principal,
-		ruleOwner{DisplayID: displayID},
+		owner,
 		expected,
 		requestID,
-		"signage_display.rules_reordered",
-		"signage_display",
-		func() uuid.UUID { return displayID },
+		action,
+		resource,
+		func() uuid.UUID { return resourceID },
 		[]string{"ruleOrder"},
 		func(q *signagedb.Queries, _ AspectRatio, rules []Rule) error {
 			if len(ruleIDs) != len(rules) || len(distinct(ruleIDs)) != len(ruleIDs) {
-				return validation("ruleIds must list every rule of the display exactly once")
+				return validation("ruleIds must list every rule exactly once")
 			}
 			for _, id := range ruleIDs {
 				if _, ok := findRule(rules, id); !ok {
-					return validation("ruleIds must list every rule of the display exactly once")
+					return validation("ruleIds must list every rule exactly once")
 				}
 			}
 			for position, id := range ruleIDs {
-				if err := q.SetSignageRulePosition(
-					ctx,
-					signagedb.SetSignageRulePositionParams{Position: int32(position), ID: id, DisplayID: displayID},
-				); err != nil {
+				if err := q.SetSignageRulePosition(ctx, signagedb.SetSignageRulePositionParams{
+					Position: int32(position), ID: id, DisplayID: owner.displayArg(), GroupID: owner.groupArg(),
+				}); err != nil {
 					return err
 				}
 			}

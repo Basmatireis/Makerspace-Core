@@ -1,68 +1,84 @@
 import { useState } from 'react';
-import { Button, ContainedList, ContainedListItem, IconButton, InlineNotification, Tag, Toggle } from '@carbon/react';
+import {
+  ActionableNotification,
+  Button,
+  ContainedList,
+  ContainedListItem,
+  IconButton,
+  InlineNotification,
+  Tag,
+  Toggle,
+} from '@carbon/react';
 import { Add, ArrowDown, ArrowRight, ArrowUp, Edit, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SignageDisplay, SignageRule, SignageRuleList, SignageSceneListItems } from '../../api/generated/models';
-import { deleteSignageRule, reorderSignageRules, setSignageRuleEnabled } from '../../api/generated/signage/signage';
+import { useNavigate } from 'react-router-dom';
+import type { SignageRule, SignageRuleList, SignageSceneListItems } from '../../api/generated/models';
 import { DeleteDialog, QueryBoundary } from './components';
 import { DefaultScenesModal } from './DisplayDialogs';
-import { useRefreshDisplay } from './displayMutations';
 import { useRuleNames } from './displayHooks';
 import { DEFAULT_RULE_ID, describeCondition, loopSeconds } from './engine/playback';
 import { errorMessage, formatLoop, isStaleWrite } from './helpers';
 import { toPlaybackRule } from './publishedView';
-import { rulesQuery, scenesQuery, signageKeys } from './queries';
+import { signagePaths } from './paths';
+import { ownerInfo, ownerRulesKey, ruleApi, useRefreshOwner, type PlaybackOwner } from './playbackOwner';
+import { groupQuery, ownerRulesQuery, scenesQuery } from './queries';
 import { RuleModal } from './RuleModal';
 
-/** Ordered "When … show …" rules, first match wins, with the default scenes fixed at the bottom. */
-export function PlaybackTab({
-  display,
-  canManage,
-  activeRuleId,
-}: {
-  display: SignageDisplay;
-  canManage: boolean;
-  activeRuleId: string | null;
-}) {
+/**
+ * Ordered "When … show …" rules, first match wins, with the default scenes fixed at the bottom. Works for a display or
+ * a group. A display in a group shows the group's rules read-only: the group owns them.
+ */
+export function PlaybackTab({ owner, activeRuleId }: { owner: PlaybackOwner; activeRuleId: string | null }) {
   const queryClient = useQueryClient();
-  const refresh = useRefreshDisplay(display.id);
-  const rulesResult = useQuery(rulesQuery(display.id));
+  const navigate = useNavigate();
+  const info = ownerInfo(owner);
+  const key = { kind: info.kind, id: info.id };
+  const refresh = useRefreshOwner(key);
+  const rulesResult = useQuery(ownerRulesQuery(key));
   const scenes = useQuery(scenesQuery()).data?.items;
   const names = useRuleNames();
+  const groupId = owner.kind === 'display' ? owner.display.groupId : null;
+  const group = useQuery({ ...groupQuery(groupId ?? ''), enabled: groupId !== null });
   const [editing, setEditing] = useState<SignageRule | 'new' | null>(null);
   const [editingDefault, setEditingDefault] = useState(false);
   const [deleting, setDeleting] = useState<{ rule: SignageRule; position: number } | null>(null);
   const rules = rulesResult.data;
+  const api = ruleApi(key);
+  // A member has no list of its own; it plays its group's.
+  const defaultScenes = groupId === null ? info.defaultScenes : (group.data?.defaultScenes ?? []);
 
-  // Every rule write quotes the display version and answers with the full list and the new version.
+  // Every rule write quotes the owner version and answers with the full list and the new version.
   const write = useMutation({
-    mutationFn: (action: (version: number) => Promise<SignageRuleList>) => action(rules!.displayVersion),
+    mutationFn: (action: (version: number) => Promise<SignageRuleList>) => action(rules!.ownerVersion),
     onSuccess: async (list) => {
-      queryClient.setQueryData(signageKeys.rules(display.id), list);
+      queryClient.setQueryData(ownerRulesKey(key), list);
       await refresh();
     },
     onError: (error) => {
-      if (isStaleWrite(error)) void refresh(signageKeys.rules(display.id));
+      if (isStaleWrite(error)) void refresh(ownerRulesKey(key));
     },
   });
   const move = (index: number, direction: -1 | 1) => {
     const ids = rules!.items.map((rule) => rule.id);
     [ids[index], ids[index + direction]] = [ids[index + direction], ids[index]];
-    write.mutate((expectedVersion) => reorderSignageRules(display.id, { expectedVersion, ruleIds: ids }));
+    write.mutate((expectedVersion) => api.reorder({ expectedVersion, ruleIds: ids }));
   };
   // "Scene X" for a single item, "3 scenes · 45 s loop" for a list.
   const describeScenes = (items: SignageSceneListItems) => {
+    if (items.length === 0) return '…';
     if (items.length === 1)
       return `Scene ${scenes?.find((item) => item.id === items[0].sceneId)?.name ?? (scenes ? 'Removed' : '…')}`;
     return `${items.length} scenes · ${formatLoop(loopSeconds(items))} loop`;
   };
-  const editable = canManage && display.status !== 'revoked';
+  const revoked = owner.kind === 'display' && owner.display.status === 'revoked';
+  const editable = owner.canManage && !revoked && groupId === null;
 
   return (
     <div className="sg-stack sg-tab">
       <div className="sg-tab__bar">
         <p className="sg-secondary">
-          The first matching rule wins. “Active” shows what the display runs now, from its last publication.
+          The first matching rule wins. “Active” shows what the {info.kind === 'group' ? 'group' : 'display'} runs now,
+          from its last publication.
         </p>
         {editable && rules && (
           <Button kind="tertiary" size="md" renderIcon={Add} onClick={() => setEditing('new')}>
@@ -70,6 +86,19 @@ export function PlaybackTab({
           </Button>
         )}
       </div>
+      {groupId !== null && (
+        <ActionableNotification
+          inline
+          role="status"
+          kind="info"
+          lowContrast
+          hideCloseButton
+          title="Playback is managed by the group"
+          subtitle="Rules and default scenes of this display are those of its group. Change them there."
+          actionButtonLabel={group.data ? `Open ${group.data.name}` : 'Open group'}
+          onActionButtonClick={() => navigate(signagePaths.group(groupId))}
+        />
+      )}
       {write.isError && (
         <InlineNotification
           kind="error"
@@ -120,7 +149,7 @@ export function PlaybackTab({
                         disabled={write.isPending}
                         onToggle={(checked) =>
                           write.mutate((expectedVersion) =>
-                            setSignageRuleEnabled(display.id, rule.id, { expectedVersion, enabled: checked }),
+                            api.setEnabled(rule.id, { expectedVersion, enabled: checked }),
                           )
                         }
                       />
@@ -171,7 +200,7 @@ export function PlaybackTab({
               <div className="sg-rule__body">
                 <strong>Otherwise</strong>
                 <ArrowRight size={16} aria-hidden="true" />
-                <strong>Default: {describeScenes(display.defaultScenes)}</strong>
+                <strong>Default: {describeScenes(defaultScenes)}</strong>
               </div>
               <div className="sg-rule__controls">
                 {activeRuleId === DEFAULT_RULE_ID && (
@@ -194,20 +223,21 @@ export function PlaybackTab({
           </ContainedListItem>
         </ContainedList>
         {rules?.items.length === 0 && (
-          <p className="sg-secondary">No rules yet. The display always shows its default scenes.</p>
+          <p className="sg-secondary">
+            No rules yet. {info.kind === 'group' ? 'Its displays always show' : 'The display always shows'} the default
+            scenes.
+          </p>
         )}
       </QueryBoundary>
       {editing && rules && (
         <RuleModal
-          displayId={display.id}
-          displayName={display.name}
-          displayVersion={rules.displayVersion}
-          aspectRatio={display.aspectRatio}
+          owner={owner}
+          version={rules.ownerVersion}
           rule={editing === 'new' ? undefined : editing}
           onClose={() => setEditing(null)}
         />
       )}
-      {editingDefault && <DefaultScenesModal display={display} onClose={() => setEditingDefault(false)} />}
+      {editingDefault && <DefaultScenesModal owner={owner} onClose={() => setEditingDefault(false)} />}
       {deleting && rules && (
         <DeleteDialog
           title={`Delete rule ${deleting.position}?`}
@@ -215,10 +245,11 @@ export function PlaybackTab({
           confirmLabel="Delete rule"
           onClose={() => setDeleting(null)}
           onDeleted={() => setDeleting(null)}
-          remove={() => deleteSignageRule(display.id, deleting.rule.id, { expectedVersion: rules.displayVersion })}
+          remove={() => api.remove(deleting.rule.id, { expectedVersion: rules.ownerVersion })}
         >
           <p>
-            “{describeCondition(toPlaybackRule(deleting.rule), names)}” stops applying once the display is published.
+            “{describeCondition(toPlaybackRule(deleting.rule), names)}” stops applying once the{' '}
+            {info.kind === 'group' ? 'group' : 'display'} is published.
           </p>
         </DeleteDialog>
       )}

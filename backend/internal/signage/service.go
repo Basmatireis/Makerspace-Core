@@ -108,10 +108,14 @@ func validation(format string, args ...any) error {
 	return apperror.New(http.StatusUnprocessableEntity, "validation_failed", fmt.Sprintf(format, args...))
 }
 
-// ruleReference names a rule of a display that blocks a deletion ("Rule 2 of Entrance"); its id is the
-// display's, whose page lists the rule.
-func ruleReference(displayID uuid.UUID, displayName string, position int32) Reference {
-	return Reference{Kind: ReferenceRule, ID: displayID, Name: fmt.Sprintf("Rule %d of %s", position+1, displayName)}
+// ruleReference names a rule of a display or a group that blocks a deletion ("Rule 2 of Entrance"); its id
+// is the owner's, whose page lists the rule. A group's rule is a reference of kind group.
+func ruleReference(ownerID uuid.UUID, groupOwned bool, ownerName string, position int32) Reference {
+	kind := ReferenceRule
+	if groupOwned {
+		kind = ReferenceGroup
+	}
+	return Reference{Kind: kind, ID: ownerID, Name: fmt.Sprintf("Rule %d of %s", position+1, ownerName)}
 }
 
 // inUse reports the references that block a deletion as 409 signage_in_use.

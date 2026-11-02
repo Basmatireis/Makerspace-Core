@@ -25,10 +25,30 @@ type SceneListItem struct {
 	Transition Transition `json:"transition"`
 }
 
-// ruleOwner is what a rule list and a default scene list belong to. Every scene of the owner's lists must
-// have the owner's aspect ratio.
+// ruleOwner is what a rule list and a default scene list belong to: a standalone display or a group (exactly
+// one id is set). Every scene of the owner's lists must have the owner's aspect ratio.
 type ruleOwner struct {
 	DisplayID uuid.UUID
+	GroupID   uuid.UUID
+}
+
+func (o ruleOwner) isGroup() bool { return o.GroupID != uuid.Nil }
+
+// displayArg and groupArg are the nullable owner columns of the rule and default-list queries.
+func (o ruleOwner) displayArg() *uuid.UUID {
+	if o.isGroup() {
+		return nil
+	}
+	id := o.DisplayID
+	return &id
+}
+
+func (o ruleOwner) groupArg() *uuid.UUID {
+	if !o.isGroup() {
+		return nil
+	}
+	id := o.GroupID
+	return &id
 }
 
 // checkSceneList validates the shape of a scene list (1–100 items, seconds, transitions) and returns a copy.
@@ -105,12 +125,18 @@ func replaceRuleScenes(ctx context.Context, q *signagedb.Queries, ruleID uuid.UU
 
 // replaceDefaultScenes stores an owner's default scene list, replacing the previous one.
 func replaceDefaultScenes(ctx context.Context, q *signagedb.Queries, owner ruleOwner, list []SceneListItem) error {
-	if err := q.DeleteSignageDefaultScenes(ctx, owner.DisplayID); err != nil {
+	if err := q.DeleteSignageDefaultScenes(ctx, signagedb.DeleteSignageDefaultScenesParams{
+		DisplayID: owner.displayArg(), GroupID: owner.groupArg(),
+	}); err != nil {
 		return err
+	}
+	if len(list) == 0 {
+		return nil
 	}
 	positions, sceneIDs, seconds, transitions := sceneListColumns(list)
 	return databaseError(q.InsertSignageDefaultScenes(ctx, signagedb.InsertSignageDefaultScenesParams{
-		DisplayID: owner.DisplayID, Positions: positions, SceneIds: sceneIDs, Seconds: seconds, Transitions: transitions,
+		DisplayID: owner.displayArg(), GroupID: owner.groupArg(),
+		Positions: positions, SceneIds: sceneIDs, Seconds: seconds, Transitions: transitions,
 	}))
 }
 

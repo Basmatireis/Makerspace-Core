@@ -26,8 +26,13 @@ export interface UpdateSignageAnnouncementRequest {
   expectedVersion: Version;
   values: SignageAnnouncementValues;
   allDisplays: boolean;
-  /** @maxItems 100 */
+  /**
+     * With `allDisplays` both `displayIds` and `groupIds` must be empty; without it at least one of them must be non-empty.
+     * @maxItems 100
+     */
   displayIds: UUIDv7[];
+  /** @maxItems 50 */
+  groupIds: UUIDv7[];
   startsAt: string;
   /** @nullable */
   endsAt?: string | null;

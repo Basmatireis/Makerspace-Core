@@ -9,6 +9,7 @@ import { server } from '../../test/server';
 import {
   announcementFixture,
   displayFixture,
+  groupFixture,
   ids,
   mockSignage,
   previewFixture,
@@ -191,7 +192,7 @@ describe('Display detail', () => {
         attempts += 1;
         return attempts === 1
           ? HttpResponse.json({ code: 'stale_write', message: 'Stale' }, { status: 409 })
-          : HttpResponse.json({ items: [rules[1], rules[0]], displayVersion: 6 });
+          : HttpResponse.json({ items: [rules[1], rules[0]], ownerVersion: 6 });
       }),
     );
     renderRoute(<App />, route);
@@ -219,7 +220,7 @@ describe('Display detail', () => {
     server.use(
       http.post('*/api/v1/signage/displays/:id/rules', async ({ request }) => {
         body = await request.json();
-        return HttpResponse.json({ items: [ruleFixture()], displayVersion: 6 }, { status: 201 });
+        return HttpResponse.json({ items: [ruleFixture()], ownerVersion: 6 }, { status: 201 });
       }),
     );
     renderRoute(<App />, route);
@@ -255,7 +256,7 @@ describe('Display detail', () => {
     server.use(
       http.post('*/api/v1/signage/displays/:id/rules', async ({ request }) => {
         body = await request.json();
-        return HttpResponse.json({ items: [ruleFixture()], displayVersion: 6 }, { status: 201 });
+        return HttpResponse.json({ items: [ruleFixture()], ownerVersion: 6 }, { status: 201 });
       }),
     );
     renderRoute(<App />, route);
@@ -375,5 +376,76 @@ describe('Display detail', () => {
     });
     renderRoute(<App />, route);
     expect(await screen.findByRole('button', { name: 'Show announcement' })).toBeInTheDocument();
+  });
+
+  it('shows the rules of a member read-only with a link to its group', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture({ groupId: ids.group, defaultScenes: [] })],
+      groups: [groupFixture({ displayIds: [ids.display] })],
+      rules: [ruleFixture()],
+    });
+    renderRoute(<App />, route);
+    expect(await screen.findByText('Mon–Fri 08:00–10:00')).toBeInTheDocument();
+    expect(await screen.findByText('Playback is managed by the group')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Open Hallway screens' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add rule' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit default scenes' })).not.toBeInTheDocument();
+    expect(screen.getByText('Enabled')).toBeInTheDocument();
+  });
+
+  it('names the managing group in the header', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture({ groupId: ids.group, defaultScenes: [] })],
+      groups: [groupFixture({ displayIds: [ids.display] })],
+    });
+    renderRoute(<App />, route);
+    const link = await screen.findByRole('link', { name: 'Hallway screens' });
+    expect(link).toHaveAttribute('href', `/signage/groups/${ids.group}`);
+    expect(screen.getByText(/Managed by group/)).toBeInTheDocument();
+  });
+
+  it('warns before joining a group and sends the group with empty default scenes', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture()],
+      groups: [groupFixture()],
+    });
+    let body: unknown;
+    server.use(
+      http.put('*/api/v1/signage/displays/:id', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(displayFixture({ groupId: ids.group, defaultScenes: [], version: 6 }));
+      }),
+    );
+    renderRoute(<App />, route);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: 'Settings' }));
+    await user.selectOptions(await screen.findByLabelText('Group'), 'Hallway screens');
+    expect(
+      await screen.findByText(/own rules and default scenes are deleted and replaced by the group's/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(body).toMatchObject({ expectedVersion: 5, groupId: ids.group, defaultScenes: [] }));
+  });
+
+  it('locks the aspect ratio of a member and says it keeps a copy when leaving', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagemanage], {
+      displays: [displayFixture({ groupId: ids.group, defaultScenes: [] })],
+      groups: [groupFixture({ displayIds: [ids.display] })],
+    });
+    let body: unknown;
+    server.use(
+      http.put('*/api/v1/signage/displays/:id', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(displayFixture({ version: 6 }));
+      }),
+    );
+    renderRoute(<App />, route);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('tab', { name: 'Settings' }));
+    expect(await screen.findByLabelText('Aspect ratio')).toBeDisabled();
+    await user.selectOptions(screen.getByLabelText('Group'), 'No group');
+    expect(await screen.findByText(/keeps a copy of the group's rules and default scenes/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => expect(body).toMatchObject({ groupId: null, defaultScenes: [] }));
   });
 });

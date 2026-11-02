@@ -1766,6 +1766,11 @@ type SignageAnnouncementDisplay struct {
 	DisplayID      uuid.UUID
 }
 
+type SignageAnnouncementGroup struct {
+	AnnouncementID uuid.UUID
+	GroupID        uuid.UUID
+}
+
 type SignageAnnouncementTemplate struct {
 	ID         uuid.UUID
 	Name       string
@@ -1822,11 +1827,12 @@ type SignageCustomLayout struct {
 }
 
 type SignageDefaultScene struct {
-	DisplayID  uuid.UUID
+	DisplayID  *uuid.UUID
 	Position   int32
 	SceneID    uuid.UUID
 	Seconds    int32
 	Transition string
+	GroupID    *uuid.UUID
 }
 
 type SignageDisplay struct {
@@ -1842,6 +1848,17 @@ type SignageDisplay struct {
 	AllowCameraOutside bool
 	AspectWidth        int16
 	AspectHeight       int16
+	GroupID            *uuid.UUID
+}
+
+type SignageDisplayGroup struct {
+	ID           uuid.UUID
+	Name         string
+	AspectWidth  int16
+	AspectHeight int16
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type SignageDisplayState struct {
@@ -1879,7 +1896,7 @@ type SignagePublication struct {
 
 type SignageRule struct {
 	ID                      uuid.UUID
-	DisplayID               uuid.UUID
+	DisplayID               *uuid.UUID
 	Position                int32
 	Enabled                 bool
 	ConditionKind           string
@@ -1892,6 +1909,7 @@ type SignageRule struct {
 	MinSeconds              int32
 	MultiMode               string
 	AlternateSeconds        int32
+	GroupID                 *uuid.UUID
 }
 
 type SignageRuleScene struct {

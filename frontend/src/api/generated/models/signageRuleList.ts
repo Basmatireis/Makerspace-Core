@@ -24,5 +24,6 @@ import type { Version } from './version';
 export interface SignageRuleList {
   /** @maxItems 50 */
   items: SignageRule[];
-  displayVersion: Version;
+  /** Version of the display or group the rules belong to; every rule write quotes it as `expectedVersion`. */
+  ownerVersion: Version;
 }

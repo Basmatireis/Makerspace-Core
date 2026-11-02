@@ -28,15 +28,24 @@ func nullableToPointer[T any](value nullable.Nullable[T]) *T {
 	return &result
 }
 
-func signageDisplayDTO(display signage.Display) openapi.SignageDisplay {
-	pending := make([]openapi.SignagePendingChange, 0, len(display.PendingChanges))
-	for _, change := range display.PendingChanges {
-		pending = append(pending, openapi.SignagePendingChange{
-			Kind: openapi.SignagePendingChangeKind(
-				change.Kind,
-			), Name: change.Name, Change: openapi.SignagePendingChangeType(change.Change),
-		})
+// signagePreviewDTO renders a display or group preview.
+func signagePreviewDTO(preview signage.DisplayPreview) (openapi.SignageDisplayPreview, error) {
+	body := openapi.SignageDisplayPreview{
+		Live:     signagePlayerLiveDTO(preview.Live),
+		Manifest: nullableValue[openapi.SignagePlayerManifest](nil),
 	}
+	if preview.Manifest != nil {
+		dto, err := signagePlayerManifestDTO(*preview.Manifest)
+		if err != nil {
+			return openapi.SignageDisplayPreview{}, err
+		}
+		body.Manifest = nullableValue(&dto)
+	}
+	return body, nil
+}
+
+func signageDisplayDTO(display signage.Display) openapi.SignageDisplay {
+	pending := signagePendingChangesDTO(display.PendingChanges)
 	return openapi.SignageDisplay{
 		Id: display.ID, ManagedDeviceId: display.ManagedDeviceID, Name: display.Name, Location: display.Location,
 		AspectRatio:        signageAspectRatioDTO(display.AspectRatio),
@@ -54,7 +63,8 @@ func signageDisplayDTO(display signage.Display) openapi.SignageDisplay {
 		PlayerVersion: nullableValue(
 			display.PlayerVersion,
 		), CacheUsedBytes: nullableValue(display.CacheUsedBytes), CacheQuotaBytes: nullableValue(display.CacheQuotaBytes),
-		Errors: display.Errors, Version: display.Version, CreatedAt: display.CreatedAt, UpdatedAt: display.UpdatedAt,
+		GroupId: nullableUUIDValue(display.GroupID),
+		Errors:  display.Errors, Version: display.Version, CreatedAt: display.CreatedAt, UpdatedAt: display.UpdatedAt,
 	}
 }
 
@@ -106,7 +116,7 @@ func (s *Server) PairSignageDisplay(
 	display, err := s.signage.PairDisplay(ctx, p, r.Body.Code, signage.DisplayInput{
 		Name: r.Body.Name, Location: r.Body.Location, AspectRatio: signageAspectRatio(r.Body.AspectRatio),
 		VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
-		DefaultScenes: signageSceneList(r.Body.DefaultScenes),
+		DefaultScenes: signageSceneList(r.Body.DefaultScenes), GroupID: nullableToPointer(r.Body.GroupId),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -128,7 +138,7 @@ func (s *Server) UpdateSignageDisplay(
 	display, err := s.signage.UpdateDisplay(ctx, p, r.DisplayId, r.Body.ExpectedVersion, signage.DisplayInput{
 		Name: r.Body.Name, Location: r.Body.Location, AspectRatio: signageAspectRatio(r.Body.AspectRatio),
 		VisibleFromOutside: r.Body.VisibleFromOutside, AllowCameraOutside: r.Body.AllowCameraOutside,
-		DefaultScenes: signageSceneList(r.Body.DefaultScenes),
+		DefaultScenes: signageSceneList(r.Body.DefaultScenes), GroupID: nullableToPointer(r.Body.GroupId),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -214,7 +224,7 @@ func signageRuleListDTO(list signage.RuleList) openapi.SignageRuleList {
 			AlternateSeconds:        rule.AlternateSeconds,
 		})
 	}
-	return openapi.SignageRuleList{Items: items, DisplayVersion: list.DisplayVersion}
+	return openapi.SignageRuleList{Items: items, OwnerVersion: list.OwnerVersion}
 }
 
 func signageRuleInput(body *openapi.SignageRuleRequest) signage.RuleInput {
@@ -779,16 +789,9 @@ func (s *Server) GetSignageDisplayPreview(
 	if err != nil {
 		return nil, err
 	}
-	body := openapi.SignageDisplayPreview{
-		Live:     signagePlayerLiveDTO(preview.Live),
-		Manifest: nullableValue[openapi.SignagePlayerManifest](nil),
-	}
-	if preview.Manifest != nil {
-		dto, err := signagePlayerManifestDTO(*preview.Manifest)
-		if err != nil {
-			return nil, err
-		}
-		body.Manifest = nullableValue(&dto)
+	body, err := signagePreviewDTO(preview)
+	if err != nil {
+		return nil, err
 	}
 	return openapi.GetSignageDisplayPreview200JSONResponse{
 		Body:    body,

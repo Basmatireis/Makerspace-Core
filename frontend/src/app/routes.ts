@@ -103,6 +103,9 @@ export const SignageDisplaysPage = lazy(() =>
 export const SignageDisplayDetailPage = lazy(() =>
   import('../features/signage/DisplayDetailPage').then(({ DisplayDetailPage }) => ({ default: DisplayDetailPage })),
 );
+export const SignageGroupDetailPage = lazy(() =>
+  import('../features/signage/GroupDetailPage').then(({ GroupDetailPage }) => ({ default: GroupDetailPage })),
+);
 export const SignageAnnouncementsPage = lazy(() =>
   import('../features/signage/AnnouncementsPage').then(({ AnnouncementsPage }) => ({ default: AnnouncementsPage })),
 );
