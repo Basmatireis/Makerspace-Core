@@ -145,7 +145,7 @@ export function ResolveReportedUsageModal({
                   <SelectItem
                     key={spool.id}
                     value={spool.id}
-                    text={`${spool.displayId}${spool.label ? ` · ${spool.label}` : ''} · ${spool.materialName ?? 'Unknown material'} · ${formatQuantity(spool.remainingQuantity)} g left`}
+                    text={`${spool.displayId} · ${spool.materialName ?? 'Unknown material'} · ${formatQuantity(spool.remainingQuantity)} g left`}
                   />
                 ))}
               </Select>

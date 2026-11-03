@@ -161,7 +161,7 @@ function UsageRowFields({
                     <SelectItem
                       key={spool.id}
                       value={spool.id}
-                      text={`${spool.displayId}${spool.label ? ` · ${spool.label}` : ''} · ${formatQuantity(spool.remainingQuantity)} ${spool.unit ?? 'g'} left`}
+                      text={`${spool.displayId} · ${formatQuantity(spool.remainingQuantity)} ${spool.unit ?? 'g'} left`}
                     />
                   ))}
                 </Select>

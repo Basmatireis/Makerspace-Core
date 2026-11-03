@@ -50,7 +50,12 @@ const {
 
 const material: Material = {
   id: materialId,
+  displayId: 'A-0001',
   name: 'PLA Black',
+  materialTypeCode: 'PLA',
+  machineUse: true,
+  prices: [],
+  attention: [],
   kind: 'filament',
   materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001',
   materialTypeName: 'PLA',
@@ -579,7 +584,7 @@ describe('Job detail page', () => {
         },
       }),
     );
-    expect(new Date(added!.run.endsAt).getTime()).toBeGreaterThan(new Date(added!.run.startsAt).getTime());
+    expect(new Date(added!.run.endsAt).getTime()).toBeGreaterThan(new Date(added!.run.startsAt!).getTime());
     expect(await screen.findByText('Run added')).toBeInTheDocument();
     const table = screen.getByRole('table', { name: 'Runs' });
     await waitFor(() => expect(within(table).getByRole('link', { name: 'RN-2026-000002' })).toBeInTheDocument());
