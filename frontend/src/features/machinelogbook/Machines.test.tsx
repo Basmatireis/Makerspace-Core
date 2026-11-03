@@ -69,6 +69,7 @@ function machine(id: string, name: string, overrides: Partial<Machine> = {}): Ma
     jobCount: 3,
     runtimeSeconds: 7200,
     failureRate: '4.2',
+    attention: [],
     version: 7,
     createdAt: now,
     updatedAt: now,
@@ -84,6 +85,7 @@ const bambu = machine('0192f6f8-743e-7c77-a349-cd07c3e8c002', 'Bambu H2D', {
   lastIngestedAt: now,
   jobCount: 40,
   failureRate: '10',
+  attention: [{ code: 'connector_error', message: 'Connector degraded · E42' }],
 });
 const saw = machine('0192f6f8-743e-7c77-a349-cd07c3e8c003', 'Old saw', { status: 'retired' });
 const mill = machine('0192f6f8-743e-7c77-a349-cd07c3e8c004', 'CNC mill', { status: 'maintenance' });
@@ -114,11 +116,21 @@ const profile: PrinterProfile = {
   machineName: bambu.name,
   enabled: true,
   model: null,
+  nozzleCount: 1,
   version: 4,
   createdAt: now,
   updatedAt: now,
   inputUnits: [
-    { id: 'unit-1', machineId: bambu.id, name: 'Direct feed', enabled: true, position: 0, nozzle: null, version: 1 },
+    {
+      id: 'unit-1',
+      machineId: bambu.id,
+      name: 'Direct feed',
+      enabled: true,
+      position: 0,
+      nozzle: null,
+      nozzleIndex: 1,
+      version: 1,
+    },
   ],
   slots: [
     {
@@ -128,6 +140,7 @@ const profile: PrinterProfile = {
       inputUnitName: 'Direct feed',
       name: 'Feed slot',
       position: 0,
+      nozzleIndex: 1,
       status: 'available',
       version: 1,
     },
@@ -195,13 +208,15 @@ describe('Machines list', () => {
 
     const bambuRow = within(rowFor('Bambu H2D'));
     expect(bambuRow.getAllByText('In use').length).toBeGreaterThan(0);
-    expect(bambuRow.getAllByText('Connector issue').length).toBeGreaterThan(0);
+    expect(bambuRow.getByText('Degraded · E42')).toBeInTheDocument();
+    expect(bambuRow.getAllByText('Connector degraded · E42').length).toBeGreaterThan(0);
     expect(bambuRow.getByRole('link', { name: 'Gearbox housing v3' })).toHaveAttribute(
       'href',
       `/workshop/jobs/runs/${runId}`,
     );
-    expect(bambuRow.getByText('3D printer')).toBeInTheDocument();
-    expect(bambuRow.getByText('10%')).toBeInTheDocument();
+    expect(bambuRow.getByText('3D printer · automatic')).toBeInTheDocument();
+    expect(bambuRow.getByText('10 %')).toBeInTheDocument();
+    expect(bambuRow.getByText('40')).toBeInTheDocument();
 
     const laserRow = within(rowFor('Laser cutter'));
     expect(laserRow.getAllByText('Available').length).toBeGreaterThan(0);
@@ -264,7 +279,7 @@ describe('Machines list', () => {
     setup([PermissionId.machinesread]);
     const readOnly = renderPage('/workshop/machines');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Machines', 'Processes']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Machines', 'Processes', 'Printers']);
     readOnly.unmount();
 
     setup([PermissionId.machinesread, PermissionId.printer_connectorsread]);
@@ -464,6 +479,57 @@ describe('Machines list', () => {
     expect(within(dialog).queryByLabelText('Spool inputs summary')).not.toBeInTheDocument();
     await user.click(await within(dialog).findByRole('button', { name: 'Done' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/workshop/machines/${newId}`));
+  });
+});
+
+describe('Machine panel', () => {
+  const wide = (matches: boolean) =>
+    vi.mocked(window.matchMedia).mockImplementation(
+      (query: string) =>
+        ({
+          matches,
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }) as unknown as MediaQueryList,
+    );
+
+  it('opens the selected machine in the panel on wide screens and closes it again', async () => {
+    wide(true);
+    try {
+      setup([PermissionId.machinesread, PermissionId.machine_jobsread, PermissionId.machine_jobscreate]);
+      const user = userEvent.setup();
+      const { router } = renderPage('/workshop/machines');
+      expect(await screen.findByText('Select a machine to see its details here.', {}, { timeout: 5000 })).toBeVisible();
+      await user.click(screen.getByRole('button', { name: 'Bambu H2D' }));
+      const panel = screen.getByRole('complementary', { name: 'Machine details' });
+      expect(within(panel).getByRole('heading', { name: 'Bambu H2D' })).toBeInTheDocument();
+      expect(within(panel).getByRole('link', { name: 'Open machine' })).toHaveAttribute(
+        'href',
+        `/workshop/machines/${bambu.id}`,
+      );
+      expect(within(panel).getByRole('button', { name: 'New job' })).toBeInTheDocument();
+      expect(within(panel).getByText('Failure rate')).toBeInTheDocument();
+      expect(await within(panel).findByText('No jobs yet.')).toBeInTheDocument();
+      expect(router.state.location.search).toBe(`?machine=${bambu.id}`);
+      await user.click(iconButton('Close panel'));
+      expect(await screen.findByText('Select a machine to see its details here.')).toBeVisible();
+    } finally {
+      wide(false);
+    }
+  });
+
+  it('goes to the machine page from a row on narrow screens', async () => {
+    setup([PermissionId.machinesread]);
+    const user = userEvent.setup();
+    const { router } = renderPage('/workshop/machines');
+    const link = await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
+    await user.click(within(link.closest('tr') as HTMLElement).getByText('Laser'));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/workshop/machines/${laser.id}`));
   });
 });
 

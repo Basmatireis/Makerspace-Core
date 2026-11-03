@@ -9,6 +9,7 @@ import {
   type PrinterErrorCodeSync,
   type PrinterErrorOccurrence,
   type PrinterLiveStatusError,
+  type PrinterNotificationRule,
   type PrinterNotificationSettings,
 } from '../../../api/generated/models';
 import { renderRoute } from '../../../test/render';
@@ -106,7 +107,7 @@ describe('Printer errors on the printer panel', () => {
     const calls = renderPanel([printError]);
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Add meaning for 07FF8003' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Printer error meaning' });
+    const dialog = await screen.findByRole('dialog', { name: /Printer error meaning/ });
     await user.type(within(dialog).getByLabelText('Meaning'), 'Nozzle clogged');
     await user.type(within(dialog).getByLabelText(/Link/), 'https://example.org/clog');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
@@ -152,12 +153,23 @@ describe('Printer errors on the printer panel', () => {
   });
 });
 
-describe('Printer settings tabs', () => {
+describe('Machines › Printers', () => {
   const roleId = '0192f6f8-743e-7c77-a349-cd07c3e8f001';
+  const rule = (
+    event: PrinterNotificationRule['event'],
+    overrides: Partial<PrinterNotificationRule> = {},
+  ): PrinterNotificationRule => ({
+    event,
+    notifyOperator: true,
+    notifyRecipient: false,
+    roleId: null,
+    roleName: null,
+    email: false,
+    minSeverity: null,
+    ...overrides,
+  });
   const settings: PrinterNotificationSettings = {
-    errorRoleId: null,
-    errorRoleName: null,
-    errorMinSeverity: 'serious',
+    events: [rule('printer_error', { minSeverity: 'serious' }), rule('run_finished'), rule('filament_change')],
     version: 3,
     updatedAt: '2026-10-30T09:00:00Z',
   };
@@ -192,6 +204,7 @@ describe('Printer settings tabs', () => {
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
       http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
       http.get('*/api/v1/processes', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/printer-notification-settings', () => HttpResponse.json(settings)),
     );
   const renderTab = (tab: string) =>
     renderRoute(
@@ -200,13 +213,14 @@ describe('Printer settings tabs', () => {
       </ToastProvider>,
       `/workshop/machines?tab=${tab}`,
     );
+  const catalogTable = () => screen.getByRole('table', { name: 'Printer error catalog' });
 
-  it('saves the notified role and level with the version it loaded', async () => {
+  it('saves only the changed notification rules with the version it loaded', async () => {
     auth.permissions = [PermissionId.machinesmanage, PermissionId.rolesread];
     serveBase();
     let body: unknown;
     server.use(
-      http.get('*/api/v1/printer-notification-settings', () => HttpResponse.json(settings)),
+      http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([]))),
       http.get('*/api/v1/roles', () =>
         HttpResponse.json({
           items: [{ id: roleId, name: 'Printer wardens', description: '', system: false, permissions: [] }],
@@ -215,27 +229,70 @@ describe('Printer settings tabs', () => {
       ),
       http.put('*/api/v1/printer-notification-settings', async ({ request }) => {
         body = await request.json();
-        return HttpResponse.json({ ...settings, errorRoleId: roleId, errorMinSeverity: 'common', version: 4 });
+        return HttpResponse.json({ ...settings, version: 4 });
       }),
     );
     const user = userEvent.setup();
-    renderTab('notifications');
-    const roleBox = await screen.findByRole('combobox', { name: 'Also notify this role' });
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
-    await user.click(roleBox);
+    renderTab('printers');
+    const errors = await screen.findByRole('group', { name: 'Printer error' });
+    const save = screen.getByRole('button', { name: 'Save' });
+    expect(save).toBeDisabled();
+    await user.click(within(errors).getByRole('combobox', { name: 'And everyone with the role' }));
     await user.click(await screen.findByText('Printer wardens'));
-    await user.click(screen.getByRole('combobox', { name: /Notify from/ }));
-    await user.click(await screen.findByText(/^Common:/));
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(body).toEqual({ errorRoleId: roleId, errorMinSeverity: 'common', expectedVersion: 3 }));
+    await user.selectOptions(within(errors).getByRole('combobox', { name: 'From severity' }), 'common');
+    await user.click(within(errors).getByText('Also by e-mail'));
+    const finished = screen.getByRole('group', { name: 'Run finished' });
+    expect(within(finished).queryByRole('combobox', { name: 'From severity' })).not.toBeInTheDocument();
+    await user.click(save);
+    await waitFor(() =>
+      expect(body).toEqual({
+        events: [
+          {
+            event: 'printer_error',
+            notifyOperator: true,
+            notifyRecipient: false,
+            roleId,
+            email: true,
+            minSeverity: 'common',
+          },
+        ],
+        expectedVersion: 3,
+      }),
+    );
   });
 
-  it('adds a code to the catalog and edits an existing one', async () => {
+  it('shows the rules and the catalog read-only without machines.manage', async () => {
+    auth.permissions = [PermissionId.machinesread];
+    serveBase();
+    server.use(http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([code()]))));
+    renderTab('printers');
+    const errors = await screen.findByRole('group', { name: 'Printer error' });
+    expect(within(errors).getByRole('checkbox', { name: 'Operator of the print' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add code' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Fetch now' })).not.toBeInTheDocument();
+  });
+
+  it('shows component, family and severity read from the code and adds and edits meanings', async () => {
     auth.permissions = [PermissionId.machinesmanage];
     serveBase();
     const puts: { family: unknown; code: unknown; body: unknown }[] = [];
     server.use(
-      http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([code()]))),
+      http.get('*/api/v1/printer-error-codes', () =>
+        HttpResponse.json(
+          codeList([
+            code(),
+            code({
+              id: '0192f6f8-743e-7c77-a349-cd07c3e8e104',
+              sourceFamily: 'hms',
+              code: '0300-0D00-0001-0001',
+              title: 'Heatbed temperature abnormal',
+              description: '',
+              source: 'bambu',
+            }),
+          ]),
+        ),
+      ),
       http.put('*/api/v1/printer-error-codes/:family/:code', async ({ request, params }) => {
         puts.push({ family: params.family, code: params.code, body: await request.json() });
         return HttpResponse.json(code());
@@ -244,10 +301,16 @@ describe('Printer settings tabs', () => {
     const user = userEvent.setup();
     renderTab('catalog');
     const table = await screen.findByRole('table', { name: 'Printer error catalog' });
-    expect(within(table).getByText('Nozzle clogged')).toBeInTheDocument();
+    const printRow = within(table).getByText('07FF8003').closest('tr') as HTMLElement;
+    expect(within(printRow).getByText('AMS')).toBeInTheDocument();
+    expect(within(printRow).getByText('Print error')).toBeInTheDocument();
+    expect(within(printRow).getByText('Clean the nozzle.')).toBeInTheDocument();
+    const hmsRow = within(table).getByText('0300-0D00-0001-0001').closest('tr') as HTMLElement;
+    expect(within(hmsRow).getByText('Motion controller')).toBeInTheDocument();
+    expect(within(hmsRow).getByText('Fatal')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Add code' }));
-    let dialog = await screen.findByRole('dialog', { name: 'Add error code' });
+    let dialog = await screen.findByRole('dialog', { name: /Add code meaning/ });
     await user.type(within(dialog).getByLabelText('Code'), '0300-0d00-0001-0002');
     await user.type(within(dialog).getByLabelText('Meaning'), 'Bed sensor open');
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
@@ -261,13 +324,13 @@ describe('Printer settings tabs', () => {
       ]),
     );
 
-    const trigger = screen
-      .getByText('Actions for 07FF8003', { selector: '.cds--tooltip-content' })
-      .closest('.cds--popover-container')!
-      .querySelector('button') as HTMLElement;
-    await user.click(trigger);
-    await user.click(await screen.findByText('Edit', { selector: '.cds--overflow-menu-options__option-content' }));
-    dialog = await screen.findByRole('dialog', { name: 'Printer error meaning' });
+    await user.click(within(hmsRow).getByText('Heatbed temperature abnormal'));
+    dialog = await screen.findByRole('dialog', { name: /Edit code meaning/ });
+    expect(within(dialog).getByText('Fetched from Bambu Lab')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    await user.click(within(printRow).getByText('Nozzle clogged'));
+    dialog = await screen.findByRole('dialog', { name: /Edit code meaning/ });
     expect(within(dialog).getByLabelText('Code')).toBeDisabled();
     const title = within(dialog).getByLabelText('Meaning');
     await user.clear(title);
@@ -282,16 +345,37 @@ describe('Printer settings tabs', () => {
     );
   });
 
+  it('removes a code from the catalog from its dialog', async () => {
+    auth.permissions = [PermissionId.machinesmanage];
+    serveBase();
+    const deleted: unknown[] = [];
+    server.use(
+      http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([code()]))),
+      http.delete('*/api/v1/printer-error-codes/:family/:code', ({ params }) => {
+        deleted.push(params.code);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderTab('printers');
+    const table = await screen.findByRole('table', { name: 'Printer error catalog' });
+    await user.click(within(table).getByText('Nozzle clogged'));
+    const dialog = await screen.findByRole('dialog', { name: /Edit code meaning/ });
+    await user.click(within(dialog).getByRole('button', { name: 'Remove from catalog' }));
+    const confirm = await screen
+      .findByRole('alertdialog', { name: 'Remove error code?' })
+      .catch(() => screen.findByRole('dialog', { name: 'Remove error code?' }));
+    await user.click(within(confirm).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(deleted).toEqual(['07FF8003']));
+  });
+
   it('shows the fetch status, with and without a last error', async () => {
     auth.permissions = [PermissionId.machinesmanage];
     serveBase();
     server.use(http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([code()]))));
-    const view = renderTab('catalog');
-    expect(
-      await screen.findByText(/Meanings are fetched from Bambu Lab's published list daily\. Last fetched/),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/\(12 codes\)/)).toBeInTheDocument();
-    expect(screen.queryByText(/The last fetch failed/)).not.toBeInTheDocument();
+    const view = renderTab('printers');
+    expect(await screen.findByText('Daily and when the API starts')).toBeInTheDocument();
+    expect(screen.getByText(/· 12 codes/)).toBeInTheDocument();
     view.unmount();
 
     server.use(
@@ -299,9 +383,9 @@ describe('Printer settings tabs', () => {
         HttpResponse.json(codeList([], syncState({ lastSuccessAt: null, lastError: 'HTTP 503', importedCount: 0 }))),
       ),
     );
-    renderTab('catalog');
-    expect(await screen.findByText(/Not fetched yet\./)).toBeInTheDocument();
-    expect(screen.getByText('The last fetch failed: HTTP 503')).toBeInTheDocument();
+    renderTab('printers');
+    expect(await screen.findByText('Not fetched yet')).toBeInTheDocument();
+    expect(screen.getByText('HTTP 503')).toBeInTheDocument();
   });
 
   it('says the fetch is off and disables Fetch now', async () => {
@@ -312,10 +396,8 @@ describe('Printer settings tabs', () => {
         HttpResponse.json(codeList([], syncState({ enabled: false, lastSuccessAt: null }))),
       ),
     );
-    renderTab('catalog');
-    expect(
-      await screen.findByText(/Automatic fetching is off \(PRINTER_ERROR_CODE_SOURCE_URL is empty\)\./),
-    ).toBeInTheDocument();
+    renderTab('printers');
+    expect(await screen.findByText(/Off · PRINTER_ERROR_CODE_SOURCE_URL is empty/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fetch now' })).toBeDisabled();
   });
 
@@ -353,15 +435,14 @@ describe('Printer settings tabs', () => {
       }),
     );
     const user = userEvent.setup();
-    renderTab('catalog');
-    const catalogTable = () => screen.getByRole('table', { name: 'Printer error catalog' });
+    renderTab('printers');
     await screen.findByRole('table', { name: 'Printer error catalog' });
-    expect(within(catalogTable()).getByText('Edited here')).toBeInTheDocument();
+    expect(within(catalogTable()).getByText('Nozzle clogged')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Fetch now' })).toBeEnabled());
     await user.click(screen.getByRole('button', { name: 'Fetch now' }));
     expect(await screen.findByText('Fetched meaning')).toBeInTheDocument();
     expect(within(catalogTable()).queryByText('Nozzle clogged')).not.toBeInTheDocument();
-    expect(within(catalogTable()).getByText('Bambu Lab')).toBeInTheDocument();
-    expect(await screen.findByText(/\(1 codes\)/)).toBeInTheDocument();
+    expect(within(catalogTable()).getByText('Mainboard')).toBeInTheDocument();
 
     fail = true;
     await user.click(screen.getByRole('button', { name: 'Fetch now' }));
@@ -374,7 +455,9 @@ describe('Printer settings tabs', () => {
     const requests: URLSearchParams[] = [];
     server.use(
       http.get('*/api/v1/printer-error-codes', ({ request }) => {
-        requests.push(new URL(request.url).searchParams);
+        const params = new URL(request.url).searchParams;
+        // The fetch card asks for one-row pages of totals only.
+        if (params.get('pageSize') !== '1') requests.push(params);
         return HttpResponse.json({
           ...codeList([
             code(),
@@ -385,7 +468,7 @@ describe('Printer settings tabs', () => {
       }),
     );
     const user = userEvent.setup();
-    renderTab('catalog');
+    renderTab('printers');
     const table = await screen.findByRole('table', { name: 'Printer error catalog' });
     expect(within(table).getByText('Nozzle clogged')).toBeInTheDocument();
     expect(within(table).getByText('Bed loose')).toBeInTheDocument();
@@ -398,12 +481,37 @@ describe('Printer settings tabs', () => {
     await waitFor(() => expect(requests.some((params) => params.get('search') === 'nozzle')).toBe(true));
   });
 
-  it('offers the new tabs only with machines.manage', async () => {
+  it('filters by component in the browser over the whole matching catalog', async () => {
+    auth.permissions = [PermissionId.machinesmanage];
+    serveBase();
+    const requests: URLSearchParams[] = [];
+    server.use(
+      http.get('*/api/v1/printer-error-codes', ({ request }) => {
+        requests.push(new URL(request.url).searchParams);
+        return HttpResponse.json(
+          codeList([
+            code(),
+            code({ id: '0192f6f8-743e-7c77-a349-cd07c3e8e105', code: '0500-4001', title: 'SD card error' }),
+          ]),
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderTab('printers');
+    await screen.findByRole('table', { name: 'Printer error catalog' });
+    await user.click(screen.getByRole('combobox', { name: 'Component' }));
+    await user.click(await screen.findByText('Mainboard', { selector: '.cds--list-box__menu-item__option' }));
+    await waitFor(() => expect(within(catalogTable()).queryByText('Nozzle clogged')).not.toBeInTheDocument());
+    expect(within(catalogTable()).getByText('SD card error')).toBeInTheDocument();
+    expect(requests.some((params) => params.get('pageSize') === '100')).toBe(true);
+  });
+
+  it('offers Machines, Processes and Printers to readers', async () => {
     auth.permissions = [PermissionId.machinesread];
     serveBase();
     renderTab('machines');
     expect(await screen.findByRole('tab', { name: 'Processes' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Printers' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Printer notifications' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Error catalog' })).not.toBeInTheDocument();
   });
 });

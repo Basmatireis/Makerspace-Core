@@ -29,6 +29,7 @@ const machine: Machine = {
   jobCount: 3,
   runtimeSeconds: 600,
   failureRate: '0',
+  attention: [],
   version: 7,
   createdAt: now,
   updatedAt: now,

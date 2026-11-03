@@ -41,3 +41,35 @@ export function severityTag(error: ErrorLike): { label: string; type: TagType } 
 
 /** Only web links are rendered as anchors; the catalog is edited by people, so never trust a scheme. */
 export const safeLink = (link: string | null | undefined) => (link && /^https?:\/\//i.test(link) ? link : null);
+
+const levelSeverity: Record<number, PrinterErrorSeverity> = { 1: 'fatal', 2: 'serious', 3: 'common', 4: 'info' };
+
+/** The level a Bambu HMS code carries in its third group (AAAA-BBBB-CCCC-DDDD), read as the server reads it. */
+export function codeSeverity(sourceFamily: string, code: string): PrinterErrorSeverity | null {
+  if (sourceFamily !== 'hms') return null;
+  const groups = code.trim().split('-');
+  if (groups.length !== 4 || !/^[0-9a-f]{1,4}$/i.test(groups[2])) return null;
+  return levelSeverity[parseInt(groups[2], 16)] ?? null;
+}
+
+/** Printer modules named by the first byte of a Bambu code, for HMS codes and print errors alike. */
+export const printerComponents = [
+  { id: '03', label: 'Motion controller' },
+  { id: '05', label: 'Mainboard' },
+  { id: '07', label: 'AMS' },
+  { id: '08', label: 'Toolhead' },
+  { id: '0C', label: 'Camera' },
+] as const;
+
+/** The module id (the first two hex digits) of a code, or null when the code does not start with them. */
+export const codeComponentId = (code: string) => {
+  const head = code.trim().slice(0, 2).toUpperCase();
+  return /^[0-9A-F]{2}$/.test(head) ? head : null;
+};
+
+/** Human name of the module a code belongs to; other modules show their id. */
+export function codeComponent(code: string): string | null {
+  const id = codeComponentId(code);
+  if (!id) return null;
+  return printerComponents.find((component) => component.id === id)?.label ?? `Module ${id}`;
+}
