@@ -70,7 +70,7 @@ function serve(quote: (url: URL) => Record<string, unknown>) {
 }
 
 async function open() {
-  renderRoute(<App />, '/sales');
+  renderRoute(<App />, '/pricing');
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Price lookup' }));
   return { user, dialog: await screen.findByRole('dialog') };
@@ -167,11 +167,11 @@ describe('price lookup', () => {
     expect(Object.fromEntries(requests[requests.length - 1].searchParams)).toEqual({ materialId, quantity: '3' });
   });
 
-  it('hides the entry point without pricing.read', async () => {
+  it('is out of reach without pricing.read, which the Pricing page needs', async () => {
     as([...sales, PermissionId.machinesread, PermissionId.inventoryread]);
     serve(() => ({}));
-    renderRoute(<App />, '/sales');
-    await screen.findByRole('region', { name: 'Key figures' });
+    const { router } = renderRoute(<App />, '/pricing');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/dashboard'));
     expect(screen.queryByRole('button', { name: 'Price lookup' })).not.toBeInTheDocument();
   });
 });

@@ -300,7 +300,13 @@ describe('protected application routing', () => {
     ]) {
       expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
     }
-    expect(within(navigation).getAllByRole('link', { name: 'Overview' })).toHaveLength(1);
+    expect(within(navigation).queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
+    expect(
+      within(navigation)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href'))
+        .filter((href) => ['/orders', '/payments', '/pricing', '/sales'].includes(href ?? '')),
+    ).toEqual(['/orders', '/payments', '/pricing']);
     expect(within(navigation).queryByRole('link', { name: 'External invoicing' })).not.toBeInTheDocument();
     const workshop = within(navigation)
       .getAllByRole('link')

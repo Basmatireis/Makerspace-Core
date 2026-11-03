@@ -349,47 +349,6 @@
   margin-inline-start: -$spacing-05;
 }
 
-// Sales overview: key figures as equal tiles separated by hairlines, then two card lists side by side.
-.sales-kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
-  gap: 1px;
-  background: theme.$border-subtle-01;
-}
-.sales-kpi.cds--tile {
-  display: grid;
-  align-content: start;
-  gap: $spacing-02;
-  min-block-size: 6rem;
-  min-inline-size: 0;
-}
-.sales-kpi--warn.cds--tile {
-  box-shadow: inset 3px 0 0 theme.$support-warning;
-}
-.sales-kpi__label {
-  @include type-style('label-01');
-  color: theme.$text-secondary;
-}
-.sales-kpi__value {
-  @include type-style('heading-05');
-  font-variant-numeric: tabular-nums;
-}
-.sales-two-col {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
-  gap: $spacing-05;
-  align-items: start;
-}
-.sales-two-col .card-list__aside {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-@media (max-width: 41.98rem) {
-  .sales-two-col .card-list__row {
-    flex-wrap: wrap;
-  }
-}
-
 // Orders list: the reference selects the row into the panel; the selected row keeps Carbon's selected background.
 // The shared directory table has no selected-row option, so the row is found through the marked button.
 .sales-ref-button {

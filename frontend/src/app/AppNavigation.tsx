@@ -76,7 +76,6 @@ function activeGroupForPath(pathname: string): NavigationGroupId | null {
     return 'people';
   if (pathname.startsWith('/workshop')) return 'workshop';
   if (
-    pathname === '/sales' ||
     pathname.startsWith('/orders') ||
     pathname.startsWith('/payments') ||
     pathname.startsWith('/pricing') ||
@@ -143,9 +142,6 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   }
 
   const sales: NavigationItem[] = [];
-  if (hasAnyPermission(currentUser, ['orders.read', 'payments.read'])) {
-    sales.push({ label: 'Overview', to: '/sales', active: pathname === '/sales' });
-  }
   if (hasPermission(currentUser, 'orders.read')) {
     sales.push({ label: 'Orders', to: '/orders', active: pathname.startsWith('/orders') });
   }

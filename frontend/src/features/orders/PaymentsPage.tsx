@@ -385,7 +385,7 @@ export function PaymentsPage() {
       title="Payments"
       description="The cashbook: every receipt, refund, correction and cash movement."
       width="wide"
-      breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Payments' }]}
+      breadcrumbs={[{ label: 'Sales & payments', to: '/orders' }, { label: 'Payments' }]}
     >
       <QueryBoundary
         query={range.valid ? payments : { status: 'success', data: [], refetch: payments.refetch }}

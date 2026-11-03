@@ -61,7 +61,6 @@ import {
   RunDetailPage,
   OpenDayRequirementsPage,
   TrainingsSettingsPage,
-  SalesOverviewPage,
   SettingsPage,
   SingleSignOnPage,
   DevicesSessionsPage,
@@ -578,14 +577,6 @@ export function App() {
                 }
               />
               <Route
-                path="sales"
-                element={
-                  <PermissionRoute anyOf={['orders.read', 'payments.read']}>
-                    <SalesOverviewPage />
-                  </PermissionRoute>
-                }
-              />
-              <Route
                 path="orders"
                 element={
                   <PermissionRoute allOf={['orders.read']}>
@@ -690,6 +681,8 @@ export function App() {
                 </PermissionRoute>
               }
             />
+            {/* The former Sales overview; its review of jobs ready to bill lives on the Orders page now. */}
+            <Route path="sales" element={<Navigate to="/orders" replace />} />
             <Route path="external-invoicing" element={<Navigate to="/orders?invoice=draft,submitted" replace />} />
             <Route path="external-invoicing/:requestId" element={<ExternalInvoiceRedirect />} />
             <Route
