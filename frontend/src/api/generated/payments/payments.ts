@@ -27,6 +27,7 @@ import type {
   CashRegister,
   CreateCashCountRequest,
   CreateCashMovementRequest,
+  DeleteCashEntryRequest,
   ExportCashbookParams,
   GetCashJournalParams,
   GetCashRegisterParams,
@@ -42,7 +43,9 @@ import type {
   PaymentReconciliation,
   RecordOrderPayment,
   ReversePaymentCommand,
-  UUIDv7
+  UUIDv7,
+  UpdateCashCountRequest,
+  UpdateCashMovementRequest
 } from '../models';
 
 import { apiFetch } from '../../http-client';
@@ -380,7 +383,7 @@ export const getRecordCashCountUrl = () => {
 }
 
 /**
- * Requires payments.read, cash_movements.read and cash_movements.record. The server computes what the register should have held at `countedAt` (inclusive) from cash receipts, cash refunds and corrections, withdrawals, deposits and earlier count corrections, and stores it with the difference. A non-zero difference books one cash movement of kind `correction` (reason `count_difference`, signed amount = difference, same time) that references the count, in the same transaction; a matching count books nothing. Counts are immutable and retrying the same operationKey with the same input returns the recorded count. 409 `idempotency_conflict` for other input under a used key, `cash_count_out_of_order` when `countedAt` is not after the latest count, `cash_expected_changed` when `expectedAmount` was sent and no longer matches, `cash_count_inconsistent` when later withdrawals took more cash than the count found. 422 `cash_count_reason_required` when the count differs and no reason was given.
+ * Requires payments.read, cash_movements.read and cash_movements.record. The server computes what the register should have held at `countedAt` (inclusive) from cash receipts, cash refunds and corrections, withdrawals, deposits and earlier count corrections, and stores it with the difference. A non-zero difference books one cash movement of kind `correction` (reason `count_difference`, signed amount = difference, same time) that references the count, in the same transaction; a matching count books nothing. Retrying the same operationKey with the same input returns the recorded count; people with cash_movements.manage can edit or delete a count afterwards (`/payments/cash-counts/{countId}`). 409 `idempotency_conflict` for other input under a used key, `cash_count_out_of_order` when `countedAt` is not after the latest count, `cash_expected_changed` when `expectedAmount` was sent and no longer matches, `cash_count_inconsistent` when later withdrawals took more cash than the count found. 422 `cash_count_reason_required` when the count differs and no reason was given.
  * @summary Count the cash register
  */
 export const recordCashCount = async (createCashCountRequest: CreateCashCountRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashCount> => {
@@ -405,6 +408,84 @@ return apiFetch<CashCount>(getRecordCashCountUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(createCashCountRequest)
+  }
+);}
+
+
+export const getUpdateCashCountUrl = (countId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/payments/cash-counts/${countId}`
+}
+
+/**
+ * Requires payments.read, cash_movements.read and cash_movements.manage. Changes the counted amount, the counting time, the reason or the note; omitted fields keep their value. Under the register lock the server recomputes what the register should have held at the (new) counting time, leaving out the count's own correction, and the difference, and creates, changes or removes the correction movement in the same transaction. Later counts are recalculated the same way. The rules of recording apply: a difference needs a reason (422 `cash_count_reason_required`; an omitted reason keeps the stored one), `unknown` and `other` need a note, and a matching count keeps no reason. 409 `stale_write` when `expectedVersion` is not the current version, `cash_count_out_of_order` when the new time is not strictly between the previous and the next count, `cash_expected_changed` when `expectedAmount` was sent and no longer matches, `cash_balance_negative` when the register would hold less than nothing at some later moment. Audited as `cash_count.updated` with the previous counted amount, time and reason.
+ * @summary Edit a count of the cash register
+ */
+export const updateCashCount = async (countId: UUIDv7,
+    updateCashCountRequest: UpdateCashCountRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashCount> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<CashCount>(getUpdateCashCountUrl(countId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateCashCountRequest)
+  }
+);}
+
+
+export const getDeleteCashCountUrl = (countId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/payments/cash-counts/${countId}`
+}
+
+/**
+ * Requires payments.read, cash_movements.read and cash_movements.manage. Deletes the count and its correction movement for good, in one transaction; the next count is recalculated without them. 409 `stale_write` when `expectedVersion` is not the current version, `cash_balance_negative` when the register would hold less than nothing at some later moment. Audited as `cash_count.deleted` (and `cash_movement.deleted` for the correction) with the reference, the counted amount, the time and the reason.
+ * @summary Delete a count of the cash register
+ */
+export const deleteCashCount = async (countId: UUIDv7,
+    deleteCashEntryRequest: DeleteCashEntryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getDeleteCashCountUrl(countId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(deleteCashEntryRequest)
   }
 );}
 
@@ -449,7 +530,7 @@ export const getCreateCashMovementUrl = () => {
 }
 
 /**
- * Requires cash_movements.record and cash_movements.read. Movements are immutable; a mistake is corrected by a new movement. Retrying the same operationKey with the same input returns the recorded movement. 409 insufficient_cash when a withdrawal exceeds what the register should hold.
+ * Requires cash_movements.record and cash_movements.read. Retrying the same operationKey with the same input returns the recorded movement; people with cash_movements.manage can edit or delete it afterwards (`/cash-movements/{movementId}`). 409 insufficient_cash when a withdrawal exceeds what the register should hold.
  * @summary Record a cash withdrawal or deposit
  */
 export const createCashMovement = async (createCashMovementRequest: CreateCashMovementRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashMovement> => {
@@ -474,6 +555,84 @@ return apiFetch<CashMovement>(getCreateCashMovementUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(createCashMovementRequest)
+  }
+);}
+
+
+export const getUpdateCashMovementUrl = (movementId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/cash-movements/${movementId}`
+}
+
+/**
+ * Requires cash_movements.read and cash_movements.manage. Changes the amount, the time, the reason or the note of a withdrawal or deposit; omitted fields keep their value and the kind never changes. A correction belongs to its count and changes with it (409 `cash_movement_is_correction`). Counts from the earlier of the old and the new time on are recalculated in the same transaction: their expected amount, difference and correction follow the edit (a count that matched and now differs keeps no reason until it is edited). 409 `stale_write` when `expectedVersion` is not the current version, `cash_balance_negative` when the register would hold less than nothing at some later moment. Audited as `cash_movement.updated` with the previous amount, time and reason.
+ * @summary Edit a cash withdrawal or deposit
+ */
+export const updateCashMovement = async (movementId: UUIDv7,
+    updateCashMovementRequest: UpdateCashMovementRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashMovement> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<CashMovement>(getUpdateCashMovementUrl(movementId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateCashMovementRequest)
+  }
+);}
+
+
+export const getDeleteCashMovementUrl = (movementId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/cash-movements/${movementId}`
+}
+
+/**
+ * Requires cash_movements.read and cash_movements.manage. Deletes the withdrawal or deposit for good; later counts are recalculated without it. A correction is removed only with its count (409 `cash_movement_is_correction`). 409 `stale_write` when `expectedVersion` is not the current version, `cash_balance_negative` when the register would hold less than nothing at some later moment. Audited as `cash_movement.deleted` with the reference, kind, amount, time and reason.
+ * @summary Delete a cash withdrawal or deposit
+ */
+export const deleteCashMovement = async (movementId: UUIDv7,
+    deleteCashEntryRequest: DeleteCashEntryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getDeleteCashMovementUrl(movementId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(deleteCashEntryRequest)
   }
 );}
 

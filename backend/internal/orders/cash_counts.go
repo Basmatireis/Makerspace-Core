@@ -50,6 +50,8 @@ func (s *Service) loadCashCount(ctx context.Context, q *db.Queries, id uuid.UUID
 		Note:           row.Note,
 		CountedAt:      row.CountedAt,
 		CreatedAt:      row.CreatedAt,
+		Version:        row.Version,
+		UpdatedAt:      row.UpdatedAt,
 	}
 	if row.Reason != nil {
 		reason := CashCountReason(*row.Reason)

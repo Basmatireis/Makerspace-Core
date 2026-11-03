@@ -37,12 +37,17 @@ type Querier interface {
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateRequest(ctx context.Context, arg CreateRequestParams) (ExternalInvoiceRequest, error)
 	CreateRequestDetails(ctx context.Context, arg CreateRequestDetailsParams) error
+	DeleteCashCount(ctx context.Context, id uuid.UUID) error
+	DeleteCashMovement(ctx context.Context, id uuid.UUID) error
 	GetActor(ctx context.Context, id uuid.UUID) (GetActorRow, error)
 	GetCashCountByKey(ctx context.Context, operationKey uuid.UUID) (CashCount, error)
+	GetCashCountCorrection(ctx context.Context, cashCountID *uuid.UUID) (CashMovement, error)
 	// A count with its correction movement and the name of the person who counted.
 	GetCashCountDetails(ctx context.Context, id uuid.UUID) (GetCashCountDetailsRow, error)
+	GetCashCountForUpdate(ctx context.Context, id uuid.UUID) (CashCount, error)
 	GetCashCountReference(ctx context.Context, id uuid.UUID) (string, error)
 	GetCashMovementByKey(ctx context.Context, operationKey uuid.UUID) (CashMovement, error)
+	GetCashMovementForUpdate(ctx context.Context, id uuid.UUID) (CashMovement, error)
 	GetCustomerName(ctx context.Context, id uuid.UUID) (string, error)
 	GetItem(ctx context.Context, arg GetItemParams) (OrderItem, error)
 	GetJobClaim(ctx context.Context, machineJobID uuid.UUID) (GetJobClaimRow, error)
@@ -70,6 +75,8 @@ type Querier interface {
 	ListAdjustments(ctx context.Context, orderID *uuid.UUID) ([]OrderAdjustment, error)
 	ListAllocations(ctx context.Context, orderID *uuid.UUID) ([]PaymentAllocation, error)
 	ListCashCountIDs(ctx context.Context, arg ListCashCountIDsParams) ([]uuid.UUID, error)
+	// Counts at or after from_time, oldest first, for recalculating them after an edit.
+	ListCashCountsFrom(ctx context.Context, fromTime time.Time) ([]CashCount, error)
 	// The register's entries with the running balance after each. The balance counts every entry from the beginning,
 	// whatever the filters; seq is the position in time (ties: count before its correction, then id). Customer names
 	// are searched only for callers who may see them. A reversal belongs to the order of the receipt it reverses.
@@ -95,8 +102,11 @@ type Querier interface {
 	LockOwnPayableJobs(ctx context.Context, arg LockOwnPayableJobsParams) ([]LockOwnPayableJobsRow, error)
 	LockPayment(ctx context.Context, id uuid.UUID) (Payment, error)
 	LockRequest(ctx context.Context, id uuid.UUID) (ExternalInvoiceRequest, error)
+	// The lowest running balance after any register entry at or after from_time, in journal order; null without one.
+	LowestCashBalanceFrom(ctx context.Context, fromTime time.Time) (pgtype.Numeric, error)
 	NextAdjustmentReference(ctx context.Context) (int64, error)
 	NextCashCountReference(ctx context.Context) (int64, error)
+	NextCashCountTime(ctx context.Context, countedAt time.Time) (time.Time, error)
 	NextCashMovementReference(ctx context.Context) (int64, error)
 	NextOrderReference(ctx context.Context) (int64, error)
 	NextPaymentReference(ctx context.Context) (int64, error)
@@ -105,6 +115,7 @@ type Querier interface {
 	OperationAllocations(ctx context.Context, operationID uuid.UUID) ([]OperationAllocationsRow, error)
 	PaymentAllocations(ctx context.Context, paymentID *uuid.UUID) ([]PaymentAllocation, error)
 	PaymentReversalExists(ctx context.Context, reversesPaymentID *uuid.UUID) (bool, error)
+	PreviousCashCountTime(ctx context.Context, countedAt time.Time) (time.Time, error)
 	ReconciliationTotals(ctx context.Context, arg ReconciliationTotalsParams) ([]ReconciliationTotalsRow, error)
 	ReleaseItemClaim(ctx context.Context, orderItemID uuid.UUID) error
 	ReleaseOrderClaims(ctx context.Context, orderID uuid.UUID) error
@@ -119,6 +130,8 @@ type Querier interface {
 	SumCashCardAllocations(ctx context.Context, orderID *uuid.UUID) (pgtype.Numeric, error)
 	TransitionOrder(ctx context.Context, arg TransitionOrderParams) error
 	TransitionRequest(ctx context.Context, arg TransitionRequestParams) error
+	UpdateCashCount(ctx context.Context, arg UpdateCashCountParams) (CashCount, error)
+	UpdateCashMovement(ctx context.Context, arg UpdateCashMovementParams) (CashMovement, error)
 	UpdateDraft(ctx context.Context, arg UpdateDraftParams) (Order, error)
 	UpdateRequestDetails(ctx context.Context, arg UpdateRequestDetailsParams) error
 }

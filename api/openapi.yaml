@@ -9823,8 +9823,9 @@ paths:
         should have held at `countedAt` (inclusive) from cash receipts, cash refunds and corrections, withdrawals,
         deposits and earlier count corrections, and stores it with the difference. A non-zero difference books one
         cash movement of kind `correction` (reason `count_difference`, signed amount = difference, same time) that
-        references the count, in the same transaction; a matching count books nothing. Counts are immutable and
-        retrying the same operationKey with the same input returns the recorded count. 409 `idempotency_conflict`
+        references the count, in the same transaction; a matching count books nothing. Retrying the same operationKey
+        with the same input returns the recorded count; people with cash_movements.manage can edit or delete a count
+        afterwards (`/payments/cash-counts/{countId}`). 409 `idempotency_conflict`
         for other input under a used key, `cash_count_out_of_order` when `countedAt` is not after the latest count,
         `cash_expected_changed` when `expectedAmount` was sent and no longer matches, `cash_count_inconsistent` when
         later withdrawals took more cash than the count found. 422 `cash_count_reason_required` when the count
@@ -9835,6 +9836,55 @@ paths:
         "201": {description: Count recorded., content: {application/json: {schema: {$ref: "#/components/schemas/CashCount"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /payments/cash-counts/{countId}:
+    parameters:
+      - {name: countId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    patch:
+      tags: [Payments]
+      operationId: updateCashCount
+      summary: Edit a count of the cash register
+      description: >-
+        Requires payments.read, cash_movements.read and cash_movements.manage. Changes the counted amount, the counting
+        time, the reason or the note; omitted fields keep their value. Under the register lock the server recomputes
+        what the register should have held at the (new) counting time, leaving out the count's own correction, and the
+        difference, and creates, changes or removes the correction movement in the same transaction. Later counts are
+        recalculated the same way. The rules of recording apply: a difference needs a reason (422
+        `cash_count_reason_required`; an omitted reason keeps the stored one), `unknown` and `other` need a note, and a
+        matching count keeps no reason. 409 `stale_write` when `expectedVersion` is not the current version,
+        `cash_count_out_of_order` when the new time is not strictly between the previous and the next count,
+        `cash_expected_changed` when `expectedAmount` was sent and no longer matches, `cash_balance_negative` when the
+        register would hold less than nothing at some later moment. Audited as `cash_count.updated` with the previous
+        counted amount, time and reason.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateCashCountRequest"}}}}
+      responses:
+        "200": {description: Count updated., content: {application/json: {schema: {$ref: "#/components/schemas/CashCount"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Payments]
+      operationId: deleteCashCount
+      summary: Delete a count of the cash register
+      description: >-
+        Requires payments.read, cash_movements.read and cash_movements.manage. Deletes the count and its correction
+        movement for good, in one transaction; the next count is recalculated without them. 409 `stale_write` when
+        `expectedVersion` is not the current version, `cash_balance_negative` when the register would hold less than
+        nothing at some later moment. Audited as `cash_count.deleted` (and `cash_movement.deleted` for the correction)
+        with the reference, the counted amount, the time and the reason.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DeleteCashEntryRequest"}}}}
+      responses:
+        "204": {description: Count and correction deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -9861,13 +9911,58 @@ paths:
       tags: [Payments]
       operationId: createCashMovement
       summary: Record a cash withdrawal or deposit
-      description: "Requires cash_movements.record and cash_movements.read. Movements are immutable; a mistake is corrected by a new movement. Retrying the same operationKey with the same input returns the recorded movement. 409 insufficient_cash when a withdrawal exceeds what the register should hold."
+      description: "Requires cash_movements.record and cash_movements.read. Retrying the same operationKey with the same input returns the recorded movement; people with cash_movements.manage can edit or delete it afterwards (`/cash-movements/{movementId}`). 409 insufficient_cash when a withdrawal exceeds what the register should hold."
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateCashMovementRequest"}}}}
       responses:
         "201": {description: Cash movement recorded., content: {application/json: {schema: {$ref: "#/components/schemas/CashMovement"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /cash-movements/{movementId}:
+    parameters:
+      - {name: movementId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    patch:
+      tags: [Payments]
+      operationId: updateCashMovement
+      summary: Edit a cash withdrawal or deposit
+      description: >-
+        Requires cash_movements.read and cash_movements.manage. Changes the amount, the time, the reason or the note of
+        a withdrawal or deposit; omitted fields keep their value and the kind never changes. A correction belongs to
+        its count and changes with it (409 `cash_movement_is_correction`). Counts from the earlier of the old and the
+        new time on are recalculated in the same transaction: their expected amount, difference and correction follow
+        the edit (a count that matched and now differs keeps no reason until it is edited). 409 `stale_write` when
+        `expectedVersion` is not the current version, `cash_balance_negative` when the register would hold less than
+        nothing at some later moment. Audited as `cash_movement.updated` with the previous amount, time and reason.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateCashMovementRequest"}}}}
+      responses:
+        "200": {description: Cash movement updated., content: {application/json: {schema: {$ref: "#/components/schemas/CashMovement"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Payments]
+      operationId: deleteCashMovement
+      summary: Delete a cash withdrawal or deposit
+      description: >-
+        Requires cash_movements.read and cash_movements.manage. Deletes the withdrawal or deposit for good; later counts
+        are recalculated without it. A correction is removed only with its count (409 `cash_movement_is_correction`).
+        409 `stale_write` when `expectedVersion` is not the current version, `cash_balance_negative` when the register
+        would hold less than nothing at some later moment. Audited as `cash_movement.deleted` with the reference, kind,
+        amount, time and reason.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DeleteCashEntryRequest"}}}}
+      responses:
+        "204": {description: Cash movement deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -11408,6 +11503,7 @@ components:
         - external_invoice_requests.approve
         - cash_movements.read
         - cash_movements.record
+        - cash_movements.manage
         - machine_jobs.override_price
         - machine_jobs.delete
         - inventory.read
@@ -20061,7 +20157,7 @@ components:
     CashMovement:
       type: object
       additionalProperties: false
-      required: [id, reference, kind, direction, amount, reason, note, occurredAt, createdAt, recordedBy, cashCountId, cashCountReference]
+      required: [id, reference, kind, direction, amount, reason, note, occurredAt, createdAt, recordedBy, cashCountId, cashCountReference, version, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         reference: {type: string, description: "C-YYYY-NNNNNN, for the physical cashbook."}
@@ -20075,6 +20171,8 @@ components:
         recordedBy: {allOf: [{$ref: "#/components/schemas/ActorReference"}], nullable: true}
         cashCountId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The count that booked this correction."}
         cashCountReference: {type: string, nullable: true, description: "K-YYYY-NNNN of that count."}
+        version: {$ref: "#/components/schemas/Version"}
+        updatedAt: {type: string, format: date-time, description: "Last change; equals createdAt until the movement is edited or its count recalculated."}
     CashJournalKind:
       type: string
       enum: [receipt, refund, correction, withdrawal, deposit, count]
@@ -20106,7 +20204,7 @@ components:
     CashJournalEntry:
       type: object
       additionalProperties: false
-      required: [id, source, kind, reference, occurredAt, day, amountIn, amountOut, balanceAfter, recordedBy, order, paymentReason, reversedPaymentReference, movementReason, note, count]
+      required: [id, source, kind, reference, occurredAt, day, amountIn, amountOut, balanceAfter, recordedBy, order, paymentReason, reversedPaymentReference, movementReason, note, count, version, updatedAt]
       properties:
         id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: "Id of the payment, movement or count."}
         source: {$ref: "#/components/schemas/CashJournalEntrySource"}
@@ -20124,6 +20222,8 @@ components:
         movementReason: {allOf: [{$ref: "#/components/schemas/CashMovementReason"}], nullable: true}
         note: {type: string, description: "Note of a movement, or of the count for counts and count corrections."}
         count: {allOf: [{$ref: "#/components/schemas/CashJournalCount"}], nullable: true}
+        version: {type: integer, format: int64, nullable: true, description: "Version of the movement or count, for editing it; null for payments."}
+        updatedAt: {type: string, format: date-time, nullable: true, description: "Last change of the movement or count; null for payments."}
     CashJournalDay:
       type: object
       additionalProperties: false
@@ -20181,19 +20281,21 @@ components:
     CashCount:
       type: object
       additionalProperties: false
-      required: [id, reference, countedAmount, expectedAmount, difference, reason, note, countedAt, createdAt, recordedBy, correction]
+      required: [id, reference, countedAmount, expectedAmount, difference, reason, note, countedAt, createdAt, recordedBy, correction, version, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         reference: {type: string, description: "K-YYYY-NNNN, shown as the count's id."}
         countedAmount: {$ref: "#/components/schemas/Money"}
-        expectedAmount: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "What the register should have held at countedAt, when the count was recorded."}
+        expectedAmount: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "What the register should have held at countedAt; recalculated when the count or an entry before it is edited or deleted."}
         difference: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "countedAmount - expectedAmount; positive means more cash than expected (over), negative less (short)."}
-        reason: {allOf: [{$ref: "#/components/schemas/CashCountReason"}], nullable: true, description: "Set exactly when the difference is not zero."}
+        reason: {allOf: [{$ref: "#/components/schemas/CashCountReason"}], nullable: true, description: "Null when the count matches. A difference has a reason, unless an edit of an earlier entry gave a matching count its difference."}
         note: {type: string}
         countedAt: {type: string, format: date-time}
         createdAt: {type: string, format: date-time}
         recordedBy: {allOf: [{$ref: "#/components/schemas/ActorReference"}], nullable: true}
         correction: {allOf: [{$ref: "#/components/schemas/CashCountCorrection"}], nullable: true, description: "Null when the count matched."}
+        version: {$ref: "#/components/schemas/Version"}
+        updatedAt: {type: string, format: date-time, description: "Last change; equals createdAt until the count is edited or recalculated."}
     CashCountPage:
       type: object
       additionalProperties: false
@@ -20214,6 +20316,33 @@ components:
         reason: {allOf: [{$ref: "#/components/schemas/CashCountReason"}], description: "Required when the count differs from the expected amount; ignored when it matches."}
         note: {type: string, maxLength: 500, description: "Required for the reasons `unknown` and `other`."}
         expectedAmount: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Optional: the expected amount the person saw (GET /payments/cash-register with `to` just after countedAt). When it no longer matches, nothing is booked and 409 cash_expected_changed is returned."}
+    UpdateCashCountRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        countedAmount: {$ref: "#/components/schemas/Money"}
+        countedAt: {type: string, format: date-time, description: "Not in the future and strictly between the previous and the next count."}
+        reason: {allOf: [{$ref: "#/components/schemas/CashCountReason"}], description: "Omitted keeps the stored reason. Required when the count differs; ignored when it matches."}
+        note: {type: string, maxLength: 500, description: "Omitted keeps the stored note. Required for the reasons `unknown` and `other`."}
+        expectedAmount: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Optional: the expected amount the person saw, without the count's own correction. When it no longer matches, nothing changes and 409 cash_expected_changed is returned."}
+    UpdateCashMovementRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        amount: {$ref: "#/components/schemas/Money"}
+        occurredAt: {type: string, format: date-time, description: "Not in the future."}
+        reason: {type: string, enum: [bank_deposit, safe, float, other], description: "`other` requires a note."}
+        note: {type: string, maxLength: 500, description: "Omitted keeps the stored note."}
+    DeleteCashEntryRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
     CashMovementPage:
       type: object
       additionalProperties: false

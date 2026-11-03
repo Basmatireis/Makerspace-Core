@@ -24,17 +24,18 @@ import type { CashCountReason } from './cashCountReason';
 import type { Decimal } from './decimal';
 import type { Money } from './money';
 import type { UUIDv7 } from './uUIDv7';
+import type { Version } from './version';
 
 export interface CashCount {
   id: UUIDv7;
   /** K-YYYY-NNNN, shown as the count's id. */
   reference: string;
   countedAmount: Money;
-  /** What the register should have held at countedAt, when the count was recorded. */
+  /** What the register should have held at countedAt; recalculated when the count or an entry before it is edited or deleted. */
   expectedAmount: Decimal;
   /** countedAmount - expectedAmount; positive means more cash than expected (over), negative less (short). */
   difference: Decimal;
-  /** Set exactly when the difference is not zero. */
+  /** Null when the count matches. A difference has a reason, unless an edit of an earlier entry gave a matching count its difference. */
   reason: CashCountReason | null;
   note: string;
   countedAt: string;
@@ -42,4 +43,7 @@ export interface CashCount {
   recordedBy: ActorReference | null;
   /** Null when the count matched. */
   correction: CashCountCorrection | null;
+  version: Version;
+  /** Last change; equals createdAt until the count is edited or recalculated. */
+  updatedAt: string;
 }

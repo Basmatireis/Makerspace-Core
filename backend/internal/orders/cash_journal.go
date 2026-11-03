@@ -72,6 +72,8 @@ type CashJournalEntry struct {
 	MovementReason           *CashMovementReason `json:"movementReason"`
 	Note                     string              `json:"note"`
 	Count                    *CashJournalCount   `json:"count"`
+	Version                  *int64              `json:"version"`
+	UpdatedAt                *time.Time          `json:"updatedAt"`
 	// effect is the signed change of the register, for the exports.
 	effect decimal.Decimal
 }
@@ -178,6 +180,12 @@ func (s *Service) journalEntry(row db.ListCashJournalRow, withCustomer bool) Cas
 		PaymentReason: row.PaymentReason,
 		Note:          row.Note,
 		effect:        effect,
+	}
+	switch v.Source {
+	case "movement":
+		v.Version, v.UpdatedAt = row.MovementVersion, timePointer(row.MovementUpdatedAt)
+	case "count":
+		v.Version, v.UpdatedAt = row.CountVersion, timePointer(row.CountUpdatedAt)
 	}
 	switch {
 	case effect.IsPositive():

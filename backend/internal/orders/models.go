@@ -379,6 +379,22 @@ type CashMovement struct {
 	RecordedBy         *Actor                `json:"recordedBy"`
 	CashCountID        *uuid.UUID            `json:"cashCountId"`
 	CashCountReference *string               `json:"cashCountReference"`
+	Version            int64                 `json:"version"`
+	UpdatedAt          time.Time             `json:"updatedAt"`
+}
+
+// CashMovementChange edits a withdrawal or deposit; nil fields keep their value.
+type CashMovementChange struct {
+	ExpectedVersion int64               `json:"expectedVersion"`
+	Amount          *string             `json:"amount,omitempty"`
+	OccurredAt      *time.Time          `json:"occurredAt,omitempty"`
+	Reason          *CashMovementReason `json:"reason,omitempty"`
+	Note            *string             `json:"note,omitempty"`
+}
+
+// CashEntryDeletion deletes a withdrawal, a deposit or a count at the version the person saw.
+type CashEntryDeletion struct {
+	ExpectedVersion int64 `json:"expectedVersion"`
 }
 
 type CashMovementPage struct {
@@ -435,6 +451,19 @@ type CashCount struct {
 	CreatedAt      time.Time            `json:"createdAt"`
 	RecordedBy     *Actor               `json:"recordedBy"`
 	Correction     *CashCountCorrection `json:"correction"`
+	Version        int64                `json:"version"`
+	UpdatedAt      time.Time            `json:"updatedAt"`
+}
+
+// CashCountChange edits a count; nil fields keep their value.
+type CashCountChange struct {
+	ExpectedVersion int64            `json:"expectedVersion"`
+	CountedAmount   *string          `json:"countedAmount,omitempty"`
+	CountedAt       *time.Time       `json:"countedAt,omitempty"`
+	Reason          *CashCountReason `json:"reason,omitempty"`
+	Note            *string          `json:"note,omitempty"`
+	// ExpectedAmount is what the person saw, without the count's own correction.
+	ExpectedAmount *string `json:"expectedAmount,omitempty"`
 }
 
 type CashCountPage struct {

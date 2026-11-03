@@ -86,8 +86,8 @@ func TestCashCountBooksTheDifferenceAsACorrection(t *testing.T) {
 	).Scan(&audits); e != nil || audits != 5 {
 		t.Fatalf("audit events %v %d", e, audits)
 	}
-	// Counts are immutable, like the movements they book.
-	for _, sql := range []string{"UPDATE cash_counts SET note='x'", "UPDATE cash_counts SET counted_amount=1"} {
+	// A count keeps its identity; what it found changes only through the service, with its correction.
+	for _, sql := range []string{"UPDATE cash_counts SET reference='K-2000-0001'", "UPDATE cash_counts SET operation_key=id"} {
 		if _, e = f.pool.Exec(ctx, sql); e == nil {
 			t.Fatalf("allowed %s", sql)
 		}

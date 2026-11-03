@@ -145,6 +145,8 @@ type CashCount struct {
 	CountedAt          time.Time
 	RecordedByPersonID *uuid.UUID
 	CreatedAt          time.Time
+	Version            int64
+	UpdatedAt          time.Time
 }
 
 type CashMovement struct {
@@ -159,6 +161,8 @@ type CashMovement struct {
 	RecordedByPersonID *uuid.UUID
 	CreatedAt          time.Time
 	CashCountID        *uuid.UUID
+	Version            int64
+	UpdatedAt          time.Time
 }
 
 type CashRegisterEntry struct {

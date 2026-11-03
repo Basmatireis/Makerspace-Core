@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -86,6 +88,13 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		metadata = map[string]any{}
 	}
 	for key, value := range metadata {
+		if check, ok := financialMetadata[key]; ok {
+			text, isText := value.(string)
+			if !isText || !check(text) {
+				return fmt.Errorf("invalid audit %s metadata", key)
+			}
+			continue
+		}
 		if countMetadataKey(key) {
 			// Counts (for example how many records a merge moved) are aggregate numbers, never personal data.
 			text, ok := value.(string)
@@ -137,6 +146,29 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		Source:         string(event.Source),
 	})
 	return err
+}
+
+var (
+	financialReferencePattern = regexp.MustCompile(`^[A-Z]{1,2}-[0-9]{4}-[0-9]{4,12}$`)
+	financialAmountPattern    = regexp.MustCompile(`^-?[0-9]{1,18}\.[0-9]{2}$`)
+	financialCodePattern      = regexp.MustCompile(`^[a-z][a-z_]{0,39}$`)
+)
+
+func financialTime(text string) bool {
+	_, err := time.Parse(time.RFC3339Nano, text)
+	return err == nil && len(text) <= 40
+}
+
+// financialMetadata keeps what an edited or deleted cash register record said before: its reference, kind, amount,
+// time and reason. These are business facts of the register, never personal data; notes are never copied.
+var financialMetadata = map[string]func(string) bool{
+	"reference":             financialReferencePattern.MatchString,
+	"previousKind":          financialCodePattern.MatchString,
+	"previousAmount":        financialAmountPattern.MatchString,
+	"previousCountedAmount": financialAmountPattern.MatchString,
+	"previousOccurredAt":    financialTime,
+	"previousCountedAt":     financialTime,
+	"previousReason":        financialCodePattern.MatchString,
 }
 
 // countMetadataKey reports whether key names an aggregate count ("count" followed by an upper-case name, such as
