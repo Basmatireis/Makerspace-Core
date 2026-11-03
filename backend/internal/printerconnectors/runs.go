@@ -33,10 +33,12 @@ func bambuAutoDetectSpools(settings json.RawMessage) bool {
 }
 
 // reconcileBambuSlotObservation applies only positive, exact RFID evidence or
-// a connector-confirmed empty tray. Manual assignments are authoritative and
-// are never displaced or automatically unmounted. A connector assignment may
-// be moved or closed because that history was established by the same class of
-// machine evidence.
+// a connector-confirmed empty tray. Positive evidence never displaces a manual
+// assignment: a connector assignment may be moved because that history was
+// established by the same class of machine evidence. A confirmed-empty tray,
+// however, closes the slot's open mount whatever its source, because the
+// printer has twice reported that nothing is in the tray; the unmount carries
+// no account and is recorded in the connector's activity log.
 func reconcileBambuSlotObservation(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -75,7 +77,7 @@ func reconcileBambuSlotObservation(
 	}
 	if value.Empty {
 		mount, err := q.LockOpenMountForSlot(ctx, slotID)
-		if errors.Is(err, pgx.ErrNoRows) || (err == nil && mount.Source != "connector_reconciled") {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}
 		if err != nil {
@@ -91,11 +93,13 @@ func reconcileBambuSlotObservation(
 		if err = q.CloseOpenMount(ctx, db.CloseOpenMountParams{UnmountedAt: unmountedAt, ID: mount.ID}); err != nil {
 			return err
 		}
+		eventKind := string(printing.EventSlotObservation)
 		return recordActivity(ctx, q, activityEntry{
 			connectorID: connectorID,
 			machineID:   &machineID,
 			kind:        ActivitySpoolAutoUnmounted,
 			resourceID:  &slotID,
+			eventKind:   &eventKind,
 		})
 	}
 	if value.TagUID == "" {

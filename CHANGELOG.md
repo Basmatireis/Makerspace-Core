@@ -2,6 +2,12 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Changed
+
+- **Empty AMS trays unmount manual spools.** With RFID auto-mounting on, a tray the printer twice reports empty now closes whatever spool is mounted in that slot, including spools staff mounted by hand or registered from the detected-spool strip; the unmount has no account and appears in the connector's activity log as before. A tag the printer reads still never replaces a manual mount with another spool.
+
 ## [0.14.0] - 2026-11-03
 
 ### Upgrade notes
