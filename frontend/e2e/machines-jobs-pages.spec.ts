@@ -43,11 +43,15 @@ const targets: Target[] = [
     path: `${base}/jobs/runs/${ids.runLinked}`,
     ready: (page) => page.getByRole('link', { name: /J-2026-000004/ }),
   },
-  { name: 'Machines', path: `${base}/machines`, ready: (page) => page.getByRole('link', { name: 'Bambu H2D #1' }) },
+  {
+    name: 'Machines',
+    path: `${base}/machines`,
+    ready: (page) => page.getByRole('table', { name: 'Machines' }).getByText('Bambu H2D #1'),
+  },
   {
     name: 'Machine detail, Overview tab',
     path: `${base}/machines/${ids.bambu}`,
-    ready: text('Connector degraded · E42'),
+    ready: text('Degraded · E42'),
   },
   {
     name: 'Machine detail, Jobs tab',
@@ -56,7 +60,7 @@ const targets: Target[] = [
   },
   {
     name: 'Machine detail, Printer setup tab',
-    path: `${base}/machines/${ids.bambu}?tab=printer`,
+    path: `${base}/machines/${ids.bambu}/printer`,
     ready: (page) => page.getByRole('switch', { name: 'Printer profile enabled' }),
   },
   {
@@ -316,14 +320,14 @@ test.describe('navigation and former URLs', () => {
     await page.goto('/machine-logbook/jobs?status=unassigned');
     await expect(page).toHaveURL(`${base}/jobs?status=unassigned`);
     await page.goto(`/machine-logbook/machines/${ids.bambu}?tab=printer`);
-    await expect(page).toHaveURL(`${base}/machines/${ids.bambu}?tab=printer`);
+    await expect(page).toHaveURL(`${base}/machines/${ids.bambu}/printer`);
   });
 
   test('older inventory and printer URLs land on the new pages', async ({ page }) => {
     await page.goto(`${base}/inventory/${ids.pla}`);
     await expect(page).toHaveURL(`${base}/inventory/materials/${ids.pla}`);
-    await page.goto(`${base}/machines/${ids.bambu}/printer`);
-    await expect(page).toHaveURL(`${base}/machines/${ids.bambu}?tab=printer`);
+    await page.goto(`${base}/machines/${ids.bambu}?tab=printer`);
+    await expect(page).toHaveURL(`${base}/machines/${ids.bambu}/printer`);
     await expect(page.getByRole('tab', { name: 'Printer setup', selected: true })).toBeVisible();
     await page.goto(`${base}/spools`);
     await expect(page).toHaveURL(`${base}/inventory?tab=spools`);
@@ -381,7 +385,7 @@ test.describe('read-only role', () => {
 
   test('offers no machine changes: Add machine, New job, Printer setup', async ({ page }) => {
     await page.goto(`${base}/machines`);
-    await expect(page.getByRole('link', { name: 'Bambu H2D #1' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Machines' }).getByText('Bambu H2D #1')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add machine' })).toHaveCount(0);
     await page.goto(`${base}/machines/${ids.laser}`);
     await expect(page.getByRole('heading', { name: 'Laser cutter', level: 1 })).toBeVisible();

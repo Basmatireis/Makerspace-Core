@@ -100,25 +100,27 @@ export function PageSectionTabs({
   label: string;
 }) {
   return (
-    <Tabs
-      selectedIndex={Math.max(
-        0,
-        sections.findIndex((section) => section.id === selected),
-      )}
-      onChange={({ selectedIndex }) => onChange(sections[selectedIndex].id)}
-    >
-      <TabList aria-label={label}>
-        {sections.map((section) => (
-          <Tab key={section.id}>{section.label}</Tab>
-        ))}
-      </TabList>
-      {/* Carbon tabs point aria-controls at a panel; the sections render below the header, so the panels stay empty. */}
-      <TabPanels>
-        {sections.map((section) => (
-          <TabPanel key={section.id} className="mj-page-tabs__panel" />
-        ))}
-      </TabPanels>
-    </Tabs>
+    <div className="mj-page-tabs">
+      <Tabs
+        selectedIndex={Math.max(
+          0,
+          sections.findIndex((section) => section.id === selected),
+        )}
+        onChange={({ selectedIndex }) => onChange(sections[selectedIndex].id)}
+      >
+        <TabList aria-label={label}>
+          {sections.map((section) => (
+            <Tab key={section.id}>{section.label}</Tab>
+          ))}
+        </TabList>
+        {/* Carbon tabs point aria-controls at a panel; the sections render below the header, so the panels stay empty. */}
+        <TabPanels>
+          {sections.map((section) => (
+            <TabPanel key={section.id} className="mj-page-tabs__panel" />
+          ))}
+        </TabPanels>
+      </Tabs>
+    </div>
   );
 }
 

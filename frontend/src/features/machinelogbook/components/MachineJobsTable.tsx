@@ -42,7 +42,7 @@ export function MachineJobsTable({ jobs, label = 'Jobs' }: { jobs: WorkItem[]; l
   return (
     <DataTable rows={jobs.map((job) => ({ id: job.id }))} headers={headers} size="md">
       {({ rows, getTableProps, getRowProps }) => (
-        <TableContainer className="mj-table-container">
+        <TableContainer className="mj-table-container mj-scroll-x">
           <Table {...getTableProps()} aria-label={label}>
             <TableHead>
               <TableRow>

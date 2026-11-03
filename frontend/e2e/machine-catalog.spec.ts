@@ -4,7 +4,7 @@ import { ids } from './machines-jobs-api';
 
 const base = '/workshop';
 const bambu = 'Bambu H2D #1';
-const overflowMenu = (page: Page) => page.locator('.page-header__actions .cds--overflow-menu');
+const editMachine = (page: Page) => page.locator('.page-header__actions').getByRole('button', { name: 'Edit machine' });
 
 for (const width of [320, 390, 414, 768, 1440]) {
   test(`machine list, detail and printer setup at ${width}px`, async ({ page }, testInfo) => {
@@ -14,7 +14,8 @@ for (const width of [320, 390, 414, 768, 1440]) {
       [`${base}/machines`, 'Machines'],
       [`${base}/machines/${ids.bambu}`, bambu],
       [`${base}/machines/${ids.bambu}?tab=jobs`, bambu],
-      [`${base}/machines/${ids.bambu}?tab=printer`, bambu],
+      [`${base}/machines/${ids.bambu}/printer`, bambu],
+      [`${base}/machines?tab=printers`, 'Machines'],
     ] as const;
     for (const [route, title] of routes) {
       await page.goto(route);
@@ -31,8 +32,7 @@ for (const width of [320, 390, 414, 768, 1440]) {
 
     // The edit dialog is reachable and fits the viewport; cancelling leaves the machine unchanged.
     await page.goto(`${base}/machines/${ids.bambu}`);
-    await overflowMenu(page).click();
-    await page.getByRole('menuitem', { name: 'Edit machine' }).click();
+    await editMachine(page).click();
     const edit = page.getByRole('dialog', { name: 'Edit machine' });
     await edit.getByLabel('Name', { exact: true }).fill('Unsaved machine name');
     await expect(page.getByRole('button', { name: 'Save machine' })).toBeInViewport();
@@ -41,8 +41,8 @@ for (const width of [320, 390, 414, 768, 1440]) {
     await expect(page.getByRole('dialog')).not.toBeVisible();
     await expect(page.getByRole('heading', { name: bambu, level: 1 })).toBeVisible();
 
-    await page.goto(`${base}/machines/${ids.bambu}?tab=printer`);
-    await page.getByRole('button', { name: 'Edit spool inputs' }).click();
+    await page.goto(`${base}/machines/${ids.bambu}/printer`);
+    await page.getByRole('button', { name: 'Edit slots' }).click();
     const unit = page.getByRole('dialog', { name: 'Edit spool inputs' });
     await unit.getByRole('button', { name: 'Add input unit' }).click();
     await expect(unit.getByRole('button', { name: 'Save spool inputs' })).toBeInViewport();
@@ -52,8 +52,7 @@ for (const width of [320, 390, 414, 768, 1440]) {
 
 test('saves a machine with the version it was opened with and shows the new name', async ({ page, world }) => {
   await page.goto(`${base}/machines/${ids.laser}`);
-  await overflowMenu(page).click();
-  await page.getByRole('menuitem', { name: 'Edit machine' }).click();
+  await editMachine(page).click();
   const edit = page.getByRole('dialog', { name: 'Edit machine' });
   await edit.getByLabel('Name', { exact: true }).fill('Laser cutter 2');
   await edit.getByRole('button', { name: 'Save machine' }).click();
@@ -80,12 +79,12 @@ test('adds a machine from the list', async ({ page, world }) => {
     externalIdentifier: null,
     automaticCollectionEnabled: false,
   });
-  await expect(page.getByRole('link', { name: 'Vinyl cutter' })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Machines' }).getByText('Vinyl cutter')).toBeVisible();
 });
 
 test('saves the spool inputs of a printer atomically', async ({ page, world }) => {
-  await page.goto(`${base}/machines/${ids.bambu}?tab=printer`);
-  await page.getByRole('button', { name: 'Edit spool inputs' }).click();
+  await page.goto(`${base}/machines/${ids.bambu}/printer`);
+  await page.getByRole('button', { name: 'Edit slots' }).click();
   const dialog = page.getByRole('dialog', { name: 'Edit spool inputs' });
   await dialog.getByRole('button', { name: 'Add input unit' }).click();
   await dialog.getByLabel('Input unit name').last().fill('Rear feed');

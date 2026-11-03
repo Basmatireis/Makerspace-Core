@@ -177,8 +177,29 @@
 // Machines list, panel, Printers tab, machine page and printer setup (layout glue only).
 // ---------------------------------------------------------------------------
 
+// Page tabs keep Carbon's own scrolling; nothing of them may widen the page on a phone.
+.mj-page-tabs {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  position: relative;
+  overflow-x: clip;
+}
 .mj-page-tabs__panel {
   display: none;
+}
+
+// Grid items keep their content width by default; tables and wrapping rows inside must be able to shrink instead.
+.stack-card > *,
+.mj-stack > *,
+.mj-two-col > *,
+.mj-slot-units > * {
+  min-inline-size: 0;
+}
+.mj-scroll-x {
+  overflow-x: auto;
+}
+.mj-stack--loose {
+  gap: $spacing-06;
 }
 
 .mj-col-center {
@@ -255,7 +276,7 @@
 }
 .mj-preview__none small {
   @include type-style('helper-text-01');
-  color: theme.$text-helper;
+  color: theme.$text-secondary;
 }
 .mj-preview__caption {
   @include type-style('label-01');

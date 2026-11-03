@@ -161,7 +161,6 @@ function NotificationsForm({ settings }: { settings: PrinterNotificationSettings
                 options={roleOptions}
                 value={rule.roleId}
                 disabled={!canManage || !canReadRoles}
-                helperText={canReadRoles ? undefined : 'Choosing a role needs access to roles.'}
                 onChange={(roleId) => patch(event, { roleId })}
               />
               {event === 'printer_error' && (
@@ -199,6 +198,9 @@ function NotificationsForm({ settings }: { settings: PrinterNotificationSettings
         />
       )}
       {!canManage && <p className="mj-secondary">Changing who is notified needs the permission to manage machines.</p>}
+      {canManage && !canReadRoles && (
+        <p className="mj-secondary">Choosing a role needs access to roles; saved roles are shown by name.</p>
+      )}
     </StackCard>
   );
 }

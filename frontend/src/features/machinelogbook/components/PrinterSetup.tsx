@@ -87,7 +87,7 @@ function PrinterEvents({ machineId }: { machineId: string }) {
       ) : items.length === 0 ? (
         <p className="mj-secondary">No errors in the last 30 days.</p>
       ) : (
-        <TableContainer className="mj-table-container">
+        <TableContainer className="mj-table-container mj-scroll-x">
           <Table size="md" aria-label="Printer events">
             <TableHead>
               <TableRow>
@@ -692,7 +692,7 @@ export function PrinterSetup({
               {inUnit.length === 0 ? (
                 <p className="mj-slot-units__note">No slots in this input unit.</p>
               ) : (
-                <TableContainer className="mj-table-container">
+                <TableContainer className="mj-table-container mj-scroll-x">
                   <Table size="md" aria-label={`Slots of ${unit.name}`}>
                     <TableHead>
                       <TableRow>

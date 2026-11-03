@@ -219,6 +219,7 @@ export function MachinesPage() {
       key: 'connector',
       header: 'Connector',
       className: 'mj-col-num',
+      narrow: true,
       render: (row) => <ConnectorStateTag connector={row.connector} />,
     },
     attentionDirectoryColumn((row) => row.machine.attention),
