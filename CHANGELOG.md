@@ -50,6 +50,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- **Inventory screens.** Articles and spools tables with a permanent detail panel from 1056 px on (row click opens the article or spool page below that), attention flags, article numbers and spool labels; rebuilt article and spool pages; a Recycle bin tab for deleted articles, retired spools and deleted ledger entries with Restore and Delete permanently; Delete article and Delete ledger entry (permissions `inventory.delete`, `inventory.ledger.delete`); Register spool from loose stock, a purchase or a tag a printer detects (with mount); Weigh and Retire on spools; code, kind and machine use in the type dialog. The article form has no sale price any more and points to Sales → Pricing. The change-filament wizard, Finish spool, Clean up archived spools and the reusable-spool placement of Receive stock are gone.
 - **Player chunks.** The camera manager, QR codes, the open-day, event and agenda lists, the calendar, the timelapse widget and the pairing screen are loaded on demand, so the player stays inside its bundle budget.
 
 - **Workshop routes.** Jobs, Machines, Inventory and Statistics moved from `/machine-logbook/…` to `/workshop/…` with the same sub-paths; every former URL redirects with its sub-path and query, and `/machine-logbook` and `/machine-logbook/overview` open Jobs. The Workshop navigation group no longer has an Overview page. API paths are unchanged.

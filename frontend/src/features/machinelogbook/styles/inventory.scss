@@ -285,3 +285,14 @@
   color: theme.$text-secondary;
   @include type-style('body-compact-01');
 }
+
+// Wide tables scroll inside their container instead of widening the page.
+.inv-article-layout > *,
+.inv-article-layout section {
+  min-inline-size: 0;
+}
+
+.inv-article-layout .cds--data-table-container {
+  position: relative;
+  overflow-x: auto;
+}

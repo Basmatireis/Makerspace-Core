@@ -72,7 +72,7 @@ export function InventoryPage() {
   );
   const actions =
     canRead && canManage ? (
-      <Button kind="tertiary" renderIcon={Add} onClick={() => start('new')}>
+      <Button kind="secondary" renderIcon={Add} onClick={() => start('new')}>
         New article
       </Button>
     ) : undefined;

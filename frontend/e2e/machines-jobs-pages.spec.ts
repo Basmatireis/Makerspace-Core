@@ -67,17 +67,18 @@ const targets: Target[] = [
   {
     name: 'Inventory, Filament tab',
     path: `${base}/inventory`,
-    ready: (page) => page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'Black', exact: true }),
+    ready: (page) =>
+      page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'PLA Black', exact: true }),
   },
   {
     name: 'Inventory, Spools tab',
     path: `${base}/inventory?tab=spools`,
-    ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000001' }),
+    ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-PLA-BLACK-01' }),
   },
   {
-    name: 'Inventory, Spools tab with archived spools',
-    path: `${base}/inventory?tab=spools&spoolsarchived=1`,
-    ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000003' }),
+    name: 'Inventory, Recycle bin tab',
+    path: `${base}/inventory?tab=bin`,
+    ready: (page) => page.getByRole('table', { name: 'Retired spools' }).getByRole('link', { name: 'S-2026-000003' }),
   },
   {
     name: 'Inventory, Materials tab',
@@ -95,14 +96,14 @@ const targets: Target[] = [
     ready: heading('Birch plywood', 1),
   },
   {
-    name: 'Spool detail (reusable, with fill history)',
+    name: 'Spool detail (with identifiers)',
     path: `${base}/inventory/spools/${ids.spoolReusable}`,
-    ready: (page) => page.getByRole('table', { name: 'Fills' }),
+    ready: (page) => page.getByRole('table', { name: 'Identifiers' }),
   },
   {
-    name: 'Spool detail (single-use)',
+    name: 'Spool detail (almost empty)',
     path: `${base}/inventory/spools/${ids.spoolSingle}`,
-    ready: (page) => page.getByRole('button', { name: 'Record consumption' }),
+    ready: (page) => page.getByRole('button', { name: 'Weigh' }),
   },
   { name: 'Statistics', path: `${base}/statistics`, ready: (page) => page.getByRole('table', { name: 'Machines' }) },
 ];
@@ -219,50 +220,29 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
     await checkDialog(page, page.getByRole('alertdialog'));
   });
 
-  test('change filament, spool step', async ({ page }) => {
-    await page.goto(`${base}/inventory?tab=spools`);
-    await page.getByRole('button', { name: 'New', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Change filament' }).click();
-    await checkDialog(page, page.getByRole('dialog', { name: 'Change filament' }));
-  });
-
-  // Opened from a spool, the dialog starts on the leftover step.
-  for (const [step, nextClicks] of [
-    ['leftover', 0],
-    ['new filament', 1],
-    ['tags and review', 2],
-  ] as const) {
-    test(`change filament, ${step} step`, async ({ page }) => {
-      await page.goto(`${base}/inventory/spools/${ids.spoolReusable}`);
-      await page.getByRole('button', { name: 'Change filament' }).click();
-      const dialog = page.getByRole('dialog', { name: 'Change filament' });
-      for (let index = 0; index < nextClicks; index += 1) await dialog.getByRole('button', { name: 'Next' }).click();
-      await checkDialog(page, dialog);
-    });
-  }
-
-  test('finish spool', async ({ page }) => {
-    await page.goto(`${base}/inventory/spools/${ids.spoolSingle}`);
-    await page.locator('.page-header__actions .cds--overflow-menu').click();
-    await page.getByRole('menuitem', { name: 'Finish spool' }).click();
-    await checkDialog(page, page.getByRole('dialog', { name: /S-2026-000002/ }));
-  });
-
-  test('clean up archived spools', async ({ page }) => {
-    await page.goto(`${base}/inventory?tab=spools`);
-    await page.getByRole('table', { name: 'Spools' }).waitFor();
-    await page.locator('.cds--table-toolbar .cds--overflow-menu').click();
-    await page.getByRole('menuitem', { name: 'Clean up archived spools' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Clean up archived spools' });
-    await expect(dialog.getByText(/archived single-use spools match/)).toBeVisible();
-    await checkDialog(page, dialog);
-  });
-
   test('register spool', async ({ page }) => {
     await page.goto(`${base}/inventory?tab=spools`);
-    await page.getByRole('button', { name: 'New', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Register spool' }).click();
-    await checkDialog(page, page.getByRole('dialog'));
+    await page.getByRole('button', { name: 'Register spool' }).click();
+    await checkDialog(page, page.getByRole('dialog', { name: 'Register spool' }));
+  });
+
+  test('retire spool', async ({ page }) => {
+    await page.goto(`${base}/inventory/spools/${ids.spoolSingle}`);
+    await page.locator('.page-header__actions .cds--overflow-menu').click();
+    await page.getByRole('menuitem', { name: 'Retire' }).click();
+    await checkDialog(page, page.getByRole('alertdialog', { name: 'Retire S-PLA-BLACK-02?' }));
+  });
+
+  test('weigh spool', async ({ page }) => {
+    await page.goto(`${base}/inventory/spools/${ids.spoolReusable}`);
+    await page.getByRole('button', { name: 'Weigh' }).click();
+    await checkDialog(page, page.getByRole('dialog', { name: /S-PLA-BLACK-01/ }));
+  });
+
+  test('delete ledger entry', async ({ page }) => {
+    await page.goto(`${base}/inventory/materials/${ids.pla}`);
+    await page.getByRole('table', { name: 'Ledger' }).locator('.inv-actions-column button').first().click();
+    await checkDialog(page, page.getByRole('alertdialog', { name: 'Delete ledger entry?' }));
   });
 
   test('add machine', async ({ page }) => {
@@ -361,22 +341,25 @@ test.describe('read-only role', () => {
     expect(world.requests).toEqual([]);
   });
 
-  test('offers no inventory changes: Change filament, New, Clean up, Receive stock', async ({ page }) => {
+  test('offers no inventory changes: Weigh, Retire, Register spool, Receive stock, Delete', async ({ page }) => {
     await page.goto(`${base}/inventory/spools/${ids.spoolReusable}`);
-    await expect(page.getByRole('heading', { name: 'S-2026-000001', level: 1 })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Change filament' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'S-PLA-BLACK-01', level: 1 })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Weigh' })).toHaveCount(0);
     await expect(page.locator('.page-header__actions .cds--overflow-menu')).toHaveCount(0);
 
     await page.goto(`${base}/inventory?tab=spools`);
     await expect(page.getByRole('table', { name: 'Spools' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'New', exact: true })).toHaveCount(0);
-    await expect(page.locator('.cds--table-toolbar .cds--overflow-menu')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Register spool' })).toHaveCount(0);
 
     await page.goto(`${base}/inventory`);
     await expect(
-      page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'Black', exact: true }),
+      page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'PLA Black', exact: true }),
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Receive stock' })).toHaveCount(0);
+
+    await page.goto(`${base}/inventory?tab=bin`);
+    await expect(page.getByRole('table', { name: 'Retired spools' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Restore/ })).toHaveCount(0);
   });
 
   test('offers no machine changes: Add machine, New job, Printer setup', async ({ page }) => {

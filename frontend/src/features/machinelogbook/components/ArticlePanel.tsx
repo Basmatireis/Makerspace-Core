@@ -135,7 +135,7 @@ export function ArticlePanel({
           Open article
         </Button>
         {allowed.manage && (
-          <Button size="sm" kind="tertiary" renderIcon={Add} onClick={() => onAction({ name: 'receive' })}>
+          <Button size="sm" kind="secondary" renderIcon={Add} onClick={() => onAction({ name: 'receive' })}>
             Receive stock
           </Button>
         )}

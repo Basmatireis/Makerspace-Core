@@ -72,7 +72,7 @@ function DetectedRow({
       </div>
       <div className="inv-detected__actions">
         {onRegister && (
-          <Button kind="tertiary" size="sm" renderIcon={Add} onClick={() => onRegister(tag)}>
+          <Button kind="secondary" size="sm" renderIcon={Add} onClick={() => onRegister(tag)}>
             Register
           </Button>
         )}

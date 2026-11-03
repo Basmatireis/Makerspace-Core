@@ -92,7 +92,7 @@ export function SpoolPanel({
           Open spool
         </Button>
         {primary && (
-          <Button size="sm" kind="tertiary" onClick={() => onAction(primary.id)}>
+          <Button size="sm" kind="secondary" onClick={() => onAction(primary.id)}>
             {primary.label}
           </Button>
         )}
