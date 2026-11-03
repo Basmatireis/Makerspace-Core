@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { RefLink } from '../../app/RefLink';
 import {
+  ActionableNotification,
   Button,
   DataTable,
-  ActionableNotification,
   InlineNotification,
+  Link as CarbonLink,
   OverflowMenu,
   OverflowMenuItem,
   Table,
@@ -24,46 +25,53 @@ import { clearMachineJobPriceAdjustment } from '../../api/generated/machine-jobs
 import { cancelMachineRun, detachMachineRun } from '../../api/generated/machine-runs/machine-runs';
 import type { MachineJob, MachineRun } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
+import { StackCard } from '../../app/components/CardList';
+import { FactTiles } from '../../app/components/Facts';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { JobRunsTable, type RunAction } from './components/JobRunsTable';
 import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
-import { AttachRunModal } from './dialogs/AttachRunModal';
 import { JobFormModal } from './dialogs/JobFormModal';
-import { jobOrderQuery, unassignedRunsParams } from './dialogs/jobFormHelpers';
+import { jobOrderQuery } from './dialogs/jobFormHelpers';
 import { PriceAdjustmentModal } from './dialogs/PriceAdjustmentModal';
 import { RepriceJobModal } from './dialogs/RepriceJobModal';
 import { RunFormModal } from './dialogs/RunFormModal';
 import { UsageFormModal } from './dialogs/UsageFormModal';
-import { jobQuery, jobRecordingsQuery, machineLogbookKeys, runsQuery } from './queries';
-import { FactsBar } from './recording/FactsBar';
-import { JobPreviewTile, JobTimelapseTile } from './recording/RecordingTiles';
-import { jobConsumption } from './processConfig';
-import { formatDateTime, formatDuration, formatMoney, formatQuantity } from './shared/format';
+import { AddToJobModal } from './jobs/AddToJobModal';
+import { AddToOrderModal } from './jobs/AddToOrderModal';
+import { JobNotesModal } from './jobs/JobNotesModal';
+import { jobPhase, JobPhaseTag, OutcomeStatusTag } from './jobs/jobStatus';
+import { useUpdateJobFacts } from './jobs/jobsQueries';
+import { MediaCard } from './jobs/MediaCard';
+import { jobQuery, jobRecordingsQuery, machineLogbookKeys } from './queries';
+import { jobConsumption, unitText } from './processConfig';
+import { formatDateTime, formatDuration, formatMoney, formatQuantity, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
 import {
   activeRuns,
   adjustmentSummary,
   FromMachineTag,
-  JobRowStatusTag,
+  isRunLive,
   machineJobName,
-  OutcomeTag,
+  outcomeLabel,
 } from './shared/status';
 import { useNotify } from './shared/toasts';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
-import { usageHeaders, errorText, statusNow, runsNeedingOutcome, JobDialog } from './jobDetail/jobDetailShared';
+import { usageHeaders, errorText, statusNow, runsNeedingOutcome } from './jobDetail/jobDetailShared';
 import { RunOutcomeRow } from './jobDetail/RunOutcomeRow';
 import { PriceBillingTile } from './jobDetail/PriceBillingTile';
 import './styles/jobs.scss';
+
+type Dialog = 'edit' | 'override' | 'clear' | 'add-run' | 'delete' | 'reprice' | 'notes' | 'order' | null;
 
 function JobDetail({ job }: { job: MachineJob }) {
   const can = useCan();
   const notify = useNotify();
   const client = useQueryClient();
-  const [dialog, setDialog] = useState<JobDialog>(null);
+  const [dialog, setDialog] = useState<Dialog>(null);
   const [runDialog, setRunDialog] = useState<{ action: RunAction; runId: string } | null>(null);
   const now = useNow();
   const canEdit = can('machine_jobs.edit');
@@ -75,33 +83,33 @@ function JobDetail({ job }: { job: MachineJob }) {
   const price = job.effectivePrice == null ? null : Number(job.effectivePrice);
   const calculated = job.calculatedPrice == null ? null : Number(job.calculatedPrice);
   const runs = activeRuns(job);
-  // FDM jobs (grams only, no measures) keep the usage table as their only consumption display.
-  const consumption = runs.every(
-    (run) => run.usages.every((usage) => usage.unit === 'g') && Object.keys(run.measures).length === 0,
-  )
-    ? null
-    : jobConsumption({ runs, measures: job.measures });
   const replacedCount = job.runs.length - runs.length;
   const pendingOutcomes = status === 'needs_outcome' ? runsNeedingOutcome(job, now) : [];
-
-  const unassigned = useQuery({ ...runsQuery(unassignedRunsParams(job.machine.id)), enabled: canEdit });
-  const canAttach = (unassigned.data?.items.length ?? 0) > 0;
   const association = useQuery({ ...jobOrderQuery(job.id), enabled: canReadOrders });
-
   // Previews and files of the job's recorded runs; the job page works without them if this fails.
   const recordings = useQuery(jobRecordingsQuery(job.id));
-  const gramsOnly = consumption === null;
-  const materialText = gramsOnly
-    ? runs.some((run) => run.usages.length > 0)
-      ? `${formatQuantity(runs.flatMap((run) => run.usages).reduce((sum, usage) => sum + Number(usage.quantity), 0))} g`
-      : 'None recorded'
-    : consumption;
+  const materialText = jobConsumption({ runs, measures: job.measures }) ?? 'None recorded';
   const refresh = () => client.invalidateQueries({ queryKey: machineLogbookKeys.all });
   const close = () => {
     setDialog(null);
     setRunDialog(null);
   };
   const targetRun = runDialog ? job.runs.find((run) => run.id === runDialog.runId) : undefined;
+  const signage = useUpdateJobFacts(job);
+  const toggleSignage = () =>
+    signage.mutate(
+      { hiddenFromSignage: !job.hiddenFromSignage },
+      {
+        onSuccess: (saved) =>
+          notify({
+            kind: 'success',
+            title: saved.hiddenFromSignage ? 'Kept off signage' : 'Back on signage',
+            subtitle: `${machineJobName(saved)} · stream and timelapses of all its runs`,
+          }),
+        onError: (cause) =>
+          notify({ kind: 'error', title: 'Signage not changed', subtitle: errorText(cause, 'Reload and try again.') }),
+      },
+    );
   const clearAdjustment = useMutation({
     mutationFn: () => clearMachineJobPriceAdjustment(job.id, { expectedVersion: job.version }),
     onSuccess: async () => {
@@ -139,7 +147,7 @@ function JobDetail({ job }: { job: MachineJob }) {
     cancelRun.reset();
     detachRun.reset();
   };
-  const open = (next: NonNullable<JobDialog>) => {
+  const open = (next: NonNullable<Dialog>) => {
     resetMutations();
     setDialog(next);
   };
@@ -148,19 +156,7 @@ function JobDetail({ job }: { job: MachineJob }) {
     setRunDialog({ action, runId: run.id });
   };
 
-  const primary = canEdit ? (
-    <Button renderIcon={Edit} onClick={() => open('edit')}>
-      Edit job
-    </Button>
-  ) : null;
   const menuItems = [
-    canOverride && (
-      <OverflowMenuItem
-        key="override"
-        itemText={job.priceAdjustment ? 'Change price adjustment' : 'Adjust price'}
-        onClick={() => open('override')}
-      />
-    ),
     canOverride && job.priceAdjustment && (
       <OverflowMenuItem key="clear" itemText="Remove price adjustment" onClick={() => open('clear')} />
     ),
@@ -174,39 +170,54 @@ function JobDetail({ job }: { job: MachineJob }) {
       id: `${run.id}-${usage.id}`,
       run,
       usage,
-      material: usage.materialName,
+      material: usage.ownership === 'external' ? usage.label || usage.materialName : usage.materialName,
       source:
         usage.ownership === 'external'
-          ? 'Recipient material'
+          ? 'Recipient’s own (not charged)'
           : usage.spoolDisplayId
             ? `Spool ${usage.spoolDisplayId}${usage.spoolId ? '' : ' (deleted)'}`
             : 'Makerspace stock',
-      quantity: `${formatQuantity(usage.quantity)} ${usage.unit}`,
+      quantity: `${formatQuantity(usage.quantity)} ${unitText(usage.unit)}`,
     })),
   );
   const name = machineJobName(job);
   const adjustmentDifference = price != null && calculated != null ? price - calculated : null;
   const running = status === 'running';
+  const finished = status !== 'planned' && status !== 'running';
+  const live = runs.find((run) => isRunLive(run, now));
+  const types = [...new Set(runs.flatMap((run) => run.usages.map((usage) => usage.materialTypeName)))];
+  const isPrinter = job.machine.process.integration === 'fdm_printer' || runs.some((run) => run.source === 'recorded');
+  const canToggleSignage = canEdit && !!job.operator;
+  const attention = job.attention ?? [];
+  const notYet = status === 'planned' || status === 'running';
 
   return (
     <PageShell
       title={name}
-      titleAdornment={<JobRowStatusTag status={status} />}
+      titleAdornment={
+        <span className="mj-inline">
+          <JobPhaseTag status={status} />
+          {jobPhase(status) === 'finished' && <OutcomeStatusTag status={status} />}
+          {job.hiddenFromSignage && (
+            <Tag type="outline" size="md">
+              Off signage
+            </Tag>
+          )}
+        </span>
+      }
       width="wide"
-      description={[
-        name !== job.displayId && job.displayId,
-        job.machine.name,
-        job.startedAt && formatDateTime(job.startedAt),
-      ]
-        .filter(Boolean)
-        .join(' · ')}
+      description={[name !== job.displayId && job.displayId, job.machine.name].filter(Boolean).join(' · ')}
       breadcrumbs={[
         { label: 'Workshop', to: machineLogbookPaths.home() },
         { label: 'Jobs', to: machineLogbookPaths.jobs() },
       ]}
       actions={
         <>
-          {primary}
+          {canEdit && (
+            <Button kind="secondary" renderIcon={Edit} onClick={() => open('edit')}>
+              Edit job
+            </Button>
+          )}
           {menuItems.length > 0 && (
             <OverflowMenu aria-label="More job actions" iconDescription="More job actions" flipped>
               {menuItems}
@@ -216,6 +227,15 @@ function JobDetail({ job }: { job: MachineJob }) {
       }
     >
       <div className="mj-stack">
+        {attention.length > 0 && (
+          <InlineNotification
+            kind="warning"
+            lowContrast
+            hideCloseButton
+            title="Needs attention"
+            subtitle={`${attention.map((item) => item.message).join(' · ')}.`}
+          />
+        )}
         {pendingOutcomes.length > 0 &&
           (canEdit ? (
             <Tile className="mj-outcome-prompt">
@@ -255,66 +275,61 @@ function JobDetail({ job }: { job: MachineJob }) {
             onActionButtonClick={() => open('reprice')}
           />
         )}
+        <FactTiles
+          label="Job facts"
+          items={[
+            {
+              label: 'Started',
+              value: job.startedAt ? formatDateTime(job.startedAt) : '—',
+              helper: `${formatDuration(job.durationSeconds)}${running ? ' so far' : ''}${replacedCount > 0 ? ` · ${replacedCount} replaced` : ''}`,
+            },
+            {
+              label: 'Material',
+              value: materialText,
+              helper: types.length > 1 ? 'Mixed materials' : types[0],
+            },
+            {
+              label: 'Outcome',
+              value: notYet ? 'Not yet' : status === 'needs_outcome' ? 'Not recorded' : outcomeLabel(job.outcome),
+              helper: job.outcomeOverridden
+                ? 'set by staff'
+                : notYet
+                  ? 'until the runs end'
+                  : status === 'needs_outcome'
+                    ? 'record it when the work is done'
+                    : 'derived from the runs',
+            },
+            {
+              label: 'Recipient',
+              value: job.customer?.displayName ?? '—',
+              helper: job.customer?.pricingGroup?.name,
+            },
+            { label: 'Operator', value: job.operator?.displayName ?? '—' },
+            {
+              label: 'Machine',
+              value: can('machines.read') ? (
+                <CarbonLink as={Link} to={machineLogbookPaths.machine(job.machine.id)}>
+                  {job.machine.name}
+                </CarbonLink>
+              ) : (
+                job.machine.name
+              ),
+              helper:
+                live && live.source === 'recorded' && live.progressPercent != null
+                  ? `${live.progressPercent} %${live.estimatedEndAt ? ` · ETA ${formatTime(live.estimatedEndAt)}` : ''}`
+                  : job.machine.process.name,
+            },
+          ]}
+        />
         <div className="mj-detail-layout">
           <div className="mj-stack">
-            <FactsBar
-              detailsLayout="tiles"
-              metrics={[
-                { label: 'Start', value: job.startedAt ? formatDateTime(job.startedAt) : '—' },
-                {
-                  label: 'Runtime',
-                  value: formatDuration(job.durationSeconds),
-                  note: runs.length > 1 ? 'All runs together' : undefined,
-                },
-                { label: 'Material', value: materialText },
-                {
-                  label: 'Recipient',
-                  value: job.customer?.displayName ?? '—',
-                  note: job.customer?.pricingGroup?.name,
-                },
-              ]}
-              details={[
-                {
-                  label: 'Outcome',
-                  value:
-                    status === 'planned' ? (
-                      <span className="mj-secondary">No run yet</span>
-                    ) : status === 'running' || status === 'needs_outcome' ? (
-                      <span className="mj-secondary">Not recorded yet</span>
-                    ) : (
-                      <OutcomeTag outcome={job.outcome} size="sm" />
-                    ),
-                  note: job.outcomeOverridden
-                    ? 'Set by staff'
-                    : !['planned', 'running', 'needs_outcome'].includes(status)
-                      ? 'Derived from the runs'
-                      : undefined,
-                },
-                { label: 'Operator', value: job.operator?.displayName ?? '—' },
-                {
-                  label: running && !job.endedAt ? 'Expected end' : 'End',
-                  value: job.endedAt
-                    ? formatDateTime(job.endedAt)
-                    : job.expectedEndAt
-                      ? formatDateTime(job.expectedEndAt)
-                      : '—',
-                },
-                {
-                  label: 'Runs',
-                  value: runs.length,
-                  note: replacedCount > 0 ? `${replacedCount} replaced` : undefined,
-                },
-              ]}
-            />
             <JobRunsTable
               job={job}
               now={now}
               canEdit={canEdit}
               canDelete={canDelete}
-              canAttach={canAttach}
               onAction={openRun}
               onAdd={() => open('add-run')}
-              onAttach={() => open('attach')}
             />
             <DataTable rows={usageRows} headers={usageHeaders} size="md">
               {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
@@ -347,7 +362,7 @@ function JobDetail({ job }: { job: MachineJob }) {
                           <TableRow key={key} {...props}>
                             <TableCell>
                               <div className="mj-cell-stack">
-                                <span>{usage.materialName}</span>
+                                <span>{entry.material}</span>
                                 <span className="mj-secondary">{usage.materialTypeName}</span>
                               </div>
                             </TableCell>
@@ -378,17 +393,27 @@ function JobDetail({ job }: { job: MachineJob }) {
                 </TableContainer>
               )}
             </DataTable>
-            <Tile>
-              <h3 className="mj-section-title">Notes</h3>
+            <StackCard
+              title="Notes"
+              action={
+                canEdit && job.operator ? (
+                  <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => open('notes')}>
+                    {job.notes ? 'Edit' : 'Add'}
+                  </Button>
+                ) : undefined
+              }
+            >
               <p className="mj-notes">{job.notes ? job.notes : <span className="mj-secondary">No notes.</span>}</p>
-            </Tile>
+            </StackCard>
           </div>
           <div className="mj-stack">
-            {recordings.data && recordings.data.items.length > 0 && (
-              <>
-                <JobPreviewTile recordings={recordings.data.items} />
-                <JobTimelapseTile recordings={recordings.data.items} />
-              </>
+            {isPrinter && (
+              <MediaCard
+                recordings={recordings.data?.items ?? []}
+                offSignage={job.hiddenFromSignage}
+                signagePending={signage.isPending}
+                onToggleSignage={canToggleSignage ? toggleSignage : undefined}
+              />
             )}
             <PriceBillingTile
               job={job}
@@ -397,14 +422,18 @@ function JobDetail({ job }: { job: MachineJob }) {
               adjustmentDifference={adjustmentDifference}
               association={association}
               canReadOrders={canReadOrders}
+              finished={finished}
               onReprice={canEdit ? () => open('reprice') : undefined}
+              onAddToOrder={can('orders.write') && job.customer ? () => open('order') : undefined}
+              onAdjust={canOverride ? () => open('override') : undefined}
             />
           </div>
         </div>
       </div>
+      <JobNotesModal open={dialog === 'notes'} job={job} onClose={close} />
+      <AddToOrderModal open={dialog === 'order'} job={job} onClose={close} />
       <JobFormModal open={dialog === 'edit'} onClose={close} mode="edit" job={job} />
-      <RunFormModal open={dialog === 'add-run'} onClose={close} mode="add" job={job} />
-      <AttachRunModal open={dialog === 'attach'} onClose={close} job={job} />
+      <AddToJobModal open={dialog === 'add-run'} onClose={close} job={job} />
       {targetRun && runDialog?.action === 'edit' && <RunFormModal open onClose={close} mode="edit" run={targetRun} />}
       {targetRun && runDialog?.action === 'usage' && <UsageFormModal open onClose={close} run={targetRun} />}
       <DestructiveActionDialog

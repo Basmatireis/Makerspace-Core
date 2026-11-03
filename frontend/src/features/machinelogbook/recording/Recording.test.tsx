@@ -245,9 +245,9 @@ describe('Run detail recording', () => {
       }),
     );
     renderRun();
-    const image = await screen.findByAltText('Plate 1 preview of housing.3mf');
+    const image = await screen.findByAltText('Preview of housing.3mf');
     expect(image).toHaveAttribute('src', `/api/v1/machine-runs/${runId}/previews/${previewId}/content`);
-    expect(screen.getByRole('link', { name: /Download housing.3mf/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /housing.3mf/ })).toHaveAttribute(
       'href',
       `/api/v1/machine-runs/${runId}/artifact/content`,
     );
@@ -267,9 +267,10 @@ describe('Run detail recording', () => {
       }),
     );
     const { container } = renderRun();
-    // The timelapse is the second item of the preview tile; no video loads before it is chosen.
-    await userEvent.click(await screen.findByRole('tab', { name: 'Timelapse' }));
-    expect(await screen.findByRole('link', { name: /Download timelapse/ })).toHaveAttribute(
+    // The timelapse is the second slide of the media card; no video loads before it is shown.
+    expect(container.querySelector('video')).toBeNull();
+    await userEvent.click(await screen.findByRole('button', { name: 'Timelapse of RN-2026-000007' }));
+    expect(await screen.findByRole('link', { name: /RN-2026-000007-timelapse.mp4/ })).toHaveAttribute(
       'href',
       `/api/v1/machine-runs/${runId}/timelapse/content`,
     );
@@ -283,6 +284,7 @@ describe('Run detail recording', () => {
     auth.permissions = [PermissionId.machine_jobsread];
     serveRun(recording({ timelapseStatus: { state: 'skipped', reason: 'timelapse_disabled', detail: null } }));
     const { container } = renderRun();
+    await userEvent.click(await screen.findByRole('button', { name: 'Timelapse of RN-2026-000007' }));
     expect(await screen.findByText('Timelapse skipped')).toBeInTheDocument();
     expect(screen.getByText('Timelapse collection is switched off.')).toBeInTheDocument();
     expect(container.querySelector('video')).toBeNull();
@@ -325,7 +327,7 @@ describe('Run detail recording', () => {
     // The consumption notice and the Filament estimate section; the preview tile only says there is no file.
     await waitFor(() => expect(screen.getAllByText(/started from the printer’s internal storage/)).toHaveLength(2));
     expect(screen.queryByText(/Waiting for the printer’s 3MF file/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Core has no print file for this run/)).toBeInTheDocument();
+    expect(screen.getByText('Print file not stored')).toBeInTheDocument();
   });
 
   it('offers the 3MF upload and the material action to editors of a run without a print file', async () => {
@@ -360,7 +362,7 @@ describe('Run detail recording', () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
     serveRun(recording({ artifact }));
     renderRun();
-    expect(await screen.findByText('The print file contains no preview image.')).toBeInTheDocument();
+    expect(await screen.findByText('No preview in the print file')).toBeInTheDocument();
     expect(screen.queryByText('Upload print file (3MF)')).not.toBeInTheDocument();
   });
 
@@ -646,24 +648,24 @@ describe('Job detail recordings', () => {
       ),
     );
     renderWith(machineLogbookPaths.job(ids.job), '/workshop/jobs/:jobId', <JobDetailPage />);
-    expect(await screen.findByText('2 images')).toBeInTheDocument();
-    expect(screen.getByAltText('Plate 1 preview of housing.3mf')).toHaveAttribute(
+    // Print file and timelapse of the first run, then the print file of the second, in one slideshow.
+    expect(await screen.findByText('1 / 3')).toBeInTheDocument();
+    expect(screen.getByAltText('Preview of housing.3mf')).toHaveAttribute(
       'src',
       `/api/v1/machine-runs/${runId}/previews/${previewId}/content`,
     );
     expect(screen.getAllByText('RN-2026-000007').length).toBeGreaterThan(0);
-    // The download offers the print file of the shown preview; there is no separate file list.
-    expect(screen.getByRole('link', { name: /Download housing.3mf/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /housing.3mf/ })).toHaveAttribute(
       'href',
       `/api/v1/machine-runs/${runId}/artifact/content`,
     );
-    expect(screen.queryByText('Print files')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Plate 1 (RN-2026-000008)' }));
-    expect(screen.getByRole('link', { name: /Download housing.3mf/ })).toHaveAttribute(
+    await userEvent.click(screen.getByRole('button', { name: 'Print file of RN-2026-000008' }));
+    expect(screen.getByRole('link', { name: /housing.3mf/ })).toHaveAttribute(
       'href',
       `/api/v1/machine-runs/${ids.manualRun}/artifact/content`,
     );
-    expect(screen.getByRole('link', { name: /Download timelapse/ })).toHaveAttribute(
+    await userEvent.click(screen.getByRole('button', { name: 'Timelapse of RN-2026-000007' }));
+    expect(screen.getByRole('link', { name: /RN-2026-000007-timelapse.mp4/ })).toHaveAttribute(
       'href',
       `/api/v1/machine-runs/${runId}/timelapse/content`,
     );

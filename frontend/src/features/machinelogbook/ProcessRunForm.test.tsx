@@ -12,10 +12,11 @@ import type {
 import { ids, jobFixture, machine, manualRun } from '../../test/machineRuns';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
-import { RunFormModal } from './dialogs/RunFormModal';
+import { AddToJobModal } from './jobs/AddToJobModal';
 import { UsageFormModal } from './dialogs/UsageFormModal';
 import { consumptionSummary, materialsForProcess, sumUsages } from './processConfig';
 import { ToastProvider } from './shared/toasts';
+import { pickerNames, pickMaterial } from '../../test/materialPicker';
 
 vi.mock('../auth/auth', () => ({
   useCurrentUser: () => ({ permissions: ['machine_jobs.edit', 'machines.read', 'inventory.read'] }),
@@ -52,6 +53,8 @@ const typeOf = (
 ): MaterialType => ({
   id,
   name,
+  code: name.toUpperCase().replace(/[^A-Z0-9]/g, ''),
+  machineUse: true,
   kind: processes.includes(fdm) ? 'filament' : 'consumable',
   unit,
   processIds: processes.map((item) => item.id),
@@ -70,10 +73,15 @@ const materialOf = (
   overrides: Partial<Material> = {},
 ): Material => ({
   id,
+  displayId: `A-${id.slice(-4)}`,
   name,
   kind: unit === 'g' ? 'filament' : 'consumable',
   materialTypeId,
   materialTypeName: name,
+  materialTypeCode: name.toUpperCase(),
+  machineUse: true,
+  prices: [],
+  attention: [],
   unit,
   active: true,
   quantity: '100',
@@ -112,6 +120,7 @@ const lookups = [
     HttpResponse.json({ items: materials, page: 1, pageSize: 100, total: materials.length, totalInventoryValue: '0' }),
   ),
   http.get('*/api/v1/material-types', () => HttpResponse.json({ items: types })),
+  http.get('*/api/v1/machine-runs', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
 ];
 
 const jobOn = (process: Process) => jobFixture({ machine: { ...machine, process } });
@@ -135,19 +144,12 @@ describe('material picker by process', () => {
     const user = userEvent.setup();
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn(embroidery)} onClose={() => undefined} />
+        <AddToJobModal open job={jobOn(embroidery)} onClose={() => undefined} />
       </ToastProvider>,
     );
-    const dialog = await screen.findByRole('dialog');
-    const picker = await within(dialog).findByLabelText('Material');
-    await waitFor(() =>
-      expect(
-        within(picker)
-          .getAllByRole('option')
-          .map((option) => option.textContent),
-      ).toEqual(['Select a material', 'Tear-away (m)']),
-    );
-    expect(user).toBeDefined();
+    const dialog = await screen.findByRole('dialog', { name: 'Add to job' });
+    await user.click(within(dialog).getByRole('button', { name: 'Select material' }));
+    await waitFor(async () => expect(await pickerNames()).toEqual(['Tear-away']));
 
     // Editing a run whose usage no longer matches still lists that material.
     const run = manualRun({
@@ -177,17 +179,8 @@ describe('material picker by process', () => {
       </ToastProvider>,
     );
     const editDialog = await screen.findByRole('dialog', { name: 'Edit material usage' });
-    const editPicker = await within(editDialog).findByLabelText('Material');
-    expect(
-      within(editPicker)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(expect.arrayContaining(['Tear-away (m)', 'PLA Black (g)']));
-    expect(
-      within(editPicker)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).not.toContain('Cyan (ml)');
+    // The row keeps its material although it no longer fits the process.
+    expect(await within(editDialog).findByText('PLA Black')).toBeInTheDocument();
   });
 });
 
@@ -204,13 +197,12 @@ describe('process driven run form', () => {
     const user = userEvent.setup();
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn(embroidery)} onClose={() => undefined} />
+        <AddToJobModal open job={jobOn(embroidery)} onClose={() => undefined} />
       </ToastProvider>,
     );
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: 'Add to job' });
     await user.type(within(dialog).getByLabelText('Stitches (stitch)'), '12400');
-    await waitFor(() => expect(within(dialog).getByLabelText('Material')).toBeInTheDocument());
-    await user.selectOptions(within(dialog).getByLabelText('Material'), t(12));
+    await pickMaterial(user, dialog, 'Tear-away');
     expect(within(dialog).getByLabelText('Quantity (m)')).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Quantity (m)'), '0.4');
     expect(within(dialog).queryByLabelText(/Spool/)).not.toBeInTheDocument();
@@ -226,12 +218,11 @@ describe('process driven run form', () => {
     server.use(...lookups);
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn(fdm)} onClose={() => undefined} />
+        <AddToJobModal open job={jobOn(fdm)} onClose={() => undefined} />
       </ToastProvider>,
     );
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: 'Add to job' });
     expect(within(dialog).queryByLabelText(/Stitches/)).not.toBeInTheDocument();
-    expect(await within(dialog).findByLabelText(/Spool/)).toBeInTheDocument();
   });
 
   it('calculates cm² from width, height and count for cutting machines and keeps the result editable', async () => {
@@ -246,12 +237,11 @@ describe('process driven run form', () => {
     const user = userEvent.setup();
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn(laser)} onClose={() => undefined} />
+        <AddToJobModal open job={jobOn(laser)} onClose={() => undefined} />
       </ToastProvider>,
     );
-    const dialog = await screen.findByRole('dialog');
-    await waitFor(() => expect(within(dialog).getByLabelText('Material')).toBeInTheDocument());
-    await user.selectOptions(within(dialog).getByLabelText('Material'), t(17));
+    const dialog = await screen.findByRole('dialog', { name: 'Add to job' });
+    await pickMaterial(user, dialog, 'Birch 4 mm');
     fireEvent.change(await within(dialog).findByLabelText('Width (cm)'), { target: { value: '20' } });
     fireEvent.change(within(dialog).getByLabelText('Height (cm)'), { target: { value: '10' } });
     fireEvent.change(within(dialog).getByLabelText('Count'), { target: { value: '3' } });
@@ -282,10 +272,10 @@ describe('measures from the process', () => {
     const user = userEvent.setup();
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn(sewing)} onClose={() => undefined} />
+        <AddToJobModal open job={jobOn(sewing)} onClose={() => undefined} />
       </ToastProvider>,
     );
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: 'Add to job' });
     await user.type(within(dialog).getByLabelText('Thread (m)'), '35');
     expect(within(dialog).getByLabelText('Stitches (stitch)')).toHaveValue('');
     await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
@@ -396,10 +386,10 @@ describe('decimal entry', () => {
     const user = userEvent.setup();
     renderRoute(
       <ToastProvider>
-        <RunFormModal open mode="add" job={jobOn(embroidery)} onClose={() => undefined} />
+        <AddToJobModal open job={jobOn(embroidery)} onClose={() => undefined} />
       </ToastProvider>,
     );
-    const dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog', { name: 'Add to job' });
     const stitches = within(dialog).getByLabelText('Stitches (stitch)');
     await user.type(stitches, '1,5');
     expect(stitches).toHaveValue('1,5');

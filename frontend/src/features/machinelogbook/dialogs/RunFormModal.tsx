@@ -1,139 +1,23 @@
 import { useState } from 'react';
-import {
-  Button,
-  ComposedModal,
-  InlineNotification,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
-  Select,
-  SelectItem,
-  Stack,
-} from '@carbon/react';
+import { Button, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, Stack } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FormProvider, useForm } from 'react-hook-form';
-import { addManualMachineRun, updateMachineRun } from '../../../api/generated/machine-runs/machine-runs';
-import type { MachineJob, MachineRun, Process } from '../../../api/generated/models';
+import { Controller, FormProvider, useForm } from 'react-hook-form';
+import { updateMachineRun } from '../../../api/generated/machine-runs/machine-runs';
+import type { MachineRun, Process } from '../../../api/generated/models';
+import { FuzzySelectField } from '../../../app/components/FuzzyComboBox';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import { machineLogbookKeys, machineQuery } from '../queries';
 import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
-import { blankUsage, saveError, toUsageInputs, type UsagesValues } from './jobFormHelpers';
-import { RunOutcomeField, RunTimingFields } from './RunFields';
+import { saveError, type UsagesValues } from './jobFormHelpers';
+import { RunTimingFields } from './RunFields';
 import { resolveTimes, runDefaults, runOutcomeChoices, type RunValues } from './runFormHelpers';
 import { measureValuesFrom, toMeasures } from './processFormHelpers';
 import { MeasureFields } from './ProcessRunFields';
-import { UsageRowsEditor } from './UsageFormModal';
 import '../styles/jobs.scss';
 
-type AddProps = { mode: 'add'; job: MachineJob };
 type EditProps = { mode: 'edit'; run: MachineRun };
-
-function AddRunForm({ onClose, job }: { onClose: () => void; job: MachineJob }) {
-  const client = useQueryClient();
-  const notify = useNotify();
-  const process = job.machine.process;
-  const form = useForm<RunValues & UsagesValues>({
-    defaultValues: { ...runDefaults(), usages: [blankUsage()], measures: measureValuesFrom(process.measures) },
-  });
-  const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
-  const [error, setError] = useState<string | null>(null);
-  const mutation = useMutation({
-    mutationFn: ({
-      values,
-      times,
-    }: {
-      values: RunValues & UsagesValues;
-      times: { startsAt: string; endsAt: string };
-    }) =>
-      addManualMachineRun(job.id, {
-        run: {
-          ...times,
-          // The outcome only exists once the run has ended.
-          outcome: new Date(times.endsAt).getTime() > Date.now() || !values.outcome ? null : values.outcome,
-          usages: toUsageInputs(values.usages),
-          measures: toMeasures(values.measures, process.measures),
-        },
-        expectedJobVersion: job.version,
-      }),
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-      notify({
-        kind: 'success',
-        title: 'Run added',
-        subtitle: `${job.displayId} has another run; runtime and price are recalculated.`,
-      });
-      guard.bypassAfterSubmit(onClose);
-    },
-    onError: (cause) => setError(saveError(cause, 'The run could not be added.').message),
-  });
-  const pending = mutation.isPending;
-  const submit = form.handleSubmit(
-    (values) => {
-      setError(null);
-      const times = resolveTimes(values);
-      if ('error' in times) {
-        setError(times.error);
-        return;
-      }
-      mutation.mutate({ values, times });
-    },
-    () => setError('Check the highlighted fields. Every material row needs a material and a quantity above zero.'),
-  );
-
-  return (
-    <>
-      <ComposedModal
-        open={!guard.dialogOpen}
-        size="lg"
-        preventCloseOnClickOutside
-        aria-label="Add run"
-        onClose={() => {
-          if (!pending) guard.requestDiscard(onClose);
-          return false;
-        }}
-      >
-        <ModalHeader title="Add run" label={job.displayId} />
-        <ModalBody hasForm>
-          <FormProvider {...form}>
-            <Stack gap={6}>
-              <p>
-                Add another machine run to this job, for example a reprint. Runtime and material of all runs add up; the
-                price is recalculated.
-              </p>
-              {error && (
-                <InlineNotification kind="error" lowContrast hideCloseButton title="Run not added" subtitle={error} />
-              )}
-              <RunTimingFields idPrefix="add-run" />
-              <RunOutcomeField idPrefix="add-run" />
-              <MeasureFields idPrefix="add-run" measures={process.measures} />
-              <Stack gap={5}>
-                <div>
-                  <h3 className="mj-section-title">Material usage</h3>
-                  <p className="mj-secondary">
-                    Record everything this run consumed, including waste from failed outcomes. Stock is deducted when
-                    the run is saved.
-                  </p>
-                </div>
-                <UsageRowsEditor idPrefix="add-run-usage" process={process} />
-              </Stack>
-            </Stack>
-          </FormProvider>
-        </ModalBody>
-        <ModalFooter>
-          <Button kind="secondary" disabled={pending} onClick={() => guard.requestDiscard(onClose)}>
-            Cancel
-          </Button>
-          <Button kind="primary" disabled={pending} onClick={submit}>
-            {pending ? 'Saving…' : 'Add run'}
-          </Button>
-        </ModalFooter>
-      </ComposedModal>
-      <UnsavedChangesDialog guard={guard} />
-    </>
-  );
-}
 
 function EditRunForm({ onClose, run }: { onClose: () => void; run: MachineRun }) {
   const can = useCan();
@@ -163,7 +47,7 @@ function EditRunFormBody({ onClose, run, process }: { onClose: () => void; run: 
       times,
     }: {
       values: RunValues & Pick<UsagesValues, 'measures'>;
-      times?: { startsAt: string; endsAt: string };
+      times?: { startsAt?: string; endsAt: string };
     }) =>
       updateMachineRun(run.id, {
         // Start and end exist only on manual runs; a running run cannot have an outcome yet.
@@ -229,25 +113,32 @@ function EditRunFormBody({ onClose, run, process }: { onClose: () => void; run: 
               {manual ? (
                 <>
                   <RunTimingFields idPrefix="edit-run" />
-                  <RunOutcomeField idPrefix="edit-run" />
-                  {measureDefinitions.length > 0 && <MeasureFields idPrefix="edit-run" measures={measureDefinitions} />}
+                  {measureDefinitions.length > 0 && (
+                    <div className="mj-form-grid">
+                      <MeasureFields idPrefix="edit-run" measures={measureDefinitions} />
+                    </div>
+                  )}
                 </>
               ) : (
-                <Select
-                  id="edit-run-outcome"
-                  labelText="Outcome"
-                  helperText={
-                    run.outcomeFromMachine
-                      ? 'Reported by the machine; choosing another outcome overrides it.'
-                      : undefined
-                  }
-                  {...form.register('outcome')}
-                >
-                  <SelectItem value="" text="Not recorded yet" />
-                  {runOutcomeChoices.map((option) => (
-                    <SelectItem key={option.id} value={option.id} text={option.label} />
-                  ))}
-                </Select>
+                <Controller
+                  control={form.control}
+                  name="outcome"
+                  render={({ field }) => (
+                    <FuzzySelectField
+                      id="edit-run-outcome"
+                      titleText="Outcome"
+                      placeholder="Not recorded yet"
+                      helperText={
+                        run.outcomeFromMachine
+                          ? 'Reported by the machine; choosing another outcome overrides it.'
+                          : undefined
+                      }
+                      options={runOutcomeChoices}
+                      value={field.value || null}
+                      onChange={(id) => field.onChange(id ?? '')}
+                    />
+                  )}
+                />
               )}
             </Stack>
           </FormProvider>
@@ -266,16 +157,8 @@ function EditRunFormBody({ onClose, run, process }: { onClose: () => void; run: 
   );
 }
 
-/** Add a manual run to a job (for example a reprint), or correct an existing run. */
-export function RunFormModal({
-  open,
-  onClose,
-  ...props
-}: { open: boolean; onClose: () => void } & (AddProps | EditProps)) {
+/** Corrects an existing run: start, runtime, outcome and measures of a manual run, the outcome of a recorded one. */
+export function RunFormModal({ open, onClose, ...props }: { open: boolean; onClose: () => void } & EditProps) {
   if (!open) return null;
-  return props.mode === 'add' ? (
-    <AddRunForm onClose={onClose} job={props.job} />
-  ) : (
-    <EditRunForm onClose={onClose} run={props.run} />
-  );
+  return <EditRunForm onClose={onClose} run={props.run} />;
 }

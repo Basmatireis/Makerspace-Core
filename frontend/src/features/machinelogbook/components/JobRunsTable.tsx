@@ -16,7 +16,7 @@ import {
   TableToolbar,
   TableToolbarContent,
 } from '@carbon/react';
-import { Add, Link as LinkIcon } from '@carbon/icons-react';
+import { Add } from '@carbon/icons-react';
 import type { MachineJob, MachineRun } from '../../../api/generated/models';
 import { formatDateTime, formatDuration, formatTime } from '../shared/format';
 import {
@@ -76,15 +76,13 @@ type Props = {
   canEdit: boolean;
   /** machine_jobs.delete: lets recorded runs be deleted too. */
   canDelete?: boolean;
-  /** An unassigned recorded run exists on the job's machine, so attaching is worth offering. */
-  canAttach: boolean;
+
   onAction: (action: RunAction, run: MachineRun) => void;
   onAdd: () => void;
-  onAttach: () => void;
 };
 
 /** The runs of one job: manual and recorded, with row actions for people who may edit the job. */
-export function JobRunsTable({ job, now, canEdit, canDelete = false, canAttach, onAction, onAdd, onAttach }: Props) {
+export function JobRunsTable({ job, now, canEdit, canDelete = false, onAction, onAdd }: Props) {
   const [showReplaced, setShowReplaced] = useState(false);
   const ordered = [...job.runs].sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
   const replaced = ordered.filter((run) => run.state === 'replaced');
@@ -116,13 +114,8 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, canAttach, 
             {canEdit && (
               <TableToolbar aria-label="Run actions">
                 <TableToolbarContent>
-                  {canAttach && (
-                    <Button kind="ghost" size="lg" renderIcon={LinkIcon} onClick={onAttach}>
-                      Attach recorded run
-                    </Button>
-                  )}
-                  <Button kind="tertiary" size="lg" renderIcon={Add} onClick={onAdd}>
-                    Add run
+                  <Button kind="primary" size="lg" renderIcon={Add} onClick={onAdd}>
+                    Add
                   </Button>
                 </TableToolbarContent>
               </TableToolbar>

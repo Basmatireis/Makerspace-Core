@@ -3,27 +3,23 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type {
-  AddManualMachineRunRequest,
-  AttachMachineRunRequest,
-  CreateMachineJobRequest,
   DetachMachineRunRequest,
   Material,
   SetMachineJobPriceAdjustmentRequest,
   UpdateMachineRunRequest,
   VersionRequest,
+  WorkItem,
 } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { currentUserFixture } from '../../test/fixtures';
 import {
-  customer,
   ids,
   iso,
   jobFixture,
   machine,
   manualRun,
   needsOutcomeJob,
-  operator,
   recordedRun,
   runningJob,
   unassignedItem,
@@ -42,15 +38,18 @@ const {
   machine: machineId,
   material: materialId,
   job: jobId,
-  organization: organizationId,
-  operator: operatorId,
   recordedRun: recordedRunId,
   manualRun: manualRunId,
 } = ids;
 
 const material: Material = {
   id: materialId,
+  displayId: 'A-0001',
   name: 'PLA Black',
+  materialTypeCode: 'PLA',
+  machineUse: true,
+  prices: [],
+  attention: [],
   kind: 'filament',
   materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001',
   materialTypeName: 'PLA',
@@ -101,46 +100,43 @@ const jobItem = workItem({
 const runItem = unassignedItem();
 
 describe('Jobs page', () => {
-  it('lists jobs and unassigned runs with statuses, links and URL filters', async () => {
+  /** The table asks for job statuses, the strip above it for unassigned runs. */
+  const workItems = (jobs: WorkItem[], runs: WorkItem[], requests: URL[] = []) =>
+    http.get('*/api/v1/machine-logbook/work-items', ({ request }) => {
+      const url = new URL(request.url);
+      const strip = url.searchParams.getAll('status').includes('unassigned');
+      if (!strip) requests.push(url);
+      const items = strip ? runs : jobs;
+      return HttpResponse.json({ items, page: 1, pageSize: 25, total: items.length });
+    });
+
+  it('lists jobs only, with the unassigned runs in the strip above, and reads search and filters from the URL', async () => {
     const requests: URL[] = [];
-    server.use(
-      as(PermissionId.machine_jobsread),
-      http.get('*/api/v1/machine-logbook/work-items', ({ request }) => {
-        requests.push(new URL(request.url));
-        return HttpResponse.json({ items: [jobItem, runItem], page: 1, pageSize: 10, total: 2 });
-      }),
-    );
-    renderRoute(<App />, '/workshop/jobs?status=unassigned&q=bracket');
+    server.use(as(PermissionId.machine_jobsread), workItems([jobItem], [runItem], requests));
+    renderRoute(<App />, '/workshop/jobs?status=finished&outcome=successful&q=bracket');
     const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
-    expect(requests[0].searchParams.get('status')).toBe('unassigned');
+    expect(requests[0].searchParams.getAll('status')).toEqual(['successful']);
     expect(requests[0].searchParams.get('search')).toBe('bracket');
     expect(requests[0].searchParams.get('sort')).toBe('startedAt');
     expect(requests[0].searchParams.get('direction')).toBe('desc');
-
-    expect(within(table).getByRole('link', { name: 'Gearbox housing' })).toHaveAttribute(
+    expect(await within(table).findByRole('link', { name: 'Gearbox housing' })).toHaveAttribute(
       'href',
       `/workshop/jobs/${jobId}`,
     );
-    expect(within(table).getByText('J-2026-000001 · gearbox_housing_v3.gcode · 2 runs')).toBeInTheDocument();
-    expect(within(table).getByRole('link', { name: 'bracket_v2.gcode' })).toHaveAttribute(
-      'href',
-      `/workshop/jobs/runs/${recordedRunId}`,
-    );
-    expect(within(table).getByText('RN-2026-000008 · Unassigned')).toBeInTheDocument();
-    expect(within(table).getByText('Successful')).toBeInTheDocument();
-    expect(within(table).getByText('Unassigned run')).toBeInTheDocument();
-    expect(within(table).getByText('€12.50')).toBeInTheDocument();
+    expect(within(table).getByText('Not billed')).toBeInTheDocument();
+    expect(within(table).queryByText('bracket_v2.gcode')).not.toBeInTheDocument();
+    const strip = screen.getByRole('region', { name: 'Reported by machines, not assigned' });
+    expect(within(strip).getByText('bracket_v2.gcode')).toBeInTheDocument();
+    expect(within(strip).queryByRole('button', { name: 'Claim' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New job' })).not.toBeInTheDocument();
   });
 
-  it('deletes an unassigned run from its row menu only with machine_jobs.delete', async () => {
+  it('deletes an unassigned run from the strip only with machine_jobs.delete', async () => {
     let body: unknown;
     const run = recordedRun({ usages: [] });
     server.use(
       as(PermissionId.machine_jobsread, PermissionId.machine_jobsdelete),
-      http.get('*/api/v1/machine-logbook/work-items', () =>
-        HttpResponse.json({ items: [runItem], page: 1, pageSize: 10, total: 1 }),
-      ),
+      workItems([], [runItem]),
       http.get(`*/api/v1/machine-runs/${recordedRunId}`, () => HttpResponse.json(run)),
       http.delete(`*/api/v1/machine-runs/${recordedRunId}`, async ({ request }) => {
         body = await request.json();
@@ -149,56 +145,32 @@ describe('Jobs page', () => {
     );
     const user = userEvent.setup();
     renderRoute(<App />, '/workshop/jobs');
-    const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
-    await user.click(
-      within(table)
-        .getByRole('link', { name: 'bracket_v2.gcode' })
-        .closest('tr')!
-        .querySelector<HTMLButtonElement>('.cds--overflow-menu')!,
-    );
-    await user.click(await screen.findByText('Delete run'));
+    const strip = await screen.findByRole('region', { name: 'Reported by machines, not assigned' }, { timeout: 5000 });
+    await user.click(strip.querySelector<HTMLButtonElement>('.jobs-strip__actions .cds--btn--icon-only')!);
     const dialog = await screen.findByRole('alertdialog');
     await user.click(await within(dialog).findByRole('button', { name: 'Delete run' }));
     await waitFor(() => expect(body).toEqual({ expectedVersion: run.version, reverseConsumption: false }));
   });
 
-  it('has no row menu for unassigned runs without machine_jobs.delete', async () => {
-    server.use(
-      as(PermissionId.machine_jobsread),
-      http.get('*/api/v1/machine-logbook/work-items', () =>
-        HttpResponse.json({ items: [runItem], page: 1, pageSize: 10, total: 1 }),
-      ),
-    );
+  it('offers no delete in the strip without machine_jobs.delete', async () => {
+    server.use(as(PermissionId.machine_jobsread), workItems([], [runItem]));
     renderRoute(<App />, '/workshop/jobs');
-    const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
-    expect(table.querySelector('.cds--overflow-menu')).toBeNull();
+    const strip = await screen.findByRole('region', { name: 'Reported by machines, not assigned' }, { timeout: 5000 });
+    expect(strip.querySelector('.jobs-strip__actions .cds--btn--icon-only')).toBeNull();
   });
 
-  it('sends several selected values as repeated parameters, keeps the page URL comma-separated and sorts on the server', async () => {
+  it('maps the status, outcome, runs and billing filters to server parameters and sorts on the server', async () => {
     const requests: URL[] = [];
-    server.use(
-      as(PermissionId.machine_jobsread),
-      http.get('*/api/v1/machine-logbook/work-items', ({ request }) => {
-        requests.push(new URL(request.url));
-        return HttpResponse.json({ items: [jobItem], page: 1, pageSize: 10, total: 1 });
-      }),
-    );
+    server.use(as(PermissionId.machine_jobsread), workItems([jobItem], [], requests));
     const user = userEvent.setup();
-    const { router } = renderRoute(
-      <App />,
-      '/workshop/jobs?status=running,running_unassigned&source=manual,recorded&billing=on_order,order_outdated',
-    );
+    renderRoute(<App />, '/workshop/jobs?status=running&source=recorded&billing=order_outdated');
     const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
-    expect(requests[0].searchParams.getAll('status')).toEqual(['running', 'running_unassigned']);
-    expect(requests[0].searchParams.getAll('source')).toEqual(['manual', 'recorded']);
-    expect(requests[0].searchParams.getAll('billing')).toEqual(['on_order', 'order_outdated']);
-
-    await user.click(within(table).getByRole('button', { name: /Price/ }));
-    await waitFor(() => expect(requests.at(-1)?.searchParams.get('sort')).toBe('price'));
-    expect(requests.at(-1)?.searchParams.get('direction')).toBe('desc');
-    // The page's own URL keeps the compact comma-separated form.
-    expect(decodeURIComponent(router.state.location.search)).toContain('status=running,running_unassigned');
-    expect(decodeURIComponent(router.state.location.search)).toContain('billing=on_order,order_outdated');
+    expect(requests[0].searchParams.getAll('status')).toEqual(['running']);
+    expect(requests[0].searchParams.getAll('source')).toEqual(['recorded']);
+    expect(requests[0].searchParams.getAll('billing')).toEqual(['order_outdated']);
+    await user.click(within(table).getByRole('button', { name: /Recipient/ }));
+    await waitFor(() => expect(requests.at(-1)?.searchParams.get('sort')).toBe('customer'));
+    expect(requests.at(-1)?.searchParams.get('direction')).toBe('asc');
   });
 
   it('shows the empty state and offers New job only with machine_jobs.create', async () => {
@@ -214,146 +186,6 @@ describe('Jobs page', () => {
   });
 });
 
-describe('Job form', () => {
-  function lookups() {
-    return [
-      as(
-        PermissionId.machine_jobsread,
-        PermissionId.machine_jobscreate,
-        PermissionId.machinesread,
-        PermissionId.inventoryread,
-        PermissionId.pricingread,
-      ),
-      http.get('*/api/v1/pricing-groups', () =>
-        HttpResponse.json({
-          items: [
-            {
-              id: ids.pricingGroup,
-              name: 'Partner',
-              description: null,
-              active: true,
-              isDefault: false,
-              rules: [],
-              version: 1,
-              createdAt: '2026-09-01T00:00:00Z',
-              updatedAt: '2026-09-01T00:00:00Z',
-            },
-          ],
-        }),
-      ),
-      http.get('*/api/v1/machine-logbook/work-items', () =>
-        HttpResponse.json({ items: [], page: 1, pageSize: 10, total: 0 }),
-      ),
-      http.get('*/api/v1/machines', () => HttpResponse.json({ items: [machine], page: 1, pageSize: 100, total: 1 })),
-      http.get('*/api/v1/materials', () =>
-        HttpResponse.json({
-          items: [material],
-          page: 1,
-          pageSize: 100,
-          total: 1,
-          totalInventoryValue: material.inventoryValue,
-        }),
-      ),
-      http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
-      http.get('*/api/v1/billing-parties', () => HttpResponse.json({ items: [customer] })),
-      http.get('*/api/v1/machine-job-operators', () => HttpResponse.json({ items: [operator] })),
-    ];
-  }
-
-  it('hides the outcome while the computed end is in the future and defaults to Successful otherwise', async () => {
-    server.use(...lookups());
-    const user = userEvent.setup();
-    renderRoute(<App />, '/workshop/jobs');
-    await user.click((await screen.findAllByRole('button', { name: 'New job' }, { timeout: 5000 }))[0]);
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByLabelText('Outcome')).toHaveValue('successful');
-    expect(within(dialog).queryByText(/The end is in the future/)).not.toBeInTheDocument();
-
-    const hours = within(dialog).getByLabelText('Hours');
-    await user.clear(hours);
-    await user.type(hours, '3');
-    await waitFor(() => expect(within(dialog).queryByLabelText('Outcome')).not.toBeInTheDocument());
-    expect(within(dialog).getByText(/The end is in the future/)).toBeInTheDocument();
-  });
-
-  it('creates a manual job with its first run, customer, operator, material and pricing group and opens it', async () => {
-    let submitted: CreateMachineJobRequest | undefined;
-    server.use(
-      ...lookups(),
-      http.post('*/api/v1/machine-jobs', async ({ request }) => {
-        submitted = (await request.json()) as CreateMachineJobRequest;
-        return HttpResponse.json(jobFixture(), { status: 201 });
-      }),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
-    );
-    const user = userEvent.setup();
-    renderRoute(<App />, '/workshop/jobs');
-    await user.click((await screen.findAllByRole('button', { name: 'New job' }, { timeout: 5000 }))[0]);
-    const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByLabelText('Name (optional)'), ' Gearbox housing ');
-    await waitFor(() => expect(within(dialog).getByRole('option', { name: 'Bambu H2D #1' })).toBeInTheDocument());
-    await user.selectOptions(within(dialog).getByLabelText('Machine'), machineId);
-    await user.click(within(dialog).getByPlaceholderText('Search people or organizations'));
-    await user.click(await screen.findByText('TU Berlin'));
-    await user.click(within(dialog).getByPlaceholderText('Search operators'));
-    await user.click(await screen.findByText('Maria Hoffmann'));
-    await user.selectOptions(within(dialog).getByLabelText('Material'), materialId);
-    await user.type(await within(dialog).findByLabelText('Quantity (g)'), '25');
-    await user.selectOptions(within(dialog).getByLabelText('Pricing group (optional)'), ids.pricingGroup);
-    await user.click(within(dialog).getByRole('button', { name: 'Create job' }));
-    // The first run carries start, end, outcome and material; the job itself has none of them.
-    await waitFor(() =>
-      expect(submitted).toMatchObject({
-        machineId,
-        title: 'Gearbox housing',
-        customer: { kind: 'organization', id: organizationId },
-        operatorPersonId: operatorId,
-        pricingGroupId: ids.pricingGroup,
-        run: {
-          outcome: 'successful',
-          usages: [{ ownership: 'makerspace', materialId, spoolId: null, quantity: '25', quantityBasis: 'actual' }],
-        },
-      }),
-    );
-    expect(submitted).not.toHaveProperty('outcome');
-    expect(submitted).not.toHaveProperty('startsAt');
-    expect(
-      submitted?.run.startsAt &&
-        submitted.run.endsAt &&
-        new Date(submitted.run.endsAt) > new Date(submitted.run.startsAt),
-    ).toBe(true);
-    expect(await screen.findByRole('heading', { name: 'Gearbox housing' }, { timeout: 5000 })).toBeInTheDocument();
-  });
-
-  it('shows a server rejection of the outcome as an inline error', async () => {
-    server.use(
-      ...lookups(),
-      http.post('*/api/v1/machine-jobs', () =>
-        HttpResponse.json(
-          { code: 'outcome_before_run_end', message: 'An outcome cannot be recorded before the run has ended' },
-          { status: 422 },
-        ),
-      ),
-    );
-    const user = userEvent.setup();
-    renderRoute(<App />, '/workshop/jobs');
-    await user.click((await screen.findAllByRole('button', { name: 'New job' }, { timeout: 5000 }))[0]);
-    const dialog = await screen.findByRole('dialog');
-    await waitFor(() => expect(within(dialog).getByRole('option', { name: 'Bambu H2D #1' })).toBeInTheDocument());
-    await user.selectOptions(within(dialog).getByLabelText('Machine'), machineId);
-    await user.click(within(dialog).getByPlaceholderText('Search people or organizations'));
-    await user.click(await screen.findByText('TU Berlin'));
-    await user.click(within(dialog).getByPlaceholderText('Search operators'));
-    await user.click(await screen.findByText('Maria Hoffmann'));
-    await user.click(dialog.querySelector('.mj-usage-row .cds--btn--icon-only')!);
-    await user.click(within(dialog).getByRole('button', { name: 'Create job' }));
-    expect(
-      await within(dialog).findByText('The outcome can only be recorded once the run has ended.'),
-    ).toBeInTheDocument();
-  });
-});
-
-/** The tooltip sentence a Carbon icon button is labelled by. */
 const tooltipText = (button: HTMLElement) =>
   document.getElementById(button.getAttribute('aria-labelledby') ?? '')?.textContent ?? '';
 
@@ -407,13 +239,10 @@ describe('Job detail page', () => {
     expect(replacedRow).toHaveClass('mj-run-row--replaced');
     expect(within(replacedRow).getByText('Replaced')).toBeInTheDocument();
     expect(replacedRow.querySelector('.cds--overflow-menu')).toBeNull();
-    // Facts: the metric tiles read Start, Runtime, Material, Recipient; the outcome sits in the details.
-    const metricLabels = [...document.querySelectorAll('.facts-bar__metric dt')].map((node) => node.textContent);
-    expect(metricLabels).toEqual(['Start', 'Runtime', 'Material', 'Recipient']);
-    expect(screen.queryByText('Outcome', { selector: '.facts-bar__metric dt' })).not.toBeInTheDocument();
-    // Facts: the runtime is the sum of the runs that count, the replaced one is not included.
-    expect(screen.getByText('Runtime', { selector: 'dt' }).nextSibling).toHaveTextContent('2 h 30 min');
-    expect(screen.getByText('Runs', { selector: 'dt' }).parentElement).toHaveTextContent(/Runs2.*1 replaced/);
+    // Facts: six tiles; the runtime is the sum of the runs that count, the replaced one is not included.
+    const labels = [...document.querySelectorAll('.fact-tiles dt')].map((node) => node.textContent);
+    expect(labels).toEqual(['Started', 'Material', 'Outcome', 'Recipient', 'Operator', 'Machine']);
+    expect(screen.getByText('Started', { selector: 'dt' }).parentElement).toHaveTextContent(/2 h 30 min · 1 replaced/);
   });
 
   it('explains a run without recorded material in a tooltip instead of text under the value', async () => {
@@ -456,7 +285,7 @@ describe('Job detail page', () => {
     renderRoute(<App />, `/workshop/jobs/${jobId}`);
     expect(await screen.findByRole('heading', { name: 'Gearbox housing' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Run progress' })).toBeInTheDocument();
-    expect(screen.getByText('Expected end')).toBeInTheDocument();
+    expect(screen.getByText('Not yet')).toBeInTheDocument();
     expect(screen.queryByText(jobId)).not.toBeInTheDocument();
 
     await runAction(user, 'RN-2026-000001', 'Cancel run');
@@ -524,121 +353,6 @@ describe('Job detail page', () => {
       expect(updates).toEqual([{ id: ids.otherJob, body: { outcome: 'failed', expectedVersion: 4 } }]),
     );
     expect(await screen.findByText('Outcome recorded')).toBeInTheDocument();
-  });
-
-  it('adds a run (a reprint) and shows both runs with the summed runtime', async () => {
-    let added: AddManualMachineRunRequest | undefined;
-    const reprint = manualRun({
-      id: ids.otherJob,
-      displayId: 'RN-2026-000002',
-      startedAt: iso(-60),
-      endedAt: iso(-10),
-      durationSeconds: 3000,
-      usages: [usage({ id: ids.usage, quantity: '25.000' })],
-      version: 1,
-    });
-    const before = jobFixture();
-    server.use(
-      as(...editor, PermissionId.machinesread, PermissionId.inventoryread),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () =>
-        HttpResponse.json(added ? jobFixture({ runs: [manualRun(), reprint], version: 4 }) : before),
-      ),
-      noUnassignedRuns,
-      http.get('*/api/v1/materials', () =>
-        HttpResponse.json({
-          items: [material],
-          page: 1,
-          pageSize: 100,
-          total: 1,
-          totalInventoryValue: material.inventoryValue,
-        }),
-      ),
-      http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
-      http.post(`*/api/v1/machine-jobs/${jobId}/runs`, async ({ request }) => {
-        added = (await request.json()) as AddManualMachineRunRequest;
-        return HttpResponse.json(jobFixture({ runs: [manualRun(), reprint], version: 4 }), { status: 201 });
-      }),
-    );
-    const user = userEvent.setup();
-    renderRoute(<App />, `/workshop/jobs/${jobId}`);
-    expect(await screen.findByText('Runtime', { selector: 'dt' }, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.getByText('Runtime', { selector: 'dt' }).nextSibling).toHaveTextContent('1 h 30 min');
-    await user.click(screen.getByRole('button', { name: 'Add run' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Add run' });
-    expect(within(dialog).getByLabelText('Outcome')).toHaveValue('successful');
-    await user.selectOptions(await within(dialog).findByLabelText('Material'), materialId);
-    await user.type(within(dialog).getByLabelText('Quantity (g)'), '25');
-    await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
-
-    await waitFor(() =>
-      expect(added).toMatchObject({
-        expectedJobVersion: 3,
-        run: {
-          outcome: 'successful',
-          usages: [{ ownership: 'makerspace', materialId, quantity: '25', quantityBasis: 'actual' }],
-        },
-      }),
-    );
-    expect(new Date(added!.run.endsAt).getTime()).toBeGreaterThan(new Date(added!.run.startsAt).getTime());
-    expect(await screen.findByText('Run added')).toBeInTheDocument();
-    const table = screen.getByRole('table', { name: 'Runs' });
-    await waitFor(() => expect(within(table).getByRole('link', { name: 'RN-2026-000002' })).toBeInTheDocument());
-    expect(within(table).getByRole('link', { name: 'RN-2026-000001' })).toBeInTheDocument();
-    expect(screen.getByText('Runtime', { selector: 'dt' }).nextSibling).toHaveTextContent('2 h 20 min');
-    expect(screen.getByText('Runs', { selector: 'dt' }).nextSibling).toHaveTextContent('2');
-  });
-
-  it('attaches a running recorded run of the job machine and replaces the manual runs', async () => {
-    let attached: AttachMachineRunRequest | undefined;
-    const running = recordedRun({
-      state: 'running',
-      endedAt: null,
-      estimatedEndAt: iso(30),
-      startedAt: iso(-30),
-      progressPercent: 50,
-      outcome: null,
-      outcomeFromMachine: false,
-      durationSeconds: 3600,
-    });
-    server.use(
-      as(...editor),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
-      http.get('*/api/v1/machine-runs', ({ request }) => {
-        const params = new URL(request.url).searchParams;
-        expect(params.get('machineId')).toBe(machineId);
-        expect(params.get('assigned')).toBe('false');
-        expect(params.get('source')).toBe('recorded');
-        return HttpResponse.json({ items: [running], page: 1, pageSize: 100, total: 1 });
-      }),
-      http.put(`*/api/v1/machine-runs/${recordedRunId}/job`, async ({ request }) => {
-        attached = (await request.json()) as AttachMachineRunRequest;
-        return HttpResponse.json(jobFixture());
-      }),
-    );
-    const user = userEvent.setup();
-    renderRoute(<App />, `/workshop/jobs/${jobId}`);
-    await user.click(await screen.findByRole('button', { name: 'Attach recorded run' }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('combobox', { name: /Recorded run/ }));
-    await user.click(await screen.findByText(/Gearbox housing v3 · RN-2026-000007/));
-    expect(await within(dialog).findByText('Manual run')).toBeInTheDocument();
-    expect(within(dialog).getByRole('checkbox', { name: 'Replace manual runs' })).toBeChecked();
-    expect(within(dialog).getByText('Manual runs replaced')).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Attach and replace' }));
-    await waitFor(() =>
-      expect(attached).toEqual({ machineJobId: jobId, replaceManualRuns: true, expectedJobVersion: 3 }),
-    );
-  });
-
-  it('does not offer to attach a recorded run when the machine has none', async () => {
-    server.use(
-      as(...editor),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
-      noUnassignedRuns,
-    );
-    renderRoute(<App />, `/workshop/jobs/${jobId}`);
-    expect(await screen.findByRole('button', { name: 'Add run' }, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Attach recorded run' })).not.toBeInTheDocument();
   });
 
   it('detaches the only recorded run of a job and explains the manual copy', async () => {
@@ -988,16 +702,17 @@ describe('Job detail page', () => {
     renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000001', 'Edit run');
     let dialog = await screen.findByRole('dialog', { name: 'Edit run' });
-    expect(within(dialog).getByLabelText('Start date')).toBeInTheDocument();
-    expect(within(dialog).getByLabelText('Hours')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Started at date')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Duration (h)')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
     await runAction(user, 'RN-2026-000007', 'Edit run');
     dialog = await screen.findByRole('dialog', { name: 'Edit run' });
-    expect(within(dialog).queryByLabelText('Start date')).not.toBeInTheDocument();
-    expect(within(dialog).queryByLabelText('Hours')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Started at date')).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Duration (h)')).not.toBeInTheDocument();
     expect(within(dialog).getByText(/Reported by the machine/)).toBeInTheDocument();
-    await user.selectOptions(within(dialog).getByLabelText('Outcome'), 'partial_failure');
+    await user.click(within(dialog).getByRole('combobox', { name: 'Outcome' }));
+    await user.click(await screen.findByRole('option', { name: 'Partial failure' }));
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updates).toEqual([{ outcome: 'partial_failure', expectedVersion: 7 }]));
   });
@@ -1055,12 +770,13 @@ describe('Job detail page', () => {
     renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await user.click(await screen.findByRole('button', { name: 'Edit job' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit job' });
-    const override = within(dialog).getByLabelText('Outcome override');
+    const override = within(dialog).getByRole('combobox', { name: 'Outcome override' });
     expect(override).toHaveValue('');
     expect(within(dialog).getByText('Derived from the runs: Successful.')).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText('Hours')).not.toBeInTheDocument();
-    await user.selectOptions(override, 'failed');
-    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    expect(within(dialog).queryByLabelText('Duration (h)')).not.toBeInTheDocument();
+    await user.click(override);
+    await user.click(await screen.findByRole('option', { name: 'Failed' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save job' }));
     await waitFor(() => expect(updated).toMatchObject({ outcomeOverride: 'failed', machineId, expectedVersion: 3 }));
   });
 
@@ -1087,10 +803,9 @@ describe('Job detail page', () => {
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/workshop/jobs/${jobId}`);
-    expect(await screen.findByText('Not on an order.')).toBeInTheDocument();
+    expect(await screen.findByText('Not on an order')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit job' })).not.toBeInTheDocument();
-    await user.click(overflowButton());
-    await user.click(await screen.findByText('Adjust price'));
+    await user.click(screen.getByRole('button', { name: 'Adjust price' }));
     const dialog = await screen.findByRole('dialog');
     const discount = within(dialog).getByRole('textbox', { name: 'Discount (%)' });
     await user.type(discount, '12,');

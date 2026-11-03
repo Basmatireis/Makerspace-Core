@@ -1,15 +1,14 @@
+/* eslint-disable react-refresh/only-export-components -- the job form and its shared field helpers belong together */
 import { useState } from 'react';
 import {
   ActionableNotification,
   Button,
-  ComboBox,
+  Checkbox,
   ComposedModal,
   InlineNotification,
   ModalBody,
   ModalFooter,
   ModalHeader,
-  Select,
-  SelectItem,
   Stack,
   TextArea,
   TextInput,
@@ -18,8 +17,8 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { Controller, FormProvider, useForm, useFormContext, useWatch } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { createMachineJob, updateMachineJob } from '../../../api/generated/machine-jobs/machine-jobs';
-import { createMachineJobFromRun } from '../../../api/generated/machine-runs/machine-runs';
-import type { MachineJob, MachineRun, MachineRunOutcome, Operator } from '../../../api/generated/models';
+import type { BillingParty, MachineJob, MachineRunOutcome, Operator } from '../../../api/generated/models';
+import { FuzzyComboBox, FuzzySelectField } from '../../../app/components/FuzzyComboBox';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import { useCurrentUser } from '../../auth/auth';
@@ -31,31 +30,48 @@ import {
   operatorSearchQuery,
   pricingQuery,
 } from '../queries';
-import { formatDateTime, formatDuration } from '../shared/format';
 import { machineLogbookPaths } from '../shared/paths';
-import { nameFromFile } from '../shared/status';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import {
   blankUsage,
   signedInOperator,
-  matchesName,
   saveError,
   toUsageInputs,
   type JobInitialValues,
   type PartyValues,
   type UsagesValues,
 } from './jobFormHelpers';
-import { RunOutcomeField, RunTimingFields } from './RunFields';
-import { resolveTimes, runDefaults, runOutcomeChoices, type RunValues } from './runFormHelpers';
+import { RunTimingFields } from './RunFields';
+import { outcomeFor, resolveTimes, runDefaults, runOutcomeChoices, type RunValues } from './runFormHelpers';
 import { toMeasures } from './processFormHelpers';
 import { MeasureFields } from './ProcessRunFields';
 import { UsageRowsEditor } from './UsageFormModal';
 import '../styles/jobs.scss';
+import '../jobs/jobs.scss';
 
 export type { JobInitialValues } from './jobFormHelpers';
 
-export function JobPartyFields({ idPrefix, current }: { idPrefix: string; current?: MachineJob }) {
+/** "Pricing group Partner from the organization’s group." for the recipient chosen in a job form. */
+export function recipientHelper(customer: BillingParty | null | undefined) {
+  if (!customer) return 'Who gets the result and is charged.';
+  if (!customer.pricingGroup) return 'No pricing group; the default group applies.';
+  return `Pricing group ${customer.pricingGroup.name} from the ${customer.kind === 'organization' ? 'organization’s group' : 'member’s role'}.`;
+}
+
+/**
+ * Recipient and operator of a job (side by side), with the suggestion to bill the organization a person belongs to.
+ * `withNotes` adds the notes field (bulk creation); the job dialogs edit notes on the job page instead.
+ */
+export function JobPartyFields({
+  idPrefix,
+  current,
+  withNotes = false,
+}: {
+  idPrefix: string;
+  current?: MachineJob;
+  withNotes?: boolean;
+}) {
   const currentUser = useCurrentUser();
   const canLookup = canLookupJobParties(currentUser);
   const { control, register, setValue } = useFormContext<PartyValues>();
@@ -66,7 +82,7 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
   const [customerSearch, setCustomerSearch] = useState('');
   const [operatorSearch, setOperatorSearch] = useState('');
   const parties = useQuery({
-    ...billingPartySearchQuery(customerSearch),
+    ...billingPartySearchQuery(customer && customerSearch === customer.displayName ? '' : customerSearch),
     enabled: canLookup,
     placeholderData: keepPreviousData,
   });
@@ -82,6 +98,8 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
   const lookupFailed = parties.isError || operators.isError;
   // A confirmed job whose recipient was deleted keeps no recipient unless one is chosen; everything else needs one.
   const customerRequired = !current || !!current.customer;
+  const withChosen = <T extends { id?: string; personId?: string }>(items: T[], chosen: T | null, key: keyof T) =>
+    chosen && !items.some((item) => item[key] === chosen[key]) ? [chosen, ...items] : items;
   return (
     <Stack gap={6}>
       {!canLookup && (
@@ -104,15 +122,17 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
           name="customer"
           rules={{ required: customerRequired }}
           render={({ field, fieldState }) => (
-            <ComboBox
+            <FuzzyComboBox<BillingParty>
               autoAlign
               id={`${idPrefix}-customer`}
               titleText="Recipient"
-              placeholder="Search people or organizations"
+              placeholder="Select a member or organization"
+              helperText={recipientHelper(field.value)}
               disabled={!canLookup}
-              items={parties.data?.items ?? (current?.customer ? [current.customer] : [])}
-              itemToString={(item) => item?.displayName ?? ''}
-              shouldFilterItem={matchesName}
+              items={withChosen(parties.data?.items ?? [], field.value, 'id')}
+              itemToString={(item) =>
+                item ? `${item.displayName}${item.kind === 'organization' ? ' (organization)' : ''}` : ''
+              }
               selectedItem={field.value}
               onInputChange={setCustomerSearch}
               onChange={({ selectedItem }) => field.onChange(selectedItem ?? null)}
@@ -126,17 +146,19 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
           name="operator"
           rules={{ required: true }}
           render={({ field, fieldState }) => (
-            <ComboBox
+            <FuzzyComboBox<Operator>
               autoAlign
               id={`${idPrefix}-operator`}
               titleText="Operator"
               placeholder="Search operators"
-              disabled={!canLookup}
-              items={operators.data?.items ?? (current?.operator ? [current.operator] : [])}
-              itemToString={(item) => item?.displayName ?? ''}
-              shouldFilterItem={(options) =>
-                (!!operator && options.inputValue === operator.displayName) || matchesName(options)
+              helperText={
+                field.value?.personId === currentUser.person.id
+                  ? 'You, as the signed-in person; change it if someone else is responsible.'
+                  : 'The person responsible for this job.'
               }
+              disabled={!canLookup}
+              items={withChosen(operators.data?.items ?? [], field.value, 'personId')}
+              itemToString={(item) => item?.displayName ?? ''}
               selectedItem={field.value}
               onInputChange={setOperatorSearch}
               onChange={({ selectedItem }) => field.onChange(selectedItem ?? null)}
@@ -170,31 +192,61 @@ export function JobPartyFields({ idPrefix, current }: { idPrefix: string; curren
           }
         />
       )}
-      <TextArea id={`${idPrefix}-notes`} labelText="Notes" rows={3} {...register('notes')} />
+      {withNotes && <TextArea id={`${idPrefix}-notes`} labelText="Notes" rows={3} {...register('notes')} />}
     </Stack>
+  );
+}
+
+/** The signage opt-out of a job: nothing of it or its runs appears on any display. */
+export function SignageCheckbox({
+  id,
+  checked,
+  onChange,
+  labelText = 'Keep this job off the signage screens',
+  helperText = 'No live status, no camera stream and no timelapse of its runs on any display; the job itself stays visible to staff.',
+}: {
+  id: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  labelText?: string;
+  helperText?: string;
+}) {
+  return (
+    <Checkbox
+      id={id}
+      labelText={labelText}
+      helperText={helperText}
+      checked={checked}
+      onChange={(_event, { checked: next }) => onChange(next)}
+    />
   );
 }
 
 type Values = PartyValues &
   UsagesValues &
-  RunValues & { title: string; machineId: string; pricingGroupId: string; outcomeOverride: MachineRunOutcome | '' };
+  RunValues & {
+    title: string;
+    machineId: string;
+    pricingGroupId: string;
+    outcomeOverride: MachineRunOutcome | '';
+    hiddenFromSignage: boolean;
+  };
 
 type JobFormProps = {
   onClose: () => void;
   mode: 'create' | 'edit';
   job?: MachineJob;
   initialValues?: JobInitialValues;
-  run?: MachineRun;
   onSaved?: (job: MachineJob) => void;
 };
 
-function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormProps) {
+function JobForm({ onClose, mode, job, initialValues, onSaved }: JobFormProps) {
   const navigate = useNavigate();
   const client = useQueryClient();
   const notify = useNotify();
   const can = useCan();
   const currentUser = useCurrentUser();
-  const fromRun = mode === 'create' && !!run;
+  const creating = mode === 'create';
   const source = job
     ? {
         title: job.title,
@@ -204,69 +256,69 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
         notes: job.notes,
       }
     : initialValues;
-  const runName = run?.fileName ? nameFromFile(run.fileName) : null;
   const hasRecordedRun = !!job?.runs.some((item) => item.source === 'recorded' && item.state !== 'replaced');
   const form = useForm<Values>({
     defaultValues: {
-      title: source?.title ?? runName ?? '',
-      machineId: source?.machineId ?? run?.machineId ?? '',
+      title: source?.title ?? '',
+      machineId: source?.machineId ?? '',
       pricingGroupId: '',
       customer: source?.customer ?? null,
-      operator: source?.operator ?? (mode === 'create' ? signedInOperator(currentUser.person) : null),
+      operator: source?.operator ?? (creating ? signedInOperator(currentUser.person) : null),
       notes: source?.notes ?? '',
       outcomeOverride: job?.outcomeOverridden && job.outcome !== 'unknown' ? (job.outcome as MachineRunOutcome) : '',
-      ...runDefaults(),
-      usages: mode === 'create' && !fromRun ? [blankUsage()] : [],
+      hiddenFromSignage: job?.hiddenFromSignage ?? false,
+      ...runDefaults(undefined, true, 'now'),
+      usages: creating ? [blankUsage()] : [],
       measures: {},
     },
   });
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
+  const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canReadMachines = can('machines.read');
-  const machines = useQuery({ ...machinesQuery({ page: 1, pageSize: 100 }), enabled: canReadMachines && !fromRun });
+  const machines = useQuery({ ...machinesQuery({ page: 1, pageSize: 100 }), enabled: canReadMachines });
   const canReadPricing = can('pricing.read');
-  const pricing = useQuery({ ...pricingQuery(), enabled: canReadPricing && mode === 'create' });
-  const machineId = form.watch('machineId');
-  const process = (machines.data?.items ?? []).find((machine) => machine.id === machineId)?.process;
+  const pricing = useQuery({ ...pricingQuery(), enabled: canReadPricing && creating });
+  const [machineId, customer] = useWatch({ control: form.control, name: ['machineId', 'customer'] });
+  const machine = (machines.data?.items ?? []).find((item) => item.id === machineId);
+  const process = machine?.process;
   const machineChoices = (machines.data?.items ?? [])
-    .filter((machine) => machine.status !== 'retired' || machine.id === job?.machine.id)
-    .map((machine) => ({ id: machine.id, name: machine.name }));
+    .filter((item) => (item.status !== 'retired' && item.status !== 'maintenance') || item.id === job?.machine.id)
+    .map((item) => ({ id: item.id, label: `${item.name} · ${item.process.name}` }));
   if (job && !machineChoices.some((item) => item.id === job.machine.id))
-    machineChoices.unshift({ id: job.machine.id, name: job.machine.name });
+    machineChoices.unshift({ id: job.machine.id, label: job.machine.name });
 
   const mutation = useMutation({
-    mutationFn: async ({ values, times }: { values: Values; times?: { startsAt: string; endsAt: string } }) => {
+    mutationFn: async ({ values, times }: { values: Values; times?: { startsAt?: string; endsAt: string } }) => {
       const title = values.title.trim() || null;
-      const notes = values.notes.trim() || null;
-      const customer = values.customer ? { kind: values.customer.kind, id: values.customer.id } : undefined;
+      const customerRef = values.customer ? { kind: values.customer.kind, id: values.customer.id } : undefined;
       const operatorPersonId = (values.operator as Operator).personId;
       const pricingGroupId = values.pricingGroupId || undefined;
       if (mode === 'edit' && job) {
         return updateMachineJob(job.id, {
           machineId: values.machineId,
-          customer,
+          customer: customerRef,
           operatorPersonId,
           title,
-          notes,
+          notes: job.notes ?? null,
           outcomeOverride: values.outcomeOverride || null,
+          hiddenFromSignage: values.hiddenFromSignage,
           expectedVersion: job.version,
         });
       }
-      if (run)
-        return createMachineJobFromRun(run.id, { title, customer: customer!, operatorPersonId, notes, pricingGroupId });
       const first = times!;
       return createMachineJob({
         machineId: values.machineId,
-        customer: customer!,
+        customer: customerRef!,
         operatorPersonId,
         title,
-        notes,
+        notes: values.notes.trim() || null,
         pricingGroupId,
-        // The outcome only exists once the first run has ended.
+        hiddenFromSignage: values.hiddenFromSignage,
         run: {
           ...first,
-          outcome: new Date(first.endsAt).getTime() > Date.now() || !values.outcome ? null : values.outcome,
+          outcome: outcomeFor(values, first.endsAt),
           usages: toUsageInputs(values.usages),
           measures: toMeasures(values.measures, process?.measures ?? []),
         },
@@ -276,22 +328,14 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
       const repriced =
         mode === 'edit' && job && (job.machine.id !== values.machineId || job.customer?.id !== values.customer?.id);
-      if (fromRun) {
-        notify({
-          kind: 'success',
-          title: 'Job created',
-          subtitle: `${saved.displayId} contains ${run.displayId}; material from the machine is consumed automatically.`,
-        });
-      } else {
-        notify({
-          kind: 'success',
-          title: mode === 'create' ? `${saved.displayId} created` : `${saved.displayId} updated`,
-          subtitle: repriced ? 'Price recalculated.' : undefined,
-        });
-      }
+      notify({
+        kind: 'success',
+        title: creating ? 'Job created' : 'Job saved',
+        subtitle: `${saved.displayId}${saved.title ? ` · ${saved.title}` : ''}${repriced ? ' · price recalculated' : ''}`,
+      });
       guard.bypassAfterSubmit(() => {
         onClose();
-        if (mode === 'create') {
+        if (creating) {
           if (onSaved) onSaved(saved);
           else navigate(machineLogbookPaths.job(saved.id));
         } else onSaved?.(saved);
@@ -312,7 +356,7 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
   const submit = form.handleSubmit(
     (values) => {
       setError(null);
-      if (mode === 'create' && !fromRun) {
+      if (creating) {
         const times = resolveTimes(values);
         if ('error' in times) {
           setError(times.error);
@@ -326,7 +370,7 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
         errors.startsAt
           ? 'Enter a valid start time (DD.MM.YYYY, HH:MM).'
           : errors.runtimeHours || errors.runtimeMinutes
-            ? 'Enter a runtime longer than zero.'
+            ? 'Enter a duration longer than zero.'
             : 'Check the highlighted fields.',
       ),
   );
@@ -335,160 +379,144 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
     job && !job.outcomeOverridden && job.outcome !== 'unknown'
       ? runOutcomeChoices.find((option) => option.id === job.outcome)?.label
       : undefined;
-  const title = mode === 'create' ? 'New job' : 'Edit job';
+  const heading = creating ? 'New job' : 'Edit job';
+  const machineHelper = hasRecordedRun
+    ? 'The machine cannot change while the job has a recorded run.'
+    : !machine
+      ? 'Which machine does the work?'
+      : machine.automaticCollectionEnabled
+        ? 'Automatic machine: recorded runs attach themselves to the open job of the recipient.'
+        : 'Manual machine: enter the run below.';
 
   return (
     <>
       <ComposedModal
-        open={!guard.dialogOpen}
+        open={!guard.dialogOpen && !picking}
         size="lg"
         preventCloseOnClickOutside
-        selectorPrimaryFocus="#job-form-title"
-        aria-label={title}
+        className="jobs-form-modal"
+        selectorPrimaryFocus={creating ? '#job-form-machine' : '#job-form-title'}
+        aria-label={heading}
         onClose={() => {
           if (!pending) guard.requestDiscard(onClose);
           return false;
         }}
       >
-        <ModalHeader title={title} label={job?.displayId} />
+        <ModalHeader title={heading} label={job ? `${job.displayId} · Jobs` : 'Jobs'} />
         <ModalBody hasForm>
           <FormProvider {...form}>
             <Stack gap={6}>
-              <p>
-                {mode === 'create'
-                  ? fromRun
-                    ? `The job contains ${run.displayId}: machine, start, end and material come from the machine. The price is calculated from the recipient’s pricing group when saved.`
-                    : 'Use this when a machine cannot report the run. The first run is entered by hand and the job is priced from the recipient’s pricing group when saved. Runs reported by the machine can be attached later.'
-                  : 'Changing recipient or machine recalculates the price; existing order charges stay unchanged. Runs and their material are edited on the job page.'}
-              </p>
               {error && (
                 <InlineNotification kind="error" lowContrast hideCloseButton title="Job not saved" subtitle={error} />
               )}
-              <TextInput
-                id="job-form-title"
-                labelText="Name (optional)"
-                placeholder="e.g. Gearbox housing for Jonas"
-                maxLength={120}
-                helperText={
-                  runName
-                    ? `Prefilled from the machine’s file name. Leave empty to show “${runName}”.`
-                    : 'Leave empty to show the file name of the latest recorded run, or the job number.'
-                }
-                {...form.register('title')}
-              />
-              {fromRun ? (
-                <TextInput
-                  id="job-form-machine"
-                  labelText="Machine"
-                  readOnly
-                  value={run.machineName}
-                  helperText="From the recorded run."
-                />
-              ) : (
+              <div className="mj-form-grid">
                 <Controller
                   control={form.control}
                   name="machineId"
                   rules={{ required: true }}
                   render={({ field, fieldState }) => (
-                    <Select
+                    <FuzzySelectField
+                      autoAlign
                       id="job-form-machine"
-                      labelText="Machine"
-                      value={field.value}
+                      titleText="Machine"
+                      placeholder={machines.isPending && canReadMachines ? 'Loading machines…' : 'Select a machine'}
+                      options={machineChoices}
+                      value={field.value || null}
                       invalid={fieldState.invalid}
                       invalidText={fieldState.error?.message || 'Select a machine.'}
                       disabled={hasRecordedRun}
-                      helperText={
-                        hasRecordedRun ? 'The machine cannot change while the job has a recorded run.' : undefined
-                      }
-                      onChange={(event) => field.onChange(event.target.value)}
-                    >
-                      <SelectItem
-                        value=""
-                        text={machines.isPending && canReadMachines ? 'Loading machines…' : 'Select a machine'}
-                      />
-                      {machineChoices.map((machine) => (
-                        <SelectItem key={machine.id} value={machine.id} text={machine.name} />
-                      ))}
-                    </Select>
+                      helperText={machineHelper}
+                      onChange={(id) => {
+                        field.onChange(id ?? '');
+                        // Materials of another process no longer fit.
+                        if (creating) form.setValue('usages', [blankUsage()]);
+                      }}
+                    />
+                  )}
+                />
+                <TextInput
+                  id="job-form-title"
+                  labelText="Title (optional)"
+                  placeholder="For example Bracket set for the racing team"
+                  maxLength={200}
+                  helperText="Shown instead of the job number."
+                  {...form.register('title')}
+                />
+              </div>
+              <JobPartyFields idPrefix="job-form" current={job} />
+              {creating && canReadPricing && (
+                <Controller
+                  control={form.control}
+                  name="pricingGroupId"
+                  render={({ field }) => (
+                    <FuzzySelectField
+                      autoAlign
+                      id="job-form-pricing-group"
+                      titleText="Pricing group (optional)"
+                      placeholder="Recipient’s pricing group"
+                      helperText="Leave empty to use the recipient’s pricing group."
+                      options={(pricing.data?.items ?? [])
+                        .filter((group) => group.active)
+                        .map((group) => ({ id: group.id, label: group.name }))}
+                      value={field.value || null}
+                      onChange={(id) => field.onChange(id ?? '')}
+                    />
                   )}
                 />
               )}
-              <JobPartyFields idPrefix="job-form" current={job} />
-              {mode === 'create' && canReadPricing && (
-                <Select
-                  id="job-form-pricing-group"
-                  labelText="Pricing group (optional)"
-                  helperText="Leave empty to use the recipient’s pricing group."
-                  {...form.register('pricingGroupId')}
-                >
-                  <SelectItem value="" text="Recipient’s pricing group" />
-                  {(pricing.data?.items ?? [])
-                    .filter((group) => group.active)
-                    .map((group) => (
-                      <SelectItem key={group.id} value={group.id} text={group.name} />
-                    ))}
-                </Select>
-              )}
               {mode === 'edit' && (
-                <Select
-                  id="job-form-outcome-override"
-                  labelText="Outcome override"
-                  helperText={
-                    job?.outcomeOverridden
-                      ? 'Set by staff; the outcomes of the runs are ignored.'
-                      : derivedOutcome
-                        ? `Derived from the runs: ${derivedOutcome}.`
-                        : 'Leave empty to derive the outcome from the runs.'
-                  }
-                  {...form.register('outcomeOverride')}
-                >
-                  <SelectItem value="" text="Derived from runs" />
-                  {runOutcomeChoices.map((option) => (
-                    <SelectItem key={option.id} value={option.id} text={option.label} />
-                  ))}
-                </Select>
+                <Controller
+                  control={form.control}
+                  name="outcomeOverride"
+                  render={({ field }) => (
+                    <FuzzySelectField
+                      autoAlign
+                      id="job-form-outcome-override"
+                      titleText="Outcome override"
+                      placeholder="Derived from runs"
+                      helperText={
+                        job?.outcomeOverridden
+                          ? 'Set by staff; the outcomes of the runs are ignored.'
+                          : derivedOutcome
+                            ? `Derived from the runs: ${derivedOutcome}.`
+                            : 'Leave empty to derive the outcome from the runs.'
+                      }
+                      options={runOutcomeChoices}
+                      value={field.value || null}
+                      onChange={(id) => field.onChange(id ?? '')}
+                    />
+                  )}
+                />
               )}
-              {mode === 'create' && !fromRun && (
-                <Stack gap={5}>
-                  <div>
-                    <h3 className="mj-section-title">First run</h3>
-                    <p className="mj-secondary">
-                      Entered by hand. Add further runs, such as a reprint, on the job page.
-                    </p>
-                  </div>
-                  <RunTimingFields idPrefix="job-form" />
-                  <RunOutcomeField idPrefix="job-form" />
-                  {process && <MeasureFields idPrefix="job-form" measures={process.measures} />}
-                  <div>
-                    <h3 className="mj-section-title">Material usage</h3>
-                    <p className="mj-secondary">
-                      Record everything consumed, including waste from failed outcomes. Stock is deducted when the job
-                      is saved.
-                    </p>
-                  </div>
-                  <UsageRowsEditor idPrefix="job-form-usage" process={process} />
-                </Stack>
-              )}
-              {fromRun && (
-                <div className="mj-form-grid">
-                  <TextInput
-                    id="job-form-run"
-                    labelText="Run"
-                    readOnly
-                    value={`${run.displayId}${run.fileName ? ` · ${run.fileName}` : ''}`}
-                  />
-                  <TextInput
-                    id="job-form-run-start"
-                    labelText="Start"
-                    readOnly
-                    value={formatDateTime(run.startedAt)}
-                    helperText={
-                      run.state === 'running'
-                        ? 'Still running; the job is running until the run ends.'
-                        : `Runtime ${formatDuration(run.durationSeconds)}`
-                    }
-                  />
-                </div>
+              <Controller
+                control={form.control}
+                name="hiddenFromSignage"
+                render={({ field }) => (
+                  <SignageCheckbox id="job-form-signage" checked={field.value} onChange={field.onChange} />
+                )}
+              />
+              {creating && machine && (
+                <section className="jobs-form-run" aria-labelledby="job-form-run-title">
+                  <h3 id="job-form-run-title" className="jobs-form-run__title">
+                    First run
+                  </h3>
+                  <Stack gap={6}>
+                    <RunTimingFields idPrefix="job-form" withWhen />
+                    {process && process.measures.length > 0 && (
+                      <div className="mj-form-grid">
+                        <MeasureFields idPrefix="job-form" measures={process.measures} />
+                      </div>
+                    )}
+                    <div>
+                      <h4 className="jobs-form-run__subtitle">Material usage</h4>
+                      <p className="mj-secondary">
+                        Record everything consumed, including waste from failed outcomes. Stock is deducted when the job
+                        is saved.
+                      </p>
+                    </div>
+                    <UsageRowsEditor idPrefix="job-form-usage" process={process} onPickingChange={setPicking} />
+                  </Stack>
+                </section>
               )}
             </Stack>
           </FormProvider>
@@ -497,8 +525,8 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
           <Button kind="secondary" disabled={pending} onClick={() => guard.requestDiscard(onClose)}>
             Cancel
           </Button>
-          <Button kind="primary" disabled={pending} onClick={submit}>
-            {pending ? 'Saving…' : mode === 'create' ? 'Create job' : 'Save changes'}
+          <Button kind="primary" disabled={pending || !machineId || (creating && !customer)} onClick={submit}>
+            {pending ? 'Saving…' : creating ? 'Create job' : 'Save job'}
           </Button>
         </ModalFooter>
       </ComposedModal>
@@ -507,17 +535,13 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
   );
 }
 
-/**
- * Create or edit a job. `run` creates the job from an unassigned recorded run (machine, times and material come from the run).
- * Create navigates to the new job unless `onSaved` is given.
- */
+/** Create or edit a job. Create navigates to the new job unless `onSaved` is given. */
 export function JobFormModal({
   open,
   onClose,
   mode,
   job,
   initialValues,
-  run,
   onSaved,
 }: {
   open: boolean;
@@ -525,10 +549,9 @@ export function JobFormModal({
   mode: 'create' | 'edit';
   job?: MachineJob;
   initialValues?: JobInitialValues;
-  run?: MachineRun;
   onSaved?: (job: MachineJob) => void;
 }) {
   return open ? (
-    <JobForm onClose={onClose} mode={mode} job={job} initialValues={initialValues} run={run} onSaved={onSaved} />
+    <JobForm onClose={onClose} mode={mode} job={job} initialValues={initialValues} onSaved={onSaved} />
   ) : null;
 }

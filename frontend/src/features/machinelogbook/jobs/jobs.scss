@@ -1,0 +1,617 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/components/progress-bar';
+
+// Layout glue of the Workshop jobs screens: the jobs table with its strip, filter row and panel, the job and run page
+// cards and the job dialogs. Colours come from theme tokens so both colour schemes work.
+
+.jobs-list {
+  display: grid;
+  gap: $spacing-05;
+  min-inline-size: 0;
+}
+
+// "Reported by machines, not assigned" above the jobs table.
+.jobs-strip {
+  min-inline-size: 0;
+  background: theme.$layer-01;
+  border-inline-start: 3px solid theme.$support-info;
+}
+
+.jobs-strip__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: $spacing-04;
+  min-block-size: 3rem;
+  padding: $spacing-04 $spacing-05;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+
+.jobs-strip__title {
+  @include type-style('heading-compact-01');
+}
+
+.jobs-strip__description {
+  @include type-style('body-compact-01');
+  color: theme.$text-secondary;
+}
+
+.jobs-strip__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jobs-strip__row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.8fr) minmax(10rem, 1.2fr) minmax(12rem, 1.6fr) auto;
+  gap: $spacing-05;
+  align-items: center;
+  min-block-size: 3rem;
+  padding-inline-start: $spacing-05;
+  border-block-end: 1px solid theme.$border-subtle-01;
+  color: theme.$text-primary;
+  cursor: pointer;
+  @include type-style('body-compact-01');
+}
+
+.jobs-strip__rows > li:last-child > .jobs-strip__row {
+  border-block-end: 0;
+}
+
+.jobs-strip__row:hover {
+  background: theme.$layer-hover-01;
+}
+
+.jobs-strip__row:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+.jobs-strip__row--selected,
+.jobs-strip__row--selected:hover {
+  background: theme.$layer-selected-01;
+}
+
+.jobs-strip__cell {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jobs-strip__name {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-03;
+}
+
+.jobs-strip__name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jobs-strip__progress {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.jobs-strip__progress .cds--progress-bar {
+  flex: 0 0 6rem;
+}
+
+.jobs-strip__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 65.98rem) {
+  .jobs-strip__row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding-block: $spacing-03;
+  }
+
+  .jobs-strip__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 41.98rem) {
+  .jobs-strip__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// Filter row under the jobs toolbar: one combobox per category.
+.jobs-filters__bar {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-05;
+  padding: $spacing-04 $spacing-05;
+  background: theme.$layer-01;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+
+.jobs-filters {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: $spacing-04;
+  min-inline-size: 0;
+}
+
+@media (max-width: 41.98rem) {
+  .jobs-filters__bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.jobs-table .attention-column {
+  padding-inline-end: $spacing-05;
+}
+
+.jobs-error-text {
+  color: theme.$text-error;
+}
+
+// Detail panel of a job or run.
+.jobs-panel__preview {
+  margin: (-$spacing-05) (-$spacing-05) 0;
+}
+
+.jobs-panel__tags {
+  gap: $spacing-02;
+}
+
+.jobs-panel__runs {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jobs-panel__run {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-04;
+  padding-block: $spacing-03;
+  border-block-start: 1px solid theme.$border-subtle-01;
+  @include type-style('body-compact-01');
+}
+
+.jobs-panel__run:first-child {
+  border-block-start: 0;
+}
+
+// Media card: slideshow of print files and timelapses with a two-row caption.
+.jobs-media__count {
+  margin-block-start: -$spacing-03;
+}
+
+.jobs-media__figure {
+  display: grid;
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.jobs-media__stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: theme.$layer-accent-01;
+}
+
+.jobs-media__image,
+.jobs-media__video {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+
+.jobs-media__empty {
+  display: grid;
+  justify-items: center;
+  gap: $spacing-02;
+  padding: $spacing-05;
+  color: theme.$text-secondary;
+  text-align: center;
+  @include type-style('body-compact-01');
+}
+
+.jobs-media__empty svg {
+  fill: currentColor;
+  opacity: 0.6;
+}
+
+.jobs-media__empty small {
+  @include type-style('helper-text-01');
+  color: theme.$text-helper;
+}
+
+.jobs-media__type {
+  position: absolute;
+  inset-block-start: $spacing-03;
+  inset-inline-start: $spacing-03;
+  padding: 0 $spacing-03;
+  background: theme.$background-inverse;
+  color: theme.$text-inverse;
+  @include type-style('label-01');
+}
+
+.jobs-media__controls {
+  position: absolute;
+  inset-block-end: $spacing-03;
+  inset-inline-start: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  padding: 0 $spacing-02;
+  background: theme.$layer-01;
+  border-radius: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transform: translateX(-50%);
+}
+
+.jobs-media__controls .cds--btn--icon-only {
+  border-radius: 50%;
+}
+
+.jobs-media__dots {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.jobs-media__dot {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: theme.$border-strong-01;
+  cursor: pointer;
+}
+
+.jobs-media__dot[aria-pressed='true'] {
+  background: theme.$interactive;
+}
+
+.jobs-media__dot:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: 2px;
+}
+
+.jobs-media__caption {
+  display: grid;
+  grid-template-rows: 2rem 1.25rem;
+  align-items: center;
+  min-inline-size: 0;
+  padding-block-start: $spacing-02;
+}
+
+.jobs-media__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+  min-inline-size: 0;
+  @include type-style('body-compact-01');
+}
+
+.jobs-media__row--sub {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.jobs-media__left,
+.jobs-media__right {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  white-space: nowrap;
+}
+
+.jobs-media__left {
+  flex: 1 1 auto;
+}
+
+.jobs-media__right {
+  flex: 0 1 auto;
+}
+
+.jobs-media__download.cds--btn {
+  max-inline-size: 100%;
+  margin-inline-start: -$spacing-04;
+}
+
+.jobs-media__file {
+  overflow: hidden;
+  font-family: var(--cds-code-01-font-family, monospace);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+}
+
+// Price & billing card.
+.jobs-price__hero {
+  @include type-style('productive-heading-05');
+  font-variant-numeric: tabular-nums;
+}
+
+.jobs-price__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+  min-block-size: 2rem;
+}
+
+.jobs-price__order.cds--btn {
+  margin-inline-start: -$spacing-04;
+}
+
+.jobs-price__rows {
+  margin-block-end: 0;
+  padding-block-end: $spacing-04;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+
+.jobs-price__foot {
+  display: flex;
+  justify-content: flex-end;
+  margin: $spacing-03 (-$spacing-05) (-$spacing-05) 0;
+}
+
+.jobs-price__foot .cds--btn--ghost:hover {
+  background: var(--cds-button-primary, #0f62fe);
+  color: theme.$text-on-color;
+}
+
+// Label/value summaries at the top of dialogs.
+.jobs-summary {
+  display: grid;
+  gap: $spacing-02;
+  margin: 0;
+  @include type-style('body-compact-01');
+}
+
+.jobs-summary > div {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  gap: $spacing-04;
+}
+
+.jobs-summary dt {
+  color: theme.$text-secondary;
+}
+
+.jobs-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.jobs-calc {
+  padding: $spacing-04;
+  background: theme.$layer-accent-01;
+  @include type-style('body-compact-01');
+}
+
+// Unresolved report lines of a recorded run.
+.jobs-lines {
+  display: grid;
+  gap: $spacing-02;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jobs-lines__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+// Job dialogs: the first run, run timing and material rows.
+.jobs-form-run {
+  display: grid;
+  gap: $spacing-05;
+  padding-block-start: $spacing-05;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+
+.jobs-form-run__title {
+  @include type-style('heading-compact-02');
+}
+
+.jobs-form-run__subtitle {
+  margin-block-end: $spacing-02;
+  @include type-style('heading-compact-01');
+}
+
+.jobs-run {
+  display: grid;
+  gap: $spacing-05;
+  min-inline-size: 0;
+}
+
+.jobs-run__line {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: $spacing-05;
+  align-items: start;
+}
+
+.jobs-usage {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.jobs-usage__row {
+  display: grid;
+  gap: $spacing-04;
+  padding-block: $spacing-05;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+
+.jobs-usage__row:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.jobs-usage__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.jobs-usage__number {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+  font-weight: 600;
+}
+
+.jobs-usage__line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: end;
+}
+
+.jobs-usage__line--spool {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.jobs-usage__line--quantity {
+  grid-template-columns: minmax(10rem, 14rem);
+}
+
+.jobs-usage__field {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.jobs-usage__material {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+  min-block-size: 2.5rem;
+  min-inline-size: 0;
+  padding-inline-start: $spacing-04;
+  background: theme.$field-01;
+  border-block-end: 1px solid theme.$border-strong-01;
+}
+
+.jobs-usage__material-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  @include type-style('body-compact-01');
+}
+
+.jobs-usage__swatch--none {
+  background: repeating-linear-gradient(135deg, transparent 0 3px, theme.$border-strong-01 3px 4px);
+}
+
+.jobs-usage__area {
+  display: grid;
+  grid-template-columns: minmax(5rem, 8rem) minmax(5rem, 8rem) minmax(4rem, 6rem) minmax(0, 1fr);
+  gap: $spacing-04;
+  align-items: end;
+}
+
+.jobs-usage__area-note {
+  align-self: center;
+  margin-block-start: $spacing-05;
+}
+
+@media (max-width: 41.98rem) {
+  .jobs-usage__line--spool,
+  .jobs-usage__line--quantity {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jobs-usage__area {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+// The material catalog picker: wider than the job dialog.
+.jobs-picker .cds--modal-container {
+  inline-size: min(80rem, calc(100% - 2rem));
+  max-inline-size: none;
+}
+
+.jobs-picker__body {
+  display: grid;
+  gap: $spacing-05;
+  min-inline-size: 0;
+}
+
+.jobs-picker__bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16rem;
+  gap: $spacing-03;
+  align-items: end;
+}
+
+.jobs-picker__table .cds--data-table-content {
+  max-block-size: 24rem;
+  overflow: auto;
+}
+
+.jobs-picker__name {
+  flex-wrap: nowrap;
+}
+
+.jobs-picker__nowrap {
+  white-space: nowrap;
+}
+
+.jobs-picker__out {
+  color: theme.$text-error;
+}
+
+.jobs-picker__own {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 32rem);
+  gap: $spacing-05;
+  align-items: center;
+  padding: $spacing-05;
+  background: theme.$layer-accent-01;
+}
+
+.jobs-picker__own-title {
+  @include type-style('heading-compact-01');
+}
+
+.jobs-picker__own-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: $spacing-03;
+  align-items: end;
+}
+
+@media (max-width: 65.98rem) {
+  .jobs-picker__bar,
+  .jobs-picker__own {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 41.98rem) {
+  .jobs-picker__own-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
