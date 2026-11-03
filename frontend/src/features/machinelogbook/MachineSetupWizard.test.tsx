@@ -191,7 +191,13 @@ describe('Add machine wizard for a printer', () => {
       ['External spool L', 'left', '255', 1],
       ['External spool R', 'right', '254', 1],
     ]);
-    expect(template.inputUnits[0].slots[0]).toEqual({ name: 'Slot 1', status: 'available', externalIdentifier: '0' });
+    expect(template).toMatchObject({ nozzleCount: 2 });
+    expect(template.inputUnits[0].slots[0]).toEqual({
+      name: 'Slot 1',
+      status: 'available',
+      externalIdentifier: '0',
+      nozzleIndex: 1,
+    });
 
     // Step Connection: Save and test creates the assignment and waits for the connector.
     await user.type(await within(dialog).findByLabelText('Printer IPv4 address'), '192.168.1.42');
@@ -245,12 +251,15 @@ describe('Add machine wizard for a printer', () => {
     expect(saved.expectedVersion).toBe(1);
     expect(saved.model).toBe('bambu_h2d');
     expect(saved.inputUnits.map((unit) => unit.id)).toEqual(['unit-ams', 'unit-l', 'unit-r', undefined]);
+    // On a two-nozzle printer every unit feeds a nozzle; a new one feeds nozzle 1, the left one.
     expect(saved.inputUnits[3]).toEqual({
       name: 'AMS HT',
-      nozzle: null,
+      nozzle: 'left',
+      nozzleIndex: 1,
       externalIdentifier: '128',
-      slots: [{ name: 'Slot 1', status: 'available', externalIdentifier: '0' }],
+      slots: [{ name: 'Slot 1', status: 'available', externalIdentifier: '0', nozzleIndex: 1 }],
     });
+    expect(recorded.setup[1]).toMatchObject({ nozzleCount: 2 });
     expect(saved.inputUnits[0].slots.map((slot) => slot.id)).toEqual([
       'slot-ams-0',
       'slot-ams-1',
@@ -469,7 +478,7 @@ describe('Printer setup tab', () => {
     );
     const requests = detail([PermissionId.machinesread, PermissionId.machinesmanage], { profile });
     const user = await open();
-    await user.click(await screen.findByRole('button', { name: 'Edit spool inputs' }, { timeout: 5000 }));
+    await user.click(await screen.findByRole('button', { name: 'Edit slots' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit spool inputs' });
     await user.click(within(dialog).getByRole('button', { name: 'Match automatically' }));
     expect(await screen.findByText('6 of 6 slots matched')).toBeInTheDocument();
@@ -488,7 +497,7 @@ describe('Printer setup tab', () => {
     );
     const requests = detail([PermissionId.machinesread, PermissionId.machinesmanage], { profile });
     const user = await open();
-    await user.click(await screen.findByRole('button', { name: 'Edit spool inputs' }, { timeout: 5000 }));
+    await user.click(await screen.findByRole('button', { name: 'Edit slots' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit spool inputs' });
     expect((await within(dialog).findAllByText('Another slot already uses this printer slot.')).length).toBe(2);
     expect(within(dialog).getByRole('button', { name: 'Save spool inputs' })).toBeDisabled();
@@ -504,7 +513,7 @@ describe('Printer setup tab', () => {
       'href',
       '/settings/local-services?tab=connectors',
     );
-    await user.click(screen.getByRole('button', { name: 'Edit connection' }));
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit connection' });
     expect(within(dialog).getByLabelText('New LAN access code (optional)')).toHaveValue('');
     const ip = within(dialog).getByLabelText('Printer IPv4 address');
@@ -559,12 +568,12 @@ describe('Printer setup tab', () => {
     detail([PermissionId.machinesread]);
     await open();
     await screen.findByRole('switch', undefined, { timeout: 5000 }).catch(() => null);
-    await screen.findByText('AMS 2 Pro', undefined, { timeout: 5000 });
-    expect(screen.queryByRole('button', { name: 'Edit spool inputs' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit connection' })).not.toBeInTheDocument();
+    await screen.findByRole('heading', { name: /^AMS 2 Pro/ }, { timeout: 5000 });
+    expect(screen.queryByRole('button', { name: 'Edit slots' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Connection' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add as input unit' })).not.toBeInTheDocument();
-    expect(screen.getByText('Enabled')).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Printer profile enabled' })).toBeChecked();
   });
 
   it('creates the profile of a printer without one by choosing a model', async () => {
@@ -599,12 +608,14 @@ describe('Printer setup tab', () => {
     await waitFor(() => expect(bodies).toHaveLength(1));
     expect(patched).toBe(true);
     expect(bodies[0]).toMatchObject({ expectedVersion: null, enabled: true, model: 'prusa_core_one' });
+    expect(bodies[0]).toMatchObject({ nozzleCount: 1 });
     expect((bodies[0] as { inputUnits: { name: string; externalIdentifier: unknown }[] }).inputUnits).toEqual([
       {
         name: 'Direct feed',
         nozzle: null,
+        nozzleIndex: 1,
         externalIdentifier: null,
-        slots: [{ name: 'Extruder', status: 'available', externalIdentifier: null }],
+        slots: [{ name: 'Extruder', status: 'available', externalIdentifier: null, nozzleIndex: 1 }],
       },
     ]);
   });

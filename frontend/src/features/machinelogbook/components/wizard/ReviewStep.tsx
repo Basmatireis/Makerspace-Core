@@ -4,8 +4,7 @@ import {
   adapterLabel,
   isBambuAdapter,
   mappingLabel,
-  nozzleLabel,
-  NOZZLE_GROUPS,
+  nozzleIndexLabel,
   type Detection,
   type DraftUnit,
   type PrinterModelInfo,
@@ -30,6 +29,7 @@ export function ReviewStep({
   printer,
   model,
   units,
+  nozzleCount,
   detection,
   connectorName,
   connected,
@@ -40,6 +40,7 @@ export function ReviewStep({
   printer: boolean;
   model: PrinterModelInfo | undefined;
   units: DraftUnit[];
+  nozzleCount: number;
   detection: Detection;
   /** Name of the connector the printer is assigned to, null when set up later. */
   connectorName: string | null;
@@ -57,6 +58,7 @@ export function ReviewStep({
             <Row label="Process">{processName}</Row>
             <Row label="Status">{statusLabel[values.status]}</Row>
             {printer && <Row label="Model">{model?.label ?? '—'}</Row>}
+            {printer && <Row label="Nozzles">{nozzleCount}</Row>}
           </StructuredListBody>
         </StructuredListWrapper>
       </div>
@@ -91,29 +93,27 @@ export function ReviewStep({
           ) : (
             <StructuredListWrapper isCondensed aria-label="Spool inputs summary">
               <StructuredListBody>
-                {NOZZLE_GROUPS.flatMap((group) =>
-                  units
-                    .filter((unit) => unit.nozzle === group)
-                    .map((unit) => (
-                      <Row
-                        key={unit.key}
-                        label={`${unit.name}${model && model.nozzles > 1 ? ` · ${nozzleLabel(group)}` : ''}`}
-                      >
-                        <Stack gap={1}>
-                          {unit.slots.map((slot) => (
-                            <span key={slot.key}>
-                              {slot.name}{' '}
-                              <span className="mj-secondary">
-                                →{' '}
-                                {mappingLabel(detection, model?.id ?? null, slot.unitExt ?? unit.ext, slot.ext) ??
-                                  'Not mapped'}
-                              </span>
+                {[...units]
+                  .sort((a, b) => a.nozzleIndex - b.nozzleIndex)
+                  .map((unit) => (
+                    <Row
+                      key={unit.key}
+                      label={`${unit.name}${nozzleCount > 1 ? ` · ${nozzleIndexLabel(unit.nozzleIndex, nozzleCount)}` : ''}`}
+                    >
+                      <Stack gap={1}>
+                        {unit.slots.map((slot) => (
+                          <span key={slot.key}>
+                            {slot.name}{' '}
+                            <span className="mj-secondary">
+                              →{' '}
+                              {mappingLabel(detection, model?.id ?? null, slot.unitExt ?? unit.ext, slot.ext) ??
+                                'Not mapped'}
                             </span>
-                          ))}
-                        </Stack>
-                      </Row>
-                    )),
-                )}
+                          </span>
+                        ))}
+                      </Stack>
+                    </Row>
+                  ))}
               </StructuredListBody>
             </StructuredListWrapper>
           )}

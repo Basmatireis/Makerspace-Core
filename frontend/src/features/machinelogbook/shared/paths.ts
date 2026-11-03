@@ -31,3 +31,7 @@ export const machineLogbookPaths = {
   /** Printer connectors live under Settings, Local services. */
   connectors: () => '/settings/local-services?tab=connectors',
 };
+
+/** The printer setup page of an FDM printer. */
+export const machinePrinterSetupPath = (id: string) =>
+  `${machineLogbookPaths.machines()}/${encodeURIComponent(id)}/printer`;

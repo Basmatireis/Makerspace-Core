@@ -18,16 +18,15 @@ import {
   draftKey,
   draftUnitRefs,
   duplicatePairs,
+  MAX_NOZZLES,
   missingUnits,
-  NOZZLE_GROUPS,
-  nozzleLabel,
+  nozzleIndexLabel,
   slotOptions,
   slotPair,
   trayFor,
   type Detection,
   type DraftSlot,
   type DraftUnit,
-  type Nozzle,
   type PrinterModelInfo,
   type SlotOption,
 } from '../../printerSetup';
@@ -43,16 +42,22 @@ export function SpoolInputsEditor({
   onChange,
   detection,
   model,
+  nozzleCount,
+  onNozzleCountChange,
 }: {
   units: DraftUnit[];
   onChange: (units: DraftUnit[]) => void;
   detection: Detection;
   model: PrinterModelInfo | undefined;
+  /** How many nozzles the printer has; with more than one, each unit chooses the nozzle it feeds. */
+  nozzleCount: number;
+  onNozzleCountChange: (count: number) => void;
 }) {
   const notify = useNotify();
   const options = slotOptions(detection, model?.id ?? null);
   const duplicates = duplicatePairs(units);
-  const multiNozzle = (model?.nozzles ?? 1) > 1 || units.some((unit) => unit.nozzle);
+  const multiNozzle = nozzleCount > 1;
+  const nozzles = Array.from({ length: nozzleCount }, (_, index) => index + 1);
   const missing = missingUnits(detection, draftUnitRefs(units));
 
   const patchUnit = (key: string, patch: Partial<DraftUnit>) =>
@@ -65,14 +70,15 @@ export function SpoolInputsEditor({
           : unit,
       ),
     );
-  const addUnit = (nozzle: Nozzle | null) =>
+  const addUnit = () =>
     onChange([
       ...units,
       {
         key: draftKey('u'),
         name: `Input unit ${units.length + 1}`,
         ext: null,
-        nozzle,
+        nozzle: null,
+        nozzleIndex: 1,
         slots: [{ key: draftKey('s'), name: 'Slot 1', unitExt: null, ext: null, custom: false, status: 'available' }],
       },
     ]);
@@ -205,13 +211,13 @@ export function SpoolInputsEditor({
         {multiNozzle ? (
           <Select
             id={`unit-nozzle-${unit.key}`}
-            labelText="Nozzle"
-            value={unit.nozzle ?? ''}
-            onChange={(event) => patchUnit(unit.key, { nozzle: (event.target.value || null) as Nozzle | null })}
+            labelText="Feeds nozzle"
+            value={String(Math.min(unit.nozzleIndex, nozzleCount))}
+            onChange={(event) => patchUnit(unit.key, { nozzleIndex: Number(event.target.value) })}
           >
-            <SelectItem value="left" text="Left nozzle" />
-            <SelectItem value="right" text="Right nozzle" />
-            <SelectItem value="" text="Not assigned" />
+            {nozzles.map((index) => (
+              <SelectItem key={index} value={String(index)} text={nozzleIndexLabel(index, nozzleCount)} />
+            ))}
           </Select>
         ) : (
           <span />
@@ -258,11 +264,26 @@ export function SpoolInputsEditor({
           onActionButtonClick={() => onChange([...units, draftFromDetected(unit)])}
         />
       ))}
+      <Select
+        id="printer-nozzle-count"
+        labelText="Nozzles"
+        helperText="With more than one nozzle, each input unit feeds one of them; the slicer picks the nozzle per material."
+        value={String(nozzleCount)}
+        onChange={(event) => onNozzleCountChange(Number(event.target.value))}
+      >
+        {Array.from({ length: MAX_NOZZLES }, (_, index) => index + 1).map((count) => (
+          <SelectItem
+            key={count}
+            value={String(count)}
+            text={count === 1 ? 'One nozzle' : count === 2 ? 'Two nozzles (dual extruder)' : `${count} nozzles`}
+          />
+        ))}
+      </Select>
       <div className="mj-toolbar">
         <Button kind="tertiary" size="sm" disabled={!detection || units.length === 0} onClick={match}>
           Match automatically
         </Button>
-        <Button kind="tertiary" size="sm" renderIcon={Add} onClick={() => addUnit(null)}>
+        <Button kind="tertiary" size="sm" renderIcon={Add} onClick={() => addUnit()}>
           Add input unit
         </Button>
       </div>
@@ -270,12 +291,12 @@ export function SpoolInputsEditor({
         <p className="mj-secondary">No input units yet. Add the spool holders or material systems of this printer.</p>
       )}
       {multiNozzle
-        ? NOZZLE_GROUPS.map((group) => {
-            const inGroup = units.filter((unit) => unit.nozzle === group);
+        ? nozzles.map((index) => {
+            const inGroup = units.filter((unit) => Math.min(unit.nozzleIndex, nozzleCount) === index);
             if (inGroup.length === 0) return null;
             return (
-              <Stack key={group ?? 'none'} gap={4}>
-                <h4 className="mj-group-title">{nozzleLabel(group)}</h4>
+              <Stack key={index} gap={4}>
+                <h4 className="mj-group-title">{nozzleIndexLabel(index, nozzleCount)}</h4>
                 {inGroup.map(renderUnit)}
               </Stack>
             );

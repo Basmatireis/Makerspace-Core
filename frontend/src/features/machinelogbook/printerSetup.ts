@@ -32,6 +32,8 @@ export type DraftUnit = {
   name: string;
   ext: string | null;
   nozzle: Nozzle | null;
+  /** The nozzle (1-based) the unit and its slots feed. */
+  nozzleIndex: number;
   slots: DraftSlot[];
 };
 
@@ -151,6 +153,17 @@ export const extruderNozzle = (extruderId: number): Nozzle | null =>
 export const externalHolderNozzle = (externalId: string): Nozzle | null =>
   externalId === '254' ? 'right' : externalId === '255' ? 'left' : null;
 
+/** Nozzle 1 is the left and nozzle 2 the right one of a two-nozzle printer, as the migration mapped them. */
+export const nozzleIndexOf = (nozzle: Nozzle | null) => (nozzle === 'right' ? 2 : 1);
+export const nozzleSideOf = (index: number, count: number): Nozzle | null =>
+  count === 2 ? (index === 2 ? 'right' : 'left') : null;
+/** "Nozzle 2 (right)" on a two-nozzle printer, "Nozzle 3" otherwise. */
+export const nozzleIndexLabel = (index: number, count: number) => {
+  const side = nozzleSideOf(index, count);
+  return side ? `Nozzle ${index} (${side})` : `Nozzle ${index}`;
+};
+export const MAX_NOZZLES = 8;
+
 export const nozzleLabel = (nozzle: Nozzle | null) =>
   nozzle === 'left' ? 'Left nozzle' : nozzle === 'right' ? 'Right nozzle' : 'Not assigned';
 export const NOZZLE_GROUPS: (Nozzle | null)[] = ['left', 'right', null];
@@ -164,6 +177,7 @@ export function draftFromTemplate(modelId: PrinterModelId | null): DraftUnit[] {
     name: unit.name,
     ext: unit.externalIdentifier,
     nozzle: unit.nozzle,
+    nozzleIndex: nozzleIndexOf(unit.nozzle),
     slots: unit.slots.map((slot) => ({
       key: draftKey('s'),
       name: slot.name,
@@ -186,6 +200,7 @@ export function draftFromProfile(profile: PrinterProfile): DraftUnit[] {
       name: unit.name,
       ext: unit.externalIdentifier ?? null,
       nozzle: unit.nozzle,
+      nozzleIndex: unit.nozzleIndex,
       slots: profile.slots
         .filter((slot) => slot.inputUnitId === unit.id && slot.status !== 'retired')
         .sort((a, b) => a.position - b.position)
@@ -201,20 +216,28 @@ export function draftFromProfile(profile: PrinterProfile): DraftUnit[] {
     }));
 }
 
-/** Request body units of the atomic setup endpoint. */
-export function draftToInput(units: DraftUnit[]): PrinterSetupInputUnit[] {
-  return units.map((unit) => ({
-    ...(unit.id ? { id: unit.id } : {}),
-    name: unit.name.trim(),
-    nozzle: unit.nozzle,
-    externalIdentifier: unit.slots.find((slot) => slot.ext != null)?.unitExt ?? unit.ext,
-    slots: unit.slots.map((slot) => ({
-      ...(slot.id ? { id: slot.id } : {}),
-      name: slot.name.trim(),
-      status: slot.status,
-      externalIdentifier: slot.ext?.trim() || null,
-    })),
-  }));
+/**
+ * Request body units of the atomic setup endpoint. Every slot feeds its unit's nozzle; on a two-nozzle printer the
+ * side follows the index, otherwise a stored side is kept.
+ */
+export function draftToInput(units: DraftUnit[], nozzleCount = 1): PrinterSetupInputUnit[] {
+  return units.map((unit) => {
+    const nozzleIndex = Math.min(Math.max(unit.nozzleIndex, 1), nozzleCount);
+    return {
+      ...(unit.id ? { id: unit.id } : {}),
+      name: unit.name.trim(),
+      nozzle: nozzleCount === 2 ? nozzleSideOf(nozzleIndex, nozzleCount) : nozzleCount === 1 ? unit.nozzle : null,
+      nozzleIndex,
+      externalIdentifier: unit.slots.find((slot) => slot.ext != null)?.unitExt ?? unit.ext,
+      slots: unit.slots.map((slot) => ({
+        ...(slot.id ? { id: slot.id } : {}),
+        name: slot.name.trim(),
+        status: slot.status,
+        externalIdentifier: slot.ext?.trim() || null,
+        nozzleIndex,
+      })),
+    };
+  });
 }
 
 const unitLabel = (unit: PrinterLiveStatusUnit) => `${unit.label} (${unit.externalId})`;
@@ -350,6 +373,7 @@ export function draftFromDetected(unit: PrinterLiveStatusUnit): DraftUnit {
     name: unit.label,
     ext: unit.externalId,
     nozzle: unit.kind === 'external' ? externalHolderNozzle(unit.externalId) : null,
+    nozzleIndex: nozzleIndexOf(unit.kind === 'external' ? externalHolderNozzle(unit.externalId) : null),
     slots: unit.trays.map((tray, index) => ({
       key: draftKey('s'),
       name: unit.kind === 'external' ? 'Spool' : `Slot ${index + 1}`,

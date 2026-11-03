@@ -307,7 +307,11 @@ export function App() {
               <Route path="spools/:spoolId" element={<IdRedirect param="spoolId" to={machineLogbookPaths.spool} />} />
               <Route
                 path="machines/:machineId/printer"
-                element={<IdRedirect param="machineId" to={(id) => machineLogbookPaths.machine(id, 'printer')} />}
+                element={
+                  <PermissionRoute allOf={['machines.read']}>
+                    <MachineDetailPage section="printer" />
+                  </PermissionRoute>
+                }
               />
             </Route>
             <Route path="supervisors" element={<LegacyRedirect from="/supervisors" to="/people/staffing" />} />

@@ -76,14 +76,7 @@ describe('Machine catalog and printer workflows', () => {
     expect(reads).toBe(0);
   });
   async function openEditor(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(
-      (await screen.findByText('More machine actions', { selector: '.cds--tooltip-content' }, { timeout: 5000 }))
-        .closest('.cds--popover-container')!
-        .querySelector('button')!,
-    );
-    await user.click(
-      await screen.findByText('Edit machine', { selector: '.cds--overflow-menu-options__option-content' }),
-    );
+    await user.click(await screen.findByRole('button', { name: 'Edit machine' }, { timeout: 5000 }));
     return screen.findByRole('dialog', { name: 'Edit machine' });
   }
   it('keeps machine edits on errors and sends the version the editor opened with', async () => {

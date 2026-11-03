@@ -38,6 +38,7 @@ function renderPage(route: string) {
         children: [
           { path: 'machines', element: <MachinesPage /> },
           { path: 'machines/:machineId', element: <MachineDetailPage /> },
+          { path: 'machines/:machineId/printer', element: <MachineDetailPage section="printer" /> },
         ],
       },
       { path: '/settings/local-services', element: <LocalServicesPage /> },
@@ -538,16 +539,21 @@ describe('Machine detail', () => {
     setup([PermissionId.machinesread, PermissionId.machine_jobsread]);
     renderPage(`/workshop/machines/${bambu.id}`);
     expect(await screen.findByRole('heading', { name: 'Bambu H2D' }, { timeout: 5000 })).toBeInTheDocument();
-    expect(await screen.findByText('Connector degraded · E42')).toBeInTheDocument();
-    expect(screen.getByText('In use now')).toBeInTheDocument();
-    expect(screen.getByText(/Unassigned run · started/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Gearbox housing v3' })).toHaveAttribute(
+    expect(await screen.findByText('Needs attention')).toBeInTheDocument();
+    expect(screen.getAllByText('Connector degraded · E42').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Now' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Gearbox housing v3' })[0]).toHaveAttribute(
       'href',
       `/workshop/jobs/runs/${runId}`,
     );
+    const tiles = screen.getByLabelText('Machine facts');
+    expect(within(tiles).getByText('In use')).toBeInTheDocument();
+    expect(within(tiles).getByText('10 %')).toBeInTheDocument();
+    expect(within(tiles).getByText('Automatic')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Jobs' })).toBeInTheDocument();
-    expect(screen.getByText('BH2D-1')).toBeInTheDocument();
+    expect(screen.getAllByText('BH2D-1').length).toBeGreaterThan(0);
+    expect(await screen.findByText('No jobs yet')).toBeInTheDocument();
   });
 
   it('gates New job, Edit machine and the printer tab by permission', async () => {
@@ -584,20 +590,161 @@ describe('Machine detail', () => {
     expect(await screen.findByRole('button', { name: 'New job' }, { timeout: 5000 })).toBeInTheDocument();
   });
 
-  it('shows the printer tab to read-only users when a profile exists, and selects tabs from the URL', async () => {
+  it('shows the printer setup to read-only users when a profile exists and moves the former tab link to its page', async () => {
     setup([PermissionId.machinesread]);
     const { router } = renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
     expect(await screen.findByRole('tab', { name: 'Printer setup' }, { timeout: 5000 })).toHaveAttribute(
       'aria-selected',
       'true',
     );
-    expect(await screen.findByText('Direct feed')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add input unit' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Mount spool' })).not.toBeInTheDocument();
-    expect(screen.getByText('Enabled')).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`/workshop/machines/${bambu.id}/printer`);
+    expect(await screen.findByRole('heading', { name: 'Direct feed' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit slots' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mount' })).not.toBeInTheDocument();
+    const enabled = screen.getByRole('switch', { name: 'Printer profile enabled' });
+    expect(enabled).toBeChecked();
+    expect(enabled).toBeDisabled();
 
     await userEvent.setup().click(screen.getByRole('tab', { name: 'Overview' }));
-    await waitFor(() => expect(router.state.location.search).toBe('?tab=overview'));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/workshop/machines/${bambu.id}`));
+  });
+
+  it('names the nozzle each unit feeds on a printer with several nozzles', async () => {
+    setup([PermissionId.machinesread], {
+      profileResponse: {
+        ...profile,
+        nozzleCount: 2,
+        inputUnits: [{ ...profile.inputUnits[0], nozzleIndex: 2, nozzle: 'right' }],
+      },
+    });
+    renderPage(`/workshop/machines/${bambu.id}/printer`);
+    expect(await screen.findByText(/feeds nozzle 2 \(right\)/, undefined, { timeout: 5000 })).toBeInTheDocument();
+  });
+
+  it('registers the spool a printer reports in a slot and mounts it there', async () => {
+    setup([
+      PermissionId.machinesread,
+      PermissionId.printer_slotsassign,
+      PermissionId.inventoryread,
+      PermissionId.inventorymanage,
+    ]);
+    const article = {
+      id: 'material-1',
+      displayId: 'A-0001',
+      name: 'PLA Basic Black',
+      kind: 'filament',
+      materialTypeId: 'type-1',
+      materialTypeName: 'PLA',
+      materialTypeCode: 'PLA',
+      machineUse: true,
+      colorName: 'Black',
+      colorHex: '#111111',
+      packageSize: '1000',
+      unit: 'g',
+      active: true,
+      unassignedQuantity: '2000',
+      inventoryVersion: 9,
+    };
+    let created: Record<string, unknown> | undefined;
+    let mounted: unknown;
+    server.use(
+      http.get(`*/api/v1/machines/${bambu.id}/printer`, () =>
+        HttpResponse.json({
+          ...profile,
+          inputUnits: [{ ...profile.inputUnits[0], externalIdentifier: '0' }],
+          slots: [{ ...profile.slots[0], externalIdentifier: '1' }],
+        }),
+      ),
+      http.get(`*/api/v1/machines/${bambu.id}/printer/live-status`, () =>
+        HttpResponse.json({
+          machineId: bambu.id,
+          assignmentId: 'assignment-1',
+          receivedAt: now,
+          observedAt: now,
+          status: {
+            state: 'idle',
+            job: null,
+            temperatures: { extruders: [], bedC: null, bedTargetC: null, chamberC: null },
+            nozzles: [],
+            units: [
+              {
+                externalId: '0',
+                label: 'AMS 1',
+                kind: 'ams',
+                trays: [
+                  {
+                    externalId: '1',
+                    materialType: 'PLA',
+                    subBrand: 'PLA Basic',
+                    colorHex: '111111',
+                    remainPercent: 50,
+                    rfid: true,
+                    tagUid: 'TAG-1',
+                    empty: false,
+                  },
+                ],
+              },
+            ],
+            activeTray: null,
+            errors: [],
+            firmwareVersion: null,
+            wifiSignalDbm: null,
+          },
+        }),
+      ),
+      http.get('*/api/v1/materials', () => HttpResponse.json({ items: [article], page: 1, pageSize: 100, total: 1 })),
+      http.post('*/api/v1/filament-spools', async ({ request }) => {
+        created = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...spool, id: 'spool-9', displayId: 'S-PLA-BLK-01' }, { status: 201 });
+      }),
+      http.post('*/api/v1/printer-slots/slot-1/mount', async ({ request }) => {
+        mounted = await request.json();
+        return HttpResponse.json(profile.slots[0]);
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage(`/workshop/machines/${bambu.id}/printer`);
+    expect(await screen.findByText('Not registered', undefined, { timeout: 5000 })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Register' }));
+    const dialog = await screen.findByRole('dialog', { name: /Bambu H2D/ });
+    // The article matching type and colour is suggested; half a roll is left.
+    await waitFor(() =>
+      expect(within(dialog).getByRole('combobox', { name: 'Article' })).toHaveValue('A-0001 · PLA Basic Black · Black'),
+    );
+    expect(within(dialog).getByLabelText('Net filament on the spool (g)')).toHaveValue('500');
+    await user.click(within(dialog).getByRole('button', { name: 'Register and mount' }));
+    await waitFor(() => expect(mounted).toEqual({ spoolId: 'spool-9' }));
+    expect(created).toMatchObject({
+      materialId: 'material-1',
+      initialNetWeightG: '500',
+      stockMode: 'existing_stock',
+      expectedInventoryVersion: 9,
+      identifiers: [{ kind: 'nfc', value: 'TAG-1' }],
+    });
+  });
+
+  it('switches automatic recording with the machine version', async () => {
+    setup([PermissionId.machinesread, PermissionId.machinesmanage]);
+    let body: unknown;
+    server.use(
+      http.patch(`*/api/v1/machines/${bambu.id}`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ ...bambu, automaticCollectionEnabled: false, externalIdentifier: null });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage(`/workshop/machines/${bambu.id}/printer`);
+    await user.click(await screen.findByRole('switch', { name: 'Record runs automatically' }, { timeout: 5000 }));
+    await waitFor(() =>
+      expect(body).toEqual({
+        name: 'Bambu H2D',
+        processId: printerTypeId,
+        status: 'active',
+        externalIdentifier: null,
+        automaticCollectionEnabled: false,
+        expectedVersion: 7,
+      }),
+    );
   });
 
   it('mounts a spool from the unmounted consumable spools', async () => {
@@ -616,7 +763,7 @@ describe('Machine detail', () => {
     );
     const user = userEvent.setup();
     renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
-    await user.click(await screen.findByRole('button', { name: 'Mount spool' }, { timeout: 5000 }));
+    await user.click(await screen.findByRole('button', { name: 'Mount' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('dialog', { name: 'Mount spool' });
     await user.click(await within(dialog).findByRole('combobox', { name: 'Spool' }));
     await user.click(await screen.findByRole('option', { name: /S-0001/ }));
@@ -643,8 +790,9 @@ describe('Machine detail', () => {
       ),
     );
     renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
-    expect(await screen.findByText('Empty', undefined, { timeout: 5000 })).toBeInTheDocument();
-    expect(await screen.findByText(/S-0001.*PLA Black/, undefined, { timeout: 7000 })).toBeInTheDocument();
+    expect((await screen.findAllByText('Empty', undefined, { timeout: 5000 })).length).toBeGreaterThan(0);
+    expect(await screen.findByRole('link', { name: 'S-0001' }, { timeout: 7000 })).toBeInTheDocument();
+    expect((await screen.findAllByText(/PLA Black/, undefined, { timeout: 7000 })).length).toBeGreaterThan(0);
     expect(requests).toBeGreaterThan(1);
   });
 
@@ -659,7 +807,7 @@ describe('Machine detail', () => {
     );
     renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
     await screen.findByText('Feed slot', undefined, { timeout: 5000 });
-    expect(screen.queryByRole('button', { name: 'Mount spool' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mount' })).not.toBeInTheDocument();
     expect(spoolReads).toBe(0);
   });
 

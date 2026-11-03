@@ -33,6 +33,7 @@ export function renderPage(route: string) {
         children: [
           { path: 'machines', element: <MachinesPage /> },
           { path: 'machines/:machineId', element: <MachineDetailPage /> },
+          { path: 'machines/:machineId/printer', element: <MachineDetailPage section="printer" /> },
         ],
       },
       { path: '/settings/local-services', element: <LocalServicesPage /> },
