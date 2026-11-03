@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   Button,
   IconButton,
@@ -5,7 +6,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
   TableHeader,
   TableRow,
@@ -14,30 +14,75 @@ import {
 import { Edit, Renew, TrashCan } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
 import type { Order, OrderItem } from '../../api/generated/models';
+import { AttentionFlag, attentionColumnClassName } from '../../app/components/AttentionFlag';
 import { formatDateTimeRange } from '../../app/dateTime';
 import { RefLink } from '../../app/RefLink';
 import { formatDuration, formatQuantity } from '../machinelogbook/shared/format';
 import { machineLogbookPaths } from '../machinelogbook/shared/paths';
 import { formatMoney } from './formatting';
 import { activeItems } from './logic';
-import { formatCents, sumCents } from './money';
+import { TableCard } from './TableCard';
 
 type Props = {
   order: Order;
   editable: boolean;
   busy: boolean;
   canReadInventory?: boolean;
+  /** The "Add" button of a draft. */
+  action?: ReactNode;
   onRefresh: (item: OrderItem) => void;
   onRemove: (item: OrderItem) => void;
   onEdit: (item: OrderItem) => void;
 };
 
-/** The items of an order: jobs with their frozen charge details, manual items, and the total. */
+const kindTag: Record<OrderItem['kind'], { label: string; type: 'teal' | 'gray' | 'outline' }> = {
+  machine_job: { label: 'Job', type: 'teal' },
+  inventory_item: { label: 'Stock', type: 'gray' },
+  manual: { label: 'Custom', type: 'outline' },
+};
+
+function ItemName({ item, canReadInventory }: { item: OrderItem; canReadInventory: boolean }) {
+  if (item.sourceMachineJobId && item.snapshot)
+    return (
+      <RefLink reference={item.snapshot.displayId} id={item.sourceMachineJobId} kind="job">
+        {item.description}
+      </RefLink>
+    );
+  if (item.kind === 'inventory_item' && item.sourceMaterialId && canReadInventory)
+    return (
+      <CarbonLink as={Link} to={machineLogbookPaths.material(item.sourceMaterialId)}>
+        {item.description}
+      </CarbonLink>
+    );
+  return <span>{item.description}</span>;
+}
+
+function ItemDetail({ item }: { item: OrderItem }) {
+  const snapshot = item.snapshot;
+  if (!snapshot)
+    return (
+      <>{item.kind === 'inventory_item' ? 'From inventory' : item.kind === 'machine_job' ? 'Job' : 'Custom line'}</>
+    );
+  const usage =
+    snapshot.usages
+      .map((entry) => `${formatQuantity(entry.quantity)} ${entry.unit} ${entry.materialName}`)
+      .join(', ') || 'No material';
+  return (
+    <>
+      {snapshot.displayId} · {snapshot.machineName} · {formatDateTimeRange(snapshot.startsAt, snapshot.endsAt)} (
+      {formatDuration(Math.round(Number(snapshot.durationNanoseconds) / 1e9))}) · {usage}
+      {snapshot.pricing ? ` · ${snapshot.pricing.pricingGroupName} prices` : ''}
+    </>
+  );
+}
+
+/** The items of an order: jobs with their frozen charge details, stock and custom lines. */
 export function OrderItemsTable({
   order,
   editable,
   busy,
   canReadInventory = false,
+  action,
   onRefresh,
   onRemove,
   onEdit,
@@ -45,77 +90,51 @@ export function OrderItemsTable({
   const items = activeItems(order);
   const draft = order.status === 'draft';
   return (
-    <TableContainer
-      title="Items"
-      description={
-        draft ? 'Prices freeze when the order is finalized.' : 'Prices were frozen when the order was finalized.'
-      }
-    >
-      <Table aria-label="Order items">
+    <TableCard title="Items" count={items.length} action={action}>
+      <Table aria-label="Order items" size="lg">
         <TableHead>
           <TableRow>
             <TableHeader>Item</TableHeader>
-            <TableHeader>Quantity</TableHeader>
-            <TableHeader>Unit price</TableHeader>
+            <TableHeader className="sales-hide-narrow">Kind</TableHeader>
+            <TableHeader className="sales-num">Quantity</TableHeader>
+            <TableHeader className="sales-num sales-hide-narrow">Unit price</TableHeader>
             <TableHeader className="sales-num">Amount</TableHeader>
-            <TableHeader>{editable ? <span className="cds--visually-hidden">Actions</span> : null}</TableHeader>
+            {editable ? (
+              <TableHeader className="sales-row-actions">
+                <span className="cds--visually-hidden">Actions</span>
+              </TableHeader>
+            ) : (
+              <TableHeader className={attentionColumnClassName}>
+                <span className="cds--visually-hidden">Needs attention</span>
+              </TableHeader>
+            )}
           </TableRow>
         </TableHead>
         <TableBody>
           {items.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5}>No items yet. Use “Add items” to add jobs, stock or a custom item.</TableCell>
+              <TableCell colSpan={6} className="sales-empty-cell">
+                No items yet.{draft ? ' Add a job, something from inventory or a custom line.' : ''}
+              </TableCell>
             </TableRow>
           )}
-          {items.map((item) => {
-            const snapshot = item.snapshot;
-            return (
-              <TableRow key={item.id}>
-                <TableCell>
-                  <div className="mj-cell-stack">
-                    {item.sourceMachineJobId && snapshot ? (
-                      <RefLink reference={snapshot.displayId} id={item.sourceMachineJobId} kind="job">
-                        {item.description}
-                      </RefLink>
-                    ) : item.kind === 'inventory_item' && item.sourceMaterialId && canReadInventory ? (
-                      <CarbonLink as={Link} to={machineLogbookPaths.material(item.sourceMaterialId)}>
-                        {item.description}
-                      </CarbonLink>
-                    ) : (
-                      <span>{item.description}</span>
-                    )}
-                    {snapshot ? (
-                      <>
-                        <span className="mj-secondary">
-                          {snapshot.displayId} · {snapshot.machineName} ·{' '}
-                          {formatDateTimeRange(snapshot.startsAt, snapshot.endsAt)} (
-                          {formatDuration(Math.round(Number(snapshot.durationNanoseconds) / 1e9))})
-                        </span>
-                        <span className="mj-secondary">
-                          {snapshot.usages
-                            .map((usage) => `${formatQuantity(usage.quantity)} ${usage.unit} ${usage.materialName}`)
-                            .join(', ') || 'No material'}
-                          {snapshot.pricing ? ` · ${snapshot.pricing.pricingGroupName} prices` : ''}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="mj-secondary">
-                        {item.kind === 'inventory_item' ? 'From stock' : 'Manual item'}
-                      </span>
-                    )}
-                    <span className="mj-inline">
-                      {item.kind === 'inventory_item' && (
-                        <Tag type="outline" size="sm">
-                          Stock
-                        </Tag>
-                      )}
+          {items.map((item) => (
+            <TableRow key={item.id}>
+              <TableCell>
+                <div className="sales-cell">
+                  <ItemName item={item} canReadInventory={canReadInventory} />
+                  <span className="sales-secondary">
+                    <ItemDetail item={item} />
+                  </span>
+                  {(item.sourceChanged || item.snapshot?.overrideReason) && (
+                    <span className="sales-inline">
                       {item.sourceChanged && (
                         <Tag type="red" size="sm">
                           Job changed since charged
                         </Tag>
                       )}
-                      {snapshot?.overrideReason && (
-                        <Tag type="outline" size="sm" title={snapshot.overrideReason}>
+                      {item.snapshot?.overrideReason && (
+                        <Tag type="outline" size="sm" title={item.snapshot.overrideReason}>
                           Price adjusted
                         </Tag>
                       )}
@@ -130,51 +149,57 @@ export function OrderItemsTable({
                           Refresh from job
                         </Button>
                       )}
-                      {item.sourceChanged && !editable && (
-                        <span className="mj-secondary">The charge keeps the price from when it was added.</span>
-                      )}
                     </span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {item.kind === 'machine_job' ? '1 job' : `${formatQuantity(item.quantity, 6)} ${item.unit}`}
-                </TableCell>
-                <TableCell>{formatMoney(item.unitPrice)}</TableCell>
-                <TableCell className="sales-num">{formatMoney(item.amount)}</TableCell>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className="sales-hide-narrow">
+                <Tag type={kindTag[item.kind].type} size="sm">
+                  {kindTag[item.kind].label}
+                </Tag>
+              </TableCell>
+              <TableCell className="sales-num">
+                {item.kind === 'machine_job' ? '1 job' : `${formatQuantity(item.quantity, 6)} ${item.unit}`}
+              </TableCell>
+              <TableCell className="sales-num sales-hide-narrow">{formatMoney(item.unitPrice)}</TableCell>
+              <TableCell className="sales-num">{formatMoney(item.amount)}</TableCell>
+              {editable ? (
                 <TableCell className="sales-row-actions">
-                  {editable && (item.kind === 'manual' || item.kind === 'inventory_item') && (
+                  {(item.kind === 'manual' || item.kind === 'inventory_item') && (
                     <IconButton label={`Edit ${item.description}`} kind="ghost" size="sm" onClick={() => onEdit(item)}>
                       <Edit />
                     </IconButton>
                   )}
-                  {editable && (
-                    <IconButton
-                      label={`Remove ${item.description}`}
-                      kind="ghost"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => onRemove(item)}
-                    >
-                      <TrashCan />
-                    </IconButton>
-                  )}
+                  <IconButton
+                    label={`Remove ${item.description}`}
+                    kind="ghost"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => onRemove(item)}
+                  >
+                    <TrashCan />
+                  </IconButton>
                 </TableCell>
-              </TableRow>
-            );
-          })}
-          {items.length > 0 && (
-            <TableRow>
-              <TableCell colSpan={3}>
-                <strong>Total</strong>
-              </TableCell>
-              <TableCell className="sales-num">
-                <strong>{formatCents(sumCents(items.map((item) => item.amount)))}</strong>
-              </TableCell>
-              <TableCell />
+              ) : (
+                <TableCell className={attentionColumnClassName}>
+                  <AttentionFlag
+                    attention={
+                      item.sourceChanged
+                        ? [
+                            {
+                              code: 'source_changed',
+                              message: 'The job changed after it was charged; the charge keeps the original price.',
+                            },
+                          ]
+                        : []
+                    }
+                  />
+                </TableCell>
+              )}
             </TableRow>
-          )}
+          ))}
         </TableBody>
       </Table>
-    </TableContainer>
+    </TableCard>
   );
 }

@@ -43,7 +43,17 @@ function serve(quote: (url: URL) => Record<string, unknown>) {
     ),
     http.get('*/api/v1/materials', () =>
       HttpResponse.json({
-        items: [{ id: materialId, name: 'Birch plywood', unit: 'piece', salePrice: '4.00', active: true }],
+        items: [
+          {
+            id: materialId,
+            displayId: 'A-0003',
+            name: 'Birch plywood',
+            unit: 'piece',
+            machineUse: true,
+            prices: [],
+            active: true,
+          },
+        ],
         page: 1,
         pageSize: 100,
         total: 1,
@@ -81,11 +91,10 @@ describe('price lookup', () => {
         name: 'Birch plywood',
         unit: 'piece',
         materialTypeName: 'Plywood',
-        salePrice: '4.00',
+        displayId: 'A-0003',
       },
       hours: '1.5',
       quantity: '2',
-      saleAmount: null,
       groups: [
         group({
           machineRate: '10.00',
@@ -107,7 +116,7 @@ describe('price lookup', () => {
     const { user, dialog } = await open();
     await pick(user, /^Machine/, 'Laser 1');
     await user.type(within(dialog).getByRole('textbox', { name: 'Hours' }), '1,5');
-    await pick(user, /Material article/, 'Birch plywood (piece)');
+    await pick(user, /Material article/, 'A-0003 · Birch plywood (piece)');
     await user.type(within(dialog).getByRole('textbox', { name: 'Quantity (piece)' }), '2');
     const table = await within(dialog).findByRole('table', { name: 'Prices by pricing group' });
     const rows = within(table).getAllByRole('row');
@@ -125,7 +134,7 @@ describe('price lookup', () => {
     });
   });
 
-  it('prices an inventory item and shows the sale amount', async () => {
+  it('prices an inventory item sold from stock with its price source', async () => {
     as(read);
     const requests = serve(() => ({
       machine: null,
@@ -134,19 +143,26 @@ describe('price lookup', () => {
         name: 'Birch plywood',
         unit: 'piece',
         materialTypeName: 'Plywood',
-        salePrice: '4.00',
+        displayId: 'A-0003',
       },
       hours: null,
       quantity: '3',
-      saleAmount: '12.00',
-      groups: [group({ materialRate: '2.00', materialAmount: '6.00', total: '6.00', complete: true })],
+      groups: [
+        group({
+          materialRate: '4.00',
+          materialAmount: '12.00',
+          materialPriceSource: 'stock_article',
+          total: '12.00',
+          complete: true,
+        }),
+      ],
     }));
     const { user, dialog } = await open();
     await user.click(within(dialog).getByRole('tab', { name: 'Inventory item' }));
-    await pick(user, /Inventory article/, 'Birch plywood (piece)');
+    await pick(user, /Inventory article/, 'A-0003 · Birch plywood (piece)');
     await user.type(within(dialog).getByRole('textbox', { name: 'Quantity (piece)' }), '3');
-    expect(await within(dialog).findByText('€12.00')).toBeInTheDocument();
-    expect(within(dialog).getByText(/Sale price of Birch plywood/)).toBeInTheDocument();
+    expect((await within(dialog).findAllByText('€12.00')).length).toBeGreaterThan(0);
+    expect(within(dialog).getByText(/article price/)).toBeInTheDocument();
     await waitFor(() => expect(requests.length).toBeGreaterThan(0));
     expect(Object.fromEntries(requests[requests.length - 1].searchParams)).toEqual({ materialId, quantity: '3' });
   });

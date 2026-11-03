@@ -87,6 +87,8 @@ Legacy job billing fields and the billing endpoint were removed with migration 0
 
 ## Pricing snapshots
 
+**Pricing page.** The rates table (Sales & payments › Pricing, `pricing.read`; changes need `pricing.manage`) has one column per active group and four row groups: machine time per hour, measures per block, materials used on machines per unit (material types with machine use), and articles sold from stock per unit (every active article, by article number). A cell opens a rate dialog that creates or updates the rule; for an article, emptying the field deactivates its `stock_article` rule. An article of a machine-use type without its own price shows the type rate in muted text as the fallback; an article without any price shows "No price" and cannot be sold to that group. Missing rates are counted for machine time, measures and materials only.
+
 Pricing groups are independent of Roles; Roles are mapped to groups in `role_pricing_groups` (`GET`/`PUT /pricing-role-groups`, `pricing.read`/`pricing.manage`; migration 00050). The mapping holds each role at most once with a unique positive `priority` (the larger number wins) and is replaced atomically. The group of a job resolves in this order, in `resolvePricingGroup` (also used for jobs planned from print artifacts):
 
 1. the explicit group on the create, reassignment or correction request (a manual override; an inactive group is refused with 409 `pricing_group_inactive`);

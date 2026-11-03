@@ -47,8 +47,39 @@ const group: PricingGroup = {
       active: true,
       version: 1,
     },
+    {
+      id: 'rule-3',
+      pricingGroupId: 'group-1',
+      kind: 'stock_article',
+      materialId: 'art-insert',
+      materialName: 'Brass insert',
+      materialDisplayId: 'A-0001',
+      materialUnit: 'piece',
+      rate: '0.120000',
+      active: true,
+      version: 4,
+    },
   ],
 };
+const articleOf = (id: string, displayId: string, name: string, extra: Record<string, unknown>) => ({
+  id,
+  displayId,
+  name,
+  kind: 'part',
+  materialTypeId: 'type-x',
+  materialTypeName: 'Parts',
+  materialTypeCode: 'PART',
+  unit: 'piece',
+  active: true,
+  quantity: '10',
+  assignedQuantity: '0',
+  unassignedQuantity: '10',
+  attention: [],
+  version: 1,
+  createdAt: now,
+  updatedAt: now,
+  ...extra,
+});
 const processOf = (id: string, name: string, measures: unknown[] = []) => ({
   id,
   name,
@@ -81,6 +112,8 @@ function configure(permissions: PermissionId[]) {
             id: 'mat-pla',
             name: 'PLA',
             unit: 'g',
+            code: 'PLA',
+            machineUse: true,
             processes: ['fdm_printing'],
             active: true,
             materialCount: 1,
@@ -90,6 +123,42 @@ function configure(permissions: PermissionId[]) {
             updatedAt: now,
           },
         ],
+      }),
+    ),
+    http.get('*/api/v1/materials', () =>
+      HttpResponse.json({
+        items: [
+          articleOf('art-insert', 'A-0001', 'Brass insert', {
+            machineUse: false,
+            prices: [
+              {
+                pricingGroupId: 'group-1',
+                pricingGroupName: 'Partners',
+                rate: '0.12',
+                source: 'stock_article',
+                pricingRuleId: 'rule-3',
+              },
+            ],
+          }),
+          articleOf('art-pla', 'A-0002', 'PLA Black', {
+            unit: 'g',
+            materialTypeName: 'PLA',
+            machineUse: true,
+            prices: [
+              {
+                pricingGroupId: 'group-1',
+                pricingGroupName: 'Partners',
+                rate: '0.025',
+                source: 'material_type',
+                pricingRuleId: 'rule-9',
+              },
+            ],
+          }),
+        ],
+        page: 1,
+        pageSize: 100,
+        total: 2,
+        totalInventoryValue: '0',
       }),
     ),
     http.get('*/api/v1/pricing-role-groups', () =>
@@ -168,12 +237,12 @@ describe('pricing page', () => {
     );
     const user = userEvent.setup();
     renderRoute(<App />, '/pricing');
-    await screen.findByRole('table', { name: 'Rates' });
-    await user.click(await screen.findByLabelText('Edit Laser runtime for Partners'));
-    const input = screen.getByLabelText('Rate for Laser runtime in Partners');
+    const table = await screen.findByRole('table', { name: 'Rates' });
+    await user.click(within(table).getByRole('button', { name: /0,5.*for Laser runtime in Partners/ }));
+    const input = await screen.findByLabelText(/^Rate for Laser runtime in Partners/);
     await user.clear(input);
     await user.type(input, '0,75');
-    await user.click(screen.getByLabelText('Save rate'));
+    await user.click(screen.getByRole('button', { name: 'Save rate' }));
     await waitFor(() =>
       expect(update).toMatchObject({
         expectedVersion: 3,
@@ -183,16 +252,74 @@ describe('pricing page', () => {
         active: true,
       }),
     );
-    await user.click(screen.getAllByRole('button', { name: 'Set rate' }).at(-1)!);
-    await user.type(screen.getByLabelText(/^Rate for PLA in Partners/), '0.03');
-    await user.click(screen.getByLabelText('Save rate'));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Set rate' })).not.toBeInTheDocument());
+    await user.click(within(table).getByRole('button', { name: /Set rate for PLA in Partners/ }));
+    await user.type(await screen.findByLabelText(/^Rate for PLA in Partners/), '0.03');
+    await user.click(screen.getByRole('button', { name: 'Save rate' }));
     await waitFor(() =>
       expect(create).toEqual({
         kind: 'material',
         processId: null,
         materialTypeId: 'mat-pla',
+        materialId: null,
         measure: null,
         rate: '0.03',
+      }),
+    );
+  });
+
+  it('prices articles sold from stock per group, with the type rate as fallback', async () => {
+    configure([
+      PermissionId.pricingread,
+      PermissionId.pricingmanage,
+      PermissionId.machinesread,
+      PermissionId.inventoryread,
+    ]);
+    let create: Record<string, unknown> | undefined;
+    let update: Record<string, unknown> | undefined;
+    server.use(
+      http.post('*/api/v1/pricing-groups/group-1/rules', async ({ request }) => {
+        create = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(group.rules[2], { status: 201 });
+      }),
+      http.patch('*/api/v1/pricing-rules/rule-3', async ({ request }) => {
+        update = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...group.rules[2], ...update });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/pricing');
+    const table = await screen.findByRole('table', { name: 'Rates' });
+    expect(await within(table).findByText('Articles sold from stock · per unit')).toBeInTheDocument();
+    const insert = within(table).getByText('A-0001 · Brass insert').closest('tr')!;
+    expect(insert).toHaveTextContent('0,12');
+    const pla = within(table).getByText('A-0002 · PLA Black').closest('tr')!;
+    expect(pla).toHaveTextContent('type rate');
+
+    await user.click(within(pla).getByRole('button', { name: /for A-0002 · PLA Black in Partners/ }));
+    await user.type(await screen.findByLabelText(/^Rate for A-0002 · PLA Black in Partners/), '0,04');
+    await user.click(screen.getByRole('button', { name: 'Save rate' }));
+    await waitFor(() =>
+      expect(create).toEqual({
+        kind: 'stock_article',
+        processId: null,
+        materialTypeId: null,
+        materialId: 'art-pla',
+        measure: null,
+        rate: '0.04',
+      }),
+    );
+
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Set rate' })).not.toBeInTheDocument());
+    await user.click(within(insert).getByRole('button', { name: /for A-0001 · Brass insert in Partners/ }));
+    await user.clear(await screen.findByLabelText(/^Rate for A-0001 · Brass insert in Partners/));
+    await user.click(screen.getByRole('button', { name: 'Remove price' }));
+    await waitFor(() =>
+      expect(update).toMatchObject({
+        kind: 'stock_article',
+        materialId: 'art-insert',
+        active: false,
+        expectedVersion: 4,
       }),
     );
   });

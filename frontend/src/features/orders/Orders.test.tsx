@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { renderRoute } from '../../test/render';
@@ -230,5 +230,67 @@ describe('orders list', () => {
     const { router } = renderRoute(<App />, '/external-invoicing');
     await waitFor(() => expect(router.state.location.pathname).toBe('/orders'));
     expect(router.state.location.search).toBe('?invoice=draft,submitted');
+  });
+});
+
+describe('orders list with the detail panel', () => {
+  const originalMatchMedia = window.matchMedia;
+  const wide = (matches: boolean) => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: matches && query === '(min-width: 66rem)',
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+  };
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+  /** A Carbon icon button or attention flag, found through the tooltip that labels it. */
+  const byTooltip = (text: string) => {
+    const label = screen.getByText(text).closest('[id]')!;
+    return document.querySelector<HTMLElement>(`[aria-labelledby="${label.id}"]`)!;
+  };
+  const overdue = finalized({
+    ...awaiting,
+    attention: [{ code: 'balance_overdue', message: 'The balance has been open for 21 days.' }],
+  });
+
+  it('flags orders that need attention at the end of the row', async () => {
+    wide(false);
+    as(everything);
+    orderList([overdue, draft]);
+    renderRoute(<App />, '/orders');
+    const row = (await screen.findByText('O-2026-000011')).closest('tr')!;
+    const flag = byTooltip('The balance has been open for 21 days.');
+    expect(row.lastElementChild).toContainElement(flag);
+  });
+
+  it('selects a row into the panel on wide screens and keeps it in the URL', async () => {
+    wide(true);
+    as(everything);
+    orderList([overdue, draft]);
+    const user = userEvent.setup();
+    const { router } = renderRoute(<App />, '/orders');
+    const panel = await screen.findByRole('complementary', { name: 'Order details' });
+    expect(within(panel).getByText('Select an order to see its items, payments and invoice.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'O-2026-000011' }));
+    await waitFor(() => expect(router.state.location.search).toContain(`order=${overdue.id}`));
+    expect(within(panel).getByRole('heading', { name: 'Awaiting customer' })).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: 'Open order' })).toHaveAttribute('href', `/orders/${overdue.id}`);
+    expect(within(panel).getByRole('table', { name: 'Items of the selected order' })).toHaveTextContent(
+      'Machine service',
+    );
+    await user.click(byTooltip('Close panel'));
+    await waitFor(() => expect(router.state.location.search).not.toContain('order='));
+  });
+
+  it('opens the order page from a row on narrow screens', async () => {
+    wide(false);
+    as(everything);
+    orderList([overdue]);
+    renderRoute(<App />, '/orders');
+    expect(await screen.findByRole('link', { name: 'O-2026-000011' })).toHaveAttribute('href', `/orders/${overdue.id}`);
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   });
 });

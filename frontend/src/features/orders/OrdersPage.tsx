@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Button, ComboBox } from '@carbon/react';
+import { Button } from '@carbon/react';
 import { Add, ListChecked } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { ExternalInvoiceRequestState, Order } from '../../api/generated/models';
+import { DetailPanel } from '../../app/components/DetailPanel';
+import { FuzzyComboBox } from '../../app/components/FuzzyComboBox';
+import { ListWithPanel, useListPanelLayout } from '../../app/components/ListWithPanel';
 import { DateInput } from '../../app/DateInput';
 import { PageShell } from '../../app/PageShell';
 import { RefLink } from '../../app/RefLink';
@@ -11,7 +14,7 @@ import { SectionSwitcher } from '../../app/SectionSwitcher';
 import { dateInAppTimeZone, formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
-import { DirectoryTable, type Column } from '../machinelogbook/shared/DirectoryTable';
+import { attentionDirectoryColumn, DirectoryTable, type Column } from '../machinelogbook/shared/DirectoryTable';
 import { QueryBoundary } from '../machinelogbook/shared/QueryBoundary';
 import { customerTypeOptions, requestStateLabel } from './labels';
 import {
@@ -28,6 +31,7 @@ import {
 } from './logic';
 import { formatCents, toCents } from './money';
 import { EditOrderModal } from './OrderDialogs';
+import { OrderPanel } from './OrderPanel';
 import { allOrdersQuery, readyToBillQuery } from './queries';
 import { ReadyToBillModal } from './ReadyToBillModal';
 import { OrderStatusTag, orderStatusLabel, RequestStateTag } from './status';
@@ -80,6 +84,20 @@ function OrdersTable({ orders }: { orders: Order[] }) {
   const readyGroups = readyToBillGroups(ready.data ?? []);
   const readySummary = readyTotals(readyGroups);
   const reviewing = params.get('review') === '1';
+  const panelFits = useListPanelLayout();
+  const selectedId = params.get('order');
+  const selected = panelFits ? (orders.find((order) => order.id === selectedId) ?? null) : null;
+  // Selecting keeps the page, search and filters; only the panel changes.
+  const select = (id: string | null) =>
+    setParams(
+      (previous) => {
+        const next = new URLSearchParams(previous);
+        if (id) next.set('order', id);
+        else next.delete('order');
+        return next;
+      },
+      { replace: true },
+    );
   const setParam = (patch: Record<string, string | null>) =>
     setParams(
       (previous) => {
@@ -157,7 +175,18 @@ function OrdersTable({ orders }: { orders: Order[] }) {
       sortValue: (order) => order.reference,
       render: (order) => (
         <div className="mj-cell-stack">
-          <RefLink reference={order.reference} id={order.id} />
+          {panelFits ? (
+            <button
+              type="button"
+              className={`sales-ref-button${order.id === selected?.id ? ' sales-row-selected' : ''}`}
+              aria-pressed={order.id === selected?.id}
+              onClick={() => select(order.id === selected?.id ? null : order.id)}
+            >
+              {order.reference}
+            </button>
+          ) : (
+            <RefLink reference={order.reference} id={order.id} />
+          )}
           <span className="mj-secondary">
             {customerLabel(order)} · {activeItems(order).length} {activeItems(order).length === 1 ? 'item' : 'items'}
           </span>
@@ -246,6 +275,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
       narrow: true,
       render: (order) => formatDateTime(order.updatedAt),
     },
+    attentionDirectoryColumn<Order>((order) => order.attention ?? []),
   ];
 
   const emptyTitle =
@@ -255,7 +285,18 @@ function OrdersTable({ orders }: { orders: Order[] }) {
         ? 'No cancelled or reversed orders'
         : 'No open orders';
   return (
-    <>
+    <ListWithPanel
+      panelLabel="Order details"
+      panel={
+        selected ? (
+          <OrderPanel order={selected} onClose={() => select(null)} />
+        ) : (
+          <DetailPanel className="sales-panel-empty">
+            <p>Select an order to see its items, payments and invoice.</p>
+          </DetailPanel>
+        )
+      }
+    >
       <DirectoryTable<Order>
         id="orders"
         urlPrefix=""
@@ -266,7 +307,9 @@ function OrdersTable({ orders }: { orders: Order[] }) {
         searchText={orderSearchText}
         defaultSort={{ key: 'updated', direction: 'DESC' }}
         pageSizes={[10, 25, 50]}
-        onRowClick={(order) => navigate(`/orders/${order.id}`)}
+        onRowClick={(order) =>
+          panelFits ? select(order.id === selected?.id ? null : order.id) : navigate(`/orders/${order.id}`)
+        }
         switcher={
           <SectionSwitcher
             label="Order sections"
@@ -299,7 +342,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
             key: 'customer',
             label: 'Customer',
             render: ({ idPrefix, staged, set }) => (
-              <ComboBox<{ id: string; label: string }>
+              <FuzzyComboBox<{ id: string; label: string }>
                 autoAlign
                 id={`${idPrefix}-customer`}
                 titleText="Customer"
@@ -384,7 +427,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
       {creating && (
         <EditOrderModal order={null} onClose={() => setCreating(false)} onSaved={(id) => navigate(`/orders/${id}`)} />
       )}
-    </>
+    </ListWithPanel>
   );
 }
 

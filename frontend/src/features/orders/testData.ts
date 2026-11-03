@@ -69,6 +69,7 @@ export function order(overrides: Partial<Order> = {}): Order {
     ],
     allocations: [],
     adjustments: [],
+    attention: [],
     version: 2,
     createdAt: at,
     updatedAt: at,
