@@ -50,6 +50,11 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- **Machines.** The Machines page has the tabs Machines · Processes · Printers. The machines table shows availability, activity, jobs, failure rate, connector state and what needs attention; a row opens the machine in a panel next to the table on wide screens. Printers holds the error catalog (component and severity read from the code, filters for family, component and source, a row opens the meaning), the code list fetch and the printer notification rules per event.
+- **Machine page.** Fact tiles, the machine's jobs, material categories, a live card and facts; Edit machine is a button in the page header.
+- **Printer setup page.** The printer setup moved to `/workshop/machines/{machineId}/printer` (the former `?tab=printer` link redirects) with connection and recording cards, spool slots per unit with the nozzle each feeds, Register for a spool the printer reports (from loose stock or as a purchase, tagged and mounted), Mount and Unmount, and the printer's latest events.
+- **Nozzles in the machine wizard.** The Spool inputs step sets the number of nozzles and the nozzle each input unit feeds.
+
 - **Player chunks.** The camera manager, QR codes, the open-day, event and agenda lists, the calendar, the timelapse widget and the pairing screen are loaded on demand, so the player stays inside its bundle budget.
 
 - **Workshop routes.** Jobs, Machines, Inventory and Statistics moved from `/machine-logbook/…` to `/workshop/…` with the same sub-paths; every former URL redirects with its sub-path and query, and `/machine-logbook` and `/machine-logbook/overview` open Jobs. The Workshop navigation group no longer has an Overview page. API paths are unchanged.
