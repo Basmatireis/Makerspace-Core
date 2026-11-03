@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, test } from './machines-jobs-test';
+import { expect, expectNoAccessibilityViolations, expectNoHorizontalScroll, test } from './machines-jobs-test';
 import { customer, ids, operator } from './machines-jobs-api';
 
 const base = '/workshop';
@@ -381,11 +381,12 @@ test.describe('statistics', () => {
     world,
   }) => {
     await page.goto(`${base}/statistics?period=custom&from=2026-01-01&to=2026-01-31`);
-    await expect(page.getByRole('region', { name: 'Key figures' })).toBeVisible();
+    await expect(page.getByLabel('Key figures')).toBeVisible();
     expect(world.statisticsRequests[0].get('from')).toBe('2026-01-01');
     expect(world.statisticsRequests[0].get('to')).toBe('2026-02-01');
 
-    await page.getByRole('tab', { name: '30 days' }).click();
+    await page.getByRole('combobox', { name: 'Period' }).click();
+    await page.getByRole('option', { name: 'Last 30 days' }).click();
     await expect(page).toHaveURL(/period=30d/);
     await expect.poll(() => world.statisticsRequests.length).toBeGreaterThan(1);
     const [from, to] = [world.statisticsRequests.at(-1)!.get('from')!, world.statisticsRequests.at(-1)!.get('to')!];
@@ -393,18 +394,54 @@ test.describe('statistics', () => {
     expect((Date.parse(to) - Date.parse(from)) / 86_400_000).toBe(30);
     expect(Date.parse(to)).toBeGreaterThan(Date.now() - 86_400_000);
 
-    // The three busiest machines are compared by default; a different choice lives in the URL and survives a reload.
+    // The four busiest machines are compared by default; a different choice lives in the URL and survives a reload.
+    await page.getByRole('tab', { name: 'Machines' }).click();
+    await expect(page).toHaveURL(/tab=machines/);
     const picker = page.getByRole('combobox', { name: /Machines/ });
-    await expect(picker).toContainText('3 selected');
+    await expect(picker).toContainText('4 selected');
     await picker.click();
     await page.getByRole('option', { name: 'CNC mill' }).click();
-    await expect(page).toHaveURL(new RegExp(`machines=.*${ids.mill}`));
+    await expect(page).toHaveURL(new RegExp('machines='));
     await page.keyboard.press('Escape');
     const machines = new URL(page.url()).searchParams.get('machines')!.split(',');
-    expect(machines).toHaveLength(4);
+    expect(machines).toHaveLength(3);
+    expect(machines).not.toContain(ids.mill);
     await page.reload();
-    await expect(page.getByRole('combobox', { name: /Machines/ })).toContainText('4 selected');
+    await expect(page.getByRole('combobox', { name: /Machines/ })).toContainText('3 selected');
     expect(new URL(page.url()).searchParams.get('machines')!.split(',')).toEqual(machines);
     expect(new URL(page.url()).searchParams.get('period')).toBe('30d');
+  });
+
+  for (const width of [375, 1440])
+    test(`every statistics tab passes axe and fits ${width}px`, async ({ page }) => {
+      test.setTimeout(90_000);
+      await page.setViewportSize({ width, height: 900 });
+      for (const tab of ['Overview', 'Machines', 'Materials', 'Money', 'Explore']) {
+        await page.goto(`${base}/statistics?tab=${tab.toLowerCase()}`);
+        await expect(page.getByRole('tab', { name: tab, selected: true })).toBeVisible();
+        await expect(page.locator('.stats-card__chart svg.layout-svg-wrapper').first()).toBeVisible();
+        await expectNoHorizontalScroll(page);
+        await expectNoAccessibilityViolations(page);
+      }
+    });
+
+  test('chooses a custom period in a dialog and shows a chart as a table', async ({ page, world }) => {
+    await page.goto(`${base}/statistics?tab=money`);
+    await expect(page.getByLabel('Money figures')).toBeVisible();
+    await page.getByRole('combobox', { name: 'Period' }).click();
+    await page.getByRole('option', { name: 'Custom range…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Custom period' });
+    await dialog.getByLabel('From').fill('01.01.2026');
+    await dialog.getByLabel('To').fill('31.01.2026');
+    await dialog.getByLabel('To').press('Tab');
+    await dialog.getByRole('button', { name: 'Apply' }).click();
+    await expect(page).toHaveURL(/period=custom.*from=2026-01-01.*to=2026-01-31/);
+    await expect.poll(() => world.statisticsRequests.at(-1)?.get('to')).toBe('2026-02-01');
+    await expect(page.getByRole('combobox', { name: 'Period' })).toContainText('Custom · 01.01.2026 – 31.01.2026');
+
+    await page.getByLabel('Show Share of charges by pricing group as table').click();
+    const table = page.getByRole('table', { name: 'Share of charges by pricing group' });
+    await expect(table.getByRole('row', { name: /Members €900.00/ })).toBeVisible();
+    await expectNoAccessibilityViolations(page);
   });
 });
