@@ -458,7 +458,7 @@ describe('role protection UX', () => {
       [`/workshop/inventory/${id}`, `/workshop/inventory/materials/${id}`],
       ['/workshop/spools', '/workshop/inventory?tab=spools'],
       [`/workshop/spools/${id}`, `/workshop/inventory/spools/${id}`],
-      [`/workshop/machines/${id}/printer`, `/workshop/machines/${id}?tab=printer`],
+      [`/workshop/machines/${id}?tab=printer`, `/workshop/machines/${id}/printer`],
       ['/workshop/inventory/materials', '/workshop/inventory?tab=materials'],
       ['/workshop/inventory/spools', '/workshop/inventory?tab=spools'],
     ])('redirects the former URL %s to %s', async (from, to) => {
@@ -472,7 +472,7 @@ describe('role protection UX', () => {
       ['/machine-logbook/overview', '/workshop/jobs'],
       ['/machine-logbook/jobs?status=unassigned&q=bracket', '/workshop/jobs?status=unassigned&q=bracket'],
       [`/machine-logbook/jobs/runs/${id}`, `/workshop/jobs/runs/${id}`],
-      [`/machine-logbook/machines/${id}?tab=printer`, `/workshop/machines/${id}?tab=printer`],
+      [`/machine-logbook/machines/${id}?tab=printer`, `/workshop/machines/${id}/printer`],
       ['/machine-logbook/inventory?tab=spools', '/workshop/inventory?tab=spools'],
       [`/machine-logbook/spools/${id}`, `/workshop/inventory/spools/${id}`],
       ['/machine-logbook/statistics', '/workshop/statistics'],

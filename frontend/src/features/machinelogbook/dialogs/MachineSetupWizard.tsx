@@ -124,6 +124,7 @@ function WizardBody({
   const test = useConnectionTest();
   const processesQ = useQuery(processesQuery());
   const connectors = useQuery({ ...connectorsQuery(), enabled: canConnect });
+  const [nozzleCount, setNozzleCount] = useState<number | null>(initialProfile?.nozzleCount ?? null);
   const [units, setUnits] = useState<DraftUnit[] | null>(() => {
     if (!(editing && initialStep === 'spools')) return null;
     const base = initialProfile ? draftFromProfile(initialProfile) : [];
@@ -180,6 +181,8 @@ function WizardBody({
       : ['machine', 'review'];
   const current = steps[Math.min(stepIndex, steps.length - 1)];
   const draft = units ?? (profile ? draftFromProfile(profile) : draftFromTemplate(modelId));
+  // The stored count, or the model's until the printer has a profile; the spool inputs step can change it.
+  const nozzles = nozzleCount ?? profile?.nozzleCount ?? model?.nozzles ?? 1;
   const draftsValid =
     draft.every((unit) => unit.name.trim() && unit.slots.length > 0 && unit.slots.every((slot) => slot.name.trim())) &&
     duplicatePairs(draft).size === 0;
@@ -189,7 +192,10 @@ function WizardBody({
 
   const onModelChange = (id: PrinterModelId) => {
     form.setValue('adapterKind', modelById(id)?.adapterKind ?? 'simulator');
-    if (!editing) setUnits(null);
+    if (!editing) {
+      setUnits(null);
+      setNozzleCount(null);
+    }
   };
 
   const stepValid = async (key: StepKey) => {
@@ -230,13 +236,17 @@ function WizardBody({
     setSaved(machineNow);
     if (printer && modelId && (!profile || profile.model !== modelId)) {
       // A model change on an existing machine only labels the profile; its units stay. A fresh setup starts from the template.
+      const count = profile && editing ? profile.nozzleCount : (modelById(modelId)?.nozzles ?? 1);
       const inputUnits =
-        profile && editing ? draftToInput(draftFromProfile(profile)) : draftToInput(draftFromTemplate(modelId));
+        profile && editing
+          ? draftToInput(draftFromProfile(profile), count)
+          : draftToInput(draftFromTemplate(modelId), count);
       setProfile(
         await savePrinterSetup(machineNow.id, {
           expectedVersion: profile?.version ?? null,
           enabled: profile?.enabled ?? true,
           model: modelId,
+          nozzleCount: count,
           inputUnits,
         }),
       );
@@ -292,7 +302,8 @@ function WizardBody({
         expectedVersion: profile?.version ?? null,
         enabled: profile?.enabled ?? true,
         model: modelId,
-        inputUnits: draftToInput(draft),
+        nozzleCount: nozzles,
+        inputUnits: draftToInput(draft, nozzles),
       }),
     );
     setUnits(null);
@@ -481,7 +492,18 @@ function WizardBody({
             />
           )}
           {current === 'spools' && (
-            <SpoolInputsEditor units={draft} onChange={setUnits} detection={detection} model={model} />
+            <SpoolInputsEditor
+              units={draft}
+              onChange={setUnits}
+              detection={detection}
+              model={model}
+              nozzleCount={nozzles}
+              onNozzleCountChange={(count) => {
+                setNozzleCount(count);
+                // Units that fed a nozzle that no longer exists feed the last one.
+                setUnits(draft.map((unit) => ({ ...unit, nozzleIndex: Math.min(unit.nozzleIndex, count) })));
+              }}
+            />
           )}
           {current === 'review' && (
             <ReviewStep
@@ -490,6 +512,7 @@ function WizardBody({
               printer={printer}
               model={model}
               units={profile ? draftFromProfile(profile) : []}
+              nozzleCount={profile?.nozzleCount ?? nozzles}
               detection={detection}
               connectorName={values.connect === 'now' ? connectorName : null}
               connected={test.state.phase === 'success'}

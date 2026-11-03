@@ -1,40 +1,41 @@
 import { useState } from 'react';
 import { Button, Link as CarbonLink } from '@carbon/react';
+import { Add } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import type { Machine, MachineAvailability, MachineCurrentItem } from '../../api/generated/models';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { ListWithPanel, useListPanelLayout } from '../../app/components/ListWithPanel';
 import { PageShell } from '../../app/PageShell';
-import { SectionSwitcher } from '../../app/SectionSwitcher';
+import { MachinePanel } from './components/MachinePanel';
+import {
+  ConnectorStateTag,
+  connectorStateLabel,
+  currentStatusText,
+  idleText,
+  machineRows,
+  PageSectionTabs,
+  type MachineRow,
+} from './components/machineParts';
+import { PrintersTab } from './components/PrintersTab';
 import { ProcessesTab } from './components/ProcessesTab';
-import { ErrorCatalogTab } from './components/ErrorCatalogTab';
-import { PrinterNotificationsTab } from './components/PrinterNotificationsTab';
+import { JobFormModal } from './dialogs/JobFormModal';
 import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
 import { integrationLabel } from './processConfig';
 import { machineActivityQuery, machinesQuery } from './queries';
-import { DirectoryTable, useUrlState, type Column, type Option } from './shared/DirectoryTable';
-import { formatQuantity, formatRelative } from './shared/format';
+import {
+  attentionDirectoryColumn,
+  DirectoryTable,
+  useUrlState,
+  type Column,
+  type Option,
+} from './shared/DirectoryTable';
+import { formatQuantity } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
-import {
-  AvailabilityTag,
-  availabilityLabel,
-  ConnectorIssueTag,
-  connectorIssue,
-  currentItemName,
-} from './shared/status';
+import { AvailabilityTag, availabilityLabel, currentItemName } from './shared/status';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
+import { EmptyState } from '../../app/PageState';
 import './styles/machines.scss';
-
-type Row = {
-  id: string;
-  machine: Machine;
-  availability: MachineAvailability;
-  current: MachineCurrentItem | undefined;
-  issue: string | null;
-  connectorState: 'connected' | 'issue' | 'none';
-  lastJobAt: string | null;
-};
 
 const statusOptions: Option[] = [
   { id: 'available', label: 'Available' },
@@ -51,128 +52,71 @@ const connectorOptions: Option[] = [
   { id: 'issue', label: 'Issue' },
   { id: 'none', label: 'None' },
 ];
-type TabKey = 'machines' | 'processes' | 'notifications' | 'catalog';
-const tabLabels: Record<TabKey, string> = {
-  machines: 'Machines',
-  processes: 'Processes',
-  notifications: 'Printer notifications',
-  catalog: 'Error catalog',
-};
+type TabKey = 'machines' | 'processes' | 'printers';
+const tabLabels: Record<TabKey, string> = { machines: 'Machines', processes: 'Processes', printers: 'Printers' };
+// Earlier links named the tabs that are now parts of Printers or Processes.
+const formerTabs: Record<string, TabKey> = { types: 'processes', notifications: 'printers', catalog: 'printers' };
 
-function ActivityText({ row }: { row: Row }) {
-  if (row.current) {
-    const href =
-      row.current.kind === 'run' ? machineLogbookPaths.run(row.current.id) : machineLogbookPaths.job(row.current.id);
+function ActivityCell({ row }: { row: MachineRow }) {
+  if (row.current)
     return (
-      <CarbonLink as={Link} to={href}>
-        {currentItemName(row.current)}
-      </CarbonLink>
+      <div className="mj-cell-stack">
+        <CarbonLink
+          as={Link}
+          to={
+            row.current.kind === 'run'
+              ? machineLogbookPaths.run(row.current.id)
+              : machineLogbookPaths.job(row.current.id)
+          }
+        >
+          {currentItemName(row.current)}
+        </CarbonLink>
+        <span className="mj-secondary">{currentStatusText(row.current)}</span>
+      </div>
     );
-  }
-  if (row.availability === 'maintenance') return <span className="mj-secondary">Marked for maintenance</span>;
-  if (row.availability === 'retired') return <span className="mj-secondary">Retired</span>;
-  return (
-    <span className="mj-secondary">{row.lastJobAt ? `Last job ${formatRelative(row.lastJobAt)}` : 'No jobs yet'}</span>
-  );
+  return <span className="mj-secondary">{idleText(row)}</span>;
 }
 
-function AvailabilityTags({ row }: { row: Row }) {
-  return (
-    <span className="mj-inline">
-      <AvailabilityTag availability={row.availability} size="sm" />
-      <ConnectorIssueTag issue={row.issue} />
-    </span>
-  );
-}
-
-/** What the machine search matches: process and its integration, external ID, availability and a connector issue. */
-const machineSearchText = (row: Row) =>
+/** What the machine search matches: name, process and its integration, external ID, availability and connector state. */
+const machineSearchText = (row: MachineRow) =>
   [
     row.machine.name,
     row.machine.process.name,
     integrationLabel(row.machine.process.integration),
     row.machine.externalIdentifier,
     availabilityLabel(row.availability),
-    row.issue,
+    row.connectorState === 'none' ? null : connectorStateLabel(row.connector),
+    row.connector?.runtimeErrorCode,
+    row.machine.attention.map((item) => item.message).join(' '),
   ]
     .filter(Boolean)
     .join(' ');
 
-const columns: Column<Row>[] = [
-  {
-    key: 'machine',
-    header: 'Machine',
-    sortValue: (row) => row.machine.name,
-    render: (row) => (
-      <div className="mj-cell-stack">
-        <CarbonLink as={Link} to={machineLogbookPaths.machine(row.machine.id)}>
-          {row.machine.name}
-        </CarbonLink>
-        <span className="mj-secondary">{row.machine.process.name}</span>
-        <span className="mj-show-narrow">
-          <AvailabilityTags row={row} />
-        </span>
-      </div>
-    ),
-  },
-  { key: 'availability', header: 'Availability', render: (row) => <AvailabilityTags row={row} /> },
-  { key: 'activity', header: 'Activity', narrow: true, render: (row) => <ActivityText row={row} /> },
-  {
-    key: 'jobs',
-    header: 'Jobs',
-    narrow: true,
-    firstDirection: 'DESC',
-    sortValue: (row) => row.machine.jobCount,
-    render: (row) => row.machine.jobCount,
-  },
-  {
-    key: 'failure',
-    header: 'Failure rate',
-    narrow: true,
-    firstDirection: 'DESC',
-    sortValue: (row) => Number(row.machine.failureRate),
-    render: (row) => `${formatQuantity(row.machine.failureRate, 1)}%`,
-  },
-  {
-    key: 'lastData',
-    header: 'Last data',
-    narrow: true,
-    firstDirection: 'DESC',
-    sortValue: (row) => row.machine.lastIngestedAt ?? '',
-    render: (row) => (row.machine.lastIngestedAt ? formatRelative(row.machine.lastIngestedAt) : '—'),
-  },
-];
-
 export function MachinesPage() {
   const can = useCan();
   const canManage = can('machines.manage');
+  const navigate = useNavigate();
+  const panelFits = useListPanelLayout();
   const [formOpen, setFormOpen] = useState(false);
+  const [jobFor, setJobFor] = useState<string | null>(null);
   const url = useUrlState('');
   const [params, setParams] = useSearchParams();
-  // Notification and catalog settings are installation-wide and only meaningful to people who manage machines.
-  const tabs: TabKey[] = canManage ? ['machines', 'processes', 'notifications', 'catalog'] : ['machines', 'processes'];
-  // Old links used ?tab=types before machine types became processes.
-  const requestedParam = params.get('tab');
-  const requestedTab = (requestedParam === 'types' ? 'processes' : requestedParam) as TabKey | null;
-  const tab: TabKey = requestedTab && tabs.includes(requestedTab) ? requestedTab : 'machines';
-  const selectTab = (id: string) =>
+  const tabs: TabKey[] = ['machines', 'processes', 'printers'];
+  const requestedParam = params.get('tab') ?? '';
+  const requestedTab = (formerTabs[requestedParam] ?? requestedParam) as TabKey;
+  const tab: TabKey = tabs.includes(requestedTab) ? requestedTab : 'machines';
+  const selectedId = params.get('machine');
+  const setParam = (key: string, value: string | null) =>
     setParams(
       (previous) => {
         const next = new URLSearchParams(previous);
-        if (id === 'machines') next.delete('tab');
-        else next.set('tab', id);
+        if (value) next.set(key, value);
+        else next.delete(key);
         return next;
       },
       { replace: true },
     );
-  const switcher = (
-    <SectionSwitcher
-      label="Machine sections"
-      sections={tabs.map((id) => ({ id, label: tabLabels[id] }))}
-      selected={tab}
-      onChange={selectTab}
-    />
-  );
+  const selectTab = (id: string) => setParam('tab', id === 'machines' ? null : id);
   useNow();
   // A single makerspace has far fewer machines than one page holds, so the table filters, sorts and pages them in the browser.
   const machines = useQuery(machinesQuery({ pageSize: 100 }));
@@ -187,28 +131,7 @@ export function MachinesPage() {
     },
   } as const;
 
-  const byMachine = new Map((activity.data?.items ?? []).map((item) => [item.machineId, item]));
-  const allRows: Row[] = (machines.data?.items ?? []).map((machine) => {
-    const item = byMachine.get(machine.id);
-    const availability: MachineAvailability =
-      item?.availability ?? (machine.status === 'active' ? 'available' : machine.status);
-    const connector = item?.connector;
-    const connectorState: Row['connectorState'] = !connector?.runtimeState
-      ? 'none'
-      : ['disconnected', 'degraded'].includes(connector.runtimeState)
-        ? 'issue'
-        : 'connected';
-    return {
-      id: machine.id,
-      machine,
-      availability,
-      current: item?.current,
-      connectorState,
-      lastJobAt: item?.lastJobStartedAt ?? null,
-      issue: availability === 'retired' ? null : connectorIssue(connector ?? undefined),
-    };
-  });
-
+  const allRows = machineRows(machines.data?.items ?? [], activity.data?.items ?? []);
   const statusIds = url.list('status');
   const processIds = url.list('process');
   const collectionIds = url.list('collection');
@@ -217,7 +140,6 @@ export function MachinesPage() {
   const processOptions: Option[] = [...processes]
     .map(([id, label]) => ({ id, label }))
     .sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }));
-
   const rows = allRows.filter(
     (row) =>
       (statusIds.length === 0 ? row.availability !== 'retired' : statusIds.includes(row.availability)) &&
@@ -225,6 +147,91 @@ export function MachinesPage() {
       (collectionIds.length === 0 ||
         collectionIds.includes(row.machine.automaticCollectionEnabled ? 'automatic' : 'manual')) &&
       (connectorIds.length === 0 || connectorIds.includes(row.connectorState)),
+  );
+  const selected = selectedId ? allRows.find((row) => row.id === selectedId) : undefined;
+  // From 1056 px a row opens the panel next to the table; narrower screens go to the machine page.
+  const open = (row: MachineRow) => {
+    if (panelFits) setParam('machine', selectedId === row.id ? null : row.id);
+    else navigate(machineLogbookPaths.machine(row.id));
+  };
+
+  const columns: Column<MachineRow>[] = [
+    {
+      key: 'availability',
+      header: 'Availability',
+      className: 'mj-col-center',
+      narrow: true,
+      sortValue: (row) => availabilityLabel(row.availability),
+      render: (row) => <AvailabilityTag availability={row.availability} size="sm" />,
+    },
+    {
+      key: 'machine',
+      header: 'Machine',
+      className: 'mj-col-wide',
+      sortValue: (row) => row.machine.name,
+      render: (row) => (
+        <div className="mj-cell-stack">
+          {panelFits ? (
+            <button
+              type="button"
+              className="mj-name-button"
+              aria-expanded={selectedId === row.id}
+              data-selected={selectedId === row.id || undefined}
+              onClick={() => open(row)}
+            >
+              {row.machine.name}
+            </button>
+          ) : (
+            <CarbonLink as={Link} to={machineLogbookPaths.machine(row.machine.id)}>
+              {row.machine.name}
+            </CarbonLink>
+          )}
+          <span className="mj-secondary">
+            {row.machine.process.name}
+            {row.machine.automaticCollectionEnabled ? ' · automatic' : ''}
+          </span>
+          <span className="mj-show-narrow">
+            <AvailabilityTag availability={row.availability} size="sm" />
+          </span>
+        </div>
+      ),
+    },
+    { key: 'activity', header: 'Activity', narrow: true, render: (row) => <ActivityCell row={row} /> },
+    {
+      key: 'jobs',
+      header: 'Jobs',
+      className: 'mj-col-num',
+      narrow: true,
+      firstDirection: 'DESC',
+      sortValue: (row) => row.machine.jobCount,
+      render: (row) => row.machine.jobCount,
+    },
+    {
+      key: 'failure',
+      header: 'Failure rate',
+      className: 'mj-col-num',
+      narrow: true,
+      firstDirection: 'DESC',
+      sortValue: (row) => Number(row.machine.failureRate),
+      render: (row) => `${formatQuantity(row.machine.failureRate, 1)} %`,
+    },
+    {
+      key: 'connector',
+      header: 'Connector',
+      className: 'mj-col-num',
+      narrow: true,
+      render: (row) => <ConnectorStateTag connector={row.connector} />,
+    },
+    attentionDirectoryColumn((row) => row.machine.attention),
+  ];
+
+  const tabsNode = (
+    <PageSectionTabs
+      label="Machine sections"
+      sections={tabs.map((id) => ({ id, label: tabLabels[id] }))}
+      selected={tab}
+      onChange={selectTab}
+    />
   );
 
   // The Connectors tab moved to Settings, Local services; old links still arrive here.
@@ -235,58 +242,76 @@ export function MachinesPage() {
       description="Machines in the workshop, their availability and recent activity."
       width="wide"
       breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.home() }, { label: 'Machines' }]}
+      tabs={tabsNode}
     >
       {tab === 'machines' && (
         <QueryBoundary query={query} errorMessage="The machines could not be loaded.">
-          <DirectoryTable<Row>
-            id="machines"
-            urlPrefix=""
-            label="Machines"
-            columns={columns}
-            rows={rows}
-            totalCount={allRows.length}
-            switcher={switcher}
-            searchText={machineSearchText}
-            defaultSort={{ key: 'machine', direction: 'ASC' }}
-            filterCategories={[
-              {
-                key: 'status',
-                label: 'Status',
-                options: statusOptions,
-                helperText: 'Retired machines only appear when selected.',
-              },
-              { key: 'process', label: 'Process', options: processOptions },
-              { key: 'collection', label: 'Collection', options: collectionOptions },
-              { key: 'connector', label: 'Connector', options: connectorOptions },
-            ]}
-            toolbarAction={
-              canManage ? (
-                <Button kind="primary" size="lg" onClick={() => setFormOpen(true)}>
-                  Add machine
-                </Button>
-              ) : undefined
+          <ListWithPanel
+            className="mj-machines"
+            panelLabel="Machine details"
+            panel={
+              selected ? (
+                <MachinePanel
+                  key={selected.id}
+                  row={selected}
+                  onClose={() => setParam('machine', null)}
+                  onNewJob={() => setJobFor(selected.id)}
+                />
+              ) : (
+                <div className="mj-panel-placeholder">
+                  <EmptyState title="No machine selected" description="Select a machine to see its details here." />
+                </div>
+              )
             }
-            empty={{
-              title: 'No machines yet',
-              description: 'Add a machine to start logging jobs.',
-              action: canManage ? (
-                <Button kind="tertiary" onClick={() => setFormOpen(true)}>
-                  Add machine
-                </Button>
-              ) : undefined,
-            }}
-          />
+          >
+            <DirectoryTable<MachineRow>
+              id="machines"
+              urlPrefix=""
+              label="Machines"
+              columns={columns}
+              rows={rows}
+              totalCount={allRows.length}
+              searchText={machineSearchText}
+              defaultSort={{ key: 'machine', direction: 'ASC' }}
+              pageSizes={[25, 50, 100]}
+              onRowClick={open}
+              filterCategories={[
+                {
+                  key: 'status',
+                  label: 'Availability',
+                  options: statusOptions,
+                  helperText: 'Retired machines only appear when selected.',
+                },
+                { key: 'process', label: 'Process', options: processOptions },
+                { key: 'collection', label: 'Collection', options: collectionOptions },
+                { key: 'connector', label: 'Connector', options: connectorOptions },
+              ]}
+              toolbarAction={
+                canManage ? (
+                  <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setFormOpen(true)}>
+                    Add machine
+                  </Button>
+                ) : undefined
+              }
+              empty={{
+                title: 'No machines yet',
+                description: 'Add a machine to start logging jobs.',
+                action: canManage ? (
+                  <Button kind="tertiary" onClick={() => setFormOpen(true)}>
+                    Add machine
+                  </Button>
+                ) : undefined,
+              }}
+            />
+          </ListWithPanel>
         </QueryBoundary>
       )}
-      {tab === 'processes' && <ProcessesTab switcher={switcher} />}
-      {tab === 'notifications' && (
-        <div className="mj-stack">
-          {switcher}
-          <PrinterNotificationsTab />
-        </div>
-      )}
-      {tab === 'catalog' && <ErrorCatalogTab switcher={switcher} />}
+      {tab === 'processes' && <ProcessesTab />}
+      {tab === 'printers' && <PrintersTab />}
       {canManage && formOpen && <MachineSetupWizard open onClose={() => setFormOpen(false)} />}
+      {jobFor && (
+        <JobFormModal open onClose={() => setJobFor(null)} mode="create" initialValues={{ machineId: jobFor }} />
+      )}
     </PageShell>
   );
 }

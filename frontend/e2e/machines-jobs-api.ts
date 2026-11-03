@@ -1611,6 +1611,10 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       return found ? ok(route, found) : notFound(route);
     }
 
+    // Machines › Printers and the printer setup page (see printerMock below).
+    const printerResponse = printerMock(world, method, path, params, body);
+    if (printerResponse) return ok(route, printerResponse.body, printerResponse.status);
+
     world.unhandled.push(`${method} ${path}${url.search}`);
     return route.fulfill({
       status: 500,
@@ -1619,4 +1623,140 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
     });
   });
   return world;
+}
+
+// ---------------------------------------------------------------------------
+// Machines › Printers (error catalog, code list fetch, notification rules) and the printer error history.
+// ---------------------------------------------------------------------------
+
+type PrinterRuleMock = {
+  event: 'printer_error' | 'run_finished' | 'filament_change';
+  notifyOperator: boolean;
+  notifyRecipient: boolean;
+  roleId: string | null;
+  roleName: string | null;
+  email: boolean;
+  minSeverity: string | null;
+};
+type PrinterCodeMock = {
+  id: string;
+  sourceFamily: 'hms' | 'print';
+  code: string;
+  title: string;
+  description: string;
+  link: string | null;
+  source: 'bambu' | 'manual';
+  updatedAt: string;
+};
+type PrinterMockState = {
+  notifications: { events: PrinterRuleMock[]; version: number; updatedAt: string };
+  codes: PrinterCodeMock[];
+};
+
+const printerMockStates = new WeakMap<object, PrinterMockState>();
+
+function printerMockState(world: object): PrinterMockState {
+  const existing = printerMockStates.get(world);
+  if (existing) return existing;
+  const at = '2026-11-01T03:00:00Z';
+  const rule = (event: PrinterRuleMock['event']): PrinterRuleMock => ({
+    event,
+    notifyOperator: true,
+    notifyRecipient: event === 'run_finished',
+    roleId: null,
+    roleName: null,
+    email: false,
+    minSeverity: event === 'printer_error' ? 'serious' : null,
+  });
+  const entry = (
+    n: number,
+    sourceFamily: PrinterCodeMock['sourceFamily'],
+    code: string,
+    title: string,
+    description: string,
+    source: PrinterCodeMock['source'],
+  ): PrinterCodeMock => ({ id: id(n), sourceFamily, code, title, description, link: null, source, updatedAt: at });
+  const state: PrinterMockState = {
+    notifications: {
+      events: [rule('printer_error'), rule('run_finished'), rule('filament_change')],
+      version: 1,
+      updatedAt: at,
+    },
+    codes: [
+      entry(901, 'hms', '0300-0D00-0001-0001', 'Heatbed temperature abnormal', 'Check the heatbed cable.', 'bambu'),
+      entry(902, 'hms', '0700-2000-0002-0001', 'AMS filament stuck', 'Clear the filament path.', 'bambu'),
+      entry(903, 'print', '0500-4001', 'SD card read error', '', 'manual'),
+    ],
+  };
+  printerMockStates.set(world, state);
+  return state;
+}
+
+/** Answers the printer endpoints of the Machines pages, or returns undefined for any other request. */
+function printerMock(
+  world: object,
+  method: string,
+  path: string,
+  params: URLSearchParams,
+  body: Record<string, unknown> | undefined,
+): { body: unknown; status?: number } | undefined {
+  const state = printerMockState(world);
+  if (path === '/api/v1/printer-notification-settings' && method === 'GET') return { body: state.notifications };
+  if (path === '/api/v1/printer-notification-settings' && method === 'PUT') {
+    const events = (body?.events ?? []) as Partial<PrinterRuleMock>[];
+    state.notifications = {
+      events: state.notifications.events.map((rule) => {
+        const change = events.find((item) => item.event === rule.event);
+        return change ? { ...rule, ...change, minSeverity: change.minSeverity ?? null, roleName: null } : rule;
+      }),
+      version: state.notifications.version + 1,
+      updatedAt: new Date().toISOString(),
+    };
+    return { body: state.notifications };
+  }
+  const sync = {
+    enabled: true,
+    lastAttemptAt: '2026-11-01T03:00:00Z',
+    lastSuccessAt: '2026-11-01T03:00:00Z',
+    lastError: null,
+    importedCount: 2,
+  };
+  if (path === '/api/v1/printer-error-codes' && method === 'GET') {
+    const search = (params.get('search') ?? '').toLowerCase();
+    const items = state.codes.filter(
+      (item) =>
+        (!search || `${item.code} ${item.title} ${item.description}`.toLowerCase().includes(search)) &&
+        (!params.get('sourceFamily') || item.sourceFamily === params.get('sourceFamily')) &&
+        (!params.get('source') || item.source === params.get('source')),
+    );
+    const page = Number(params.get('page') ?? 1);
+    const pageSize = Number(params.get('pageSize') ?? 25);
+    return {
+      body: { items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length, sync },
+    };
+  }
+  if (path === '/api/v1/printer-error-codes/sync' && method === 'POST') return { body: sync };
+  const code = path.match(/^\/api\/v1\/printer-error-codes\/([^/]+)\/([^/]+)$/);
+  if (code && method === 'PUT') {
+    const [, family, value] = code;
+    const found = state.codes.find((item) => item.sourceFamily === family && item.code === value);
+    const saved: PrinterCodeMock = {
+      id: found?.id ?? id(950 + state.codes.length),
+      sourceFamily: family as PrinterCodeMock['sourceFamily'],
+      code: decodeURIComponent(value),
+      title: String(body?.title ?? ''),
+      description: String(body?.description ?? ''),
+      link: (body?.link as string | null) ?? null,
+      source: 'manual',
+      updatedAt: new Date().toISOString(),
+    };
+    state.codes = found ? state.codes.map((item) => (item === found ? saved : item)) : [...state.codes, saved];
+    return { body: saved };
+  }
+  if (code && method === 'DELETE') {
+    state.codes = state.codes.filter((item) => !(item.sourceFamily === code[1] && item.code === code[2]));
+    return { body: {}, status: 200 };
+  }
+  if (/^\/api\/v1\/machines\/[^/]+\/printer-errors$/.test(path) && method === 'GET') return { body: { items: [] } };
+  return undefined;
 }

@@ -172,3 +172,291 @@
   align-items: start;
   gap: $spacing-03;
 }
+
+// ---------------------------------------------------------------------------
+// Machines list, panel, Printers tab, machine page and printer setup (layout glue only).
+// ---------------------------------------------------------------------------
+
+// Page tabs keep Carbon's own scrolling; nothing of them may widen the page on a phone.
+.mj-page-tabs {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  position: relative;
+  overflow-x: clip;
+}
+.mj-page-tabs__panel {
+  display: none;
+}
+
+// Grid items keep their content width by default; tables and wrapping rows inside must be able to shrink instead.
+.stack-card > *,
+.mj-stack > *,
+.mj-two-col > *,
+.mj-slot-units > * {
+  min-inline-size: 0;
+}
+.mj-scroll-x {
+  overflow-x: auto;
+}
+.mj-stack--loose {
+  gap: $spacing-06;
+}
+
+.mj-col-center {
+  text-align: center;
+}
+.mj-col-num {
+  text-align: end;
+}
+.mj-col-wide {
+  min-inline-size: 12rem;
+}
+.mj-code {
+  @include type-style('code-01');
+}
+.mj-error-text {
+  color: theme.$text-error;
+}
+
+// The machine name opens the panel: a text button styled like the row's primary text.
+.mj-name-button {
+  @include type-style('body-compact-01');
+  padding: 0;
+  border: 0;
+  background: none;
+  color: theme.$text-primary;
+  text-align: start;
+  cursor: pointer;
+}
+.mj-name-button:hover {
+  text-decoration: underline;
+}
+.mj-name-button:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: 1px;
+}
+.mj-machines tr:has([data-selected]) td {
+  background: theme.$layer-selected-01;
+}
+
+.mj-panel-placeholder {
+  padding: $spacing-05;
+  background: theme.$layer-01;
+}
+
+// Preview figure at the top of the machine panel and the Live card.
+.mj-preview {
+  margin: 0;
+  background: theme.$layer-accent-01;
+}
+.mj-machine-panel .mj-preview {
+  margin: (-$spacing-05) (-$spacing-05) 0;
+}
+.mj-preview__stage {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+}
+.mj-preview__stage img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+.mj-preview__none {
+  display: grid;
+  justify-items: center;
+  gap: $spacing-02;
+  padding: $spacing-05;
+  color: theme.$text-secondary;
+  text-align: center;
+}
+.mj-preview__none svg {
+  fill: theme.$icon-secondary;
+}
+.mj-preview__none small {
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
+}
+.mj-preview__caption {
+  @include type-style('label-01');
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-02 $spacing-03;
+  min-block-size: 2rem;
+  padding: $spacing-02 $spacing-03;
+  background: theme.$layer-01;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+
+.mj-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+// Label/value list with the labels on the start side.
+.mj-summary {
+  @include type-style('body-compact-01');
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: $spacing-02 $spacing-06;
+  margin: 0;
+}
+.mj-summary__row {
+  display: contents;
+}
+.mj-summary dt {
+  color: theme.$text-secondary;
+}
+.mj-summary dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.mj-summary__mono {
+  @include type-style('code-01');
+}
+.mj-lines {
+  display: grid;
+  gap: $spacing-01;
+}
+
+.mj-panel-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mj-panel-list__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+  padding-block: $spacing-03;
+  border-block-start: 1px solid theme.$border-subtle-01;
+  color: theme.$text-primary;
+  text-decoration: none;
+}
+.mj-panel-list > li:first-child > .mj-panel-list__row {
+  border-block-start: 0;
+}
+.mj-panel-list__row:hover {
+  background: theme.$layer-hover-01;
+}
+.mj-panel-list__row:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+.mj-panel-list__main {
+  display: grid;
+  gap: $spacing-01;
+  min-inline-size: 0;
+}
+.mj-panel-list__title {
+  @include type-style('heading-compact-01');
+}
+
+// Two columns: 70/30 for the Printers tab, content and a side column on the machine page, equal halves elsewhere.
+.mj-two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: $spacing-05;
+  align-items: start;
+}
+.mj-two-col--catalog {
+  grid-template-columns: minmax(0, 7fr) minmax(20rem, 3fr);
+}
+.mj-two-col--side {
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+}
+@media (max-width: 65.98rem) {
+  .mj-two-col--catalog,
+  .mj-two-col--side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.mj-catalog-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: $spacing-04;
+  padding: $spacing-04 $spacing-05;
+  background: theme.$layer-01;
+}
+
+// Printer notifications: one block per event, separated by hairlines.
+.pn-list {
+  display: grid;
+}
+.pn-event {
+  display: grid;
+  gap: $spacing-04;
+  min-inline-size: 0;
+  margin: 0;
+  padding: $spacing-05 0;
+  border: 0;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+.pn-event:first-child {
+  border-block-start: 0;
+  padding-block-start: $spacing-03;
+}
+.pn-event__title {
+  @include type-style('heading-compact-01');
+  padding: 0;
+}
+.pn-event__helper {
+  @include type-style('helper-text-01');
+  margin-block-start: (-$spacing-03);
+  color: theme.$text-helper;
+}
+.pn-event__checks {
+  display: grid;
+  gap: $spacing-02;
+}
+
+// Machine page: notes keep their line breaks, cards stack.
+.mj-notes-text {
+  min-block-size: 2.5rem;
+  white-space: pre-wrap;
+}
+.mj-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}
+
+// Printer setup: recording toggles, spool slot units.
+.mj-toggles {
+  display: grid;
+  gap: $spacing-05;
+}
+.mj-slot-units {
+  display: grid;
+  background: theme.$layer-01;
+}
+.mj-slot-units__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+  padding: $spacing-04 $spacing-05;
+}
+.mj-slot-units__title {
+  @include type-style('heading-compact-02');
+}
+.mj-slot-unit + .mj-slot-unit {
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+.mj-slot-unit__title {
+  @include type-style('heading-compact-01');
+  padding: $spacing-04 $spacing-05 $spacing-03;
+}
+.mj-slot-units__note {
+  @include type-style('helper-text-01');
+  padding: $spacing-04 $spacing-05;
+  color: theme.$text-helper;
+}

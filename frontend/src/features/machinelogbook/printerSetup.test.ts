@@ -42,13 +42,29 @@ describe('printer setup helpers', () => {
       name: 'Slot 1',
       status: 'available',
       externalIdentifier: '0',
+      nozzleIndex: 1,
     });
     expect(input[1]).toEqual({
       name: 'External spool',
       nozzle: null,
+      nozzleIndex: 1,
       externalIdentifier: '255',
-      slots: [{ name: 'Spool', status: 'available', externalIdentifier: '255' }],
+      slots: [{ name: 'Spool', status: 'available', externalIdentifier: '255', nozzleIndex: 1 }],
     });
+  });
+
+  it('sends the nozzle each unit feeds to all its slots and names the side of a two-nozzle printer', () => {
+    const units = draftFromProfile(templateProfile());
+    const input = draftToInput(units, 2);
+    expect(input.map((unit) => [unit.name, unit.nozzleIndex, unit.nozzle])).toEqual([
+      ['AMS 2 Pro', 1, 'left'],
+      ['External spool L', 1, 'left'],
+      ['External spool R', 2, 'right'],
+    ]);
+    expect(input[2].slots.map((slot) => slot.nozzleIndex)).toEqual([2]);
+    // A unit cannot feed a nozzle the printer does not have.
+    expect(draftToInput([{ ...units[2], nozzleIndex: 3 }], 2)[0].nozzleIndex).toBe(2);
+    expect(draftToInput([{ ...units[2], nozzleIndex: 3 }], 4)[0]).toMatchObject({ nozzleIndex: 3, nozzle: null });
   });
 
   it('ignores retired slots and disabled units of a stored profile', () => {

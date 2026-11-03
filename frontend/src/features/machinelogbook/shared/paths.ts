@@ -35,3 +35,6 @@ export const machineLogbookPaths = {
 /** Tabs of the Inventory page including the inventory recycle bin (`?tab=bin`). */
 export type InventorySection = InventoryTab | 'bin';
 export const inventorySectionPath = (section: InventorySection) => `${root}/inventory?tab=${section}`;
+/** The printer setup page of an FDM printer. */
+export const machinePrinterSetupPath = (id: string) =>
+  `${machineLogbookPaths.machines()}/${encodeURIComponent(id)}/printer`;

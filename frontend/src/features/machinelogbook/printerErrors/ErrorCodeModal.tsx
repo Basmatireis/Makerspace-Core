@@ -1,4 +1,5 @@
-import { InlineNotification, Modal, Select, SelectItem, Stack, TextArea, TextInput } from '@carbon/react';
+import { Button, InlineNotification, Modal, Select, SelectItem, Stack, TextArea, TextInput } from '@carbon/react';
+import { TrashCan } from '@carbon/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { putPrinterErrorCode } from '../../../api/generated/printing/printing';
@@ -37,10 +38,19 @@ export function ErrorCodeModal({
   draft,
   fixedKey,
   onClose,
+  heading,
+  fetched = false,
+  onRemove,
 }: {
   draft: ErrorCodeDraft;
   fixedKey: boolean;
   onClose: () => void;
+  /** Overrides the default heading ("Printer error meaning" or "Add error code"). */
+  heading?: string;
+  /** The meaning came from Bambu Lab's list: saving makes it one written here. */
+  fetched?: boolean;
+  /** Offers removing the entry from the catalog. */
+  onRemove?: () => void;
 }) {
   const client = useQueryClient();
   const notify = useNotify();
@@ -66,11 +76,12 @@ export function ErrorCodeModal({
   const submit = form.handleSubmit((values) => {
     if (!save.isPending) save.mutate(values);
   });
+  const title = heading ?? (fixedKey ? 'Printer error meaning' : 'Add error code');
   return (
     <Modal
       open
       size="sm"
-      modalHeading={fixedKey ? 'Printer error meaning' : 'Add error code'}
+      modalHeading={title}
       primaryButtonText={save.isPending ? 'Saving…' : 'Save'}
       secondaryButtonText="Cancel"
       primaryButtonDisabled={!isValid || save.isPending}
@@ -87,6 +98,15 @@ export function ErrorCodeModal({
         }}
       >
         <Stack gap={5}>
+          {fetched && (
+            <InlineNotification
+              kind="info"
+              lowContrast
+              hideCloseButton
+              title="Fetched from Bambu Lab"
+              subtitle="Once you save it here, it counts as written here and the daily fetch never overwrites it again."
+            />
+          )}
           <Select
             id="error-code-family"
             labelText="Source family"
@@ -145,6 +165,13 @@ export function ErrorCodeModal({
               title="Meaning not saved"
               subtitle="Check the entries and try again."
             />
+          )}
+          {onRemove && (
+            <div>
+              <Button kind="danger--ghost" size="sm" renderIcon={TrashCan} onClick={onRemove}>
+                Remove from catalog
+              </Button>
+            </div>
           )}
         </Stack>
       </form>

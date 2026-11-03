@@ -24,4 +24,4 @@ export const runtimeTag = {
 } as const;
 
 export const spoolLabel = (spool: FilamentSpool) =>
-  `${spool.displayId}${spool.label ? ` (${spool.label})` : ''} · ${spool.materialName ?? 'No material'} · ${formatQuantity(spool.remainingQuantity)} ${spool.unit ?? 'g'} left`;
+  `${spool.displayId} · ${spool.materialName ?? 'No material'} · ${formatQuantity(spool.remainingQuantity)} ${spool.unit ?? 'g'} left`;
