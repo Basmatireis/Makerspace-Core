@@ -100,6 +100,9 @@
   --cds-link-primary-hover: color-mix(in srgb, var(--app-brand-primary) 68%, black);
   --cds-link-secondary: color-mix(in srgb, var(--app-brand-primary) 68%, black);
   --cds-highlight: color-mix(in srgb, var(--app-brand-primary) 16%, white);
+  // The first layer (tables, cards, detail panels) is a touch lighter than Carbon's white theme.
+  --cds-layer-01: #f8f8f8;
+  --cds-layer: #f8f8f8;
 }
 
 // Dark mode (Carbon g100): text-level brand colors are lightened so links, focus rings and highlights keep their
@@ -324,7 +327,6 @@ body.cds--body--with-modal-open .app-main > * {
 
 .profile-panel__email,
 .section-description,
-.page-header__description,
 .auth-card__subtitle,
 .auth-card__help {
   @include type-style('body-compact-01');
@@ -556,11 +558,6 @@ body.cds--body--with-modal-open .app-main > * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.page-header__description {
-  max-inline-size: 70ch;
-  margin-block-start: $spacing-03;
 }
 
 .page-header__actions {

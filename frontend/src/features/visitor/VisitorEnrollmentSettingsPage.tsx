@@ -51,10 +51,7 @@ export function VisitorEnrollmentSettingsPage() {
     checked ? [...new Set([...values, value])] : values.filter((item) => item !== value);
 
   return (
-    <SettingsPageLayout
-      page="visitor-enrollment"
-      description="Allow only approved ManagedDevice types to create visitors with one backend-selected initial Role."
-    >
+    <SettingsPageLayout page="visitor-enrollment">
       {(configuration.isPending || roles.isPending || deviceTypes.isPending) && (
         <SettingsLoading label="Loading visitor enrollment configuration" />
       )}

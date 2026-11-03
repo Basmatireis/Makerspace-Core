@@ -99,12 +99,7 @@ export function OrganizationsPage() {
   ];
 
   return (
-    <PageShell
-      title="Organizations"
-      description="Companies, institutes and associations that can be billed, with their invoice data and people."
-      width="wide"
-      breadcrumbs={[{ label: 'Directory' }, { label: 'Organizations' }]}
-    >
+    <PageShell title="Organizations" width="wide" breadcrumbs={[{ label: 'Directory' }, { label: 'Organizations' }]}>
       <QueryBoundary query={query} errorMessage="Organizations could not be loaded.">
         {(page) => (
           <DirectoryTable

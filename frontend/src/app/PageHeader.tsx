@@ -11,13 +11,12 @@ export type PageCrumb = {
 export type PageHeaderProps = {
   title: string;
   titleAdornment?: ReactNode;
-  description?: string;
   breadcrumbs?: PageCrumb[];
   actions?: ReactNode;
   tabs?: ReactNode;
 };
 
-export function PageHeader({ title, titleAdornment, description, breadcrumbs = [], actions, tabs }: PageHeaderProps) {
+export function PageHeader({ title, titleAdornment, breadcrumbs = [], actions, tabs }: PageHeaderProps) {
   usePageTitle(title);
   const titleId = useId();
   const resolvedBreadcrumbs: PageCrumb[] =
@@ -45,7 +44,6 @@ export function PageHeader({ title, titleAdornment, description, breadcrumbs = [
               </Heading>
               {titleAdornment}
             </div>
-            {description && <p className="page-header__description">{description}</p>}
           </div>
           {actions && <div className="page-header__actions">{actions}</div>}
         </div>

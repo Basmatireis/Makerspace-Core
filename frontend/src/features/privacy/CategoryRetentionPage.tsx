@@ -715,7 +715,6 @@ export function CategoryRetentionPage() {
           </Tag>
         </>
       }
-      description={category.contains}
       breadcrumbs={breadcrumbs}
       width="wide"
     >

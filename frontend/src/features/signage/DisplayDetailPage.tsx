@@ -31,7 +31,7 @@ import { useRefreshDisplay } from './displayMutations';
 import { DisplaySettingsTab } from './DisplaySettingsTab';
 import { usePublishedView, useRuleNames } from './displayHooks';
 import { PublishedScreen, StatusTag } from './displayParts';
-import { aspectLabel, describePendingChange, errorMessage, isStaleWrite, orientationOf, pluralize } from './helpers';
+import { describePendingChange, errorMessage, isStaleWrite, orientationOf, pluralize } from './helpers';
 import { HealthTab } from './HealthTab';
 import { PlaybackTab } from './PlaybackTab';
 import { PlayerAddress } from './components';
@@ -198,7 +198,6 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
       width="wide"
       breadcrumbs={crumbs}
       actions={actions}
-      description={[display.location, aspectLabel(display.aspectRatio)].filter(Boolean).join(' · ')}
       titleAdornment={
         revoked ? (
           <Tag type="gray">Revoked</Tag>

@@ -99,11 +99,7 @@ export function ProfilePage() {
   });
 
   return (
-    <PageShell
-      title="Profile"
-      description="Review your personal information and account security."
-      className="person-detail-page"
-    >
+    <PageShell title="Profile" className="person-detail-page">
       <div className="person-detail-layout">
         <Grid className="person-detail-grid person-detail-grid--overview">
           <Column sm={4} md={3} lg={6} className="person-detail-grid__stretch-cell">

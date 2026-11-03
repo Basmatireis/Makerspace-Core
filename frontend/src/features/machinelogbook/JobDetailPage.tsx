@@ -206,7 +206,6 @@ function JobDetail({ job }: { job: MachineJob }) {
         </span>
       }
       width="wide"
-      description={[name !== job.displayId && job.displayId, job.machine.name].filter(Boolean).join(' · ')}
       breadcrumbs={[
         { label: 'Workshop', to: machineLogbookPaths.home() },
         { label: 'Jobs', to: machineLogbookPaths.jobs() },

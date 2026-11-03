@@ -289,7 +289,7 @@ export function App() {
               {/* Former URLs. Static segments rank above `:materialId`, so "materials", "spools" and "products" never become an ID. */}
               <Route
                 path="inventory/materials"
-                element={<Navigate to={machineLogbookPaths.inventory('materials')} replace />}
+                element={<Navigate to={machineLogbookPaths.inventory('articles')} replace />}
               />
               <Route
                 path="inventory/spools"
@@ -297,7 +297,7 @@ export function App() {
               />
               <Route
                 path="inventory/products"
-                element={<Navigate to={machineLogbookPaths.inventory('materials')} replace />}
+                element={<Navigate to={machineLogbookPaths.inventory('articles')} replace />}
               />
               <Route
                 path="inventory/:materialId"

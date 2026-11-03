@@ -131,7 +131,6 @@ export function StatisticsPage() {
     >
       <PageShell
         title="Statistics"
-        description="How the workshop is used, what it consumes and what it earns, compared with the previous period."
         width="wide"
         className="machine-logbook-page statistics-page"
         breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.home() }, { label: 'Statistics' }]}

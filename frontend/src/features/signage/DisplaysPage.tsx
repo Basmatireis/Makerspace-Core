@@ -149,14 +149,6 @@ export function DisplaysPage() {
   const now = useNow(30_000);
   const query = useQuery(displaysQuery());
   const displays = query.data?.items ?? [];
-  const active = displays.filter((display) => display.status !== 'revoked');
-  const online = active.filter((display) => display.status === 'online').length;
-  const needsPublishing = active.filter(
-    (display) => display.publishedRevision === null || display.pendingChanges.length > 0,
-  ).length;
-  const description = query.isSuccess
-    ? `${pluralize(displays.length, 'display')} · ${online} online · ${needsPublishing} ${needsPublishing === 1 ? 'needs' : 'need'} publishing`
-    : 'Screens that show scenes in the makerspace.';
   const pairButton = canPair ? (
     <Button renderIcon={Add} onClick={() => setPairing(true)}>
       Pair display
@@ -164,13 +156,7 @@ export function DisplaysPage() {
   ) : undefined;
 
   return (
-    <PageShell
-      title="Displays"
-      description={description}
-      width="wide"
-      breadcrumbs={[{ label: 'Signage' }]}
-      actions={pairButton}
-    >
+    <PageShell title="Displays" width="wide" breadcrumbs={[{ label: 'Signage' }]} actions={pairButton}>
       <QueryBoundary query={query} label="displays">
         {displays.length === 0 ? (
           <EmptyState

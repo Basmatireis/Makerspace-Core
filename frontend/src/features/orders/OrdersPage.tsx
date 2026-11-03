@@ -437,7 +437,6 @@ export function OrdersPage() {
     <PageShell
       className="sales-page"
       title="Orders"
-      description="Charges for jobs and items, what has been paid and what is invoiced."
       width="wide"
       breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Orders' }]}
     >

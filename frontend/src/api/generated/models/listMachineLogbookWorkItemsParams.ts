@@ -53,6 +53,10 @@ materialId?: UUIDv7[];
  */
 billing?: JobBillingState[];
 /**
+ * Only items that need attention (at least one attention flag).
+ */
+attention?: boolean;
+/**
  * Person or Organization identifier.
  */
 customerId?: UUIDv7;

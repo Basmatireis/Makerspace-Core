@@ -30,7 +30,6 @@ describe('Announcements page', () => {
     expect(screen.getAllByText('Closed today – Holiday').length).toBe(2);
     expect(screen.getByText('All displays')).toBeInTheDocument();
     expect(screen.getByText('Until stopped')).toBeInTheDocument();
-    expect(screen.getByText('1 active · 1 scheduled')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New announcement' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Stop/ })).not.toBeInTheDocument();
   });

@@ -82,10 +82,7 @@ export function MailSettingsPage() {
     }
   });
   return (
-    <SettingsPageLayout
-      page="mail"
-      description="Configure transactional SMTP delivery. Passwords are encrypted and never returned by the API."
-    >
+    <SettingsPageLayout page="mail">
       {configuration.isPending && <SettingsLoading label="Loading email configuration" />}
       {configuration.isError && (
         <ErrorState

@@ -14,6 +14,7 @@
 
 // "Reported by machines, not assigned" above the jobs table.
 .jobs-strip {
+  container-type: inline-size;
   min-inline-size: 0;
   background: theme.$layer-01;
   border-inline-start: 3px solid theme.$support-info;
@@ -86,6 +87,21 @@
 .jobs-strip__row--selected,
 .jobs-strip__row--selected:hover {
   background: theme.$layer-selected-01;
+}
+
+// Next to the detail panel the rows stack machine, name and progress; the actions keep the end column.
+@container (max-width: 44rem) {
+  .jobs-strip__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: $spacing-02;
+    padding-block: $spacing-03;
+  }
+
+  .jobs-strip__actions {
+    grid-row: 1 / span 3;
+    grid-column: 2;
+    align-self: center;
+  }
 }
 
 .jobs-strip__cell {

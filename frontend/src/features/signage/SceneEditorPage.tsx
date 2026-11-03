@@ -32,7 +32,7 @@ import { useCameraBlockedDisplays } from './displayHooks';
 import { ChangeLayoutModal } from './ChangeLayoutModal';
 import { AssetPicker, DeleteDialog, FitField, LayoutSketch, type LayoutChoice } from './components';
 import { AspectRatioSelect } from './AspectRatioFields';
-import { aspectLabel, errorMessage, isStaleWrite, orientationOf, pluralize } from './helpers';
+import { errorMessage, isStaleWrite, orientationOf, pluralize } from './helpers';
 import { customLayoutsQuery } from './layoutQueries';
 import { layoutById, remapZones, resolveLayout } from './layouts';
 import { signagePaths } from './paths';
@@ -250,7 +250,6 @@ function Editor({
       title={draft.name.trim() === '' ? scene.name : draft.name}
       width="fluid"
       breadcrumbs={crumbs}
-      description={`${status} · ${aspectLabel(draft.aspectRatio)}`}
       actions={
         canEdit ? (
           <div className="sg-editor__actions">

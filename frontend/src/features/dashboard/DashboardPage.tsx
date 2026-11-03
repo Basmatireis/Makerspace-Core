@@ -20,11 +20,9 @@ import { RecentJobsPanel, RecentOrdersPanel } from './RecentPanels';
 import { SemesterTile } from './SemesterTile';
 import { StatisticsSection } from './StatisticsSection';
 import { jobItems, orderItems, payableOrders } from './balance';
-import { longToday, pickGreeting, plural, replayRandom, upcomingOpenDays } from './format';
+import { pickGreeting, replayRandom, upcomingOpenDays } from './format';
 import { ownLabRulesOptions, personalDashboardOptions, publicOpenDaysOptions } from './queries';
 import './dashboard.scss';
-
-const WEEK_MS = 7 * 86_400_000;
 
 /**
  * The landing page. Sections follow what the API returns and what the person may do: a person with a staffing level
@@ -63,14 +61,6 @@ export function DashboardPage() {
   const canFindOpenDays = canAccessOpenDays(currentUser);
   const canSignUp = hasPermission(currentUser, PermissionId.open_dayssignup);
   const comingUp = (data.comingUp ?? []).filter((item) => new Date(item.endsAt).getTime() > now);
-  const thisWeek = comingUp.filter((item) => new Date(item.startsAt).getTime() - now < WEEK_MS).length;
-  const today = longToday(now);
-  const description =
-    comingUp.length === 0 && !data.staffing
-      ? today
-      : `${today} · ${
-          thisWeek === 0 ? 'nothing planned this week' : `${plural(thisWeek, 'commitment')} in the next 7 days`
-        }`;
   const labRulesStatus = labRules.data;
   const upcoming = upcomingOpenDays(publicDays.data?.items ?? [], now);
   const balance = data.balance;
@@ -98,7 +88,6 @@ export function DashboardPage() {
         random: replayRandom(rolls),
       })}
       breadcrumbs={[{ label: 'Dashboard' }]}
-      description={description}
       width="wide"
       actions={
         <Button as={Link} to="/profile" kind="tertiary" renderIcon={UserMultiple}>

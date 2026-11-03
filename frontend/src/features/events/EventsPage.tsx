@@ -158,13 +158,7 @@ export function EventsPage({
   const ownerCell = (event: Event) => event.ownerName ?? <span className="ev-overdue">No owner</span>;
 
   return (
-    <PageShell
-      title="Events"
-      description="Workshops, fairs and community events with their helpers."
-      width="wide"
-      className="events-page"
-      actions={create}
-    >
+    <PageShell title="Events" width="wide" className="events-page" actions={create}>
       <TableContainer>
         <TableToolbar aria-label="Events toolbar" className="ev-list-toolbar">
           <SectionSwitcher label="Event sections" selected={scope} sections={sections} onChange={switchScope} />

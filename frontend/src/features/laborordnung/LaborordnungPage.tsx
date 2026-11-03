@@ -290,10 +290,7 @@ export function LaborordnungPage() {
   ];
 
   return (
-    <SettingsPageLayout
-      page="laborordnung"
-      description="Published documents are immutable. Confirmation records physical evidence only."
-    >
+    <SettingsPageLayout page="laborordnung">
       {tabs.length > 1 ? <SettingsTabs label="Lab Rules sections" tabs={tabs} /> : documents}
       <ComposedModal open={Boolean(selected)} onClose={() => setSelected(undefined)}>
         <ModalHeader title="Confirm physical document" />

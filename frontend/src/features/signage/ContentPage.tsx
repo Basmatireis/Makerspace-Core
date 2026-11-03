@@ -93,13 +93,7 @@ export function ContentPage() {
   };
 
   return (
-    <PageShell
-      title="Content"
-      width="wide"
-      breadcrumbs={[{ label: 'Signage' }]}
-      actions={create}
-      description="Scenes are single screens built from a layout; announcement templates define live messages; custom layouts split the screen into your own zones. Displays and rules play lists of scenes. Scene edits are drafts until a display is published."
-    >
+    <PageShell title="Content" width="wide" breadcrumbs={[{ label: 'Signage' }]} actions={create}>
       <div className="sg-stack">
         <SectionSwitcher
           label="Content type"

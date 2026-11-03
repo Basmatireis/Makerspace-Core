@@ -163,7 +163,7 @@ describe('Recycle bin page', () => {
     expect(screen.queryByRole('link', { name: 'Recycle bin' })).not.toBeInTheDocument();
   });
 
-  it('offers the link on the Jobs page to people who may delete', async () => {
+  it('is the Recycle bin section of the Jobs page, and the former page redirects there', async () => {
     server.use(
       as(...deleter),
       http.get('*/api/v1/machine-logbook/work-items', () =>
@@ -171,10 +171,8 @@ describe('Recycle bin page', () => {
       ),
     );
     renderRoute(<App />, '/workshop/jobs');
-    expect(await screen.findByRole('link', { name: 'Recycle bin' }, { timeout: 5000 })).toHaveAttribute(
-      'href',
-      '/workshop/recycle-bin',
-    );
+    expect(await screen.findByRole('tab', { name: 'Recycle bin' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('does not render the page for people without the permission', async () => {

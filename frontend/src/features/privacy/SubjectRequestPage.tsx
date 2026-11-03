@@ -31,7 +31,6 @@ import {
 } from './privacy';
 import { privacyPath, privacySections, requestIdFromPath } from './privacyNavigation';
 import {
-  channelPhrases,
   dueInfo,
   isClosed,
   kindLabels,
@@ -497,7 +496,6 @@ export function SubjectRequestPage() {
   };
   const due = dueInfo(data, now);
   const erasure = data.kind === 'erasure';
-  const received = `received ${channelPhrases[data.channel]} on ${formatDate(data.receivedAt)}`;
   return (
     <PageShell
       title={`${personLabel(data)} asks for ${erasure ? 'erasure' : 'a copy of their data'}`}
@@ -506,7 +504,6 @@ export function SubjectRequestPage() {
           {kindLabels[data.kind]}
         </Tag>
       }
-      description={data.reference ? `${data.reference} · ${received}` : received[0].toUpperCase() + received.slice(1)}
       breadcrumbs={breadcrumbs}
       width="wide"
       actions={

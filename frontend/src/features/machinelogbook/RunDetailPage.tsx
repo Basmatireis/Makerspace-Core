@@ -219,13 +219,6 @@ export function RunDetailPage() {
           </span>
         ) : undefined
       }
-      description={
-        run
-          ? [run.displayId, run.machineName, run.connectorName ? `via ${run.connectorName}` : null]
-              .filter(Boolean)
-              .join(' · ')
-          : undefined
-      }
       breadcrumbs={[
         { label: 'Workshop', to: machineLogbookPaths.home() },
         { label: 'Jobs', to: machineLogbookPaths.jobs() },

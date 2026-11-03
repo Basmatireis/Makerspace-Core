@@ -321,11 +321,10 @@ export function PrivacyPage() {
     activities: <ActivitiesTab />,
     settings: <SettingsTab />,
   };
-  const { title, description } = privacySections[section];
+  const { title } = privacySections[section];
   return (
     <PageShell
       title={title}
-      description={description}
       width="wide"
       breadcrumbs={[
         { label: 'Settings', to: '/settings' },

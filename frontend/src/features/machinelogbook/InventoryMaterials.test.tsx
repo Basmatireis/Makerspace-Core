@@ -118,8 +118,8 @@ describe('Inventory page', () => {
     serve();
     const user = userEvent.setup();
     const router = renderAt('/workshop/inventory?tab=filament');
-    expect(await screen.findByRole('table', { name: 'Materials' })).toBeInTheDocument();
-    expect(router.state.location.search).toBe('?tab=materials');
+    expect(await screen.findByRole('table', { name: 'Articles' })).toBeInTheDocument();
+    expect(router.state.location.search).toBe('?tab=articles');
     await user.click(screen.getByRole('tab', { name: 'Recycle bin' }));
     expect(await screen.findByText('No deleted articles')).toBeInTheDocument();
     expect(router.state.location.search).toBe('?tab=bin');
@@ -129,7 +129,7 @@ describe('Inventory page', () => {
     auth.permissions = READ;
     serve();
     renderAt('/workshop/inventory');
-    const table = await screen.findByRole('table', { name: 'Materials' });
+    const table = await screen.findByRole('table', { name: 'Articles' });
     const row = within(table).getByRole('link', { name: blue.name }).closest('tr') as HTMLElement;
     expect(within(row).getByText('A-0001')).toBeInTheDocument();
     expect(within(row).getByText('1,612 g')).toBeInTheDocument();
@@ -138,7 +138,7 @@ describe('Inventory page', () => {
     expect(within(lowRow).getByText(/300 g loose · low/)).toBeInTheDocument();
     expect(within(lowRow).getByText('Low stock · 300 g left, minimum 500 g')).toBeInTheDocument();
     // Parts have their own tab; readers get no stock actions.
-    expect(within(table).queryByText(insert.name)).not.toBeInTheDocument();
+    expect(within(table).getByText(insert.name)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Receive stock' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New article' })).not.toBeInTheDocument();
   });
@@ -176,7 +176,7 @@ describe('Inventory page', () => {
     server.use(http.get(`*/api/v1/materials/${blue.id}`, () => HttpResponse.json(blue)));
     const user = userEvent.setup();
     const router = renderAt('/workshop/inventory');
-    const table = await screen.findByRole('table', { name: 'Materials' });
+    const table = await screen.findByRole('table', { name: 'Articles' });
     await user.click(
       within(within(table).getByRole('link', { name: blue.name }).closest('tr') as HTMLElement).getByText('Shelf B2'),
     );
@@ -335,7 +335,7 @@ describe('Inventory recycle bin', () => {
     expect(within(spools).getByText('Ran empty')).toBeInTheDocument();
     const ledger = screen.getByRole('table', { name: 'Deleted ledger entries' });
     expect(within(ledger).getByText('Sold (order) · −85 g')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'jobs recycle bin' })).toHaveAttribute('href', '/workshop/recycle-bin');
+    expect(screen.getByRole('link', { name: 'jobs recycle bin' })).toHaveAttribute('href', '/workshop/jobs?tab=bin');
 
     await user.click(within(articles).getByRole('button', { name: /^Restore A-0014/ }));
     const dialog = await screen.findByRole('dialog', { name: /Restore A-0014/ });

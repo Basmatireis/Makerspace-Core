@@ -244,7 +244,6 @@ export function SalesOverviewPage() {
       title="Sales overview"
       width="wide"
       breadcrumbs={[{ label: 'Sales & payments' }]}
-      description="What is in the register, what is open and what needs you."
       actions={
         can(PermissionId.pricingread) || can(PermissionId.orderswrite) ? (
           <>

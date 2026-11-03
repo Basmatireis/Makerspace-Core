@@ -8,16 +8,12 @@ import { getSupervisorDashboard } from '../../api/generated/supervisors/supervis
 import type { FilterValues } from '../../app/BatchFilter';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
-import { useNow } from '../../app/useNow';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
-import { plural } from '../dashboard/format';
 import { PromoteDialog } from './PromoteDialog';
 import { StaffingTable } from './StaffingTable';
 import { filterRows, isTileActive } from './staffing';
 import './staffing.scss';
-
-const WEEK_MS = 7 * 86_400_000;
 
 type MetricProps = {
   label: string;
@@ -49,7 +45,6 @@ function Metric({ label, value, detail, active, onClick }: MetricProps) {
 
 export function SupervisorStaffingPage() {
   const currentUser = useCurrentUser();
-  const now = useNow();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState<FilterValues>({});
   const [page, setPage] = useState(1);
@@ -98,11 +93,6 @@ export function SupervisorStaffingPage() {
     promoteBlockedReason = 'No supervisor role is configured. Choose one in the open day requirements first.';
   }
 
-  const weeksLeft = semester ? Math.ceil((Date.parse(`${semester.endsOn}T12:00:00Z`) - now) / WEEK_MS) : 0;
-  const semesterText = semester
-    ? `${semester.name} · ${weeksLeft > 0 ? `${plural(weeksLeft, 'week')} left` : 'ended'}`
-    : 'No open-day period';
-
   return (
     <PageShell
       title="Supervisor staffing"
@@ -111,7 +101,6 @@ export function SupervisorStaffingPage() {
         ...(canOpenPeople ? [{ label: 'People', to: '/people' }] : []),
         { label: 'Members' },
       ]}
-      description={`${semesterText} · general minimum ${plural(requirements.minOpenDaysPerSemester, 'open day')} per person (roles can differ)`}
       width="wide"
       className="supervisor-staffing-page"
       actions={

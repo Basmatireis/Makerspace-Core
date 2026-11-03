@@ -30,7 +30,7 @@ import { allTransactionsQuery } from './inventoryQueries';
 import { materialQuery } from './queries';
 import { attentionDirectoryColumn, DirectoryTable, type Column } from './shared/DirectoryTable';
 import { formatMoney } from './shared/format';
-import { inventoryTabForKind, machineLogbookPaths } from './shared/paths';
+import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
 import { useCan } from './shared/useCan';
 import { allSpoolsQuery } from './spoolData';
@@ -151,7 +151,7 @@ function MaterialDetail({ material }: { material: Material }) {
   const filament = isFilament(material);
   const unitCost = materialUnitCost(material);
   const loose = Number(material.unassignedQuantity);
-  const listTab = inventoryTabForKind(material.kind);
+  const listTab = 'articles';
 
   const actions = (
     <>
@@ -215,9 +215,6 @@ function MaterialDetail({ material }: { material: Material }) {
       title={material.name}
       titleAdornment={<ArticleTags material={material} size="md" />}
       width="wide"
-      description={[material.displayId, material.materialTypeName, material.storageLocation]
-        .filter(Boolean)
-        .join(' · ')}
       breadcrumbs={[
         crumbs[0],
         { label: 'Inventory', to: machineLogbookPaths.inventory(listTab) },

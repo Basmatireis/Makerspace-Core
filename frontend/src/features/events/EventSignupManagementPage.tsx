@@ -52,10 +52,7 @@ export function EventSignupManagementPage() {
     return (
       <main className="public-page">
         <Stack gap={6}>
-          <PageHeader
-            title="Manage event signup"
-            description="Open the complete private management link you received after signup."
-          />
+          <PageHeader title="Manage event signup" />
           <ErrorState
             title="Management link missing"
             message="The token belongs in the link fragment and is not recoverable."
@@ -82,10 +79,7 @@ export function EventSignupManagementPage() {
           {branding.assets.compactLogoUrl && <img src={branding.assets.compactLogoUrl} alt="" />}
           <span>{branding.identity.applicationName}</span>
         </div>
-        <PageHeader
-          title="Manage event signup"
-          description="This page can access only the signup identified by your private link."
-        />
+        <PageHeader title="Manage event signup" />
         <ManagementForm
           key={assignment.version}
           token={token}

@@ -86,7 +86,6 @@ export function BrandingLegalSettingsPage() {
     <Tabs>
       <SettingsPageLayout
         page="branding-legal"
-        description="Configure the installation-wide organization identity, visual assets, colors, and public legal documents."
         tabs={
           <TabList aria-label="Branding configuration sections">
             <Tab>Organization &amp; colors</Tab>

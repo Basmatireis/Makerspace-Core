@@ -16,7 +16,7 @@ import {
   TableToolbarContent,
   TableToolbarSearch,
 } from '@carbon/react';
-import { Add, Filter, TrashCan } from '@carbon/icons-react';
+import { Add, Filter } from '@carbon/icons-react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import type {
@@ -69,6 +69,8 @@ export interface JobsTableProps {
   machineColumn?: boolean;
   /** Lists only the jobs and unassigned runs of this machine; New job starts with it. */
   machineId?: string;
+  /** Only items with attention flags (the "Needs attention" section). */
+  attention?: boolean;
   /** Prefix of the URL parameters (search, filters, page, sort), so several tables can share a page. */
   urlPrefix?: string;
   /** The selected row, highlighted. */
@@ -224,7 +226,14 @@ function JobsFilterRow({
  * of jobs only (machine, job, recipient and operator, start and runtime, billing, attention flag). Search, the filter
  * row, sort and page live in the URL. Reusable on a machine's page with `machineId` and without the machine column.
  */
-export function JobsTable({ machineColumn = true, machineId, urlPrefix = '', selected, onSelect }: JobsTableProps) {
+export function JobsTable({
+  machineColumn = true,
+  machineId,
+  attention,
+  urlPrefix = '',
+  selected,
+  onSelect,
+}: JobsTableProps) {
   const can = useCan();
   const navigate = useNavigate();
   const panelFits = useListPanelLayout();
@@ -257,6 +266,7 @@ export function JobsTable({ machineColumn = true, machineId, urlPrefix = '', sel
     machineId: machineIds ?? undefined,
     source: url.get('source') ? [url.get('source') as WorkItemSource] : undefined,
     billing: url.get('billing') ? [url.get('billing') as JobBillingState] : undefined,
+    attention: attention || undefined,
     customerId: url.get('customer') || undefined,
     operatorPersonId: url.get('operator') || undefined,
     sort: sortKey,
@@ -344,11 +354,6 @@ export function JobsTable({ machineColumn = true, machineId, urlPrefix = '', sel
                 >
                   <Filter />
                 </IconButton>
-                {canDelete && (
-                  <Button kind="ghost" size="lg" renderIcon={TrashCan} as={Link} to={machineLogbookPaths.recycleBin()}>
-                    Recycle bin
-                  </Button>
-                )}
                 {canCreate && (
                   <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setJobOpen(true)}>
                     New job

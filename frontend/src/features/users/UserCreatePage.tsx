@@ -41,11 +41,7 @@ export function UserCreatePage() {
   });
 
   return (
-    <PageShell
-      title="Add person"
-      breadcrumbs={[{ label: 'Directory' }, { label: 'People', to: '/people' }]}
-      description="Create a person record. A login account can be added afterward."
-    >
+    <PageShell title="Add person" breadcrumbs={[{ label: 'Directory' }, { label: 'People', to: '/people' }]}>
       <Tile className="form-tile">
         <Form onSubmit={onSubmit}>
           <Stack gap={7}>

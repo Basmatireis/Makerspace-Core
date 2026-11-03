@@ -445,8 +445,8 @@ func (s *seeder) setupPrinters() {
 		_, err := s.printing.ConfigureProfile(s.ctx, s.actor, m.id, true, 0, nil)
 		check("profile", err)
 	}
-	unit := func(m *mach, name string, pos int) uuid.UUID {
-		u, err := s.printing.CreateInputUnit(s.ctx, s.actor, m.id, name, pos, nil, nil)
+	unit := func(m *mach, name string, pos int, ext string) uuid.UUID {
+		u, err := s.printing.CreateInputUnit(s.ctx, s.actor, m.id, name, pos, ptr(ext), nil)
 		check("unit", err)
 		return u.ID
 	}
@@ -459,16 +459,16 @@ func (s *seeder) setupPrinters() {
 	}
 	for _, m := range []*mach{x1c, p1s} {
 		profile(m)
-		u := unit(m, "AMS 1", 0)
+		u := unit(m, "AMS 1", 0, "ams0")
 		for i := 0; i < 4; i++ {
 			addSlot(m, u, fmt.Sprintf("Slot %d", i+1), i, fmt.Sprintf("ams0.slot%d", i))
 		}
-		e := unit(m, "External spool", 1)
+		e := unit(m, "External spool", 1, "external")
 		addSlot(m, e, "External spool", 0, "external")
 	}
 	for _, m := range []*mach{pr1, pr2} {
 		profile(m)
-		u := unit(m, "Spool holder", 0)
+		u := unit(m, "Spool holder", 0, "holder")
 		addSlot(m, u, "Spool", 0, "holder")
 	}
 	// Prusa spool generations

@@ -58,10 +58,12 @@ type ConsumedMaterial struct {
 }
 
 type WorkItemFilters struct {
-	Search                  string
-	Statuses                []WorkItemStatus
-	Sources                 []RunSource
-	Billing                 []BillingState
+	Search   string
+	Statuses []WorkItemStatus
+	Sources  []RunSource
+	Billing  []BillingState
+	// Attention keeps only items with at least one attention flag.
+	Attention               bool
 	MachineIDs, MaterialIDs []uuid.UUID
 	CustomerID, OperatorID  *uuid.UUID
 	From, To                *time.Time
@@ -150,6 +152,9 @@ func (s *Service) ListWorkItems(
 		SortKey: filters.Sort, SortDirection: string(filters.Direction), PageOffset: offset, PageLimit: limit,
 	}
 	q := machinelogbookdb.New(s.pool)
+	if filters.Attention {
+		return s.listWorkItemsNeedingAttention(ctx, q, p, params, offset, limit)
+	}
 	rows, err := q.ListWorkItems(ctx, params)
 	if err != nil {
 		return nil, 0, err
@@ -176,6 +181,41 @@ func (s *Service) ListWorkItems(
 		return nil, 0, err
 	}
 	return items, total, nil
+}
+
+// attentionWindow bounds the items examined for the "needs attention" list: attention is derived from runs,
+// billing and orders after the query, so the page is cut from the matching items in memory.
+const attentionWindow = 2000
+
+func (s *Service) listWorkItemsNeedingAttention(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	p authorization.Principal,
+	params machinelogbookdb.ListWorkItemsParams,
+	offset, limit int32,
+) ([]WorkItem, int64, error) {
+	params.PageOffset, params.PageLimit = 0, attentionWindow
+	rows, err := q.ListWorkItems(ctx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+	items := workItemsFromRows(rows, p.Has(authorization.OrdersRead))
+	if err = attachConsumption(ctx, q, items); err != nil {
+		return nil, 0, err
+	}
+	if err = s.attachWorkItemAttention(ctx, q, items); err != nil {
+		return nil, 0, err
+	}
+	flagged := items[:0]
+	for _, item := range items {
+		if len(item.Attention) > 0 {
+			flagged = append(flagged, item)
+		}
+	}
+	total := int64(len(flagged))
+	start := min(int(offset), len(flagged))
+	end := min(start+int(limit), len(flagged))
+	return nonNil(flagged[start:end]), total, nil
 }
 
 // attachConsumption fills the consumption summary of the listed items.

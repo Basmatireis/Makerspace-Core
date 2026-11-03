@@ -359,10 +359,7 @@ function SettingsForm({ settings }: { settings: WiRefDeliverySettings }) {
 export function InvoicingSettingsPage() {
   const settings = useQuery(wirefSettingsQuery());
   return (
-    <SettingsPageLayout
-      page="invoicing"
-      description="Once an approver forwards an invoice request, Core mails the invoice data with a PDF to the university accounting office (wiRef)."
-    >
+    <SettingsPageLayout page="invoicing">
       {settings.isPending && <SettingsLoading label="Loading invoicing settings" />}
       {settings.isError && (
         <ErrorState

@@ -1064,8 +1064,10 @@ function filterWorkItems(world: World, params: URLSearchParams) {
   const machineIds = params.getAll('machineId');
   const sources = params.getAll('source');
   const search = params.get('search')?.toLowerCase();
+  const attention = params.get('attention') === 'true';
   const items = workItems(world).filter(
     (item) =>
+      (!attention || item.attention.length > 0) &&
       (statuses.length === 0 || statuses.includes(item.status)) &&
       (machineIds.length === 0 || machineIds.includes(item.machineId)) &&
       (sources.length === 0 || sources.includes(item.source)) &&

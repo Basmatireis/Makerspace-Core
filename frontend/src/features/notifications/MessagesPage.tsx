@@ -77,13 +77,7 @@ export function MessagesPage() {
   }));
 
   return (
-    <PageShell
-      title="Messages"
-      width="wide"
-      breadcrumbs={crumbs}
-      description="In-app messages to everyone who holds a role. They show up in the notifications of the header for 90 days."
-      actions={actions}
-    >
+    <PageShell title="Messages" width="wide" breadcrumbs={crumbs} actions={actions}>
       {sent.isPending && (
         <DataTableSkeleton columnCount={headers.length} rowCount={5} showHeader={false} showToolbar={false} />
       )}

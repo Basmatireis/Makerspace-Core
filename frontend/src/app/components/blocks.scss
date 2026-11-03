@@ -16,19 +16,30 @@
 
 .list-panel--split {
   grid-template-columns: minmax(0, 1fr) 25rem;
+  align-items: stretch;
 }
 
 .list-panel__list {
   min-inline-size: 0;
 }
 
+// The panel column is at least as tall as the list; its content sticks below the shell header and scrolls on its own.
 .list-panel__panel {
+  min-inline-size: 0;
+  background: theme.$layer-01;
+  border-inline-start: 3px solid theme.$border-interactive;
+}
+
+.list-panel__sticky {
   position: sticky;
   inset-block-start: calc(3rem + #{$spacing-05});
   max-block-size: calc(100vh - 3rem - #{$spacing-05} * 2);
-  min-inline-size: 0;
   overflow-y: auto;
   scrollbar-width: thin;
+}
+
+.list-panel__panel .detail-panel {
+  border-inline-start: 0;
 }
 
 // DetailPanel: a layer with an interactive accent on the start edge.
@@ -48,10 +59,11 @@
   gap: $spacing-03;
 }
 
-// Four lines of fixed height, so the heads of different panels line up whatever they show.
+// Four lines of fixed height, so the heads of different panels line up whatever they show. The fourth line is tall
+// enough for a row of tags.
 .detail-panel__lines {
   display: grid;
-  grid-template-rows: 1.75rem 1.125rem 1rem 1rem;
+  grid-template-rows: 1.75rem 1.125rem 1rem 1.5rem;
   row-gap: $spacing-02;
   min-inline-size: 0;
   flex: 1 1 auto;
@@ -62,6 +74,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail-panel__helper {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+}
+
+.detail-panel__helper .cds--tag {
+  margin: 0;
 }
 
 .detail-panel__title {

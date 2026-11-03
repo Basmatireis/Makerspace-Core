@@ -31,7 +31,7 @@ function TypesTable({
 }: {
   types: MaterialType[];
   canManage: boolean;
-  switcher: ReactNode;
+  switcher?: ReactNode;
 }) {
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const can = useCan();

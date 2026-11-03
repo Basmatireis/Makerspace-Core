@@ -96,7 +96,7 @@ func (s *seeder) newSingleUse(at time.Time, key, label string) uuid.UUID {
 }
 
 // registerSpool registers a 1 kg spool of the material (bought, or moved from loose stock) with an NFC tag.
-func (s *seeder) registerSpool(at time.Time, matName, mode string, price *string, label string) uuid.UUID {
+func (s *seeder) registerSpool(at time.Time, matName, mode string, price *string, label string) (uuid.UUID, string) {
 	m := s.mat(matName)
 	svc := s.mlAt(at)
 	in := machinelogbook.FilamentSpoolInput{
@@ -116,15 +116,16 @@ func (s *seeder) registerSpool(at time.Time, matName, mode string, price *string
 	}
 	sp, err := svc.CreateFilamentSpool(s.ctx, s.actor, in, nil)
 	check("spool "+label, err)
-	_, err = svc.AddFilamentSpoolIdentifier(s.ctx, s.actor, sp.ID, "nfc", s.nfc(), nil)
+	tag := s.nfc()
+	_, err = svc.AddFilamentSpoolIdentifier(s.ctx, s.actor, sp.ID, "nfc", tag, nil)
 	check("identifier", err)
-	return sp.ID
+	return sp.ID, tag
 }
 
 func (s *seeder) newReusable(at time.Time, key, label, mode string) *reusable {
 	p := s.prods[key]
-	id := s.registerSpool(at, p.mat, mode, ptr(f2(p.price)), label)
-	r := &reusable{id: id, label: label}
+	id, tag := s.registerSpool(at, p.mat, mode, ptr(f2(p.price)), label)
+	r := &reusable{id: id, tag: tag, label: label}
 	s.reus = append(s.reus, r)
 	return r
 }
@@ -188,7 +189,7 @@ func (s *seeder) changeFill(r *reusable, at time.Time, matName, source string, e
 		}
 	}
 	next := at.Add(time.Minute)
-	r.id = s.registerSpool(next, matName, mode, price, r.label)
+	r.id, r.tag = s.registerSpool(next, matName, mode, price, r.label)
 	if r.slot != nil {
 		s.mount(r.slot, r.id, next)
 	}

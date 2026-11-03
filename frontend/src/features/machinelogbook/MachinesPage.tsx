@@ -239,7 +239,6 @@ export function MachinesPage() {
   return (
     <PageShell
       title="Machines"
-      description="Machines in the workshop, their availability and recent activity."
       width="wide"
       breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.home() }, { label: 'Machines' }]}
       tabs={tabsNode}

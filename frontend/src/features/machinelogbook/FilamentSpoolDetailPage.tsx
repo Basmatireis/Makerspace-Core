@@ -133,7 +133,6 @@ function SpoolDetail({ spool }: { spool: FilamentSpool }) {
       title={spool.displayId}
       titleAdornment={<SpoolTags spool={spool} size="md" />}
       width="wide"
-      description={spool.materialName}
       breadcrumbs={retired ? [crumbs[0], crumbs[1], { label: 'Recycle bin', to: inventorySectionPath('bin') }] : crumbs}
       actions={actions}
     >

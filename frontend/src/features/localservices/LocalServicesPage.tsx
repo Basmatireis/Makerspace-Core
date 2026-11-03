@@ -29,11 +29,7 @@ export function LocalServicesPage() {
   const selected = requested && tabs.includes(requested) ? requested : tabs[0];
   return (
     <ToastProvider>
-      <SettingsPageLayout
-        page="local-services"
-        description="Software that runs in the makerspace network next to Core."
-        width="wide"
-      >
+      <SettingsPageLayout page="local-services" width="wide">
         <Tabs
           selectedIndex={tabs.indexOf(selected)}
           onChange={({ selectedIndex }) =>

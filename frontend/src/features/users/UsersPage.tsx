@@ -232,12 +232,7 @@ export function UsersPage() {
   };
 
   return (
-    <PageShell
-      title="People"
-      breadcrumbs={[{ label: 'Directory' }, { label: 'People' }]}
-      description="Manage people, login accounts, roles, and access."
-      width="wide"
-    >
+    <PageShell title="People" breadcrumbs={[{ label: 'Directory' }, { label: 'People' }]} width="wide">
       {peopleQuery.isPending && <InlineLoadingState label="Loading people" />}
       {peopleQuery.isError && (
         <ErrorState

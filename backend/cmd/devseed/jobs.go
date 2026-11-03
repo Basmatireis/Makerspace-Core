@@ -351,3 +351,74 @@ func (s *seeder) finishPrints() {
 	)
 	check("heartbeat", err)
 }
+
+// reportLiveStatuses stores one printer live status for the X1 Carbon as its connector would report it: an idle
+// printer whose AMS holds the registered spool of slot 1 and an unregistered spool in slot 2, so the Spools tab
+// offers to register the latter.
+func (s *seeder) reportLiveStatuses() {
+	m := s.machines["x1c"]
+	// Slot and unit changes since setup bumped the assignment's configuration version; report against the current one.
+	as, err := s.pc.ListAssignments(s.ctx, s.actor, s.connCtx.ID)
+	check("list assignments", err)
+	for _, a := range as {
+		if a.ID != m.assign {
+			continue
+		}
+		// Live status is only accepted for an enabled assignment.
+		updated, err := s.pc.UpdateAssignment(s.ctx, s.actor, s.connCtx.ID, a.ID, printerconnectors.AssignmentUpdate{
+			AdapterKind:          a.AdapterKind,
+			AdapterSchemaVersion: a.AdapterSchemaVersion,
+			Settings:             a.Settings,
+			Enabled:              true,
+			ExpectedVersion:      a.Version,
+		}, nil)
+		check("enable assignment", err)
+		m.cfgVer = updated.ConfigurationVersion
+	}
+	registered := s.nfc()
+	for _, r := range s.reus {
+		if r.id == m.slots[0].cur && r.tag != "" {
+			registered = r.tag
+		}
+	}
+	tray := func(ext string, materialType, subBrand, colorHex string, remain int, tag string) map[string]any {
+		if tag == "" {
+			return map[string]any{"externalId": ext, "materialType": nil, "subBrand": nil, "colorHex": nil,
+				"remainPercent": nil, "rfid": false, "tagUid": nil, "empty": true}
+		}
+		return map[string]any{"externalId": ext, "materialType": materialType, "subBrand": subBrand, "colorHex": colorHex,
+			"remainPercent": remain, "rfid": true, "tagUid": tag, "empty": false}
+	}
+	snapshot, err := json.Marshal(map[string]any{
+		"state": "idle",
+		"job":   nil,
+		"temperatures": map[string]any{
+			"extruders": []map[string]any{{"extruderId": 0, "side": nil, "currentC": 28.5, "targetC": 0}},
+			"bedC":      27.1, "bedTargetC": 0, "chamberC": 26.4,
+		},
+		"nozzles": []map[string]any{{"extruderId": 0, "side": nil, "diameterMm": 0.4, "type": "stainless_steel"}},
+		"units": []map[string]any{
+			{"externalId": "ams0", "kind": "ams", "label": "AMS 1", "humidityPercent": 31, "temperatureC": 27.0,
+				"trays": []map[string]any{
+					tray("ams0.slot0", "PLA", "PLA Basic", "1A1A1A", 62, registered),
+					tray("ams0.slot1", "PETG", "PETG HF", "2E6BD8", 88, s.nfc()),
+					tray("ams0.slot2", "", "", "", 0, ""),
+					tray("ams0.slot3", "", "", "", 0, ""),
+				}},
+			{"externalId": "external", "kind": "external", "label": "External spool", "humidityPercent": nil,
+				"temperatureC": nil, "trays": []map[string]any{tray("external", "", "", "", 0, "")}},
+		},
+		"activeTray":      nil,
+		"errors":          []map[string]any{},
+		"firmwareVersion": "01.08.02.00",
+		"wifiSignalDbm":   -58,
+	})
+	check("live status json", err)
+	check("live status", s.pc.ReportLiveStatus(s.ctx, s.connCtx, printerconnectors.LiveStatusReport{
+		AssignmentID:         m.assign,
+		ProtocolVersion:      1,
+		ConfigurationVersion: m.cfgVer,
+		ObservedAt:           s.now.Add(-2 * time.Minute),
+		Snapshot:             snapshot,
+	}))
+}

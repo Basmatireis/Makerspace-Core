@@ -106,7 +106,6 @@ export function PeopleMergePage() {
     <PageShell
       title="Merge people"
       breadcrumbs={[{ label: 'Directory' }, { label: 'People', to: '/people' }, { label: 'Merge people' }]}
-      description="Fold duplicate people into one. The others and their accounts are permanently deleted."
       width="wide"
     >
       <Stack gap={6}>

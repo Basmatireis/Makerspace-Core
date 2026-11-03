@@ -44,10 +44,7 @@ export function VisitorEnrollmentPage() {
     return (
       <main className="public-page">
         <Stack gap={6}>
-          <PageHeader
-            title="Visitor enrollment unavailable"
-            description="This browser is not an enabled visitor kiosk. Ask a staff member to verify its ManagedDevice configuration."
-          />
+          <PageHeader title="Visitor enrollment unavailable" />
           <LegalLinks />
         </Stack>
       </main>

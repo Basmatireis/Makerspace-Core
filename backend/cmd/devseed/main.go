@@ -106,6 +106,7 @@ type gen struct {
 
 type reusable struct {
 	id    uuid.UUID
+	tag   string // NFC tag UID the spool carries
 	label string
 	slot  *slot
 }
@@ -261,6 +262,7 @@ func main() {
 	s.runTimeline()
 	s.seedProcessJobs()
 	s.finishPrints()
+	s.reportLiveStatuses()
 	s.priceAdjustments()
 	s.createOrders()
 	s.assignOpenDays()

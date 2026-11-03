@@ -383,7 +383,6 @@ export function PaymentsPage() {
     <PageShell
       className="sales-page"
       title="Payments"
-      description="The cashbook: every receipt, refund, correction and cash movement."
       width="wide"
       breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Payments' }]}
     >

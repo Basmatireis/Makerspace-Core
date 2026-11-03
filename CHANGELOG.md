@@ -52,6 +52,11 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- **Section tabs on Jobs and Inventory.** Jobs has the tabs All · Needs attention · Recycle bin under its title (the former recycle-bin page redirects to the tab), and Inventory has Articles · Spools · Categories · Recycle bin under the title as on Machines: filament, consumables and parts are one Articles table (the former Materials and Parts tabs redirect to it). The work-items API takes `attention=true` to list only items with attention flags and accepts `planned` as a status.
+- **Page headers.** The one-line description under page titles is gone from every page.
+- **Detail panels.** Next to a list, the panel column is at least as tall as the list; its content stays in view while the list scrolls, and the fourth line of the panel head has room for tags.
+- **Lighter layer colour.** Tables, cards and panels of the light theme sit on a slightly lighter grey.
+- **Demo data.** `make seed-dev` stores a live status for the X1 Carbon whose AMS reads the tag of the mounted spool and one unregistered spool, so the Spools tab offers to register it.
 - **Statistics page.** Workshop › Statistics has the tabs Overview, Machines, Materials, Money and Explore, a period choice of 30 days, 3, 6 or 12 months or a custom date range, and new charts for when the workshop is busy (weekday × hour), jobs per week and by outcome, material cost per month and type, losses and margin per material type, and charges by pricing group and process. Every chart can be shown as a table.
 - **Jobs page.** Jobs only, with the runs machines reported without a job in a strip above the table (Claim, Delete), a filter row of comboboxes (status, outcome, machine, process, runs, billing, recipient, operator), the attention flag per row and a detail panel next to the table from 1056 px. The row selection with batch actions is gone from the page.
 - **Job page.** Fact tiles, a Notes card with its own edit button, one **Add** button for recorded or manual runs, a **Print files & timelapses** slideshow with the job's On/Off signage toggle, and Price & billing with **Add to order** (the recipient's draft order or a new one) and **Adjust price** in the card.

@@ -44,7 +44,7 @@ function BinTables({
   materials: DeletedMaterial[];
   spools: FilamentSpool[];
   ledgerEntries: DeletedInventoryTransaction[];
-  switcher: ReactNode;
+  switcher?: ReactNode;
 }) {
   const allowed = useBinPermissions();
   const [pending, setPending] = useState<Pending | null>(null);
@@ -277,7 +277,7 @@ function BinTables({
 }
 
 /** The Recycle bin tab of the Inventory page. */
-export function InventoryRecycleBin({ switcher }: { switcher: ReactNode }) {
+export function InventoryRecycleBin({ switcher }: { switcher?: ReactNode } = {}) {
   const query = useQuery(inventoryRecycleBinQuery());
   return (
     <QueryBoundary query={query} errorMessage="The recycle bin could not be loaded.">

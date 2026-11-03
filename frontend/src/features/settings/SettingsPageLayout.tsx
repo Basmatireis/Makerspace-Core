@@ -6,7 +6,6 @@ import { settingsGroup, settingsItem, type SettingsPageId } from './settingsCata
 type SettingsPageLayoutProps = {
   page: SettingsPageId;
   /** Overrides the catalog description. */
-  description?: string;
   actions?: ReactNode;
   tabs?: ReactNode;
   width?: PageShellWidth;
@@ -15,13 +14,12 @@ type SettingsPageLayoutProps = {
 };
 
 /** One frame for every settings screen: "Settings / Group / Page" breadcrumb, title, description, content. */
-export function SettingsPageLayout({ page, description, children, ...shell }: SettingsPageLayoutProps) {
+export function SettingsPageLayout({ page, children, ...shell }: SettingsPageLayoutProps) {
   const item = settingsItem(page);
   const group = settingsGroup(item.group);
   return (
     <PageShell
       title={item.title}
-      description={description ?? item.description}
       breadcrumbs={[
         { label: 'Settings', to: '/settings' },
         { label: group.title, to: `/settings#${group.id}` },

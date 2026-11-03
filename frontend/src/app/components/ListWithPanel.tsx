@@ -34,8 +34,8 @@ export interface ListWithPanelProps {
 
 /**
  * The list-and-panel split of the Workshop and Sales lists (`.split` / `.split--always`): the list grows, the panel
- * has a fixed width of 25 rem and scrolls on its own below the shell header. Below 1056 px the list takes the full
- * width and the panel is not rendered at all.
+ * has a fixed width of 25 rem, is at least as tall as the list, and its content sticks below the shell header and
+ * scrolls on its own. Below 1056 px the list takes the full width and the panel is not rendered at all.
  */
 export function ListWithPanel({ children, panel, panelLabel, className }: ListWithPanelProps) {
   const panelVisible = useListPanelLayout();
@@ -45,7 +45,7 @@ export function ListWithPanel({ children, panel, panelLabel, className }: ListWi
       <div className="list-panel__list">{children}</div>
       {panelVisible && (
         <aside className="list-panel__panel" aria-label={panelLabel}>
-          {panel}
+          <div className="list-panel__sticky">{panel}</div>
         </aside>
       )}
     </div>

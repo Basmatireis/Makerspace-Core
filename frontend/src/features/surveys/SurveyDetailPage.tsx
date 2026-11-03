@@ -92,7 +92,6 @@ function SurveyDetail({ survey }: { survey: Survey }) {
           {statusLabels[survey.status]}
         </Tag>
       }
-      description={survey.description ?? survey.title}
       width="wide"
       breadcrumbs={[
         { label: 'Settings', to: '/settings' },

@@ -91,7 +91,6 @@ describe('Open Day period editing entry point', () => {
       within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByText('Winter Semester 2026/27'),
     ).toHaveAttribute('aria-current', 'true');
     expect(screen.getByText('staffing')).toBeInTheDocument();
-    expect(screen.getByText('1 October 2026 – 1 October 2026')).toBeInTheDocument();
     expect(screen.queryByLabelText('Period summary')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
     const page = screen.getByRole('heading', { name: 'Winter Semester 2026/27' }).closest('.page-shell');

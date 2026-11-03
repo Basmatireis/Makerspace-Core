@@ -84,7 +84,6 @@ function PaymentDetail({ payment }: { payment: OrderPayment }) {
           )}
         </span>
       }
-      description={`${methodLabel(payment.method)} · ${formatSignedCents(signed)} · ${formatDateTime(payment.occurredAt)}`}
       actions={
         <>
           {canReceipt && order.data && (

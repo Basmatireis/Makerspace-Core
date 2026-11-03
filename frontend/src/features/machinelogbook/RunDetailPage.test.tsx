@@ -97,7 +97,6 @@ describe('Run detail page', () => {
     serveRun(recordedRun());
     renderRun();
     expect(await screen.findByRole('heading', { name: /Gearbox housing v3/ })).toBeInTheDocument();
-    expect(screen.getByText('RN-2026-000007 · Bambu H2D #1 · via Bambu LAN')).toBeInTheDocument();
     expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('42 g PLA Black');
     expect(screen.getByText('Runtime').nextSibling).toHaveTextContent('1 h 0 min');
     // The machine reported the outcome, so the label says so.

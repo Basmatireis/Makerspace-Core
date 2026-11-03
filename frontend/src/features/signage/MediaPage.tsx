@@ -27,7 +27,6 @@ export function MediaPage() {
   const assets = useQuery(assetsQuery());
   const scenes = useQuery(scenesQuery());
   const items = assets.data?.items ?? [];
-  const used = items.reduce((sum, item) => sum + item.sizeBytes, 0);
   const needle = search.trim().toLowerCase();
   const visible = items.filter(
     (item) =>
@@ -44,13 +43,7 @@ export function MediaPage() {
   ) : undefined;
 
   return (
-    <PageShell
-      title="Media"
-      width="wide"
-      breadcrumbs={[{ label: 'Signage' }]}
-      actions={upload}
-      description={assets.isSuccess ? `${pluralize(items.length, 'file')} · ${formatBytes(used)} used` : undefined}
-    >
+    <PageShell title="Media" width="wide" breadcrumbs={[{ label: 'Signage' }]} actions={upload}>
       <div className="sg-stack">
         <div className="sg-toolbar">
           <Search

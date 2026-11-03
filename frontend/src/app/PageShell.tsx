@@ -12,7 +12,6 @@ export type PageShellProps = PageHeaderProps & {
 export function PageShell({
   title,
   titleAdornment,
-  description,
   breadcrumbs,
   actions,
   tabs,
@@ -27,7 +26,6 @@ export function PageShell({
       <PageHeader
         title={title}
         titleAdornment={titleAdornment}
-        description={description}
         breadcrumbs={breadcrumbs}
         actions={actions}
         tabs={tabs}

@@ -202,7 +202,6 @@ describe('per-person open-day target', () => {
     expect(await screen.findByText('Member 01')).toBeInTheDocument();
     expect(screen.getByText('Member 01: signed up for 1 of 4 open days')).toBeInTheDocument();
     expect(screen.getByText('Member 02: signed up for 1 of 1 open days')).toBeInTheDocument();
-    expect(screen.getByText(/general minimum 2 open days per person/)).toBeInTheDocument();
   });
 });
 

@@ -496,7 +496,6 @@ function OpenDayDetails({
         { label: 'Open Days', to: '/open-days' },
         { label: 'Period', to: `/open-days/${periodId}` },
       ]}
-      description={timeRange(day, timeZone)}
       actions={managementActions}
     >
       {canManage && scheduleQuery.isError && (

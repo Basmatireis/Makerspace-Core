@@ -14,12 +14,12 @@ for (const width of widths) {
     await expectNoAccessibilityViolations(page);
     await page.screenshot({ path: testInfo.outputPath(`pricing-${width}.png`), fullPage: true });
     await page
-      .getByRole('button', { name: /^Edit .* for Partner institute$/ })
+      .getByRole('button', { name: / for Partner institute$/ })
       .first()
       .click();
     await expect(page.getByRole('button', { name: 'Save rate', exact: true })).toBeVisible();
     await expectNoAccessibilityViolations(page);
-    await page.getByRole('button', { name: 'Discard', exact: true }).click();
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   });
 
   test(`jobs, job detail and statistics remain usable at ${width}px`, async ({ page }, testInfo) => {

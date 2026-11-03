@@ -151,11 +151,6 @@ export function LayoutEditor({ layout, canEdit, onReload }: Props) {
         { label: 'Content', to: signagePaths.content() },
         { label: 'Layouts', to: signagePaths.content('layouts') },
       ]}
-      description={
-        layout
-          ? `Used by ${pluralize(layout.sceneCount, 'scene')}. Layout changes apply to scenes after the next publish.`
-          : 'Custom layouts can be used by any scene.'
-      }
     >
       {!canEdit ? (
         <div className="sg-stack">

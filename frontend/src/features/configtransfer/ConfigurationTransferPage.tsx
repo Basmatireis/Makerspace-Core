@@ -15,10 +15,7 @@ export function ConfigurationTransferPage() {
     : [];
 
   return (
-    <SettingsPageLayout
-      page="configuration-transfer"
-      description="Move the configuration of this makerspace between instances as a file."
-    >
+    <SettingsPageLayout page="configuration-transfer">
       <div className="configuration-transfer">
         {exportable.length > 0 && <ExportPanel sections={exportable} />}
         {importable.length > 0 && <ImportPanel sections={importable} />}

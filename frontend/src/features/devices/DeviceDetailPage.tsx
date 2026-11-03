@@ -145,7 +145,6 @@ export function DeviceDetailPage() {
   return (
     <PageShell
       title={device?.name ?? 'Managed device'}
-      description={device ? `${device.deviceTypeName} device` : undefined}
       width="wide"
       breadcrumbs={[
         { label: 'Settings', to: '/settings' },

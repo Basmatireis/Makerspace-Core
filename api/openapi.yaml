@@ -8858,6 +8858,7 @@ paths:
         - {name: source, in: query, style: form, explode: true, schema: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/WorkItemSource"}}}
         - {name: materialId, in: query, style: form, explode: true, schema: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}}
         - {name: billing, in: query, style: form, explode: true, description: "Matches jobs only; prints have no billing state.", schema: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/JobBillingState"}}}
+        - {name: attention, in: query, description: "Only items that need attention (at least one attention flag).", schema: {type: boolean}}
         - {name: customerId, in: query, description: Person or Organization identifier., schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: operatorPersonId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: from, in: query, description: Inclusive lower bound on the start time., schema: {type: string, format: date-time}}

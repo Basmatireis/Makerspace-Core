@@ -230,7 +230,6 @@ function OrderDetail({ order }: { order: Order }) {
         </span>
       }
       width="wide"
-      description={`${customerLabel(order)} · created ${formatDateTime(order.createdAt)}${order.createdBy ? ` by ${order.createdBy.displayName}` : ''}`}
       breadcrumbs={crumbs}
       actions={
         <>

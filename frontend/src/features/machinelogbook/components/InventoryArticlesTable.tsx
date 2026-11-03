@@ -22,26 +22,21 @@ import { ArticleDialogs, useArticlePermissions, useSelectedRow, type ArticleDial
 import { ArticlePanel, EmptyPanel, stockHelper } from './ArticlePanel';
 import { ColorSwatch, formatQuantity, kindNames, StockTag, stockStateOptions } from './inventoryShared';
 
-/** Materials are filament and consumables together; parts have their own table. */
-export type ArticleScope = 'materials' | 'parts';
-
 const uniqueOptions = (labels: (string | null | undefined)[]): Option[] =>
   [...new Set(labels.filter((label): label is string => Boolean(label)))]
     .sort((a, b) => a.localeCompare(b))
     .map((label) => ({ id: label, label }));
 
 function ArticlesTable({
-  scope,
   articles,
   spoolCounts,
   onReceive,
   switcher,
 }: {
-  scope: ArticleScope;
   articles: Material[];
   spoolCounts: ReadonlyMap<string, number> | undefined;
   onReceive: () => void;
-  switcher: ReactNode;
+  switcher?: ReactNode;
 }) {
   const navigate = useNavigate();
   const can = useCan();
@@ -49,7 +44,6 @@ function ArticlesTable({
   const panelFits = useListPanelLayout();
   const [selected, select] = useSelectedRow();
   const [dialog, setDialog] = useState<ArticleDialog | null>(null);
-  const parts = scope === 'parts';
   // Plain parameters (q, stock, type, ...) so a link can name a filter without knowing the tab.
   const url = useUrlState('');
   const typeIds = url.list('type');
@@ -57,12 +51,12 @@ function ArticlesTable({
   const processIds = url.list('process');
   const stockIds = url.list('stock');
   const showInactive = url.get('inactive') === '1';
-  const types = useQuery({ ...materialTypesQuery(), enabled: !parts });
-  const processes = useQuery({ ...processesQuery(), enabled: !parts && can('machines.read') });
+  const types = useQuery(materialTypesQuery());
+  const processes = useQuery({ ...processesQuery(), enabled: can('machines.read') });
   const processOptions: Option[] = (processes.data?.items ?? []).map(({ id, name }) => ({ id, label: name }));
   const processesOf = new Map((types.data ?? []).map((type) => [type.id, type.processIds as string[]]));
 
-  const inScope = articles.filter((article) => (article.kind === 'part') === parts);
+  const inScope = articles;
   const rows = inScope.filter(
     (row) =>
       (showInactive || row.active) &&
@@ -75,7 +69,7 @@ function ArticlesTable({
   const typeOptions: Option[] = [...new Map(inScope.map((row) => [row.materialTypeId, row.materialTypeName])).entries()]
     .map(([id, label]) => ({ id, label }))
     .sort((a, b) => a.label.localeCompare(b.label));
-  const noun = parts ? 'parts' : 'materials';
+  const noun = 'articles';
   const current = selected ? articles.find((article) => article.id === selected) : undefined;
 
   // Wide screens select the row into the panel; below 1056 px the panel is gone, so the article page opens.
@@ -96,7 +90,7 @@ function ArticlesTable({
     },
     {
       key: 'type',
-      header: parts ? 'Category' : 'Material',
+      header: 'Type',
       narrow: true,
       sortValue: (row) => `${row.materialTypeName}\u0000${row.name}`,
       render: (row) => row.materialTypeName,
@@ -178,9 +172,9 @@ function ArticlesTable({
     >
       <DirectoryTable
         switcher={switcher}
-        id={scope}
+        id="articles"
         urlPrefix=""
-        label={parts ? 'Parts' : 'Materials'}
+        label="Articles"
         columns={columns}
         rows={rows}
         totalCount={inScope.length}
@@ -210,11 +204,9 @@ function ArticlesTable({
           ) : undefined
         }
         filterCategories={[
-          { key: 'type', label: parts ? 'Category' : 'Material type', options: typeOptions },
+          { key: 'type', label: 'Type', options: typeOptions },
           { key: 'manufacturer', label: 'Manufacturer', options: uniqueOptions(inScope.map((r) => r.manufacturer)) },
-          ...(parts || processOptions.length === 0
-            ? []
-            : [{ key: 'process', label: 'Machine use', options: processOptions }]),
+          ...(processOptions.length === 0 ? [] : [{ key: 'process', label: 'Machine use', options: processOptions }]),
           { key: 'stock', label: 'Stock state', options: stockStateOptions },
           { key: 'inactive', label: 'Show', options: [{ id: '1', label: 'Inactive articles' }] },
         ]}
@@ -246,9 +238,9 @@ const countByMaterial = (spools: FilamentSpool[]) => {
   return counts;
 };
 
-export function InventoryArticlesTable(props: { scope: ArticleScope; onReceive: () => void; switcher: ReactNode }) {
+export function InventoryArticlesTable(props: { onReceive: () => void; switcher?: ReactNode }) {
   const query = useQuery(allMaterialsQuery());
-  const spools = useQuery({ ...allSpoolsQuery({ lifecycle: 'active' }), enabled: props.scope === 'materials' });
+  const spools = useQuery(allSpoolsQuery({ lifecycle: 'active' }));
   return (
     <QueryBoundary query={query} errorMessage="The inventory could not be loaded.">
       {(data) => (

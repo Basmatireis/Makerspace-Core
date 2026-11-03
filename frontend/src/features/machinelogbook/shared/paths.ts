@@ -8,12 +8,8 @@ const withQuery = (path: string, query?: Record<string, string | undefined>) => 
 };
 const segment = (id: string) => encodeURIComponent(id);
 
-export type InventoryTab = 'materials' | 'parts' | 'spools' | 'types';
+export type InventoryTab = 'articles' | 'spools' | 'types';
 export type MachineTab = 'printer';
-
-/** The Inventory tab that lists articles of a kind: filament and consumables share Materials. */
-export const inventoryTabForKind = (kind: 'filament' | 'consumable' | 'part'): InventoryTab =>
-  kind === 'part' ? 'parts' : 'materials';
 
 export const machineLogbookPaths = {
   /** Where the Workshop breadcrumb leads: the area has no page of its own, Jobs is its first page. */
@@ -21,7 +17,7 @@ export const machineLogbookPaths = {
   jobs: (query?: Record<string, string | undefined>) => withQuery(`${root}/jobs`, query),
   job: (id: string) => `${root}/jobs/${segment(id)}`,
   run: (id: string) => `${root}/jobs/runs/${segment(id)}`,
-  recycleBin: () => `${root}/recycle-bin`,
+  recycleBin: () => withQuery(`${root}/jobs`, { tab: 'bin' }),
   machines: () => `${root}/machines`,
   machine: (id: string, tab?: MachineTab) => withQuery(`${root}/machines/${segment(id)}`, { tab }),
   inventory: (tab?: InventoryTab) => withQuery(`${root}/inventory`, { tab }),

@@ -106,7 +106,6 @@ export function PricingPage() {
     <PageShell
       className="sales-page"
       title="Pricing"
-      description="Rates per pricing group, which group prices which role, and the organizations' groups."
       width="wide"
       breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Pricing' }]}
     >

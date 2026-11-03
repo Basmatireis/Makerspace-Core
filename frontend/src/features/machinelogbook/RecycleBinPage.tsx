@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button, InlineNotification, Link as CarbonLink, Modal, Stack } from '@carbon/react';
 import { Restart, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import {
   purgeMachineJob,
   purgeMachineRun,
@@ -11,7 +11,6 @@ import {
 } from '../../api/generated/machine-runs/machine-runs';
 import type { DeletedMachineJob, DeletedMachineRun } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
-import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { saveError } from './dialogs/jobFormHelpers';
 import { machineLogbookKeys, recycleBinQuery } from './queries';
@@ -69,7 +68,8 @@ function restoreText(entry: Entry) {
 
 const nameOf = (entry: Entry) => entry.item.displayId;
 
-export function RecycleBinPage() {
+/** Deleted jobs and runs with Restore and Delete permanently; the Recycle bin section of the Jobs page. */
+export function JobsRecycleBin() {
   const bin = useQuery(recycleBinQuery());
   const client = useQueryClient();
   const notify = useNotify();
@@ -208,16 +208,7 @@ export function RecycleBinPage() {
   ];
 
   return (
-    <PageShell
-      title="Recycle bin"
-      description="Deleted jobs and runs stay here until they are restored or deleted for good."
-      width="wide"
-      breadcrumbs={[
-        { label: 'Workshop', to: machineLogbookPaths.home() },
-        { label: 'Jobs', to: machineLogbookPaths.jobs() },
-        { label: 'Recycle bin' },
-      ]}
-    >
+    <>
       <p className="mj-secondary">
         Deleted articles, retired spools and deleted ledger entries are in the{' '}
         <CarbonLink as={Link} to={inventorySectionPath('bin')} inline>
@@ -321,6 +312,11 @@ export function RecycleBinPage() {
           <p>{pending?.entry.item.displayId} is removed from the bin. Inventory bookings are kept.</p>
         )}
       </DestructiveActionDialog>
-    </PageShell>
+    </>
   );
+}
+
+/** The former recycle-bin page: its content is the Recycle bin section of Jobs now. */
+export function RecycleBinPage() {
+  return <Navigate to={machineLogbookPaths.recycleBin()} replace />;
 }

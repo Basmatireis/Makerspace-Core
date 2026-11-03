@@ -139,7 +139,6 @@ function Detail({ group, crumbs }: { group: SignageDisplayGroup; crumbs: { label
       width="wide"
       breadcrumbs={crumbs}
       actions={actions}
-      description={`${aspectLabel(group.aspectRatio)} · ${pluralize(group.displayIds.length, 'member')}`}
       titleAdornment={
         displaysResult.isSuccess && playable.length > 0 ? (
           upToDate ? (

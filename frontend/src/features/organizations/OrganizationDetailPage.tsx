@@ -568,11 +568,6 @@ export function OrganizationDetailPage() {
           </Tag>
         )
       }
-      description={
-        organization
-          ? `${organizationKindLabels[organization.kind]} · ${organization.memberCount} associated ${organization.memberCount === 1 ? 'person' : 'people'}`
-          : undefined
-      }
       breadcrumbs={[{ label: 'Directory' }, { label: 'Organizations', to: organizationPaths.list() }]}
     >
       <QueryBoundary query={query} errorMessage="The organization could not be loaded.">

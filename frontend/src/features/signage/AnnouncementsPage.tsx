@@ -66,9 +66,6 @@ export function AnnouncementsPage() {
   const all = query.data?.items ?? [];
   const active = all.filter((item) => item.status === 'active');
   const scheduled = all.filter((item) => item.status === 'scheduled');
-  const description = query.isSuccess
-    ? `${active.length} active · ${scheduled.length} scheduled`
-    : 'Messages that appear on the displays right away, without publishing.';
   const create =
     canOverride && canRead ? (
       <Button renderIcon={Add} onClick={() => setEditing('new')}>
@@ -79,7 +76,7 @@ export function AnnouncementsPage() {
 
   if (!canRead) {
     return (
-      <PageShell title="Announcements" width="wide" breadcrumbs={crumbs} description={description}>
+      <PageShell title="Announcements" width="wide" breadcrumbs={crumbs}>
         <EmptyState
           title="Announcements cannot be listed"
           description="Starting and stopping announcements needs the permission to read signage as well. Ask an administrator to add it to your role."
@@ -178,7 +175,7 @@ export function AnnouncementsPage() {
   );
 
   return (
-    <PageShell title="Announcements" description={description} width="wide" breadcrumbs={crumbs} actions={create}>
+    <PageShell title="Announcements" width="wide" breadcrumbs={crumbs} actions={create}>
       <QueryBoundary query={query} label="announcements">
         {all.length === 0 ? (
           <EmptyState

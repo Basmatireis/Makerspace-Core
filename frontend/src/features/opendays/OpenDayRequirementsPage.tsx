@@ -77,10 +77,7 @@ export function OpenDayRequirementsPage() {
   const { errors, isDirty } = form.formState;
 
   return (
-    <SettingsPageLayout
-      page="open-days"
-      description="What every supervisor and trainee has to staff per semester. Used by the dashboard and the staffing page."
-    >
+    <SettingsPageLayout page="open-days">
       {requirements.isPending && <SettingsLoading label="Loading open day requirements" />}
       {requirements.isError && (
         <ErrorState

@@ -323,7 +323,6 @@ function UserDetailContent({ person }: { person: Person }) {
           { label: 'People', to: '/people' },
           { label: `${person.firstName} ${person.lastName}` },
         ]}
-        description={`Personal details, account access, and ${statusLabel.toLowerCase()}.`}
         actions={
           hasPersonActions ? (
             <MenuButton label="Actions" kind="primary" menuAlignment="bottom-end" size="md">

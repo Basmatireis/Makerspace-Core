@@ -459,7 +459,7 @@ describe('role protection UX', () => {
       ['/workshop/spools', '/workshop/inventory?tab=spools'],
       [`/workshop/spools/${id}`, `/workshop/inventory/spools/${id}`],
       [`/workshop/machines/${id}?tab=printer`, `/workshop/machines/${id}/printer`],
-      ['/workshop/inventory/materials', '/workshop/inventory?tab=materials'],
+      ['/workshop/inventory/materials', '/workshop/inventory?tab=articles'],
       ['/workshop/inventory/spools', '/workshop/inventory?tab=spools'],
     ])('redirects the former URL %s to %s', async (from, to) => {
       signIn();

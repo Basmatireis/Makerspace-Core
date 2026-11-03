@@ -38,7 +38,6 @@ describe('Displays page', () => {
     expect(laser.getByText('Offline')).toBeInTheDocument();
     expect(laser.getByText('last seen 2 h ago')).toBeInTheDocument();
     expect(laser.getByText('2 unpublished changes')).toBeInTheDocument();
-    expect(screen.getByText('2 displays · 1 online · 1 needs publishing')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Pair display' })).not.toBeInTheDocument();
   });
 

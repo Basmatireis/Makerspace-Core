@@ -431,6 +431,7 @@ func (s *Server) ListMachineLogbookWorkItems(
 			Billing: optional.ConvertSlice[machinelogbook.BillingState](stringSlice(
 				r.Params.Billing,
 			)),
+			Attention:   r.Params.Attention != nil && *r.Params.Attention,
 			MachineIDs:  derefSlice(r.Params.MachineId),
 			MaterialIDs: derefSlice(r.Params.MaterialId),
 			CustomerID:  r.Params.CustomerId,

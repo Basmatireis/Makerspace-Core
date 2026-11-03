@@ -146,7 +146,6 @@ export function OpenDayManagementPage() {
     <PageShell
       title="Academic breaks"
       breadcrumbs={[{ label: 'Open Days', to: '/open-days' }]}
-      description="Maintain lecture-free date ranges used as context during schedule planning."
       className="open-day-management-page"
     >
       {mutationFailed && (

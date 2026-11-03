@@ -16,7 +16,6 @@ import { JobsWorkspace } from './jobs/JobsPanels';
 import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
 import { usePrinterConnection } from './connectorQueries';
 import { isFdm } from './processConfig';
-import { modelById } from './printerSetup';
 import { machineActivityQuery, machineQuery, printerQuery, workItemsQuery } from './queries';
 import { machineLogbookPaths, machinePrinterSetupPath } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
@@ -130,7 +129,6 @@ export function MachineDetailPage({ section: routeSection }: { section?: 'printe
   const issue = row.availability === 'retired' ? null : connectorIssue(row.connector ?? undefined);
   const jobs = jobsResult.data?.items ?? [];
   const canCreate = machine.status !== 'retired' && can('machine_jobs.create');
-  const model = modelById(profile?.model)?.label;
 
   const actions = (
     <>
@@ -161,7 +159,6 @@ export function MachineDetailPage({ section: routeSection }: { section?: 'printe
           <ConnectorIssueTag issue={issue} />
         </span>
       }
-      description={[machine.process.name, model].filter(Boolean).join(' · ')}
       breadcrumbs={[...breadcrumbs, { label: machine.name }]}
       actions={actions}
       width="wide"

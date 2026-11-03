@@ -273,6 +273,22 @@ func TestWorkItemFilters(t *testing.T) {
 	only("status needs_outcome", WorkItemFilters{Statuses: []WorkItemStatus{"needs_outcome", "cancelled"}}, w.needsOutcome.ID)
 	// The jobs list asks for every job status at once; planned (a print file without a run) is one of them.
 	only("status planned", WorkItemFilters{Statuses: []WorkItemStatus{"planned"}})
+	// "Needs attention" keeps only flagged items, paged from the flagged set.
+	all, _ := w.list(t, WorkItemFilters{})
+	var flagged []uuid.UUID
+	for _, item := range all {
+		if len(item.Attention) > 0 {
+			flagged = append(flagged, item.ID)
+		}
+	}
+	if len(flagged) == 0 {
+		t.Fatal("the fixture should contain items that need attention")
+	}
+	only("attention", WorkItemFilters{Attention: true}, flagged...)
+	firstPage, total := w.list(t, WorkItemFilters{Attention: true, Page: 1, PageSize: 1})
+	if total != int64(len(flagged)) || len(firstPage) != 1 || len(firstPage[0].Attention) == 0 {
+		t.Fatalf("attention page = %d items of %d, want 1 of %d", len(firstPage), total, len(flagged))
+	}
 	only("machine", WorkItemFilters{MachineIDs: []uuid.UUID{w.bareMachine.ID}}, w.noPrice.ID, w.printing, w.ended)
 	only(
 		"source manual",

@@ -13,7 +13,7 @@ const targets: Target[] = [
   {
     name: 'Jobs filtered to unassigned runs',
     path: `${base}/jobs?status=unassigned`,
-    ready: (page) => page.getByRole('link', { name: 'bracket_v2.gcode' }),
+    ready: (page) => page.getByRole('button', { name: 'bracket_v2.gcode' }),
   },
   { name: 'Job detail (finished)', path: `${base}/jobs/${ids.jobSuccess}`, ready: heading('Gearbox housing', 1) },
   { name: 'Job detail (running)', path: `${base}/jobs/${ids.jobRunning}`, ready: heading('Engraving run', 1) },
@@ -25,7 +25,7 @@ const targets: Target[] = [
   {
     name: 'Job detail (manual run, recorded runs available)',
     path: `${base}/jobs/${ids.jobManualBambu}`,
-    ready: (page) => page.getByRole('button', { name: 'Attach recorded run' }),
+    ready: (page) => page.getByRole('button', { name: 'Add', exact: true }),
   },
   {
     name: 'Job detail (recorded run)',
@@ -35,7 +35,7 @@ const targets: Target[] = [
   {
     name: 'Run detail (unassigned)',
     path: `${base}/jobs/runs/${ids.runUnassigned}`,
-    ready: (page) => page.getByRole('button', { name: 'Claim run' }),
+    ready: (page) => page.getByRole('button', { name: 'Claim', exact: true }).first(),
   },
   { name: 'Run detail (running)', path: `${base}/jobs/runs/${ids.runRunning}`, ready: text('Run in progress') },
   {
@@ -56,7 +56,7 @@ const targets: Target[] = [
   {
     name: 'Machine detail, Jobs tab',
     path: `${base}/machines/${ids.bambu}?tab=jobs`,
-    ready: (page) => page.getByRole('link', { name: 'Open in Jobs' }),
+    ready: (page) => page.getByRole('table', { name: 'Jobs' }),
   },
   {
     name: 'Machine detail, Printer setup tab',
@@ -72,7 +72,7 @@ const targets: Target[] = [
     name: 'Inventory, Filament tab',
     path: `${base}/inventory`,
     ready: (page) =>
-      page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'PLA Black', exact: true }),
+      page.getByRole('table', { name: 'Articles' }).getByRole('link', { name: 'PLA Black', exact: true }),
   },
   {
     name: 'Inventory, Spools tab',
@@ -86,8 +86,8 @@ const targets: Target[] = [
   },
   {
     name: 'Inventory, Materials tab',
-    path: `${base}/inventory?tab=materials`,
-    ready: (page) => page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'Birch plywood' }),
+    path: `${base}/inventory?tab=articles`,
+    ready: (page) => page.getByRole('table', { name: 'Articles' }).getByRole('link', { name: 'Birch plywood' }),
   },
   {
     name: 'Material detail (filament)',
@@ -167,8 +167,10 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 
   test('new job from a run', async ({ page }) => {
     await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
-    await page.getByRole('button', { name: 'Claim run' }).click();
-    await checkDialog(page, page.getByRole('dialog', { name: 'New job' }));
+    await page.getByRole('button', { name: 'Claim', exact: true }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Claim run' });
+    await dialog.getByRole('radio', { name: 'New job' }).check({ force: true });
+    await checkDialog(page, dialog);
   });
 
   test('edit job', async ({ page }) => {
@@ -179,8 +181,7 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 
   test('adjust price', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobSuccess}`);
-    await page.locator('.page-header__actions .cds--overflow-menu').click();
-    await page.getByRole('menuitem', { name: 'Adjust price' }).click();
+    await page.getByRole('button', { name: 'Adjust price' }).click();
     await checkDialog(
       page,
       page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Adjust price' }) }),
@@ -196,29 +197,42 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 
   test('attach run to job (from a run, with the comparison)', async ({ page }) => {
     await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
-    await page.getByRole('button', { name: 'More run actions' }).click();
-    await page.getByRole('menuitem', { name: 'Link to existing job' }).click();
-    const dialog = page.getByRole('dialog');
-    await dialog.getByRole('combobox', { name: /Job/ }).click();
+    await page.getByRole('button', { name: 'Claim', exact: true }).first().click();
+    const dialog = page.getByRole('dialog', { name: 'Claim run' });
+    await dialog.getByRole('radio', { name: /^Attach to a job on/ }).check({ force: true });
+    const job = dialog.getByRole('combobox', { name: 'Job' });
+    await expect(async () => {
+      const option = page.getByRole('option', { name: /J-2026-000003/ });
+      if (!(await option.isVisible())) await job.click();
+      await expect(option).toBeVisible({ timeout: 1000 });
+    }).toPass();
     await page.getByRole('option', { name: /J-2026-000003/ }).click();
-    await expect(dialog.getByText('Manual run', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('Manual run', { exact: true }).first()).toBeVisible();
     await checkDialog(page, dialog);
   });
 
   test('attach recorded run to a job (from a job, with the comparison)', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobManualBambu}`);
-    await page.getByRole('button', { name: 'Attach recorded run' }).click();
-    const dialog = page.getByRole('dialog');
-    await dialog.getByRole('combobox', { name: /Recorded run/ }).click();
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add to job' });
+    await dialog.getByRole('radio', { name: /^A run .* recorded$/ }).check({ force: true });
+    const run = dialog.getByRole('combobox', { name: 'Recorded run' });
+    await expect(async () => {
+      const option = page.getByRole('option', { name: /Bracket v2/ });
+      if (!(await option.isVisible())) await run.click();
+      await expect(option).toBeVisible({ timeout: 1000 });
+    }).toPass();
     await page.getByRole('option', { name: /Bracket v2/ }).click();
-    await expect(dialog.getByText('Manual run', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('Manual run', { exact: true }).first()).toBeVisible();
     await checkDialog(page, dialog);
   });
 
   test('add run', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobSuccess}`);
-    await page.getByRole('button', { name: 'Add run' }).click();
-    await checkDialog(page, page.getByRole('dialog', { name: 'Add run' }));
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add to job' });
+    await dialog.getByRole('radio', { name: 'A manual run' }).check({ force: true });
+    await checkDialog(page, dialog);
   });
 
   test('detach run confirmation', async ({ page }) => {
@@ -328,7 +342,7 @@ test.describe('read-only role', () => {
 
     await page.goto(`${base}/jobs/${ids.jobRunning}`);
     await expect(page.getByRole('progressbar', { name: 'Run progress' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Add run' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Add', exact: true })).toHaveCount(0);
     await expect(page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Edit job' })).toHaveCount(0);
     await expect(page.locator('.page-header__actions .cds--overflow-menu')).toHaveCount(0);
@@ -344,7 +358,7 @@ test.describe('read-only role', () => {
 
     await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
     await expect(page.getByRole('heading', { name: 'Bracket v2' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Claim run' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Claim', exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'More run actions' })).toHaveCount(0);
     expect(world.requests).toEqual([]);
   });
@@ -361,7 +375,7 @@ test.describe('read-only role', () => {
 
     await page.goto(`${base}/inventory`);
     await expect(
-      page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'PLA Black', exact: true }),
+      page.getByRole('table', { name: 'Articles' }).getByRole('link', { name: 'PLA Black', exact: true }),
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Receive stock' })).toHaveCount(0);
 

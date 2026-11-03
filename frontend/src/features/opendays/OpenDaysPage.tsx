@@ -169,11 +169,7 @@ export function OpenDaysPage() {
   }
 
   return (
-    <PageShell
-      title="Open Days"
-      description="Plan schedules, coordinate staffing, and see your assignments."
-      className="open-days-page"
-    >
+    <PageShell title="Open Days" className="open-days-page">
       {periodsQuery.isPending && <InlineLoadingState label="Loading Open Day periods" />}
       {periodsQuery.isError && (
         <ErrorState

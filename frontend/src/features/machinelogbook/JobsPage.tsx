@@ -1,18 +1,39 @@
+import { useSearchParams } from 'react-router-dom';
 import { PageShell } from '../../app/PageShell';
+import { PageSectionTabs } from './components/machineParts';
 import { JobsWorkspace } from './jobs/JobsPanels';
+import { JobsRecycleBin } from './RecycleBinPage';
 import { machineLogbookPaths } from './shared/paths';
 import './styles/jobs.scss';
 
-/** Jobs of the Workshop: runs reported without a job, the jobs table and the detail panel of the selection. */
+type JobsTab = 'all' | 'attention' | 'bin';
+const TABS: { id: JobsTab; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'attention', label: 'Needs attention' },
+  { id: 'bin', label: 'Recycle bin' },
+];
+
+/** Jobs of the Workshop: all jobs, the ones that need attention, and the recycle bin, each with its detail panel. */
 export function JobsPage() {
+  const [params, setParams] = useSearchParams();
+  const tab: JobsTab = TABS.find((section) => section.id === params.get('tab'))?.id ?? 'all';
   return (
     <PageShell
       title="Jobs"
-      description="Billable work on machines, one job per machine and recipient, with the runs that make it up."
       width="wide"
       breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.home() }, { label: 'Jobs' }]}
+      tabs={
+        <PageSectionTabs
+          label="Jobs sections"
+          sections={TABS}
+          selected={tab}
+          onChange={(id) => setParams(id === 'all' ? {} : { tab: id }, { replace: true })}
+        />
+      }
     >
-      <JobsWorkspace />
+      {tab === 'all' && <JobsWorkspace key="all" />}
+      {tab === 'attention' && <JobsWorkspace key="attention" attention />}
+      {tab === 'bin' && <JobsRecycleBin />}
     </PageShell>
   );
 }

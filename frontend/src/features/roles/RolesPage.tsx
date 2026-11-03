@@ -325,12 +325,7 @@ export function RolesPage() {
     : [];
 
   return (
-    <SettingsPageLayout
-      page="roles"
-      description="Manage role access and stage permission rules. Changes apply to all users with the respective role."
-      width="fluid"
-      className="roles-page"
-    >
+    <SettingsPageLayout page="roles" width="fluid" className="roles-page">
       {routeRoleId && !settingsRole && rolesQuery.data && (
         <InlineNotification
           kind="error"

@@ -94,7 +94,7 @@ function serveTypes(items: MaterialType[] = [pla, plywood, retired, fasteners]) 
 }
 
 async function openTypes(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('tab', { name: 'Types & categories' }));
+  await user.click(await screen.findByRole('tab', { name: 'Categories' }));
   return screen.findByRole('table', { name: 'Types and categories' });
 }
 

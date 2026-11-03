@@ -51,7 +51,6 @@ export function AttendancePage() {
   return (
     <PageShell
       title="Attendance"
-      description="Who is in the Makerspace right now, and who is waiting to be let in."
       width="wide"
       actions={
         canAssist && canSearchPeople ? (

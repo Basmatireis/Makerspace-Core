@@ -9,7 +9,6 @@ describe('PageShell', () => {
     const { container } = renderRoute(
       <PageShell
         title="Person details"
-        description="Account and access information."
         breadcrumbs={[{ label: 'Directory', to: '/people' }]}
         actions={<Button>Edit</Button>}
         width="wide"
@@ -23,7 +22,6 @@ describe('PageShell', () => {
     expect(shell).toHaveAttribute('data-page-width', 'wide');
     expect(shell).toHaveClass('page-shell--wide');
     expect(screen.getByRole('heading', { name: 'Person details', level: 1 })).toBeInTheDocument();
-    expect(screen.getByText('Account and access information.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Directory' })).toHaveAttribute('href', '/people');
     expect(screen.getByText('Person details', { selector: '[aria-current]' })).toHaveAttribute('aria-current', 'true');
     expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Edit' })).toBeInTheDocument();

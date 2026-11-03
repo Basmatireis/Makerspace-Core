@@ -121,12 +121,7 @@ export function ActivityPage() {
   }));
 
   return (
-    <PageShell
-      title="Audit Log"
-      description="Review privacy-minimized administrative and account activity. Names reflect current records and disappear after deletion."
-      width="wide"
-      className="activity-page table-page"
-    >
+    <PageShell title="Audit Log" width="wide" className="activity-page table-page">
       <TableContainer>
         <TableToolbar aria-label="Audit Log table toolbar">
           <TableToolbarContent>

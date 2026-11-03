@@ -30,7 +30,7 @@ export function SettingsPage() {
   }, [hash]);
 
   return (
-    <PageShell title="Settings" description="Administration tools available to your account.">
+    <PageShell title="Settings">
       {items.length > 6 && (
         <Search
           size="lg"
