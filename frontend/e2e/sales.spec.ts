@@ -129,16 +129,18 @@ test.describe('sales and payments', () => {
     await page.goto('/pricing');
     const table = page.getByRole('table', { name: 'Rates' });
     await expect(table.getByText('Articles sold from stock · per unit')).toBeVisible();
-    const pla = table.getByRole('row').filter({ hasText: 'A-0001 · Prusament PLA Galaxy Black' });
-    await expect(pla).toContainText('type rate');
-    await pla.getByRole('button', { name: /Set price for A-0001 .* in External/ }).click();
+    // Articles of machine-use types sell at the type rate and have no row; the insert (a fastener) has one.
+    await expect(table.getByRole('row').filter({ hasText: 'A-0001 · Prusament PLA Galaxy Black' })).toHaveCount(0);
+    const insert = table.getByRole('row').filter({ hasText: 'A-0010 · M3 heat-set insert' });
+    await expect(insert).toContainText('0,12');
+    await insert.getByRole('button', { name: /Set price for A-0010 .* in External/ }).click();
     const dialog = dialogTitled(page, 'Set rate');
-    await dialog.getByLabel(/^Rate for A-0001/).fill('0,05');
+    await dialog.getByLabel(/^Rate for A-0010/).fill('0,05');
     await dialog.getByRole('button', { name: 'Save rate' }).click();
     await expect(dialog).toBeHidden();
     expect(world.requests.at(-1)).toMatchObject({
       method: 'POST',
-      body: { kind: 'stock_article', materialId: salesIds.plaBlack, rate: '0.05' },
+      body: { kind: 'stock_article', materialId: salesIds.insert, rate: '0.05' },
     });
     await expectNoAccessibilityViolations(page, '#main-content');
     await page.screenshot({ path: testInfo.outputPath('pricing.png'), fullPage: true });
@@ -175,7 +177,7 @@ test.describe('sales and payments', () => {
   test('counts the register and books the difference', async ({ page, world }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/payments');
-    await page.getByRole('button', { name: 'Count' }).click();
+    await page.getByRole('button', { name: 'Count', exact: true }).click();
     const dialog = dialogTitled(page, 'Count the register');
     await dialog.getByLabel('Counted amount (€)').fill('80,70');
     await expect(dialog.getByText('Less cash than expected.')).toBeVisible();
