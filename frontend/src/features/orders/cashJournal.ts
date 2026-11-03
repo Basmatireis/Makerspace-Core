@@ -44,13 +44,33 @@ export const countReasonNeedsNote = (reason: CashCountReason) => reason === 'unk
 export const differenceText = (difference: number) =>
   difference === 0 ? 'Matches expected' : `${formatSignedCents(difference)} ${difference > 0 ? 'over' : 'short'}`;
 
-/** The lines of "Expected in the register": receipts minus refunds and corrections minus withdrawals plus deposits. */
-export function registerDerivation(register: CashRegister): { label: string; cents: number; total?: boolean }[] {
+export type DerivationLine = { label: string; cents: number; helper?: string; total?: boolean };
+
+/**
+ * The lines of "Expected in the register": what came in (receipts, deposits), what went out (refunds and payment
+ * corrections, withdrawals) and, when counts found more or less cash than expected, their net difference.
+ */
+export function registerDerivation(register: CashRegister): DerivationLine[] {
+  const countDifferences = toCents(register.corrections);
   return [
     { label: 'Cash receipts', cents: toCents(register.receipts) },
-    { label: '− Refunds and corrections', cents: toCents(register.refundsAndCorrections) },
-    { label: '− Withdrawals', cents: toCents(register.withdrawals) },
-    { label: '+ Deposits', cents: toCents(register.deposits) },
+    { label: '+ Deposits', cents: toCents(register.deposits), helper: 'Change floats and other cash put in' },
+    {
+      label: '− Refunds and payment corrections',
+      cents: toCents(register.refunds),
+      helper: 'Cash given back or re-booked',
+    },
+    { label: '− Withdrawals', cents: toCents(register.withdrawals), helper: 'Bank deposits and cash taken out' },
+    ...(countDifferences === 0
+      ? []
+      : [
+          {
+            label: countDifferences < 0 ? '+ Count differences' : '− Count differences',
+            cents: Math.abs(countDifferences),
+            helper:
+              countDifferences < 0 ? 'Counts found more cash than expected' : 'Counts found less cash than expected',
+          },
+        ]),
     { label: '= Expected', cents: toCents(register.expected), total: true },
   ];
 }

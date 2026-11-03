@@ -53,13 +53,21 @@ describe('register panel', () => {
       to: null,
       lastCount: null,
     } as CashRegister;
-    expect(registerDerivation(register)).toEqual([
-      { label: 'Cash receipts', cents: 11570 },
-      { label: '− Refunds and corrections', cents: 250 },
-      { label: '− Withdrawals', cents: 8000 },
-      { label: '+ Deposits', cents: 5000 },
+    expect(registerDerivation(register).map(({ label, cents, total }) => ({ label, cents, total }))).toEqual([
+      { label: 'Cash receipts', cents: 11570, total: undefined },
+      { label: '+ Deposits', cents: 5000, total: undefined },
+      { label: '− Refunds and payment corrections', cents: 0, total: undefined },
+      { label: '− Withdrawals', cents: 8000, total: undefined },
+      { label: '− Count differences', cents: 250, total: undefined },
       { label: '= Expected', cents: 8320, total: true },
     ]);
+    // A net surplus adds to the register; no difference means no line.
+    expect(registerDerivation({ ...register, corrections: '-4.00' }).map((line) => line.label)).toContain(
+      '+ Count differences',
+    );
+    expect(registerDerivation({ ...register, corrections: '0.00' }).map((line) => line.label)).not.toContain(
+      '− Count differences',
+    );
   });
   it('words a count difference', () => {
     expect(differenceText(0)).toBe('Matches expected');

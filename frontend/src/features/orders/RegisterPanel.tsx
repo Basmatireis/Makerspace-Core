@@ -99,7 +99,10 @@ export function RegisterPanel({
       <dl className="sales-sum sales-sum--panel" aria-label="How the expected cash is calculated">
         {registerDerivation(register).map((line) => (
           <div key={line.label} className={line.total ? 'sales-sum__total' : undefined}>
-            <dt>{line.label}</dt>
+            <dt>
+              {line.label}
+              {line.helper && <span className="sales-sum__helper">{line.helper}</span>}
+            </dt>
             <dd>{formatCents(line.cents)}</dd>
           </div>
         ))}
