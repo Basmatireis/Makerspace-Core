@@ -1,105 +1,150 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
-@use '@carbon/styles/scss/components/content-switcher';
+@use '@carbon/styles/scss/theme' as theme;
 
-// Layout glue for the Statistics screen: period controls, key figures, chart grid, per-machine table.
+// Layout glue for the Statistics screen: period picker, the stack of cards and their rows, card notes and tables.
+// Every gap in the stack is the same, between rows as well as between the cards of a row.
 
-.mj-stats {
+.stats-period {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-02;
+  inline-size: min(100%, 20rem);
+}
+
+.stats-period > .cds--list-box__wrapper {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.stats-period-modal {
+  display: grid;
+  gap: $spacing-05;
+}
+
+.stats-panel.cds--tab-content {
+  padding: 0;
+}
+
+.stats-stack {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: $spacing-05;
   min-inline-size: 0;
 }
-.mj-stats-period {
-  inline-size: min(100%, 30rem);
-  min-inline-size: min(100%, 26rem);
-}
-.mj-stats-period .cds--content-switcher {
-  inline-size: 100%;
-}
-.mj-stats-custom {
+
+// Two cards side by side: the first wider, both as tall as the taller one.
+.stats-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 12rem));
+  grid-template-columns: minmax(0, 3fr) minmax(18rem, 2fr);
   gap: $spacing-05;
-  align-items: start;
+  align-items: stretch;
 }
 
-// Same look as the Overview metrics, without the click affordance.
-.mj-stats-metrics {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
-  gap: $spacing-05;
-}
-.mj-stat.cds--tile {
-  display: grid;
-  gap: $spacing-02;
+.stats-card {
   align-content: start;
-  min-block-size: 8.5rem;
-}
-.mj-stat__label {
-  @include type-style('heading-compact-01');
-}
-.mj-stat__value {
-  @include type-style('productive-heading-05');
 }
 
-.mj-stats-charts {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: $spacing-05;
+.stats-card__note {
+  margin: 0;
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
 }
-.mj-stats-chart.cds--tile {
+
+.stats-card__empty {
+  margin: 0;
+  padding-block: $spacing-07;
+  @include type-style('body-compact-01');
+  color: theme.$text-secondary;
+  text-align: center;
+}
+
+.stats-card__chart {
   min-inline-size: 0;
-  display: grid;
-  gap: $spacing-03;
-  align-content: start;
 }
-.mj-stats-chart--wide {
-  grid-column: 1 / -1;
-}
-.mj-stats-chart__title {
-  @include type-style('productive-heading-03');
-}
-.mj-stats-chart-skeleton.cds--skeleton__placeholder {
+
+.stats-card__skeleton.cds--skeleton__placeholder {
   inline-size: 100%;
-  block-size: 280px;
+  block-size: var(--stats-chart-height, 280px);
+}
+
+.stats-card__picker {
+  inline-size: min(100%, 20rem);
+}
+
+.stats-explore__controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 16rem));
+  gap: $spacing-05;
+}
+
+// Tables inside a card run edge to edge; their outer cells line up with the card padding.
+.stats-table {
+  margin-inline: -$spacing-05;
+  overflow-x: auto;
+
+  &:focus-visible {
+    outline: 2px solid theme.$focus;
+    outline-offset: -2px;
+  }
+}
+
+.stats-table .cds--data-table-content {
+  overflow: visible;
+}
+
+.stats-table .cds--data-table th:first-child,
+.stats-table .cds--data-table td:first-child {
+  padding-inline-start: $spacing-05;
+}
+
+.stats-table .cds--data-table th:last-child,
+.stats-table .cds--data-table td:last-child {
+  padding-inline-end: $spacing-05;
+}
+
+.stats-table .stats-table__number {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.stats-table .stats-table__number .cds--table-header-label {
+  text-align: end;
+}
+
+.stats-table__total td {
+  font-weight: 600;
+}
+
+.stats-table-block {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.stats-table-block__note {
+  padding: $spacing-04 $spacing-05;
+  background: theme.$layer-01;
+}
+
+.stats-cell-2 {
+  display: grid;
+  gap: $spacing-01;
+}
+
+.stats-secondary {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
 }
 
 @media (max-width: 65.98rem) {
-  .mj-stats-charts {
+  .stats-row {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 41.98rem) {
-  .mj-stats-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: $spacing-03;
+  .stats-period {
+    inline-size: 100%;
   }
-  .mj-stat.cds--tile {
-    min-block-size: 7rem;
-  }
-  .mj-stats-custom {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-// Runtime chart heading: title left, machine picker right (stacks on narrow screens).
-.mj-stats-chart__heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: $spacing-04;
-  margin-block-end: $spacing-05;
-}
-.mj-stats-chart__heading .mj-stats-chart__title {
-  margin: 0;
-}
-.mj-stats-chart__picker {
-  inline-size: min(100%, 20rem);
-}
-.mj-stats-chart__empty {
-  padding-block: $spacing-09;
-  text-align: center;
 }

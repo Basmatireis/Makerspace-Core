@@ -50,6 +50,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- **Statistics page.** Workshop › Statistics has the tabs Overview, Machines, Materials, Money and Explore, a period choice of 30 days, 3, 6 or 12 months or a custom date range, and new charts for when the workshop is busy (weekday × hour), jobs per week and by outcome, material cost per month and type, losses and margin per material type, and charges by pricing group and process. Every chart can be shown as a table.
 - **Player chunks.** The camera manager, QR codes, the open-day, event and agenda lists, the calendar, the timelapse widget and the pairing screen are loaded on demand, so the player stays inside its bundle budget.
 
 - **Workshop routes.** Jobs, Machines, Inventory and Statistics moved from `/machine-logbook/…` to `/workshop/…` with the same sub-paths; every former URL redirects with its sub-path and query, and `/machine-logbook` and `/machine-logbook/overview` open Jobs. The Workshop navigation group no longer has an Overview page. API paths are unchanged.

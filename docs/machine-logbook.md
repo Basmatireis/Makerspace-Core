@@ -186,6 +186,18 @@ It also returns:
 - `pricingGroups` (jobs, charges and discounts per pricing group of the active snapshot, "Unpriced" without one) and `pricingGroupMonths` (charges per month and group).
 - In `totals` and `previousTotals`: `notBilled` (effective price of the period's ended jobs no order item refers to), `discounts` (how much price adjustments lowered the calculated price), `utilization` and `openDayUtilization`. Per machine: `utilization` and `openDayUtilization`. Utilization is the time runs occupied a machine as a percentage of the hours of the period that have passed; open-day utilization the same within scheduled open days of periods that are not drafts. Totals cover all machines that are not retired; a machine's value is capped at 100 %.
 
+### Statistics page
+
+`/workshop/statistics` (`statistics.read`) asks for one period: the last 30 days (default six months), 3, 6 or 12 months, or a custom range of whole days chosen in a dialog with a date range picker (at most five years; `?period=custom&from=…&to=…` with an inclusive end, sent to the API as the day after). The tab lives in `?tab=`; the figures below come only from the statistics response, nothing is estimated or apportioned.
+
+- **Overview.** Six fact tiles with the change against the previous period (jobs, machine runtime, charges, material cost, failure rate, open-day utilisation), charges vs. material cost per month (line), jobs per ISO week (columns), highlights (busiest machine, most used material type, highest failure rate, material lost, not billed, discounts) and runtime by process (bars).
+- **Machines.** Runtime per week or month for up to five machines (the four busiest by default; the choice is kept in `?machines=`), when the workshop is busy (heatmap of runs in progress per weekday and hour), failure rate by machine, jobs by outcome (donut) and the per-machine table with open-day and 24 h utilisation.
+- **Materials.** Material cost per month stacked by the four most expensive types plus Other, losses by type, and a table per type with consumption, cost, charged material, margin and losses.
+- **Money.** Charges, not billed, discounts and material margin; charges per month by pricing group (stacked), share by pricing group (donut), charges by process and a table per pricing group. There are no figures per person.
+- **Explore.** One figure by one breakdown the data provides (`?metric=`, `?by=`): jobs by machine, process or pricing group; runtime by machine, process, weekday or hour; charges by machine, process, pricing group or month; material cost by type or month; failure rate by machine; with a table of shares and the total.
+
+Every chart is a Carbon chart loaded behind the asynchronous charting boundary in the colour scheme's Carbon theme, has a description for screen readers, and can be shown as a table from the card's title row.
+
 ## API and UI
 
 The OpenAPI resource groups are:

@@ -35,7 +35,7 @@ for (const width of widths) {
       await expect(page.getByRole('heading', { name: title, exact: true, level: 1 })).toBeVisible();
       await page.waitForLoadState('networkidle');
       if (label === 'statistics')
-        await expect(page.locator('.mj-stats-chart svg.layout-svg-wrapper').first()).toBeVisible();
+        await expect(page.locator('.stats-card__chart svg.layout-svg-wrapper').first()).toBeVisible();
       await expectNoHorizontalScroll(page);
       await expectNoAccessibilityViolations(page);
       await page.screenshot({ path: testInfo.outputPath(`${label}-${width}.png`), fullPage: true });

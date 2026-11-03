@@ -661,7 +661,10 @@ export function createWorld(permissions: string[] = staffPermissions) {
       { bucketStart: '2026-09-01', machineId: ids.bambu, hours: '10.0' },
       { bucketStart: '2026-09-01', machineId: ids.laser, hours: '6.0' },
     ],
-    materialCostByType: [{ key: 'PLA', label: 'PLA', value: '300.00' }],
+    materialCostByType: [
+      { key: id(130), label: 'PLA', value: '300.00' },
+      { key: id(131), label: 'Plywood', value: '100.00' },
+    ],
     machines: [
       statMachine(ids.bambu, 'Bambu H2D #1', '3D printer', '50.0', 10),
       statMachine(ids.laser, 'Laser cutter', 'Laser cutter', '120.0', 40),
@@ -675,14 +678,64 @@ export function createWorld(permissions: string[] = staffPermissions) {
     customerCharges: [],
     adjustmentLoss: [],
     machineFailureRates: [],
-    usageByWeekdayHour: [{ weekday: 1, hour: 15, runs: 3, minutes: '120' }],
-    jobsByOutcome: [{ outcome: 'successful', jobs: 100 }],
-    jobsByWeek: [{ weekStart: '2026-09-07', jobs: 12 }],
-    materialByMonth: [],
-    materialLossByType: [],
-    materialChargesByType: [],
-    pricingGroups: [],
-    pricingGroupMonths: [],
+    usageByWeekdayHour: [
+      { weekday: 1, hour: 15, runs: 3, minutes: '120' },
+      { weekday: 1, hour: 16, runs: 5, minutes: '240' },
+      { weekday: 3, hour: 17, runs: 4, minutes: '180' },
+      { weekday: 5, hour: 11, runs: 2, minutes: '90' },
+    ],
+    jobsByOutcome: [
+      { outcome: 'successful', jobs: 100 },
+      { outcome: 'failed', jobs: 8 },
+      { outcome: 'cancelled', jobs: 4 },
+      { outcome: 'unknown', jobs: 8 },
+    ],
+    jobsByWeek: [
+      { weekStart: '2026-09-07', jobs: 12 },
+      { weekStart: '2026-09-14', jobs: 9 },
+      { weekStart: '2026-09-21', jobs: 15 },
+    ],
+    materialByMonth: [
+      {
+        month: '2026-09',
+        materialTypeId: id(130),
+        materialTypeName: 'PLA',
+        unit: 'g',
+        quantity: '6000',
+        cost: '150.00',
+      },
+      {
+        month: '2026-10',
+        materialTypeId: id(130),
+        materialTypeName: 'PLA',
+        unit: 'g',
+        quantity: '6000',
+        cost: '150.00',
+      },
+      {
+        month: '2026-09',
+        materialTypeId: id(131),
+        materialTypeName: 'Plywood',
+        unit: 'sheet',
+        quantity: '4',
+        cost: '100.00',
+      },
+    ],
+    materialLossByType: [{ key: id(130), label: 'PLA', value: '12.00' }],
+    materialChargesByType: [
+      { key: id(130), label: 'PLA', value: '420.00' },
+      { key: id(131), label: 'Plywood', value: '90.00' },
+    ],
+    pricingGroups: [
+      { pricingGroupName: 'Members', jobs: 90, charges: '900.00', discounts: '20.00' },
+      { pricingGroupName: 'External', jobs: 30, charges: '600.00', discounts: '0.00' },
+    ],
+    pricingGroupMonths: [
+      { month: '2026-09', pricingGroupName: 'Members', charges: '500.00' },
+      { month: '2026-09', pricingGroupName: 'External', charges: '400.00' },
+      { month: '2026-10', pricingGroupName: 'Members', charges: '400.00' },
+      { month: '2026-10', pricingGroupName: 'External', charges: '200.00' },
+    ],
   };
 
   const requests: RecordedRequest[] = [];

@@ -104,14 +104,18 @@ const targets: Target[] = [
     path: `${base}/inventory/spools/${ids.spoolSingle}`,
     ready: (page) => page.getByRole('button', { name: 'Record consumption' }),
   },
-  { name: 'Statistics', path: `${base}/statistics`, ready: (page) => page.getByRole('table', { name: 'Machines' }) },
+  {
+    name: 'Statistics',
+    path: `${base}/statistics?tab=machines`,
+    ready: (page) => page.getByRole('table', { name: 'Machines' }),
+  },
 ];
 
 async function settle(page: Page) {
   await page.waitForLoadState('networkidle');
   // Carbon Charts load lazily behind the statistics boundary.
   if (page.url().includes('/statistics'))
-    await expect(page.locator('.mj-stats-chart svg.layout-svg-wrapper').first()).toBeVisible();
+    await expect(page.locator('.stats-card__chart svg.layout-svg-wrapper').first()).toBeVisible();
 }
 
 test.describe('every page passes axe and fits a 375px phone', () => {
