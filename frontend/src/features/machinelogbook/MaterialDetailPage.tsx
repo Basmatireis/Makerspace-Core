@@ -1,321 +1,394 @@
 import { useState } from 'react';
-import { Button, OverflowMenu, OverflowMenuItem, Tile } from '@carbon/react';
-import { Add } from '@carbon/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ActionableNotification, Button, Link as CarbonLink, OverflowMenu, OverflowMenuItem } from '@carbon/react';
+import { Add, Edit } from '@carbon/icons-react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { deleteMaterial, markMaterialEmpty } from '../../api/generated/inventory/inventory';
-import type { Material } from '../../api/generated/models';
+import type { FilamentSpool, Material } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
-import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
+import { StackCard } from '../../app/components/CardList';
+import { Fact, FactsGrid, FactTiles } from '../../app/components/Facts';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
-import { InventoryLedgerTable } from './components/InventoryLedgerTable';
-import { InventorySpoolsTable } from './components/InventorySpoolsTable';
+import { ArticleDialogs, useArticlePermissions, type ArticleDialog } from './components/articleActions';
+import { ArticleTags, minimumHelper, stockHelper } from './components/ArticlePanel';
 import {
-  ArticleKindTag,
+  ColorSwatch,
   formatQuantity,
-  MaterialColor,
+  formatRate,
   formatUnitCost,
   isFilament,
+  kindNames,
   materialUnitCost,
   NoInventoryAccess,
-  StockTag,
-  typeNoun,
+  priceSourceLabel,
   unitLabel,
 } from './components/inventoryShared';
-import { MaterialFormModal } from './dialogs/MaterialFormModal';
-import { ReceiveStockModal } from './dialogs/ReceiveStockModal';
-import { StockMovementModal, type MovementMode } from './dialogs/StockMovementModal';
+import { InventoryLedgerTable } from './components/InventoryLedgerTable';
+import { MountLink, nfcTagOf, remainingOf, SpoolRemaining } from './components/spoolShared';
+import { SpoolDialogs, spoolActionsFor, useSpoolPermissions, type SpoolDialog } from './components/spoolActions';
 import { allTransactionsQuery } from './inventoryQueries';
-import { machineLogbookKeys, materialQuery } from './queries';
+import { materialQuery } from './queries';
+import { attentionDirectoryColumn, DirectoryTable, type Column } from './shared/DirectoryTable';
 import { formatMoney } from './shared/format';
 import { inventoryTabForKind, machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
-import { useNotify } from './shared/toasts';
 import { useCan } from './shared/useCan';
+import { allSpoolsQuery } from './spoolData';
 import './styles/inventory.scss';
 
 const crumbs = [
   { label: 'Workshop', to: machineLogbookPaths.home() },
   { label: 'Inventory', to: machineLogbookPaths.inventory() },
 ];
-type Dialog = 'movement' | 'edit' | 'empty' | 'receive' | 'delete' | null;
 
-function Ledger({ material }: { material: Material }) {
-  const transactions = useQuery(allTransactionsQuery(material.id));
+function SpoolsSection({ material, onRegister }: { material: Material; onRegister?: () => void }) {
+  const allowedSpool = useSpoolPermissions();
+  const query = useQuery(allSpoolsQuery({ materialId: material.id, lifecycle: 'active' }));
+  const [action, setAction] = useState<{ spool: FilamentSpool; dialog: SpoolDialog } | null>(null);
+  const columns: Column<FilamentSpool>[] = [
+    {
+      key: 'spool',
+      header: 'Spool',
+      sortValue: (spool) => spool.displayId,
+      render: (spool) => (
+        <CarbonLink as={Link} to={machineLogbookPaths.spool(spool.id)} className="inv-mono">
+          {spool.displayId}
+        </CarbonLink>
+      ),
+    },
+    {
+      key: 'remaining',
+      header: 'Remaining',
+      sortValue: (spool) => remainingOf(spool),
+      firstDirection: 'DESC',
+      render: (spool) => <SpoolRemaining spool={spool} />,
+    },
+    {
+      key: 'where',
+      header: 'Where',
+      narrow: true,
+      sortValue: (spool) => spool.mountedOn?.machineName ?? spool.storageLocation ?? '',
+      render: (spool) => (spool.mountedOn ? <MountLink mount={spool.mountedOn} /> : spool.storageLocation || '—'),
+    },
+    {
+      key: 'tag',
+      header: 'Tag',
+      narrow: true,
+      render: (spool) => <span className="inv-mono">{nfcTagOf(spool) ?? '—'}</span>,
+    },
+    attentionDirectoryColumn<FilamentSpool>((spool) => spool.attention),
+    {
+      key: 'actions',
+      header: 'Actions',
+      hiddenHeader: true,
+      className: 'inv-actions-column',
+      render: (spool) => {
+        const items = spoolActionsFor(spool, allowedSpool);
+        return items.length > 0 ? (
+          <OverflowMenu size="sm" aria-label={`Actions of ${spool.displayId}`} iconDescription="Spool actions" flipped>
+            {items.map((item) => (
+              <OverflowMenuItem
+                key={item.id}
+                itemText={item.label}
+                isDelete={item.danger}
+                hasDivider={item.danger}
+                onClick={() => setAction({ spool, dialog: item.id })}
+              />
+            ))}
+          </OverflowMenu>
+        ) : null;
+      },
+    },
+  ];
   return (
-    <QueryBoundary query={transactions} errorMessage="The ledger could not be loaded.">
-      {(items) => (
-        <InventoryLedgerTable id="ledger" transactions={items} unit={material.unit} showSpool={isFilament(material)} />
-      )}
-    </QueryBoundary>
+    <section className="mj-stack" aria-labelledby="article-spools-title">
+      <h2 id="article-spools-title" className="inv-section-title">
+        Spools <span className="inv-count">{query.data?.length ?? ''}</span>
+      </h2>
+      <QueryBoundary query={query} errorMessage="The spools could not be loaded.">
+        {(spools) => (
+          <DirectoryTable
+            id="article-spools"
+            label="Spools"
+            columns={columns}
+            rows={spools}
+            totalCount={spools.length}
+            searchable={false}
+            searchText={(spool) => spool.displayId}
+            defaultSort={{ key: 'spool', direction: 'ASC' }}
+            toolbarAction={
+              onRegister ? (
+                <Button kind="ghost" renderIcon={Add} onClick={onRegister}>
+                  Register spool
+                </Button>
+              ) : undefined
+            }
+            empty={{
+              title: 'No active spools',
+              description:
+                Number(material.unassignedQuantity) > 0
+                  ? 'Register a spool from loose stock when one is opened.'
+                  : 'Receive filament on new spools to track what is left on each.',
+            }}
+          />
+        )}
+      </QueryBoundary>
+      {action && <SpoolDialogs spool={action.spool} dialog={action.dialog} onClose={() => setAction(null)} />}
+    </section>
   );
 }
 
 function MaterialDetail({ material }: { material: Material }) {
-  const can = useCan();
-  const client = useQueryClient();
-  const notify = useNotify();
   const navigate = useNavigate();
-  const [dialog, setDialog] = useState<Dialog>(null);
-  const [mode, setMode] = useState<MovementMode>('consumption');
-  const openMovement = (next: MovementMode) => {
-    setMode(next);
-    setDialog('movement');
-  };
-  const close = () => setDialog(null);
-  const canManage = can('inventory.manage');
+  const can = useCan();
+  const allowed = useArticlePermissions();
+  const [dialog, setDialog] = useState<ArticleDialog | null>(null);
+  const ledger = useQuery(allTransactionsQuery(material.id));
+  const spools = useQuery({
+    ...allSpoolsQuery({ materialId: material.id, lifecycle: 'active' }),
+    enabled: isFilament(material),
+  });
   const filament = isFilament(material);
-  const quantity = Number(material.quantity);
-  // Marking empty writes off the whole balance, which is only possible when nothing of it sits on a spool.
-  const onSpools = Number(material.assignedQuantity) > 0;
-  const emptying = useMutation({
-    mutationFn: () =>
-      markMaterialEmpty(material.id, {
-        occurredAt: new Date().toISOString(),
-        expectedInventoryVersion: material.inventoryVersion,
-      }),
-    onSuccess: async () => {
-      await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-      notify({
-        kind: 'success',
-        title: 'Marked as empty',
-        subtitle: `${material.name} stock is now 0 ${unitLabel(material.unit)}.`,
-      });
-      close();
-    },
-    onError: () => {
-      void client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-    },
-  });
+  const unitCost = materialUnitCost(material);
+  const loose = Number(material.unassignedQuantity);
+  const listTab = inventoryTabForKind(material.kind);
 
-  const removal = useMutation({
-    mutationFn: () => deleteMaterial(material.id, { expectedVersion: material.version }),
-    onSuccess: async () => {
-      notify({ kind: 'success', title: 'Article deleted', subtitle: material.name });
-      navigate(machineLogbookPaths.inventory(inventoryTabForKind(material.kind)));
-      await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-    },
-    onError: () => {
-      void client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-    },
-  });
-  // Only an article nothing uses can be deleted; the backend decides, `deletable` just spares the failed attempt.
-  const deletable = material.deletable !== false;
-
-  const actions = canManage ? (
+  const actions = (
     <>
-      <Button renderIcon={Add} onClick={() => setDialog('receive')}>
-        Receive stock
-      </Button>
-      <OverflowMenu aria-label="More article actions" iconDescription="More article actions" flipped>
-        <OverflowMenuItem
-          itemText="Record consumption"
-          disabled={Number(material.unassignedQuantity) <= 0}
-          onClick={() => openMovement('consumption')}
-        />
-        <OverflowMenuItem itemText="Correct stock" onClick={() => openMovement('correction')} />
-        <OverflowMenuItem
-          itemText="Record disposal"
-          disabled={Number(material.unassignedQuantity) <= 0}
-          onClick={() => openMovement('disposal')}
-        />
-        <OverflowMenuItem
-          itemText="Mark as empty"
-          disabled={quantity <= 0 || onSpools}
-          title={onSpools ? 'Part of the stock is on spools. Empty or remove those spools first.' : undefined}
-          onClick={() => setDialog('empty')}
-        />
-        <OverflowMenuItem itemText="Edit article" onClick={() => setDialog('edit')} />
-        <OverflowMenuItem
-          itemText="Delete article"
-          isDelete
-          hasDivider
-          disabled={!deletable}
-          onClick={() => setDialog('delete')}
-        />
-      </OverflowMenu>
+      {allowed.manage && (
+        <Button kind="secondary" renderIcon={Edit} onClick={() => setDialog({ name: 'edit' })}>
+          Edit article
+        </Button>
+      )}
+      {allowed.manage && (
+        <Button renderIcon={Add} onClick={() => setDialog({ name: 'receive' })}>
+          Receive stock
+        </Button>
+      )}
+      {(allowed.manage || allowed.delete) && (
+        <OverflowMenu aria-label="More article actions" iconDescription="More article actions" flipped>
+          {filament && allowed.register && (
+            <OverflowMenuItem itemText="Register spool" onClick={() => setDialog({ name: 'register' })} />
+          )}
+          {allowed.manage && (
+            <OverflowMenuItem
+              itemText="Record consumption"
+              disabled={loose <= 0}
+              onClick={() => setDialog({ name: 'movement', mode: 'consumption' })}
+            />
+          )}
+          {allowed.manage && (
+            <OverflowMenuItem
+              itemText="Correct stock"
+              onClick={() => setDialog({ name: 'movement', mode: 'correction' })}
+            />
+          )}
+          {allowed.manage && (
+            <OverflowMenuItem
+              itemText="Record disposal"
+              disabled={loose <= 0}
+              onClick={() => setDialog({ name: 'movement', mode: 'disposal' })}
+            />
+          )}
+          {allowed.manage && (
+            <OverflowMenuItem
+              itemText="Mark as empty"
+              disabled={Number(material.quantity) <= 0 || Number(material.assignedQuantity) > 0}
+              onClick={() => setDialog({ name: 'empty' })}
+            />
+          )}
+          {allowed.delete && (
+            <OverflowMenuItem
+              itemText="Delete article"
+              isDelete
+              hasDivider
+              onClick={() => setDialog({ name: 'delete' })}
+            />
+          )}
+        </OverflowMenu>
+      )}
     </>
-  ) : undefined;
+  );
 
   return (
     <PageShell
       title={material.name}
-      titleAdornment={
-        <span className="mj-inline">
-          <ArticleKindTag kind={material.kind} size="md" />
-          <StockTag state={material.stockState} />
-        </span>
-      }
+      titleAdornment={<ArticleTags material={material} size="md" />}
       width="wide"
-      description={[
-        `${typeNoun(material.kind) === 'Category' ? 'Category' : 'Type'}: ${material.materialTypeName}`,
-        material.variant,
-        material.colorName,
-        material.manufacturer,
-        material.active ? null : 'Inactive',
-      ]
+      description={[material.displayId, material.materialTypeName, material.storageLocation]
         .filter(Boolean)
         .join(' · ')}
       breadcrumbs={[
         crumbs[0],
-        { label: 'Inventory', to: machineLogbookPaths.inventory(inventoryTabForKind(material.kind)) },
+        { label: 'Inventory', to: machineLogbookPaths.inventory(listTab) },
         { label: material.name },
       ]}
       actions={actions}
     >
       <div className="mj-stack">
-        <Tile>
-          <dl className="mj-facts">
-            <div>
-              <dt>In stock</dt>
-              <dd>{formatQuantity(material.quantity, material.unit)}</dd>
-            </div>
-            {filament && (
-              <div>
-                <dt>On spools</dt>
-                <dd>{formatQuantity(material.assignedQuantity, material.unit)}</dd>
-              </div>
-            )}
-            {filament && (
-              <div>
-                <dt>Loose stock</dt>
-                <dd>{formatQuantity(material.unassignedQuantity, material.unit)}</dd>
-              </div>
-            )}
-            <div>
-              <dt>Low-stock threshold</dt>
-              <dd>
-                {material.lowStockThreshold != null ? formatQuantity(material.lowStockThreshold, material.unit) : '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>Average cost</dt>
-              <dd>{formatUnitCost(materialUnitCost(material), material.unit)}</dd>
-            </div>
-            <div>
-              <dt>Stock value</dt>
-              <dd>{formatMoney(material.inventoryValue)}</dd>
-            </div>
-            <div>
-              <dt>Sale price</dt>
-              <dd>
-                {material.salePrice != null ? `${formatMoney(material.salePrice)} / ${unitLabel(material.unit)}` : '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>Package size</dt>
-              <dd>{material.packageSize != null ? formatQuantity(material.packageSize, material.unit) : '—'}</dd>
-            </div>
-            <div>
-              <dt>Storage location</dt>
-              <dd>{material.storageLocation || '—'}</dd>
-            </div>
-            <div>
-              <dt>{typeNoun(material.kind) === 'Category' ? 'Category' : 'Material type'}</dt>
-              <dd>{material.materialTypeName}</dd>
-            </div>
-            {material.variant && (
-              <div>
-                <dt>Variant</dt>
-                <dd>{material.variant}</dd>
-              </div>
-            )}
-            {(material.colorName || material.colorHex) && (
-              <div>
-                <dt>Colour</dt>
-                <dd>
-                  <MaterialColor name={material.colorName} hex={material.colorHex} />
-                </dd>
-              </div>
-            )}
-            {material.manufacturer && (
-              <div>
-                <dt>Manufacturer</dt>
-                <dd>{material.manufacturer}</dd>
-              </div>
-            )}
-            <div>
-              <dt>Unit</dt>
-              <dd>{unitLabel(material.unit)}</dd>
-            </div>
-            {material.filamentDiameterMm != null && (
-              <div>
-                <dt>Filament diameter</dt>
-                <dd>{Number(material.filamentDiameterMm)} mm</dd>
-              </div>
-            )}
-            {material.notes && (
-              <div>
-                <dt>Notes</dt>
-                <dd>{material.notes}</dd>
-              </div>
-            )}
-          </dl>
-        </Tile>
-        {canManage && !deletable && (
-          <p className="mj-secondary">
-            Used by ledger entries, spools or orders, so this article cannot be deleted. Deactivate it instead (Edit
-            article).
-          </p>
+        {material.attention.length > 0 && (
+          <ActionableNotification
+            inline
+            kind="warning"
+            lowContrast
+            hideCloseButton
+            title="Needs attention"
+            subtitle={material.attention.map((item) => item.message).join(' · ')}
+            actionButtonLabel={allowed.manage ? 'Receive stock' : ''}
+            onActionButtonClick={() => setDialog({ name: 'receive' })}
+          />
         )}
-        <section className="mj-inventory-section" aria-labelledby="material-ledger-title">
-          <h2 id="material-ledger-title" className="mj-section-title">
-            Ledger
-          </h2>
-          <Ledger material={material} />
-        </section>
-        {filament && (
-          <section className="mj-inventory-section" aria-labelledby="material-spools-title">
-            <h2 id="material-spools-title" className="mj-section-title">
-              Spools
-            </h2>
-            <InventorySpoolsTable materialId={material.id} compact />
-          </section>
-        )}
+        <FactTiles
+          label="Article figures"
+          items={[
+            {
+              label: 'Stock',
+              value: formatQuantity(material.quantity, material.unit),
+              helper: stockHelper(material, spools.data?.length),
+            },
+            {
+              label: 'Minimum',
+              value:
+                material.lowStockThreshold != null ? formatQuantity(material.lowStockThreshold, material.unit) : '—',
+              helper: minimumHelper(material),
+            },
+            {
+              label: 'Used 30 d',
+              value: formatQuantity(material.recentConsumption, material.unit),
+              helper: material.machineUse ? 'runs and orders' : 'orders and consumption',
+            },
+            {
+              label: 'Stock value',
+              value: formatMoney(material.inventoryValue),
+              helper:
+                unitCost != null ? `at ${formatUnitCost(unitCost, material.unit)} average cost` : 'no purchase yet',
+            },
+            {
+              label: material.kind === 'part' ? 'Category' : 'Material type',
+              value: material.materialTypeName,
+              helper: material.variant ? `Variant ${material.variant}` : 'No variant',
+            },
+            {
+              label: 'Location',
+              value: material.storageLocation || '—',
+              helper: material.manufacturer || 'No manufacturer',
+            },
+          ]}
+        />
+        <div className="inv-article-layout">
+          <div className="mj-stack">
+            {filament && (
+              <SpoolsSection
+                material={material}
+                onRegister={allowed.register && loose > 0 ? () => setDialog({ name: 'register' }) : undefined}
+              />
+            )}
+            <section className="mj-stack" aria-labelledby="article-ledger-title">
+              <h2 id="article-ledger-title" className="inv-section-title">
+                Ledger <span className="inv-count">{ledger.data?.length ?? ''}</span>
+              </h2>
+              <QueryBoundary query={ledger} errorMessage="The ledger could not be loaded.">
+                {(items) => (
+                  <InventoryLedgerTable
+                    id="ledger"
+                    transactions={items}
+                    unit={material.unit}
+                    showSpool={filament}
+                    onDelete={
+                      allowed.deleteLedger
+                        ? (transaction) => setDialog({ name: 'ledger-delete', transaction })
+                        : undefined
+                    }
+                  />
+                )}
+              </QueryBoundary>
+            </section>
+          </div>
+          <div className="mj-stack">
+            <StackCard
+              title="Prices"
+              action={
+                can('pricing.read') ? (
+                  <Button kind="ghost" size="sm" as={Link} to="/pricing">
+                    Pricing
+                  </Button>
+                ) : undefined
+              }
+            >
+              {material.prices.length === 0 ? (
+                <p className="mj-secondary">No sale price in any pricing group, so it cannot be sold on an order.</p>
+              ) : (
+                <FactsGrid columns={2}>
+                  {material.prices.map((price) => (
+                    <Fact
+                      key={price.pricingGroupId}
+                      label={price.pricingGroupName}
+                      helper={priceSourceLabel[price.source]}
+                    >
+                      {formatRate(price.rate, material.unit)}
+                    </Fact>
+                  ))}
+                </FactsGrid>
+              )}
+              <p className="mj-secondary">
+                {material.machineUse
+                  ? `Runs use the ${material.materialTypeName} rate; prices for selling from stock are set per pricing group under Sales → Pricing.`
+                  : 'Set per pricing group under Sales → Pricing; used when the article is sold on an order.'}
+              </p>
+            </StackCard>
+            <StackCard title="Facts">
+              <FactsGrid columns={2}>
+                <Fact label="Article number">{material.displayId}</Fact>
+                <Fact label="Kind">{kindNames[material.kind]}</Fact>
+                <Fact
+                  label={material.kind === 'part' ? 'Category' : 'Material type'}
+                  helper={material.materialTypeCode}
+                >
+                  {material.materialTypeName}
+                </Fact>
+                <Fact label="Variant">{material.variant || '—'}</Fact>
+                {(material.colorName || material.colorHex) && (
+                  <Fact label="Colour" helper={material.colorHex ?? undefined}>
+                    <span className="inv-name">
+                      <ColorSwatch hex={material.colorHex} name={material.colorName} />
+                      {material.colorName || material.colorHex}
+                    </span>
+                  </Fact>
+                )}
+                <Fact label="Manufacturer">{material.manufacturer || '—'}</Fact>
+                <Fact label="Package">
+                  {material.packageSize != null ? formatQuantity(material.packageSize, material.unit) : '—'}
+                </Fact>
+                <Fact label="Unit cost">{formatUnitCost(unitCost, material.unit)}</Fact>
+                <Fact label="Unit">{unitLabel(material.unit)}</Fact>
+                {material.filamentDiameterMm != null && (
+                  <Fact label="Diameter">{Number(material.filamentDiameterMm)} mm</Fact>
+                )}
+                <Fact label="Machine use">{material.machineUse ? 'Yes' : 'No'}</Fact>
+                <Fact label="Status">{material.active ? 'Active' : 'Inactive'}</Fact>
+              </FactsGrid>
+            </StackCard>
+            <StackCard
+              title="Notes"
+              action={
+                allowed.manage ? (
+                  <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => setDialog({ name: 'edit' })}>
+                    {material.notes ? 'Edit' : 'Add'}
+                  </Button>
+                ) : undefined
+              }
+            >
+              <p className={material.notes ? 'inv-notes' : 'mj-secondary'}>{material.notes || 'No notes.'}</p>
+            </StackCard>
+          </div>
+        </div>
       </div>
-      {dialog === 'movement' && <StockMovementModal open onClose={close} mode={mode} material={material} />}
-      {dialog === 'edit' && <MaterialFormModal open onClose={close} material={material} />}
-      {dialog === 'receive' && <ReceiveStockModal open onClose={close} kind={material.kind} article={material} />}
-      <DestructiveActionDialog
-        open={dialog === 'empty'}
-        title="Mark as empty?"
-        fate="none"
-        confirmLabel="Mark as empty"
-        pending={emptying.isPending}
-        onClose={close}
-        error={
-          emptying.isError
-            ? emptying.error instanceof ApiError
-              ? emptying.error.message
-              : 'The stock may have changed. Reload the page and try again.'
-            : undefined
-        }
-        onConfirm={() => emptying.mutate()}
-      >
-        <p>
-          The remaining {formatQuantity(material.quantity, material.unit)} of {material.name} is written off as a
-          disposal and stock becomes 0. The ledger keeps every entry.
-        </p>
-      </DestructiveActionDialog>
-      <DestructiveActionDialog
-        open={dialog === 'delete'}
-        title="Delete this article?"
-        fate="permanent"
-        confirmLabel="Delete article"
-        pending={removal.isPending}
-        onClose={close}
-        error={
-          removal.isError
-            ? removal.error instanceof ApiError
-              ? removal.error.message
-              : 'The article could not be deleted. Reload the page and try again.'
-            : undefined
-        }
-        onConfirm={() => removal.mutate()}
-      >
-        <p>{material.name} will be deleted permanently.</p>
-      </DestructiveActionDialog>
+      <ArticleDialogs
+        material={material}
+        dialog={dialog}
+        onClose={() => setDialog(null)}
+        onDeleted={() => navigate(machineLogbookPaths.inventory(listTab))}
+      />
     </PageShell>
   );
 }
@@ -337,7 +410,7 @@ export function MaterialDetailPage() {
       {missing ? (
         <EmptyState
           title="This article does not exist"
-          description="It may have been removed, or the link is incorrect."
+          description="It may be in the inventory recycle bin or deleted for good, or the link is incorrect."
           action={
             <Button kind="tertiary" as={Link} to={machineLogbookPaths.inventory()}>
               Back to inventory

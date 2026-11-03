@@ -115,6 +115,7 @@ export function MaterialFormModal({
                 keepTypeId={material?.materialTypeId}
                 reportedColorHex={reportedColorHex}
                 showNotes
+                showPricingNote
                 hasStock={hasStock}
               />
             )}

@@ -54,15 +54,11 @@ export const spoolUpdateBody = (
   spool: FilamentSpool,
   changes: Partial<UpdateFilamentSpoolRequest> = {},
 ): UpdateFilamentSpoolRequest => ({
-  label: spool.label ?? null,
-  manufacturer: spool.manufacturer ?? null,
-  productName: spool.productName ?? null,
   tareWeightG: spool.tareWeightG ?? null,
   acquiredOn: spool.acquiredOn ?? null,
   acquisitionReference: spool.acquisitionReference ?? null,
   storageLocation: spool.storageLocation ?? null,
   notes: spool.notes ?? null,
-  lifecycle: spool.lifecycle,
   expectedVersion: spool.version,
   ...changes,
 });
@@ -76,21 +72,17 @@ export function useRefreshInventory() {
 // Errors ------------------------------------------------------------------------
 
 const messages: Record<string, string> = {
-  tare_required: 'This spool has no empty weight on record. Enter the empty weight of the spool to weigh the leftover.',
-  disposition_required: 'Choose what happens to the leftover.',
   insufficient_loose_stock: 'There is not enough loose stock for this. Check the available amount and try again.',
   insufficient_unassigned_stock: 'There is not enough loose stock for this. Check the available amount and try again.',
   material_name_conflict: 'An article with this name already exists.',
+  material_not_filament: 'Only filament articles can be put on spools.',
+  material_in_bin: 'This article is in the recycle bin. Restore it first.',
   insufficient_stock: 'There is not enough stock for this.',
   identifier_in_use: 'One of these identifiers is already assigned to a spool.',
-  spool_not_reusable: 'Only reusable spools can be refilled.',
-  spool_archived: 'This spool is archived. Restore it first.',
-  empty_requires_reusable: 'Only a reusable spool can be registered without filament.',
-  no_open_fill: 'This spool has no filament loaded.',
-  spool_has_stock: 'A spool must be empty before it is archived. Finish it first.',
-  spool_without_fill: 'A finished single-use spool cannot be restored.',
-  spool_not_consumable: 'This spool is archived or has no filament loaded.',
+  spool_archived: 'This spool is retired. Restore it from the recycle bin first.',
+  spool_not_consumable: 'This spool is retired and cannot be booked on.',
   insufficient_spool_stock: 'The spool does not hold that much filament.',
+  slot_occupied: 'Another spool is mounted in this slot. Unmount it first.',
   stale_write: 'Someone changed this in the meantime. The latest data was reloaded; check it and try again.',
 };
 

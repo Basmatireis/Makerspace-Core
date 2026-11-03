@@ -1,5 +1,6 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
 
 // Layout glue for the Inventory pages. Controls and surfaces are Carbon components.
 // Table toolbar, menu button and row-click rules live in shared/shared.scss.
@@ -29,4 +30,251 @@
   border: 0;
   padding: 0;
   cursor: pointer;
+}
+
+// Colour dot of an article; spools and lists only display the article's colour.
+.inv-swatch {
+  display: inline-block;
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  border: 1px solid theme.$border-strong-01;
+  border-radius: 50%;
+}
+
+.inv-mono {
+  font-family: 'IBM Plex Mono', monospace;
+  @include type-style('code-01');
+}
+
+.inv-name,
+.inv-meta,
+.inv-meta-item,
+.inv-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+  min-inline-size: 0;
+}
+
+.inv-tags {
+  gap: $spacing-02;
+}
+
+.inv-tags .cds--tag {
+  margin: 0;
+}
+
+.inv-meta {
+  gap: $spacing-02;
+  overflow: hidden;
+}
+
+.inv-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// The row whose details the panel shows.
+.cds--data-table tr:has(.inv-row-selected) td {
+  background: theme.$layer-selected-01;
+}
+
+.cds--data-table tr:has(.inv-row-selected) td:first-child {
+  box-shadow: inset 3px 0 0 theme.$border-interactive;
+}
+
+.inv-actions-column {
+  inline-size: 1%;
+  white-space: nowrap;
+  text-align: end;
+}
+
+.inv-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+}
+
+// Spool remainder: amount over a thin bar.
+.inv-remaining {
+  display: grid;
+  gap: $spacing-02;
+  min-inline-size: 7rem;
+  max-inline-size: 10rem;
+}
+
+.inv-remaining .cds--progress-bar__label {
+  display: none;
+}
+
+// Panel glue.
+.inv-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.inv-panel-notes,
+.inv-notes {
+  margin: 0;
+  white-space: pre-line;
+  @include type-style('body-compact-01');
+}
+
+.inv-panel-notes {
+  color: theme.$text-secondary;
+}
+
+.inv-panel-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 12rem;
+  border-inline-start-color: theme.$border-subtle-01;
+  color: theme.$text-secondary;
+  text-align: center;
+}
+
+.inv-panel-empty p {
+  max-inline-size: 22ch;
+}
+
+.inv-panel-table td.inv-numeric,
+.inv-panel-table th.inv-numeric {
+  text-align: end;
+}
+
+.inv-panel-table td.inv-numeric .inv-remaining {
+  margin-inline-start: auto;
+  justify-items: end;
+}
+
+.inv-panel-table__empty {
+  color: theme.$text-secondary;
+}
+
+.inv-section-title {
+  @include type-style('heading-compact-02');
+}
+
+.inv-count {
+  margin-inline-start: $spacing-03;
+  color: theme.$text-secondary;
+  font-weight: 400;
+}
+
+// Article and spool pages: tables on the left, cards on the right; one column below 1056 px.
+.inv-article-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+
+@media (min-width: 66rem) {
+  .inv-article-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  }
+}
+
+// Label/value summary in dialogs.
+.inv-summary {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: $spacing-03 $spacing-05;
+  margin: 0;
+}
+
+.inv-summary dt {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.inv-summary dd {
+  margin: 0;
+  @include type-style('body-compact-01');
+}
+
+.inv-calc {
+  padding: $spacing-04 $spacing-05;
+  background: theme.$layer-02;
+  @include type-style('body-compact-01');
+}
+
+// Filament the printers report but no spool carries.
+.inv-detected {
+  display: grid;
+  background: theme.$layer-01;
+  border-inline-start: 3px solid theme.$support-info;
+}
+
+.inv-detected__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: $spacing-02 $spacing-05;
+  padding: $spacing-04 $spacing-05;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+
+.inv-detected__head h2 {
+  @include type-style('heading-compact-01');
+}
+
+.inv-detected__head p {
+  flex: 1 1 20rem;
+  margin: 0;
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.inv-detected ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inv-detected__row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.4fr) minmax(9rem, 1fr) minmax(8rem, 0.8fr) minmax(12rem, 1.6fr) auto;
+  gap: $spacing-05;
+  align-items: center;
+  padding: $spacing-04 $spacing-05;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+
+.inv-detected__row:last-child {
+  border-block-end: 0;
+}
+
+.inv-detected__row > div {
+  display: grid;
+  gap: $spacing-01;
+  min-inline-size: 0;
+}
+
+.inv-detected__key {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.inv-detected__value {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  min-inline-size: 0;
+  @include type-style('body-compact-01');
+}
+
+.inv-detected__actions {
+  justify-items: end;
+}
+
+@media (max-width: 65.98rem) {
+  .inv-detected__row {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  }
 }

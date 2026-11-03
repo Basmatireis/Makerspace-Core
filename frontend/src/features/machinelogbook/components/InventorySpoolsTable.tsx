@@ -1,136 +1,96 @@
-import { useState, type ReactNode } from 'react';
-import { Button, Link as CarbonLink, MenuButton, MenuItem, TableToolbarAction } from '@carbon/react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import type { FilamentSpool } from '../../../api/generated/models';
-import { ChangeFilamentModal } from '../dialogs/ChangeFilamentModal';
-import { CleanupSpoolsModal } from '../dialogs/CleanupSpoolsModal';
-import { SpoolFormModal } from '../dialogs/SpoolFormModal';
-import { DirectoryTable, useUrlState, type Column, type Option } from '../shared/DirectoryTable';
+import { useState, type MouseEvent, type ReactNode } from 'react';
+import { Button, Link as CarbonLink } from '@carbon/react';
+import { Add } from '@carbon/icons-react';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
+import type { DetectedSpoolTag, FilamentSpool, Material } from '../../../api/generated/models';
+import { ListWithPanel, useListPanelLayout } from '../../../app/components/ListWithPanel';
+import { RegisterSpoolModal } from '../dialogs/RegisterSpoolModal';
+import {
+  attentionDirectoryColumn,
+  DirectoryTable,
+  useUrlState,
+  type Column,
+  type Option,
+} from '../shared/DirectoryTable';
 import { machineLogbookPaths } from '../shared/paths';
 import { QueryBoundary } from '../shared/QueryBoundary';
-import { useCan } from '../shared/useCan';
 import { allSpoolsQuery, filamentMaterialsQuery } from '../spoolData';
-import { formatGrams } from './inventoryShared';
+import { useSelectedRow } from './articleActions';
+import { EmptyPanel } from './ArticlePanel';
+import { DetectedSpoolsStrip } from './DetectedSpoolsStrip';
+import { ColorSwatch } from './inventoryShared';
+import { SpoolDialogs, useSpoolPermissions, type SpoolDialog } from './spoolActions';
+import { SpoolPanel } from './SpoolPanel';
 import {
-  initialOf,
-  KindTag,
-  kindLabel,
-  kindOptions,
-  matchesStatus,
+  LOW_PERCENT,
   MountLink,
   mountText,
-  needsRefill,
+  nfcTagOf,
   remainingOf,
-  spoolIsLow,
+  SpoolRemaining,
   spoolPercent,
-  spoolTitle,
-  statusLabel,
-  StatusTag,
-  statusOptions,
+  SpoolStateTag,
 } from './spoolShared';
 
-const mountedOptions: Option[] = [
-  { id: 'mounted', label: 'Mounted' },
-  { id: 'free', label: 'Not mounted' },
-];
 const ID = 'spools';
+const stateOptions: Option[] = [
+  { id: 'mounted', label: 'Mounted' },
+  { id: 'storage', label: 'In storage' },
+  { id: 'low', label: `Almost empty (< ${LOW_PERCENT} %)` },
+];
+const matchesState = (spool: FilamentSpool, id: string) =>
+  id === 'mounted' ? spool.mounted : id === 'storage' ? !spool.mounted : spoolPercent(spool) < LOW_PERCENT;
 
-type Props = {
-  /** Only the spools of this material; the Material column and filter are dropped. */
-  materialId?: string;
-  /** Material page presentation: a plain Register spool button, without Change filament or cleanup. Defaults to true when a material is set. */
-  compact?: boolean;
-  /** Section switcher for the toolbar when the table shares a page with sibling tables. */
-  switcher?: ReactNode;
-};
-
-/** Spools as a Directory-style table: the full Spools tab of the Inventory page, or a material's compact list. */
-export function InventorySpoolsTable({ materialId, compact = Boolean(materialId), switcher }: Props) {
-  const can = useCan();
-  // Registering, refilling and cleaning up all move stock, so they need both permissions.
-  const canRegister = can('filament_spools.manage') && can('inventory.manage');
-  const url = useUrlState(ID);
-  const showArchived = url.get('archived') === '1';
-  const [dialog, setDialog] = useState<'register' | 'refill' | 'cleanup' | null>(null);
-  const close = () => setDialog(null);
-  // Archived spools are only loaded on request; the other filters work on what is loaded.
-  const query = useQuery({
-    ...allSpoolsQuery({ materialId, lifecycle: showArchived ? undefined : 'active' }),
-    placeholderData: keepPreviousData,
-  });
-  const materials = useQuery({ ...filamentMaterialsQuery(), enabled: !materialId });
-
-  return (
-    <>
-      <QueryBoundary query={query} errorMessage="Spools could not be loaded.">
-        {(spools) => (
-          <SpoolsTable
-            spools={spools}
-            fixedMaterial={Boolean(materialId)}
-            materialOptions={(materials.data ?? []).map((material) => ({ id: material.id, label: material.name }))}
-            canRegister={canRegister}
-            compact={compact}
-            switcher={switcher}
-            onRegister={() => setDialog('register')}
-            onChangeFilament={() => setDialog('refill')}
-            onCleanup={() => setDialog('cleanup')}
-          />
-        )}
-      </QueryBoundary>
-      {canRegister && <SpoolFormModal open={dialog === 'register'} onClose={close} initialMaterialId={materialId} />}
-      {canRegister && !compact && <ChangeFilamentModal open={dialog === 'refill'} onClose={close} />}
-      {canRegister && !compact && <CleanupSpoolsModal open={dialog === 'cleanup'} onClose={close} />}
-    </>
-  );
-}
-
-type TableProps = {
-  spools: FilamentSpool[];
-  fixedMaterial: boolean;
-  materialOptions: Option[];
-  canRegister: boolean;
-  compact: boolean;
-  switcher?: ReactNode;
-  onRegister: () => void;
-  onChangeFilament: () => void;
-  onCleanup: () => void;
-};
+type Register = { detected?: DetectedSpoolTag } | null;
 
 function SpoolsTable({
   spools,
-  fixedMaterial,
-  materialOptions,
-  canRegister,
-  compact,
+  materials,
   switcher,
-  onRegister,
-  onChangeFilament,
-  onCleanup,
-}: TableProps) {
+  onReceive,
+}: {
+  spools: FilamentSpool[];
+  materials: Material[];
+  switcher?: ReactNode;
+  onReceive?: () => void;
+}) {
+  const navigate = useNavigate();
+  const allowed = useSpoolPermissions();
+  const panelFits = useListPanelLayout();
+  const [selected, select] = useSelectedRow();
+  const [dialog, setDialog] = useState<SpoolDialog | null>(null);
+  const [register, setRegister] = useState<Register>(null);
   const url = useUrlState(ID);
-  const materialIds = url.list('material');
-  const statusIds = url.list('status');
-  const mountedIds = url.list('mounted');
-  const kindIds = url.list('kind');
-  const manufacturerIds = url.list('manufacturer');
-  const showArchived = url.get('archived') === '1';
-
-  const manufacturerOptions: Option[] = [
-    ...new Set(spools.map((spool) => spool.manufacturer).filter((name): name is string => Boolean(name))),
-  ]
-    .sort()
-    .map((name) => ({ id: name, label: name }));
+  const typeIds = url.list('type');
+  const stateIds = url.list('state');
+  const machineIds = url.list('machine');
+  const materialsById = new Map(materials.map((material) => [material.id, material]));
 
   const rows = spools.filter(
     (spool) =>
-      (showArchived || spool.status !== 'archived') &&
-      (kindIds.length === 0 || kindIds.includes(spool.kind)) &&
-      (materialIds.length === 0 || materialIds.includes(spool.materialId ?? '')) &&
-      (manufacturerIds.length === 0 || manufacturerIds.includes(spool.manufacturer ?? '')) &&
-      (statusIds.length === 0 || statusIds.some((id) => matchesStatus(spool, id))) &&
-      (mountedIds.length === 0 || mountedIds.includes(spool.mounted ? 'mounted' : 'free')),
+      (typeIds.length === 0 || typeIds.includes(spool.materialTypeName)) &&
+      (stateIds.length === 0 || stateIds.some((id) => matchesState(spool, id))) &&
+      (machineIds.length === 0 || machineIds.includes(spool.mountedOn?.machineId ?? '')),
   );
+  const typeOptions: Option[] = [...new Set(spools.map((spool) => spool.materialTypeName))]
+    .sort()
+    .map((name) => ({ id: name, label: name }));
+  const machineOptions: Option[] = [
+    ...new Map(
+      spools.flatMap((spool) =>
+        spool.mountedOn ? [[spool.mountedOn.machineId, spool.mountedOn.machineName]] : [],
+      ) as [string, string][],
+    ).entries(),
+  ].map(([id, label]) => ({ id, label }));
+  const current = selected ? spools.find((spool) => spool.id === selected) : undefined;
+
+  const open = (spool: FilamentSpool) => (panelFits ? select(spool.id) : navigate(machineLogbookPaths.spool(spool.id)));
+  const onNameClick = (event: MouseEvent, spool: FilamentSpool) => {
+    if (!panelFits || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    event.preventDefault();
+    select(spool.id);
+  };
 
   const columns: Column<FilamentSpool>[] = [
     {
@@ -139,161 +99,172 @@ function SpoolsTable({
       sortValue: (spool) => spool.displayId,
       render: (spool) => (
         <div className="mj-cell-stack">
-          <CarbonLink as={Link} to={machineLogbookPaths.spool(spool.id)}>
+          <CarbonLink
+            as={Link}
+            to={machineLogbookPaths.spool(spool.id)}
+            className={['inv-mono', spool.id === selected && panelFits ? 'inv-row-selected' : null]
+              .filter(Boolean)
+              .join(' ')}
+            aria-current={spool.id === selected && panelFits ? 'true' : undefined}
+            onClick={(event: MouseEvent) => onNameClick(event, spool)}
+          >
             {spool.displayId}
           </CarbonLink>
-          {spool.label && <span className="mj-secondary">{spool.label}</span>}
-          {needsRefill(spool) && <span className="mj-secondary">Waiting for a refill</span>}
-          {!needsRefill(spool) && (
-            <span className="mj-secondary mj-show-narrow">{spoolTitle(spool) || 'No manufacturer recorded'}</span>
-          )}
-          <span className="mj-secondary mj-show-narrow">{kindLabel(spool.kind)}</span>
-          {!fixedMaterial && spool.materialName && (
-            <span className="mj-secondary mj-show-narrow">{spool.materialName}</span>
-          )}
           <span className="mj-secondary mj-show-narrow">
-            {[
-              spool.storageLocation,
-              spool.mounted ? `Mounted${spool.mountedOn ? ` on ${mountText(spool.mountedOn)}` : ''}` : null,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
+            {[spool.materialName, mountText(spool.mountedOn) ?? spool.storageLocation].filter(Boolean).join(' · ')}
           </span>
         </div>
       ),
     },
     {
-      key: 'kind',
-      header: 'Type',
+      key: 'article',
+      header: 'Article',
       narrow: true,
-      sortValue: (spool) => spool.kind,
-      render: (spool) => <KindTag kind={spool.kind} size="sm" />,
+      sortValue: (spool) => spool.materialName,
+      render: (spool) => (
+        <span className="inv-name">
+          <ColorSwatch hex={spool.colorHex} name={spool.colorName} />
+          {spool.materialName}
+        </span>
+      ),
     },
-    {
-      key: 'manufacturer',
-      header: 'Manufacturer',
-      narrow: true,
-      sortValue: (spool) => spool.manufacturer ?? '',
-      render: (spool) => spool.manufacturer || '—',
-    },
-    ...(fixedMaterial
-      ? []
-      : [
-          {
-            key: 'material',
-            header: 'Material',
-            narrow: true,
-            sortValue: (spool: FilamentSpool) => spool.materialName ?? '',
-            render: (spool: FilamentSpool) => spool.materialName || '—',
-          } satisfies Column<FilamentSpool>,
-        ]),
     {
       key: 'remaining',
       header: 'Remaining',
       sortValue: (spool) => remainingOf(spool),
       firstDirection: 'DESC',
+      render: (spool) => <SpoolRemaining spool={spool} />,
+    },
+    {
+      key: 'where',
+      header: 'Mounted / location',
+      narrow: true,
+      sortValue: (spool) => mountText(spool.mountedOn) ?? spool.storageLocation ?? '',
+      render: (spool) => (spool.mountedOn ? <MountLink mount={spool.mountedOn} /> : spool.storageLocation || '—'),
+    },
+    {
+      key: 'tag',
+      header: 'Tag',
+      narrow: true,
       render: (spool) =>
-        needsRefill(spool) ? (
-          <span>Needs refill</span>
+        nfcTagOf(spool) ? (
+          <span className="inv-mono">{nfcTagOf(spool)}</span>
         ) : (
-          <div className="mj-cell-stack">
-            <span>
-              {formatGrams(remainingOf(spool))} of {formatGrams(initialOf(spool))}
-            </span>
-            <span className="mj-secondary">
-              {spoolPercent(spool)} %{spoolIsLow(spool) ? ' · low' : ''}
-              {spool.status !== 'archived' && remainingOf(spool) <= 0 ? ' · empty, finish the spool' : ''}
-            </span>
-          </div>
+          <span className="mj-secondary">No tag</span>
         ),
     },
     {
-      key: 'location',
-      header: 'Location',
-      narrow: true,
-      sortValue: (spool) => spool.storageLocation ?? '',
-      render: (spool) => spool.storageLocation ?? '—',
-    },
-    {
-      key: 'mounted',
-      header: 'Mounted on',
-      narrow: true,
-      sortValue: (spool) => mountText(spool.mountedOn) ?? '',
-      render: (spool) => (spool.mountedOn ? <MountLink mount={spool.mountedOn} /> : spool.mounted ? 'Mounted' : '—'),
-    },
-    {
-      key: 'status',
+      key: 'state',
       header: 'Status',
-      sortValue: (spool) => spool.status,
-      render: (spool) => <StatusTag spool={spool} size="sm" />,
+      narrow: true,
+      sortValue: (spool) => (spool.mounted ? 0 : 1),
+      render: (spool) => <SpoolStateTag spool={spool} size="sm" />,
     },
+    attentionDirectoryColumn<FilamentSpool>((spool) => spool.attention),
   ];
 
   return (
-    <DirectoryTable
-      id={ID}
-      label="Spools"
-      columns={columns}
-      rows={rows}
-      totalCount={spools.length}
-      switcher={switcher}
-      searchText={(spool) =>
-        [
-          spool.displayId,
-          spool.label,
-          spool.manufacturer,
-          spool.productName,
-          spool.materialName,
-          spool.materialTypeName,
-          spool.colorName,
-          spool.notes,
-          mountText(spool.mountedOn),
-          statusLabel(spool.status),
-          kindLabel(spool.kind),
-          spool.storageLocation,
-          spool.acquisitionReference,
-          ...spool.identifiers.map((item) => item.value),
-        ]
-          .filter(Boolean)
-          .join(' ')
-      }
-      defaultSort={{ key: 'spool', direction: 'ASC' }}
-      toolbarMenu={
-        canRegister && !compact ? (
-          <TableToolbarAction onClick={onCleanup}>Clean up archived spools</TableToolbarAction>
-        ) : undefined
-      }
-      toolbarAction={
-        canRegister ? (
-          !compact ? (
-            <MenuButton label="New" kind="primary" size="lg" menuAlignment="bottom-end">
-              <MenuItem label="Register spool" onClick={onRegister} />
-              <MenuItem label="Change filament" onClick={onChangeFilament} />
-            </MenuButton>
+    <div className="mj-stack">
+      <DetectedSpoolsStrip
+        materials={materials}
+        onRegister={allowed.move ? (detected) => setRegister({ detected }) : undefined}
+      />
+      <ListWithPanel
+        panelLabel="Spool details"
+        panel={
+          current ? (
+            <SpoolPanel
+              spool={current}
+              material={materialsById.get(current.materialId)}
+              onClose={() => select(null)}
+              onAction={setDialog}
+            />
           ) : (
-            <Button kind="primary" size="lg" onClick={onRegister}>
-              Register spool
-            </Button>
+            <EmptyPanel text="Select a spool to see where it is, what is left and what it was used for." />
           )
-        ) : undefined
-      }
-      filterCategories={[
-        ...(fixedMaterial ? [] : [{ key: 'material', label: 'Material', options: materialOptions }]),
-        { key: 'manufacturer', label: 'Manufacturer', options: manufacturerOptions },
-        { key: 'kind', label: 'Type', options: kindOptions },
-        { key: 'status', label: 'Status', options: statusOptions },
-        { key: 'mounted', label: 'Mounted', options: mountedOptions },
-        { key: 'archived', label: 'Show', options: [{ id: '1', label: 'Archived spools' }] },
-      ]}
-      empty={{
-        title: 'No spools yet',
-        description: 'Register a spool to track filament weight, location and printer slots.',
-        action: canRegister ? (
-          <Button kind="tertiary" onClick={onRegister}>
-            Register spool
-          </Button>
-        ) : undefined,
-      }}
-    />
+        }
+      >
+        <DirectoryTable
+          id={ID}
+          label="Spools"
+          columns={columns}
+          rows={rows}
+          totalCount={spools.length}
+          switcher={switcher}
+          searchText={(spool) =>
+            [
+              spool.displayId,
+              spool.materialDisplayId,
+              spool.materialName,
+              spool.materialTypeName,
+              spool.manufacturer,
+              spool.colorName,
+              spool.notes,
+              mountText(spool.mountedOn),
+              spool.storageLocation,
+              spool.acquisitionReference,
+              ...spool.identifiers.map((item) => item.value),
+            ]
+              .filter(Boolean)
+              .join(' ')
+          }
+          defaultSort={{ key: 'spool', direction: 'ASC' }}
+          pageSizes={[25, 50, 100]}
+          onRowClick={open}
+          toolbarAction={
+            allowed.move ? (
+              <>
+                <Button kind="ghost" renderIcon={Add} onClick={() => setRegister({})}>
+                  Register spool
+                </Button>
+                {onReceive && (
+                  <Button renderIcon={Add} onClick={onReceive}>
+                    Receive stock
+                  </Button>
+                )}
+              </>
+            ) : undefined
+          }
+          filterCategories={[
+            { key: 'type', label: 'Material', options: typeOptions },
+            { key: 'state', label: 'Status', options: stateOptions },
+            ...(machineOptions.length > 0 ? [{ key: 'machine', label: 'Printer', options: machineOptions }] : []),
+          ]}
+          empty={{
+            title: 'No spools yet',
+            description: 'Receive filament on new spools or register a spool from loose stock to track what is left.',
+            action: allowed.move ? (
+              <Button kind="tertiary" onClick={() => setRegister({})}>
+                Register spool
+              </Button>
+            ) : undefined,
+          }}
+        />
+      </ListWithPanel>
+      {current && (
+        <SpoolDialogs spool={current} dialog={dialog} onClose={() => setDialog(null)} onGone={() => select(null)} />
+      )}
+      {register && (
+        <RegisterSpoolModal
+          open
+          onClose={() => setRegister(null)}
+          detected={register.detected}
+          onRegistered={(spool) => panelFits && select(spool.id)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The Spools tab of the Inventory page: detected tags, active spools and the spool panel. */
+export function InventorySpoolsTable({ switcher, onReceive }: { switcher?: ReactNode; onReceive?: () => void }) {
+  const query = useQuery(allSpoolsQuery({ lifecycle: 'active' }));
+  const materials = useQuery(filamentMaterialsQuery());
+  return (
+    <QueryBoundary query={query} errorMessage="Spools could not be loaded.">
+      {(spools) => (
+        <SpoolsTable spools={spools} materials={materials.data ?? []} switcher={switcher} onReceive={onReceive} />
+      )}
+    </QueryBoundary>
   );
 }

@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query';
-import { listFilamentSpools } from '../../api/generated/filament-spools/filament-spools';
 import {
+  getInventoryRecycleBin,
   listInventorySuggestions,
   listMaterials,
   listMaterialTransactions,
@@ -61,16 +61,9 @@ export const allTransactionsQuery = (materialId: string) =>
     queryFn: () => fetchAll((page) => listMaterialTransactions(materialId, { page, pageSize: PAGE_SIZE })),
   });
 
-/** Loaded or active spools (not archived, not waiting for a refill) per material ID. */
-export const activeSpoolCountsQuery = () =>
+/** The inventory recycle bin: deleted articles, retired spools and deleted ledger entries. */
+export const inventoryRecycleBinQuery = () =>
   queryOptions({
-    queryKey: key('spools', 'active-counts'),
-    queryFn: async () => {
-      const spools = await fetchAll((page) =>
-        listFilamentSpools({ status: ['loaded', 'active'], page, pageSize: PAGE_SIZE }),
-      );
-      const counts: Record<string, number> = {};
-      for (const spool of spools) if (spool.materialId) counts[spool.materialId] = (counts[spool.materialId] ?? 0) + 1;
-      return counts;
-    },
+    queryKey: key('inventory-recycle-bin'),
+    queryFn: ({ signal }) => getInventoryRecycleBin({ signal }),
   });
