@@ -38,5 +38,7 @@ export interface CreateMachineJobRequest {
      */
   notes?: string | null;
   pricingGroupId?: UUIDv7 | null;
+  /** Keep the job off signage. Default false. */
+  hiddenFromSignage?: boolean;
   run: ManualRunInput;
 }

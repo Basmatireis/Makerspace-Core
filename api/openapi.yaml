@@ -7801,8 +7801,8 @@ paths:
     get:
       tags: [Printing]
       operationId: getPrinterNotificationSettings
-      summary: Who is told about printer errors
-      description: Needs machines.read.
+      summary: Who is told about printer events
+      description: Needs machines.read. One rule per event (printer_error, run_finished, filament_change).
       security: [{sessionCookie: []}]
       responses:
         "200": {description: Settings., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterNotificationSettings"}}}}
@@ -7812,10 +7812,11 @@ paths:
     put:
       tags: [Printing]
       operationId: updatePrinterNotificationSettings
-      summary: Change who is told about printer errors
+      summary: Change who is told about printer events
       description: >-
-        Needs machines.manage. The operator of the running print is always told; the chosen role's holders in addition. Errors below the
-        minimum severity are not announced. Audited as `printer_notification_settings.updated`.
+        Needs machines.manage. Replaces the rules of the listed events (each at most once); events not listed keep their
+        rule. minSeverity is only allowed for printer_error (422 validation_failed otherwise); an unknown role answers
+        422. Audited as `printer_notification_settings.updated` with the changed event names.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdatePrinterNotificationSettingsRequest"}}}}
       responses:
@@ -16296,7 +16297,7 @@ components:
     Machine:
       type: object
       additionalProperties: false
-      required: [id, name, process, status, automaticCollectionEnabled, jobCount, runtimeSeconds, failureRate, version, createdAt, updatedAt]
+      required: [id, name, process, status, automaticCollectionEnabled, jobCount, runtimeSeconds, failureRate, attention, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
@@ -16308,9 +16309,25 @@ components:
         jobCount: {type: integer, format: int64, minimum: 0}
         runtimeSeconds: {type: integer, format: int64, minimum: 0}
         failureRate: {$ref: "#/components/schemas/Decimal"}
+        attention: {type: array, items: {$ref: "#/components/schemas/MachineAttention"}, description: What needs someone's attention on this machine; empty when nothing does.}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+
+    MachineAttention:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: >-
+            connector_offline: the assigned connector has not been heard from for 90 seconds or reports the printer
+            disconnected. connector_error: the connector reports the printer degraded or an error code.
+            printer_error_open: the printer reports an error that has not cleared. out_of_order: the machine is in
+            maintenance. runs_unassigned: ended recorded runs of the machine wait for a job.
+          enum: [connector_offline, connector_error, printer_error_open, out_of_order, runs_unassigned]
+        message: {type: string, description: Short English sentence for people.}
 
     MachinePage:
       type: object
@@ -17255,12 +17272,13 @@ components:
     PrinterProfile:
       type: object
       additionalProperties: false
-      required: [machineId, machineName, enabled, model, inputUnits, slots, version, createdAt, updatedAt]
+      required: [machineId, machineName, enabled, model, nozzleCount, inputUnits, slots, version, createdAt, updatedAt]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         machineName: {type: string}
         enabled: {type: boolean}
         model: {allOf: [{$ref: "#/components/schemas/PrinterModel"}], nullable: true}
+        nozzleCount: {type: integer, minimum: 1, maximum: 8, description: How many nozzles the printer has.}
         inputUnits: {type: array, items: {$ref: "#/components/schemas/PrinterInputUnit"}}
         slots: {type: array, items: {$ref: "#/components/schemas/PrinterSlot"}}
         version: {$ref: "#/components/schemas/Version"}
@@ -17270,13 +17288,14 @@ components:
     PrinterInputUnit:
       type: object
       additionalProperties: false
-      required: [id, machineId, name, position, nozzle, enabled, version]
+      required: [id, machineId, name, position, nozzle, nozzleIndex, enabled, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         position: {type: integer, minimum: 0}
         nozzle: {allOf: [{$ref: "#/components/schemas/PrinterNozzle"}], nullable: true}
+        nozzleIndex: {type: integer, minimum: 1, maximum: 8, description: "The nozzle (1-based) this unit feeds."}
         externalIdentifier: {type: string, nullable: true}
         enabled: {type: boolean}
         version: {$ref: "#/components/schemas/Version"}
@@ -17297,6 +17316,7 @@ components:
         expectedVersion: {type: integer, format: int64, minimum: 0, nullable: true, description: "Profile version being edited; null or 0 when the machine has no printer profile yet."}
         enabled: {type: boolean}
         model: {allOf: [{$ref: "#/components/schemas/PrinterModel"}], nullable: true}
+        nozzleCount: {type: integer, minimum: 1, maximum: 8, nullable: true, description: "How many nozzles the printer has; omitted or null keeps the stored count (1 for a new profile). Every nozzleIndex must be at most this (422 validation_failed)."}
         inputUnits: {type: array, maxItems: 32, items: {$ref: "#/components/schemas/PrinterSetupInputUnit"}}
 
     PrinterSetupInputUnit:
@@ -17307,6 +17327,7 @@ components:
         id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         name: {type: string, minLength: 1, maxLength: 120}
         nozzle: {allOf: [{$ref: "#/components/schemas/PrinterNozzle"}], nullable: true}
+        nozzleIndex: {type: integer, minimum: 1, maximum: 8, nullable: true, description: "The nozzle this unit feeds; omitted or null keeps the stored index (1 for a new unit)."}
         externalIdentifier: {type: string, maxLength: 200, nullable: true}
         slots: {type: array, maxItems: 16, items: {$ref: "#/components/schemas/PrinterSetupSlot"}}
 
@@ -17319,6 +17340,7 @@ components:
         name: {type: string, minLength: 1, maxLength: 120}
         status: {type: string, enum: [available, unavailable]}
         externalIdentifier: {type: string, maxLength: 200, nullable: true}
+        nozzleIndex: {type: integer, minimum: 1, maximum: 8, nullable: true, description: "The nozzle this slot feeds; omitted or null keeps the stored index, a new slot takes its unit's."}
 
     PrinterLiveStatusState:
       type: string
@@ -17486,24 +17508,51 @@ components:
         description: {type: string, maxLength: 2000}
         link: {type: string, maxLength: 500, nullable: true}
 
+    PrinterNotificationEvent:
+      type: string
+      description: "printer_error: the printer reports an error for the first time; run_finished: a recorded run ended or a running manual run was cancelled; filament_change: material in a printer slot changed while a run prints."
+      enum: [printer_error, run_finished, filament_change]
+
+    PrinterNotificationRule:
+      type: object
+      additionalProperties: false
+      required: [event, notifyOperator, notifyRecipient, roleId, roleName, email, minSeverity]
+      properties:
+        event: {$ref: "#/components/schemas/PrinterNotificationEvent"}
+        notifyOperator: {type: boolean, description: The operator of the run's job.}
+        notifyRecipient: {type: boolean, description: "The job's recipient (a person, or the contact e-mail of an organization)."}
+        roleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Everyone holding this role in addition; null for nobody.}
+        roleName: {type: string, nullable: true}
+        email: {type: boolean, description: "Also send an e-mail to every chosen person with an address. People without a staff account only ever get the e-mail."}
+        minSeverity: {allOf: [{$ref: "#/components/schemas/PrinterErrorSeverity"}], nullable: true, description: "printer_error only: errors below this level are not announced (print errors and codes without a level always are); null announces every level. Always null for the other events."}
+
+    PrinterNotificationRuleInput:
+      type: object
+      additionalProperties: false
+      required: [event, notifyOperator, notifyRecipient, roleId, email]
+      properties:
+        event: {$ref: "#/components/schemas/PrinterNotificationEvent"}
+        notifyOperator: {type: boolean}
+        notifyRecipient: {type: boolean}
+        roleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        email: {type: boolean}
+        minSeverity: {allOf: [{$ref: "#/components/schemas/PrinterErrorSeverity"}], nullable: true, description: Only for printer_error.}
+
     PrinterNotificationSettings:
       type: object
       additionalProperties: false
-      required: [errorRoleId, errorRoleName, errorMinSeverity, version, updatedAt]
+      required: [events, version, updatedAt]
       properties:
-        errorRoleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Holders of this role are told about printer errors besides the operator of the running print; null tells only the operator."}
-        errorRoleName: {type: string, nullable: true}
-        errorMinSeverity: {allOf: [{$ref: "#/components/schemas/PrinterErrorSeverity"}], description: "Errors below this level are not announced; print errors and codes without a level always are."}
+        events: {type: array, items: {$ref: "#/components/schemas/PrinterNotificationRule"}, description: "One rule per event, in the order printer_error, run_finished, filament_change."}
         version: {$ref: "#/components/schemas/Version"}
         updatedAt: {type: string, format: date-time}
 
     UpdatePrinterNotificationSettingsRequest:
       type: object
       additionalProperties: false
-      required: [errorRoleId, errorMinSeverity, expectedVersion]
+      required: [events, expectedVersion]
       properties:
-        errorRoleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        errorMinSeverity: {$ref: "#/components/schemas/PrinterErrorSeverity"}
+        events: {type: array, minItems: 1, maxItems: 3, items: {$ref: "#/components/schemas/PrinterNotificationRuleInput"}}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     PrinterLiveStatusSnapshot:
@@ -17582,7 +17631,7 @@ components:
     PrinterSlot:
       type: object
       additionalProperties: false
-      required: [id, inputUnitId, inputUnitName, machineId, name, position, status, version]
+      required: [id, inputUnitId, inputUnitName, machineId, name, position, nozzleIndex, status, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         inputUnitId: {$ref: "#/components/schemas/UUIDv7"}
@@ -17590,6 +17639,7 @@ components:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         position: {type: integer, minimum: 0}
+        nozzleIndex: {type: integer, minimum: 1, maximum: 8, description: "The nozzle (1-based) this slot feeds."}
         externalIdentifier: {type: string, nullable: true}
         status: {type: string, enum: [available, unavailable, retired]}
         assignmentId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
@@ -17724,7 +17774,7 @@ components:
     MachineRun:
       type: object
       additionalProperties: false
-      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, measures, usagesFromMachine, reportedUsageItems, outcomeFromMachine, hiddenFromSignage, version]
+      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, measures, usagesFromMachine, reportedUsageItems, outcomeFromMachine, hiddenFromSignage, jobHiddenFromSignage, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -17749,7 +17799,8 @@ components:
         reportedUsageItems: {type: array, items: {$ref: "#/components/schemas/MachineRunReportedUsageItem"}}
         artifact: {$ref: "#/components/schemas/PrintArtifactReference"}
         consumptionStatus: {allOf: [{$ref: "#/components/schemas/MachineRunConsumptionStatus"}], nullable: true, description: "Why consumption is (not) recorded; null for manual runs. See MachineRunConsumptionStatus."}
-        hiddenFromSignage: {type: boolean, description: "While the run is running, its machine (status and camera) is hidden from every signage display."}
+        hiddenFromSignage: {type: boolean, description: "The run's own flag: while the run is running, its machine (status and camera) is hidden from every signage display, and its timelapse is never shown."}
+        jobHiddenFromSignage: {type: boolean, description: "The run's job is hidden from signage, which hides the run as well whatever its own flag says. False without a job."}
         version: {$ref: "#/components/schemas/Version"}
 
     SetMachineRunSignageVisibilityRequest:
@@ -18067,11 +18118,12 @@ components:
       type: object
       description: >-
         An endsAt in the future starts a run that shows as running until then; outcome must then be null and is
-        recorded later.
+        recorded later. Material of a manual run is always measured: the server stores quantityBasis actual whatever
+        the request says.
       additionalProperties: false
-      required: [startsAt, endsAt, usages]
+      required: [endsAt, usages]
       properties:
-        startsAt: {type: string, format: date-time}
+        startsAt: {type: string, format: date-time, description: "When the run started; omitted means now. It may not lie in the future or after endsAt (422 validation_failed)."}
         endsAt: {type: string, format: date-time}
         outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true}
         usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}, description: "Makerspace material must belong to a material type usable for the machine's process (422 material_process_mismatch); customer material is free text."}
@@ -18105,6 +18157,7 @@ components:
         operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
         notes: {type: string, maxLength: 2000, nullable: true}
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        hiddenFromSignage: {type: boolean, nullable: true, description: "Keep the new jobs off signage. Omitted or null: shown."}
 
     BulkCreatedMachineJobs:
       type: object
@@ -18133,6 +18186,7 @@ components:
         operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
         notes: {type: string, maxLength: 2000, nullable: true}
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        hiddenFromSignage: {type: boolean, nullable: true, description: "Keep the new job off signage. Omitted or null: shown."}
 
     BulkAttachMachineRunsRequest:
       type: object
@@ -18142,6 +18196,7 @@ components:
         runs: {type: array, minItems: 1, maxItems: 100, items: {$ref: "#/components/schemas/BulkItem"}}
         replaceManualRuns: {type: boolean}
         expectedJobVersion: {$ref: "#/components/schemas/Version"}
+        hiddenFromSignage: {type: boolean, nullable: true, description: "Sets the job's signage flag as well; omitted or null keeps it."}
 
     DeletedMachineJob:
       type: object
@@ -18241,6 +18296,7 @@ components:
         operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
         notes: {type: string, maxLength: 2000, nullable: true}
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        hiddenFromSignage: {type: boolean, nullable: true, description: "Keep the new job off signage. Omitted or null: shown."}
 
     AttachMachineRunRequest:
       type: object
@@ -18250,6 +18306,7 @@ components:
         machineJobId: {$ref: "#/components/schemas/UUIDv7"}
         replaceManualRuns: {type: boolean}
         expectedJobVersion: {$ref: "#/components/schemas/Version"}
+        hiddenFromSignage: {type: boolean, nullable: true, description: "Sets the job's signage flag as well; omitted or null keeps it."}
 
     DetachMachineRunRequest:
       type: object
@@ -18295,13 +18352,20 @@ components:
 
     MachineJobUsageInput:
       type: object
+      description: >-
+        Makerspace material needs materialId and may name a spool; materialTypeId and label are refused. Material the
+        recipient brought (ownership external) is never consumed from stock or charged: materialId, materialTypeId and
+        label are all optional, so "PLA, recipient's own, Prusament Galaxy Black" is the materialTypeId of PLA plus
+        that label. An external materialId whose type differs from materialTypeId answers 422 validation_failed.
       additionalProperties: false
       required: [ownership, quantity, quantityBasis]
       properties:
         ownership: {$ref: "#/components/schemas/FilamentOwnership"}
-        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Required for makerspace material; optional for external material.}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "External material only: what kind of material it is (422 when unknown)."}
+        label: {type: string, minLength: 1, maxLength: 120, nullable: true, description: "External material only: a short free-text description such as brand and colour."}
         spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        externalMaterialName: {type: string, minLength: 1, maxLength: 200, nullable: true}
+        externalMaterialName: {type: string, minLength: 1, maxLength: 200, nullable: true, description: "Deprecated alias of label (up to 200 characters); label wins when both are given."}
         quantity: {$ref: "#/components/schemas/Decimal"}
         quantityBasis: {$ref: "#/components/schemas/QuantityBasis"}
 
@@ -18316,9 +18380,10 @@ components:
         spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         spoolDisplayId: {type: string, nullable: true, description: Snapshot; kept when the spool was deleted (spoolId null).}
         fillNumber: {type: integer, nullable: true}
-        materialName: {type: string}
-        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null for material the customer brought.}
-        materialTypeName: {type: string, description: "\"External\" for material the customer brought."}
+        materialName: {type: string, description: "The article's name; for external material the label, else the article's or type's name, else \"Own material\"."}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The article's type; for external material the type it was given, null when none."}
+        materialTypeName: {type: string, description: "\"External\" for material the customer brought without a type or article."}
+        label: {type: string, nullable: true, description: "External material: the free-text label. Null for makerspace material."}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         quantity: {$ref: "#/components/schemas/Decimal"}
         quantityBasis: {$ref: "#/components/schemas/QuantityBasis"}
@@ -18370,7 +18435,7 @@ components:
     MachineJob:
       type: object
       additionalProperties: false
-      required: [id, displayId, machine, runs, measures, durationSeconds, outcome, outcomeOverridden, status, pricingStatus, version, createdAt, updatedAt]
+      required: [id, displayId, machine, runs, measures, durationSeconds, outcome, outcomeOverridden, status, pricingStatus, hiddenFromSignage, attention, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -18401,9 +18466,27 @@ components:
           allOf: [{$ref: "#/components/schemas/Money"}]
           nullable: true
           description: Calculated price with the price adjustment applied, rounded to cents and never below zero.
+        hiddenFromSignage: {type: boolean, description: "The job and all its runs are kept off signage (machine status, camera and timelapses)."}
+        attention: {type: array, items: {$ref: "#/components/schemas/MachineJobAttention"}, description: What needs someone's attention on this job; empty when nothing does.}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+
+    MachineJobAttention:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: >-
+            run_failed: a run (not replaced) ended failed or cancelled. consumption_unconfirmed: a recorded run's
+            material is missing, partly booked or still pending. no_recipient: the job has no recipient. not_on_order:
+            the job ended with a price above zero and no order item refers to it. needs_outcome: the runs ended without
+            an outcome. price_incomplete: a price rule is missing. order_outdated: the job changed after it was put on
+            an order.
+          enum: [run_failed, consumption_unconfirmed, no_recipient, not_on_order, needs_outcome, price_incomplete, order_outdated]
+        message: {type: string, description: Short English sentence for people.}
 
     MachineJobList:
       type: object
@@ -18433,6 +18516,7 @@ components:
         title: {type: string, minLength: 1, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        hiddenFromSignage: {type: boolean, description: Keep the job off signage. Default false.}
         run: {$ref: "#/components/schemas/ManualRunInput"}
 
     UpdateMachineJobRequest:
@@ -18448,6 +18532,7 @@ components:
         notes: {type: string, maxLength: 2000, nullable: true}
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         outcomeOverride: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true, description: "Null derives the outcome from the runs."}
+        hiddenFromSignage: {type: boolean, description: Keep the job off signage; omitted keeps the current value.}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     DailyJobActivity:
@@ -18533,6 +18618,7 @@ components:
         effectivePrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
         billing: {$ref: "#/components/schemas/WorkItemBilling"}
         consumption: {$ref: "#/components/schemas/WorkItemConsumption"}
+        attention: {type: array, items: {$ref: "#/components/schemas/MachineJobAttention"}, description: "As on the job; an unassigned run carries run_failed and consumption_unconfirmed only. Present on work item lists, not on the overview."}
         version: {$ref: "#/components/schemas/Version"}
 
     WorkItemConsumption:
@@ -18613,9 +18699,13 @@ components:
     StatisticTotals:
       type: object
       additionalProperties: false
-      required: [jobs, runtimeHours, charges, materialCost, failureRate]
+      required: [jobs, runtimeHours, charges, materialCost, failureRate, notBilled, discounts, utilization, openDayUtilization]
       properties:
         jobs: {type: integer, format: int64, minimum: 0, description: Confirmed jobs starting in the period.}
+        notBilled: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Effective price of the period's ended jobs that no order item refers to."}
+        discounts: {allOf: [{$ref: "#/components/schemas/Money"}], description: "How much price adjustments lowered the calculated price of the period's jobs."}
+        utilization: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Time runs occupied the machines that are not retired, as a percentage of the period's hours times their number."}
+        openDayUtilization: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "The same for the hours of scheduled open days; 0 without open days."}
         runtimeHours: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: Job runtime; a running job counts until now.}
         charges: {allOf: [{$ref: "#/components/schemas/Money"}], description: Sum of effective job prices.}
         materialCost: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Inventory value consumed by jobs and manual consumption, net of job corrections."}
@@ -18643,7 +18733,7 @@ components:
     StatisticMachine:
       type: object
       additionalProperties: false
-      required: [machineId, name, processName, jobs, runtimeHours, failureRate, charges, runtimeShare]
+      required: [machineId, name, processName, jobs, runtimeHours, failureRate, charges, runtimeShare, utilization, openDayUtilization]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
@@ -18653,6 +18743,65 @@ components:
         failureRate: {$ref: "#/components/schemas/Decimal"}
         charges: {$ref: "#/components/schemas/Money"}
         runtimeShare: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: Percentage of all machines' runtime in the period.}
+        utilization: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Time runs occupied the machine as a percentage of the period's hours (24 h a day)."}
+        openDayUtilization: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Time runs occupied the machine during scheduled open days as a percentage of the open-day hours; 0 without open days."}
+
+    StatisticWeekdayHour:
+      type: object
+      additionalProperties: false
+      required: [weekday, hour, runs, minutes]
+      properties:
+        weekday: {type: integer, minimum: 0, maximum: 6, description: "Monday is 0, in the makerspace's time zone."}
+        hour: {type: integer, minimum: 0, maximum: 23}
+        runs: {type: integer, format: int64, minimum: 0, description: Runs that were running during this hour of the week.}
+        minutes: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: Machine minutes of runs during this hour of the week.}
+
+    StatisticOutcomeCount:
+      type: object
+      additionalProperties: false
+      required: [outcome, jobs]
+      properties:
+        outcome: {type: string, enum: [successful, partial_failure, failed, cancelled, unknown]}
+        jobs: {type: integer, format: int64, minimum: 0}
+
+    StatisticWeek:
+      type: object
+      additionalProperties: false
+      required: [weekStart, jobs]
+      properties:
+        weekStart: {type: string, format: date, description: Monday of the ISO week (UTC).}
+        jobs: {type: integer, format: int64, minimum: 0}
+
+    StatisticMaterialMonth:
+      type: object
+      additionalProperties: false
+      required: [month, materialTypeId, materialTypeName, unit, quantity, cost]
+      properties:
+        month: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}
+        materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        materialTypeName: {type: string}
+        unit: {$ref: "#/components/schemas/MaterialUnit"}
+        quantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Consumed by jobs and manual consumption, net of job corrections."}
+        cost: {allOf: [{$ref: "#/components/schemas/Money"}], description: Inventory value of that consumption.}
+
+    StatisticPricingGroup:
+      type: object
+      additionalProperties: false
+      required: [pricingGroupName, jobs, charges, discounts]
+      properties:
+        pricingGroupName: {type: string, description: "Name in the job's active pricing snapshot; \"Unpriced\" without one."}
+        jobs: {type: integer, format: int64, minimum: 0}
+        charges: {$ref: "#/components/schemas/Money"}
+        discounts: {$ref: "#/components/schemas/Money"}
+
+    StatisticPricingGroupMonth:
+      type: object
+      additionalProperties: false
+      required: [month, pricingGroupName, charges]
+      properties:
+        month: {type: string, pattern: "^[0-9]{4}-[0-9]{2}$"}
+        pricingGroupName: {type: string}
+        charges: {$ref: "#/components/schemas/Money"}
 
     StatisticPoint:
       type: object
@@ -18666,7 +18815,7 @@ components:
     MachineLogbookStatistics:
       type: object
       additionalProperties: false
-      required: [materialUsageByType, machineRuntimeHours, machineJobCounts, acquisitionCost, customerCharges, adjustmentLoss, machineFailureRates, totals, previousTotals, months, runtimeGranularity, runtime, materialCostByType, machines]
+      required: [materialUsageByType, machineRuntimeHours, machineJobCounts, acquisitionCost, customerCharges, adjustmentLoss, machineFailureRates, totals, previousTotals, months, runtimeGranularity, runtime, materialCostByType, machines, usageByWeekdayHour, jobsByOutcome, jobsByWeek, materialByMonth, materialLossByType, materialChargesByType, pricingGroups, pricingGroupMonths]
       properties:
         totals: {$ref: "#/components/schemas/StatisticTotals"}
         previousTotals: {allOf: [{$ref: "#/components/schemas/StatisticTotals"}], description: Totals of the period of equal length that ends the day before from.}
@@ -18675,6 +18824,14 @@ components:
         runtime: {type: array, items: {$ref: "#/components/schemas/StatisticRuntimePoint"}}
         materialCostByType: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}, description: EUR per material type.}
         machines: {type: array, items: {$ref: "#/components/schemas/StatisticMachine"}}
+        usageByWeekdayHour: {type: array, items: {$ref: "#/components/schemas/StatisticWeekdayHour"}, description: "When the machines run, in the makerspace's time zone; only cells with a run. Runs of jobs and unassigned recorded runs within the period, replaced runs left out; a running run counts until now."}
+        jobsByOutcome: {type: array, items: {$ref: "#/components/schemas/StatisticOutcomeCount"}, description: "Jobs starting in the period by outcome; unknown covers running jobs and jobs without an outcome. Outcomes without jobs are left out."}
+        jobsByWeek: {type: array, items: {$ref: "#/components/schemas/StatisticWeek"}, description: Jobs starting in the period per ISO week; weeks without jobs are listed with 0.}
+        materialByMonth: {type: array, items: {$ref: "#/components/schemas/StatisticMaterialMonth"}, description: Consumption and its inventory value per month (UTC) and material type.}
+        materialLossByType: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}, description: "EUR per material type lost on failed or cancelled runs plus disposals and negative stock corrections other than job corrections."}
+        materialChargesByType: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}, description: "EUR charged for makerspace material per material type at the rates of the jobs' active pricing snapshots, before price adjustments."}
+        pricingGroups: {type: array, items: {$ref: "#/components/schemas/StatisticPricingGroup"}, description: Jobs starting in the period by the pricing group of their active pricing snapshot.}
+        pricingGroupMonths: {type: array, items: {$ref: "#/components/schemas/StatisticPricingGroupMonth"}, description: Charges per month (UTC) and pricing group.}
         materialUsageByType: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}
         machineRuntimeHours: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}
         machineJobCounts: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}
@@ -19184,6 +19341,11 @@ components:
               $ref: "#/components/schemas/ActorReference"
           nullable: true
           description: "Display name of the person who created the order; null once that person was deleted."
+        attention:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/OrderAttention"
+          description: "What needs someone's attention on this order; empty when nothing does."
       required:
         - "id"
         - "reference"
@@ -19207,6 +19369,24 @@ components:
         - "createdAt"
         - "updatedAt"
         - "createdBy"
+        - "attention"
+    OrderAttention:
+      type: "object"
+      additionalProperties: false
+      properties:
+        code:
+          type: "string"
+          description: "balance_overdue: a finalized order still has an unpaid balance 14 days after it was finalized. source_changed: a job on the order changed after it was charged. invoice_request_open: a wiRef invoice request is a draft, awaits approval or awaits its cancellation."
+          enum:
+            - "balance_overdue"
+            - "source_changed"
+            - "invoice_request_open"
+        message:
+          type: "string"
+          description: "Short English sentence for people."
+      required:
+        - "code"
+        - "message"
     OrderPayment:
       type: "object"
       additionalProperties: false

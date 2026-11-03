@@ -73,13 +73,19 @@ func (s *Server) SyncPrinterErrorCodes(
 }
 
 func printerNotificationSettingsDTO(item printerconnectors.NotificationSettings) openapi.PrinterNotificationSettings {
-	return openapi.PrinterNotificationSettings{
-		ErrorRoleId:      nullableUUIDValue(item.ErrorRoleID),
-		ErrorRoleName:    nullableString(item.ErrorRoleName),
-		ErrorMinSeverity: openapi.PrinterErrorSeverity(item.ErrorMinSeverity),
-		Version:          item.Version,
-		UpdatedAt:        item.UpdatedAt,
+	events := make([]openapi.PrinterNotificationRule, 0, len(item.Events))
+	for _, rule := range item.Events {
+		events = append(events, openapi.PrinterNotificationRule{
+			Event:           openapi.PrinterNotificationEvent(rule.Event),
+			NotifyOperator:  rule.NotifyOperator,
+			NotifyRecipient: rule.NotifyRecipient,
+			RoleId:          nullableUUIDValue(rule.RoleID),
+			RoleName:        nullableString(rule.RoleName),
+			Email:           rule.Email,
+			MinSeverity:     nullableEnum[openapi.PrinterErrorSeverity](rule.MinSeverity),
+		})
 	}
+	return openapi.PrinterNotificationSettings{Events: events, Version: item.Version, UpdatedAt: item.UpdatedAt}
 }
 
 func (s *Server) ListPrinterErrors(
@@ -209,10 +215,20 @@ func (s *Server) UpdatePrinterNotificationSettings(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
+	rules := make([]printerconnectors.NotificationRule, 0, len(r.Body.Events))
+	for _, rule := range r.Body.Events {
+		rules = append(rules, printerconnectors.NotificationRule{
+			Event:           printerconnectors.NotificationEvent(rule.Event),
+			NotifyOperator:  rule.NotifyOperator,
+			NotifyRecipient: rule.NotifyRecipient,
+			RoleID:          nullableUUID(rule.RoleId),
+			Email:           rule.Email,
+			MinSeverity:     nullableStringPointer(rule.MinSeverity),
+		})
+	}
 	item, err := s.printerConnectors.UpdateNotificationSettings(ctx, p, printerconnectors.NotificationSettingsInput{
-		ErrorRoleID:      nullableUUID(r.Body.ErrorRoleId),
-		ErrorMinSeverity: string(r.Body.ErrorMinSeverity),
-		ExpectedVersion:  r.Body.ExpectedVersion,
+		Events:          rules,
+		ExpectedVersion: r.Body.ExpectedVersion,
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err

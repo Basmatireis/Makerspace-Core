@@ -98,13 +98,16 @@ func TestStatisticsTotalsRuntimeAndCostSplit(t *testing.T) {
 	running := job(f.machine, statsClock.Add(-time.Hour), 4*time.Hour, "unknown") // one hour has elapsed
 	e := job(f.bareMachine, day(3, 8), 2*time.Hour, "successful")
 	previous := job(f.machine, time.Date(y, time.May, 20, 10, 0, 0, 0, time.UTC), time.Hour, "successful")
+	// Starts at the exclusive end; it is entered once that time has come, because manual runs never start ahead.
+	f.now = time.Date(y, time.July, 1, 0, 30, 0, 0, time.UTC)
 	outside := job(
 		f.machine,
 		time.Date(y, time.July, 1, 0, 0, 0, 0, time.UTC),
 		time.Hour,
 		"unknown",
-	) // starts at the exclusive end
+	)
 	_ = outside
+	f.now = statsClock
 
 	f.insertTransaction(t, "manual_consumption", "", "-10", "-5.00", day(5, 9))
 	f.insertTransaction(t, "adjustment", "job_corrected", "2", "1.00", day(6, 9))

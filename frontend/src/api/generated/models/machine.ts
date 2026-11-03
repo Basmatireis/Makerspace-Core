@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Decimal } from './decimal';
+import type { MachineAttention } from './machineAttention';
 import type { MachineStatus } from './machineStatus';
 import type { Process } from './process';
 import type { UUIDv7 } from './uUIDv7';
@@ -39,6 +40,8 @@ export interface Machine {
   /** @minimum 0 */
   runtimeSeconds: number;
   failureRate: Decimal;
+  /** What needs someone's attention on this machine; empty when nothing does. */
+  attention: MachineAttention[];
   version: Version;
   createdAt: string;
   updatedAt: string;

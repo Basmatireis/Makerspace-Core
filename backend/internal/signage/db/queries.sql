@@ -64,23 +64,26 @@ WHERE a.machine_id = sqlc.arg(machine_id) AND a.camera_streaming AND a.enabled A
   AND c.lifecycle = 'active';
 
 -- name: ListSignageHiddenMachineIDs :many
--- Machines whose currently running run was opted out of signage by its operator or customer. A manual run
+-- Machines whose currently running run was opted out of signage, by its own flag or its job's. A manual run
 -- is running until its planned end; a recorded run while its state says so.
 SELECT DISTINCT r.machine_id FROM machine_runs r
-WHERE r.hidden_from_signage AND r.deleted_at IS NULL
+LEFT JOIN machine_jobs j ON j.id = r.job_id
+WHERE (r.hidden_from_signage OR COALESCE(j.hidden_from_signage, false)) AND r.deleted_at IS NULL
   AND CASE WHEN r.source = 'manual'
            THEN COALESCE(r.state, CASE WHEN r.ended_at > sqlc.arg(now)::timestamptz THEN 'running' ELSE 'finished' END)
            ELSE r.state END = 'running';
 
 -- name: ListSignageTimelapses :many
--- Finished recorded runs with a stored timelapse that were not opted out of signage, newest first. Without
--- all_machines only the given machines; ended_after NULL means any age.
+-- Finished recorded runs with a stored timelapse that were not opted out of signage (by the run or its job),
+-- newest first. Without all_machines only the given machines; ended_after NULL means any age.
 SELECT r.id AS run_id, r.machine_id, m.name AS machine_name, r.ended_at::timestamptz AS ended_at,
        t.sha256, t.size_bytes, t.file_id
 FROM machine_runs r
 JOIN machine_run_timelapses t ON t.run_id = r.id
 JOIN machines m ON m.id = r.machine_id
+LEFT JOIN machine_jobs j ON j.id = r.job_id
 WHERE r.source = 'recorded' AND r.state = 'finished' AND r.deleted_at IS NULL AND NOT r.hidden_from_signage
+  AND NOT COALESCE(j.hidden_from_signage, false)
   AND r.ended_at IS NOT NULL
   AND (sqlc.arg(all_machines)::boolean OR r.machine_id = ANY(sqlc.arg(machine_ids)::text[]::uuid[]))
   AND (sqlc.narg(ended_after)::timestamptz IS NULL OR r.ended_at >= sqlc.narg(ended_after)::timestamptz)
@@ -88,12 +91,14 @@ ORDER BY r.ended_at DESC, r.id DESC
 LIMIT sqlc.arg(row_limit)::int;
 
 -- name: GetSignageTimelapse :one
--- The timelapse of one run, only while the run is a finished recorded run not opted out of signage.
+-- The timelapse of one run, only while the run is a finished recorded run that neither it nor its job opted out
+-- of signage.
 SELECT r.id AS run_id, t.sha256, t.size_bytes, t.file_id
 FROM machine_runs r
 JOIN machine_run_timelapses t ON t.run_id = r.id
+LEFT JOIN machine_jobs j ON j.id = r.job_id
 WHERE r.id = sqlc.arg(run_id) AND r.source = 'recorded' AND r.state = 'finished' AND r.deleted_at IS NULL
-  AND NOT r.hidden_from_signage AND r.ended_at IS NOT NULL;
+  AND NOT r.hidden_from_signage AND NOT COALESCE(j.hidden_from_signage, false) AND r.ended_at IS NOT NULL;
 
 -- name: ListSignageAssetKinds :many
 SELECT id, kind FROM signage_assets WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) FOR SHARE;

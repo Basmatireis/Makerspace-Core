@@ -20,10 +20,16 @@
  */
 import type { MachineLogbookStatisticsRuntimeGranularity } from './machineLogbookStatisticsRuntimeGranularity';
 import type { StatisticMachine } from './statisticMachine';
+import type { StatisticMaterialMonth } from './statisticMaterialMonth';
 import type { StatisticMonth } from './statisticMonth';
+import type { StatisticOutcomeCount } from './statisticOutcomeCount';
 import type { StatisticPoint } from './statisticPoint';
+import type { StatisticPricingGroup } from './statisticPricingGroup';
+import type { StatisticPricingGroupMonth } from './statisticPricingGroupMonth';
 import type { StatisticRuntimePoint } from './statisticRuntimePoint';
 import type { StatisticTotals } from './statisticTotals';
+import type { StatisticWeek } from './statisticWeek';
+import type { StatisticWeekdayHour } from './statisticWeekdayHour';
 
 export interface MachineLogbookStatistics {
   totals: StatisticTotals;
@@ -36,6 +42,22 @@ export interface MachineLogbookStatistics {
   /** EUR per material type. */
   materialCostByType: StatisticPoint[];
   machines: StatisticMachine[];
+  /** When the machines run, in the makerspace's time zone; only cells with a run. Runs of jobs and unassigned recorded runs within the period, replaced runs left out; a running run counts until now. */
+  usageByWeekdayHour: StatisticWeekdayHour[];
+  /** Jobs starting in the period by outcome; unknown covers running jobs and jobs without an outcome. Outcomes without jobs are left out. */
+  jobsByOutcome: StatisticOutcomeCount[];
+  /** Jobs starting in the period per ISO week; weeks without jobs are listed with 0. */
+  jobsByWeek: StatisticWeek[];
+  /** Consumption and its inventory value per month (UTC) and material type. */
+  materialByMonth: StatisticMaterialMonth[];
+  /** EUR per material type lost on failed or cancelled runs plus disposals and negative stock corrections other than job corrections. */
+  materialLossByType: StatisticPoint[];
+  /** EUR charged for makerspace material per material type at the rates of the jobs' active pricing snapshots, before price adjustments. */
+  materialChargesByType: StatisticPoint[];
+  /** Jobs starting in the period by the pricing group of their active pricing snapshot. */
+  pricingGroups: StatisticPricingGroup[];
+  /** Charges per month (UTC) and pricing group. */
+  pricingGroupMonths: StatisticPricingGroupMonth[];
   materialUsageByType: StatisticPoint[];
   machineRuntimeHours: StatisticPoint[];
   machineJobCounts: StatisticPoint[];

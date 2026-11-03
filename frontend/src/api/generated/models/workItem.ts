@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BillingParty } from './billingParty';
+import type { MachineJobAttention } from './machineJobAttention';
 import type { Money } from './money';
 import type { Operator } from './operator';
 import type { UUIDv7 } from './uUIDv7';
@@ -72,5 +73,7 @@ export interface WorkItem {
   effectivePrice?: Money | null;
   billing?: WorkItemBilling | null;
   consumption?: WorkItemConsumption;
+  /** As on the job; an unassigned run carries run_failed and consumption_unconfirmed only. Present on work item lists, not on the overview. */
+  attention?: MachineJobAttention[];
   version?: Version;
 }

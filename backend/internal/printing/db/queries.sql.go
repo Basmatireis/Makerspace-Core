@@ -15,10 +15,10 @@ import (
 
 const applyPrinterInputUnitSetup = `-- name: ApplyPrinterInputUnitSetup :exec
 UPDATE printer_input_units SET name=$1, position=$2, nozzle=$3,
-    external_identifier=$4, enabled=$5,
-    version=version+CASE WHEN $6::boolean THEN 1 ELSE 0 END,
-    updated_at=CASE WHEN $6::boolean THEN now() ELSE updated_at END
-WHERE id=$7
+    external_identifier=$4, enabled=$5, nozzle_index=$6,
+    version=version+CASE WHEN $7::boolean THEN 1 ELSE 0 END,
+    updated_at=CASE WHEN $7::boolean THEN now() ELSE updated_at END
+WHERE id=$8
 `
 
 type ApplyPrinterInputUnitSetupParams struct {
@@ -27,6 +27,7 @@ type ApplyPrinterInputUnitSetupParams struct {
 	Nozzle             *string
 	ExternalIdentifier *string
 	Enabled            bool
+	NozzleIndex        int32
 	Bump               bool
 	ID                 uuid.UUID
 }
@@ -38,6 +39,7 @@ func (q *Queries) ApplyPrinterInputUnitSetup(ctx context.Context, arg ApplyPrint
 		arg.Nozzle,
 		arg.ExternalIdentifier,
 		arg.Enabled,
+		arg.NozzleIndex,
 		arg.Bump,
 		arg.ID,
 	)
@@ -46,10 +48,10 @@ func (q *Queries) ApplyPrinterInputUnitSetup(ctx context.Context, arg ApplyPrint
 
 const applyPrinterSlotSetup = `-- name: ApplyPrinterSlotSetup :exec
 UPDATE printer_slots SET name=$1, position=$2, external_identifier=$3,
-    status=$4,
-    version=version+CASE WHEN $5::boolean THEN 1 ELSE 0 END,
-    updated_at=CASE WHEN $5::boolean THEN now() ELSE updated_at END
-WHERE id=$6
+    status=$4, nozzle_index=$5,
+    version=version+CASE WHEN $6::boolean THEN 1 ELSE 0 END,
+    updated_at=CASE WHEN $6::boolean THEN now() ELSE updated_at END
+WHERE id=$7
 `
 
 type ApplyPrinterSlotSetupParams struct {
@@ -57,6 +59,7 @@ type ApplyPrinterSlotSetupParams struct {
 	Position           int32
 	ExternalIdentifier *string
 	Status             string
+	NozzleIndex        int32
 	Bump               bool
 	ID                 uuid.UUID
 }
@@ -67,6 +70,7 @@ func (q *Queries) ApplyPrinterSlotSetup(ctx context.Context, arg ApplyPrinterSlo
 		arg.Position,
 		arg.ExternalIdentifier,
 		arg.Status,
+		arg.NozzleIndex,
 		arg.Bump,
 		arg.ID,
 	)
@@ -103,8 +107,9 @@ func (q *Queries) ClosePrinterSpoolAssignment(ctx context.Context, arg ClosePrin
 }
 
 const createPrinterInputUnit = `-- name: CreatePrinterInputUnit :one
-INSERT INTO printer_input_units (id, machine_id, name, position, nozzle, external_identifier)
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle
+INSERT INTO printer_input_units (id, machine_id, name, position, nozzle, external_identifier, nozzle_index)
+VALUES ($1, $2, $3, $4, $5, $6,
+        COALESCE($7::integer, 1)) RETURNING id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle, nozzle_index
 `
 
 type CreatePrinterInputUnitParams struct {
@@ -114,6 +119,7 @@ type CreatePrinterInputUnitParams struct {
 	Position           int32
 	Nozzle             *string
 	ExternalIdentifier *string
+	NozzleIndex        *int32
 }
 
 func (q *Queries) CreatePrinterInputUnit(ctx context.Context, arg CreatePrinterInputUnitParams) (PrinterInputUnit, error) {
@@ -124,6 +130,7 @@ func (q *Queries) CreatePrinterInputUnit(ctx context.Context, arg CreatePrinterI
 		arg.Position,
 		arg.Nozzle,
 		arg.ExternalIdentifier,
+		arg.NozzleIndex,
 	)
 	var i PrinterInputUnit
 	err := row.Scan(
@@ -137,22 +144,30 @@ func (q *Queries) CreatePrinterInputUnit(ctx context.Context, arg CreatePrinterI
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Nozzle,
+		&i.NozzleIndex,
 	)
 	return i, err
 }
 
 const createPrinterProfile = `-- name: CreatePrinterProfile :one
-INSERT INTO printer_profiles (machine_id, enabled, model) VALUES ($1, $2, $3) RETURNING machine_id, enabled, version, created_at, updated_at, identity_namespace, identity_value, model
+INSERT INTO printer_profiles (machine_id, enabled, model, nozzle_count)
+VALUES ($1, $2, $3, $4) RETURNING machine_id, enabled, version, created_at, updated_at, identity_namespace, identity_value, model, nozzle_count
 `
 
 type CreatePrinterProfileParams struct {
-	MachineID uuid.UUID
-	Enabled   bool
-	Model     *string
+	MachineID   uuid.UUID
+	Enabled     bool
+	Model       *string
+	NozzleCount int32
 }
 
 func (q *Queries) CreatePrinterProfile(ctx context.Context, arg CreatePrinterProfileParams) (PrinterProfile, error) {
-	row := q.db.QueryRow(ctx, createPrinterProfile, arg.MachineID, arg.Enabled, arg.Model)
+	row := q.db.QueryRow(ctx, createPrinterProfile,
+		arg.MachineID,
+		arg.Enabled,
+		arg.Model,
+		arg.NozzleCount,
+	)
 	var i PrinterProfile
 	err := row.Scan(
 		&i.MachineID,
@@ -163,13 +178,15 @@ func (q *Queries) CreatePrinterProfile(ctx context.Context, arg CreatePrinterPro
 		&i.IdentityNamespace,
 		&i.IdentityValue,
 		&i.Model,
+		&i.NozzleCount,
 	)
 	return i, err
 }
 
 const createPrinterSlot = `-- name: CreatePrinterSlot :one
-INSERT INTO printer_slots (id, input_unit_id, name, position, external_identifier, status)
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, input_unit_id, name, position, external_identifier, status, version, created_at, updated_at
+INSERT INTO printer_slots (id, input_unit_id, name, position, external_identifier, status, nozzle_index)
+VALUES ($1, $2, $3, $4, $5, $6,
+        COALESCE($7::integer, (SELECT u.nozzle_index FROM printer_input_units u WHERE u.id = $2), 1)) RETURNING id, input_unit_id, name, position, external_identifier, status, version, created_at, updated_at, nozzle_index
 `
 
 type CreatePrinterSlotParams struct {
@@ -179,6 +196,7 @@ type CreatePrinterSlotParams struct {
 	Position           int32
 	ExternalIdentifier *string
 	Status             string
+	NozzleIndex        *int32
 }
 
 func (q *Queries) CreatePrinterSlot(ctx context.Context, arg CreatePrinterSlotParams) (PrinterSlot, error) {
@@ -189,6 +207,7 @@ func (q *Queries) CreatePrinterSlot(ctx context.Context, arg CreatePrinterSlotPa
 		arg.Position,
 		arg.ExternalIdentifier,
 		arg.Status,
+		arg.NozzleIndex,
 	)
 	var i PrinterSlot
 	err := row.Scan(
@@ -201,6 +220,7 @@ func (q *Queries) CreatePrinterSlot(ctx context.Context, arg CreatePrinterSlotPa
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.NozzleIndex,
 	)
 	return i, err
 }
@@ -315,7 +335,7 @@ func (q *Queries) GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid
 }
 
 const getPrinterInputUnitForUpdate = `-- name: GetPrinterInputUnitForUpdate :one
-SELECT id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle FROM printer_input_units WHERE id=$1 FOR UPDATE
+SELECT id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle, nozzle_index FROM printer_input_units WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) GetPrinterInputUnitForUpdate(ctx context.Context, id uuid.UUID) (PrinterInputUnit, error) {
@@ -332,12 +352,13 @@ func (q *Queries) GetPrinterInputUnitForUpdate(ctx context.Context, id uuid.UUID
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Nozzle,
+		&i.NozzleIndex,
 	)
 	return i, err
 }
 
 const getPrinterProfile = `-- name: GetPrinterProfile :one
-SELECT p.machine_id, p.enabled, p.version, p.created_at, p.updated_at, p.identity_namespace, p.identity_value, p.model, m.name AS machine_name, m.status AS machine_status
+SELECT p.machine_id, p.enabled, p.version, p.created_at, p.updated_at, p.identity_namespace, p.identity_value, p.model, p.nozzle_count, m.name AS machine_name, m.status AS machine_status
 FROM printer_profiles p JOIN machines m ON m.id=p.machine_id
 WHERE p.machine_id=$1
 `
@@ -351,6 +372,7 @@ type GetPrinterProfileRow struct {
 	IdentityNamespace *string
 	IdentityValue     *string
 	Model             *string
+	NozzleCount       int32
 	MachineName       string
 	MachineStatus     string
 }
@@ -367,6 +389,7 @@ func (q *Queries) GetPrinterProfile(ctx context.Context, machineID uuid.UUID) (G
 		&i.IdentityNamespace,
 		&i.IdentityValue,
 		&i.Model,
+		&i.NozzleCount,
 		&i.MachineName,
 		&i.MachineStatus,
 	)
@@ -374,7 +397,7 @@ func (q *Queries) GetPrinterProfile(ctx context.Context, machineID uuid.UUID) (G
 }
 
 const getPrinterProfileForUpdate = `-- name: GetPrinterProfileForUpdate :one
-SELECT machine_id, enabled, version, created_at, updated_at, identity_namespace, identity_value, model FROM printer_profiles WHERE machine_id=$1 FOR UPDATE
+SELECT machine_id, enabled, version, created_at, updated_at, identity_namespace, identity_value, model, nozzle_count FROM printer_profiles WHERE machine_id=$1 FOR UPDATE
 `
 
 func (q *Queries) GetPrinterProfileForUpdate(ctx context.Context, machineID uuid.UUID) (PrinterProfile, error) {
@@ -389,12 +412,13 @@ func (q *Queries) GetPrinterProfileForUpdate(ctx context.Context, machineID uuid
 		&i.IdentityNamespace,
 		&i.IdentityValue,
 		&i.Model,
+		&i.NozzleCount,
 	)
 	return i, err
 }
 
 const getPrinterSlot = `-- name: GetPrinterSlot :one
-SELECT sl.id, sl.input_unit_id, sl.name, sl.position, sl.external_identifier, sl.status, sl.version, sl.created_at, sl.updated_at, u.machine_id, u.name AS input_unit_name,
+SELECT sl.id, sl.input_unit_id, sl.name, sl.position, sl.external_identifier, sl.status, sl.version, sl.created_at, sl.updated_at, sl.nozzle_index, u.machine_id, u.name AS input_unit_name,
        a.id AS assignment_id, a.spool_id, a.mounted_at, s.display_id AS spool_display_id
 FROM printer_slots sl
 JOIN printer_input_units u ON u.id=sl.input_unit_id
@@ -413,6 +437,7 @@ type GetPrinterSlotRow struct {
 	Version            int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	NozzleIndex        int32
 	MachineID          uuid.UUID
 	InputUnitName      string
 	AssignmentID       *uuid.UUID
@@ -434,6 +459,7 @@ func (q *Queries) GetPrinterSlot(ctx context.Context, id uuid.UUID) (GetPrinterS
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.NozzleIndex,
 		&i.MachineID,
 		&i.InputUnitName,
 		&i.AssignmentID,
@@ -445,7 +471,7 @@ func (q *Queries) GetPrinterSlot(ctx context.Context, id uuid.UUID) (GetPrinterS
 }
 
 const getPrinterSlotForUpdate = `-- name: GetPrinterSlotForUpdate :one
-SELECT sl.id, sl.input_unit_id, sl.name, sl.position, sl.external_identifier, sl.status, sl.version, sl.created_at, sl.updated_at, u.machine_id FROM printer_slots sl JOIN printer_input_units u ON u.id=sl.input_unit_id
+SELECT sl.id, sl.input_unit_id, sl.name, sl.position, sl.external_identifier, sl.status, sl.version, sl.created_at, sl.updated_at, sl.nozzle_index, u.machine_id FROM printer_slots sl JOIN printer_input_units u ON u.id=sl.input_unit_id
 WHERE sl.id=$1 FOR UPDATE OF sl
 `
 
@@ -459,6 +485,7 @@ type GetPrinterSlotForUpdateRow struct {
 	Version            int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	NozzleIndex        int32
 	MachineID          uuid.UUID
 }
 
@@ -475,6 +502,7 @@ func (q *Queries) GetPrinterSlotForUpdate(ctx context.Context, id uuid.UUID) (Ge
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.NozzleIndex,
 		&i.MachineID,
 	)
 	return i, err
@@ -507,7 +535,7 @@ func (q *Queries) ListOpenAssignedPrinterSlotIDs(ctx context.Context, machineID 
 }
 
 const listPrinterInputUnits = `-- name: ListPrinterInputUnits :many
-SELECT id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle FROM printer_input_units WHERE machine_id=$1 ORDER BY position, id
+SELECT id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle, nozzle_index FROM printer_input_units WHERE machine_id=$1 ORDER BY position, id
 `
 
 func (q *Queries) ListPrinterInputUnits(ctx context.Context, machineID uuid.UUID) ([]PrinterInputUnit, error) {
@@ -530,6 +558,7 @@ func (q *Queries) ListPrinterInputUnits(ctx context.Context, machineID uuid.UUID
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Nozzle,
+			&i.NozzleIndex,
 		); err != nil {
 			return nil, err
 		}
@@ -542,7 +571,7 @@ func (q *Queries) ListPrinterInputUnits(ctx context.Context, machineID uuid.UUID
 }
 
 const listPrinterInputUnitsForUpdate = `-- name: ListPrinterInputUnitsForUpdate :many
-SELECT id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle FROM printer_input_units WHERE machine_id=$1 ORDER BY position, id FOR UPDATE
+SELECT id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle, nozzle_index FROM printer_input_units WHERE machine_id=$1 ORDER BY position, id FOR UPDATE
 `
 
 func (q *Queries) ListPrinterInputUnitsForUpdate(ctx context.Context, machineID uuid.UUID) ([]PrinterInputUnit, error) {
@@ -565,6 +594,7 @@ func (q *Queries) ListPrinterInputUnitsForUpdate(ctx context.Context, machineID 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Nozzle,
+			&i.NozzleIndex,
 		); err != nil {
 			return nil, err
 		}
@@ -601,7 +631,7 @@ func (q *Queries) ListPrinterProfileIDs(ctx context.Context) ([]uuid.UUID, error
 }
 
 const listPrinterSlots = `-- name: ListPrinterSlots :many
-SELECT sl.id, sl.input_unit_id, sl.name, sl.position, sl.external_identifier, sl.status, sl.version, sl.created_at, sl.updated_at, u.machine_id, u.name AS input_unit_name,
+SELECT sl.id, sl.input_unit_id, sl.name, sl.position, sl.external_identifier, sl.status, sl.version, sl.created_at, sl.updated_at, sl.nozzle_index, u.machine_id, u.name AS input_unit_name,
        a.id AS assignment_id, a.spool_id, a.mounted_at, s.display_id AS spool_display_id
 FROM printer_slots sl
 JOIN printer_input_units u ON u.id=sl.input_unit_id
@@ -621,6 +651,7 @@ type ListPrinterSlotsRow struct {
 	Version            int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	NozzleIndex        int32
 	MachineID          uuid.UUID
 	InputUnitName      string
 	AssignmentID       *uuid.UUID
@@ -648,6 +679,7 @@ func (q *Queries) ListPrinterSlots(ctx context.Context, machineID uuid.UUID) ([]
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.NozzleIndex,
 			&i.MachineID,
 			&i.InputUnitName,
 			&i.AssignmentID,
@@ -666,7 +698,7 @@ func (q *Queries) ListPrinterSlots(ctx context.Context, machineID uuid.UUID) ([]
 }
 
 const listPrinterSlotsForUpdate = `-- name: ListPrinterSlotsForUpdate :many
-SELECT sl.id, sl.input_unit_id, sl.name, sl.position, sl.external_identifier, sl.status, sl.version, sl.created_at, sl.updated_at FROM printer_slots sl JOIN printer_input_units u ON u.id=sl.input_unit_id
+SELECT sl.id, sl.input_unit_id, sl.name, sl.position, sl.external_identifier, sl.status, sl.version, sl.created_at, sl.updated_at, sl.nozzle_index FROM printer_slots sl JOIN printer_input_units u ON u.id=sl.input_unit_id
 WHERE u.machine_id=$1 ORDER BY u.position, sl.position, sl.id FOR UPDATE OF sl
 `
 
@@ -689,6 +721,7 @@ func (q *Queries) ListPrinterSlotsForUpdate(ctx context.Context, machineID uuid.
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.NozzleIndex,
 		); err != nil {
 			return nil, err
 		}
@@ -803,7 +836,7 @@ func (q *Queries) ShiftPrinterSlotsForSetup(ctx context.Context, arg ShiftPrinte
 const updatePrinterInputUnit = `-- name: UpdatePrinterInputUnit :one
 UPDATE printer_input_units SET name=$1, position=$2, external_identifier=$3,
     enabled=$4, version=version+1, updated_at=now()
-WHERE id=$5 AND version=$6 RETURNING id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle
+WHERE id=$5 AND version=$6 RETURNING id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle, nozzle_index
 `
 
 type UpdatePrinterInputUnitParams struct {
@@ -836,23 +869,30 @@ func (q *Queries) UpdatePrinterInputUnit(ctx context.Context, arg UpdatePrinterI
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Nozzle,
+		&i.NozzleIndex,
 	)
 	return i, err
 }
 
 const updatePrinterProfileSetup = `-- name: UpdatePrinterProfileSetup :one
-UPDATE printer_profiles SET enabled=$1, model=$2, version=version+1, updated_at=now()
-WHERE machine_id=$3 RETURNING machine_id, enabled, version, created_at, updated_at, identity_namespace, identity_value, model
+UPDATE printer_profiles SET enabled=$1, model=$2, nozzle_count=$3, version=version+1, updated_at=now()
+WHERE machine_id=$4 RETURNING machine_id, enabled, version, created_at, updated_at, identity_namespace, identity_value, model, nozzle_count
 `
 
 type UpdatePrinterProfileSetupParams struct {
-	Enabled   bool
-	Model     *string
-	MachineID uuid.UUID
+	Enabled     bool
+	Model       *string
+	NozzleCount int32
+	MachineID   uuid.UUID
 }
 
 func (q *Queries) UpdatePrinterProfileSetup(ctx context.Context, arg UpdatePrinterProfileSetupParams) (PrinterProfile, error) {
-	row := q.db.QueryRow(ctx, updatePrinterProfileSetup, arg.Enabled, arg.Model, arg.MachineID)
+	row := q.db.QueryRow(ctx, updatePrinterProfileSetup,
+		arg.Enabled,
+		arg.Model,
+		arg.NozzleCount,
+		arg.MachineID,
+	)
 	var i PrinterProfile
 	err := row.Scan(
 		&i.MachineID,
@@ -863,6 +903,7 @@ func (q *Queries) UpdatePrinterProfileSetup(ctx context.Context, arg UpdatePrint
 		&i.IdentityNamespace,
 		&i.IdentityValue,
 		&i.Model,
+		&i.NozzleCount,
 	)
 	return i, err
 }
@@ -870,7 +911,7 @@ func (q *Queries) UpdatePrinterProfileSetup(ctx context.Context, arg UpdatePrint
 const updatePrinterSlot = `-- name: UpdatePrinterSlot :one
 UPDATE printer_slots SET name=$1, position=$2, external_identifier=$3,
     status=$4, version=version+1, updated_at=now()
-WHERE id=$5 AND version=$6 RETURNING id, input_unit_id, name, position, external_identifier, status, version, created_at, updated_at
+WHERE id=$5 AND version=$6 RETURNING id, input_unit_id, name, position, external_identifier, status, version, created_at, updated_at, nozzle_index
 `
 
 type UpdatePrinterSlotParams struct {
@@ -902,6 +943,7 @@ func (q *Queries) UpdatePrinterSlot(ctx context.Context, arg UpdatePrinterSlotPa
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.NozzleIndex,
 	)
 	return i, err
 }
@@ -910,7 +952,7 @@ const upsertPrinterProfile = `-- name: UpsertPrinterProfile :one
 INSERT INTO printer_profiles (machine_id, enabled) VALUES ($1, $2)
 ON CONFLICT (machine_id) DO UPDATE SET enabled=EXCLUDED.enabled, version=printer_profiles.version+1, updated_at=now()
 WHERE printer_profiles.version=$3 OR $3=0
-RETURNING machine_id, enabled, version, created_at, updated_at, identity_namespace, identity_value, model
+RETURNING machine_id, enabled, version, created_at, updated_at, identity_namespace, identity_value, model, nozzle_count
 `
 
 type UpsertPrinterProfileParams struct {
@@ -931,6 +973,7 @@ func (q *Queries) UpsertPrinterProfile(ctx context.Context, arg UpsertPrinterPro
 		&i.IdentityNamespace,
 		&i.IdentityValue,
 		&i.Model,
+		&i.NozzleCount,
 	)
 	return i, err
 }

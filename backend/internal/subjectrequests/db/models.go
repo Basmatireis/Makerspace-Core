@@ -550,6 +550,7 @@ type MachineJob struct {
 	ArtifactID               *uuid.UUID
 	DeletedAt                pgtype.Timestamptz
 	DeletedBy                *uuid.UUID
+	HiddenFromSignage        bool
 }
 
 type MachineJobPricingSnapshot struct {
@@ -708,6 +709,7 @@ type MachineRunUsage struct {
 	EstimateQuality      *string
 	ReportRevision       *int64
 	StaffCorrected       bool
+	MaterialTypeID       *uuid.UUID
 }
 
 type MailConfiguration struct {
@@ -840,6 +842,19 @@ type MfaTotpCredential struct {
 	LastUsedStep     *int64
 	LastUsedAt       pgtype.Timestamptz
 	CreatedAt        time.Time
+}
+
+type NotificationMailOutbox struct {
+	ID             uuid.UUID
+	Kind           string
+	PersonID       *uuid.UUID
+	OrganizationID *uuid.UUID
+	Subject        string
+	Body           string
+	Link           *string
+	Attempts       int32
+	NextAttemptAt  time.Time
+	CreatedAt      time.Time
 }
 
 type OidcFlow struct {
@@ -1417,6 +1432,7 @@ type PrinterInputUnit struct {
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	Nozzle             *string
+	NozzleIndex        int32
 }
 
 type PrinterLiveStatus struct {
@@ -1428,12 +1444,19 @@ type PrinterLiveStatus struct {
 	Snapshot             []byte
 }
 
+type PrinterNotificationRule struct {
+	Event           string
+	NotifyOperator  bool
+	NotifyRecipient bool
+	RoleID          *uuid.UUID
+	Email           bool
+	MinSeverity     *string
+}
+
 type PrinterNotificationSetting struct {
-	Singleton        bool
-	ErrorRoleID      *uuid.UUID
-	ErrorMinSeverity string
-	Version          int64
-	UpdatedAt        time.Time
+	Singleton bool
+	Version   int64
+	UpdatedAt time.Time
 }
 
 type PrinterProfile struct {
@@ -1445,6 +1468,7 @@ type PrinterProfile struct {
 	IdentityNamespace *string
 	IdentityValue     *string
 	Model             *string
+	NozzleCount       int32
 }
 
 type PrinterSlot struct {
@@ -1457,6 +1481,7 @@ type PrinterSlot struct {
 	Version            int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	NozzleIndex        int32
 }
 
 type PrinterSpoolAssignment struct {

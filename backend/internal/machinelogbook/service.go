@@ -23,6 +23,8 @@ type Service struct {
 	pool  *pgxpool.Pool
 	now   func() time.Time
 	inbox InboxEmitter
+	// timeZone is the IANA name of the makerspace's time zone; statistics by hour of the week use it.
+	timeZone string
 }
 
 // InboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
@@ -38,8 +40,17 @@ type Option func(*Service)
 // finished jobs deterministic.
 func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
 
+// WithTimeZone sets the makerspace's time zone (an IANA name) for statistics by hour of the week; the default is UTC.
+func WithTimeZone(name string) Option {
+	return func(s *Service) {
+		if _, err := time.LoadLocation(name); err == nil && name != "" {
+			s.timeZone = name
+		}
+	}
+}
+
 func NewService(pool *pgxpool.Pool, emitter InboxEmitter, options ...Option) *Service {
-	s := &Service{pool: pool, now: func() time.Time { return time.Now().UTC() }, inbox: emitter}
+	s := &Service{pool: pool, now: func() time.Time { return time.Now().UTC() }, inbox: emitter, timeZone: "UTC"}
 	for _, option := range options {
 		option(s)
 	}
@@ -68,7 +79,9 @@ type Machine struct {
 	LastIngestedAt                    *time.Time
 	Version, JobCount, RuntimeSeconds int64
 	FailureRate                       string
-	CreatedAt, UpdatedAt              time.Time
+	// Attention is filled by the machine endpoints; it stays empty where a machine is embedded in a job.
+	Attention            []Attention
+	CreatedAt, UpdatedAt time.Time
 }
 
 type Organization struct {
@@ -222,11 +235,16 @@ type PartyReference struct {
 	Kind PartyKind
 	ID   uuid.UUID
 }
+
+// UsageInput is one material usage of a run. Label and MaterialTypeID describe material the recipient brought
+// (ownership external); ExternalMaterialName is the older name of Label.
 type UsageInput struct {
 	MaterialID           uuid.UUID
 	SpoolID              *uuid.UUID
 	Ownership            UsageOwnership
 	ExternalMaterialName *string
+	Label                *string
+	MaterialTypeID       *uuid.UUID
 	Quantity             string
 	QuantityBasis        QuantityBasis
 }
@@ -250,6 +268,8 @@ type JobInput struct {
 	PricingGroupID   *uuid.UUID
 	Usages           []UsageInput
 	Measures         RunMeasures
+	// HiddenFromSignage keeps the job and its runs off signage.
+	HiddenFromSignage bool
 }
 
 // JobUpdate carries the staff-editable facts of a job. The times, material and
@@ -263,9 +283,11 @@ type JobUpdate struct {
 	Notes            *string
 	PricingGroupID   *uuid.UUID
 	OutcomeOverride  *RunOutcome
+	// HiddenFromSignage nil keeps the job's signage flag.
+	HiddenFromSignage *bool
 }
 
-// ManualRunInput is a manually entered run. A nil Outcome records none yet.
+// ManualRunInput is a manually entered run. A nil Outcome records none yet; a zero StartsAt starts it now.
 type ManualRunInput struct {
 	StartsAt, EndsAt time.Time
 	Outcome          *RunOutcome
@@ -282,11 +304,13 @@ type JobFilters struct {
 }
 
 type MachineJobUsage struct {
-	ID                                   uuid.UUID
-	MaterialID, SpoolID                  *uuid.UUID
-	MaterialName, Unit, Quantity         string
-	MaterialTypeID                       *uuid.UUID
-	MaterialTypeName                     string
+	ID                           uuid.UUID
+	MaterialID, SpoolID          *uuid.UUID
+	MaterialName, Unit, Quantity string
+	MaterialTypeID               *uuid.UUID
+	MaterialTypeName             string
+	// Label is the free-text description of material the recipient brought; nil for makerspace material.
+	Label                                *string
 	Ownership                            UsageOwnership
 	QuantityBasis                        QuantityBasis
 	SpoolDisplayID                       *string
@@ -479,6 +503,8 @@ type MachineJob struct {
 	PricingSnapshot                 *PricingSnapshot
 	CalculatedPrice, EffectivePrice *string
 	PriceAdjustment                 *PriceAdjustment
+	HiddenFromSignage               bool
+	Attention                       []Attention
 	Version                         int64
 	CreatedAt, UpdatedAt            time.Time
 }
@@ -517,11 +543,15 @@ type Statistics struct {
 	Runtime            []StatisticRuntimePoint
 	MaterialCostByType []StatisticPoint
 	Machines           []StatisticMachine
+	StatisticsDetail
 }
 
 type StatisticTotals struct {
 	Jobs                                             int64
 	RuntimeHours, Charges, MaterialCost, FailureRate string
+	NotBilled, Discounts                             string
+	// Utilization and OpenDayUtilization are percentages of the elapsed hours of the period and of its open days.
+	Utilization, OpenDayUtilization string
 }
 
 type StatisticMonth struct{ Month, Charges, MaterialCost, Losses string }
@@ -535,6 +565,7 @@ type StatisticRuntimePoint struct {
 type StatisticMachine struct {
 	MachineID                                                           uuid.UUID
 	Name, ProcessName, RuntimeHours, FailureRate, Charges, RuntimeShare string
+	Utilization, OpenDayUtilization                                     string
 	Jobs                                                                int64
 }
 

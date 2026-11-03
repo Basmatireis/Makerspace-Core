@@ -1242,30 +1242,18 @@ func (q *Queries) GetPrinterErrorCodeSync(ctx context.Context) (GetPrinterErrorC
 }
 
 const getPrinterNotificationSettings = `-- name: GetPrinterNotificationSettings :one
-SELECT s.error_role_id, s.error_min_severity, s.version, s.updated_at, r.name AS error_role_name
-FROM printer_notification_settings s
-LEFT JOIN roles r ON r.id = s.error_role_id
-WHERE s.singleton
+SELECT version, updated_at FROM printer_notification_settings WHERE singleton
 `
 
 type GetPrinterNotificationSettingsRow struct {
-	ErrorRoleID      *uuid.UUID
-	ErrorMinSeverity string
-	Version          int64
-	UpdatedAt        time.Time
-	ErrorRoleName    *string
+	Version   int64
+	UpdatedAt time.Time
 }
 
 func (q *Queries) GetPrinterNotificationSettings(ctx context.Context) (GetPrinterNotificationSettingsRow, error) {
 	row := q.db.QueryRow(ctx, getPrinterNotificationSettings)
 	var i GetPrinterNotificationSettingsRow
-	err := row.Scan(
-		&i.ErrorRoleID,
-		&i.ErrorMinSeverity,
-		&i.Version,
-		&i.UpdatedAt,
-		&i.ErrorRoleName,
-	)
+	err := row.Scan(&i.Version, &i.UpdatedAt)
 	return i, err
 }
 
@@ -2265,6 +2253,51 @@ func (q *Queries) ListPrinterErrorOccurrences(ctx context.Context, arg ListPrint
 	return items, nil
 }
 
+const listPrinterNotificationRules = `-- name: ListPrinterNotificationRules :many
+SELECT n.event, n.notify_operator, n.notify_recipient, n.role_id, r.name AS role_name, n.email, n.min_severity
+FROM printer_notification_rules n
+LEFT JOIN roles r ON r.id = n.role_id
+ORDER BY CASE n.event WHEN 'printer_error' THEN 0 WHEN 'run_finished' THEN 1 ELSE 2 END
+`
+
+type ListPrinterNotificationRulesRow struct {
+	Event           string
+	NotifyOperator  bool
+	NotifyRecipient bool
+	RoleID          *uuid.UUID
+	RoleName        *string
+	Email           bool
+	MinSeverity     *string
+}
+
+func (q *Queries) ListPrinterNotificationRules(ctx context.Context) ([]ListPrinterNotificationRulesRow, error) {
+	rows, err := q.db.Query(ctx, listPrinterNotificationRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPrinterNotificationRulesRow{}
+	for rows.Next() {
+		var i ListPrinterNotificationRulesRow
+		if err := rows.Scan(
+			&i.Event,
+			&i.NotifyOperator,
+			&i.NotifyRecipient,
+			&i.RoleID,
+			&i.RoleName,
+			&i.Email,
+			&i.MinSeverity,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSlotSpoolsAt = `-- name: ListSlotSpoolsAt :many
 SELECT a.spool_id
 FROM printer_spool_assignments a
@@ -2403,6 +2436,25 @@ func (q *Queries) LockOpenMountForSpool(ctx context.Context, spoolID uuid.UUID) 
 		&i.Source,
 		&i.MountedAt,
 	)
+	return i, err
+}
+
+const lockPrinterNotificationSettings = `-- name: LockPrinterNotificationSettings :one
+UPDATE printer_notification_settings SET version = version + 1, updated_at = now()
+WHERE singleton AND version = $1
+RETURNING version, updated_at
+`
+
+type LockPrinterNotificationSettingsRow struct {
+	Version   int64
+	UpdatedAt time.Time
+}
+
+// Bumps the version when it still matches; the rules change in the same transaction.
+func (q *Queries) LockPrinterNotificationSettings(ctx context.Context, expectedVersion int64) (LockPrinterNotificationSettingsRow, error) {
+	row := q.db.QueryRow(ctx, lockPrinterNotificationSettings, expectedVersion)
+	var i LockPrinterNotificationSettingsRow
+	err := row.Scan(&i.Version, &i.UpdatedAt)
 	return i, err
 }
 
@@ -3180,33 +3232,6 @@ func (q *Queries) UpdateObservedRunFacts(ctx context.Context, arg UpdateObserved
 	return err
 }
 
-const updatePrinterNotificationSettings = `-- name: UpdatePrinterNotificationSettings :one
-UPDATE printer_notification_settings
-SET error_role_id = $1, error_min_severity = $2,
-    version = version + 1, updated_at = now()
-WHERE singleton AND version = $3
-RETURNING singleton, error_role_id, error_min_severity, version, updated_at
-`
-
-type UpdatePrinterNotificationSettingsParams struct {
-	ErrorRoleID      *uuid.UUID
-	ErrorMinSeverity string
-	ExpectedVersion  int64
-}
-
-func (q *Queries) UpdatePrinterNotificationSettings(ctx context.Context, arg UpdatePrinterNotificationSettingsParams) (PrinterNotificationSetting, error) {
-	row := q.db.QueryRow(ctx, updatePrinterNotificationSettings, arg.ErrorRoleID, arg.ErrorMinSeverity, arg.ExpectedVersion)
-	var i PrinterNotificationSetting
-	err := row.Scan(
-		&i.Singleton,
-		&i.ErrorRoleID,
-		&i.ErrorMinSeverity,
-		&i.Version,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const upsertFetchedPrinterErrorCode = `-- name: UpsertFetchedPrinterErrorCode :execrows
 INSERT INTO printer_error_codes (id, source_family, code, title, description, link, source)
 VALUES ($1, $2, $3, $4, $5, NULL, 'bambu')
@@ -3352,6 +3377,34 @@ func (q *Queries) UpsertPrinterLiveStatus(ctx context.Context, arg UpsertPrinter
 		arg.ReceivedAt,
 		arg.ConfigurationVersion,
 		arg.Snapshot,
+	)
+	return err
+}
+
+const upsertPrinterNotificationRule = `-- name: UpsertPrinterNotificationRule :exec
+INSERT INTO printer_notification_rules (event, notify_operator, notify_recipient, role_id, email, min_severity)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (event) DO UPDATE SET notify_operator = EXCLUDED.notify_operator, notify_recipient = EXCLUDED.notify_recipient,
+    role_id = EXCLUDED.role_id, email = EXCLUDED.email, min_severity = EXCLUDED.min_severity
+`
+
+type UpsertPrinterNotificationRuleParams struct {
+	Event           string
+	NotifyOperator  bool
+	NotifyRecipient bool
+	RoleID          *uuid.UUID
+	Email           bool
+	MinSeverity     *string
+}
+
+func (q *Queries) UpsertPrinterNotificationRule(ctx context.Context, arg UpsertPrinterNotificationRuleParams) error {
+	_, err := q.db.Exec(ctx, upsertPrinterNotificationRule,
+		arg.Event,
+		arg.NotifyOperator,
+		arg.NotifyRecipient,
+		arg.RoleID,
+		arg.Email,
+		arg.MinSeverity,
 	)
 	return err
 }

@@ -19,6 +19,7 @@ func inputUnitDTO(v printing.InputUnit) openapi.PrinterInputUnit {
 		Name:               v.Name,
 		Position:           v.Position,
 		Nozzle:             nullableEnum[openapi.PrinterNozzle](v.Nozzle),
+		NozzleIndex:        v.NozzleIndex,
 		ExternalIdentifier: nullableString(v.ExternalIdentifier),
 		Enabled:            v.Enabled,
 		Version:            v.Version,
@@ -32,6 +33,7 @@ func slotDTO(v printing.Slot) openapi.PrinterSlot {
 		MachineId:          v.MachineID,
 		Name:               v.Name,
 		Position:           v.Position,
+		NozzleIndex:        v.NozzleIndex,
 		ExternalIdentifier: nullableString(v.ExternalIdentifier),
 		Status:             openapi.PrinterSlotStatus(v.Status),
 		AssignmentId:       nullableUUIDValue(v.AssignmentID),
@@ -55,6 +57,7 @@ func profileDTO(v printing.Profile) openapi.PrinterProfile {
 		MachineName: v.MachineName,
 		Enabled:     v.Enabled,
 		Model:       nullableEnum[openapi.PrinterModel](v.Model),
+		NozzleCount: v.NozzleCount,
 		InputUnits:  units,
 		Slots:       slots,
 		Version:     v.Version,
@@ -271,9 +274,10 @@ func (s *Server) SavePrinterSetup(
 		return nil, invalidRequest("request body is required")
 	}
 	input := printing.SetupInput{
-		Enabled:    r.Body.Enabled,
-		Model:      optional.Convert[printing.PrinterModel](nullableStringPointer(r.Body.Model)),
-		InputUnits: make([]printing.SetupUnitInput, 0, len(r.Body.InputUnits)),
+		Enabled:     r.Body.Enabled,
+		Model:       optional.Convert[printing.PrinterModel](nullableStringPointer(r.Body.Model)),
+		NozzleCount: nullableToPointer(r.Body.NozzleCount),
+		InputUnits:  make([]printing.SetupUnitInput, 0, len(r.Body.InputUnits)),
 	}
 	if expected := nullableInt64Pointer(r.Body.ExpectedVersion); expected != nil {
 		input.ExpectedVersion = *expected
@@ -283,6 +287,7 @@ func (s *Server) SavePrinterSetup(
 			ID:                 setupUUID(unit.Id),
 			Name:               unit.Name,
 			Nozzle:             optional.Convert[printing.Nozzle](nullableStringPointer(unit.Nozzle)),
+			NozzleIndex:        nullableToPointer(unit.NozzleIndex),
 			ExternalIdentifier: nullableStringPointer(unit.ExternalIdentifier),
 			Slots:              make([]printing.SetupSlotInput, 0, len(unit.Slots)),
 		}
@@ -294,6 +299,7 @@ func (s *Server) SavePrinterSetup(
 					Name:               slot.Name,
 					Status:             printing.SlotStatus(slot.Status),
 					ExternalIdentifier: nullableStringPointer(slot.ExternalIdentifier),
+					NozzleIndex:        nullableToPointer(slot.NozzleIndex),
 				},
 			)
 		}

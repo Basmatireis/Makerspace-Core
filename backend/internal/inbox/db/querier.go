@@ -12,11 +12,17 @@ import (
 )
 
 type Querier interface {
+	// Takes due mails for one delivery pass: the attempt is counted and the next one pushed out before anything is sent,
+	// so a pass that dies half way never sends a mail twice in quick succession.
+	ClaimDueNotificationMails(ctx context.Context, arg ClaimDueNotificationMailsParams) ([]ClaimDueNotificationMailsRow, error)
 	CountOwnNotifications(ctx context.Context, arg CountOwnNotificationsParams) (int64, error)
 	CountOwnUnreadNotifications(ctx context.Context, arg CountOwnUnreadNotificationsParams) (int64, error)
 	CountRolesByIDs(ctx context.Context, roleIds []string) (int64, error)
 	CountSentMessages(ctx context.Context, now time.Time) (int64, error)
+	DeferNotificationMail(ctx context.Context, arg DeferNotificationMailParams) error
 	DeleteExpiredNotifications(ctx context.Context, now time.Time) (int64, error)
+	DeleteNotificationMail(ctx context.Context, id uuid.UUID) error
+	DeleteNotificationMailsCreatedBefore(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteNotificationsCreatedBefore(ctx context.Context, beforeTime time.Time) (int64, error)
 	// A system notification nobody holds any more carries no information. Manual messages stay until they expire so
 	// the sender's list is complete.
@@ -27,16 +33,19 @@ type Querier interface {
 	GetAccountPersonName(ctx context.Context, accountID uuid.UUID) (GetAccountPersonNameRow, error)
 	// The machine and the operator of the run that is printing on it right now, if any.
 	GetMachineNotificationFacts(ctx context.Context, id uuid.UUID) (GetMachineNotificationFactsRow, error)
+	// The address is read only when the mail is sent; a deleted person or organization yields none.
+	GetNotificationMailAddress(ctx context.Context, arg GetNotificationMailAddressParams) (string, error)
 	GetOpenDayFacts(ctx context.Context, id uuid.UUID) (GetOpenDayFactsRow, error)
 	GetOpenDayPeriodFacts(ctx context.Context, id uuid.UUID) (GetOpenDayPeriodFactsRow, error)
 	GetPrinterErrorCodeFacts(ctx context.Context, arg GetPrinterErrorCodeFactsParams) (GetPrinterErrorCodeFactsRow, error)
-	GetPrinterNotificationPolicy(ctx context.Context) (GetPrinterNotificationPolicyRow, error)
+	GetPrinterNotificationRule(ctx context.Context, event string) (PrinterNotificationRule, error)
 	GetRunNotificationFacts(ctx context.Context, id uuid.UUID) (GetRunNotificationFactsRow, error)
 	GetSentMessage(ctx context.Context, id uuid.UUID) (GetSentMessageRow, error)
 	GetSentMessageForUpdate(ctx context.Context, arg GetSentMessageForUpdateParams) (GetSentMessageForUpdateRow, error)
 	// How a spool is named to people: its display id and the material of its open fill, if any.
 	GetSpoolNotificationFacts(ctx context.Context, id uuid.UUID) (GetSpoolNotificationFactsRow, error)
 	InsertNotification(ctx context.Context, arg InsertNotificationParams) (InboxNotification, error)
+	InsertNotificationMail(ctx context.Context, arg InsertNotificationMailParams) error
 	InsertNotificationRoles(ctx context.Context, arg InsertNotificationRolesParams) error
 	InsertRecipients(ctx context.Context, arg InsertRecipientsParams) (int64, error)
 	// Active accounts of people who currently hold at least one of the roles.
@@ -44,13 +53,17 @@ type Querier interface {
 	ListEnabledAccountIDsOfPerson(ctx context.Context, personID uuid.UUID) ([]uuid.UUID, error)
 	// Active accounts holding a permission through a role; master holds every registered permission.
 	ListEnabledAccountIDsWithPermission(ctx context.Context, arg ListEnabledAccountIDsWithPermissionParams) ([]uuid.UUID, error)
+	ListEnabledAccountsOfPeople(ctx context.Context, personIds []string) ([]ListEnabledAccountsOfPeopleRow, error)
 	// Active accounts of people with any open day staffing level (supervisor or trainee).
 	ListEnabledStaffingAccountIDs(ctx context.Context) ([]uuid.UUID, error)
 	ListNotificationRoles(ctx context.Context, notificationIds []string) ([]ListNotificationRolesRow, error)
 	ListOwnNotifications(ctx context.Context, arg ListOwnNotificationsParams) ([]ListOwnNotificationsRow, error)
+	// Everyone holding the role, with or without an account.
+	ListPersonIDsByRole(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error)
 	ListSentMessages(ctx context.Context, arg ListSentMessagesParams) ([]ListSentMessagesRow, error)
 	// Active accounts of people with the supervisor staffing level who are not assigned to the open day.
 	ListUnassignedSupervisorAccountIDs(ctx context.Context, arg ListUnassignedSupervisorAccountIDsParams) ([]uuid.UUID, error)
+	MailDeliveryEnabled(ctx context.Context) (bool, error)
 	MarkAllOwnNotificationsRead(ctx context.Context, arg MarkAllOwnNotificationsReadParams) (int64, error)
 	// Idempotent: an already read notification keeps its first read time but still counts as found.
 	MarkOwnNotificationRead(ctx context.Context, arg MarkOwnNotificationReadParams) (int64, error)

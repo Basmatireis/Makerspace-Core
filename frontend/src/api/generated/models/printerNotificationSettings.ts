@@ -18,17 +18,12 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PrinterErrorSeverity } from './printerErrorSeverity';
-import type { UUIDv7 } from './uUIDv7';
+import type { PrinterNotificationRule } from './printerNotificationRule';
 import type { Version } from './version';
 
 export interface PrinterNotificationSettings {
-  /** Holders of this role are told about printer errors besides the operator of the running print; null tells only the operator. */
-  errorRoleId: UUIDv7 | null;
-  /** @nullable */
-  errorRoleName: string | null;
-  /** Errors below this level are not announced; print errors and codes without a level always are. */
-  errorMinSeverity: PrinterErrorSeverity;
+  /** One rule per event, in the order printer_error, run_finished, filament_change. */
+  events: PrinterNotificationRule[];
   version: Version;
   updatedAt: string;
 }

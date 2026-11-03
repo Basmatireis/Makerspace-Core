@@ -300,7 +300,7 @@ func (h *runHarness) apply(t *testing.T, runID uuid.UUID, kind RunEventKind) Rec
 
 func (h *runHarness) attach(t *testing.T, runID uuid.UUID, job MachineJob, replace bool) MachineJob {
 	t.Helper()
-	attached, err := h.s.AttachRun(t.Context(), h.p, runID, job.ID, replace, job.Version, &h.request)
+	attached, err := h.s.AttachRun(t.Context(), h.p, runID, job.ID, replace, job.Version, nil, &h.request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,6 +363,7 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 		job.ID,
 		true,
 		job.Version,
+		nil,
 		&h.request,
 	); !apperror.IsCode(
 		err,
@@ -370,14 +371,14 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 	) {
 		t.Fatalf("attach without edit: %v", err)
 	}
-	if _, err := h.s.AttachRun(ctx, h.p, runID, job.ID, true, job.Version+1, &h.request); !apperror.IsCode(
+	if _, err := h.s.AttachRun(ctx, h.p, runID, job.ID, true, job.Version+1, nil, &h.request); !apperror.IsCode(
 		err,
 		"stale_write",
 	) {
 		t.Fatalf("stale attach: %v", err)
 	}
 	other := h.insertRun(t, runSpec{machine: h.bareMachine.ID, started: started, ended: ended})
-	if _, err := h.s.AttachRun(ctx, h.p, other, job.ID, true, job.Version, &h.request); !apperror.IsCode(
+	if _, err := h.s.AttachRun(ctx, h.p, other, job.ID, true, job.Version, nil, &h.request); !apperror.IsCode(
 		err,
 		"run_machine_mismatch",
 	) {
@@ -390,6 +391,7 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 		job.ID,
 		true,
 		job.Version,
+		nil,
 		&h.request,
 	); !apperror.IsCode(
 		err,
@@ -439,7 +441,7 @@ func TestAttachRunReplacingManualRunsReversesTheirMaterial(t *testing.T) {
 	if h.auditCount(t, "machine_job.run_attached", job.ID) != 1 {
 		t.Fatal("attach audit is missing")
 	}
-	if _, err := h.s.AttachRun(ctx, h.p, runID, job.ID, false, linked.Version, &h.request); !apperror.IsCode(
+	if _, err := h.s.AttachRun(ctx, h.p, runID, job.ID, false, linked.Version, nil, &h.request); !apperror.IsCode(
 		err,
 		"run_already_assigned",
 	) {

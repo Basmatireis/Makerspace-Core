@@ -33,4 +33,8 @@ export interface StatisticMachine {
   charges: Money;
   /** Percentage of all machines' runtime in the period. */
   runtimeShare: Decimal;
+  /** Time runs occupied the machine as a percentage of the period's hours (24 h a day). */
+  utilization: Decimal;
+  /** Time runs occupied the machine during scheduled open days as a percentage of the open-day hours; 0 without open days. */
+  openDayUtilization: Decimal;
 }

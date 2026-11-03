@@ -125,6 +125,7 @@ type Querier interface {
 	GetMaterialType(ctx context.Context, id uuid.UUID) (GetMaterialTypeRow, error)
 	GetMaterialTypeForShare(ctx context.Context, id uuid.UUID) (MaterialType, error)
 	GetMaterialTypeForUpdate(ctx context.Context, id uuid.UUID) (MaterialType, error)
+	GetMaterialTypeOfMaterial(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	GetOpenFilamentSpoolFill(ctx context.Context, spoolID uuid.UUID) (GetOpenFilamentSpoolFillRow, error)
 	GetOrderItemSaleTransaction(ctx context.Context, orderItemID *uuid.UUID) (InventoryTransaction, error)
 	GetOrganization(ctx context.Context, id uuid.UUID) (Organization, error)
@@ -178,10 +179,15 @@ type Querier interface {
 	ListInventoryTransactions(ctx context.Context, arg ListInventoryTransactionsParams) ([]ListInventoryTransactionsRow, error)
 	// Distinct variants by frequency, optionally restricted to one material type.
 	ListInventoryVariantSuggestions(ctx context.Context, materialTypeID *uuid.UUID) ([]string, error)
+	// Whether an order item refers to each job (claimed, or an item that was not removed) and whether the claiming
+	// order's snapshot is older than the job.
+	ListJobAttentionFacts(ctx context.Context, jobIds []uuid.UUID) ([]ListJobAttentionFactsRow, error)
 	ListJobRunsForUpdate(ctx context.Context, jobID *uuid.UUID) ([]MachineRun, error)
 	ListLatestReportedUsageItemsForRuns(ctx context.Context, runIds []uuid.UUID) ([]MachineRunReportedUsageItem, error)
 	ListLowStockMaterialIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
 	ListMachineActivityMachines(ctx context.Context) ([]ListMachineActivityMachinesRow, error)
+	// The connector of each machine's active assignment, its open printer errors and its ended runs without a job.
+	ListMachineAttentionFacts(ctx context.Context, machineIds []uuid.UUID) ([]ListMachineAttentionFactsRow, error)
 	ListMachineConnectorStates(ctx context.Context) ([]ListMachineConnectorStatesRow, error)
 	ListMachineJobIDs(ctx context.Context, arg ListMachineJobIDsParams) ([]uuid.UUID, error)
 	ListMachineLastJobStarts(ctx context.Context, now time.Time) ([]ListMachineLastJobStartsRow, error)
@@ -217,6 +223,7 @@ type Querier interface {
 	ListRunConsumptionFacts(ctx context.Context, runIds []uuid.UUID) ([]ListRunConsumptionFactsRow, error)
 	ListRunEvents(ctx context.Context, runID *uuid.UUID) ([]ListRunEventsRow, error)
 	ListRunMeasuresForRuns(ctx context.Context, runIds []uuid.UUID) ([]MachineRunMeasure, error)
+	// Material the recipient brought may carry only a type, a label, an article or none of them.
 	ListRunUsagesForRuns(ctx context.Context, runIds []uuid.UUID) ([]ListRunUsagesForRunsRow, error)
 	ListRunningMachineNames(ctx context.Context, now time.Time) ([]string, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error)
@@ -232,6 +239,7 @@ type Querier interface {
 	MachineHasConnectorAssignments(ctx context.Context, machineID uuid.UUID) (bool, error)
 	MachineHasMountedSpool(ctx context.Context, machineID uuid.UUID) (bool, error)
 	MarkManualRunReplaced(ctx context.Context, id uuid.UUID) error
+	MaterialTypeExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// True while a material or a pricing rule (active or not) uses the type. Pricing
 	// snapshots only keep a nullable pointer and their own label text.
 	MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
@@ -264,23 +272,45 @@ type Querier interface {
 	SearchBillingParties(ctx context.Context, arg SearchBillingPartiesParams) ([]SearchBillingPartiesRow, error)
 	SearchMachineJobOperators(ctx context.Context, arg SearchMachineJobOperatorsParams) ([]SearchMachineJobOperatorsRow, error)
 	SetMachineJobPriceAdjustment(ctx context.Context, arg SetMachineJobPriceAdjustmentParams) (MachineJob, error)
+	// The job's signage flag is presentation only: it never changes the job version, so orders do not see it as a change.
+	SetMachineJobSignageHidden(ctx context.Context, arg SetMachineJobSignageHiddenParams) error
 	SetRecordedRunOutcomeFromMachine(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	SetRunSignageHidden(ctx context.Context, arg SetRunSignageHiddenParams) (MachineRun, error)
+	SetRunUsageMaterialType(ctx context.Context, arg SetRunUsageMaterialTypeParams) error
 	SoftDeleteMachineJob(ctx context.Context, arg SoftDeleteMachineJobParams) (MachineJob, error)
 	// A deleted run is detached from its job but remembers it for the recycle bin.
 	SoftDeleteMachineRun(ctx context.Context, arg SoftDeleteMachineRunParams) error
 	StatisticAcquisitionCost(ctx context.Context, arg StatisticAcquisitionCostParams) ([]StatisticAcquisitionCostRow, error)
 	StatisticAdjustmentLoss(ctx context.Context, arg StatisticAdjustmentLossParams) ([]StatisticAdjustmentLossRow, error)
+	// How much price adjustments took off the period's jobs, and the effective price of its ended jobs that no order
+	// item refers to.
+	StatisticBillingTotals(ctx context.Context, arg StatisticBillingTotalsParams) (StatisticBillingTotalsRow, error)
 	StatisticCustomerCharges(ctx context.Context, arg StatisticCustomerChargesParams) ([]StatisticCustomerChargesRow, error)
+	StatisticJobsByOutcome(ctx context.Context, arg StatisticJobsByOutcomeParams) ([]StatisticJobsByOutcomeRow, error)
+	StatisticJobsByWeek(ctx context.Context, arg StatisticJobsByWeekParams) ([]StatisticJobsByWeekRow, error)
 	StatisticMachineFailureRates(ctx context.Context, arg StatisticMachineFailureRatesParams) ([]StatisticMachineFailureRatesRow, error)
 	StatisticMachineJobCounts(ctx context.Context, arg StatisticMachineJobCountsParams) ([]StatisticMachineJobCountsRow, error)
 	StatisticMachineRuntime(ctx context.Context, arg StatisticMachineRuntimeParams) ([]StatisticMachineRuntimeRow, error)
 	StatisticMachineSummaries(ctx context.Context, arg StatisticMachineSummariesParams) ([]StatisticMachineSummariesRow, error)
+	// Seconds runs occupied each machine that is not retired, in the period and during its scheduled open days, plus
+	// the open-day seconds of the period. Runs of jobs and unassigned recorded runs; a running run counts until now.
+	StatisticMachineUtilization(ctx context.Context, arg StatisticMachineUtilizationParams) ([]StatisticMachineUtilizationRow, error)
+	StatisticMaterialByMonth(ctx context.Context, arg StatisticMaterialByMonthParams) ([]StatisticMaterialByMonthRow, error)
+	// Makerspace material of the period's jobs at the material rates of each job's active pricing snapshot.
+	StatisticMaterialChargesByType(ctx context.Context, arg StatisticMaterialChargesByTypeParams) ([]StatisticMaterialChargesByTypeRow, error)
 	StatisticMaterialCostByType(ctx context.Context, arg StatisticMaterialCostByTypeParams) ([]StatisticMaterialCostByTypeRow, error)
+	// Inventory value consumed by failed or cancelled runs (net of their corrections) plus disposals and negative stock
+	// corrections other than job corrections.
+	StatisticMaterialLossByType(ctx context.Context, arg StatisticMaterialLossByTypeParams) ([]StatisticMaterialLossByTypeRow, error)
 	StatisticMaterialUsage(ctx context.Context, arg StatisticMaterialUsageParams) ([]StatisticMaterialUsageRow, error)
 	StatisticMonths(ctx context.Context, arg StatisticMonthsParams) ([]StatisticMonthsRow, error)
 	StatisticPeriodTotals(ctx context.Context, arg StatisticPeriodTotalsParams) (StatisticPeriodTotalsRow, error)
+	StatisticPricingGroupMonths(ctx context.Context, arg StatisticPricingGroupMonthsParams) ([]StatisticPricingGroupMonthsRow, error)
+	StatisticPricingGroups(ctx context.Context, arg StatisticPricingGroupsParams) ([]StatisticPricingGroupsRow, error)
 	StatisticRuntimePoints(ctx context.Context, arg StatisticRuntimePointsParams) ([]StatisticRuntimePointsRow, error)
+	// Machine time of runs per hour of the week in the makerspace's time zone (Monday = 0). Runs of jobs and unassigned
+	// recorded runs, replaced and deleted runs left out, clipped to the period; a running run counts until now.
+	StatisticUsageByWeekdayHour(ctx context.Context, arg StatisticUsageByWeekdayHourParams) ([]StatisticUsageByWeekdayHourRow, error)
 	// The net quantity and value the ledger holds for a run usage.
 	SumRunUsageLedger(ctx context.Context, runUsageID *uuid.UUID) (SumRunUsageLedgerRow, error)
 	TotalInventoryValue(ctx context.Context) (pgtype.Numeric, error)

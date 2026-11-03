@@ -521,6 +521,7 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	} else if settled.IsPositive() {
 		v.SettlementState = SettlementPartiallyPaid
 	}
+	v.Attention = orderAttention(v, timePointer(o.FinalizedAt), time.Now().UTC())
 	return v, nil
 }
 func (s *Service) Get(ctx context.Context, p authorization.Principal, id uuid.UUID) (Order, error) {

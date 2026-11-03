@@ -71,20 +71,63 @@ type ErrorFacts struct {
 	Link     *string
 }
 
-// NotificationSettings say who is told about printer errors besides the operator of the running print.
-type NotificationSettings struct {
-	ErrorRoleID      *uuid.UUID
-	ErrorRoleName    *string
-	ErrorMinSeverity string
-	Version          int64
-	UpdatedAt        time.Time
+// NotificationEvent is a printer event people can be told about.
+type NotificationEvent string
+
+const (
+	NotifyPrinterError   NotificationEvent = "printer_error"
+	NotifyRunFinished    NotificationEvent = "run_finished"
+	NotifyFilamentChange NotificationEvent = "filament_change"
+)
+
+// NotificationRule says who is told about one printer event: the run's operator, the job's recipient, the holders
+// of a role, and whether by e-mail too. MinSeverity only applies to printer errors.
+type NotificationRule struct {
+	Event                                  NotificationEvent
+	NotifyOperator, NotifyRecipient, Email bool
+	RoleID                                 *uuid.UUID
+	RoleName                               *string
+	MinSeverity                            *string
 }
 
-// NotificationSettingsInput changes the notification settings.
+// NotificationSettings are the rules of every printer event.
+type NotificationSettings struct {
+	Events    []NotificationRule
+	Version   int64
+	UpdatedAt time.Time
+}
+
+// NotificationSettingsInput replaces the rules of the listed events.
 type NotificationSettingsInput struct {
-	ErrorRoleID      *uuid.UUID
-	ErrorMinSeverity string
-	ExpectedVersion  int64
+	Events          []NotificationRule
+	ExpectedVersion int64
+}
+
+func validNotificationEvent(event NotificationEvent) bool {
+	switch event {
+	case NotifyPrinterError, NotifyRunFinished, NotifyFilamentChange:
+		return true
+	}
+	return false
+}
+
+// validateNotificationRules checks the request before a transaction opens: known events, each at most once, and a
+// minimum severity only on printer errors.
+func validateNotificationRules(rules []NotificationRule) error {
+	if len(rules) == 0 || len(rules) > 3 {
+		return apperror.Invalid("events must list one to three rules")
+	}
+	seen := map[NotificationEvent]bool{}
+	for _, rule := range rules {
+		if !validNotificationEvent(rule.Event) || seen[rule.Event] {
+			return apperror.Invalid("every event must be printer_error, run_finished or filament_change and appear once")
+		}
+		seen[rule.Event] = true
+		if rule.MinSeverity != nil && (rule.Event != NotifyPrinterError || !validSeverity(*rule.MinSeverity)) {
+			return apperror.Invalid("minSeverity is fatal, serious, common or info and only applies to printer_error")
+		}
+	}
+	return nil
 }
 
 func validSeverity(value string) bool {
@@ -346,22 +389,39 @@ func (s *Service) DeleteErrorCode(ctx context.Context, p authorization.Principal
 	return tx.Commit(ctx)
 }
 
-// NotificationSettings returns who is told about printer errors.
+// NotificationSettings returns who is told about printer events.
 func (s *Service) NotificationSettings(ctx context.Context, p authorization.Principal) (NotificationSettings, error) {
 	if !p.Has(authorization.MachinesRead) {
 		return NotificationSettings{}, apperror.PermissionDenied
 	}
-	row, err := db.New(s.pool).GetPrinterNotificationSettings(ctx)
+	return loadNotificationSettings(ctx, db.New(s.pool))
+}
+
+func loadNotificationSettings(ctx context.Context, q *db.Queries) (NotificationSettings, error) {
+	row, err := q.GetPrinterNotificationSettings(ctx)
 	if err != nil {
 		return NotificationSettings{}, err
 	}
-	return NotificationSettings{
-		ErrorRoleID: row.ErrorRoleID, ErrorRoleName: row.ErrorRoleName, ErrorMinSeverity: row.ErrorMinSeverity,
-		Version: row.Version, UpdatedAt: row.UpdatedAt.UTC(),
-	}, nil
+	rules, err := q.ListPrinterNotificationRules(ctx)
+	if err != nil {
+		return NotificationSettings{}, err
+	}
+	result := NotificationSettings{Events: make([]NotificationRule, 0, len(rules)), Version: row.Version, UpdatedAt: row.UpdatedAt.UTC()}
+	for _, rule := range rules {
+		result.Events = append(result.Events, NotificationRule{
+			Event:           NotificationEvent(rule.Event),
+			NotifyOperator:  rule.NotifyOperator,
+			NotifyRecipient: rule.NotifyRecipient,
+			Email:           rule.Email,
+			RoleID:          rule.RoleID,
+			RoleName:        rule.RoleName,
+			MinSeverity:     rule.MinSeverity,
+		})
+	}
+	return result, nil
 }
 
-// UpdateNotificationSettings changes who is told about printer errors.
+// UpdateNotificationSettings replaces the rules of the listed printer events; the others stay.
 func (s *Service) UpdateNotificationSettings(
 	ctx context.Context,
 	p authorization.Principal,
@@ -371,8 +431,11 @@ func (s *Service) UpdateNotificationSettings(
 	if !p.Has(authorization.MachinesManage) {
 		return NotificationSettings{}, apperror.PermissionDenied
 	}
-	if !validSeverity(input.ErrorMinSeverity) || input.ExpectedVersion < 1 {
-		return NotificationSettings{}, apperror.Invalid("errorMinSeverity must be fatal, serious, common or info")
+	if input.ExpectedVersion < 1 {
+		return NotificationSettings{}, apperror.Invalid("expectedVersion must be positive")
+	}
+	if err := validateNotificationRules(input.Events); err != nil {
+		return NotificationSettings{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -380,35 +443,39 @@ func (s *Service) UpdateNotificationSettings(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
-	if input.ErrorRoleID != nil {
-		count, err := q.CountRolesByID(ctx, *input.ErrorRoleID)
-		if err != nil {
-			return NotificationSettings{}, err
-		}
-		if count == 0 {
-			return NotificationSettings{}, apperror.Invalid("The role does not exist.")
-		}
-	}
-	current, err := q.GetPrinterNotificationSettings(ctx)
-	if err != nil {
+	if _, err = q.LockPrinterNotificationSettings(ctx, input.ExpectedVersion); errors.Is(err, pgx.ErrNoRows) {
+		return NotificationSettings{}, apperror.StaleWrite
+	} else if err != nil {
 		return NotificationSettings{}, err
 	}
-	row, err := q.UpdatePrinterNotificationSettings(ctx, db.UpdatePrinterNotificationSettingsParams{
-		ErrorRoleID: input.ErrorRoleID, ErrorMinSeverity: input.ErrorMinSeverity, ExpectedVersion: input.ExpectedVersion,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return NotificationSettings{}, apperror.StaleWrite
-	}
+	current, err := loadNotificationSettings(ctx, q)
 	if err != nil {
 		return NotificationSettings{}, err
 	}
 	var fields []string
-	if (current.ErrorRoleID == nil) != (row.ErrorRoleID == nil) ||
-		(row.ErrorRoleID != nil && *current.ErrorRoleID != *row.ErrorRoleID) {
-		fields = append(fields, "errorRoleId")
-	}
-	if current.ErrorMinSeverity != row.ErrorMinSeverity {
-		fields = append(fields, "errorMinSeverity")
+	for _, rule := range input.Events {
+		if rule.RoleID != nil {
+			count, err := q.CountRolesByID(ctx, *rule.RoleID)
+			if err != nil {
+				return NotificationSettings{}, err
+			}
+			if count == 0 {
+				return NotificationSettings{}, apperror.Invalid("The role does not exist.")
+			}
+		}
+		if err = q.UpsertPrinterNotificationRule(ctx, db.UpsertPrinterNotificationRuleParams{
+			Event:           string(rule.Event),
+			NotifyOperator:  rule.NotifyOperator,
+			NotifyRecipient: rule.NotifyRecipient,
+			RoleID:          rule.RoleID,
+			Email:           rule.Email,
+			MinSeverity:     rule.MinSeverity,
+		}); err != nil {
+			return NotificationSettings{}, err
+		}
+		if !sameRule(current.Events, rule) {
+			fields = append(fields, string(rule.Event))
+		}
 	}
 	actor := p.AccountID
 	if err = audit.Write(ctx, tx, audit.Event{
@@ -423,14 +490,22 @@ func (s *Service) UpdateNotificationSettings(
 	if err = tx.Commit(ctx); err != nil {
 		return NotificationSettings{}, err
 	}
-	updated, err := db.New(s.pool).GetPrinterNotificationSettings(ctx)
-	if err != nil {
-		return NotificationSettings{}, err
+	return loadNotificationSettings(ctx, db.New(s.pool))
+}
+
+// sameRule says whether the stored rule of the event already equals rule.
+func sameRule(stored []NotificationRule, rule NotificationRule) bool {
+	for _, old := range stored {
+		if old.Event != rule.Event {
+			continue
+		}
+		sameRole := (old.RoleID == nil) == (rule.RoleID == nil) && (old.RoleID == nil || *old.RoleID == *rule.RoleID)
+		sameSeverity := (old.MinSeverity == nil) == (rule.MinSeverity == nil) &&
+			(old.MinSeverity == nil || *old.MinSeverity == *rule.MinSeverity)
+		return old.NotifyOperator == rule.NotifyOperator && old.NotifyRecipient == rule.NotifyRecipient &&
+			old.Email == rule.Email && sameRole && sameSeverity
 	}
-	return NotificationSettings{
-		ErrorRoleID: updated.ErrorRoleID, ErrorRoleName: updated.ErrorRoleName, ErrorMinSeverity: updated.ErrorMinSeverity,
-		Version: updated.Version, UpdatedAt: updated.UpdatedAt.UTC(),
-	}, nil
+	return false
 }
 
 func errorCodeFrom(row db.PrinterErrorCode) ErrorCode {

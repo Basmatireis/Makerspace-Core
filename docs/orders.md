@@ -29,6 +29,10 @@ Job items preserve machine/type labels, UTC interval and exact duration, outcome
 
 Operational Machine Job corrections remain available after Order finalization, including compensating stock corrections. Order detail and Job detail show changed-source state. Correcting the financial charge requires explicit full reversal/replacement; it never recalculates the original Order silently.
 
+## Needs attention
+
+Every order carries `attention` (`{code, message}`, empty when nothing needs someone): `balance_overdue` (a finalized order still has an unpaid balance more than 14 days after it was finalized), `source_changed` (an active job item's job changed after it was charged) and `invoice_request_open` (the active wiRef invoice request is a draft, awaits approval or awaits the confirmation of its cancellation). The flags are derived when the order is loaded, for lists and details alike.
+
 ## Replacement and payment allocation
 
 V1 supports whole-Order reversal and linked replacement, and whole-payment reversals. It does not implement item-level credits, partial refunds, wallets, account credit, or overpayment. Creating a replacement copies active manual items and captures current source-job facts. Edit that draft, then commit through the original Order. One original has at most one committed successor; subsequent corrections replace the successor.

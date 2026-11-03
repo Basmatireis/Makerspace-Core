@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
@@ -189,11 +190,12 @@ func (s *Server) CreateMachineJobFromRun(
 		p,
 		r.RunId,
 		machinelogbook.RunJobInput{
-			Title:            nullableStringPointer(r.Body.Title),
-			Customer:         partyInput(r.Body.Customer),
-			OperatorPersonID: r.Body.OperatorPersonId,
-			Notes:            nullableStringPointer(r.Body.Notes),
-			PricingGroupID:   uuidNullable(r.Body.PricingGroupId),
+			Title:             nullableStringPointer(r.Body.Title),
+			Customer:          partyInput(r.Body.Customer),
+			OperatorPersonID:  r.Body.OperatorPersonId,
+			Notes:             nullableStringPointer(r.Body.Notes),
+			PricingGroupID:    uuidNullable(r.Body.PricingGroupId),
+			HiddenFromSignage: nullableToPointer(r.Body.HiddenFromSignage),
 		},
 		requestIDPointer(ctx),
 	)
@@ -221,6 +223,7 @@ func (s *Server) AttachMachineRun(
 		r.Body.MachineJobId,
 		r.Body.ReplaceManualRuns,
 		r.Body.ExpectedJobVersion,
+		nullableToPointer(r.Body.HiddenFromSignage),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -273,8 +276,12 @@ func (s *Server) AddManualMachineRun(
 }
 
 func manualRunInput(value openapi.ManualRunInput) machinelogbook.ManualRunInput {
+	var startsAt time.Time
+	if value.StartsAt != nil {
+		startsAt = *value.StartsAt
+	}
 	return machinelogbook.ManualRunInput{
-		StartsAt: value.StartsAt,
+		StartsAt: startsAt,
 		EndsAt:   value.EndsAt,
 		Outcome:  optional.Convert[machinelogbook.RunOutcome](nullableStringPointer(value.Outcome)),
 		Usages:   usageInputs(value.Usages),
@@ -355,23 +362,24 @@ func mlRunBase(item machinelogbook.MachineRun) openapi.MachineRun {
 		ConnectorName: nullableString(
 			item.ConnectorName,
 		),
-		FileName:           nullableString(item.FileName),
-		StartedAt:          item.StartedAt,
-		EndedAt:            nullableValue(item.EndedAt),
-		EstimatedEndAt:     nullableValue(item.EstimatedEndAt),
-		DurationSeconds:    item.DurationSeconds,
-		ProgressPercent:    nullableInt(item.ProgressPercent),
-		Outcome:            outcome,
-		OutcomeFromMachine: item.OutcomeFromMachine,
-		Usages:             usages,
-		Measures:           mlMeasuresDTO(item.Measures),
-		UsagesFromMachine:  item.UsagesFromMachine,
-		HiddenFromSignage:  item.HiddenFromSignage,
-		ReportedUsage:      reported,
-		ReportedUsageItems: reportedItems,
-		Artifact:           artifact,
-		ConsumptionStatus:  consumptionStatusDTO(item.ConsumptionStatus),
-		Version:            item.Version,
+		FileName:             nullableString(item.FileName),
+		StartedAt:            item.StartedAt,
+		EndedAt:              nullableValue(item.EndedAt),
+		EstimatedEndAt:       nullableValue(item.EstimatedEndAt),
+		DurationSeconds:      item.DurationSeconds,
+		ProgressPercent:      nullableInt(item.ProgressPercent),
+		Outcome:              outcome,
+		OutcomeFromMachine:   item.OutcomeFromMachine,
+		Usages:               usages,
+		Measures:             mlMeasuresDTO(item.Measures),
+		UsagesFromMachine:    item.UsagesFromMachine,
+		HiddenFromSignage:    item.HiddenFromSignage,
+		JobHiddenFromSignage: item.JobHiddenFromSignage,
+		ReportedUsage:        reported,
+		ReportedUsageItems:   reportedItems,
+		Artifact:             artifact,
+		ConsumptionStatus:    consumptionStatusDTO(item.ConsumptionStatus),
+		Version:              item.Version,
 	}
 }
 
@@ -409,32 +417,33 @@ func mlRunDetailDTO(item machinelogbook.RunDetail) openapi.MachineRunDetail {
 		)
 	}
 	return openapi.MachineRunDetail{
-		Id:                 base.Id,
-		DisplayId:          base.DisplayId,
-		MachineId:          base.MachineId,
-		MachineName:        base.MachineName,
-		Source:             base.Source,
-		State:              base.State,
-		Job:                base.Job,
-		ConnectorName:      base.ConnectorName,
-		FileName:           base.FileName,
-		StartedAt:          base.StartedAt,
-		EndedAt:            base.EndedAt,
-		EstimatedEndAt:     base.EstimatedEndAt,
-		DurationSeconds:    base.DurationSeconds,
-		ProgressPercent:    base.ProgressPercent,
-		Outcome:            base.Outcome,
-		OutcomeFromMachine: base.OutcomeFromMachine,
-		Usages:             base.Usages,
-		Measures:           base.Measures,
-		UsagesFromMachine:  base.UsagesFromMachine,
-		HiddenFromSignage:  base.HiddenFromSignage,
-		ReportedUsage:      base.ReportedUsage,
-		ReportedUsageItems: base.ReportedUsageItems,
-		Artifact:           base.Artifact,
-		ConsumptionStatus:  base.ConsumptionStatus,
-		Version:            base.Version,
-		Events:             events,
+		Id:                   base.Id,
+		DisplayId:            base.DisplayId,
+		MachineId:            base.MachineId,
+		MachineName:          base.MachineName,
+		Source:               base.Source,
+		State:                base.State,
+		Job:                  base.Job,
+		ConnectorName:        base.ConnectorName,
+		FileName:             base.FileName,
+		StartedAt:            base.StartedAt,
+		EndedAt:              base.EndedAt,
+		EstimatedEndAt:       base.EstimatedEndAt,
+		DurationSeconds:      base.DurationSeconds,
+		ProgressPercent:      base.ProgressPercent,
+		Outcome:              base.Outcome,
+		OutcomeFromMachine:   base.OutcomeFromMachine,
+		Usages:               base.Usages,
+		Measures:             base.Measures,
+		UsagesFromMachine:    base.UsagesFromMachine,
+		HiddenFromSignage:    base.HiddenFromSignage,
+		JobHiddenFromSignage: base.JobHiddenFromSignage,
+		ReportedUsage:        base.ReportedUsage,
+		ReportedUsageItems:   base.ReportedUsageItems,
+		Artifact:             base.Artifact,
+		ConsumptionStatus:    base.ConsumptionStatus,
+		Version:              base.Version,
+		Events:               events,
 	}
 }
 
@@ -479,6 +488,7 @@ func mlUsageDTO(u machinelogbook.MachineJobUsage) openapi.MachineJobUsage {
 		EstimateQuality:    quality,
 		ReportRevision:     nullableValue(u.ReportRevision),
 		StaffCorrected:     u.StaffCorrected,
+		Label:              nullableString(u.Label),
 	}
 }
 
@@ -529,11 +539,12 @@ func (s *Server) BulkCreateMachineJobsFromRuns(
 		ctx,
 		p,
 		machinelogbook.BulkRunJobInput{
-			Runs:             bulkItems(r.Body.Runs),
-			Customer:         partyInput(r.Body.Customer),
-			OperatorPersonID: r.Body.OperatorPersonId,
-			Notes:            nullableStringPointer(r.Body.Notes),
-			PricingGroupID:   uuidNullable(r.Body.PricingGroupId),
+			Runs:              bulkItems(r.Body.Runs),
+			Customer:          partyInput(r.Body.Customer),
+			OperatorPersonID:  r.Body.OperatorPersonId,
+			Notes:             nullableStringPointer(r.Body.Notes),
+			PricingGroupID:    uuidNullable(r.Body.PricingGroupId),
+			HiddenFromSignage: nullableToPointer(r.Body.HiddenFromSignage),
 		},
 		requestIDPointer(ctx),
 	)
@@ -570,12 +581,13 @@ func (s *Server) BulkCombineMachineRuns(
 		ctx,
 		p,
 		machinelogbook.BulkRunJobInput{
-			Runs:             bulkItems(r.Body.Runs),
-			Title:            nullableStringPointer(r.Body.Title),
-			Customer:         partyInput(r.Body.Customer),
-			OperatorPersonID: r.Body.OperatorPersonId,
-			Notes:            nullableStringPointer(r.Body.Notes),
-			PricingGroupID:   uuidNullable(r.Body.PricingGroupId),
+			Runs:              bulkItems(r.Body.Runs),
+			Title:             nullableStringPointer(r.Body.Title),
+			Customer:          partyInput(r.Body.Customer),
+			OperatorPersonID:  r.Body.OperatorPersonId,
+			Notes:             nullableStringPointer(r.Body.Notes),
+			PricingGroupID:    uuidNullable(r.Body.PricingGroupId),
+			HiddenFromSignage: nullableToPointer(r.Body.HiddenFromSignage),
 		},
 		requestIDPointer(ctx),
 	)
@@ -604,6 +616,7 @@ func (s *Server) BulkAttachMachineRuns(
 			ExpectedJobVersion: r.Body.ExpectedJobVersion,
 			Runs:               bulkItems(r.Body.Runs),
 			ReplaceManualRuns:  r.Body.ReplaceManualRuns,
+			HiddenFromSignage:  nullableToPointer(r.Body.HiddenFromSignage),
 		},
 		requestIDPointer(ctx),
 	)

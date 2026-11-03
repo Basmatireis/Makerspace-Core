@@ -31,6 +31,13 @@ export interface PrinterSetupInputUnit {
   name: string;
   nozzle: PrinterNozzle | null;
   /**
+     * The nozzle this unit feeds; omitted or null keeps the stored index (1 for a new unit).
+     * @minimum 1
+     * @maximum 8
+     * @nullable
+     */
+  nozzleIndex?: number | null;
+  /**
      * @maxLength 200
      * @nullable
      */

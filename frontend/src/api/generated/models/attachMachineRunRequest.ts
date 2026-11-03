@@ -25,4 +25,9 @@ export interface AttachMachineRunRequest {
   machineJobId: UUIDv7;
   replaceManualRuns: boolean;
   expectedJobVersion: Version;
+  /**
+     * Sets the job's signage flag as well; omitted or null keeps it.
+     * @nullable
+     */
+  hiddenFromSignage?: boolean | null;
 }

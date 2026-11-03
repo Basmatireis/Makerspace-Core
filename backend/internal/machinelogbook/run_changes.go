@@ -432,6 +432,9 @@ func (s *Service) ReplaceRunUsages(
 	if run.State != nil && RunState(*run.State) == RunStateReplaced {
 		return RunUpdateResult{}, apperror.Conflicting("run_replaced", "A replaced run cannot be changed")
 	}
+	if RunSource(run.Source) == RunSourceManual {
+		forceActualBasis(parsed)
+	}
 	old, err := q.ListActiveRunUsagesForUpdate(ctx, id)
 	if err != nil {
 		return RunUpdateResult{}, err

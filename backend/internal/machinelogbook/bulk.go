@@ -303,6 +303,8 @@ type BulkRunJobInput struct {
 	OperatorPersonID uuid.UUID
 	Notes            *string
 	PricingGroupID   *uuid.UUID
+	// HiddenFromSignage keeps the new jobs off signage; nil shows them.
+	HiddenFromSignage *bool
 }
 
 // CreatedJob identifies a job a bulk operation created.
@@ -508,6 +510,9 @@ func (s *Service) BulkCreateJobsFromRuns(
 		if err != nil {
 			return nil, err
 		}
+		if err = setJobSignageHidden(ctx, q, job.ID, input.HiddenFromSignage); err != nil {
+			return nil, err
+		}
 		if _, err = q.AssignRunToJob(
 			ctx,
 			machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: run.ID, MachineID: run.MachineID},
@@ -610,6 +615,9 @@ func (s *Service) BulkCombineRuns(
 	if err != nil {
 		return MachineJob{}, err
 	}
+	if err = setJobSignageHidden(ctx, q, job.ID, input.HiddenFromSignage); err != nil {
+		return MachineJob{}, err
+	}
 	for _, run := range runs {
 		if _, err = q.AssignRunToJob(
 			ctx,
@@ -653,6 +661,8 @@ type BulkAttachInput struct {
 	ExpectedJobVersion int64
 	Runs               []BulkItem
 	ReplaceManualRuns  bool
+	// HiddenFromSignage sets the job's signage flag as well; nil keeps it.
+	HiddenFromSignage *bool
 }
 
 // BulkAttachRuns attaches the runs to a job on the same machine with the rules
@@ -743,6 +753,12 @@ func (s *Service) BulkAttachRuns(
 	}
 	if _, err = s.settleJob(ctx, q, job.ID); err != nil {
 		return MachineJob{}, err
+	}
+	if err = setJobSignageHidden(ctx, q, job.ID, input.HiddenFromSignage); err != nil {
+		return MachineJob{}, err
+	}
+	if input.HiddenFromSignage != nil {
+		fields = append(fields, "hiddenFromSignage")
 	}
 	if err = writeAudit(
 		ctx,

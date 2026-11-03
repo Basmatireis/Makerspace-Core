@@ -1,5 +1,11 @@
 package machinelogbook
 
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
 // MachineStatus is whether a machine can take work.
 type MachineStatus string
 
@@ -336,3 +342,74 @@ const (
 	SortAsc  SortDirection = "asc"
 	SortDesc SortDirection = "desc"
 )
+
+// AttentionCode names something on a job, run, machine or order that needs someone's attention.
+type AttentionCode string
+
+const (
+	AttentionRunFailed              AttentionCode = "run_failed"
+	AttentionConsumptionUnconfirmed AttentionCode = "consumption_unconfirmed"
+	AttentionNoRecipient            AttentionCode = "no_recipient"
+	AttentionNotOnOrder             AttentionCode = "not_on_order"
+	AttentionNeedsOutcome           AttentionCode = "needs_outcome"
+	AttentionPriceIncomplete        AttentionCode = "price_incomplete"
+	AttentionOrderOutdated          AttentionCode = "order_outdated"
+	AttentionConnectorOffline       AttentionCode = "connector_offline"
+	AttentionConnectorError         AttentionCode = "connector_error"
+	AttentionPrinterErrorOpen       AttentionCode = "printer_error_open"
+	AttentionOutOfOrder             AttentionCode = "out_of_order"
+	AttentionRunsUnassigned         AttentionCode = "runs_unassigned"
+)
+
+// Attention is one reason to look at an item, with a short English message for people.
+type Attention struct {
+	Code    AttentionCode
+	Message string
+}
+
+// StatisticsDetail holds the statistics aggregates beyond the totals, months and machines: when the workshop is
+// busy, outcomes, weekly jobs, material per month and type, losses and charges per material type and the split by
+// pricing group.
+type StatisticsDetail struct {
+	UsageByWeekdayHour    []StatisticWeekdayHour
+	JobsByOutcome         []StatisticOutcomeCount
+	JobsByWeek            []StatisticWeek
+	MaterialByMonth       []StatisticMaterialMonth
+	MaterialLossByType    []StatisticPoint
+	MaterialChargesByType []StatisticPoint
+	PricingGroups         []StatisticPricingGroup
+	PricingGroupMonths    []StatisticPricingGroupMonth
+}
+
+// StatisticWeekdayHour is machine time in one hour of the week (Monday = 0) in the makerspace's time zone.
+type StatisticWeekdayHour struct {
+	Weekday, Hour int
+	Runs          int64
+	Minutes       string
+}
+
+type StatisticOutcomeCount struct {
+	Outcome string
+	Jobs    int64
+}
+
+type StatisticWeek struct {
+	WeekStart time.Time
+	Jobs      int64
+}
+
+type StatisticMaterialMonth struct {
+	Month                                  string
+	MaterialTypeID                         uuid.UUID
+	MaterialTypeName, Unit, Quantity, Cost string
+}
+
+type StatisticPricingGroup struct {
+	PricingGroupName   string
+	Jobs               int64
+	Charges, Discounts string
+}
+
+type StatisticPricingGroupMonth struct {
+	Month, PricingGroupName, Charges string
+}

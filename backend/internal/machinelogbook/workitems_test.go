@@ -638,9 +638,12 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 	runningInput := h.input(-time.Hour, 3*time.Hour, "unknown")
 	runningInput.MachineID, runningInput.Title = h.bareMachine.ID, &title
 	running := h.create(t, runningInput)
+	// Manual runs never start ahead: the future job is entered once its start has come and read an hour earlier.
 	futureInput := h.input(time.Hour, 2*time.Hour, "unknown")
 	futureInput.MachineID = future.ID
+	h.now = h.now.Add(time.Hour)
 	h.create(t, futureInput)
+	h.now = h.now.Add(-time.Hour)
 	retiredInput := h.input(-time.Hour, 3*time.Hour, "unknown")
 	retiredInput.MachineID = retired.ID
 	h.create(t, retiredInput)

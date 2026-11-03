@@ -16,7 +16,7 @@ import (
 const activatePricingSnapshot = `-- name: ActivatePricingSnapshot :one
 UPDATE machine_jobs SET active_pricing_snapshot_id = $1, pricing_status = 'incomplete',
     calculated_price = NULL, version = version + 1, updated_at = now()
-WHERE id = $2 RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by
+WHERE id = $2 RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
 `
 
 type ActivatePricingSnapshotParams struct {
@@ -52,6 +52,7 @@ func (q *Queries) ActivatePricingSnapshot(ctx context.Context, arg ActivatePrici
 		&i.ArtifactID,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.HiddenFromSignage,
 	)
 	return i, err
 }
@@ -194,7 +195,7 @@ INSERT INTO machine_jobs (
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9
-) RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by
+) RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
 `
 
 type CreatePlannedMachineJobParams struct {
@@ -247,6 +248,7 @@ func (q *Queries) CreatePlannedMachineJob(ctx context.Context, arg CreatePlanned
 		&i.ArtifactID,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.HiddenFromSignage,
 	)
 	return i, err
 }

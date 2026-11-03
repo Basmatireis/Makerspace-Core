@@ -361,19 +361,23 @@ type printerSlotEntry struct {
 	Name               string  `json:"name"`
 	Status             string  `json:"status"`
 	ExternalIdentifier *string `json:"externalIdentifier"`
+	// NozzleIndex is missing in files written before nozzles were recorded; the slot then keeps its own.
+	NozzleIndex *int `json:"nozzleIndex,omitempty"`
 }
 
 type printerUnitEntry struct {
 	Name               string             `json:"name"`
 	Nozzle             *string            `json:"nozzle"`
+	NozzleIndex        *int               `json:"nozzleIndex,omitempty"`
 	ExternalIdentifier *string            `json:"externalIdentifier"`
 	Slots              []printerSlotEntry `json:"slots"`
 }
 
 type printerEntry struct {
-	Enabled    bool               `json:"enabled"`
-	Model      *string            `json:"model"`
-	InputUnits []printerUnitEntry `json:"inputUnits"`
+	Enabled     bool               `json:"enabled"`
+	Model       *string            `json:"model"`
+	NozzleCount *int               `json:"nozzleCount,omitempty"`
+	InputUnits  []printerUnitEntry `json:"inputUnits"`
 }
 
 type machineEntry struct {
@@ -463,7 +467,12 @@ func loadPrinters(ctx context.Context, q *configtransferdb.Queries) (map[uuid.UU
 	for _, profile := range profiles {
 		printers[profile.MachineID] = &storedPrinter{
 			version: profile.Version,
-			entry:   printerEntry{Enabled: profile.Enabled, Model: profile.Model, InputUnits: []printerUnitEntry{}},
+			entry: printerEntry{
+				Enabled:     profile.Enabled,
+				Model:       profile.Model,
+				NozzleCount: ptr(int(profile.NozzleCount)),
+				InputUnits:  []printerUnitEntry{},
+			},
 		}
 	}
 	slotsByUnit := map[uuid.UUID][]configtransferdb.ListPrinterSlotsRow{}
@@ -478,6 +487,7 @@ func loadPrinters(ctx context.Context, q *configtransferdb.Queries) (map[uuid.UU
 		entry := printerUnitEntry{
 			Name:               unit.Name,
 			Nozzle:             unit.Nozzle,
+			NozzleIndex:        ptr(int(unit.NozzleIndex)),
 			ExternalIdentifier: unit.ExternalIdentifier,
 			Slots:              []printerSlotEntry{},
 		}
@@ -490,6 +500,7 @@ func loadPrinters(ctx context.Context, q *configtransferdb.Queries) (map[uuid.UU
 				Name:               slot.Name,
 				Status:             slot.Status,
 				ExternalIdentifier: slot.ExternalIdentifier,
+				NozzleIndex:        ptr(int(slot.NozzleIndex)),
 			})
 			stored.slots = append(stored.slots, storedSlot{id: slot.ID, name: slot.Name})
 		}
@@ -527,18 +538,20 @@ func exportMachines(ctx context.Context, q *configtransferdb.Queries) ([]machine
 }
 
 func samePrinter(a, b printerEntry) bool {
-	if a.Enabled != b.Enabled || !sameText(a.Model, b.Model) || len(a.InputUnits) != len(b.InputUnits) {
+	if a.Enabled != b.Enabled || !sameText(a.Model, b.Model) || !sameNozzle(a.NozzleCount, b.NozzleCount) ||
+		len(a.InputUnits) != len(b.InputUnits) {
 		return false
 	}
 	for i := range a.InputUnits {
 		left, right := a.InputUnits[i], b.InputUnits[i]
-		if left.Name != right.Name || !sameText(left.Nozzle, right.Nozzle) ||
+		if left.Name != right.Name || !sameText(left.Nozzle, right.Nozzle) || !sameNozzle(left.NozzleIndex, right.NozzleIndex) ||
 			!sameText(left.ExternalIdentifier, right.ExternalIdentifier) || len(left.Slots) != len(right.Slots) {
 			return false
 		}
 		for j := range left.Slots {
 			if left.Slots[j].Name != right.Slots[j].Name || left.Slots[j].Status != right.Slots[j].Status ||
-				!sameText(left.Slots[j].ExternalIdentifier, right.Slots[j].ExternalIdentifier) {
+				!sameText(left.Slots[j].ExternalIdentifier, right.Slots[j].ExternalIdentifier) ||
+				!sameNozzle(left.Slots[j].NozzleIndex, right.Slots[j].NozzleIndex) {
 				return false
 			}
 		}
@@ -550,15 +563,17 @@ func samePrinter(a, b printerEntry) bool {
 // spool history and mounts stay attached.
 func setupInput(desired printerEntry, current *storedPrinter) printing.SetupInput {
 	input := printing.SetupInput{
-		Enabled:    desired.Enabled,
-		Model:      (*printing.PrinterModel)(desired.Model),
-		InputUnits: make([]printing.SetupUnitInput, 0, len(desired.InputUnits)),
+		Enabled:     desired.Enabled,
+		Model:       (*printing.PrinterModel)(desired.Model),
+		NozzleCount: desired.NozzleCount,
+		InputUnits:  make([]printing.SetupUnitInput, 0, len(desired.InputUnits)),
 	}
 	usedUnits := map[uuid.UUID]bool{}
 	for _, unit := range desired.InputUnits {
 		unitInput := printing.SetupUnitInput{
 			Name:               unit.Name,
 			Nozzle:             (*printing.Nozzle)(unit.Nozzle),
+			NozzleIndex:        unit.NozzleIndex,
 			ExternalIdentifier: unit.ExternalIdentifier,
 		}
 		var match *storedUnit
@@ -579,6 +594,7 @@ func setupInput(desired printerEntry, current *storedPrinter) printing.SetupInpu
 				Name:               slot.Name,
 				Status:             printing.SlotStatus(slot.Status),
 				ExternalIdentifier: slot.ExternalIdentifier,
+				NozzleIndex:        slot.NozzleIndex,
 			}
 			if match != nil {
 				for _, candidate := range match.slots {
@@ -983,4 +999,9 @@ func applyInventoryArticles(r *run, items *[]inventoryArticleEntry) (func() erro
 		}
 		return nil
 	}, nil
+}
+
+// sameNozzle compares nozzle numbers; a file without one matches whatever is stored, because importing it keeps it.
+func sameNozzle(a, b *int) bool {
+	return a == nil || b == nil || *a == *b
 }

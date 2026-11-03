@@ -317,6 +317,7 @@ func machineFromGet(row machinelogbookdb.GetMachineRow) Machine {
 		JobCount:                   row.JobCount,
 		RuntimeSeconds:             row.RuntimeSeconds,
 		FailureRate:                decimalString(row.FailureRate),
+		Attention:                  []Attention{},
 		CreatedAt:                  row.CreatedAt,
 		UpdatedAt:                  row.UpdatedAt,
 	}
@@ -352,7 +353,15 @@ func (s *Service) GetMachine(ctx context.Context, p authorization.Principal, id 
 }
 
 func (s *Service) loadMachine(ctx context.Context, id uuid.UUID) (Machine, error) {
-	return loadMachineFrom(ctx, machinelogbookdb.New(s.pool), id)
+	q := machinelogbookdb.New(s.pool)
+	machine, err := loadMachineFrom(ctx, q, id)
+	if err != nil {
+		return Machine{}, err
+	}
+	if err = s.attachMachineAttention(ctx, q, &machine); err != nil {
+		return Machine{}, err
+	}
+	return machine, nil
 }
 
 func loadMachineFrom(ctx context.Context, q *machinelogbookdb.Queries, id uuid.UUID) (Machine, error) {
@@ -410,6 +419,9 @@ func (s *Service) ListMachines(
 		pointers[i] = &items[i]
 	}
 	if err = attachProcessMeasures(ctx, q, pointers...); err != nil {
+		return nil, 0, err
+	}
+	if err = s.attachMachineAttention(ctx, q, pointers...); err != nil {
 		return nil, 0, err
 	}
 	return items, total, nil

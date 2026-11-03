@@ -38,6 +38,7 @@ type InputUnit struct {
 	Name               string
 	Position           int
 	Nozzle             *Nozzle
+	NozzleIndex        int
 	ExternalIdentifier *string
 	Enabled            bool
 	Version            int64
@@ -46,6 +47,7 @@ type Slot struct {
 	ID, InputUnitID, MachineID uuid.UUID
 	InputUnitName, Name        string
 	Position                   int
+	NozzleIndex                int
 	ExternalIdentifier         *string
 	Status                     SlotStatus
 	AssignmentID, SpoolID      *uuid.UUID
@@ -58,6 +60,7 @@ type Profile struct {
 	MachineName          string
 	Enabled              bool
 	Model                *PrinterModel
+	NozzleCount          int
 	InputUnits           []InputUnit
 	Slots                []Slot
 	Version              int64
@@ -163,6 +166,7 @@ func inputUnit(row db.PrinterInputUnit) InputUnit {
 		Name:               row.Name,
 		Position:           int(row.Position),
 		Nozzle:             optional.Convert[Nozzle](row.Nozzle),
+		NozzleIndex:        int(row.NozzleIndex),
 		ExternalIdentifier: row.ExternalIdentifier,
 		Enabled:            row.Enabled,
 		Version:            row.Version,
@@ -176,6 +180,7 @@ func slotFromGet(row db.GetPrinterSlotRow) Slot {
 		InputUnitName:      row.InputUnitName,
 		Name:               row.Name,
 		Position:           int(row.Position),
+		NozzleIndex:        int(row.NozzleIndex),
 		ExternalIdentifier: row.ExternalIdentifier,
 		Status:             SlotStatus(row.Status),
 		AssignmentID:       row.AssignmentID,
@@ -193,6 +198,7 @@ func slotFromList(row db.ListPrinterSlotsRow) Slot {
 		InputUnitName:      row.InputUnitName,
 		Name:               row.Name,
 		Position:           int(row.Position),
+		NozzleIndex:        int(row.NozzleIndex),
 		ExternalIdentifier: row.ExternalIdentifier,
 		Status:             SlotStatus(row.Status),
 		AssignmentID:       row.AssignmentID,
@@ -228,6 +234,7 @@ func loadProfile(ctx context.Context, q *db.Queries, machineID uuid.UUID) (Profi
 		MachineName: row.MachineName,
 		Enabled:     row.Enabled,
 		Model:       optional.Convert[PrinterModel](row.Model),
+		NozzleCount: int(row.NozzleCount),
 		Version:     row.Version,
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,

@@ -90,11 +90,11 @@ func TestIngestPrinterErrorNotifiesTheOperatorAndTheChosenRoleOnce(t *testing.T)
 		t.Fatal(err)
 	}
 	// The chosen role is told from "serious" on; the test resets the singleton afterwards.
-	if _, err := h.pool.Exec(ctx, `UPDATE printer_notification_settings SET error_role_id = $1, error_min_severity = 'serious'`, roleID); err != nil {
+	if _, err := h.pool.Exec(ctx, `UPDATE printer_notification_rules SET role_id = $1, min_severity = 'serious' WHERE event = 'printer_error'`, roleID); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_settings SET error_role_id = NULL, error_min_severity = 'serious'`)
+		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_rules SET role_id = NULL, min_severity = 'serious' WHERE event = 'printer_error'`)
 	})
 	if _, err := h.pool.Exec(ctx, `INSERT INTO printer_error_codes (id, source_family, code, title) VALUES ($1, 'hms', '0300-0D00-0002-0001', 'Filament ran out')
 		ON CONFLICT (source_family, code) DO UPDATE SET title = EXCLUDED.title`, ids.New()); err != nil {
@@ -206,19 +206,45 @@ func TestPrinterErrorsAreListedDescribedAndCleared(t *testing.T) {
 		t.Fatalf("clear audit events = %d, %v", audited, err)
 	}
 
-	settings, err := h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{ErrorMinSeverity: "fatal", ExpectedVersion: 1}, nil)
-	if err != nil || settings.ErrorMinSeverity != "fatal" || settings.ErrorRoleID != nil || settings.Version != 2 {
+	fatal := "fatal"
+	errorRule := NotificationRule{Event: NotifyPrinterError, NotifyOperator: true, MinSeverity: &fatal}
+	settings, err := h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{Events: []NotificationRule{errorRule}, ExpectedVersion: 1}, nil)
+	if err != nil || len(settings.Events) != 3 || settings.Events[0].MinSeverity == nil || *settings.Events[0].MinSeverity != "fatal" ||
+		settings.Events[0].RoleID != nil || settings.Version != 2 {
 		t.Fatalf("settings = %+v, %v", settings, err)
 	}
 	t.Cleanup(func() {
-		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_settings SET error_role_id = NULL, error_min_severity = 'serious', version = 1`)
+		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_rules SET role_id = NULL, min_severity = 'serious', notify_operator = true, notify_recipient = false, email = false`)
+		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_rules SET min_severity = NULL WHERE event <> 'printer_error'`)
+		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_settings SET version = 1`)
 	})
-	if _, err = h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{ErrorMinSeverity: "fatal", ExpectedVersion: 1}, nil); !apperror.IsCode(err, "stale_write") {
+	if _, err = h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{Events: []NotificationRule{errorRule}, ExpectedVersion: 1}, nil); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("stale settings write: %v", err)
 	}
 	unknown := ids.New()
-	if _, err = h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{ErrorRoleID: &unknown, ErrorMinSeverity: "info", ExpectedVersion: 2}, nil); !apperror.IsCode(err, "validation_failed") {
+	if _, err = h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{
+		Events: []NotificationRule{{Event: NotifyRunFinished, RoleID: &unknown}}, ExpectedVersion: 2,
+	}, nil); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("unknown role: %v", err)
+	}
+	// A minimum severity only filters printer errors, and every event appears at most once.
+	for name, events := range map[string][]NotificationRule{
+		"severity on run_finished": {{Event: NotifyRunFinished, MinSeverity: &fatal}},
+		"repeated event":           {{Event: NotifyFilamentChange}, {Event: NotifyFilamentChange}},
+		"unknown event":            {{Event: "door_opened"}},
+		"empty":                    {},
+	} {
+		if _, err = h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{Events: events, ExpectedVersion: 2}, nil); !apperror.IsCode(err, "validation_failed") {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	if _, err = h.service.UpdateNotificationSettings(ctx, authorization.Principal{AccountID: h.principal.AccountID}, NotificationSettingsInput{
+		Events: []NotificationRule{errorRule}, ExpectedVersion: 2,
+	}, nil); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("update without machines.manage: %v", err)
+	}
+	if _, err = h.service.NotificationSettings(ctx, authorization.Principal{AccountID: h.principal.AccountID}); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("read without machines.read: %v", err)
 	}
 	if err = h.service.DeleteErrorCode(ctx, h.principal, "hms", "0300-0D00-0001-0001", nil); err != nil {
 		t.Fatal(err)

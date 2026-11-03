@@ -23,11 +23,25 @@ import type { FilamentOwnership } from './filamentOwnership';
 import type { QuantityBasis } from './quantityBasis';
 import type { UUIDv7 } from './uUIDv7';
 
+/**
+ * Makerspace material needs materialId and may name a spool; materialTypeId and label are refused. Material the recipient brought (ownership external) is never consumed from stock or charged: materialId, materialTypeId and label are all optional, so "PLA, recipient's own, Prusament Galaxy Black" is the materialTypeId of PLA plus that label. An external materialId whose type differs from materialTypeId answers 422 validation_failed.
+ */
 export interface MachineJobUsageInput {
   ownership: FilamentOwnership;
+  /** Required for makerspace material; optional for external material. */
   materialId?: UUIDv7 | null;
+  /** External material only: what kind of material it is (422 when unknown). */
+  materialTypeId?: UUIDv7 | null;
+  /**
+     * External material only: a short free-text description such as brand and colour.
+     * @minLength 1
+     * @maxLength 120
+     * @nullable
+     */
+  label?: string | null;
   spoolId?: UUIDv7 | null;
   /**
+     * Deprecated alias of label (up to 200 characters); label wins when both are given.
      * @minLength 1
      * @maxLength 200
      * @nullable

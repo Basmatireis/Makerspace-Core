@@ -353,7 +353,7 @@ func Definitions() []privacy.Definition {
 			Description:    "Notification titles, bodies and who received and read them.",
 			Contains:       "Notification titles and bodies, who received and read them",
 			ErasureOutcome: privacy.ErasureErased,
-			Fields:         []string{"inbox_notifications.*", "inbox_recipients.*"},
+			Fields:         []string{"inbox_notifications.*", "inbox_recipients.*", "notification_mail_outbox.*"},
 			Triggers:       []privacy.Trigger{privacy.TriggerCreatedAt},
 			Actions:        []privacy.Action{privacy.ActionDelete},
 			Subject:        privacy.SubjectAccount,
