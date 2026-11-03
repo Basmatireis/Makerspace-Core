@@ -12,7 +12,7 @@ import {
 import { Add, Download, Information, Subtract } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import type { CashMovementKind } from '../../api/generated/models';
+import type { CreateCashMovementRequestKind } from '../../api/generated/models';
 import { DateInput } from '../../app/DateInput';
 import { PageShell } from '../../app/PageShell';
 import { RefLink } from '../../app/RefLink';
@@ -80,7 +80,7 @@ function Cashbook() {
   const navigate = useNavigate();
   const notify = useNotify();
   const url = useUrlState('');
-  const [movement, setMovement] = useState<CashMovementKind | null>(null);
+  const [movement, setMovement] = useState<CreateCashMovementRequestKind | null>(null);
   const canMovements = hasPermission(user, PermissionId.cash_movementsread);
   const canRecord = hasPermission(user, PermissionId.cash_movementsrecord);
   const canOrders = hasPermission(user, PermissionId.ordersread);

@@ -19,10 +19,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * `correction` is booked only by a count of the register with a difference; it cannot be recorded directly.
+ */
 export type CashMovementKind = typeof CashMovementKind[keyof typeof CashMovementKind];
 
 
 export const CashMovementKind = {
   withdrawal: 'withdrawal',
   deposit: 'deposit',
+  correction: 'correction',
 } as const;

@@ -158,8 +158,8 @@ SELECT * FROM cash_movements WHERE operation_key=$1;
 -- name: NextCashMovementReference :one
 SELECT nextval('cash_movement_reference_sequence')::bigint;
 -- name: InsertCashMovement :one
-INSERT INTO cash_movements(id,reference,operation_key,kind,amount,reason,note,occurred_at,recorded_by_person_id)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *;
+INSERT INTO cash_movements(id,reference,operation_key,kind,amount,reason,note,occurred_at,recorded_by_person_id,cash_count_id)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *;
 -- name: ListCashMovements :many
 SELECT * FROM cash_movements WHERE (sqlc.arg(kind)::text='' OR kind=sqlc.arg(kind)) AND (sqlc.narg(from_time)::timestamptz IS NULL OR occurred_at>=sqlc.narg(from_time)) AND (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time))
 ORDER BY occurred_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
@@ -169,8 +169,34 @@ SELECT count(*) FROM cash_movements WHERE (sqlc.arg(kind)::text='' OR kind=sqlc.
 SELECT COALESCE(sum(amount) FILTER (WHERE entry_kind='receipt'),0)::numeric AS receipts,COALESCE(sum(amount) FILTER (WHERE entry_kind='reversal'),0)::numeric AS refunds
 FROM payments WHERE method='cash' AND (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));
 -- name: CashMovementFigures :one
-SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits
+-- Corrections are signed: what they added to the register.
+SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits,
+COALESCE(sum(amount) FILTER (WHERE kind='correction'),0)::numeric AS corrections
 FROM cash_movements WHERE (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));
+-- name: GetCashCountReference :one
+SELECT reference FROM cash_counts WHERE id=$1;
+-- name: NextCashCountReference :one
+SELECT nextval('cash_count_reference_sequence')::bigint;
+-- name: GetCashCountByKey :one
+SELECT * FROM cash_counts WHERE operation_key=$1;
+-- name: LatestCashCountTime :one
+SELECT counted_at FROM cash_counts ORDER BY counted_at DESC LIMIT 1;
+-- name: InsertCashCount :one
+INSERT INTO cash_counts(id,reference,operation_key,counted_amount,expected_amount,difference,reason,note,counted_at,recorded_by_person_id)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *;
+-- name: ListCashCountIDs :many
+SELECT id FROM cash_counts WHERE (sqlc.narg(from_time)::timestamptz IS NULL OR counted_at>=sqlc.narg(from_time)) AND (sqlc.narg(to_time)::timestamptz IS NULL OR counted_at<sqlc.narg(to_time))
+ORDER BY counted_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+-- name: CountCashCounts :one
+SELECT count(*) FROM cash_counts WHERE (sqlc.narg(from_time)::timestamptz IS NULL OR counted_at>=sqlc.narg(from_time)) AND (sqlc.narg(to_time)::timestamptz IS NULL OR counted_at<sqlc.narg(to_time));
+-- name: GetCashCountDetails :one
+-- A count with its correction movement and the name of the person who counted.
+SELECT c.id,c.reference,c.counted_amount,c.expected_amount,c.difference,c.reason,c.note,c.counted_at,c.created_at,c.recorded_by_person_id,
+ COALESCE(btrim(pe.first_name||' '||pe.last_name),'')::text AS recorded_by_name,m.id AS correction_id,m.reference AS correction_reference
+FROM cash_counts c LEFT JOIN people pe ON pe.id=c.recorded_by_person_id LEFT JOIN cash_movements m ON m.cash_count_id=c.id
+WHERE c.id=$1;
+-- name: LatestCashCountID :one
+SELECT id FROM cash_counts WHERE (sqlc.narg(to_time)::timestamptz IS NULL OR counted_at<sqlc.narg(to_time)) ORDER BY counted_at DESC,id DESC LIMIT 1;
 -- name: ListOwnPayableOrderIDs :many
 -- The person's finalized orders with an outstanding amount that no active external invoice request covers.
 SELECT o.id FROM orders o

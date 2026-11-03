@@ -19,12 +19,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  CashCount,
+  CashCountPage,
   CashMovement,
   CashMovementPage,
   CashRegister,
+  CreateCashCountRequest,
   CreateCashMovementRequest,
   GetCashRegisterParams,
   GetPaymentReconciliationParams,
+  ListCashCountsParams,
   ListCashMovementsParams,
   ListOrderPaymentsParams,
   Order,
@@ -248,7 +252,7 @@ export const getGetCashRegisterUrl = (params?: GetCashRegisterParams,) => {
 }
 
 /**
- * Requires payments.read and cash_movements.read. Cash receipts, cash refunds and corrections, withdrawals and deposits up to (excluding) `to`. Card and external payments never count.
+ * Requires payments.read and cash_movements.read. Cash receipts, cash refunds and corrections, withdrawals, deposits and count corrections up to (excluding) `to`, and the last count before `to`. Card and external payments never count.
  * @summary Expected cash in the register
  */
 export const getCashRegister = async (params?: GetCashRegisterParams, options?: Parameters<typeof apiFetch>[1]): Promise<CashRegister> => {
@@ -259,6 +263,75 @@ export const getCashRegister = async (params?: GetCashRegisterParams, options?: 
     method: 'GET'
 
 
+  }
+);}
+
+
+export const getListCashCountsUrl = (params?: ListCashCountsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/payments/cash-counts?${stringifiedParams}` : `/api/v1/payments/cash-counts`
+}
+
+/**
+ * Requires payments.read and cash_movements.read. Newest first. `from` is inclusive, `to` exclusive (counting time).
+ * @summary List counts of the cash register
+ */
+export const listCashCounts = async (params?: ListCashCountsParams, options?: Parameters<typeof apiFetch>[1]): Promise<CashCountPage> => {
+
+  return apiFetch<CashCountPage>(getListCashCountsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getRecordCashCountUrl = () => {
+
+
+
+
+  return `/api/v1/payments/cash-counts`
+}
+
+/**
+ * Requires payments.read, cash_movements.read and cash_movements.record. The server computes what the register should have held at `countedAt` (inclusive) from cash receipts, cash refunds and corrections, withdrawals, deposits and earlier count corrections, and stores it with the difference. A non-zero difference books one cash movement of kind `correction` (reason `count_difference`, signed amount = difference, same time) that references the count, in the same transaction; a matching count books nothing. Counts are immutable and retrying the same operationKey with the same input returns the recorded count. 409 `idempotency_conflict` for other input under a used key, `cash_count_out_of_order` when `countedAt` is not after the latest count, `cash_expected_changed` when `expectedAmount` was sent and no longer matches, `cash_count_inconsistent` when later withdrawals took more cash than the count found. 422 `cash_count_reason_required` when the count differs and no reason was given.
+ * @summary Count the cash register
+ */
+export const recordCashCount = async (createCashCountRequest: CreateCashCountRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashCount> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<CashCount>(getRecordCashCountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createCashCountRequest)
   }
 );}
 

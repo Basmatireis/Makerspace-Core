@@ -163,19 +163,22 @@ func (q *Queries) CaptureCustomer(ctx context.Context, arg CaptureCustomerParams
 }
 
 const cashMovementFigures = `-- name: CashMovementFigures :one
-SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits
+SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits,
+COALESCE(sum(amount) FILTER (WHERE kind='correction'),0)::numeric AS corrections
 FROM cash_movements WHERE ($1::timestamptz IS NULL OR occurred_at<$1)
 `
 
 type CashMovementFiguresRow struct {
 	Withdrawals pgtype.Numeric
 	Deposits    pgtype.Numeric
+	Corrections pgtype.Numeric
 }
 
+// Corrections are signed: what they added to the register.
 func (q *Queries) CashMovementFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashMovementFiguresRow, error) {
 	row := q.db.QueryRow(ctx, cashMovementFigures, toTime)
 	var i CashMovementFiguresRow
-	err := row.Scan(&i.Withdrawals, &i.Deposits)
+	err := row.Scan(&i.Withdrawals, &i.Deposits, &i.Corrections)
 	return i, err
 }
 
@@ -224,6 +227,22 @@ func (q *Queries) CommittedReplacement(ctx context.Context, replacesOrderID *uui
 	var i CommittedReplacementRow
 	err := row.Scan(&i.ID, &i.Reference)
 	return i, err
+}
+
+const countCashCounts = `-- name: CountCashCounts :one
+SELECT count(*) FROM cash_counts WHERE ($1::timestamptz IS NULL OR counted_at>=$1) AND ($2::timestamptz IS NULL OR counted_at<$2)
+`
+
+type CountCashCountsParams struct {
+	FromTime pgtype.Timestamptz
+	ToTime   pgtype.Timestamptz
+}
+
+func (q *Queries) CountCashCounts(ctx context.Context, arg CountCashCountsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCashCounts, arg.FromTime, arg.ToTime)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countCashMovements = `-- name: CountCashMovements :one
@@ -425,8 +444,87 @@ func (q *Queries) GetActor(ctx context.Context, id uuid.UUID) (GetActorRow, erro
 	return i, err
 }
 
+const getCashCountByKey = `-- name: GetCashCountByKey :one
+SELECT id, reference, operation_key, counted_amount, expected_amount, difference, reason, note, counted_at, recorded_by_person_id, created_at FROM cash_counts WHERE operation_key=$1
+`
+
+func (q *Queries) GetCashCountByKey(ctx context.Context, operationKey uuid.UUID) (CashCount, error) {
+	row := q.db.QueryRow(ctx, getCashCountByKey, operationKey)
+	var i CashCount
+	err := row.Scan(
+		&i.ID,
+		&i.Reference,
+		&i.OperationKey,
+		&i.CountedAmount,
+		&i.ExpectedAmount,
+		&i.Difference,
+		&i.Reason,
+		&i.Note,
+		&i.CountedAt,
+		&i.RecordedByPersonID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getCashCountDetails = `-- name: GetCashCountDetails :one
+SELECT c.id,c.reference,c.counted_amount,c.expected_amount,c.difference,c.reason,c.note,c.counted_at,c.created_at,c.recorded_by_person_id,
+ COALESCE(btrim(pe.first_name||' '||pe.last_name),'')::text AS recorded_by_name,m.id AS correction_id,m.reference AS correction_reference
+FROM cash_counts c LEFT JOIN people pe ON pe.id=c.recorded_by_person_id LEFT JOIN cash_movements m ON m.cash_count_id=c.id
+WHERE c.id=$1
+`
+
+type GetCashCountDetailsRow struct {
+	ID                  uuid.UUID
+	Reference           string
+	CountedAmount       pgtype.Numeric
+	ExpectedAmount      pgtype.Numeric
+	Difference          pgtype.Numeric
+	Reason              *string
+	Note                string
+	CountedAt           time.Time
+	CreatedAt           time.Time
+	RecordedByPersonID  *uuid.UUID
+	RecordedByName      string
+	CorrectionID        *uuid.UUID
+	CorrectionReference *string
+}
+
+// A count with its correction movement and the name of the person who counted.
+func (q *Queries) GetCashCountDetails(ctx context.Context, id uuid.UUID) (GetCashCountDetailsRow, error) {
+	row := q.db.QueryRow(ctx, getCashCountDetails, id)
+	var i GetCashCountDetailsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Reference,
+		&i.CountedAmount,
+		&i.ExpectedAmount,
+		&i.Difference,
+		&i.Reason,
+		&i.Note,
+		&i.CountedAt,
+		&i.CreatedAt,
+		&i.RecordedByPersonID,
+		&i.RecordedByName,
+		&i.CorrectionID,
+		&i.CorrectionReference,
+	)
+	return i, err
+}
+
+const getCashCountReference = `-- name: GetCashCountReference :one
+SELECT reference FROM cash_counts WHERE id=$1
+`
+
+func (q *Queries) GetCashCountReference(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getCashCountReference, id)
+	var reference string
+	err := row.Scan(&reference)
+	return reference, err
+}
+
 const getCashMovementByKey = `-- name: GetCashMovementByKey :one
-SELECT id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at FROM cash_movements WHERE operation_key=$1
+SELECT id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at, cash_count_id FROM cash_movements WHERE operation_key=$1
 `
 
 func (q *Queries) GetCashMovementByKey(ctx context.Context, operationKey uuid.UUID) (CashMovement, error) {
@@ -443,6 +541,7 @@ func (q *Queries) GetCashMovementByKey(ctx context.Context, operationKey uuid.UU
 		&i.OccurredAt,
 		&i.RecordedByPersonID,
 		&i.CreatedAt,
+		&i.CashCountID,
 	)
 	return i, err
 }
@@ -812,9 +911,57 @@ func (q *Queries) InsertAllocation(ctx context.Context, arg InsertAllocationPara
 	return err
 }
 
+const insertCashCount = `-- name: InsertCashCount :one
+INSERT INTO cash_counts(id,reference,operation_key,counted_amount,expected_amount,difference,reason,note,counted_at,recorded_by_person_id)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, reference, operation_key, counted_amount, expected_amount, difference, reason, note, counted_at, recorded_by_person_id, created_at
+`
+
+type InsertCashCountParams struct {
+	ID                 uuid.UUID
+	Reference          string
+	OperationKey       uuid.UUID
+	CountedAmount      pgtype.Numeric
+	ExpectedAmount     pgtype.Numeric
+	Difference         pgtype.Numeric
+	Reason             *string
+	Note               string
+	CountedAt          time.Time
+	RecordedByPersonID *uuid.UUID
+}
+
+func (q *Queries) InsertCashCount(ctx context.Context, arg InsertCashCountParams) (CashCount, error) {
+	row := q.db.QueryRow(ctx, insertCashCount,
+		arg.ID,
+		arg.Reference,
+		arg.OperationKey,
+		arg.CountedAmount,
+		arg.ExpectedAmount,
+		arg.Difference,
+		arg.Reason,
+		arg.Note,
+		arg.CountedAt,
+		arg.RecordedByPersonID,
+	)
+	var i CashCount
+	err := row.Scan(
+		&i.ID,
+		&i.Reference,
+		&i.OperationKey,
+		&i.CountedAmount,
+		&i.ExpectedAmount,
+		&i.Difference,
+		&i.Reason,
+		&i.Note,
+		&i.CountedAt,
+		&i.RecordedByPersonID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertCashMovement = `-- name: InsertCashMovement :one
-INSERT INTO cash_movements(id,reference,operation_key,kind,amount,reason,note,occurred_at,recorded_by_person_id)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at
+INSERT INTO cash_movements(id,reference,operation_key,kind,amount,reason,note,occurred_at,recorded_by_person_id,cash_count_id)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at, cash_count_id
 `
 
 type InsertCashMovementParams struct {
@@ -827,6 +974,7 @@ type InsertCashMovementParams struct {
 	Note               string
 	OccurredAt         time.Time
 	RecordedByPersonID *uuid.UUID
+	CashCountID        *uuid.UUID
 }
 
 func (q *Queries) InsertCashMovement(ctx context.Context, arg InsertCashMovementParams) (CashMovement, error) {
@@ -840,6 +988,7 @@ func (q *Queries) InsertCashMovement(ctx context.Context, arg InsertCashMovement
 		arg.Note,
 		arg.OccurredAt,
 		arg.RecordedByPersonID,
+		arg.CashCountID,
 	)
 	var i CashMovement
 	err := row.Scan(
@@ -853,6 +1002,7 @@ func (q *Queries) InsertCashMovement(ctx context.Context, arg InsertCashMovement
 		&i.OccurredAt,
 		&i.RecordedByPersonID,
 		&i.CreatedAt,
+		&i.CashCountID,
 	)
 	return i, err
 }
@@ -1049,6 +1199,28 @@ func (q *Queries) InvoicePayments(ctx context.Context, orderID *uuid.UUID) ([]In
 	return items, nil
 }
 
+const latestCashCountID = `-- name: LatestCashCountID :one
+SELECT id FROM cash_counts WHERE ($1::timestamptz IS NULL OR counted_at<$1) ORDER BY counted_at DESC,id DESC LIMIT 1
+`
+
+func (q *Queries) LatestCashCountID(ctx context.Context, toTime pgtype.Timestamptz) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, latestCashCountID, toTime)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const latestCashCountTime = `-- name: LatestCashCountTime :one
+SELECT counted_at FROM cash_counts ORDER BY counted_at DESC LIMIT 1
+`
+
+func (q *Queries) LatestCashCountTime(ctx context.Context) (time.Time, error) {
+	row := q.db.QueryRow(ctx, latestCashCountTime)
+	var counted_at time.Time
+	err := row.Scan(&counted_at)
+	return counted_at, err
+}
+
 const latestRequest = `-- name: LatestRequest :one
 SELECT id, reference, order_id, order_reference, provider, state, currency, requested_amount, supersedes_request_id, version, created_at FROM external_invoice_requests WHERE order_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1
 `
@@ -1143,8 +1315,45 @@ func (q *Queries) ListAllocations(ctx context.Context, orderID *uuid.UUID) ([]Pa
 	return items, nil
 }
 
+const listCashCountIDs = `-- name: ListCashCountIDs :many
+SELECT id FROM cash_counts WHERE ($1::timestamptz IS NULL OR counted_at>=$1) AND ($2::timestamptz IS NULL OR counted_at<$2)
+ORDER BY counted_at DESC,id DESC LIMIT $4 OFFSET $3
+`
+
+type ListCashCountIDsParams struct {
+	FromTime   pgtype.Timestamptz
+	ToTime     pgtype.Timestamptz
+	PageOffset int32
+	PageLimit  int32
+}
+
+func (q *Queries) ListCashCountIDs(ctx context.Context, arg ListCashCountIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listCashCountIDs,
+		arg.FromTime,
+		arg.ToTime,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCashMovements = `-- name: ListCashMovements :many
-SELECT id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at FROM cash_movements WHERE ($1::text='' OR kind=$1) AND ($2::timestamptz IS NULL OR occurred_at>=$2) AND ($3::timestamptz IS NULL OR occurred_at<$3)
+SELECT id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at, cash_count_id FROM cash_movements WHERE ($1::text='' OR kind=$1) AND ($2::timestamptz IS NULL OR occurred_at>=$2) AND ($3::timestamptz IS NULL OR occurred_at<$3)
 ORDER BY occurred_at DESC,id DESC LIMIT $5 OFFSET $4
 `
 
@@ -1182,6 +1391,7 @@ func (q *Queries) ListCashMovements(ctx context.Context, arg ListCashMovementsPa
 			&i.OccurredAt,
 			&i.RecordedByPersonID,
 			&i.CreatedAt,
+			&i.CashCountID,
 		); err != nil {
 			return nil, err
 		}
@@ -1637,6 +1847,17 @@ SELECT nextval('order_adjustment_reference_sequence')::bigint
 
 func (q *Queries) NextAdjustmentReference(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, nextAdjustmentReference)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const nextCashCountReference = `-- name: NextCashCountReference :one
+SELECT nextval('cash_count_reference_sequence')::bigint
+`
+
+func (q *Queries) NextCashCountReference(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, nextCashCountReference)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err

@@ -133,6 +133,20 @@ type BrandingConfiguration struct {
 	FunGreetingShare      int32
 }
 
+type CashCount struct {
+	ID                 uuid.UUID
+	Reference          string
+	OperationKey       uuid.UUID
+	CountedAmount      pgtype.Numeric
+	ExpectedAmount     pgtype.Numeric
+	Difference         pgtype.Numeric
+	Reason             *string
+	Note               string
+	CountedAt          time.Time
+	RecordedByPersonID *uuid.UUID
+	CreatedAt          time.Time
+}
+
 type CashMovement struct {
 	ID                 uuid.UUID
 	Reference          string
@@ -144,6 +158,7 @@ type CashMovement struct {
 	OccurredAt         time.Time
 	RecordedByPersonID *uuid.UUID
 	CreatedAt          time.Time
+	CashCountID        *uuid.UUID
 }
 
 type CompetencyCategory struct {

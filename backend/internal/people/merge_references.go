@@ -29,6 +29,7 @@ const (
 var MergeReferences = []MergeReference{
 	{"accounts", "person_id", "people", ruleAttached},
 	{"attendance_holds", "person_id", "people", ruleConflict},
+	{"cash_counts", "recorded_by_person_id", "people", ruleMoved},
 	{"cash_movements", "recorded_by_person_id", "people", ruleMoved},
 	{"event_shift_assignments", "person_id", "people", ruleDeduplicated},
 	{"event_tasks", "assignee_person_id", "people", ruleMoved},

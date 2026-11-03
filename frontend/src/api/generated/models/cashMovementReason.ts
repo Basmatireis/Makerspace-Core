@@ -20,7 +20,7 @@
  */
 
 /**
- * Why cash left or entered the register. `other` requires a note.
+ * Why cash left or entered the register. `other` requires a note. `count_difference` belongs to corrections only.
  */
 export type CashMovementReason = typeof CashMovementReason[keyof typeof CashMovementReason];
 
@@ -30,4 +30,5 @@ export const CashMovementReason = {
   safe: 'safe',
   float: 'float',
   other: 'other',
+  count_difference: 'count_difference',
 } as const;

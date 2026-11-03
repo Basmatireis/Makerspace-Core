@@ -301,7 +301,7 @@ export function cashbookLines(
     at: movement.occurredAt,
     reference: movement.reference,
     movement,
-    signed: movement.kind === 'deposit' ? toCents(movement.amount) : -toCents(movement.amount),
+    signed: movement.direction === 'in' ? toCents(movement.amount) : -toCents(movement.amount),
     method: 'cash',
     recordedBy: movement.recordedBy?.displayName ?? '—',
   }));

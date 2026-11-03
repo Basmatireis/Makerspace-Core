@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { CashCount } from './cashCount';
 import type { Decimal } from './decimal';
 import type { Money } from './money';
 
@@ -26,15 +27,21 @@ import type { Money } from './money';
  */
 export interface CashRegister {
   receipts: Money;
-  /** Cash refunds and corrections. */
+  /** Cash refunds and corrections of cash payments. */
   refunds: Money;
+  /** Net cash the count corrections took out of the register; negative when counts found more cash than expected. */
+  corrections: Decimal;
+  /** refunds + corrections: the "− Refunds and corrections" line of the derivation. */
+  refundsAndCorrections: Decimal;
   withdrawals: Money;
   deposits: Money;
-  /** receipts - refunds - withdrawals + deposits */
+  /** receipts - refundsAndCorrections - withdrawals + deposits */
   expected: Decimal;
   /**
      * Exclusive end of the period; null means everything recorded.
      * @nullable
      */
   to: string | null;
+  /** The latest count before `to`; null when the register was never counted. */
+  lastCount: CashCount | null;
 }

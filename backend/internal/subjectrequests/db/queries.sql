@@ -288,13 +288,18 @@ SELECT jsonb_build_object(
         WHERE d.recipient_person_id = sqlc.arg(subject_person)::uuid OR d.contact_person_id = sqlc.arg(subject_person)::uuid),
     'cashMovementsRecorded', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
         'reference', m.reference, 'kind', m.kind, 'amount', m.amount, 'reason', m.reason, 'occurredAt', m.occurred_at) ORDER BY m.occurred_at), '[]'::jsonb)
-        FROM cash_movements m WHERE m.recorded_by_person_id = sqlc.arg(subject_person)::uuid)
+        FROM cash_movements m WHERE m.recorded_by_person_id = sqlc.arg(subject_person)::uuid),
+    'cashCountsRecorded', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'reference', c.reference, 'countedAmount', c.counted_amount, 'expectedAmount', c.expected_amount,
+        'difference', c.difference, 'reason', c.reason, 'note', c.note, 'countedAt', c.counted_at) ORDER BY c.counted_at), '[]'::jsonb)
+        FROM cash_counts c WHERE c.recorded_by_person_id = sqlc.arg(subject_person)::uuid)
 )::jsonb AS document;
 
 -- name: CountFinancialRecords :one
 SELECT ((SELECT count(*) FROM orders o WHERE o.customer_person_id = sqlc.arg(subject_person)::uuid)
     + (SELECT count(*) FROM external_invoice_request_details eird WHERE eird.recipient_person_id = sqlc.arg(subject_person)::uuid OR eird.contact_person_id = sqlc.arg(subject_person)::uuid)
-    + (SELECT count(*) FROM cash_movements cm WHERE cm.recorded_by_person_id = sqlc.arg(subject_person)::uuid))::bigint AS total;
+    + (SELECT count(*) FROM cash_movements cm WHERE cm.recorded_by_person_id = sqlc.arg(subject_person)::uuid)
+    + (SELECT count(*) FROM cash_counts cc WHERE cc.recorded_by_person_id = sqlc.arg(subject_person)::uuid))::bigint AS total;
 
 -- name: CountOrderOperations :one
 SELECT count(*)::bigint FROM order_operations WHERE actor_account_id = sqlc.arg(subject_account)::uuid;
