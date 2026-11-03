@@ -214,7 +214,7 @@ describe('Machines & Jobs shared helpers', () => {
     expect(machineLogbookPaths.inventory('spools')).toBe('/workshop/inventory?tab=spools');
     expect(machineLogbookPaths.material('a')).toBe('/workshop/inventory/materials/a');
     expect(machineLogbookPaths.spool('s')).toBe('/workshop/inventory/spools/s');
-    expect(machineLogbookPaths.statistics()).toBe('/workshop/statistics');
+    expect(machineLogbookPaths.statistics()).toBe('/statistics');
   });
 
   it('detects whether attaching a recorded run changes what the manual runs recorded', () => {

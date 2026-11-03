@@ -48,7 +48,7 @@ describe('AppNavigation', () => {
     expect(screen.queryByRole('link', { name: 'Jobs' })).not.toBeInTheDocument();
   });
 
-  it('offers Jobs, Machines, Inventory and Statistics under Workshop with every permission', () => {
+  it('offers Jobs, Machines and Inventory under Workshop and Statistics under Administration', () => {
     renderRoute(
       <AppNavigation
         currentUser={currentUserFixture([
@@ -68,9 +68,40 @@ describe('AppNavigation', () => {
       ['Jobs', '/workshop/jobs'],
       ['Machines', '/workshop/machines'],
       ['Inventory', '/workshop/inventory'],
-      ['Statistics', '/workshop/statistics'],
     ]);
     expect(screen.getByRole('link', { name: 'Jobs' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByText('Administration')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Statistics' })).toHaveAttribute('href', '/statistics');
+  });
+
+  it('shows Statistics above Settings and marks it active, gated by statistics.read', () => {
+    renderRoute(
+      <AppNavigation
+        currentUser={currentUserFixture([PermissionId.statisticsread])}
+        legal={defaultPublicConfiguration.legal}
+        onNavigate={vi.fn()}
+      />,
+      '/statistics',
+    );
+
+    expect(screen.getByText('Administration')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Statistics' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('button', { name: 'Workshop' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+  });
+
+  it('hides Statistics and the Administration heading without statistics.read', () => {
+    renderRoute(
+      <AppNavigation
+        currentUser={currentUserFixture([PermissionId.machine_jobsread])}
+        legal={defaultPublicConfiguration.legal}
+        onNavigate={vi.fn()}
+      />,
+      '/dashboard',
+    );
+
+    expect(screen.queryByRole('link', { name: 'Statistics' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Administration')).not.toBeInTheDocument();
   });
 
   it('opens the active group after client navigation and marks the active destination', async () => {

@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { SideNavDivider, SideNavItems, SideNavLink, SideNavMenu, SideNavMenuItem } from '@carbon/react';
 import {
   Calendar,
+  ChartBar,
   Dashboard,
   DocumentSecurity,
   Information,
@@ -133,7 +134,6 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
     ['Jobs', 'jobs', 'machine_jobs.read'],
     ['Machines', 'machines', 'machines.read'],
     ['Inventory', 'inventory', 'inventory.read'],
-    ['Statistics', 'statistics', 'statistics.read'],
   ] as const;
   for (const [label, segment, permission] of workshopPages) {
     if (hasPermission(currentUser, permission)) {
@@ -186,7 +186,8 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   }
 
   const canReadAuditLog = hasPermission(currentUser, 'audit.read');
-  const showAdministration = canAccessSettings(currentUser) || canReadAuditLog;
+  const canReadStatistics = hasPermission(currentUser, 'statistics.read');
+  const showAdministration = canReadStatistics || canAccessSettings(currentUser) || canReadAuditLog;
 
   const renderGroup = (
     id: NavigationGroupId,
@@ -226,6 +227,18 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
           <>
             <SideNavDivider />
             <li className="app-side-nav__heading">Administration</li>
+            {canReadStatistics && (
+              <SideNavLink
+                as={Link}
+                to="/statistics"
+                isActive={pathname === '/statistics'}
+                aria-current={pathname === '/statistics' ? 'page' : undefined}
+                renderIcon={ChartBar}
+                onClick={onNavigate}
+              >
+                Statistics
+              </SideNavLink>
+            )}
             {canAccessSettings(currentUser) && (
               <SideNavLink
                 as={Link}

@@ -28,7 +28,7 @@ for (const width of widths) {
     const pages = [
       ['/workshop/jobs', 'jobs', 'Jobs'],
       [`/workshop/jobs/${ids.jobSuccess}`, 'job', 'Gearbox housing'],
-      ['/workshop/statistics', 'statistics', 'Statistics'],
+      ['/statistics', 'statistics', 'Statistics'],
     ] as const;
     for (const [path, label, title] of pages) {
       await page.goto(path);

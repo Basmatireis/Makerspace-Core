@@ -67,6 +67,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - **Workshop routes.** Jobs, Machines, Inventory and Statistics moved from `/machine-logbook/…` to `/workshop/…` with the same sub-paths; every former URL redirects with its sub-path and query, and `/machine-logbook` and `/machine-logbook/overview` open Jobs. The Workshop navigation group no longer has an Overview page. API paths are unchanged.
 
+- **Statistics under Administration.** Statistics left the Workshop group and is a top-level navigation entry under Administration, directly above Settings, at `/statistics` (breadcrumb Administration / Statistics); `/workshop/statistics` and `/machine-logbook/statistics` redirect there.
+
 ### Fixed
 
 - **Uploaded fonts vanished after a failed load.** A font whose first load failed (network blip, restart, token rotation) stayed missing in the preview and on the display for the rest of the session. Fonts are now registered through the Font Loading API and retried with backoff.

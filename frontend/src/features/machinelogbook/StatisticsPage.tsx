@@ -16,7 +16,6 @@ import { dateInAppTimeZone } from '../../app/dateTime';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { statisticsQuery } from './queries';
-import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
 import { ExploreTab } from './statistics/ExploreTab';
 import { MachinesTab } from './statistics/MachinesTab';
@@ -134,7 +133,7 @@ export function StatisticsPage() {
         description="How the workshop is used, what it consumes and what it earns, compared with the previous period."
         width="wide"
         className="machine-logbook-page statistics-page"
-        breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.home() }, { label: 'Statistics' }]}
+        breadcrumbs={[{ label: 'Administration' }, { label: 'Statistics' }]}
         actions={
           <PeriodPicker
             period={period}

@@ -311,7 +311,7 @@ test.describe('statistics', () => {
     page,
     world,
   }) => {
-    await page.goto(`${base}/statistics?period=custom&from=2026-01-01&to=2026-01-31`);
+    await page.goto(`/statistics?period=custom&from=2026-01-01&to=2026-01-31`);
     await expect(page.getByLabel('Key figures')).toBeVisible();
     expect(world.statisticsRequests[0].get('from')).toBe('2026-01-01');
     expect(world.statisticsRequests[0].get('to')).toBe('2026-02-01');
@@ -348,7 +348,7 @@ test.describe('statistics', () => {
       test.setTimeout(90_000);
       await page.setViewportSize({ width, height: 900 });
       for (const tab of ['Overview', 'Machines', 'Materials', 'Money', 'Explore']) {
-        await page.goto(`${base}/statistics?tab=${tab.toLowerCase()}`);
+        await page.goto(`/statistics?tab=${tab.toLowerCase()}`);
         await expect(page.getByRole('tab', { name: tab, selected: true })).toBeVisible();
         await expect(page.locator('.stats-card__chart svg.layout-svg-wrapper').first()).toBeVisible();
         await expectNoHorizontalScroll(page);
@@ -357,7 +357,7 @@ test.describe('statistics', () => {
     });
 
   test('chooses a custom period in a dialog and shows a chart as a table', async ({ page, world }) => {
-    await page.goto(`${base}/statistics?tab=money`);
+    await page.goto('/statistics?tab=money');
     await expect(page.getByLabel('Money figures')).toBeVisible();
     await page.getByRole('combobox', { name: 'Period' }).click();
     await page.getByRole('option', { name: 'Custom range…' }).click();

@@ -280,11 +280,7 @@ export function App() {
               />
               <Route
                 path="statistics"
-                element={
-                  <PermissionRoute allOf={['statistics.read']}>
-                    <StatisticsPage />
-                  </PermissionRoute>
-                }
+                element={<LegacyRedirect from="/workshop/statistics" to={machineLogbookPaths.statistics()} />}
               />
               {/* Former URLs. Static segments rank above `:materialId`, so "materials", "spools" and "products" never become an ID. */}
               <Route
@@ -573,6 +569,14 @@ export function App() {
             />
             {/* The layout hosts the toast stack, so a deletion can confirm after leaving its page. */}
             <Route element={<MachineLogbookLayout />}>
+              <Route
+                path="statistics"
+                element={
+                  <PermissionRoute allOf={['statistics.read']}>
+                    <StatisticsPage />
+                  </PermissionRoute>
+                }
+              />
               <Route
                 path="sales"
                 element={

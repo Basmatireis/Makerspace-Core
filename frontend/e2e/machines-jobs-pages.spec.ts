@@ -111,7 +111,7 @@ const targets: Target[] = [
   },
   {
     name: 'Statistics',
-    path: `${base}/statistics?tab=machines`,
+    path: '/statistics?tab=machines',
     ready: (page) => page.getByRole('table', { name: 'Machines' }),
   },
 ];
@@ -270,18 +270,20 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 });
 
 test.describe('navigation and former URLs', () => {
-  test('lists Jobs, Machines, Inventory and Statistics in that order', async ({ page }) => {
+  test('lists Jobs, Machines and Inventory in that order and Statistics under Administration', async ({ page }) => {
     await page.goto(base);
     await expect(page).toHaveURL(`${base}/jobs`);
     const nav = page.getByRole('navigation', { name: 'Primary navigation' });
     const group = nav.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Workshop' }) });
-    await expect(group.getByRole('link')).toHaveText(['Jobs', 'Machines', 'Inventory', 'Statistics']);
+    await expect(group.getByRole('link')).toHaveText(['Jobs', 'Machines', 'Inventory']);
     await expect(nav.getByRole('link', { name: 'Review' })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'Print submissions' })).toHaveCount(0);
     await expect(group.getByRole('link', { name: 'Jobs' })).toHaveAttribute('aria-current', 'page');
-    await group.getByRole('link', { name: 'Statistics' }).click();
-    await expect(page).toHaveURL(`${base}/statistics`);
-    await expect(group.getByRole('link', { name: 'Statistics' })).toHaveAttribute('aria-current', 'page');
+    await nav.getByRole('link', { name: 'Statistics' }).click();
+    await expect(page).toHaveURL('/statistics');
+    await expect(nav.getByRole('link', { name: 'Statistics' })).toHaveAttribute('aria-current', 'page');
+    await page.goto(`${base}/statistics?tab=money`);
+    await expect(page).toHaveURL('/statistics?tab=money');
   });
 
   test('is reachable through the navigation drawer on a phone', async ({ page }) => {
@@ -388,7 +390,7 @@ test.describe('read-only role', () => {
       `${base}/jobs/${ids.jobSuccess}`,
       `${base}/machines`,
       `${base}/inventory`,
-      `${base}/statistics`,
+      '/statistics',
     ]) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
@@ -403,12 +405,10 @@ test.describe('role without job access', () => {
   test.use({ userPermissions: ['statistics.read'] });
 
   test('shows Statistics only and sends Jobs, Machines and Inventory back to the dashboard', async ({ page }) => {
-    await page.goto(`${base}/statistics`);
-    const group = page
-      .getByRole('navigation', { name: 'Primary navigation' })
-      .getByRole('listitem')
-      .filter({ has: page.getByRole('button', { name: 'Workshop' }) });
-    await expect(group.getByRole('link')).toHaveText(['Statistics']);
+    await page.goto('/statistics');
+    const nav = page.getByRole('navigation', { name: 'Primary navigation' });
+    await expect(nav.getByRole('button', { name: 'Workshop' })).toHaveCount(0);
+    await expect(nav.getByRole('link', { name: 'Statistics' })).toHaveAttribute('aria-current', 'page');
     for (const path of ['jobs', 'machines', 'inventory']) {
       await page.goto(`${base}/${path}`);
       await expect(page).toHaveURL(/\/dashboard$/);

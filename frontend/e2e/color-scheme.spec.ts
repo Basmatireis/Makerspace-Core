@@ -31,7 +31,7 @@ test.describe('color scheme', () => {
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ colorScheme: 'dark' });
       for (const [path, ready] of [
-        ['/workshop/statistics', 'Statistics'],
+        ['/statistics', 'Statistics'],
         ['/workshop/inventory', 'Inventory'],
       ] as const) {
         await page.goto(path);

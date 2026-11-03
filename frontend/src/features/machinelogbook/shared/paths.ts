@@ -1,4 +1,4 @@
-/** Route builders for the Workshop area (jobs, machines, inventory, statistics), so links never hard-code path strings. */
+/** Route builders for the Workshop area (jobs, machines, inventory) and Statistics, so links never hard-code path strings. */
 const root = '/workshop';
 const withQuery = (path: string, query?: Record<string, string | undefined>) => {
   const search = new URLSearchParams(
@@ -27,7 +27,8 @@ export const machineLogbookPaths = {
   inventory: (tab?: InventoryTab) => withQuery(`${root}/inventory`, { tab }),
   material: (id: string) => `${root}/inventory/materials/${segment(id)}`,
   spool: (id: string) => `${root}/inventory/spools/${segment(id)}`,
-  statistics: () => `${root}/statistics`,
+  /** Statistics sits under Administration, outside the Workshop area. */
+  statistics: () => '/statistics',
   /** Printer connectors live under Settings, Local services. */
   connectors: () => '/settings/local-services?tab=connectors',
 };
