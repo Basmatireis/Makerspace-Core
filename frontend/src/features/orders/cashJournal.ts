@@ -132,3 +132,7 @@ export function checkCount(values: CountValues, expected: number | null, now = n
 
 /** The instant just after a counting time, so the register figures include everything up to and including it. */
 export const justAfter = (iso: string) => `${iso.replace(/Z$/, '').replace(/(\.\d{3})?$/, (ms) => ms || '.000')}001Z`;
+
+/** Withdrawals, deposits and counts can be edited and deleted; payments and count corrections cannot. */
+export const isEditableEntry = (entry: CashJournalEntry) =>
+  entry.version != null && (entry.kind === 'withdrawal' || entry.kind === 'deposit' || entry.kind === 'count');

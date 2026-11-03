@@ -11,13 +11,13 @@ import {
   TextInput,
 } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
-import { recordCashCount } from '../../api/generated/payments/payments';
-import type { CashCountReason } from '../../api/generated/models';
+import { recordCashCount, updateCashCount } from '../../api/generated/payments/payments';
+import type { CashCount, CashCountReason, CashJournalEntry } from '../../api/generated/models';
 import { DateTimeInput } from '../../app/DateInput';
 import { instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../app/dateTime';
 import { useNotify } from '../machinelogbook/shared/toasts';
 import { checkCount, countReasonNeedsNote, countReasons, justAfter, type CountValues } from './cashJournal';
-import { formatCents, formatSignedCents, fromCents, parseMoneyInput, toCents } from './money';
+import { formatCents, formatSignedCents, fromCents, moneyInputText, parseMoneyInput, toCents } from './money';
 import { useOperationKeys } from './operations';
 import { cashRegisterQuery, useFinanceMutation } from './queries';
 
@@ -30,30 +30,65 @@ const isoOf = (time: string) => {
   }
 };
 
+const initialValues = (entry?: CashJournalEntry): CountValues =>
+  entry?.count
+    ? {
+        amount: moneyInputText(toCents(entry.count.countedAmount)),
+        time: instantToZonedDateTimeValue(entry.occurredAt),
+        reason: entry.count.reason ?? '',
+        note: entry.note,
+      }
+    : { amount: '', time: instantToZonedDateTimeValue(new Date()), reason: '', note: '' };
+
+const savedText = (count: CashCount) => {
+  const difference = toCents(count.difference);
+  return difference === 0
+    ? `${count.reference} matches the expected ${formatCents(toCents(count.expectedAmount))}.`
+    : `${count.reference} found ${formatCents(toCents(count.countedAmount))}, ${formatCents(toCents(count.expectedAmount))} were expected${count.correction ? ` (${count.correction.reference})` : ''}.`;
+};
+
 /**
  * Count the register: what was counted and when. The server knows what the register should have held at that time;
- * a difference is booked as a correction with a reason, never silently.
+ * a difference is booked as a correction with a reason, never silently. With `entry` (a count of the journal) the
+ * dialog edits that count (cash_movements.manage); its correction follows the new difference.
  */
-export function CashCountModal({ onClose }: { onClose: () => void }) {
+export function CashCountModal({ entry, onClose }: { entry?: CashJournalEntry; onClose: () => void }) {
   const notify = useNotify();
   const key = useOperationKeys();
-  const form = useForm<CountValues>({
-    defaultValues: { amount: '', time: instantToZonedDateTimeValue(new Date()), reason: '', note: '' },
-  });
+  const edited = entry?.count ? entry : null;
+  const initial = initialValues(entry);
+  const form = useForm<CountValues>({ defaultValues: initial });
   const values = form.watch();
-  const countedAt = isoOf(values.time);
+  // The time field has minutes only: an untouched time keeps the stored instant with its seconds.
+  const timeChanged = !edited || values.time !== initial.time;
+  const countedAt = edited && !timeChanged ? edited.occurredAt : isoOf(values.time);
   // What the register should have held at the counting time, everything up to and including it.
   const expectedThen = useQuery({
     ...cashRegisterQuery(countedAt ? justAfter(countedAt) : undefined),
     enabled: !!countedAt,
   });
-  const expected = countedAt && expectedThen.data ? toCents(expectedThen.data.expected) : null;
+  // An edited count's own correction is booked at its stored time; it is not part of what was expected.
+  const ownCorrection =
+    edited?.count && countedAt && new Date(countedAt).getTime() >= new Date(edited.occurredAt).getTime()
+      ? toCents(edited.count.difference)
+      : 0;
+  const expected = countedAt && expectedThen.data ? toCents(expectedThen.data.expected) - ownCorrection : null;
   const counted = parseMoneyInput(values.amount);
   const difference = counted !== null && counted >= 0 && expected !== null ? counted - expected : null;
   const { errors } = form.formState;
 
   const mutation = useFinanceMutation(
     (input: CountValues) => {
+      if (edited) {
+        return updateCashCount(edited.id, {
+          expectedVersion: edited.version ?? 1,
+          countedAmount: fromCents(parseMoneyInput(input.amount) ?? 0),
+          ...(timeChanged ? { countedAt: zonedDateTimeValueToISO(input.time) } : {}),
+          ...(difference !== 0 && input.reason ? { reason: input.reason as CashCountReason } : {}),
+          note: input.note.trim(),
+          ...(expected !== null ? { expectedAmount: fromCents(expected) } : {}),
+        });
+      }
       const request = {
         countedAmount: fromCents(parseMoneyInput(input.amount) ?? 0),
         countedAt: zonedDateTimeValueToISO(input.time),
@@ -67,11 +102,12 @@ export function CashCountModal({ onClose }: { onClose: () => void }) {
       const booked = toCents(count.difference);
       notify({
         kind: 'success',
-        title: booked === 0 ? 'Count recorded' : `Difference ${formatSignedCents(booked)} booked as a correction`,
-        subtitle:
-          booked === 0
-            ? `${count.reference} matches the expected ${formatCents(toCents(count.expectedAmount))}.`
-            : `${count.reference} found ${formatCents(toCents(count.countedAmount))}, ${formatCents(toCents(count.expectedAmount))} were expected${count.correction ? ` (${count.correction.reference})` : ''}.`,
+        title: edited
+          ? 'Count saved'
+          : booked === 0
+            ? 'Count recorded'
+            : `Difference ${formatSignedCents(booked)} booked as a correction`,
+        subtitle: savedText(count),
       });
       onClose();
     },
@@ -88,14 +124,17 @@ export function CashCountModal({ onClose }: { onClose: () => void }) {
     mutation.mutate(input);
   });
 
-  const primary =
-    difference === null || difference === 0 ? 'Record count' : `Record count and book ${formatSignedCents(difference)}`;
+  const primary = edited
+    ? 'Save'
+    : difference === null || difference === 0
+      ? 'Record count'
+      : `Record count and book ${formatSignedCents(difference)}`;
   return (
     <Modal
       open
       size="sm"
-      modalLabel="Cash register"
-      modalHeading="Count the register"
+      modalLabel={edited ? `Cash register · ${edited.reference}` : 'Cash register'}
+      modalHeading={edited ? 'Edit count' : 'Count the register'}
       primaryButtonText={mutation.isPending ? 'Saving…' : primary}
       secondaryButtonText="Cancel"
       primaryButtonDisabled={mutation.isPending || (!!countedAt && expectedThen.isPending)}
@@ -177,7 +216,11 @@ export function CashCountModal({ onClose }: { onClose: () => void }) {
             lowContrast
             hideCloseButton
             title="The count matches."
-            subtitle="It is written to the register journal as a count line."
+            subtitle={
+              edited
+                ? 'Any correction of this count is removed when you save.'
+                : 'It is written to the register journal as a count line.'
+            }
           />
         )}
         {difference !== null && difference !== 0 && (
@@ -219,7 +262,7 @@ export function CashCountModal({ onClose }: { onClose: () => void }) {
             kind="error"
             lowContrast
             hideCloseButton
-            title="Nothing was recorded"
+            title={edited ? 'Nothing was saved' : 'Nothing was recorded'}
             subtitle={mutation.error.message}
           />
         )}

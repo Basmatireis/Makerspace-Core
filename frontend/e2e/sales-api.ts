@@ -422,6 +422,9 @@ export function createSalesWorld(permissions: string[] = salesPermissions) {
     note: '',
     count: null,
     ...extra,
+    // Payments are not edited here; movements and counts carry the version their edit sends back.
+    version: extra.source === 'payment' ? null : (extra.version ?? 1),
+    updatedAt: extra.source === 'payment' ? null : (extra.occurredAt ?? at(31)),
   });
   const lastCount: CashCount = {
     id: id(506),
@@ -435,6 +438,8 @@ export function createSalesWorld(permissions: string[] = salesPermissions) {
     createdAt: '2026-11-03T09:00:00Z',
     recordedBy: lena,
     correction: { id: id(505), reference: 'C-2026-000005' },
+    version: 1,
+    updatedAt: '2026-11-03T09:00:00Z',
   };
   // The register journal, newest first: Oct 31 deposit and receipt, Nov 2 receipt and withdrawal, Nov 3 count.
   const journal: CashJournalEntry[] = [
@@ -699,9 +704,82 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
         createdAt: String(input.countedAt),
         recordedBy: { id: id(90), displayName: 'Lena Hofer' },
         correction: difference === 0 ? null : { id: id(700), reference: 'C-2026-000006' },
+        version: 1,
+        updatedAt: String(input.countedAt),
       };
       world.counts.unshift(count);
       return ok(route, count, 201);
+    }
+    // Editing and deleting withdrawals, deposits and counts (cash_movements.manage). Figures are not recalculated.
+    if ((match = path.match(/^\/api\/v1\/(cash-movements|payments\/cash-counts)\/([^/]+)$/))) {
+      const index = world.journal.findIndex((entry) => entry.id === match![2]);
+      const found = world.journal[index];
+      if (!found || found.source === 'payment') return ok(route, { code: 'not_found', message: 'Not found' }, 404);
+      const input = body ?? {};
+      if (input.expectedVersion !== found.version)
+        return ok(route, { code: 'stale_write', message: 'The resource changed; reload it and try again' }, 409);
+      if (method === 'DELETE') {
+        world.journal = world.journal.filter(
+          (entry) =>
+            entry.id !== found.id &&
+            !(found.count && entry.kind === 'correction' && entry.occurredAt === found.occurredAt),
+        );
+        world.counts = world.counts.filter((count) => count.id !== found.id);
+        return route.fulfill({ status: 204 });
+      }
+      const edited: CashJournalEntry = {
+        ...found,
+        version: (found.version ?? 1) + 1,
+        updatedAt: '2026-11-03T12:00:00Z',
+      };
+      if (found.count) {
+        const counted = String(input.countedAmount ?? found.count.countedAmount);
+        const expected = Math.round(Number(found.count.expectedAmount) * 100);
+        const difference = (Math.round(Number(counted) * 100) - expected) / 100;
+        edited.note = String(input.note ?? found.note);
+        edited.count = {
+          ...found.count,
+          countedAmount: Number(counted).toFixed(2),
+          difference: difference.toFixed(2),
+          reason: difference === 0 ? null : ((input.reason as CashCount['reason']) ?? found.count.reason),
+        };
+        world.journal[index] = edited;
+        const count: CashCount = {
+          ...world.counts.find((entry) => entry.id === found.id)!,
+          countedAmount: edited.count.countedAmount,
+          difference: edited.count.difference,
+          reason: edited.count.reason,
+          note: edited.note,
+          correction: difference === 0 ? null : { id: id(505), reference: 'C-2026-000005' },
+          version: edited.version!,
+          updatedAt: edited.updatedAt!,
+        };
+        world.counts = world.counts.map((entry) => (entry.id === count.id ? count : entry));
+        return ok(route, count);
+      }
+      const amount = Number(input.amount ?? found.amountIn ?? found.amountOut).toFixed(2);
+      if (found.kind === 'withdrawal') edited.amountOut = amount;
+      else edited.amountIn = amount;
+      edited.movementReason = (input.reason as CashJournalEntry['movementReason']) ?? found.movementReason;
+      edited.note = String(input.note ?? found.note);
+      if (input.occurredAt) edited.occurredAt = String(input.occurredAt);
+      world.journal[index] = edited;
+      return ok(route, {
+        id: edited.id,
+        reference: edited.reference,
+        kind: edited.kind,
+        direction: edited.amountIn ? 'in' : 'out',
+        amount,
+        reason: edited.movementReason,
+        note: edited.note,
+        occurredAt: edited.occurredAt,
+        createdAt: found.occurredAt,
+        recordedBy: edited.recordedBy,
+        cashCountId: null,
+        cashCountReference: null,
+        version: edited.version,
+        updatedAt: edited.updatedAt,
+      });
     }
     if (path === '/api/v1/payments/cashbook-export') {
       const format = url.searchParams.get('format') ?? 'pdf';
@@ -745,6 +823,8 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
               recordedBy: entry.recordedBy,
               cashCountId: entry.kind === 'correction' ? id(506) : null,
               cashCountReference: entry.kind === 'correction' ? 'K-2026-0002' : null,
+              version: entry.version ?? 1,
+              updatedAt: entry.updatedAt ?? entry.occurredAt,
             })),
         ),
       );

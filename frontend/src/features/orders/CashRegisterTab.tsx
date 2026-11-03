@@ -14,6 +14,7 @@ import { DirectoryTable, useServerTableState, type Column } from '../machinelogb
 import { QueryBoundary } from '../machinelogbook/shared/QueryBoundary';
 import { CashCountModal } from './CashCountModal';
 import { CashMovementModal } from './CashMovementModal';
+import { DeleteCashEntryDialog } from './DeleteCashEntryDialog';
 import {
   daysByDate,
   isJournalKind,
@@ -46,7 +47,10 @@ export function CashRegisterTab() {
   const kinds = table.url.list('kind').filter(isJournalKind);
   const panelFits = useListPanelLayout();
   const [dialog, setDialog] = useState<RegisterAction | 'export' | null>(null);
+  const [editing, setEditing] = useState<CashJournalEntry | null>(null);
+  const [deleting, setDeleting] = useState<CashJournalEntry | null>(null);
   const canRecord = hasPermission(user, PermissionId.cash_movementsrecord);
+  const canManage = hasPermission(user, PermissionId.cash_movementsmanage);
   const journal = useQuery({
     ...cashJournalQuery({
       ...(period.from ? { from: period.from } : {}),
@@ -92,6 +96,9 @@ export function CashRegisterTab() {
                     <EntryPanel
                       entry={selected}
                       canOrders={hasPermission(user, PermissionId.ordersread)}
+                      canManage={canManage}
+                      onEdit={setEditing}
+                      onDelete={setDeleting}
                       onClose={() => select(null)}
                     />
                   ) : (
@@ -120,6 +127,20 @@ export function CashRegisterTab() {
       {dialog === 'count' && <CashCountModal onClose={() => setDialog(null)} />}
       {(dialog === 'withdrawal' || dialog === 'deposit') && (
         <CashMovementModal kind={dialog} onClose={() => setDialog(null)} />
+      )}
+      {editing?.kind === 'count' && <CashCountModal entry={editing} onClose={() => setEditing(null)} />}
+      {(editing?.kind === 'withdrawal' || editing?.kind === 'deposit') && (
+        <CashMovementModal kind={editing.kind} entry={editing} onClose={() => setEditing(null)} />
+      )}
+      {deleting && (
+        <DeleteCashEntryDialog
+          entry={deleting}
+          onDeleted={() => {
+            setDeleting(null);
+            select(null);
+          }}
+          onClose={() => setDeleting(null)}
+        />
       )}
       {dialog === 'export' && (
         <ExportCashbookModal period={period} contents="cash_register" onClose={() => setDialog(null)} />

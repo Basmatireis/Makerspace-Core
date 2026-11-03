@@ -196,6 +196,70 @@ test.describe('sales and payments', () => {
     });
   });
 
+  test('without cash_movements.manage an entry offers no Edit or Delete', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto('/payments');
+    const panel = page.getByRole('complementary', { name: 'Cash register' });
+    await page.getByRole('table', { name: 'Cash journal' }).getByRole('button', { name: 'C-2026-000004' }).click();
+    await expect(panel.getByRole('heading', { name: 'C-2026-000004' })).toBeVisible();
+    await expect(panel.getByRole('button', { name: 'Edit' })).toHaveCount(0);
+    await expect(panel.getByRole('button', { name: 'Delete' })).toHaveCount(0);
+  });
+
+  test('edits a withdrawal and a count and deletes the count', async ({ page, world }, testInfo) => {
+    world.permissions = [...world.permissions, 'cash_movements.manage'];
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto('/payments');
+    const table = page.getByRole('table', { name: 'Cash journal' });
+    const panel = page.getByRole('complementary', { name: 'Cash register' });
+
+    await table.getByRole('button', { name: 'C-2026-000004' }).click();
+    await expect(panel.getByRole('heading', { name: 'C-2026-000004' })).toBeVisible();
+    await expectNoAccessibilityViolations(page, '#main-content');
+    await panel.getByRole('button', { name: 'Edit' }).click();
+    const withdrawal = dialogTitled(page, 'Edit withdrawal');
+    await expect(withdrawal.getByLabel('Amount (€)')).toHaveValue('80,00');
+    await withdrawal.getByLabel('Amount (€)').fill('75');
+    await expectNoAccessibilityViolations(page, '[role="dialog"]');
+    await page.screenshot({ path: testInfo.outputPath('payments-edit-withdrawal.png') });
+    await withdrawal.getByRole('button', { name: 'Save' }).click();
+    await expect(withdrawal).toBeHidden();
+    await expect(page.getByText('Withdrawal saved')).toBeVisible();
+    expect(world.requests.at(-1)).toMatchObject({
+      method: 'PATCH',
+      path: expect.stringMatching(/^\/api\/v1\/cash-movements\//),
+      body: { expectedVersion: 1, amount: '75.00', reason: 'bank_deposit', note: 'Slip 2211' },
+    });
+    await expect(table.getByRole('row').filter({ hasText: 'C-2026-000004' })).toContainText('€75.00');
+    await expect(panel.getByText('Last edited')).toBeVisible();
+
+    await table.getByRole('button', { name: 'K-2026-0002' }).click();
+    await panel.getByRole('button', { name: 'Edit' }).click();
+    const count = dialogTitled(page, 'Edit count');
+    await expect(count.getByLabel('Counted amount (€)')).toHaveValue('83,20');
+    await count.getByLabel('Counted amount (€)').fill('85,70');
+    await expect(count.getByText('The count matches.')).toBeVisible();
+    await count.getByRole('button', { name: 'Save' }).click();
+    await expect(count).toBeHidden();
+    await expect(page.getByText('Count saved')).toBeVisible();
+    expect(world.requests.at(-1)).toMatchObject({
+      method: 'PATCH',
+      path: expect.stringMatching(/^\/api\/v1\/payments\/cash-counts\//),
+      body: { expectedVersion: 1, countedAmount: '85.70', note: '', expectedAmount: '85.70' },
+    });
+
+    await panel.getByRole('button', { name: 'Delete' }).click();
+    const confirm = page.getByRole('alertdialog');
+    await expect(confirm.getByRole('heading', { name: 'Delete count?' })).toBeVisible();
+    await expect(confirm).toContainText('Count K-2026-0002 found €85.70.');
+    await expectNoAccessibilityViolations(page, '[role="alertdialog"]');
+    await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(page.getByText('Count deleted')).toBeVisible();
+    expect(world.requests.at(-1)).toMatchObject({ method: 'DELETE', body: { expectedVersion: 2 } });
+    await expect(table.getByRole('button', { name: 'K-2026-0002' })).toHaveCount(0);
+    await expect(panel.getByRole('heading', { name: 'Expected in the register' })).toBeVisible();
+  });
+
   test('filters by period and exports the cashbook', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/payments?tab=cashbook');
