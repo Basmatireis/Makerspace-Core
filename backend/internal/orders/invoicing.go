@@ -115,11 +115,11 @@ func (s *Service) UpdateRequirements(
 		return InvoicingRequirements{}, err
 	}
 	return InvoicingRequirements{
-			RequirePurchaseOrderReference: r.RequirePurchaseOrderReference,
-			Version:                       r.Version,
-		}, tx.Commit(
-			ctx,
-		)
+		RequirePurchaseOrderReference: r.RequirePurchaseOrderReference,
+		Version:                       r.Version,
+	}, tx.Commit(
+		ctx,
+	)
 }
 
 func (s *Service) saveDetails(
