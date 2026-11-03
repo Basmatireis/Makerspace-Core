@@ -72,12 +72,25 @@ function TypesTable({
         ),
     },
     {
+      key: 'code',
+      header: 'Code',
+      sortValue: (row) => row.code,
+      render: (row) => <span className="inv-mono">{row.code}</span>,
+    },
+    {
       key: 'kind',
       header: 'Kind',
       sortValue: (row) => row.kind,
       render: (row) => <ArticleKindTag kind={row.kind} />,
     },
     { key: 'unit', header: 'Unit', narrow: true, sortValue: (row) => row.unit, render: (row) => unitLabel(row.unit) },
+    {
+      key: 'machineUse',
+      header: 'Machine use',
+      narrow: true,
+      sortValue: (row) => (row.machineUse ? 0 : 1),
+      render: (row) => (row.machineUse ? 'Yes' : <span className="mj-secondary">Not used in machine runs</span>),
+    },
     {
       key: 'processes',
       header: 'Processes',
@@ -125,7 +138,9 @@ function TypesTable({
         searchText={(row) =>
           [
             row.name,
+            row.code,
             kindNames[row.kind],
+            row.machineUse ? 'Machine use' : '',
             unitLabel(row.unit),
             ...processLabels(row),
             row.active ? 'Active' : 'Inactive',

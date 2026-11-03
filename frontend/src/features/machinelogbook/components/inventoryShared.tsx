@@ -8,6 +8,7 @@ import type {
   InventoryTransactionKind,
   Material,
   MaterialKind,
+  MaterialPriceSource,
   MaterialUnit,
   StockState,
 } from '../../../api/generated/models';
@@ -49,14 +50,14 @@ export const materialUnitCost = (material: Pick<Material, 'averageUnitCost' | 'i
 
 export const stockStateOptions: { id: StockState; label: string }[] = [
   { id: 'in_stock', label: 'In stock' },
-  { id: 'low_stock', label: 'Low' },
-  { id: 'empty', label: 'Empty' },
+  { id: 'low_stock', label: 'Low stock' },
+  { id: 'empty', label: 'Out of stock' },
 ];
 
 const stockMeta = {
   in_stock: { label: 'In stock', type: 'green', icon: CheckmarkFilled },
-  low_stock: { label: 'Low', type: 'warm-gray', icon: WarningAltFilled },
-  empty: { label: 'Empty', type: 'red', icon: ErrorFilled },
+  low_stock: { label: 'Low stock', type: 'warm-gray', icon: WarningAltFilled },
+  empty: { label: 'Out of stock', type: 'red', icon: ErrorFilled },
 } as const;
 
 export function StockTag({ state, size = 'md' }: { state: StockState; size?: 'sm' | 'md' }) {
@@ -161,12 +162,29 @@ export const toDecimal = (value: number) => String(Number(value.toFixed(6)));
 /** API money (up to two fraction digits). */
 export const toMoney = (value: number) => value.toFixed(2);
 
+/** The colour dot of an article, or nothing without a colour code. */
+export function ColorSwatch({ hex, name }: { hex?: string | null; name?: string | null }) {
+  if (!hex) return null;
+  return (
+    <span className="inv-swatch" style={{ backgroundColor: hex }} role="img" aria-label={`Colour ${name || hex}`} />
+  );
+}
+
+/** Where a sale price comes from: a stock price of the article, or the rate of its material type. */
+export const priceSourceLabel: Record<MaterialPriceSource, string> = {
+  stock_article: 'Article price',
+  material_type: 'Material type rate',
+};
+
+/** "€35.00 / kg": a sale price per unit of the article. */
+export const formatRate = (rate: string | number, unit: MaterialUnit) => formatUnitCost(rate, unit);
+
 /** Colour swatch and name of a material; spools and lists only display the colour, they never hold their own. */
 export function MaterialColor({ name, hex }: { name?: string | null; hex?: string | null }) {
   if (!name && !hex) return <span className="mj-secondary">—</span>;
   return (
     <span className="mj-inline">
-      {hex && <span className="mj-swatch" style={{ backgroundColor: hex }} role="img" aria-label={`Colour ${hex}`} />}
+      {hex && <span className="inv-swatch" style={{ backgroundColor: hex }} role="img" aria-label={`Colour ${hex}`} />}
       {name && <span>{name}</span>}
     </span>
   );

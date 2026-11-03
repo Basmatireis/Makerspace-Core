@@ -75,6 +75,8 @@ export const staffPermissions = [
   'inventory.manage',
   'filament_spools.manage',
   'printer_slots.assign',
+  'inventory.delete',
+  'inventory.ledger.delete',
   'orders.read',
   'organizations.read',
   'organizations.manage',
@@ -108,6 +110,9 @@ const materialTypes: MaterialType[] = [
   {
     id: id(900),
     name: 'PLA',
+    code: 'PLA',
+    kind: 'filament',
+    machineUse: true,
     unit: 'g',
     processIds: [ids.typePrinter],
     active: true,
@@ -120,6 +125,9 @@ const materialTypes: MaterialType[] = [
   {
     id: id(901),
     name: 'Plywood',
+    code: 'PLYWOOD',
+    kind: 'consumable',
+    machineUse: true,
     unit: 'm2',
     processIds: [ids.typeLaser],
     active: true,
@@ -166,11 +174,23 @@ export const operator: Operator = { personId: ids.operator, displayName: 'Maria 
 
 const material = (materialId: string, name: string, overrides: Partial<Material> = {}): Material => ({
   id: materialId,
+  displayId: 'A-0001',
   name,
   kind: 'filament',
+  materialTypeCode: 'PLA',
+  machineUse: true,
+  prices: [
+    {
+      pricingGroupId: ids.pricingGroup,
+      pricingGroupName: 'Partner institute',
+      rate: '0.04',
+      source: 'material_type',
+      pricingRuleId: id(902),
+    },
+  ],
+  attention: [],
   variant: null,
   manufacturer: null,
-  salePrice: null,
   packageSize: null,
   storageLocation: null,
   notes: null,
@@ -203,22 +223,15 @@ const identifiers = [
 
 const spool = (overrides: Partial<FilamentSpool>): FilamentSpool => ({
   id: ids.spoolReusable,
-  displayId: 'S-2026-000001',
-  kind: 'reusable',
-  label: 'Bambu spool 01',
-  status: 'loaded',
-  fillNumber: 3,
-  fillId: ids.fillCurrent,
-  filledAt: '2026-10-02T08:00:00Z',
-  archivedAt: null,
+  displayId: 'S-PLA-BLACK-01',
   materialId: ids.pla,
+  materialDisplayId: 'A-0001',
   materialName: 'PLA Black',
   materialTypeName: 'PLA',
   colorName: 'Black',
   colorHex: '#1A1A1A',
   unit: 'g',
   manufacturer: 'Bambu Lab',
-  productName: 'PLA Basic Black',
   initialNetWeightG: '1000',
   remainingQuantity: '600',
   tareWeightG: '200',
@@ -227,30 +240,19 @@ const spool = (overrides: Partial<FilamentSpool>): FilamentSpool => ({
   storageLocation: 'Shelf A',
   notes: null,
   lifecycle: 'active',
+  archivedAt: null,
+  retiredOutcome: null,
+  retiredQuantity: null,
+  retiredByName: null,
   mounted: false,
+  mountedOn: null,
   identifiers,
-  fills: [],
+  attention: [],
   version: 5,
   createdAt: '2026-09-01T08:00:00Z',
   updatedAt: '2026-10-02T08:00:00Z',
   ...overrides,
 });
-
-const closedFill = {
-  id: ids.fillClosed,
-  fillNumber: 2,
-  materialId: ids.pla,
-  materialName: 'PLA Black',
-  manufacturer: 'Prusament',
-  productName: 'PLA Galaxy Black',
-  initialNetWeightG: '1000',
-  usedG: '940',
-  leftoverG: '60',
-  leftoverOutcome: 'returned_to_stock' as const,
-  filledAt: '2026-09-01T08:00:00Z',
-  closedAt: '2026-10-02T08:00:00Z',
-  identifiers: [{ id: id(97), kind: 'nfc' as const, value: '04OLD1', createdAt: '2026-09-01T08:00:00Z' }],
-};
 
 const pricingSnapshot = {
   id: id(120),
@@ -366,6 +368,9 @@ export function createWorld(permissions: string[] = staffPermissions) {
   const materials: Material[] = [
     material(ids.pla, 'PLA Black'),
     material(ids.plywood, 'Birch plywood', {
+      displayId: 'A-0002',
+      materialTypeCode: 'PLYWOOD',
+      prices: [],
       kind: 'consumable',
       materialTypeId: id(901),
       materialTypeName: 'Plywood',
@@ -384,40 +389,34 @@ export function createWorld(permissions: string[] = staffPermissions) {
     }),
   ];
   const spools: FilamentSpool[] = [
-    spool({ fills: [closedFill] }),
+    spool({}),
     spool({
       id: ids.spoolSingle,
-      displayId: 'S-2026-000002',
-      kind: 'single_use',
-      label: null,
-      status: 'active',
-      fillNumber: 1,
-      remainingQuantity: '120',
-      initialNetWeightG: '1000',
+      displayId: 'S-PLA-BLACK-02',
+      remainingQuantity: '80',
       tareWeightG: null,
       identifiers: [],
-      manufacturer: 'Prusament',
-      productName: 'PLA Galaxy Black',
+      attention: [{ code: 'remainder_low', message: 'Almost empty · 80 g left' }],
     }),
     spool({
       id: ids.spoolArchivedNew,
       displayId: 'S-2026-000003',
-      kind: 'single_use',
-      label: null,
-      status: 'archived',
       lifecycle: 'archived',
       archivedAt: minutes(-60 * 24 * 150),
+      retiredOutcome: 'empty',
+      retiredQuantity: '0',
+      retiredByName: 'Maria Hoffmann',
       remainingQuantity: '0',
       identifiers: [],
     }),
     spool({
       id: ids.spoolArchivedOld,
       displayId: 'S-2026-000004',
-      kind: 'single_use',
-      label: null,
-      status: 'archived',
       lifecycle: 'archived',
       archivedAt: minutes(-60 * 24 * 420),
+      retiredOutcome: 'discarded',
+      retiredQuantity: '40',
+      retiredByName: 'Maria Hoffmann',
       remainingQuantity: '0',
       identifiers: [],
     }),
@@ -1517,8 +1516,7 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
             inventoryValueDelta: '0',
             transferQuantity: '1000',
             toSpoolId: ids.spoolReusable,
-            toSpoolDisplayId: 'S-2026-000001',
-            toFillNumber: 3,
+            toSpoolDisplayId: 'S-PLA-BLACK-01',
             occurredAt: '2026-10-02T08:00:00Z',
             createdAt: '2026-10-02T08:00:00Z',
           },
@@ -1529,36 +1527,58 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       const found = world.materials.find((item) => item.id === match![1]);
       return found ? ok(route, found) : notFound(route);
     }
-    if (path === '/api/v1/filament-spools/cleanup' && method === 'POST') {
-      const months = Number(body?.olderThanMonths);
-      const cutoff = Date.now() - months * 30 * 86_400_000;
-      const candidates = world.spools.filter(
-        (item) =>
-          item.status === 'archived' && item.kind === 'single_use' && new Date(item.archivedAt!).getTime() < cutoff,
-      );
-      if (body?.dryRun)
-        return ok(route, {
-          items: candidates.map((item) => ({
-            id: item.id,
-            displayId: item.displayId,
-            label: item.label,
-            archivedAt: item.archivedAt,
-          })),
-          deleted: false,
-        });
-      const doomed = new Set(body?.spoolIds as string[]);
-      world.spools.splice(0, world.spools.length, ...world.spools.filter((item) => !doomed.has(item.id)));
+    if ((match = path.match(/^\/api\/v1\/materials\/([^/]+)$/)) && method === 'DELETE') {
+      world.materials.splice(0, world.materials.length, ...world.materials.filter((item) => item.id !== match![1]));
+      return route.fulfill({ status: 204 });
+    }
+    if ((match = path.match(/^\/api\/v1\/inventory\/ledger\/([^/]+)$/)) && method === 'DELETE') {
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/api/v1/inventory/recycle-bin' && method === 'GET') {
       return ok(route, {
-        items: candidates
-          .filter((item) => doomed.has(item.id))
-          .map((item) => ({ id: item.id, displayId: item.displayId, label: item.label, archivedAt: item.archivedAt })),
-        deleted: true,
+        materials: [],
+        spools: world.spools.filter((item) => item.lifecycle === 'archived'),
+        ledgerEntries: [],
       });
+    }
+    if ((match = path.match(/^\/api\/v1\/inventory\/recycle-bin\/spools\/([^/]+)\/(restore|purge)$/))) {
+      const found = world.spools.find((item) => item.id === match![1]);
+      if (!found) return notFound(route);
+      if (match[2] === 'purge') {
+        world.spools.splice(world.spools.indexOf(found), 1);
+        return route.fulfill({ status: 204 });
+      }
+      const restored = {
+        ...found,
+        lifecycle: 'active' as const,
+        archivedAt: null,
+        retiredOutcome: null,
+        version: found.version + 1,
+      };
+      world.spools[world.spools.indexOf(found)] = restored;
+      return ok(route, restored);
+    }
+    if ((match = path.match(/^\/api\/v1\/filament-spools\/([^/]+)\/retire$/)) && method === 'POST') {
+      const found = world.spools.find((item) => item.id === match![1]);
+      if (!found) return notFound(route);
+      const retired = {
+        ...found,
+        lifecycle: 'archived' as const,
+        archivedAt: new Date().toISOString(),
+        retiredOutcome: body?.outcome as 'empty' | 'discarded',
+        retiredQuantity: found.remainingQuantity,
+        retiredByName: 'Maria Hoffmann',
+        remainingQuantity: '0',
+        mounted: false,
+        mountedOn: null,
+        version: found.version + 1,
+      };
+      world.spools[world.spools.indexOf(found)] = retired;
+      return ok(route, retired);
     }
     if (path === '/api/v1/filament-spools' && method === 'GET') {
       let items = world.spools;
       if (params.get('lifecycle')) items = items.filter((item) => item.lifecycle === params.get('lifecycle'));
-      if (params.get('kind')) items = items.filter((item) => item.kind === params.get('kind'));
       if (params.get('materialId')) items = items.filter((item) => item.materialId === params.get('materialId'));
       if (params.get('mounted')) items = items.filter((item) => String(item.mounted) === params.get('mounted'));
       if (params.get('consumable') === 'true')
@@ -1580,28 +1600,11 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
             machineJobId: ids.jobSuccess,
             machineJobDisplayId: 'J-2026-000001',
             spoolId: match[1],
-            spoolDisplayId: 'S-2026-000001',
-            fillNumber: 3,
+            spoolDisplayId: 'S-PLA-BLACK-01',
             createdAt: '2026-10-03T08:00:00Z',
           },
         ]),
       );
-    }
-    if ((match = path.match(/^\/api\/v1\/filament-spools\/([^/]+)\/(fills|finish)$/)) && method === 'POST') {
-      const found = world.spools.find((item) => item.id === match![1]);
-      if (!found) return notFound(route);
-      const updated =
-        match[2] === 'fills'
-          ? { ...found, fillNumber: found.fillNumber + 1, version: found.version + 1 }
-          : {
-              ...found,
-              status: found.kind === 'single_use' ? ('archived' as const) : ('needs_refill' as const),
-              lifecycle: found.kind === 'single_use' ? ('archived' as const) : found.lifecycle,
-              remainingQuantity: '0',
-              version: found.version + 1,
-            };
-      world.spools[world.spools.indexOf(found)] = updated;
-      return ok(route, updated);
     }
     if ((match = path.match(/^\/api\/v1\/filament-spools\/([^/]+)$/))) {
       const found = world.spools.find((item) => item.id === match![1]);

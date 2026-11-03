@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- the shared article fields and their value helpers belong together */
 import { useState } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
-import { Button, ComboBox, TextArea, TextInput } from '@carbon/react';
+import { Button, ComboBox, Link as CarbonLink, TextArea, TextInput } from '@carbon/react';
+import { Link } from 'react-router-dom';
 import { useStableItems } from '../../../app/useStableItems';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createMaterialType } from '../../../api/generated/inventory/inventory';
@@ -19,7 +20,7 @@ import { decimalNumber, decimalText, decimalValidator } from '../../../app/decim
 import { COLOR_HEX_PATTERN, reportedToMaterialHex } from '../colors';
 import { materialTypesQuery, suggestionsQuery } from '../inventoryQueries';
 import { machineLogbookKeys } from '../queries';
-import { generatedArticleName, toDecimal, toMoney, typeNoun, typeNounLower, unitLabel } from './inventoryShared';
+import { generatedArticleName, toDecimal, typeNoun, typeNounLower, unitLabel } from './inventoryShared';
 
 /** The descriptive fields of an article, shared by the Receive stock form and the article form. */
 export type ArticleValues = {
@@ -31,7 +32,6 @@ export type ArticleValues = {
   manufacturer: string;
   diameter: string;
   packageSize: string;
-  salePrice: string;
   location: string;
   threshold: string;
   notes: string;
@@ -48,7 +48,6 @@ export const blankArticle = (kind: MaterialKind, typeId = ''): ArticleValues => 
   manufacturer: '',
   diameter: kind === 'filament' ? '1.75' : '',
   packageSize: '',
-  salePrice: '',
   location: '',
   threshold: '',
   notes: '',
@@ -71,7 +70,6 @@ export function articleValuesOf(material: Material): ArticleValues {
     manufacturer: material.manufacturer ?? '',
     diameter: material.filamentDiameterMm != null ? decimalText(material.filamentDiameterMm) : '',
     packageSize: material.packageSize != null ? decimalText(material.packageSize) : '',
-    salePrice: material.salePrice != null ? decimalText(material.salePrice) : '',
     location: material.storageLocation ?? '',
     threshold: material.lowStockThreshold != null ? decimalText(material.lowStockThreshold) : '',
     notes: material.notes ?? '',
@@ -86,14 +84,12 @@ const optionalDecimal = (value: string) => {
 
 /** Request body of an article from the form values; the name stays out when it is to be generated. */
 export function articleBody(values: ArticleValues, kind: MaterialKind): CreateMaterialRequest {
-  const price = decimalNumber(values.salePrice, { places: 2 });
   const colour = kind !== 'part';
   return {
     ...(values.name.trim() ? { name: values.name.trim() } : {}),
     materialTypeId: values.materialTypeId,
     variant: kind === 'part' ? null : orNull(values.variant),
     manufacturer: orNull(values.manufacturer),
-    salePrice: price == null ? null : toMoney(price),
     packageSize: optionalDecimal(values.packageSize),
     storageLocation: orNull(values.location),
     notes: orNull(values.notes),
@@ -185,6 +181,8 @@ type Props = {
   showNotes?: boolean;
   /** Stock and unit of an existing article block a unit-changing type. */
   hasStock?: boolean;
+  /** Says where sale prices are set; prices are never edited with the article. */
+  showPricingNote?: boolean;
 };
 
 /**
@@ -199,6 +197,7 @@ export function ArticleFields({
   reportedColorHex,
   showNotes = false,
   hasStock = false,
+  showPricingNote = false,
 }: Props) {
   const {
     control,
@@ -449,22 +448,6 @@ export function ArticleFields({
       />
       <Controller
         control={control}
-        name="article.salePrice"
-        rules={{ validate: decimalValidator({ places: 2, optional: true }) }}
-        render={({ field, fieldState }) => (
-          <DecimalField
-            id={`${idPrefix}-sale-price`}
-            labelText={`Sale price per ${activeUnit ? unitLabel(activeUnit) : 'unit'} in EUR (optional)`}
-            helperText="Default unit price when the article is sold in an order."
-            value={field.value}
-            onChange={field.onChange}
-            invalid={fieldState.invalid}
-            invalidText={fieldState.error?.message}
-          />
-        )}
-      />
-      <Controller
-        control={control}
         name="article.location"
         render={({ field }) => (
           <SuggestionComboBox
@@ -492,6 +475,17 @@ export function ArticleFields({
           />
         )}
       />
+      {showPricingNote && (
+        <p className="mj-secondary">
+          {kind === 'part'
+            ? 'Sale prices per pricing group are set under '
+            : 'Machine runs use the material type rate. Sale prices per pricing group for selling from stock are set under '}
+          <CarbonLink as={Link} to="/pricing" inline>
+            Sales → Pricing
+          </CarbonLink>
+          .
+        </p>
+      )}
       {showNotes && (
         <TextArea
           id={`${idPrefix}-notes`}

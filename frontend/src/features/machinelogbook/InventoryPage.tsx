@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, OverflowMenu, OverflowMenuItem } from '@carbon/react';
+import { Button } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Navigate, useSearchParams } from 'react-router-dom';
@@ -17,15 +17,17 @@ import { allMaterialsQuery } from './inventoryQueries';
 import { isFdm } from './processConfig';
 import { processesQuery } from './queries';
 import { formatMoney } from './shared/format';
-import { machineLogbookPaths, type InventoryTab } from './shared/paths';
+import { machineLogbookPaths, type InventorySection } from './shared/paths';
+import { InventoryRecycleBin } from './components/InventoryRecycleBin';
 import { useCan } from './shared/useCan';
 import './styles/inventory.scss';
 
-const SECTIONS: { id: InventoryTab; label: string }[] = [
+const SECTIONS: { id: InventorySection; label: string }[] = [
   { id: 'materials', label: 'Materials' },
   { id: 'parts', label: 'Parts' },
   { id: 'spools', label: 'Spools' },
   { id: 'types', label: 'Types & categories' },
+  { id: 'bin', label: 'Recycle bin' },
 ];
 const materialKinds: MaterialKind[] = ['filament', 'consumable'];
 
@@ -70,22 +72,17 @@ export function InventoryPage() {
   );
   const actions =
     canRead && canManage ? (
-      <>
-        <Button renderIcon={Add} onClick={() => start('receive')}>
-          Receive stock
-        </Button>
-        <OverflowMenu aria-label="More inventory actions" iconDescription="More inventory actions" flipped>
-          <OverflowMenuItem itemText="New article" onClick={() => start('new')} />
-        </OverflowMenu>
-      </>
+      <Button kind="secondary" renderIcon={Add} onClick={() => start('new')}>
+        New article
+      </Button>
     ) : undefined;
   const header = {
     title: 'Inventory',
     width: 'wide' as const,
     actions,
     description: totals.data
-      ? `Materials, parts, spools, types and categories. Stock value ${formatMoney(totals.data.totalInventoryValue)}.`
-      : 'Materials, parts, spools, types and categories.',
+      ? `Articles, spools, types and categories. Stock value ${formatMoney(totals.data.totalInventoryValue)}.`
+      : 'Articles, spools, types and categories.',
     breadcrumbs: [{ label: 'Workshop', to: machineLogbookPaths.home() }, { label: 'Inventory' }],
   };
   if (!canRead)
@@ -98,15 +95,13 @@ export function InventoryPage() {
 
   return (
     <PageShell {...header}>
-      {tab === 'spools' && <InventorySpoolsTable switcher={switcher} />}
+      {tab === 'spools' && (
+        <InventorySpoolsTable switcher={switcher} onReceive={canManage ? () => start('receive') : undefined} />
+      )}
+      {tab === 'bin' && <InventoryRecycleBin switcher={switcher} />}
       {tab === 'types' && <MaterialTypesTable canManage={canManage} switcher={switcher} />}
       {(tab === 'materials' || tab === 'parts') && (
-        <InventoryArticlesTable
-          scope={tab}
-          canManage={canManage}
-          onReceive={() => start('receive')}
-          switcher={switcher}
-        />
+        <InventoryArticlesTable scope={tab} onReceive={() => start('receive')} switcher={switcher} />
       )}
       {dialog && !dialog.kind && (
         <KindChoiceModal

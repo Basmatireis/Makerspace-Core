@@ -1,397 +1,262 @@
-import type { ReactElement } from 'react';
-import { QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
-  ChangeFilamentSpoolFillRequest,
-  CleanUpFilamentSpoolsRequest,
+  CorrectSpoolStockRequest,
   CreateFilamentSpoolRequest,
+  DetectedSpoolTag,
   FilamentSpool,
-  FinishFilamentSpoolRequest,
-  Material,
+  MountSpoolRequest,
+  RetireFilamentSpoolRequest,
+  VersionRequest,
 } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { renderRoute, testQueryClient } from '../../test/render';
 import { server } from '../../test/server';
-import { ChangeFilamentModal } from './dialogs/ChangeFilamentModal';
-import { CleanupSpoolsModal } from './dialogs/CleanupSpoolsModal';
-import { FinishSpoolModal } from './dialogs/FinishSpoolModal';
-import { SpoolFormModal } from './dialogs/SpoolFormModal';
 import { InventorySpoolsTable } from './components/InventorySpoolsTable';
 import { FilamentSpoolDetailPage } from './FilamentSpoolDetailPage';
+import { detectedTag, invId, material, page, plaType, spool, transaction } from './inventoryTestData';
 import { ToastProvider } from './shared/toasts';
 
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.permissions }) }));
 
-const BOTH = [PermissionId.inventoryread, PermissionId.filament_spoolsmanage, PermissionId.inventorymanage];
+const READ = [PermissionId.inventoryread, PermissionId.machinesread];
+const MANAGE = [
+  ...READ,
+  PermissionId.inventorymanage,
+  PermissionId.filament_spoolsmanage,
+  PermissionId.printer_slotsassign,
+  PermissionId.inventorydelete,
+];
 
-const id = (n: number) => `0192f6f8-743e-7c77-a349-cd07c3e8b${String(n).padStart(3, '0')}`;
-const materialId = id(1);
-const nfcId = id(10);
-const barcodeId = id(11);
-
-const material: Material = {
-  id: materialId,
-  name: 'PLA Black',
-  kind: 'filament',
-  materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001',
-  materialTypeName: 'PLA',
-  colorName: 'Black',
-  colorHex: '#1A1A1A',
-  unit: 'g',
-  active: true,
-  lowStockThreshold: null,
-  quantity: '5000',
-  assignedQuantity: '600',
-  unassignedQuantity: '4400',
-  filamentDiameterMm: '1.75',
-  averageUnitCost: '0.02',
-  inventoryValue: '100',
-  stockState: 'in_stock',
-  inventoryVersion: 7,
-  recentConsumption: '0',
-  version: 3,
-  createdAt: '2026-09-01T00:00:00Z',
-  updatedAt: '2026-09-01T00:00:00Z',
-};
-
-const spool = (overrides: Partial<FilamentSpool> = {}): FilamentSpool => ({
-  id: id(20),
-  displayId: 'S-2026-000001',
-  kind: 'reusable',
-  label: 'Bambu spool 01',
-  status: 'loaded',
-  fillNumber: 3,
-  fillId: id(30),
-  filledAt: '2026-10-02T08:00:00Z',
-  archivedAt: null,
-  materialId,
-  materialName: 'PLA Black',
-  materialTypeName: 'PLA',
-  colorName: 'Black',
-  colorHex: '#1A1A1A',
-  unit: 'g',
-  manufacturer: 'Bambu Lab',
-  productName: 'PLA Basic Black',
-  initialNetWeightG: '1000',
-  remainingQuantity: '600',
-  tareWeightG: '200',
-  acquiredOn: '2026-09-01',
-  acquisitionReference: null,
-  storageLocation: 'Shelf A',
-  notes: null,
-  lifecycle: 'active',
+const blue = material();
+const stored = spool({
+  id: invId(21),
+  displayId: 'S-PLA-BASIC-DARK BLUE-02',
+  remainingQuantity: '60',
   mounted: false,
-  identifiers: [
-    { id: nfcId, kind: 'nfc', value: '04AA11', createdAt: '2026-10-02T08:00:00Z' },
-    { id: barcodeId, kind: 'barcode', value: 'BC-100', createdAt: '2026-09-01T08:00:00Z' },
-  ],
-  fills: [],
-  version: 5,
-  createdAt: '2026-09-01T08:00:00Z',
-  updatedAt: '2026-10-02T08:00:00Z',
-  ...overrides,
+  mountedOn: null,
+  identifiers: [],
+  attention: [{ code: 'remainder_low', message: 'Almost empty · 60 g left' }],
+  version: 2,
+});
+const mounted = spool();
+
+const originalMatchMedia = window.matchMedia;
+/** Pretends the viewport is wide enough (or not) for the list-and-panel layout. */
+function panelFits(fits: boolean) {
+  window.matchMedia = vi.fn((query: string) => ({
+    matches: fits && query === '(min-width: 66rem)',
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })) as unknown as typeof window.matchMedia;
+}
+afterEach(() => {
+  window.matchMedia = originalMatchMedia;
 });
 
-const mountedOn = {
-  machineId: id(40),
-  machineName: 'Bambu H2D #1',
-  inputUnitName: 'AMS A',
-  slotId: id(41),
-  slotName: 'Slot 3',
-};
-
-const page = <T,>(items: T[]) => ({ items, page: 1, pageSize: 100, total: items.length });
-
-function useCatalog(spools: FilamentSpool[] = [spool()]) {
+function serve({
+  spools = [mounted, stored],
+  detected = [] as DetectedSpoolTag[],
+}: { spools?: FilamentSpool[]; detected?: DetectedSpoolTag[] } = {}) {
   server.use(
     http.get('*/api/v1/filament-spools', () => HttpResponse.json(page(spools))),
-    http.get('*/api/v1/materials', () => HttpResponse.json({ ...page([material]), totalInventoryValue: '100' })),
+    http.get('*/api/v1/materials', () => HttpResponse.json({ ...page([blue]), totalInventoryValue: '32.24' })),
+    http.get('*/api/v1/materials/:id', () => HttpResponse.json(blue)),
+    http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [plaType] })),
+    http.get('*/api/v1/printers/detected-spool-tags', () => HttpResponse.json({ items: detected })),
+    http.get('*/api/v1/filament-spools/:id/transactions', () =>
+      HttpResponse.json(
+        page([
+          transaction({
+            id: invId(61),
+            kind: 'machine_run_consumption',
+            quantityDelta: '-37',
+            spoolId: mounted.id,
+            spoolDisplayId: mounted.displayId,
+            machineJobDisplayId: 'J-2026-000412',
+            totalPurchasePrice: null,
+            supplier: null,
+          }),
+        ]),
+      ),
+    ),
+    http.get('*/api/v1/inventory/suggestions', () =>
+      HttpResponse.json({ variants: [], manufacturers: [], suppliers: [], storageLocations: [] }),
+    ),
   );
 }
 
-function renderModal(ui: ReactElement) {
-  return renderRoute(<ToastProvider>{ui}</ToastProvider>);
-}
+const renderTab = () =>
+  renderRoute(
+    <ToastProvider>
+      <InventorySpoolsTable />
+    </ToastProvider>,
+    '/workshop/inventory?tab=spools',
+  );
 
-describe('Change filament', () => {
-  it('walks the steps and sends the weighed leftover, the loose-stock fill and the kept and new tags', async () => {
-    auth.permissions = BOTH;
-    useCatalog();
-    let body: ChangeFilamentSpoolFillRequest | undefined;
+describe('Spools tab', () => {
+  it('lists active spools with label, article, remainder, mount, tag and attention', async () => {
+    auth.permissions = READ;
+    serve();
+    renderTab();
+    const table = await screen.findByRole('table', { name: 'Spools' });
+    const row = within(table).getByRole('link', { name: 'S-PLA-BASIC-DARK BLUE-01' }).closest('tr') as HTMLElement;
+    expect(within(row).getByText('PLA Basic · Dark Blue · Bambu Lab')).toBeInTheDocument();
+    expect(within(row).getByText(/612 g/)).toBeInTheDocument();
+    expect(within(row).getByRole('link', { name: 'H2D · AMS 1 · Slot 1' })).toBeInTheDocument();
+    expect(within(row).getByText('7A3F19C2')).toBeInTheDocument();
+    const low = within(table).getByRole('link', { name: 'S-PLA-BASIC-DARK BLUE-02' }).closest('tr') as HTMLElement;
+    expect(within(low).getByText('No tag')).toBeInTheDocument();
+    expect(within(low).getByText('Almost empty · 60 g left')).toBeInTheDocument();
+    // Readers neither register nor receive.
+    expect(screen.queryByRole('button', { name: 'Register spool' })).not.toBeInTheDocument();
+  });
+
+  it('shows unregistered detected tags with the suggested article and registers one with mount', async () => {
+    auth.permissions = MANAGE;
+    const tag = detectedTag();
+    serve({
+      detected: [tag, detectedTag({ tagUid: 'KNOWN', spool: { id: mounted.id, displayId: mounted.displayId } })],
+    });
+    let created: CreateFilamentSpoolRequest | undefined;
+    let mountedBody: MountSpoolRequest | undefined;
     server.use(
-      http.post(`*/api/v1/filament-spools/${id(20)}/fills`, async ({ request }) => {
-        body = (await request.json()) as ChangeFilamentSpoolFillRequest;
-        return HttpResponse.json(spool({ fillNumber: 4 }));
+      http.post('*/api/v1/filament-spools', async ({ request }) => {
+        created = (await request.json()) as CreateFilamentSpoolRequest;
+        return HttpResponse.json(spool({ id: invId(25), displayId: 'S-PLA-BASIC-DARK BLUE-03', mounted: false }), {
+          status: 201,
+        });
+      }),
+      http.post('*/api/v1/printer-slots/:slotId/mount', async ({ request, params }) => {
+        mountedBody = (await request.json()) as MountSpoolRequest;
+        expect(params.slotId).toBe(tag.slotId);
+        return HttpResponse.json({});
       }),
     );
     const user = userEvent.setup();
-    renderModal(<ChangeFilamentModal open onClose={vi.fn()} spool={spool()} />);
+    renderTab();
+    const strip = await screen.findByRole('region', { name: 'Detected by printers, not registered' });
+    expect(within(strip).getByText('A1C4D77E')).toBeInTheDocument();
+    expect(within(strip).queryByText('KNOWN')).not.toBeInTheDocument();
+    expect(within(strip).getByText('Match')).toBeInTheDocument();
+    expect(within(strip).queryByRole('button', { name: /ignore/i })).not.toBeInTheDocument();
+    await user.click(within(strip).getByRole('button', { name: 'Register' }));
 
-    // The spool is preselected, so the dialog opens on the leftover step.
-    const dialog = await screen.findByRole('dialog', { name: 'Change filament' });
-    await user.click(await within(dialog).findByLabelText('Weigh the spool'));
-    await user.type(within(dialog).getByLabelText(/Weight of the spool with filament/), '850');
-    expect(
-      within(dialog).getByText('Leftover 650 g (system expected 600 g, difference +50 g recorded as correction).'),
-    ).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
-
-    // New filament: the spool's current filament is preselected.
-    expect(await within(dialog).findByLabelText('Net weight of the new filament (g)')).toHaveValue('1000');
-    expect(
-      within(dialog).getByText(
-        /Moves 1,000 g from loose stock to this spool\. The material total stays 5,050 g\. 5,050 g of loose stock is available\./,
+    const dialog = await screen.findByRole('dialog', { name: 'Detected in H2D · AMS 1 · Slot 2' });
+    await waitFor(() =>
+      expect(within(dialog).getByRole('combobox', { name: 'Article' })).toHaveValue(
+        'A-0001 · PLA Basic · Dark Blue · Bambu Lab · 1,000 g loose',
       ),
-    ).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
+    );
+    expect(within(dialog).getByLabelText('RFID tag UID (optional)')).toHaveValue('A1C4D77E');
+    expect(within(dialog).getByLabelText('Filament on the spool in g (net)')).toHaveValue('680');
+    await user.click(within(dialog).getByRole('button', { name: 'Register and mount' }));
 
-    // Tags: the barcode is kept, the NFC tag is not; one new NFC tag is added.
-    expect(await within(dialog).findByLabelText('Barcode BC-100')).toBeChecked();
-    expect(within(dialog).getByLabelText('NFC tag 04AA11')).not.toBeChecked();
-    await user.type(within(dialog).getByLabelText('Value'), '04BB22');
-    expect(within(dialog).getByText('Close fill 3')).toBeInTheDocument();
-    expect(within(dialog).getByText('Start fill 4')).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
-
-    await waitFor(() => expect(body).toBeDefined());
-    expect(body).toEqual({
-      leftover: { basis: 'weighed', grossWeightG: '850', disposition: 'returned_to_stock' },
-      fill: {
-        materialId,
-        manufacturer: 'Bambu Lab',
-        productName: 'PLA Basic Black',
-        netWeightG: '1000',
-        source: 'loose_stock',
-        totalPrice: null,
-        supplier: null,
-      },
-      keepIdentifierIds: [barcodeId],
-      newIdentifiers: [{ kind: 'nfc', value: '04BB22' }],
-      occurredAt: expect.any(String),
-      expectedVersion: 5,
+    await waitFor(() => expect(mountedBody).toEqual({ spoolId: invId(25) }));
+    expect(created).toMatchObject({
+      materialId: blue.id,
+      initialNetWeightG: '680',
+      stockMode: 'existing_stock',
+      expectedInventoryVersion: blue.inventoryVersion,
+      identifiers: [{ kind: 'nfc', value: 'A1C4D77E' }],
     });
-    expect(await screen.findByText('S-2026-000001 refilled with PLA Black (fill 4)')).toBeInTheDocument();
+    expect(created).not.toHaveProperty('totalPrice');
   });
 
-  it('validates each step before moving on', async () => {
-    auth.permissions = BOTH;
-    useCatalog();
-    const user = userEvent.setup();
-    renderModal(<ChangeFilamentModal open onClose={vi.fn()} spool={spool()} />);
-    const dialog = await screen.findByRole('dialog', { name: 'Change filament' });
-
-    await user.click(await within(dialog).findByLabelText('Weigh the spool'));
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
-    expect(await within(dialog).findByText('Enter the weight of the spool.')).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText('Net weight of the new filament (g)')).not.toBeInTheDocument();
-
-    await user.type(within(dialog).getByLabelText(/Weight of the spool with filament/), '100');
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
-    expect(await within(dialog).findByText('The spool cannot weigh less than its empty weight.')).toBeInTheDocument();
-    await user.clear(within(dialog).getByLabelText(/Weight of the spool with filament/));
-    await user.type(within(dialog).getByLabelText(/Weight of the spool with filament/), '700');
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
-
-    const weight = await within(dialog).findByLabelText('Net weight of the new filament (g)');
-    await user.clear(weight);
-    await user.type(weight, '9000');
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
-    expect(await within(dialog).findByText(/Only 4,900 g of loose stock is available\./)).toBeInTheDocument();
-    expect(within(dialog).queryByText('Review')).not.toBeInTheDocument();
-  });
-
-  it('skips the leftover step for a spool that needs a refill and sends no leftover', async () => {
-    auth.permissions = BOTH;
-    const empty = spool({
-      status: 'needs_refill',
-      fillId: null,
-      filledAt: null,
-      materialId: null,
-      materialName: null,
-      manufacturer: null,
-      productName: null,
-      initialNetWeightG: null,
-      remainingQuantity: '0',
-      identifiers: [],
-      fillNumber: 2,
-    });
-    useCatalog([empty]);
-    let body: ChangeFilamentSpoolFillRequest | undefined;
+  it('registers a purchased spool with its price when the article has no loose stock', async () => {
+    auth.permissions = MANAGE;
+    serve();
     server.use(
-      http.post(`*/api/v1/filament-spools/${id(20)}/fills`, async ({ request }) => {
-        body = (await request.json()) as ChangeFilamentSpoolFillRequest;
-        return HttpResponse.json(spool({ fillNumber: 3 }));
+      http.get('*/api/v1/materials', () =>
+        HttpResponse.json({
+          ...page([{ ...blue, unassignedQuantity: '0', quantity: '612' }]),
+          totalInventoryValue: '12',
+        }),
+      ),
+    );
+    let created: CreateFilamentSpoolRequest | undefined;
+    server.use(
+      http.post('*/api/v1/filament-spools', async ({ request }) => {
+        created = (await request.json()) as CreateFilamentSpoolRequest;
+        return HttpResponse.json(spool({ id: invId(26) }), { status: 201 });
       }),
     );
     const user = userEvent.setup();
-    renderModal(<ChangeFilamentModal open onClose={vi.fn()} spool={empty} />);
-    const dialog = await screen.findByRole('dialog', { name: 'Change filament' });
-
-    expect(within(dialog).queryByText('Leftover')).not.toBeInTheDocument();
-    expect(within(dialog).getByText('New filament')).toBeInTheDocument();
-    expect(await within(dialog).findByText('Needs refill')).toBeInTheDocument();
-    await user.selectOptions(within(dialog).getByLabelText('Filament'), materialId);
-    await user.click(within(dialog).getByRole('button', { name: 'Next' }));
-    await user.click(await within(dialog).findByRole('button', { name: 'Save' }));
-
-    await waitFor(() => expect(body).toBeDefined());
-    expect(body).toMatchObject({
-      leftover: null,
-      fill: { materialId, netWeightG: '1000', source: 'loose_stock' },
-      keepIdentifierIds: [],
-      newIdentifiers: [],
-      expectedVersion: 5,
-    });
+    renderTab();
+    await user.click(await screen.findByRole('button', { name: 'Register spool' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Register spool' });
+    await user.click(within(dialog).getByRole('combobox', { name: 'Article' }));
+    await user.click(await screen.findByRole('option', { name: /A-0001 · PLA Basic/ }));
+    expect(within(dialog).getByRole('radio', { name: /From loose stock/ })).toBeDisabled();
+    await user.type(within(dialog).getByLabelText('Price in EUR'), '19.99');
+    expect(within(dialog).getByText(/Spool S-PLA-BASIC-DARK BLUE-NN with 1,000 g booked as a purchase/)).toBeVisible();
+    await user.click(within(dialog).getByRole('button', { name: 'Register spool' }));
+    await waitFor(() =>
+      expect(created).toMatchObject({
+        materialId: blue.id,
+        stockMode: 'new_acquisition',
+        totalPrice: '19.99',
+        initialNetWeightG: '1000',
+      }),
+    );
   });
 
-  it('shows the backend reason when the fill is rejected and stays open', async () => {
-    auth.permissions = BOTH;
-    useCatalog();
+  it('selects a row into the panel on wide screens and retires the spool from there', async () => {
+    auth.permissions = MANAGE;
+    panelFits(true);
+    serve();
+    let retired: RetireFilamentSpoolRequest | undefined;
     server.use(
-      http.post(`*/api/v1/filament-spools/${id(20)}/fills`, () =>
-        HttpResponse.json({ code: 'insufficient_loose_stock', message: 'Not enough loose stock' }, { status: 409 }),
-      ),
+      http.post('*/api/v1/filament-spools/:id/retire', async ({ request }) => {
+        retired = (await request.json()) as RetireFilamentSpoolRequest;
+        return HttpResponse.json(stored);
+      }),
     );
     const user = userEvent.setup();
-    const onClose = vi.fn();
-    renderModal(<ChangeFilamentModal open onClose={onClose} spool={spool()} />);
-    const dialog = await screen.findByRole('dialog', { name: 'Change filament' });
-    await user.click(await within(dialog).findByRole('button', { name: 'Next' }));
-    await user.click(await within(dialog).findByRole('button', { name: 'Next' }));
-    await user.click(await within(dialog).findByRole('button', { name: 'Save' }));
-    expect(
-      await within(dialog).findByText(
-        'There is not enough loose stock for this. Check the available amount and try again.',
-      ),
-    ).toBeInTheDocument();
-    expect(onClose).not.toHaveBeenCalled();
+    renderTab();
+    expect(await screen.findByText(/Select a spool to see where it is/)).toBeInTheDocument();
+    await user.click(await screen.findByRole('link', { name: 'S-PLA-BASIC-DARK BLUE-01' }));
+    const panel = await screen.findByRole('complementary', { name: 'Spool details' });
+    expect(within(panel).getByText('61 % of 1,000 g')).toBeInTheDocument();
+    expect(within(panel).getByText('mounted, RFID tag')).toBeInTheDocument();
+    expect(await within(panel).findByText(/J-2026-000412/)).toBeInTheDocument();
+    expect(within(panel).getByRole('link', { name: 'Open spool' })).toHaveAttribute(
+      'href',
+      `/workshop/inventory/spools/${mounted.id}`,
+    );
+
+    await user.click(within(panel).getByRole('img', { name: 'More spool actions' }));
+    await user.click(await screen.findByText('Retire'));
+    const dialog = await screen.findByRole('alertdialog', { name: /Retire S-PLA-BASIC-DARK BLUE-01/ });
+    expect(within(dialog).getByText(/unmounted from H2D · AMS 1 · Slot 1/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('radio', { name: /The rest was thrown away/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Write off 612 g' }));
+    await waitFor(() => expect(retired).toEqual({ expectedVersion: mounted.version, outcome: 'discarded' }));
+  });
+
+  it('opens the spool page from a row on narrow screens', async () => {
+    auth.permissions = READ;
+    panelFits(false);
+    serve();
+    const user = userEvent.setup();
+    const { router } = renderTab();
+    const table = await screen.findByRole('table', { name: 'Spools' });
+    await user.click(within(table).getAllByText('Mounted')[0]);
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/workshop/inventory/spools/${mounted.id}`));
   });
 });
 
-describe('Finish spool', () => {
-  it('finishes a single-use spool with the used-up leftover', async () => {
-    auth.permissions = BOTH;
-    let body: FinishFilamentSpoolRequest | undefined;
-    server.use(
-      http.post(`*/api/v1/filament-spools/${id(21)}/finish`, async ({ request }) => {
-        body = (await request.json()) as FinishFilamentSpoolRequest;
-        return HttpResponse.json(spool({ id: id(21), status: 'archived' }));
-      }),
-    );
-    const user = userEvent.setup();
-    const onClose = vi.fn();
-    renderModal(
-      <FinishSpoolModal
-        open
-        onClose={onClose}
-        spool={spool({ id: id(21), kind: 'single_use', status: 'active', remainingQuantity: '120', label: null })}
-      />,
-    );
-    const dialog = await screen.findByRole('dialog', { name: /S-2026-000001/ });
-    await user.click(within(dialog).getByLabelText('Nothing left, used up'));
-    await user.click(within(dialog).getByRole('button', { name: 'Finish spool' }));
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(body).toEqual({
-      leftover: { basis: 'none', disposition: null },
-      occurredAt: expect.any(String),
-      expectedVersion: 5,
-    });
-    expect(await screen.findByText('S-2026-000001 finished')).toBeInTheDocument();
-  });
-
-  it('asks what happens to a leftover and sends the system value with its disposition', async () => {
-    auth.permissions = BOTH;
-    let body: FinishFilamentSpoolRequest | undefined;
-    server.use(
-      http.post(`*/api/v1/filament-spools/${id(20)}/finish`, async ({ request }) => {
-        body = (await request.json()) as FinishFilamentSpoolRequest;
-        return HttpResponse.json(spool({ status: 'needs_refill' }));
-      }),
-    );
-    const user = userEvent.setup();
-    renderModal(<FinishSpoolModal open onClose={vi.fn()} spool={spool()} />);
-    const dialog = await screen.findByRole('dialog', { name: /S-2026-000001/ });
-    expect(within(dialog).getByText('What happens to the remaining 600 g?')).toBeInTheDocument();
-    await user.click(within(dialog).getByLabelText('Dispose'));
-    await user.click(within(dialog).getByRole('button', { name: 'Empty spool' }));
-    await waitFor(() => expect(body).toBeDefined());
-    expect(body?.leftover).toEqual({ basis: 'system', disposition: 'disposed' });
-  });
-});
-
-describe('Clean up archived spools', () => {
-  const candidate = (n: number) => ({
-    id: id(40 + n),
-    displayId: `S-2026-0000${n}`,
-    label: null,
-    archivedAt: '2026-01-05T08:00:00Z',
-  });
-
-  it('previews with a dry run and then deletes exactly the previewed spools', async () => {
-    auth.permissions = BOTH;
-    const requests: CleanUpFilamentSpoolsRequest[] = [];
-    server.use(
-      http.post('*/api/v1/filament-spools/cleanup', async ({ request }) => {
-        const body = (await request.json()) as CleanUpFilamentSpoolsRequest;
-        requests.push(body);
-        const items =
-          body.olderThanMonths === 3 ? [candidate(1), candidate(2)] : [candidate(1), candidate(2), candidate(3)];
-        return HttpResponse.json({ items, deleted: !body.dryRun });
-      }),
-    );
-    const user = userEvent.setup();
-    const onClose = vi.fn();
-    renderModal(<CleanupSpoolsModal open onClose={onClose} />);
-    const dialog = await screen.findByRole('dialog', { name: 'Clean up archived spools' });
-    expect(
-      await within(dialog).findByText('2 archived single-use spools match and will be deleted permanently.'),
-    ).toBeInTheDocument();
-    expect(requests).toEqual([{ olderThanMonths: 3, dryRun: true }]);
-
-    // A different age previews again; the deletion uses that preview.
-    await user.selectOptions(within(dialog).getByLabelText('Archived'), '6');
-    expect(
-      await within(dialog).findByText('3 archived single-use spools match and will be deleted permanently.'),
-    ).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Delete 3 spools' }));
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(requests.find((request) => !request.dryRun)).toEqual({
-      olderThanMonths: 6,
-      dryRun: false,
-      spoolIds: [id(41), id(42), id(43)],
-    });
-    expect(await screen.findByText('3 archived spools deleted')).toBeInTheDocument();
-  });
-
-  it('cannot delete when nothing matches', async () => {
-    auth.permissions = BOTH;
-    server.use(http.post('*/api/v1/filament-spools/cleanup', () => HttpResponse.json({ items: [], deleted: false })));
-    renderModal(<CleanupSpoolsModal open onClose={vi.fn()} />);
-    const dialog = await screen.findByRole('dialog', { name: 'Clean up archived spools' });
-    expect(
-      await within(dialog).findByText('No archived single-use spools are older than 3 months.'),
-    ).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Delete' })).toBeDisabled();
-  });
-});
-
-// The overflow trigger is an icon button; its name comes from a tooltip, so it is found by its Carbon class.
-const overflowButton = () => document.querySelector<HTMLElement>('.cds--overflow-menu') as HTMLElement;
-const menuItem = (name: string) =>
-  screen.queryByText(name, { selector: '.cds--overflow-menu-options__option-content' });
-const waitForOverflowButton = () =>
-  waitFor(() => {
-    const button = overflowButton();
-    expect(button).toBeTruthy();
-    return button;
-  });
-
-function renderDetail(route: string) {
+function renderPageAt(spoolId: string) {
   const router = createMemoryRouter(
     [
       {
@@ -403,7 +268,7 @@ function renderDetail(route: string) {
         ),
       },
     ],
-    { initialEntries: [route] },
+    { initialEntries: [`/workshop/inventory/spools/${spoolId}`] },
   );
   return render(
     <QueryClientProvider client={testQueryClient()}>
@@ -412,415 +277,87 @@ function renderDetail(route: string) {
   );
 }
 
-function useDetail(item: FilamentSpool) {
-  useCatalog([item]);
-  server.use(
-    http.get(`*/api/v1/filament-spools/${item.id}`, () => HttpResponse.json(item)),
-    http.get(`*/api/v1/materials/${materialId}`, () => HttpResponse.json(material)),
-    http.get(`*/api/v1/filament-spools/${item.id}/transactions`, () =>
-      HttpResponse.json({ ...page([]), pageSize: 100 }),
-    ),
-  );
-}
+const renderPage = (target: FilamentSpool) => {
+  server.use(http.get(`*/api/v1/filament-spools/${target.id}`, () => HttpResponse.json(target)));
+  return renderPageAt(target.id);
+};
 
-describe('Spool detail', () => {
-  const closedFill = {
-    id: id(31),
-    fillNumber: 2,
-    materialId,
-    materialName: 'PLA Black',
-    manufacturer: 'Prusament',
-    productName: 'PLA Galaxy Black',
-    initialNetWeightG: '1000',
-    usedG: '940',
-    leftoverG: '60',
-    leftoverOutcome: 'returned_to_stock' as const,
-    filledAt: '2026-09-01T08:00:00Z',
-    closedAt: '2026-10-02T08:00:00Z',
-    identifiers: [{ id: id(12), kind: 'nfc' as const, value: '04OLD1', createdAt: '2026-09-01T08:00:00Z' }],
-  };
-
-  it('shows the fill, its tags, the fill history and no raw ids', async () => {
-    auth.permissions = BOTH;
-    const item = spool({ fills: [closedFill] });
-    useDetail(item);
-    renderDetail(`/workshop/inventory/spools/${item.id}`);
-    expect(await screen.findByRole('heading', { level: 1, name: 'S-2026-000001' })).toBeInTheDocument();
-    const heading = within(screen.getByRole('heading', { level: 1 }).parentElement as HTMLElement);
-    expect(heading.getByText('Reusable')).toBeInTheDocument();
-    expect(heading.getByText('Loaded')).toBeInTheDocument();
-    expect(screen.getByText('Fill 3 · since 02.10.2026')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Change filament' })).toBeInTheDocument();
-    expect(screen.getByText('BC-100')).toBeInTheDocument();
-    const fills = screen.getByRole('table', { name: 'Fills' });
-    expect(within(fills).getByText('PLA Galaxy Black')).toBeInTheDocument();
-    expect(within(fills).getByText('Returned to stock')).toBeInTheDocument();
-    expect(within(fills).getByRole('button', { name: 'Show the 1 tags of fill 2' })).toBeInTheDocument();
-    expect(document.body.textContent).not.toContain(item.id);
-  });
-
-  it('offers Fill spool for a spool that needs a refill', async () => {
-    auth.permissions = BOTH;
-    const item = spool({
-      status: 'needs_refill',
-      fillId: null,
-      filledAt: null,
-      materialId: null,
-      materialName: null,
-      manufacturer: null,
-      productName: null,
-      initialNetWeightG: null,
-      remainingQuantity: '0',
-      identifiers: [],
-    });
-    useCatalog([item]);
+describe('Spool page', () => {
+  it('weighs the spool and books the difference as an inventory count', async () => {
+    auth.permissions = MANAGE;
+    serve();
+    let correction: CorrectSpoolStockRequest | undefined;
     server.use(
-      http.get(`*/api/v1/filament-spools/${item.id}`, () => HttpResponse.json(item)),
-      http.get(`*/api/v1/filament-spools/${item.id}/transactions`, () =>
-        HttpResponse.json({ ...page([]), pageSize: 100 }),
-      ),
-    );
-    renderDetail(`/workshop/inventory/spools/${item.id}`);
-    expect(await screen.findByRole('button', { name: 'Fill spool' })).toBeInTheDocument();
-    expect(screen.getByText('Needs refill', { selector: '.cds--inline-notification__title' })).toBeInTheDocument();
-  });
-
-  it('gives each action to the permission that guards it', async () => {
-    const reusable = spool();
-    const single = spool({ id: id(22), kind: 'single_use', status: 'active', label: null, fills: [] });
-    useDetail(reusable);
-    server.use(
-      http.get(`*/api/v1/filament-spools/${single.id}`, () => HttpResponse.json(single)),
-      http.get(`*/api/v1/filament-spools/${single.id}/transactions`, () =>
-        HttpResponse.json({ ...page([]), pageSize: 100 }),
-      ),
-    );
-    const user = userEvent.setup();
-
-    // Read only: no actions at all.
-    auth.permissions = [PermissionId.inventoryread];
-    const readOnly = renderDetail(`/workshop/inventory/spools/${reusable.id}`);
-    await screen.findByRole('heading', { level: 1, name: 'S-2026-000001' });
-    expect(screen.queryByRole('button', { name: 'Change filament' })).not.toBeInTheDocument();
-    expect(document.querySelector('.cds--overflow-menu')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Add identifier' })).not.toBeInTheDocument();
-    readOnly.unmount();
-
-    // Managing spools without managing inventory: descriptive changes only, nothing that moves stock.
-    auth.permissions = [PermissionId.inventoryread, PermissionId.filament_spoolsmanage];
-    const spoolsOnly = renderDetail(`/workshop/inventory/spools/${reusable.id}`);
-    await screen.findByRole('heading', { level: 1, name: 'S-2026-000001' });
-    expect(screen.queryByRole('button', { name: 'Change filament' })).not.toBeInTheDocument();
-    await user.click(overflowButton());
-    await waitFor(() => expect(menuItem('Edit spool')).toBeInTheDocument());
-    expect(menuItem('Add identifier')).toBeInTheDocument();
-    expect(menuItem('Correct stock')).toBeNull();
-    expect(menuItem('Empty spool')).toBeNull();
-    spoolsOnly.unmount();
-
-    // Inventory only: stock can be corrected, but the spool cannot be edited or refilled.
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
-    const inventoryOnly = renderDetail(`/workshop/inventory/spools/${single.id}`);
-    await screen.findByRole('heading', { level: 1, name: 'S-2026-000001' });
-    expect(await screen.findByRole('button', { name: 'Record consumption' })).toBeInTheDocument();
-    await user.click(overflowButton());
-    await waitFor(() => expect(menuItem('Correct stock')).toBeInTheDocument());
-    expect(menuItem('Edit spool')).toBeNull();
-    expect(menuItem('Finish spool')).toBeNull();
-    inventoryOnly.unmount();
-
-    // Both: single-use spools are finished, reusable ones refilled.
-    auth.permissions = BOTH;
-    renderDetail(`/workshop/inventory/spools/${single.id}`);
-    await screen.findByRole('heading', { level: 1, name: 'S-2026-000001' });
-    await user.click(await waitForOverflowButton());
-    await waitFor(() => expect(menuItem('Finish spool')).toBeInTheDocument());
-    expect(screen.queryByRole('button', { name: 'Change filament' })).not.toBeInTheDocument();
-  });
-
-  it('explains a spool that no longer exists', async () => {
-    auth.permissions = BOTH;
-    server.use(
-      http.get(`*/api/v1/filament-spools/${id(99)}`, () =>
-        HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 }),
-      ),
-    );
-    renderDetail(`/workshop/inventory/spools/${id(99)}`);
-    expect(await screen.findByText('This spool does not exist')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to spools' })).toHaveAttribute(
-      'href',
-      '/workshop/inventory?tab=spools',
-    );
-  });
-
-  it('archives a spool with the whole record and the loaded version', async () => {
-    auth.permissions = BOTH;
-    const item = spool({
-      remainingQuantity: '0',
-      kind: 'single_use',
-      status: 'active',
-      label: 'Spare',
-      storageLocation: 'Shelf B',
-      notes: 'Keep dry',
-    });
-    useDetail(item);
-    let body: Record<string, unknown> | undefined;
-    server.use(
-      http.patch(`*/api/v1/filament-spools/${item.id}`, async ({ request }) => {
-        body = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ ...item, status: 'archived', lifecycle: 'archived' });
+      http.post('*/api/v1/filament-spools/:id/corrections', async ({ request }) => {
+        correction = (await request.json()) as CorrectSpoolStockRequest;
+        return HttpResponse.json({});
       }),
     );
     const user = userEvent.setup();
-    renderDetail(`/workshop/inventory/spools/${item.id}`);
-    await user.click(await waitForOverflowButton());
-    await user.click(await screen.findByText('Archive'));
-    const dialog = await screen.findByRole('alertdialog', { name: 'Archive this spool?' });
-    await user.click(within(dialog).getByRole('button', { name: 'Archive' }));
-    await waitFor(() => expect(body).toBeDefined());
-    // The backend replaces the descriptive record, so unchanged fields are sent back as they were.
-    expect(body).toEqual({
-      label: 'Spare',
-      manufacturer: 'Bambu Lab',
-      productName: 'PLA Basic Black',
-      tareWeightG: '200',
-      acquiredOn: '2026-09-01',
-      acquisitionReference: null,
-      storageLocation: 'Shelf B',
-      notes: 'Keep dry',
+    renderPage(mounted);
+    expect(await screen.findByRole('heading', { name: 'S-PLA-BASIC-DARK BLUE-01' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Weigh' }));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'S-PLA-BASIC-DARK BLUE-01 · PLA Basic · Dark Blue · Bambu Lab',
+    });
+    expect(within(dialog).getByLabelText('Tare in g')).toHaveValue('250');
+    await user.type(within(dialog).getByLabelText('Gross weight in g'), '800');
+    expect(within(dialog).getByText(/a correction of −62 g/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Save correction' }));
+    await waitFor(() =>
+      expect(correction).toMatchObject({
+        physicalQuantity: '550',
+        reason: 'inventory_count',
+        expectedInventoryVersion: blue.inventoryVersion,
+        expectedSpoolVersion: mounted.version,
+      }),
+    );
+  });
+
+  it('offers Restore and Delete permanently for a retired spool', async () => {
+    auth.permissions = MANAGE;
+    serve();
+    let restored: VersionRequest | undefined;
+    server.use(
+      http.post('*/api/v1/inventory/recycle-bin/spools/:id/restore', async ({ request }) => {
+        restored = (await request.json()) as VersionRequest;
+        return HttpResponse.json(mounted);
+      }),
+    );
+    const retired = spool({
       lifecycle: 'archived',
-      expectedVersion: 5,
-    });
-  });
-});
-
-describe('Spools table', () => {
-  it('hides archived spools unless asked and offers New, Register and Change filament only with both permissions', async () => {
-    useCatalog();
-    const requests: string[] = [];
-    server.events.on('request:start', ({ request }) => {
-      if (request.url.includes('/filament-spools')) requests.push(new URL(request.url).search);
+      mounted: false,
+      mountedOn: null,
+      archivedAt: '2026-10-28T12:00:00Z',
+      retiredOutcome: 'discarded',
+      retiredQuantity: '40',
+      retiredByName: 'Lena Hofer',
+      remainingQuantity: '0',
+      version: 9,
     });
     const user = userEvent.setup();
-
-    auth.permissions = [PermissionId.inventoryread, PermissionId.filament_spoolsmanage];
-    const readOnly = renderRoute(
-      <ToastProvider>
-        <InventorySpoolsTable />
-      </ToastProvider>,
-    );
-    const table = await screen.findByRole('table', { name: 'Spools' });
-    expect(within(table).getByRole('link', { name: 'S-2026-000001' })).toHaveAttribute(
-      'href',
-      `/workshop/inventory/spools/${id(20)}`,
-    );
-    expect(within(table).getByText('Loaded')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
-    expect(requests[0]).toContain('lifecycle=active');
-    readOnly.unmount();
-
-    auth.permissions = BOTH;
-    renderRoute(
-      <ToastProvider>
-        <InventorySpoolsTable />
-      </ToastProvider>,
-      '/?spoolsarchived=1',
-    );
-    await screen.findByRole('table', { name: 'Spools' });
-    expect(requests.at(-1)).not.toContain('lifecycle');
-    await user.click(screen.getByRole('button', { name: 'New' }));
-    expect(await screen.findByRole('menuitem', { name: 'Register spool' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Change filament' })).toBeInTheDocument();
+    renderPage(retired);
+    expect(await screen.findByText(/40 g thrown away/, { selector: 'div' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Weigh' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('img', { name: 'More spool actions' }));
+    expect(await screen.findByText('Delete permanently')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Restore' }));
+    const dialog = await screen.findByRole('dialog', { name: /Restore S-PLA-BASIC-DARK BLUE-01/ });
+    expect(within(dialog).getByText('The 40 g written off come back as stock.')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Restore' }));
+    await waitFor(() => expect(restored).toEqual({ expectedVersion: 9 }));
   });
 
-  it('shows a compact, material-filtered table with a plain Register spool button', async () => {
-    auth.permissions = BOTH;
-    useCatalog();
-    let search = '';
+  it('gives readers no actions and explains a spool that no longer exists', async () => {
+    auth.permissions = READ;
+    serve();
     server.use(
-      http.get('*/api/v1/filament-spools', ({ request }) => {
-        search = new URL(request.url).search;
-        return HttpResponse.json(page([spool()]));
-      }),
-    );
-    renderRoute(
-      <ToastProvider>
-        <InventorySpoolsTable materialId={materialId} compact />
-      </ToastProvider>,
-    );
-    const table = await screen.findByRole('table', { name: 'Spools' });
-    expect(search).toContain(`materialId=${materialId}`);
-    expect(within(table).queryByRole('columnheader', { name: 'Material' })).not.toBeInTheDocument();
-    const toolbar = screen.getByLabelText('Spools table toolbar');
-    expect(within(toolbar).getByRole('button', { name: 'Register spool' })).toBeInTheDocument();
-    expect(within(toolbar).queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
-  });
-});
-
-describe('Spool mount and ledger attribution', () => {
-  it('lists derived quantities and links the mount to the machine printer tab', async () => {
-    auth.permissions = [PermissionId.inventoryread];
-    useCatalog([
-      spool({ mounted: true, mountedOn, remainingQuantity: '842' }),
-      spool({ id: id(22), displayId: 'S-2026-000002', label: null }),
-    ]);
-    renderRoute(
-      <ToastProvider>
-        <InventorySpoolsTable />
-      </ToastProvider>,
-    );
-    const table = await screen.findByRole('table', { name: 'Spools' });
-    expect(within(table).getByText('842 g of 1,000 g')).toBeInTheDocument();
-    const link = within(table).getByRole('link', { name: 'Bambu H2D #1 · Slot 3' });
-    expect(link).toHaveAttribute('href', `/workshop/machines/${id(40)}?tab=printer`);
-  });
-
-  it('searches the notes, the mounted machine and the status label', async () => {
-    auth.permissions = [PermissionId.inventoryread];
-    useCatalog([
-      spool({ mounted: true, mountedOn, status: 'needs_refill', notes: 'Wet spool' }),
-      spool({ id: id(22), displayId: 'S-2026-000002', label: null }),
-    ]);
-    const user = userEvent.setup();
-    renderRoute(
-      <ToastProvider>
-        <InventorySpoolsTable />
-      </ToastProvider>,
-    );
-    const table = await screen.findByRole('table', { name: 'Spools' });
-    expect(within(table).getByRole('link', { name: 'S-2026-000002' })).toBeInTheDocument();
-    const search = screen.getByLabelText('Search spools', { selector: 'input' });
-    for (const term of ['wet spool', 'h2d #1', 'needs refill']) {
-      await user.clear(search);
-      await user.type(search, term);
-      await waitFor(() => expect(within(table).queryByRole('link', { name: 'S-2026-000002' })).not.toBeInTheDocument());
-      expect(within(table).getByRole('link', { name: 'S-2026-000001' })).toBeInTheDocument();
-    }
-  });
-
-  it('shows where the spool is mounted on its page and names the slot in the finish dialog', async () => {
-    auth.permissions = BOTH;
-    const item = spool({ mounted: true, mountedOn });
-    useDetail(item);
-    renderDetail(`/workshop/inventory/spools/${item.id}`);
-    expect(await screen.findByRole('link', { name: 'Bambu H2D #1 · Slot 3' })).toHaveAttribute(
-      'href',
-      `/workshop/machines/${id(40)}?tab=printer`,
-    );
-  });
-
-  it('names the machine and slot in the finish dialog', async () => {
-    auth.permissions = BOTH;
-    renderModal(<FinishSpoolModal open onClose={vi.fn()} spool={spool({ mounted: true, mountedOn })} />);
-    const dialog = await screen.findByRole('dialog', { name: /S-2026-000001/ });
-    expect(dialog.textContent).toContain('It is also removed from Bambu H2D #1 (Slot 3).');
-  });
-
-  it('shows who recorded each ledger entry', async () => {
-    auth.permissions = BOTH;
-    const item = spool();
-    useCatalog([item]);
-    server.use(
-      http.get(`*/api/v1/filament-spools/${item.id}`, () => HttpResponse.json(item)),
-      http.get(`*/api/v1/materials/${materialId}`, () => HttpResponse.json(material)),
-      http.get(`*/api/v1/filament-spools/${item.id}/transactions`, () =>
-        HttpResponse.json(
-          page([
-            {
-              id: id(50),
-              materialId,
-              kind: 'purchase',
-              quantityDelta: '1000',
-              unitAcquisitionCost: '0.02',
-              inventoryValueDelta: '20',
-              totalPurchasePrice: '20',
-              occurredAt: '2026-10-02T08:00:00Z',
-              supplier: 'Filament Shop',
-              note: null,
-              adjustmentReason: null,
-              actorName: 'Lena Maier',
-              spoolId: item.id,
-              spoolDisplayId: item.displayId,
-              fillNumber: 3,
-              createdAt: '2026-10-02T08:00:00Z',
-            },
-          ]),
-        ),
+      http.get(`*/api/v1/filament-spools/${invId(99)}`, () =>
+        HttpResponse.json({ code: 'not_found', message: 'Not found.' }, { status: 404 }),
       ),
     );
-    renderDetail(`/workshop/inventory/spools/${item.id}`);
-    expect(await screen.findByText('Lena Maier')).toBeInTheDocument();
-    expect(screen.getByText('Filament Shop')).toBeInTheDocument();
-  });
-});
-
-describe('Register spool', () => {
-  const openDialog = async () => {
-    const dialog = await screen.findByRole('dialog', { name: 'Register spool' });
-    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Register spool' })).toBeEnabled());
-    return dialog;
-  };
-
-  it('registers a reusable spool empty and fills it later, without material, weight or version', async () => {
-    auth.permissions = BOTH;
-    useCatalog();
-    let body: CreateFilamentSpoolRequest | undefined;
-    server.use(
-      http.post('*/api/v1/filament-spools', async ({ request }) => {
-        body = (await request.json()) as CreateFilamentSpoolRequest;
-        return HttpResponse.json(spool({ status: 'needs_refill', fillId: null, materialId: null, materialName: null }));
-      }),
-    );
-    const user = userEvent.setup();
-    renderModal(<SpoolFormModal open onClose={vi.fn()} />);
-    const dialog = await openDialog();
-    expect(within(dialog).getByLabelText(/With filament from loose stock/)).toBeChecked();
-    await user.click(within(dialog).getByLabelText(/Register empty and fill later/));
-    expect(within(dialog).queryByLabelText('Net weight (g)')).not.toBeInTheDocument();
-    expect(within(dialog).queryByText('Stock source')).not.toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Register spool' }));
-
-    await waitFor(() => expect(body).toBeDefined());
-    expect(body).toMatchObject({ kind: 'reusable', stockMode: 'empty', occurredAt: expect.any(String) });
-    expect(body).not.toHaveProperty('materialId');
-    expect(body).not.toHaveProperty('initialNetWeightG');
-    expect(body).not.toHaveProperty('expectedInventoryVersion');
-  });
-
-  it('does not offer an empty registration for single-use spools', async () => {
-    auth.permissions = BOTH;
-    useCatalog();
-    const user = userEvent.setup();
-    renderModal(<SpoolFormModal open onClose={vi.fn()} />);
-    const dialog = await openDialog();
-    await user.click(within(dialog).getByLabelText('Single-use'));
-    expect(within(dialog).queryByLabelText(/Register empty and fill later/)).not.toBeInTheDocument();
-  });
-
-  it('registers a spool from loose stock of the chosen filament', async () => {
-    auth.permissions = BOTH;
-    useCatalog();
-    let body: CreateFilamentSpoolRequest | undefined;
-    server.use(
-      http.post('*/api/v1/filament-spools', async ({ request }) => {
-        body = (await request.json()) as CreateFilamentSpoolRequest;
-        return HttpResponse.json(spool());
-      }),
-    );
-    const user = userEvent.setup();
-    renderModal(<SpoolFormModal open onClose={vi.fn()} initialMaterialId={materialId} />);
-    const dialog = await openDialog();
-    await user.type(within(dialog).getByLabelText('Manufacturer (optional)'), 'Bambu Lab');
-    await user.click(within(dialog).getByRole('button', { name: 'Register spool' }));
-
-    await waitFor(() => expect(body).toBeDefined());
-    expect(body).toMatchObject({
-      stockMode: 'existing_stock',
-      materialId,
-      initialNetWeightG: '1000',
-      manufacturer: 'Bambu Lab',
-      expectedInventoryVersion: 7,
-    });
-    expect(body).not.toHaveProperty('totalPrice');
+    renderPageAt(invId(99));
+    expect(await screen.findByText('This spool does not exist')).toBeInTheDocument();
   });
 });

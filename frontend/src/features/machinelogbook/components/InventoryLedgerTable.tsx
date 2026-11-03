@@ -1,8 +1,11 @@
+/* eslint-disable react-refresh/only-export-components -- the ledger tables and their entry texts belong together */
 import { type ReactNode } from 'react';
+import { Button } from '@carbon/react';
+import { TrashCan } from '@carbon/icons-react';
 import { RefLink } from '../../../app/RefLink';
 import type { InventoryTransaction, MaterialUnit } from '../../../api/generated/models';
 import { DirectoryTable, useUrlState, type Column } from '../shared/DirectoryTable';
-import { formatDateTime } from '../shared/format';
+import { formatDateTime, formatMoney } from '../shared/format';
 import {
   adjustmentReasonLabels,
   formatQuantity,
@@ -12,63 +15,72 @@ import {
   transactionKindOptions,
 } from './inventoryShared';
 
-type SpoolRef = {
-  id: string | null | undefined;
-  displayId: string | null | undefined;
-  fillNumber: number | null | undefined;
-};
+type SpoolRef = { id: string | null | undefined; displayId: string | null | undefined };
 
-/** A spool as text: the display ID, or "S-… (deleted)" when the spool no longer exists (the entry keeps the ID as a snapshot). */
+/** A spool as text: the label, or "S-… (deleted)" when the spool no longer exists (the entry keeps the label). */
 const spoolText = ({ id, displayId }: SpoolRef) => (displayId ? (id ? displayId : `${displayId} (deleted)`) : null);
+const own = (tx: InventoryTransaction): SpoolRef => ({ id: tx.spoolId, displayId: tx.spoolDisplayId });
+const from = (tx: InventoryTransaction): SpoolRef => ({ id: tx.fromSpoolId, displayId: tx.fromSpoolDisplayId });
+const to = (tx: InventoryTransaction): SpoolRef => ({ id: tx.toSpoolId, displayId: tx.toSpoolDisplayId });
 
-/** Ledger of stock movements for one material or one spool, shown as a Directory-style table. */
+export const transactionKindLabel = (tx: Pick<InventoryTransaction, 'kind'>) =>
+  transactionKindOptions.find((item) => item.id === tx.kind)?.label ?? tx.kind;
+
+/** Reason and note of an entry. */
+export const ledgerNote = (tx: InventoryTransaction) =>
+  [
+    tx.adjustmentReason && tx.adjustmentReason !== 'mark_empty' ? adjustmentReasonLabels[tx.adjustmentReason] : null,
+    tx.note,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+/** One line saying what an entry refers to: job, order, spool, supplier and reference, or the price paid. */
+export const ledgerReferenceText = (tx: InventoryTransaction) =>
+  [
+    tx.machineJobDisplayId,
+    tx.orderReference,
+    tx.kind === 'spool_transfer'
+      ? [spoolText(from(tx)) ?? 'Loose stock', spoolText(to(tx)) ?? 'loose stock'].join(' → ')
+      : spoolText(own(tx)),
+    tx.kind === 'purchase' && tx.totalPurchasePrice != null ? formatMoney(tx.totalPurchasePrice) : null,
+    tx.supplier,
+    tx.reference,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+/** The signed quantity of an entry; a transfer only moves attribution, so it shows the moved amount. */
+export const ledgerQuantityText = (tx: InventoryTransaction, unit: MaterialUnit) =>
+  tx.kind === 'spool_transfer' ? formatQuantity(tx.transferQuantity ?? 0, unit) : formatSigned(tx.quantityDelta, unit);
+
+/** Ledger of stock movements for one article or one spool, shown as a Directory-style table. */
 export function InventoryLedgerTable({
   id,
   transactions,
   unit,
   showSpool,
-  showFill = false,
-  materialNames,
+  onDelete,
 }: {
   id: string;
   transactions: InventoryTransaction[];
   unit: MaterialUnit;
   showSpool: boolean;
-  /** Spool page: the ledger spans several fills, so each row names its fill and material. */
-  showFill?: boolean;
-  /** Material names by ID, used by `showFill` rows. */
-  materialNames?: ReadonlyMap<string, string>;
+  /** Offers Delete entry per row; pass it only with `inventory.ledger.delete`. */
+  onDelete?: (transaction: InventoryTransaction) => void;
 }) {
   const url = useUrlState(id);
   const typeIds = url.list('type');
-  const own = (tx: InventoryTransaction): SpoolRef => ({
-    id: tx.spoolId,
-    displayId: tx.spoolDisplayId,
-    fillNumber: tx.fillNumber,
-  });
-  const from = (tx: InventoryTransaction): SpoolRef => ({
-    id: tx.fromSpoolId,
-    displayId: tx.fromSpoolDisplayId,
-    fillNumber: tx.fromFillNumber,
-  });
-  const to = (tx: InventoryTransaction): SpoolRef => ({
-    id: tx.toSpoolId,
-    displayId: tx.toSpoolDisplayId,
-    fillNumber: tx.toFillNumber,
-  });
-  const spoolTexts = (tx: InventoryTransaction) =>
-    [own(tx), from(tx), to(tx)].map(spoolText).filter(Boolean) as string[];
-
+  const spoolTexts = (tx: InventoryTransaction) => [own(tx), from(tx), to(tx)].map(spoolText).filter(Boolean);
   const rows = transactions.filter((tx) => typeIds.length === 0 || typeIds.includes(tx.kind));
 
   const spoolLink = (key: string, ref: SpoolRef) => {
     const text = spoolText(ref);
     if (!text) return null;
-    const label = `${text}${ref.fillNumber ? ` · fill ${ref.fillNumber}` : ''}`;
     return (
       <span key={key}>
         <RefLink kind="spool" reference={ref.displayId ?? ''} id={ref.id}>
-          {label}
+          {text}
         </RefLink>
       </span>
     );
@@ -91,24 +103,11 @@ export function InventoryLedgerTable({
           ? [spoolLink('from', from(tx)), spoolLink('to', to(tx))]
           : [spoolLink('spool', own(tx))]
         : []),
-      showFill && tx.spoolDisplayId && tx.fillNumber && (
-        <span key="fill">
-          Fill {tx.fillNumber} · {materialNames?.get(tx.materialId) ?? 'Material'}
-        </span>
-      ),
       tx.supplier && <span key="supplier">{tx.supplier}</span>,
       tx.reference && <span key="reference">{tx.reference}</span>,
     ].filter(Boolean);
     return parts.length ? <div className="mj-cell-stack">{parts}</div> : '—';
   };
-
-  const note = (tx: InventoryTransaction) =>
-    [
-      tx.adjustmentReason && tx.adjustmentReason !== 'mark_empty' ? adjustmentReasonLabels[tx.adjustmentReason] : null,
-      tx.note,
-    ]
-      .filter(Boolean)
-      .join(' · ');
 
   const columns: Column<InventoryTransaction>[] = [
     {
@@ -120,7 +119,7 @@ export function InventoryLedgerTable({
         <div className="mj-cell-stack">
           <span>{formatDateTime(tx.occurredAt)}</span>
           {tx.actorName && <span className="mj-secondary">{tx.actorName}</span>}
-          {note(tx) && <span className="mj-secondary mj-show-narrow">{note(tx)}</span>}
+          {ledgerNote(tx) && <span className="mj-secondary mj-show-narrow">{ledgerNote(tx)}</span>}
         </div>
       ),
     },
@@ -132,7 +131,7 @@ export function InventoryLedgerTable({
       firstDirection: 'DESC',
       render: (tx) => {
         if (tx.kind !== 'spool_transfer') return formatSigned(tx.quantityDelta, unit);
-        // Transfers only move attribution between loose stock and a spool; the material total does not change.
+        // Transfers only move attribution between loose stock and a spool; the article total does not change.
         const amount = formatQuantity(tx.transferQuantity ?? 0, unit);
         const source = spoolText(from(tx));
         const target = spoolText(to(tx));
@@ -153,7 +152,27 @@ export function InventoryLedgerTable({
       render: (tx) => (tx.kind === 'spool_transfer' ? '—' : formatSignedMoney(tx.inventoryValueDelta)),
     },
     { key: 'reference', header: 'Reference', narrow: true, render: reference },
-    { key: 'note', header: 'Note', narrow: true, render: (tx) => note(tx) || '—' },
+    { key: 'note', header: 'Note', narrow: true, render: (tx) => ledgerNote(tx) || '—' },
+    ...(onDelete
+      ? [
+          {
+            key: 'actions',
+            header: 'Actions',
+            hiddenHeader: true,
+            className: 'inv-actions-column',
+            render: (tx: InventoryTransaction) => (
+              <Button
+                hasIconOnly
+                kind="ghost"
+                size="sm"
+                renderIcon={TrashCan}
+                iconDescription={`Delete ${transactionKindLabel(tx).toLowerCase()} of ${formatDateTime(tx.occurredAt)}`}
+                onClick={() => onDelete(tx)}
+              />
+            ),
+          } satisfies Column<InventoryTransaction>,
+        ]
+      : []),
   ];
 
   return (
@@ -166,12 +185,8 @@ export function InventoryLedgerTable({
       searchText={(tx) =>
         [
           tx.actorName,
-          transactionKindOptions.find((item) => item.id === tx.kind)?.label,
-          materialNames?.get(tx.materialId),
-          tx.adjustmentReason && tx.adjustmentReason !== 'mark_empty'
-            ? adjustmentReasonLabels[tx.adjustmentReason]
-            : null,
-          tx.note,
+          transactionKindLabel(tx),
+          ledgerNote(tx),
           tx.supplier,
           tx.reference,
           tx.machineJobDisplayId,

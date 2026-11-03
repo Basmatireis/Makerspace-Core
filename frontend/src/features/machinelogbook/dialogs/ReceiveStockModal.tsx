@@ -4,7 +4,6 @@ import {
   ActionableNotification,
   Button,
   ComboBox,
-  Dropdown,
   InlineNotification,
   Modal,
   RadioButton,
@@ -19,7 +18,6 @@ import { useStableItems } from '../../../app/useStableItems';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { receiveInventoryStock } from '../../../api/generated/inventory/inventory';
 import type {
-  FilamentSpool,
   InventoryReceiptPlacement,
   Material,
   MaterialKind,
@@ -43,14 +41,14 @@ import {
 } from '../components/ArticleFields';
 import { formatQuantity, toDecimal, toMoney, unitLabel } from '../components/inventoryShared';
 import { DetectedTagPicker } from '../components/DetectedTagPicker';
-import { identifierKinds, needsRefill, spoolNameText } from '../components/spoolShared';
+import { identifierKinds, spoolLabelPrefix } from '../components/spoolShared';
 import { allMaterialsQuery, materialTypesQuery, suggestionsQuery } from '../inventoryQueries';
 import { machineLogbookPaths } from '../shared/paths';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
-import { allSpoolsQuery, errorCode, spoolErrorMessage, useRefreshInventory } from '../spoolData';
+import { errorCode, spoolErrorMessage, useRefreshInventory } from '../spoolData';
 
-type Placement = 'storage' | 'new_spools' | 'reusable_spool';
+type Placement = 'storage' | 'new_spools';
 type Values = WithArticle & {
   mode: 'existing' | 'new';
   materialId: string;
@@ -62,7 +60,6 @@ type Values = WithArticle & {
   reference: string;
   note: string;
   placement: Placement;
-  reusableSpoolId: string;
   tare: string;
   spoolLocation: string;
   idKind: NewFilamentSpoolIdentifierKind;
@@ -87,7 +84,6 @@ const defaultsFor = (kind: MaterialKind, article?: Material): Values => ({
   reference: '',
   note: '',
   placement: 'storage',
-  reusableSpoolId: '',
   tare: '',
   spoolLocation: '',
   idKind: 'nfc',
@@ -129,10 +125,6 @@ export function ReceiveStockModal({
 
   const articles = useQuery({ ...allMaterialsQuery(), enabled: open && !fixedArticle });
   const types = useQuery({ ...materialTypesQuery(), enabled: open });
-  const emptySpools = useQuery({
-    ...allSpoolsQuery({ kind: 'reusable', lifecycle: 'active' }),
-    enabled: open && canSpools,
-  });
   const candidates = (articles.data?.items ?? []).filter((item) => item.kind === kind);
   const selectable = candidates.filter((item) => item.active);
   const chosen: Material | undefined =
@@ -145,7 +137,6 @@ export function ReceiveStockModal({
     ),
     enabled: open,
   }).data;
-  const freeSpools: FilamentSpool[] = (emptySpools.data ?? []).filter(needsRefill);
 
   // A new article's package size is the natural size of what arrives.
   const articlePackage = values.article?.packageSize ?? '';
@@ -175,7 +166,7 @@ export function ReceiveStockModal({
       const date = data.date === today ? new Date().toISOString() : zonedDateTimeToISO(data.date, '12:00');
       const single = count === 1;
       const identifiers =
-        data.idValue.trim() && (data.placement === 'reusable_spool' || (data.placement === 'new_spools' && single))
+        data.idValue.trim() && data.placement === 'new_spools' && single
           ? [{ kind: data.idKind, value: data.idValue.trim() }]
           : undefined;
       let placement: InventoryReceiptPlacement | undefined;
@@ -185,14 +176,6 @@ export function ReceiveStockModal({
           mode: 'new_spools',
           tareWeightG: tare == null ? null : toDecimal(tare),
           storageLocation: data.spoolLocation.trim() || null,
-          identifiers,
-        };
-      } else if (filament && canSpools && data.placement === 'reusable_spool') {
-        const spool = freeSpools.find((item) => item.id === data.reusableSpoolId);
-        placement = {
-          mode: 'reusable_spool',
-          reusableSpoolId: data.reusableSpoolId,
-          reusableSpoolExpectedVersion: spool?.version,
           identifiers,
         };
       } else if (filament) {
@@ -265,6 +248,15 @@ export function ReceiveStockModal({
   ]);
   const selectedItem = values.mode === 'new' ? NEW_ITEM : (items.find((item) => item.id === values.materialId) ?? null);
   const placement = values.placement;
+  const labelPrefix = chosen
+    ? spoolLabelPrefix(chosen)
+    : newType
+      ? spoolLabelPrefix({
+          materialTypeCode: newType.code,
+          variant: values.article?.variant,
+          colorName: values.article?.colorName,
+        })
+      : null;
 
   return (
     <Modal
@@ -555,15 +547,15 @@ export function ReceiveStockModal({
                             value="new_spools"
                             labelText="On new spools (one per package)"
                           />
-                          <RadioButton
-                            id="receive-placement-reusable"
-                            value="reusable_spool"
-                            disabled={!single}
-                            labelText="Load onto a reusable spool"
-                          />
                         </RadioButtonGroup>
                       )}
                     />
+                    {placement === 'new_spools' && labelPrefix && (
+                      <p className="mj-secondary" aria-live="polite">
+                        {count === 1 ? 'The spool is' : `The ${count} spools are`} labelled {labelPrefix}-NN, numbered
+                        on saving. The price is split across them.
+                      </p>
+                    )}
                     {placement === 'new_spools' && (
                       <div className="mj-form-row">
                         <Controller
@@ -597,36 +589,7 @@ export function ReceiveStockModal({
                         />
                       </div>
                     )}
-                    {placement === 'reusable_spool' && (
-                      <Controller
-                        control={control}
-                        name="reusableSpoolId"
-                        rules={{
-                          validate: (value, all) =>
-                            all.placement !== 'reusable_spool' || Boolean(value) || 'Choose a spool.',
-                        }}
-                        render={({ field, fieldState }) => (
-                          <Dropdown<FilamentSpool>
-                            autoAlign
-                            id="receive-reusable"
-                            titleText="Reusable spool"
-                            label="Choose an empty spool"
-                            items={freeSpools}
-                            itemToString={(item) => (item ? spoolNameText(item) : '')}
-                            selectedItem={freeSpools.find((item) => item.id === field.value)}
-                            onChange={({ selectedItem }) => field.onChange(selectedItem?.id ?? '')}
-                            helperText={
-                              emptySpools.isSuccess && freeSpools.length === 0
-                                ? 'No empty reusable spool is available.'
-                                : 'Empty, active reusable spools only.'
-                            }
-                            invalid={fieldState.invalid}
-                            invalidText={fieldState.error?.message}
-                          />
-                        )}
-                      />
-                    )}
-                    {((placement === 'new_spools' && single) || placement === 'reusable_spool') && (
+                    {placement === 'new_spools' && single && (
                       <div className="mj-form-row">
                         <Select
                           id="receive-id-kind"
@@ -646,15 +609,13 @@ export function ReceiveStockModal({
                         />
                       </div>
                     )}
-                    {((placement === 'new_spools' && single) || placement === 'reusable_spool') &&
-                      values.idKind === 'nfc' && (
-                        <DetectedTagPicker
-                          id="receive-detected-tag"
-                          open={open}
-                          spoolId={placement === 'reusable_spool' ? values.reusableSpoolId || undefined : undefined}
-                          onPick={(tagUid) => setValue('idValue', tagUid, { shouldDirty: true })}
-                        />
-                      )}
+                    {placement === 'new_spools' && single && values.idKind === 'nfc' && (
+                      <DetectedTagPicker
+                        id="receive-detected-tag"
+                        open={open}
+                        onPick={(tagUid) => setValue('idValue', tagUid, { shouldDirty: true })}
+                      />
+                    )}
                   </Stack>
                 )}
               </fieldset>

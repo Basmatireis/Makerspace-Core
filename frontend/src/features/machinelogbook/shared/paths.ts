@@ -31,3 +31,7 @@ export const machineLogbookPaths = {
   /** Printer connectors live under Settings, Local services. */
   connectors: () => '/settings/local-services?tab=connectors',
 };
+
+/** Tabs of the Inventory page including the inventory recycle bin (`?tab=bin`). */
+export type InventorySection = InventoryTab | 'bin';
+export const inventorySectionPath = (section: InventorySection) => `${root}/inventory?tab=${section}`;

@@ -276,101 +276,32 @@ test.describe('runs', () => {
 });
 
 test.describe('inventory', () => {
-  test('changes the filament on a reusable spool: weighed leftover returned to stock, loose stock, tags', async ({
-    page,
-    world,
-  }) => {
-    await page.goto(`${base}/inventory?tab=spools`);
-    await page.getByRole('button', { name: 'New', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Change filament' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Change filament' });
-
-    // Step 1: choose the spool.
-    await dialog.getByRole('combobox', { name: /Spool/ }).click();
-    await page.getByRole('option', { name: /S-2026-000001/ }).click();
-    await dialog.getByRole('button', { name: 'Next' }).click();
-
-    // Step 2: weigh the leftover and return it to loose stock.
-    await dialog.getByLabel('Weigh the spool').check({ force: true });
-    await dialog.getByLabel(/Weight of the spool with filament/).fill('850');
-    await expect(
-      dialog.getByText('Leftover 650 g (system expected 600 g, difference +50 g recorded as correction).'),
-    ).toBeVisible();
-    await expect(dialog.getByLabel(/Return to loose stock/)).toBeChecked();
-    await dialog.getByRole('button', { name: 'Next' }).click();
-
-    // Step 3: the current refill product is preselected; the filament comes from loose stock.
-    await expect(dialog.getByLabel('Net weight of the new filament (g)')).toHaveValue('1000');
-    await expect(dialog.getByText(/Moves 1,000 g from loose stock to this spool\./)).toBeVisible();
-    await dialog.getByRole('button', { name: 'Next' }).click();
-
-    // Step 4: keep the barcode, drop the NFC tag, add a new one and review.
-    await expect(dialog.getByLabel('Barcode BC-100')).toBeChecked();
-    await expect(dialog.getByLabel('NFC tag 04AA11')).not.toBeChecked();
-    await dialog.getByLabel('Value').fill('04BB22');
-    await expect(dialog.getByText('Close fill 3')).toBeVisible();
-    await expect(dialog.getByText('Start fill 4')).toBeVisible();
-    await dialog.getByRole('button', { name: 'Save' }).click();
-
-    await expect(page.getByText('S-2026-000001 refilled with PLA Black (fill 4)')).toBeVisible();
-    expect(world.bodyOf('POST', `/api/v1/filament-spools/${ids.spoolReusable}/fills`)).toEqual({
-      leftover: { basis: 'weighed', grossWeightG: '850', disposition: 'returned_to_stock' },
-      fill: {
-        materialId: ids.pla,
-        manufacturer: 'Bambu Lab',
-        productName: 'PLA Basic Black',
-        netWeightG: '1000',
-        source: 'loose_stock',
-        totalPrice: null,
-        supplier: null,
-      },
-      keepIdentifierIds: [ids.barcode],
-      newIdentifiers: [{ kind: 'nfc', value: '04BB22' }],
-      occurredAt: expect.any(String),
-      expectedVersion: 5,
-    });
-  });
-
-  test('finishes a single-use spool that is used up', async ({ page, world }) => {
+  test('retires a spool whose rest was thrown away', async ({ page, world }) => {
     await page.goto(`${base}/inventory/spools/${ids.spoolSingle}`);
-    await expect(page.getByRole('heading', { level: 1, name: 'S-2026-000002' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'S-PLA-BLACK-02' })).toBeVisible();
     await openOverflow(page);
-    await page.getByRole('menuitem', { name: 'Finish spool' }).click();
-    const dialog = page.getByRole('dialog', { name: /S-2026-000002/ });
-    await dialog.getByLabel('Nothing left, used up').check({ force: true });
-    await dialog.getByRole('button', { name: 'Finish spool' }).click();
-    await expect(page.getByText('S-2026-000002 finished')).toBeVisible();
-    expect(world.bodyOf('POST', `/api/v1/filament-spools/${ids.spoolSingle}/finish`)).toEqual({
-      leftover: { basis: 'none', disposition: null },
-      occurredAt: expect.any(String),
+    await page.getByRole('menuitem', { name: 'Retire' }).click();
+    const dialog = page.getByRole('alertdialog', { name: 'Retire S-PLA-BLACK-02?' });
+    await dialog.getByText(/The rest was thrown away/).click();
+    await dialog.getByRole('button', { name: 'Write off 80 g' }).click();
+    await expect(page.getByText('S-PLA-BLACK-02 retired')).toBeVisible();
+    expect(world.bodyOf('POST', `/api/v1/filament-spools/${ids.spoolSingle}/retire`)).toEqual({
       expectedVersion: 5,
+      outcome: 'discarded',
     });
   });
 
-  test('cleans up archived spools: previews with a dry run, then deletes exactly the previewed ones', async ({
-    page,
-    world,
-  }) => {
-    await page.goto(`${base}/inventory?tab=spools`);
-    await page.getByRole('table', { name: 'Spools' }).waitFor();
-    await page.locator('.cds--table-toolbar .cds--overflow-menu').click();
-    await page.getByRole('menuitem', { name: 'Clean up archived spools' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Clean up archived spools' });
-    await expect(dialog.getByText('2 archived single-use spools match and will be deleted permanently.')).toBeVisible();
-    const list = dialog.getByLabel('Spools that will be deleted');
-    await expect(list).toContainText('S-2026-000003');
-    await expect(list).toContainText('S-2026-000004');
-    expect(world.sent('POST', '/api/v1/filament-spools/cleanup').map((request) => request.body)).toEqual([
-      { olderThanMonths: 3, dryRun: true },
-    ]);
-
-    await dialog.getByRole('button', { name: 'Delete 2 spools' }).click();
-    await expect(page.getByText('2 archived spools deleted')).toBeVisible();
-    const requests = world.sent('POST', '/api/v1/filament-spools/cleanup').map((request) => request.body);
-    expect(requests.at(-1)).toEqual({
-      olderThanMonths: 3,
-      dryRun: false,
-      spoolIds: [ids.spoolArchivedOld, ids.spoolArchivedNew],
+  test('restores a retired spool from the inventory recycle bin', async ({ page, world }) => {
+    await page.goto(`${base}/inventory?tab=bin`);
+    const spools = page.getByRole('table', { name: 'Retired spools' });
+    await expect(spools.getByText('40 g thrown away')).toBeVisible();
+    await spools.getByRole('button', { name: 'Restore S-2026-000004' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Restore S-2026-000004?' });
+    await expect(dialog.getByText('The 40 g written off come back as stock.')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Restore' }).click();
+    await expect(page.getByText('S-2026-000004 restored')).toBeVisible();
+    expect(world.bodyOf('POST', `/api/v1/inventory/recycle-bin/spools/${ids.spoolArchivedOld}/restore`)).toEqual({
+      expectedVersion: 5,
     });
   });
 });
