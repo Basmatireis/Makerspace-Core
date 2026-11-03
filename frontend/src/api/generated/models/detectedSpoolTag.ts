@@ -54,6 +54,18 @@ export interface DetectedSpoolTag {
      * @nullable
      */
   remainPercent: number | null;
+  /**
+     * The manufacturer's product code read from the tag, for example Bambu's "A00-K0" whose suffix names the colour. Null when the printer reports none.
+     * @maxLength 40
+     * @nullable
+     */
+  productCode: string | null;
+  /**
+     * The manufacturer's filament profile id read from the tag, for example Bambu's "GFA00". Null when the printer reports none.
+     * @maxLength 40
+     * @nullable
+     */
+  filamentProfileId: string | null;
   observedAt: string;
   /** The active spool that already carries this tag as an NFC identifier. */
   spool: DetectedSpoolTagSpool | null;

@@ -2,6 +2,16 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Upgrade notes
+
+- **Product code from the tag.** `PrinterLiveStatusTray` gains the optional nullable fields `productCode` (Bambu `tray_id_name`, such as `A00-K0`) and `filamentProfileId` (`tray_info_idx`, such as `GFA00`); connectors before this release omit them. `DetectedSpoolTag` always carries both (null when the printer reports none). Update the printer connector together with Core to get them.
+
+### Changed
+
+- **Honest colour suggestions for detected spools.** The detected-spools strip says **Match** only when the suggested article's colour is visually the same as the reported one, **Similar colour** when it merely resembles it, and **New article** otherwise, and always shows the reported colour next to the suggestion. A new article created from a detection is prefilled with the official Bambu Lab colour name when the printer reports a product code the catalogue knows (or an article with exactly the reported colour code has a name).
+
 ## [0.14.0] - 2026-11-03
 
 ### Upgrade notes

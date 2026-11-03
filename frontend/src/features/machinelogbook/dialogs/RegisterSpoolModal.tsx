@@ -96,6 +96,7 @@ export function RegisterSpoolModal({
       article: {
         ...blankArticle('filament', suggestion?.type?.id ?? ''),
         variant: suggestion?.variant ?? '',
+        colorName: suggestion?.colorName ?? '',
         colorHex: suggestion?.colorHex ?? '',
         packageSize: '1000',
       },
@@ -255,7 +256,11 @@ export function RegisterSpoolModal({
                         aria-label={`Reported colour #${detected.colorHex}`}
                       />
                     )}
-                    {[detected.subBrand ?? detected.materialType, detected.colorHex ? `#${detected.colorHex}` : null]
+                    {[
+                      detected.subBrand ?? detected.materialType,
+                      detected.colorHex ? `#${detected.colorHex}` : null,
+                      suggestion?.colorName,
+                    ]
                       .filter(Boolean)
                       .join(' ')}
                     {detected.remainPercent != null ? ` · ${detected.remainPercent} % remaining` : ''}
@@ -293,7 +298,9 @@ export function RegisterSpoolModal({
               placeholder="Search filament articles"
               helperText={
                 detected && suggestion?.article && values.materialId === suggestion.article.id
-                  ? 'Suggested from what the printer reports; check it.'
+                  ? suggestion.match === 'similar'
+                    ? 'Suggested from what the printer reports; its colour only resembles the reported one. Check it.'
+                    : 'Suggested from what the printer reports; check it.'
                   : detected && values.newArticle
                     ? 'No article matches the reported filament; the new one is prefilled from the report.'
                     : undefined

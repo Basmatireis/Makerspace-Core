@@ -32,8 +32,12 @@ type DetectedSpoolTag struct {
 	SubBrand       *string
 	ColorHex       *string
 	RemainPercent  *int
-	ObservedAt     time.Time
-	Spool          *DetectedSpoolTagSpool
+	// ProductCode is the manufacturer's product code of the filament as the printer reads it from the tag (Bambu's
+	// tray_id_name, such as "A00-K0"); FilamentProfileID is its slicer profile id (tray_info_idx, "GFA00").
+	ProductCode       *string
+	FilamentProfileID *string
+	ObservedAt        time.Time
+	Spool             *DetectedSpoolTagSpool
 }
 
 // DetectedSpoolTagSpool is the spool whose open fill already carries a detected tag.
@@ -49,13 +53,15 @@ type detectedSnapshot struct {
 		ExternalID string `json:"externalId"`
 		Label      string `json:"label"`
 		Trays      []struct {
-			ExternalID    string  `json:"externalId"`
-			MaterialType  *string `json:"materialType"`
-			SubBrand      *string `json:"subBrand"`
-			ColorHex      *string `json:"colorHex"`
-			RemainPercent *int    `json:"remainPercent"`
-			TagUID        *string `json:"tagUid"`
-			Empty         bool    `json:"empty"`
+			ExternalID        string  `json:"externalId"`
+			MaterialType      *string `json:"materialType"`
+			SubBrand          *string `json:"subBrand"`
+			ColorHex          *string `json:"colorHex"`
+			RemainPercent     *int    `json:"remainPercent"`
+			ProductCode       *string `json:"productCode"`
+			FilamentProfileID *string `json:"filamentProfileId"`
+			TagUID            *string `json:"tagUid"`
+			Empty             bool    `json:"empty"`
 		} `json:"trays"`
 	} `json:"units"`
 }
@@ -97,17 +103,19 @@ func (s *Service) ListDetectedSpoolTags(
 					continue
 				}
 				items = append(items, DetectedSpoolTag{
-					MachineID:      status.MachineID,
-					MachineName:    status.MachineName,
-					UnitExternalID: unit.ExternalID,
-					UnitLabel:      unit.Label,
-					TrayExternalID: tray.ExternalID,
-					TagUID:         tag,
-					MaterialType:   tray.MaterialType,
-					SubBrand:       tray.SubBrand,
-					ColorHex:       tray.ColorHex,
-					RemainPercent:  tray.RemainPercent,
-					ObservedAt:     status.ObservedAt,
+					MachineID:         status.MachineID,
+					MachineName:       status.MachineName,
+					UnitExternalID:    unit.ExternalID,
+					UnitLabel:         unit.Label,
+					TrayExternalID:    tray.ExternalID,
+					TagUID:            tag,
+					MaterialType:      tray.MaterialType,
+					SubBrand:          tray.SubBrand,
+					ColorHex:          tray.ColorHex,
+					RemainPercent:     tray.RemainPercent,
+					ProductCode:       tray.ProductCode,
+					FilamentProfileID: tray.FilamentProfileID,
+					ObservedAt:        status.ObservedAt,
 				})
 			}
 		}

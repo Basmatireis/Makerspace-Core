@@ -72,7 +72,12 @@ type liveTray struct {
 	SubBrand      *string `json:"subBrand"`
 	ColorHex      *string `json:"colorHex"`
 	RemainPercent *int    `json:"remainPercent"`
-	RFID          bool    `json:"rfid"`
+	// ProductCode is Bambu's tray_id_name (such as "A00-K0", whose suffix is the colour) and FilamentProfileID its
+	// tray_info_idx (such as "GFA00"). Both are omitted when the printer reports none, so snapshots of older
+	// connectors stay valid.
+	ProductCode       *string `json:"productCode,omitempty"`
+	FilamentProfileID *string `json:"filamentProfileId,omitempty"`
+	RFID              bool    `json:"rfid"`
 	// TagUID is omitted for empty trays and unreadable tags, so snapshots of older connectors stay valid.
 	TagUID *string `json:"tagUid,omitempty"`
 	Empty  bool    `json:"empty"`

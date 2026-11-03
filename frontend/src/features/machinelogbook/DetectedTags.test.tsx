@@ -14,7 +14,11 @@ import type {
 import { PermissionId } from '../../api/generated/models';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
+import { bambuColorName } from './bambuColors';
+import { DetectedSpoolsStrip } from './components/DetectedSpoolsStrip';
 import { DetectedTrayCell } from './components/DetectedTrayCell';
+import { suggestArticle } from './detectedSpools';
+import { materialType } from './inventoryTestData';
 import { IdentifierModal } from './dialogs/IdentifierModal';
 import { ReceiveStockModal } from './dialogs/ReceiveStockModal';
 import { RegisterSpoolModal } from './dialogs/RegisterSpoolModal';
@@ -41,6 +45,8 @@ const detected = (overrides: Partial<DetectedSpoolTag> = {}): DetectedSpoolTag =
   subBrand: 'PLA Basic',
   colorHex: 'CC0000',
   remainPercent: 80,
+  productCode: null,
+  filamentProfileId: null,
   observedAt: '2026-10-21T08:00:00Z',
   spool: null,
   ...overrides,
@@ -243,5 +249,104 @@ describe('Register spool detected tags', () => {
     );
     await user.click(within(dialog).getByRole('button', { name: 'Register spool' }));
     expect(await within(dialog).findByText('This tag is already assigned to a spool.')).toBeInTheDocument();
+  });
+});
+
+const plaType = materialType({ id: id(31), code: 'PLA', name: 'PLA' });
+
+/** An active PLA Basic article of the given colour. */
+const basic = (n: number, colorHex: string | null, colorName: string | null = null): Material =>
+  ({
+    ...filament,
+    id: id(n),
+    displayId: `A-00${n}`,
+    name: `PLA Basic · ${colorName ?? colorHex ?? 'no colour'} · Bambu Lab`,
+    variant: 'Basic',
+    colorHex,
+    colorName,
+  }) as Material;
+
+describe('Detected spool suggestions', () => {
+  const red = basic(40, '#CC0000', 'Red');
+
+  it('calls an article of the same colour a match and a nearby one similar', () => {
+    expect(suggestArticle(detected({ colorHex: 'CC0000' }), [red], [plaType])).toMatchObject({
+      article: { id: red.id },
+      match: 'same',
+      colorHex: '#CC0000',
+    });
+    expect(suggestArticle(detected({ colorHex: 'CC1010' }), [red], [plaType]).match).toBe('same');
+    expect(suggestArticle(detected({ colorHex: 'CC3333' }), [red], [plaType])).toMatchObject({
+      article: { id: red.id },
+      match: 'similar',
+    });
+    expect(suggestArticle(detected({ colorHex: '0000CC' }), [red], [plaType])).toMatchObject({
+      article: null,
+      match: null,
+      type: { id: plaType.id },
+      variant: 'Basic',
+      colorHex: '#0000CC',
+    });
+  });
+
+  it('names the colour from the product code, else from an article with exactly that colour', () => {
+    expect(bambuColorName('A00-K0')).toBe('Black');
+    expect(bambuColorName('a00-k00')).toBe('Black');
+    expect(bambuColorName('A01-B0')).toBe('Sky Blue');
+    expect(bambuColorName('A18-B0')).toBe('Cyan');
+    expect(bambuColorName('Z99-K0')).toBeNull();
+    expect(bambuColorName(null)).toBeNull();
+    const named = suggestArticle(detected({ colorHex: '000000', productCode: 'A00-K0' }), [red], [plaType]);
+    expect(named.colorName).toBe('Black');
+    expect(suggestArticle(detected({ colorHex: 'CC0000' }), [red], [plaType]).colorName).toBe('Red');
+    expect(suggestArticle(detected({ colorHex: 'CC3333' }), [red], [plaType]).colorName).toBeNull();
+  });
+});
+
+describe('Detected spools strip', () => {
+  it('labels the suggestion by colour match and shows the reported colour next to it', async () => {
+    auth.permissions = BOTH;
+    useTags([
+      detected({ trayExternalId: '0', tagUid: 'SAME', colorHex: 'CC0000' }),
+      detected({ trayExternalId: '1', tagUid: 'NEAR', colorHex: 'CC3333' }),
+      detected({ trayExternalId: '2', tagUid: 'FAR', colorHex: '0000CC', productCode: 'A00-B9' }),
+    ]);
+    server.use(http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [plaType] })));
+    renderUi(<DetectedSpoolsStrip materials={[basic(40, '#CC0000', 'Red')]} />);
+    const rows = await screen.findAllByRole('listitem');
+    expect(rows).toHaveLength(3);
+    const [same, near, far] = rows;
+    expect(within(same).getByText('Match')).toBeInTheDocument();
+    expect(within(same).getByRole('img', { name: 'Colour #CC0000 reported' })).toBeInTheDocument();
+    expect(within(near).getByText('Similar colour')).toBeInTheDocument();
+    expect(within(near).queryByText('Match')).not.toBeInTheDocument();
+    expect(within(near).getByText('#CC3333 reported')).toBeInTheDocument();
+    expect(within(far).getByText('New article')).toBeInTheDocument();
+    // The reported sub-brand and the type and variant of the new article.
+    expect(within(far).getAllByText('PLA Basic')).toHaveLength(2);
+    expect(within(far).getByText('#0000CC reported')).toBeInTheDocument();
+    expect(within(far).getByText('#0000CC Blue')).toBeInTheDocument();
+  });
+});
+
+describe('Register spool from a detection', () => {
+  it('prefills the new article with the reported colour and its official name', async () => {
+    auth.permissions = WITH_STOCK;
+    useTags([]);
+    serveInventory();
+    server.use(http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [plaType] })));
+    renderUi(
+      <RegisterSpoolModal
+        open
+        onClose={vi.fn()}
+        detected={detected({ colorHex: '000000', productCode: 'A00-K0', slotId: null, slotName: null })}
+      />,
+    );
+    // With a detection the dialog is named after its label, "Detected in <slot>".
+    const dialog = await screen.findByRole('dialog', { name: /Detected in Bambu H2D/ });
+    await waitFor(() => expect(within(dialog).getByLabelText('Colour name (optional)')).toHaveValue('Black'));
+    expect(within(dialog).getByLabelText('Colour code (optional)')).toHaveValue('#000000');
+    expect(within(dialog).getByRole('combobox', { name: 'Variant (optional)' })).toHaveValue('Basic');
+    expect(within(dialog).getByText(/PLA Basic #000000 Black/)).toBeInTheDocument();
   });
 });

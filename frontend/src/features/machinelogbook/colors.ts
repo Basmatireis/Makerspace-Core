@@ -1,7 +1,10 @@
 /** A material colour code as #RRGGBB with upper-case digits, the form the API accepts. */
 export const COLOR_HEX_PATTERN = /^#[0-9A-F]{6}$/;
 
-/** Largest RGB distance (0 to 441) at which two colours still count as the same. */
+/** Largest RGB distance (0 to 441) at which two colours look the same (a printer's and an article's colour code). */
+export const COLOR_SAME_THRESHOLD = 25;
+
+/** Largest RGB distance (0 to 441) at which two colours still count as similar rather than clearly different. */
 export const COLOR_MISMATCH_THRESHOLD = 80;
 
 const channels = (hex: string): [number, number, number] | null => {

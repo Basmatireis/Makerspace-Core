@@ -33,7 +33,7 @@ const h2dStatus = `{"print":{
   "ctc":{"info":{"temp":34}}},
 "ams":{"tray_now":"1","tray_exist_bits":"10003","ams":[
   {"id":"0","humidity":"2","humidity_raw":"32","temp":"32.4","tray":[
-    {"id":"0","tray_type":"PETG","tray_sub_brands":"PETG HF","tray_color":"FFF144FF","remain":55,"tag_uid":"0123456789ABCDEF"},
+    {"id":"0","tray_type":"PETG","tray_sub_brands":"PETG HF","tray_color":"FFF144FF","remain":55,"tag_uid":"0123456789ABCDEF","tray_id_name":"G02-Y0","tray_info_idx":"GFG02"},
     {"id":"1","tray_type":"PLA","tray_sub_brands":"","tray_color":"D32F2FFF","remain":-1,"tag_uid":"0000000000000000"},
     {"id":"2","tray_type":"","tray_color":"00000000","remain":0,"tag_uid":"0000000000000000"},
     {"id":"3","tray_type":"","tray_color":"00000000","remain":0,"tag_uid":"0000000000000000"}]},
@@ -114,9 +114,13 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 	if first.TagUID == nil || *first.TagUID != "0123456789ABCDEF" {
 		t.Fatalf("tray 0 tag = %v", first.TagUID)
 	}
+	if first.ProductCode == nil || *first.ProductCode != "G02-Y0" || first.FilamentProfileID == nil ||
+		*first.FilamentProfileID != "GFG02" {
+		t.Fatalf("tray 0 product code = %v profile = %v", first.ProductCode, first.FilamentProfileID)
+	}
 	second := ams.Trays[1]
 	if *second.MaterialType != "PLA" || second.RemainPercent != nil || second.RFID || second.Empty ||
-		second.SubBrand != nil {
+		second.SubBrand != nil || second.ProductCode != nil || second.FilamentProfileID != nil {
 		t.Fatalf("tray 1 (no RFID, unknown remain) = %+v", second)
 	}
 	if !ams.Trays[2].Empty || !ams.Trays[3].Empty || ams.Trays[2].ColorHex != nil || ams.Trays[2].MaterialType != nil {
