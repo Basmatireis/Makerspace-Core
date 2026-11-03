@@ -29,6 +29,7 @@ import { manualRuns, nameFromFile, runConsumptionText, runName, workItemName } f
 import { useNotify } from '../shared/toasts';
 import { jobStatuses, useAttachRunToJob } from './jobsQueries';
 import '../styles/jobs.scss';
+import './jobs.scss';
 
 type Values = PartyValues & { title: string; hiddenFromSignage: boolean };
 

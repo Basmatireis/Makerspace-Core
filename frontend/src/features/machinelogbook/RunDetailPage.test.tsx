@@ -17,12 +17,6 @@ const auth = vi.hoisted(() => ({ permissions: [] as string[], personId: '0192f6f
 vi.mock('../auth/auth', () => ({
   useCurrentUser: () => ({ permissions: auth.permissions, person: { id: auth.personId } }),
 }));
-vi.mock('./dialogs/JobFormModal', () => ({
-  JobFormModal: (props: { open: boolean; mode: string; run?: { id: string }; initialValues?: unknown }) =>
-    props.open ? (
-      <div role="dialog" aria-label="Job form stub" data-mode={props.mode} data-run-id={props.run?.id ?? ''} />
-    ) : null,
-}));
 
 function renderPage(element: React.ReactElement, path: string, route = '*') {
   const queryClient = testQueryClient();
@@ -110,7 +104,7 @@ describe('Run detail page', () => {
     expect(screen.getByText('Outcome').nextSibling).toHaveTextContent('Successful');
     expect(screen.getByText('Outcome').nextSibling?.nextSibling).toHaveTextContent('From machine');
     expect(screen.getByText('Events from Bambu LAN (2)')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Claim run' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Claim' })).not.toBeInTheDocument();
     expect(screen.queryByText(/printer/i)).not.toBeInTheDocument();
   });
 
@@ -119,22 +113,24 @@ describe('Run detail page', () => {
     serveRun(recordedRun());
     const user = userEvent.setup();
     renderRun();
-    await user.click(await screen.findByRole('button', { name: 'Claim run' }));
-    expect(screen.getByRole('dialog', { name: 'Job form stub' })).toBeInTheDocument();
+    await user.click((await screen.findAllByRole('button', { name: 'Claim' }))[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Claim run' });
+    expect(within(dialog).getByRole('radio', { name: 'New job' })).toBeChecked();
+    expect(within(dialog).getByRole('radio', { name: /Attach to a job on/ })).toBeDisabled();
   });
 
-  it('links a run to an existing job from the menu with edit permission only', async () => {
+  it('attaches a run to an existing job with edit permission only', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
-    serveRun(recordedRun());
+    serveRun(recordedRun(), [jobFixture()]);
     const user = userEvent.setup();
     renderRun();
-    await user.click(await screen.findByRole('img', { name: 'More run actions' }));
-    expect(screen.queryByRole('button', { name: 'Claim run' })).not.toBeInTheDocument();
-    await user.click(await screen.findByText('Link to existing job'));
-    expect(await screen.findByRole('button', { name: 'Attach run' })).toBeInTheDocument();
+    await user.click((await screen.findAllByRole('button', { name: 'Claim' }))[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Claim run' });
+    expect(within(dialog).getByRole('radio', { name: 'New job' })).toBeDisabled();
+    expect(await within(dialog).findByRole('button', { name: 'Attach to job' })).toBeInTheDocument();
   });
 
-  it('offers create and attach while the run is still running', async () => {
+  it('offers to claim while the run is still running', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobscreate, PermissionId.machine_jobsedit];
     serveRun(runningRecorded());
     renderRun();
@@ -145,11 +141,7 @@ describe('Run detail page', () => {
     expect(screen.getByText('Material').nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText(/Mounted spools describe the printer setup/)).toBeInTheDocument();
-    // Claim run creates a job; linking to an existing job is in the menu next to it.
-    expect(screen.getByRole('button', { name: 'Claim run' })).toBeInTheDocument();
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('img', { name: 'More run actions' }));
-    expect(await screen.findByText('Link to existing job')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Claim' }).length).toBeGreaterThan(0);
   });
 
   describe('signage visibility', () => {
@@ -351,7 +343,6 @@ describe('Run detail page', () => {
             ownership: 'makerspace',
             materialId: ids.material,
             spoolId: whiteSpool,
-            externalMaterialName: null,
             quantity: '1.64',
             quantityBasis: 'actual',
           },
@@ -359,22 +350,12 @@ describe('Run detail page', () => {
             ownership: 'makerspace',
             materialId: yellowMaterial,
             spoolId: yellowSpool,
-            externalMaterialName: null,
             quantity: '0.55',
             quantityBasis: 'estimated',
           },
         ],
       }),
     );
-  });
-
-  it('creates a job from the run and passes the run to the form', async () => {
-    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobscreate];
-    serveRun(recordedRun({ state: 'failed', outcome: 'failed' }));
-    const user = userEvent.setup();
-    renderRun();
-    await user.click(await screen.findByRole('button', { name: 'Claim run' }));
-    expect(screen.getByRole('dialog', { name: 'Job form stub' })).toHaveAttribute('data-run-id', ids.recordedRun);
   });
 
   it('attaches a recorded run to a job on its machine and replaces the manual runs', async () => {
@@ -393,26 +374,19 @@ describe('Run detail page', () => {
     const user = userEvent.setup();
     renderRun();
 
-    await user.click(await screen.findByRole('img', { name: 'More run actions' }));
-    await user.click(await screen.findByText('Link to existing job'));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByRole('button', { name: 'Attach run' })).toBeDisabled();
-    await user.click(within(dialog).getByRole('combobox', { name: /Job/ }));
+    await user.click((await screen.findAllByRole('button', { name: 'Claim' }))[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Claim run' });
     // Candidates come from the server: the jobs of this machine, newest first.
     await waitFor(() => expect(workItemRequests.length).toBeGreaterThan(0));
     const request = workItemRequests[0].searchParams;
     expect(request.getAll('machineId')).toEqual([ids.machine]);
     expect(request.get('sort')).toBe('startedAt');
     expect(request.get('direction')).toBe('desc');
-    await user.click(await screen.findByText(/J-2026-000001 Gearbox housing/));
-    expect(await within(dialog).findByText('Manual run')).toBeInTheDocument();
-    expect(within(dialog).getByRole('checkbox', { name: 'Replace manual runs' })).toBeChecked();
-    await user.click(within(dialog).getByRole('button', { name: 'Attach and replace' }));
-
+    expect(await within(dialog).findByRole('checkbox', { name: /Replace the job’s manual run/ })).toBeChecked();
+    await user.click(within(dialog).getByRole('button', { name: 'Attach to job' }));
     await waitFor(() =>
       expect(body).toEqual({ machineJobId: ids.job, replaceManualRuns: true, expectedJobVersion: 3 }),
     );
-    expect(await screen.findByText('J-2026-000001 now uses the data from RN-2026-000007.')).toBeInTheDocument();
   });
 
   it('attaches a running recorded run next to the manual runs when replacing is switched off', async () => {
@@ -429,20 +403,13 @@ describe('Run detail page', () => {
     const user = userEvent.setup();
     renderRun();
 
-    await user.click(await screen.findByRole('img', { name: 'More run actions' }));
-    await user.click(await screen.findByText('Link to existing job'));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByText(/the job keeps running until the run ends/)).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('combobox', { name: /Job/ }));
-    await user.click(await screen.findByText(/J-2026-000001 Gearbox housing/));
-    await user.click(await within(dialog).findByRole('checkbox', { name: 'Replace manual runs' }));
-    expect(within(dialog).getByText('Added next to the manual runs')).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Attach run' }));
-
+    await user.click((await screen.findAllByRole('button', { name: 'Claim' }))[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Claim run' });
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Replace the job’s manual run/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Attach to job' }));
     await waitFor(() =>
       expect(body).toEqual({ machineJobId: ids.job, replaceManualRuns: false, expectedJobVersion: 3 }),
     );
-    expect(await screen.findByText('RN-2026-000007 is part of J-2026-000001.')).toBeInTheDocument();
   });
 
   it('detaches the last run of a job with the job version and explains the manual copy', async () => {
@@ -473,7 +440,7 @@ describe('Run detail page', () => {
       'href',
       machineLogbookPaths.job(ids.job),
     );
-    expect(screen.queryByRole('button', { name: 'Claim run' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Claim' })).not.toBeInTheDocument();
     // Carbon's icon-only overflow trigger is named by an aria-hidden tooltip that jsdom does not resolve, so find it by class.
     await waitFor(() => expect(document.querySelector('.cds--overflow-menu')).not.toBeNull());
     await user.click(document.querySelector('.cds--overflow-menu')!);

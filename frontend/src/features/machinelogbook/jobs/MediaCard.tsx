@@ -13,6 +13,7 @@ import { formatDate } from '../../../app/dateTime';
 import { formatFileSize, timelapseMessage } from '../recording/recordingText';
 import { plateImages } from '../recording/thumbnails';
 import '../styles/jobs.scss';
+import './jobs.scss';
 
 type Slide = { kind: 'file' | 'timelapse'; recording: MachineRunRecording };
 

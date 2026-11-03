@@ -4,6 +4,7 @@ import type { JobBillingState, WorkItemBilling, WorkItemStatus } from '../../../
 import { RefLink } from '../../../app/RefLink';
 import { formatDuration } from '../shared/format';
 import type { JobRowStatus } from '../shared/status';
+import './jobs.scss';
 
 export type JobPhase = 'planned' | 'running' | 'finished';
 

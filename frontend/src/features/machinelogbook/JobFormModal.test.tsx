@@ -18,7 +18,7 @@ import { ToastProvider } from './shared/toasts';
 
 vi.mock('../auth/auth', () => ({
   useCurrentUser: () => ({
-    permissions: ['machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.read', 'machines.read'],
+    permissions: ['machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.read', 'machines.read', 'inventory.read'],
     person: { id: '0192f6f8-743e-7c77-a349-cd07c3e8ffff', firstName: 'Ada', lastName: 'Lovelace' },
   }),
 }));
@@ -75,6 +75,11 @@ describe('New job', () => {
     expect(await within(dialog).findByText('First run')).toBeInTheDocument();
     expect(within(dialog).getByRole('radio', { name: 'Starts now' })).toBeChecked();
     expect(within(dialog).queryByLabelText('Started at date')).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Select material' }));
+    expect(await screen.findByRole('dialog', { name: 'Select material' })).toBeInTheDocument();
+    await user.click(
+      within(screen.getByRole('dialog', { name: 'Select material' })).getByRole('button', { name: 'Close' }),
+    );
     expect(create).toBeDisabled();
     await choose(user, within(dialog).getByRole('combobox', { name: 'Recipient' }), 'TU Berlin (organization)');
     await user.click(within(dialog).getByLabelText(/Keep this job off the signage screens/));

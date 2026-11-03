@@ -7,6 +7,7 @@ import { unitText } from '../processConfig';
 import { formatDateTime, formatMoney } from '../shared/format';
 import { adjustmentSummary } from '../shared/status';
 import { RefreshChargeNotice } from './RefreshChargeNotice';
+import '../jobs/jobs.scss';
 
 /**
  * Price & billing of a job: the price, where it is billed (or "Add to order" once the job has finished), the

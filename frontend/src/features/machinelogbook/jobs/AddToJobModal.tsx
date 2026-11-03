@@ -37,6 +37,7 @@ import { machineJobName, manualRuns, runName } from '../shared/status';
 import { useNotify } from '../shared/toasts';
 import { useAttachRunToJob } from './jobsQueries';
 import '../styles/jobs.scss';
+import './jobs.scss';
 
 type Values = RunValues & UsagesValues;
 

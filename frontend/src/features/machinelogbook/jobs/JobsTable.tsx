@@ -59,6 +59,7 @@ import {
 } from './jobStatus';
 import { UnassignedRunsStrip } from './UnassignedRunsStrip';
 import '../styles/jobs.scss';
+import './jobs.scss';
 
 /** The item shown in the detail panel next to the table: a job or an unassigned run. */
 export type JobsSelection = { kind: 'job' | 'run'; id: string };

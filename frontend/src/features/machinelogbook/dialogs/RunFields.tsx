@@ -6,6 +6,7 @@ import { isZonedDateTimeValue } from '../../../app/dateTime';
 import { formatDateTime } from '../shared/format';
 import { runOutcomeChoices, useRunPreview, type RunValues } from './runFormHelpers';
 import '../styles/jobs.scss';
+import '../jobs/jobs.scss';
 
 /** "Starts now" or "Already done"; a run that is already done asks for its start and outcome. */
 export function RunWhenField({ idPrefix }: { idPrefix: string }) {

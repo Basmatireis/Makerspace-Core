@@ -33,6 +33,7 @@ import { BillingText, jobPhase, JobPhaseTag, OutcomeStatusTag } from './jobStatu
 import { JobsTable, type JobsSelection, type JobsTableProps } from './JobsTable';
 import { PanelPreview } from './MediaCard';
 import '../styles/jobs.scss';
+import './jobs.scss';
 
 const dateTime = (value: string) => `${formatDate(value)} ${formatTime(value)}`;
 

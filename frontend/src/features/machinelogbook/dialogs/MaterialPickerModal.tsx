@@ -28,6 +28,7 @@ import { materialsForProcess, unitText } from '../processConfig';
 import { materialsQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
 import '../styles/jobs.scss';
+import '../jobs/jobs.scss';
 
 /** What the picker hands back: an article of the stock, or material the recipient brought. */
 export type PickedMaterial =

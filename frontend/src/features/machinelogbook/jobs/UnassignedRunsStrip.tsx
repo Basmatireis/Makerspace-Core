@@ -13,6 +13,7 @@ import { spanText } from './jobStatus';
 import { unassignedStatuses } from './jobsQueries';
 import type { JobsSelection } from './JobsTable';
 import '../styles/jobs.scss';
+import './jobs.scss';
 
 const REFRESH_MS = 10_000;
 

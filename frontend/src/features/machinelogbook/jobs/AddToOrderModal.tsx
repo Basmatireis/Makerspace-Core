@@ -10,6 +10,7 @@ import { machineJobName } from '../shared/status';
 import { useNotify } from '../shared/toasts';
 import { draftOrdersQuery, useAddJobToOrder } from './jobsQueries';
 import '../styles/jobs.scss';
+import './jobs.scss';
 
 function AddToOrderForm({ job, onClose }: { job: MachineJob; onClose: () => void }) {
   const notify = useNotify();

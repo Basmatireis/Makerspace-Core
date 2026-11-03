@@ -48,6 +48,7 @@ import { toMeasures } from './processFormHelpers';
 import { MeasureFields } from './ProcessRunFields';
 import { UsageRowsEditor } from './UsageFormModal';
 import '../styles/jobs.scss';
+import '../jobs/jobs.scss';
 
 export type { JobInitialValues } from './jobFormHelpers';
 

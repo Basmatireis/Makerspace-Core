@@ -50,6 +50,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- **Jobs page.** Jobs only, with the runs machines reported without a job in a strip above the table (Claim, Delete), a filter row of comboboxes (status, outcome, machine, process, runs, billing, recipient, operator), the attention flag per row and a detail panel next to the table from 1056 px. The row selection with batch actions is gone from the page.
+- **Job page.** Fact tiles, a Notes card with its own edit button, one **Add** button for recorded or manual runs, a **Print files & timelapses** slideshow with the job's On/Off signage toggle, and Price & billing with **Add to order** (the recipient's draft order or a new one) and **Adjust price** in the card.
+- **Run page.** Report lines without a spool can be recorded as the recipient's own material; the media card replaces the preview tile; **Claim** attaches the run to a job on its machine or creates a job, optionally off signage.
+- **Job dialogs.** New job starts with machine and recipient empty and the signed-in operator, asks whether the first run starts now or is already done (with its start), and has the signage opt-out. Material rows pick from a wider catalog picker with stock and sale prices or record the recipient's own material by label and category; manual runs have no basis field. Every choice list is a fuzzy combobox.
 - **Player chunks.** The camera manager, QR codes, the open-day, event and agenda lists, the calendar, the timelapse widget and the pairing screen are loaded on demand, so the player stays inside its bundle budget.
 
 - **Workshop routes.** Jobs, Machines, Inventory and Statistics moved from `/machine-logbook/…` to `/workshop/…` with the same sub-paths; every former URL redirects with its sub-path and query, and `/machine-logbook` and `/machine-logbook/overview` open Jobs. The Workshop navigation group no longer has an Overview page. API paths are unchanged.

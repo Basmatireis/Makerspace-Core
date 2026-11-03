@@ -39,6 +39,7 @@ import {
 } from './jobFormHelpers';
 import { MaterialPickerModal, stockText, type PickedMaterial } from './MaterialPickerModal';
 import '../styles/jobs.scss';
+import '../jobs/jobs.scss';
 
 const roundArea = (value: number) => Math.round(value * 100) / 100;
 

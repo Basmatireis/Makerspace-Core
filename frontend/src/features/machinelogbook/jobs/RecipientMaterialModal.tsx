@@ -13,6 +13,7 @@ import { machineLogbookKeys } from '../queries';
 import { formatQuantity } from '../shared/format';
 import { useNotify } from '../shared/toasts';
 import { reportedLineName, reportedLineQuantity } from './runLines';
+import './jobs.scss';
 
 function RecipientMaterialForm({
   run,
