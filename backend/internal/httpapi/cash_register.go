@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"time"
 
@@ -8,6 +9,45 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/orders"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
+
+func (s *Server) ExportCashbook(
+	ctx context.Context,
+	r openapi.ExportCashbookRequestObject,
+) (openapi.ExportCashbookResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query := orders.CashbookExportQuery{
+		From:     r.Params.From.Time,
+		To:       r.Params.To.Time,
+		Contents: orders.CashbookCashRegister,
+		Format:   orders.CashbookPDF,
+	}
+	if r.Params.Contents != nil {
+		query.Contents = orders.CashbookContents(*r.Params.Contents)
+	}
+	if r.Params.Format != nil {
+		query.Format = orders.CashbookFormat(*r.Params.Format)
+	}
+	file, err := s.orders.ExportCashbook(ctx, p, query)
+	if err != nil {
+		return nil, err
+	}
+	headers := openapi.ExportCashbook200ResponseHeaders{ContentDisposition: attachmentDisposition(file.Filename)}
+	if query.Format == orders.CashbookCSV {
+		return openapi.ExportCashbook200TextcsvResponse{
+			Body:          bytes.NewReader(file.Data),
+			ContentLength: int64(len(file.Data)),
+			Headers:       headers,
+		}, nil
+	}
+	return openapi.ExportCashbook200ApplicationpdfResponse{
+		Body:          bytes.NewReader(file.Data),
+		ContentLength: int64(len(file.Data)),
+		Headers:       headers,
+	}, nil
+}
 
 func datePointer(v *openapi_types.Date) *time.Time {
 	if v == nil {

@@ -9375,6 +9375,40 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+  /payments/cashbook-export:
+    get:
+      tags: [Payments]
+      operationId: exportCashbook
+      summary: Download the cashbook
+      description: >-
+        Requires payments.read and cash_movements.read. The whole days `from` through `to` (makerspace time zone), as
+        an attachment. `cash_register` covers cash receipts, refunds and corrections, withdrawals, deposits and count
+        corrections with the balance carried forward from the opening balance; `all_payments` adds card and external
+        (wiRef) payments and has no balance. PDF: the HTU Kassabuch sheet (Nr., Datum, Kassierer*in, Text, Einnahme,
+        Ausgabe), 20 rows per page, every further page starting with the amount carried over, totals and two
+        signature lines at the end. CSV: semicolon-separated, decimal comma, UTF-8 with byte order mark, columns
+        Date;Reference;Description;In;Out plus Balance for the cash register (whose first row is the opening
+        balance); text that a spreadsheet would read as a formula is prefixed with a single quote. Customer names
+        appear only with orders.read. 422 `cashbook_export_too_large` above 5000 entries.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: from, in: query, required: true, description: "First day, inclusive.", schema: {type: string, format: date}}
+        - {name: to, in: query, required: true, description: "Last day, inclusive.", schema: {type: string, format: date}}
+        - {name: contents, in: query, schema: {type: string, enum: [cash_register, all_payments], default: cash_register}}
+        - {name: format, in: query, schema: {type: string, enum: [pdf, csv], default: pdf}}
+      responses:
+        "200":
+          description: The cashbook file.
+          headers:
+            Content-Disposition: {schema: {type: string}}
+          content:
+            application/pdf: {schema: {type: string, format: binary}}
+            text/csv: {schema: {type: string, format: binary}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /payments/cash-counts:
     get:
       tags: [Payments]

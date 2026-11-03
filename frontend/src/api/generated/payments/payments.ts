@@ -27,6 +27,7 @@ import type {
   CashRegister,
   CreateCashCountRequest,
   CreateCashMovementRequest,
+  ExportCashbookParams,
   GetCashJournalParams,
   GetCashRegisterParams,
   GetPaymentReconciliationParams,
@@ -299,6 +300,37 @@ export const getGetCashJournalUrl = (params?: GetCashJournalParams,) => {
 export const getCashJournal = async (params?: GetCashJournalParams, options?: Parameters<typeof apiFetch>[1]): Promise<CashJournal> => {
 
   return apiFetch<CashJournal>(getGetCashJournalUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getExportCashbookUrl = (params: ExportCashbookParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/payments/cashbook-export?${stringifiedParams}` : `/api/v1/payments/cashbook-export`
+}
+
+/**
+ * Requires payments.read and cash_movements.read. The whole days `from` through `to` (makerspace time zone), as an attachment. `cash_register` covers cash receipts, refunds and corrections, withdrawals, deposits and count corrections with the balance carried forward from the opening balance; `all_payments` adds card and external (wiRef) payments and has no balance. PDF: the HTU Kassabuch sheet (Nr., Datum, Kassierer*in, Text, Einnahme, Ausgabe), 20 rows per page, every further page starting with the amount carried over, totals and two signature lines at the end. CSV: semicolon-separated, decimal comma, UTF-8 with byte order mark, columns Date;Reference;Description;In;Out plus Balance for the cash register (whose first row is the opening balance); text that a spreadsheet would read as a formula is prefixed with a single quote. Customer names appear only with orders.read. 422 `cashbook_export_too_large` above 5000 entries.
+ * @summary Download the cashbook
+ */
+export const exportCashbook = async (params: ExportCashbookParams, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getExportCashbookUrl(params),
   {
     ...options,
     method: 'GET'

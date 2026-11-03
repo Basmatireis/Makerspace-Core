@@ -1642,6 +1642,116 @@ func (q *Queries) ListCashMovements(ctx context.Context, arg ListCashMovementsPa
 	return items, nil
 }
 
+const listCashbookEntries = `-- name: ListCashbookEntries :many
+WITH entries AS (
+    SELECT p.id, 'payment'::text AS source,
+        (CASE WHEN p.entry_kind = 'receipt' THEN 'receipt' WHEN p.reversal_reason_kind = 'refund' THEN 'refund' ELSE 'correction' END)::text AS kind,
+        p.method, p.occurred_at, 0 AS sort_rank,
+        (CASE WHEN p.entry_kind = 'receipt' THEN p.amount ELSE -p.amount END)::numeric AS effect,
+        p.reference, p.reason AS payment_reason, ''::text AS movement_reason, ''::text AS note, NULL::uuid AS count_id,
+        p.actor_account_id, NULL::uuid AS person_id, COALESCE(p.reverses_payment_id, p.id) AS allocated_payment_id
+    FROM payments p
+    WHERE (NOT $2::bool OR p.method = 'cash')
+      AND p.occurred_at >= $3::timestamptz AND p.occurred_at < $4::timestamptz
+    UNION ALL
+    SELECT m.id, 'movement'::text, m.kind, 'cash'::text, m.occurred_at, CASE WHEN m.kind = 'correction' THEN 2 ELSE 0 END,
+        (CASE WHEN m.kind = 'withdrawal' THEN -m.amount ELSE m.amount END)::numeric,
+        m.reference, ''::text, m.reason, m.note, m.cash_count_id, NULL::uuid, m.recorded_by_person_id, NULL::uuid
+    FROM cash_movements m
+    WHERE m.occurred_at >= $3::timestamptz AND m.occurred_at < $4::timestamptz
+)
+SELECT e.id, e.source, e.kind, e.method::text AS method, e.occurred_at, e.effect, e.reference,
+    COALESCE(al.order_reference, '')::text AS order_reference,
+    COALESCE(cs.display_name, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), ''), og.name, '')::text AS customer_name,
+    e.payment_reason::text AS payment_reason, e.movement_reason::text AS movement_reason,
+    (CASE WHEN e.count_id IS NULL THEN e.note ELSE COALESCE(c.note, '') END)::text AS note,
+    COALESCE(c.reference, '')::text AS count_reference, c.reason AS count_reason,
+    COALESCE(btrim(rb.first_name || ' ' || rb.last_name), '')::text AS recorded_by_name
+FROM entries e
+LEFT JOIN LATERAL (
+    SELECT a.order_reference, a.order_id FROM payment_allocations a
+    WHERE a.payment_id = e.allocated_payment_id ORDER BY a.created_at, a.id LIMIT 1
+) al ON true
+LEFT JOIN orders o ON o.id = al.order_id
+LEFT JOIN order_customer_snapshots cs ON cs.order_id = o.id
+LEFT JOIN people cp ON cp.id = o.customer_person_id
+LEFT JOIN organizations og ON og.id = o.customer_organization_id
+LEFT JOIN cash_counts c ON c.id = e.count_id
+LEFT JOIN accounts pa ON pa.id = e.actor_account_id
+LEFT JOIN people rb ON rb.id = COALESCE(pa.person_id, e.person_id)
+ORDER BY e.occurred_at, e.sort_rank, e.id
+LIMIT $1
+`
+
+type ListCashbookEntriesParams struct {
+	RowLimit int32
+	CashOnly bool
+	FromTime time.Time
+	ToTime   time.Time
+}
+
+type ListCashbookEntriesRow struct {
+	ID             uuid.UUID
+	Source         string
+	Kind           string
+	Method         string
+	OccurredAt     time.Time
+	Effect         pgtype.Numeric
+	Reference      string
+	OrderReference string
+	CustomerName   string
+	PaymentReason  string
+	MovementReason string
+	Note           string
+	CountReference string
+	CountReason    *string
+	RecordedByName string
+}
+
+// Payments and cash movements within [from_time, to_time) in register order, for the cashbook export. With cash_only
+// only cash payments count (the cash register); otherwise card and external payments are included. Counts move no
+// money and are left out; their corrections are not. A reversal belongs to the order of the receipt it reverses.
+func (q *Queries) ListCashbookEntries(ctx context.Context, arg ListCashbookEntriesParams) ([]ListCashbookEntriesRow, error) {
+	rows, err := q.db.Query(ctx, listCashbookEntries,
+		arg.RowLimit,
+		arg.CashOnly,
+		arg.FromTime,
+		arg.ToTime,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCashbookEntriesRow{}
+	for rows.Next() {
+		var i ListCashbookEntriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Source,
+			&i.Kind,
+			&i.Method,
+			&i.OccurredAt,
+			&i.Effect,
+			&i.Reference,
+			&i.OrderReference,
+			&i.CustomerName,
+			&i.PaymentReason,
+			&i.MovementReason,
+			&i.Note,
+			&i.CountReference,
+			&i.CountReason,
+			&i.RecordedByName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listItems = `-- name: ListItems :many
 SELECT i.id, i.order_id, i.position, i.kind, i.description, i.quantity, i.unit, i.unit_price, i.amount, i.source_machine_job_id, i.source_job_version, i.machine_job_snapshot, i.snapshot_schema_version, i.created_at, i.created_by_account_id, i.removed_at, i.removed_by_account_id, i.source_material_id,j.version AS current_job_version FROM order_items i LEFT JOIN machine_jobs j ON j.id=i.source_machine_job_id WHERE i.order_id=$1 ORDER BY i.position
 `

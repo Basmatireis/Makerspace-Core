@@ -74,6 +74,10 @@ type Querier interface {
 	// are searched only for callers who may see them. A reversal belongs to the order of the receipt it reverses.
 	ListCashJournal(ctx context.Context, arg ListCashJournalParams) ([]ListCashJournalRow, error)
 	ListCashMovements(ctx context.Context, arg ListCashMovementsParams) ([]CashMovement, error)
+	// Payments and cash movements within [from_time, to_time) in register order, for the cashbook export. With cash_only
+	// only cash payments count (the cash register); otherwise card and external payments are included. Counts move no
+	// money and are left out; their corrections are not. A reversal belongs to the order of the receipt it reverses.
+	ListCashbookEntries(ctx context.Context, arg ListCashbookEntriesParams) ([]ListCashbookEntriesRow, error)
 	ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItemsRow, error)
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error)
 	// The person's finalized orders with an outstanding amount that no active external invoice request covers.

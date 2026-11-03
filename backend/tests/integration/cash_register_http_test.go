@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,7 +67,7 @@ func newCashRegisterHTTP(t *testing.T) cashRegisterHTTP {
 	}
 }
 
-func TestCashCountsOverHTTP(t *testing.T) {
+func TestCashCountsJournalAndCashbookOverHTTP(t *testing.T) {
 	h := newCashRegisterHTTP(t)
 	countsURL := h.server.URL + "/api/v1/payments/cash-counts"
 	body := map[string]any{
@@ -144,6 +145,31 @@ func TestCashCountsOverHTTP(t *testing.T) {
 	}
 	response = doJSON(t, h.client, http.MethodGet, journalURL+"?from=2026-11-02&to=2026-11-01", "", "", nil)
 	assertStatus(t, response, http.StatusUnprocessableEntity)
+	response.Body.Close()
+
+	exportURL := h.server.URL + "/api/v1/payments/cashbook-export?from=" + today + "&to=" + today
+	response = doJSON(t, anonymous, http.MethodGet, exportURL, "", "", nil)
+	assertStatus(t, response, http.StatusUnauthorized)
+	response.Body.Close()
+	response = doJSON(t, h.client, http.MethodGet, exportURL+"&format=csv", "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	csv, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || response.Header.Get("Content-Type") != "text/csv" ||
+		response.Header.Get("Content-Disposition") != `attachment; filename=cashbook-cash-register-`+today+"-"+today+".csv" ||
+		!strings.HasPrefix(string(csv), "\xef\xbb\xbfDate;Reference;Description;In;Out;Balance\r\n") ||
+		!strings.Contains(string(csv), ";1,20;;1,20\r\n") || response.Header.Get("Cache-Control") != "no-store" {
+		t.Fatalf("csv export %v %v %q", err, response.Header, csv)
+	}
+	response = doJSON(t, h.client, http.MethodGet, exportURL+"&contents=all_payments", "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	pdfData, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || response.Header.Get("Content-Type") != "application/pdf" || !strings.HasPrefix(string(pdfData), "%PDF-") {
+		t.Fatalf("pdf export %v %v", err, response.Header)
+	}
+	response = doJSON(t, h.client, http.MethodGet, exportURL+"&format=xlsx", "", "", nil)
+	assertStatus(t, response, http.StatusBadRequest)
 	response.Body.Close()
 }
 
