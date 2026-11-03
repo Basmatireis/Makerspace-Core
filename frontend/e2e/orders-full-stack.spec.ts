@@ -268,7 +268,13 @@ test('sells billable jobs and manual items, takes cash and card, runs the wiRef 
   await expect.poll(async () => (await orderOf(invoiceOrder.id)).settlementState).toBe('paid');
   const settled = await orderOf(invoiceOrder.id);
   expect(settled.settledAmount).toBe('20.00');
-  await expect(page.getByRole('table', { name: 'Payments', exact: true }).getByText('Invoice (wiRef)').first()).toBeVisible();
+  await expect(
+    page
+      .getByRole('table', { name: 'Payments', exact: true })
+      .getByText('Invoice (wiRef)')
+      .filter({ visible: true })
+      .first(),
+  ).toBeVisible();
   await expect(page.getByText('Issued, the order is paid', { exact: true })).toBeVisible();
   await accessibility(page);
   await resize(page, 390, 844);
