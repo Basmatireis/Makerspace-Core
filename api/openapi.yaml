@@ -9722,7 +9722,7 @@ paths:
       tags: [Payments]
       operationId: getCashRegister
       summary: Expected cash in the register
-      description: "Requires payments.read and cash_movements.read. Cash receipts, cash refunds and corrections, withdrawals and deposits up to (excluding) `to`. Card and external payments never count."
+      description: "Requires payments.read and cash_movements.read. Cash receipts, cash refunds and corrections, withdrawals, deposits and count corrections up to (excluding) `to`, and the last count before `to`. Card and external payments never count."
       security: [{sessionCookie: []}]
       parameters:
         - {name: to, in: query, schema: {type: string, format: date-time}}
@@ -9730,6 +9730,111 @@ paths:
         "200": {description: Cash figures., content: {application/json: {schema: {$ref: "#/components/schemas/CashRegister"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /payments/cash-journal:
+    get:
+      tags: [Payments]
+      operationId: getCashJournal
+      summary: The cash register journal
+      description: >-
+        Requires payments.read and cash_movements.read. Every cash entry of the register (cash receipts, refunds and
+        corrections of cash payments, withdrawals, deposits, count corrections and the counts) with the running
+        balance after it, paged. `from` and `to` are whole days in the makerspace time zone, both inclusive; without
+        them the journal covers everything recorded. The balance always counts from the very first entry, whatever
+        the filters. `kind` and `search` filter the items only: `days`, `openingBalance`, `register` and `facts`
+        describe the whole range. `days` holds the opening and closing balance of every day that appears on this
+        page. `register` is the expected cash at the end of the range with its derivation and the last count before
+        that end. The customer name of an order is returned, and searched, only with orders.read.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: from, in: query, description: "First day, inclusive (makerspace time zone).", schema: {type: string, format: date}}
+        - {name: to, in: query, description: "Last day, inclusive (makerspace time zone).", schema: {type: string, format: date}}
+        - {name: kind, in: query, style: form, explode: true, schema: {type: array, maxItems: 6, items: {$ref: "#/components/schemas/CashJournalKind"}}}
+        - {name: search, in: query, description: "Matches references, order references, reasons, notes and, with orders.read, customer names.", schema: {type: string, maxLength: 200}}
+        - {name: direction, in: query, description: "`asc` is oldest first (chronological), `desc` newest first.", schema: {type: string, enum: [asc, desc], default: asc}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 2147483647}}
+        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100}}
+      responses:
+        "200": {description: The journal page., content: {application/json: {schema: {$ref: "#/components/schemas/CashJournal"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /payments/cashbook-export:
+    get:
+      tags: [Payments]
+      operationId: exportCashbook
+      summary: Download the cashbook
+      description: >-
+        Requires payments.read and cash_movements.read. The whole days `from` through `to` (makerspace time zone), as
+        an attachment. `cash_register` covers cash receipts, refunds and corrections, withdrawals, deposits and count
+        corrections with the balance carried forward from the opening balance; `all_payments` adds card and external
+        (wiRef) payments and has no balance. PDF: the HTU Kassabuch sheet (Nr., Datum, Kassierer*in, Text, Einnahme,
+        Ausgabe), 20 rows per page, every further page starting with the amount carried over, totals and two
+        signature lines at the end. CSV: semicolon-separated, decimal comma, UTF-8 with byte order mark, columns
+        Date;Reference;Description;In;Out plus Balance for the cash register (whose first row is the opening
+        balance); text that a spreadsheet would read as a formula is prefixed with a single quote. Customer names
+        appear only with orders.read. 422 `cashbook_export_too_large` above 5000 entries.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: from, in: query, required: true, description: "First day, inclusive.", schema: {type: string, format: date}}
+        - {name: to, in: query, required: true, description: "Last day, inclusive.", schema: {type: string, format: date}}
+        - {name: contents, in: query, schema: {type: string, enum: [cash_register, all_payments], default: cash_register}}
+        - {name: format, in: query, schema: {type: string, enum: [pdf, csv], default: pdf}}
+      responses:
+        "200":
+          description: The cashbook file.
+          headers:
+            Content-Disposition: {schema: {type: string}}
+          content:
+            application/pdf: {schema: {type: string, format: binary}}
+            text/csv: {schema: {type: string, format: binary}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /payments/cash-counts:
+    get:
+      tags: [Payments]
+      operationId: listCashCounts
+      summary: List counts of the cash register
+      description: "Requires payments.read and cash_movements.read. Newest first. `from` is inclusive, `to` exclusive (counting time)."
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 2147483647}}
+        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100}}
+        - {name: from, in: query, schema: {type: string, format: date-time}}
+        - {name: to, in: query, schema: {type: string, format: date-time}}
+      responses:
+        "200": {description: Cash counts., content: {application/json: {schema: {$ref: "#/components/schemas/CashCountPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Payments]
+      operationId: recordCashCount
+      summary: Count the cash register
+      description: >-
+        Requires payments.read, cash_movements.read and cash_movements.record. The server computes what the register
+        should have held at `countedAt` (inclusive) from cash receipts, cash refunds and corrections, withdrawals,
+        deposits and earlier count corrections, and stores it with the difference. A non-zero difference books one
+        cash movement of kind `correction` (reason `count_difference`, signed amount = difference, same time) that
+        references the count, in the same transaction; a matching count books nothing. Counts are immutable and
+        retrying the same operationKey with the same input returns the recorded count. 409 `idempotency_conflict`
+        for other input under a used key, `cash_count_out_of_order` when `countedAt` is not after the latest count,
+        `cash_expected_changed` when `expectedAmount` was sent and no longer matches, `cash_count_inconsistent` when
+        later withdrawals took more cash than the count found. 422 `cash_count_reason_required` when the count
+        differs and no reason was given.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateCashCountRequest"}}}}
+      responses:
+        "201": {description: Count recorded., content: {application/json: {schema: {$ref: "#/components/schemas/CashCount"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
   /cash-movements:
@@ -19942,25 +20047,172 @@ components:
         displayName: {type: string}
     CashMovementKind:
       type: string
-      enum: [withdrawal, deposit]
+      enum: [withdrawal, deposit, correction]
+      description: "`correction` is booked only by a count of the register with a difference; it cannot be recorded directly."
     CashMovementReason:
       type: string
-      enum: [bank_deposit, safe, float, other]
-      description: "Why cash left or entered the register. `other` requires a note."
+      enum: [bank_deposit, safe, float, other, count_difference]
+      description: "Why cash left or entered the register. `other` requires a note. `count_difference` belongs to corrections only."
+    CashMovementDirection:
+      type: string
+      enum: [in, out]
+      description: "`in` adds cash to the register (deposits, corrections for a surplus), `out` removes it."
     CashMovement:
       type: object
       additionalProperties: false
-      required: [id, reference, kind, amount, reason, note, occurredAt, createdAt, recordedBy]
+      required: [id, reference, kind, direction, amount, reason, note, occurredAt, createdAt, recordedBy, cashCountId, cashCountReference]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         reference: {type: string, description: "C-YYYY-NNNNNN, for the physical cashbook."}
         kind: {$ref: "#/components/schemas/CashMovementKind"}
-        amount: {$ref: "#/components/schemas/Money"}
+        direction: {$ref: "#/components/schemas/CashMovementDirection"}
+        amount: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Always positive; `direction` says which way the cash went."}
         reason: {$ref: "#/components/schemas/CashMovementReason"}
         note: {type: string}
         occurredAt: {type: string, format: date-time}
         createdAt: {type: string, format: date-time}
         recordedBy: {allOf: [{$ref: "#/components/schemas/ActorReference"}], nullable: true}
+        cashCountId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The count that booked this correction."}
+        cashCountReference: {type: string, nullable: true, description: "K-YYYY-NNNN of that count."}
+    CashJournalKind:
+      type: string
+      enum: [receipt, refund, correction, withdrawal, deposit, count]
+      description: "`correction` covers corrections of cash payments and corrections booked by counts."
+    CashJournalEntrySource:
+      type: string
+      enum: [payment, movement, count]
+      description: "Which record the entry is: a cash payment, a cash movement or a count."
+    CashJournalOrder:
+      type: object
+      additionalProperties: false
+      required: [id, reference, customerName]
+      properties:
+        id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Null when the order was deleted."}
+        reference: {type: string, description: "O-YYYY-NNNNNN"}
+        customerName: {type: string, nullable: true, description: "Null without orders.read, and for anonymous orders."}
+    CashJournalCount:
+      type: object
+      additionalProperties: false
+      required: [id, reference, countedAmount, expectedAmount, difference, reason]
+      description: "The count of a count entry, or the count that booked a correction."
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        reference: {type: string, description: "K-YYYY-NNNN"}
+        countedAmount: {$ref: "#/components/schemas/Money"}
+        expectedAmount: {$ref: "#/components/schemas/Decimal"}
+        difference: {$ref: "#/components/schemas/Decimal"}
+        reason: {allOf: [{$ref: "#/components/schemas/CashCountReason"}], nullable: true}
+    CashJournalEntry:
+      type: object
+      additionalProperties: false
+      required: [id, source, kind, reference, occurredAt, day, amountIn, amountOut, balanceAfter, recordedBy, order, paymentReason, reversedPaymentReference, movementReason, note, count]
+      properties:
+        id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: "Id of the payment, movement or count."}
+        source: {$ref: "#/components/schemas/CashJournalEntrySource"}
+        kind: {$ref: "#/components/schemas/CashJournalKind"}
+        reference: {type: string, description: "P-…, C-… or K-…"}
+        occurredAt: {type: string, format: date-time}
+        day: {type: string, format: date, description: "The day in the makerspace time zone, to group by."}
+        amountIn: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: "Cash that entered the register; null for other entries."}
+        amountOut: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: "Cash that left the register; null for other entries."}
+        balanceAfter: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "What the register should hold after this entry. A count changes nothing; its correction follows it."}
+        recordedBy: {allOf: [{$ref: "#/components/schemas/ActorReference"}], nullable: true}
+        order: {allOf: [{$ref: "#/components/schemas/CashJournalOrder"}], nullable: true, description: "The order a cash payment belongs to."}
+        paymentReason: {type: string, description: "Reason of a refund or correction of a payment; empty otherwise."}
+        reversedPaymentReference: {type: string, nullable: true, description: "The receipt a refund or correction reverses."}
+        movementReason: {allOf: [{$ref: "#/components/schemas/CashMovementReason"}], nullable: true}
+        note: {type: string, description: "Note of a movement, or of the count for counts and count corrections."}
+        count: {allOf: [{$ref: "#/components/schemas/CashJournalCount"}], nullable: true}
+    CashJournalDay:
+      type: object
+      additionalProperties: false
+      required: [date, openingBalance, closingBalance, cashIn, cashOut]
+      properties:
+        date: {type: string, format: date}
+        openingBalance: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Expected cash at the start of the day."}
+        closingBalance: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Expected cash at the end of the day."}
+        cashIn: {$ref: "#/components/schemas/Money"}
+        cashOut: {$ref: "#/components/schemas/Money"}
+    CashJournalFacts:
+      type: object
+      additionalProperties: false
+      required: [cashIn, cashInEntries, receipts, deposits, cashOut, cashOutEntries, refunds, corrections, withdrawals, net, counts]
+      description: "What happened in the range. Entries count the receipts, deposits and surplus corrections (in) or refunds, payment corrections, shortfall corrections and withdrawals (out)."
+      properties:
+        cashIn: {$ref: "#/components/schemas/Money"}
+        cashInEntries: {type: integer, format: int64}
+        receipts: {type: integer, format: int64}
+        deposits: {type: integer, format: int64}
+        cashOut: {$ref: "#/components/schemas/Money"}
+        cashOutEntries: {type: integer, format: int64}
+        refunds: {type: integer, format: int64}
+        corrections: {type: integer, format: int64}
+        withdrawals: {type: integer, format: int64}
+        net: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "cashIn - cashOut"}
+        counts: {type: integer, format: int64}
+    CashJournal:
+      type: object
+      additionalProperties: false
+      required: [from, to, items, page, pageSize, total, days, openingBalance, register, facts]
+      properties:
+        from: {type: string, format: date, nullable: true}
+        to: {type: string, format: date, nullable: true}
+        items: {type: array, items: {$ref: "#/components/schemas/CashJournalEntry"}}
+        page: {type: integer}
+        pageSize: {type: integer}
+        total: {type: integer, format: int64, description: "Entries matching kind and search in the range."}
+        days: {type: array, items: {$ref: "#/components/schemas/CashJournalDay"}, description: "The days of the items on this page, in the order of the items."}
+        openingBalance: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Expected cash at the start of the range."}
+        register: {allOf: [{$ref: "#/components/schemas/CashRegister"}], description: "Expected cash at the end of the range, its derivation and the last count before that end."}
+        facts: {$ref: "#/components/schemas/CashJournalFacts"}
+    CashCountReason:
+      type: string
+      enum: [counting_error, change_given_wrong, receipt_not_recorded, unknown, other]
+      description: "Why a count differs from the expected amount. `unknown` and `other` require a note."
+    CashCountCorrection:
+      type: object
+      additionalProperties: false
+      required: [id, reference]
+      description: "The correction movement a count with a difference booked."
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        reference: {type: string, description: "C-YYYY-NNNNNN"}
+    CashCount:
+      type: object
+      additionalProperties: false
+      required: [id, reference, countedAmount, expectedAmount, difference, reason, note, countedAt, createdAt, recordedBy, correction]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        reference: {type: string, description: "K-YYYY-NNNN, shown as the count's id."}
+        countedAmount: {$ref: "#/components/schemas/Money"}
+        expectedAmount: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "What the register should have held at countedAt, when the count was recorded."}
+        difference: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "countedAmount - expectedAmount; positive means more cash than expected (over), negative less (short)."}
+        reason: {allOf: [{$ref: "#/components/schemas/CashCountReason"}], nullable: true, description: "Set exactly when the difference is not zero."}
+        note: {type: string}
+        countedAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+        recordedBy: {allOf: [{$ref: "#/components/schemas/ActorReference"}], nullable: true}
+        correction: {allOf: [{$ref: "#/components/schemas/CashCountCorrection"}], nullable: true, description: "Null when the count matched."}
+    CashCountPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, total]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/CashCount"}}
+        page: {type: integer}
+        pageSize: {type: integer}
+        total: {type: integer, format: int64}
+    CreateCashCountRequest:
+      type: object
+      additionalProperties: false
+      required: [operationKey, countedAmount, countedAt]
+      properties:
+        operationKey: {$ref: "#/components/schemas/UUIDv7"}
+        countedAmount: {$ref: "#/components/schemas/Money"}
+        countedAt: {type: string, format: date-time, description: "Not in the future and after the latest count."}
+        reason: {allOf: [{$ref: "#/components/schemas/CashCountReason"}], description: "Required when the count differs from the expected amount; ignored when it matches."}
+        note: {type: string, maxLength: 500, description: "Required for the reasons `unknown` and `other`."}
+        expectedAmount: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Optional: the expected amount the person saw (GET /payments/cash-register with `to` just after countedAt). When it no longer matches, nothing is booked and 409 cash_expected_changed is returned."}
     CashMovementPage:
       type: object
       additionalProperties: false
@@ -19976,23 +20228,26 @@ components:
       required: [operationKey, kind, amount, reason, occurredAt]
       properties:
         operationKey: {$ref: "#/components/schemas/UUIDv7"}
-        kind: {$ref: "#/components/schemas/CashMovementKind"}
+        kind: {type: string, enum: [withdrawal, deposit]}
         amount: {$ref: "#/components/schemas/Money"}
-        reason: {$ref: "#/components/schemas/CashMovementReason"}
+        reason: {type: string, enum: [bank_deposit, safe, float, other], description: "`other` requires a note."}
         note: {type: string, maxLength: 500}
         occurredAt: {type: string, format: date-time, description: "Not in the future. A withdrawal cannot exceed the cash the register should hold."}
     CashRegister:
       type: object
       additionalProperties: false
-      required: [receipts, refunds, withdrawals, deposits, expected, to]
+      required: [receipts, refunds, corrections, refundsAndCorrections, withdrawals, deposits, expected, to, lastCount]
       description: "Only cash payments count. Card and external (wiRef) payments never change the register."
       properties:
         receipts: {$ref: "#/components/schemas/Money"}
-        refunds: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Cash refunds and corrections."}
+        refunds: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Cash refunds and corrections of cash payments."}
+        corrections: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Net cash the count corrections took out of the register; negative when counts found more cash than expected."}
+        refundsAndCorrections: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "refunds + corrections: the \"− Refunds and corrections\" line of the derivation."}
         withdrawals: {$ref: "#/components/schemas/Money"}
         deposits: {$ref: "#/components/schemas/Money"}
-        expected: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "receipts - refunds - withdrawals + deposits"}
+        expected: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "receipts - refundsAndCorrections - withdrawals + deposits"}
         to: {type: string, format: date-time, nullable: true, description: "Exclusive end of the period; null means everything recorded."}
+        lastCount: {allOf: [{$ref: "#/components/schemas/CashCount"}], nullable: true, description: "The latest count before `to`; null when the register was never counted."}
     RolePricingGroup:
       type: object
       additionalProperties: false

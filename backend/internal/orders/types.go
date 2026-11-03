@@ -147,6 +147,16 @@ type CashMovementKind string
 const (
 	CashWithdrawal CashMovementKind = "withdrawal"
 	CashDeposit    CashMovementKind = "deposit"
+	// CashCorrection is booked only by a count with a difference; its stored amount is signed.
+	CashCorrection CashMovementKind = "correction"
+)
+
+// CashMovementDirection says whether a movement added cash to the register or took it out.
+type CashMovementDirection string
+
+const (
+	CashIn  CashMovementDirection = "in"
+	CashOut CashMovementDirection = "out"
 )
 
 // CashMovementReason is why cash was moved.
@@ -157,6 +167,19 @@ const (
 	CashReasonSafe        CashMovementReason = "safe"
 	CashReasonFloat       CashMovementReason = "float"
 	CashReasonOther       CashMovementReason = "other"
+	// CashReasonCountDifference belongs to corrections only.
+	CashReasonCountDifference CashMovementReason = "count_difference"
+)
+
+// CashCountReason is why a count of the register differs from what it should hold.
+type CashCountReason string
+
+const (
+	CountReasonCountingError      CashCountReason = "counting_error"
+	CountReasonChangeGivenWrong   CashCountReason = "change_given_wrong"
+	CountReasonReceiptNotRecorded CashCountReason = "receipt_not_recorded"
+	CountReasonUnknown            CashCountReason = "unknown"
+	CountReasonOther              CashCountReason = "other"
 )
 
 // reversalReasonText stores a reversal reason in its nullable text column.

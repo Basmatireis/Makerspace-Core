@@ -248,13 +248,15 @@ func Definitions() []privacy.Definition {
 		},
 		{
 			ID: OrdersFinancialRecords, Owner: Orders, Name: "Financial records",
-			Description:    "Orders, their customer snapshots, payments, cash movements and invoice requests with recipient and service details.",
-			Contains:       "Orders, customer snapshots, payments, cash movements, invoice request recipients",
+			Description: "Orders, their customer snapshots, payments, cash movements, counts of the cash register and " +
+				"invoice requests with recipient and service details.",
+			Contains:       "Orders, customer snapshots, payments, cash movements and counts, invoice request recipients",
 			ErasureOutcome: privacy.ErasureRetainedLegal,
 			Fields: []string{
 				"orders.customer_person_id", "order_customer_snapshots.display_name", "order_items.description",
 				"order_items.machine_job_snapshot", "order_adjustments.reason", "payments.reason", "payments.external_reference",
 				"cash_movements.reason", "cash_movements.note", "cash_movements.recorded_by_person_id",
+				"cash_counts.note", "cash_counts.recorded_by_person_id",
 				"external_invoice_request_details.*", "external_invoice_request_events.reason",
 				"external_invoice_request_events.external_reference",
 			},

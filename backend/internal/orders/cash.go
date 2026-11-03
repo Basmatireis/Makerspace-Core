@@ -19,10 +19,11 @@ import (
 // The register counts cash only. Card payments and external (wiRef) payments never go through it, whatever
 // their reversals: figures are derived from method='cash' payments plus the immutable cash movements.
 
-type cashFigures struct{ receipts, refunds, withdrawals, deposits decimal.Decimal }
+// cashFigures are sums up to a point in time. corrections is signed: what count corrections added to the register.
+type cashFigures struct{ receipts, refunds, withdrawals, deposits, corrections decimal.Decimal }
 
 func (f cashFigures) expected() decimal.Decimal {
-	return f.receipts.Sub(f.refunds).Sub(f.withdrawals).Add(f.deposits)
+	return f.receipts.Sub(f.refunds).Sub(f.withdrawals).Add(f.deposits).Add(f.corrections)
 }
 
 // cashFiguresUntil sums everything that occurred before `to` (exclusive); nil means everything recorded.
@@ -40,41 +41,67 @@ func cashFiguresUntil(ctx context.Context, q *db.Queries, to *time.Time) (cashFi
 		refunds:     d(payments.Refunds),
 		withdrawals: d(movements.Withdrawals),
 		deposits:    d(movements.Deposits),
+		corrections: d(movements.Corrections),
 	}, nil
+}
+
+// register presents the figures as the derivation the cash register shows.
+func (f cashFigures) register() CashRegister {
+	takenOut := f.corrections.Neg()
+	return CashRegister{
+		Receipts:              f.receipts.StringFixed(2),
+		Refunds:               f.refunds.StringFixed(2),
+		Corrections:           takenOut.StringFixed(2),
+		RefundsAndCorrections: f.refunds.Add(takenOut).StringFixed(2),
+		Withdrawals:           f.withdrawals.StringFixed(2),
+		Deposits:              f.deposits.StringFixed(2),
+		Expected:              f.expected().StringFixed(2),
+	}
 }
 
 func (s *Service) CashRegister(ctx context.Context, p authorization.Principal, to *time.Time) (CashRegister, error) {
 	if err := require(p, authorization.PaymentsRead, authorization.CashMovementsRead); err != nil {
 		return CashRegister{}, err
 	}
-	figures, err := cashFiguresUntil(ctx, db.New(s.pool), to)
+	q := db.New(s.pool)
+	figures, err := cashFiguresUntil(ctx, q, to)
 	if err != nil {
 		return CashRegister{}, err
 	}
-	result := CashRegister{
-		Receipts:    figures.receipts.StringFixed(2),
-		Refunds:     figures.refunds.StringFixed(2),
-		Withdrawals: figures.withdrawals.StringFixed(2),
-		Deposits:    figures.deposits.StringFixed(2),
-		Expected:    figures.expected().StringFixed(2),
-	}
+	result := figures.register()
 	if to != nil {
 		utc := to.UTC()
 		result.To = &utc
+	}
+	if result.LastCount, err = s.latestCashCount(ctx, q, to); err != nil {
+		return result, err
 	}
 	return result, nil
 }
 
 func (s *Service) cashMovement(ctx context.Context, q *db.Queries, row db.CashMovement) (CashMovement, error) {
+	amount := d(row.Amount)
 	v := CashMovement{
-		ID:         row.ID,
-		Reference:  row.Reference,
-		Kind:       CashMovementKind(row.Kind),
-		Amount:     money(row.Amount),
-		Reason:     CashMovementReason(row.Reason),
-		Note:       row.Note,
-		OccurredAt: row.OccurredAt,
-		CreatedAt:  row.CreatedAt,
+		ID:          row.ID,
+		Reference:   row.Reference,
+		Kind:        CashMovementKind(row.Kind),
+		Direction:   CashIn,
+		Amount:      amount.Abs().StringFixed(2),
+		Reason:      CashMovementReason(row.Reason),
+		Note:        row.Note,
+		OccurredAt:  row.OccurredAt,
+		CreatedAt:   row.CreatedAt,
+		CashCountID: row.CashCountID,
+	}
+	if v.Kind == CashWithdrawal || amount.IsNegative() {
+		v.Direction = CashOut
+	}
+	if row.CashCountID != nil {
+		count, err := q.GetCashCountReference(ctx, *row.CashCountID)
+		if err != nil {
+			return v, err
+		}
+		v.CashCountReference = &count
 	}
 	if row.RecordedByPersonID != nil {
 		person, err := q.GetPerson(ctx, *row.RecordedByPersonID)
@@ -98,7 +125,9 @@ func (s *Service) ListCashMovements(
 	if err := require(p, authorization.CashMovementsRead); err != nil {
 		return CashMovementPage{}, err
 	}
-	if kind != "" && CashMovementKind(kind) != CashWithdrawal && CashMovementKind(kind) != CashDeposit {
+	switch CashMovementKind(kind) {
+	case "", CashWithdrawal, CashDeposit, CashCorrection:
+	default:
 		return CashMovementPage{}, apperror.Invalid("Unsupported cash movement kind")
 	}
 	limit, offset, err := pageBounds(page, size)
@@ -241,6 +270,7 @@ func (s *Service) CreateCashMovement(
 			Note:               note,
 			OccurredAt:         occurred,
 			RecordedByPersonID: person,
+			CashCountID:        nil,
 		},
 	)
 	if err != nil {

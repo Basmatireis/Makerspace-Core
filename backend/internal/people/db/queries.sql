@@ -343,7 +343,8 @@ SELECT
     (SELECT count(*) FROM external_invoice_request_details
         WHERE recipient_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])
            OR contact_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS invoice_requests,
-    (SELECT count(*) FROM cash_movements WHERE recorded_by_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS cash_movements,
+    ((SELECT count(*) FROM cash_movements WHERE recorded_by_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
+        + (SELECT count(*) FROM cash_counts WHERE recorded_by_person_id = ANY((sqlc.arg(ids)::text[])::uuid[])))::bigint AS cash_movements,
     (SELECT count(*) FROM survey_invitations WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS survey_invitations,
     (SELECT count(*) FROM survey_responses WHERE identified_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS survey_responses,
     (SELECT count(*) FROM organization_members WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS organization_memberships,
@@ -450,6 +451,9 @@ WITH visits_moved AS (
 ), cash_moved AS (
     UPDATE cash_movements SET recorded_by_person_id = sqlc.arg(target_person_id)::uuid
     WHERE recorded_by_person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
+), counts_moved AS (
+    UPDATE cash_counts SET recorded_by_person_id = sqlc.arg(target_person_id)::uuid
+    WHERE recorded_by_person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
 ), privacy_holds_moved AS (
     UPDATE privacy_retention_holds SET subject_person_id = sqlc.arg(target_person_id)::uuid
     WHERE subject_person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
@@ -467,7 +471,7 @@ SELECT
     (SELECT count(*) FROM orders_moved)::bigint AS orders,
     (SELECT count(*) FROM jobs_moved)::bigint AS machine_jobs,
     (SELECT count(*) FROM invoice_details_moved)::bigint AS invoice_requests,
-    (SELECT count(*) FROM cash_moved)::bigint AS cash_movements;
+    ((SELECT count(*) FROM cash_moved) + (SELECT count(*) FROM counts_moved))::bigint AS cash_movements;
 
 -- name: RepointMergeAccountReferences :one
 -- Re-points every "who did it" reference of a merged Account to the surviving Account.

@@ -123,7 +123,7 @@ migration that adds such a column fails the integration suite until the merge ha
 | `scim_users`                                                                                                             | A SCIM-managed source blocks; the target's mapping stays.                                                                                          |
 
 **Immutable history.** Orders, order items and adjustments, payments and allocations, invoice request events and
-details, inventory transactions, cash movements and published Lab Rules versions are protected by triggers that only
+details, inventory transactions, cash movements, cash counts and published Lab Rules versions are protected by triggers that only
 allow detaching references. Migration 00077 gives these triggers a transaction-local merge mode
 (`set_config('makerspace.people_merge', 'on', true)`, set only inside the merge transaction): the original guard is
 skipped and `people_merge_reference_guard` allows nothing but changes of the listed person/account reference columns

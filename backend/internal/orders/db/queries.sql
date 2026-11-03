@@ -158,8 +158,8 @@ SELECT * FROM cash_movements WHERE operation_key=$1;
 -- name: NextCashMovementReference :one
 SELECT nextval('cash_movement_reference_sequence')::bigint;
 -- name: InsertCashMovement :one
-INSERT INTO cash_movements(id,reference,operation_key,kind,amount,reason,note,occurred_at,recorded_by_person_id)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *;
+INSERT INTO cash_movements(id,reference,operation_key,kind,amount,reason,note,occurred_at,recorded_by_person_id,cash_count_id)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *;
 -- name: ListCashMovements :many
 SELECT * FROM cash_movements WHERE (sqlc.arg(kind)::text='' OR kind=sqlc.arg(kind)) AND (sqlc.narg(from_time)::timestamptz IS NULL OR occurred_at>=sqlc.narg(from_time)) AND (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time))
 ORDER BY occurred_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
@@ -169,8 +169,34 @@ SELECT count(*) FROM cash_movements WHERE (sqlc.arg(kind)::text='' OR kind=sqlc.
 SELECT COALESCE(sum(amount) FILTER (WHERE entry_kind='receipt'),0)::numeric AS receipts,COALESCE(sum(amount) FILTER (WHERE entry_kind='reversal'),0)::numeric AS refunds
 FROM payments WHERE method='cash' AND (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));
 -- name: CashMovementFigures :one
-SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits
+-- Corrections are signed: what they added to the register.
+SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits,
+COALESCE(sum(amount) FILTER (WHERE kind='correction'),0)::numeric AS corrections
 FROM cash_movements WHERE (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));
+-- name: GetCashCountReference :one
+SELECT reference FROM cash_counts WHERE id=$1;
+-- name: NextCashCountReference :one
+SELECT nextval('cash_count_reference_sequence')::bigint;
+-- name: GetCashCountByKey :one
+SELECT * FROM cash_counts WHERE operation_key=$1;
+-- name: LatestCashCountTime :one
+SELECT counted_at FROM cash_counts ORDER BY counted_at DESC LIMIT 1;
+-- name: InsertCashCount :one
+INSERT INTO cash_counts(id,reference,operation_key,counted_amount,expected_amount,difference,reason,note,counted_at,recorded_by_person_id)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *;
+-- name: ListCashCountIDs :many
+SELECT id FROM cash_counts WHERE (sqlc.narg(from_time)::timestamptz IS NULL OR counted_at>=sqlc.narg(from_time)) AND (sqlc.narg(to_time)::timestamptz IS NULL OR counted_at<sqlc.narg(to_time))
+ORDER BY counted_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+-- name: CountCashCounts :one
+SELECT count(*) FROM cash_counts WHERE (sqlc.narg(from_time)::timestamptz IS NULL OR counted_at>=sqlc.narg(from_time)) AND (sqlc.narg(to_time)::timestamptz IS NULL OR counted_at<sqlc.narg(to_time));
+-- name: GetCashCountDetails :one
+-- A count with its correction movement and the name of the person who counted.
+SELECT c.id,c.reference,c.counted_amount,c.expected_amount,c.difference,c.reason,c.note,c.counted_at,c.created_at,c.recorded_by_person_id,
+ COALESCE(btrim(pe.first_name||' '||pe.last_name),'')::text AS recorded_by_name,m.id AS correction_id,m.reference AS correction_reference
+FROM cash_counts c LEFT JOIN people pe ON pe.id=c.recorded_by_person_id LEFT JOIN cash_movements m ON m.cash_count_id=c.id
+WHERE c.id=$1;
+-- name: LatestCashCountID :one
+SELECT id FROM cash_counts WHERE (sqlc.narg(to_time)::timestamptz IS NULL OR counted_at<sqlc.narg(to_time)) ORDER BY counted_at DESC,id DESC LIMIT 1;
 -- name: ListOwnPayableOrderIDs :many
 -- The person's finalized orders with an outstanding amount that no active external invoice request covers.
 SELECT o.id FROM orders o
@@ -206,3 +232,124 @@ SELECT status,attempted_at,failure_code FROM external_invoice_request_deliveries
 SELECT p.reference,p.method,p.occurred_at,sum(a.amount)::numeric AS amount FROM payments p JOIN payment_allocations a ON a.payment_id=p.id
 WHERE a.order_id=$1 AND p.entry_kind='receipt'
 GROUP BY p.id HAVING sum(a.amount)>0 ORDER BY p.occurred_at,p.reference;
+
+-- name: ListCashJournal :many
+-- The register's entries with the running balance after each. The balance counts every entry from the beginning,
+-- whatever the filters; seq is the position in time (ties: count before its correction, then id). Customer names
+-- are searched only for callers who may see them. A reversal belongs to the order of the receipt it reverses.
+WITH ledger AS (
+    SELECT e.id, e.source, e.kind, e.occurred_at, e.effect::numeric AS effect, e.reference,
+        row_number() OVER w AS seq, (sum(e.effect) OVER w)::numeric AS balance
+    FROM cash_register_entries e
+    WHERE sqlc.narg(to_time)::timestamptz IS NULL OR e.occurred_at < sqlc.narg(to_time)::timestamptz
+    WINDOW w AS (ORDER BY e.occurred_at, e.sort_rank, e.id ROWS UNBOUNDED PRECEDING)
+), detailed AS (
+    SELECT l.id, l.source, l.kind, l.occurred_at, l.effect, l.reference, l.seq, l.balance,
+        al.order_id, COALESCE(al.order_reference, '')::text AS order_reference,
+        COALESCE(cs.display_name, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), ''), og.name, '')::text AS customer_name,
+        COALESCE(p.reason, '')::text AS payment_reason,
+        COALESCE(p.reversed_payment_reference, '')::text AS reversed_payment_reference,
+        COALESCE(m.reason, '')::text AS movement_reason,
+        (CASE WHEN m.id IS NOT NULL AND m.kind <> 'correction' THEN m.note ELSE COALESCE(c.note, '') END)::text AS note,
+        c.id AS count_id, COALESCE(c.reference, '')::text AS count_reference,
+        c.counted_amount, c.expected_amount, c.difference, c.reason AS count_reason,
+        rb.id AS recorded_by_id, COALESCE(btrim(rb.first_name || ' ' || rb.last_name), '')::text AS recorded_by_name
+    FROM ledger l
+    LEFT JOIN payments p ON l.source = 'payment' AND p.id = l.id
+    LEFT JOIN LATERAL (
+        SELECT a.order_id, a.order_reference FROM payment_allocations a
+        WHERE a.payment_id = COALESCE(p.reverses_payment_id, p.id) ORDER BY a.created_at, a.id LIMIT 1
+    ) al ON true
+    LEFT JOIN orders o ON o.id = al.order_id
+    LEFT JOIN order_customer_snapshots cs ON cs.order_id = o.id
+    LEFT JOIN people cp ON cp.id = o.customer_person_id
+    LEFT JOIN organizations og ON og.id = o.customer_organization_id
+    LEFT JOIN accounts pa ON pa.id = p.actor_account_id
+    LEFT JOIN cash_movements m ON l.source = 'movement' AND m.id = l.id
+    LEFT JOIN cash_counts c ON c.id = CASE WHEN l.source = 'count' THEN l.id ELSE m.cash_count_id END
+    LEFT JOIN people rb ON rb.id = COALESCE(pa.person_id, m.recorded_by_person_id, c.recorded_by_person_id)
+    WHERE (sqlc.narg(from_time)::timestamptz IS NULL OR l.occurred_at >= sqlc.narg(from_time)::timestamptz)
+      AND (cardinality(sqlc.arg(kinds)::text[]) = 0 OR l.kind = ANY(sqlc.arg(kinds)::text[]))
+)
+SELECT d.id, d.source, d.kind, d.occurred_at, d.effect, d.reference, d.balance, d.order_id, d.order_reference,
+    d.customer_name, d.payment_reason, d.reversed_payment_reference, d.movement_reason, d.note, d.count_id,
+    d.count_reference, d.counted_amount, d.expected_amount, d.difference, d.count_reason, d.recorded_by_id,
+    d.recorded_by_name, count(*) OVER () AS total
+FROM detailed d
+WHERE sqlc.arg(search)::text = ''
+    OR d.reference ILIKE '%' || sqlc.arg(search)::text || '%'
+    OR d.order_reference ILIKE '%' || sqlc.arg(search)::text || '%'
+    OR (sqlc.arg(with_customer)::bool AND d.customer_name ILIKE '%' || sqlc.arg(search)::text || '%')
+    OR d.payment_reason ILIKE '%' || sqlc.arg(search)::text || '%'
+    OR d.note ILIKE '%' || sqlc.arg(search)::text || '%'
+    OR d.count_reference ILIKE '%' || sqlc.arg(search)::text || '%'
+ORDER BY CASE WHEN sqlc.arg(newest_first)::bool THEN -d.seq ELSE d.seq END
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: CashJournalDayTotals :many
+-- Cash in and out per day in the makerspace time zone, for days within [from_time, to_time).
+SELECT to_char(e.occurred_at AT TIME ZONE sqlc.arg(time_zone)::text, 'YYYY-MM-DD')::text AS day,
+    COALESCE(sum(e.effect) FILTER (WHERE e.effect > 0), 0)::numeric AS cash_in,
+    COALESCE(-sum(e.effect) FILTER (WHERE e.effect < 0), 0)::numeric AS cash_out
+FROM cash_register_entries e
+WHERE e.occurred_at >= sqlc.arg(from_time)::timestamptz AND e.occurred_at < sqlc.arg(to_time)::timestamptz
+GROUP BY 1 ORDER BY 1;
+
+-- name: CashJournalFacts :one
+-- What happened in the register within [from_time, to_time); both ends are optional.
+SELECT COALESCE(sum(e.effect) FILTER (WHERE e.effect > 0), 0)::numeric AS cash_in,
+    count(*) FILTER (WHERE e.effect > 0) AS cash_in_entries,
+    count(*) FILTER (WHERE e.kind = 'receipt') AS receipts,
+    count(*) FILTER (WHERE e.kind = 'deposit') AS deposits,
+    COALESCE(-sum(e.effect) FILTER (WHERE e.effect < 0), 0)::numeric AS cash_out,
+    count(*) FILTER (WHERE e.effect < 0) AS cash_out_entries,
+    count(*) FILTER (WHERE e.kind = 'refund') AS refunds,
+    count(*) FILTER (WHERE e.kind = 'correction') AS corrections,
+    count(*) FILTER (WHERE e.kind = 'withdrawal') AS withdrawals,
+    count(*) FILTER (WHERE e.kind = 'count') AS counts
+FROM cash_register_entries e
+WHERE (sqlc.narg(from_time)::timestamptz IS NULL OR e.occurred_at >= sqlc.narg(from_time)::timestamptz)
+  AND (sqlc.narg(to_time)::timestamptz IS NULL OR e.occurred_at < sqlc.narg(to_time)::timestamptz);
+
+-- name: ListCashbookEntries :many
+-- Payments and cash movements within [from_time, to_time) in register order, for the cashbook export. With cash_only
+-- only cash payments count (the cash register); otherwise card and external payments are included. Counts move no
+-- money and are left out; their corrections are not. A reversal belongs to the order of the receipt it reverses.
+WITH entries AS (
+    SELECT p.id, 'payment'::text AS source,
+        (CASE WHEN p.entry_kind = 'receipt' THEN 'receipt' WHEN p.reversal_reason_kind = 'refund' THEN 'refund' ELSE 'correction' END)::text AS kind,
+        p.method, p.occurred_at, 0 AS sort_rank,
+        (CASE WHEN p.entry_kind = 'receipt' THEN p.amount ELSE -p.amount END)::numeric AS effect,
+        p.reference, p.reason AS payment_reason, ''::text AS movement_reason, ''::text AS note, NULL::uuid AS count_id,
+        p.actor_account_id, NULL::uuid AS person_id, COALESCE(p.reverses_payment_id, p.id) AS allocated_payment_id
+    FROM payments p
+    WHERE (NOT sqlc.arg(cash_only)::bool OR p.method = 'cash')
+      AND p.occurred_at >= sqlc.arg(from_time)::timestamptz AND p.occurred_at < sqlc.arg(to_time)::timestamptz
+    UNION ALL
+    SELECT m.id, 'movement'::text, m.kind, 'cash'::text, m.occurred_at, CASE WHEN m.kind = 'correction' THEN 2 ELSE 0 END,
+        (CASE WHEN m.kind = 'withdrawal' THEN -m.amount ELSE m.amount END)::numeric,
+        m.reference, ''::text, m.reason, m.note, m.cash_count_id, NULL::uuid, m.recorded_by_person_id, NULL::uuid
+    FROM cash_movements m
+    WHERE m.occurred_at >= sqlc.arg(from_time)::timestamptz AND m.occurred_at < sqlc.arg(to_time)::timestamptz
+)
+SELECT e.id, e.source, e.kind, e.method::text AS method, e.occurred_at, e.effect, e.reference,
+    COALESCE(al.order_reference, '')::text AS order_reference,
+    COALESCE(cs.display_name, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), ''), og.name, '')::text AS customer_name,
+    e.payment_reason::text AS payment_reason, e.movement_reason::text AS movement_reason,
+    (CASE WHEN e.count_id IS NULL THEN e.note ELSE COALESCE(c.note, '') END)::text AS note,
+    COALESCE(c.reference, '')::text AS count_reference, c.reason AS count_reason,
+    COALESCE(btrim(rb.first_name || ' ' || rb.last_name), '')::text AS recorded_by_name
+FROM entries e
+LEFT JOIN LATERAL (
+    SELECT a.order_reference, a.order_id FROM payment_allocations a
+    WHERE a.payment_id = e.allocated_payment_id ORDER BY a.created_at, a.id LIMIT 1
+) al ON true
+LEFT JOIN orders o ON o.id = al.order_id
+LEFT JOIN order_customer_snapshots cs ON cs.order_id = o.id
+LEFT JOIN people cp ON cp.id = o.customer_person_id
+LEFT JOIN organizations og ON og.id = o.customer_organization_id
+LEFT JOIN cash_counts c ON c.id = e.count_id
+LEFT JOIN accounts pa ON pa.id = e.actor_account_id
+LEFT JOIN people rb ON rb.id = COALESCE(pa.person_id, e.person_id)
+ORDER BY e.occurred_at, e.sort_rank, e.id
+LIMIT sqlc.arg(row_limit);

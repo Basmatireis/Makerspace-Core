@@ -2,7 +2,7 @@ import { Controller, useForm } from 'react-hook-form';
 import { InlineNotification, Modal, Select, SelectItem, Stack, TextArea, TextInput } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { createCashMovement } from '../../api/generated/payments/payments';
-import type { CashMovementKind, CashMovementReason } from '../../api/generated/models';
+import type { CreateCashMovementRequestKind, CreateCashMovementRequestReason } from '../../api/generated/models';
 import { DateTimeInput } from '../../app/DateInput';
 import { instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../app/dateTime';
 import { useNotify } from '../machinelogbook/shared/toasts';
@@ -11,10 +11,10 @@ import { formatCents, fromCents, parseMoneyInput, toCents } from './money';
 import { useOperationKeys } from './operations';
 import { cashRegisterQuery, useFinanceMutation } from './queries';
 
-type Values = { amount: string; time: string; reason: CashMovementReason; note: string };
+type Values = { amount: string; time: string; reason: CreateCashMovementRequestReason; note: string };
 
 /** Money taken out of the register (a withdrawal) or added to it (a deposit, for example a change float). Not tied to an order. */
-export function CashMovementModal({ kind, onClose }: { kind: CashMovementKind; onClose: () => void }) {
+export function CashMovementModal({ kind, onClose }: { kind: CreateCashMovementRequestKind; onClose: () => void }) {
   const notify = useNotify();
   const key = useOperationKeys();
   const register = useQuery(cashRegisterQuery());

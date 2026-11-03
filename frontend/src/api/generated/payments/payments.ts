@@ -19,12 +19,19 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  CashCount,
+  CashCountPage,
+  CashJournal,
   CashMovement,
   CashMovementPage,
   CashRegister,
+  CreateCashCountRequest,
   CreateCashMovementRequest,
+  ExportCashbookParams,
+  GetCashJournalParams,
   GetCashRegisterParams,
   GetPaymentReconciliationParams,
+  ListCashCountsParams,
   ListCashMovementsParams,
   ListOrderPaymentsParams,
   Order,
@@ -248,7 +255,7 @@ export const getGetCashRegisterUrl = (params?: GetCashRegisterParams,) => {
 }
 
 /**
- * Requires payments.read and cash_movements.read. Cash receipts, cash refunds and corrections, withdrawals and deposits up to (excluding) `to`. Card and external payments never count.
+ * Requires payments.read and cash_movements.read. Cash receipts, cash refunds and corrections, withdrawals, deposits and count corrections up to (excluding) `to`, and the last count before `to`. Card and external payments never count.
  * @summary Expected cash in the register
  */
 export const getCashRegister = async (params?: GetCashRegisterParams, options?: Parameters<typeof apiFetch>[1]): Promise<CashRegister> => {
@@ -259,6 +266,145 @@ export const getCashRegister = async (params?: GetCashRegisterParams, options?: 
     method: 'GET'
 
 
+  }
+);}
+
+
+export const getGetCashJournalUrl = (params?: GetCashJournalParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["kind"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/payments/cash-journal?${stringifiedParams}` : `/api/v1/payments/cash-journal`
+}
+
+/**
+ * Requires payments.read and cash_movements.read. Every cash entry of the register (cash receipts, refunds and corrections of cash payments, withdrawals, deposits, count corrections and the counts) with the running balance after it, paged. `from` and `to` are whole days in the makerspace time zone, both inclusive; without them the journal covers everything recorded. The balance always counts from the very first entry, whatever the filters. `kind` and `search` filter the items only: `days`, `openingBalance`, `register` and `facts` describe the whole range. `days` holds the opening and closing balance of every day that appears on this page. `register` is the expected cash at the end of the range with its derivation and the last count before that end. The customer name of an order is returned, and searched, only with orders.read.
+ * @summary The cash register journal
+ */
+export const getCashJournal = async (params?: GetCashJournalParams, options?: Parameters<typeof apiFetch>[1]): Promise<CashJournal> => {
+
+  return apiFetch<CashJournal>(getGetCashJournalUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getExportCashbookUrl = (params: ExportCashbookParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/payments/cashbook-export?${stringifiedParams}` : `/api/v1/payments/cashbook-export`
+}
+
+/**
+ * Requires payments.read and cash_movements.read. The whole days `from` through `to` (makerspace time zone), as an attachment. `cash_register` covers cash receipts, refunds and corrections, withdrawals, deposits and count corrections with the balance carried forward from the opening balance; `all_payments` adds card and external (wiRef) payments and has no balance. PDF: the HTU Kassabuch sheet (Nr., Datum, Kassierer*in, Text, Einnahme, Ausgabe), 20 rows per page, every further page starting with the amount carried over, totals and two signature lines at the end. CSV: semicolon-separated, decimal comma, UTF-8 with byte order mark, columns Date;Reference;Description;In;Out plus Balance for the cash register (whose first row is the opening balance); text that a spreadsheet would read as a formula is prefixed with a single quote. Customer names appear only with orders.read. 422 `cashbook_export_too_large` above 5000 entries.
+ * @summary Download the cashbook
+ */
+export const exportCashbook = async (params: ExportCashbookParams, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getExportCashbookUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListCashCountsUrl = (params?: ListCashCountsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/payments/cash-counts?${stringifiedParams}` : `/api/v1/payments/cash-counts`
+}
+
+/**
+ * Requires payments.read and cash_movements.read. Newest first. `from` is inclusive, `to` exclusive (counting time).
+ * @summary List counts of the cash register
+ */
+export const listCashCounts = async (params?: ListCashCountsParams, options?: Parameters<typeof apiFetch>[1]): Promise<CashCountPage> => {
+
+  return apiFetch<CashCountPage>(getListCashCountsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getRecordCashCountUrl = () => {
+
+
+
+
+  return `/api/v1/payments/cash-counts`
+}
+
+/**
+ * Requires payments.read, cash_movements.read and cash_movements.record. The server computes what the register should have held at `countedAt` (inclusive) from cash receipts, cash refunds and corrections, withdrawals, deposits and earlier count corrections, and stores it with the difference. A non-zero difference books one cash movement of kind `correction` (reason `count_difference`, signed amount = difference, same time) that references the count, in the same transaction; a matching count books nothing. Counts are immutable and retrying the same operationKey with the same input returns the recorded count. 409 `idempotency_conflict` for other input under a used key, `cash_count_out_of_order` when `countedAt` is not after the latest count, `cash_expected_changed` when `expectedAmount` was sent and no longer matches, `cash_count_inconsistent` when later withdrawals took more cash than the count found. 422 `cash_count_reason_required` when the count differs and no reason was given.
+ * @summary Count the cash register
+ */
+export const recordCashCount = async (createCashCountRequest: CreateCashCountRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CashCount> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<CashCount>(getRecordCashCountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createCashCountRequest)
   }
 );}
 

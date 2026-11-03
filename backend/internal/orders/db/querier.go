@@ -6,6 +6,7 @@ package ordersdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -18,10 +19,16 @@ type Querier interface {
 	AllocatedOrderID(ctx context.Context, paymentID *uuid.UUID) (*uuid.UUID, error)
 	BumpOrder(ctx context.Context, id uuid.UUID) error
 	CaptureCustomer(ctx context.Context, arg CaptureCustomerParams) error
+	// Cash in and out per day in the makerspace time zone, for days within [from_time, to_time).
+	CashJournalDayTotals(ctx context.Context, arg CashJournalDayTotalsParams) ([]CashJournalDayTotalsRow, error)
+	// What happened in the register within [from_time, to_time); both ends are optional.
+	CashJournalFacts(ctx context.Context, arg CashJournalFactsParams) (CashJournalFactsRow, error)
+	// Corrections are signed: what they added to the register.
 	CashMovementFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashMovementFiguresRow, error)
 	CashPaymentFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashPaymentFiguresRow, error)
 	ClaimJob(ctx context.Context, arg ClaimJobParams) error
 	CommittedReplacement(ctx context.Context, replacesOrderID *uuid.UUID) (CommittedReplacementRow, error)
+	CountCashCounts(ctx context.Context, arg CountCashCountsParams) (int64, error)
 	CountCashMovements(ctx context.Context, arg CountCashMovementsParams) (int64, error)
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountPayments(ctx context.Context, arg CountPaymentsParams) (int64, error)
@@ -30,6 +37,10 @@ type Querier interface {
 	CreateRequest(ctx context.Context, arg CreateRequestParams) (ExternalInvoiceRequest, error)
 	CreateRequestDetails(ctx context.Context, arg CreateRequestDetailsParams) error
 	GetActor(ctx context.Context, id uuid.UUID) (GetActorRow, error)
+	GetCashCountByKey(ctx context.Context, operationKey uuid.UUID) (CashCount, error)
+	// A count with its correction movement and the name of the person who counted.
+	GetCashCountDetails(ctx context.Context, id uuid.UUID) (GetCashCountDetailsRow, error)
+	GetCashCountReference(ctx context.Context, id uuid.UUID) (string, error)
 	GetCashMovementByKey(ctx context.Context, operationKey uuid.UUID) (CashMovement, error)
 	GetCustomerName(ctx context.Context, id uuid.UUID) (string, error)
 	GetItem(ctx context.Context, arg GetItemParams) (OrderItem, error)
@@ -46,15 +57,27 @@ type Querier interface {
 	InsertAdjustment(ctx context.Context, arg InsertAdjustmentParams) error
 	InsertAdjustmentItems(ctx context.Context, arg InsertAdjustmentItemsParams) error
 	InsertAllocation(ctx context.Context, arg InsertAllocationParams) error
+	InsertCashCount(ctx context.Context, arg InsertCashCountParams) (CashCount, error)
 	InsertCashMovement(ctx context.Context, arg InsertCashMovementParams) (CashMovement, error)
 	InsertItem(ctx context.Context, arg InsertItemParams) (OrderItem, error)
 	InsertPayment(ctx context.Context, arg InsertPaymentParams) (Payment, error)
 	InsertRequestEvent(ctx context.Context, arg InsertRequestEventParams) error
 	InvoicePayments(ctx context.Context, orderID *uuid.UUID) ([]InvoicePaymentsRow, error)
+	LatestCashCountID(ctx context.Context, toTime pgtype.Timestamptz) (uuid.UUID, error)
+	LatestCashCountTime(ctx context.Context) (time.Time, error)
 	LatestRequest(ctx context.Context, orderID *uuid.UUID) (ExternalInvoiceRequest, error)
 	ListAdjustments(ctx context.Context, orderID *uuid.UUID) ([]OrderAdjustment, error)
 	ListAllocations(ctx context.Context, orderID *uuid.UUID) ([]PaymentAllocation, error)
+	ListCashCountIDs(ctx context.Context, arg ListCashCountIDsParams) ([]uuid.UUID, error)
+	// The register's entries with the running balance after each. The balance counts every entry from the beginning,
+	// whatever the filters; seq is the position in time (ties: count before its correction, then id). Customer names
+	// are searched only for callers who may see them. A reversal belongs to the order of the receipt it reverses.
+	ListCashJournal(ctx context.Context, arg ListCashJournalParams) ([]ListCashJournalRow, error)
 	ListCashMovements(ctx context.Context, arg ListCashMovementsParams) ([]CashMovement, error)
+	// Payments and cash movements within [from_time, to_time) in register order, for the cashbook export. With cash_only
+	// only cash payments count (the cash register); otherwise card and external payments are included. Counts move no
+	// money and are left out; their corrections are not. A reversal belongs to the order of the receipt it reverses.
+	ListCashbookEntries(ctx context.Context, arg ListCashbookEntriesParams) ([]ListCashbookEntriesRow, error)
 	ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItemsRow, error)
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error)
 	// The person's finalized orders with an outstanding amount that no active external invoice request covers.
@@ -72,6 +95,7 @@ type Querier interface {
 	LockPayment(ctx context.Context, id uuid.UUID) (Payment, error)
 	LockRequest(ctx context.Context, id uuid.UUID) (ExternalInvoiceRequest, error)
 	NextAdjustmentReference(ctx context.Context) (int64, error)
+	NextCashCountReference(ctx context.Context) (int64, error)
 	NextCashMovementReference(ctx context.Context) (int64, error)
 	NextOrderReference(ctx context.Context) (int64, error)
 	NextPaymentReference(ctx context.Context) (int64, error)

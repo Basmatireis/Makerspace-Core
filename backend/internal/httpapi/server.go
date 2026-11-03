@@ -170,8 +170,14 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		return nil, fmt.Errorf("initialize signage: %w", err)
 	}
 	surveyService := surveys.NewService(pool, cfg, notifier)
+	location, err := time.LoadLocation(cfg.MakerspaceTimeZone)
+	if err != nil {
+		return nil, fmt.Errorf("load makerspace time zone: %w", err)
+	}
 	invoicingService := invoicing.NewService(pool, notifier, brandingService)
-	ordersService := orders.NewService(pool, machineLogbook).WithInvoiceDelivery(invoicingService)
+	ordersService := orders.NewService(pool, machineLogbook).
+		WithInvoiceDelivery(invoicingService).
+		WithLocation(location)
 	rolesService := roles.NewService(pool)
 	managedDevicesService := manageddevices.NewService(pool)
 	visitorService := visitor.NewService(pool, cfg, fileService, labRulesService, notifier)
@@ -195,10 +201,6 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		Privacy:         privacyService,
 		SubjectRequests: subjectRequestService,
 	})
-	location, err := time.LoadLocation(cfg.MakerspaceTimeZone)
-	if err != nil {
-		return nil, fmt.Errorf("load makerspace time zone: %w", err)
-	}
 	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService, location)
 	labRulesService.SetConfirmationListener(attendanceService)
 	visitorService.SetAttendance(attendanceService)

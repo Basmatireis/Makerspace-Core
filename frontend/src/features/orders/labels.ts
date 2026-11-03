@@ -1,6 +1,7 @@
 import type {
   CashMovementKind,
   CashMovementReason,
+  CreateCashMovementRequestReason,
   ExternalInvoiceRequestState,
   InvoiceRequestCommandReconciliationKind,
   OrderPayment,
@@ -113,17 +114,18 @@ export const customerTypeOptions = [
 ];
 
 export const cashMovementKindLabel = (kind: CashMovementKind) =>
-  kind === 'withdrawal' ? 'Cash withdrawal' : 'Cash deposit';
+  kind === 'withdrawal' ? 'Cash withdrawal' : kind === 'deposit' ? 'Cash deposit' : 'Count correction';
 export const cashMovementReasonLabel: Record<CashMovementReason, string> = {
   bank_deposit: 'Bank deposit',
   safe: 'Moved to safe',
   float: 'Change float',
   other: 'Other',
+  count_difference: 'Count difference',
 };
-export const cashMovementReasons = (Object.keys(cashMovementReasonLabel) as CashMovementReason[]).map((id) => ({
-  id,
-  label: cashMovementReasonLabel[id],
-}));
+/** The reasons a person can pick for a withdrawal or deposit; count differences are booked by counts only. */
+export const cashMovementReasons = (
+  ['bank_deposit', 'safe', 'float', 'other'] as CreateCashMovementRequestReason[]
+).map((id) => ({ id, label: cashMovementReasonLabel[id] }));
 export const movementTagType = (kind: CashMovementKind): 'cyan' | 'teal' => (kind === 'withdrawal' ? 'cyan' : 'teal');
 
 export const cashbookKindOptions = [

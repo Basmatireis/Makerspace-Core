@@ -18,16 +18,17 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { CashMovementKind } from './cashMovementKind';
-import type { CashMovementReason } from './cashMovementReason';
+import type { CreateCashMovementRequestKind } from './createCashMovementRequestKind';
+import type { CreateCashMovementRequestReason } from './createCashMovementRequestReason';
 import type { Money } from './money';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface CreateCashMovementRequest {
   operationKey: UUIDv7;
-  kind: CashMovementKind;
+  kind: CreateCashMovementRequestKind;
   amount: Money;
-  reason: CashMovementReason;
+  /** `other` requires a note. */
+  reason: CreateCashMovementRequestReason;
   /** @maxLength 500 */
   note?: string;
   /** Not in the future. A withdrawal cannot exceed the cash the register should hold. */

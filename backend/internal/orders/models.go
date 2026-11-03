@@ -367,15 +367,18 @@ type CashMovementInput struct {
 }
 
 type CashMovement struct {
-	ID         uuid.UUID          `json:"id"`
-	Reference  string             `json:"reference"`
-	Kind       CashMovementKind   `json:"kind"`
-	Amount     string             `json:"amount"`
-	Reason     CashMovementReason `json:"reason"`
-	Note       string             `json:"note"`
-	OccurredAt time.Time          `json:"occurredAt"`
-	CreatedAt  time.Time          `json:"createdAt"`
-	RecordedBy *Actor             `json:"recordedBy"`
+	ID                 uuid.UUID             `json:"id"`
+	Reference          string                `json:"reference"`
+	Kind               CashMovementKind      `json:"kind"`
+	Direction          CashMovementDirection `json:"direction"`
+	Amount             string                `json:"amount"`
+	Reason             CashMovementReason    `json:"reason"`
+	Note               string                `json:"note"`
+	OccurredAt         time.Time             `json:"occurredAt"`
+	CreatedAt          time.Time             `json:"createdAt"`
+	RecordedBy         *Actor                `json:"recordedBy"`
+	CashCountID        *uuid.UUID            `json:"cashCountId"`
+	CashCountReference *string               `json:"cashCountReference"`
 }
 
 type CashMovementPage struct {
@@ -387,12 +390,53 @@ type CashMovementPage struct {
 
 // CashRegister counts cash only: card and external (wiRef) payments never change it.
 type CashRegister struct {
-	Receipts    string     `json:"receipts"`
-	Refunds     string     `json:"refunds"`
-	Withdrawals string     `json:"withdrawals"`
-	Deposits    string     `json:"deposits"`
-	Expected    string     `json:"expected"`
-	To          *time.Time `json:"to"`
+	Receipts string `json:"receipts"`
+	Refunds  string `json:"refunds"`
+	// Corrections is what count corrections took out of the register, negative when they added cash.
+	Corrections           string     `json:"corrections"`
+	RefundsAndCorrections string     `json:"refundsAndCorrections"`
+	Withdrawals           string     `json:"withdrawals"`
+	Deposits              string     `json:"deposits"`
+	Expected              string     `json:"expected"`
+	To                    *time.Time `json:"to"`
+	LastCount             *CashCount `json:"lastCount"`
+}
+
+type CashCountInput struct {
+	OperationKey  uuid.UUID        `json:"operationKey"`
+	CountedAmount string           `json:"countedAmount"`
+	CountedAt     time.Time        `json:"countedAt"`
+	Reason        *CashCountReason `json:"reason,omitempty"`
+	Note          string           `json:"note,omitempty"`
+	// ExpectedAmount is what the person saw; when set and no longer right, nothing is booked.
+	ExpectedAmount *string `json:"expectedAmount,omitempty"`
+}
+
+// CashCountCorrection is the movement a count with a difference booked.
+type CashCountCorrection struct {
+	ID        uuid.UUID `json:"id"`
+	Reference string    `json:"reference"`
+}
+
+type CashCount struct {
+	ID             uuid.UUID            `json:"id"`
+	Reference      string               `json:"reference"`
+	CountedAmount  string               `json:"countedAmount"`
+	ExpectedAmount string               `json:"expectedAmount"`
+	Difference     string               `json:"difference"`
+	Reason         *CashCountReason     `json:"reason"`
+	Note           string               `json:"note"`
+	CountedAt      time.Time            `json:"countedAt"`
+	CreatedAt      time.Time            `json:"createdAt"`
+	RecordedBy     *Actor               `json:"recordedBy"`
+	Correction     *CashCountCorrection `json:"correction"`
+}
+
+type CashCountPage struct {
+	Items    []CashCount `json:"items"`
+	Page     int64       `json:"page"`
+	PageSize int64       `json:"pageSize"`
+	Total    int64       `json:"total"`
 }
 
 // OrderAttentionCode names something on an order that needs someone's attention.

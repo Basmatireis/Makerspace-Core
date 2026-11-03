@@ -162,20 +162,118 @@ func (q *Queries) CaptureCustomer(ctx context.Context, arg CaptureCustomerParams
 	return err
 }
 
+const cashJournalDayTotals = `-- name: CashJournalDayTotals :many
+SELECT to_char(e.occurred_at AT TIME ZONE $1::text, 'YYYY-MM-DD')::text AS day,
+    COALESCE(sum(e.effect) FILTER (WHERE e.effect > 0), 0)::numeric AS cash_in,
+    COALESCE(-sum(e.effect) FILTER (WHERE e.effect < 0), 0)::numeric AS cash_out
+FROM cash_register_entries e
+WHERE e.occurred_at >= $2::timestamptz AND e.occurred_at < $3::timestamptz
+GROUP BY 1 ORDER BY 1
+`
+
+type CashJournalDayTotalsParams struct {
+	TimeZone string
+	FromTime time.Time
+	ToTime   time.Time
+}
+
+type CashJournalDayTotalsRow struct {
+	Day     string
+	CashIn  pgtype.Numeric
+	CashOut pgtype.Numeric
+}
+
+// Cash in and out per day in the makerspace time zone, for days within [from_time, to_time).
+func (q *Queries) CashJournalDayTotals(ctx context.Context, arg CashJournalDayTotalsParams) ([]CashJournalDayTotalsRow, error) {
+	rows, err := q.db.Query(ctx, cashJournalDayTotals, arg.TimeZone, arg.FromTime, arg.ToTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CashJournalDayTotalsRow{}
+	for rows.Next() {
+		var i CashJournalDayTotalsRow
+		if err := rows.Scan(&i.Day, &i.CashIn, &i.CashOut); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const cashJournalFacts = `-- name: CashJournalFacts :one
+SELECT COALESCE(sum(e.effect) FILTER (WHERE e.effect > 0), 0)::numeric AS cash_in,
+    count(*) FILTER (WHERE e.effect > 0) AS cash_in_entries,
+    count(*) FILTER (WHERE e.kind = 'receipt') AS receipts,
+    count(*) FILTER (WHERE e.kind = 'deposit') AS deposits,
+    COALESCE(-sum(e.effect) FILTER (WHERE e.effect < 0), 0)::numeric AS cash_out,
+    count(*) FILTER (WHERE e.effect < 0) AS cash_out_entries,
+    count(*) FILTER (WHERE e.kind = 'refund') AS refunds,
+    count(*) FILTER (WHERE e.kind = 'correction') AS corrections,
+    count(*) FILTER (WHERE e.kind = 'withdrawal') AS withdrawals,
+    count(*) FILTER (WHERE e.kind = 'count') AS counts
+FROM cash_register_entries e
+WHERE ($1::timestamptz IS NULL OR e.occurred_at >= $1::timestamptz)
+  AND ($2::timestamptz IS NULL OR e.occurred_at < $2::timestamptz)
+`
+
+type CashJournalFactsParams struct {
+	FromTime pgtype.Timestamptz
+	ToTime   pgtype.Timestamptz
+}
+
+type CashJournalFactsRow struct {
+	CashIn         pgtype.Numeric
+	CashInEntries  int64
+	Receipts       int64
+	Deposits       int64
+	CashOut        pgtype.Numeric
+	CashOutEntries int64
+	Refunds        int64
+	Corrections    int64
+	Withdrawals    int64
+	Counts         int64
+}
+
+// What happened in the register within [from_time, to_time); both ends are optional.
+func (q *Queries) CashJournalFacts(ctx context.Context, arg CashJournalFactsParams) (CashJournalFactsRow, error) {
+	row := q.db.QueryRow(ctx, cashJournalFacts, arg.FromTime, arg.ToTime)
+	var i CashJournalFactsRow
+	err := row.Scan(
+		&i.CashIn,
+		&i.CashInEntries,
+		&i.Receipts,
+		&i.Deposits,
+		&i.CashOut,
+		&i.CashOutEntries,
+		&i.Refunds,
+		&i.Corrections,
+		&i.Withdrawals,
+		&i.Counts,
+	)
+	return i, err
+}
+
 const cashMovementFigures = `-- name: CashMovementFigures :one
-SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits
+SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits,
+COALESCE(sum(amount) FILTER (WHERE kind='correction'),0)::numeric AS corrections
 FROM cash_movements WHERE ($1::timestamptz IS NULL OR occurred_at<$1)
 `
 
 type CashMovementFiguresRow struct {
 	Withdrawals pgtype.Numeric
 	Deposits    pgtype.Numeric
+	Corrections pgtype.Numeric
 }
 
+// Corrections are signed: what they added to the register.
 func (q *Queries) CashMovementFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashMovementFiguresRow, error) {
 	row := q.db.QueryRow(ctx, cashMovementFigures, toTime)
 	var i CashMovementFiguresRow
-	err := row.Scan(&i.Withdrawals, &i.Deposits)
+	err := row.Scan(&i.Withdrawals, &i.Deposits, &i.Corrections)
 	return i, err
 }
 
@@ -224,6 +322,22 @@ func (q *Queries) CommittedReplacement(ctx context.Context, replacesOrderID *uui
 	var i CommittedReplacementRow
 	err := row.Scan(&i.ID, &i.Reference)
 	return i, err
+}
+
+const countCashCounts = `-- name: CountCashCounts :one
+SELECT count(*) FROM cash_counts WHERE ($1::timestamptz IS NULL OR counted_at>=$1) AND ($2::timestamptz IS NULL OR counted_at<$2)
+`
+
+type CountCashCountsParams struct {
+	FromTime pgtype.Timestamptz
+	ToTime   pgtype.Timestamptz
+}
+
+func (q *Queries) CountCashCounts(ctx context.Context, arg CountCashCountsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCashCounts, arg.FromTime, arg.ToTime)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countCashMovements = `-- name: CountCashMovements :one
@@ -425,8 +539,87 @@ func (q *Queries) GetActor(ctx context.Context, id uuid.UUID) (GetActorRow, erro
 	return i, err
 }
 
+const getCashCountByKey = `-- name: GetCashCountByKey :one
+SELECT id, reference, operation_key, counted_amount, expected_amount, difference, reason, note, counted_at, recorded_by_person_id, created_at FROM cash_counts WHERE operation_key=$1
+`
+
+func (q *Queries) GetCashCountByKey(ctx context.Context, operationKey uuid.UUID) (CashCount, error) {
+	row := q.db.QueryRow(ctx, getCashCountByKey, operationKey)
+	var i CashCount
+	err := row.Scan(
+		&i.ID,
+		&i.Reference,
+		&i.OperationKey,
+		&i.CountedAmount,
+		&i.ExpectedAmount,
+		&i.Difference,
+		&i.Reason,
+		&i.Note,
+		&i.CountedAt,
+		&i.RecordedByPersonID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getCashCountDetails = `-- name: GetCashCountDetails :one
+SELECT c.id,c.reference,c.counted_amount,c.expected_amount,c.difference,c.reason,c.note,c.counted_at,c.created_at,c.recorded_by_person_id,
+ COALESCE(btrim(pe.first_name||' '||pe.last_name),'')::text AS recorded_by_name,m.id AS correction_id,m.reference AS correction_reference
+FROM cash_counts c LEFT JOIN people pe ON pe.id=c.recorded_by_person_id LEFT JOIN cash_movements m ON m.cash_count_id=c.id
+WHERE c.id=$1
+`
+
+type GetCashCountDetailsRow struct {
+	ID                  uuid.UUID
+	Reference           string
+	CountedAmount       pgtype.Numeric
+	ExpectedAmount      pgtype.Numeric
+	Difference          pgtype.Numeric
+	Reason              *string
+	Note                string
+	CountedAt           time.Time
+	CreatedAt           time.Time
+	RecordedByPersonID  *uuid.UUID
+	RecordedByName      string
+	CorrectionID        *uuid.UUID
+	CorrectionReference *string
+}
+
+// A count with its correction movement and the name of the person who counted.
+func (q *Queries) GetCashCountDetails(ctx context.Context, id uuid.UUID) (GetCashCountDetailsRow, error) {
+	row := q.db.QueryRow(ctx, getCashCountDetails, id)
+	var i GetCashCountDetailsRow
+	err := row.Scan(
+		&i.ID,
+		&i.Reference,
+		&i.CountedAmount,
+		&i.ExpectedAmount,
+		&i.Difference,
+		&i.Reason,
+		&i.Note,
+		&i.CountedAt,
+		&i.CreatedAt,
+		&i.RecordedByPersonID,
+		&i.RecordedByName,
+		&i.CorrectionID,
+		&i.CorrectionReference,
+	)
+	return i, err
+}
+
+const getCashCountReference = `-- name: GetCashCountReference :one
+SELECT reference FROM cash_counts WHERE id=$1
+`
+
+func (q *Queries) GetCashCountReference(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getCashCountReference, id)
+	var reference string
+	err := row.Scan(&reference)
+	return reference, err
+}
+
 const getCashMovementByKey = `-- name: GetCashMovementByKey :one
-SELECT id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at FROM cash_movements WHERE operation_key=$1
+SELECT id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at, cash_count_id FROM cash_movements WHERE operation_key=$1
 `
 
 func (q *Queries) GetCashMovementByKey(ctx context.Context, operationKey uuid.UUID) (CashMovement, error) {
@@ -443,6 +636,7 @@ func (q *Queries) GetCashMovementByKey(ctx context.Context, operationKey uuid.UU
 		&i.OccurredAt,
 		&i.RecordedByPersonID,
 		&i.CreatedAt,
+		&i.CashCountID,
 	)
 	return i, err
 }
@@ -812,9 +1006,57 @@ func (q *Queries) InsertAllocation(ctx context.Context, arg InsertAllocationPara
 	return err
 }
 
+const insertCashCount = `-- name: InsertCashCount :one
+INSERT INTO cash_counts(id,reference,operation_key,counted_amount,expected_amount,difference,reason,note,counted_at,recorded_by_person_id)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, reference, operation_key, counted_amount, expected_amount, difference, reason, note, counted_at, recorded_by_person_id, created_at
+`
+
+type InsertCashCountParams struct {
+	ID                 uuid.UUID
+	Reference          string
+	OperationKey       uuid.UUID
+	CountedAmount      pgtype.Numeric
+	ExpectedAmount     pgtype.Numeric
+	Difference         pgtype.Numeric
+	Reason             *string
+	Note               string
+	CountedAt          time.Time
+	RecordedByPersonID *uuid.UUID
+}
+
+func (q *Queries) InsertCashCount(ctx context.Context, arg InsertCashCountParams) (CashCount, error) {
+	row := q.db.QueryRow(ctx, insertCashCount,
+		arg.ID,
+		arg.Reference,
+		arg.OperationKey,
+		arg.CountedAmount,
+		arg.ExpectedAmount,
+		arg.Difference,
+		arg.Reason,
+		arg.Note,
+		arg.CountedAt,
+		arg.RecordedByPersonID,
+	)
+	var i CashCount
+	err := row.Scan(
+		&i.ID,
+		&i.Reference,
+		&i.OperationKey,
+		&i.CountedAmount,
+		&i.ExpectedAmount,
+		&i.Difference,
+		&i.Reason,
+		&i.Note,
+		&i.CountedAt,
+		&i.RecordedByPersonID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertCashMovement = `-- name: InsertCashMovement :one
-INSERT INTO cash_movements(id,reference,operation_key,kind,amount,reason,note,occurred_at,recorded_by_person_id)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at
+INSERT INTO cash_movements(id,reference,operation_key,kind,amount,reason,note,occurred_at,recorded_by_person_id,cash_count_id)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at, cash_count_id
 `
 
 type InsertCashMovementParams struct {
@@ -827,6 +1069,7 @@ type InsertCashMovementParams struct {
 	Note               string
 	OccurredAt         time.Time
 	RecordedByPersonID *uuid.UUID
+	CashCountID        *uuid.UUID
 }
 
 func (q *Queries) InsertCashMovement(ctx context.Context, arg InsertCashMovementParams) (CashMovement, error) {
@@ -840,6 +1083,7 @@ func (q *Queries) InsertCashMovement(ctx context.Context, arg InsertCashMovement
 		arg.Note,
 		arg.OccurredAt,
 		arg.RecordedByPersonID,
+		arg.CashCountID,
 	)
 	var i CashMovement
 	err := row.Scan(
@@ -853,6 +1097,7 @@ func (q *Queries) InsertCashMovement(ctx context.Context, arg InsertCashMovement
 		&i.OccurredAt,
 		&i.RecordedByPersonID,
 		&i.CreatedAt,
+		&i.CashCountID,
 	)
 	return i, err
 }
@@ -1049,6 +1294,28 @@ func (q *Queries) InvoicePayments(ctx context.Context, orderID *uuid.UUID) ([]In
 	return items, nil
 }
 
+const latestCashCountID = `-- name: LatestCashCountID :one
+SELECT id FROM cash_counts WHERE ($1::timestamptz IS NULL OR counted_at<$1) ORDER BY counted_at DESC,id DESC LIMIT 1
+`
+
+func (q *Queries) LatestCashCountID(ctx context.Context, toTime pgtype.Timestamptz) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, latestCashCountID, toTime)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const latestCashCountTime = `-- name: LatestCashCountTime :one
+SELECT counted_at FROM cash_counts ORDER BY counted_at DESC LIMIT 1
+`
+
+func (q *Queries) LatestCashCountTime(ctx context.Context) (time.Time, error) {
+	row := q.db.QueryRow(ctx, latestCashCountTime)
+	var counted_at time.Time
+	err := row.Scan(&counted_at)
+	return counted_at, err
+}
+
 const latestRequest = `-- name: LatestRequest :one
 SELECT id, reference, order_id, order_reference, provider, state, currency, requested_amount, supersedes_request_id, version, created_at FROM external_invoice_requests WHERE order_id=$1 ORDER BY created_at DESC,id DESC LIMIT 1
 `
@@ -1143,8 +1410,189 @@ func (q *Queries) ListAllocations(ctx context.Context, orderID *uuid.UUID) ([]Pa
 	return items, nil
 }
 
+const listCashCountIDs = `-- name: ListCashCountIDs :many
+SELECT id FROM cash_counts WHERE ($1::timestamptz IS NULL OR counted_at>=$1) AND ($2::timestamptz IS NULL OR counted_at<$2)
+ORDER BY counted_at DESC,id DESC LIMIT $4 OFFSET $3
+`
+
+type ListCashCountIDsParams struct {
+	FromTime   pgtype.Timestamptz
+	ToTime     pgtype.Timestamptz
+	PageOffset int32
+	PageLimit  int32
+}
+
+func (q *Queries) ListCashCountIDs(ctx context.Context, arg ListCashCountIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listCashCountIDs,
+		arg.FromTime,
+		arg.ToTime,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCashJournal = `-- name: ListCashJournal :many
+WITH ledger AS (
+    SELECT e.id, e.source, e.kind, e.occurred_at, e.effect::numeric AS effect, e.reference,
+        row_number() OVER w AS seq, (sum(e.effect) OVER w)::numeric AS balance
+    FROM cash_register_entries e
+    WHERE $6::timestamptz IS NULL OR e.occurred_at < $6::timestamptz
+    WINDOW w AS (ORDER BY e.occurred_at, e.sort_rank, e.id ROWS UNBOUNDED PRECEDING)
+), detailed AS (
+    SELECT l.id, l.source, l.kind, l.occurred_at, l.effect, l.reference, l.seq, l.balance,
+        al.order_id, COALESCE(al.order_reference, '')::text AS order_reference,
+        COALESCE(cs.display_name, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), ''), og.name, '')::text AS customer_name,
+        COALESCE(p.reason, '')::text AS payment_reason,
+        COALESCE(p.reversed_payment_reference, '')::text AS reversed_payment_reference,
+        COALESCE(m.reason, '')::text AS movement_reason,
+        (CASE WHEN m.id IS NOT NULL AND m.kind <> 'correction' THEN m.note ELSE COALESCE(c.note, '') END)::text AS note,
+        c.id AS count_id, COALESCE(c.reference, '')::text AS count_reference,
+        c.counted_amount, c.expected_amount, c.difference, c.reason AS count_reason,
+        rb.id AS recorded_by_id, COALESCE(btrim(rb.first_name || ' ' || rb.last_name), '')::text AS recorded_by_name
+    FROM ledger l
+    LEFT JOIN payments p ON l.source = 'payment' AND p.id = l.id
+    LEFT JOIN LATERAL (
+        SELECT a.order_id, a.order_reference FROM payment_allocations a
+        WHERE a.payment_id = COALESCE(p.reverses_payment_id, p.id) ORDER BY a.created_at, a.id LIMIT 1
+    ) al ON true
+    LEFT JOIN orders o ON o.id = al.order_id
+    LEFT JOIN order_customer_snapshots cs ON cs.order_id = o.id
+    LEFT JOIN people cp ON cp.id = o.customer_person_id
+    LEFT JOIN organizations og ON og.id = o.customer_organization_id
+    LEFT JOIN accounts pa ON pa.id = p.actor_account_id
+    LEFT JOIN cash_movements m ON l.source = 'movement' AND m.id = l.id
+    LEFT JOIN cash_counts c ON c.id = CASE WHEN l.source = 'count' THEN l.id ELSE m.cash_count_id END
+    LEFT JOIN people rb ON rb.id = COALESCE(pa.person_id, m.recorded_by_person_id, c.recorded_by_person_id)
+    WHERE ($7::timestamptz IS NULL OR l.occurred_at >= $7::timestamptz)
+      AND (cardinality($8::text[]) = 0 OR l.kind = ANY($8::text[]))
+)
+SELECT d.id, d.source, d.kind, d.occurred_at, d.effect, d.reference, d.balance, d.order_id, d.order_reference,
+    d.customer_name, d.payment_reason, d.reversed_payment_reference, d.movement_reason, d.note, d.count_id,
+    d.count_reference, d.counted_amount, d.expected_amount, d.difference, d.count_reason, d.recorded_by_id,
+    d.recorded_by_name, count(*) OVER () AS total
+FROM detailed d
+WHERE $1::text = ''
+    OR d.reference ILIKE '%' || $1::text || '%'
+    OR d.order_reference ILIKE '%' || $1::text || '%'
+    OR ($2::bool AND d.customer_name ILIKE '%' || $1::text || '%')
+    OR d.payment_reason ILIKE '%' || $1::text || '%'
+    OR d.note ILIKE '%' || $1::text || '%'
+    OR d.count_reference ILIKE '%' || $1::text || '%'
+ORDER BY CASE WHEN $3::bool THEN -d.seq ELSE d.seq END
+LIMIT $5 OFFSET $4
+`
+
+type ListCashJournalParams struct {
+	Search       string
+	WithCustomer bool
+	NewestFirst  bool
+	PageOffset   int32
+	PageLimit    int32
+	ToTime       pgtype.Timestamptz
+	FromTime     pgtype.Timestamptz
+	Kinds        []string
+}
+
+type ListCashJournalRow struct {
+	ID                       uuid.UUID
+	Source                   string
+	Kind                     string
+	OccurredAt               time.Time
+	Effect                   pgtype.Numeric
+	Reference                string
+	Balance                  pgtype.Numeric
+	OrderID                  *uuid.UUID
+	OrderReference           string
+	CustomerName             string
+	PaymentReason            string
+	ReversedPaymentReference string
+	MovementReason           string
+	Note                     string
+	CountID                  *uuid.UUID
+	CountReference           string
+	CountedAmount            pgtype.Numeric
+	ExpectedAmount           pgtype.Numeric
+	Difference               pgtype.Numeric
+	CountReason              *string
+	RecordedByID             *uuid.UUID
+	RecordedByName           string
+	Total                    int64
+}
+
+// The register's entries with the running balance after each. The balance counts every entry from the beginning,
+// whatever the filters; seq is the position in time (ties: count before its correction, then id). Customer names
+// are searched only for callers who may see them. A reversal belongs to the order of the receipt it reverses.
+func (q *Queries) ListCashJournal(ctx context.Context, arg ListCashJournalParams) ([]ListCashJournalRow, error) {
+	rows, err := q.db.Query(ctx, listCashJournal,
+		arg.Search,
+		arg.WithCustomer,
+		arg.NewestFirst,
+		arg.PageOffset,
+		arg.PageLimit,
+		arg.ToTime,
+		arg.FromTime,
+		arg.Kinds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCashJournalRow{}
+	for rows.Next() {
+		var i ListCashJournalRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Source,
+			&i.Kind,
+			&i.OccurredAt,
+			&i.Effect,
+			&i.Reference,
+			&i.Balance,
+			&i.OrderID,
+			&i.OrderReference,
+			&i.CustomerName,
+			&i.PaymentReason,
+			&i.ReversedPaymentReference,
+			&i.MovementReason,
+			&i.Note,
+			&i.CountID,
+			&i.CountReference,
+			&i.CountedAmount,
+			&i.ExpectedAmount,
+			&i.Difference,
+			&i.CountReason,
+			&i.RecordedByID,
+			&i.RecordedByName,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCashMovements = `-- name: ListCashMovements :many
-SELECT id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at FROM cash_movements WHERE ($1::text='' OR kind=$1) AND ($2::timestamptz IS NULL OR occurred_at>=$2) AND ($3::timestamptz IS NULL OR occurred_at<$3)
+SELECT id, reference, operation_key, kind, amount, reason, note, occurred_at, recorded_by_person_id, created_at, cash_count_id FROM cash_movements WHERE ($1::text='' OR kind=$1) AND ($2::timestamptz IS NULL OR occurred_at>=$2) AND ($3::timestamptz IS NULL OR occurred_at<$3)
 ORDER BY occurred_at DESC,id DESC LIMIT $5 OFFSET $4
 `
 
@@ -1182,6 +1630,117 @@ func (q *Queries) ListCashMovements(ctx context.Context, arg ListCashMovementsPa
 			&i.OccurredAt,
 			&i.RecordedByPersonID,
 			&i.CreatedAt,
+			&i.CashCountID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCashbookEntries = `-- name: ListCashbookEntries :many
+WITH entries AS (
+    SELECT p.id, 'payment'::text AS source,
+        (CASE WHEN p.entry_kind = 'receipt' THEN 'receipt' WHEN p.reversal_reason_kind = 'refund' THEN 'refund' ELSE 'correction' END)::text AS kind,
+        p.method, p.occurred_at, 0 AS sort_rank,
+        (CASE WHEN p.entry_kind = 'receipt' THEN p.amount ELSE -p.amount END)::numeric AS effect,
+        p.reference, p.reason AS payment_reason, ''::text AS movement_reason, ''::text AS note, NULL::uuid AS count_id,
+        p.actor_account_id, NULL::uuid AS person_id, COALESCE(p.reverses_payment_id, p.id) AS allocated_payment_id
+    FROM payments p
+    WHERE (NOT $2::bool OR p.method = 'cash')
+      AND p.occurred_at >= $3::timestamptz AND p.occurred_at < $4::timestamptz
+    UNION ALL
+    SELECT m.id, 'movement'::text, m.kind, 'cash'::text, m.occurred_at, CASE WHEN m.kind = 'correction' THEN 2 ELSE 0 END,
+        (CASE WHEN m.kind = 'withdrawal' THEN -m.amount ELSE m.amount END)::numeric,
+        m.reference, ''::text, m.reason, m.note, m.cash_count_id, NULL::uuid, m.recorded_by_person_id, NULL::uuid
+    FROM cash_movements m
+    WHERE m.occurred_at >= $3::timestamptz AND m.occurred_at < $4::timestamptz
+)
+SELECT e.id, e.source, e.kind, e.method::text AS method, e.occurred_at, e.effect, e.reference,
+    COALESCE(al.order_reference, '')::text AS order_reference,
+    COALESCE(cs.display_name, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), ''), og.name, '')::text AS customer_name,
+    e.payment_reason::text AS payment_reason, e.movement_reason::text AS movement_reason,
+    (CASE WHEN e.count_id IS NULL THEN e.note ELSE COALESCE(c.note, '') END)::text AS note,
+    COALESCE(c.reference, '')::text AS count_reference, c.reason AS count_reason,
+    COALESCE(btrim(rb.first_name || ' ' || rb.last_name), '')::text AS recorded_by_name
+FROM entries e
+LEFT JOIN LATERAL (
+    SELECT a.order_reference, a.order_id FROM payment_allocations a
+    WHERE a.payment_id = e.allocated_payment_id ORDER BY a.created_at, a.id LIMIT 1
+) al ON true
+LEFT JOIN orders o ON o.id = al.order_id
+LEFT JOIN order_customer_snapshots cs ON cs.order_id = o.id
+LEFT JOIN people cp ON cp.id = o.customer_person_id
+LEFT JOIN organizations og ON og.id = o.customer_organization_id
+LEFT JOIN cash_counts c ON c.id = e.count_id
+LEFT JOIN accounts pa ON pa.id = e.actor_account_id
+LEFT JOIN people rb ON rb.id = COALESCE(pa.person_id, e.person_id)
+ORDER BY e.occurred_at, e.sort_rank, e.id
+LIMIT $1
+`
+
+type ListCashbookEntriesParams struct {
+	RowLimit int32
+	CashOnly bool
+	FromTime time.Time
+	ToTime   time.Time
+}
+
+type ListCashbookEntriesRow struct {
+	ID             uuid.UUID
+	Source         string
+	Kind           string
+	Method         string
+	OccurredAt     time.Time
+	Effect         pgtype.Numeric
+	Reference      string
+	OrderReference string
+	CustomerName   string
+	PaymentReason  string
+	MovementReason string
+	Note           string
+	CountReference string
+	CountReason    *string
+	RecordedByName string
+}
+
+// Payments and cash movements within [from_time, to_time) in register order, for the cashbook export. With cash_only
+// only cash payments count (the cash register); otherwise card and external payments are included. Counts move no
+// money and are left out; their corrections are not. A reversal belongs to the order of the receipt it reverses.
+func (q *Queries) ListCashbookEntries(ctx context.Context, arg ListCashbookEntriesParams) ([]ListCashbookEntriesRow, error) {
+	rows, err := q.db.Query(ctx, listCashbookEntries,
+		arg.RowLimit,
+		arg.CashOnly,
+		arg.FromTime,
+		arg.ToTime,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCashbookEntriesRow{}
+	for rows.Next() {
+		var i ListCashbookEntriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Source,
+			&i.Kind,
+			&i.Method,
+			&i.OccurredAt,
+			&i.Effect,
+			&i.Reference,
+			&i.OrderReference,
+			&i.CustomerName,
+			&i.PaymentReason,
+			&i.MovementReason,
+			&i.Note,
+			&i.CountReference,
+			&i.CountReason,
+			&i.RecordedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -1637,6 +2196,17 @@ SELECT nextval('order_adjustment_reference_sequence')::bigint
 
 func (q *Queries) NextAdjustmentReference(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, nextAdjustmentReference)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const nextCashCountReference = `-- name: NextCashCountReference :one
+SELECT nextval('cash_count_reference_sequence')::bigint
+`
+
+func (q *Queries) NextCashCountReference(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, nextCashCountReference)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err

@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ActorReference } from './actorReference';
+import type { CashMovementDirection } from './cashMovementDirection';
 import type { CashMovementKind } from './cashMovementKind';
 import type { CashMovementReason } from './cashMovementReason';
 import type { Money } from './money';
@@ -29,10 +30,19 @@ export interface CashMovement {
   /** C-YYYY-NNNNNN, for the physical cashbook. */
   reference: string;
   kind: CashMovementKind;
+  direction: CashMovementDirection;
+  /** Always positive; `direction` says which way the cash went. */
   amount: Money;
   reason: CashMovementReason;
   note: string;
   occurredAt: string;
   createdAt: string;
   recordedBy: ActorReference | null;
+  /** The count that booked this correction. */
+  cashCountId: UUIDv7 | null;
+  /**
+     * K-YYYY-NNNN of that count.
+     * @nullable
+     */
+  cashCountReference: string | null;
 }
