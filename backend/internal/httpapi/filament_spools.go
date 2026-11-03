@@ -40,14 +40,6 @@ func spoolIdentifiersDTO(items []machinelogbook.FilamentSpoolIdentifier) []opena
 	return identifiers
 }
 
-func valueOrZero[T any](value *T) T {
-	var zero T
-	if value == nil {
-		return zero
-	}
-	return *value
-}
-
 func spoolMountDTO(item *machinelogbook.SpoolMount) nullable.Nullable[openapi.FilamentSpoolMount] {
 	if item == nil {
 		return nullable.NewNullNullable[openapi.FilamentSpoolMount]()
