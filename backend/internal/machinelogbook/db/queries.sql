@@ -1477,11 +1477,11 @@ SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.material_type_id = sqlc.arg(id
 DELETE FROM material_types WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version);
 
 -- name: ListMaterialTypeVariants :many
--- Variants of the given types by name, with the articles (deleted ones included) and material pricing rules (active
--- or not) that use them.
+-- Variants of the given types by name, with the articles (deleted ones included) and the active material pricing
+-- rules that use them.
 SELECT v.id, v.material_type_id, v.name,
        (SELECT count(*) FROM materials m WHERE m.variant_id = v.id)::bigint AS material_count,
-       (SELECT count(*) FROM pricing_rules r WHERE r.material_type_variant_id = v.id)::bigint AS pricing_rule_count
+       (SELECT count(*) FROM pricing_rules r WHERE r.material_type_variant_id = v.id AND r.active)::bigint AS pricing_rule_count
 FROM material_type_variants v
 WHERE v.material_type_id = ANY((sqlc.arg(material_type_ids)::text[])::uuid[])
 ORDER BY v.material_type_id, lower(v.name), v.name, v.id;
@@ -1509,9 +1509,13 @@ RETURNING *;
 UPDATE material_type_variants SET name = sqlc.arg(name), updated_at = now() WHERE id = sqlc.arg(id) RETURNING *;
 
 -- name: MaterialTypeVariantIsReferenced :one
--- True while an article (deleted ones included) or a pricing rule (active or not) uses the variant.
+-- True while an article (deleted ones included) or an active pricing rule uses the variant.
 SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.variant_id = sqlc.arg(id)::uuid)
-    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_variant_id = sqlc.arg(id)::uuid))::boolean AS referenced;
+    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_variant_id = sqlc.arg(id)::uuid AND r.active))::boolean AS referenced;
+
+-- name: DeleteInactivePricingRulesOfVariant :execrows
+-- Removes the inactive rules of a variant before the variant row (the composite foreign key restricts them).
+DELETE FROM pricing_rules WHERE material_type_variant_id = sqlc.arg(id)::uuid AND NOT active;
 
 -- name: DeleteMaterialTypeVariant :execrows
 DELETE FROM material_type_variants WHERE id = sqlc.arg(id);

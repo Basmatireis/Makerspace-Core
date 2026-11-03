@@ -401,30 +401,64 @@ func TestVariantPricingRulesAreUniquePerVariant(t *testing.T) {
 	if err != nil || materialType.PricingRuleCount != 2 || materialType.Variants[0].PricingRuleCount != 1 {
 		t.Fatalf("counts: %+v %v", materialType, err)
 	}
-	// A variant priced by a rule, active or not, stays.
-	rule, err = f.s.UpdatePricingRuleWithVariant(
-		ctx, f.p, rule.ID, rule.Version, PricingRuleMaterial, nil, &typeID, &matte.ID, nil, "0.25", false, &f.request,
-	)
-	if err != nil || rule.Active || rule.MaterialTypeVariantID == nil {
-		t.Fatalf("deactivate variant rule: %+v %v", rule, err)
-	}
+	// A variant with an active rule stays; the count follows the active rules only.
 	if err = f.s.DeleteMaterialTypeVariant(ctx, f.p, typeID, matte.ID, &f.request); !apperror.IsCode(
 		err,
 		"material_type_variant_in_use",
 	) {
-		t.Fatalf("delete a priced variant: %v", err)
-	}
-	// With the old rule inactive, a new active one of the variant is allowed.
-	if _, err = f.s.CreatePricingRuleWithVariant(
-		ctx, f.p, f.group.ID, PricingRuleMaterial, nil, &typeID, &matte.ID, nil, "0.3", &f.request,
-	); err != nil {
-		t.Fatalf("new rule next to an inactive one: %v", err)
+		t.Fatalf("delete a variant with an active rule: %v", err)
 	}
 	reader := restrictedPrincipal(t, f.pool, authorization.PricingRead, authorization.InventoryManage)
 	if _, err = f.s.CreatePricingRuleWithVariant(
 		ctx, reader, f.group.ID, PricingRuleMaterial, nil, &typeID, &matte.ID, nil, "0.3", &f.request,
 	); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("variant rule without pricing.manage: %v", err)
+	}
+	// Clearing the rate deactivates the rule: it no longer counts, and a new active rule of the variant is allowed.
+	rule, err = f.s.UpdatePricingRuleWithVariant(
+		ctx, f.p, rule.ID, rule.Version, PricingRuleMaterial, nil, &typeID, &matte.ID, nil, "0.25", false, &f.request,
+	)
+	if err != nil || rule.Active || rule.MaterialTypeVariantID == nil {
+		t.Fatalf("deactivate variant rule: %+v %v", rule, err)
+	}
+	materialType, err = f.s.GetMaterialType(ctx, f.p, typeID)
+	if err != nil || materialType.PricingRuleCount != 2 || materialType.Variants[0].PricingRuleCount != 0 {
+		t.Fatalf("counts after clearing: %+v %v", materialType, err)
+	}
+	second, err := f.s.CreatePricingRuleWithVariant(
+		ctx, f.p, f.group.ID, PricingRuleMaterial, nil, &typeID, &matte.ID, nil, "0.3", &f.request,
+	)
+	if err != nil {
+		t.Fatalf("new rule next to an inactive one: %v", err)
+	}
+	if err = f.s.DeleteMaterialTypeVariant(ctx, f.p, typeID, matte.ID, &f.request); !apperror.IsCode(
+		err,
+		"material_type_variant_in_use",
+	) {
+		t.Fatalf("delete with a new active rule: %v", err)
+	}
+	if _, err = f.s.UpdatePricingRuleWithVariant(
+		ctx, f.p, second.ID, second.Version, PricingRuleMaterial, nil, &typeID, &matte.ID, nil, "0.3", false, &f.request,
+	); err != nil {
+		t.Fatal(err)
+	}
+	// Only inactive rules left: the variant can go and takes them with it.
+	if err = f.s.DeleteMaterialTypeVariant(ctx, f.p, typeID, matte.ID, &f.request); err != nil {
+		t.Fatalf("delete a variant with inactive rules only: %v", err)
+	}
+	if got := f.count(t, `SELECT count(*) FROM pricing_rules WHERE id = ANY($1)`, []uuid.UUID{rule.ID, second.ID}); got != 0 {
+		t.Fatalf("rules of the deleted variant left: %d", got)
+	}
+	if got := f.count(t, `SELECT count(*) FROM material_type_variants WHERE id = $1`, matte.ID); got != 0 {
+		t.Fatalf("variant left: %d", got)
+	}
+	if got := f.count(
+		t,
+		`SELECT count(*) FROM audit_events WHERE action = 'material_type.variant_deleted' AND resource_id = $1
+		   AND metadata->>'countPricingRulesRemoved' = '2'`,
+		typeID,
+	); got != 1 {
+		t.Fatalf("variant_deleted audit rows with the removed rules = %d, want 1", got)
 	}
 }
 

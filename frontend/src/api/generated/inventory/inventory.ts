@@ -303,7 +303,7 @@ export const getDeleteMaterialTypeVariantUrl = (materialTypeId: UUIDv7,
 }
 
 /**
- * Requires `inventory.manage`. Deletes a variant that no article (deleted ones included) and no pricing rule (active or not) uses; otherwise 409 material_type_variant_in_use.
+ * Requires `inventory.manage`. Deletes a variant that no article (deleted ones included) and no active pricing rule uses; otherwise 409 material_type_variant_in_use. Inactive pricing rules of the variant (cleared rates) are deleted with it.
  * @summary Delete a variant
  */
 export const deleteMaterialTypeVariant = async (materialTypeId: UUIDv7,

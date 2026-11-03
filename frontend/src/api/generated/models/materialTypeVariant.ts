@@ -37,7 +37,7 @@ export interface MaterialTypeVariant {
      */
   materialCount: number;
   /**
-     * Material pricing rules of the variant, active or not.
+     * Active material pricing rules of the variant.
      * @minimum 0
      */
   pricingRuleCount: number;

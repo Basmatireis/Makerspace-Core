@@ -345,8 +345,8 @@ func renameVariant(
 	})
 }
 
-// DeleteMaterialTypeVariant deletes a variant that no article (deleted ones included) and no pricing rule (active or
-// not) uses.
+// DeleteMaterialTypeVariant deletes a variant that no article (deleted ones included) and no active pricing rule uses.
+// Its inactive rules (cleared rates) are deleted with it.
 func (s *Service) DeleteMaterialTypeVariant(
 	ctx context.Context,
 	p authorization.Principal,
@@ -374,12 +374,27 @@ func (s *Service) DeleteMaterialTypeVariant(
 		if referenced {
 			return apperror.Conflicting(
 				"material_type_variant_in_use",
-				"Articles or pricing rules use this variant and it cannot be deleted",
+				"Articles or active pricing rules use this variant and it cannot be deleted",
 			)
+		}
+		removed, err := q.DeleteInactivePricingRulesOfVariant(ctx, id)
+		if err != nil {
+			return databaseError(err)
 		}
 		if _, err = q.DeleteMaterialTypeVariant(ctx, id); err != nil {
 			return databaseError(err)
 		}
-		return writeVariantAudit(ctx, tx, p, "material_type.variant_deleted", typeID, id, requestID, []string{"variants"})
+		return audit.Write(ctx, tx, audit.Event{
+			ActorAccountID: accountPointer(p),
+			Action:         "material_type.variant_deleted",
+			ResourceType:   "material_type",
+			ResourceID:     &typeID,
+			RequestID:      requestID,
+			ChangedFields:  []string{"variants"},
+			Metadata: map[string]any{
+				"variantId":                id.String(),
+				"countPricingRulesRemoved": strconv.FormatInt(removed, 10),
+			},
+		})
 	})
 }

@@ -70,6 +70,8 @@ type Querier interface {
 	DeleteFilamentSpoolIdentifier(ctx context.Context, arg DeleteFilamentSpoolIdentifierParams) (int64, error)
 	// Deletes file rows and queues their storage blobs for the maintenance loop.
 	DeleteFilesQueueBlobs(ctx context.Context, fileIds []uuid.UUID) error
+	// Removes the inactive rules of a variant before the variant row (the composite foreign key restricts them).
+	DeleteInactivePricingRulesOfVariant(ctx context.Context, id uuid.UUID) (int64, error)
 	// The printer profile, its input units, slots and live statuses go with it through ON DELETE CASCADE.
 	DeleteMachine(ctx context.Context, arg DeleteMachineParams) (int64, error)
 	DeleteMachineConnectorAssignments(ctx context.Context, machineID uuid.UUID) error
@@ -207,8 +209,8 @@ type Querier interface {
 	ListMaterialPrices(ctx context.Context, materialIds []string) ([]ListMaterialPricesRow, error)
 	ListMaterialTypeProcessNames(ctx context.Context, materialTypeID uuid.UUID) ([]uuid.UUID, error)
 	ListMaterialTypeProcesses(ctx context.Context, materialTypeIds []uuid.UUID) ([]MaterialTypeProcess, error)
-	// Variants of the given types by name, with the articles (deleted ones included) and material pricing rules (active
-	// or not) that use them.
+	// Variants of the given types by name, with the articles (deleted ones included) and the active material pricing
+	// rules that use them.
 	ListMaterialTypeVariants(ctx context.Context, materialTypeIds []string) ([]ListMaterialTypeVariantsRow, error)
 	ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow, error)
 	ListMaterials(ctx context.Context, arg ListMaterialsParams) ([]ListMaterialsRow, error)
@@ -264,7 +266,7 @@ type Querier interface {
 	// True while a material or a pricing rule (active or not) uses the type. Pricing
 	// snapshots only keep a nullable pointer and their own label text.
 	MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
-	// True while an article (deleted ones included) or a pricing rule (active or not) uses the variant.
+	// True while an article (deleted ones included) or an active pricing rule uses the variant.
 	MaterialTypeVariantIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
 	NextMachineJobSequence(ctx context.Context) (int64, error)
 	NextMachineRunSequence(ctx context.Context) (int64, error)

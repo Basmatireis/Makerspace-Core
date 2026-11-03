@@ -7258,8 +7258,8 @@ paths:
       operationId: deleteMaterialTypeVariant
       summary: Delete a variant
       description: >-
-        Requires `inventory.manage`. Deletes a variant that no article (deleted ones included) and no pricing rule (active or not) uses; otherwise
-        409 material_type_variant_in_use.
+        Requires `inventory.manage`. Deletes a variant that no article (deleted ones included) and no active pricing rule uses; otherwise
+        409 material_type_variant_in_use. Inactive pricing rules of the variant (cleared rates) are deleted with it.
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "204": {description: Variant deleted.}
@@ -17197,7 +17197,7 @@ components:
         materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 80}
         materialCount: {type: integer, format: int64, minimum: 0, description: "Articles of the variant, deleted ones included."}
-        pricingRuleCount: {type: integer, format: int64, minimum: 0, description: "Material pricing rules of the variant, active or not."}
+        pricingRuleCount: {type: integer, format: int64, minimum: 0, description: "Active material pricing rules of the variant."}
 
     MaterialTypeVariantRequest:
       type: object

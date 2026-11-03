@@ -1448,6 +1448,19 @@ func (q *Queries) DeleteFilesQueueBlobs(ctx context.Context, fileIds []uuid.UUID
 	return err
 }
 
+const deleteInactivePricingRulesOfVariant = `-- name: DeleteInactivePricingRulesOfVariant :execrows
+DELETE FROM pricing_rules WHERE material_type_variant_id = $1::uuid AND NOT active
+`
+
+// Removes the inactive rules of a variant before the variant row (the composite foreign key restricts them).
+func (q *Queries) DeleteInactivePricingRulesOfVariant(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteInactivePricingRulesOfVariant, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteMachine = `-- name: DeleteMachine :execrows
 DELETE FROM machines WHERE id = $1 AND version = $2
 `
@@ -5402,7 +5415,7 @@ func (q *Queries) ListMaterialTypeProcesses(ctx context.Context, materialTypeIds
 const listMaterialTypeVariants = `-- name: ListMaterialTypeVariants :many
 SELECT v.id, v.material_type_id, v.name,
        (SELECT count(*) FROM materials m WHERE m.variant_id = v.id)::bigint AS material_count,
-       (SELECT count(*) FROM pricing_rules r WHERE r.material_type_variant_id = v.id)::bigint AS pricing_rule_count
+       (SELECT count(*) FROM pricing_rules r WHERE r.material_type_variant_id = v.id AND r.active)::bigint AS pricing_rule_count
 FROM material_type_variants v
 WHERE v.material_type_id = ANY(($1::text[])::uuid[])
 ORDER BY v.material_type_id, lower(v.name), v.name, v.id
@@ -5416,8 +5429,8 @@ type ListMaterialTypeVariantsRow struct {
 	PricingRuleCount int64
 }
 
-// Variants of the given types by name, with the articles (deleted ones included) and material pricing rules (active
-// or not) that use them.
+// Variants of the given types by name, with the articles (deleted ones included) and the active material pricing
+// rules that use them.
 func (q *Queries) ListMaterialTypeVariants(ctx context.Context, materialTypeIds []string) ([]ListMaterialTypeVariantsRow, error) {
 	rows, err := q.db.Query(ctx, listMaterialTypeVariants, materialTypeIds)
 	if err != nil {
@@ -7272,10 +7285,10 @@ func (q *Queries) MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (b
 
 const materialTypeVariantIsReferenced = `-- name: MaterialTypeVariantIsReferenced :one
 SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.variant_id = $1::uuid)
-    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_variant_id = $1::uuid))::boolean AS referenced
+    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_variant_id = $1::uuid AND r.active))::boolean AS referenced
 `
 
-// True while an article (deleted ones included) or a pricing rule (active or not) uses the variant.
+// True while an article (deleted ones included) or an active pricing rule uses the variant.
 func (q *Queries) MaterialTypeVariantIsReferenced(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, materialTypeVariantIsReferenced, id)
 	var referenced bool
