@@ -3,6 +3,7 @@ package printerconnectors
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -694,34 +696,6 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 			AssignmentID:         h.assignment.ID,
 			ConfigurationVersion: h.assignment.ConfigurationVersion,
 			Sequence:             h.sequence,
-			OccurredAt:           at.Add(5 * time.Minute),
-			Kind:                 "slot_observation",
-			Payload: json.RawMessage(
-				`{"inputUnitExternalId":"` + h.unitExternal(
-					"Auto",
-				) + `","slotExternalId":"` + slotExternal + `","empty":true}`,
-			),
-		},
-	)
-	if receipt.Status != "accepted" {
-		t.Fatalf("manual empty conflict receipt = %+v", receipt)
-	}
-	if err := h.pool.QueryRow(
-		ctx,
-		`SELECT spool_id,source FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`,
-		slotID,
-	).Scan(&mounted, &source); err != nil ||
-		mounted != manualSpool ||
-		source != "manual" {
-		t.Fatalf("manual mount was auto-unmounted: spool=%s source=%q err=%v", mounted, source, err)
-	}
-	h.sequence++
-	receipt = h.sendEvent(
-		EventInput{
-			EventID:              ids.New(),
-			AssignmentID:         h.assignment.ID,
-			ConfigurationVersion: h.assignment.ConfigurationVersion,
-			Sequence:             h.sequence,
 			OccurredAt:           at.Add(6 * time.Minute),
 			Kind:                 "slot_observation",
 			Payload: json.RawMessage(
@@ -742,6 +716,132 @@ func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T
 		mounted != manualSpool ||
 		source != "manual" {
 		t.Fatalf("manual mount was replaced: spool=%s source=%q err=%v", mounted, source, err)
+	}
+}
+
+// A confirmed-empty tray closes the slot's open mount whatever its source once
+// auto-detection is on; with auto-detection off the connector changes nothing.
+func TestIngestConfirmedEmptyTrayClosesManualMount(t *testing.T) {
+	h := newIngestHarness(t)
+	ctx := t.Context()
+	at := time.Now().UTC().Truncate(time.Second).Add(-10 * time.Minute)
+	slotExternal := "tray-manual-" + h.suffix
+	spoolID := h.mountSpool("Manual", &slotExternal, at.Add(-time.Hour))
+	var slotID uuid.UUID
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT slot_id FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL`,
+		spoolID,
+	).Scan(&slotID); err != nil {
+		t.Fatal(err)
+	}
+	setAutoDetect := func(enabled bool) {
+		t.Helper()
+		settings := fmt.Sprintf(
+			`{"ipAddress":"192.168.1.42","serialNumber":"01P00A123456789","autoDetectSpools":%t}`,
+			enabled,
+		)
+		if _, err := h.pool.Exec(
+			ctx,
+			`UPDATE printer_connector_assignments SET adapter_kind='bambu_h2d',settings=$2::jsonb WHERE id=$1`,
+			h.assignment.ID,
+			settings,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	observeEmpty := func(occurredAt time.Time) {
+		t.Helper()
+		h.sequence++
+		receipt := h.sendEvent(
+			EventInput{
+				EventID:              ids.New(),
+				AssignmentID:         h.assignment.ID,
+				ConfigurationVersion: h.assignment.ConfigurationVersion,
+				Sequence:             h.sequence,
+				OccurredAt:           occurredAt,
+				Kind:                 "slot_observation",
+				Payload: json.RawMessage(
+					`{"inputUnitExternalId":"` + h.unitExternal(
+						"Manual",
+					) + `","slotExternalId":"` + slotExternal + `","empty":true}`,
+				),
+			},
+		)
+		if receipt.Status != "accepted" {
+			t.Fatalf("confirmed empty receipt = %+v", receipt)
+		}
+	}
+	openMount := func() (uuid.UUID, string, bool) {
+		t.Helper()
+		var mounted uuid.UUID
+		var source string
+		err := h.pool.QueryRow(
+			ctx,
+			`SELECT spool_id,source FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`,
+			slotID,
+		).Scan(&mounted, &source)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, "", false
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		return mounted, source, true
+	}
+	unmountActivities := func() int {
+		t.Helper()
+		var count int
+		if err := h.pool.QueryRow(
+			ctx,
+			`SELECT count(*) FROM printer_connector_activity
+			 WHERE connector_id=$1 AND kind='spool_auto_unmounted' AND resource_id=$2 AND event_kind='slot_observation'`,
+			h.connector.ID,
+			slotID,
+		).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		return count
+	}
+
+	// Auto-detection off: the manual mount is untouched.
+	setAutoDetect(false)
+	observeEmpty(at)
+	if mounted, source, open := openMount(); !open || mounted != spoolID || source != "manual" {
+		t.Fatalf("manual mount changed without auto-detection: open=%t spool=%s source=%q", open, mounted, source)
+	}
+	if n := unmountActivities(); n != 0 {
+		t.Fatalf("activity recorded without auto-detection: %d", n)
+	}
+
+	// Auto-detection on: the confirmed-empty tray closes the manual mount with
+	// the connector as actor and leaves an activity entry.
+	setAutoDetect(true)
+	observeEmpty(at.Add(time.Minute))
+	if mounted, source, open := openMount(); open {
+		t.Fatalf("manual mount survived a confirmed empty tray: spool=%s source=%q", mounted, source)
+	}
+	var unmountedAt time.Time
+	var unmountedBy *uuid.UUID
+	var source string
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT unmounted_at,unmounted_by_account_id,source FROM printer_spool_assignments WHERE spool_id=$1`,
+		spoolID,
+	).Scan(&unmountedAt, &unmountedBy, &source); err != nil {
+		t.Fatal(err)
+	}
+	if !unmountedAt.Equal(at.Add(time.Minute)) || unmountedBy != nil || source != "manual" {
+		t.Fatalf("closed manual mount: unmountedAt=%s by=%v source=%q", unmountedAt, unmountedBy, source)
+	}
+	if n := unmountActivities(); n != 1 {
+		t.Fatalf("auto-unmount activity entries = %d", n)
+	}
+
+	// A later empty observation of the now free slot changes nothing more.
+	observeEmpty(at.Add(2 * time.Minute))
+	if n := unmountActivities(); n != 1 {
+		t.Fatalf("empty slot produced another auto-unmount entry: %d", n)
 	}
 }
 

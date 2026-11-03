@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Changed
+
+- **Empty AMS trays unmount manual spools.** With RFID auto-mounting on, a tray the printer twice reports empty now closes whatever spool is mounted in that slot, including spools staff mounted by hand or registered from the detected-spool strip; the unmount has no account and appears in the connector's activity log as before. A tag the printer reads still never replaces a manual mount with another spool.
+
 ### Fixed
 
 - **Pages that re-render on a timer no longer jump to the top and swallow clicks.** The "Needs attention" banners of the printer setup and the article page used Carbon's `ActionableNotification` with its default `alertdialog` role, which focuses the banner's button after every render and traps focus there: once a tray reported a spool that was unmounted in Core (or an article was flagged), every 5-second refresh scrolled to the banner and the next click on Unmount or any other control was lost. Both banners are passive `status` notifications now, and a unit test keeps every inline notification that way.
