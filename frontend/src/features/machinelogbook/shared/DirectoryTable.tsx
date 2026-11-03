@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- the table and its URL-state hooks belong together */
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import {
   Button,
   DataTable,
@@ -158,6 +158,11 @@ type CommonProps<T extends { id: string }> = {
   selection?: Selection<T>;
   /** A notification between the toolbar and the table, for something the current view asks the person to do. */
   notice?: ReactNode;
+  /**
+   * Groups consecutive rows (for example the entries of one day): `of` names a row's group, and before the first row of
+   * each group a head row with the cells `head` returns is inserted. The cells must span all columns.
+   */
+  groups?: { of: (row: T) => string; head: (group: string) => ReactNode };
 };
 
 type ClientProps<T extends { id: string }> = {
@@ -210,6 +215,7 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
     searchable = true,
     selection,
     notice,
+    groups,
   } = props;
   const server = props.mode === 'server';
   const url = useUrlState(urlPrefix);
@@ -387,39 +393,44 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
               </TableRow>
             </TableHead>
             <TableBody>
-              {dataRows.map((tableRow) => {
+              {dataRows.map((tableRow, index) => {
                 const row = rowsById.get(tableRow.id);
                 if (!row) return null;
                 const { key, ...rowProps } = getRowProps({ row: tableRow });
+                const group = groups?.of(row);
+                const previous = index > 0 ? rowsById.get(dataRows[index - 1].id) : undefined;
+                const startsGroup = groups && group !== undefined && (!previous || groups.of(previous) !== group);
                 return (
-                  <TableRow
-                    key={key}
-                    {...rowProps}
-                    isSelected={selectedIds.has(row.id)}
-                    className={onRowClick ? 'mj-row-clickable' : undefined}
-                    onClick={
-                      onRowClick
-                        ? (event: MouseEvent<HTMLElement>) => {
-                            if (!(event.target as HTMLElement).closest('a, button, input, label')) onRowClick(row);
-                          }
-                        : undefined
-                    }
-                  >
-                    {selection && (
-                      <TableSelectRow
-                        id={`${id}-select-${row.id}`}
-                        name={`${id}-select-${row.id}`}
-                        aria-label={selection.rowLabel(row)}
-                        checked={selectedIds.has(row.id)}
-                        onSelect={() => toggleRow(row)}
-                      />
-                    )}
-                    {columns.map((column) => (
-                      <TableCell key={column.key} className={columnClassName(column)}>
-                        {column.render(row)}
-                      </TableCell>
-                    ))}
-                  </TableRow>
+                  <Fragment key={key}>
+                    {startsGroup && <TableRow className="mj-group-row">{groups.head(group)}</TableRow>}
+                    <TableRow
+                      {...rowProps}
+                      isSelected={selectedIds.has(row.id)}
+                      className={onRowClick ? 'mj-row-clickable' : undefined}
+                      onClick={
+                        onRowClick
+                          ? (event: MouseEvent<HTMLElement>) => {
+                              if (!(event.target as HTMLElement).closest('a, button, input, label')) onRowClick(row);
+                            }
+                          : undefined
+                      }
+                    >
+                      {selection && (
+                        <TableSelectRow
+                          id={`${id}-select-${row.id}`}
+                          name={`${id}-select-${row.id}`}
+                          aria-label={selection.rowLabel(row)}
+                          checked={selectedIds.has(row.id)}
+                          onSelect={() => toggleRow(row)}
+                        />
+                      )}
+                      {columns.map((column) => (
+                        <TableCell key={column.key} className={columnClassName(column)}>
+                          {column.render(row)}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </Fragment>
                 );
               })}
             </TableBody>

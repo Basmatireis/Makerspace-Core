@@ -1,3 +1,4 @@
+@use 'sass:map';
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
 @use '@carbon/styles/scss/reset';
@@ -117,6 +118,9 @@
   --cds-link-primary-hover: color-mix(in srgb, var(--app-brand-primary) 30%, white);
   --cds-link-secondary: color-mix(in srgb, var(--app-brand-primary) 30%, white);
   --cds-highlight: color-mix(in srgb, var(--app-brand-primary) 40%, black);
+  // The lighter first layer above belongs to the white theme only.
+  --cds-layer-01: #{map.get(themes.$g100, 'layer-01')};
+  --cds-layer: #{map.get(themes.$g100, 'layer-01')};
 }
 
 html,
