@@ -50,8 +50,8 @@ var defaultAssetURLs = map[Slot]string{
 	Logo:                     "/brand/htumkr-symbol.png",
 	CompactLogo:              "/brand/htumkr-symbol.png",
 	Favicon:                  "/brand/htumkr-symbol.png",
-	ApplicationBackground:    "/brand/blueprint-workshop.jpg",
-	AuthenticationBackground: "/brand/blueprint-details.jpg",
+	ApplicationBackground:    "/brand/bg-makerspace.webp",
+	AuthenticationBackground: "/brand/bg-makerspace.webp",
 }
 
 type Identity struct {
