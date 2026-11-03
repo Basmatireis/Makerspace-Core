@@ -1,5 +1,8 @@
 import type { Page, Route } from '@playwright/test';
 import type {
+  CashCount,
+  CashJournalEntry,
+  CashRegister,
   ExternalInvoiceRequest,
   Material,
   Order,
@@ -400,7 +403,124 @@ export function createSalesWorld(permissions: string[] = salesPermissions) {
     attention: [],
     version: 3,
   } as unknown as WorkItem;
+  const lena = { id: id(90), displayName: 'Lena Hofer' };
+  const entry = (n: number, extra: Partial<CashJournalEntry>): CashJournalEntry => ({
+    id: id(500 + n),
+    source: 'movement',
+    kind: 'deposit',
+    reference: '',
+    occurredAt: at(31),
+    day: '2026-10-31',
+    amountIn: null,
+    amountOut: null,
+    balanceAfter: '0.00',
+    recordedBy: lena,
+    order: null,
+    paymentReason: '',
+    reversedPaymentReference: null,
+    movementReason: null,
+    note: '',
+    count: null,
+    ...extra,
+  });
+  const lastCount: CashCount = {
+    id: id(506),
+    reference: 'K-2026-0002',
+    countedAmount: '83.20',
+    expectedAmount: '85.70',
+    difference: '-2.50',
+    reason: 'counting_error',
+    note: '',
+    countedAt: '2026-11-03T09:00:00Z',
+    createdAt: '2026-11-03T09:00:00Z',
+    recordedBy: lena,
+    correction: { id: id(505), reference: 'C-2026-000005' },
+  };
+  // The register journal, newest first: Oct 31 deposit and receipt, Nov 2 receipt and withdrawal, Nov 3 count.
+  const journal: CashJournalEntry[] = [
+    entry(5, {
+      kind: 'correction',
+      reference: 'C-2026-000005',
+      occurredAt: '2026-11-03T09:00:00Z',
+      day: '2026-11-03',
+      amountOut: '2.50',
+      balanceAfter: '83.20',
+      movementReason: 'count_difference',
+      note: '',
+    }),
+    entry(6, {
+      id: lastCount.id,
+      source: 'count',
+      kind: 'count',
+      reference: 'K-2026-0002',
+      occurredAt: '2026-11-03T09:00:00Z',
+      day: '2026-11-03',
+      balanceAfter: '85.70',
+      count: {
+        id: lastCount.id,
+        reference: lastCount.reference,
+        countedAmount: lastCount.countedAmount,
+        expectedAmount: lastCount.expectedAmount,
+        difference: lastCount.difference,
+        reason: lastCount.reason,
+      },
+    }),
+    entry(4, {
+      kind: 'withdrawal',
+      reference: 'C-2026-000004',
+      occurredAt: '2026-11-02T16:00:00Z',
+      day: '2026-11-02',
+      amountOut: '80.00',
+      balanceAfter: '85.70',
+      movementReason: 'bank_deposit',
+      note: 'Slip 2211',
+    }),
+    entry(3, {
+      id: id(18),
+      source: 'payment',
+      kind: 'receipt',
+      reference: 'P-2026-000211',
+      occurredAt: '2026-11-02T10:00:00Z',
+      day: '2026-11-02',
+      amountIn: '107.10',
+      balanceAfter: '165.70',
+      order: { id: ids.invoiced, reference: 'O-2026-000100', customerName: 'TU Graz Racing' },
+    }),
+    entry(2, {
+      id: ids.cashPayment,
+      source: 'payment',
+      kind: 'receipt',
+      reference: 'P-2026-000210',
+      occurredAt: at(31, 11),
+      day: '2026-10-31',
+      amountIn: '8.60',
+      balanceAfter: '58.60',
+      order: { id: ids.paid, reference: 'O-2026-000103', customerName: 'Sara Novak' },
+    }),
+    entry(1, {
+      reference: 'C-2026-000003',
+      occurredAt: at(31, 9),
+      amountIn: '50.00',
+      balanceAfter: '50.00',
+      movementReason: 'float',
+      note: 'Coins for the week',
+    }),
+  ];
+  const register: CashRegister = {
+    receipts: '115.70',
+    refunds: '0.00',
+    corrections: '2.50',
+    refundsAndCorrections: '2.50',
+    withdrawals: '80.00',
+    deposits: '50.00',
+    expected: '83.20',
+    to: null,
+    lastCount,
+  };
   return {
+    journal,
+    register,
+    counts: [lastCount] as CashCount[],
     permissions,
     groups,
     materials,
@@ -559,21 +679,72 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
       return ok(route, found, 201);
     }
 
+    // Cash register: journal, counts, cashbook export
+    if (path === '/api/v1/payments/cash-journal') return ok(route, journalPage(world, url.searchParams));
+    if (path === '/api/v1/payments/cash-counts' && method === 'POST') {
+      const input = body ?? {};
+      const difference = (Math.round(Number(input.countedAmount) * 100) - 8320) / 100;
+      const count: CashCount = {
+        id: id(600 + world.counts.length),
+        reference: `K-2026-${String(world.counts.length + 2).padStart(4, '0')}`,
+        countedAmount: String(input.countedAmount),
+        expectedAmount: '83.20',
+        difference: difference.toFixed(2),
+        reason: difference === 0 ? null : (input.reason as CashCount['reason']),
+        note: String(input.note ?? ''),
+        countedAt: String(input.countedAt),
+        createdAt: String(input.countedAt),
+        recordedBy: { id: id(90), displayName: 'Lena Hofer' },
+        correction: difference === 0 ? null : { id: id(700), reference: 'C-2026-000006' },
+      };
+      world.counts.unshift(count);
+      return ok(route, count, 201);
+    }
+    if (path === '/api/v1/payments/cashbook-export') {
+      const format = url.searchParams.get('format') ?? 'pdf';
+      const name = `cashbook-${(url.searchParams.get('contents') ?? 'cash_register').replace('_', '-')}-${url.searchParams.get('from')}-${url.searchParams.get('to')}.${format}`;
+      return route.fulfill({
+        status: 200,
+        contentType: format === 'csv' ? 'text/csv; charset=utf-8' : 'application/pdf',
+        headers: { 'Content-Disposition': `attachment; filename="${name}"` },
+        body: format === 'csv' ? '\ufeffDate;Reference;Description;In;Out;Balance\r\n' : '%PDF-1.4\n%%EOF\n',
+      });
+    }
+
     // Payments, register, invoice requests
     if ((match = path.match(/^\/api\/v1\/payments\/([^/]+)$/)) && match[1] !== 'cash-register') {
       const found = world.payments.find((entry) => entry.id === match![1]);
       return found ? ok(route, found) : ok(route, { code: 'not_found', message: 'Not found' }, 404);
     }
     if (path === '/api/v1/payments') return ok(route, pageOf(world.payments));
-    if (path === '/api/v1/payments/cash-register')
-      return ok(route, {
-        expected: '85.70',
-        receipts: '115.70',
-        refunds: '0.00',
-        withdrawals: '80.00',
-        deposits: '50.00',
-      });
-    if (path === '/api/v1/cash-movements') return ok(route, pageOf([]));
+    if (path === '/api/v1/payments/cash-register') return ok(route, world.register);
+    if (path === '/api/v1/cash-movements')
+      return ok(
+        route,
+        pageOf(
+          world.journal
+            .filter(
+              (entry) =>
+                entry.source === 'movement' &&
+                (!url.searchParams.get('from') || entry.occurredAt >= url.searchParams.get('from')!) &&
+                (!url.searchParams.get('to') || entry.occurredAt < url.searchParams.get('to')!),
+            )
+            .map((entry) => ({
+              id: entry.id,
+              reference: entry.reference,
+              kind: entry.kind,
+              direction: entry.amountIn ? 'in' : 'out',
+              amount: entry.amountIn ?? entry.amountOut,
+              reason: entry.movementReason,
+              note: entry.note,
+              occurredAt: entry.occurredAt,
+              createdAt: entry.occurredAt,
+              recordedBy: entry.recordedBy,
+              cashCountId: entry.kind === 'correction' ? id(506) : null,
+              cashCountReference: entry.kind === 'correction' ? 'K-2026-0002' : null,
+            })),
+        ),
+      );
     if (path === '/api/v1/external-invoice-requests') return ok(route, pageOf([world.request]));
     if (path === `/api/v1/external-invoice-requests/${world.request.id}`) return ok(route, world.request);
     if ((match = path.match(/^\/api\/v1\/organizations\/([^/]+)\/invoicing-requirements$/)))
@@ -666,6 +837,64 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
     });
   });
   return world;
+}
+
+/** A page of the journal for the query, filtered by days, kind and search like the server, with the register figures. */
+function journalPage(world: SalesWorld, params: URLSearchParams) {
+  const from = params.get('from');
+  const to = params.get('to');
+  const kinds = params.getAll('kind');
+  const search = (params.get('search') ?? '').toLowerCase();
+  const page = Number(params.get('page') ?? 1);
+  const pageSize = Number(params.get('pageSize') ?? 25);
+  const matching = world.journal.filter(
+    (entry) =>
+      (!from || entry.day >= from) &&
+      (!to || entry.day <= to) &&
+      (kinds.length === 0 || kinds.includes(entry.kind)) &&
+      (!search ||
+        [entry.reference, entry.order?.reference, entry.order?.customerName, entry.note]
+          .join(' ')
+          .toLowerCase()
+          .includes(search)),
+  );
+  const items = matching.slice((page - 1) * pageSize, page * pageSize);
+  const balances: Record<string, [string, string]> = {
+    '2026-10-31': ['0.00', '58.60'],
+    '2026-11-02': ['58.60', '85.70'],
+    '2026-11-03': ['85.70', '83.20'],
+  };
+  const days = [...new Set(items.map((entry) => entry.day))].map((date) => ({
+    date,
+    openingBalance: balances[date]?.[0] ?? '0.00',
+    closingBalance: balances[date]?.[1] ?? '0.00',
+    cashIn: '0.00',
+    cashOut: '0.00',
+  }));
+  return {
+    from,
+    to,
+    items,
+    page,
+    pageSize,
+    total: matching.length,
+    days,
+    openingBalance: '0.00',
+    register: world.register,
+    facts: {
+      cashIn: '165.70',
+      cashInEntries: 3,
+      receipts: 2,
+      deposits: 1,
+      cashOut: '82.50',
+      cashOutEntries: 2,
+      refunds: 0,
+      corrections: 1,
+      withdrawals: 1,
+      net: '83.20',
+      counts: 1,
+    },
+  };
 }
 
 export const salesIds = ids;

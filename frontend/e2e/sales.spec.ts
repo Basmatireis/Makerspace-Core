@@ -144,6 +144,92 @@ test.describe('sales and payments', () => {
     await page.screenshot({ path: testInfo.outputPath('pricing.png'), fullPage: true });
   });
 
+  test('the cash register shows the journal by day and the register next to it', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto('/payments');
+    await expect(page.getByRole('tab', { name: 'Cash register', selected: true })).toBeVisible();
+    const table = page.getByRole('table', { name: 'Cash journal' });
+    await expect(table.getByRole('row').filter({ hasText: 'Saturday 31 October' })).toContainText(
+      'opening balance €0.00',
+    );
+    await expect(table.getByRole('row').filter({ hasText: 'Tuesday 3 November' })).toContainText('€83.20');
+    await expect(table.getByRole('row').filter({ hasText: 'K-2026-0002' })).toContainText('−€2.50 short');
+    const panel = page.getByRole('complementary', { name: 'Cash register' });
+    await expect(panel.getByRole('heading', { name: 'Expected in the register' })).toBeVisible();
+    await expect(panel.getByText('Cash register · All time')).toBeVisible();
+    await expect(panel.getByLabel('How the expected cash is calculated')).toContainText('= Expected€83.20');
+    await expect(panel.getByText('Counting error')).toBeVisible();
+    await expectNoAccessibilityViolations(page, '#main-content');
+    await page.screenshot({ path: testInfo.outputPath('payments-register.png'), fullPage: true });
+
+    await table.getByRole('button', { name: 'P-2026-000210' }).click();
+    await expect(panel.getByRole('heading', { name: 'P-2026-000210' })).toBeVisible();
+    await expect(panel.getByRole('link', { name: 'Go to order' })).toHaveAttribute('href', `/orders/${salesIds.paid}`);
+    await expect(panel.getByRole('link', { name: 'Show receipt' })).toBeVisible();
+    await expectNoAccessibilityViolations(page, '#main-content');
+    await page.screenshot({ path: testInfo.outputPath('payments-entry.png'), fullPage: true });
+    await panel.getByRole('button', { name: 'Close panel' }).click();
+    await expect(panel.getByRole('heading', { name: 'Expected in the register' })).toBeVisible();
+  });
+
+  test('counts the register and books the difference', async ({ page, world }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto('/payments');
+    await page.getByRole('button', { name: 'Count' }).click();
+    const dialog = dialogTitled(page, 'Count the register');
+    await dialog.getByLabel('Counted amount (€)').fill('80,70');
+    await expect(dialog.getByText('Less cash than expected.')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Record count and book −€2.50' })).toBeVisible();
+    await dialog.getByLabel('Reason for the difference').selectOption('unknown');
+    await dialog.getByRole('button', { name: 'Record count and book −€2.50' }).click();
+    await expect(dialog.getByText('Say what you found')).toBeVisible();
+    await dialog.getByLabel('Note (required)').fill('Coin missing');
+    await expectNoAccessibilityViolations(page, '[role="dialog"]');
+    await page.screenshot({ path: testInfo.outputPath('payments-count.png') });
+    await dialog.getByRole('button', { name: 'Record count and book −€2.50' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText('Difference −€2.50 booked as a correction')).toBeVisible();
+    expect(world.requests.at(-1)).toMatchObject({
+      method: 'POST',
+      path: '/api/v1/payments/cash-counts',
+      body: { countedAmount: '80.70', reason: 'unknown', note: 'Coin missing', expectedAmount: '83.20' },
+    });
+  });
+
+  test('filters by period and exports the cashbook', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto('/payments?tab=cashbook');
+    await expect(page.getByRole('tab', { name: 'Cashbook', selected: true })).toBeVisible();
+    await expect(page.getByLabel('Takings by method')).toContainText('Net takings');
+    const table = page.getByRole('table', { name: 'Payments' });
+    await expect(table).toContainText('Not tied to an order');
+    await page.getByRole('button', { name: /^Filters/ }).click();
+    await page.getByRole('radio', { name: 'Custom range…' }).check({ force: true });
+    const range = dialogTitled(page, 'Custom range');
+    await range.getByLabel('From').fill('31.10.2026');
+    await range.getByLabel('Through').fill('02.11.2026');
+    await range.getByText('Whole days.').click();
+    await range.getByRole('button', { name: 'Apply' }).click();
+    await expect(page).toHaveURL(/period=custom&from=2026-10-31&to=2026-11-02/);
+    await expect(page.getByText('Custom range · 31 Oct – 2 Nov 2026')).toBeVisible();
+    await expectNoAccessibilityViolations(page, '#main-content');
+    await page.screenshot({ path: testInfo.outputPath('payments-cashbook.png'), fullPage: true });
+
+    await page.getByRole('button', { name: 'Export', exact: true }).click();
+    const dialog = dialogTitled(page, 'Export cashbook');
+    await expect(dialog.getByLabel('From')).toHaveValue('31.10.2026');
+    await dialog.getByText('CSV for Excel').click();
+    await expectNoAccessibilityViolations(page, '[role="dialog"]');
+    const download = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: 'Download CSV' }).click();
+    expect((await download).suggestedFilename()).toBe('cashbook-all-payments-2026-10-31-2026-11-02.csv');
+    await expect(page.getByText('Cashbook downloaded')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Cash register' }).click();
+    await expect(page).toHaveURL(/\/payments$/);
+    await expect(page.getByText('All time · up to now')).toBeVisible();
+  });
+
   for (const width of [375, 1440]) {
     test(`sales pages stay usable in dark mode at ${width}px`, async ({ page }, testInfo) => {
       test.setTimeout(90_000);
@@ -166,4 +252,33 @@ test.describe('sales and payments', () => {
       }
     });
   }
+
+  for (const scheme of ['light', 'dark'] as const)
+    for (const width of [375, 1440]) {
+      test(`both payments tabs fit ${width}px in ${scheme} mode`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.emulateMedia({ colorScheme: scheme });
+        for (const tab of ['register', 'cashbook']) {
+          await page.goto(tab === 'register' ? '/payments' : '/payments?tab=cashbook');
+          await expect(page.getByRole('heading', { name: 'Payments', level: 1 })).toBeVisible();
+          await expect(
+            page.getByRole('table', { name: tab === 'register' ? 'Cash journal' : 'Payments' }),
+          ).toBeVisible();
+          await page.waitForLoadState('networkidle');
+          await expectNoHorizontalScroll(page);
+          await expectNoAccessibilityViolations(page, '#main-content');
+          await page.screenshot({
+            path: testInfo.outputPath(`payments-${tab}-${scheme}-${width}.png`),
+            fullPage: true,
+          });
+        }
+        if (width === 375) {
+          // Without room for the panel the register sits above the journal and a payment row opens its page.
+          await page.goto('/payments');
+          await expect(page.getByRole('heading', { name: 'Expected in the register' })).toBeVisible();
+          await page.getByRole('link', { name: 'P-2026-000210' }).click();
+          await expect(page).toHaveURL(new RegExp(`/payments/${salesIds.cashPayment}$`));
+        }
+      });
+    }
 });

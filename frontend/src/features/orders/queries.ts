@@ -6,13 +6,14 @@ import {
 import { listMachineLogbookWorkItems } from '../../api/generated/machine-logbook/machine-logbook';
 import { getOrder, listOrders } from '../../api/generated/orders/orders';
 import {
+  getCashJournal,
   getCashRegister,
   getOrderPayment,
   listCashMovements,
   listOrderPayments,
 } from '../../api/generated/payments/payments';
 import { getPriceQuote, listRolePricingGroups } from '../../api/generated/pricing/pricing';
-import type { GetPriceQuoteParams, WorkItem } from '../../api/generated/models';
+import type { GetCashJournalParams, GetPriceQuoteParams, WorkItem } from '../../api/generated/models';
 import { machineLogbookKeys } from '../machinelogbook/queries';
 import { financeKeys } from './operations';
 
@@ -45,10 +46,10 @@ export const orderRequestsQuery = (orderId: string) =>
     queryFn: () => fetchAllPages((page) => listExternalInvoiceRequests({ orderId, page, pageSize: PAGE })),
   });
 
-/** Payments that occurred in [from, to). */
-export const periodPaymentsQuery = (from: string, to: string) =>
+/** Payments that occurred in [from, to); an omitted bound is open. */
+export const periodPaymentsQuery = (from?: string, to?: string) =>
   queryOptions({
-    queryKey: [...financeKeys, 'period-payments', from, to],
+    queryKey: [...financeKeys, 'period-payments', from ?? '', to ?? ''],
     queryFn: () => fetchAllPages((page) => listOrderPayments({ from, to, page, pageSize: PAGE })),
   });
 /** Payments from an instant on, newest data included: used to find the reversal of a receipt. */
@@ -57,9 +58,9 @@ export const paymentsSinceQuery = (from: string) =>
     queryKey: [...financeKeys, 'payments-since', from],
     queryFn: () => fetchAllPages((page) => listOrderPayments({ from, page, pageSize: PAGE })),
   });
-export const periodMovementsQuery = (from: string, to: string) =>
+export const periodMovementsQuery = (from?: string, to?: string) =>
   queryOptions({
-    queryKey: [...financeKeys, 'period-movements', from, to],
+    queryKey: [...financeKeys, 'period-movements', from ?? '', to ?? ''],
     queryFn: () => fetchAllPages((page) => listCashMovements({ from, to, page, pageSize: PAGE })),
   });
 /** Expected cash up to (excluding) `to`; without it up to now. */
@@ -67,6 +68,13 @@ export const cashRegisterQuery = (to?: string) =>
   queryOptions({
     queryKey: [...financeKeys, 'cash-register', to ?? 'now'],
     queryFn: () => getCashRegister(to ? { to } : undefined),
+  });
+
+/** One page of the cash register journal with the register figures of the whole range. */
+export const cashJournalQuery = (params: GetCashJournalParams) =>
+  queryOptions({
+    queryKey: [...financeKeys, 'cash-journal', params],
+    queryFn: ({ signal }) => getCashJournal(params, { signal }),
   });
 
 export const rolePricingQuery = () =>

@@ -111,6 +111,12 @@
   margin: 0;
 }
 
+// Head row of a group of rows (DirectoryTable `groups`), e.g. a day of the cash journal.
+.mj-table-container .cds--data-table tbody tr.mj-group-row td {
+  background: theme.$layer-accent-01;
+  border-block-start: 0;
+}
+
 // Whole-row click on tables whose rows open a page or dialog (the name is also a link or button for keyboard access).
 .mj-row-clickable {
   cursor: pointer;
