@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Link as CarbonLink, OverflowMenu, OverflowMenuItem } from '@carbon/react';
+import { Button, OverflowMenu, OverflowMenuItem } from '@carbon/react';
 import { Add, ArrowLeft } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -7,12 +7,12 @@ import type { PrinterProfile } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
-import { MachineJobsTable } from './components/MachineJobsTable';
 import { MachineOverview } from './components/MachineOverview';
 import { machineRow, PageSectionTabs } from './components/machineParts';
 import { PrinterSetup } from './components/PrinterSetup';
 import { DeleteMachineModal } from './dialogs/DeleteMachineModal';
 import { JobFormModal } from './dialogs/JobFormModal';
+import { JobsWorkspace } from './jobs/JobsPanels';
 import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
 import { usePrinterConnection } from './connectorQueries';
 import { isFdm } from './processConfig';
@@ -131,7 +131,6 @@ export function MachineDetailPage({ section: routeSection }: { section?: 'printe
   const jobs = jobsResult.data?.items ?? [];
   const canCreate = machine.status !== 'retired' && can('machine_jobs.create');
   const model = modelById(profile?.model)?.label;
-  const noJobs = <EmptyState title="No jobs yet" description="Jobs created for this machine appear here." />;
 
   const actions = (
     <>
@@ -185,21 +184,7 @@ export function MachineDetailPage({ section: routeSection }: { section?: 'printe
           onShowJobs={() => navigate(pathOf('jobs'), { replace: true })}
         />
       )}
-      {section === 'jobs' && (
-        <div className="mj-stack">
-          <CarbonLink as={Link} to={machineLogbookPaths.jobs({ machine: machine.id })}>
-            Open in Jobs
-          </CarbonLink>
-          <QueryBoundary query={jobsResult} errorMessage="The jobs of this machine could not be loaded.">
-            {jobs.length ? <MachineJobsTable jobs={jobs} /> : noJobs}
-          </QueryBoundary>
-          {(jobsResult.data?.total ?? 0) > jobs.length && (
-            <p className="mj-secondary">
-              Showing the latest {jobs.length} of {jobsResult.data?.total} jobs. Open in Jobs to see all of them.
-            </p>
-          )}
-        </div>
-      )}
+      {section === 'jobs' && <JobsWorkspace machineColumn={false} machineId={machine.id} urlPrefix="jobs." />}
       {section === 'printer' && (
         <QueryBoundary
           query={{ status: profileAbsent ? 'success' : printer.status, data: profile, refetch: printer.refetch }}
