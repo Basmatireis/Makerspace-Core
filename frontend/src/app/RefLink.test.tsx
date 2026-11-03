@@ -39,16 +39,13 @@ describe('RefLink', () => {
         <RefLink reference="S-2026-000001" id="s1" />
       </p>,
     );
-    expect(screen.getByRole('link', { name: 'J-2026-000001' })).toHaveAttribute('href', '/machine-logbook/jobs/j1');
-    expect(screen.getByRole('link', { name: 'R-2026-000001' })).toHaveAttribute(
-      'href',
-      '/machine-logbook/jobs/runs/r1',
-    );
+    expect(screen.getByRole('link', { name: 'J-2026-000001' })).toHaveAttribute('href', '/workshop/jobs/j1');
+    expect(screen.getByRole('link', { name: 'R-2026-000001' })).toHaveAttribute('href', '/workshop/jobs/runs/r1');
     expect(screen.getByRole('link', { name: 'O-2026-000001' })).toHaveAttribute('href', '/orders/o1');
     expect(screen.getByRole('link', { name: 'P-2026-000001' })).toHaveAttribute('href', '/payments/p1');
     expect(screen.getByRole('link', { name: 'S-2026-000001' })).toHaveAttribute(
       'href',
-      '/machine-logbook/inventory/spools/s1',
+      '/workshop/inventory/spools/s1',
     );
   });
 
@@ -59,7 +56,7 @@ describe('RefLink', () => {
         <RefLink reference="O-2026-000001" id="o1" /> <RefLink reference="J-2026-000002" id={null} />{' '}
         <RefLink reference="J-2026-000003" id="j3" />
       </p>,
-      '/machine-logbook/jobs/j3',
+      '/workshop/jobs/j3',
     );
     expect(screen.queryAllByRole('link')).toHaveLength(0);
     expect(screen.getByText(/O-2026-000001/)).toBeInTheDocument();

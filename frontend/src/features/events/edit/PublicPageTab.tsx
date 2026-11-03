@@ -86,6 +86,7 @@ export function PublicPageTab({ event, now, canManage }: { event: Event; now: nu
   const values = form.watch();
   const images = files.filter((file) => file.contentType.startsWith('image/'));
   const banner = files.find((file) => file.isBanner);
+  const bannerDisabled = !canManage || images.length === 0 || fileChange.isPending;
   const documents = files.filter((file) => !file.isBanner);
   const editable = canManage && !closed;
   const preview = previewPublicEvent(
@@ -177,11 +178,13 @@ export function PublicPageTab({ event, now, canManage }: { event: Event; now: nu
                 subtitle={eventMutationMessage(fileChange.error)}
               />
             )}
+            {/* A disabled field greys its helper text below the contrast minimum, so the reason it is off is a
+                separate, readable line. */}
             <Select
               id="ev-pub-banner"
               labelText="Banner image"
-              helperText={images.length === 0 ? 'Upload an image in the Files tab first.' : 'Shown on the public page.'}
-              disabled={!canManage || images.length === 0 || fileChange.isPending}
+              helperText={bannerDisabled ? undefined : 'Shown on the public page.'}
+              disabled={bannerDisabled}
               value={banner?.id ?? ''}
               onChange={(e) => {
                 const chosen = images.find((file) => file.id === e.target.value);
@@ -194,6 +197,7 @@ export function PublicPageTab({ event, now, canManage }: { event: Event; now: nu
                 <SelectItem key={file.id} value={file.id} text={file.originalFilename} />
               ))}
             </Select>
+            {images.length === 0 && <p className="section-description">Upload an image in the Files tab first.</p>}
             {documents.length > 0 && (
               <CheckboxGroup legendText="Files visitors can download">
                 {documents.map((file) => (

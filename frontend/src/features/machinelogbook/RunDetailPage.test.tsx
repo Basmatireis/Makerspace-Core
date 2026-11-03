@@ -4,26 +4,11 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import type {
-  Machine,
-  MachineActivity,
-  MachineRunRecording,
-  MachineLogbookOverview,
-  WorkItem,
-} from '../../api/generated/models';
+import type { MachineRunRecording } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { server } from '../../test/server';
 import { testQueryClient } from '../../test/render';
-import {
-  ids,
-  jobFixture,
-  machine,
-  manualRun,
-  recordedRun,
-  usage,
-  workItem as baseWorkItem,
-} from '../../test/machineRuns';
-import { MachineLogbookOverviewPage } from './OverviewPage';
+import { ids, jobFixture, manualRun, recordedRun, usage, workItem as baseWorkItem } from '../../test/machineRuns';
 import { RunDetailPage } from './RunDetailPage';
 import { machineLogbookPaths } from './shared/paths';
 import { ToastProvider } from './shared/toasts';
@@ -39,47 +24,6 @@ vi.mock('./dialogs/JobFormModal', () => ({
     ) : null,
 }));
 
-const secondMachineId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
-const retiredMachineId = '0192f6f8-743e-7c77-a349-cd07c3e8b003';
-
-const machineFixture = (overrides: Partial<Machine> = {}): Machine => ({ ...machine, ...overrides });
-
-function workItem(index: number, overrides: Partial<WorkItem> = {}): WorkItem {
-  return baseWorkItem({
-    id: `0192f6f8-743e-7c77-a349-cd07c3e8c0${String(index).padStart(2, '0')}`,
-    displayId: `J-2026-0000${index}`,
-    title: `Bracket ${index}`,
-    status: 'running',
-    startedAt: '2026-09-15T08:00:00Z',
-    endsAt: '2099-01-01T10:00:00Z',
-    billing: undefined,
-    effectivePrice: null,
-    ...overrides,
-  });
-}
-
-function overviewFixture(overrides: Partial<MachineLogbookOverview> = {}): MachineLogbookOverview {
-  return {
-    jobsToday: 4,
-    jobsThisWeek: 9,
-    unassignedJobs: 0,
-    unassignedEstimatedAmount: '0.00',
-    failedOrPartialThisWeek: 0,
-    runningNow: 2,
-    runningMachineNames: ['Bambu H2D #1', 'Prusa MK4'],
-    needsOutcome: 0,
-    unassignedRuns: 1,
-    billingIssues: 3,
-    activeItems: [workItem(1)],
-    activeTotal: 1,
-    lowStockItems: 0,
-    recentJobs: [],
-    lowStockMaterials: [],
-    activity: [],
-    ...overrides,
-  };
-}
-
 function renderPage(element: React.ReactElement, path: string, route = '*') {
   const queryClient = testQueryClient();
   const router = createMemoryRouter([{ path: route, element: <ToastProvider>{element}</ToastProvider> }], {
@@ -92,197 +36,6 @@ function renderPage(element: React.ReactElement, path: string, route = '*') {
   );
   return { router };
 }
-
-function serveOverview(overview: MachineLogbookOverview, activity: MachineActivity[] = []) {
-  server.use(
-    http.get('*/api/v1/machine-logbook/overview', () => HttpResponse.json(overview)),
-    http.get('*/api/v1/machines', () =>
-      HttpResponse.json({
-        items: [
-          machineFixture(),
-          machineFixture({ id: secondMachineId, name: 'Prusa MK4' }),
-          machineFixture({ id: retiredMachineId, name: 'Old lathe', status: 'retired' }),
-        ],
-        page: 1,
-        pageSize: 100,
-        total: 3,
-      }),
-    ),
-    http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: activity })),
-  );
-}
-
-describe('Overview page', () => {
-  it('shows the key figures with counts, machine names and deep links into Jobs', async () => {
-    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machinesread];
-    serveOverview(overviewFixture({ needsOutcome: 0 }));
-    renderPage(<MachineLogbookOverviewPage />, '/');
-
-    expect(await screen.findByText('4 jobs today · 2 running · 1 unassigned')).toBeInTheDocument();
-    const section = screen.getByRole('region', { name: 'Key figures' });
-    const running = within(section).getByRole('link', { name: /Running now/ });
-    expect(running).toHaveTextContent('Bambu H2D #1, Prusa MK4');
-    expect(decodeURIComponent(running.getAttribute('href')!)).toBe(
-      '/machine-logbook/jobs?status=running,running_unassigned',
-    );
-    expect(
-      decodeURIComponent(
-        within(section)
-          .getByRole('link', { name: /Needs outcome/ })
-          .getAttribute('href')!,
-      ),
-    ).toBe('/machine-logbook/jobs?status=needs_outcome');
-    expect(
-      decodeURIComponent(
-        within(section)
-          .getByRole('link', { name: /Unassigned runs/ })
-          .getAttribute('href')!,
-      ),
-    ).toBe('/machine-logbook/jobs?status=unassigned');
-    const billing = within(section).getByRole('link', { name: /Billing issues/ });
-    expect(billing).toHaveTextContent('3');
-    expect(decodeURIComponent(billing.getAttribute('href')!)).toBe(
-      '/machine-logbook/jobs?billing=price_incomplete,order_outdated',
-    );
-    // Zero counts stay visible in the secondary colour.
-    expect(within(section).getByText('0')).toHaveClass('mj-metric__value--zero');
-    expect(within(section).getByText('3')).not.toHaveClass('mj-metric__value--zero');
-  });
-
-  it('lists the active items and links the rest to Jobs', async () => {
-    auth.permissions = [PermissionId.machine_jobsread];
-    const items = [1, 2, 3, 4, 5, 6].map((index) =>
-      workItem(
-        index,
-        index === 6
-          ? {
-              kind: 'run',
-              status: 'unassigned',
-              title: null,
-              fileName: 'bracket_6.gcode',
-              source: 'recorded',
-              endsAt: '2026-09-15T09:00:00Z',
-              customer: undefined,
-            }
-          : {},
-      ),
-    );
-    serveOverview(overviewFixture({ activeItems: items, activeTotal: 9 }));
-    const user = userEvent.setup();
-    const { router } = renderPage(<MachineLogbookOverviewPage />, '/');
-
-    const list = (await screen.findByText('Bracket 1')).closest('.cds--contained-list') as HTMLElement;
-    expect(within(list).getAllByText('Bambu H2D #1 · ends ~11:00')).toHaveLength(5);
-    expect(within(list).getByText('bracket_6.gcode')).toBeInTheDocument();
-    expect(within(list).getByText('Unassigned run')).toBeInTheDocument();
-    await user.click(within(list).getByRole('button', { name: /3 more active items/ }));
-    await waitFor(() =>
-      expect(router.state.location.pathname + router.state.location.search).toContain('/machine-logbook/jobs?status='),
-    );
-    expect(decodeURIComponent(router.state.location.search)).toBe(
-      '?status=running,running_unassigned,unassigned,needs_outcome',
-    );
-  });
-
-  it('opens an unassigned run from the active list', async () => {
-    auth.permissions = [PermissionId.machine_jobsread];
-    serveOverview(
-      overviewFixture({
-        activeItems: [
-          workItem(1, {
-            kind: 'run',
-            id: ids.recordedRun,
-            status: 'unassigned',
-            title: null,
-            fileName: 'bracket.gcode',
-            source: 'recorded',
-          }),
-        ],
-        activeTotal: 1,
-      }),
-    );
-    const user = userEvent.setup();
-    const { router } = renderPage(<MachineLogbookOverviewPage />, '/');
-    await user.click(await screen.findByRole('button', { name: /bracket\.gcode/ }));
-    await waitFor(() => expect(router.state.location.pathname).toBe(machineLogbookPaths.run(ids.recordedRun)));
-  });
-
-  it('lists one line per non-retired machine with its current item, connector issue and availability', async () => {
-    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machinesread];
-    serveOverview(overviewFixture(), [
-      {
-        machineId: ids.machine,
-        availability: 'in_use',
-        current: {
-          kind: 'run',
-          id: ids.recordedRun,
-          displayId: 'RN-1',
-          fileName: 'gearbox_housing_v3.gcode',
-          startedAt: '2026-09-15T08:00:00Z',
-          endsAt: '2099-01-01T13:30:00Z',
-        },
-        connector: { runtimeState: 'degraded', runtimeErrorCode: 'E42' },
-      },
-      { machineId: secondMachineId, availability: 'available', lastJobStartedAt: '2020-01-01T10:00:00Z' },
-    ]);
-    renderPage(<MachineLogbookOverviewPage />, '/');
-
-    const heading = await screen.findByText('Machines');
-    const list = heading.closest('.cds--contained-list') as HTMLElement;
-    expect(await within(list).findByText(/Gearbox housing v3 · ends ~/)).toBeInTheDocument();
-    expect(within(list).getByText('Connector issue')).toBeInTheDocument();
-    expect(within(list).getByText('In use')).toBeInTheDocument();
-    expect(within(list).getByText('Available')).toBeInTheDocument();
-    expect(within(list).getByText(/Last job/)).toBeInTheDocument();
-    expect(within(list).queryByText('Old lathe')).not.toBeInTheDocument();
-  });
-
-  it('hides sections the user has no permission for', async () => {
-    // Machines only: the job figures come back as null, so there are no key figures and no active list.
-    auth.permissions = [PermissionId.machinesread];
-    serveOverview(
-      overviewFixture({
-        runningNow: null,
-        runningMachineNames: null,
-        needsOutcome: null,
-        unassignedRuns: null,
-        billingIssues: null,
-        activeItems: null,
-        activeTotal: null,
-      }),
-    );
-    const first = renderPage(<MachineLogbookOverviewPage />, '/');
-    expect(await screen.findByText('4 jobs today')).toBeInTheDocument();
-    expect(await screen.findByText('Machines')).toBeInTheDocument();
-    expect(screen.queryByRole('region', { name: 'Key figures' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Active jobs')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'New job' })).not.toBeInTheDocument();
-    first.router.dispose();
-  });
-
-  it('hides the machine list without machines.read and does not request it', async () => {
-    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobscreate];
-    const machineRequests = vi.fn();
-    serveOverview(overviewFixture());
-    server.use(
-      http.get('*/api/v1/machines', () => {
-        machineRequests();
-        return HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 });
-      }),
-      http.get('*/api/v1/machine-logbook/machine-activity', () => {
-        machineRequests();
-        return HttpResponse.json({ items: [] });
-      }),
-    );
-    const user = userEvent.setup();
-    renderPage(<MachineLogbookOverviewPage />, '/');
-    expect(await screen.findByText('Active jobs')).toBeInTheDocument();
-    expect(screen.queryByText('Machines')).not.toBeInTheDocument();
-    expect(machineRequests).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'New job' }));
-    expect(screen.getByRole('dialog', { name: 'Job form stub' })).toHaveAttribute('data-mode', 'create');
-  });
-});
 
 /** Requests of the attach dialog to the work-items endpoint, so tests can check the server-side filters. */
 const workItemRequests: URL[] = [];
@@ -330,7 +83,7 @@ const recordingOf = (runId: string): MachineRunRecording => ({
 });
 
 const renderRun = (id = ids.recordedRun) =>
-  renderPage(<RunDetailPage />, machineLogbookPaths.run(id), '/machine-logbook/jobs/runs/:runId');
+  renderPage(<RunDetailPage />, machineLogbookPaths.run(id), '/workshop/jobs/runs/:runId');
 const runningRecorded = () =>
   recordedRun({
     state: 'running',

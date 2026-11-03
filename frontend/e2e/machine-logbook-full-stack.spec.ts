@@ -228,14 +228,14 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   expect(statistics.totals.jobs).toBeGreaterThanOrEqual(2);
   expect(statistics.machines.find((row) => row.machineId === machine.id)?.jobs).toBe(2);
 
-  await page.goto(`/machine-logbook/jobs/${finished.id}`);
+  await page.goto(`/workshop/jobs/${finished.id}`);
   await expect(page.getByRole('heading', { name: 'E2E gearbox housing', level: 1 })).toBeVisible();
   await expect(page.getByText('E2E printer', { exact: false }).first()).toBeVisible();
   await expect(page.getByText('€12.34', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('€15.00', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('E2E approved adjustment')).toBeVisible();
 
-  await page.goto(`/machine-logbook/jobs/${running.id}`);
+  await page.goto(`/workshop/jobs/${running.id}`);
   await expect(page.getByRole('heading', { name: 'E2E long run', level: 1 })).toBeVisible();
   await expect(page.getByText('Cancelled', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('table', { name: 'Runs' }).getByRole('progressbar')).toHaveCount(0);

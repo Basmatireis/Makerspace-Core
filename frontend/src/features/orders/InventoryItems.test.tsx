@@ -190,7 +190,7 @@ describe('order items from inventory', () => {
     serve([article()], order({ items: [...order().items, stockItem] }));
     renderRoute(<App />, `/orders/${ids.order}`);
     const link = await screen.findByRole('link', { name: 'M3 heat-set insert' });
-    expect(link).toHaveAttribute('href', `/machine-logbook/inventory/materials/${materialId}`);
+    expect(link).toHaveAttribute('href', `/workshop/inventory/materials/${materialId}`);
     expect(screen.getByText('Stock')).toBeInTheDocument();
   });
 
@@ -222,7 +222,7 @@ describe('order items from inventory', () => {
     expect(messages.length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Open the article' })[0]).toHaveAttribute(
       'href',
-      `/machine-logbook/inventory/materials/${materialId}`,
+      `/workshop/inventory/materials/${materialId}`,
     );
   });
 });

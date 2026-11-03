@@ -300,19 +300,13 @@ describe('protected application routing', () => {
     ]) {
       expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
     }
-    expect(within(navigation).getAllByRole('link', { name: 'Overview' })).toHaveLength(2);
+    expect(within(navigation).getAllByRole('link', { name: 'Overview' })).toHaveLength(1);
     expect(within(navigation).queryByRole('link', { name: 'External invoicing' })).not.toBeInTheDocument();
     const workshop = within(navigation)
       .getAllByRole('link')
       .map((link) => link.getAttribute('href'))
-      .filter((href) => href?.startsWith('/machine-logbook'));
-    expect(workshop).toEqual([
-      '/machine-logbook',
-      '/machine-logbook/jobs',
-      '/machine-logbook/machines',
-      '/machine-logbook/inventory',
-      '/machine-logbook/statistics',
-    ]);
+      .filter((href) => href?.startsWith('/workshop'));
+    expect(workshop).toEqual(['/workshop/jobs', '/workshop/machines', '/workshop/inventory', '/workshop/statistics']);
     expect(within(navigation).getByText('Administration')).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'Audit Log' })).toBeInTheDocument();
@@ -461,13 +455,29 @@ describe('role protection UX', () => {
       );
 
     it.each([
-      [`/machine-logbook/inventory/${id}`, `/machine-logbook/inventory/materials/${id}`],
-      ['/machine-logbook/spools', '/machine-logbook/inventory?tab=spools'],
-      [`/machine-logbook/spools/${id}`, `/machine-logbook/inventory/spools/${id}`],
-      [`/machine-logbook/machines/${id}/printer`, `/machine-logbook/machines/${id}?tab=printer`],
-      ['/machine-logbook/inventory/materials', '/machine-logbook/inventory?tab=materials'],
-      ['/machine-logbook/inventory/spools', '/machine-logbook/inventory?tab=spools'],
+      [`/workshop/inventory/${id}`, `/workshop/inventory/materials/${id}`],
+      ['/workshop/spools', '/workshop/inventory?tab=spools'],
+      [`/workshop/spools/${id}`, `/workshop/inventory/spools/${id}`],
+      [`/workshop/machines/${id}/printer`, `/workshop/machines/${id}?tab=printer`],
+      ['/workshop/inventory/materials', '/workshop/inventory?tab=materials'],
+      ['/workshop/inventory/spools', '/workshop/inventory?tab=spools'],
     ])('redirects the former URL %s to %s', async (from, to) => {
+      signIn();
+      const { router } = renderRoute(<App />, from);
+      await waitFor(() => expect(router.state.location.pathname + router.state.location.search).toBe(to));
+    });
+
+    it.each([
+      ['/machine-logbook', '/workshop/jobs'],
+      ['/machine-logbook/overview', '/workshop/jobs'],
+      ['/machine-logbook/jobs?status=unassigned&q=bracket', '/workshop/jobs?status=unassigned&q=bracket'],
+      [`/machine-logbook/jobs/runs/${id}`, `/workshop/jobs/runs/${id}`],
+      [`/machine-logbook/machines/${id}?tab=printer`, `/workshop/machines/${id}?tab=printer`],
+      ['/machine-logbook/inventory?tab=spools', '/workshop/inventory?tab=spools'],
+      [`/machine-logbook/spools/${id}`, `/workshop/inventory/spools/${id}`],
+      ['/machine-logbook/statistics', '/workshop/statistics'],
+      ['/workshop', '/workshop/jobs'],
+    ])('moves the Machines & Jobs URL %s to the Workshop URL %s', async (from, to) => {
       signIn();
       const { router } = renderRoute(<App />, from);
       await waitFor(() => expect(router.state.location.pathname + router.state.location.search).toBe(to));
@@ -475,20 +485,18 @@ describe('role protection UX', () => {
 
     it('drops the query string of a former URL and keeps the new material and spool URLs as they are', async () => {
       signIn();
-      const redirected = renderRoute(<App />, `/machine-logbook/spools/${id}?search=ada`);
-      await waitFor(() =>
-        expect(redirected.router.state.location.pathname).toBe(`/machine-logbook/inventory/spools/${id}`),
-      );
+      const redirected = renderRoute(<App />, `/workshop/spools/${id}?search=ada`);
+      await waitFor(() => expect(redirected.router.state.location.pathname).toBe(`/workshop/inventory/spools/${id}`));
       expect(redirected.router.state.location.search).toBe('');
       redirected.unmount();
-      const material = renderRoute(<App />, `/machine-logbook/inventory/materials/${id}`);
+      const material = renderRoute(<App />, `/workshop/inventory/materials/${id}`);
       await screen.findByRole('navigation', { name: 'Primary navigation' });
-      expect(material.router.state.location.pathname).toBe(`/machine-logbook/inventory/materials/${id}`);
+      expect(material.router.state.location.pathname).toBe(`/workshop/inventory/materials/${id}`);
     });
 
     it('sends a former URL to the dashboard when the person lacks the permission of its new destination', async () => {
       signIn([PermissionId.inventoryread]);
-      const { router } = renderRoute(<App />, `/machine-logbook/machines/${id}/printer`);
+      const { router } = renderRoute(<App />, `/workshop/machines/${id}/printer`);
       expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
       expect(router.state.location.pathname).toBe('/dashboard');
     });
@@ -519,7 +527,7 @@ describe('role protection UX', () => {
           }),
         ),
       );
-      renderRoute(<App />, `/machine-logbook/jobs/runs/${id}`);
+      renderRoute(<App />, `/workshop/jobs/runs/${id}`);
       expect(await screen.findByRole('heading', { name: 'Gearbox housing v3' })).toBeInTheDocument();
       expect(screen.getByText('Finished')).toBeInTheDocument();
     });
@@ -549,16 +557,16 @@ describe('role protection UX', () => {
           }),
         ),
       );
-      const { router } = renderRoute(<App />, `/machine-logbook/jobs/prints/${id}`);
+      const { router } = renderRoute(<App />, `/workshop/jobs/prints/${id}`);
       expect(await screen.findByRole('heading', { name: 'Bracket' })).toBeInTheDocument();
-      expect(router.state.location.pathname).toBe(`/machine-logbook/jobs/runs/${id}`);
+      expect(router.state.location.pathname).toBe(`/workshop/jobs/runs/${id}`);
     });
 
     it('denies a run without the job permission', async () => {
       server.use(
         http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.machinesread]))),
       );
-      renderRoute(<App />, `/machine-logbook/jobs/runs/${id}`);
+      renderRoute(<App />, `/workshop/jobs/runs/${id}`);
       expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
     });
   });

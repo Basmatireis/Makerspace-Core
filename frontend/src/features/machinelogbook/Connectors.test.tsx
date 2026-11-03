@@ -91,7 +91,7 @@ describe('Connectors tab', () => {
     expect(within(table).getAllByText('2 pending · 1 quarantined')).toHaveLength(2);
     expect(await within(table).findByRole('link', { name: 'Bambu H2D' })).toHaveAttribute(
       'href',
-      `/machine-logbook/machines/${printerId}`,
+      `/workshop/machines/${printerId}`,
     );
   });
 

@@ -2,14 +2,13 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test, expectNoAccessibilityViolations, expectNoHorizontalScroll } from './machines-jobs-test';
 import { ids, readerPermissions } from './machines-jobs-api';
 
-const base = '/machine-logbook';
+const base = '/workshop';
 const heading = (name: string | RegExp, level?: number) => (page: Page) => page.getByRole('heading', { name, level });
 const text = (value: string | RegExp) => (page: Page) => page.getByText(value).first();
 
 type Target = { name: string; path: string; ready: (page: Page) => Locator };
 
 const targets: Target[] = [
-  { name: 'Overview', path: base, ready: heading('Overview', 1) },
   { name: 'Jobs', path: `${base}/jobs`, ready: (page) => page.getByRole('table', { name: 'Jobs' }) },
   {
     name: 'Jobs filtered to unassigned runs',
@@ -283,14 +282,15 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 });
 
 test.describe('navigation and former URLs', () => {
-  test('lists Overview, Jobs, Machines, Inventory and Statistics in that order', async ({ page }) => {
+  test('lists Jobs, Machines, Inventory and Statistics in that order', async ({ page }) => {
     await page.goto(base);
+    await expect(page).toHaveURL(`${base}/jobs`);
     const nav = page.getByRole('navigation', { name: 'Primary navigation' });
     const group = nav.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Workshop' }) });
-    await expect(group.getByRole('link')).toHaveText(['Overview', 'Jobs', 'Machines', 'Inventory', 'Statistics']);
+    await expect(group.getByRole('link')).toHaveText(['Jobs', 'Machines', 'Inventory', 'Statistics']);
     await expect(nav.getByRole('link', { name: 'Review' })).toHaveCount(0);
     await expect(nav.getByRole('link', { name: 'Print submissions' })).toHaveCount(0);
-    await expect(group.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
+    await expect(group.getByRole('link', { name: 'Jobs' })).toHaveAttribute('aria-current', 'page');
     await group.getByRole('link', { name: 'Statistics' }).click();
     await expect(page).toHaveURL(`${base}/statistics`);
     await expect(group.getByRole('link', { name: 'Statistics' })).toHaveAttribute('aria-current', 'page');
@@ -308,6 +308,17 @@ test.describe('navigation and former URLs', () => {
     await expect(page.getByRole('heading', { name: 'Machines', level: 1 })).toBeVisible();
   });
 
+  test('Machines & Jobs URLs move to Workshop with their sub-path and query', async ({ page }) => {
+    await page.goto('/machine-logbook');
+    await expect(page).toHaveURL(`${base}/jobs`);
+    await page.goto('/machine-logbook/overview');
+    await expect(page).toHaveURL(`${base}/jobs`);
+    await page.goto('/machine-logbook/jobs?status=unassigned');
+    await expect(page).toHaveURL(`${base}/jobs?status=unassigned`);
+    await page.goto(`/machine-logbook/machines/${ids.bambu}?tab=printer`);
+    await expect(page).toHaveURL(`${base}/machines/${ids.bambu}?tab=printer`);
+  });
+
   test('older inventory and printer URLs land on the new pages', async ({ page }) => {
     await page.goto(`${base}/inventory/${ids.pla}`);
     await expect(page).toHaveURL(`${base}/inventory/materials/${ids.pla}`);
@@ -322,13 +333,9 @@ test.describe('navigation and former URLs', () => {
 test.describe('read-only role', () => {
   test.use({ userPermissions: readerPermissions });
 
-  test('offers no job actions on Overview, Jobs, job detail and run detail', async ({ page, world }) => {
+  test('offers no job actions on Jobs, job detail and run detail', async ({ page, world }) => {
     await page.goto(`${base}/jobs`);
     await expect(page.getByRole('table', { name: 'Jobs' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'New job' })).toHaveCount(0);
-
-    await page.goto(base);
-    await expect(page.getByRole('heading', { name: 'Overview', level: 1 })).toBeVisible();
     await expect(page.getByRole('button', { name: 'New job' })).toHaveCount(0);
 
     await page.goto(`${base}/jobs/${ids.jobRunning}`);
@@ -404,15 +411,13 @@ test.describe('read-only role', () => {
 test.describe('role without job access', () => {
   test.use({ userPermissions: ['statistics.read'] });
 
-  test('shows Overview and Statistics only and sends Jobs, Machines and Inventory back to the dashboard', async ({
-    page,
-  }) => {
-    await page.goto(base);
+  test('shows Statistics only and sends Jobs, Machines and Inventory back to the dashboard', async ({ page }) => {
+    await page.goto(`${base}/statistics`);
     const group = page
       .getByRole('navigation', { name: 'Primary navigation' })
       .getByRole('listitem')
       .filter({ has: page.getByRole('button', { name: 'Workshop' }) });
-    await expect(group.getByRole('link')).toHaveText(['Overview', 'Statistics']);
+    await expect(group.getByRole('link')).toHaveText(['Statistics']);
     for (const path of ['jobs', 'machines', 'inventory']) {
       await page.goto(`${base}/${path}`);
       await expect(page).toHaveURL(/\/dashboard$/);

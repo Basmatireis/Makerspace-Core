@@ -48,7 +48,7 @@ const configuration: BrandingConfiguration = {
     applicationBackground: {
       slot: 'application_background',
       mode: 'default',
-      url: '/brand/blueprint-workshop.jpg',
+      url: '/brand/bg-makerspace.webp',
       originalFilename: null,
       contentType: null,
       sizeBytes: null,
@@ -57,7 +57,7 @@ const configuration: BrandingConfiguration = {
     authenticationBackground: {
       slot: 'authentication_background',
       mode: 'default',
-      url: '/brand/blueprint-details.jpg',
+      url: '/brand/bg-makerspace.webp',
       originalFilename: null,
       contentType: null,
       sizeBytes: null,

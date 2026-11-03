@@ -4,6 +4,7 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { PermissionRoute, ProtectedRoute, useCurrentUser } from '../features/auth/auth';
 import { canAccessSettings } from '../features/auth/permissions';
 import { AppShell } from './AppShell';
+import { ColorSchemeRoot } from './colorScheme';
 import { NotFoundPage } from './NotFoundPage';
 import { InformationPage } from './InformationPage';
 import { FullPageLoading } from './PageState';
@@ -32,7 +33,6 @@ import {
   ConfigurationTransferPage,
   MachineDetailPage,
   MachineLogbookLayout,
-  MachineLogbookOverviewPage,
   MachinesPage,
   MailSettingsPage,
   CategoryRetentionPage,
@@ -89,9 +89,11 @@ import { IdRedirect, LegacyRedirect, OpenDayScheduleRedirect } from './routeRedi
 
 function ProtectedApp() {
   return (
-    <ProtectedRoute>
-      <AppShell />
-    </ProtectedRoute>
+    <ColorSchemeRoot>
+      <ProtectedRoute>
+        <AppShell />
+      </ProtectedRoute>
+    </ColorSchemeRoot>
   );
 }
 
@@ -105,11 +107,46 @@ export function App() {
     <DeviceBridgeProvider>
       <Suspense fallback={<FullPageLoading label="Loading page" />}>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/complete-invitation" element={<InvitationPage />} />
-          <Route path="/complete-pin-setup" element={<PINEnrollmentPage />} />
-          <Route path="/verify-email" element={<EmailVerificationPage />} />
+          <Route
+            path="/login"
+            element={
+              <ColorSchemeRoot>
+                <LoginPage />
+              </ColorSchemeRoot>
+            }
+          />
+          <Route
+            path="/reset-password"
+            element={
+              <ColorSchemeRoot>
+                <ResetPasswordPage />
+              </ColorSchemeRoot>
+            }
+          />
+          <Route
+            path="/complete-invitation"
+            element={
+              <ColorSchemeRoot>
+                <InvitationPage />
+              </ColorSchemeRoot>
+            }
+          />
+          <Route
+            path="/complete-pin-setup"
+            element={
+              <ColorSchemeRoot>
+                <PINEnrollmentPage />
+              </ColorSchemeRoot>
+            }
+          />
+          <Route
+            path="/verify-email"
+            element={
+              <ColorSchemeRoot>
+                <EmailVerificationPage />
+              </ColorSchemeRoot>
+            }
+          />
           <Route path="/visitor-enrollment" element={<VisitorEnrollmentPage />} />
           <Route path="/kiosk" element={<VisitorKioskPage />} />
           {/* Devices registered before the rename still open the old path. */}
@@ -156,15 +193,15 @@ export function App() {
                 </PermissionRoute>
               }
             />
-            <Route path="machine-logbook" element={<MachineLogbookLayout />}>
-              <Route
-                index
-                element={
-                  <PermissionRoute anyOf={['machine_jobs.read', 'statistics.read']}>
-                    <MachineLogbookOverviewPage />
-                  </PermissionRoute>
-                }
-              />
+            {/* Former Machines & Jobs URLs keep working: the area moved to /workshop with the same sub-paths. */}
+            <Route path="machine-logbook" element={<LegacyRedirect from="/machine-logbook" to="/workshop/jobs" />} />
+            <Route
+              path="machine-logbook/overview"
+              element={<LegacyRedirect from="/machine-logbook/overview" to="/workshop/jobs" />}
+            />
+            <Route path="machine-logbook/*" element={<LegacyRedirect from="/machine-logbook" to="/workshop" />} />
+            <Route path="workshop" element={<MachineLogbookLayout />}>
+              <Route index element={<Navigate to={machineLogbookPaths.jobs()} replace />} />
               <Route
                 path="jobs"
                 element={
@@ -252,21 +289,21 @@ export function App() {
               {/* Former URLs. Static segments rank above `:materialId`, so "materials", "spools" and "products" never become an ID. */}
               <Route
                 path="inventory/materials"
-                element={<Navigate to="/machine-logbook/inventory?tab=materials" replace />}
+                element={<Navigate to={machineLogbookPaths.inventory('materials')} replace />}
               />
               <Route
                 path="inventory/spools"
-                element={<Navigate to="/machine-logbook/inventory?tab=spools" replace />}
+                element={<Navigate to={machineLogbookPaths.inventory('spools')} replace />}
               />
               <Route
                 path="inventory/products"
-                element={<Navigate to="/machine-logbook/inventory?tab=materials" replace />}
+                element={<Navigate to={machineLogbookPaths.inventory('materials')} replace />}
               />
               <Route
                 path="inventory/:materialId"
                 element={<IdRedirect param="materialId" to={machineLogbookPaths.material} />}
               />
-              <Route path="spools" element={<Navigate to="/machine-logbook/inventory?tab=spools" replace />} />
+              <Route path="spools" element={<Navigate to={machineLogbookPaths.inventory('spools')} replace />} />
               <Route path="spools/:spoolId" element={<IdRedirect param="spoolId" to={machineLogbookPaths.spool} />} />
               <Route
                 path="machines/:machineId/printer"

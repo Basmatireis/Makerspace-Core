@@ -98,8 +98,7 @@ function serveRun(rec: MachineRunRecording, run = recordedRun()) {
     http.get(`*/api/v1/machine-runs/${runId}/recording`, () => HttpResponse.json(rec)),
   );
 }
-const renderRun = () =>
-  renderWith(machineLogbookPaths.run(runId), '/machine-logbook/jobs/runs/:runId', <RunDetailPage />);
+const renderRun = () => renderWith(machineLogbookPaths.run(runId), '/workshop/jobs/runs/:runId', <RunDetailPage />);
 const missing = (reason: MachineRunConsumptionReason | null, detail: string | null = null) => ({
   state: 'missing' as const,
   reason,
@@ -606,7 +605,7 @@ describe('Recording settings', () => {
   it('does not offer the Recording tab without machines.manage', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machinesread];
     serve();
-    renderWith('/machine-logbook/machines?tab=recording', '/machine-logbook/machines', <MachinesPage />);
+    renderWith('/workshop/machines?tab=recording', '/workshop/machines', <MachinesPage />);
     expect(await screen.findByRole('tab', { name: 'Processes' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Recording' })).not.toBeInTheDocument();
   });
@@ -646,7 +645,7 @@ describe('Job detail recordings', () => {
         }),
       ),
     );
-    renderWith(machineLogbookPaths.job(ids.job), '/machine-logbook/jobs/:jobId', <JobDetailPage />);
+    renderWith(machineLogbookPaths.job(ids.job), '/workshop/jobs/:jobId', <JobDetailPage />);
     expect(await screen.findByText('2 images')).toBeInTheDocument();
     expect(screen.getByAltText('Plate 1 preview of housing.3mf')).toHaveAttribute(
       'src',

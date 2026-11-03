@@ -24,9 +24,14 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Scene editor saves on request.** Save, Discard, Undo and Redo (Ctrl/Cmd+S, Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z) replace autosave, and leaving with unsaved changes asks first.
 - **Timelapse widget.** Plays the timelapse videos of recent finished prints (all machines or selected ones, newest N, maximum age and length, optional caption); runs hidden from signage never appear. Core lists the clips in the live payload (`SignagePlayerLive.timelapses`), serves them to players (`GET /signage/player/timelapses/{runId}/{sha256}`) and to the admin preview (`GET /signage/timelapses/{runId}/content`), and players cache them.
 
+- **Dark mode.** The staff application and the sign-in pages follow the system's light or dark setting (Carbon g100 in dark mode, including menus, modals, tables and charts); **Use dark theme** / **Use light theme** in the profile panel overrides it on this browser. Kiosk, visitor, public and signage pages keep their light styling.
+- **New background.** A faint workshop photo replaces the blueprint images behind the application and the sign-in pages; in dark mode it is dimmer and inverted. The default branding assets are now `/brand/bg-makerspace.webp`.
+
 ### Changed
 
 - **Player chunks.** The camera manager, QR codes, the open-day, event and agenda lists, the calendar, the timelapse widget and the pairing screen are loaded on demand, so the player stays inside its bundle budget.
+
+- **Workshop routes.** Jobs, Machines, Inventory and Statistics moved from `/machine-logbook/…` to `/workshop/…` with the same sub-paths; every former URL redirects with its sub-path and query, and `/machine-logbook` and `/machine-logbook/overview` open Jobs. The Workshop navigation group no longer has an Overview page. API paths are unchanged.
 
 ### Fixed
 

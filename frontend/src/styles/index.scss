@@ -9,7 +9,14 @@
 @use '@carbon/styles/scss/grid';
 @use '@carbon/styles/scss/layer';
 @use '@carbon/styles/scss/layout';
-@use '@carbon/styles/scss/zone';
+@use '@carbon/styles/scss/themes';
+// Theme classes for the two themes in use: white (the default) and g100 (dark mode, `src/app/colorScheme.ts`).
+@use '@carbon/styles/scss/zone' with (
+  $zones: (
+    white: themes.$white,
+    g100: themes.$g100,
+  )
+);
 @use '@carbon/styles/scss/components/accordion';
 @use '@carbon/styles/scss/components/badge-indicator';
 @use '@carbon/styles/scss/components/breadcrumb';
@@ -67,8 +74,9 @@
   --app-brand-secondary: #ffbf3d;
   --app-brand-accent: #e76f12;
   --app-brand-background: #111621;
-  --app-background-image: url('/brand/blueprint-workshop.jpg');
-  --app-auth-background-image: url('/brand/blueprint-details.jpg');
+  --app-background-image: url('/brand/bg-makerspace.webp');
+  --app-auth-background-image: url('/brand/bg-makerspace.webp');
+  --app-background-opacity: 0.22;
   --app-brand-gradient: linear-gradient(
     90deg,
     var(--app-brand-primary) 0 45%,
@@ -76,6 +84,36 @@
     var(--app-brand-secondary) 50% 72%,
     var(--app-brand-accent) 72% 100%
   );
+
+  // Carbon stays the component system; its interactive tokens follow the installation's primary brand color.
+  --cds-background-brand: var(--app-brand-primary);
+  --cds-border-interactive: var(--app-brand-primary);
+  --cds-button-primary: var(--app-brand-primary);
+  --cds-button-primary-hover: color-mix(in srgb, var(--app-brand-primary) 84%, black);
+  --cds-button-primary-active: color-mix(in srgb, var(--app-brand-primary) 68%, black);
+  --cds-button-tertiary: var(--app-brand-primary);
+  --cds-button-tertiary-hover: color-mix(in srgb, var(--app-brand-primary) 84%, black);
+  --cds-button-tertiary-active: color-mix(in srgb, var(--app-brand-primary) 68%, black);
+  --cds-focus: var(--app-brand-primary);
+  --cds-icon-interactive: var(--app-brand-primary);
+  --cds-link-primary: var(--app-brand-primary);
+  --cds-link-primary-hover: color-mix(in srgb, var(--app-brand-primary) 68%, black);
+  --cds-link-secondary: color-mix(in srgb, var(--app-brand-primary) 68%, black);
+  --cds-highlight: color-mix(in srgb, var(--app-brand-primary) 16%, white);
+}
+
+// Dark mode (Carbon g100): text-level brand colors are lightened so links, focus rings and highlights keep their
+// contrast on dark layers, and the background art is dimmed and inverted.
+:root.cds--g100 {
+  color-scheme: dark;
+  --app-background-opacity: 0.07;
+  --cds-border-interactive: color-mix(in srgb, var(--app-brand-primary) 55%, white);
+  --cds-focus: color-mix(in srgb, var(--app-brand-primary) 30%, white);
+  --cds-icon-interactive: color-mix(in srgb, var(--app-brand-primary) 45%, white);
+  --cds-link-primary: color-mix(in srgb, var(--app-brand-primary) 45%, white);
+  --cds-link-primary-hover: color-mix(in srgb, var(--app-brand-primary) 30%, white);
+  --cds-link-secondary: color-mix(in srgb, var(--app-brand-primary) 30%, white);
+  --cds-highlight: color-mix(in srgb, var(--app-brand-primary) 40%, black);
 }
 
 html,
@@ -165,15 +203,23 @@ h2 {
   transition: margin-inline-start 110ms cubic-bezier(0.2, 0, 1, 0.9);
 }
 
-.app-main::before {
-  position: absolute;
-  z-index: 0;
-  background:
-    linear-gradient(rgb(255 255 255 / 76%), rgb(255 255 255 / 88%)),
-    var(--app-background-image) center / cover no-repeat;
+// The background art: fixed and covering behind the content, faint in light mode, dimmer and inverted in dark mode.
+@mixin background-art($image, $z-index) {
+  position: fixed;
+  z-index: $z-index;
+  background: $image center / cover no-repeat;
   content: '';
   inset: 0;
+  opacity: var(--app-background-opacity);
   pointer-events: none;
+
+  :root.cds--g100 & {
+    filter: invert(1) hue-rotate(180deg);
+  }
+}
+
+.app-main::before {
+  @include background-art(var(--app-background-image), 0);
 }
 
 .app-main > * {
@@ -462,7 +508,7 @@ body.cds--body--with-modal-open .app-main > * {
 .page-shell > .page-header {
   max-width: none;
   overflow: hidden;
-  background: rgb(255 255 255 / 94%);
+  background: color-mix(in srgb, #{theme.$background} 94%, transparent);
   border-block: 1px solid var(--cds-border-subtle);
 }
 
@@ -578,14 +624,7 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .public-page::before {
-  position: fixed;
-  z-index: 0;
-  background:
-    linear-gradient(rgb(255 255 255 / 78%), rgb(255 255 255 / 86%)),
-    var(--app-auth-background-image) center / cover no-repeat;
-  content: '';
-  inset: 0;
-  pointer-events: none;
+  @include background-art(var(--app-auth-background-image), 0);
 }
 
 .public-page > * {
@@ -1744,7 +1783,7 @@ body.cds--body--with-modal-open .app-main > * {
     inset: 0 0 0 auto;
     inline-size: min(32rem, 100%);
     grid-column: 1;
-    box-shadow: -4px 0 12px rgb(0 0 0 / 18%);
+    box-shadow: -4px 0 12px theme.$shadow;
   }
 
   .permission-editor--empty {
@@ -1772,14 +1811,18 @@ body.cds--body--with-modal-open .app-main > * {
 }
 
 .auth-page {
+  position: relative;
+  isolation: isolate;
   display: grid;
   min-height: 100vh;
   place-items: center;
   padding: $spacing-05;
-  background:
-    linear-gradient(rgb(255 255 255 / 72%), rgb(255 255 255 / 86%)),
-    var(--app-auth-background-image) center / cover no-repeat,
-    var(--cds-layer);
+  background: theme.$background;
+}
+
+.auth-page:not(.auth-page--login)::before,
+.auth-page--login::after {
+  @include background-art(var(--app-auth-background-image), -2);
 }
 
 .auth-page--login {
@@ -1787,49 +1830,38 @@ body.cds--body--with-modal-open .app-main > * {
   --login-panel-gutter: 9.25rem;
   --login-panel-width: calc(var(--login-card-width) + var(--login-panel-gutter) + var(--login-panel-gutter));
 
-  position: relative;
-  isolation: isolate;
   grid-template-columns: min(var(--login-panel-width), 100%) minmax(0, 1fr);
   gap: 0;
   padding-block: clamp(1.25rem, 2vh, 1.75rem);
   padding-inline: 0;
   overflow: hidden;
-  background:
-    linear-gradient(rgb(255 255 255 / 66%), rgb(255 255 255 / 82%)),
-    var(--app-auth-background-image) center / cover no-repeat,
-    var(--cds-layer);
 }
 
-.auth-page--login::before,
-.auth-page--login::after {
+// The brand panel behind the sign-in card: the brand background with an accent glow towards the bottom.
+.auth-page--login::before {
   position: absolute;
   z-index: -1;
   inline-size: min(var(--login-panel-width), 100%);
+  background:
+    linear-gradient(
+      165deg,
+      transparent 0 55%,
+      color-mix(in srgb, var(--app-brand-accent) 4%, transparent) 63%,
+      color-mix(in srgb, var(--app-brand-accent) 12%, transparent) 72%,
+      color-mix(in srgb, var(--app-brand-accent) 24%, transparent) 84%,
+      color-mix(in srgb, var(--app-brand-accent) 32%, transparent) 100%
+    ),
+    linear-gradient(
+      180deg,
+      var(--app-brand-background) 0%,
+      color-mix(in srgb, var(--app-brand-background) 90%, var(--app-brand-primary)) 62%,
+      color-mix(in srgb, var(--app-brand-background) 82%, var(--app-brand-accent)) 100%
+    );
+  box-shadow: 1px 0 0 theme.$border-subtle;
   content: '';
   inset-block: 0;
   inset-inline-start: 0;
   pointer-events: none;
-}
-
-.auth-page--login::before {
-  background: linear-gradient(
-    180deg,
-    var(--app-brand-background) 0%,
-    color-mix(in srgb, var(--app-brand-background) 90%, var(--app-brand-primary)) 62%,
-    color-mix(in srgb, var(--app-brand-background) 82%, var(--app-brand-accent)) 100%
-  );
-  box-shadow: 1px 0 0 rgb(0 0 0 / 12%);
-}
-
-.auth-page--login::after {
-  background: linear-gradient(
-    165deg,
-    transparent 0 55%,
-    color-mix(in srgb, var(--app-brand-accent) 4%, transparent) 63%,
-    color-mix(in srgb, var(--app-brand-accent) 12%, transparent) 72%,
-    color-mix(in srgb, var(--app-brand-accent) 24%, transparent) 84%,
-    color-mix(in srgb, var(--app-brand-accent) 32%, transparent) 100%
-  );
 }
 
 .auth-page--login .auth-card {
@@ -1845,7 +1877,7 @@ body.cds--body--with-modal-open .app-main > * {
   padding: $spacing-08;
   overflow: hidden;
   background: theme.$background;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 20%);
+  box-shadow: 0 2px 6px theme.$shadow;
 }
 
 .auth-card::before {
@@ -2094,7 +2126,7 @@ body.cds--body--with-modal-open .app-main > * {
   padding: $spacing-04;
   background: var(--cds-layer);
   border-block-start: 1px solid var(--cds-border-subtle);
-  box-shadow: 0 -2px 6px rgb(0 0 0 / 8%);
+  box-shadow: 0 -2px 6px theme.$shadow;
 }
 
 .branding-save-bar span {
@@ -2249,9 +2281,7 @@ body.cds--body--with-modal-open .app-main > * {
     background: var(--app-brand-background);
   }
 
-  .auth-page--login::before,
-  .auth-page--login::after {
-    display: block;
+  .auth-page--login::before {
     inline-size: 100%;
   }
 

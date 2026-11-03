@@ -198,7 +198,7 @@ describe('Printer settings tabs', () => {
       <ToastProvider>
         <MachinesPage />
       </ToastProvider>,
-      `/machine-logbook/machines?tab=${tab}`,
+      `/workshop/machines?tab=${tab}`,
     );
 
   it('saves the notified role and level with the version it loaded', async () => {

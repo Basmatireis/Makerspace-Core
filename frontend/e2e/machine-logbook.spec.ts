@@ -22,14 +22,13 @@ for (const width of widths) {
     await page.getByRole('button', { name: 'Discard', exact: true }).click();
   });
 
-  test(`overview, jobs, job detail and statistics remain usable at ${width}px`, async ({ page }, testInfo) => {
+  test(`jobs, job detail and statistics remain usable at ${width}px`, async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width, height: 900 });
     const pages = [
-      ['/machine-logbook', 'overview', 'Overview'],
-      ['/machine-logbook/jobs', 'jobs', 'Jobs'],
-      [`/machine-logbook/jobs/${ids.jobSuccess}`, 'job', 'Gearbox housing'],
-      ['/machine-logbook/statistics', 'statistics', 'Statistics'],
+      ['/workshop/jobs', 'jobs', 'Jobs'],
+      [`/workshop/jobs/${ids.jobSuccess}`, 'job', 'Gearbox housing'],
+      ['/workshop/statistics', 'statistics', 'Statistics'],
     ] as const;
     for (const [path, label, title] of pages) {
       await page.goto(path);

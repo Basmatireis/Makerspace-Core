@@ -357,7 +357,7 @@ export function JobsPage() {
       title="Jobs"
       description="Running and finished jobs, and runs reported by machines."
       width="wide"
-      breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Jobs' }]}
+      breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.home() }, { label: 'Jobs' }]}
     >
       {selectable && selectedItems.length > 0 && unavailable.length > 0 && (
         <InlineNotification

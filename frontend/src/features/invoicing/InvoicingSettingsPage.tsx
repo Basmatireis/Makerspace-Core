@@ -345,7 +345,7 @@ function SettingsForm({ settings }: { settings: WiRefDeliverySettings }) {
                   title="Mail preview"
                   sandbox=""
                   srcDoc={previewHtml}
-                  style={{ width: '100%', height: '32rem', border: '1px solid #e0e0e0' }}
+                  style={{ width: '100%', height: '32rem', border: '1px solid var(--cds-border-subtle-01, #c6c6c6)' }}
                 />
               </Stack>
             )}

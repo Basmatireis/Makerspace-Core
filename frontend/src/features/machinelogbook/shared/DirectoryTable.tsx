@@ -21,6 +21,12 @@ import {
 } from '@carbon/react';
 import { useSearchParams } from 'react-router-dom';
 import { BatchFilter, toPatch, type FilterCategory, type FilterValues } from '../../../app/BatchFilter';
+import {
+  AttentionFlag,
+  attentionColumn,
+  attentionColumnClassName,
+  type AttentionItem,
+} from '../../../app/components/AttentionFlag';
 import { EmptyState } from '../../../app/PageState';
 import { useLatestCallback } from '../../../app/useLatestCallback';
 import './shared.scss';
@@ -35,7 +41,23 @@ export type Column<T> = {
   firstDirection?: 'ASC' | 'DESC';
   /** Hidden below 42rem; the first column repeats such details as secondary lines. */
   narrow?: boolean;
+  /** Extra class on the header and every cell of the column. */
+  className?: string;
+  /** Keeps the header text for screen readers only (icon columns). */
+  hiddenHeader?: boolean;
 };
+
+const columnClassName = <T,>(column: Column<T>) =>
+  [column.narrow && 'mj-hide-narrow', column.className].filter(Boolean).join(' ') || undefined;
+
+/** The attention column of a directory table: narrow, end-aligned, header for screen readers only. */
+export const attentionDirectoryColumn = <T,>(attentionOf: (row: T) => readonly AttentionItem[]): Column<T> => ({
+  key: attentionColumn.key,
+  header: attentionColumn.header,
+  className: attentionColumnClassName,
+  hiddenHeader: true,
+  render: (row) => <AttentionFlag attention={attentionOf(row)} />,
+});
 
 export type Option = { id: string; label: string };
 export type Sort = { key: string; direction: 'ASC' | 'DESC' };
@@ -335,7 +357,12 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
                 {tableHeaders.map((header) => {
                   const column = columns.find((item) => item.key === header.key);
                   if (!column) return null;
-                  const className = column.narrow ? 'mj-hide-narrow' : undefined;
+                  const className = columnClassName(column);
+                  const title = column.hiddenHeader ? (
+                    <span className="cds--visually-hidden">{header.header}</span>
+                  ) : (
+                    header.header
+                  );
                   return column.sortValue ? (
                     <TableHeader
                       key={header.key}
@@ -345,11 +372,11 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
                       sortDirection={sort.key === column.key ? sort.direction : 'NONE'}
                       onClick={() => sortBy(column)}
                     >
-                      {header.header}
+                      {title}
                     </TableHeader>
                   ) : (
                     <TableHeader key={header.key} className={className}>
-                      {header.header}
+                      {title}
                     </TableHeader>
                   );
                 })}
@@ -384,7 +411,7 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
                       />
                     )}
                     {columns.map((column) => (
-                      <TableCell key={column.key} className={column.narrow ? 'mj-hide-narrow' : undefined}>
+                      <TableCell key={column.key} className={columnClassName(column)}>
                         {column.render(row)}
                       </TableCell>
                     ))}

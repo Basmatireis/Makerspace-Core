@@ -1,6 +1,5 @@
 import { queryOptions } from '@tanstack/react-query';
 import {
-  getMachineLogbookOverview,
   getMachineLogbookStatistics,
   listMachineActivity,
   listMachineLogbookWorkItems,
@@ -48,7 +47,6 @@ import type {
 
 export const machineLogbookKeys = {
   all: ['machine-logbook'] as const,
-  overview: () => [...machineLogbookKeys.all, 'overview'] as const,
   jobs: (params: ListMachineJobsParams) => [...machineLogbookKeys.all, 'jobs', params] as const,
   job: (id: string) => [...machineLogbookKeys.all, 'job', id] as const,
   machines: (params: ListMachinesParams) => [...machineLogbookKeys.all, 'machines', params] as const,
@@ -83,8 +81,6 @@ export const machineLogbookKeys = {
 
 export const recycleBinQuery = () =>
   queryOptions({ queryKey: machineLogbookKeys.recycleBin(), queryFn: () => getRecycleBin() });
-export const overviewQuery = () =>
-  queryOptions({ queryKey: machineLogbookKeys.overview(), queryFn: () => getMachineLogbookOverview() });
 export const jobsQuery = (params: ListMachineJobsParams) =>
   queryOptions({ queryKey: machineLogbookKeys.jobs(params), queryFn: () => listMachineJobs(params) });
 export const jobQuery = (id: string) =>

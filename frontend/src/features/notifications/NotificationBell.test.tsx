@@ -19,7 +19,7 @@ function notification(overrides: Partial<Notification> = {}): Notification {
     kind: 'run_finished',
     title: 'Run R-2026-000012 finished',
     body: 'Run R-2026-000012 on Printer 1 finished.',
-    link: '/machine-logbook/jobs/runs/run-1',
+    link: '/workshop/jobs/runs/run-1',
     createdAt: new Date(Date.now() - 5 * 60_000).toISOString(),
     readAt: null,
     ...overrides,
@@ -103,7 +103,7 @@ describe('Notification bell', () => {
 
     await user.click(screen.getByText('Run R-2026-000012 finished'));
     await waitFor(() => expect(calls).toContain(`read ${first}`));
-    expect(view.router.state.location.pathname).toBe('/machine-logbook/jobs/runs/run-1');
+    expect(view.router.state.location.pathname).toBe('/workshop/jobs/runs/run-1');
     await waitFor(() => expect(screen.getByRole('button', { name: /Open notifications/ })).toBeInTheDocument());
   });
 

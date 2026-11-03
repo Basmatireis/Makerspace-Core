@@ -222,7 +222,7 @@ export function RunDetailPage() {
           : undefined
       }
       breadcrumbs={[
-        { label: 'Workshop', to: machineLogbookPaths.overview() },
+        { label: 'Workshop', to: machineLogbookPaths.home() },
         { label: 'Jobs', to: machineLogbookPaths.jobs() },
         { label: title },
       ]}

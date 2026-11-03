@@ -58,7 +58,7 @@ import { useCan } from './shared/useCan';
 import { allSpoolTransactionsQuery, spoolErrorMessage, spoolUpdateBody, useRefreshInventory } from './spoolData';
 
 const crumbs = [
-  { label: 'Workshop', to: machineLogbookPaths.overview() },
+  { label: 'Workshop', to: machineLogbookPaths.home() },
   { label: 'Inventory', to: machineLogbookPaths.inventory() },
   { label: 'Spools', to: machineLogbookPaths.inventory('spools') },
 ];

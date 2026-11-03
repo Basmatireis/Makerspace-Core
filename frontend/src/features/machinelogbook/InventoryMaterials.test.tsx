@@ -262,7 +262,7 @@ describe('Inventory page', () => {
   it('opens Materials for the tab names of the former page', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveInventory();
-    renderPage(<InventoryPage />, '/machine-logbook/inventory?tab=material-types');
+    renderPage(<InventoryPage />, '/workshop/inventory?tab=material-types');
     expect(await screen.findByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
     expect(await screen.findByRole('table', { name: 'Materials' })).toBeInTheDocument();
   });
@@ -270,7 +270,7 @@ describe('Inventory page', () => {
   it('sends the former Filament and Consumables tabs to Materials', async () => {
     auth.permissions = [PermissionId.inventoryread];
     serveInventory();
-    const { router } = renderPage(<InventoryPage />, '/machine-logbook/inventory?tab=filament&stock=low_stock');
+    const { router } = renderPage(<InventoryPage />, '/workshop/inventory?tab=filament&stock=low_stock');
     expect(await screen.findByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
     const search = new URLSearchParams(router.state.location.search);
     expect(search.get('tab')).toBe('materials');
@@ -278,7 +278,7 @@ describe('Inventory page', () => {
     expect(search.has('process')).toBe(false);
     expect(search.get('stock')).toBe('low_stock');
     cleanup();
-    const second = renderPage(<InventoryPage />, '/machine-logbook/inventory?tab=consumables');
+    const second = renderPage(<InventoryPage />, '/workshop/inventory?tab=consumables');
     expect(await screen.findByRole('tab', { name: 'Materials', selected: true })).toBeInTheDocument();
     expect(new URLSearchParams(second.router.state.location.search).get('tab')).toBe('materials');
   });
@@ -474,7 +474,7 @@ describe('Article detail page', () => {
       ),
     );
   }
-  const route = '/machine-logbook/inventory/materials/:materialId';
+  const route = '/workshop/inventory/materials/:materialId';
 
   it('shows the article fields, the stock split and a compact spools table for filament', async () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
@@ -541,7 +541,7 @@ describe('Article detail page', () => {
       const router = createMemoryRouter(
         [
           { path: route, element: <MaterialDetailPage /> },
-          { path: '/machine-logbook/inventory', element: <p>Inventory list</p> },
+          { path: '/workshop/inventory', element: <p>Inventory list</p> },
         ],
         { initialEntries: [machineLogbookPaths.material(unused.id)] },
       );
@@ -558,7 +558,7 @@ describe('Article detail page', () => {
       await user.click(within(dialog).getByRole('button', { name: 'Delete article' }));
       await waitFor(() => expect(sent).toEqual({ expectedVersion: 5 }));
       expect(await screen.findByText('Article deleted')).toBeInTheDocument();
-      await waitFor(() => expect(router.state.location.pathname).toBe('/machine-logbook/inventory'));
+      await waitFor(() => expect(router.state.location.pathname).toBe('/workshop/inventory'));
       expect(router.state.location.search).toBe('?tab=materials');
     });
 

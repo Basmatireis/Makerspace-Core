@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test';
 import { expect, test } from './machines-jobs-test';
 import { customer, ids, operator } from './machines-jobs-api';
 
-const base = '/machine-logbook';
+const base = '/workshop';
 const openOverflow = (page: Page) => page.locator('.page-header__actions .cds--overflow-menu').click();
 
 /** Opens a Carbon ComboBox and picks an option; retries the opening because the list renders after the lookup loads. */

@@ -1,5 +1,5 @@
-/** Route builders for the Machines & Jobs area, so links never hard-code path strings. */
-const root = '/machine-logbook';
+/** Route builders for the Workshop area (jobs, machines, inventory, statistics), so links never hard-code path strings. */
+const root = '/workshop';
 const withQuery = (path: string, query?: Record<string, string | undefined>) => {
   const search = new URLSearchParams(
     Object.entries(query ?? {}).filter((entry): entry is [string, string] => Boolean(entry[1])),
@@ -16,7 +16,8 @@ export const inventoryTabForKind = (kind: 'filament' | 'consumable' | 'part'): I
   kind === 'part' ? 'parts' : 'materials';
 
 export const machineLogbookPaths = {
-  overview: () => root,
+  /** Where the Workshop breadcrumb leads: the area has no page of its own, Jobs is its first page. */
+  home: () => `${root}/jobs`,
   jobs: (query?: Record<string, string | undefined>) => withQuery(`${root}/jobs`, query),
   job: (id: string) => `${root}/jobs/${segment(id)}`,
   run: (id: string) => `${root}/jobs/runs/${segment(id)}`,

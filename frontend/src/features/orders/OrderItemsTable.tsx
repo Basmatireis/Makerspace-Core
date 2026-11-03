@@ -17,6 +17,7 @@ import type { Order, OrderItem } from '../../api/generated/models';
 import { formatDateTimeRange } from '../../app/dateTime';
 import { RefLink } from '../../app/RefLink';
 import { formatDuration, formatQuantity } from '../machinelogbook/shared/format';
+import { machineLogbookPaths } from '../machinelogbook/shared/paths';
 import { formatMoney } from './formatting';
 import { activeItems } from './logic';
 import { formatCents, sumCents } from './money';
@@ -77,7 +78,7 @@ export function OrderItemsTable({
                         {item.description}
                       </RefLink>
                     ) : item.kind === 'inventory_item' && item.sourceMaterialId && canReadInventory ? (
-                      <CarbonLink as={Link} to={`/machine-logbook/inventory/materials/${item.sourceMaterialId}`}>
+                      <CarbonLink as={Link} to={machineLogbookPaths.material(item.sourceMaterialId)}>
                         {item.description}
                       </CarbonLink>
                     ) : (

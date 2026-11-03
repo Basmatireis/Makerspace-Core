@@ -13,7 +13,7 @@ vi.mock('@carbon/charts-react', () => ({
 }));
 
 describe('Machine Logbook pages', () => {
-  it('does not expose the overview to an inventory-only reader', async () => {
+  it('sends an inventory-only reader from the former overview URL to the dashboard', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.inventoryread]))),
       http.get('*/api/v1/materials', () =>

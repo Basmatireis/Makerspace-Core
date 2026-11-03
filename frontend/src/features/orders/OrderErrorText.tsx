@@ -4,6 +4,7 @@ import type { Order } from '../../api/generated/models';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { formatQuantity } from '../machinelogbook/shared/format';
+import { machineLogbookPaths } from '../machinelogbook/shared/paths';
 import { insufficientStock } from './logic';
 
 /** An error message of an order operation. A finalization refused for missing stock names the article, the loose stock and links to the article. */
@@ -20,7 +21,7 @@ export function OrderErrorText({ error, order }: { error: Error; order: Pick<Ord
       {shortage.materialId && hasPermission(user, PermissionId.inventoryread) && (
         <>
           {' '}
-          <CarbonLink as={Link} to={`/machine-logbook/inventory/materials/${shortage.materialId}`}>
+          <CarbonLink as={Link} to={machineLogbookPaths.material(shortage.materialId)}>
             Open the article
           </CarbonLink>
         </>
