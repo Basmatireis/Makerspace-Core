@@ -223,7 +223,7 @@ X1C uses the same lifecycle, AMS, error, artifact, and Wi-Fi fields. Its classic
 ### Assumptions to verify on a real printer
 
 - **Extruder side.** Extruder `0` is reported as the `right` nozzle and extruder `1` as the `left` one. The mapping lives in one function (`bambuExtruderSide`) and is exposed as `side` on nozzles and extruder temperatures.
-- **AMS to nozzle.** The protocol does not say which nozzle an AMS feeds, so detection reports units without a nozzle; staff choose it in the printer setup.
+- **AMS to nozzle.** The protocol does not say which nozzle an AMS feeds, so detection reports units without a nozzle; staff choose it in the printer setup, where the profile also records the number of nozzles and every unit and slot its 1-based `nozzleIndex` (see [Printer setup](machine-logbook.md#printer-setup)). The connector does not read these numbers yet.
 - **AMS HT `tray_now`.** A bare `tray_now` of 128 or more is treated as the single tray of the AMS HT unit with that ID. Other bare tray numbers that repeat across units stay unresolved.
 - **`humidity_raw`** is the humidity percentage; `humidity` is a coarse level and is not used.
 

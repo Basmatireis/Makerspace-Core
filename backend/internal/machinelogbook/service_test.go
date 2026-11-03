@@ -75,7 +75,7 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		},
 		{
 			"machine_jobs.edit attach run",
-			func() error { _, err := s.AttachRun(ctx, p, id, id, false, 1, nil); return err },
+			func() error { _, err := s.AttachRun(ctx, p, id, id, false, 1, nil, nil); return err },
 		},
 		{"machine_jobs.edit detach run", func() error { _, err := s.DetachRun(ctx, p, id, 1, nil); return err }},
 		{

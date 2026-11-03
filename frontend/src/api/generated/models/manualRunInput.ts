@@ -23,10 +23,11 @@ import type { MachineRunOutcome } from './machineRunOutcome';
 import type { RunMeasures } from './runMeasures';
 
 /**
- * An endsAt in the future starts a run that shows as running until then; outcome must then be null and is recorded later.
+ * An endsAt in the future starts a run that shows as running until then; outcome must then be null and is recorded later. Material of a manual run is always measured: the server stores quantityBasis actual whatever the request says.
  */
 export interface ManualRunInput {
-  startsAt: string;
+  /** When the run started; omitted means now. It may not lie in the future or after endsAt (422 validation_failed). */
+  startsAt?: string;
   endsAt: string;
   outcome?: MachineRunOutcome | null;
   /**

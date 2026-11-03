@@ -13,6 +13,67 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimDueNotificationMails = `-- name: ClaimDueNotificationMails :many
+UPDATE notification_mail_outbox o
+SET attempts = o.attempts + 1, next_attempt_at = $1
+WHERE o.id IN (
+    SELECT x.id FROM notification_mail_outbox x
+    WHERE x.next_attempt_at <= $2
+    ORDER BY x.next_attempt_at, x.id
+    LIMIT $3
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING o.id, o.kind, o.person_id, o.organization_id, o.subject, o.body, o.link, o.attempts
+`
+
+type ClaimDueNotificationMailsParams struct {
+	LeaseUntil time.Time
+	Now        time.Time
+	BatchLimit int32
+}
+
+type ClaimDueNotificationMailsRow struct {
+	ID             uuid.UUID
+	Kind           string
+	PersonID       *uuid.UUID
+	OrganizationID *uuid.UUID
+	Subject        string
+	Body           string
+	Link           *string
+	Attempts       int32
+}
+
+// Takes due mails for one delivery pass: the attempt is counted and the next one pushed out before anything is sent,
+// so a pass that dies half way never sends a mail twice in quick succession.
+func (q *Queries) ClaimDueNotificationMails(ctx context.Context, arg ClaimDueNotificationMailsParams) ([]ClaimDueNotificationMailsRow, error) {
+	rows, err := q.db.Query(ctx, claimDueNotificationMails, arg.LeaseUntil, arg.Now, arg.BatchLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ClaimDueNotificationMailsRow{}
+	for rows.Next() {
+		var i ClaimDueNotificationMailsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.PersonID,
+			&i.OrganizationID,
+			&i.Subject,
+			&i.Body,
+			&i.Link,
+			&i.Attempts,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countOwnNotifications = `-- name: CountOwnNotifications :one
 SELECT count(*)
 FROM inbox_recipients rc
@@ -73,12 +134,47 @@ func (q *Queries) CountSentMessages(ctx context.Context, now time.Time) (int64, 
 	return count, err
 }
 
+const deferNotificationMail = `-- name: DeferNotificationMail :exec
+UPDATE notification_mail_outbox SET next_attempt_at = $1 WHERE id = $2
+`
+
+type DeferNotificationMailParams struct {
+	NextAttemptAt time.Time
+	ID            uuid.UUID
+}
+
+func (q *Queries) DeferNotificationMail(ctx context.Context, arg DeferNotificationMailParams) error {
+	_, err := q.db.Exec(ctx, deferNotificationMail, arg.NextAttemptAt, arg.ID)
+	return err
+}
+
 const deleteExpiredNotifications = `-- name: DeleteExpiredNotifications :execrows
 DELETE FROM inbox_notifications WHERE expires_at <= $1
 `
 
 func (q *Queries) DeleteExpiredNotifications(ctx context.Context, now time.Time) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteExpiredNotifications, now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteNotificationMail = `-- name: DeleteNotificationMail :exec
+DELETE FROM notification_mail_outbox WHERE id = $1
+`
+
+func (q *Queries) DeleteNotificationMail(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteNotificationMail, id)
+	return err
+}
+
+const deleteNotificationMailsCreatedBefore = `-- name: DeleteNotificationMailsCreatedBefore :execrows
+DELETE FROM notification_mail_outbox WHERE created_at < $1
+`
+
+func (q *Queries) DeleteNotificationMailsCreatedBefore(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteNotificationMailsCreatedBefore, beforeTime)
 	if err != nil {
 		return 0, err
 	}
@@ -167,7 +263,8 @@ func (q *Queries) GetAccountPersonName(ctx context.Context, accountID uuid.UUID)
 }
 
 const getMachineNotificationFacts = `-- name: GetMachineNotificationFacts :one
-SELECT m.id, m.name AS machine_name, r.id AS run_id, r.display_id AS run_display_id, j.operator_person_id
+SELECT m.id, m.name AS machine_name, r.id AS run_id, r.display_id AS run_display_id, j.operator_person_id,
+       j.customer_person_id, j.customer_organization_id
 FROM machines m
 LEFT JOIN machine_runs r ON r.id = (
     SELECT x.id
@@ -181,11 +278,13 @@ WHERE m.id = $1
 `
 
 type GetMachineNotificationFactsRow struct {
-	ID               uuid.UUID
-	MachineName      string
-	RunID            *uuid.UUID
-	RunDisplayID     *string
-	OperatorPersonID *uuid.UUID
+	ID                     uuid.UUID
+	MachineName            string
+	RunID                  *uuid.UUID
+	RunDisplayID           *string
+	OperatorPersonID       *uuid.UUID
+	CustomerPersonID       *uuid.UUID
+	CustomerOrganizationID *uuid.UUID
 }
 
 // The machine and the operator of the run that is printing on it right now, if any.
@@ -198,8 +297,28 @@ func (q *Queries) GetMachineNotificationFacts(ctx context.Context, id uuid.UUID)
 		&i.RunID,
 		&i.RunDisplayID,
 		&i.OperatorPersonID,
+		&i.CustomerPersonID,
+		&i.CustomerOrganizationID,
 	)
 	return i, err
+}
+
+const getNotificationMailAddress = `-- name: GetNotificationMailAddress :one
+SELECT COALESCE((SELECT NULLIF(btrim(p.email), '') FROM people p WHERE p.id = $1),
+                (SELECT NULLIF(btrim(o.contact_email), '') FROM organizations o WHERE o.id = $2), '')::text AS address
+`
+
+type GetNotificationMailAddressParams struct {
+	PersonID       *uuid.UUID
+	OrganizationID *uuid.UUID
+}
+
+// The address is read only when the mail is sent; a deleted person or organization yields none.
+func (q *Queries) GetNotificationMailAddress(ctx context.Context, arg GetNotificationMailAddressParams) (string, error) {
+	row := q.db.QueryRow(ctx, getNotificationMailAddress, arg.PersonID, arg.OrganizationID)
+	var address string
+	err := row.Scan(&address)
+	return address, err
 }
 
 const getOpenDayFacts = `-- name: GetOpenDayFacts :one
@@ -267,25 +386,28 @@ func (q *Queries) GetPrinterErrorCodeFacts(ctx context.Context, arg GetPrinterEr
 	return i, err
 }
 
-const getPrinterNotificationPolicy = `-- name: GetPrinterNotificationPolicy :one
-SELECT error_role_id, error_min_severity FROM printer_notification_settings WHERE singleton
+const getPrinterNotificationRule = `-- name: GetPrinterNotificationRule :one
+SELECT event, notify_operator, notify_recipient, role_id, email, min_severity
+FROM printer_notification_rules WHERE event = $1
 `
 
-type GetPrinterNotificationPolicyRow struct {
-	ErrorRoleID      *uuid.UUID
-	ErrorMinSeverity string
-}
-
-func (q *Queries) GetPrinterNotificationPolicy(ctx context.Context) (GetPrinterNotificationPolicyRow, error) {
-	row := q.db.QueryRow(ctx, getPrinterNotificationPolicy)
-	var i GetPrinterNotificationPolicyRow
-	err := row.Scan(&i.ErrorRoleID, &i.ErrorMinSeverity)
+func (q *Queries) GetPrinterNotificationRule(ctx context.Context, event string) (PrinterNotificationRule, error) {
+	row := q.db.QueryRow(ctx, getPrinterNotificationRule, event)
+	var i PrinterNotificationRule
+	err := row.Scan(
+		&i.Event,
+		&i.NotifyOperator,
+		&i.NotifyRecipient,
+		&i.RoleID,
+		&i.Email,
+		&i.MinSeverity,
+	)
 	return i, err
 }
 
 const getRunNotificationFacts = `-- name: GetRunNotificationFacts :one
 SELECT r.id, r.display_id, r.outcome, r.state, m.name AS machine_name,
-       j.id AS job_id, j.title AS job_title, j.operator_person_id
+       j.id AS job_id, j.title AS job_title, j.operator_person_id, j.customer_person_id, j.customer_organization_id
 FROM machine_runs r
 JOIN machines m ON m.id = r.machine_id
 LEFT JOIN machine_jobs j ON j.id = r.job_id
@@ -293,14 +415,16 @@ WHERE r.id = $1
 `
 
 type GetRunNotificationFactsRow struct {
-	ID               uuid.UUID
-	DisplayID        string
-	Outcome          *string
-	State            *string
-	MachineName      string
-	JobID            *uuid.UUID
-	JobTitle         *string
-	OperatorPersonID *uuid.UUID
+	ID                     uuid.UUID
+	DisplayID              string
+	Outcome                *string
+	State                  *string
+	MachineName            string
+	JobID                  *uuid.UUID
+	JobTitle               *string
+	OperatorPersonID       *uuid.UUID
+	CustomerPersonID       *uuid.UUID
+	CustomerOrganizationID *uuid.UUID
 }
 
 func (q *Queries) GetRunNotificationFacts(ctx context.Context, id uuid.UUID) (GetRunNotificationFactsRow, error) {
@@ -315,6 +439,8 @@ func (q *Queries) GetRunNotificationFacts(ctx context.Context, id uuid.UUID) (Ge
 		&i.JobID,
 		&i.JobTitle,
 		&i.OperatorPersonID,
+		&i.CustomerPersonID,
+		&i.CustomerOrganizationID,
 	)
 	return i, err
 }
@@ -457,6 +583,34 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 	return i, err
 }
 
+const insertNotificationMail = `-- name: InsertNotificationMail :exec
+INSERT INTO notification_mail_outbox (id, kind, person_id, organization_id, subject, body, link)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+`
+
+type InsertNotificationMailParams struct {
+	ID             uuid.UUID
+	Kind           string
+	PersonID       *uuid.UUID
+	OrganizationID *uuid.UUID
+	Subject        string
+	Body           string
+	Link           *string
+}
+
+func (q *Queries) InsertNotificationMail(ctx context.Context, arg InsertNotificationMailParams) error {
+	_, err := q.db.Exec(ctx, insertNotificationMail,
+		arg.ID,
+		arg.Kind,
+		arg.PersonID,
+		arg.OrganizationID,
+		arg.Subject,
+		arg.Body,
+		arg.Link,
+	)
+	return err
+}
+
 const insertNotificationRoles = `-- name: InsertNotificationRoles :exec
 INSERT INTO inbox_notification_roles (notification_id, role_id)
 SELECT $1::uuid, role_id FROM unnest($2::text[]::uuid[]) AS role_id
@@ -587,6 +741,37 @@ func (q *Queries) ListEnabledAccountIDsWithPermission(ctx context.Context, arg L
 	return items, nil
 }
 
+const listEnabledAccountsOfPeople = `-- name: ListEnabledAccountsOfPeople :many
+SELECT id, person_id FROM accounts
+WHERE person_id = ANY($1::text[]::uuid[]) AND status = 'enabled'
+ORDER BY id
+`
+
+type ListEnabledAccountsOfPeopleRow struct {
+	ID       uuid.UUID
+	PersonID uuid.UUID
+}
+
+func (q *Queries) ListEnabledAccountsOfPeople(ctx context.Context, personIds []string) ([]ListEnabledAccountsOfPeopleRow, error) {
+	rows, err := q.db.Query(ctx, listEnabledAccountsOfPeople, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEnabledAccountsOfPeopleRow{}
+	for rows.Next() {
+		var i ListEnabledAccountsOfPeopleRow
+		if err := rows.Scan(&i.ID, &i.PersonID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEnabledStaffingAccountIDs = `-- name: ListEnabledStaffingAccountIDs :many
 SELECT DISTINCT a.id
 FROM accounts a
@@ -710,6 +895,31 @@ func (q *Queries) ListOwnNotifications(ctx context.Context, arg ListOwnNotificat
 	return items, nil
 }
 
+const listPersonIDsByRole = `-- name: ListPersonIDsByRole :many
+SELECT DISTINCT person_id FROM person_roles WHERE role_id = $1 ORDER BY person_id
+`
+
+// Everyone holding the role, with or without an account.
+func (q *Queries) ListPersonIDsByRole(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPersonIDsByRole, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSentMessages = `-- name: ListSentMessages :many
 SELECT n.id, n.title, n.body, n.link, n.created_at, n.expires_at,
        p.first_name AS sender_first_name, p.last_name AS sender_last_name,
@@ -812,6 +1022,17 @@ func (q *Queries) ListUnassignedSupervisorAccountIDs(ctx context.Context, arg Li
 		return nil, err
 	}
 	return items, nil
+}
+
+const mailDeliveryEnabled = `-- name: MailDeliveryEnabled :one
+SELECT COALESCE((SELECT enabled FROM mail_configuration LIMIT 1), false)::boolean
+`
+
+func (q *Queries) MailDeliveryEnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, mailDeliveryEnabled)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const markAllOwnNotificationsRead = `-- name: MarkAllOwnNotificationsRead :execrows

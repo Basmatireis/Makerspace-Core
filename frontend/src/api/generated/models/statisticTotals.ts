@@ -27,6 +27,14 @@ export interface StatisticTotals {
      * @minimum 0
      */
   jobs: number;
+  /** Effective price of the period's ended jobs that no order item refers to. */
+  notBilled: Money;
+  /** How much price adjustments lowered the calculated price of the period's jobs. */
+  discounts: Money;
+  /** Time runs occupied the machines that are not retired, as a percentage of the period's hours times their number. */
+  utilization: Decimal;
+  /** The same for the hours of scheduled open days; 0 without open days. */
+  openDayUtilization: Decimal;
   /** Job runtime; a running job counts until now. */
   runtimeHours: Decimal;
   /** Sum of effective job prices. */

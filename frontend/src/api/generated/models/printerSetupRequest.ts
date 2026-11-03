@@ -30,6 +30,13 @@ export interface PrinterSetupRequest {
   expectedVersion: number | null;
   enabled: boolean;
   model: PrinterModel | null;
+  /**
+     * How many nozzles the printer has; omitted or null keeps the stored count (1 for a new profile). Every nozzleIndex must be at most this (422 validation_failed).
+     * @minimum 1
+     * @maximum 8
+     * @nullable
+     */
+  nozzleCount?: number | null;
   /** @maxItems 32 */
   inputUnits: PrinterSetupInputUnit[];
 }

@@ -13,8 +13,9 @@ RETURNING *;
 SELECT machine_id FROM printer_profiles WHERE enabled ORDER BY machine_id;
 
 -- name: CreatePrinterInputUnit :one
-INSERT INTO printer_input_units (id, machine_id, name, position, nozzle, external_identifier)
-VALUES (sqlc.arg(id), sqlc.arg(machine_id), sqlc.arg(name), sqlc.arg(position), sqlc.narg(nozzle), sqlc.narg(external_identifier)) RETURNING *;
+INSERT INTO printer_input_units (id, machine_id, name, position, nozzle, external_identifier, nozzle_index)
+VALUES (sqlc.arg(id), sqlc.arg(machine_id), sqlc.arg(name), sqlc.arg(position), sqlc.narg(nozzle), sqlc.narg(external_identifier),
+        COALESCE(sqlc.narg(nozzle_index)::integer, 1)) RETURNING *;
 
 -- name: ListPrinterInputUnits :many
 SELECT * FROM printer_input_units WHERE machine_id=sqlc.arg(machine_id) ORDER BY position, id;
@@ -28,8 +29,9 @@ UPDATE printer_input_units SET name=sqlc.arg(name), position=sqlc.arg(position),
 WHERE id=sqlc.arg(id) AND version=sqlc.arg(expected_version) RETURNING *;
 
 -- name: CreatePrinterSlot :one
-INSERT INTO printer_slots (id, input_unit_id, name, position, external_identifier, status)
-VALUES (sqlc.arg(id), sqlc.arg(input_unit_id), sqlc.arg(name), sqlc.arg(position), sqlc.narg(external_identifier), sqlc.arg(status)) RETURNING *;
+INSERT INTO printer_slots (id, input_unit_id, name, position, external_identifier, status, nozzle_index)
+VALUES (sqlc.arg(id), sqlc.arg(input_unit_id), sqlc.arg(name), sqlc.arg(position), sqlc.narg(external_identifier), sqlc.arg(status),
+        COALESCE(sqlc.narg(nozzle_index)::integer, (SELECT u.nozzle_index FROM printer_input_units u WHERE u.id = sqlc.arg(input_unit_id)), 1)) RETURNING *;
 
 -- name: GetPrinterSlot :one
 SELECT sl.*, u.machine_id, u.name AS input_unit_name,
@@ -83,10 +85,11 @@ LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 SELECT * FROM printer_profiles WHERE machine_id=sqlc.arg(machine_id) FOR UPDATE;
 
 -- name: CreatePrinterProfile :one
-INSERT INTO printer_profiles (machine_id, enabled, model) VALUES (sqlc.arg(machine_id), sqlc.arg(enabled), sqlc.narg(model)) RETURNING *;
+INSERT INTO printer_profiles (machine_id, enabled, model, nozzle_count)
+VALUES (sqlc.arg(machine_id), sqlc.arg(enabled), sqlc.narg(model), sqlc.arg(nozzle_count)) RETURNING *;
 
 -- name: UpdatePrinterProfileSetup :one
-UPDATE printer_profiles SET enabled=sqlc.arg(enabled), model=sqlc.narg(model), version=version+1, updated_at=now()
+UPDATE printer_profiles SET enabled=sqlc.arg(enabled), model=sqlc.narg(model), nozzle_count=sqlc.arg(nozzle_count), version=version+1, updated_at=now()
 WHERE machine_id=sqlc.arg(machine_id) RETURNING *;
 
 -- name: ListPrinterInputUnitsForUpdate :many
@@ -111,14 +114,14 @@ WHERE input_unit_id IN (SELECT id FROM printer_input_units WHERE machine_id=sqlc
 
 -- name: ApplyPrinterInputUnitSetup :exec
 UPDATE printer_input_units SET name=sqlc.arg(name), position=sqlc.arg(position), nozzle=sqlc.narg(nozzle),
-    external_identifier=sqlc.narg(external_identifier), enabled=sqlc.arg(enabled),
+    external_identifier=sqlc.narg(external_identifier), enabled=sqlc.arg(enabled), nozzle_index=sqlc.arg(nozzle_index),
     version=version+CASE WHEN sqlc.arg(bump)::boolean THEN 1 ELSE 0 END,
     updated_at=CASE WHEN sqlc.arg(bump)::boolean THEN now() ELSE updated_at END
 WHERE id=sqlc.arg(id);
 
 -- name: ApplyPrinterSlotSetup :exec
 UPDATE printer_slots SET name=sqlc.arg(name), position=sqlc.arg(position), external_identifier=sqlc.narg(external_identifier),
-    status=sqlc.arg(status),
+    status=sqlc.arg(status), nozzle_index=sqlc.arg(nozzle_index),
     version=version+CASE WHEN sqlc.arg(bump)::boolean THEN 1 ELSE 0 END,
     updated_at=CASE WHEN sqlc.arg(bump)::boolean THEN now() ELSE updated_at END
 WHERE id=sqlc.arg(id);

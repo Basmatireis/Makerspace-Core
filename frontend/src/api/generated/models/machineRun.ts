@@ -75,7 +75,9 @@ export interface MachineRun {
   artifact?: PrintArtifactReference | null;
   /** Why consumption is (not) recorded; null for manual runs. See MachineRunConsumptionStatus. */
   consumptionStatus?: MachineRunConsumptionStatus | null;
-  /** While the run is running, its machine (status and camera) is hidden from every signage display. */
+  /** The run's own flag: while the run is running, its machine (status and camera) is hidden from every signage display, and its timelapse is never shown. */
   hiddenFromSignage: boolean;
+  /** The run's job is hidden from signage, which hides the run as well whatever its own flag says. False without a job. */
+  jobHiddenFromSignage: boolean;
   version: Version;
 }

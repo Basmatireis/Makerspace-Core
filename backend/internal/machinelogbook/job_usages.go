@@ -6,6 +6,7 @@ import (
 	"errors"
 	"sort"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
@@ -23,6 +24,7 @@ type parsedUsage struct {
 	SpoolID              *uuid.UUID
 	Ownership            string
 	ExternalMaterialName *string
+	MaterialTypeID       *uuid.UUID
 	QuantityBasis        string
 	Quantity             decimal.Decimal
 	UsageID              uuid.UUID
@@ -80,8 +82,8 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 		}
 		switch input.Ownership {
 		case OwnershipMakerspace:
-			if input.MaterialID == uuid.Nil || input.ExternalMaterialName != nil {
-				return nil, apperror.Invalid("makerspace usage requires a material")
+			if input.MaterialID == uuid.Nil || input.ExternalMaterialName != nil || input.Label != nil || input.MaterialTypeID != nil {
+				return nil, apperror.Invalid("makerspace usage requires a material and takes no label or material type")
 			}
 			key := "material/" + input.MaterialID.String()
 			if input.SpoolID != nil {
@@ -92,10 +94,20 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 			}
 			seen[key] = true
 		case OwnershipExternal:
-			if input.SpoolID != nil || optional.Trimmed(input.ExternalMaterialName) == nil {
-				return nil, apperror.Invalid("external usage requires a material description and cannot use a spool")
+			if input.SpoolID != nil {
+				return nil, apperror.Invalid("material the recipient brought cannot use a spool")
 			}
-			input.ExternalMaterialName = optional.Trimmed(input.ExternalMaterialName)
+			label := optional.Trimmed(input.ExternalMaterialName)
+			if input.Label != nil {
+				label = optional.Trimmed(input.Label)
+				if label == nil || utf8.RuneCountInString(*label) > MaxUsageLabelLength {
+					return nil, apperror.Invalid("label must be 1 to 120 characters")
+				}
+			}
+			if label != nil && utf8.RuneCountInString(*label) > maxExternalMaterialNameLength {
+				return nil, apperror.Invalid("externalMaterialName must be at most 200 characters")
+			}
+			input.ExternalMaterialName = label
 		default:
 			return nil, apperror.Invalid("invalid filament ownership")
 		}
@@ -115,6 +127,7 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 				SpoolID:              input.SpoolID,
 				Ownership:            string(input.Ownership),
 				ExternalMaterialName: input.ExternalMaterialName,
+				MaterialTypeID:       input.MaterialTypeID,
 				QuantityBasis:        string(input.QuantityBasis),
 				Quantity:             quantity,
 				UsageID:              ids.New(),
@@ -199,6 +212,9 @@ func (s *Service) insertUsages(
 	runID uuid.UUID,
 	items []parsedUsage,
 ) error {
+	if err := validateOwnMaterial(ctx, q, items); err != nil {
+		return err
+	}
 	for i := range items {
 		params := machinelogbookdb.InsertRunUsageParams{
 			ID:                   items[i].UsageID,
@@ -224,6 +240,14 @@ func (s *Service) insertUsages(
 			return databaseError(err)
 		}
 		items[i].UsageID = row.ID
+		if items[i].MaterialTypeID != nil {
+			if err = q.SetRunUsageMaterialType(
+				ctx,
+				machinelogbookdb.SetRunUsageMaterialTypeParams{ID: row.ID, MaterialTypeID: items[i].MaterialTypeID},
+			); err != nil {
+				return databaseError(err)
+			}
+		}
 	}
 	return nil
 }
@@ -272,4 +296,48 @@ func (s *Service) consumeUsages(
 		}
 	}
 	return nil
+}
+
+// MaxUsageLabelLength is the longest label of material the recipient brought; the older externalMaterialName field
+// keeps its limit of maxExternalMaterialNameLength.
+const (
+	MaxUsageLabelLength           = 120
+	maxExternalMaterialNameLength = 200
+)
+
+// validateOwnMaterial checks material the recipient brought: a named material type must exist, and an article given
+// as well must be of that type.
+func validateOwnMaterial(ctx context.Context, q *machinelogbookdb.Queries, items []parsedUsage) error {
+	for _, item := range items {
+		if UsageOwnership(item.Ownership) != OwnershipExternal || item.MaterialTypeID == nil {
+			continue
+		}
+		exists, err := q.MaterialTypeExists(ctx, *item.MaterialTypeID)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return apperror.Invalid("unknown material type")
+		}
+		if item.MaterialID != nil {
+			typeID, err := q.GetMaterialTypeOfMaterial(ctx, *item.MaterialID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return apperror.Invalid("unknown material")
+			}
+			if err != nil {
+				return err
+			}
+			if typeID != *item.MaterialTypeID {
+				return apperror.Invalid("the material is not of the given material type")
+			}
+		}
+	}
+	return nil
+}
+
+// forceActualBasis marks the material of a manual run as measured: staff enter what was used, never an estimate.
+func forceActualBasis(items []parsedUsage) {
+	for i := range items {
+		items[i].QuantityBasis = string(QuantityBasisActual)
+	}
 }

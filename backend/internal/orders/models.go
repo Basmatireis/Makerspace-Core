@@ -5,6 +5,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // Actor is the display name of the person behind a recorded action. It carries no other personal data.
@@ -172,6 +173,7 @@ type Order struct {
 	CreatedAt                      time.Time         `json:"createdAt"`
 	UpdatedAt                      time.Time         `json:"updatedAt"`
 	CreatedBy                      *Actor            `json:"createdBy"`
+	Attention                      []OrderAttention  `json:"attention"`
 }
 
 type OrderPayment struct {
@@ -391,4 +393,55 @@ type CashRegister struct {
 	Deposits    string     `json:"deposits"`
 	Expected    string     `json:"expected"`
 	To          *time.Time `json:"to"`
+}
+
+// OrderAttentionCode names something on an order that needs someone's attention.
+type OrderAttentionCode string
+
+const (
+	AttentionBalanceOverdue     OrderAttentionCode = "balance_overdue"
+	AttentionSourceChanged      OrderAttentionCode = "source_changed"
+	AttentionInvoiceRequestOpen OrderAttentionCode = "invoice_request_open"
+)
+
+// OrderAttention is one reason to look at an order, with a short English message for people.
+type OrderAttention struct {
+	Code    OrderAttentionCode `json:"code"`
+	Message string             `json:"message"`
+}
+
+// BalanceOverdueAfter is how long after finalization an unpaid balance counts as overdue.
+const BalanceOverdueAfter = 14 * 24 * time.Hour
+
+// orderAttention derives the attention flags of a loaded order. finalizedAt is the time it was finalized, if it was.
+func orderAttention(order Order, finalizedAt *time.Time, now time.Time) []OrderAttention {
+	result := []OrderAttention{}
+	if order.Status == OrderFinalized && finalizedAt != nil && now.Sub(*finalizedAt) > BalanceOverdueAfter {
+		if outstanding, err := decimal.NewFromString(order.OutstandingAmount); err == nil && outstanding.IsPositive() {
+			result = append(result, OrderAttention{
+				Code:    AttentionBalanceOverdue,
+				Message: "EUR " + order.OutstandingAmount + " is unpaid for more than 14 days.",
+			})
+		}
+	}
+	for _, item := range order.Items {
+		if item.RemovedAt == nil && item.SourceChanged {
+			result = append(result, OrderAttention{Code: AttentionSourceChanged, Message: "A job changed after it was charged."})
+			break
+		}
+	}
+	if state := order.ActiveExternalRequestState; state != nil {
+		switch *state {
+		case InvoiceDraft:
+			result = append(result, OrderAttention{Code: AttentionInvoiceRequestOpen, Message: "The invoice request is a draft."})
+		case InvoiceSubmitted:
+			result = append(result, OrderAttention{Code: AttentionInvoiceRequestOpen, Message: "The invoice request awaits approval."})
+		case InvoiceCancellationRequested:
+			result = append(result, OrderAttention{
+				Code:    AttentionInvoiceRequestOpen,
+				Message: "The invoice cancellation awaits confirmation.",
+			})
+		}
+	}
+	return result
 }

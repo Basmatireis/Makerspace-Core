@@ -264,12 +264,27 @@ func (s *Service) periodTotals(
 	if err != nil {
 		return StatisticTotals{}, err
 	}
+	billing, err := q.StatisticBillingTotals(
+		ctx,
+		machinelogbookdb.StatisticBillingTotalsParams{FromTime: from, ToTime: to},
+	)
+	if err != nil {
+		return StatisticTotals{}, err
+	}
+	usage, err := machineUtilization(ctx, q, from, to, now)
+	if err != nil {
+		return StatisticTotals{}, err
+	}
 	return StatisticTotals{
-		Jobs:         row.Jobs,
-		RuntimeHours: decimalString(row.RuntimeHours),
-		Charges:      decimalString(row.Charges),
-		MaterialCost: decimalString(row.MaterialCost),
-		FailureRate:  decimalString(row.FailureRate),
+		Jobs:               row.Jobs,
+		RuntimeHours:       decimalString(row.RuntimeHours),
+		Charges:            decimalString(row.Charges),
+		MaterialCost:       decimalString(row.MaterialCost),
+		FailureRate:        decimalString(row.FailureRate),
+		NotBilled:          decimalString(billing.NotBilled),
+		Discounts:          decimalString(billing.Discounts),
+		Utilization:        usage.total.String(),
+		OpenDayUtilization: usage.openDayTotal.String(),
 	}, nil
 }
 
@@ -352,6 +367,10 @@ func (s *Service) fillPeriodStatistics(
 	for _, row := range machines {
 		totalRuntime = totalRuntime.Add(decimalFromNumeric(row.RuntimeHours))
 	}
+	usage, err := machineUtilization(ctx, q, from, to, now)
+	if err != nil {
+		return err
+	}
 	result.Machines = make([]StatisticMachine, 0, len(machines))
 	for _, row := range machines {
 		share := decimal.Zero
@@ -368,11 +387,13 @@ func (s *Service) fillPeriodStatistics(
 				RuntimeHours: decimalString(
 					row.RuntimeHours,
 				),
-				FailureRate:  decimalString(row.FailureRate),
-				Charges:      decimalString(row.Charges),
-				RuntimeShare: share.String(),
+				FailureRate:        decimalString(row.FailureRate),
+				Charges:            decimalString(row.Charges),
+				RuntimeShare:       share.String(),
+				Utilization:        usage.machine[row.MachineID].String(),
+				OpenDayUtilization: usage.openDay[row.MachineID].String(),
 			},
 		)
 	}
-	return nil
+	return s.fillStatisticsDetail(ctx, q, from, to, now, &result.StatisticsDetail)
 }

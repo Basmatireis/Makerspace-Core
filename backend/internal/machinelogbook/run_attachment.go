@@ -73,6 +73,9 @@ func (s *Service) CreateJobFromRun(
 	if err != nil {
 		return MachineJob{}, err
 	}
+	if err = setJobSignageHidden(ctx, q, job.ID, input.HiddenFromSignage); err != nil {
+		return MachineJob{}, err
+	}
 	if _, err = q.AssignRunToJob(
 		ctx,
 		machinelogbookdb.AssignRunToJobParams{JobID: &job.ID, ID: runID, MachineID: run.MachineID},
@@ -94,7 +97,7 @@ func (s *Service) CreateJobFromRun(
 		"machine_job",
 		job.ID,
 		requestID,
-		[]string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "pricingSnapshot"},
+		[]string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "pricingSnapshot", "hiddenFromSignage"},
 	); err != nil {
 		return MachineJob{}, err
 	}
@@ -107,13 +110,15 @@ func (s *Service) CreateJobFromRun(
 // AttachRun attaches an unassigned recorded run to a job on the same machine.
 // With replaceManualRuns the job's manual runs are marked replaced and their
 // material is reversed with compensating transactions, so the recorded run
-// stands in for the manually entered work.
+// stands in for the manually entered work. A non-nil hidden sets the job's
+// signage flag in the same transaction.
 func (s *Service) AttachRun(
 	ctx context.Context,
 	p authorization.Principal,
 	runID, jobID uuid.UUID,
 	replaceManualRuns bool,
 	expectedJobVersion int64,
+	hidden *bool,
 	requestID *uuid.UUID,
 ) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
@@ -173,6 +178,12 @@ func (s *Service) AttachRun(
 	}
 	if _, err = s.settleJob(ctx, q, jobID); err != nil {
 		return MachineJob{}, err
+	}
+	if err = setJobSignageHidden(ctx, q, jobID, hidden); err != nil {
+		return MachineJob{}, err
+	}
+	if hidden != nil {
+		fields = append(fields, "hiddenFromSignage")
 	}
 	if err = writeAudit(
 		ctx,

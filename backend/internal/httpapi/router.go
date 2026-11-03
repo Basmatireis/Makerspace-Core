@@ -23,6 +23,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/camerarelay"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -161,6 +162,13 @@ func NewApplicationWithRelay(
 			},
 		})
 	}
+	jobs.Add(scheduler.Job{
+		ID: "inbox.mail_delivery", Interval: inbox.MailDeliveryInterval, RunAtStart: true,
+		Run: func(ctx context.Context) (scheduler.Summary, error) {
+			sent, err := server.noticeMail.Deliver(ctx, inbox.MailDeliveryBatch)
+			return scheduler.Summary{"sent": sent}, err
+		},
+	})
 	jobs.Add(scheduler.Job{
 		ID: "privacy.retention", Interval: privacy.ScheduledInterval, RunAtStart: true,
 		Enabled: func(ctx context.Context) (bool, time.Duration, error) {

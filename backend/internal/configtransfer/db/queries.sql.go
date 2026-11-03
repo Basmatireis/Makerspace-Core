@@ -674,7 +674,7 @@ func (q *Queries) ListPricingGroups(ctx context.Context) ([]ListPricingGroupsRow
 }
 
 const listPrinterInputUnits = `-- name: ListPrinterInputUnits :many
-SELECT id, machine_id, name, position, nozzle, external_identifier, enabled
+SELECT id, machine_id, name, position, nozzle, external_identifier, enabled, nozzle_index
 FROM printer_input_units
 ORDER BY machine_id, position, id
 `
@@ -687,6 +687,7 @@ type ListPrinterInputUnitsRow struct {
 	Nozzle             *string
 	ExternalIdentifier *string
 	Enabled            bool
+	NozzleIndex        int32
 }
 
 func (q *Queries) ListPrinterInputUnits(ctx context.Context) ([]ListPrinterInputUnitsRow, error) {
@@ -706,6 +707,7 @@ func (q *Queries) ListPrinterInputUnits(ctx context.Context) ([]ListPrinterInput
 			&i.Nozzle,
 			&i.ExternalIdentifier,
 			&i.Enabled,
+			&i.NozzleIndex,
 		); err != nil {
 			return nil, err
 		}
@@ -718,14 +720,15 @@ func (q *Queries) ListPrinterInputUnits(ctx context.Context) ([]ListPrinterInput
 }
 
 const listPrinterProfiles = `-- name: ListPrinterProfiles :many
-SELECT machine_id, enabled, model, version FROM printer_profiles ORDER BY machine_id
+SELECT machine_id, enabled, model, version, nozzle_count FROM printer_profiles ORDER BY machine_id
 `
 
 type ListPrinterProfilesRow struct {
-	MachineID uuid.UUID
-	Enabled   bool
-	Model     *string
-	Version   int64
+	MachineID   uuid.UUID
+	Enabled     bool
+	Model       *string
+	Version     int64
+	NozzleCount int32
 }
 
 func (q *Queries) ListPrinterProfiles(ctx context.Context) ([]ListPrinterProfilesRow, error) {
@@ -742,6 +745,7 @@ func (q *Queries) ListPrinterProfiles(ctx context.Context) ([]ListPrinterProfile
 			&i.Enabled,
 			&i.Model,
 			&i.Version,
+			&i.NozzleCount,
 		); err != nil {
 			return nil, err
 		}
@@ -754,7 +758,7 @@ func (q *Queries) ListPrinterProfiles(ctx context.Context) ([]ListPrinterProfile
 }
 
 const listPrinterSlots = `-- name: ListPrinterSlots :many
-SELECT id, input_unit_id, name, position, external_identifier, status
+SELECT id, input_unit_id, name, position, external_identifier, status, nozzle_index
 FROM printer_slots
 ORDER BY input_unit_id, position, id
 `
@@ -766,6 +770,7 @@ type ListPrinterSlotsRow struct {
 	Position           int32
 	ExternalIdentifier *string
 	Status             string
+	NozzleIndex        int32
 }
 
 func (q *Queries) ListPrinterSlots(ctx context.Context) ([]ListPrinterSlotsRow, error) {
@@ -784,6 +789,7 @@ func (q *Queries) ListPrinterSlots(ctx context.Context) ([]ListPrinterSlotsRow, 
 			&i.Position,
 			&i.ExternalIdentifier,
 			&i.Status,
+			&i.NozzleIndex,
 		); err != nil {
 			return nil, err
 		}

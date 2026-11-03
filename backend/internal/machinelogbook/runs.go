@@ -65,7 +65,9 @@ type MachineRun struct {
 	ConsumptionStatus *ConsumptionStatus
 	// HiddenFromSignage hides the machine from signage displays while the run is running.
 	HiddenFromSignage bool
-	Version           int64
+	// JobHiddenFromSignage: the run's job is kept off signage, which hides the run whatever its own flag says.
+	JobHiddenFromSignage bool
+	Version              int64
 }
 
 // RunEvent exposes what a machine event reported, never its raw payload.
@@ -126,6 +128,8 @@ type RunJobInput struct {
 	OperatorPersonID uuid.UUID
 	Notes            *string
 	PricingGroupID   *uuid.UUID
+	// HiddenFromSignage keeps the new job off signage; nil shows it.
+	HiddenFromSignage *bool
 }
 
 var runStates = []RunState{
@@ -157,7 +161,7 @@ func usageFromRow(u machinelogbookdb.ListRunUsagesForRunsRow) MachineJobUsage {
 		SpoolID:            u.SpoolID,
 		Ownership:          UsageOwnership(u.Ownership),
 		MaterialName:       u.MaterialNameText,
-		MaterialTypeID:     u.MaterialTypeID,
+		MaterialTypeID:     firstUUID(u.MaterialTypeID, u.OwnMaterialTypeID),
 		MaterialTypeName:   u.MaterialTypeName,
 		Unit:               u.Unit,
 		Quantity:           decimalString(u.Quantity),
@@ -168,28 +172,48 @@ func usageFromRow(u machinelogbookdb.ListRunUsagesForRunsRow) MachineJobUsage {
 		EstimateQuality:    optional.Convert[EstimateQuality](u.EstimateQuality),
 		ReportRevision:     u.ReportRevision,
 		StaffCorrected:     u.StaffCorrected,
+		Label:              usageLabel(u.Ownership, u.ExternalMaterialName),
 	}
+}
+
+// firstUUID returns the first id that is set.
+func firstUUID(values ...*uuid.UUID) *uuid.UUID {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+	return nil
+}
+
+// usageLabel is the free-text label of material the recipient brought.
+func usageLabel(ownership string, name *string) *string {
+	if UsageOwnership(ownership) != OwnershipExternal {
+		return nil
+	}
+	return name
 }
 
 func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {
 	started := row.RunStartedAt.UTC()
 	run := MachineRun{
-		ID:                 row.ID,
-		DisplayID:          row.DisplayID,
-		MachineID:          row.MachineID,
-		MachineName:        row.MachineName,
-		Source:             RunSource(row.Source),
-		State:              RunState(row.RunState),
-		ConnectorName:      row.ConnectorName,
-		FileName:           row.FileName,
-		StartedAt:          started,
-		Outcome:            optional.Convert[RunOutcome](row.Outcome),
-		UsagesFromMachine:  row.UsagesFromMachine,
-		HiddenFromSignage:  row.HiddenFromSignage,
-		Version:            row.Version,
-		Usages:             []MachineJobUsage{},
-		Measures:           RunMeasures{},
-		ReportedUsageItems: []RunReportedUsageItem{},
+		ID:                   row.ID,
+		DisplayID:            row.DisplayID,
+		MachineID:            row.MachineID,
+		MachineName:          row.MachineName,
+		Source:               RunSource(row.Source),
+		State:                RunState(row.RunState),
+		ConnectorName:        row.ConnectorName,
+		FileName:             row.FileName,
+		StartedAt:            started,
+		Outcome:              optional.Convert[RunOutcome](row.Outcome),
+		UsagesFromMachine:    row.UsagesFromMachine,
+		HiddenFromSignage:    row.HiddenFromSignage,
+		JobHiddenFromSignage: row.JobHiddenFromSignage,
+		Version:              row.Version,
+		Usages:               []MachineJobUsage{},
+		Measures:             RunMeasures{},
+		ReportedUsageItems:   []RunReportedUsageItem{},
 	}
 	if row.ArtifactID != nil && row.ArtifactParserStatus != nil {
 		run.Artifact = &ArtifactReference{

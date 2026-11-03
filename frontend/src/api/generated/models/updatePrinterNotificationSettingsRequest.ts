@@ -18,12 +18,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PrinterErrorSeverity } from './printerErrorSeverity';
-import type { UUIDv7 } from './uUIDv7';
+import type { PrinterNotificationRuleInput } from './printerNotificationRuleInput';
 import type { Version } from './version';
 
 export interface UpdatePrinterNotificationSettingsRequest {
-  errorRoleId: UUIDv7 | null;
-  errorMinSeverity: PrinterErrorSeverity;
+  /**
+     * @minItems 1
+     * @maxItems 3
+     */
+  events: PrinterNotificationRuleInput[];
   expectedVersion: Version;
 }

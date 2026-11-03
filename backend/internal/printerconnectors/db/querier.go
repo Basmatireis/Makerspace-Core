@@ -89,12 +89,15 @@ type Querier interface {
 	ListPrinterErrorCodesByCodes(ctx context.Context, codes []string) ([]PrinterErrorCode, error)
 	// Open errors first (newest first), then errors resolved within the window, newest first.
 	ListPrinterErrorOccurrences(ctx context.Context, arg ListPrinterErrorOccurrencesParams) ([]ListPrinterErrorOccurrencesRow, error)
+	ListPrinterNotificationRules(ctx context.Context) ([]ListPrinterNotificationRulesRow, error)
 	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)
 	LockActiveSpoolByNFCTag(ctx context.Context, tagUid string) (uuid.UUID, error)
 	LockAvailableSlotByExternalIDs(ctx context.Context, arg LockAvailableSlotByExternalIDsParams) (uuid.UUID, error)
 	LockEventSource(ctx context.Context, lockKey string) error
 	LockOpenMountForSlot(ctx context.Context, slotID uuid.UUID) (LockOpenMountForSlotRow, error)
 	LockOpenMountForSpool(ctx context.Context, spoolID uuid.UUID) (LockOpenMountForSpoolRow, error)
+	// Bumps the version when it still matches; the rules change in the same transaction.
+	LockPrinterNotificationSettings(ctx context.Context, expectedVersion int64) (LockPrinterNotificationSettingsRow, error)
 	MachineExists(ctx context.Context, id uuid.UUID) (bool, error)
 	NextPrintSequence(ctx context.Context) (int64, error)
 	// Keeps the newest keep_count entries of the connector that are not older than cutoff.
@@ -124,7 +127,6 @@ type Querier interface {
 	UpdateConnector(ctx context.Context, arg UpdateConnectorParams) (PrinterConnector, error)
 	UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (MachineRun, error)
 	UpdateObservedRunFacts(ctx context.Context, arg UpdateObservedRunFactsParams) error
-	UpdatePrinterNotificationSettings(ctx context.Context, arg UpdatePrinterNotificationSettingsParams) (PrinterNotificationSetting, error)
 	// Fetched meanings fill gaps and refresh earlier fetched rows; a row someone wrote here stays as it is.
 	UpsertFetchedPrinterErrorCode(ctx context.Context, arg UpsertFetchedPrinterErrorCodeParams) (int64, error)
 	// A meaning written here is a manual one, whatever the row was before.
@@ -132,6 +134,7 @@ type Querier interface {
 	// inserted is true when this is the first observation of a still open occurrence.
 	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) (bool, error)
 	UpsertPrinterLiveStatus(ctx context.Context, arg UpsertPrinterLiveStatusParams) error
+	UpsertPrinterNotificationRule(ctx context.Context, arg UpsertPrinterNotificationRuleParams) error
 }
 
 var _ Querier = (*Queries)(nil)

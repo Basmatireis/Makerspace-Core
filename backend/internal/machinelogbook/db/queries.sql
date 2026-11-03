@@ -699,14 +699,22 @@ VALUES (sqlc.arg(id), sqlc.arg(run_id), sqlc.narg(material_id), sqlc.narg(spool_
     sqlc.narg(estimation_method), sqlc.narg(calculation_version), sqlc.narg(estimate_quality), sqlc.narg(report_revision), sqlc.arg(staff_corrected)) RETURNING *;
 
 -- name: ListRunUsagesForRuns :many
-SELECT u.*, COALESCE(m.name, u.material_name, u.external_material_name) AS material_name_text,
-       m.material_type_id, COALESCE(mt.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'External' END) AS material_type_name,
-       COALESCE(m.unit, u.material_unit, 'g') AS unit
+-- Material the recipient brought may carry only a type, a label, an article or none of them; a usage of a purged
+-- article keeps its name and unit snapshot.
+SELECT u.id, u.material_id, u.quantity, u.active, u.created_at, u.updated_at, u.ownership, u.spool_id, u.external_material_name, u.quantity_basis,
+       u.source_printer_event_id, u.spool_display_id, u.run_id, u.estimation_method, u.calculation_version,
+       u.estimate_quality, u.report_revision, u.staff_corrected, u.material_name AS material_name_snapshot, u.material_unit AS material_unit_snapshot,
+       u.material_type_id AS own_material_type_id,
+       COALESCE(u.external_material_name, m.name, u.material_name, et.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'Own material' END)::text AS material_name_text,
+       m.material_type_id,
+       COALESCE(mt.name, et.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'External' END)::text AS material_type_name,
+       COALESCE(m.unit, u.material_unit, et.unit, 'g')::text AS unit
 FROM machine_run_usages u
 LEFT JOIN materials m ON m.id = u.material_id
 LEFT JOIN material_types mt ON mt.id = m.material_type_id
+LEFT JOIN material_types et ON et.id = u.material_type_id
 WHERE u.run_id = ANY(sqlc.arg(run_ids)::uuid[]) AND u.active
-ORDER BY lower(COALESCE(m.name, u.material_name, u.external_material_name)), u.id;
+ORDER BY lower(COALESCE(u.external_material_name, m.name, u.material_name, et.name, 'Own material')), u.id;
 
 -- name: ListLatestReportedUsageItemsForRuns :many
 SELECT i.* FROM machine_run_reported_usage_items i
@@ -809,6 +817,7 @@ WITH runs AS (
            COALESCE(r.started_at, r.first_observed_at)::timestamptz AS run_started_at, r.ended_at, r.estimated_end_at, r.progress_percent, r.outcome,
            r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, sp.display_id AS spool_display_id,
            mat.id AS material_id, mat.name AS material_name, r.version, r.hidden_from_signage,
+           COALESCE(j.hidden_from_signage, false) AS job_hidden_from_signage,
            r.artifact_id, COALESCE(encode(pa.sha256, 'hex'), '')::text AS artifact_sha256, pa.parser_status AS artifact_parser_status,
            EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.run_id = r.id AND u.active AND u.source_printer_event_id IS NOT NULL) AS usages_from_machine
     FROM machine_runs r
@@ -825,6 +834,7 @@ WITH runs AS (
     WHERE r.deleted_at IS NULL
       AND (sqlc.narg(run_id)::uuid IS NULL OR r.id = sqlc.narg(run_id)::uuid)
       AND (sqlc.narg(job_id)::uuid IS NULL OR r.job_id = sqlc.narg(job_id)::uuid)
+      AND (sqlc.narg(item_ids)::uuid[] IS NULL OR r.id = ANY(sqlc.narg(item_ids)::uuid[]) OR r.job_id = ANY(sqlc.narg(item_ids)::uuid[]))
       AND (sqlc.arg(search)::text = '' OR r.display_id ILIKE '%' || sqlc.arg(search)::text || '%' OR r.file_name ILIKE '%' || sqlc.arg(search)::text || '%'
            OR m.name ILIKE '%' || sqlc.arg(search)::text || '%' OR j.display_id ILIKE '%' || sqlc.arg(search)::text || '%'
            OR j.title ILIKE '%' || sqlc.arg(search)::text || '%' OR mat.name ILIKE '%' || sqlc.arg(search)::text || '%'
@@ -1820,3 +1830,191 @@ WHERE id = sqlc.arg(id) AND (deleted_at IS NULL) = (sqlc.narg(deleted_at)::times
 
 -- name: PurgeInventoryTransaction :execrows
 DELETE FROM inventory_transactions WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL;
+
+-- name: SetMachineJobSignageHidden :exec
+-- The job's signage flag is presentation only: it never changes the job version, so orders do not see it as a change.
+UPDATE machine_jobs SET hidden_from_signage = sqlc.arg(hidden), updated_at = now()
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
+
+-- name: SetRunUsageMaterialType :exec
+UPDATE machine_run_usages SET material_type_id = sqlc.narg(material_type_id) WHERE id = sqlc.arg(id);
+
+-- name: MaterialTypeExists :one
+SELECT EXISTS (SELECT 1 FROM material_types WHERE id = sqlc.arg(id))::boolean;
+
+-- name: GetMaterialTypeOfMaterial :one
+SELECT material_type_id FROM materials WHERE id = sqlc.arg(id);
+
+-- name: ListJobAttentionFacts :many
+-- Whether an order item refers to each job (claimed, or an item that was not removed) and whether the claiming
+-- order's snapshot is older than the job.
+SELECT j.id AS job_id,
+       (EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = j.id)
+        OR EXISTS (SELECT 1 FROM order_items i WHERE i.source_machine_job_id = j.id AND i.removed_at IS NULL))::boolean AS on_order,
+       EXISTS (SELECT 1 FROM order_job_claims c JOIN order_items i ON i.id = c.order_item_id
+               WHERE c.machine_job_id = j.id AND i.source_job_version IS NOT NULL AND i.source_job_version <> j.version)::boolean AS order_outdated
+FROM machine_jobs j
+WHERE j.id = ANY(sqlc.arg(job_ids)::uuid[]);
+
+-- name: ListMachineAttentionFacts :many
+-- The connector of each machine's active assignment, its open printer errors and its ended runs without a job.
+SELECT m.id AS machine_id, m.status,
+       (ca.id IS NOT NULL)::boolean AS has_connector, ca.runtime_state, ca.runtime_error_code, ca.health_state, ca.last_heartbeat_at,
+       EXISTS (SELECT 1 FROM printer_error_occurrences e WHERE e.machine_id = m.id AND e.assignment_id = ca.id AND e.resolved_at IS NULL)::boolean AS printer_error_open,
+       (SELECT count(*) FROM machine_runs r
+        WHERE r.machine_id = m.id AND r.job_id IS NULL AND r.source = 'recorded' AND r.deleted_at IS NULL
+          AND r.state IS DISTINCT FROM 'running')::bigint AS unassigned_runs
+FROM machines m
+LEFT JOIN LATERAL (
+    SELECT a.id, a.runtime_state, a.runtime_error_code, c.health_state, c.last_heartbeat_at
+    FROM printer_connector_assignments a JOIN printer_connectors c ON c.id = a.connector_id
+    WHERE a.machine_id = m.id AND a.ended_at IS NULL AND a.enabled AND c.lifecycle = 'active'
+    ORDER BY a.activated_at DESC, a.id DESC LIMIT 1
+) ca ON true
+WHERE m.id = ANY(sqlc.arg(machine_ids)::uuid[]);
+
+-- name: StatisticUsageByWeekdayHour :many
+-- Machine time of runs per hour of the week in the makerspace's time zone (Monday = 0). Runs of jobs and unassigned
+-- recorded runs, replaced and deleted runs left out, clipped to the period; a running run counts until now.
+WITH runs AS (
+    SELECT r.id,
+           GREATEST(COALESCE(r.started_at, r.first_observed_at), sqlc.arg(from_time)::timestamptz) AS s,
+           LEAST(CASE WHEN r.source = 'manual' THEN r.ended_at ELSE COALESCE(r.ended_at, sqlc.arg(now)::timestamptz) END,
+                 sqlc.arg(now)::timestamptz, sqlc.arg(to_time)::timestamptz) AS e
+    FROM machine_runs r
+    LEFT JOIN machine_jobs j ON j.id = r.job_id
+    WHERE r.deleted_at IS NULL AND r.state IS DISTINCT FROM 'replaced' AND (r.job_id IS NULL OR j.deleted_at IS NULL)
+      AND COALESCE(r.started_at, r.first_observed_at) < sqlc.arg(to_time)::timestamptz
+), hours AS (
+    SELECT r.id, GREATEST(r.s, h) AS hs, LEAST(r.e, h + interval '1 hour') AS he
+    FROM runs r, generate_series(date_trunc('hour', r.s), r.e, interval '1 hour') AS h
+    WHERE r.e > r.s
+)
+SELECT (EXTRACT(ISODOW FROM hs AT TIME ZONE sqlc.arg(time_zone)::text)::integer - 1)::integer AS weekday,
+       EXTRACT(HOUR FROM hs AT TIME ZONE sqlc.arg(time_zone)::text)::integer AS hour,
+       count(DISTINCT id)::bigint AS runs,
+       round(sum(EXTRACT(EPOCH FROM (he - hs))) / 60.0, 2)::numeric AS minutes
+FROM hours WHERE he > hs
+GROUP BY 1, 2 ORDER BY 1, 2;
+
+-- name: StatisticJobsByOutcome :many
+SELECT (CASE WHEN s.running THEN 'unknown' ELSE COALESCE(j.outcome_override, s.derived_outcome, 'unknown') END)::text AS outcome,
+       count(*)::bigint AS jobs
+FROM machine_jobs j JOIN machine_job_run_summaries s ON s.job_id = j.id
+WHERE s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time)
+GROUP BY 1 ORDER BY 1;
+
+-- name: StatisticJobsByWeek :many
+WITH weeks AS (
+    SELECT generate_series(date_trunc('week', sqlc.arg(from_time)::timestamptz AT TIME ZONE 'UTC'),
+                           date_trunc('week', (sqlc.arg(to_time)::timestamptz - interval '1 microsecond') AT TIME ZONE 'UTC'),
+                           interval '1 week') AS week_start
+), counts AS (
+    SELECT date_trunc('week', s.started_at AT TIME ZONE 'UTC') AS week_start, count(*) AS jobs
+    FROM machine_jobs j JOIN machine_job_run_summaries s ON s.job_id = j.id
+    WHERE s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time)
+    GROUP BY 1
+)
+SELECT w.week_start::date AS week_start, COALESCE(c.jobs, 0)::bigint AS jobs
+FROM weeks w LEFT JOIN counts c ON c.week_start = w.week_start
+ORDER BY w.week_start;
+
+-- name: StatisticMaterialByMonth :many
+SELECT to_char(date_trunc('month', t.occurred_at AT TIME ZONE 'UTC'), 'YYYY-MM')::text AS month,
+       mt.id AS material_type_id, mt.name AS material_type_name, mt.unit,
+       (-sum(t.quantity_delta))::numeric AS quantity, (-sum(t.inventory_value_delta))::numeric AS cost
+FROM inventory_transactions t JOIN materials m ON m.id = t.material_id JOIN material_types mt ON mt.id = m.material_type_id
+WHERE (t.kind IN ('machine_run_consumption', 'manual_consumption') OR (t.kind = 'adjustment' AND t.adjustment_reason = 'job_corrected'))
+  AND t.occurred_at >= sqlc.arg(from_time) AND t.occurred_at < sqlc.arg(to_time)
+GROUP BY 1, mt.id, mt.name, mt.unit ORDER BY 1, lower(mt.name), mt.id;
+
+-- name: StatisticMaterialLossByType :many
+-- Inventory value consumed by failed or cancelled runs (net of their corrections) plus disposals and negative stock
+-- corrections other than job corrections.
+SELECT mt.id::text AS key, mt.name AS label, (-sum(t.inventory_value_delta))::numeric AS value
+FROM inventory_transactions t
+JOIN materials m ON m.id = t.material_id
+JOIN material_types mt ON mt.id = m.material_type_id
+LEFT JOIN machine_run_usages u ON u.id = t.run_usage_id
+LEFT JOIN machine_runs r ON r.id = u.run_id
+WHERE t.occurred_at >= sqlc.arg(from_time) AND t.occurred_at < sqlc.arg(to_time)
+  AND (((t.kind = 'machine_run_consumption' OR (t.kind = 'adjustment' AND t.adjustment_reason = 'job_corrected'))
+        AND r.outcome IN ('failed', 'cancelled'))
+       OR ((t.kind = 'disposal' OR (t.kind = 'adjustment' AND t.adjustment_reason <> 'job_corrected')) AND t.inventory_value_delta < 0))
+GROUP BY mt.id, mt.name
+HAVING sum(t.inventory_value_delta) < 0
+ORDER BY lower(mt.name), mt.id;
+
+-- name: StatisticMaterialChargesByType :many
+-- Makerspace material of the period's jobs at the material rates of each job's active pricing snapshot.
+SELECT mt.id::text AS key, mt.name AS label, round(sum(u.quantity * sr.rate), 2)::numeric AS value
+FROM machine_jobs j
+JOIN machine_job_run_summaries s ON s.job_id = j.id
+JOIN machine_runs r ON r.job_id = j.id AND r.state IS DISTINCT FROM 'replaced' AND r.deleted_at IS NULL
+JOIN machine_run_usages u ON u.run_id = r.id AND u.active AND u.ownership = 'makerspace'
+JOIN materials m ON m.id = u.material_id
+JOIN material_types mt ON mt.id = m.material_type_id
+JOIN machine_job_pricing_snapshot_rules sr
+  ON sr.snapshot_id = j.active_pricing_snapshot_id AND sr.kind = 'material' AND sr.material_type_id = mt.id AND NOT sr.missing
+WHERE s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time)
+GROUP BY mt.id, mt.name ORDER BY lower(mt.name), mt.id;
+
+-- name: StatisticPricingGroups :many
+SELECT COALESCE(ps.pricing_group_name, 'Unpriced')::text AS pricing_group_name, count(*)::bigint AS jobs,
+       COALESCE(sum(j.effective_price), 0)::numeric AS charges,
+       COALESCE(sum(GREATEST(j.calculated_price - j.effective_price, 0)), 0)::numeric AS discounts
+FROM machine_jobs j
+JOIN machine_job_run_summaries s ON s.job_id = j.id
+LEFT JOIN machine_job_pricing_snapshots ps ON ps.id = j.active_pricing_snapshot_id
+WHERE s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time)
+GROUP BY 1 ORDER BY 3 DESC, 1;
+
+-- name: StatisticPricingGroupMonths :many
+SELECT to_char(date_trunc('month', s.started_at AT TIME ZONE 'UTC'), 'YYYY-MM')::text AS month,
+       COALESCE(ps.pricing_group_name, 'Unpriced')::text AS pricing_group_name,
+       COALESCE(sum(j.effective_price), 0)::numeric AS charges
+FROM machine_jobs j
+JOIN machine_job_run_summaries s ON s.job_id = j.id
+LEFT JOIN machine_job_pricing_snapshots ps ON ps.id = j.active_pricing_snapshot_id
+WHERE s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time)
+GROUP BY 1, 2 ORDER BY 1, 2;
+
+-- name: StatisticBillingTotals :one
+-- How much price adjustments took off the period's jobs, and the effective price of its ended jobs that no order
+-- item refers to.
+SELECT COALESCE(sum(GREATEST(j.calculated_price - j.effective_price, 0)), 0)::numeric AS discounts,
+       COALESCE(sum(j.effective_price) FILTER (
+           WHERE NOT s.running AND j.effective_price > 0
+             AND NOT EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = j.id)
+             AND NOT EXISTS (SELECT 1 FROM order_items i WHERE i.source_machine_job_id = j.id AND i.removed_at IS NULL)), 0)::numeric AS not_billed
+FROM machine_jobs j JOIN machine_job_run_summaries s ON s.job_id = j.id
+WHERE s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time);
+
+-- name: StatisticMachineUtilization :many
+-- Seconds runs occupied each machine that is not retired, in the period and during its scheduled open days, plus
+-- the open-day seconds of the period. Runs of jobs and unassigned recorded runs; a running run counts until now.
+WITH runs AS (
+    SELECT r.machine_id,
+           GREATEST(COALESCE(r.started_at, r.first_observed_at), sqlc.arg(from_time)::timestamptz) AS s,
+           LEAST(CASE WHEN r.source = 'manual' THEN r.ended_at ELSE COALESCE(r.ended_at, sqlc.arg(now)::timestamptz) END,
+                 sqlc.arg(now)::timestamptz, sqlc.arg(to_time)::timestamptz) AS e
+    FROM machine_runs r
+    LEFT JOIN machine_jobs j ON j.id = r.job_id
+    WHERE r.deleted_at IS NULL AND r.state IS DISTINCT FROM 'replaced' AND (r.job_id IS NULL OR j.deleted_at IS NULL)
+      AND COALESCE(r.started_at, r.first_observed_at) < sqlc.arg(to_time)::timestamptz
+), days AS (
+    SELECT GREATEST(o.starts_at, sqlc.arg(from_time)::timestamptz) AS s,
+           LEAST(o.ends_at, sqlc.arg(to_time)::timestamptz, sqlc.arg(now)::timestamptz) AS e
+    FROM open_days o JOIN open_day_periods p ON p.id = o.period_id
+    WHERE o.status = 'scheduled' AND p.status <> 'draft'
+      AND o.starts_at < sqlc.arg(to_time)::timestamptz AND o.ends_at > sqlc.arg(from_time)::timestamptz
+)
+SELECT m.id AS machine_id,
+       COALESCE((SELECT sum(EXTRACT(EPOCH FROM (r.e - r.s))) FROM runs r WHERE r.machine_id = m.id AND r.e > r.s), 0)::numeric AS busy_seconds,
+       COALESCE((SELECT sum(EXTRACT(EPOCH FROM (LEAST(r.e, d.e) - GREATEST(r.s, d.s))))
+                 FROM runs r JOIN days d ON d.s < r.e AND d.e > r.s
+                 WHERE r.machine_id = m.id), 0)::numeric AS open_day_busy_seconds,
+       COALESCE((SELECT sum(EXTRACT(EPOCH FROM (d.e - d.s))) FROM days d WHERE d.e > d.s), 0)::numeric AS open_day_seconds
+FROM machines m
+WHERE m.status <> 'retired'
+ORDER BY m.id;

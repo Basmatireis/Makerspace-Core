@@ -35,12 +35,17 @@ export interface MachineJobUsage {
      * @nullable
      */
   spoolDisplayId?: string | null;
-  /** Kept when the article was purged (materialId null). */
+  /** The article's name (kept when the article was purged); for external material the label, else the article's or type's name, else "Own material". */
   materialName: string;
-  /** Null for material the customer brought. */
+  /** The article's type; for external material the type it was given, null when none. */
   materialTypeId?: UUIDv7 | null;
-  /** "External" for material the customer brought. */
+  /** "External" for material the customer brought without a type or article. */
   materialTypeName: string;
+  /**
+     * External material: the free-text label. Null for makerspace material.
+     * @nullable
+     */
+  label?: string | null;
   unit: MaterialUnit;
   quantity: Decimal;
   quantityBasis: QuantityBasis;

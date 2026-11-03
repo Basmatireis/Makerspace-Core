@@ -29,6 +29,12 @@ export interface PrinterProfile {
   machineName: string;
   enabled: boolean;
   model: PrinterModel | null;
+  /**
+     * How many nozzles the printer has.
+     * @minimum 1
+     * @maximum 8
+     */
+  nozzleCount: number;
   inputUnits: PrinterInputUnit[];
   slots: PrinterSlot[];
   version: Version;

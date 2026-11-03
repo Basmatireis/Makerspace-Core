@@ -20,6 +20,7 @@
  */
 import type { BillingParty } from './billingParty';
 import type { Machine } from './machine';
+import type { MachineJobAttention } from './machineJobAttention';
 import type { MachineJobOutcome } from './machineJobOutcome';
 import type { MachineJobPriceAdjustment } from './machineJobPriceAdjustment';
 import type { MachineJobPricingSnapshot } from './machineJobPricingSnapshot';
@@ -81,6 +82,10 @@ export interface MachineJob {
   priceAdjustment?: MachineJobPriceAdjustment | null;
   /** Calculated price with the price adjustment applied, rounded to cents and never below zero. */
   effectivePrice?: Money | null;
+  /** The job and all its runs are kept off signage (machine status, camera and timelapses). */
+  hiddenFromSignage: boolean;
+  /** What needs someone's attention on this job; empty when nothing does. */
+  attention: MachineJobAttention[];
   version: Version;
   createdAt: string;
   updatedAt: string;

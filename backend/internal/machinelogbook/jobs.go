@@ -25,7 +25,16 @@ type manualRunPlan struct {
 	Measures         RunMeasures
 }
 
+// manualStartSkew is how far in the future a manual run's start may lie, for clocks that run slightly apart.
+const manualStartSkew = time.Minute
+
 func planManualRun(input ManualRunInput, now time.Time) (manualRunPlan, error) {
+	if input.StartsAt.IsZero() {
+		input.StartsAt = now.UTC().Truncate(time.Second)
+	}
+	if input.StartsAt.After(now.Add(manualStartSkew)) {
+		return manualRunPlan{}, apperror.Invalid("startsAt must not be in the future")
+	}
 	if err := validateInterval(input.StartsAt, input.EndsAt); err != nil {
 		return manualRunPlan{}, err
 	}
@@ -40,6 +49,7 @@ func planManualRun(input ManualRunInput, now time.Time) (manualRunPlan, error) {
 	if err != nil {
 		return manualRunPlan{}, err
 	}
+	forceActualBasis(parsed)
 	return manualRunPlan{
 		StartsAt: input.StartsAt.UTC(),
 		EndsAt:   input.EndsAt.UTC(),
@@ -191,6 +201,9 @@ func (s *Service) CreateManualJobInTransaction(
 	if err != nil {
 		return MachineJob{}, err
 	}
+	if err = setJobSignageHidden(ctx, q, job.ID, &input.HiddenFromSignage); err != nil {
+		return MachineJob{}, err
+	}
 	if _, err = s.storeManualRun(ctx, tx, q, p, job, plan, requestID); err != nil {
 		return MachineJob{}, err
 	}
@@ -206,7 +219,7 @@ func (s *Service) CreateManualJobInTransaction(
 		"machine_job",
 		job.ID,
 		requestID,
-		[]string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "usages", "pricingSnapshot"},
+		[]string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "usages", "pricingSnapshot", "hiddenFromSignage"},
 	); err != nil {
 		return MachineJob{}, err
 	}
@@ -321,6 +334,7 @@ func (s *Service) jobFromRow(
 		PricingStatus:     PricingStatus(row.PricingStatus),
 		CalculatedPrice:   nullableDecimal(row.CalculatedPrice),
 		EffectivePrice:    nullableDecimal(row.EffectivePrice),
+		HiddenFromSignage: row.HiddenFromSignage,
 		Version:           row.Version,
 		CreatedAt:         row.CreatedAt,
 		UpdatedAt:         row.UpdatedAt,
@@ -420,7 +434,18 @@ func (s *Service) jobFromRow(
 		}
 		item.PricingSnapshot = &domain
 	}
+	if item.Attention, err = jobAttention(ctx, q, item); err != nil {
+		return MachineJob{}, err
+	}
 	return item, nil
+}
+
+// setJobSignageHidden stores the job's signage flag when one is given. It does not change the job version.
+func setJobSignageHidden(ctx context.Context, q *machinelogbookdb.Queries, jobID uuid.UUID, hidden *bool) error {
+	if hidden == nil {
+		return nil
+	}
+	return q.SetMachineJobSignageHidden(ctx, machinelogbookdb.SetMachineJobSignageHiddenParams{ID: jobID, Hidden: *hidden})
 }
 
 func (s *Service) GetJob(ctx context.Context, p authorization.Principal, id uuid.UUID) (MachineJob, error) {
@@ -647,6 +672,9 @@ func (s *Service) UpdateJobFacts(
 	if err != nil {
 		return MachineJob{}, databaseError(err)
 	}
+	if err = setJobSignageHidden(ctx, q, id, input.HiddenFromSignage); err != nil {
+		return MachineJob{}, err
+	}
 	partyChanged := !sameUUID(current.CustomerPersonID, personID) ||
 		!sameUUID(current.CustomerOrganizationID, organizationID)
 	if partyChanged || oldMachine.ProcessID != newMachine.ProcessID || input.PricingGroupID != nil {
@@ -679,7 +707,7 @@ func (s *Service) UpdateJobFacts(
 		"machine_job",
 		id,
 		requestID,
-		[]string{"machineId", "title", "customer", "operatorPersonId", "outcomeOverride", "notes", "pricing"},
+		[]string{"machineId", "title", "customer", "operatorPersonId", "outcomeOverride", "notes", "pricing", "hiddenFromSignage"},
 	); err != nil {
 		return MachineJob{}, err
 	}

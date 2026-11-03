@@ -24,6 +24,8 @@ const (
 	maxSetupSlotsPerUnit  = 16
 	maxSetupIdentifierLen = 200
 	maxSetupNameLen       = 120
+	// MaxNozzles is the most nozzles a printer profile may have.
+	MaxNozzles = 8
 )
 
 // SetupSlotInput is one desired spool slot. A nil ID creates the slot.
@@ -32,6 +34,8 @@ type SetupSlotInput struct {
 	Name               string
 	Status             SlotStatus
 	ExternalIdentifier *string
+	// NozzleIndex nil keeps the stored index; a new slot takes its unit's.
+	NozzleIndex *int
 }
 
 // SetupUnitInput is one desired spool input unit. A nil ID creates the unit.
@@ -40,7 +44,9 @@ type SetupUnitInput struct {
 	Name               string
 	Nozzle             *Nozzle
 	ExternalIdentifier *string
-	Slots              []SetupSlotInput
+	// NozzleIndex nil keeps the stored index (1 for a new unit).
+	NozzleIndex *int
+	Slots       []SetupSlotInput
 }
 
 // SetupInput is the complete desired printer setup of one machine.
@@ -50,7 +56,16 @@ type SetupInput struct {
 	ExpectedVersion int64
 	Enabled         bool
 	Model           *PrinterModel
-	InputUnits      []SetupUnitInput
+	// NozzleCount nil keeps the stored count (1 for a new profile).
+	NozzleCount *int
+	InputUnits  []SetupUnitInput
+}
+
+func validNozzle(value *int) bool { return value == nil || (*value >= 1 && *value <= MaxNozzles) }
+
+// nozzleOutOfRange answers a nozzle index above the printer's nozzle count.
+func nozzleOutOfRange() error {
+	return apperror.Invalid("every nozzleIndex must be at most the printer's nozzleCount")
 }
 
 func duplicateIdentifier(message string) error {
@@ -79,6 +94,9 @@ func normalizeSetup(input SetupInput) (SetupInput, error) {
 	if input.Model != nil && !validModel(*input.Model) {
 		return SetupInput{}, apperror.Invalid("invalid printer model")
 	}
+	if !validNozzle(input.NozzleCount) {
+		return SetupInput{}, apperror.Invalid("nozzleCount must be 1 to 8")
+	}
 	units := make([]SetupUnitInput, len(input.InputUnits))
 	seenUnitIDs := map[uuid.UUID]bool{}
 	seenSlotIDs := map[uuid.UUID]bool{}
@@ -88,6 +106,7 @@ func normalizeSetup(input SetupInput) (SetupInput, error) {
 		unit.ExternalIdentifier = clean(unit.ExternalIdentifier)
 		unit.Nozzle = clean(unit.Nozzle)
 		if !validSetupName(unit.Name) || (unit.Nozzle != nil && *unit.Nozzle != NozzleLeft && *unit.Nozzle != NozzleRight) ||
+			!validNozzle(unit.NozzleIndex) ||
 			(unit.ExternalIdentifier != nil && len(*unit.ExternalIdentifier) > maxSetupIdentifierLen) || len(unit.Slots) > maxSetupSlotsPerUnit {
 			return SetupInput{}, apperror.Invalid("invalid spool input unit")
 		}
@@ -109,6 +128,7 @@ func normalizeSetup(input SetupInput) (SetupInput, error) {
 			slot.Name = strings.TrimSpace(slot.Name)
 			slot.ExternalIdentifier = clean(slot.ExternalIdentifier)
 			if !validSetupName(slot.Name) || (slot.Status != SlotAvailable && slot.Status != SlotUnavailable) ||
+				!validNozzle(slot.NozzleIndex) ||
 				(slot.ExternalIdentifier != nil && len(*slot.ExternalIdentifier) > maxSetupIdentifierLen) {
 				return SetupInput{}, apperror.Invalid("invalid printer slot")
 			}
@@ -224,6 +244,13 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 	q := db.New(tx)
 	profile, err := q.GetPrinterProfileForUpdate(ctx, machineID)
 	enabledChanged := true
+	nozzleCount := int32(1)
+	if err == nil {
+		nozzleCount = profile.NozzleCount
+	}
+	if input.NozzleCount != nil {
+		nozzleCount = int32(*input.NozzleCount)
+	}
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		if input.ExpectedVersion != 0 {
@@ -231,7 +258,12 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 		}
 		if _, err = q.CreatePrinterProfile(
 			ctx,
-			db.CreatePrinterProfileParams{MachineID: machineID, Enabled: input.Enabled, Model: optional.Convert[string](input.Model)},
+			db.CreatePrinterProfileParams{
+				MachineID:   machineID,
+				Enabled:     input.Enabled,
+				Model:       optional.Convert[string](input.Model),
+				NozzleCount: nozzleCount,
+			},
 		); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -248,7 +280,12 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 		enabledChanged = profile.Enabled != input.Enabled
 		if _, err = q.UpdatePrinterProfileSetup(
 			ctx,
-			db.UpdatePrinterProfileSetupParams{MachineID: machineID, Enabled: input.Enabled, Model: optional.Convert[string](input.Model)},
+			db.UpdatePrinterProfileSetupParams{
+				MachineID:   machineID,
+				Enabled:     input.Enabled,
+				Model:       optional.Convert[string](input.Model),
+				NozzleCount: nozzleCount,
+			},
 		); err != nil {
 			return setupDatabaseError(err)
 		}
@@ -301,6 +338,26 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 			keptSlots[*slot.ID] = true
 		}
 	}
+	// Every nozzle index, given or kept, must fit the printer's nozzle count.
+	unitNozzle := make([]int32, len(input.InputUnits))
+	for i, unit := range input.InputUnits {
+		unitNozzle[i] = 1
+		if unit.ID != nil {
+			unitNozzle[i] = unitByID[*unit.ID].NozzleIndex
+		}
+		if unit.NozzleIndex != nil {
+			unitNozzle[i] = int32(*unit.NozzleIndex)
+		}
+		if unitNozzle[i] > nozzleCount {
+			return nozzleOutOfRange()
+		}
+		for _, slot := range unit.Slots {
+			index := slotNozzle(slot, slotByID, unitNozzle[i])
+			if index > nozzleCount {
+				return nozzleOutOfRange()
+			}
+		}
+	}
 	for _, slot := range existingSlots {
 		if !keptSlots[slot.ID] && SlotStatus(slot.Status) != SlotRetired && occupied[slot.ID] {
 			return apperror.Conflicting("slot_occupied", "Unmount the spool before removing the slot \""+slot.Name+"\"")
@@ -333,8 +390,9 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 		return err
 	}
 
-	applySlots := func(unitID uuid.UUID, desired []SetupSlotInput) error {
+	applySlots := func(unitID uuid.UUID, unitIndex int32, desired []SetupSlotInput) error {
 		for position, slot := range desired {
+			nozzleIndex := slotNozzle(slot, slotByID, unitIndex)
 			if slot.ID == nil {
 				if _, err := q.CreatePrinterSlot(
 					ctx,
@@ -345,6 +403,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 						Position:           int32(position),
 						ExternalIdentifier: slot.ExternalIdentifier,
 						Status:             string(slot.Status),
+						NozzleIndex:        &nozzleIndex,
 					},
 				); err != nil {
 					return setupDatabaseError(err)
@@ -353,7 +412,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 			}
 			old := slotByID[*slot.ID]
 			changed := old.Name != slot.Name || int(old.Position) != position || SlotStatus(old.Status) != slot.Status ||
-				!samePointer(old.ExternalIdentifier, slot.ExternalIdentifier)
+				!samePointer(old.ExternalIdentifier, slot.ExternalIdentifier) || old.NozzleIndex != nozzleIndex
 			if err := q.ApplyPrinterSlotSetup(
 				ctx,
 				db.ApplyPrinterSlotSetupParams{
@@ -362,6 +421,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 					Position:           int32(position),
 					ExternalIdentifier: slot.ExternalIdentifier,
 					Status:             string(slot.Status),
+					NozzleIndex:        nozzleIndex,
 					Bump:               changed,
 				},
 			); err != nil {
@@ -377,11 +437,12 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 			if err := q.ApplyPrinterSlotSetup(
 				ctx,
 				db.ApplyPrinterSlotSetupParams{
-					ID:       old.ID,
-					Name:     old.Name,
-					Position: next,
-					Status:   "retired",
-					Bump:     changed,
+					ID:          old.ID,
+					Name:        old.Name,
+					Position:    next,
+					Status:      "retired",
+					NozzleIndex: old.NozzleIndex,
+					Bump:        changed,
 				},
 			); err != nil {
 				return setupDatabaseError(err)
@@ -404,6 +465,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 					Position:           int32(position),
 					Nozzle:             optional.Convert[string](unit.Nozzle),
 					ExternalIdentifier: unit.ExternalIdentifier,
+					NozzleIndex:        &unitNozzle[position],
 				},
 			); err != nil {
 				return setupDatabaseError(err)
@@ -412,6 +474,7 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 			unitID = *unit.ID
 			old := unitByID[unitID]
 			changed := old.Name != unit.Name || int(old.Position) != position || !old.Enabled ||
+				old.NozzleIndex != unitNozzle[position] ||
 				!samePointer(optional.Convert[Nozzle](old.Nozzle), unit.Nozzle) || !samePointer(
 				old.ExternalIdentifier,
 				unit.ExternalIdentifier,
@@ -425,13 +488,14 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 					Nozzle:             optional.Convert[string](unit.Nozzle),
 					ExternalIdentifier: unit.ExternalIdentifier,
 					Enabled:            true,
+					NozzleIndex:        unitNozzle[position],
 					Bump:               changed,
 				},
 			); err != nil {
 				return setupDatabaseError(err)
 			}
 		}
-		if err = applySlots(unitID, unit.Slots); err != nil {
+		if err = applySlots(unitID, unitNozzle[position], unit.Slots); err != nil {
 			return err
 		}
 	}
@@ -444,18 +508,19 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 		if err = q.ApplyPrinterInputUnitSetup(
 			ctx,
 			db.ApplyPrinterInputUnitSetupParams{
-				ID:       old.ID,
-				Name:     old.Name,
-				Position: nextUnit,
-				Nozzle:   old.Nozzle,
-				Enabled:  false,
-				Bump:     changed,
+				ID:          old.ID,
+				Name:        old.Name,
+				Position:    nextUnit,
+				Nozzle:      old.Nozzle,
+				Enabled:     false,
+				NozzleIndex: old.NozzleIndex,
+				Bump:        changed,
 			},
 		); err != nil {
 			return setupDatabaseError(err)
 		}
 		nextUnit++
-		if err = applySlots(old.ID, nil); err != nil {
+		if err = applySlots(old.ID, old.NozzleIndex, nil); err != nil {
 			return err
 		}
 	}
@@ -466,4 +531,17 @@ func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID
 		}
 	}
 	return nil
+}
+
+// slotNozzle is the nozzle a desired slot feeds: the given index, else its stored one, else its unit's.
+func slotNozzle(slot SetupSlotInput, stored map[uuid.UUID]db.PrinterSlot, unitIndex int32) int32 {
+	if slot.NozzleIndex != nil {
+		return int32(*slot.NozzleIndex)
+	}
+	if slot.ID != nil {
+		if old, ok := stored[*slot.ID]; ok {
+			return old.NozzleIndex
+		}
+	}
+	return unitIndex
 }

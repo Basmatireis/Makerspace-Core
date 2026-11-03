@@ -22,6 +22,7 @@ import type { ActorReference } from './actorReference';
 import type { Money } from './money';
 import type { OrderAdjustment } from './orderAdjustment';
 import type { OrderAllocation } from './orderAllocation';
+import type { OrderAttention } from './orderAttention';
 import type { OrderCurrency } from './orderCurrency';
 import type { OrderCustomer } from './orderCustomer';
 import type { OrderCustomerKind } from './orderCustomerKind';
@@ -75,4 +76,6 @@ export interface Order {
   replacedByOrderReference?: string | null;
   /** Display name of the person who created the order; null once that person was deleted. */
   createdBy: ActorReference | null;
+  /** What needs someone's attention on this order; empty when nothing does. */
+  attention: OrderAttention[];
 }

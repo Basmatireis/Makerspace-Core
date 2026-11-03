@@ -29,6 +29,12 @@ export interface PrinterInputUnit {
   /** @minimum 0 */
   position: number;
   nozzle: PrinterNozzle | null;
+  /**
+     * The nozzle (1-based) this unit feeds.
+     * @minimum 1
+     * @maximum 8
+     */
+  nozzleIndex: number;
   /** @nullable */
   externalIdentifier?: string | null;
   enabled: boolean;

@@ -69,6 +69,7 @@ func mlMachineDTO(item machinelogbook.Machine) openapi.Machine {
 		JobCount:                   item.JobCount,
 		RuntimeSeconds:             item.RuntimeSeconds,
 		FailureRate:                item.FailureRate,
+		Attention:                  mlMachineAttentionDTO(item.Attention),
 		CreatedAt:                  item.CreatedAt,
 		UpdatedAt:                  item.UpdatedAt,
 	}
@@ -393,6 +394,8 @@ func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
 		PricingSnapshot:   snapshot,
 		CalculatedPrice:   nullableMoney(item.CalculatedPrice),
 		EffectivePrice:    nullableMoney(item.EffectivePrice),
+		HiddenFromSignage: item.HiddenFromSignage,
+		Attention:         mlJobAttentionDTO(item.Attention),
 		Version:           item.Version,
 		CreatedAt:         item.CreatedAt,
 		UpdatedAt:         item.UpdatedAt,
@@ -471,14 +474,16 @@ func mlStatisticsDTO(item machinelogbook.Statistics) openapi.MachineLogbookStati
 		machines = append(
 			machines,
 			openapi.StatisticMachine{
-				MachineId:    m.MachineID,
-				Name:         m.Name,
-				ProcessName:  m.ProcessName,
-				Jobs:         m.Jobs,
-				RuntimeHours: m.RuntimeHours,
-				FailureRate:  m.FailureRate,
-				Charges:      m.Charges,
-				RuntimeShare: m.RuntimeShare,
+				MachineId:          m.MachineID,
+				Name:               m.Name,
+				ProcessName:        m.ProcessName,
+				Jobs:               m.Jobs,
+				RuntimeHours:       m.RuntimeHours,
+				FailureRate:        m.FailureRate,
+				Charges:            m.Charges,
+				RuntimeShare:       m.RuntimeShare,
+				Utilization:        m.Utilization,
+				OpenDayUtilization: m.OpenDayUtilization,
 			},
 		)
 	}
@@ -499,7 +504,81 @@ func mlStatisticsDTO(item machinelogbook.Statistics) openapi.MachineLogbookStati
 		Runtime:            runtime,
 		MaterialCostByType: mlStatisticPoints(item.MaterialCostByType),
 		Machines:           machines,
+		UsageByWeekdayHour: mlWeekdayHoursDTO(item.UsageByWeekdayHour),
+		JobsByOutcome:      mlOutcomeCountsDTO(item.JobsByOutcome),
+		JobsByWeek:         mlWeeksDTO(item.JobsByWeek),
+		MaterialByMonth:    mlMaterialMonthsDTO(item.MaterialByMonth),
+		MaterialLossByType: mlStatisticPoints(item.MaterialLossByType),
+		MaterialChargesByType: mlStatisticPoints(
+			item.MaterialChargesByType,
+		),
+		PricingGroups:      mlPricingGroupsDTO(item.PricingGroups),
+		PricingGroupMonths: mlPricingGroupMonthsDTO(item.PricingGroupMonths),
 	}
+}
+
+func mlWeekdayHoursDTO(items []machinelogbook.StatisticWeekdayHour) []openapi.StatisticWeekdayHour {
+	result := make([]openapi.StatisticWeekdayHour, 0, len(items))
+	for _, item := range items {
+		result = append(result, openapi.StatisticWeekdayHour{
+			Weekday: item.Weekday, Hour: item.Hour, Runs: item.Runs, Minutes: item.Minutes,
+		})
+	}
+	return result
+}
+
+func mlOutcomeCountsDTO(items []machinelogbook.StatisticOutcomeCount) []openapi.StatisticOutcomeCount {
+	result := make([]openapi.StatisticOutcomeCount, 0, len(items))
+	for _, item := range items {
+		result = append(
+			result,
+			openapi.StatisticOutcomeCount{Outcome: openapi.StatisticOutcomeCountOutcome(item.Outcome), Jobs: item.Jobs},
+		)
+	}
+	return result
+}
+
+func mlWeeksDTO(items []machinelogbook.StatisticWeek) []openapi.StatisticWeek {
+	result := make([]openapi.StatisticWeek, 0, len(items))
+	for _, item := range items {
+		result = append(result, openapi.StatisticWeek{WeekStart: openapi_types.Date{Time: item.WeekStart}, Jobs: item.Jobs})
+	}
+	return result
+}
+
+func mlMaterialMonthsDTO(items []machinelogbook.StatisticMaterialMonth) []openapi.StatisticMaterialMonth {
+	result := make([]openapi.StatisticMaterialMonth, 0, len(items))
+	for _, item := range items {
+		result = append(result, openapi.StatisticMaterialMonth{
+			Month:            item.Month,
+			MaterialTypeId:   item.MaterialTypeID,
+			MaterialTypeName: item.MaterialTypeName,
+			Unit:             openapi.MaterialUnit(item.Unit),
+			Quantity:         item.Quantity,
+			Cost:             item.Cost,
+		})
+	}
+	return result
+}
+
+func mlPricingGroupsDTO(items []machinelogbook.StatisticPricingGroup) []openapi.StatisticPricingGroup {
+	result := make([]openapi.StatisticPricingGroup, 0, len(items))
+	for _, item := range items {
+		result = append(result, openapi.StatisticPricingGroup{
+			PricingGroupName: item.PricingGroupName, Jobs: item.Jobs, Charges: item.Charges, Discounts: item.Discounts,
+		})
+	}
+	return result
+}
+
+func mlPricingGroupMonthsDTO(items []machinelogbook.StatisticPricingGroupMonth) []openapi.StatisticPricingGroupMonth {
+	result := make([]openapi.StatisticPricingGroupMonth, 0, len(items))
+	for _, item := range items {
+		result = append(result, openapi.StatisticPricingGroupMonth{
+			Month: item.Month, PricingGroupName: item.PricingGroupName, Charges: item.Charges,
+		})
+	}
+	return result
 }
 func nullableValue[T any](value *T) nullable.Nullable[T] {
 	if value == nil {
@@ -556,6 +635,8 @@ func usageInputs(values []openapi.MachineJobUsageInput) []machinelogbook.UsageIn
 				SpoolID:              uuidNullable(v.SpoolId),
 				Ownership:            machinelogbook.UsageOwnership(v.Ownership),
 				ExternalMaterialName: nullableStringPointer(v.ExternalMaterialName),
+				Label:                nullableStringPointer(v.Label),
+				MaterialTypeID:       uuidNullable(v.MaterialTypeId),
 				Quantity:             v.Quantity,
 				QuantityBasis:        machinelogbook.QuantityBasis(v.QuantityBasis),
 			},
@@ -657,8 +738,37 @@ func mlWorkItemDTO(item machinelogbook.WorkItem) openapi.WorkItem {
 		ProgressPercent: progress,
 		EffectivePrice:  nullableMoney(item.EffectivePrice),
 		Billing:         billing,
+		Attention:       mlWorkItemAttentionDTO(item.Attention),
 		Version:         &version,
 	}
+}
+
+// mlWorkItemAttentionDTO is nil (left out) for overview rows, where attention is not computed.
+func mlWorkItemAttentionDTO(items []machinelogbook.Attention) *[]openapi.MachineJobAttention {
+	if items == nil {
+		return nil
+	}
+	result := mlJobAttentionDTO(items)
+	return &result
+}
+
+func mlJobAttentionDTO(items []machinelogbook.Attention) []openapi.MachineJobAttention {
+	result := make([]openapi.MachineJobAttention, 0, len(items))
+	for _, item := range items {
+		result = append(
+			result,
+			openapi.MachineJobAttention{Code: openapi.MachineJobAttentionCode(item.Code), Message: item.Message},
+		)
+	}
+	return result
+}
+
+func mlMachineAttentionDTO(items []machinelogbook.Attention) []openapi.MachineAttention {
+	result := make([]openapi.MachineAttention, 0, len(items))
+	for _, item := range items {
+		result = append(result, openapi.MachineAttention{Code: openapi.MachineAttentionCode(item.Code), Message: item.Message})
+	}
+	return result
 }
 func mlWorkItemDTOs(items []machinelogbook.WorkItem) []openapi.WorkItem {
 	result := make([]openapi.WorkItem, 0, len(items))
@@ -710,11 +820,15 @@ func mlMachineActivityDTO(item machinelogbook.MachineActivity) openapi.MachineAc
 }
 func mlStatisticTotalsDTO(item machinelogbook.StatisticTotals) openapi.StatisticTotals {
 	return openapi.StatisticTotals{
-		Jobs:         item.Jobs,
-		RuntimeHours: item.RuntimeHours,
-		Charges:      item.Charges,
-		MaterialCost: item.MaterialCost,
-		FailureRate:  item.FailureRate,
+		Jobs:               item.Jobs,
+		RuntimeHours:       item.RuntimeHours,
+		Charges:            item.Charges,
+		MaterialCost:       item.MaterialCost,
+		FailureRate:        item.FailureRate,
+		NotBilled:          item.NotBilled,
+		Discounts:          item.Discounts,
+		Utilization:        item.Utilization,
+		OpenDayUtilization: item.OpenDayUtilization,
 	}
 }
 func mlOverviewWorkItemsDTO(item machinelogbook.Overview, result *openapi.MachineLogbookOverview) {

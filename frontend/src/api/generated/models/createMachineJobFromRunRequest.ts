@@ -36,4 +36,9 @@ export interface CreateMachineJobFromRunRequest {
      */
   notes?: string | null;
   pricingGroupId?: UUIDv7 | null;
+  /**
+     * Keep the new job off signage. Omitted or null: shown.
+     * @nullable
+     */
+  hiddenFromSignage?: boolean | null;
 }

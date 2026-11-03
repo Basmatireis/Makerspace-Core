@@ -34,4 +34,11 @@ export interface PrinterSetupSlot {
      * @nullable
      */
   externalIdentifier: string | null;
+  /**
+     * The nozzle this slot feeds; omitted or null keeps the stored index, a new slot takes its unit's.
+     * @minimum 1
+     * @maximum 8
+     * @nullable
+     */
+  nozzleIndex?: number | null;
 }

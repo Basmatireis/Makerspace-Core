@@ -603,7 +603,7 @@ func (s *seeder) runPlan(p *plan) {
 			slotExt = prim.ext
 		}
 		run := s.printRun(p.m, p.start, p.end, "completed", file, rep, slotExt)
-		job, err = s.ml.AttachRun(s.ctx, s.actor, run, job.ID, true, job.Version, nil)
+		job, err = s.ml.AttachRun(s.ctx, s.actor, run, job.ID, true, job.Version, nil, nil)
 		check("link print", err)
 	default:
 		job, err = s.ml.CreateManualJob(s.ctx, s.actor, in, nil)

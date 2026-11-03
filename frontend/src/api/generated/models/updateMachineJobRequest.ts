@@ -44,5 +44,7 @@ export interface UpdateMachineJobRequest {
   pricingGroupId?: UUIDv7 | null;
   /** Null derives the outcome from the runs. */
   outcomeOverride: MachineRunOutcome | null;
+  /** Keep the job off signage; omitted keeps the current value. */
+  hiddenFromSignage?: boolean;
   expectedVersion: Version;
 }

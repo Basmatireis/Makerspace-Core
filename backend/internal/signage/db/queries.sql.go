@@ -1325,8 +1325,9 @@ const getSignageTimelapse = `-- name: GetSignageTimelapse :one
 SELECT r.id AS run_id, t.sha256, t.size_bytes, t.file_id
 FROM machine_runs r
 JOIN machine_run_timelapses t ON t.run_id = r.id
+LEFT JOIN machine_jobs j ON j.id = r.job_id
 WHERE r.id = $1 AND r.source = 'recorded' AND r.state = 'finished' AND r.deleted_at IS NULL
-  AND NOT r.hidden_from_signage AND r.ended_at IS NOT NULL
+  AND NOT r.hidden_from_signage AND NOT COALESCE(j.hidden_from_signage, false) AND r.ended_at IS NOT NULL
 `
 
 type GetSignageTimelapseRow struct {
@@ -1336,7 +1337,8 @@ type GetSignageTimelapseRow struct {
 	FileID    uuid.UUID
 }
 
-// The timelapse of one run, only while the run is a finished recorded run not opted out of signage.
+// The timelapse of one run, only while the run is a finished recorded run that neither it nor its job opted out
+// of signage.
 func (q *Queries) GetSignageTimelapse(ctx context.Context, runID uuid.UUID) (GetSignageTimelapseRow, error) {
 	row := q.db.QueryRow(ctx, getSignageTimelapse, runID)
 	var i GetSignageTimelapseRow
@@ -2511,13 +2513,14 @@ func (q *Queries) ListSignageGroupMembers(ctx context.Context, groupIds []string
 
 const listSignageHiddenMachineIDs = `-- name: ListSignageHiddenMachineIDs :many
 SELECT DISTINCT r.machine_id FROM machine_runs r
-WHERE r.hidden_from_signage AND r.deleted_at IS NULL
+LEFT JOIN machine_jobs j ON j.id = r.job_id
+WHERE (r.hidden_from_signage OR COALESCE(j.hidden_from_signage, false)) AND r.deleted_at IS NULL
   AND CASE WHEN r.source = 'manual'
            THEN COALESCE(r.state, CASE WHEN r.ended_at > $1::timestamptz THEN 'running' ELSE 'finished' END)
            ELSE r.state END = 'running'
 `
 
-// Machines whose currently running run was opted out of signage by its operator or customer. A manual run
+// Machines whose currently running run was opted out of signage, by its own flag or its job's. A manual run
 // is running until its planned end; a recorded run while its state says so.
 func (q *Queries) ListSignageHiddenMachineIDs(ctx context.Context, now time.Time) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listSignageHiddenMachineIDs, now)
@@ -3034,7 +3037,9 @@ SELECT r.id AS run_id, r.machine_id, m.name AS machine_name, r.ended_at::timesta
 FROM machine_runs r
 JOIN machine_run_timelapses t ON t.run_id = r.id
 JOIN machines m ON m.id = r.machine_id
+LEFT JOIN machine_jobs j ON j.id = r.job_id
 WHERE r.source = 'recorded' AND r.state = 'finished' AND r.deleted_at IS NULL AND NOT r.hidden_from_signage
+  AND NOT COALESCE(j.hidden_from_signage, false)
   AND r.ended_at IS NOT NULL
   AND ($1::boolean OR r.machine_id = ANY($2::text[]::uuid[]))
   AND ($3::timestamptz IS NULL OR r.ended_at >= $3::timestamptz)
@@ -3059,8 +3064,8 @@ type ListSignageTimelapsesRow struct {
 	FileID      uuid.UUID
 }
 
-// Finished recorded runs with a stored timelapse that were not opted out of signage, newest first. Without
-// all_machines only the given machines; ended_after NULL means any age.
+// Finished recorded runs with a stored timelapse that were not opted out of signage (by the run or its job),
+// newest first. Without all_machines only the given machines; ended_after NULL means any age.
 func (q *Queries) ListSignageTimelapses(ctx context.Context, arg ListSignageTimelapsesParams) ([]ListSignageTimelapsesRow, error) {
 	rows, err := q.db.Query(ctx, listSignageTimelapses,
 		arg.AllMachines,

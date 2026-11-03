@@ -304,8 +304,8 @@ export const getGetPrinterNotificationSettingsUrl = () => {
 }
 
 /**
- * Needs machines.read.
- * @summary Who is told about printer errors
+ * Needs machines.read. One rule per event (printer_error, run_finished, filament_change).
+ * @summary Who is told about printer events
  */
 export const getPrinterNotificationSettings = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PrinterNotificationSettings> => {
 
@@ -328,8 +328,8 @@ export const getUpdatePrinterNotificationSettingsUrl = () => {
 }
 
 /**
- * Needs machines.manage. The operator of the running print is always told; the chosen role's holders in addition. Errors below the minimum severity are not announced. Audited as `printer_notification_settings.updated`.
- * @summary Change who is told about printer errors
+ * Needs machines.manage. Replaces the rules of the listed events (each at most once); events not listed keep their rule. minSeverity is only allowed for printer_error (422 validation_failed otherwise); an unknown role answers 422. Audited as `printer_notification_settings.updated` with the changed event names.
+ * @summary Change who is told about printer events
  */
 export const updatePrinterNotificationSettings = async (updatePrinterNotificationSettingsRequest: UpdatePrinterNotificationSettingsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterNotificationSettings> => {
 

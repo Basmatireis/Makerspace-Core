@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -99,6 +100,8 @@ type Server struct {
 	// surveyLinkViews and surveyLinkSubmits bound the anonymous share-link endpoints per client IP.
 	surveyLinkViews   *ratelimit.Limiter
 	surveyLinkSubmits *ratelimit.Limiter
+	// noticeMail sends the queued e-mails of printer notifications.
+	noticeMail *inbox.MailDelivery
 }
 
 func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, logger *slog.Logger) (*Server, error) {
@@ -144,7 +147,11 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		return nil, fmt.Errorf("validate OIDC configuration: %w", err)
 	}
 	labRulesService := laborordnung.NewService(pool, notificationEmitter, fileService)
-	machineLogbook := machinelogbook.NewService(pool, notificationEmitter)
+	machineLogbook := machinelogbook.NewService(
+		pool,
+		notificationEmitter,
+		machinelogbook.WithTimeZone(cfg.MakerspaceTimeZone),
+	)
 	printingService := printing.NewService(pool)
 	printerConnectorService, err := printerconnectors.NewService(
 		pool, notificationEmitter, printingService, cfg.EncryptionKeys,
@@ -244,7 +251,19 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		surveyLinkViews:   ratelimit.New(surveyLinkViewsPerWindow, surveyLinkWindow),
 		surveyLinkSubmits: ratelimit.New(surveyLinkSubmitsPerWindow, surveyLinkWindow),
 		attendance:        attendanceService,
+		noticeMail:        inbox.NewMailDelivery(pool, noticeMailer{notifier}),
 	}, nil
+}
+
+// noticeMailer sends printer notification mails; switched-off mail delivery is final, so the mail is dropped.
+type noticeMailer struct{ notifier *notifications.Service }
+
+func (m noticeMailer) SendNotice(ctx context.Context, to, subject, body, link string) error {
+	err := m.notifier.SendNotice(ctx, to, subject, body, link)
+	if errors.Is(err, mailservice.ErrDisabled) {
+		return inbox.ErrMailUndeliverable
+	}
+	return err
 }
 
 // timelapseMaxBytes falls back to the default when a configuration was built

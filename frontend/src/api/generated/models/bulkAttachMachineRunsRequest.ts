@@ -29,4 +29,9 @@ export interface BulkAttachMachineRunsRequest {
   runs: BulkItem[];
   replaceManualRuns: boolean;
   expectedJobVersion: Version;
+  /**
+     * Sets the job's signage flag as well; omitted or null keeps it.
+     * @nullable
+     */
+  hiddenFromSignage?: boolean | null;
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -151,9 +150,9 @@ func (e *Emitter) OpenDayPlaceFreed(
 	}, recipients)
 }
 
-// RunFinished tells the operator of the run's job that the run ended. A run without a job or a job
-// without an operator notifies nobody, and so does a run that has not ended. excludedAccountIDs lets
-// a person who ended the run themselves skip their own notification.
+// RunFinished tells the people the run_finished rule names (by default the operator of the run's job) that the run
+// ended. A run without a job notifies nobody, and so does a run that has not ended. excludedAccountIDs lets a person
+// who ended the run themselves skip their own notification and e-mail.
 func (e *Emitter) RunFinished(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -168,28 +167,31 @@ func (e *Emitter) RunFinished(
 	if err != nil {
 		return fmt.Errorf("load run: %w", err)
 	}
-	if run.OperatorPersonID == nil {
+	if run.JobID == nil {
 		return nil
 	}
 	ending, ok := runEnding(run.Outcome, run.State)
 	if !ok {
 		return nil
 	}
-	recipients, err := queries.ListEnabledAccountIDsOfPerson(ctx, *run.OperatorPersonID)
+	rule, err := e.printerRule(ctx, queries, KindRunFinished)
 	if err != nil {
-		return fmt.Errorf("resolve run operator: %w", err)
+		return err
 	}
-	recipients = slices.DeleteFunc(recipients, func(id uuid.UUID) bool { return slices.Contains(excludedAccountIDs, id) })
 	body := fmt.Sprintf("Run %s on %s %s.", run.DisplayID, run.MachineName, ending)
 	if run.JobTitle != nil && strings.TrimSpace(*run.JobTitle) != "" {
 		body = fmt.Sprintf("Run %s of \"%s\" on %s %s.", run.DisplayID, *run.JobTitle, run.MachineName, ending)
 	}
-	return e.deliver(ctx, tx, notice{
+	return e.deliverPrinterEvent(ctx, tx, notice{
 		kind:  KindRunFinished,
 		title: "Run " + run.DisplayID + " " + ending,
 		body:  body,
 		link:  "/machine-logbook/jobs/runs/" + runID.String(),
-	}, recipients)
+	}, rule, printerParties{
+		operator:             run.OperatorPersonID,
+		customerPerson:       run.CustomerPersonID,
+		customerOrganization: run.CustomerOrganizationID,
+	}, excludedAccountIDs)
 }
 
 // runEnding words how a run ended from its recorded outcome or, without one, its machine state.
@@ -214,38 +216,22 @@ func runEnding(outcome, state *string) (string, bool) {
 	return "", false
 }
 
-// PrinterError tells the operator of the run that is printing on the machine and the holders of the role chosen in
-// the printer notification settings that the printer reported an error for the first time. Errors below the
-// configured minimum severity stay quiet, as do repeats of an open error and cleared errors. The body names the
-// code as the printer shows it and the meaning the catalog records for it.
+// PrinterError tells the people the printer_error rule names (by default the operator of the run that is printing on
+// the machine) that the printer reported an error for the first time. Errors below the rule's minimum severity stay
+// quiet, as do repeats of an open error and cleared errors. The body names the code as the printer shows it and the
+// meaning the catalog records for it.
 func (e *Emitter) PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, family, code string, severity *string) error {
 	queries := inboxdb.New(tx)
-	policy, err := queries.GetPrinterNotificationPolicy(ctx)
+	rule, err := e.printerRule(ctx, queries, KindPrinterError)
 	if err != nil {
-		return fmt.Errorf("load printer notification policy: %w", err)
+		return err
 	}
-	minimum := policy.ErrorMinSeverity
-	if severity != nil && severityRank(*severity) < severityRank(minimum) {
+	if !severityAllowed(severity, rule.MinSeverity) {
 		return nil
 	}
 	machine, err := queries.GetMachineNotificationFacts(ctx, machineID)
 	if err != nil {
 		return fmt.Errorf("load machine: %w", err)
-	}
-	var recipients []uuid.UUID
-	if policy.ErrorRoleID != nil {
-		holders, err := queries.ListEnabledAccountIDsByRoles(ctx, []string{policy.ErrorRoleID.String()})
-		if err != nil {
-			return fmt.Errorf("resolve printer error role: %w", err)
-		}
-		recipients = append(recipients, holders...)
-	}
-	if machine.OperatorPersonID != nil {
-		operators, err := queries.ListEnabledAccountIDsOfPerson(ctx, *machine.OperatorPersonID)
-		if err != nil {
-			return fmt.Errorf("resolve run operator: %w", err)
-		}
-		recipients = append(recipients, operators...)
 	}
 	meaning := ""
 	facts, err := queries.GetPrinterErrorCodeFacts(ctx, inboxdb.GetPrinterErrorCodeFactsParams{SourceFamily: family, Code: code})
@@ -265,12 +251,16 @@ func (e *Emitter) PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UU
 			"%s reports the error %s%s%s during run %s.", machine.MachineName, code, level, meaning, *machine.RunDisplayID,
 		)
 	}
-	return e.deliver(ctx, tx, notice{
+	return e.deliverPrinterEvent(ctx, tx, notice{
 		kind:  KindPrinterError,
 		title: "Printer error on " + machine.MachineName,
 		body:  body,
 		link:  machinePrinterLink(machineID),
-	}, recipients)
+	}, rule, printerParties{
+		operator:             machine.OperatorPersonID,
+		customerPerson:       machine.CustomerPersonID,
+		customerOrganization: machine.CustomerOrganizationID,
+	}, nil)
 }
 
 // severityRank orders printer error levels; an unknown level ranks highest so it is never filtered away.
@@ -313,21 +303,21 @@ type FilamentChange struct {
 	Material string
 }
 
-// FilamentChange tells the operator of the run that is printing on the machine that material in one
-// of its slots changed. Without a running run or without an operator nobody is told; the printer page
-// shows the change to whoever has it open.
+// FilamentChange tells the people the filament_change rule names (by default the operator of the run that is printing
+// on the machine) that material in one of its slots changed. Without a running recorded run nobody is told; the
+// printer page shows the change to whoever has it open.
 func (e *Emitter) FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, change FilamentChange) error {
 	queries := inboxdb.New(tx)
 	machine, err := queries.GetMachineNotificationFacts(ctx, machineID)
 	if err != nil {
 		return fmt.Errorf("load machine: %w", err)
 	}
-	if machine.RunID == nil || machine.OperatorPersonID == nil {
+	if machine.RunID == nil {
 		return nil
 	}
-	recipients, err := queries.ListEnabledAccountIDsOfPerson(ctx, *machine.OperatorPersonID)
+	rule, err := e.printerRule(ctx, queries, KindFilamentChange)
 	if err != nil {
-		return fmt.Errorf("resolve run operator: %w", err)
+		return err
 	}
 	spool := ""
 	if change.SpoolID != nil {
@@ -369,12 +359,16 @@ func (e *Emitter) FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.
 	default:
 		return nil
 	}
-	return e.deliver(ctx, tx, notice{
+	return e.deliverPrinterEvent(ctx, tx, notice{
 		kind:  KindFilamentChange,
 		title: title,
 		body:  body + " Run " + *machine.RunDisplayID + " is printing.",
 		link:  machinePrinterLink(machineID),
-	}, recipients)
+	}, rule, printerParties{
+		operator:             machine.OperatorPersonID,
+		customerPerson:       machine.CustomerPersonID,
+		customerOrganization: machine.CustomerOrganizationID,
+	}, nil)
 }
 
 func withMaterial(material string) string {

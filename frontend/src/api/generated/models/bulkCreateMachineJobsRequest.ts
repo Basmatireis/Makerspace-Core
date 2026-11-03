@@ -36,4 +36,9 @@ export interface BulkCreateMachineJobsRequest {
      */
   notes?: string | null;
   pricingGroupId?: UUIDv7 | null;
+  /**
+     * Keep the new jobs off signage. Omitted or null: shown.
+     * @nullable
+     */
+  hiddenFromSignage?: boolean | null;
 }

@@ -86,7 +86,7 @@ WHERE d.id = sqlc.arg(id);
 
 -- name: GetRunNotificationFacts :one
 SELECT r.id, r.display_id, r.outcome, r.state, m.name AS machine_name,
-       j.id AS job_id, j.title AS job_title, j.operator_person_id
+       j.id AS job_id, j.title AS job_title, j.operator_person_id, j.customer_person_id, j.customer_organization_id
 FROM machine_runs r
 JOIN machines m ON m.id = r.machine_id
 LEFT JOIN machine_jobs j ON j.id = r.job_id
@@ -186,7 +186,8 @@ DELETE FROM inbox_notifications WHERE id = sqlc.arg(id) AND kind = 'message' AND
 
 -- name: GetMachineNotificationFacts :one
 -- The machine and the operator of the run that is printing on it right now, if any.
-SELECT m.id, m.name AS machine_name, r.id AS run_id, r.display_id AS run_display_id, j.operator_person_id
+SELECT m.id, m.name AS machine_name, r.id AS run_id, r.display_id AS run_display_id, j.operator_person_id,
+       j.customer_person_id, j.customer_organization_id
 FROM machines m
 LEFT JOIN machine_runs r ON r.id = (
     SELECT x.id
@@ -205,8 +206,9 @@ FROM filament_spools s
 LEFT JOIN materials mat ON mat.id = s.material_id
 WHERE s.id = sqlc.arg(id);
 
--- name: GetPrinterNotificationPolicy :one
-SELECT error_role_id, error_min_severity FROM printer_notification_settings WHERE singleton;
+-- name: GetPrinterNotificationRule :one
+SELECT event, notify_operator, notify_recipient, role_id, email, min_severity
+FROM printer_notification_rules WHERE event = sqlc.arg(event);
 
 -- name: GetPrinterErrorCodeFacts :one
 SELECT title, description, link FROM printer_error_codes
@@ -214,3 +216,47 @@ WHERE source_family = sqlc.arg(source_family) AND code = sqlc.arg(code);
 
 -- name: DeleteNotificationsCreatedBefore :execrows
 DELETE FROM inbox_notifications WHERE created_at < sqlc.arg(before_time);
+
+-- name: ListPersonIDsByRole :many
+-- Everyone holding the role, with or without an account.
+SELECT DISTINCT person_id FROM person_roles WHERE role_id = sqlc.arg(role_id) ORDER BY person_id;
+
+-- name: ListEnabledAccountsOfPeople :many
+SELECT id, person_id FROM accounts
+WHERE person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]) AND status = 'enabled'
+ORDER BY id;
+
+-- name: MailDeliveryEnabled :one
+SELECT COALESCE((SELECT enabled FROM mail_configuration LIMIT 1), false)::boolean;
+
+-- name: InsertNotificationMail :exec
+INSERT INTO notification_mail_outbox (id, kind, person_id, organization_id, subject, body, link)
+VALUES (sqlc.arg(id), sqlc.arg(kind), sqlc.narg(person_id), sqlc.narg(organization_id), sqlc.arg(subject), sqlc.arg(body), sqlc.narg(link));
+
+-- name: ClaimDueNotificationMails :many
+-- Takes due mails for one delivery pass: the attempt is counted and the next one pushed out before anything is sent,
+-- so a pass that dies half way never sends a mail twice in quick succession.
+UPDATE notification_mail_outbox o
+SET attempts = o.attempts + 1, next_attempt_at = sqlc.arg(lease_until)
+WHERE o.id IN (
+    SELECT x.id FROM notification_mail_outbox x
+    WHERE x.next_attempt_at <= sqlc.arg(now)
+    ORDER BY x.next_attempt_at, x.id
+    LIMIT sqlc.arg(batch_limit)
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING o.id, o.kind, o.person_id, o.organization_id, o.subject, o.body, o.link, o.attempts;
+
+-- name: GetNotificationMailAddress :one
+-- The address is read only when the mail is sent; a deleted person or organization yields none.
+SELECT COALESCE((SELECT NULLIF(btrim(p.email), '') FROM people p WHERE p.id = sqlc.narg(person_id)),
+                (SELECT NULLIF(btrim(o.contact_email), '') FROM organizations o WHERE o.id = sqlc.narg(organization_id)), '')::text AS address;
+
+-- name: DeleteNotificationMail :exec
+DELETE FROM notification_mail_outbox WHERE id = sqlc.arg(id);
+
+-- name: DeferNotificationMail :exec
+UPDATE notification_mail_outbox SET next_attempt_at = sqlc.arg(next_attempt_at) WHERE id = sqlc.arg(id);
+
+-- name: DeleteNotificationMailsCreatedBefore :execrows
+DELETE FROM notification_mail_outbox WHERE created_at < sqlc.arg(before_time);

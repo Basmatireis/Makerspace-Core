@@ -66,15 +66,15 @@ SELECT (
 )::boolean AS in_use;
 
 -- name: ListPrinterProfiles :many
-SELECT machine_id, enabled, model, version FROM printer_profiles ORDER BY machine_id;
+SELECT machine_id, enabled, model, version, nozzle_count FROM printer_profiles ORDER BY machine_id;
 
 -- name: ListPrinterInputUnits :many
-SELECT id, machine_id, name, position, nozzle, external_identifier, enabled
+SELECT id, machine_id, name, position, nozzle, external_identifier, enabled, nozzle_index
 FROM printer_input_units
 ORDER BY machine_id, position, id;
 
 -- name: ListPrinterSlots :many
-SELECT id, input_unit_id, name, position, external_identifier, status
+SELECT id, input_unit_id, name, position, external_identifier, status, nozzle_index
 FROM printer_slots
 ORDER BY input_unit_id, position, id;
 

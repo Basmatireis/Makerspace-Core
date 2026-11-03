@@ -41,7 +41,9 @@ type WorkItem struct {
 	EffectivePrice         *string
 	Billing                *WorkItemBilling
 	Consumption            WorkItemConsumption
-	Version                int64
+	// Attention is filled on work item lists, not on the overview.
+	Attention []Attention
+	Version   int64
 }
 
 // WorkItemConsumption summarises what the runs of a work item consumed, per
@@ -167,6 +169,9 @@ func (s *Service) ListWorkItems(
 	}
 	items := workItemsFromRows(rows, p.Has(authorization.OrdersRead))
 	if err = attachConsumption(ctx, q, items); err != nil {
+		return nil, 0, err
+	}
+	if err = s.attachWorkItemAttention(ctx, q, items); err != nil {
 		return nil, 0, err
 	}
 	return items, total, nil

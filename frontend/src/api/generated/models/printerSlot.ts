@@ -30,6 +30,12 @@ export interface PrinterSlot {
   name: string;
   /** @minimum 0 */
   position: number;
+  /**
+     * The nozzle (1-based) this slot feeds.
+     * @minimum 1
+     * @maximum 8
+     */
+  nozzleIndex: number;
   /** @nullable */
   externalIdentifier?: string | null;
   status: PrinterSlotStatus;

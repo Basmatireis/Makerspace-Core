@@ -147,6 +147,7 @@ const machine = (
   jobCount: 12,
   runtimeSeconds: 72_000,
   failureRate: '4.2',
+  attention: [],
   version: 3,
   createdAt: created,
   updatedAt: created,
@@ -308,6 +309,7 @@ export function manualRunFixture(overrides: RunInit): MachineRun {
     measures: {},
     usagesFromMachine: false,
     hiddenFromSignage: false,
+    jobHiddenFromSignage: false,
     reportedUsage: null,
     reportedUsageItems: [],
     version: 2,
@@ -337,6 +339,8 @@ export function jobFixture(overrides: JobInit): MachineJob {
     calculatedPrice: '12.50',
     priceAdjustment: null,
     effectivePrice: '12.50',
+    hiddenFromSignage: false,
+    attention: [],
     version: 3,
     createdAt: created,
     updatedAt: created,
@@ -577,11 +581,21 @@ export function createWorld(permissions: string[] = staffPermissions) {
     machineName: bambu.name,
     enabled: true,
     model: null,
+    nozzleCount: 1,
     version: 4,
     createdAt: created,
     updatedAt: created,
     inputUnits: [
-      { id: ids.unit, machineId: ids.bambu, name: 'AMS A', enabled: true, position: 0, nozzle: null, version: 1 },
+      {
+        id: ids.unit,
+        machineId: ids.bambu,
+        name: 'AMS A',
+        enabled: true,
+        position: 0,
+        nozzle: null,
+        nozzleIndex: 1,
+        version: 1,
+      },
     ],
     slots: [
       {
@@ -591,6 +605,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
         inputUnitName: 'AMS A',
         name: 'Slot 1',
         position: 0,
+        nozzleIndex: 1,
         status: 'available',
         spoolId: ids.spoolMounted,
         spoolDisplayId: 'S-2026-000001',
@@ -603,6 +618,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
         inputUnitName: 'AMS A',
         name: 'Slot 2',
         position: 1,
+        nozzleIndex: 1,
         status: 'available',
         version: 1,
       },
@@ -616,6 +632,10 @@ export function createWorld(permissions: string[] = staffPermissions) {
     charges,
     materialCost,
     failureRate,
+    notBilled: '0.00',
+    discounts: '0.00',
+    utilization: '12.5',
+    openDayUtilization: '40.0',
   });
   const statMachine = (machineId: string, name: string, typeName: string, runtimeHours: string, count: number) => ({
     machineId,
@@ -626,6 +646,8 @@ export function createWorld(permissions: string[] = staffPermissions) {
     failureRate: '5.0',
     charges: '100.00',
     runtimeShare: '10.0',
+    utilization: '12.5',
+    openDayUtilization: '40.0',
   });
   const statistics: MachineLogbookStatistics = {
     totals: totals(120, '300.0', '1500.00', '400.00', '7.5'),
@@ -653,6 +675,14 @@ export function createWorld(permissions: string[] = staffPermissions) {
     customerCharges: [],
     adjustmentLoss: [],
     machineFailureRates: [],
+    usageByWeekdayHour: [{ weekday: 1, hour: 15, runs: 3, minutes: '120' }],
+    jobsByOutcome: [{ outcome: 'successful', jobs: 100 }],
+    jobsByWeek: [{ weekStart: '2026-09-07', jobs: 12 }],
+    materialByMonth: [],
+    materialLossByType: [],
+    materialChargesByType: [],
+    pricingGroups: [],
+    pricingGroupMonths: [],
   };
 
   const requests: RecordedRequest[] = [];
