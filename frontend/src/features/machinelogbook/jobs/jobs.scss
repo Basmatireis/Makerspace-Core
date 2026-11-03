@@ -233,8 +233,12 @@
   background: theme.$layer-accent-01;
 }
 
+// Absolutely placed so the size is the stage's own, not the grid track's: WebKit resolves a percentage block-size of
+// a grid item in an aspect-ratio box against the content, which let a tall preview overflow the stage at the bottom.
 .jobs-media__image,
 .jobs-media__video {
+  position: absolute;
+  inset: 0;
   display: block;
   inline-size: 100%;
   block-size: 100%;
