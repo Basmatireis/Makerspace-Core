@@ -21,7 +21,7 @@ import './sales.scss';
 import '../machinelogbook/shared/shared.scss';
 
 const crumbs = [
-  { label: 'Sales & payments', to: '/sales' },
+  { label: 'Sales & payments', to: '/orders' },
   { label: 'Payments', to: '/payments' },
 ];
 

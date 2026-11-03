@@ -150,6 +150,15 @@ describe('Statistics page', () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it('sits under Administration in the breadcrumb, without a link', async () => {
+    serve();
+    renderRoute(<StatisticsPage />);
+    await screen.findByLabelText('Key figures');
+    const trail = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(trail).getByText('Administration')).toBeInTheDocument();
+    expect(within(trail).queryByRole('link')).not.toBeInTheDocument();
+  });
+
   it('requests the six month default with an exclusive end and shows key figures with changes', async () => {
     serve();
     renderRoute(<StatisticsPage />);
@@ -262,7 +271,7 @@ describe('Statistics page', () => {
     const option = (name: string) => document.querySelector(`[role="option"][aria-label="${name}"]`) as HTMLElement;
     await user.click(option('Echo'));
     await waitFor(() => expect(router.state.location.search).toContain('machines='));
-    expect(option('Foxtrot')).toHaveAttribute('aria-disabled', 'true');
+    await waitFor(() => expect(option('Foxtrot')).toHaveAttribute('aria-disabled', 'true'));
     await user.click(option('Bravo'));
     await waitFor(() => expect(router.state.location.search).toContain(`machines=${ids[2]}%2C${ids[0]}%2C${ids[3]}`));
   });

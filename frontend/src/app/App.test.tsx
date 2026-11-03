@@ -300,21 +300,33 @@ describe('protected application routing', () => {
     ]) {
       expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
     }
-    expect(within(navigation).getAllByRole('link', { name: 'Overview' })).toHaveLength(1);
+    expect(within(navigation).queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
+    expect(
+      within(navigation)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href'))
+        .filter((href) => ['/orders', '/payments', '/pricing', '/sales'].includes(href ?? '')),
+    ).toEqual(['/orders', '/payments', '/pricing']);
     expect(within(navigation).queryByRole('link', { name: 'External invoicing' })).not.toBeInTheDocument();
     const workshop = within(navigation)
       .getAllByRole('link')
       .map((link) => link.getAttribute('href'))
       .filter((href) => href?.startsWith('/workshop'));
-    expect(workshop).toEqual(['/workshop/jobs', '/workshop/machines', '/workshop/inventory', '/workshop/statistics']);
+    expect(workshop).toEqual(['/workshop/jobs', '/workshop/machines', '/workshop/inventory']);
     expect(within(navigation).getByText('Administration')).toBeInTheDocument();
+    const administration = within(navigation)
+      .getAllByRole('link')
+      .map((link) => link.textContent)
+      .filter((name) => ['Statistics', 'Settings', 'Audit Log'].includes(name ?? ''));
+    expect(administration).toEqual(['Statistics', 'Settings', 'Audit Log']);
+    expect(within(navigation).getByRole('link', { name: 'Statistics' })).toHaveAttribute('href', '/statistics');
     expect(within(navigation).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'Audit Log' })).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'About' })).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'Imprint' })).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'Privacy policy' })).toBeInTheDocument();
 
-    for (const name of ['Dashboard', 'Settings', 'Audit Log', 'About', 'Imprint', 'Privacy policy']) {
+    for (const name of ['Dashboard', 'Statistics', 'Settings', 'Audit Log', 'About', 'Imprint', 'Privacy policy']) {
       expect(within(navigation).getByRole('link', { name }).querySelector('svg')).toBeInTheDocument();
     }
     for (const group of ['Operations', 'Directory', 'Workshop', 'Sales & payments']) {
@@ -475,7 +487,8 @@ describe('role protection UX', () => {
       [`/machine-logbook/machines/${id}?tab=printer`, `/workshop/machines/${id}/printer`],
       ['/machine-logbook/inventory?tab=spools', '/workshop/inventory?tab=spools'],
       [`/machine-logbook/spools/${id}`, `/workshop/inventory/spools/${id}`],
-      ['/machine-logbook/statistics', '/workshop/statistics'],
+      ['/machine-logbook/statistics?tab=money', '/statistics?tab=money'],
+      ['/workshop/statistics?tab=machines', '/statistics?tab=machines'],
       ['/workshop', '/workshop/jobs'],
     ])('moves the Machines & Jobs URL %s to the Workshop URL %s', async (from, to) => {
       signIn();

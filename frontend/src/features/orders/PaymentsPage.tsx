@@ -384,7 +384,7 @@ export function PaymentsPage() {
       className="sales-page"
       title="Payments"
       width="wide"
-      breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Payments' }]}
+      breadcrumbs={[{ label: 'Sales & payments', to: '/orders' }, { label: 'Payments' }]}
     >
       <QueryBoundary
         query={range.valid ? payments : { status: 'success', data: [], refetch: payments.refetch }}

@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import {
+  Button,
   Link as CarbonLink,
   Tab,
   Table,
@@ -14,6 +16,7 @@ import {
   Tabs,
   Tag,
 } from '@carbon/react';
+import { Calculator } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageShell } from '../../app/PageShell';
@@ -23,6 +26,7 @@ import { hasPermission, PermissionId } from '../auth/permissions';
 import { allMaterialsQuery, materialTypesQuery } from '../machinelogbook/inventoryQueries';
 import { processesQuery, pricingQuery } from '../machinelogbook/queries';
 import { listOrganizations } from '../../api/generated/organizations/organizations';
+import { PriceLookupModal } from '../orders/PriceLookupModal';
 import { pricingGaps, rateSelectors } from './selectors';
 import { RatesTab } from './RatesTab';
 import { RoleMappingTab } from './RoleMappingTab';
@@ -88,6 +92,7 @@ function OrganizationsTab({ defaultName }: { defaultName: string }) {
 export function PricingPage() {
   const user = useCurrentUser();
   const [params, setParams] = useSearchParams();
+  const [lookupOpen, setLookupOpen] = useState(false);
   const canMachines = hasPermission(user, PermissionId.machinesread);
   const canInventory = hasPermission(user, PermissionId.inventoryread);
   const canEdit = hasPermission(user, PermissionId.pricingmanage);
@@ -107,7 +112,12 @@ export function PricingPage() {
       className="sales-page"
       title="Pricing"
       width="wide"
-      breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Pricing' }]}
+      breadcrumbs={[{ label: 'Sales & payments', to: '/orders' }, { label: 'Pricing' }]}
+      actions={
+        <Button kind="secondary" renderIcon={Calculator} onClick={() => setLookupOpen(true)}>
+          Price lookup
+        </Button>
+      }
     >
       {pricing.isPending ? (
         <FullPageLoading label="Loading pricing" />
@@ -152,6 +162,7 @@ export function PricingPage() {
           </TabPanels>
         </Tabs>
       )}
+      {lookupOpen && <PriceLookupModal onClose={() => setLookupOpen(false)} />}
     </PageShell>
   );
 }

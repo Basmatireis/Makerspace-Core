@@ -1,15 +1,9 @@
 import { useState } from 'react';
-import { Button, Modal, OverflowMenu, OverflowMenuItem, Stack } from '@carbon/react';
+import { Button, Modal, Stack } from '@carbon/react';
 import { Add, ArrowRight, Currency, Document as DocumentIcon, Edit, Printer, Renew } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  cancelOrder,
-  createReplacementOrder,
-  finalizeOrder,
-  refreshOrderItem,
-  removeOrderItem,
-} from '../../api/generated/orders/orders';
+import { finalizeOrder, refreshOrderItem, removeOrderItem } from '../../api/generated/orders/orders';
 import type { Order, OrderItem } from '../../api/generated/models';
 import { FactTiles } from '../../app/components/Facts';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
@@ -43,20 +37,9 @@ import './sales.scss';
 import '../machinelogbook/shared/shared.scss';
 
 type Dialog =
-  | 'edit'
-  | 'add'
-  | 'jobs'
-  | 'stock'
-  | 'custom'
-  | 'finalize'
-  | 'cancel'
-  | 'pay'
-  | 'checkout'
-  | 'correct'
-  | 'invoice'
-  | null;
+  'edit' | 'add' | 'jobs' | 'stock' | 'custom' | 'finalize' | 'pay' | 'checkout' | 'correct' | 'invoice' | null;
 const crumbs = [
-  { label: 'Sales & payments', to: '/sales' },
+  { label: 'Sales & payments', to: '/orders' },
   { label: 'Orders', to: '/orders' },
 ];
 
@@ -164,34 +147,6 @@ function OrderDetail({ order }: { order: Order }) {
       : null;
   const canPay = order.status === 'finalized' && outstanding > 0 && recorded && accepts;
 
-  const canCorrect =
-    (order.status === 'finalized' || order.status === 'reversed') &&
-    !order.replacedByOrderId &&
-    can(PermissionId.ordersreverse);
-  const canReplace =
-    (order.status === 'finalized' || order.status === 'reversed') && !order.replacedByOrderId && canWrite;
-  const menu = [
-    draft && canWrite && (
-      <OverflowMenuItem key="edit" itemText="Edit customer and hand-over" onClick={() => setDialog('edit')} />
-    ),
-    canReplace && (
-      <OverflowMenuItem
-        key="replacement"
-        itemText="Create replacement draft"
-        onClick={() =>
-          mutation.mutate(async () => {
-            const next = await createReplacementOrder(order.id, command('replacement'));
-            navigate(`/orders/${next.id}`);
-          })
-        }
-      />
-    ),
-    canCorrect && <OverflowMenuItem key="correct" itemText="Correct order…" onClick={() => setDialog('correct')} />,
-    draft && canWrite && (
-      <OverflowMenuItem key="cancel" itemText="Cancel draft" isDelete hasDivider onClick={() => setDialog('cancel')} />
-    ),
-  ].filter(Boolean);
-
   const blocker = invoiceRequestBlocker(order);
   const canRequestInvoice = order.status === 'finalized' && canInvoiceManage && blocker === null;
   const invoiceAction =
@@ -233,6 +188,11 @@ function OrderDetail({ order }: { order: Order }) {
       breadcrumbs={crumbs}
       actions={
         <>
+          {draft && canWrite && (
+            <Button kind="secondary" renderIcon={Edit} onClick={() => setDialog('edit')}>
+              Edit order
+            </Button>
+          )}
           {canPrintReceipt(order) && canReadPayments && (
             <Button kind="tertiary" renderIcon={Printer} onClick={() => navigate(`/orders/${order.id}/receipt`)}>
               Print receipt
@@ -252,11 +212,6 @@ function OrderDetail({ order }: { order: Order }) {
             <Button kind="primary" renderIcon={primary.icon} disabled={primary.disabled} onClick={primary.run}>
               {primary.label}
             </Button>
-          )}
-          {menu.length > 0 && (
-            <OverflowMenu aria-label="More order actions" iconDescription="More order actions" flipped>
-              {menu}
-            </OverflowMenu>
           )}
         </>
       }
@@ -284,7 +239,9 @@ function OrderDetail({ order }: { order: Order }) {
         {attention.length > 0 && (
           <RichNotification kind="warning" title="Needs attention">
             {attention.map((entry) => entry.message).join(' · ')}
-            {sourceChanged && !draft && ' The order keeps the original charge; to change it, use Correct order.'}
+            {sourceChanged &&
+              !draft &&
+              ' The order keeps the original charge; to change it, use Correct order in the order’s menu on the Orders list.'}
             {((sourceChanged && draft && canWrite) || canPay || invoiceOpen) && (
               <span className="sales-notice-actions">
                 {sourceChanged && draft && canWrite && (
@@ -521,31 +478,6 @@ function OrderDetail({ order }: { order: Order }) {
           </Stack>
         </Modal>
       )}
-      <DestructiveActionDialog
-        open={dialog === 'cancel'}
-        title="Cancel this draft?"
-        fate="none"
-        confirmLabel="Cancel draft"
-        cancelLabel="Keep draft"
-        pending={mutation.isPending}
-        error={mutation.error?.message}
-        onClose={close}
-        onConfirm={() =>
-          mutation.mutate(async () => {
-            await cancelOrder(order.id, command('cancel'));
-            notify({
-              kind: 'success',
-              title: 'Draft cancelled',
-              subtitle: `${order.reference} was never charged; its jobs are free again.`,
-            });
-          })
-        }
-      >
-        <p>
-          {order.reference} was never finalized, so nothing was charged. The draft is kept as cancelled and its jobs can
-          go on another order.
-        </p>
-      </DestructiveActionDialog>
       <DestructiveActionDialog
         open={!!removing}
         title="Remove item from draft?"

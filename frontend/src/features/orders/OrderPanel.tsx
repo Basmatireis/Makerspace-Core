@@ -1,8 +1,9 @@
+import type { ReactNode } from 'react';
 import { Button, IconButton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@carbon/react';
 import { ArrowRight, Close } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
 import type { Order } from '../../api/generated/models';
-import { AttentionFlag } from '../../app/components/AttentionFlag';
+import { AttentionFlag, type AttentionItem } from '../../app/components/AttentionFlag';
 import { DetailPanel, DetailPanelHead, DetailPanelSection, PanelBleed } from '../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../app/components/Facts';
 import { formatDateTime } from '../../app/dateTime';
@@ -18,8 +19,21 @@ import { OrderStatusTag, PaymentKindTag, RequestStateTag } from './status';
 
 const itemKind = { machine_job: 'Job', inventory_item: 'Stock', manual: 'Custom' } as const;
 
-/** The detail panel of the selected order on the Orders list: who, how much, what is open, items and payments. */
-export function OrderPanel({ order, onClose }: { order: Order; onClose: () => void }) {
+/**
+ * The detail panel of the selected order on the Orders list: who, how much, what is open, items and payments.
+ * `attention` defaults to the API's reasons; `actions` sits next to Open order (the list's overflow menu).
+ */
+export function OrderPanel({
+  order,
+  attention = order.attention,
+  actions,
+  onClose,
+}: {
+  order: Order;
+  attention?: readonly AttentionItem[];
+  actions?: ReactNode;
+  onClose: () => void;
+}) {
   const user = useCurrentUser();
   const canReadPayments = hasPermission(user, PermissionId.paymentsread);
   const rows = useOrderPaymentRows(order, canReadPayments);
@@ -40,7 +54,7 @@ export function OrderPanel({ order, onClose }: { order: Order; onClose: () => vo
           <span className="sales-inline">
             <OrderStatusTag order={order} size="sm" />
             {invoiceState && <RequestStateTag state={invoiceState} />}
-            <AttentionFlag attention={order.attention} align="bottom" />
+            <AttentionFlag attention={attention} align="bottom" />
           </span>
         }
         actions={
@@ -53,6 +67,7 @@ export function OrderPanel({ order, onClose }: { order: Order; onClose: () => vo
         <Button as={Link} to={`/orders/${order.id}`} kind="primary" size="md" renderIcon={ArrowRight}>
           Open order
         </Button>
+        {actions}
       </div>
       <FactsGrid>
         <Fact label="Total" helper={`${items.length} ${items.length === 1 ? 'item' : 'items'}`}>

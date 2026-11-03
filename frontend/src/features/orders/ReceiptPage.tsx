@@ -25,7 +25,7 @@ export function ReceiptPage() {
   const { orderId = '' } = useParams();
   const query = useQuery(orderQuery(orderId));
   const crumbs = [
-    { label: 'Sales & payments', to: '/sales' },
+    { label: 'Sales & payments', to: '/orders' },
     { label: 'Orders', to: '/orders' },
   ];
   if (query.isPending) return <FullPageLoading label="Loading receipt" />;
@@ -48,7 +48,7 @@ function Receipt({ order }: { order: Order }) {
     loaded.flatMap((result) => (result.data ? [[result.data.id, result.data] as const] : [])),
   );
   const crumbs = [
-    { label: 'Sales & payments', to: '/sales' },
+    { label: 'Sales & payments', to: '/orders' },
     { label: 'Orders', to: '/orders' },
     { label: order.reference, to: `/orders/${order.id}` },
   ];

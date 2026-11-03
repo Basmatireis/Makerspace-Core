@@ -61,7 +61,6 @@ import {
   RunDetailPage,
   OpenDayRequirementsPage,
   TrainingsSettingsPage,
-  SalesOverviewPage,
   SettingsPage,
   SingleSignOnPage,
   DevicesSessionsPage,
@@ -280,11 +279,7 @@ export function App() {
               />
               <Route
                 path="statistics"
-                element={
-                  <PermissionRoute allOf={['statistics.read']}>
-                    <StatisticsPage />
-                  </PermissionRoute>
-                }
+                element={<LegacyRedirect from="/workshop/statistics" to={machineLogbookPaths.statistics()} />}
               />
               {/* Former URLs. Static segments rank above `:materialId`, so "materials", "spools" and "products" never become an ID. */}
               <Route
@@ -574,10 +569,10 @@ export function App() {
             {/* The layout hosts the toast stack, so a deletion can confirm after leaving its page. */}
             <Route element={<MachineLogbookLayout />}>
               <Route
-                path="sales"
+                path="statistics"
                 element={
-                  <PermissionRoute anyOf={['orders.read', 'payments.read']}>
-                    <SalesOverviewPage />
+                  <PermissionRoute allOf={['statistics.read']}>
+                    <StatisticsPage />
                   </PermissionRoute>
                 }
               />
@@ -686,6 +681,8 @@ export function App() {
                 </PermissionRoute>
               }
             />
+            {/* The former Sales overview; its review of jobs ready to bill lives on the Orders page now. */}
+            <Route path="sales" element={<Navigate to="/orders" replace />} />
             <Route path="external-invoicing" element={<Navigate to="/orders?invoice=draft,submitted" replace />} />
             <Route path="external-invoicing/:requestId" element={<ExternalInvoiceRedirect />} />
             <Route
