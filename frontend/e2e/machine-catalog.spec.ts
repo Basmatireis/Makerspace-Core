@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, test, expectNoAccessibilityViolations, expectNoHorizontalScroll } from './machines-jobs-test';
 import { ids } from './machines-jobs-api';
 
-const base = '/machine-logbook';
+const base = '/workshop';
 const bambu = 'Bambu H2D #1';
 const overflowMenu = (page: Page) => page.locator('.page-header__actions .cds--overflow-menu');
 

@@ -132,7 +132,7 @@ async function clickAddMachine(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function openWizard(user: ReturnType<typeof userEvent.setup>) {
-  renderPage('/machine-logbook/machines');
+  renderPage('/workshop/machines');
   await clickAddMachine(user);
   return screen.findByRole('dialog', { name: 'Add machine' });
 }
@@ -383,7 +383,7 @@ describe('Add machine wizard for a printer', () => {
   it('shows a read-only note for the connection step without printer_connectors.manage', async () => {
     const recorded = backend([PermissionId.machinesread, PermissionId.machinesmanage]);
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines');
+    renderPage('/workshop/machines');
     await clickAddMachine(user);
     const dialog = await screen.findByRole('dialog', { name: 'Add machine' });
     await fillMachineStep(user, dialog);
@@ -434,7 +434,7 @@ describe('Printer setup tab', () => {
   }
   const open = async () => {
     const user = userEvent.setup();
-    renderPage(`/machine-logbook/machines/${printerId}?tab=printer`);
+    renderPage(`/workshop/machines/${printerId}?tab=printer`);
     return user;
   };
 
@@ -591,7 +591,7 @@ describe('Printer setup tab', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage(`/machine-logbook/machines/${printerId}?tab=printer`);
+    renderPage(`/workshop/machines/${printerId}?tab=printer`);
     await user.click(await screen.findByRole('button', { name: 'Create profile' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit machine' });
     await user.click(await within(dialog).findByRole('radio', { name: /Prusa CORE One/ }));

@@ -48,10 +48,6 @@ describe('branding provider and public legal pages', () => {
 
     await waitFor(() => expect(document.title).toBe('Workshop Portal'));
     expect(document.documentElement.style.getPropertyValue('--app-brand-primary')).toBe('#123456');
-    expect(document.documentElement.style.getPropertyValue('--cds-button-primary')).toBe('#123456');
-    expect(document.documentElement.style.getPropertyValue('--cds-button-primary-hover')).toContain('#123456');
-    expect(document.documentElement.style.getPropertyValue('--cds-link-primary')).toBe('#123456');
-    expect(document.documentElement.style.getPropertyValue('--cds-focus')).toBe('#123456');
     expect(document.documentElement.style.getPropertyValue('--app-background-image')).toBe('none');
     expect(document.documentElement.style.getPropertyValue('--app-auth-background-image')).toContain(
       '/custom/auth.jpg',

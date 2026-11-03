@@ -54,7 +54,7 @@ const deleter = [PermissionId.machine_jobsread, PermissionId.machine_jobsdelete]
 describe('Recycle bin page', () => {
   it('lists deleted jobs and runs with who deleted them and the run counts', async () => {
     server.use(as(...deleter), bin());
-    renderRoute(<App />, '/machine-logbook/recycle-bin');
+    renderRoute(<App />, '/workshop/recycle-bin');
     const jobs = await screen.findByRole('table', { name: 'Deleted jobs' }, { timeout: 5000 });
     expect(within(jobs).getByText('J-2026-000007')).toBeInTheDocument();
     expect(within(jobs).getByText('Gearbox housing')).toBeInTheDocument();
@@ -68,7 +68,7 @@ describe('Recycle bin page', () => {
 
   it('shows an empty state when the bin is empty', async () => {
     server.use(as(...deleter), bin({ jobs: [], runs: [] }));
-    renderRoute(<App />, '/machine-logbook/recycle-bin');
+    renderRoute(<App />, '/workshop/recycle-bin');
     expect(await screen.findByText('The recycle bin is empty', undefined, { timeout: 5000 })).toBeInTheDocument();
   });
 
@@ -83,7 +83,7 @@ describe('Recycle bin page', () => {
         return HttpResponse.json(workItem());
       }),
     );
-    renderRoute(<App />, '/machine-logbook/recycle-bin');
+    renderRoute(<App />, '/workshop/recycle-bin');
     await user.click(await screen.findByRole('button', { name: 'Restore J-2026-000007' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('dialog', { name: 'Restore J-2026-000007?' });
     expect(within(dialog).getByText(/The 3 runs deleted with it come back too/)).toBeInTheDocument();
@@ -95,7 +95,7 @@ describe('Recycle bin page', () => {
   it('explains that a run whose job is in the bin comes back unassigned', async () => {
     const user = userEvent.setup();
     server.use(as(...deleter), bin());
-    renderRoute(<App />, '/machine-logbook/recycle-bin');
+    renderRoute(<App />, '/workshop/recycle-bin');
     await user.click(await screen.findByRole('button', { name: 'Restore RN-2026-000012' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('dialog', { name: 'Restore RN-2026-000012?' });
     expect(
@@ -114,7 +114,7 @@ describe('Recycle bin page', () => {
         return new HttpResponse(null, { status: 204 });
       }),
     );
-    renderRoute(<App />, '/machine-logbook/recycle-bin');
+    renderRoute(<App />, '/workshop/recycle-bin');
     await user.click(await screen.findByRole('button', { name: 'Delete J-2026-000007 for good' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByText('The 3 runs that went into the bin with it are deleted too.')).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe('Recycle bin page', () => {
 
   it('keeps a job with inventory bookings: restore stays, delete for good is not offered', async () => {
     server.use(as(...deleter), bin({ jobs: [{ ...job, hasInventoryBookings: true }] }));
-    renderRoute(<App />, '/machine-logbook/recycle-bin');
+    renderRoute(<App />, '/workshop/recycle-bin');
     expect(await screen.findByRole('button', { name: 'Restore J-2026-000007' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByText('Kept: its material is booked in the inventory ledger')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete J-2026-000007 for good' })).not.toBeInTheDocument();
@@ -144,7 +144,7 @@ describe('Recycle bin page', () => {
         HttpResponse.json({ code: 'inventory_bookings_exist', message }, { status: 409 }),
       ),
     );
-    renderRoute(<App />, '/machine-logbook/recycle-bin');
+    renderRoute(<App />, '/workshop/recycle-bin');
     await user.click(await screen.findByRole('button', { name: 'Delete J-2026-000007 for good' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Delete for good' }));
@@ -158,7 +158,7 @@ describe('Recycle bin page', () => {
         HttpResponse.json({ items: [], page: 1, pageSize: 10, total: 0 }),
       ),
     );
-    renderRoute(<App />, '/machine-logbook/jobs');
+    renderRoute(<App />, '/workshop/jobs');
     await screen.findByRole('heading', { name: 'Jobs' }, { timeout: 5000 });
     expect(screen.queryByRole('link', { name: 'Recycle bin' })).not.toBeInTheDocument();
   });
@@ -170,10 +170,10 @@ describe('Recycle bin page', () => {
         HttpResponse.json({ items: [], page: 1, pageSize: 10, total: 0 }),
       ),
     );
-    renderRoute(<App />, '/machine-logbook/jobs');
+    renderRoute(<App />, '/workshop/jobs');
     expect(await screen.findByRole('link', { name: 'Recycle bin' }, { timeout: 5000 })).toHaveAttribute(
       'href',
-      '/machine-logbook/recycle-bin',
+      '/workshop/recycle-bin',
     );
   });
 
@@ -186,7 +186,7 @@ describe('Recycle bin page', () => {
         return HttpResponse.json({ jobs: [], runs: [] });
       }),
     );
-    renderRoute(<App />, '/machine-logbook/recycle-bin');
+    renderRoute(<App />, '/workshop/recycle-bin');
     await waitFor(() => expect(screen.queryByText('Recycle bin')).not.toBeInTheDocument(), { timeout: 5000 });
     expect(requested).toBe(false);
   });

@@ -110,7 +110,7 @@ describe('Jobs page', () => {
         return HttpResponse.json({ items: [jobItem, runItem], page: 1, pageSize: 10, total: 2 });
       }),
     );
-    renderRoute(<App />, '/machine-logbook/jobs?status=unassigned&q=bracket');
+    renderRoute(<App />, '/workshop/jobs?status=unassigned&q=bracket');
     const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
     expect(requests[0].searchParams.get('status')).toBe('unassigned');
     expect(requests[0].searchParams.get('search')).toBe('bracket');
@@ -119,12 +119,12 @@ describe('Jobs page', () => {
 
     expect(within(table).getByRole('link', { name: 'Gearbox housing' })).toHaveAttribute(
       'href',
-      `/machine-logbook/jobs/${jobId}`,
+      `/workshop/jobs/${jobId}`,
     );
     expect(within(table).getByText('J-2026-000001 · gearbox_housing_v3.gcode · 2 runs')).toBeInTheDocument();
     expect(within(table).getByRole('link', { name: 'bracket_v2.gcode' })).toHaveAttribute(
       'href',
-      `/machine-logbook/jobs/runs/${recordedRunId}`,
+      `/workshop/jobs/runs/${recordedRunId}`,
     );
     expect(within(table).getByText('RN-2026-000008 · Unassigned')).toBeInTheDocument();
     expect(within(table).getByText('Successful')).toBeInTheDocument();
@@ -148,7 +148,7 @@ describe('Jobs page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, '/machine-logbook/jobs');
+    renderRoute(<App />, '/workshop/jobs');
     const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
     await user.click(
       within(table)
@@ -169,7 +169,7 @@ describe('Jobs page', () => {
         HttpResponse.json({ items: [runItem], page: 1, pageSize: 10, total: 1 }),
       ),
     );
-    renderRoute(<App />, '/machine-logbook/jobs');
+    renderRoute(<App />, '/workshop/jobs');
     const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
     expect(table.querySelector('.cds--overflow-menu')).toBeNull();
   });
@@ -186,7 +186,7 @@ describe('Jobs page', () => {
     const user = userEvent.setup();
     const { router } = renderRoute(
       <App />,
-      '/machine-logbook/jobs?status=running,running_unassigned&source=manual,recorded&billing=on_order,order_outdated',
+      '/workshop/jobs?status=running,running_unassigned&source=manual,recorded&billing=on_order,order_outdated',
     );
     const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
     expect(requests[0].searchParams.getAll('status')).toEqual(['running', 'running_unassigned']);
@@ -208,7 +208,7 @@ describe('Jobs page', () => {
         HttpResponse.json({ items: [], page: 1, pageSize: 10, total: 0 }),
       ),
     );
-    renderRoute(<App />, '/machine-logbook/jobs');
+    renderRoute(<App />, '/workshop/jobs');
     expect(await screen.findByText('No jobs yet', {}, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'New job' }).length).toBeGreaterThan(0);
   });
@@ -263,7 +263,7 @@ describe('Job form', () => {
   it('hides the outcome while the computed end is in the future and defaults to Successful otherwise', async () => {
     server.use(...lookups());
     const user = userEvent.setup();
-    renderRoute(<App />, '/machine-logbook/jobs');
+    renderRoute(<App />, '/workshop/jobs');
     await user.click((await screen.findAllByRole('button', { name: 'New job' }, { timeout: 5000 }))[0]);
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByLabelText('Outcome')).toHaveValue('successful');
@@ -287,7 +287,7 @@ describe('Job form', () => {
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, '/machine-logbook/jobs');
+    renderRoute(<App />, '/workshop/jobs');
     await user.click((await screen.findAllByRole('button', { name: 'New job' }, { timeout: 5000 }))[0]);
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('Name (optional)'), ' Gearbox housing ');
@@ -336,7 +336,7 @@ describe('Job form', () => {
       ),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, '/machine-logbook/jobs');
+    renderRoute(<App />, '/workshop/jobs');
     await user.click((await screen.findAllByRole('button', { name: 'New job' }, { timeout: 5000 }))[0]);
     const dialog = await screen.findByRole('dialog');
     await waitFor(() => expect(within(dialog).getByRole('option', { name: 'Bambu H2D #1' })).toBeInTheDocument());
@@ -384,7 +384,7 @@ describe('Job detail page', () => {
       ),
       noUnassignedRuns,
     );
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     const table = await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
     // Manual run: no machine labels. Recorded run: link, connector, machine-reported outcome and material.
     const manualRow = within(table).getByRole('link', { name: 'RN-2026-000001' }).closest('tr')!;
@@ -392,7 +392,7 @@ describe('Job detail page', () => {
     expect(within(manualRow).queryByText('From machine')).not.toBeInTheDocument();
     expect(within(manualRow).getByText('183 g PLA Black')).toBeInTheDocument();
     const recordedRow = within(table).getByRole('link', { name: 'RN-2026-000007' }).closest('tr')!;
-    expect(recordedRow.querySelector('a')).toHaveAttribute('href', `/machine-logbook/jobs/runs/${recordedRunId}`);
+    expect(recordedRow.querySelector('a')).toHaveAttribute('href', `/workshop/jobs/runs/${recordedRunId}`);
     expect(within(recordedRow).getByText('Recorded')).toBeInTheDocument();
     // The connector name is a tooltip on an info icon, not text under the tag.
     expect(within(recordedRow).queryByText('Bambu LAN')).not.toBeInTheDocument();
@@ -427,7 +427,7 @@ describe('Job detail page', () => {
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [recorded] }))),
       noUnassignedRuns,
     );
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     const table = await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
     const row = within(table).getByRole('link', { name: 'RN-2026-000007' }).closest('tr')!;
     // The cell shows the value and an icon button; the sentence is the button's tooltip, reachable by hover and focus.
@@ -453,7 +453,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     expect(await screen.findByRole('heading', { name: 'Gearbox housing' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Run progress' })).toBeInTheDocument();
     expect(screen.getByText('Expected end')).toBeInTheDocument();
@@ -472,7 +472,7 @@ describe('Job detail page', () => {
       as(PermissionId.machine_jobsread),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(needsOutcomeJob())),
     );
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     expect(await screen.findByRole('heading', { name: 'Gearbox housing' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByText('Outcome not recorded yet')).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Runs' })).toBeInTheDocument();
@@ -511,7 +511,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     expect(await screen.findByText('Record the outcome')).toBeInTheDocument();
     expect(screen.getByText('2 runs of this job have ended. How did each one go?')).toBeInTheDocument();
     const saveButtons = screen.getAllByRole('button', { name: 'Save outcome' });
@@ -560,7 +560,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     expect(await screen.findByText('Runtime', { selector: 'dt' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByText('Runtime', { selector: 'dt' }).nextSibling).toHaveTextContent('1 h 30 min');
     await user.click(screen.getByRole('button', { name: 'Add run' }));
@@ -616,7 +616,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await user.click(await screen.findByRole('button', { name: 'Attach recorded run' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('combobox', { name: /Recorded run/ }));
@@ -636,7 +636,7 @@ describe('Job detail page', () => {
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
       noUnassignedRuns,
     );
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     expect(await screen.findByRole('button', { name: 'Add run' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Attach recorded run' })).not.toBeInTheDocument();
   });
@@ -661,7 +661,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000007', 'Detach from job');
     const dialog = await screen.findByRole('alertdialog');
     expect(
@@ -686,7 +686,7 @@ describe('Job detail page', () => {
       noUnassignedRuns,
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     const runs = await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
     await user.click(
       within(runs)
@@ -725,7 +725,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000002', 'Delete run');
     const dialog = await screen.findByRole('alertdialog');
     const confirm = within(dialog).getByRole('button', { name: 'Delete run' });
@@ -752,7 +752,7 @@ describe('Job detail page', () => {
       noUnassignedRuns,
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000002', 'Delete run');
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument();
@@ -767,7 +767,7 @@ describe('Job detail page', () => {
       noUnassignedRuns,
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000001', 'Delete run');
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByText('This is the last run of its job')).toBeInTheDocument();
@@ -783,7 +783,7 @@ describe('Job detail page', () => {
       noUnassignedRuns,
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000001', 'Delete run');
     const dialog = await screen.findByRole('alertdialog');
     expect(within(dialog).getByText('This is the last run of its job')).toBeInTheDocument();
@@ -804,7 +804,7 @@ describe('Job detail page', () => {
       ),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000002', 'Delete run');
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Delete run' }));
@@ -817,7 +817,7 @@ describe('Job detail page', () => {
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
       noUnassignedRuns,
     );
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
     expect(document.querySelector('.page-header__actions .cds--overflow-menu')).toBeNull();
     expect(screen.queryByText('Delete job')).not.toBeInTheDocument();
@@ -847,7 +847,7 @@ describe('Job detail page', () => {
         }),
       );
       const user = userEvent.setup();
-      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
       await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
       await user.click(overflowButton());
       await user.click(await screen.findByText('Delete job'));
@@ -879,7 +879,7 @@ describe('Job detail page', () => {
         }),
       );
       const user = userEvent.setup();
-      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
       await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
       await user.click(overflowButton());
       await user.click(await screen.findByText('Delete job'));
@@ -900,7 +900,7 @@ describe('Job detail page', () => {
         noUnassignedRuns,
       );
       const user = userEvent.setup();
-      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
       await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
       await user.click(overflowButton());
       await user.click(await screen.findByText('Delete job'));
@@ -925,7 +925,7 @@ describe('Job detail page', () => {
         ),
       );
       const user = userEvent.setup();
-      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
       await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
       await user.click(overflowButton());
       await user.click(await screen.findByText('Delete job'));
@@ -956,7 +956,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000007', 'Delete run');
     const dialog = await screen.findByRole('alertdialog');
     expect(
@@ -985,7 +985,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000001', 'Edit run');
     let dialog = await screen.findByRole('dialog', { name: 'Edit run' });
     expect(within(dialog).getByLabelText('Start date')).toBeInTheDocument();
@@ -1024,7 +1024,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await runAction(user, 'RN-2026-000001', 'Edit material usage');
     const dialog = await screen.findByRole('dialog', { name: 'Edit material usage' });
     const quantity = await within(dialog).findByLabelText('Quantity (g)');
@@ -1052,7 +1052,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     await user.click(await screen.findByRole('button', { name: 'Edit job' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit job' });
     const override = within(dialog).getByLabelText('Outcome override');
@@ -1086,7 +1086,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     expect(await screen.findByText('Not on an order.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit job' })).not.toBeInTheDocument();
     await user.click(overflowButton());
@@ -1130,7 +1130,7 @@ describe('Job detail page', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     expect(await screen.findByText('Discount 20 %')).toBeInTheDocument();
     expect(screen.getByText('−€2.50')).toBeInTheDocument();
     expect(screen.getByText('Member discount')).toBeInTheDocument();
@@ -1147,7 +1147,7 @@ describe('Job detail page', () => {
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
       noUnassignedRuns,
     );
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     expect(await screen.findByRole('heading', { name: 'Gearbox housing' }, { timeout: 5000 })).toBeInTheDocument();
     expect(overflowButton()).toBeFalsy();
   });
@@ -1159,7 +1159,7 @@ describe('Job detail page', () => {
         HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 }),
       ),
     );
-    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    renderRoute(<App />, `/workshop/jobs/${jobId}`);
     expect(await screen.findByText('This job does not exist')).toBeInTheDocument();
   });
 
@@ -1187,7 +1187,7 @@ describe('Job detail page', () => {
         }),
       );
       const user = userEvent.setup();
-      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
       expect((await screen.findAllByText('Price incomplete', {}, { timeout: 5000 })).length).toBeGreaterThan(0);
       await user.click(screen.getAllByRole('button', { name: 'Recalculate price' })[0]);
       const dialog = await screen.findByRole('dialog');
@@ -1203,7 +1203,7 @@ describe('Job detail page', () => {
         as(PermissionId.machine_jobsread),
         http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(incomplete())),
       );
-      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
       expect((await screen.findAllByText('Price incomplete', {}, { timeout: 5000 })).length).toBeGreaterThan(0);
       expect(screen.queryByRole('button', { name: 'Recalculate price' })).not.toBeInTheDocument();
     });
@@ -1222,7 +1222,7 @@ describe('Job detail page', () => {
         }),
       );
       const user = userEvent.setup();
-      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
       const button = await screen.findByRole('button', { name: 'Refresh order charge' }, { timeout: 5000 });
       await waitFor(() => expect(button).toBeEnabled());
       await user.click(button);
@@ -1245,7 +1245,7 @@ describe('Job detail page', () => {
         ),
       );
       const user = userEvent.setup();
-      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
       const button = await screen.findByRole('button', { name: 'Refresh order charge' }, { timeout: 5000 });
       await waitFor(() => expect(button).toBeEnabled());
       await user.click(button);
@@ -1260,12 +1260,12 @@ describe('Job detail page', () => {
         noUnassignedRuns,
         charged(true),
       );
-      const { unmount } = renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      const { unmount } = renderRoute(<App />, `/workshop/jobs/${jobId}`);
       expect(await screen.findByText('Changed after charge', {}, { timeout: 5000 })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Refresh order charge' })).not.toBeInTheDocument();
       unmount();
       server.use(as(...editor, PermissionId.ordersread, PermissionId.orderswrite), charged(false));
-      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      renderRoute(<App />, `/workshop/jobs/${jobId}`);
       expect((await screen.findAllByText('O-2026-0004', {}, { timeout: 5000 })).length).toBeGreaterThan(0);
       expect(screen.queryByText('Changed after charge')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Refresh order charge' })).not.toBeInTheDocument();

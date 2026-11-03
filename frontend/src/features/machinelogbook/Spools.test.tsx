@@ -395,7 +395,7 @@ function renderDetail(route: string) {
   const router = createMemoryRouter(
     [
       {
-        path: '/machine-logbook/inventory/spools/:spoolId',
+        path: '/workshop/inventory/spools/:spoolId',
         element: (
           <ToastProvider>
             <FilamentSpoolDetailPage />
@@ -444,7 +444,7 @@ describe('Spool detail', () => {
     auth.permissions = BOTH;
     const item = spool({ fills: [closedFill] });
     useDetail(item);
-    renderDetail(`/machine-logbook/inventory/spools/${item.id}`);
+    renderDetail(`/workshop/inventory/spools/${item.id}`);
     expect(await screen.findByRole('heading', { level: 1, name: 'S-2026-000001' })).toBeInTheDocument();
     const heading = within(screen.getByRole('heading', { level: 1 }).parentElement as HTMLElement);
     expect(heading.getByText('Reusable')).toBeInTheDocument();
@@ -480,7 +480,7 @@ describe('Spool detail', () => {
         HttpResponse.json({ ...page([]), pageSize: 100 }),
       ),
     );
-    renderDetail(`/machine-logbook/inventory/spools/${item.id}`);
+    renderDetail(`/workshop/inventory/spools/${item.id}`);
     expect(await screen.findByRole('button', { name: 'Fill spool' })).toBeInTheDocument();
     expect(screen.getByText('Needs refill', { selector: '.cds--inline-notification__title' })).toBeInTheDocument();
   });
@@ -499,7 +499,7 @@ describe('Spool detail', () => {
 
     // Read only: no actions at all.
     auth.permissions = [PermissionId.inventoryread];
-    const readOnly = renderDetail(`/machine-logbook/inventory/spools/${reusable.id}`);
+    const readOnly = renderDetail(`/workshop/inventory/spools/${reusable.id}`);
     await screen.findByRole('heading', { level: 1, name: 'S-2026-000001' });
     expect(screen.queryByRole('button', { name: 'Change filament' })).not.toBeInTheDocument();
     expect(document.querySelector('.cds--overflow-menu')).toBeNull();
@@ -508,7 +508,7 @@ describe('Spool detail', () => {
 
     // Managing spools without managing inventory: descriptive changes only, nothing that moves stock.
     auth.permissions = [PermissionId.inventoryread, PermissionId.filament_spoolsmanage];
-    const spoolsOnly = renderDetail(`/machine-logbook/inventory/spools/${reusable.id}`);
+    const spoolsOnly = renderDetail(`/workshop/inventory/spools/${reusable.id}`);
     await screen.findByRole('heading', { level: 1, name: 'S-2026-000001' });
     expect(screen.queryByRole('button', { name: 'Change filament' })).not.toBeInTheDocument();
     await user.click(overflowButton());
@@ -520,7 +520,7 @@ describe('Spool detail', () => {
 
     // Inventory only: stock can be corrected, but the spool cannot be edited or refilled.
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
-    const inventoryOnly = renderDetail(`/machine-logbook/inventory/spools/${single.id}`);
+    const inventoryOnly = renderDetail(`/workshop/inventory/spools/${single.id}`);
     await screen.findByRole('heading', { level: 1, name: 'S-2026-000001' });
     expect(await screen.findByRole('button', { name: 'Record consumption' })).toBeInTheDocument();
     await user.click(overflowButton());
@@ -531,7 +531,7 @@ describe('Spool detail', () => {
 
     // Both: single-use spools are finished, reusable ones refilled.
     auth.permissions = BOTH;
-    renderDetail(`/machine-logbook/inventory/spools/${single.id}`);
+    renderDetail(`/workshop/inventory/spools/${single.id}`);
     await screen.findByRole('heading', { level: 1, name: 'S-2026-000001' });
     await user.click(await waitForOverflowButton());
     await waitFor(() => expect(menuItem('Finish spool')).toBeInTheDocument());
@@ -545,11 +545,11 @@ describe('Spool detail', () => {
         HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 }),
       ),
     );
-    renderDetail(`/machine-logbook/inventory/spools/${id(99)}`);
+    renderDetail(`/workshop/inventory/spools/${id(99)}`);
     expect(await screen.findByText('This spool does not exist')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to spools' })).toHaveAttribute(
       'href',
-      '/machine-logbook/inventory?tab=spools',
+      '/workshop/inventory?tab=spools',
     );
   });
 
@@ -572,7 +572,7 @@ describe('Spool detail', () => {
       }),
     );
     const user = userEvent.setup();
-    renderDetail(`/machine-logbook/inventory/spools/${item.id}`);
+    renderDetail(`/workshop/inventory/spools/${item.id}`);
     await user.click(await waitForOverflowButton());
     await user.click(await screen.findByText('Archive'));
     const dialog = await screen.findByRole('alertdialog', { name: 'Archive this spool?' });
@@ -612,7 +612,7 @@ describe('Spools table', () => {
     const table = await screen.findByRole('table', { name: 'Spools' });
     expect(within(table).getByRole('link', { name: 'S-2026-000001' })).toHaveAttribute(
       'href',
-      `/machine-logbook/inventory/spools/${id(20)}`,
+      `/workshop/inventory/spools/${id(20)}`,
     );
     expect(within(table).getByText('Loaded')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
@@ -672,7 +672,7 @@ describe('Spool mount and ledger attribution', () => {
     const table = await screen.findByRole('table', { name: 'Spools' });
     expect(within(table).getByText('842 g of 1,000 g')).toBeInTheDocument();
     const link = within(table).getByRole('link', { name: 'Bambu H2D #1 · Slot 3' });
-    expect(link).toHaveAttribute('href', `/machine-logbook/machines/${id(40)}?tab=printer`);
+    expect(link).toHaveAttribute('href', `/workshop/machines/${id(40)}?tab=printer`);
   });
 
   it('searches the notes, the mounted machine and the status label', async () => {
@@ -702,10 +702,10 @@ describe('Spool mount and ledger attribution', () => {
     auth.permissions = BOTH;
     const item = spool({ mounted: true, mountedOn });
     useDetail(item);
-    renderDetail(`/machine-logbook/inventory/spools/${item.id}`);
+    renderDetail(`/workshop/inventory/spools/${item.id}`);
     expect(await screen.findByRole('link', { name: 'Bambu H2D #1 · Slot 3' })).toHaveAttribute(
       'href',
-      `/machine-logbook/machines/${id(40)}?tab=printer`,
+      `/workshop/machines/${id(40)}?tab=printer`,
     );
   });
 
@@ -748,7 +748,7 @@ describe('Spool mount and ledger attribution', () => {
         ),
       ),
     );
-    renderDetail(`/machine-logbook/inventory/spools/${item.id}`);
+    renderDetail(`/workshop/inventory/spools/${item.id}`);
     expect(await screen.findByText('Lena Maier')).toBeInTheDocument();
     expect(screen.getByText('Filament Shop')).toBeInTheDocument();
   });

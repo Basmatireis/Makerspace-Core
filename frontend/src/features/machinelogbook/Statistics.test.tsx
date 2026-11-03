@@ -162,7 +162,7 @@ describe('Statistics page', () => {
     expect(rows).toHaveLength(5);
     expect(within(rows[1]).getByRole('link', { name: 'Bravo' })).toHaveAttribute(
       'href',
-      `/machine-logbook/machines/${ids[1]}`,
+      `/workshop/machines/${ids[1]}`,
     );
     expect(within(rows[1]).getByText('120')).toBeInTheDocument();
     expect(within(rows[1]).getByText('€100.00')).toBeInTheDocument();

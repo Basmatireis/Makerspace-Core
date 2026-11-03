@@ -207,16 +207,14 @@ describe('Machines & Jobs shared helpers', () => {
   });
 
   it('builds production paths for the machine logbook links', () => {
-    expect(machineLogbookPaths.jobs()).toBe('/machine-logbook/jobs');
-    expect(machineLogbookPaths.jobs({ status: 'unassigned', q: undefined })).toBe(
-      '/machine-logbook/jobs?status=unassigned',
-    );
-    expect(machineLogbookPaths.run('p1')).toBe('/machine-logbook/jobs/runs/p1');
-    expect(machineLogbookPaths.machine('m1', 'printer')).toBe('/machine-logbook/machines/m1?tab=printer');
-    expect(machineLogbookPaths.inventory('spools')).toBe('/machine-logbook/inventory?tab=spools');
-    expect(machineLogbookPaths.material('a')).toBe('/machine-logbook/inventory/materials/a');
-    expect(machineLogbookPaths.spool('s')).toBe('/machine-logbook/inventory/spools/s');
-    expect(machineLogbookPaths.statistics()).toBe('/machine-logbook/statistics');
+    expect(machineLogbookPaths.jobs()).toBe('/workshop/jobs');
+    expect(machineLogbookPaths.jobs({ status: 'unassigned', q: undefined })).toBe('/workshop/jobs?status=unassigned');
+    expect(machineLogbookPaths.run('p1')).toBe('/workshop/jobs/runs/p1');
+    expect(machineLogbookPaths.machine('m1', 'printer')).toBe('/workshop/machines/m1?tab=printer');
+    expect(machineLogbookPaths.inventory('spools')).toBe('/workshop/inventory?tab=spools');
+    expect(machineLogbookPaths.material('a')).toBe('/workshop/inventory/materials/a');
+    expect(machineLogbookPaths.spool('s')).toBe('/workshop/inventory/spools/s');
+    expect(machineLogbookPaths.statistics()).toBe('/workshop/statistics');
   });
 
   it('detects whether attaching a recorded run changes what the manual runs recorded', () => {

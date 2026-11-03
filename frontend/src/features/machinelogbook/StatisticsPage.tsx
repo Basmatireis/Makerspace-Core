@@ -354,7 +354,7 @@ export function StatisticsPage() {
       description="Usage, runtime and money for the selected period."
       width="wide"
       className="machine-logbook-page"
-      breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Statistics' }]}
+      breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.home() }, { label: 'Statistics' }]}
       actions={
         <div className="mj-stats-period">
           <ContentSwitcher

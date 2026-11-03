@@ -98,7 +98,7 @@ export function MachineDetailPage() {
     );
 
   const breadcrumbs = [
-    { label: 'Workshop', to: machineLogbookPaths.overview() },
+    { label: 'Workshop', to: machineLogbookPaths.home() },
     { label: 'Machines', to: machineLogbookPaths.machines() },
   ];
   if (machineResult.isError && machineResult.error instanceof ApiError && machineResult.error.status === 404) {

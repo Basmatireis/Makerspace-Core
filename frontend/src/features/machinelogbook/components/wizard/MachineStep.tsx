@@ -218,7 +218,9 @@ export function MachineStep({
         labelText="External identifier (optional)"
         autoComplete="off"
         disabled={!automatic}
-        helperText="Serial number or ID used by the machine's connector. Needs automatic collection."
+        // A disabled field greys its helper text below the contrast minimum, so the hint shows only while the field is
+        // enabled; the Automatic collection toggle right above explains why it is off.
+        helperText={automatic ? "Serial number or ID used by the machine's connector." : undefined}
         {...register('externalIdentifier', { maxLength: 200 })}
       />
       {isFdm(selected) && (

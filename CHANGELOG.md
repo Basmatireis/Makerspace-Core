@@ -2,6 +2,17 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- **Dark mode.** The staff application and the sign-in pages follow the system's light or dark setting (Carbon g100 in dark mode, including menus, modals, tables and charts); **Use dark theme** / **Use light theme** in the profile panel overrides it on this browser. Kiosk, visitor, public and signage pages keep their light styling.
+- **New background.** A faint workshop photo replaces the blueprint images behind the application and the sign-in pages; in dark mode it is dimmer and inverted. The default branding assets are now `/brand/bg-makerspace.webp`.
+
+### Changed
+
+- **Workshop routes.** Jobs, Machines, Inventory and Statistics moved from `/machine-logbook/…` to `/workshop/…` with the same sub-paths; every former URL redirects with its sub-path and query, and `/machine-logbook` and `/machine-logbook/overview` open Jobs. The Workshop navigation group no longer has an Overview page. API paths are unchanged.
+
 ## [0.13.0] - 2026-11-01
 
 ### Upgrade notes

@@ -26,6 +26,7 @@ import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
 import { NotificationAction, NotificationPanel } from '../features/notifications/NotificationBell';
 import { PersonAvatar } from '../features/users/PersonAvatar';
 import { BrandMark } from './BrandMark';
+import { setColorScheme, useColorScheme } from './colorScheme';
 import { AppNavigation } from './AppNavigation';
 import { FullPageLoading } from './PageState';
 import { ToastProvider } from './toasts';
@@ -49,6 +50,7 @@ export function AppShell() {
     }
   };
   const logoutMutation = useLogout();
+  const dark = useColorScheme() === 'dark';
   const location = useLocation();
   const navigate = useNavigate();
   const [isNarrow, setIsNarrow] = useState(currentNarrowState);
@@ -185,6 +187,9 @@ export function AppShell() {
                 </Tag>
                 <Button kind="ghost" size="sm" onClick={() => navigate('/profile')}>
                   View profile
+                </Button>
+                <Button kind="ghost" size="sm" onClick={() => setColorScheme(dark ? 'light' : 'dark')}>
+                  {dark ? 'Use light theme' : 'Use dark theme'}
                 </Button>
                 <Button
                   kind="ghost"

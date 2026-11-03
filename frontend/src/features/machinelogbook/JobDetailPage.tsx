@@ -201,7 +201,7 @@ function JobDetail({ job }: { job: MachineJob }) {
         .filter(Boolean)
         .join(' · ')}
       breadcrumbs={[
-        { label: 'Workshop', to: machineLogbookPaths.overview() },
+        { label: 'Workshop', to: machineLogbookPaths.home() },
         { label: 'Jobs', to: machineLogbookPaths.jobs() },
       ]}
       actions={
@@ -505,7 +505,7 @@ export function JobDetailPage() {
       title={notFound ? 'Job not found' : 'Job'}
       width="wide"
       breadcrumbs={[
-        { label: 'Workshop', to: machineLogbookPaths.overview() },
+        { label: 'Workshop', to: machineLogbookPaths.home() },
         { label: 'Jobs', to: machineLogbookPaths.jobs() },
       ]}
     >

@@ -37,17 +37,40 @@ describe('AppNavigation', () => {
         legal={defaultPublicConfiguration.legal}
         onNavigate={vi.fn()}
       />,
-      '/machine-logbook/inventory/spools/spool-1',
+      '/workshop/inventory/spools/spool-1',
     );
 
     expect(screen.getByRole('button', { name: 'Workshop' })).toHaveAttribute('aria-expanded', 'true');
-    const links = screen
-      .getAllByRole('link')
-      .filter((link) => link.getAttribute('href')?.startsWith('/machine-logbook'));
+    const links = screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/workshop'));
     expect(links.map((link) => link.textContent)).toEqual(['Machines', 'Inventory']);
     expect(screen.getByRole('link', { name: 'Inventory' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Jobs' })).not.toBeInTheDocument();
+  });
+
+  it('offers Jobs, Machines, Inventory and Statistics under Workshop with every permission', () => {
+    renderRoute(
+      <AppNavigation
+        currentUser={currentUserFixture([
+          PermissionId.machine_jobsread,
+          PermissionId.machinesread,
+          PermissionId.inventoryread,
+          PermissionId.statisticsread,
+        ])}
+        legal={defaultPublicConfiguration.legal}
+        onNavigate={vi.fn()}
+      />,
+      '/workshop/jobs/runs/run-1',
+    );
+
+    const links = screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/workshop'));
+    expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+      ['Jobs', '/workshop/jobs'],
+      ['Machines', '/workshop/machines'],
+      ['Inventory', '/workshop/inventory'],
+      ['Statistics', '/workshop/statistics'],
+    ]);
+    expect(screen.getByRole('link', { name: 'Jobs' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('opens the active group after client navigation and marks the active destination', async () => {

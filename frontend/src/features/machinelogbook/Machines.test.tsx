@@ -29,7 +29,7 @@ function renderPage(route: string) {
   const router = createMemoryRouter(
     [
       {
-        path: '/machine-logbook',
+        path: '/workshop',
         element: (
           <ToastProvider>
             <Outlet />
@@ -187,10 +187,10 @@ const rowFor = (name: string) => screen.getByRole('link', { name }).closest('tr'
 describe('Machines list', () => {
   it('shows availability, current run, last job and connector issues from machine activity and hides retired machines', async () => {
     setup([PermissionId.machinesread, PermissionId.machine_jobsread]);
-    renderPage('/machine-logbook/machines');
+    renderPage('/workshop/machines');
     expect(await screen.findByRole('link', { name: 'Bambu H2D' }, { timeout: 5000 })).toHaveAttribute(
       'href',
-      `/machine-logbook/machines/${bambu.id}`,
+      `/workshop/machines/${bambu.id}`,
     );
 
     const bambuRow = within(rowFor('Bambu H2D'));
@@ -198,7 +198,7 @@ describe('Machines list', () => {
     expect(bambuRow.getAllByText('Connector issue').length).toBeGreaterThan(0);
     expect(bambuRow.getByRole('link', { name: 'Gearbox housing v3' })).toHaveAttribute(
       'href',
-      `/machine-logbook/jobs/runs/${runId}`,
+      `/workshop/jobs/runs/${runId}`,
     );
     expect(bambuRow.getByText('3D printer')).toBeInTheDocument();
     expect(bambuRow.getByText('10%')).toBeInTheDocument();
@@ -213,7 +213,7 @@ describe('Machines list', () => {
   it('shows retired machines when the status filter selects them', async () => {
     setup([PermissionId.machinesread]);
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines');
+    renderPage('/workshop/machines');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
     await user.click(iconButton('Filters'));
     await user.click(screen.getByRole('checkbox', { name: 'Retired' }));
@@ -226,17 +226,17 @@ describe('Machines list', () => {
   it('filters by process, collection and connector from the URL and searches by name', async () => {
     setup([PermissionId.machinesread]);
     const user = userEvent.setup();
-    const { unmount } = renderPage(`/machine-logbook/machines?process=${printerTypeId}`);
+    const { unmount } = renderPage(`/workshop/machines?process=${printerTypeId}`);
     await screen.findByRole('link', { name: 'Bambu H2D' }, { timeout: 5000 });
     expect(screen.queryByRole('link', { name: 'Laser cutter' })).not.toBeInTheDocument();
     unmount();
 
-    const second = renderPage('/machine-logbook/machines?collection=manual&connector=none');
+    const second = renderPage('/workshop/machines?collection=manual&connector=none');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
     expect(screen.queryByRole('link', { name: 'Bambu H2D' })).not.toBeInTheDocument();
     second.unmount();
 
-    renderPage('/machine-logbook/machines?connector=issue');
+    renderPage('/workshop/machines?connector=issue');
     await screen.findByRole('link', { name: 'Bambu H2D' }, { timeout: 5000 });
     expect(screen.queryByRole('link', { name: 'Laser cutter' })).not.toBeInTheDocument();
     await user.click(iconButton('Filters (1 applied)'));
@@ -248,7 +248,7 @@ describe('Machines list', () => {
   it('searches the availability label, the process name and a connector issue', async () => {
     setup([PermissionId.machinesread]);
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines');
+    renderPage('/workshop/machines');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
     const search = screen.getByLabelText('Search machines', { selector: 'input' });
     await user.type(search, 'maintenance');
@@ -262,14 +262,14 @@ describe('Machines list', () => {
 
   it('keeps Machines and Processes and sends the former Connectors tab to Settings, Local services', async () => {
     setup([PermissionId.machinesread]);
-    const readOnly = renderPage('/machine-logbook/machines');
+    const readOnly = renderPage('/workshop/machines');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Machines', 'Processes']);
     readOnly.unmount();
 
     setup([PermissionId.machinesread, PermissionId.printer_connectorsread]);
     server.use(http.get('*/api/v1/printer-connectors', () => HttpResponse.json({ items: [], coreVersion: '0.8.3' })));
-    const { router } = renderPage('/machine-logbook/machines?tab=connectors');
+    const { router } = renderPage('/workshop/machines?tab=connectors');
     expect(
       await screen.findByRole('tab', { name: 'Printer connectors', selected: true }, { timeout: 5000 }),
     ).toBeInTheDocument();
@@ -279,13 +279,13 @@ describe('Machines list', () => {
 
   it('only offers Add machine with machines.manage', async () => {
     setup([PermissionId.machinesread]);
-    const readOnly = renderPage('/machine-logbook/machines');
+    const readOnly = renderPage('/workshop/machines');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
     expect(screen.queryByRole('button', { name: 'Add machine' })).not.toBeInTheDocument();
     readOnly.unmount();
 
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);
-    renderPage('/machine-logbook/machines');
+    renderPage('/workshop/machines');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
     expect(
       within(document.querySelector('.cds--table-toolbar') as HTMLElement).getByRole('button', { name: 'Add machine' }),
@@ -304,7 +304,7 @@ describe('Machines list', () => {
     };
     setup([PermissionId.machinesread]);
     withEmbroidery();
-    const readOnly = renderPage('/machine-logbook/machines?tab=processes');
+    const readOnly = renderPage('/workshop/machines?tab=processes');
     const table = await screen.findByRole('table', { name: 'Processes' }, { timeout: 5000 });
     expect(await within(table).findByText('Embroidery')).toBeInTheDocument();
     expect(within(table).getByText('Laser')).toBeInTheDocument();
@@ -315,14 +315,14 @@ describe('Machines list', () => {
 
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);
     withEmbroidery();
-    renderPage('/machine-logbook/machines?tab=processes');
+    renderPage('/workshop/machines?tab=processes');
     expect(await screen.findByRole('button', { name: 'Add process' }, { timeout: 5000 })).toBeInTheDocument();
     expect(iconButton('Actions for Laser')).toBeInTheDocument();
   });
 
   it('sends the former Machine types tab link to the Processes tab', async () => {
     setup([PermissionId.machinesread]);
-    renderPage('/machine-logbook/machines?tab=types');
+    renderPage('/workshop/machines?tab=types');
     expect(await screen.findByRole('table', { name: 'Processes' }, { timeout: 5000 })).toBeInTheDocument();
   });
 
@@ -341,7 +341,7 @@ describe('Machines list', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=processes');
+    renderPage('/workshop/machines?tab=processes');
     await screen.findByRole('table', { name: 'Processes' }, { timeout: 5000 });
     await user.click(iconButton('Actions for Laser'));
     await user.click(
@@ -400,7 +400,7 @@ describe('Machines list', () => {
       ),
     );
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=processes');
+    renderPage('/workshop/machines?tab=processes');
     await screen.findByRole('table', { name: 'Processes' }, { timeout: 5000 });
     await user.click(await waitFor(() => iconButton('Actions for Embroidery')));
     await user.click(await screen.findByText('Edit', { selector: '.cds--overflow-menu-options__option-content' }));
@@ -420,7 +420,7 @@ describe('Machines list', () => {
   it('rejects a process name that is already used', async () => {
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);
     const user = userEvent.setup();
-    renderPage('/machine-logbook/machines?tab=processes');
+    renderPage('/workshop/machines?tab=processes');
     await user.click(await screen.findByRole('button', { name: 'Add process' }, { timeout: 5000 }));
     const add = await screen.findByRole('dialog', { name: 'Add process' });
     await user.type(within(add).getByLabelText('Name'), 'laser');
@@ -441,7 +441,7 @@ describe('Machines list', () => {
       http.get(`*/api/v1/machines/${newId}/printer`, () => HttpResponse.json({ code: 'not_found' }, { status: 404 })),
     );
     const user = userEvent.setup();
-    const { router } = renderPage('/machine-logbook/machines');
+    const { router } = renderPage('/workshop/machines');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
     await user.click(document.querySelector('.cds--table-toolbar')!.querySelector<HTMLElement>('.cds--btn--primary')!);
     const dialog = await screen.findByRole('dialog', { name: 'Add machine' });
@@ -463,21 +463,21 @@ describe('Machines list', () => {
     expect(within(dialog).queryByLabelText('Connection summary')).not.toBeInTheDocument();
     expect(within(dialog).queryByLabelText('Spool inputs summary')).not.toBeInTheDocument();
     await user.click(await within(dialog).findByRole('button', { name: 'Done' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe(`/machine-logbook/machines/${newId}`));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/workshop/machines/${newId}`));
   });
 });
 
 describe('Machine detail', () => {
   it('shows the header, connector warning, facts and current item from machine activity', async () => {
     setup([PermissionId.machinesread, PermissionId.machine_jobsread]);
-    renderPage(`/machine-logbook/machines/${bambu.id}`);
+    renderPage(`/workshop/machines/${bambu.id}`);
     expect(await screen.findByRole('heading', { name: 'Bambu H2D' }, { timeout: 5000 })).toBeInTheDocument();
     expect(await screen.findByText('Connector degraded · E42')).toBeInTheDocument();
     expect(screen.getByText('In use now')).toBeInTheDocument();
     expect(screen.getByText(/Unassigned run · started/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Gearbox housing v3' })).toHaveAttribute(
       'href',
-      `/machine-logbook/jobs/runs/${runId}`,
+      `/workshop/jobs/runs/${runId}`,
     );
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Jobs' })).toBeInTheDocument();
@@ -486,7 +486,7 @@ describe('Machine detail', () => {
 
   it('gates New job, Edit machine and the printer tab by permission', async () => {
     setup([PermissionId.machinesread]);
-    const readOnly = renderPage(`/machine-logbook/machines/${laser.id}`);
+    const readOnly = renderPage(`/workshop/machines/${laser.id}`);
     expect(await screen.findByRole('heading', { name: 'Laser cutter' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New job' })).not.toBeInTheDocument();
     expect(screen.queryByText('More machine actions', { selector: '.cds--tooltip-content' })).not.toBeInTheDocument();
@@ -495,7 +495,7 @@ describe('Machine detail', () => {
     readOnly.unmount();
 
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);
-    const manager = renderPage(`/machine-logbook/machines/${laser.id}`);
+    const manager = renderPage(`/workshop/machines/${laser.id}`);
     expect(
       await screen.findByText('More machine actions', { selector: '.cds--tooltip-content' }, { timeout: 5000 }),
     ).toBeInTheDocument();
@@ -509,18 +509,18 @@ describe('Machine detail', () => {
         HttpResponse.json({ code: 'not_found' }, { status: 404 }),
       ),
     );
-    const printerManager = renderPage(`/machine-logbook/machines/${bambu.id}`);
+    const printerManager = renderPage(`/workshop/machines/${bambu.id}`);
     expect(await screen.findByRole('tab', { name: 'Printer setup' }, { timeout: 5000 })).toBeInTheDocument();
     printerManager.unmount();
 
     setup([PermissionId.machinesread, PermissionId.machine_jobsread, PermissionId.machine_jobscreate]);
-    renderPage(`/machine-logbook/machines/${laser.id}`);
+    renderPage(`/workshop/machines/${laser.id}`);
     expect(await screen.findByRole('button', { name: 'New job' }, { timeout: 5000 })).toBeInTheDocument();
   });
 
   it('shows the printer tab to read-only users when a profile exists, and selects tabs from the URL', async () => {
     setup([PermissionId.machinesread]);
-    const { router } = renderPage(`/machine-logbook/machines/${bambu.id}?tab=printer`);
+    const { router } = renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
     expect(await screen.findByRole('tab', { name: 'Printer setup' }, { timeout: 5000 })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -549,7 +549,7 @@ describe('Machine detail', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage(`/machine-logbook/machines/${bambu.id}?tab=printer`);
+    renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
     await user.click(await screen.findByRole('button', { name: 'Mount spool' }, { timeout: 5000 }));
     const dialog = await screen.findByRole('dialog', { name: 'Mount spool' });
     await user.click(await within(dialog).findByRole('combobox', { name: 'Spool' }));
@@ -576,7 +576,7 @@ describe('Machine detail', () => {
         HttpResponse.json({ items: [{ ...spool, mounted: true }], page: 1, pageSize: 100, total: 1 }),
       ),
     );
-    renderPage(`/machine-logbook/machines/${bambu.id}?tab=printer`);
+    renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
     expect(await screen.findByText('Empty', undefined, { timeout: 5000 })).toBeInTheDocument();
     expect(await screen.findByText(/S-0001.*PLA Black/, undefined, { timeout: 7000 })).toBeInTheDocument();
     expect(requests).toBeGreaterThan(1);
@@ -591,7 +591,7 @@ describe('Machine detail', () => {
         return HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 });
       }),
     );
-    renderPage(`/machine-logbook/machines/${bambu.id}?tab=printer`);
+    renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
     await screen.findByText('Feed slot', undefined, { timeout: 5000 });
     expect(screen.queryByRole('button', { name: 'Mount spool' })).not.toBeInTheDocument();
     expect(spoolReads).toBe(0);
@@ -611,7 +611,7 @@ describe('Machine detail', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage(`/machine-logbook/machines/${bambu.id}?tab=printer`);
+    renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
     expect(await screen.findByText('S-0001', undefined, { timeout: 5000 })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Unmount' }));
     await waitFor(() => expect(unmounted).toBe(true));
@@ -620,7 +620,7 @@ describe('Machine detail', () => {
 
 describe('Delete machine', () => {
   const openDelete = async (user: ReturnType<typeof userEvent.setup>) => {
-    renderPage(`/machine-logbook/machines/${laser.id}`);
+    renderPage(`/workshop/machines/${laser.id}`);
     expect(await screen.findByRole('heading', { name: 'Laser cutter' }, { timeout: 5000 })).toBeInTheDocument();
     await user.click(iconButton('More machine actions'));
     await user.click(await screen.findByText('Delete machine'));
@@ -668,7 +668,7 @@ describe('Delete machine', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage(`/machine-logbook/machines/${laser.id}`);
+    renderPage(`/workshop/machines/${laser.id}`);
     expect(await screen.findByRole('heading', { name: 'Laser cutter' }, { timeout: 5000 })).toBeInTheDocument();
     await user.click(iconButton('More machine actions'));
     await user.click(await screen.findByText('Edit machine'));
@@ -691,7 +691,7 @@ describe('Delete machine', () => {
 
   it('is not offered without machines.manage', async () => {
     setup([PermissionId.machinesread]);
-    renderPage(`/machine-logbook/machines/${laser.id}`);
+    renderPage(`/workshop/machines/${laser.id}`);
     expect(await screen.findByRole('heading', { name: 'Laser cutter' }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.queryByText('More machine actions', { selector: '.cds--tooltip-content' })).not.toBeInTheDocument();
     expect(screen.queryByText('Delete machine')).not.toBeInTheDocument();
@@ -704,7 +704,7 @@ describe('Printer setup', () => {
     server.use(
       http.get(`*/api/v1/machines/${bambu.id}/printer`, () => HttpResponse.json({ code: 'error' }, { status })),
     );
-    renderPage(`/machine-logbook/machines/${bambu.id}?tab=printer`);
+    renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
     if (status === 404)
       expect(await screen.findByRole('button', { name: 'Create profile' }, { timeout: 5000 })).toBeInTheDocument();
     else {
@@ -724,7 +724,7 @@ describe('Printer setup', () => {
       }),
     );
     const user = userEvent.setup();
-    renderPage(`/machine-logbook/machines/${bambu.id}?tab=printer`);
+    renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
     await user.click(await screen.findByRole('switch', { name: 'Printer profile enabled' }, { timeout: 5000 }));
     expect(input).toBeUndefined();
     expect(

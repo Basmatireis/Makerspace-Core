@@ -86,7 +86,7 @@ export function InventoryPage() {
     description: totals.data
       ? `Materials, parts, spools, types and categories. Stock value ${formatMoney(totals.data.totalInventoryValue)}.`
       : 'Materials, parts, spools, types and categories.',
-    breadcrumbs: [{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Inventory' }],
+    breadcrumbs: [{ label: 'Workshop', to: machineLogbookPaths.home() }, { label: 'Inventory' }],
   };
   if (!canRead)
     return (

@@ -24,7 +24,7 @@ export function renderPage(route: string) {
   const router = createMemoryRouter(
     [
       {
-        path: '/machine-logbook',
+        path: '/workshop',
         element: (
           <ToastProvider>
             <Outlet />

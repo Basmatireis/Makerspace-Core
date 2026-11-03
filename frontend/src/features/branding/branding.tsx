@@ -18,8 +18,8 @@ export const defaultPublicConfiguration: PublicConfiguration = {
     logoUrl: '/brand/htumkr-symbol.png',
     compactLogoUrl: '/brand/htumkr-symbol.png',
     faviconUrl: '/brand/htumkr-symbol.png',
-    applicationBackgroundUrl: '/brand/blueprint-workshop.jpg',
-    authenticationBackgroundUrl: '/brand/blueprint-details.jpg',
+    applicationBackgroundUrl: '/brand/bg-makerspace.webp',
+    authenticationBackgroundUrl: '/brand/bg-makerspace.webp',
   },
   legal: {
     imprint: { mode: 'internal', href: '/legal/imprint' },
@@ -47,39 +47,15 @@ function imageValue(url: string | null): string {
   return url ? `url(${JSON.stringify(url)})` : 'none';
 }
 
-function mixedColor(color: string, percentage: number, target: 'black' | 'white'): string {
-  return `color-mix(in srgb, ${color} ${percentage}%, ${target})`;
-}
-
 function applyDocumentBranding(configuration: PublicConfiguration) {
   const root = document.documentElement;
-  const primary = configuration.colors.primary;
-  const primaryHover = mixedColor(primary, 84, 'black');
-  const primaryActive = mixedColor(primary, 68, 'black');
-
-  root.style.setProperty('--app-brand-primary', primary);
+  // The stylesheet maps these onto Carbon's interactive tokens, with lighter variants in dark mode.
+  root.style.setProperty('--app-brand-primary', configuration.colors.primary);
   root.style.setProperty('--app-brand-secondary', configuration.colors.secondary);
   root.style.setProperty('--app-brand-accent', configuration.colors.accent);
   root.style.setProperty('--app-brand-background', configuration.colors.background);
   root.style.setProperty('--app-background-image', imageValue(configuration.assets.applicationBackgroundUrl));
   root.style.setProperty('--app-auth-background-image', imageValue(configuration.assets.authenticationBackgroundUrl));
-
-  // Carbon remains the component system; its interactive theme tokens are
-  // bridged to the installation's configured primary brand color at runtime.
-  root.style.setProperty('--cds-background-brand', primary);
-  root.style.setProperty('--cds-border-interactive', primary);
-  root.style.setProperty('--cds-button-primary', primary);
-  root.style.setProperty('--cds-button-primary-hover', primaryHover);
-  root.style.setProperty('--cds-button-primary-active', primaryActive);
-  root.style.setProperty('--cds-button-tertiary', primary);
-  root.style.setProperty('--cds-button-tertiary-hover', primaryHover);
-  root.style.setProperty('--cds-button-tertiary-active', primaryActive);
-  root.style.setProperty('--cds-focus', primary);
-  root.style.setProperty('--cds-icon-interactive', primary);
-  root.style.setProperty('--cds-link-primary', primary);
-  root.style.setProperty('--cds-link-primary-hover', primaryActive);
-  root.style.setProperty('--cds-link-secondary', primaryActive);
-  root.style.setProperty('--cds-highlight', mixedColor(primary, 16, 'white'));
   document.title = configuration.identity.applicationName;
 
   let favicon = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');

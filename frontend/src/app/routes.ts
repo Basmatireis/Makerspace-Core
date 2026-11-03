@@ -56,11 +56,6 @@ export const MachineLogbookLayout = lazy(() =>
     default: MachineLogbookLayout,
   })),
 );
-export const MachineLogbookOverviewPage = lazy(() =>
-  import('../features/machinelogbook/OverviewPage').then(({ MachineLogbookOverviewPage }) => ({
-    default: MachineLogbookOverviewPage,
-  })),
-);
 export const JobsPage = lazy(() =>
   import('../features/machinelogbook/JobsPage').then(({ JobsPage }) => ({ default: JobsPage })),
 );

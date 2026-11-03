@@ -212,7 +212,7 @@ export function RecycleBinPage() {
       description="Deleted jobs and runs stay here until they are restored or deleted for good."
       width="wide"
       breadcrumbs={[
-        { label: 'Workshop', to: machineLogbookPaths.overview() },
+        { label: 'Workshop', to: machineLogbookPaths.home() },
         { label: 'Jobs', to: machineLogbookPaths.jobs() },
         { label: 'Recycle bin' },
       ]}

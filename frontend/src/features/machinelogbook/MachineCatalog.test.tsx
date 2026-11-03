@@ -55,7 +55,7 @@ describe('Machine catalog and printer workflows', () => {
         HttpResponse.json({ code: 'not_found' }, { status: 404 }),
       ),
     );
-    renderRoute(<App />, `/machine-logbook/machines/${machineId}`);
+    renderRoute(<App />, `/workshop/machines/${machineId}`);
     expect(await screen.findByRole('heading', { name: machine.name }, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('button', { name: 'More machine actions' })).not.toBeInTheDocument();
@@ -70,7 +70,7 @@ describe('Machine catalog and printer workflows', () => {
         return HttpResponse.json(machine);
       }),
     );
-    const { router } = renderRoute(<App />, `/machine-logbook/machines/${machineId}`);
+    const { router } = renderRoute(<App />, `/workshop/machines/${machineId}`);
     await waitFor(() => expect(router.state.location.pathname).toBe('/dashboard'));
     expect(reads).toBe(0);
   });
@@ -101,7 +101,7 @@ describe('Machine catalog and printer workflows', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/machines/${machineId}`);
+    renderRoute(<App />, `/workshop/machines/${machineId}`);
     const dialog = await openEditor(user);
     await user.clear(within(dialog).getByLabelText('Name'));
     await user.type(within(dialog).getByLabelText('Name'), 'New cutter');
@@ -134,7 +134,7 @@ describe('Machine catalog and printer workflows', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/machines/${machineId}`);
+    renderRoute(<App />, `/workshop/machines/${machineId}`);
     const dialog = await openEditor(user);
     expect(within(dialog).getByLabelText('External identifier (optional)')).toBeDisabled();
     await user.click(within(dialog).getByRole('switch', { name: 'Automatic collection' }));
@@ -165,7 +165,7 @@ describe('Machine catalog and printer workflows', () => {
       }),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, `/machine-logbook/machines/${machineId}`);
+    renderRoute(<App />, `/workshop/machines/${machineId}`);
     const dialog = await openEditor(user);
     await user.type(within(dialog).getByLabelText('Name'), ' edited');
     await user.dblClick(within(dialog).getByRole('button', { name: 'Save machine' }));

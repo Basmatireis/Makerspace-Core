@@ -16,7 +16,7 @@ import type { CurrentUser, PublicLegalLinks } from '../api/generated/models';
 import { Link, useLocation } from 'react-router-dom';
 import { canAccessOpenDays, canAccessSettings, hasAnyPermission, hasPermission } from '../features/auth/permissions';
 
-type NavigationGroupId = 'operations' | 'people' | 'machines' | 'sales' | 'signage';
+type NavigationGroupId = 'operations' | 'people' | 'workshop' | 'sales' | 'signage';
 
 interface NavigationItem {
   label: string;
@@ -73,7 +73,7 @@ function activeGroupForPath(pathname: string): NavigationGroupId | null {
     return 'operations';
   if (pathname.startsWith('/people') || pathname.startsWith('/organizations') || pathname.startsWith('/notifications'))
     return 'people';
-  if (pathname.startsWith('/machine-logbook')) return 'machines';
+  if (pathname.startsWith('/workshop')) return 'workshop';
   if (
     pathname === '/sales' ||
     pathname.startsWith('/orders') ||
@@ -128,33 +128,18 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
     });
   }
 
-  const machines: NavigationItem[] = [];
-  if (hasAnyPermission(currentUser, ['machine_jobs.read', 'statistics.read'])) {
-    machines.push({ label: 'Overview', to: '/machine-logbook', active: pathname === '/machine-logbook' });
-  }
-  if (hasPermission(currentUser, 'machine_jobs.read')) {
-    machines.push({ label: 'Jobs', to: '/machine-logbook/jobs', active: pathname.startsWith('/machine-logbook/jobs') });
-  }
-  if (hasPermission(currentUser, 'machines.read')) {
-    machines.push({
-      label: 'Machines',
-      to: '/machine-logbook/machines',
-      active: pathname.startsWith('/machine-logbook/machines'),
-    });
-  }
-  if (hasPermission(currentUser, 'inventory.read')) {
-    machines.push({
-      label: 'Inventory',
-      to: '/machine-logbook/inventory',
-      active: pathname.startsWith('/machine-logbook/inventory'),
-    });
-  }
-  if (hasPermission(currentUser, 'statistics.read')) {
-    machines.push({
-      label: 'Statistics',
-      to: '/machine-logbook/statistics',
-      active: pathname.startsWith('/machine-logbook/statistics'),
-    });
+  const workshop: NavigationItem[] = [];
+  const workshopPages = [
+    ['Jobs', 'jobs', 'machine_jobs.read'],
+    ['Machines', 'machines', 'machines.read'],
+    ['Inventory', 'inventory', 'inventory.read'],
+    ['Statistics', 'statistics', 'statistics.read'],
+  ] as const;
+  for (const [label, segment, permission] of workshopPages) {
+    if (hasPermission(currentUser, permission)) {
+      const to = `/workshop/${segment}`;
+      workshop.push({ label, to, active: pathname.startsWith(to) });
+    }
   }
 
   const sales: NavigationItem[] = [];
@@ -232,7 +217,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         >
           Dashboard
         </SideNavLink>
-        {renderGroup('machines', 'Workshop', Tools, machines)}
+        {renderGroup('workshop', 'Workshop', Tools, workshop)}
         {renderGroup('sales', 'Sales & payments', Receipt, sales)}
         {renderGroup('operations', 'Operations', Calendar, operations)}
         {renderGroup('signage', 'Signage', Screen, signage)}

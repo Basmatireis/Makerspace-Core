@@ -292,7 +292,7 @@
   border: 0;
 }
 .semester-calendar .calendar-days > .calendar-cell--outside-period {
-  color: theme.$text-disabled;
+  color: theme.$text-secondary;
   background: var(--cds-layer-accent);
 }
 .calendar-cell__header {

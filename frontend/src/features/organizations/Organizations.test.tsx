@@ -192,7 +192,7 @@ describe('Organization page', () => {
     expect(await screen.findByRole('link', { name: 'Maria Hoffmann' })).toHaveAttribute('href', `/people/${personId}`);
     expect(screen.getByRole('link', { name: 'Show jobs' })).toHaveAttribute(
       'href',
-      `/machine-logbook/jobs?customer=${organizationId}`,
+      `/workshop/jobs?customer=${organizationId}`,
     );
     expect(screen.queryByRole('button', { name: /^Save/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add person' })).not.toBeInTheDocument();

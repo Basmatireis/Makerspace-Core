@@ -36,7 +36,7 @@ import { useCan } from './shared/useCan';
 import './styles/inventory.scss';
 
 const crumbs = [
-  { label: 'Workshop', to: machineLogbookPaths.overview() },
+  { label: 'Workshop', to: machineLogbookPaths.home() },
   { label: 'Inventory', to: machineLogbookPaths.inventory() },
 ];
 type Dialog = 'movement' | 'edit' | 'empty' | 'receive' | 'delete' | null;

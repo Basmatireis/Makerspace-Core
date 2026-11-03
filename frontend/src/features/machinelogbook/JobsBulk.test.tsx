@@ -78,7 +78,7 @@ const lookups = () => [
 ];
 
 async function openJobs(...items: WorkItem[]) {
-  renderRoute(<App />, '/machine-logbook/jobs');
+  renderRoute(<App />, '/workshop/jobs');
   const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
   expect(items.length).toBeGreaterThan(0);
   return table;

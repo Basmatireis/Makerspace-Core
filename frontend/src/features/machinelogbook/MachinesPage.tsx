@@ -234,7 +234,7 @@ export function MachinesPage() {
       title="Machines"
       description="Machines in the workshop, their availability and recent activity."
       width="wide"
-      breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Machines' }]}
+      breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.home() }, { label: 'Machines' }]}
     >
       {tab === 'machines' && (
         <QueryBoundary query={query} errorMessage="The machines could not be loaded.">

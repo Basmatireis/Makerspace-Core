@@ -1077,7 +1077,7 @@ test('keeps the page header readable over light, dark, and detailed backgrounds'
       header.evaluate((element) => getComputedStyle(element).backgroundColor),
     ]);
     if (!headerBounds || !mainBounds) throw new Error('Could not measure the branded page frame.');
-    expect(headerBackground).toBe('rgba(255, 255, 255, 0.94)');
+    expect(headerBackground).toBe('color(srgb 1 1 1 / 0.94)');
     expect(headerBounds.x).toBeGreaterThan(mainBounds.x);
     expect(headerBounds.width).toBeLessThan(mainBounds.width);
 

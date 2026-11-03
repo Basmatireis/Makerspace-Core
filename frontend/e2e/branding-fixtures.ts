@@ -18,8 +18,8 @@ export function defaultPublicBrandingConfiguration() {
       logoUrl: '/brand/htumkr-symbol.png',
       compactLogoUrl: '/brand/htumkr-symbol.png',
       faviconUrl: '/brand/htumkr-symbol.png',
-      applicationBackgroundUrl: '/brand/blueprint-workshop.jpg',
-      authenticationBackgroundUrl: '/brand/blueprint-details.jpg',
+      applicationBackgroundUrl: '/brand/bg-makerspace.webp',
+      authenticationBackgroundUrl: '/brand/bg-makerspace.webp',
     },
     legal: {
       imprint: { mode: 'internal', href: '/legal/imprint' },
