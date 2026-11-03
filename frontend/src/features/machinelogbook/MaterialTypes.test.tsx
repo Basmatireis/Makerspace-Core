@@ -427,7 +427,7 @@ describe('Variants of a type', () => {
     );
     expect(within(rates).getByRole('button', { name: 'Edit rate for Basic in Partner' })).toHaveTextContent('0,05 €/g');
     expect(within(rates).getByRole('button', { name: 'Edit rate for Matte in Partner' })).toHaveTextContent(
-      '0,04 €/g · inherits',
+      '0,04 €/g · inherited',
     );
     await user.click(within(rates).getByRole('button', { name: 'Edit rate for Matte in Partner' }));
     await user.type(within(rates).getByLabelText(/Rate for Matte in Partner/), '0,06');
@@ -442,6 +442,21 @@ describe('Variants of a type', () => {
     );
   });
 
+  it('explains where to create a pricing group when none exists', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage, PermissionId.pricingread];
+    serveTypes();
+    server.use(
+      http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants: [basic, matte] }] })),
+      http.get('*/api/v1/pricing-groups', () => HttpResponse.json({ items: [] })),
+    );
+    const user = userEvent.setup();
+    const dialog = await openPla(user);
+    expect(await within(dialog).findByText('Rates per variant')).toBeInTheDocument();
+    expect(within(dialog).getByText(/Rates per variant appear once a pricing group exists under/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'Sales → Pricing' })).toHaveAttribute('href', '/pricing');
+    expect(within(dialog).queryByRole('table', { name: 'Rates of PLA per variant' })).not.toBeInTheDocument();
+  });
+
   it('keeps the rates read-only without pricing.manage and hides them without pricing.read', async () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage, PermissionId.pricingread];
     serveTypes();
@@ -453,7 +468,7 @@ describe('Variants of a type', () => {
     const dialog = await openPla(user);
     const rates = await within(dialog).findByRole('table', { name: 'Rates of PLA per variant' });
     expect(within(rates).queryByRole('button')).not.toBeInTheDocument();
-    expect(within(rates).getAllByText('0,04 €/g · inherits')).toHaveLength(2);
+    expect(within(rates).getAllByText('0,04 €/g · inherited')).toHaveLength(2);
   });
 
   it('shows no variants for part categories', async () => {

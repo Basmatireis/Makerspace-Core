@@ -146,7 +146,8 @@ export function VariantsEditor({ type }: { type: MaterialType }) {
             size="sm"
             labelText="New variant"
             hideLabel
-            placeholder="New variant, for example Matte"
+            placeholder="New variant"
+            helperText="For example Matte"
             autoComplete="off"
             maxLength={80}
             value={name}

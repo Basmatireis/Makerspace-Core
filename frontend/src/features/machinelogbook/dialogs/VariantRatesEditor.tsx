@@ -3,6 +3,7 @@ import {
   Button,
   IconButton,
   InlineNotification,
+  Link as CarbonLink,
   Table,
   TableBody,
   TableCell,
@@ -12,6 +13,7 @@ import {
   TextInput,
 } from '@carbon/react';
 import { Checkmark, Close } from '@carbon/icons-react';
+import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createPricingRule, updatePricingRule } from '../../../api/generated/pricing/pricing';
 import type { MaterialType, MaterialUnit, PricingGroup, PricingRule } from '../../../api/generated/models';
@@ -72,7 +74,22 @@ export function VariantRatesEditor({ type }: { type: MaterialType }) {
     },
   });
 
-  if (!can('pricing.read') || groups.length === 0) return null;
+  if (!can('pricing.read')) return null;
+  if (groups.length === 0) {
+    if (!pricing.isSuccess) return null;
+    return (
+      <fieldset className="inv-variants">
+        <legend className="cds--label">Rates per variant</legend>
+        <p className="mj-secondary">
+          Rates per variant appear once a pricing group exists under{' '}
+          <CarbonLink as={Link} to="/pricing" inline>
+            Sales → Pricing
+          </CarbonLink>
+          .
+        </p>
+      </fieldset>
+    );
+  }
   const parsed = parseDecimalInput(text);
   const rows: { variantId: string | null; label: string }[] = [
     { variantId: null, label: 'All variants' },
@@ -155,7 +172,7 @@ export function VariantRatesEditor({ type }: { type: MaterialType }) {
                   `${rateText(own.rate)} ${unit}`
                 ) : inherited ? (
                   <span className="mj-secondary">
-                    {rateText(inherited.rate)} {unit} · inherits
+                    {rateText(inherited.rate)} {unit} · inherited
                   </span>
                 ) : (
                   <span className="mj-secondary">No rate</span>
