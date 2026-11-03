@@ -286,31 +286,37 @@ test('sells billable jobs and manual items, takes cash and card, runs the wiRef 
   });
   await resize(page, 1280, 900);
 
-  // 4. Cashbook: the invoice payment, a cash withdrawal and a cash deposit.
-  await page.goto('/payments');
+  // 4. Payments: the invoice payment in the cashbook, then a cash withdrawal and a cash deposit from the register.
+  await page.goto('/payments?tab=cashbook');
   await expect(page.getByRole('heading', { name: 'Payments', level: 1 })).toBeVisible();
   const cashbook = page.getByRole('table', { name: 'Payments' });
-  await expect(cashbook.getByRole('cell', { name: 'Invoice (wiRef)', exact: true }).first()).toBeVisible();
-  await page.getByRole('button', { name: 'Record cash withdrawal' }).click();
+  await expect(
+    cashbook.getByRole('cell', { name: 'Invoice (wiRef)', exact: true }).filter({ visible: true }).first(),
+  ).toBeVisible();
+  await page.getByRole('tab', { name: 'Cash register' }).click();
+  const journal = page.getByRole('table', { name: 'Cash journal' });
+  const register = page.getByRole('complementary', { name: 'Cash register' });
+  await expect(register.getByRole('heading', { name: 'Expected in the register' })).toBeVisible();
+  await register.getByRole('button', { name: 'Withdraw', exact: true }).click();
   let movement = dialogTitled(page, 'Record cash withdrawal');
   await movement.getByLabel('Amount (€)').fill('5');
   await accessibility(page);
   await movement.getByRole('button', { name: 'Record', exact: true }).click();
   await expect(movement).toHaveCount(0);
-  await page.getByRole('button', { name: 'Record cash deposit' }).click();
+  await register.getByRole('button', { name: 'Deposit', exact: true }).click();
   movement = dialogTitled(page, 'Record cash deposit');
   await movement.getByLabel('Amount (€)').fill('3');
   await movement.getByRole('button', { name: 'Record', exact: true }).click();
   await expect(movement).toHaveCount(0);
-  await expect(cashbook.getByText('Cash withdrawal')).toBeVisible();
-  await expect(cashbook.getByText('Cash deposit')).toBeVisible();
+  await expect(journal.getByRole('row').filter({ hasText: 'Withdrawal' }).first()).toBeVisible();
+  await expect(journal.getByRole('row').filter({ hasText: 'Deposit' }).first()).toBeVisible();
   await accessibility(page);
   await resize(page, 390, 844);
   await accessibility(page);
   await resize(page, 1280, 900);
-  const register = await parse<{ withdrawals: string; deposits: string }>(await get('/payments/cash-register'));
-  expect(Number(register.withdrawals)).toBeGreaterThanOrEqual(5);
-  expect(Number(register.deposits)).toBeGreaterThanOrEqual(3);
+  const figures = await parse<{ withdrawals: string; deposits: string }>(await get('/payments/cash-register'));
+  expect(Number(figures.withdrawals)).toBeGreaterThanOrEqual(5);
+  expect(Number(figures.deposits)).toBeGreaterThanOrEqual(3);
 
   expect(browserErrors).toEqual([]);
 });
