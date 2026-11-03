@@ -13,18 +13,21 @@ import { as, at, everything, ids, order } from './testData';
 vi.mock('@carbon/charts-react', () => ({ LineChart: () => <div />, SimpleBarChart: () => <div /> }));
 
 const materialId = '01995ea6-6d00-7000-8000-000000000201';
+const groupId = '01995ea6-6d00-7000-8000-000000000204';
 const withInventory = [...everything, PermissionId.inventoryread];
 
 const article = (overrides: Partial<Material> = {}): Material =>
   ({
     id: materialId,
+    displayId: 'A-0007',
     name: 'M3 heat-set insert',
     kind: 'part',
     materialTypeId: '01995ea6-6d00-7000-8000-000000000202',
     materialTypeName: 'Fasteners',
+    materialTypeCode: 'FAST',
+    machineUse: false,
     variant: null,
     manufacturer: null,
-    salePrice: '0.25',
     packageSize: '100',
     storageLocation: null,
     notes: null,
@@ -42,6 +45,16 @@ const article = (overrides: Partial<Material> = {}): Material =>
     stockState: 'in_stock',
     inventoryVersion: 2,
     recentConsumption: '0',
+    prices: [
+      {
+        pricingGroupId: groupId,
+        pricingGroupName: 'Partners',
+        rate: '0.25',
+        source: 'stock_article',
+        pricingRuleId: '01995ea6-6d00-7000-8000-000000000205',
+      },
+    ],
+    attention: [],
     version: 1,
     createdAt: at,
     updatedAt: at,
@@ -69,18 +82,43 @@ function serve(articles: Material[] = [article()], current = order()) {
     http.get('*/api/v1/materials', () =>
       HttpResponse.json({ items: articles, page: 1, pageSize: 25, total: articles.length, totalInventoryValue: '0' }),
     ),
+    // The customer is an organization of the Partners group, so its price is prefilled.
+    http.get('*/api/v1/billing-parties', () =>
+      HttpResponse.json({
+        items: [
+          {
+            kind: 'organization',
+            id: ids.customer,
+            displayName: 'Example institute',
+            pricingGroup: { id: groupId, name: 'Partners' },
+            pricingGroupAssignmentVersion: 1,
+          },
+        ],
+      }),
+    ),
+    http.get('*/api/v1/machine-logbook/work-items', () =>
+      HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 }),
+    ),
   );
 }
 
-async function openDialog(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: 'Add items' }));
-  await user.click(await screen.findByRole('menuitem', { name: 'From inventory…' }));
-  return screen.findByRole('dialog');
+/** Carbon modals are named by their label; the heading identifies them. */
+async function dialogTitled(title: string) {
+  const heading = await screen.findByRole('heading', { name: title });
+  return heading.closest<HTMLElement>('[role="dialog"]')!;
 }
 
-async function pick(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement, name: string) {
+async function openDialog(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: 'Add item' }));
+  const choice = await dialogTitled('Add to order');
+  await user.click(within(choice).getByText('Something from inventory'));
+  await user.click(within(choice).getByRole('button', { name: 'Continue' }));
+  return dialogTitled('Add from inventory');
+}
+
+async function pick(user: ReturnType<typeof userEvent.setup>, dialog: HTMLElement) {
   await user.click(within(dialog).getByRole('combobox', { name: 'Article' }));
-  await user.click(await screen.findByText(name));
+  await user.click(await screen.findByText('A-0007 · M3 heat-set insert'));
 }
 
 function captureAdd() {
@@ -103,25 +141,26 @@ describe('order items from inventory', () => {
     expect(lineAmountCents('250', '0.018')).toBe(450);
   });
 
-  it('hides the menu entry without inventory.read', async () => {
+  it('does not offer inventory without inventory.read', async () => {
     as(everything);
     serve();
     const user = userEvent.setup();
     renderRoute(<App />, `/orders/${ids.order}`);
-    await user.click(await screen.findByRole('button', { name: 'Add items' }));
-    expect(await screen.findByRole('menuitem', { name: 'Custom item…' })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: 'From inventory…' })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'Add item' }));
+    const choice = await dialogTitled('Add to order');
+    expect(within(choice).getByText('A custom line')).toBeInTheDocument();
+    expect(within(choice).queryByText('Something from inventory')).not.toBeInTheDocument();
   });
 
-  it('adds an article with its sale price as the default unit price', async () => {
+  it('prefills the price of the customer’s pricing group', async () => {
     as(withInventory);
     serve();
     const captured = captureAdd();
     const user = userEvent.setup();
     renderRoute(<App />, `/orders/${ids.order}`);
     const dialog = await openDialog(user);
-    await pick(user, dialog, 'M3 heat-set insert');
-    expect(within(dialog).getByLabelText('Unit price (€)')).toHaveValue('0.25');
+    await pick(user, dialog);
+    await waitFor(() => expect(within(dialog).getByLabelText(/^Unit price/)).toHaveValue('0.25'));
     await user.clear(within(dialog).getByLabelText(/^Quantity/));
     await user.type(within(dialog).getByLabelText(/^Quantity/), '4');
     expect(within(dialog).getByText('€1.00')).toBeInTheDocument();
@@ -144,27 +183,39 @@ describe('order items from inventory', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/orders/${ids.order}`);
     const dialog = await openDialog(user);
-    await pick(user, dialog, 'M3 heat-set insert');
-    await user.clear(within(dialog).getByLabelText('Unit price (€)'));
-    await user.type(within(dialog).getByLabelText('Unit price (€)'), '0,4');
+    await pick(user, dialog);
+    await user.clear(within(dialog).getByLabelText(/^Unit price/));
+    await user.type(within(dialog).getByLabelText(/^Unit price/), '0,4');
     await user.click(within(dialog).getByRole('button', { name: 'Add item' }));
     await waitFor(() =>
       expect(captured.body).toMatchObject({ kind: 'inventory_item', materialId, quantity: '1', unitPrice: '0.4' }),
     );
   });
 
-  it('requires a price for an article without a sale price', async () => {
-    as(withInventory);
-    serve([article({ salePrice: null })]);
-    const captured = captureAdd();
+  it('leaves the price to the server without one and explains a missing group price', async () => {
+    as([...withInventory, PermissionId.pricingread]);
+    serve([article({ prices: [] })]);
+    const captured: { body?: Record<string, unknown> } = {};
+    server.use(
+      http.post(`*/api/v1/orders/${ids.order}/items`, async ({ request }) => {
+        captured.body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { code: 'article_price_missing', message: 'No price.', details: { pricingGroup: 'Partners' } },
+          { status: 422 },
+        );
+      }),
+    );
     const user = userEvent.setup();
     renderRoute(<App />, `/orders/${ids.order}`);
     const dialog = await openDialog(user);
-    await pick(user, dialog, 'M3 heat-set insert');
-    expect(within(dialog).getByText('This article has no sale price. Enter the price.')).toBeInTheDocument();
+    await pick(user, dialog);
+    expect(within(dialog).getByText(/This article has no price in any group/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Add item' }));
-    expect(await within(dialog).findByText('Required')).toBeInTheDocument();
-    expect(captured.body).toBeUndefined();
+    expect(await within(dialog).findByText('No price for this customer')).toBeInTheDocument();
+    expect(within(dialog).getByText(/has no price in the Partners pricing group/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'Pricing' })).toHaveAttribute('href', '/pricing');
+    expect(captured.body).toMatchObject({ kind: 'inventory_item', materialId, quantity: '1' });
+    expect(captured.body).not.toHaveProperty('unitPrice');
   });
 
   it('warns, without blocking, when the quantity exceeds the loose stock', async () => {
@@ -174,7 +225,7 @@ describe('order items from inventory', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/orders/${ids.order}`);
     const dialog = await openDialog(user);
-    await pick(user, dialog, 'M3 heat-set insert');
+    await pick(user, dialog);
     expect(within(dialog).queryByText(/in loose stock/)).not.toBeInTheDocument();
     await user.clear(within(dialog).getByLabelText(/^Quantity/));
     await user.type(within(dialog).getByLabelText(/^Quantity/), '20');

@@ -47,10 +47,10 @@
 // Contained lists, tables and tiles that sit on the page surface read as white panels.
 .sales-page .cds--contained-list,
 .sales-page .cds--contained-list .cds--contained-list__header {
-  background: var(--cds-layer);
+  background: theme.$layer-01;
 }
 .sales-page .cds--data-table-container {
-  background: var(--cds-layer);
+  background: theme.$layer-01;
   min-inline-size: 0;
 }
 // Wide tables scroll inside their own container instead of widening the page.
@@ -185,7 +185,7 @@
 }
 .sales-sum__total {
   padding-block-start: $spacing-02;
-  border-block-start: 1px solid var(--cds-border-strong);
+  border-block-start: 1px solid theme.$border-strong-01;
   font-weight: 600;
 }
 
@@ -240,21 +240,170 @@
   }
 }
 
+// Shared glue of the list, panel and page layouts ----------------------------------------------------------------------
+.sales-stack {
+  display: grid;
+  gap: $spacing-05;
+  align-content: start;
+  min-inline-size: 0;
+}
+.sales-cell {
+  display: grid;
+  gap: $spacing-01;
+  min-inline-size: 0;
+}
+.sales-secondary {
+  @include type-style('helper-text-01');
+  color: theme.$text-secondary;
+}
+.sales-inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-02 $spacing-03;
+}
+.sales-option {
+  display: grid;
+  gap: $spacing-01;
+}
+.sales-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}
+.sales-count {
+  margin-inline-start: $spacing-03;
+  color: theme.$text-secondary;
+  font-weight: 400;
+}
+.sales-empty-cell {
+  color: theme.$text-secondary;
+  text-align: center;
+}
+.sales-show-narrow {
+  display: none;
+}
+@media (max-width: 41.98rem) {
+  .sales-hide-narrow {
+    display: none;
+  }
+  .sales-show-narrow {
+    display: block;
+  }
+}
+
+// A table with a title row (Items, Payments) on a layer; wide tables scroll inside it.
+.sales-table-card {
+  display: grid;
+  min-inline-size: 0;
+  overflow-x: auto;
+  background: theme.$layer-01;
+}
+.sales-table-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+  min-block-size: 3rem;
+  padding-inline-start: $spacing-05;
+}
+.sales-table-card__title {
+  @include type-style('heading-compact-02');
+}
+.sales-table-card .cds--data-table td {
+  vertical-align: middle;
+}
+.sales-card-notice.cds--actionable-notification,
+.sales-page .cds--actionable-notification--inline {
+  max-inline-size: none;
+}
+.sales-notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  margin-block-start: $spacing-03;
+  margin-inline-start: -$spacing-05;
+}
+
+// Order page: the main column and, from 1056 px on, a side column of fixed width.
+.sales-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+@media (min-width: 66rem) {
+  .sales-detail {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
+  }
+}
+.sales-hero {
+  @include type-style('heading-06');
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.sales-summary {
+  display: grid;
+  gap: $spacing-03;
+  margin: 0;
+}
+.sales-summary > div {
+  display: grid;
+  grid-template-columns: minmax(6rem, 2fr) minmax(0, 3fr);
+  gap: $spacing-04;
+}
+.sales-summary dt {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+.sales-summary dd {
+  @include type-style('body-compact-01');
+  margin: 0;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.sales-summary--amounts {
+  padding-block-start: $spacing-03;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+.sales-summary--amounts > div {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.sales-summary--amounts dt {
+  @include type-style('body-compact-01');
+}
+.sales-summary--amounts dd {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.sales-summary__total {
+  padding-block-start: $spacing-03;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+.sales-summary--amounts .sales-summary__total dt,
+.sales-summary--amounts .sales-summary__total dd {
+  @include type-style('heading-compact-01');
+  color: theme.$text-primary;
+}
+.sales-choice .cds--tile--selectable {
+  margin-block-end: $spacing-03;
+}
+
 // Receipt: a paper-like page of Carbon tables; printing leaves only the receipt --------------------------------------------
 .sales-receipt {
   display: grid;
   gap: $spacing-05;
   max-inline-size: 48rem;
   padding: $spacing-07;
-  background: var(--cds-layer);
-  border: 1px solid var(--cds-border-subtle);
+  background: theme.$layer-01;
+  border: 1px solid theme.$border-subtle-01;
 }
 .sales-receipt__head {
   display: flex;
   align-items: center;
   gap: $spacing-05;
   padding-block-end: $spacing-04;
-  border-block-end: 1px solid var(--cds-border-subtle);
+  border-block-end: 1px solid theme.$border-subtle-01;
 }
 .sales-receipt__logo {
   inline-size: 2.5rem;
@@ -284,7 +433,7 @@
 .sales-receipt__foot {
   @include type-style('helper-text-01');
   padding-block-start: $spacing-04;
-  border-block-start: 1px solid var(--cds-border-subtle);
+  border-block-start: 1px solid theme.$border-subtle-01;
   color: theme.$text-secondary;
 }
 

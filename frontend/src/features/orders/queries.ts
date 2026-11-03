@@ -82,6 +82,18 @@ export const readyToBillQuery = () =>
       ).filter((item) => item.kind === 'job'),
   });
 
+/** Finished jobs of one customer that are on no order yet: what "Add item" offers for a draft of that customer. */
+export const customerJobsQuery = (customerId: string) =>
+  queryOptions({
+    queryKey: [...machineLogbookKeys.all, 'ready-to-bill', customerId],
+    queryFn: async (): Promise<WorkItem[]> =>
+      (
+        await fetchAllPages((page) =>
+          listMachineLogbookWorkItems({ billing: ['not_on_order'], customerId, page, pageSize: PAGE }),
+        )
+      ).filter((item) => item.kind === 'job'),
+  });
+
 /** A mutation of the finance area: afterwards every order, payment and job list is refreshed. */
 export function useFinanceMutation<TVariables, TResult>(
   mutationFn: (variables: TVariables) => Promise<TResult>,

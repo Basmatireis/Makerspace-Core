@@ -639,3 +639,15 @@ export function insufficientStock(error: unknown): { materialId: string; availab
       typeof details?.available === 'string' || typeof details?.available === 'number' ? String(details.available) : '',
   };
 }
+
+/** How a job is named in pickers: number, name or file, machine. */
+export const jobLabel = (job: Pick<WorkItem, 'displayId' | 'title' | 'fileName' | 'machineName'> | null) =>
+  job ? [job.displayId, job.title || job.fileName, job.machineName].filter(Boolean).join(' · ') : '';
+
+/** The refusal of a stock item without a price (422 article_price_missing): the customer's pricing group that has none. Null for any other error. */
+export function articlePriceMissing(error: unknown): { pricingGroup: string } | null {
+  const data = error as { status?: number; data?: { code?: string; details?: { pricingGroup?: unknown } } } | null;
+  if (data?.status !== 422 || data.data?.code !== 'article_price_missing') return null;
+  const group = data.data.details?.pricingGroup;
+  return { pricingGroup: typeof group === 'string' ? group : '' };
+}

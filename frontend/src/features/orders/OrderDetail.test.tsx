@@ -148,8 +148,9 @@ describe('order detail: payments', () => {
     as(everything);
     serve(awaitingApproval);
     renderRoute(<App />, `/orders/${ids.order}`);
-    const table = await screen.findByRole('table', { name: 'Payments' });
-    expect(within(table).getByText('Payments paused')).toBeInTheDocument();
+    await screen.findByRole('table', { name: 'Payments' });
+    const section = screen.getByRole('region', { name: /^Payments/ });
+    expect(within(section).getByText('Payments paused')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Record payment' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'View invoice' })).toBeInTheDocument();
   });

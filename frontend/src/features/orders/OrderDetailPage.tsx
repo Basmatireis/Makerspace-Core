@@ -1,18 +1,8 @@
 import { useState } from 'react';
-import {
-  Button,
-  Link as CarbonLink,
-  MenuButton,
-  MenuItem,
-  Modal,
-  OverflowMenu,
-  OverflowMenuItem,
-  Stack,
-  Tile,
-} from '@carbon/react';
-import { Currency, Document as DocumentIcon, Printer } from '@carbon/icons-react';
+import { Button, Modal, OverflowMenu, OverflowMenuItem, Stack } from '@carbon/react';
+import { Add, ArrowRight, Currency, Document as DocumentIcon, Edit, Printer, Renew } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   cancelOrder,
   createReplacementOrder,
@@ -21,6 +11,7 @@ import {
   removeOrderItem,
 } from '../../api/generated/orders/orders';
 import type { Order, OrderItem } from '../../api/generated/models';
+import { FactTiles } from '../../app/components/Facts';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
@@ -30,25 +21,40 @@ import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { useNotify } from '../machinelogbook/shared/toasts';
+import { AddItemModal, type AddItemKind } from './AddItemModal';
 import { CorrectOrderModal } from './CorrectOrderModal';
+import { InventoryItemModal } from './InventoryItemModal';
 import { InvoiceSection } from './InvoiceSection';
+import { customerKindLabel, methodLabel, requestStateLabel } from './labels';
 import { acceptsCashAndCard, activeItems, canPrintReceipt, customerLabel, invoiceRequestBlocker } from './logic';
-import { customerKindLabel, requestStateLabel } from './labels';
 import { formatCents, toCents } from './money';
 import { useOperationKeys } from './operations';
-import { AddJobsModal, CustomItemModal, EditOrderModal, InventoryItemModal } from './OrderDialogs';
+import { BalanceCard, CustomerCard } from './OrderCards';
+import { AddJobsModal, CustomItemModal, EditOrderModal } from './OrderDialogs';
 import { OrderErrorText } from './OrderErrorText';
 import { OrderItemsTable } from './OrderItemsTable';
+import { useOrderPaymentRows } from './paymentRows';
 import { PaymentsSection } from './PaymentsSection';
 import { orderQuery, useFinanceMutation } from './queries';
 import { RecordPaymentModal } from './RecordPaymentModal';
 import { RequestInvoiceModal } from './RequestInvoiceModal';
-import { OrderStatusTag } from './status';
+import { OrderStatusTag, RequestStateTag } from './status';
 import './sales.scss';
 import '../machinelogbook/shared/shared.scss';
 
 type Dialog =
-  'edit' | 'jobs' | 'stock' | 'custom' | 'finalize' | 'cancel' | 'pay' | 'checkout' | 'correct' | 'invoice' | null;
+  | 'edit'
+  | 'add'
+  | 'jobs'
+  | 'stock'
+  | 'custom'
+  | 'finalize'
+  | 'cancel'
+  | 'pay'
+  | 'checkout'
+  | 'correct'
+  | 'invoice'
+  | null;
 const crumbs = [
   { label: 'Sales & payments', to: '/sales' },
   { label: 'Orders', to: '/orders' },
@@ -68,6 +74,9 @@ export function OrderDetailPage() {
   return <OrderDetail key={query.data.id} order={query.data} />;
 }
 
+const scrollToInvoice = () =>
+  document.getElementById('invoice')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
 function OrderDetail({ order }: { order: Order }) {
   const user = useCurrentUser();
   const navigate = useNavigate();
@@ -82,24 +91,39 @@ function OrderDetail({ order }: { order: Order }) {
   const items = activeItems(order);
   const canWrite = can(PermissionId.orderswrite);
   const canReadInventory = can(PermissionId.inventoryread);
+  const canReadJobs = can(PermissionId.machine_jobsread);
   const canFinalize = can(PermissionId.ordersfinalize);
-  const recorded = can(PermissionId.paymentsrecord) && can(PermissionId.paymentsread);
+  const canReadPayments = can(PermissionId.paymentsread);
+  const recorded = can(PermissionId.paymentsrecord) && canReadPayments;
   const canInvoiceManage =
     can(PermissionId.external_invoice_requestsmanage) && can(PermissionId.external_invoice_requestsread);
   const changed = items.filter((item) => item.sourceChanged);
   const original = useQuery({ ...orderQuery(order.replacesOrderId ?? ''), enabled: !!order.replacesOrderId && draft });
+  const paymentRows = useOrderPaymentRows(order, canReadPayments);
   const outstanding = toCents(order.outstandingAmount);
   const hasRequest = !!order.activeExternalRequestId;
   const accepts = acceptsCashAndCard(order);
 
-  const command = (action: string, extra: object = {}) => {
-    const input = { expectedVersion: order.version, ...extra };
+  const command = (action: string, extra: object = {}, version = order.version) => {
+    const input = { expectedVersion: version, ...extra };
     return { ...input, operationKey: key(action, input) };
   };
   const mutation = useFinanceMutation(
     async (run: () => Promise<unknown>) => run(),
     () => close(),
   );
+  const refreshChanged = () =>
+    mutation.mutate(async () => {
+      // Each refresh moves the order version on, so the next one is sent with the version the last one returned.
+      let version = order.version;
+      for (const item of changed)
+        version = (await refreshOrderItem(order.id, item.id, command(`refresh-${item.id}`, {}, version))).version;
+      notify({
+        kind: 'success',
+        title: changed.length === 1 ? 'Job refreshed' : 'Jobs refreshed',
+        subtitle: 'The items now have the jobs’ current prices.',
+      });
+    });
 
   const draftBlockers = draft
     ? [
@@ -138,6 +162,7 @@ function OrderDetail({ order }: { order: Order }) {
     draft && !order.replacesOrderId && canFinalize && recorded
       ? { label: 'Finalize', disabled: draftBlockers.length > 0, run: () => setDialog('finalize') }
       : null;
+  const canPay = order.status === 'finalized' && outstanding > 0 && recorded && accepts;
 
   const canCorrect =
     (order.status === 'finalized' || order.status === 'reversed') &&
@@ -173,30 +198,43 @@ function OrderDetail({ order }: { order: Order }) {
     order.status !== 'finalized'
       ? null
       : order.latestExternalRequestId
-        ? {
-            label: 'View invoice',
-            run: () => document.getElementById('invoice')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-          }
+        ? { label: 'View invoice', run: scrollToInvoice }
         : canRequestInvoice && outstanding === 0
           ? { label: 'Request invoice', run: () => setDialog('invoice') }
           : null;
   const state = order.activeExternalRequestState;
+  const stateLabel = (requestStateLabel[state as keyof typeof requestStateLabel] ?? state ?? '').toLowerCase();
   const notice =
     hasRequest && !accepts && order.status === 'finalized' && outstanding > 0
-      ? `${order.activeExternalRequestReference} is ${(requestStateLabel[state as keyof typeof requestStateLabel] ?? state ?? '').toLowerCase()}: cash and card can no longer be added. An issued invoice settles the balance by itself.`
+      ? `${order.activeExternalRequestReference} is ${stateLabel}: cash and card can no longer be added. An issued invoice settles the balance by itself.`
       : null;
+
+  const lastPayment = paymentRows.find((row) => row.payment && !row.reversal)?.payment;
+  const attention = order.attention ?? [];
+  const sourceChanged = attention.some((entry) => entry.code === 'source_changed');
+  const invoiceOpen = attention.some((entry) => entry.code === 'invoice_request_open');
+  const addable = draft && canWrite;
+  const openAdd = (kind: AddItemKind) => {
+    setEditing(null);
+    setDialog(kind === 'job' ? 'jobs' : kind === 'stock' ? 'stock' : 'custom');
+  };
 
   return (
     <PageShell
       className="sales-page"
       title={order.reference}
-      titleAdornment={<OrderStatusTag order={order} />}
+      titleAdornment={
+        <span className="sales-inline">
+          <OrderStatusTag order={order} />
+          {order.latestExternalRequestState && <RequestStateTag state={order.latestExternalRequestState} size="md" />}
+        </span>
+      }
       width="wide"
       description={`${customerLabel(order)} · created ${formatDateTime(order.createdAt)}${order.createdBy ? ` by ${order.createdBy.displayName}` : ''}`}
       breadcrumbs={crumbs}
       actions={
         <>
-          {canPrintReceipt(order) && can(PermissionId.paymentsread) && (
+          {canPrintReceipt(order) && canReadPayments && (
             <Button kind="tertiary" renderIcon={Printer} onClick={() => navigate(`/orders/${order.id}/receipt`)}>
               Print receipt
             </Button>
@@ -224,7 +262,7 @@ function OrderDetail({ order }: { order: Order }) {
         </>
       }
     >
-      <div className="mj-stack">
+      <div className="sales-stack">
         {order.replacesOrderId && draft && (
           <RichNotification kind="info" title="This draft replaces an order">
             <RefLink reference={order.replacesOrderReference ?? ''} id={order.replacesOrderId} kind="order" />. Change
@@ -235,7 +273,7 @@ function OrderDetail({ order }: { order: Order }) {
         {order.replacedByOrderId && (
           <RichNotification kind="info" title="This order was replaced">
             <RefLink reference={order.replacedByOrderReference ?? ''} id={order.replacedByOrderId} kind="order" /> is
-            charged now. This order no longer counts.
+            charged now. This order no longer counts; its payments moved over.
           </RichNotification>
         )}
         {order.replacesOrderId && !draft && (
@@ -244,17 +282,40 @@ function OrderDetail({ order }: { order: Order }) {
             that were already made moved over to this order.
           </RichNotification>
         )}
+        {attention.length > 0 && (
+          <RichNotification kind="warning" title="Needs attention">
+            {attention.map((entry) => entry.message).join(' · ')}
+            {sourceChanged && !draft && ' The order keeps the original charge; to change it, use Correct order.'}
+            {((sourceChanged && draft && canWrite) || canPay || invoiceOpen) && (
+              <span className="sales-notice-actions">
+                {sourceChanged && draft && canWrite && (
+                  <Button
+                    kind="ghost"
+                    size="sm"
+                    renderIcon={Renew}
+                    disabled={mutation.isPending}
+                    onClick={refreshChanged}
+                  >
+                    Refresh prices from the jobs
+                  </Button>
+                )}
+                {canPay && (
+                  <Button kind="ghost" size="sm" renderIcon={Add} onClick={() => setDialog('pay')}>
+                    Take payment
+                  </Button>
+                )}
+                {invoiceOpen && (
+                  <Button kind="ghost" size="sm" renderIcon={ArrowRight} onClick={scrollToInvoice}>
+                    Review invoice
+                  </Button>
+                )}
+              </span>
+            )}
+          </RichNotification>
+        )}
         {draftBlockers.length > 0 && (
           <RichNotification kind="warning" title="Before you can continue">
             {draftBlockers.join(' ')}
-          </RichNotification>
-        )}
-        {!draft && changed.length > 0 && (
-          <RichNotification
-            kind="warning"
-            title={`${changed.length === 1 ? 'A job' : `${changed.length} jobs`} changed after being charged`}
-          >
-            The order keeps the original charge. To change what is charged, use Correct order in the menu.
           </RichNotification>
         )}
         {mutation.error && (
@@ -263,62 +324,57 @@ function OrderDetail({ order }: { order: Order }) {
           </RichNotification>
         )}
 
-        <section className="sales-tiles" aria-label="Amounts">
-          <Tile className="sales-tile">
-            <span className="sales-tile__label">{order.status === 'reversed' ? 'Total (reversed)' : 'Total'}</span>
-            <span className="sales-tile__value">{formatCents(toCents(order.totalAmount))}</span>
-            <span className="mj-secondary">
-              {order.netCharge !== order.totalAmount
-                ? `Net charge ${formatCents(toCents(order.netCharge))} after reversal`
-                : `${items.length} ${items.length === 1 ? 'item' : 'items'}`}
-            </span>
-          </Tile>
-          <Tile className="sales-tile">
-            <span className="sales-tile__label">Paid</span>
-            <span className="sales-tile__value">{formatCents(toCents(order.settledAmount))}</span>
-            <span className="mj-secondary">Payments counting towards this order</span>
-          </Tile>
-          <Tile className="sales-tile">
-            <span className="sales-tile__label">Outstanding</span>
-            <span className={`sales-tile__value${outstanding > 0 && !draft ? ' sales-num--due' : ''}`}>
-              {draft ? '—' : formatCents(outstanding)}
-            </span>
-            <span className="mj-secondary">{draft ? 'Not charged yet' : 'Net charge minus payments'}</span>
-          </Tile>
-        </section>
+        <FactTiles
+          label="Order facts"
+          items={[
+            {
+              label: order.status === 'reversed' ? 'Total (reversed)' : 'Total',
+              value: formatCents(toCents(order.totalAmount)),
+              helper:
+                order.netCharge !== order.totalAmount
+                  ? `Net charge ${formatCents(toCents(order.netCharge))} after reversal`
+                  : `${items.length} ${items.length === 1 ? 'item' : 'items'}${draft ? ' · prices not frozen yet' : ''}`,
+            },
+            {
+              label: 'Paid',
+              value: formatCents(toCents(order.settledAmount)),
+              helper: lastPayment
+                ? `${methodLabel(lastPayment.method)} · ${formatDateTime(lastPayment.occurredAt)}`
+                : 'No payment yet',
+            },
+            {
+              label: 'Outstanding',
+              value: draft ? '—' : formatCents(outstanding),
+              helper: draft ? 'Finalize to charge' : outstanding > 0 ? 'Net charge minus payments' : 'Settled',
+            },
+            { label: 'Customer', value: customerLabel(order), helper: customerKindLabel(order.customerKind) },
+            {
+              label: 'Hand-over',
+              value: order.fulfillmentMode === 'immediate' ? 'Handed over' : 'Later',
+              helper: order.fulfillmentMode === 'immediate' ? 'Taken along on the day' : 'Pick-up or shipping later',
+            },
+            {
+              label: 'Created',
+              value: formatDateTime(order.createdAt),
+              helper: order.createdBy ? `by ${order.createdBy.displayName}` : undefined,
+            },
+          ]}
+        />
 
-        <div className="mj-detail-layout">
-          <div className="mj-stack">
-            {draft && canWrite && (
-              <div className="sales-section-actions">
-                <MenuButton label="Add items" kind="tertiary" size="md" menuAlignment="bottom-start">
-                  {can(PermissionId.machine_jobsread) ? (
-                    <MenuItem label="Jobs…" onClick={() => setDialog('jobs')} />
-                  ) : null}
-                  {canReadInventory ? (
-                    <MenuItem
-                      label="From inventory…"
-                      onClick={() => {
-                        setEditing(null);
-                        setDialog('stock');
-                      }}
-                    />
-                  ) : null}
-                  <MenuItem
-                    label="Custom item…"
-                    onClick={() => {
-                      setEditing(null);
-                      setDialog('custom');
-                    }}
-                  />
-                </MenuButton>
-              </div>
-            )}
+        <div className="sales-detail">
+          <div className="sales-stack">
             <OrderItemsTable
               order={order}
-              editable={draft && canWrite}
+              editable={addable}
               busy={mutation.isPending}
               canReadInventory={canReadInventory}
+              action={
+                addable ? (
+                  <Button kind="primary" size="md" renderIcon={Add} onClick={() => setDialog('add')}>
+                    Add item
+                  </Button>
+                ) : undefined
+              }
               onRefresh={(item) =>
                 mutation.mutate(async () => {
                   await refreshOrderItem(order.id, item.id, command(`refresh-${item.id}`));
@@ -338,70 +394,62 @@ function OrderDetail({ order }: { order: Order }) {
                 setDialog(item.kind === 'inventory_item' ? 'stock' : 'custom');
               }}
             />
-            <PaymentsSection order={order} notice={notice} canRead={can(PermissionId.paymentsread)} />
+            {canReadPayments && (
+              <PaymentsSection
+                order={order}
+                rows={paymentRows}
+                notice={notice}
+                action={
+                  canPay ? (
+                    <Button kind="primary" size="md" renderIcon={Add} onClick={() => setDialog('pay')}>
+                      Record
+                    </Button>
+                  ) : undefined
+                }
+              />
+            )}
             <InvoiceSection order={order} />
           </div>
-          <div className="mj-stack">
-            <Tile>
-              <h2 className="mj-section-title">Details</h2>
-              <dl className="mj-facts sales-facts">
-                <div>
-                  <dt>Customer</dt>
-                  <dd>
-                    {order.customer ? (
-                      <CarbonLink as={Link} to={`/orders?customer=${order.customer.id}`}>
-                        {customerLabel(order)}
-                      </CarbonLink>
-                    ) : (
-                      customerLabel(order)
-                    )}
-                    <br />
-                    <span className="mj-secondary">
-                      {customerKindLabel(order.customerKind)}
-                      {order.customer ? ' · all their orders' : ''}
-                    </span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Hand-over</dt>
-                  <dd>{order.fulfillmentMode === 'immediate' ? 'Handed over now' : 'Customer picks up later'}</dd>
-                </div>
-                <div>
-                  <dt>Created</dt>
-                  <dd>{formatDateTime(order.createdAt)}</dd>
-                </div>
-                <div>
-                  <dt>Last change</dt>
-                  <dd>{formatDateTime(order.updatedAt)}</dd>
-                </div>
-                {order.latestExternalRequestReference && (
-                  <div>
-                    <dt>Invoice request</dt>
-                    <dd>
-                      {order.latestExternalRequestReference}
-                      {order.latestExternalRequestState === 'cancelled' && (
-                        <span className="mj-secondary"> · cancelled</span>
-                      )}
-                    </dd>
-                  </div>
-                )}
-                {order.adjustments.map((adjustment) => (
-                  <div key={adjustment.id}>
-                    <dt>{adjustment.reference}</dt>
-                    <dd>
-                      Full reversal · {formatCents(toCents(adjustment.amount))}
-                      <br />
-                      <span className="mj-secondary">{adjustment.reason}</span>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </Tile>
+          <div className="sales-stack">
+            <BalanceCard
+              order={order}
+              rows={paymentRows}
+              action={
+                canPay ? (
+                  <Button kind="ghost" size="sm" renderIcon={Add} onClick={() => setDialog('pay')}>
+                    Take payment
+                  </Button>
+                ) : canRequestInvoice && outstanding === 0 && !order.latestExternalRequestId ? (
+                  <Button kind="ghost" size="sm" renderIcon={Add} onClick={() => setDialog('invoice')}>
+                    Request an invoice
+                  </Button>
+                ) : undefined
+              }
+            />
+            <CustomerCard
+              order={order}
+              action={
+                addable ? (
+                  <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => setDialog('edit')}>
+                    Edit
+                  </Button>
+                ) : undefined
+              }
+            />
           </div>
         </div>
       </div>
 
       {dialog === 'edit' && <EditOrderModal order={order} onClose={close} onSaved={() => undefined} />}
+      {dialog === 'add' && (
+        <AddItemModal
+          order={order}
+          canJobs={canReadJobs}
+          canStock={canReadInventory}
+          onClose={close}
+          onChoose={openAdd}
+        />
+      )}
       {dialog === 'jobs' && <AddJobsModal order={order} onClose={close} />}
       {dialog === 'stock' && <InventoryItemModal order={order} item={editing} onClose={close} />}
       {dialog === 'custom' && <CustomItemModal order={order} item={editing} onClose={close} />}
@@ -425,7 +473,7 @@ function OrderDetail({ order }: { order: Order }) {
       {dialog === 'correct' && !order.replacesOrderId && (
         <CorrectOrderModal
           order={order}
-          canReversePayments={can(PermissionId.paymentsreverse) && can(PermissionId.paymentsread)}
+          canReversePayments={can(PermissionId.paymentsreverse) && canReadPayments}
           canCarry={canFinalize && recorded}
           onClose={close}
         />
@@ -434,7 +482,7 @@ function OrderDetail({ order }: { order: Order }) {
         <CorrectOrderModal
           order={original.data}
           initialReplacementId={order.id}
-          canReversePayments={can(PermissionId.paymentsreverse) && can(PermissionId.paymentsread)}
+          canReversePayments={can(PermissionId.paymentsreverse) && canReadPayments}
           canCarry={canFinalize && recorded}
           onClose={close}
         />
@@ -463,7 +511,7 @@ function OrderDetail({ order }: { order: Order }) {
               Total: <strong>{formatCents(toCents(order.totalAmount))}</strong> for {customerLabel(order)}.
             </p>
             <p>No payment is taken now. The full total stays outstanding and can be paid later from the order.</p>
-            <p className="mj-secondary">
+            <p className="sales-secondary">
               Later changes need a correction, which reverses this order and creates a replacement.
             </p>
             {mutation.error && (

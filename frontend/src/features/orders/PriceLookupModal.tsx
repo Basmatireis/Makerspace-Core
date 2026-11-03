@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-  ComboBox,
   ContentSwitcher,
   InlineNotification,
   Modal,
@@ -18,6 +17,7 @@ import {
 } from '@carbon/react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { GetPriceQuoteParams, Material, PriceQuote, PriceQuoteGroup } from '../../api/generated/models';
+import { FuzzyComboBox } from '../../app/components/FuzzyComboBox';
 import { parseDecimalText } from '../../app/decimalInput';
 import { useStableItems } from '../../app/useStableItems';
 import { useCurrentUser } from '../auth/auth';
@@ -34,16 +34,25 @@ const positive = (text: string) => {
   const value = parseDecimalText(text);
   return value !== null && Number(value) > 0 ? value : null;
 };
-const matches = (item: Option | null, input: string) =>
-  !item || !input || item.label.toLowerCase().includes(input.trim().toLowerCase());
 
-function Rate({ amount, rate, unit }: { amount: string | null; rate: string | null; unit: string }) {
+function Rate({
+  amount,
+  rate,
+  unit,
+  source,
+}: {
+  amount: string | null;
+  rate: string | null;
+  unit: string;
+  source?: PriceQuoteGroup['materialPriceSource'];
+}) {
   if (amount === null || rate === null) return <Tag size="sm">No rate</Tag>;
   return (
     <span className="mj-cell-stack">
       <strong>{formatMoney(amount)}</strong>
       <span className="mj-secondary">
         {rate} € / {unit}
+        {source === 'stock_article' ? ' · article price' : source === 'material_type' ? ' · material type rate' : ''}
       </span>
     </span>
   );
@@ -56,7 +65,11 @@ function QuoteTable({ quote }: { quote: PriceQuote }) {
         <TableRow>
           <TableHeader>Pricing group</TableHeader>
           {quote.machine && <TableHeader>Machine · {quote.machine.name}</TableHeader>}
-          {quote.material && <TableHeader>Material · {quote.material.name}</TableHeader>}
+          {quote.material && (
+            <TableHeader>
+              {quote.machine ? 'Material' : 'Article'} · {quote.material.displayId} {quote.material.name}
+            </TableHeader>
+          )}
           <TableHeader>Total</TableHeader>
         </TableRow>
       </TableHead>
@@ -78,7 +91,12 @@ function QuoteTable({ quote }: { quote: PriceQuote }) {
             )}
             {quote.material && (
               <TableCell>
-                <Rate amount={group.materialAmount} rate={group.materialRate} unit={quote.material.unit} />
+                <Rate
+                  amount={group.materialAmount}
+                  rate={group.materialRate}
+                  unit={quote.material.unit}
+                  source={group.materialPriceSource}
+                />
               </TableCell>
             )}
             <TableCell>{group.total === null ? '—' : <strong>{formatMoney(group.total)}</strong>}</TableCell>
@@ -109,7 +127,10 @@ export function PriceLookupModal({ onClose }: { onClose: () => void }) {
   );
   const materialList: Material[] = materials.data?.items ?? [];
   const articleOptions = useStableItems<Option>(
-    materialList.map((item) => ({ id: item.id, label: `${item.name} (${item.unit})` })),
+    // A machine run only uses articles whose material type is used on machines.
+    materialList
+      .filter((item) => item.active && (mode !== 'machine' || item.machineUse))
+      .map((item) => ({ id: item.id, label: `${item.displayId} · ${item.name} (${item.unit})` })),
   );
   const unit = materialList.find((item) => item.id === article?.id)?.unit;
 
@@ -142,14 +163,13 @@ export function PriceLookupModal({ onClose }: { onClose: () => void }) {
     />
   );
   const articleField = (
-    <ComboBox
+    <FuzzyComboBox<Option>
       autoAlign
       id="price-lookup-article"
       titleText={mode === 'machine' ? 'Material article (optional)' : 'Inventory article'}
       placeholder="Search articles"
       items={articleOptions}
       itemToString={(item) => item?.label ?? ''}
-      shouldFilterItem={({ item, inputValue }) => matches(item, inputValue ?? '')}
       selectedItem={article}
       onChange={({ selectedItem }) => setArticle(selectedItem ?? null)}
     />
@@ -194,14 +214,13 @@ export function PriceLookupModal({ onClose }: { onClose: () => void }) {
             )}
             {mode === 'machine' && (
               <>
-                <ComboBox
+                <FuzzyComboBox<Option>
                   autoAlign
                   id="price-lookup-machine"
                   titleText="Machine"
                   placeholder="Search machines"
                   items={machineOptions}
                   itemToString={(item) => item?.label ?? ''}
-                  shouldFilterItem={({ item, inputValue }) => matches(item, inputValue ?? '')}
                   selectedItem={machine}
                   onChange={({ selectedItem }) => setMachine(selectedItem ?? null)}
                 />
@@ -254,18 +273,12 @@ export function PriceLookupModal({ onClose }: { onClose: () => void }) {
                 subtitle="Check the inputs and try again."
               />
             )}
-            {result && (
-              <>
-                <QuoteTable quote={result} />
-                {result.saleAmount !== null && result.material && (
-                  <p>
-                    Sale price of {result.material.name}: <strong>{formatMoney(result.saleAmount)}</strong>{' '}
-                    <span className="mj-secondary">
-                      ({result.quantity} × {formatMoney(result.material.salePrice)}, the same for every group)
-                    </span>
-                  </p>
-                )}
-              </>
+            {result && <QuoteTable quote={result} />}
+            {result && mode === 'item' && (
+              <p className="mj-secondary">
+                Sold from stock, an article costs its own price per group; without one, the rate of its material type
+                applies when the type is used on machines.
+              </p>
             )}
           </>
         )}
