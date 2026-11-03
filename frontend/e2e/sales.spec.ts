@@ -29,16 +29,37 @@ const dialogTitled = (page: Page, title: string) =>
   page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
 
 test.describe('sales and payments', () => {
-  test('the overview lists what needs attention and the recent orders', async ({ page }, testInfo) => {
+  test('Needs attention lists flagged orders and the finished jobs without an order', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/sales');
-    await expect(page.getByRole('heading', { name: 'Sales overview', level: 1 })).toBeVisible();
-    const attention = page.getByRole('region', { name: /Needs attention/ });
-    await expect(attention.getByText('W-2026-000012 · TU Graz Racing')).toBeVisible();
-    await expect(attention.getByRole('button', { name: 'Take payment' }).first()).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Recent orders' }).getByRole('link').first()).toBeVisible();
+    await expect(page).toHaveURL(/\/orders$/);
+    const nav = page.getByRole('navigation', { name: 'Primary navigation' });
+    const group = nav.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Sales & payments' }) });
+    await expect(group.getByRole('link')).toHaveText(['Orders', 'Payments', 'Pricing']);
+    await page.getByRole('tab', { name: /^Needs attention/ }).click();
+    const table = page.getByRole('table', { name: 'Orders' });
+    await expect(table.getByRole('button', { name: 'O-2026-000104', exact: true })).toBeVisible();
+    await expect(table).toContainText('W-2026-000012');
+    await expect(table.getByRole('button', { name: 'O-2026-000103', exact: true })).toHaveCount(0);
+    await expect(page.getByText('1 finished job is not on an order')).toBeVisible();
+    await expect(page.getByText(/J-2026-000421 · €12\.40 ready to bill\./)).toBeVisible();
     await expectNoAccessibilityViolations(page, '#main-content');
-    await page.screenshot({ path: testInfo.outputPath('sales-overview.png'), fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath('orders-needs-attention.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Review jobs', exact: true }).click();
+    await expect(dialogTitled(page, 'Jobs ready to bill')).toBeVisible();
+  });
+
+  test('the row menu holds the order actions the order page no longer has', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto('/orders');
+    const row = page.getByRole('row').filter({ hasText: 'O-2026-000105' });
+    await row.locator('.cds--overflow-menu').click();
+    await expect(page.getByRole('menuitem', { name: 'Edit customer and hand-over' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Cancel draft' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await page.goto(`/orders/${salesIds.draft}`);
+    await expect(page.getByRole('button', { name: 'Edit order' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'More order actions' })).toHaveCount(0);
   });
 
   test('a row opens the order in the panel with its flag, items and payments', async ({ page }, testInfo) => {
@@ -47,7 +68,7 @@ test.describe('sales and payments', () => {
     const table = page.getByRole('table', { name: 'Orders' });
     await expect(table).toBeVisible();
     await expect(page.getByText('Select an order to see its items, payments and invoice.')).toBeVisible();
-    await table.getByRole('button', { name: 'O-2026-000104' }).click();
+    await table.getByRole('button', { name: 'O-2026-000104', exact: true }).click();
     const panel = page.getByRole('complementary', { name: 'Order details' });
     await expect(panel.getByRole('heading', { name: 'Sara Novak' })).toBeVisible();
     await expect(panel.getByRole('table', { name: 'Items of the selected order' })).toContainText('Stabilizer');
@@ -56,7 +77,7 @@ test.describe('sales and payments', () => {
     await page.screenshot({ path: testInfo.outputPath('orders-panel.png'), fullPage: true });
 
     await page.getByRole('tab', { name: /^Paid/ }).click();
-    await table.getByRole('button', { name: 'O-2026-000103' }).click();
+    await table.getByRole('button', { name: 'O-2026-000103', exact: true }).click();
     await expect(panel.getByRole('table', { name: 'Payments of the selected order' })).toContainText('P-2026-000210');
   });
 
@@ -129,7 +150,6 @@ test.describe('sales and payments', () => {
       await page.setViewportSize({ width, height: 900 });
       await page.emulateMedia({ colorScheme: 'dark' });
       for (const [path, heading] of [
-        ['/sales', 'Sales overview'],
         ['/orders', 'Orders'],
         [`/orders/${salesIds.open}`, 'O-2026-000104'],
         ['/pricing', 'Pricing'],

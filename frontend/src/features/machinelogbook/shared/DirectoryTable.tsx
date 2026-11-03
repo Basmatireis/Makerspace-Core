@@ -156,6 +156,8 @@ type CommonProps<T extends { id: string }> = {
   searchable?: boolean;
   /** Adds a checkbox column and a batch-action bar to the toolbar. */
   selection?: Selection<T>;
+  /** A notification between the toolbar and the table, for something the current view asks the person to do. */
+  notice?: ReactNode;
 };
 
 type ClientProps<T extends { id: string }> = {
@@ -207,6 +209,7 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
     toolbarClassName,
     searchable = true,
     selection,
+    notice,
   } = props;
   const server = props.mode === 'server';
   const url = useUrlState(urlPrefix);
@@ -341,6 +344,7 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
               {toolbarAction}
             </TableToolbarContent>
           </TableToolbar>
+          {notice && <div className="mj-table-notice">{notice}</div>}
           <Table {...getTableProps()} aria-label={label}>
             <TableHead>
               <TableRow>

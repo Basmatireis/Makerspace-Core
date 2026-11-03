@@ -6,6 +6,7 @@ import type {
   InvoiceRequestDetails,
   InvoiceRequestEvent,
   Order,
+  OrderAttentionCode,
   OrderItem,
   OrderPayment,
   OrderPaymentMethod,
@@ -68,9 +69,39 @@ export function invoiceKey(
 }
 
 /** An old draft nobody touched. */
-export const DRAFT_STALE_DAYS = 7;
-export const isStaleDraft = (order: Pick<Order, 'status' | 'updatedAt'>, now = Date.now()) =>
-  order.status === 'draft' && now - new Date(order.updatedAt).getTime() > DRAFT_STALE_DAYS * 86_400_000;
+// Needs attention -----------------------------------------------------------------------------------------------------
+
+/** Why an order needs attention: the API's codes plus two cases the list derives itself. */
+export type OrderAttentionKey = OrderAttentionCode | 'partly_paid' | 'old_draft';
+export const ORDER_ATTENTION_KEYS: OrderAttentionKey[] = [
+  'balance_overdue',
+  'source_changed',
+  'invoice_request_open',
+  'partly_paid',
+  'old_draft',
+];
+export const OLD_DRAFT_DAYS = 7;
+const DAY_MS = 86_400_000;
+export const isOldDraft = (order: Pick<Order, 'status' | 'createdAt'>, now = Date.now()) =>
+  order.status === 'draft' && now - new Date(order.createdAt).getTime() > OLD_DRAFT_DAYS * DAY_MS;
+export const isPartlyPaid = (order: Pick<Order, 'status' | 'settlementState'>) =>
+  order.status === 'finalized' && order.settlementState === 'partially_paid';
+
+/** The API's attention reasons of an order, followed by "partly paid" and "old draft" with their own wording. */
+export function orderAttention(
+  order: Pick<Order, 'attention' | 'status' | 'settlementState' | 'createdAt' | 'outstandingAmount'>,
+  now = Date.now(),
+): { code: OrderAttentionKey; message: string }[] {
+  const reasons: { code: OrderAttentionKey; message: string }[] = [...(order.attention ?? [])];
+  if (isPartlyPaid(order))
+    reasons.push({ code: 'partly_paid', message: `Partly paid: ${formatMoney(order.outstandingAmount)} still open.` });
+  if (isOldDraft(order, now))
+    reasons.push({
+      code: 'old_draft',
+      message: `Draft for ${Math.floor((now - new Date(order.createdAt).getTime()) / DAY_MS)} days; finalize or cancel it.`,
+    });
+  return reasons;
+}
 
 /** Cash and card are accepted until the invoice request is submitted for approval; an issued invoice settles the balance by itself. */
 export function acceptsCashAndCard(order: Pick<Order, 'activeExternalRequestState'>): boolean {

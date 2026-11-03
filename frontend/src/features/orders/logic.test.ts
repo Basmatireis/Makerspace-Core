@@ -6,6 +6,7 @@ import {
   invoiceKey,
   invoiceRequestBlocker,
   latestReturn,
+  orderAttention,
   periodRange,
   periodText,
   readyToBillGroups,
@@ -236,5 +237,38 @@ describe('ready to bill', () => {
     expect(ada.total).toBe(1550);
     expect(groups.find((group) => group.key === 'bob')!.rows[0].reason).toMatch(/price/);
     expect(groups.find((group) => group.key === 'none')!.ready).toHaveLength(0);
+  });
+});
+
+describe('orderAttention', () => {
+  const now = Date.parse('2026-11-03T12:00:00Z');
+  const base = {
+    attention: [],
+    status: 'finalized',
+    settlementState: 'unpaid',
+    createdAt: '2026-11-01T12:00:00Z',
+    outstandingAmount: '10.00',
+  } as unknown as Order;
+
+  it('keeps the API reasons and adds partly paid orders', () => {
+    const reasons = orderAttention(
+      {
+        ...base,
+        settlementState: 'partially_paid',
+        outstandingAmount: '6.50',
+        attention: [{ code: 'balance_overdue', message: 'Open for 21 days.' }],
+      },
+      now,
+    );
+    expect(reasons.map((reason) => reason.code)).toEqual(['balance_overdue', 'partly_paid']);
+    expect(reasons[1].message).toBe('Partly paid: €6.50 still open.');
+  });
+
+  it('flags drafts created more than seven days ago, not younger ones', () => {
+    expect(orderAttention({ ...base, status: 'draft', createdAt: '2026-10-27T11:00:00Z' }, now)).toEqual([
+      { code: 'old_draft', message: 'Draft for 7 days; finalize or cancel it.' },
+    ]);
+    expect(orderAttention({ ...base, status: 'draft', createdAt: '2026-10-27T13:00:00Z' }, now)).toEqual([]);
+    expect(orderAttention({ ...base, status: 'cancelled', createdAt: '2026-10-01T12:00:00Z' }, now)).toEqual([]);
   });
 });

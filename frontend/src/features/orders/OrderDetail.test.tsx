@@ -410,3 +410,33 @@ describe('order detail: draft', () => {
     expect(screen.queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
   });
 });
+
+describe('order detail: header actions', () => {
+  it('offers Edit order on a draft and no overflow menu', async () => {
+    as(everything);
+    serve(order());
+    const user = userEvent.setup();
+    renderRoute(<App />, `/orders/${ids.order}`);
+    await user.click(await screen.findByRole('button', { name: 'Edit order' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'More order actions' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Cancel draft')).not.toBeInTheDocument();
+  });
+
+  it('keeps finalized orders to their primary action without Edit order or a menu', async () => {
+    as(everything);
+    serve(finalized());
+    renderRoute(<App />, `/orders/${ids.order}`);
+    expect(await screen.findByRole('button', { name: 'Record payment' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit order' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'More order actions' })).not.toBeInTheDocument();
+  });
+
+  it('hides Edit order without orders.write', async () => {
+    as([PermissionId.ordersread]);
+    serve(order());
+    renderRoute(<App />, `/orders/${ids.order}`);
+    expect(await screen.findByRole('heading', { name: order().reference, level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit order' })).not.toBeInTheDocument();
+  });
+});

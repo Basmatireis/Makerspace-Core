@@ -104,6 +104,13 @@
   overflow-x: auto;
 }
 
+// A notice between a table's toolbar and its rows spans the table's width.
+.mj-table-notice .cds--actionable-notification {
+  max-inline-size: none;
+  inline-size: 100%;
+  margin: 0;
+}
+
 // Whole-row click on tables whose rows open a page or dialog (the name is also a link or button for keyboard access).
 .mj-row-clickable {
   cursor: pointer;
