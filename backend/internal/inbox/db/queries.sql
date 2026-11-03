@@ -199,14 +199,11 @@ LEFT JOIN machine_jobs j ON j.id = r.job_id
 WHERE m.id = sqlc.arg(id);
 
 -- name: GetSpoolNotificationFacts :one
--- How a spool is named to people: its display id and the material of its open fill, if any.
+-- How a spool is named to people: its label and its article.
 SELECT s.display_id, mat.name AS material_name, mat.color_name
 FROM filament_spools s
-LEFT JOIN filament_spool_fills f ON f.spool_id = s.id AND f.closed_at IS NULL
-LEFT JOIN materials mat ON mat.id = f.material_id
-WHERE s.id = sqlc.arg(id)
-ORDER BY f.fill_number DESC NULLS LAST
-LIMIT 1;
+LEFT JOIN materials mat ON mat.id = s.material_id
+WHERE s.id = sqlc.arg(id);
 
 -- name: GetPrinterNotificationPolicy :one
 SELECT error_role_id, error_min_severity FROM printer_notification_settings WHERE singleton;

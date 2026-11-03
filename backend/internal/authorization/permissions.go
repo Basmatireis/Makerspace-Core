@@ -112,6 +112,8 @@ const (
 	MachineJobsDelete                  Permission = Permission(openapi.MachineJobsDelete)
 	InventoryRead                      Permission = Permission(openapi.InventoryRead)
 	InventoryManage                    Permission = Permission(openapi.InventoryManage)
+	InventoryDelete                    Permission = Permission(openapi.InventoryDelete)
+	InventoryLedgerDelete              Permission = Permission(openapi.InventoryLedgerDelete)
 	FilamentSpoolsManage               Permission = Permission(openapi.FilamentSpoolsManage)
 	PrinterSlotsAssign                 Permission = Permission(openapi.PrinterSlotsAssign)
 	PrinterConnectorsRead              Permission = Permission(openapi.PrinterConnectorsRead)
@@ -182,7 +184,7 @@ var registry = []Permission{
 	TrainingsManage, TrainingRecordsReadSelf, TrainingRecordsReadAll, TrainingRecordsUpdate,
 	TrainingRecordsUpdateSelf,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice, MachineJobsDelete,
-	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign,
+	InventoryRead, InventoryManage, InventoryDelete, InventoryLedgerDelete, FilamentSpoolsManage, PrinterSlotsAssign,
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride,
@@ -297,6 +299,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	MachineJobsDelete:                  "Delete machine jobs and runs, optionally restoring their consumed material.",
 	InventoryRead:                      "Read materials, balances, valuation, and inventory history.",
 	InventoryManage:                    "Create materials and record purchases, consumption, corrections, and disposal.",
+	InventoryDelete:                    "Move articles to the inventory recycle bin, restore them, and delete articles and retired spools for good.",
+	InventoryLedgerDelete:              "Delete, restore, and purge single inventory ledger entries, reversing their effect on stock.",
 	FilamentSpoolsManage:               "Manage physical filament spool records and identifiers.",
 	PrinterSlotsAssign:                 "Mount, unmount, and move filament spools in printer slots.",
 	PrinterConnectorsRead:              "Read printer connector identity, status, assignments, and diagnostics.",

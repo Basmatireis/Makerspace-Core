@@ -166,7 +166,6 @@ func (s *seeder) setThresholds() {
 				Manufacturer:    m.Manufacturer,
 				StorageLocation: m.StorageLocation,
 				Notes:           m.Notes,
-				SalePrice:       m.SalePrice,
 				PackageSize:     m.PackageSize,
 				Active:          true,
 				LowStockThreshold: ptr(

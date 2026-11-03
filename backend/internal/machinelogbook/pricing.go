@@ -25,6 +25,7 @@ func pricingRuleFromRow(row machinelogbookdb.PricingRule, materialTypeName *stri
 		MaterialTypeID:   row.MaterialTypeID,
 		MaterialTypeName: materialTypeName,
 		MaterialUnit:     row.MaterialUnit,
+		MaterialID:       row.MaterialID,
 		Measure:          row.Measure,
 		BlockSize:        row.BlockSize,
 		Rate:             decimalString(row.Rate),
@@ -71,10 +72,16 @@ func (s *Service) pricingGroupFromRow(
 					CreatedAt:      r.CreatedAt,
 					UpdatedAt:      r.UpdatedAt,
 					MaterialTypeID: r.MaterialTypeID,
+					MaterialID:     r.MaterialID,
 				},
 				r.MaterialTypeName,
 			),
 		)
+		rule := &item.Rules[len(item.Rules)-1]
+		rule.MaterialName, rule.MaterialDisplayID = r.MaterialName, r.MaterialDisplayID
+		if rule.MaterialID != nil {
+			rule.MaterialUnit = r.ArticleUnit
+		}
 	}
 	return item, nil
 }
@@ -261,9 +268,10 @@ func (s *Service) UpdatePricingGroupTx(
 
 // ruleTarget is what a pricing rule prices, resolved from its kind and selectors.
 type ruleTarget struct {
-	MaterialUnit, MaterialTypeName *string
-	Measure                        *string
-	BlockSize                      *int32
+	MaterialUnit, MaterialTypeName  *string
+	MaterialName, MaterialDisplayID *string
+	Measure                         *string
+	BlockSize                       *int32
 }
 
 // resolveRuleTarget checks which selector a rule needs for its kind. For
@@ -276,8 +284,25 @@ func resolveRuleTarget(
 	processID, materialTypeID *uuid.UUID,
 	measure *string,
 	requireActiveType bool,
+	materialID *uuid.UUID,
 ) (ruleTarget, error) {
+	if kind != PricingRuleStockArticle && materialID != nil {
+		return ruleTarget{}, apperror.Invalid("materialId applies to stock_article rules only")
+	}
 	switch kind {
+	case PricingRuleStockArticle:
+		if processID != nil || materialTypeID != nil || measure != nil || materialID == nil {
+			return ruleTarget{}, apperror.Invalid("stock_article rules require only materialId")
+		}
+		material, err := q.GetMaterial(ctx, *materialID)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && material.DeletedAt.Valid) {
+			return ruleTarget{}, apperror.Invalid("materialId does not refer to an article")
+		}
+		if err != nil {
+			return ruleTarget{}, err
+		}
+		name, displayID, unit := material.Name, material.DisplayID, material.Unit
+		return ruleTarget{MaterialName: &name, MaterialDisplayID: &displayID, MaterialUnit: &unit}, nil
 	case PricingRuleMachineRuntime:
 		if processID == nil || materialTypeID != nil || measure != nil {
 			return ruleTarget{}, apperror.Invalid("machine runtime rules require only processId")
@@ -291,10 +316,10 @@ func resolveRuleTarget(
 		if err != nil {
 			return ruleTarget{}, err
 		}
-		if MaterialKind(materialType.Kind) == KindPart {
+		if MaterialKind(materialType.Kind) == KindPart || !materialType.MachineUse {
 			return ruleTarget{}, unprocessable(
 				"material_type_not_priced",
-				"Parts are priced by their sale price, not by pricing rules",
+				"Only material types used in machine runs have material rates; price the articles with stock_article rules",
 			)
 		}
 		unit, name := materialType.Unit, materialType.Name
@@ -364,12 +389,47 @@ func (s *Service) CreatePricingRuleTx(
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingRule{}, err
 	}
+	return s.createPricingRuleTx(ctx, tx, p, groupID, kind, processID, materialTypeID, nil, measure, rate, requestID)
+}
+
+// CreateStockArticlePricingRule prices one article sold from stock in a pricing group (kind stock_article).
+func (s *Service) CreateStockArticlePricingRule(
+	ctx context.Context,
+	p authorization.Principal,
+	groupID, materialID uuid.UUID,
+	rate string,
+	requestID *uuid.UUID,
+) (PricingRule, error) {
+	if err := require(p, authorization.PricingManage); err != nil {
+		return PricingRule{}, err
+	}
+	var result PricingRule
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.createPricingRuleTx(
+			ctx, tx, p, groupID, PricingRuleStockArticle, nil, nil, &materialID, nil, rate, requestID,
+		)
+		return err
+	})
+	return result, err
+}
+
+func (s *Service) createPricingRuleTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	groupID uuid.UUID,
+	kind PricingRuleKind,
+	processID, materialTypeID, materialID *uuid.UUID,
+	measure *string,
+	rate string,
+	requestID *uuid.UUID,
+) (PricingRule, error) {
 	numeric, err := numericFromString(rate, false)
 	if err != nil || decimalFromNumeric(numeric).IsNegative() {
 		return PricingRule{}, apperror.Invalid("rate must be non-negative")
 	}
 	q := machinelogbookdb.New(tx)
-	target, err := resolveRuleTarget(ctx, q, kind, processID, materialTypeID, measure, true)
+	target, err := resolveRuleTarget(ctx, q, kind, processID, materialTypeID, measure, true, materialID)
 	if err != nil {
 		return PricingRule{}, err
 	}
@@ -393,6 +453,7 @@ func (s *Service) CreatePricingRuleTx(
 			Measure:        target.Measure,
 			BlockSize:      target.BlockSize,
 			Rate:           numeric,
+			MaterialID:     materialID,
 		},
 	)
 	if err != nil {
@@ -410,7 +471,9 @@ func (s *Service) CreatePricingRuleTx(
 	); err != nil {
 		return PricingRule{}, err
 	}
-	return pricingRuleFromRow(row, target.MaterialTypeName), nil
+	rule := pricingRuleFromRow(row, target.MaterialTypeName)
+	rule.MaterialName, rule.MaterialDisplayID = target.MaterialName, target.MaterialDisplayID
+	return rule, nil
 }
 
 func (s *Service) UpdatePricingRule(
@@ -453,6 +516,46 @@ func (s *Service) UpdatePricingRuleTx(
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingRule{}, err
 	}
+	return s.updatePricingRuleTx(ctx, tx, p, id, expected, kind, processID, materialTypeID, nil, measure, rate, active, requestID)
+}
+
+// UpdateStockArticlePricingRule changes the article, rate or active state of a stock_article rule.
+func (s *Service) UpdateStockArticlePricingRule(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	materialID uuid.UUID,
+	rate string,
+	active bool,
+	requestID *uuid.UUID,
+) (PricingRule, error) {
+	if err := require(p, authorization.PricingManage); err != nil {
+		return PricingRule{}, err
+	}
+	var result PricingRule
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		result, err = s.updatePricingRuleTx(
+			ctx, tx, p, id, expected, PricingRuleStockArticle, nil, nil, &materialID, nil, rate, active, requestID,
+		)
+		return err
+	})
+	return result, err
+}
+
+func (s *Service) updatePricingRuleTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	kind PricingRuleKind,
+	processID, materialTypeID, materialID *uuid.UUID,
+	measure *string,
+	rate string,
+	active bool,
+	requestID *uuid.UUID,
+) (PricingRule, error) {
 	if expected < 1 {
 		return PricingRule{}, apperror.Invalid("expectedVersion must be positive")
 	}
@@ -477,6 +580,7 @@ func (s *Service) UpdatePricingRuleTx(
 		materialTypeID,
 		measure,
 		!sameUUID(current.MaterialTypeID, materialTypeID),
+		materialID,
 	)
 	if err != nil {
 		return PricingRule{}, err
@@ -491,6 +595,7 @@ func (s *Service) UpdatePricingRuleTx(
 			Measure:         target.Measure,
 			BlockSize:       target.BlockSize,
 			Rate:            numeric,
+			MaterialID:      materialID,
 			Active:          active,
 			ID:              id,
 			ExpectedVersion: expected,
@@ -514,7 +619,9 @@ func (s *Service) UpdatePricingRuleTx(
 	); err != nil {
 		return PricingRule{}, err
 	}
-	return pricingRuleFromRow(row, target.MaterialTypeName), nil
+	rule := pricingRuleFromRow(row, target.MaterialTypeName)
+	rule.MaterialName, rule.MaterialDisplayID = target.MaterialName, target.MaterialDisplayID
+	return rule, nil
 }
 
 // SetPartyPricingGroup sets or clears the pricing group of an organization. People have no group of their own;

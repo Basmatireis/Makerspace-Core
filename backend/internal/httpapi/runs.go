@@ -466,7 +466,6 @@ func mlUsageDTO(u machinelogbook.MachineJobUsage) openapi.MachineJobUsage {
 		MaterialId:         nullableUUIDValue(u.MaterialID),
 		SpoolId:            nullableUUIDValue(u.SpoolID),
 		SpoolDisplayId:     nullableString(u.SpoolDisplayID),
-		FillNumber:         nullableInt32Value(u.FillNumber),
 		Ownership:          openapi.FilamentOwnership(u.Ownership),
 		MaterialName:       u.MaterialName,
 		MaterialTypeId:     nullableUUIDValue(u.MaterialTypeID),

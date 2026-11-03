@@ -14,38 +14,65 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// SaleArticle is what an order needs to know about an article it sells.
+// SaleArticle is what an order needs to know about an article it sells. UnitPrice is the article's sale price
+// in the customer's pricing group; nil when that group has none.
 type SaleArticle struct {
-	ID         uuid.UUID
-	Name, Unit string
-	Kind       MaterialKind
-	Active     bool
-	SalePrice  *string
+	ID               uuid.UUID
+	Name, Unit       string
+	Kind             MaterialKind
+	Active           bool
+	UnitPrice        *string
+	PricingGroupName string
 }
 
-// SaleSource returns an article for an order item using the caller's
-// transaction. Reading it requires inventory.read.
+// SaleSource returns an article for an order item using the caller's transaction, priced for the customer:
+// the customer's pricing group (organization group, else highest-priority role group, else the default group)
+// and in it the article's stock_article rule, else the material rule of its machine-use type. Reading it
+// requires inventory.read.
 func (s *Service) SaleSource(
 	ctx context.Context,
 	tx pgx.Tx,
 	p authorization.Principal,
 	id uuid.UUID,
+	customerPersonID, customerOrganizationID *uuid.UUID,
 ) (SaleArticle, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return SaleArticle{}, err
 	}
-	row, err := machinelogbookdb.New(tx).GetMaterial(ctx, id)
+	q := machinelogbookdb.New(tx)
+	row, err := q.GetMaterial(ctx, id)
 	if err != nil {
 		return SaleArticle{}, noRows(err)
 	}
-	return SaleArticle{
-		ID:        row.ID,
-		Name:      row.Name,
-		Unit:      row.Unit,
-		Kind:      MaterialKind(row.MaterialKind),
-		Active:    row.Active,
-		SalePrice: nullableDecimal(row.SalePrice),
-	}, nil
+	if row.DeletedAt.Valid {
+		return SaleArticle{}, apperror.NotFound
+	}
+	article := SaleArticle{
+		ID:     row.ID,
+		Name:   row.Name,
+		Unit:   row.Unit,
+		Kind:   MaterialKind(row.MaterialKind),
+		Active: row.Active,
+	}
+	group, err := resolvePricingGroup(ctx, q, customerPersonID, customerOrganizationID, nil)
+	if err != nil {
+		var appErr *apperror.Error
+		if errors.As(err, &appErr) {
+			return article, nil
+		}
+		return SaleArticle{}, err
+	}
+	article.PricingGroupName = group.Name
+	prices, err := q.ListMaterialPrices(ctx, []uuid.UUID{id})
+	if err != nil {
+		return SaleArticle{}, err
+	}
+	for _, price := range prices {
+		if price.PricingGroupID == group.ID {
+			article.UnitPrice = nullableDecimal(price.Rate)
+		}
+	}
+	return article, nil
 }
 
 // StockSale is the loose stock of one article sold by one order item.

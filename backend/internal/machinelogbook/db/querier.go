@@ -15,10 +15,10 @@ import (
 type Querier interface {
 	ActivatePricingSnapshot(ctx context.Context, arg ActivatePricingSnapshotParams) (MachineJob, error)
 	ActiveOrganizationExists(ctx context.Context, id uuid.UUID) (bool, error)
+	ActiveSpoolLabelTaken(ctx context.Context, arg ActiveSpoolLabelTakenParams) (bool, error)
 	AddFilamentSpoolIdentifier(ctx context.Context, arg AddFilamentSpoolIdentifierParams) (FilamentSpoolIdentifier, error)
 	AddOrganizationMember(ctx context.Context, arg AddOrganizationMemberParams) (time.Time, error)
 	AllocatedMaterialQuantity(ctx context.Context, materialID uuid.UUID) (pgtype.Numeric, error)
-	ArchiveFilamentSpool(ctx context.Context, arg ArchiveFilamentSpoolParams) (FilamentSpool, error)
 	AssignRunToJob(ctx context.Context, arg AssignRunToJobParams) (MachineRun, error)
 	BillingPersonExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// The connectors drop the machine's assignment on their next configuration pull.
@@ -29,7 +29,6 @@ type Querier interface {
 	CancelManualRun(ctx context.Context, arg CancelManualRunParams) (MachineRun, error)
 	ClearDefaultPricingGroup(ctx context.Context, exceptID uuid.UUID) error
 	ClearMachineJobPriceAdjustment(ctx context.Context, arg ClearMachineJobPriceAdjustmentParams) (MachineJob, error)
-	CloseFilamentSpoolFill(ctx context.Context, arg CloseFilamentSpoolFillParams) (FilamentSpoolFill, error)
 	CountActivePricingRulesOfMaterialType(ctx context.Context, id *uuid.UUID) (int64, error)
 	CountFilamentSpoolTransactions(ctx context.Context, spoolID *uuid.UUID) (int64, error)
 	CountFilamentSpools(ctx context.Context, arg CountFilamentSpoolsParams) (int64, error)
@@ -43,10 +42,8 @@ type Querier interface {
 	CountLowStockMaterials(ctx context.Context) (int64, error)
 	CountMachineJobs(ctx context.Context, arg CountMachineJobsParams) (int64, error)
 	CountMachines(ctx context.Context, arg CountMachinesParams) (int64, error)
-	CountMaterialFills(ctx context.Context, materialID uuid.UUID) (int64, error)
-	// How many rows of each kind still point at the article. Anything that records stock or
-	// history counts as a use; material_balances and material_filament_properties are owned
-	// detail rows that go with the article.
+	CountMaterialSpools(ctx context.Context, materialID uuid.UUID) (int64, error)
+	// Rows that still point at an article; an article with any of them is not removed by the configuration import.
 	CountMaterialUses(ctx context.Context, id uuid.UUID) (CountMaterialUsesRow, error)
 	CountMaterials(ctx context.Context, arg CountMaterialsParams) (int64, error)
 	CountMaterialsOfType(ctx context.Context, materialTypeID uuid.UUID) (int64, error)
@@ -81,7 +78,7 @@ type Querier interface {
 	DeleteMachineRunsOfMachine(ctx context.Context, machineID uuid.UUID) error
 	DeleteMachineSpoolMountHistory(ctx context.Context, machineID uuid.UUID) error
 	DeleteManualRun(ctx context.Context, id uuid.UUID) (int64, error)
-	// material_balances and material_filament_properties go with the row (ON DELETE CASCADE).
+	// material_balances, material_filament_properties and stock_article rules go with the row (ON DELETE CASCADE).
 	DeleteMaterial(ctx context.Context, arg DeleteMaterialParams) (int64, error)
 	DeleteMaterialFilamentProperties(ctx context.Context, materialID uuid.UUID) error
 	DeleteMaterialType(ctx context.Context, arg DeleteMaterialTypeParams) (int64, error)
@@ -98,10 +95,13 @@ type Querier interface {
 	// A recorded run that outlives its deleted job becomes unassigned but remembers the job.
 	DetachRunForJobDeletion(ctx context.Context, id uuid.UUID) error
 	DetachRunFromJob(ctx context.Context, id uuid.UUID) (MachineRun, error)
+	// Lets this transaction hard-delete ledger rows; the immutability trigger checks the setting.
+	EnableInventoryPurge(ctx context.Context) error
 	FilamentSpoolIdentifierInUse(ctx context.Context, arg FilamentSpoolIdentifierInUseParams) (bool, error)
 	FilamentSpoolMounted(ctx context.Context, spoolID uuid.UUID) (bool, error)
 	FindFilamentSpoolByIdentifier(ctx context.Context, arg FindFilamentSpoolByIdentifierParams) (uuid.UUID, error)
 	FindMaterialByName(ctx context.Context, name string) (uuid.UUID, error)
+	FindMaterialTypeByCode(ctx context.Context, code string) (uuid.UUID, error)
 	ForgetFormerJobOfRuns(ctx context.Context, jobID *uuid.UUID) error
 	GetActivePricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]PricingRule, error)
 	GetArtifactReference(ctx context.Context, id uuid.UUID) (GetArtifactReferenceRow, error)
@@ -111,8 +111,8 @@ type Querier interface {
 	GetDeletedMachineJobForUpdate(ctx context.Context, id uuid.UUID) (MachineJob, error)
 	GetDeletedMachineRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	GetFilamentSpool(ctx context.Context, id uuid.UUID) (GetFilamentSpoolRow, error)
-	GetFilamentSpoolFill(ctx context.Context, id uuid.UUID) (GetFilamentSpoolFillRow, error)
 	GetFilamentSpoolForUpdate(ctx context.Context, id uuid.UUID) (FilamentSpool, error)
+	GetInventoryTransaction(ctx context.Context, id uuid.UUID) (InventoryTransaction, error)
 	GetMachine(ctx context.Context, id uuid.UUID) (GetMachineRow, error)
 	GetMachineForUpdate(ctx context.Context, id uuid.UUID) (Machine, error)
 	GetMachineJobBase(ctx context.Context, id uuid.UUID) (MachineJob, error)
@@ -125,7 +125,6 @@ type Querier interface {
 	GetMaterialType(ctx context.Context, id uuid.UUID) (GetMaterialTypeRow, error)
 	GetMaterialTypeForShare(ctx context.Context, id uuid.UUID) (MaterialType, error)
 	GetMaterialTypeForUpdate(ctx context.Context, id uuid.UUID) (MaterialType, error)
-	GetOpenFilamentSpoolFill(ctx context.Context, spoolID uuid.UUID) (GetOpenFilamentSpoolFillRow, error)
 	GetOrderItemSaleTransaction(ctx context.Context, orderItemID *uuid.UUID) (InventoryTransaction, error)
 	GetOrganization(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationDetail(ctx context.Context, id uuid.UUID) (GetOrganizationDetailRow, error)
@@ -148,7 +147,7 @@ type Querier interface {
 	// Whether staff ever set the run's usage, whether a report was applied, and
 	// whether a machine report is currently active.
 	GetRunUsageProvenance(ctx context.Context, arg GetRunUsageProvenanceParams) (GetRunUsageProvenanceRow, error)
-	InsertFilamentSpoolFill(ctx context.Context, arg InsertFilamentSpoolFillParams) (FilamentSpoolFill, error)
+	GetSpoolRemaining(ctx context.Context, id uuid.UUID) (pgtype.Numeric, error)
 	InsertInventoryTransaction(ctx context.Context, arg InsertInventoryTransactionParams) (InventoryTransaction, error)
 	InsertManualRun(ctx context.Context, arg InsertManualRunParams) (MachineRun, error)
 	InsertMaterialTypeProcess(ctx context.Context, arg InsertMaterialTypeProcessParams) error
@@ -165,10 +164,11 @@ type Querier interface {
 	ListActiveJobRunIDs(ctx context.Context, jobID *uuid.UUID) ([]uuid.UUID, error)
 	ListActiveOrganizationsOfPeople(ctx context.Context, personIds []uuid.UUID) ([]ListActiveOrganizationsOfPeopleRow, error)
 	ListActiveRunUsagesForUpdate(ctx context.Context, runID uuid.UUID) ([]MachineRunUsage, error)
-	ListClosedFilamentSpoolFills(ctx context.Context, spoolID uuid.UUID) ([]ListClosedFilamentSpoolFillsRow, error)
+	ListActiveSpoolLabelsWithPrefix(ctx context.Context, prefix string) ([]string, error)
+	ListDeletedInventoryTransactions(ctx context.Context) ([]ListDeletedInventoryTransactionsRow, error)
 	ListDeletedMachineJobs(ctx context.Context) ([]ListDeletedMachineJobsRow, error)
 	ListDeletedMachineRuns(ctx context.Context) ([]ListDeletedMachineRunsRow, error)
-	ListFilamentSpoolCleanupCandidates(ctx context.Context, cutoff time.Time) ([]ListFilamentSpoolCleanupCandidatesRow, error)
+	ListDeletedMaterials(ctx context.Context) ([]ListDeletedMaterialsRow, error)
 	ListFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error)
 	ListFilamentSpoolTransactions(ctx context.Context, arg ListFilamentSpoolTransactionsParams) ([]ListFilamentSpoolTransactionsRow, error)
 	ListFilamentSpools(ctx context.Context, arg ListFilamentSpoolsParams) ([]ListFilamentSpoolsRow, error)
@@ -187,6 +187,9 @@ type Querier interface {
 	ListMachineLastJobStarts(ctx context.Context, now time.Time) ([]ListMachineLastJobStartsRow, error)
 	ListMachineRunningRuns(ctx context.Context, now time.Time) ([]ListMachineRunningRunsRow, error)
 	ListMachines(ctx context.Context, arg ListMachinesParams) ([]ListMachinesRow, error)
+	// Sale prices of articles per active pricing group: the article's own stock_article rule, else the material rule of
+	// its machine-use type.
+	ListMaterialPrices(ctx context.Context, materialIds []uuid.UUID) ([]ListMaterialPricesRow, error)
 	ListMaterialTypeProcessNames(ctx context.Context, materialTypeID uuid.UUID) ([]uuid.UUID, error)
 	ListMaterialTypeProcesses(ctx context.Context, materialTypeIds []uuid.UUID) ([]MaterialTypeProcess, error)
 	ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow, error)
@@ -203,6 +206,7 @@ type Querier interface {
 	// for jobs. The same conditions as the not_on_order billing state of the work table.
 	ListOwnUnbilledJobs(ctx context.Context, personID *uuid.UUID) ([]ListOwnUnbilledJobsRow, error)
 	ListPricingGroups(ctx context.Context) ([]PricingGroup, error)
+	// Rules of articles in the recycle bin are left out.
 	ListPricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]ListPricingRulesByGroupRow, error)
 	ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.UUID) ([]MachineJobPricingSnapshotRule, error)
 	ListPrinterErrorCodeFacts(ctx context.Context, codes []string) ([]ListPrinterErrorCodeFactsRow, error)
@@ -210,7 +214,8 @@ type Querier interface {
 	ListProcesses(ctx context.Context) ([]Process, error)
 	ListProcessesByIDs(ctx context.Context, processIds []string) ([]ListProcessesByIDsRow, error)
 	ListRecentJobIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
-	ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error)
+	// Archived spools of articles that are not in the bin, most recently retired first.
+	ListRetiredSpoolIDs(ctx context.Context) ([]uuid.UUID, error)
 	ListRolePricingGroups(ctx context.Context) ([]ListRolePricingGroupsRow, error)
 	// What Core knows about why a recorded run has (no) consumption: the latest
 	// connector report and the reason of the run's last terminal outcome event.
@@ -226,8 +231,9 @@ type Querier interface {
 	ListWorkItemMaterialTotals(ctx context.Context, itemIds []uuid.UUID) ([]ListWorkItemMaterialTotalsRow, error)
 	ListWorkItemMeasureTotals(ctx context.Context, itemIds []uuid.UUID) ([]ListWorkItemMeasureTotalsRow, error)
 	ListWorkItems(ctx context.Context, arg ListWorkItemsParams) ([]ListWorkItemsRow, error)
-	LockFilamentSpoolCleanupCandidates(ctx context.Context, arg LockFilamentSpoolCleanupCandidatesParams) ([]LockFilamentSpoolCleanupCandidatesRow, error)
 	LockRolePricingGroups(ctx context.Context) error
+	// Serializes label numbering per prefix so two registrations cannot pick the same free number.
+	LockSpoolLabelPrefix(ctx context.Context, prefix string) error
 	MachineHasActiveWork(ctx context.Context, machineID uuid.UUID) (bool, error)
 	MachineHasConnectorAssignments(ctx context.Context, machineID uuid.UUID) (bool, error)
 	MachineHasMountedSpool(ctx context.Context, machineID uuid.UUID) (bool, error)
@@ -235,10 +241,9 @@ type Querier interface {
 	// True while a material or a pricing rule (active or not) uses the type. Pricing
 	// snapshots only keep a nullable pointer and their own label text.
 	MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
-	NextFilamentSpoolFillNumber(ctx context.Context, spoolID uuid.UUID) (int32, error)
-	NextFilamentSpoolSequence(ctx context.Context) (int64, error)
 	NextMachineJobSequence(ctx context.Context) (int64, error)
 	NextMachineRunSequence(ctx context.Context) (int64, error)
+	NextMaterialSequence(ctx context.Context) (int64, error)
 	NextPricingSnapshotRevision(ctx context.Context, machineJobID uuid.UUID) (int32, error)
 	OperatorExists(ctx context.Context, personID uuid.UUID) (bool, error)
 	OrderItemHasSaleReversal(ctx context.Context, orderItemID *uuid.UUID) (bool, error)
@@ -246,9 +251,11 @@ type Querier interface {
 	// jobs count: their foreign key would otherwise be nulled out by the delete.
 	OrganizationIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
 	OverviewDailyActivity(ctx context.Context) ([]OverviewDailyActivityRow, error)
+	PurgeInventoryTransaction(ctx context.Context, id uuid.UUID) (int64, error)
 	PurgeMachineJob(ctx context.Context, id uuid.UUID) (int64, error)
 	// Usages, measures, reported items, reports and timelapse rows cascade; the inventory ledger keeps its copies.
 	PurgeMachineRun(ctx context.Context, id uuid.UUID) (int64, error)
+	PurgeMaterial(ctx context.Context, id uuid.UUID) (int64, error)
 	// Recorded runs the job deletion detached, as long as they are still unassigned and alive.
 	ReattachDetachedRunsOfJob(ctx context.Context, jobID *uuid.UUID) (int64, error)
 	RecalculateMachineJobPrice(ctx context.Context, arg RecalculateMachineJobPriceParams) (MachineJob, error)
@@ -256,19 +263,28 @@ type Querier interface {
 	RefreshMachineJobPrice(ctx context.Context, arg RefreshMachineJobPriceParams) (MachineJob, error)
 	RemoveOrganizationMember(ctx context.Context, arg RemoveOrganizationMemberParams) (uuid.UUID, error)
 	ReplaceProcessMeasures(ctx context.Context, processID uuid.UUID) error
+	RestoreFilamentSpool(ctx context.Context, arg RestoreFilamentSpoolParams) (FilamentSpool, error)
 	RestoreMachineJob(ctx context.Context, id uuid.UUID) error
 	// Back into its former job when that job is alive; otherwise unassigned.
 	RestoreMachineRun(ctx context.Context, arg RestoreMachineRunParams) error
-	RetireFillIdentifiers(ctx context.Context, arg RetireFillIdentifiersParams) error
+	RestoreMaterial(ctx context.Context, arg RestoreMaterialParams) (Material, error)
+	// Identifiers retired with the spool come back unless another spool uses the same value now.
+	RestoreSpoolIdentifiers(ctx context.Context, arg RestoreSpoolIdentifiersParams) error
+	RetireFilamentSpool(ctx context.Context, arg RetireFilamentSpoolParams) (FilamentSpool, error)
+	RetireSpoolIdentifiers(ctx context.Context, arg RetireSpoolIdentifiersParams) error
 	RoleExists(ctx context.Context, id uuid.UUID) (bool, error)
 	SearchBillingParties(ctx context.Context, arg SearchBillingPartiesParams) ([]SearchBillingPartiesRow, error)
 	SearchMachineJobOperators(ctx context.Context, arg SearchMachineJobOperatorsParams) ([]SearchMachineJobOperatorsRow, error)
+	SetInventoryTransactionDeleted(ctx context.Context, arg SetInventoryTransactionDeletedParams) (int64, error)
 	SetMachineJobPriceAdjustment(ctx context.Context, arg SetMachineJobPriceAdjustmentParams) (MachineJob, error)
 	SetRecordedRunOutcomeFromMachine(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	SetRunSignageHidden(ctx context.Context, arg SetRunSignageHiddenParams) (MachineRun, error)
+	// Run usages keep the article's name and unit before a purge detaches them.
+	SnapshotRunUsagesOfMaterial(ctx context.Context, materialID *uuid.UUID) error
 	SoftDeleteMachineJob(ctx context.Context, arg SoftDeleteMachineJobParams) (MachineJob, error)
 	// A deleted run is detached from its job but remembers it for the recycle bin.
 	SoftDeleteMachineRun(ctx context.Context, arg SoftDeleteMachineRunParams) error
+	SoftDeleteMaterial(ctx context.Context, arg SoftDeleteMaterialParams) (Material, error)
 	StatisticAcquisitionCost(ctx context.Context, arg StatisticAcquisitionCostParams) ([]StatisticAcquisitionCostRow, error)
 	StatisticAdjustmentLoss(ctx context.Context, arg StatisticAdjustmentLossParams) ([]StatisticAdjustmentLossRow, error)
 	StatisticCustomerCharges(ctx context.Context, arg StatisticCustomerChargesParams) ([]StatisticCustomerChargesRow, error)
@@ -285,6 +301,7 @@ type Querier interface {
 	SumRunUsageLedger(ctx context.Context, runUsageID *uuid.UUID) (SumRunUsageLedgerRow, error)
 	TotalInventoryValue(ctx context.Context) (pgtype.Numeric, error)
 	UnmountFilamentSpool(ctx context.Context, arg UnmountFilamentSpoolParams) (int64, error)
+	UnmountSpoolsOfMaterial(ctx context.Context, arg UnmountSpoolsOfMaterialParams) error
 	UpdateFilamentSpool(ctx context.Context, arg UpdateFilamentSpoolParams) (FilamentSpool, error)
 	UpdateMachine(ctx context.Context, arg UpdateMachineParams) (Machine, error)
 	// The runs of the job move with it in the same statement: the composite
@@ -294,7 +311,6 @@ type Querier interface {
 	UpdateMaterial(ctx context.Context, arg UpdateMaterialParams) (Material, error)
 	UpdateMaterialBalance(ctx context.Context, arg UpdateMaterialBalanceParams) (MaterialBalance, error)
 	UpdateMaterialType(ctx context.Context, arg UpdateMaterialTypeParams) (MaterialType, error)
-	UpdateOpenFilamentSpoolFillSnapshot(ctx context.Context, arg UpdateOpenFilamentSpoolFillSnapshotParams) (int64, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
 	UpdatePricingGroup(ctx context.Context, arg UpdatePricingGroupParams) (PricingGroup, error)
 	UpdatePricingRule(ctx context.Context, arg UpdatePricingRuleParams) (PricingRule, error)

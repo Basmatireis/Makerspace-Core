@@ -23,6 +23,7 @@ type Querier interface {
 	GetPrivacySettingsForTransfer(ctx context.Context) (GetPrivacySettingsForTransferRow, error)
 	GetVisitorEnrollmentConfiguration(ctx context.Context) (GetVisitorEnrollmentConfigurationRow, error)
 	GetWirefDeliverySettings(ctx context.Context) (GetWirefDeliverySettingsRow, error)
+	// Sale prices of single articles (stock_article) belong to the inventory, not to the transferred catalog.
 	ListActivePricingRules(ctx context.Context) ([]ListActivePricingRulesRow, error)
 	ListBrandingAssetOverrides(ctx context.Context) ([]ListBrandingAssetOverridesRow, error)
 	ListCompetencyCategories(ctx context.Context) ([]ListCompetencyCategoriesRow, error)

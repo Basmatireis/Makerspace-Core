@@ -182,7 +182,7 @@ func (s *Service) insertItem(
 		if input.MaterialID == uuid.Nil {
 			return db.OrderItem{}, apperror.Invalid("materialId is required")
 		}
-		article, err := s.jobs.SaleSource(ctx, tx, p, input.MaterialID)
+		article, err := s.jobs.SaleSource(ctx, tx, p, input.MaterialID, o.CustomerPersonID, o.CustomerOrganizationID)
 		if err != nil {
 			return db.OrderItem{}, err
 		}
@@ -196,16 +196,19 @@ func (s *Service) insertItem(
 		if err != nil {
 			return db.OrderItem{}, err
 		}
+		// An explicit unit price overrides; otherwise the article's price in the customer's pricing group applies.
 		priceText := strings.TrimSpace(input.UnitPrice)
-		if priceText == "" && article.SalePrice != nil {
-			priceText = *article.SalePrice
+		if priceText == "" && article.UnitPrice != nil {
+			priceText = *article.UnitPrice
 		}
 		if priceText == "" {
-			return db.OrderItem{}, apperror.New(
+			e := apperror.New(
 				http.StatusUnprocessableEntity,
-				"sale_price_required",
-				"The article has no sale price; enter a unit price",
+				"article_price_missing",
+				"The article has no price in the customer's pricing group; add a stock_article pricing rule or enter a unit price",
 			)
+			e.Details["pricingGroup"] = article.PricingGroupName
+			return db.OrderItem{}, e
 		}
 		price, err := parseAmount(priceText, 6, false)
 		if err != nil {

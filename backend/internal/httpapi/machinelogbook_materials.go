@@ -280,13 +280,14 @@ func (s *Server) CreateMaterialType(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreateMaterialType(
+	item, err := s.machineLogbook.CreateMaterialTypeWithOptions(
 		ctx,
 		p,
 		r.Body.Name,
 		machinelogbook.MaterialKind(r.Body.Kind),
 		string(r.Body.Unit),
 		processIDsPointer(r.Body.ProcessIds),
+		machinelogbook.MaterialTypeOptions{Code: r.Body.Code, MachineUse: r.Body.MachineUse},
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -321,7 +322,7 @@ func (s *Server) UpdateMaterialType(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.UpdateMaterialType(
+	item, err := s.machineLogbook.UpdateMaterialTypeWithOptions(
 		ctx,
 		p,
 		r.MaterialTypeId,
@@ -331,6 +332,7 @@ func (s *Server) UpdateMaterialType(
 		string(r.Body.Unit),
 		processIDsPointer(r.Body.ProcessIds),
 		r.Body.Active,
+		machinelogbook.MaterialTypeOptions{Code: r.Body.Code, MachineUse: r.Body.MachineUse},
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -373,7 +375,6 @@ func materialCreateInput(body openapi.CreateMaterialRequest) machinelogbook.Mate
 		Manufacturer:       nullableStringPointer(body.Manufacturer),
 		StorageLocation:    nullableStringPointer(body.StorageLocation),
 		Notes:              nullableStringPointer(body.Notes),
-		SalePrice:          decimalNullable(body.SalePrice),
 		PackageSize:        decimalNullable(body.PackageSize),
 		LowStockThreshold:  decimalNullable(body.LowStockThreshold),
 		FilamentDiameterMM: decimalNullable(body.FilamentDiameterMm),
@@ -391,7 +392,6 @@ func materialUpdateInput(body openapi.UpdateMaterialRequest, diameter *string) m
 		Manufacturer:       nullableStringPointer(body.Manufacturer),
 		StorageLocation:    nullableStringPointer(body.StorageLocation),
 		Notes:              nullableStringPointer(body.Notes),
-		SalePrice:          decimalNullable(body.SalePrice),
 		PackageSize:        decimalNullable(body.PackageSize),
 		LowStockThreshold:  decimalNullable(body.LowStockThreshold),
 		FilamentDiameterMM: diameter,

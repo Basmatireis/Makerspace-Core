@@ -374,24 +374,12 @@ type FilamentSpool struct {
 	Version              int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
-	Kind                 string
-	Label                *string
 	ArchivedAt           pgtype.Timestamptz
-}
-
-type FilamentSpoolFill struct {
-	ID                uuid.UUID
-	SpoolID           uuid.UUID
-	FillNumber        int32
-	MaterialID        uuid.UUID
-	Manufacturer      *string
-	ProductName       *string
-	InitialNetWeightG pgtype.Numeric
-	FilledAt          time.Time
-	ClosedAt          pgtype.Timestamptz
-	LeftoverG         pgtype.Numeric
-	LeftoverOutcome   *string
-	CreatedAt         time.Time
+	MaterialID           uuid.UUID
+	InitialNetWeightG    pgtype.Numeric
+	RetiredOutcome       *string
+	RetiredQuantity      pgtype.Numeric
+	RetiredBy            *uuid.UUID
 }
 
 type FilamentSpoolIdentifier struct {
@@ -400,7 +388,6 @@ type FilamentSpoolIdentifier struct {
 	Kind      string
 	Value     string
 	CreatedAt time.Time
-	FillID    uuid.UUID
 	RetiredAt pgtype.Timestamptz
 }
 
@@ -462,17 +449,13 @@ type InventoryTransaction struct {
 	FromSpoolID         *uuid.UUID
 	ToSpoolID           *uuid.UUID
 	TransferQuantity    pgtype.Numeric
-	FillID              *uuid.UUID
-	FromFillID          *uuid.UUID
-	ToFillID            *uuid.UUID
 	SpoolDisplayID      *string
-	FillNumber          *int32
 	FromSpoolDisplayID  *string
-	FromFillNumber      *int32
 	ToSpoolDisplayID    *string
-	ToFillNumber        *int32
 	PurchaseReference   *string
 	OrderItemID         *uuid.UUID
+	DeletedAt           pgtype.Timestamptz
+	DeletedBy           *uuid.UUID
 }
 
 type LaborordnungRequest struct {
@@ -699,15 +682,15 @@ type MachineRunUsage struct {
 	ExternalMaterialName *string
 	QuantityBasis        string
 	SourcePrinterEventID *uuid.UUID
-	FillID               *uuid.UUID
 	SpoolDisplayID       *string
-	FillNumber           *int32
 	RunID                uuid.UUID
 	EstimationMethod     *string
 	CalculationVersion   *string
 	EstimateQuality      *string
 	ReportRevision       *int64
 	StaffCorrected       bool
+	MaterialName         *string
+	MaterialUnit         *string
 }
 
 type MailConfiguration struct {
@@ -786,10 +769,12 @@ type Material struct {
 	ColorHex          *string
 	Variant           *string
 	Manufacturer      *string
-	SalePrice         pgtype.Numeric
 	PackageSize       pgtype.Numeric
 	StorageLocation   *string
 	Notes             *string
+	DisplayID         string
+	DeletedAt         pgtype.Timestamptz
+	DeletedBy         *uuid.UUID
 }
 
 type MaterialBalance struct {
@@ -809,14 +794,16 @@ type MaterialFilamentProperty struct {
 }
 
 type MaterialType struct {
-	ID        uuid.UUID
-	Name      string
-	Unit      string
-	Active    bool
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Kind      string
+	ID         uuid.UUID
+	Name       string
+	Unit       string
+	Active     bool
+	Version    int64
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	Kind       string
+	Code       string
+	MachineUse bool
 }
 
 type MaterialTypeProcess struct {
@@ -1187,6 +1174,7 @@ type PricingRule struct {
 	MaterialTypeID *uuid.UUID
 	Measure        *string
 	BlockSize      *int32
+	MaterialID     *uuid.UUID
 }
 
 type PrintArtifact struct {

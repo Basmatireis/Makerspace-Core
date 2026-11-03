@@ -129,7 +129,5 @@ SELECT mt.integration FROM machines m JOIN processes mt ON mt.id = m.process_id 
 -- name: LockSpoolLifecycle :one
 SELECT lifecycle FROM filament_spools WHERE id=sqlc.arg(id) FOR UPDATE;
 
--- name: GetOpenFillRemainingQuantity :one
-SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)::numeric AS remaining
-FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
-WHERE f.spool_id=sqlc.arg(spool_id) AND f.closed_at IS NULL;
+-- name: GetSpoolRemainingQuantity :one
+SELECT filament_spool_remaining(sqlc.arg(spool_id)::uuid)::numeric AS remaining;

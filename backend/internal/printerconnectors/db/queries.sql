@@ -486,9 +486,9 @@ SELECT spool_id FROM printer_spool_assignments WHERE slot_id=sqlc.arg(slot_id) A
 SELECT s.id
 FROM filament_spool_identifiers i
 JOIN filament_spools s ON s.id=i.spool_id
-JOIN filament_spool_fills f ON f.id=i.fill_id AND f.spool_id=s.id
+JOIN materials m ON m.id=s.material_id
 WHERE i.kind='nfc' AND lower(i.value)=lower(sqlc.arg(tag_uid)) AND i.retired_at IS NULL
-  AND f.closed_at IS NULL AND s.lifecycle='active'
+  AND s.lifecycle='active' AND m.deleted_at IS NULL
 LIMIT 1;
 
 -- name: LockOpenMountForSlot :one
@@ -510,15 +510,13 @@ VALUES (sqlc.arg(id), sqlc.arg(slot_id), sqlc.arg(spool_id), sqlc.arg(mounted_at
 SELECT s.id
 FROM filament_spool_identifiers i
 JOIN filament_spools s ON s.id=i.spool_id
-JOIN filament_spool_fills f ON f.id=i.fill_id AND f.spool_id=s.id
+JOIN materials m ON m.id=s.material_id
 WHERE i.kind='nfc' AND lower(i.value)=lower(sqlc.arg(tag_uid)) AND i.retired_at IS NULL
-  AND f.closed_at IS NULL AND s.lifecycle='active'
+  AND s.lifecycle='active' AND m.deleted_at IS NULL
 FOR UPDATE OF s;
 
--- name: GetOpenFillRemainingQuantity :one
-SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)::numeric AS remaining
-FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
-WHERE f.spool_id=sqlc.arg(spool_id) AND f.closed_at IS NULL;
+-- name: GetSpoolRemainingQuantity :one
+SELECT filament_spool_remaining(sqlc.arg(spool_id)::uuid)::numeric AS remaining;
 
 -- name: InsertConnectorActivity :exec
 INSERT INTO printer_connector_activity (id, connector_id, machine_id, kind, resource_id, event_kind, changed_fields)

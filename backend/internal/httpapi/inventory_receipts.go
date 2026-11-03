@@ -44,10 +44,6 @@ func (s *Server) ReceiveInventoryStock(
 			Mode:            machinelogbook.PlacementMode(pl.Mode),
 			TareWeightG:     decimalNullable(pl.TareWeightG),
 			StorageLocation: nullableStringPointer(pl.StorageLocation),
-			ReusableSpoolID: pl.ReusableSpoolId,
-		}
-		if pl.ReusableSpoolExpectedVersion != nil {
-			placement.ReusableSpoolExpectedVersion = *pl.ReusableSpoolExpectedVersion
 		}
 		if pl.Identifiers != nil {
 			for _, identifier := range *pl.Identifiers {

@@ -3,6 +3,7 @@ package machinelogbook
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -36,26 +37,42 @@ func stockState(quantity decimal.Decimal, threshold pgtype.Numeric) StockState {
 	return StockInStock
 }
 
+// materialAttention flags an article whose stock is at or below its low-stock threshold.
+func materialAttention(quantity decimal.Decimal, threshold pgtype.Numeric, unit string) []Attention {
+	items := []Attention{}
+	if threshold.Valid && quantity.LessThanOrEqual(decimalFromNumeric(threshold)) {
+		items = append(items, Attention{
+			Code: AttentionLowStock,
+			Message: fmt.Sprintf(
+				"Low stock: %s %s left, minimum %s %s",
+				quantity.String(), unit, decimalFromNumeric(threshold).String(), unit,
+			),
+		})
+	}
+	return items
+}
+
 func materialFromGet(row machinelogbookdb.GetMaterialRow) Material {
 	q := decimalFromNumeric(row.Quantity)
 	assigned := decimalFromNumeric(row.AssignedQuantity)
 	return Material{
 		ID:                 row.ID,
+		DisplayID:          row.DisplayID,
 		Name:               row.Name,
 		Kind:               MaterialKind(row.MaterialKind),
 		Variant:            row.Variant,
 		Manufacturer:       row.Manufacturer,
-		SalePrice:          nullableDecimal(row.SalePrice),
 		PackageSize:        nullableDecimal(row.PackageSize),
 		StorageLocation:    row.StorageLocation,
 		Notes:              row.Notes,
 		MaterialTypeID:     row.MaterialTypeID,
 		MaterialTypeName:   row.MaterialTypeName,
+		MaterialTypeCode:   row.MaterialTypeCode,
+		MachineUse:         row.MachineUse,
 		ColorName:          row.ColorName,
 		ColorHex:           row.ColorHex,
 		Unit:               row.Unit,
 		Active:             row.Active,
-		Deletable:          row.Deletable,
 		LowStockThreshold:  nullableDecimal(row.LowStockThreshold),
 		FilamentDiameterMM: nullableDecimal(row.DiameterMm),
 		Quantity:           q.String(),
@@ -65,14 +82,59 @@ func materialFromGet(row machinelogbookdb.GetMaterialRow) Material {
 		AverageUnitCost:    decimalString(row.AverageUnitCost),
 		RecentConsumption:  decimalString(row.RecentConsumption),
 		StockState:         stockState(q, row.LowStockThreshold),
+		Prices:             []MaterialPrice{},
+		Attention:          materialAttention(q, row.LowStockThreshold, row.Unit),
 		Version:            row.Version,
 		InventoryVersion:   row.InventoryVersion,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
+		deleted:            row.DeletedAt.Valid,
 	}
 }
+
 func materialFromList(row machinelogbookdb.ListMaterialsRow) Material {
 	return materialFromGet(machinelogbookdb.GetMaterialRow(row))
+}
+
+// attachMaterialPrices fills the sale prices per pricing group of the given articles.
+func attachMaterialPrices(ctx context.Context, q *machinelogbookdb.Queries, items []Material) error {
+	if len(items) == 0 {
+		return nil
+	}
+	materialIDs := make([]uuid.UUID, 0, len(items))
+	index := make(map[uuid.UUID]int, len(items))
+	for i := range items {
+		materialIDs = append(materialIDs, items[i].ID)
+		index[items[i].ID] = i
+	}
+	rows, err := q.ListMaterialPrices(ctx, materialIDs)
+	if err != nil {
+		return fmt.Errorf("list material prices: %w", err)
+	}
+	for _, row := range rows {
+		i := index[row.MaterialID]
+		items[i].Prices = append(items[i].Prices, MaterialPrice{
+			PricingGroupID:   row.PricingGroupID,
+			PricingGroupName: row.PricingGroupName,
+			Rate:             decimalString(row.Rate),
+			Source:           MaterialPriceSource(row.Source),
+			PricingRuleID:    row.PricingRuleID,
+		})
+	}
+	return nil
+}
+
+// loadMaterial reads an article with its prices; articles in the recycle bin are read too.
+func (s *Service) loadMaterial(ctx context.Context, q *machinelogbookdb.Queries, id uuid.UUID) (Material, error) {
+	row, err := q.GetMaterial(ctx, id)
+	if err != nil {
+		return Material{}, noRows(err)
+	}
+	items := []Material{materialFromGet(row)}
+	if err = attachMaterialPrices(ctx, q, items); err != nil {
+		return Material{}, err
+	}
+	return items[0], nil
 }
 
 // MaterialInput is the editable part of an article. Unit is optional: the unit
@@ -84,7 +146,7 @@ type MaterialInput struct {
 	Unit                                          *string
 	ColorName, ColorHex                           *string
 	Variant, Manufacturer, StorageLocation, Notes *string
-	SalePrice, PackageSize                        *string
+	PackageSize                                   *string
 	LowStockThreshold                             *string
 	FilamentDiameterMM                            *string
 	Active                                        bool
@@ -95,7 +157,7 @@ type validatedMaterial struct {
 	name                                          string
 	colorName, colorHex                           *string
 	variant, manufacturer, storageLocation, notes *string
-	threshold, salePrice, packageSize             pgtype.Numeric
+	threshold, packageSize                        pgtype.Numeric
 }
 
 // Length limits of the article fields, matching the database checks.
@@ -149,12 +211,6 @@ func validateMaterial(in MaterialInput) (validatedMaterial, error) {
 	}
 	if v.threshold.Valid && decimalFromNumeric(v.threshold).IsNegative() {
 		return v, apperror.Invalid("lowStockThreshold must be non-negative")
-	}
-	if v.salePrice, err = pgNullableNumeric(in.SalePrice, false); err != nil {
-		return v, err
-	}
-	if v.salePrice.Valid && decimalFromNumeric(v.salePrice).IsNegative() {
-		return v, apperror.Invalid("salePrice must be non-negative")
 	}
 	if v.packageSize, err = pgNullableNumeric(in.PackageSize, true); err != nil {
 		return v, apperror.Invalid("packageSize must be positive")
@@ -262,11 +318,14 @@ func (s *Service) GetMaterial(ctx context.Context, p authorization.Principal, id
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return Material{}, err
 	}
-	row, err := machinelogbookdb.New(s.pool).GetMaterial(ctx, id)
+	material, err := s.loadMaterial(ctx, machinelogbookdb.New(s.pool), id)
 	if err != nil {
-		return Material{}, noRows(err)
+		return Material{}, err
 	}
-	return materialFromGet(row), nil
+	if material.deleted {
+		return Material{}, apperror.NotFound
+	}
+	return material, nil
 }
 
 func (s *Service) ListMaterials(
@@ -324,6 +383,9 @@ func (s *Service) ListMaterials(
 	for _, row := range rows {
 		items = append(items, materialFromList(row))
 	}
+	if err = attachMaterialPrices(ctx, q, items); err != nil {
+		return nil, 0, "", err
+	}
 	return items, total, decimalString(value), nil
 }
 
@@ -345,14 +407,14 @@ func (s *Service) CreateMaterial(
 	if err != nil {
 		return Material{}, err
 	}
-	row, err := machinelogbookdb.New(tx).GetMaterial(ctx, id)
+	material, err := s.loadMaterial(ctx, machinelogbookdb.New(tx), id)
 	if err != nil {
 		return Material{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return Material{}, err
 	}
-	return materialFromGet(row), nil
+	return material, nil
 }
 
 // CreateMaterialTx is CreateMaterial inside the caller's transaction; it returns the new article's ID. The
@@ -404,11 +466,16 @@ func (s *Service) createMaterialTx(
 	if err = ensureMaterialNameFree(ctx, q, name, uuid.Nil); err != nil {
 		return uuid.Nil, err
 	}
+	sequence, err := q.NextMaterialSequence(ctx)
+	if err != nil {
+		return uuid.Nil, err
+	}
 	id := ids.New()
 	_, err = q.CreateMaterial(
 		ctx,
 		machinelogbookdb.CreateMaterialParams{
 			ID:                id,
+			DisplayID:         fmt.Sprintf("A-%04d", sequence),
 			Name:              name,
 			MaterialTypeID:    materialType.ID,
 			ColorName:         v.colorName,
@@ -417,7 +484,6 @@ func (s *Service) createMaterialTx(
 			LowStockThreshold: v.threshold,
 			Variant:           v.variant,
 			Manufacturer:      v.manufacturer,
-			SalePrice:         v.salePrice,
 			PackageSize:       v.packageSize,
 			StorageLocation:   v.storageLocation,
 			Notes:             v.notes,
@@ -447,7 +513,7 @@ func (s *Service) createMaterialTx(
 		requestID,
 		[]string{
 			"name", "materialTypeId", "colorName", "colorHex", "unit", "lowStockThreshold",
-			"variant", "manufacturer", "salePrice", "packageSize", "storageLocation", "notes",
+			"variant", "manufacturer", "packageSize", "storageLocation", "notes",
 		},
 	); err != nil {
 		return uuid.Nil, err
@@ -497,6 +563,9 @@ func (s *Service) UpdateMaterialTx(
 	if err != nil {
 		return Material{}, noRows(err)
 	}
+	if current.DeletedAt.Valid {
+		return Material{}, apperror.NotFound
+	}
 	if current.Version != in.ExpectedVersion {
 		return Material{}, apperror.StaleWrite
 	}
@@ -528,11 +597,11 @@ func (s *Service) UpdateMaterialTx(
 		)
 	}
 	if current.Unit != unit {
-		fillCount, fillErr := q.CountMaterialFills(ctx, id)
-		if fillErr != nil {
-			return Material{}, fillErr
+		spoolCount, spoolErr := q.CountMaterialSpools(ctx, id)
+		if spoolErr != nil {
+			return Material{}, spoolErr
 		}
-		if fillCount > 0 {
+		if spoolCount > 0 {
 			return Material{}, apperror.Conflicting(
 				"material_unit_in_use",
 				"Material unit cannot change while filament spools exist",
@@ -567,7 +636,6 @@ func (s *Service) UpdateMaterialTx(
 			LowStockThreshold: v.threshold,
 			Variant:           v.variant,
 			Manufacturer:      v.manufacturer,
-			SalePrice:         v.salePrice,
 			PackageSize:       v.packageSize,
 			StorageLocation:   v.storageLocation,
 			Notes:             v.notes,
@@ -601,16 +669,12 @@ func (s *Service) UpdateMaterialTx(
 		requestID,
 		[]string{
 			"name", "materialTypeId", "colorName", "colorHex", "unit", "active", "lowStockThreshold",
-			"variant", "manufacturer", "salePrice", "packageSize", "storageLocation", "notes",
+			"variant", "manufacturer", "packageSize", "storageLocation", "notes",
 		},
 	); err != nil {
 		return Material{}, err
 	}
-	row, err := q.GetMaterial(ctx, id)
-	if err != nil {
-		return Material{}, err
-	}
-	return materialFromGet(row), nil
+	return s.loadMaterial(ctx, q, id)
 }
 
 func transactionFromRow(row machinelogbookdb.InventoryTransaction) InventoryTransaction {
@@ -629,13 +693,10 @@ func transactionFromRow(row machinelogbookdb.InventoryTransaction) InventoryTran
 		Reference:           row.PurchaseReference,
 		SpoolID:             row.SpoolID,
 		SpoolDisplayID:      row.SpoolDisplayID,
-		FillNumber:          row.FillNumber,
 		FromSpoolID:         row.FromSpoolID,
 		FromSpoolDisplayID:  row.FromSpoolDisplayID,
-		FromFillNumber:      row.FromFillNumber,
 		ToSpoolID:           row.ToSpoolID,
 		ToSpoolDisplayID:    row.ToSpoolDisplayID,
-		ToFillNumber:        row.ToFillNumber,
 		TransferQuantity:    nullableDecimal(row.TransferQuantity),
 		CreatedAt:           row.CreatedAt,
 	}
@@ -657,13 +718,10 @@ func transactionFromList(row machinelogbookdb.ListInventoryTransactionsRow) Inve
 			PurchaseReference:   row.PurchaseReference,
 			SpoolID:             row.SpoolID,
 			SpoolDisplayID:      row.SpoolDisplayID,
-			FillNumber:          row.FillNumber,
 			FromSpoolID:         row.FromSpoolID,
 			FromSpoolDisplayID:  row.FromSpoolDisplayID,
-			FromFillNumber:      row.FromFillNumber,
 			ToSpoolID:           row.ToSpoolID,
 			ToSpoolDisplayID:    row.ToSpoolDisplayID,
-			ToFillNumber:        row.ToFillNumber,
 			TransferQuantity:    row.TransferQuantity,
 			CreatedAt:           row.CreatedAt,
 		},
@@ -691,8 +749,12 @@ func (s *Service) ListMaterialTransactions(
 		return nil, 0, err
 	}
 	q := machinelogbookdb.New(s.pool)
-	if _, err = q.GetMaterial(ctx, id); err != nil {
+	material, err := q.GetMaterial(ctx, id)
+	if err != nil {
 		return nil, 0, noRows(err)
+	}
+	if material.DeletedAt.Valid {
+		return nil, 0, apperror.NotFound
 	}
 	rows, err := q.ListInventoryTransactions(
 		ctx,
@@ -731,8 +793,8 @@ type inventoryMutation struct {
 	UsageID   *uuid.UUID
 	// OrderItemID attributes an order sale or its reversal to the sold item.
 	OrderItemID *uuid.UUID
-	// Fill attributes the movement to a spool's open fill.
-	Fill *fillRef
+	// Spool attributes the movement to a spool.
+	Spool *spoolRef
 	// KeepSpoolVersion leaves the spool version alone; the caller bumps it once.
 	KeepSpoolVersion bool
 }
@@ -754,6 +816,11 @@ func (s *Service) applyInventoryMutation(
 	if expected != anyInventoryVersion && current.InventoryVersion != expected {
 		return InventoryMutationResult{}, apperror.StaleWrite
 	}
+	// Direct stock movements of an article in the bin are refused; compound operations (job reversals) may
+	// still book against it.
+	if current.DeletedAt.Valid && expected != anyInventoryVersion {
+		return InventoryMutationResult{}, errMaterialInBin
+	}
 	expected = current.InventoryVersion
 	oldQuantity := decimalFromNumeric(current.Quantity)
 	oldValue := decimalFromNumeric(current.InventoryValue)
@@ -763,25 +830,25 @@ func (s *Service) applyInventoryMutation(
 		return InventoryMutationResult{}, apperror.Conflicting("insufficient_stock", "Inventory would become negative")
 	}
 	var spoolVersion int64
-	if m.Fill != nil {
-		spool, spoolErr := q.GetFilamentSpoolForUpdate(ctx, m.Fill.SpoolID)
+	if m.Spool != nil {
+		spool, spoolErr := q.GetFilamentSpoolForUpdate(ctx, m.Spool.SpoolID)
 		if spoolErr != nil {
 			return InventoryMutationResult{}, noRows(spoolErr)
 		}
-		fill, fillErr := q.GetFilamentSpoolFill(ctx, m.Fill.FillID)
-		if fillErr != nil {
-			return InventoryMutationResult{}, noRows(fillErr)
-		}
-		if fill.MaterialID != id {
+		if spool.MaterialID != id {
 			return InventoryMutationResult{}, apperror.Conflicting(
 				"spool_material_mismatch",
 				"Spool does not belong to the selected material",
 			)
 		}
-		if fill.ClosedAt.Valid {
-			return InventoryMutationResult{}, apperror.Conflicting("spool_not_consumable", "The spool has no open fill")
+		if SpoolLifecycle(spool.Lifecycle) != SpoolActive {
+			return InventoryMutationResult{}, apperror.Conflicting("spool_not_consumable", "The spool is retired")
 		}
-		if decimalFromNumeric(fill.RemainingQuantity).Add(m.QuantityDelta).IsNegative() {
+		remaining, remainingErr := q.GetSpoolRemaining(ctx, spool.ID)
+		if remainingErr != nil {
+			return InventoryMutationResult{}, remainingErr
+		}
+		if decimalFromNumeric(remaining).Add(m.QuantityDelta).IsNegative() {
 			return InventoryMutationResult{}, apperror.Conflicting(
 				"insufficient_spool_stock",
 				"Spool inventory would become negative",
@@ -836,7 +903,7 @@ func (s *Service) applyInventoryMutation(
 	}
 	actor := accountPointer(p)
 	var ledger machinelogbookdb.InventoryTransaction
-	if m.Fill != nil {
+	if m.Spool != nil {
 		ledger, err = q.InsertSpoolInventoryTransaction(
 			ctx,
 			machinelogbookdb.InsertSpoolInventoryTransactionParams{
@@ -854,10 +921,8 @@ func (s *Service) applyInventoryMutation(
 				RunUsageID:          m.UsageID,
 				ActorAccountID:      actor,
 				PurchaseReference:   optional.Trimmed(m.Reference),
-				SpoolID:             &m.Fill.SpoolID,
-				FillID:              &m.Fill.FillID,
-				SpoolDisplayID:      &m.Fill.SpoolDisplayID,
-				FillNumber:          &m.Fill.FillNumber,
+				SpoolID:             &m.Spool.SpoolID,
+				SpoolDisplayID:      &m.Spool.SpoolDisplayID,
 			},
 		)
 	} else {
@@ -885,10 +950,10 @@ func (s *Service) applyInventoryMutation(
 	if err != nil {
 		return InventoryMutationResult{}, databaseError(err)
 	}
-	if m.Fill != nil && !m.KeepSpoolVersion {
+	if m.Spool != nil && !m.KeepSpoolVersion {
 		if _, err = q.BumpFilamentSpoolVersion(
 			ctx,
-			machinelogbookdb.BumpFilamentSpoolVersionParams{ID: m.Fill.SpoolID, ExpectedVersion: spoolVersion},
+			machinelogbookdb.BumpFilamentSpoolVersionParams{ID: m.Spool.SpoolID, ExpectedVersion: spoolVersion},
 		); err != nil {
 			return InventoryMutationResult{}, err
 		}
@@ -907,11 +972,10 @@ func (s *Service) applyInventoryMutation(
 			return InventoryMutationResult{}, err
 		}
 	}
-	row, err := q.GetMaterial(ctx, id)
+	material, err := s.loadMaterial(ctx, q, id)
 	if err != nil {
 		return InventoryMutationResult{}, err
 	}
-	material := materialFromGet(row)
 	material.InventoryVersion = balance.Version
 	return InventoryMutationResult{Material: material, Transaction: transactionFromRow(ledger)}, nil
 }

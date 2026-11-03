@@ -746,19 +746,20 @@ func applyMachines(r *run, items *[]machineEntry) (func() error, error) {
 	}, nil
 }
 
-// Inventory articles: natural key name; the material type is referenced by name. Stock, ledger, spools and fills
-// are runtime data and never transferred. Decimals are strings like in the API.
+// Inventory articles: natural key name; the material type is referenced by name. Stock, ledger, spools and sale
+// prices (stock_article rules) are runtime data and never transferred; articles in the recycle bin are left out. Decimals are strings like in the API.
 
 type inventoryArticleEntry struct {
-	Name               string  `json:"name"`
-	MaterialType       string  `json:"materialType"`
-	Active             bool    `json:"active"`
-	LowStockThreshold  *string `json:"lowStockThreshold"`
-	ColorName          *string `json:"colorName"`
-	ColorHex           *string `json:"colorHex"`
-	Variant            *string `json:"variant"`
-	Manufacturer       *string `json:"manufacturer"`
-	SalePrice          *string `json:"salePrice"`
+	Name              string  `json:"name"`
+	MaterialType      string  `json:"materialType"`
+	Active            bool    `json:"active"`
+	LowStockThreshold *string `json:"lowStockThreshold"`
+	ColorName         *string `json:"colorName"`
+	ColorHex          *string `json:"colorHex"`
+	Variant           *string `json:"variant"`
+	Manufacturer      *string `json:"manufacturer"`
+	// LegacySalePrice is read from files exported before sale prices became pricing rules and ignored.
+	LegacySalePrice    *string `json:"salePrice,omitempty"`
 	PackageSize        *string `json:"packageSize"`
 	StorageLocation    *string `json:"storageLocation"`
 	Notes              *string `json:"notes"`
@@ -783,7 +784,7 @@ func inventoryArticlesSection() section {
 					*text = trimmed(*text)
 				}
 				for _, number := range []**string{
-					&item.LowStockThreshold, &item.SalePrice, &item.PackageSize, &item.FilamentDiameterMm,
+					&item.LowStockThreshold, &item.PackageSize, &item.FilamentDiameterMm,
 				} {
 					normalized, err := normalizeDecimal(*number)
 					if err != nil {
@@ -827,7 +828,6 @@ func articleFromRow(row configtransferdb.ListMaterialsRow) inventoryArticleEntry
 		ColorHex:           row.ColorHex,
 		Variant:            row.Variant,
 		Manufacturer:       row.Manufacturer,
-		SalePrice:          numericText(row.SalePrice),
 		PackageSize:        numericText(row.PackageSize),
 		StorageLocation:    row.StorageLocation,
 		Notes:              row.Notes,
@@ -841,7 +841,7 @@ func sameArticle(a, b inventoryArticleEntry) bool {
 	}
 	pairs := [][2]*string{
 		{a.LowStockThreshold, b.LowStockThreshold}, {a.ColorName, b.ColorName}, {a.ColorHex, b.ColorHex},
-		{a.Variant, b.Variant}, {a.Manufacturer, b.Manufacturer}, {a.SalePrice, b.SalePrice},
+		{a.Variant, b.Variant}, {a.Manufacturer, b.Manufacturer},
 		{a.PackageSize, b.PackageSize}, {a.StorageLocation, b.StorageLocation}, {a.Notes, b.Notes},
 		{a.FilamentDiameterMm, b.FilamentDiameterMm},
 	}
@@ -887,7 +887,6 @@ func articleInput(item inventoryArticleEntry, typeID uuid.UUID) machinelogbook.M
 		Manufacturer:       item.Manufacturer,
 		StorageLocation:    item.StorageLocation,
 		Notes:              item.Notes,
-		SalePrice:          item.SalePrice,
 		PackageSize:        item.PackageSize,
 		LowStockThreshold:  item.LowStockThreshold,
 		FilamentDiameterMM: item.FilamentDiameterMm,
@@ -954,7 +953,7 @@ func applyInventoryArticles(r *run, items *[]inventoryArticleEntry) (func() erro
 				continue
 			}
 			deleted, err := r.try(row.Name, func(tx pgx.Tx) error {
-				return r.svc.MachineLogbook.DeleteMaterialTx(r.ctx, tx, r.p, row.ID, row.Version, r.requestID)
+				return r.svc.MachineLogbook.RemoveUnusedMaterialTx(r.ctx, tx, r.p, row.ID, row.Version, r.requestID)
 			})
 			if err != nil {
 				return err

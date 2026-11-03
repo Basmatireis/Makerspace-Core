@@ -32,9 +32,9 @@ type parsedUsage struct {
 	EstimateQuality      *string
 	ReportRevision       *int64
 	StaffCorrected       bool
-	// Fill is the open fill a spool usage draws from; it is resolved inside
-	// the transaction that records the usage.
-	Fill *fillRef
+	// Spool is the spool a usage draws from; it is resolved inside the
+	// transaction that records the usage.
+	Spool *spoolRef
 }
 
 // parseOutcome validates a run outcome. An empty value or "unknown" records no
@@ -136,10 +136,9 @@ func usageSortKey(item parsedUsage) string {
 	return item.MaterialID.String() + "/" + spool
 }
 
-// resolveUsageFills attaches the open fill of every spool usage, locking the
-// spools in id order. Archived spools and spools without an open fill cannot be
-// used.
-func (s *Service) resolveUsageFills(ctx context.Context, q *machinelogbookdb.Queries, items []parsedUsage) error {
+// resolveUsageSpools locks the spool of every spool usage in id order.
+// Archived spools cannot be used.
+func (s *Service) resolveUsageSpools(ctx context.Context, q *machinelogbookdb.Queries, items []parsedUsage) error {
 	order := make([]int, 0, len(items))
 	for i := range items {
 		if UsageOwnership(items[i].Ownership) != OwnershipExternal && items[i].SpoolID != nil {
@@ -150,55 +149,46 @@ func (s *Service) resolveUsageFills(ctx context.Context, q *machinelogbookdb.Que
 		return bytes.Compare(items[order[a]].SpoolID[:], items[order[b]].SpoolID[:]) < 0
 	})
 	for _, i := range order {
-		_, ref, _, err := s.lockConsumableFill(ctx, q, *items[i].SpoolID)
+		_, ref, _, err := s.lockConsumableSpool(ctx, q, *items[i].SpoolID)
 		if err != nil {
 			return err
 		}
 		if items[i].MaterialID == nil || ref.MaterialID != *items[i].MaterialID {
 			return apperror.Conflicting("spool_material_mismatch", "Spool does not belong to the selected material")
 		}
-		items[i].Fill = &ref
+		items[i].Spool = &ref
 	}
 	return nil
 }
 
-// usageFillRef rebuilds the fill reference stored on a recorded usage.
-func usageFillRef(u machinelogbookdb.MachineRunUsage) *fillRef {
-	if u.MaterialID == nil || u.SpoolID == nil || u.FillID == nil || u.SpoolDisplayID == nil || u.FillNumber == nil {
+// usageSpoolRef rebuilds the spool reference stored on a recorded usage.
+func usageSpoolRef(u machinelogbookdb.MachineRunUsage) *spoolRef {
+	if u.MaterialID == nil || u.SpoolID == nil || u.SpoolDisplayID == nil {
 		return nil
 	}
-	return &fillRef{
-		SpoolID:        *u.SpoolID,
-		FillID:         *u.FillID,
-		SpoolDisplayID: *u.SpoolDisplayID,
-		FillNumber:     *u.FillNumber,
-		MaterialID:     *u.MaterialID,
-	}
+	return &spoolRef{SpoolID: *u.SpoolID, SpoolDisplayID: *u.SpoolDisplayID, MaterialID: *u.MaterialID}
 }
 
-// reversalFill returns the fill a usage correction goes back to. A usage whose
-// fill was closed in the meantime, or whose spool was deleted, returns to loose
-// stock instead.
-func (s *Service) reversalFill(
+// reversalSpool returns the spool a usage correction goes back to. A usage
+// whose spool was retired or deleted in the meantime returns to loose stock.
+func (s *Service) reversalSpool(
 	ctx context.Context,
 	q *machinelogbookdb.Queries,
 	u machinelogbookdb.MachineRunUsage,
-) (*fillRef, error) {
-	ref := usageFillRef(u)
+) (*spoolRef, error) {
+	ref := usageSpoolRef(u)
 	if ref == nil {
 		return nil, nil
 	}
-	if _, err := q.GetFilamentSpoolForUpdate(ctx, ref.SpoolID); errors.Is(err, pgx.ErrNoRows) {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	open, err := q.GetOpenFilamentSpoolFill(ctx, ref.SpoolID)
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && open.ID != ref.FillID) {
+	spool, err := q.GetFilamentSpoolForUpdate(ctx, ref.SpoolID)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	if SpoolLifecycle(spool.Lifecycle) != SpoolActive || spool.MaterialID != ref.MaterialID {
+		return nil, nil
 	}
 	return ref, nil
 }
@@ -226,8 +216,8 @@ func (s *Service) insertUsages(
 			ReportRevision:       items[i].ReportRevision,
 			StaffCorrected:       items[i].StaffCorrected,
 		}
-		if fill := items[i].Fill; fill != nil && items[i].SpoolID != nil {
-			params.FillID, params.SpoolDisplayID, params.FillNumber = &fill.FillID, &fill.SpoolDisplayID, &fill.FillNumber
+		if spool := items[i].Spool; spool != nil && items[i].SpoolID != nil {
+			params.SpoolDisplayID = &spool.SpoolDisplayID
 		}
 		row, err := q.InsertRunUsage(ctx, params)
 		if err != nil {
@@ -273,7 +263,7 @@ func (s *Service) consumeUsages(
 				ValueDelta:    item.Quantity.Mul(average).Neg(),
 				OccurredAt:    occurredAt,
 				UsageID:       &item.UsageID,
-				Fill:          item.Fill,
+				Spool:         item.Spool,
 			},
 			requestID,
 		)

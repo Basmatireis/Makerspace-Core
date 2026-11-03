@@ -6,6 +6,7 @@ import (
 	"errors"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -29,6 +30,8 @@ func materialTypeFromList(row machinelogbookdb.ListMaterialTypesRow, processIDs 
 	return MaterialType{
 		ID:               row.ID,
 		Name:             row.Name,
+		Code:             row.Code,
+		MachineUse:       row.MachineUse,
 		Kind:             MaterialKind(row.Kind),
 		Unit:             row.Unit,
 		ProcessIDs:       processIDs,
@@ -169,9 +172,68 @@ func replaceMaterialTypeProcesses(
 func materialTypeConflict(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		if pgErr.ConstraintName == "material_types_code_ci_idx" {
+			return apperror.Conflicting("material_type_code_exists", "A material type with this code already exists")
+		}
 		return apperror.Conflicting("material_type_exists", "A material type with this name already exists")
 	}
 	return databaseError(err)
+}
+
+// MaterialTypeOptions carries the label code and the machine-use flag of a material type. Nil keeps the
+// current value on update; on create the code defaults to the first word of the name and machine use to true
+// for filament and consumables.
+type MaterialTypeOptions struct {
+	Code       *string
+	MachineUse *bool
+}
+
+var materialTypeCodePattern = regexp.MustCompile(`^[A-Z0-9]{1,12}$`)
+
+const maxMaterialTypeCodeLength = 12
+
+// defaultMaterialTypeCode derives a code from the first word of a type name.
+func defaultMaterialTypeCode(name string) string {
+	word := strings.ToUpper(strings.Fields(name + " ")[0])
+	var b strings.Builder
+	for _, r := range word {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	code := b.String()
+	if len(code) > maxMaterialTypeCodeLength {
+		code = code[:maxMaterialTypeCodeLength]
+	}
+	if code == "" {
+		code = "TYPE"
+	}
+	return code
+}
+
+// freeMaterialTypeCode appends a number to a derived code another type already uses.
+func freeMaterialTypeCode(ctx context.Context, q *machinelogbookdb.Queries, base string) (string, error) {
+	candidate := base
+	for n := 2; ; n++ {
+		_, err := q.FindMaterialTypeByCode(ctx, candidate)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return candidate, nil
+		}
+		if err != nil {
+			return "", err
+		}
+		suffix := strconv.Itoa(n)
+		limit := min(len(base), maxMaterialTypeCodeLength-len(suffix))
+		candidate = base[:limit] + suffix
+	}
+}
+
+func validateMaterialTypeCode(code string) (string, error) {
+	code = strings.ToUpper(strings.TrimSpace(code))
+	if !materialTypeCodePattern.MatchString(code) {
+		return "", apperror.Invalid("code must be 1 to 12 letters A-Z or digits")
+	}
+	return code, nil
 }
 
 // ListMaterialTypes returns every material type, active ones first. The
@@ -224,12 +286,26 @@ func (s *Service) CreateMaterialType(
 	processIDs []uuid.UUID,
 	requestID *uuid.UUID,
 ) (MaterialType, error) {
+	return s.CreateMaterialTypeWithOptions(ctx, p, name, kind, unit, processIDs, MaterialTypeOptions{}, requestID)
+}
+
+// CreateMaterialTypeWithOptions is CreateMaterialType with an explicit code and machine-use flag.
+func (s *Service) CreateMaterialTypeWithOptions(
+	ctx context.Context,
+	p authorization.Principal,
+	name string,
+	kind MaterialKind,
+	unit string,
+	processIDs []uuid.UUID,
+	options MaterialTypeOptions,
+	requestID *uuid.UUID,
+) (MaterialType, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
 	var result MaterialType
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.CreateMaterialTypeTx(ctx, tx, p, name, kind, unit, processIDs, requestID)
+		result, err = s.createMaterialTypeTx(ctx, tx, p, name, kind, unit, processIDs, options, requestID)
 		return err
 	})
 	return result, err
@@ -249,6 +325,20 @@ func (s *Service) CreateMaterialTypeTx(
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
+	return s.createMaterialTypeTx(ctx, tx, p, name, kind, unit, processIDs, MaterialTypeOptions{}, requestID)
+}
+
+func (s *Service) createMaterialTypeTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	name string,
+	kind MaterialKind,
+	unit string,
+	processIDs []uuid.UUID,
+	options MaterialTypeOptions,
+	requestID *uuid.UUID,
+) (MaterialType, error) {
 	name, err := validateMaterialTypeName(name)
 	if err != nil {
 		return MaterialType{}, err
@@ -264,10 +354,32 @@ func (s *Service) CreateMaterialTypeTx(
 	if err != nil {
 		return MaterialType{}, err
 	}
+	machineUse := kind != KindPart
+	if options.MachineUse != nil {
+		machineUse = *options.MachineUse
+	}
+	if kind == KindFilament && !machineUse {
+		return MaterialType{}, apperror.Invalid("filament material types are always used in machine runs")
+	}
+	var code string
+	if options.Code != nil {
+		if code, err = validateMaterialTypeCode(*options.Code); err != nil {
+			return MaterialType{}, err
+		}
+	} else if code, err = freeMaterialTypeCode(ctx, q, defaultMaterialTypeCode(name)); err != nil {
+		return MaterialType{}, err
+	}
 	id := ids.New()
 	if _, err = q.CreateMaterialType(
 		ctx,
-		machinelogbookdb.CreateMaterialTypeParams{ID: id, Name: name, Unit: unit, Kind: string(kind)},
+		machinelogbookdb.CreateMaterialTypeParams{
+			ID:         id,
+			Name:       name,
+			Unit:       unit,
+			Kind:       string(kind),
+			Code:       code,
+			MachineUse: machineUse,
+		},
 	); err != nil {
 		return MaterialType{}, materialTypeConflict(err)
 	}
@@ -282,7 +394,7 @@ func (s *Service) CreateMaterialTypeTx(
 		"material_type",
 		id,
 		requestID,
-		[]string{"name", "kind", "unit", "processIds"},
+		[]string{"name", "code", "kind", "machineUse", "unit", "processIds"},
 	); err != nil {
 		return MaterialType{}, err
 	}
@@ -310,12 +422,33 @@ func (s *Service) UpdateMaterialType(
 	active bool,
 	requestID *uuid.UUID,
 ) (MaterialType, error) {
+	return s.UpdateMaterialTypeWithOptions(
+		ctx, p, id, expected, name, kind, unit, processIDs, active, MaterialTypeOptions{}, requestID,
+	)
+}
+
+// UpdateMaterialTypeWithOptions is UpdateMaterialType that can also change the code and the machine-use flag.
+func (s *Service) UpdateMaterialTypeWithOptions(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name string,
+	kind MaterialKind,
+	unit string,
+	processIDs []uuid.UUID,
+	active bool,
+	options MaterialTypeOptions,
+	requestID *uuid.UUID,
+) (MaterialType, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
 	var result MaterialType
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.UpdateMaterialTypeTx(ctx, tx, p, id, expected, name, kind, unit, processIDs, active, requestID)
+		result, err = s.updateMaterialTypeTx(
+			ctx, tx, p, id, expected, name, kind, unit, processIDs, active, options, requestID,
+		)
 		return err
 	})
 	return result, err
@@ -338,6 +471,25 @@ func (s *Service) UpdateMaterialTypeTx(
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
+	return s.updateMaterialTypeTx(
+		ctx, tx, p, id, expected, name, kind, unit, processIDs, active, MaterialTypeOptions{}, requestID,
+	)
+}
+
+func (s *Service) updateMaterialTypeTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	name string,
+	kind MaterialKind,
+	unit string,
+	processIDs []uuid.UUID,
+	active bool,
+	options MaterialTypeOptions,
+	requestID *uuid.UUID,
+) (MaterialType, error) {
 	if expected < 1 {
 		return MaterialType{}, apperror.Invalid("expectedVersion must be positive")
 	}
@@ -377,6 +529,31 @@ func (s *Service) UpdateMaterialTypeTx(
 		// The stored processes stay as they are, even if an integration changed since.
 		return MaterialType{}, apperror.Invalid("filament material types are measured in grams")
 	}
+	code := current.Code
+	if options.Code != nil {
+		if code, err = validateMaterialTypeCode(*options.Code); err != nil {
+			return MaterialType{}, err
+		}
+	}
+	machineUse := current.MachineUse || kind == KindFilament
+	if options.MachineUse != nil {
+		machineUse = *options.MachineUse
+	}
+	if kind == KindFilament && !machineUse {
+		return MaterialType{}, apperror.Invalid("filament material types are always used in machine runs")
+	}
+	if current.MachineUse && !machineUse {
+		rules, countErr := q.CountActivePricingRulesOfMaterialType(ctx, &id)
+		if countErr != nil {
+			return MaterialType{}, countErr
+		}
+		if rules > 0 {
+			return MaterialType{}, apperror.Conflicting(
+				"material_type_in_use",
+				"Machine use cannot be turned off while active material pricing rules price this type",
+			)
+		}
+	}
 	if current.Unit != unit {
 		referenced, refErr := q.MaterialTypeIsReferenced(ctx, id)
 		if refErr != nil {
@@ -396,6 +573,8 @@ func (s *Service) UpdateMaterialTypeTx(
 			Unit:            unit,
 			Kind:            string(kind),
 			Active:          active,
+			Code:            code,
+			MachineUse:      machineUse,
 			ID:              id,
 			ExpectedVersion: expected,
 		},
@@ -418,7 +597,7 @@ func (s *Service) UpdateMaterialTypeTx(
 		"material_type",
 		id,
 		requestID,
-		[]string{"name", "kind", "unit", "processIds", "active"},
+		[]string{"name", "code", "kind", "machineUse", "unit", "processIds", "active"},
 	); err != nil {
 		return MaterialType{}, err
 	}
