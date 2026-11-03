@@ -65,9 +65,22 @@
   background: theme.$layer-hover-01;
 }
 
-.jobs-strip__row:focus-visible {
+.jobs-strip__open {
+  @include type-style('heading-compact-01');
+
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.jobs-strip__open:focus-visible {
   outline: 2px solid theme.$focus;
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
 .jobs-strip__row--selected,
@@ -86,11 +99,6 @@
   display: flex;
   align-items: baseline;
   gap: $spacing-03;
-}
-
-.jobs-strip__name strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .jobs-strip__progress {
@@ -234,7 +242,7 @@
 
 .jobs-media__empty small {
   @include type-style('helper-text-01');
-  color: theme.$text-helper;
+  color: theme.$text-secondary;
 }
 
 .jobs-media__type {

@@ -271,6 +271,8 @@ func TestWorkItemFilters(t *testing.T) {
 	only("status", WorkItemFilters{Statuses: []WorkItemStatus{"running", "running_unassigned"}}, w.running.ID, w.printing)
 	only("status unlinked", WorkItemFilters{Statuses: []WorkItemStatus{"unassigned"}}, w.ended)
 	only("status needs_outcome", WorkItemFilters{Statuses: []WorkItemStatus{"needs_outcome", "cancelled"}}, w.needsOutcome.ID)
+	// The jobs list asks for every job status at once; planned (a print file without a run) is one of them.
+	only("status planned", WorkItemFilters{Statuses: []WorkItemStatus{"planned"}})
 	only("machine", WorkItemFilters{MachineIDs: []uuid.UUID{w.bareMachine.ID}}, w.noPrice.ID, w.printing, w.ended)
 	only(
 		"source manual",

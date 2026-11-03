@@ -72,6 +72,7 @@ type WorkItemFilters struct {
 
 var (
 	workItemStatuses = []WorkItemStatus{
+		WorkItemPlanned,
 		WorkItemRunning,
 		WorkItemRunningUnassigned,
 		WorkItemUnassigned,

@@ -6732,7 +6732,8 @@ WITH items AS (
            cog.name,
            COALESCE(coa.version, 0)::bigint,
            j.operator_person_id, btrim(op.first_name || ' ' || op.last_name)::text,
-           (CASE WHEN COALESCE(s.running, false) THEN 'running'
+           (CASE WHEN s.job_id IS NULL AND j.artifact_id IS NOT NULL THEN 'planned'
+                 WHEN COALESCE(s.running, false) THEN 'running'
                  ELSE COALESCE(j.outcome_override, NULLIF(s.derived_outcome, 'unknown'), 'needs_outcome') END)::text,
            (CASE WHEN EXISTS (SELECT 1 FROM machine_runs rr WHERE rr.job_id = j.id AND rr.source = 'recorded') THEN 'recorded' ELSE 'manual' END)::text,
            s.started_at, COALESCE(s.ended_at, s.expected_end_at), CASE WHEN s.running THEN s.expected_end_at END,

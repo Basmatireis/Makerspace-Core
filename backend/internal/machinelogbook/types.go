@@ -237,6 +237,7 @@ const (
 type WorkItemStatus string
 
 const (
+	WorkItemPlanned           WorkItemStatus = "planned"
 	WorkItemRunning           WorkItemStatus = "running"
 	WorkItemRunningUnassigned WorkItemStatus = "running_unassigned"
 	WorkItemUnassigned        WorkItemStatus = "unassigned"

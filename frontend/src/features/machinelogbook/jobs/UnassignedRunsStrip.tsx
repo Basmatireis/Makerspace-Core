@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useState, type MouseEvent } from 'react';
 import { Button, IconButton, ProgressBar } from '@carbon/react';
 import { Add, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
@@ -88,24 +88,25 @@ export function UnassignedRunsStrip({
             <li key={item.id}>
               <div
                 className={isSelected ? 'jobs-strip__row jobs-strip__row--selected' : 'jobs-strip__row'}
-                role="button"
-                tabIndex={0}
-                aria-pressed={isSelected}
-                aria-label={`${workItemName(item)}, ${item.displayId}, ${item.machineName}`}
                 onClick={(event: MouseEvent<HTMLElement>) => {
-                  if (!(event.target as HTMLElement).closest('button:not(.jobs-strip__row), a')) select(item);
-                }}
-                onKeyDown={(event: KeyboardEvent<HTMLElement>) => {
-                  if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
-                    event.preventDefault();
-                    select(item);
-                  }
+                  // The row is a mouse convenience; the run's name is the keyboard control.
+                  if (!(event.target as HTMLElement).closest('button, a')) select(item);
                 }}
               >
                 <span className="jobs-strip__cell">{item.machineName}</span>
                 <span className="jobs-strip__cell jobs-strip__name">
-                  <strong>{workItemName(item)}</strong>
-                  <span className="mj-secondary">{item.displayId}</span>
+                  <button
+                    type="button"
+                    className="jobs-strip__open"
+                    aria-pressed={isSelected}
+                    aria-describedby={`jobs-strip-${item.id}`}
+                    onClick={() => select(item)}
+                  >
+                    {workItemName(item)}
+                  </button>
+                  <span id={`jobs-strip-${item.id}`} className="mj-secondary">
+                    {item.displayId}
+                  </span>
                 </span>
                 <span className="jobs-strip__cell">
                   <Progress item={item} />
