@@ -179,10 +179,13 @@ func TestQuotePriceArticleOnlyIsPricedAsAStockSale(t *testing.T) {
 	if partial.MaterialRate != nil || partial.MaterialAmount != nil || partial.Total != nil || partial.Complete {
 		t.Fatalf("partial group has no material rate: %+v", partial)
 	}
-	// With a machine the article is priced like a run usage: the material type rate, not the stock price.
+	// With a machine the article is priced the same way: run usages use the article's own rate too.
 	run := f.quote(t, PriceQuoteInput{MachineID: &f.machine.ID, Hours: ptr("0"), MaterialID: &f.saleMaterial.ID, Quantity: ptr("100")})
-	if g := run.group(t, f.group.ID); text(g.MaterialRate) != "0.1" || *g.MaterialPriceSource != PriceFromMaterialType {
+	if g := run.group(t, f.group.ID); text(g.MaterialRate) != "2.5" || *g.MaterialPriceSource != PriceFromStockArticle {
 		t.Fatalf("run usage price: %+v", g)
+	}
+	if g := run.group(t, f.second.ID); text(g.MaterialRate) != "0.015" || *g.MaterialPriceSource != PriceFromMaterialType {
+		t.Fatalf("run usage price without a stock price: %+v", g)
 	}
 }
 

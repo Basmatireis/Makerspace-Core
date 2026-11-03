@@ -37,6 +37,8 @@ import type {
   MaterialPage,
   MaterialType,
   MaterialTypeList,
+  MaterialTypeVariant,
+  MaterialTypeVariantRequest,
   ReceiveInventoryStockRequest,
   RecordMaterialConsumptionRequest,
   UUIDv7,
@@ -207,6 +209,112 @@ return apiFetch<void>(getDeleteMaterialTypeUrl(materialTypeId),
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getCreateMaterialTypeVariantUrl = (materialTypeId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/material-types/${materialTypeId}/variants`
+}
+
+/**
+ * Requires `inventory.manage`. Variants (Basic, Matte, Silk …) are the list an article of the type picks its variant from and the level a material pricing rule can target. Names are trimmed and unique per type ignoring case (409 material_type_variant_exists). Parts take no variants (422 material_type_variant_not_allowed).
+ * @summary Add a variant to a material type
+ */
+export const createMaterialTypeVariant = async (materialTypeId: UUIDv7,
+    materialTypeVariantRequest: MaterialTypeVariantRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MaterialTypeVariant> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MaterialTypeVariant>(getCreateMaterialTypeVariantUrl(materialTypeId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(materialTypeVariantRequest)
+  }
+);}
+
+
+export const getUpdateMaterialTypeVariantUrl = (materialTypeId: UUIDv7,
+    variantId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/material-types/${materialTypeId}/variants/${variantId}`
+}
+
+/**
+ * Requires `inventory.manage`. The new name is unique per type ignoring case (409 material_type_variant_exists). Articles of the variant follow the rename; an article whose name was generated from type, variant, colour and manufacturer is renamed with it, a typed name stays. Spool labels keep the old name.
+ * @summary Rename a variant
+ */
+export const updateMaterialTypeVariant = async (materialTypeId: UUIDv7,
+    variantId: UUIDv7,
+    materialTypeVariantRequest: MaterialTypeVariantRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MaterialTypeVariant> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<MaterialTypeVariant>(getUpdateMaterialTypeVariantUrl(materialTypeId,variantId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(materialTypeVariantRequest)
+  }
+);}
+
+
+export const getDeleteMaterialTypeVariantUrl = (materialTypeId: UUIDv7,
+    variantId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/material-types/${materialTypeId}/variants/${variantId}`
+}
+
+/**
+ * Requires `inventory.manage`. Deletes a variant that no article (deleted ones included) and no pricing rule (active or not) uses; otherwise 409 material_type_variant_in_use.
+ * @summary Delete a variant
+ */
+export const deleteMaterialTypeVariant = async (materialTypeId: UUIDv7,
+    variantId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteMaterialTypeVariantUrl(materialTypeId,variantId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
   }
 );}
 

@@ -20,12 +20,13 @@
  */
 
 /**
- * stock_article is the article's own rule; material_type is the rate of its machine-use material type.
+ * stock_article is the article's own rule; material_type_variant is the rate of the article's variant; material_type is the rate of its machine-use material type. The first that exists wins.
  */
 export type MaterialPriceSource = typeof MaterialPriceSource[keyof typeof MaterialPriceSource];
 
 
 export const MaterialPriceSource = {
   stock_article: 'stock_article',
+  material_type_variant: 'material_type_variant',
   material_type: 'material_type',
 } as const;

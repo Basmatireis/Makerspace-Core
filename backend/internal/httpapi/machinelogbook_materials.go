@@ -364,6 +364,60 @@ func (s *Server) DeleteMaterialType(
 	return openapi.DeleteMaterialType204Response{}, nil
 }
 
+func (s *Server) CreateMaterialTypeVariant(
+	ctx context.Context,
+	r openapi.CreateMaterialTypeVariantRequestObject,
+) (openapi.CreateMaterialTypeVariantResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.CreateMaterialTypeVariant(ctx, p, r.MaterialTypeId, r.Body.Name, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.CreateMaterialTypeVariant201JSONResponse(mlMaterialTypeVariantDTO(item)), nil
+}
+
+func (s *Server) UpdateMaterialTypeVariant(
+	ctx context.Context,
+	r openapi.UpdateMaterialTypeVariantRequestObject,
+) (openapi.UpdateMaterialTypeVariantResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.UpdateMaterialTypeVariant(
+		ctx, p, r.MaterialTypeId, r.VariantId, r.Body.Name, requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.UpdateMaterialTypeVariant200JSONResponse(mlMaterialTypeVariantDTO(item)), nil
+}
+
+func (s *Server) DeleteMaterialTypeVariant(
+	ctx context.Context,
+	r openapi.DeleteMaterialTypeVariantRequestObject,
+) (openapi.DeleteMaterialTypeVariantResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.machineLogbook.DeleteMaterialTypeVariant(
+		ctx, p, r.MaterialTypeId, r.VariantId, requestIDPointer(ctx),
+	); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteMaterialTypeVariant204Response{}, nil
+}
+
 func materialCreateInput(body openapi.CreateMaterialRequest) machinelogbook.MaterialInput {
 	return machinelogbook.MaterialInput{
 		Name:               defaultString(body.Name),

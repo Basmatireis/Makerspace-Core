@@ -28,6 +28,8 @@ type PriceQuoteMaterial struct {
 	ID                    uuid.UUID
 	DisplayID, Name, Unit string
 	MaterialTypeName      *string
+	// Variant is the name of the article's variant, whose rate a group uses before the type's.
+	Variant *string
 }
 
 // PriceQuoteGroup prices the request with one pricing group's active rules. A
@@ -77,6 +79,7 @@ func (s *Service) QuotePrice(ctx context.Context, p authorization.Principal, in 
 	q := machinelogbookdb.New(s.pool)
 	quote := PriceQuote{}
 	var processID, materialTypeID uuid.UUID
+	var variantID *uuid.UUID
 	var unit string
 	var machineUse bool
 	if in.MachineID != nil {
@@ -97,6 +100,7 @@ func (s *Service) QuotePrice(ctx context.Context, p authorization.Principal, in 
 			return PriceQuote{}, apperror.NotFound
 		}
 		materialTypeID, unit, machineUse = material.MaterialTypeID, material.Unit, material.MachineUse
+		variantID = material.VariantID
 		typeName := material.MaterialTypeName
 		quote.Material = &PriceQuoteMaterial{
 			ID:               material.ID,
@@ -104,6 +108,7 @@ func (s *Service) QuotePrice(ctx context.Context, p authorization.Principal, in 
 			Name:             material.Name,
 			Unit:             material.Unit,
 			MaterialTypeName: &typeName,
+			Variant:          material.Variant,
 		}
 		quote.Quantity = decimalPointer(quantity)
 	}
@@ -133,16 +138,8 @@ func (s *Service) QuotePrice(ctx context.Context, p authorization.Principal, in 
 			}
 		}
 		if in.MaterialID != nil {
-			// With a machine the article is priced like a run usage, otherwise like a sale from stock.
-			var rule *machinelogbookdb.PricingRule
-			source := PriceFromMaterialType
-			if in.MachineID != nil {
-				rule = materialRuleFor(rules, materialTypeID, unit)
-			} else if rule = stockArticleRuleFor(rules, *in.MaterialID); rule != nil {
-				source = PriceFromStockArticle
-			} else if machineUse {
-				rule = materialRuleFor(rules, materialTypeID, unit)
-			}
+			// Run usages and sales from stock are priced alike, so the machine does not change the article's rate.
+			rule, source := articleRuleFor(rules, in.MaterialID, &materialTypeID, variantID, unit, machineUse)
 			if rule != nil {
 				rate := decimalFromNumeric(rule.Rate)
 				amount := quantity.Mul(rate)
@@ -205,29 +202,48 @@ func runtimeRuleFor(rules []machinelogbookdb.PricingRule, processID uuid.UUID) *
 	return nil
 }
 
-// materialRuleFor matches like pricing snapshots do: by material type and unit.
-func materialRuleFor(
+// articleRuleFor picks the active rule of a group that prices an article, in a sale, a run usage and a quote alike:
+// the article's own stock_article rule, else the material rule of its variant, else the material rule of its type.
+// Variant and type rates apply to machine-use types only, and match by unit as well. Without an article id (a
+// purged article) only the type's rates apply.
+func articleRuleFor(
 	rules []machinelogbookdb.PricingRule,
-	materialTypeID uuid.UUID,
+	materialID, materialTypeID, variantID *uuid.UUID,
 	unit string,
-) *machinelogbookdb.PricingRule {
+	machineUse bool,
+) (*machinelogbookdb.PricingRule, MaterialPriceSource) {
+	var variantRule, typeRule *machinelogbookdb.PricingRule
 	for i := range rules {
-		if PricingRuleKind(rules[i].Kind) == PricingRuleMaterial && rules[i].MaterialTypeID != nil &&
-			*rules[i].MaterialTypeID == materialTypeID && rules[i].MaterialUnit != nil && *rules[i].MaterialUnit == unit {
-			return &rules[i]
+		rule := &rules[i]
+		switch PricingRuleKind(rule.Kind) {
+		case PricingRuleStockArticle:
+			if materialID != nil && rule.MaterialID != nil && *rule.MaterialID == *materialID {
+				return rule, PriceFromStockArticle
+			}
+		case PricingRuleMaterial:
+			if !machineUse || materialTypeID == nil || rule.MaterialTypeID == nil || *rule.MaterialTypeID != *materialTypeID ||
+				rule.MaterialUnit == nil || *rule.MaterialUnit != unit {
+				continue
+			}
+			switch {
+			case rule.MaterialTypeVariantID == nil:
+				if typeRule == nil {
+					typeRule = rule
+				}
+			case variantID != nil && *rule.MaterialTypeVariantID == *variantID:
+				if variantRule == nil {
+					variantRule = rule
+				}
+			}
 		}
 	}
-	return nil
-}
-
-func stockArticleRuleFor(rules []machinelogbookdb.PricingRule, materialID uuid.UUID) *machinelogbookdb.PricingRule {
-	for i := range rules {
-		if PricingRuleKind(rules[i].Kind) == PricingRuleStockArticle && rules[i].MaterialID != nil &&
-			*rules[i].MaterialID == materialID {
-			return &rules[i]
-		}
+	if variantRule != nil {
+		return variantRule, PriceFromMaterialTypeVariant
 	}
-	return nil
+	if typeRule != nil {
+		return typeRule, PriceFromMaterialType
+	}
+	return nil, ""
 }
 
 func decimalPointer(value decimal.Decimal) *string {

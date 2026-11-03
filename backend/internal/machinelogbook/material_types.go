@@ -23,9 +23,16 @@ import (
 
 var colorHexPattern = regexp.MustCompile(`^#[0-9A-F]{6}$`)
 
-func materialTypeFromList(row machinelogbookdb.ListMaterialTypesRow, processIDs []uuid.UUID) MaterialType {
+func materialTypeFromList(
+	row machinelogbookdb.ListMaterialTypesRow,
+	processIDs []uuid.UUID,
+	variants []MaterialTypeVariant,
+) MaterialType {
 	if processIDs == nil {
 		processIDs = []uuid.UUID{}
+	}
+	if variants == nil {
+		variants = []MaterialTypeVariant{}
 	}
 	return MaterialType{
 		ID:               row.ID,
@@ -35,6 +42,7 @@ func materialTypeFromList(row machinelogbookdb.ListMaterialTypesRow, processIDs 
 		Kind:             MaterialKind(row.Kind),
 		Unit:             row.Unit,
 		ProcessIDs:       processIDs,
+		Variants:         variants,
 		Active:           row.Active,
 		MaterialCount:    row.MaterialCount,
 		PricingRuleCount: row.PricingRuleCount,
@@ -258,9 +266,13 @@ func (s *Service) ListMaterialTypes(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return nil, err
 	}
+	variants, err := materialTypeVariants(ctx, machinelogbookdb.New(s.pool), ids)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]MaterialType, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, materialTypeFromList(row, processIDs[row.ID]))
+		items = append(items, materialTypeFromList(row, processIDs[row.ID], variants[row.ID]))
 	}
 	return items, nil
 }
@@ -274,11 +286,24 @@ func (s *Service) GetMaterialType(ctx context.Context, p authorization.Principal
 	if err != nil {
 		return MaterialType{}, noRows(err)
 	}
-	processIDs, err := materialTypeProcesses(ctx, q, []uuid.UUID{id})
+	return loadMaterialType(ctx, q, row)
+}
+
+// loadMaterialType adds the processes and variants to a type row.
+func loadMaterialType(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	row machinelogbookdb.GetMaterialTypeRow,
+) (MaterialType, error) {
+	processIDs, err := materialTypeProcesses(ctx, q, []uuid.UUID{row.ID})
 	if err != nil {
 		return MaterialType{}, err
 	}
-	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processIDs[id]), nil
+	variants, err := materialTypeVariants(ctx, q, []uuid.UUID{row.ID})
+	if err != nil {
+		return MaterialType{}, err
+	}
+	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processIDs[row.ID], variants[row.ID]), nil
 }
 
 func (s *Service) CreateMaterialType(
@@ -406,7 +431,8 @@ func (s *Service) createMaterialTypeTx(
 	if err != nil {
 		return MaterialType{}, err
 	}
-	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processIDs), nil
+	// A new type has no variants yet.
+	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processIDs, nil), nil
 }
 
 // UpdateMaterialType renames, deactivates or reactivates a type. Its unit can
@@ -609,11 +635,7 @@ func (s *Service) updateMaterialTypeTx(
 	if err != nil {
 		return MaterialType{}, err
 	}
-	stored, err := materialTypeProcesses(ctx, q, []uuid.UUID{id})
-	if err != nil {
-		return MaterialType{}, err
-	}
-	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), stored[id]), nil
+	return loadMaterialType(ctx, q, row)
 }
 
 // ensureKindChangeAllowed refuses a new kind while materials use the type, and
@@ -631,6 +653,16 @@ func ensureKindChangeAllowed(ctx context.Context, q *machinelogbookdb.Queries, i
 	}
 	if kind != KindPart {
 		return nil
+	}
+	variants, err := q.CountMaterialTypeVariants(ctx, id)
+	if err != nil {
+		return err
+	}
+	if variants > 0 {
+		return apperror.Conflicting(
+			"material_type_in_use",
+			"A material type with variants cannot become a part category; delete its variants first",
+		)
 	}
 	rules, err := q.CountActivePricingRulesOfMaterialType(ctx, &id)
 	if err != nil {

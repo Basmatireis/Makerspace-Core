@@ -328,8 +328,9 @@ type Attention struct {
 type MaterialPriceSource string
 
 const (
-	PriceFromStockArticle MaterialPriceSource = "stock_article"
-	PriceFromMaterialType MaterialPriceSource = "material_type"
+	PriceFromStockArticle        MaterialPriceSource = "stock_article"
+	PriceFromMaterialTypeVariant MaterialPriceSource = "material_type_variant"
+	PriceFromMaterialType        MaterialPriceSource = "material_type"
 )
 
 // MaterialPrice is the sale price of an article in one pricing group.

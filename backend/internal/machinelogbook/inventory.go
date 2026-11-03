@@ -61,6 +61,7 @@ func materialFromGet(row machinelogbookdb.GetMaterialRow) Material {
 		Name:               row.Name,
 		Kind:               MaterialKind(row.MaterialKind),
 		Variant:            row.Variant,
+		VariantID:          row.VariantID,
 		Manufacturer:       row.Manufacturer,
 		PackageSize:        nullableDecimal(row.PackageSize),
 		StorageLocation:    row.StorageLocation,
@@ -454,6 +455,11 @@ func (s *Service) createMaterialTx(
 	if err != nil {
 		return uuid.Nil, err
 	}
+	variantID, variantName, err := articleVariant(ctx, tx, p, materialType, v.variant, requestID)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	v.variant = variantName
 	kind := MaterialKind(materialType.Kind)
 	name, err := articleName(kind, materialType.Name, v)
 	if err != nil {
@@ -483,6 +489,7 @@ func (s *Service) createMaterialTx(
 			Unit:              unit,
 			LowStockThreshold: v.threshold,
 			Variant:           v.variant,
+			VariantID:         variantID,
 			Manufacturer:      v.manufacturer,
 			PackageSize:       v.packageSize,
 			StorageLocation:   v.storageLocation,
@@ -608,6 +615,12 @@ func (s *Service) UpdateMaterialTx(
 			)
 		}
 	}
+	// The variant name is resolved in the article's (possibly new) type.
+	variantID, variantName, err := articleVariant(ctx, tx, p, materialType, v.variant, requestID)
+	if err != nil {
+		return Material{}, err
+	}
+	v.variant = variantName
 	kind := MaterialKind(materialType.Kind)
 	name, err := articleName(kind, materialType.Name, v)
 	if err != nil {
@@ -635,6 +648,7 @@ func (s *Service) UpdateMaterialTx(
 			Active:            in.Active,
 			LowStockThreshold: v.threshold,
 			Variant:           v.variant,
+			VariantID:         variantID,
 			Manufacturer:      v.manufacturer,
 			PackageSize:       v.packageSize,
 			StorageLocation:   v.storageLocation,

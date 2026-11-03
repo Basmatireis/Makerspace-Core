@@ -234,8 +234,10 @@ func TestPriceQuoteOverHTTP(t *testing.T) {
 	for _, g := range quote.Groups {
 		if g.PricingGroupId == group.ID {
 			found = true
-			if g.MachineAmount.GetOrEmpty() != "18" || g.MaterialAmount.GetOrEmpty() != "5" ||
-				g.Total.GetOrEmpty() != "23" || !g.Complete {
+			// The article's own rate wins over its type's rate with a machine too.
+			if g.MachineAmount.GetOrEmpty() != "18" || g.MaterialAmount.GetOrEmpty() != "20" ||
+				g.Total.GetOrEmpty() != "38" || !g.Complete ||
+				g.MaterialPriceSource.GetOrEmpty() != openapi.MaterialPriceSourceStockArticle {
 				t.Fatalf("unexpected group: %+v", g)
 			}
 		}
@@ -250,6 +252,74 @@ func TestPriceQuoteOverHTTP(t *testing.T) {
 			g.MaterialPriceSource.GetOrEmpty() != openapi.MaterialPriceSourceStockArticle) {
 			t.Fatalf("stock sale quote: %+v", g)
 		}
+	}
+
+	// A variant's rate prices its articles before the type's rate.
+	adminSession := login(adminLogin, adminPassword)
+	post := func(path string, body map[string]any, status int, target any) {
+		t.Helper()
+		response := doJSON(t, adminSession.client, http.MethodPost, server.URL+"/api/v1"+path, origin, adminSession.csrf, body)
+		assertStatus(t, response, status)
+		if target != nil {
+			decodeResponse(t, response, target)
+		} else {
+			response.Body.Close()
+		}
+	}
+	var silk openapi.MaterialTypeVariant
+	post("/material-types/"+materialType.ID.String()+"/variants", map[string]any{"name": "Silk"}, http.StatusCreated, &silk)
+	var silkArticle openapi.Material
+	post(
+		"/materials",
+		map[string]any{"materialTypeId": materialType.ID, "variant": " silk ", "colorName": "Gold"},
+		http.StatusCreated,
+		&silkArticle,
+	)
+	if silkArticle.VariantId.GetOrEmpty() != silk.Id || silkArticle.Variant.GetOrEmpty() != "Silk" ||
+		silkArticle.Name != "Quote PLA Silk · Gold" {
+		t.Fatalf("variant article = %+v", silkArticle)
+	}
+	variantRule := map[string]any{
+		"kind": "material", "materialTypeId": materialType.ID, "materialTypeVariantId": silk.Id, "rate": "0.8",
+	}
+	var rule openapi.PricingRule
+	post("/pricing-groups/"+group.ID.String()+"/rules", variantRule, http.StatusCreated, &rule)
+	if rule.MaterialTypeVariantId.GetOrEmpty() != silk.Id || rule.MaterialTypeVariantName.GetOrEmpty() != "Silk" {
+		t.Fatalf("variant rule = %+v", rule)
+	}
+	post("/pricing-groups/"+group.ID.String()+"/rules", variantRule, http.StatusConflict, nil)
+	post(
+		"/pricing-groups/"+group.ID.String()+"/rules",
+		map[string]any{"kind": "stock_article", "materialId": material.ID, "materialTypeVariantId": silk.Id, "rate": "1"},
+		http.StatusUnprocessableEntity,
+		nil,
+	)
+	for _, query := range []string{
+		"materialId=" + silkArticle.Id.String() + "&quantity=10",
+		"machineId=" + machine.ID.String() + "&hours=0&materialId=" + silkArticle.Id.String() + "&quantity=10",
+	} {
+		get(full, query, http.StatusOK, &quote)
+		if quote.Material.GetOrEmpty().Variant.GetOrEmpty() != "Silk" {
+			t.Fatalf("quote material = %+v", quote.Material)
+		}
+		for _, g := range quote.Groups {
+			if g.PricingGroupId == group.ID && (g.MaterialAmount.GetOrEmpty() != "8" ||
+				g.MaterialPriceSource.GetOrEmpty() != openapi.MaterialPriceSourceMaterialTypeVariant) {
+				t.Fatalf("variant quote %s: %+v", query, g)
+			}
+		}
+	}
+	response := doJSON(t, full.client, http.MethodGet, server.URL+"/api/v1/materials/"+silkArticle.Id.String(), "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	decodeResponse(t, response, &silkArticle)
+	priced := false
+	for _, p := range silkArticle.Prices {
+		if p.PricingGroupId == group.ID {
+			priced = p.Rate == "0.8" && p.Source == openapi.MaterialPriceSourceMaterialTypeVariant
+		}
+	}
+	if !priced {
+		t.Fatalf("variant article prices = %+v", silkArticle.Prices)
 	}
 
 	get(noPricing, combined, http.StatusForbidden, nil)

@@ -299,19 +299,19 @@ func (r *run) applyRuleChanges(tx pgx.Tx, groupID uuid.UUID, changes []ruleChang
 			processID, materialTypeID, _ := targets.resolve(*change.create)
 			_, err = logbook.CreatePricingRuleTx(
 				r.ctx, tx, r.p, groupID, machinelogbook.PricingRuleKind(change.create.Kind), processID,
-				materialTypeID, change.create.Measure, change.create.Rate, r.requestID,
+				materialTypeID, nil, change.create.Measure, change.create.Rate, r.requestID,
 			)
 		case change.update != nil:
 			row := change.update
 			_, err = logbook.UpdatePricingRuleTx(
 				r.ctx, tx, r.p, row.ID, row.Version, machinelogbook.PricingRuleKind(row.Kind), row.ProcessID,
-				row.MaterialTypeID, row.Measure, change.rate, true, r.requestID,
+				row.MaterialTypeID, nil, row.Measure, change.rate, true, r.requestID,
 			)
 		default:
 			row := change.deactivate
 			_, err = logbook.UpdatePricingRuleTx(
 				r.ctx, tx, r.p, row.ID, row.Version, machinelogbook.PricingRuleKind(row.Kind), row.ProcessID,
-				row.MaterialTypeID, row.Measure, ruleEntry(*row).Rate, false, r.requestID,
+				row.MaterialTypeID, nil, row.Measure, ruleEntry(*row).Rate, false, r.requestID,
 			)
 		}
 		if err != nil {

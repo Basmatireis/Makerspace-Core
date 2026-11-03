@@ -388,5 +388,81 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		unused.Id,
 	)
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'material_type.created'`, 2)
+
+	// Variants: reading the type lists them; writing needs inventory.manage.
+	variants := path + "/variants"
+	response = doJSON(t, readerClient, http.MethodPost, variants, origin, readerCSRF, map[string]any{"name": "Matte"})
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
+	response = doJSON(t, managerClient, http.MethodPost, variants, origin, managerCSRF, map[string]any{"name": " Matte "})
+	assertStatus(t, response, http.StatusCreated)
+	var matte openapi.MaterialTypeVariant
+	decodeResponse(t, response, &matte)
+	if matte.Name != "Matte" || matte.MaterialTypeId != created.Id {
+		t.Fatalf("variant = %+v", matte)
+	}
+	response = doJSON(t, managerClient, http.MethodPost, variants, origin, managerCSRF, map[string]any{"name": "matte"})
+	assertStatus(t, response, http.StatusConflict)
+	decodeResponse(t, response, &problem)
+	if problem.Code != "material_type_variant_exists" {
+		t.Fatalf("duplicate variant code = %q", problem.Code)
+	}
+	variantPath := variants + "/" + matte.Id.String()
+	response = doJSON(t, readerClient, http.MethodPatch, variantPath, origin, readerCSRF, map[string]any{"name": "Matte Pro"})
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
+	response = doJSON(t, managerClient, http.MethodPatch, variantPath, origin, managerCSRF, map[string]any{"name": "Matte Pro"})
+	assertStatus(t, response, http.StatusOK)
+	decodeResponse(t, response, &matte)
+	if matte.Name != "Matte Pro" {
+		t.Fatalf("renamed variant = %+v", matte)
+	}
+	response = doJSON(
+		t,
+		managerClient,
+		http.MethodPatch,
+		base+"/"+unused.Id.String()+"/variants/"+matte.Id.String(),
+		origin,
+		managerCSRF,
+		map[string]any{"name": "Elsewhere"},
+	)
+	assertStatus(t, response, http.StatusNotFound)
+	response.Body.Close()
+	material = map[string]any{"materialTypeId": created.Id, "variant": "matte pro", "colorName": "Black"}
+	response = doJSON(t, managerClient, http.MethodPost, server.URL+"/api/v1/materials", origin, managerCSRF, material)
+	assertStatus(t, response, http.StatusCreated)
+	decodeResponse(t, response, &m)
+	if m.VariantId.GetOrEmpty() != matte.Id || m.Variant.GetOrEmpty() != "Matte Pro" || m.Name != "PLA+ Matte Pro · Black" {
+		t.Fatalf("material of a variant = %+v", m)
+	}
+	response = doJSON(t, readerClient, http.MethodGet, path, "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	decodeResponse(t, response, &created)
+	if len(created.Variants) != 1 || created.Variants[0].Id != matte.Id || created.Variants[0].MaterialCount != 1 {
+		t.Fatalf("type variants = %+v", created.Variants)
+	}
+	response = doJSON(t, readerClient, http.MethodDelete, variantPath, origin, readerCSRF, nil)
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
+	response = doJSON(t, managerClient, http.MethodDelete, variantPath, origin, managerCSRF, nil)
+	assertStatus(t, response, http.StatusConflict)
+	decodeResponse(t, response, &problem)
+	if problem.Code != "material_type_variant_in_use" {
+		t.Fatalf("delete used variant code = %q", problem.Code)
+	}
+	response = doJSON(t, managerClient, http.MethodPost, variants, origin, managerCSRF, map[string]any{"name": "Silk"})
+	assertStatus(t, response, http.StatusCreated)
+	var silk openapi.MaterialTypeVariant
+	decodeResponse(t, response, &silk)
+	response = doJSON(t, managerClient, http.MethodDelete, variants+"/"+silk.Id.String(), origin, managerCSRF, nil)
+	assertStatus(t, response, http.StatusNoContent)
+	response.Body.Close()
+	assertCount(
+		t,
+		pool,
+		`SELECT count(*) FROM audit_events WHERE action LIKE 'material_type.variant_%' AND resource_id = $1`,
+		4,
+		created.Id,
+	)
 	_ = uuid.Nil
 }

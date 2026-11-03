@@ -3,6 +3,7 @@ package machinelogbook
 import (
 	"context"
 	"errors"
+	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
@@ -308,17 +309,8 @@ func (s *Service) capturePricingSnapshot(
 		if UsageOwnership(usage.Ownership) == OwnershipExternal {
 			continue
 		}
-		var matched *machinelogbookdb.PricingRule
-		for i := range rules {
-			if PricingRuleKind(rules[i].Kind) == PricingRuleMaterial && rules[i].MaterialTypeID != nil && usage.MaterialTypeID != nil &&
-				*rules[i].MaterialTypeID == *usage.MaterialTypeID &&
-				rules[i].MaterialUnit != nil &&
-				*rules[i].MaterialUnit == usage.Unit {
-				r := rules[i]
-				matched = &r
-				break
-			}
-		}
+		// Run usages are priced like sales from stock: the article's own rate, else its variant's, else its type's.
+		matched, source := articleRuleFor(rules, usage.MaterialID, usage.MaterialTypeID, usage.VariantID, usage.Unit, true)
 		entry := machinelogbookdb.InsertPricingSnapshotRuleParams{
 			ID:             ids.New(),
 			Kind:           string(PricingRuleMaterial),
@@ -326,6 +318,17 @@ func (s *Service) capturePricingSnapshot(
 			Selector:       usage.MaterialTypeName,
 			MaterialTypeID: usage.MaterialTypeID,
 			Unit:           usage.Unit,
+		}
+		switch source {
+		case PriceFromStockArticle:
+			entry.Kind = string(PricingRuleStockArticle)
+			entry.MaterialID = usage.MaterialID
+			entry.Selector = snapshotSelectorText(usage.MaterialNameText)
+		case PriceFromMaterialTypeVariant:
+			entry.MaterialTypeVariantID = matched.MaterialTypeVariantID
+			if usage.VariantName != nil {
+				entry.Selector = snapshotSelectorText(usage.MaterialTypeName + " " + *usage.VariantName)
+			}
 		}
 		if matched == nil {
 			complete = false
@@ -389,25 +392,55 @@ func (s *Service) capturePricingSnapshot(
 	return updated, err
 }
 
-// snapshotRuleSelector identifies what a snapshot rule prices: the material type
-// for material rules (older rows were backfilled with it), else the stored text.
-func snapshotRuleSelector(rule machinelogbookdb.MachineJobPricingSnapshotRule) string {
-	if PricingRuleKind(rule.Kind) == PricingRuleMaterial && rule.MaterialTypeID != nil {
-		return rule.MaterialTypeID.String()
+// maxSnapshotSelectorLength matches the check on machine_job_pricing_snapshot_rules.selector.
+const maxSnapshotSelectorLength = 200
+
+func snapshotSelectorText(text string) string {
+	if utf8.RuneCountInString(text) <= maxSnapshotSelectorLength {
+		return text
 	}
-	return rule.Selector
+	return string([]rune(text)[:maxSnapshotSelectorLength])
 }
 
-// snapshotRuleCovers reports whether a material snapshot rule is the one for the
-// usage's material type and unit. A snapshot never changes, so a missing rule
-// still covers the usage: it records that this type had no price at capture time.
-func snapshotRuleCovers(
-	rule machinelogbookdb.MachineJobPricingSnapshotRule,
+// isMaterialSnapshotRule reports whether a snapshot entry prices run material rather than runtime or a measure.
+func isMaterialSnapshotRule(rule machinelogbookdb.MachineJobPricingSnapshotRule) bool {
+	kind := PricingRuleKind(rule.Kind)
+	return kind == PricingRuleMaterial || kind == PricingRuleStockArticle
+}
+
+// snapshotRuleFor finds the snapshot entry that prices a usage, the most specific first: the entry of the usage's
+// article (its own rate), else the entry of its variant, else the entry of its material type, each for the usage's
+// unit. A snapshot never changes, so a missing entry still covers the usage: it records that the material had no
+// price at capture time. Nil means the snapshot has no entry for the usage.
+func snapshotRuleFor(
+	rules []machinelogbookdb.MachineJobPricingSnapshotRule,
 	usage machinelogbookdb.ListRunUsagesForRunsRow,
-) bool {
-	return PricingRuleKind(rule.Kind) == PricingRuleMaterial && rule.MaterialTypeID != nil && usage.MaterialTypeID != nil &&
-		*rule.MaterialTypeID == *usage.MaterialTypeID &&
-		rule.Unit == usage.Unit
+) *machinelogbookdb.MachineJobPricingSnapshotRule {
+	var variantRule, typeRule *machinelogbookdb.MachineJobPricingSnapshotRule
+	for i := range rules {
+		rule := &rules[i]
+		if !isMaterialSnapshotRule(*rule) || rule.Unit != usage.Unit {
+			continue
+		}
+		switch {
+		case rule.MaterialID != nil:
+			if usage.MaterialID != nil && *rule.MaterialID == *usage.MaterialID {
+				return rule
+			}
+		case rule.MaterialTypeID == nil || usage.MaterialTypeID == nil || *rule.MaterialTypeID != *usage.MaterialTypeID:
+			continue
+		case rule.MaterialTypeVariantID != nil:
+			if variantRule == nil && usage.VariantID != nil && *rule.MaterialTypeVariantID == *usage.VariantID {
+				variantRule = rule
+			}
+		case typeRule == nil:
+			typeRule = rule
+		}
+	}
+	if variantRule != nil {
+		return variantRule
+	}
+	return typeRule
 }
 
 func sameUUID(a, b *uuid.UUID) bool {
@@ -440,7 +473,11 @@ func (s *Service) computeFromSnapshot(
 	coveredMeasures := map[string]bool{}
 	seenRules := map[string]bool{}
 	for _, rule := range rules {
-		key := rule.Kind + "/" + snapshotRuleSelector(rule) + "/" + rule.Unit
+		if isMaterialSnapshotRule(rule) {
+			// Material is priced per usage below, by the entry that covers it.
+			continue
+		}
+		key := rule.Kind + "/" + rule.Selector + "/" + rule.Unit
 		if seenRules[key] {
 			continue
 		}
@@ -462,26 +499,11 @@ func (s *Service) computeFromSnapshot(
 			if PricingRuleKind(rule.Kind) == PricingRuleMachineRuntime {
 				complete = false
 			}
-			if PricingRuleKind(rule.Kind) == PricingRuleMaterial {
-				for _, usage := range usages {
-					if UsageOwnership(usage.Ownership) == OwnershipMakerspace && snapshotRuleCovers(rule, usage) {
-						complete = false
-						break
-					}
-				}
-			}
 			continue
 		}
-		rate := decimalFromNumeric(rule.Rate)
 		if PricingRuleKind(rule.Kind) == PricingRuleMachineRuntime {
 			runtimeFound = true
-			total = total.Add(runtimeHours(runtimeSeconds).Mul(rate))
-			continue
-		}
-		for _, usage := range usages {
-			if UsageOwnership(usage.Ownership) == OwnershipMakerspace && snapshotRuleCovers(rule, usage) {
-				total = total.Add(decimalFromNumeric(usage.Quantity).Mul(rate))
-			}
+			total = total.Add(runtimeHours(runtimeSeconds).Mul(decimalFromNumeric(rule.Rate)))
 		}
 	}
 	if !runtimeFound {
@@ -496,16 +518,12 @@ func (s *Service) computeFromSnapshot(
 		if UsageOwnership(usage.Ownership) == OwnershipExternal {
 			continue
 		}
-		found := false
-		for _, rule := range rules {
-			if snapshotRuleCovers(rule, usage) && !rule.Missing {
-				found = true
-				break
-			}
-		}
-		if !found {
+		rule := snapshotRuleFor(rules, usage)
+		if rule == nil || rule.Missing {
 			complete = false
+			continue
 		}
+		total = total.Add(decimalFromNumeric(usage.Quantity).Mul(decimalFromNumeric(rule.Rate)))
 	}
 	if !complete {
 		return PricingIncomplete, pgtype.Numeric{}, nil
@@ -605,14 +623,7 @@ func (s *Service) coverUsages(
 		if UsageOwnership(usage.Ownership) == OwnershipExternal {
 			continue
 		}
-		found := false
-		for _, rule := range rules {
-			if snapshotRuleCovers(rule, usage) {
-				found = true
-				break
-			}
-		}
-		covered = covered && found
+		covered = covered && snapshotRuleFor(rules, usage) != nil
 	}
 	if covered {
 		return job, nil

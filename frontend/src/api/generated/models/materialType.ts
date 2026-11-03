@@ -20,6 +20,7 @@
  */
 import type { MaterialKind } from './materialKind';
 import type { MaterialTypeCode } from './materialTypeCode';
+import type { MaterialTypeVariant } from './materialTypeVariant';
 import type { MaterialUnit } from './materialUnit';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
@@ -34,6 +35,8 @@ export interface MaterialType {
   unit: MaterialUnit;
   /** Processes whose machines can consume materials of this type in new runs. */
   processIds: UUIDv7[];
+  /** The variants of the type, by name; empty for parts. */
+  variants: MaterialTypeVariant[];
   active: boolean;
   /**
      * Materials of this type.
@@ -41,7 +44,7 @@ export interface MaterialType {
      */
   materialCount: number;
   /**
-     * Material pricing rules for this type, active or not.
+     * Material pricing rules for this type, active or not, variant rules included.
      * @minimum 0
      */
   pricingRuleCount: number;

@@ -43,7 +43,10 @@ export interface Material {
   materialTypeCode: string;
   /** The material type is used in machine runs. */
   machineUse: boolean;
+  /** The variant of the material type the article belongs to. */
+  variantId?: UUIDv7 | null;
   /**
+     * The name of that variant.
      * @maxLength 80
      * @nullable
      */

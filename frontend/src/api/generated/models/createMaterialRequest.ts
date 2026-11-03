@@ -34,6 +34,7 @@ export interface CreateMaterialRequest {
   name?: string;
   materialTypeId: UUIDv7;
   /**
+     * The name of one of the type's variants, matched ignoring case after trimming; an unknown name is added to the type's variants. Parts take none.
      * @maxLength 80
      * @nullable
      */
