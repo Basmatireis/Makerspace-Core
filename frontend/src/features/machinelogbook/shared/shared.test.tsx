@@ -9,7 +9,7 @@ import type { MachineRun } from '../../../api/generated/models';
 import { jobFixture, manualRun, recordedRun, usage } from '../../../test/machineRuns';
 import { server } from '../../../test/server';
 import { renderRoute } from '../../../test/render';
-import { DirectoryTable, useServerTableState, type Column } from './DirectoryTable';
+import { attentionDirectoryColumn, DirectoryTable, useServerTableState, type Column } from './DirectoryTable';
 import { machineLogbookPaths } from './paths';
 import { QueryBoundary } from './QueryBoundary';
 import {
@@ -499,5 +499,38 @@ describe('useAttachRun', () => {
     await user.click(screen.getByRole('button', { name: 'Attach' }));
     expect(await screen.findByText('Run attached')).toBeInTheDocument();
     expect(body).toEqual({ machineJobId: 'job-1', replaceManualRuns: false, expectedJobVersion: 7 });
+  });
+});
+
+describe('DirectoryTable attention column', () => {
+  it('names the column for screen readers only and flags just the rows that need attention', () => {
+    type Row = { id: string; name: string; attention: { code: string; message: string }[] };
+    const rows: Row[] = [
+      { id: 'a', name: 'Alpha', attention: [{ code: 'low_stock', message: 'Below the reorder level' }] },
+      { id: 'b', name: 'Beta', attention: [] },
+    ];
+    renderRoute(
+      <DirectoryTable<Row>
+        id="flagged"
+        label="Flagged"
+        columns={[
+          { key: 'name', header: 'Name', render: (row) => row.name },
+          attentionDirectoryColumn<Row>((row) => row.attention),
+        ]}
+        rows={rows}
+        totalCount={2}
+        searchText={(row) => row.name}
+        defaultSort={{ key: 'name', direction: 'ASC' }}
+        empty={{ title: 'Nothing', description: 'Nothing here.' }}
+      />,
+    );
+    const header = screen.getByRole('columnheader', { name: 'Needs attention' });
+    expect(header).toHaveClass('attention-column');
+    expect(within(header).getByText('Needs attention')).toHaveClass('cds--visually-hidden');
+    const flags = document.querySelectorAll('td.attention-column .attention-flag');
+    expect(flags).toHaveLength(1);
+    expect(document.getElementById(flags[0].getAttribute('aria-labelledby') ?? '')).toHaveTextContent(
+      'Below the reorder level',
+    );
   });
 });

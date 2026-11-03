@@ -1,0 +1,340 @@
+@use '@carbon/styles/scss/colors';
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
+
+// Layout glue of the shared page blocks in this folder. They ship with the lazy page chunks that use them, never
+// with the entry stylesheet. Colours come from theme tokens so both color schemes work.
+
+// ListWithPanel: the list grows, the panel keeps a fixed width and scrolls on its own below the shell header.
+.list-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+
+.list-panel--split {
+  grid-template-columns: minmax(0, 1fr) 25rem;
+}
+
+.list-panel__list {
+  min-inline-size: 0;
+}
+
+.list-panel__panel {
+  position: sticky;
+  inset-block-start: calc(3rem + #{$spacing-05});
+  max-block-size: calc(100vh - 3rem - #{$spacing-05} * 2);
+  min-inline-size: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+// DetailPanel: a layer with an interactive accent on the start edge.
+.detail-panel {
+  display: grid;
+  align-content: start;
+  gap: $spacing-05;
+  padding: $spacing-05;
+  background: theme.$layer-01;
+  border-inline-start: 3px solid theme.$border-interactive;
+}
+
+.detail-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+// Four lines of fixed height, so the heads of different panels line up whatever they show.
+.detail-panel__lines {
+  display: grid;
+  grid-template-rows: 1.75rem 1.125rem 1rem 1rem;
+  row-gap: $spacing-02;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+}
+
+.detail-panel__lines > * {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-panel__title {
+  @include type-style('heading-03');
+}
+
+.detail-panel__meta {
+  @include type-style('body-compact-01');
+}
+
+.detail-panel__secondary {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.detail-panel__helper {
+  @include type-style('helper-text-01');
+  color: theme.$text-helper;
+}
+
+.detail-panel__actions {
+  display: flex;
+  flex: none;
+  gap: $spacing-02;
+  margin: (-$spacing-03) (-$spacing-03) 0 0;
+}
+
+.detail-panel__section {
+  display: grid;
+  gap: $spacing-03;
+}
+
+.detail-panel__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+  min-block-size: 2rem;
+}
+
+.detail-panel__section-title {
+  @include type-style('heading-compact-01');
+}
+
+// A data table inside the panel runs edge to edge with compact cells; its outer cells align with the panel padding.
+.detail-panel__bleed {
+  margin-inline: -$spacing-05;
+}
+
+.detail-panel__bleed .cds--data-table-content,
+.detail-panel__bleed .cds--data-table-container {
+  padding: 0;
+}
+
+.detail-panel__bleed .cds--data-table th,
+.detail-panel__bleed .cds--data-table td {
+  padding-inline: $spacing-04;
+}
+
+.detail-panel__bleed .cds--data-table th:first-child,
+.detail-panel__bleed .cds--data-table td:first-child {
+  padding-inline-start: $spacing-05;
+}
+
+.detail-panel__bleed .cds--data-table th:last-child,
+.detail-panel__bleed .cds--data-table td:last-child {
+  padding-inline-end: $spacing-05;
+}
+
+// FactsGrid: up to --facts-columns columns, fewer when the container is narrow.
+.facts-grid {
+  --facts-columns: 2;
+
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(max(8rem, calc((100% - (var(--facts-columns) - 1) * #{$spacing-05}) / var(--facts-columns))), 1fr)
+  );
+  gap: $spacing-04 $spacing-05;
+  margin: 0;
+}
+
+.facts-grid__fact {
+  display: grid;
+  align-content: start;
+  gap: $spacing-01;
+  min-inline-size: 0;
+}
+
+.facts-grid__fact dt {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.facts-grid__fact dd {
+  margin: 0;
+  @include type-style('body-compact-01');
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.facts-grid__fact dd.facts-grid__helper {
+  @include type-style('helper-text-01');
+  color: theme.$text-helper;
+}
+
+// FactTiles: equal tiles separated by hairlines.
+.fact-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 1px;
+  margin: 0;
+  background: theme.$border-subtle-01;
+}
+
+.fact-tiles__tile.cds--tile {
+  display: grid;
+  align-content: start;
+  gap: $spacing-02;
+  min-block-size: 5.5rem;
+  min-inline-size: 0;
+}
+
+.fact-tiles__tile dt {
+  @include type-style('label-01');
+  color: theme.$text-secondary;
+}
+
+.fact-tiles__tile dd {
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.fact-tiles__value {
+  @include type-style('heading-03');
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fact-tiles__helper {
+  @include type-style('helper-text-01');
+  color: theme.$text-helper;
+}
+
+// AttentionFlag: Carbon's filled warning in the support colour, with the exclamation mark kept dark as Carbon's
+// notifications do.
+.attention-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: theme.$support-warning;
+  cursor: default;
+}
+
+.attention-flag:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+.attention-flag svg {
+  fill: theme.$support-warning;
+}
+
+.attention-flag svg [data-icon-path='inner-path'] {
+  fill: colors.$black;
+  opacity: 1;
+}
+
+.attention-flag__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attention-column {
+  inline-size: 2.5rem;
+  text-align: end;
+}
+
+// StackCard and CardList: a layer card with a title row and compact rows separated by hairlines.
+.stack-card {
+  display: grid;
+  align-content: start;
+  gap: $spacing-03;
+  min-inline-size: 0;
+  padding: $spacing-05;
+  background: theme.$layer-01;
+}
+
+.stack-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+  min-block-size: 2rem;
+}
+
+.stack-card__title {
+  @include type-style('heading-compact-02');
+}
+
+.stack-card__count {
+  margin-inline-start: $spacing-03;
+  color: theme.$text-secondary;
+  font-weight: 400;
+}
+
+.stack-card__action {
+  margin-block: -$spacing-03;
+  margin-inline-end: -$spacing-03;
+}
+
+.card-list__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card-list__row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-05;
+  min-block-size: 4.5rem;
+  padding-block: $spacing-03;
+  border-block-start: 1px solid theme.$border-subtle-01;
+  color: theme.$text-primary;
+  text-decoration: none;
+}
+
+.card-list__rows > li:first-child > .card-list__row {
+  border-block-start: 0;
+}
+
+a.card-list__row:hover {
+  background: theme.$layer-hover-01;
+}
+
+a.card-list__row:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+.card-list__main {
+  display: grid;
+  flex: 1 1 auto;
+  gap: $spacing-01;
+  min-inline-size: 0;
+}
+
+.card-list__row-title {
+  @include type-style('heading-compact-01');
+}
+
+.card-list__row-description {
+  @include type-style('body-compact-01');
+  color: theme.$text-secondary;
+}
+
+.card-list__aside {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.card-list__empty {
+  @include type-style('body-compact-01');
+  color: theme.$text-secondary;
+}
