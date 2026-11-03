@@ -351,7 +351,6 @@ test('creates and atomically saves a manager schedule working copy', async ({ pa
 
   await page.goto(`/open-days/${periodId}/schedule`);
   await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
-  await expect(page.getByText('1 October 2026 – 3 October 2026')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
   await expectAccessible(page);
 

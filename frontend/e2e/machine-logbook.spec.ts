@@ -14,7 +14,7 @@ for (const width of widths) {
     await expectNoAccessibilityViolations(page);
     await page.screenshot({ path: testInfo.outputPath(`pricing-${width}.png`), fullPage: true });
     await page
-      .getByRole('button', { name: / for Partner institute$/ })
+      .getByRole('button', { name: / in Partner institute$/ })
       .first()
       .click();
     await expect(page.getByRole('button', { name: 'Save rate', exact: true })).toBeVisible();

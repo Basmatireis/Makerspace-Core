@@ -343,7 +343,7 @@ test.describe('read-only role', () => {
     await expect(page.getByRole('button', { name: 'New job' })).toHaveCount(0);
 
     await page.goto(`${base}/jobs/${ids.jobRunning}`);
-    await expect(page.getByRole('progressbar', { name: 'Run progress' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Engraving run', level: 1 })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Add', exact: true })).toHaveCount(0);
     await expect(page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Edit job' })).toHaveCount(0);

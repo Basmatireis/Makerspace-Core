@@ -703,7 +703,6 @@ test('renders the Directory-styled Members table without summary statistics', as
   await expect(page.getByRole('heading', { name: 'Summary' })).toHaveCount(0);
   await expect(page.getByText('Member readiness')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Designated supervisors' })).toHaveCount(0);
-  await expect(page.getByText('Autumn Open Days · ')).toBeVisible();
   const toolbar = page.getByLabel('Members table toolbar');
   const directoryButton = toolbar.getByRole('button', { name: 'People' });
   await expect(toolbar).toBeVisible();

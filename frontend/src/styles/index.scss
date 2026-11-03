@@ -100,7 +100,10 @@
   --cds-link-primary-hover: color-mix(in srgb, var(--app-brand-primary) 68%, black);
   --cds-link-secondary: color-mix(in srgb, var(--app-brand-primary) 68%, black);
   --cds-highlight: color-mix(in srgb, var(--app-brand-primary) 16%, white);
-  // The first layer (tables, cards, detail panels) is a touch lighter than Carbon's white theme.
+}
+
+// The first layer (tables, cards, detail panels) of the light theme is a touch lighter than Carbon's white theme.
+:root:not(.cds--g100) {
   --cds-layer-01: #f8f8f8;
   --cds-layer: #f8f8f8;
 }
