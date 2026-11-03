@@ -1,58 +1,67 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   ComposedModal,
+  FormLabel,
+  IconButton,
   InlineNotification,
   ModalBody,
   ModalFooter,
   ModalHeader,
-  Select,
-  SelectItem,
   Stack,
-  TextInput,
 } from '@carbon/react';
-import { Add, TrashCan } from '@carbon/icons-react';
+import { Add, Search, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Controller, FormProvider, useFieldArray, useForm, useFormContext } from 'react-hook-form';
+import { Controller, FormProvider, useFieldArray, useForm, useFormContext, useWatch } from 'react-hook-form';
 import { replaceMachineRunUsages } from '../../../api/generated/machine-runs/machine-runs';
-import type { MachineRun, Process } from '../../../api/generated/models';
+import type { MachineRun, MaterialUnit, Process } from '../../../api/generated/models';
+import { FuzzySelectField } from '../../../app/components/FuzzyComboBox';
 import { DecimalField } from '../../../app/DecimalField';
 import { decimalNumber, decimalValidator, parseDecimalText } from '../../../app/decimalInput';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import { materialTypesQuery } from '../inventoryQueries';
-import { isFdm, materialsForProcess, unitText } from '../processConfig';
+import { isFdm, unitText } from '../processConfig';
 import { machineLogbookKeys, machineQuery, materialsQuery, spoolsQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
 import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
 import {
   blankUsage,
+  hasMaterial,
   isBlankUsage,
   jobOrderQuery,
   saveError,
   toUsageInputs,
   usageRowsFromUsages,
+  type UsageRow,
   type UsagesValues,
 } from './jobFormHelpers';
+import { MaterialPickerModal, stockText, type PickedMaterial } from './MaterialPickerModal';
 import '../styles/jobs.scss';
+
+const roundArea = (value: number) => Math.round(value * 100) / 100;
 
 /** Width x height x count in centimetres gives the square centimetres of cut material; the result stays editable. */
 function AreaHelper({ idPrefix, onArea }: { idPrefix: string; onArea: (area: number) => void }) {
   const [size, setSize] = useState({ width: '', height: '', count: '1' });
+  const area =
+    (decimalNumber(size.width) ?? 0) *
+    (decimalNumber(size.height) ?? 0) *
+    (decimalNumber(size.count, { integer: true }) ?? 0);
   const change = (key: 'width' | 'height' | 'count', value: string) => {
     const next = { ...size, [key]: value };
     setSize(next);
-    const area =
+    const nextArea =
       (decimalNumber(next.width) ?? 0) *
       (decimalNumber(next.height) ?? 0) *
       (decimalNumber(next.count, { integer: true }) ?? 0);
-    onArea(Math.round(area * 100) / 100);
+    if (nextArea > 0) onArea(roundArea(nextArea));
   };
   const invalid = (value: string, integer = false) =>
     value.trim() !== '' && parseDecimalText(value, { integer }) === null;
   return (
-    <div className="mj-area-helper">
+    <div className="jobs-usage__area">
       <DecimalField
         id={`${idPrefix}-width`}
         labelText="Width (cm)"
@@ -78,6 +87,44 @@ function AreaHelper({ idPrefix, onArea }: { idPrefix: string; onArea: (area: num
         invalidText="Enter a whole number."
         onChange={(value) => change('count', value)}
       />
+      <p className="mj-secondary jobs-usage__area-note" aria-live="polite">
+        = {area > 0 ? `${formatQuantity(roundArea(area))} cm²` : '…'} · fills the quantity, which stays editable
+      </p>
+    </div>
+  );
+}
+
+/** The chosen material of a row: swatch, name, category and stock, with a button that opens the picker again. */
+function SelectedMaterial({
+  row,
+  colorHex,
+  stock,
+  onChange,
+}: {
+  row: UsageRow;
+  colorHex?: string | null;
+  stock?: string;
+  onChange: () => void;
+}) {
+  const own = row.ownership === 'external';
+  const name = own ? row.externalName.trim() || row.materialTypeLabel || 'Recipient’s own material' : row.materialLabel;
+  const detail = own
+    ? `Recipient’s own${row.materialTypeLabel && row.externalName.trim() ? ` · ${row.materialTypeLabel}` : ''} · not booked, not charged`
+    : [row.materialTypeLabel, stock && `${stock} in stock`].filter(Boolean).join(' · ');
+  return (
+    <div className="jobs-usage__material">
+      <span
+        className={colorHex ? 'mj-swatch' : 'mj-swatch jobs-usage__swatch--none'}
+        style={colorHex ? { backgroundColor: colorHex } : undefined}
+        aria-hidden="true"
+      />
+      <span className="jobs-usage__material-text">
+        <strong>{name ?? 'Material'}</strong>
+        {detail && <span className="mj-secondary"> {detail}</span>}
+      </span>
+      <Button kind="ghost" size="sm" onClick={onChange}>
+        Change
+      </Button>
     </div>
   );
 }
@@ -86,130 +133,121 @@ function UsageRowFields({
   idPrefix,
   index,
   onRemove,
+  onPick,
   canReadInventory,
   process,
 }: {
   idPrefix: string;
   index: number;
   onRemove: () => void;
+  onPick: () => void;
   canReadInventory: boolean;
   process?: Process;
 }) {
-  const { control, register, watch, setValue } = useFormContext<UsagesValues>();
-  const row = watch(`usages.${index}`);
+  const { control, setValue } = useFormContext<UsagesValues>();
+  const row = useWatch({ control, name: `usages.${index}` });
   const materials = useQuery({ ...materialsQuery({ page: 1, pageSize: 100 }), enabled: canReadInventory });
+  const types = useQuery({ ...materialTypesQuery(), enabled: canReadInventory });
+  const stockRow = row.ownership === 'makerspace' && !!row.materialId;
+  const material = stockRow ? (materials.data?.items ?? []).find((item) => item.id === row.materialId) : undefined;
+  const showSpools = stockRow && (!process || isFdm(process)) && (material ? material.kind === 'filament' : true);
   const spools = useQuery({
     ...spoolsQuery({ consumable: true, materialId: row.materialId, page: 1, pageSize: 100 }),
-    enabled: canReadInventory && row.ownership === 'makerspace' && !!row.materialId,
+    enabled: canReadInventory && showSpools,
   });
-  const types = useQuery({ ...materialTypesQuery(), enabled: canReadInventory });
-  // New choices are limited to active materials whose type fits the machine's process; the row's current material stays.
-  const materialItems = materialsForProcess(materials.data?.items ?? [], types.data, process, row.materialId);
-  const unit = (materials.data?.items ?? []).find((item) => item.id === row.materialId)?.unit;
-  const spoolItems = spools.data?.items ?? [];
-  const showSpools = !process || isFdm(process);
-  const showArea = unit === 'cm2';
+  const type = row.ownership === 'external' ? types.data?.find((item) => item.id === row.materialTypeId) : undefined;
+  const unit: MaterialUnit | undefined = material?.unit ?? type?.unit ?? row.unit;
+  const spoolOptions = (spools.data?.items ?? []).map((spool) => ({
+    id: spool.id,
+    label: `${spool.displayId} · ${formatQuantity(spool.remainingQuantity)} ${unitText(spool.unit)} left`,
+  }));
+  if (row.spoolId && !spoolOptions.some((option) => option.id === row.spoolId))
+    spoolOptions.unshift({ id: row.spoolId, label: row.spoolLabel ?? 'Current spool' });
+  const chosen = hasMaterial(row);
   return (
-    <div className="mj-usage-row">
-      <Select id={`${idPrefix}-ownership`} labelText="Ownership" {...register(`usages.${index}.ownership`)}>
-        <SelectItem value="makerspace" text="Makerspace stock" />
-        <SelectItem value="external" text="Recipient / external" />
-      </Select>
-      {row.ownership === 'makerspace' ? (
-        <>
+    <div className="jobs-usage__row">
+      <div className="jobs-usage__head">
+        <span className="jobs-usage__number">Material {index + 1}</span>
+        <IconButton kind="ghost" size="sm" label="Remove material" align="left" onClick={onRemove}>
+          <TrashCan />
+        </IconButton>
+      </div>
+      <div
+        className={
+          showSpools && spoolOptions.length > 0 ? 'jobs-usage__line jobs-usage__line--spool' : 'jobs-usage__line'
+        }
+      >
+        <div className="jobs-usage__field">
+          <FormLabel id={`${idPrefix}-material-label`}>Material</FormLabel>
+          {chosen ? (
+            <SelectedMaterial
+              row={row}
+              colorHex={material?.colorHex}
+              stock={material ? stockText(material) : undefined}
+              onChange={onPick}
+            />
+          ) : (
+            <Button
+              kind="tertiary"
+              size="md"
+              renderIcon={Search}
+              aria-describedby={`${idPrefix}-material-label`}
+              disabled={!canReadInventory}
+              onClick={onPick}
+            >
+              Select material
+            </Button>
+          )}
+        </div>
+        {showSpools && spoolOptions.length > 0 && (
           <Controller
             control={control}
-            name={`usages.${index}.materialId`}
-            rules={{ validate: (value, values) => isBlankUsage(values.usages[index]) || Boolean(value) }}
+            name={`usages.${index}.spoolId`}
             render={({ field }) => (
-              <Select
-                id={`${idPrefix}-material`}
-                labelText="Material"
-                value={field.value}
-                onChange={(event) => {
-                  field.onChange(event.target.value);
-                  setValue(`usages.${index}.spoolId`, '');
-                  setValue(`usages.${index}.spoolLabel`, undefined);
+              <FuzzySelectField
+                id={`${idPrefix}-spool`}
+                titleText="Spool (optional)"
+                placeholder="Loose stock"
+                options={spoolOptions}
+                value={field.value || null}
+                onChange={(id) => {
+                  field.onChange(id ?? '');
+                  setValue(`usages.${index}.spoolLabel`, spoolOptions.find((option) => option.id === id)?.label, {
+                    shouldDirty: true,
+                  });
                 }}
-              >
-                <SelectItem value="" text="Select a material" />
-                {row.materialId && !materialItems.some((item) => item.id === row.materialId) && (
-                  <SelectItem value={row.materialId} text={row.materialLabel ?? 'Current material'} />
-                )}
-                {materialItems.map((item) => (
-                  <SelectItem key={item.id} value={item.id} text={`${item.name} (${unitText(item.unit)})`} />
-                ))}
-              </Select>
+              />
             )}
           />
-          {showSpools && (
-            <Controller
-              control={control}
-              name={`usages.${index}.spoolId`}
-              render={({ field }) => (
-                <Select
-                  id={`${idPrefix}-spool`}
-                  labelText="Spool (optional)"
-                  value={field.value}
-                  onChange={(event) => field.onChange(event.target.value)}
-                >
-                  <SelectItem value="" text="Unassigned stock" />
-                  {row.spoolId && !spoolItems.some((spool) => spool.id === row.spoolId) && (
-                    <SelectItem value={row.spoolId} text={row.spoolLabel ?? 'Current spool'} />
-                  )}
-                  {spoolItems.map((spool) => (
-                    <SelectItem
-                      key={spool.id}
-                      value={spool.id}
-                      text={`${spool.displayId} · ${formatQuantity(spool.remainingQuantity)} ${spool.unit ?? 'g'} left`}
-                    />
-                  ))}
-                </Select>
-              )}
+        )}
+      </div>
+      <div className="jobs-usage__line jobs-usage__line--quantity">
+        <Controller
+          control={control}
+          name={`usages.${index}.quantity`}
+          rules={{
+            validate: (value, values) => {
+              const current = values.usages[index];
+              if (isBlankUsage(current)) return true;
+              if (!hasMaterial(current)) return 'Select a material.';
+              return decimalValidator({ positive: true, requiredMessage: 'Enter a quantity above zero.' })(value);
+            },
+          }}
+          render={({ field: quantity, fieldState }) => (
+            <DecimalField
+              id={`${idPrefix}-quantity`}
+              labelText={unit ? `Quantity (${unitText(unit)})` : 'Quantity'}
+              value={quantity.value}
+              disabled={!chosen}
+              helperText={chosen ? undefined : 'Select a material first.'}
+              invalid={fieldState.invalid}
+              invalidText={fieldState.error?.message ?? 'Enter a quantity above zero.'}
+              onChange={quantity.onChange}
             />
           )}
-        </>
-      ) : (
-        <TextInput
-          id={`${idPrefix}-name`}
-          labelText="Material name"
-          {...register(`usages.${index}.externalName`, {
-            validate: (value, values) => isBlankUsage(values.usages[index]) || Boolean(value.trim()),
-          })}
         />
-      )}
-      <Controller
-        control={control}
-        name={`usages.${index}.quantity`}
-        rules={{
-          validate: (value, values) =>
-            isBlankUsage(values.usages[index]) ||
-            decimalValidator({ positive: true, requiredMessage: 'Enter a quantity above zero.' })(value),
-        }}
-        render={({ field: quantity, fieldState }) => (
-          <DecimalField
-            id={`${idPrefix}-quantity`}
-            labelText={unit ? `Quantity (${unitText(unit)})` : 'Quantity'}
-            value={quantity.value}
-            invalid={fieldState.invalid}
-            invalidText={fieldState.error?.message ?? 'Enter a quantity above zero.'}
-            onChange={quantity.onChange}
-          />
-        )}
-      />
-      <Select id={`${idPrefix}-basis`} labelText="Basis" {...register(`usages.${index}.quantityBasis`)}>
-        <SelectItem value="actual" text="Actual" />
-        <SelectItem value="estimated" text="Estimated" />
-      </Select>
-      <Button
-        hasIconOnly
-        kind="ghost"
-        renderIcon={TrashCan}
-        iconDescription="Remove material usage"
-        tooltipPosition="left"
-        onClick={onRemove}
-      />
-      {showArea && (
+      </div>
+      {unit === 'cm2' && (
         <AreaHelper
           idPrefix={idPrefix}
           onArea={(area) =>
@@ -221,12 +259,56 @@ function UsageRowFields({
   );
 }
 
-/** Material rows of a run. `process` limits the materials to the ones the machine's process can use. */
-export function UsageRowsEditor({ idPrefix, process }: { idPrefix: string; process?: Process }) {
+/**
+ * Material rows of a run. Each row picks its material in the catalog picker (stock article, optionally a spool, or
+ * the recipient's own material) and takes the quantity here; square centimetres get a width × height × count helper.
+ * `process` limits the catalog to the machine's process. `onPickingChange` tells the dialog to hide while the picker
+ * is open.
+ */
+export function UsageRowsEditor({
+  idPrefix,
+  process,
+  onPickingChange,
+}: {
+  idPrefix: string;
+  process?: Process;
+  onPickingChange?: (picking: boolean) => void;
+}) {
   const can = useCan();
   const canReadInventory = can('inventory.read');
-  const { control } = useFormContext<UsagesValues>();
+  const { control, getValues, setValue } = useFormContext<UsagesValues>();
   const { fields, append, remove } = useFieldArray({ control, name: 'usages' });
+  const [picking, setPicking] = useState<number | null>(null);
+  useEffect(() => onPickingChange?.(picking !== null), [picking, onPickingChange]);
+  const current = picking === null ? undefined : getValues(`usages.${picking}`);
+
+  const pick = (index: number, picked: PickedMaterial) => {
+    const previous = getValues(`usages.${index}`);
+    const next: UsageRow =
+      picked.kind === 'stock'
+        ? {
+            ...blankUsage(),
+            quantity: previous.quantity,
+            quantityBasis: previous.quantityBasis,
+            materialId: picked.material.id,
+            materialLabel: picked.material.name,
+            materialTypeLabel: picked.material.materialTypeName,
+            unit: picked.material.unit,
+          }
+        : {
+            ...blankUsage(),
+            quantity: previous.quantity,
+            quantityBasis: previous.quantityBasis,
+            ownership: 'external',
+            externalName: picked.label,
+            materialTypeId: picked.materialType?.id ?? '',
+            materialTypeLabel: picked.materialType?.name,
+            unit: picked.materialType?.unit,
+          };
+    setValue(`usages.${index}`, next, { shouldDirty: true });
+    setPicking(null);
+  };
+
   return (
     <Stack gap={5}>
       {!canReadInventory && (
@@ -238,26 +320,41 @@ export function UsageRowsEditor({ idPrefix, process }: { idPrefix: string; proce
           subtitle="Inventory read access is needed to choose other materials or spools. Existing rows keep their material."
         />
       )}
-      {fields.length === 0 ? (
+      {fields.length === 0 && (
         <p className="mj-secondary">No material recorded. The run is priced for machine time only.</p>
-      ) : (
-        <p className="mj-secondary">Leave a row empty or remove it to record no material.</p>
       )}
-      {fields.map((field, index) => (
-        <UsageRowFields
-          key={field.id}
-          idPrefix={`${idPrefix}-${field.id}`}
-          index={index}
-          canReadInventory={canReadInventory}
-          process={process}
-          onRemove={() => remove(index)}
-        />
-      ))}
+      <div className="jobs-usage">
+        {fields.map((field, index) => (
+          <UsageRowFields
+            key={field.id}
+            idPrefix={`${idPrefix}-${index}`}
+            index={index}
+            canReadInventory={canReadInventory}
+            process={process}
+            onPick={() => setPicking(index)}
+            onRemove={() => remove(index)}
+          />
+        ))}
+      </div>
       <div>
-        <Button kind="tertiary" size="sm" renderIcon={Add} onClick={() => append(blankUsage())}>
+        <Button kind="ghost" size="sm" renderIcon={Add} onClick={() => append(blankUsage())}>
           Add material
         </Button>
       </div>
+      <MaterialPickerModal
+        open={picking !== null && canReadInventory}
+        process={process}
+        selectedMaterialId={current?.ownership === 'makerspace' ? current.materialId : undefined}
+        own={
+          current?.ownership === 'external'
+            ? { label: current.externalName, materialTypeId: current.materialTypeId }
+            : undefined
+        }
+        onClose={() => setPicking(null)}
+        onPick={(picked) => {
+          if (picking !== null) pick(picking, picked);
+        }}
+      />
     </Stack>
   );
 }
@@ -285,8 +382,11 @@ function UsageFormBody({
 }) {
   const client = useQueryClient();
   const notify = useNotify();
-  const form = useForm<UsagesValues>({ defaultValues: { usages: usageRowsFromUsages(run.usages) } });
+  const form = useForm<UsagesValues>({
+    defaultValues: { usages: run.usages.length ? usageRowsFromUsages(run.usages) : [blankUsage()] },
+  });
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
+  const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
     mutationFn: (values: UsagesValues) =>
@@ -319,8 +419,8 @@ function UsageFormBody({
   return (
     <>
       <ComposedModal
-        open={!guard.dialogOpen}
-        size="lg"
+        open={!guard.dialogOpen && !picking}
+        size="md"
         preventCloseOnClickOutside
         onClose={() => {
           if (!pending) guard.requestDiscard(onClose);
@@ -333,8 +433,9 @@ function UsageFormBody({
           <FormProvider {...form}>
             <Stack gap={6}>
               <p>
-                Saving replaces the full list of material consumed by this run. Stock is adjusted and the calculated
-                price is recalculated. Existing order charges stay unchanged.
+                Saving replaces the full list of material consumed by this run; stock and the calculated price are
+                updated. {run.source === 'recorded' && 'What the machine reported stays visible for reference. '}
+                The recipient’s own material is never charged and never consumes stock.
               </p>
               {run.usagesFromMachine && (
                 <InlineNotification
@@ -363,7 +464,7 @@ function UsageFormBody({
                   subtitle={error}
                 />
               )}
-              <UsageRowsEditor idPrefix={`usage-${run.displayId}`} process={process} />
+              <UsageRowsEditor idPrefix="usage" process={process} onPickingChange={setPicking} />
             </Stack>
           </FormProvider>
         </ModalBody>

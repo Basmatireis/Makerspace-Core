@@ -60,6 +60,7 @@ export function ResolveReportedUsageModal({
         materialId: spool.materialId,
         spoolId: spool.id,
         externalName: '',
+        materialTypeId: '',
         quantity: parseDecimalText(quantity) ?? '',
         quantityBasis: 'estimated',
         materialLabel: spool.materialName ?? undefined,

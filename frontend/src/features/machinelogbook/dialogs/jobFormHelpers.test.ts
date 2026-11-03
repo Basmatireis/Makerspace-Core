@@ -14,4 +14,27 @@ describe('material rows', () => {
     expect(isBlankUsage(quantityOnly)).toBe(false);
     expect(toUsageInputs([blankUsage(), external])).toHaveLength(1);
   });
+
+  it('sends the recipient’s own material with its label and type and never a spool', () => {
+    const own = {
+      ...blankUsage(),
+      ownership: 'external' as const,
+      externalName: ' Prusament Galaxy Black ',
+      materialTypeId: 'type-1',
+      spoolId: 'spool-1',
+      quantity: '12,5',
+    };
+    expect(toUsageInputs([own])).toEqual([
+      {
+        ownership: 'external',
+        materialId: null,
+        spoolId: null,
+        materialTypeId: 'type-1',
+        label: 'Prusament Galaxy Black',
+        quantity: '12.5',
+        quantityBasis: 'actual',
+      },
+    ]);
+    expect(isBlankUsage({ ...blankUsage(), ownership: 'external', materialTypeId: 'type-1' })).toBe(false);
+  });
 });

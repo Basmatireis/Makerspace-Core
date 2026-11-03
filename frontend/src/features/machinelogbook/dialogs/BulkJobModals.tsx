@@ -140,7 +140,7 @@ function BulkJobDialog({ mode, onClose, runs, onDone }: Omit<Props, 'open'> & { 
               {...form.register('title')}
             />
           )}
-          <JobPartyFields idPrefix="bulk-job" />
+          <JobPartyFields idPrefix="bulk-job" withNotes />
           {canReadPricing && (
             <Select
               id="bulk-job-pricing-group"

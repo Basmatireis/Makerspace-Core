@@ -16,16 +16,20 @@ import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { detachMachineRun, setMachineRunSignageVisibility } from '../../api/generated/machine-runs/machine-runs';
-import type { MachineRunArtifactUploadResult } from '../../api/generated/models';
+import type { MachineJob, MachineRunArtifactUploadResult, MachineRunRecording } from '../../api/generated/models';
+import { StackCard } from '../../app/components/CardList';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { PermissionId } from '../auth/permissions';
 import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
-import { AttachToJobModal } from './dialogs/AttachToJobModal';
-import { JobFormModal } from './dialogs/JobFormModal';
 import { UsageFormModal } from './dialogs/UsageFormModal';
+import { ClaimRunModal } from './jobs/ClaimRunModal';
+import { MediaCard } from './jobs/MediaCard';
+import { RecipientMaterialModal } from './jobs/RecipientMaterialModal';
+import { openReportedLines, reportedLineName, reportedLineQuantity } from './jobs/runLines';
+import { useUpdateJobFacts } from './jobs/jobsQueries';
 import { RunFileUpload, UploadMismatchNotice } from './recording/RunFileUpload';
 import { ResolveReportedUsageModal } from './dialogs/ResolveReportedUsageModal';
 import { ApiError } from '../../api/http-client';
@@ -34,7 +38,6 @@ import { artifactQuery, jobQuery, machineLogbookKeys, recordingQuery, runQuery }
 import { ConsumptionNotice } from './recording/ConsumptionNotice';
 import { FactsBar } from './recording/FactsBar';
 import { internalStorageMessage, isCommandOpen, isOnInternalStorage } from './recording/recordingText';
-import { RunPreviewTile } from './recording/RecordingTiles';
 import { formatDateTime, formatDuration, formatQuantity, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
@@ -83,9 +86,10 @@ export function RunDetailPage() {
     refetchInterval: (query) => (query.state.data?.commands.some(isCommandOpen) ? COMMAND_REFRESH_MS : false),
   });
   const navigate = useNavigate();
-  const [dialog, setDialog] = useState<'create' | 'attach' | 'detach' | 'delete' | 'delete-job' | 'usage' | null>(null);
+  const [dialog, setDialog] = useState<'claim' | 'detach' | 'delete' | 'delete-job' | 'usage' | null>(null);
   const [uploaded, setUploaded] = useState<{ result: MachineRunArtifactUploadResult; fileName: string } | null>(null);
   const [resolutionLine, setResolutionLine] = useState<number | null>(null);
+  const [recipientLine, setRecipientLine] = useState<number | null>(null);
   const close = () => setDialog(null);
 
   const canReadJobs = can(PermissionId.machine_jobsread);
@@ -159,6 +163,8 @@ export function RunDetailPage() {
         ? reportedUsageText(run)
         : '';
   const unresolvedMaterials = run ? unresolvedReportedUsageItems(run) : [];
+  // Lines neither a spool nor the recipient's own material accounts for; staff resolve them one by one.
+  const openLines = run ? openReportedLines(run) : [];
   const plannedFilaments =
     artifact.data?.filaments.filter(
       (filament) => filament.plannedWeightGrams != null && Number(filament.plannedWeightGrams) >= 0,
@@ -170,13 +176,12 @@ export function RunDetailPage() {
 
   const canEditUsage = canEdit && run?.state !== 'replaced';
   const canDetach = !unassigned && canEdit && job !== undefined && run?.source === 'recorded';
-  const canLink = unassigned && canAttach;
+  const canClaim = unassigned && (canCreate || canAttach);
 
   const actions = run ? (
     <>
-      {(canLink || canEditUsage || canDetach || canDelete) && (
+      {(canEditUsage || canDetach || canDelete) && (
         <OverflowMenu aria-label="More run actions" iconDescription="More run actions" flipped>
-          {canLink && <OverflowMenuItem itemText="Link to existing job" onClick={() => setDialog('attach')} />}
           {canEditUsage && <OverflowMenuItem itemText="Edit material usage" onClick={() => setDialog('usage')} />}
           {canDetach && (
             <OverflowMenuItem
@@ -194,9 +199,9 @@ export function RunDetailPage() {
           )}
         </OverflowMenu>
       )}
-      {unassigned && canCreate && (
-        <Button renderIcon={Add} onClick={() => setDialog('create')}>
-          Claim run
+      {canClaim && (
+        <Button renderIcon={Add} onClick={() => setDialog('claim')}>
+          Claim
         </Button>
       )}
     </>
@@ -291,7 +296,10 @@ export function RunDetailPage() {
                 />
               </Tile>
             )}
-            {live && canHideFromSignage && (
+            {live && run.jobHiddenFromSignage && (
+              <p className="mj-secondary">Off the signage screens because the job is kept off signage.</p>
+            )}
+            {live && canHideFromSignage && !run.jobHiddenFromSignage && (
               <Tile>
                 <Checkbox
                   id="run-hidden-from-signage"
@@ -365,22 +373,44 @@ export function RunDetailPage() {
                             label: 'Reported material',
                             value: reportedMaterial,
                             note:
-                              !live && canEdit && can(PermissionId.inventoryread)
-                                ? unresolvedMaterials.map((item) => (
-                                    <Button
-                                      key={`${item.reportRevision}-${item.lineNumber}`}
-                                      kind="ghost"
-                                      size="sm"
-                                      onClick={() => setResolutionLine(item.lineNumber)}
-                                    >
-                                      Map{' '}
-                                      {item.slicerFilamentId
-                                        ? `filament ${item.slicerFilamentId}`
-                                        : `line ${item.lineNumber + 1}`}{' '}
-                                      to a spool
-                                    </Button>
-                                  ))
-                                : undefined,
+                              !live && canEdit && can(PermissionId.inventoryread) && openLines.length > 0 ? (
+                                <ul className="jobs-lines">
+                                  {openLines.map((item) => {
+                                    const grams = reportedLineQuantity(item);
+                                    return (
+                                      <li
+                                        key={`${item.reportRevision}-${item.lineNumber}`}
+                                        className="jobs-lines__line"
+                                      >
+                                        <span>
+                                          {reportedLineName(item)}
+                                          {grams != null ? ` · ${formatQuantity(grams)} g` : ''} · not booked
+                                        </span>
+                                        <span className="mj-inline">
+                                          <Button
+                                            kind="ghost"
+                                            size="sm"
+                                            onClick={() => setResolutionLine(item.lineNumber)}
+                                          >
+                                            Map{' '}
+                                            {item.slicerFilamentId
+                                              ? `filament ${item.slicerFilamentId}`
+                                              : `line ${item.lineNumber + 1}`}{' '}
+                                            to a spool
+                                          </Button>
+                                          <Button
+                                            kind="ghost"
+                                            size="sm"
+                                            onClick={() => setRecipientLine(item.lineNumber)}
+                                          >
+                                            Recipient’s own
+                                          </Button>
+                                        </span>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              ) : undefined,
                           },
                         ]
                       : []),
@@ -495,13 +525,36 @@ export function RunDetailPage() {
                 )}
               </div>
               <div className="mj-stack">
-                <RunPreviewTile
-                  recording={recording.data}
-                  recorded={run.source === 'recorded'}
-                  loading={run.source === 'recorded' && recording.isPending}
-                  failed={recording.isError}
-                  uploadAction={uploadAction}
-                />
+                {run.source === 'recorded' &&
+                  (job && canEdit ? (
+                    <JobMediaCard job={job} recordings={recording.data ? [recording.data] : []} />
+                  ) : (
+                    <MediaCard
+                      recordings={recording.data ? [recording.data] : []}
+                      offSignage={run.jobHiddenFromSignage || run.hiddenFromSignage}
+                    />
+                  ))}
+                {recording.isError && (
+                  <InlineNotification
+                    kind="warning"
+                    lowContrast
+                    hideCloseButton
+                    title="Preview unavailable"
+                    subtitle="The print file information could not be loaded."
+                  />
+                )}
+                {!run.job && (
+                  <StackCard title="Job">
+                    <p className="mj-secondary">This run belongs to no job yet.</p>
+                    {canClaim && (
+                      <div>
+                        <Button kind="tertiary" size="md" renderIcon={Add} onClick={() => setDialog('claim')}>
+                          Claim
+                        </Button>
+                      </div>
+                    )}
+                  </StackCard>
+                )}
               </div>
             </div>
           </div>
@@ -550,7 +603,6 @@ export function RunDetailPage() {
       {job && canDeleteJob && <DeleteJobModal open={dialog === 'delete-job'} onClose={close} job={job} />}
 
       {run && canEdit && <UsageFormModal open={dialog === 'usage'} onClose={close} run={run} />}
-      {run && canAttach && <AttachToJobModal open={dialog === 'attach'} onClose={close} run={run} />}
       {run &&
         resolutionLine !== null &&
         (() => {
@@ -559,10 +611,50 @@ export function RunDetailPage() {
             <ResolveReportedUsageModal open onClose={() => setResolutionLine(null)} run={run} item={item} />
           ) : null;
         })()}
-      {run && canCreate && dialog === 'create' && (
-        // The page stays open after saving; the form confirms with "Job created".
-        <JobFormModal open mode="create" onClose={close} run={run} onSaved={() => undefined} />
+      {run && (
+        <RecipientMaterialModal
+          run={run}
+          item={openLines.find((candidate) => candidate.lineNumber === recipientLine) ?? null}
+          onClose={() => setRecipientLine(null)}
+        />
       )}
+      <ClaimRunModal
+        runId={dialog === 'claim' && run ? run.id : null}
+        onClose={close}
+        canCreate={canCreate}
+        canAttach={canAttach}
+      />
     </PageShell>
+  );
+}
+
+/** The media card of a run that belongs to a job: the title row toggles the job's signage flag. */
+function JobMediaCard({ job, recordings }: { job: MachineJob; recordings: MachineRunRecording[] }) {
+  const notify = useNotify();
+  const update = useUpdateJobFacts(job);
+  return (
+    <MediaCard
+      recordings={recordings}
+      offSignage={job.hiddenFromSignage}
+      signagePending={update.isPending}
+      onToggleSignage={
+        job.operator
+          ? () =>
+              update.mutate(
+                { hiddenFromSignage: !job.hiddenFromSignage },
+                {
+                  onSuccess: (saved) =>
+                    notify({
+                      kind: 'success',
+                      title: saved.hiddenFromSignage ? 'Kept off signage' : 'Back on signage',
+                      subtitle: `${saved.displayId} · stream and timelapses of all its runs`,
+                    }),
+                  onError: () =>
+                    notify({ kind: 'error', title: 'Signage not changed', subtitle: 'Reload and try again.' }),
+                },
+              )
+          : undefined
+      }
+    />
   );
 }
