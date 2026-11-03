@@ -196,6 +196,8 @@ export const detectedTag = (overrides: Partial<DetectedSpoolTag> = {}): Detected
   subBrand: 'PLA Basic',
   colorHex: '0A2989',
   remainPercent: 68,
+  productCode: null,
+  filamentProfileId: null,
   observedAt: now,
   spool: null,
   ...overrides,

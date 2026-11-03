@@ -2,7 +2,7 @@ import { Button, Tag } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import type { DetectedSpoolTag, Material, MaterialType } from '../../../api/generated/models';
-import { detectedGrams, detectedSlotText, suggestArticle } from '../detectedSpools';
+import { detectedGrams, detectedSlotText, matchLabel, suggestArticle } from '../detectedSpools';
 import { materialTypesQuery } from '../inventoryQueries';
 import { detectedSpoolTagsQuery } from '../queries';
 import { useCan } from '../shared/useCan';
@@ -24,6 +24,13 @@ function DetectedRow({
   const suggestion = suggestArticle(tag, materials, types);
   const grams = detectedGrams(tag, Number(suggestion.article?.packageSize ?? 0));
   const reported = [tag.subBrand ?? tag.materialType ?? 'Unknown filament'];
+  // The reported colour next to the suggestion, so that a similar article can be compared with it.
+  const reportedColor = suggestion.colorHex && (
+    <>
+      <ColorSwatch hex={suggestion.colorHex} name={`${suggestion.colorHex} reported`} />
+      <span className="mj-secondary">{suggestion.colorHex} reported</span>
+    </>
+  );
   return (
     <li className="inv-detected__row">
       <div>
@@ -31,7 +38,12 @@ function DetectedRow({
         <span className="inv-detected__value">
           <ColorSwatch hex={tag.colorHex ? `#${tag.colorHex}` : null} name="Reported colour" />
           <strong>{reported}</strong>
-          {tag.colorHex && <span className="mj-secondary">#{tag.colorHex}</span>}
+          {tag.colorHex && (
+            <span className="mj-secondary">
+              #{tag.colorHex}
+              {suggestion.colorName ? ` ${suggestion.colorName}` : ''}
+            </span>
+          )}
         </span>
       </div>
       <div>
@@ -48,13 +60,14 @@ function DetectedRow({
       <div>
         <span className="inv-detected__key">Suggested article</span>
         <span className="inv-detected__value">
-          {suggestion.article ? (
+          {suggestion.article && suggestion.match ? (
             <>
               <ColorSwatch hex={suggestion.article.colorHex} name={suggestion.article.colorName} />
               <span className="inv-ellipsis">{suggestion.article.name}</span>
-              <Tag type="green" size="sm">
-                Match
+              <Tag type={suggestion.match === 'same' ? 'green' : 'blue'} size="sm">
+                {matchLabel[suggestion.match]}
               </Tag>
+              {reportedColor}
             </>
           ) : (
             <>
@@ -66,6 +79,7 @@ function DetectedRow({
                   ? `${suggestion.type.name} ${suggestion.variant}`.trim()
                   : `No type ${tag.materialType ?? ''}`}
               </span>
+              {reportedColor}
             </>
           )}
         </span>

@@ -55,5 +55,17 @@ export interface PrinterLiveStatusTray {
      * @nullable
      */
   tagUid?: string | null;
+  /**
+     * Manufacturer's product code from the tag (Bambu tray_id_name, for example "A00-K0"). Absent from connectors before 0.15.0.
+     * @maxLength 40
+     * @nullable
+     */
+  productCode?: string | null;
+  /**
+     * Manufacturer's filament profile id from the tag (Bambu tray_info_idx, for example "GFA00"). Absent from connectors before 0.15.0.
+     * @maxLength 40
+     * @nullable
+     */
+  filamentProfileId?: string | null;
   empty: boolean;
 }

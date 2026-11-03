@@ -17717,6 +17717,8 @@ components:
         remainPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
         rfid: {type: boolean}
         tagUid: {type: string, minLength: 1, maxLength: 255, nullable: true, description: "UID of the spool's RFID/NFC tag as the printer read it. Absent from connectors before 0.8.1."}
+        productCode: {type: string, maxLength: 40, nullable: true, description: "Manufacturer's product code from the tag (Bambu tray_id_name, for example \"A00-K0\"). Absent from connectors before 0.15.0."}
+        filamentProfileId: {type: string, maxLength: 40, nullable: true, description: "Manufacturer's filament profile id from the tag (Bambu tray_info_idx, for example \"GFA00\"). Absent from connectors before 0.15.0."}
         empty: {type: boolean}
 
     PrinterLiveStatusUnit:
@@ -17892,7 +17894,7 @@ components:
     DetectedSpoolTag:
       type: object
       additionalProperties: false
-      required: [machineId, machineName, unitExternalId, unitLabel, trayExternalId, slotId, slotName, inputUnitName, tagUid, materialType, subBrand, colorHex, remainPercent, observedAt, spool]
+      required: [machineId, machineName, unitExternalId, unitLabel, trayExternalId, slotId, slotName, inputUnitName, tagUid, materialType, subBrand, colorHex, remainPercent, productCode, filamentProfileId, observedAt, spool]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         machineName: {type: string}
@@ -17907,6 +17909,8 @@ components:
         subBrand: {type: string, nullable: true}
         colorHex: {type: string, pattern: "^[0-9A-Fa-f]{6}$", nullable: true}
         remainPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
+        productCode: {type: string, maxLength: 40, nullable: true, description: "The manufacturer's product code read from the tag, for example Bambu's \"A00-K0\" whose suffix names the colour. Null when the printer reports none."}
+        filamentProfileId: {type: string, maxLength: 40, nullable: true, description: "The manufacturer's filament profile id read from the tag, for example Bambu's \"GFA00\". Null when the printer reports none."}
         observedAt: {type: string, format: date-time}
         spool: {allOf: [{$ref: "#/components/schemas/DetectedSpoolTagSpool"}], nullable: true, description: The active spool that already carries this tag as an NFC identifier.}
 

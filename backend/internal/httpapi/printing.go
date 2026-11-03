@@ -355,21 +355,23 @@ func (s *Server) ListDetectedSpoolTags(
 	items := make([]openapi.DetectedSpoolTag, 0, len(tags))
 	for _, tag := range tags {
 		item := openapi.DetectedSpoolTag{
-			MachineId:      tag.MachineID,
-			MachineName:    tag.MachineName,
-			UnitExternalId: tag.UnitExternalID,
-			UnitLabel:      tag.UnitLabel,
-			TrayExternalId: tag.TrayExternalID,
-			SlotId:         nullableUUIDValue(tag.SlotID),
-			SlotName:       nullableString(tag.SlotName),
-			InputUnitName:  nullableString(tag.InputUnitName),
-			TagUid:         tag.TagUID,
-			MaterialType:   nullableString(tag.MaterialType),
-			SubBrand:       nullableString(tag.SubBrand),
-			ColorHex:       nullableString(tag.ColorHex),
-			RemainPercent:  nullableInt(tag.RemainPercent),
-			ObservedAt:     tag.ObservedAt,
-			Spool:          nullable.NewNullNullable[openapi.DetectedSpoolTagSpool](),
+			MachineId:         tag.MachineID,
+			MachineName:       tag.MachineName,
+			UnitExternalId:    tag.UnitExternalID,
+			UnitLabel:         tag.UnitLabel,
+			TrayExternalId:    tag.TrayExternalID,
+			SlotId:            nullableUUIDValue(tag.SlotID),
+			SlotName:          nullableString(tag.SlotName),
+			InputUnitName:     nullableString(tag.InputUnitName),
+			TagUid:            tag.TagUID,
+			MaterialType:      nullableString(tag.MaterialType),
+			SubBrand:          nullableString(tag.SubBrand),
+			ColorHex:          nullableString(tag.ColorHex),
+			RemainPercent:     nullableInt(tag.RemainPercent),
+			ProductCode:       nullableString(tag.ProductCode),
+			FilamentProfileId: nullableString(tag.FilamentProfileID),
+			ObservedAt:        tag.ObservedAt,
+			Spool:             nullable.NewNullNullable[openapi.DetectedSpoolTagSpool](),
 		}
 		if tag.Spool != nil {
 			item.Spool = nullable.NewNullableWithValue(
