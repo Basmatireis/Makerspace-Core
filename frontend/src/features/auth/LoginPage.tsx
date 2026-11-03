@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { type FormEvent, lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Form,
@@ -10,7 +10,6 @@ import {
   Tile,
 } from '@carbon/react';
 import { ArrowLeft, FingerprintRecognition, Login } from '@carbon/icons-react';
-import { useForm } from 'react-hook-form';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { getStartOIDCLoginUrl, listOIDCLoginProviders } from '../../api/generated/oidc/oidc';
@@ -53,19 +52,17 @@ export function LoginPage() {
   });
   const fromKiosk = (location.state as LocationState)?.origin === 'kiosk';
   const [method, setMethod] = useState<'password' | 'pin'>('password');
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    setFocus,
-  } = useForm<LoginRequest>({
-    defaultValues: { email: '', password: '' },
-  });
-  const pinForm = useForm<PinLoginRequest>({ defaultValues: { loginName: '', pin: '' } });
+  // Two small forms with local state: the sign-in page is part of the initial bundle, where a form library would cost
+  // more than it saves. Errors appear on submit and clear as the field changes, as elsewhere in the app.
+  const [credentials, setCredentials] = useState<LoginRequest>({ email: '', password: '' });
+  const [credentialErrors, setCredentialErrors] = useState<Partial<Record<keyof LoginRequest, string>>>({});
+  const [pinCredentials, setPinCredentials] = useState<PinLoginRequest>({ loginName: '', pin: '' });
+  const [pinErrors, setPinErrors] = useState<Partial<Record<keyof PinLoginRequest, string>>>({});
+  const emailRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setFocus('email');
-  }, [setFocus]);
+    emailRef.current?.focus();
+  }, []);
 
   if (currentUser.isPending) {
     return <FullPageLoading label="Loading" />;
@@ -75,9 +72,15 @@ export function LoginPage() {
     return <Navigate to={safeReturnPath(location.state as LocationState)} replace />;
   }
 
-  const onSubmit = handleSubmit(async (values) => {
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const errors: Partial<Record<keyof LoginRequest, string>> = {};
+    if (!credentials.email.trim()) errors.email = 'Enter your email address.';
+    if (!credentials.password) errors.password = 'Enter your password.';
+    setCredentialErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     try {
-      const pending = await loginMutation.mutateAsync(values);
+      const pending = await loginMutation.mutateAsync(credentials);
       if (pending) {
         setSecondFactor(pending.methods);
         return;
@@ -86,15 +89,22 @@ export function LoginPage() {
     } catch {
       // The generic inline error below intentionally avoids account enumeration.
     }
-  });
-  const submitPIN = pinForm.handleSubmit(async (values) => {
+  };
+  const submitPIN = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const errors: Partial<Record<keyof PinLoginRequest, string>> = {};
+    if (!pinCredentials.loginName.trim()) errors.loginName = 'Enter your login name.';
+    if (!pinCredentials.pin) errors.pin = 'Enter your PIN.';
+    else if (!/^[0-9]{6,12}$/.test(pinCredentials.pin)) errors.pin = 'Enter 6 to 12 digits.';
+    setPinErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     try {
-      await pinLoginMutation.mutateAsync(values);
+      await pinLoginMutation.mutateAsync(pinCredentials);
       navigate(safeReturnPath(location.state as LocationState), { replace: true });
     } catch {
       /* generic error below */
     }
-  });
+  };
 
   const signInWithPasskey = async () => {
     setPasskeyBusy(true);
@@ -183,19 +193,26 @@ export function LoginPage() {
                       type="email"
                       autoComplete="username"
                       labelText="Email"
-                      invalid={Boolean(errors.email)}
-                      invalidText={errors.email?.message}
-                      {...register('email', {
-                        required: 'Enter your email address.',
-                      })}
+                      ref={emailRef}
+                      value={credentials.email}
+                      invalid={Boolean(credentialErrors.email)}
+                      invalidText={credentialErrors.email}
+                      onChange={(event) => {
+                        setCredentials((current) => ({ ...current, email: event.target.value }));
+                        setCredentialErrors((current) => ({ ...current, email: undefined }));
+                      }}
                     />
                     <PasswordInput
                       id="login-password"
                       autoComplete="current-password"
                       labelText="Password"
-                      invalid={Boolean(errors.password)}
-                      invalidText={errors.password?.message}
-                      {...register('password', { required: 'Enter your password.' })}
+                      value={credentials.password}
+                      invalid={Boolean(credentialErrors.password)}
+                      invalidText={credentialErrors.password}
+                      onChange={(event) => {
+                        setCredentials((current) => ({ ...current, password: event.target.value }));
+                        setCredentialErrors((current) => ({ ...current, password: undefined }));
+                      }}
                     />
                     <Button type="submit" renderIcon={Login} disabled={loginMutation.isPending}>
                       {loginMutation.isPending ? 'Signing in…' : 'Sign in'}
@@ -209,20 +226,25 @@ export function LoginPage() {
                       id="pin-login-name"
                       autoComplete="username"
                       labelText="Login name"
-                      invalid={Boolean(pinForm.formState.errors.loginName)}
-                      invalidText={pinForm.formState.errors.loginName?.message}
-                      {...pinForm.register('loginName', { required: 'Enter your login name.' })}
+                      value={pinCredentials.loginName}
+                      invalid={Boolean(pinErrors.loginName)}
+                      invalidText={pinErrors.loginName}
+                      onChange={(event) => {
+                        setPinCredentials((current) => ({ ...current, loginName: event.target.value }));
+                        setPinErrors((current) => ({ ...current, loginName: undefined }));
+                      }}
                     />
                     <PasswordInput
                       id="login-pin"
                       autoComplete="current-password"
                       labelText="PIN"
-                      invalid={Boolean(pinForm.formState.errors.pin)}
-                      invalidText={pinForm.formState.errors.pin?.message}
-                      {...pinForm.register('pin', {
-                        required: 'Enter your PIN.',
-                        pattern: { value: /^[0-9]{6,12}$/, message: 'Enter 6 to 12 digits.' },
-                      })}
+                      value={pinCredentials.pin}
+                      invalid={Boolean(pinErrors.pin)}
+                      invalidText={pinErrors.pin}
+                      onChange={(event) => {
+                        setPinCredentials((current) => ({ ...current, pin: event.target.value }));
+                        setPinErrors((current) => ({ ...current, pin: undefined }));
+                      }}
                     />
                     <Button type="submit" renderIcon={Login} disabled={pinLoginMutation.isPending}>
                       {pinLoginMutation.isPending ? 'Signing in…' : 'Sign in with PIN'}
