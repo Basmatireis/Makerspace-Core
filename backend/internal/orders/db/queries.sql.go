@@ -162,6 +162,101 @@ func (q *Queries) CaptureCustomer(ctx context.Context, arg CaptureCustomerParams
 	return err
 }
 
+const cashJournalDayTotals = `-- name: CashJournalDayTotals :many
+SELECT to_char(e.occurred_at AT TIME ZONE $1::text, 'YYYY-MM-DD')::text AS day,
+    COALESCE(sum(e.effect) FILTER (WHERE e.effect > 0), 0)::numeric AS cash_in,
+    COALESCE(-sum(e.effect) FILTER (WHERE e.effect < 0), 0)::numeric AS cash_out
+FROM cash_register_entries e
+WHERE e.occurred_at >= $2::timestamptz AND e.occurred_at < $3::timestamptz
+GROUP BY 1 ORDER BY 1
+`
+
+type CashJournalDayTotalsParams struct {
+	TimeZone string
+	FromTime time.Time
+	ToTime   time.Time
+}
+
+type CashJournalDayTotalsRow struct {
+	Day     string
+	CashIn  pgtype.Numeric
+	CashOut pgtype.Numeric
+}
+
+// Cash in and out per day in the makerspace time zone, for days within [from_time, to_time).
+func (q *Queries) CashJournalDayTotals(ctx context.Context, arg CashJournalDayTotalsParams) ([]CashJournalDayTotalsRow, error) {
+	rows, err := q.db.Query(ctx, cashJournalDayTotals, arg.TimeZone, arg.FromTime, arg.ToTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CashJournalDayTotalsRow{}
+	for rows.Next() {
+		var i CashJournalDayTotalsRow
+		if err := rows.Scan(&i.Day, &i.CashIn, &i.CashOut); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const cashJournalFacts = `-- name: CashJournalFacts :one
+SELECT COALESCE(sum(e.effect) FILTER (WHERE e.effect > 0), 0)::numeric AS cash_in,
+    count(*) FILTER (WHERE e.effect > 0) AS cash_in_entries,
+    count(*) FILTER (WHERE e.kind = 'receipt') AS receipts,
+    count(*) FILTER (WHERE e.kind = 'deposit') AS deposits,
+    COALESCE(-sum(e.effect) FILTER (WHERE e.effect < 0), 0)::numeric AS cash_out,
+    count(*) FILTER (WHERE e.effect < 0) AS cash_out_entries,
+    count(*) FILTER (WHERE e.kind = 'refund') AS refunds,
+    count(*) FILTER (WHERE e.kind = 'correction') AS corrections,
+    count(*) FILTER (WHERE e.kind = 'withdrawal') AS withdrawals,
+    count(*) FILTER (WHERE e.kind = 'count') AS counts
+FROM cash_register_entries e
+WHERE ($1::timestamptz IS NULL OR e.occurred_at >= $1::timestamptz)
+  AND ($2::timestamptz IS NULL OR e.occurred_at < $2::timestamptz)
+`
+
+type CashJournalFactsParams struct {
+	FromTime pgtype.Timestamptz
+	ToTime   pgtype.Timestamptz
+}
+
+type CashJournalFactsRow struct {
+	CashIn         pgtype.Numeric
+	CashInEntries  int64
+	Receipts       int64
+	Deposits       int64
+	CashOut        pgtype.Numeric
+	CashOutEntries int64
+	Refunds        int64
+	Corrections    int64
+	Withdrawals    int64
+	Counts         int64
+}
+
+// What happened in the register within [from_time, to_time); both ends are optional.
+func (q *Queries) CashJournalFacts(ctx context.Context, arg CashJournalFactsParams) (CashJournalFactsRow, error) {
+	row := q.db.QueryRow(ctx, cashJournalFacts, arg.FromTime, arg.ToTime)
+	var i CashJournalFactsRow
+	err := row.Scan(
+		&i.CashIn,
+		&i.CashInEntries,
+		&i.Receipts,
+		&i.Deposits,
+		&i.CashOut,
+		&i.CashOutEntries,
+		&i.Refunds,
+		&i.Corrections,
+		&i.Withdrawals,
+		&i.Counts,
+	)
+	return i, err
+}
+
 const cashMovementFigures = `-- name: CashMovementFigures :one
 SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits,
 COALESCE(sum(amount) FILTER (WHERE kind='correction'),0)::numeric AS corrections
@@ -1345,6 +1440,150 @@ func (q *Queries) ListCashCountIDs(ctx context.Context, arg ListCashCountIDsPara
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCashJournal = `-- name: ListCashJournal :many
+WITH ledger AS (
+    SELECT e.id, e.source, e.kind, e.occurred_at, e.effect::numeric AS effect, e.reference,
+        row_number() OVER w AS seq, (sum(e.effect) OVER w)::numeric AS balance
+    FROM cash_register_entries e
+    WHERE $6::timestamptz IS NULL OR e.occurred_at < $6::timestamptz
+    WINDOW w AS (ORDER BY e.occurred_at, e.sort_rank, e.id ROWS UNBOUNDED PRECEDING)
+), detailed AS (
+    SELECT l.id, l.source, l.kind, l.occurred_at, l.effect, l.reference, l.seq, l.balance,
+        al.order_id, COALESCE(al.order_reference, '')::text AS order_reference,
+        COALESCE(cs.display_name, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), ''), og.name, '')::text AS customer_name,
+        COALESCE(p.reason, '')::text AS payment_reason,
+        COALESCE(p.reversed_payment_reference, '')::text AS reversed_payment_reference,
+        COALESCE(m.reason, '')::text AS movement_reason,
+        (CASE WHEN m.id IS NOT NULL AND m.kind <> 'correction' THEN m.note ELSE COALESCE(c.note, '') END)::text AS note,
+        c.id AS count_id, COALESCE(c.reference, '')::text AS count_reference,
+        c.counted_amount, c.expected_amount, c.difference, c.reason AS count_reason,
+        rb.id AS recorded_by_id, COALESCE(btrim(rb.first_name || ' ' || rb.last_name), '')::text AS recorded_by_name
+    FROM ledger l
+    LEFT JOIN payments p ON l.source = 'payment' AND p.id = l.id
+    LEFT JOIN LATERAL (
+        SELECT a.order_id, a.order_reference FROM payment_allocations a
+        WHERE a.payment_id = COALESCE(p.reverses_payment_id, p.id) ORDER BY a.created_at, a.id LIMIT 1
+    ) al ON true
+    LEFT JOIN orders o ON o.id = al.order_id
+    LEFT JOIN order_customer_snapshots cs ON cs.order_id = o.id
+    LEFT JOIN people cp ON cp.id = o.customer_person_id
+    LEFT JOIN organizations og ON og.id = o.customer_organization_id
+    LEFT JOIN accounts pa ON pa.id = p.actor_account_id
+    LEFT JOIN cash_movements m ON l.source = 'movement' AND m.id = l.id
+    LEFT JOIN cash_counts c ON c.id = CASE WHEN l.source = 'count' THEN l.id ELSE m.cash_count_id END
+    LEFT JOIN people rb ON rb.id = COALESCE(pa.person_id, m.recorded_by_person_id, c.recorded_by_person_id)
+    WHERE ($7::timestamptz IS NULL OR l.occurred_at >= $7::timestamptz)
+      AND (cardinality($8::text[]) = 0 OR l.kind = ANY($8::text[]))
+)
+SELECT d.id, d.source, d.kind, d.occurred_at, d.effect, d.reference, d.balance, d.order_id, d.order_reference,
+    d.customer_name, d.payment_reason, d.reversed_payment_reference, d.movement_reason, d.note, d.count_id,
+    d.count_reference, d.counted_amount, d.expected_amount, d.difference, d.count_reason, d.recorded_by_id,
+    d.recorded_by_name, count(*) OVER () AS total
+FROM detailed d
+WHERE $1::text = ''
+    OR d.reference ILIKE '%' || $1::text || '%'
+    OR d.order_reference ILIKE '%' || $1::text || '%'
+    OR ($2::bool AND d.customer_name ILIKE '%' || $1::text || '%')
+    OR d.payment_reason ILIKE '%' || $1::text || '%'
+    OR d.note ILIKE '%' || $1::text || '%'
+    OR d.count_reference ILIKE '%' || $1::text || '%'
+ORDER BY CASE WHEN $3::bool THEN -d.seq ELSE d.seq END
+LIMIT $5 OFFSET $4
+`
+
+type ListCashJournalParams struct {
+	Search       string
+	WithCustomer bool
+	NewestFirst  bool
+	PageOffset   int32
+	PageLimit    int32
+	ToTime       pgtype.Timestamptz
+	FromTime     pgtype.Timestamptz
+	Kinds        []string
+}
+
+type ListCashJournalRow struct {
+	ID                       uuid.UUID
+	Source                   string
+	Kind                     string
+	OccurredAt               time.Time
+	Effect                   pgtype.Numeric
+	Reference                string
+	Balance                  pgtype.Numeric
+	OrderID                  *uuid.UUID
+	OrderReference           string
+	CustomerName             string
+	PaymentReason            string
+	ReversedPaymentReference string
+	MovementReason           string
+	Note                     string
+	CountID                  *uuid.UUID
+	CountReference           string
+	CountedAmount            pgtype.Numeric
+	ExpectedAmount           pgtype.Numeric
+	Difference               pgtype.Numeric
+	CountReason              *string
+	RecordedByID             *uuid.UUID
+	RecordedByName           string
+	Total                    int64
+}
+
+// The register's entries with the running balance after each. The balance counts every entry from the beginning,
+// whatever the filters; seq is the position in time (ties: count before its correction, then id). Customer names
+// are searched only for callers who may see them. A reversal belongs to the order of the receipt it reverses.
+func (q *Queries) ListCashJournal(ctx context.Context, arg ListCashJournalParams) ([]ListCashJournalRow, error) {
+	rows, err := q.db.Query(ctx, listCashJournal,
+		arg.Search,
+		arg.WithCustomer,
+		arg.NewestFirst,
+		arg.PageOffset,
+		arg.PageLimit,
+		arg.ToTime,
+		arg.FromTime,
+		arg.Kinds,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCashJournalRow{}
+	for rows.Next() {
+		var i ListCashJournalRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Source,
+			&i.Kind,
+			&i.OccurredAt,
+			&i.Effect,
+			&i.Reference,
+			&i.Balance,
+			&i.OrderID,
+			&i.OrderReference,
+			&i.CustomerName,
+			&i.PaymentReason,
+			&i.ReversedPaymentReference,
+			&i.MovementReason,
+			&i.Note,
+			&i.CountID,
+			&i.CountReference,
+			&i.CountedAmount,
+			&i.ExpectedAmount,
+			&i.Difference,
+			&i.CountReason,
+			&i.RecordedByID,
+			&i.RecordedByName,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

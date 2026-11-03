@@ -19,6 +19,10 @@ type Querier interface {
 	AllocatedOrderID(ctx context.Context, paymentID *uuid.UUID) (*uuid.UUID, error)
 	BumpOrder(ctx context.Context, id uuid.UUID) error
 	CaptureCustomer(ctx context.Context, arg CaptureCustomerParams) error
+	// Cash in and out per day in the makerspace time zone, for days within [from_time, to_time).
+	CashJournalDayTotals(ctx context.Context, arg CashJournalDayTotalsParams) ([]CashJournalDayTotalsRow, error)
+	// What happened in the register within [from_time, to_time); both ends are optional.
+	CashJournalFacts(ctx context.Context, arg CashJournalFactsParams) (CashJournalFactsRow, error)
 	// Corrections are signed: what they added to the register.
 	CashMovementFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashMovementFiguresRow, error)
 	CashPaymentFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashPaymentFiguresRow, error)
@@ -65,6 +69,10 @@ type Querier interface {
 	ListAdjustments(ctx context.Context, orderID *uuid.UUID) ([]OrderAdjustment, error)
 	ListAllocations(ctx context.Context, orderID *uuid.UUID) ([]PaymentAllocation, error)
 	ListCashCountIDs(ctx context.Context, arg ListCashCountIDsParams) ([]uuid.UUID, error)
+	// The register's entries with the running balance after each. The balance counts every entry from the beginning,
+	// whatever the filters; seq is the position in time (ties: count before its correction, then id). Customer names
+	// are searched only for callers who may see them. A reversal belongs to the order of the receipt it reverses.
+	ListCashJournal(ctx context.Context, arg ListCashJournalParams) ([]ListCashJournalRow, error)
 	ListCashMovements(ctx context.Context, arg ListCashMovementsParams) ([]CashMovement, error)
 	ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItemsRow, error)
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error)

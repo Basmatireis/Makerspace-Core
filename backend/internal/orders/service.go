@@ -32,10 +32,20 @@ type Service struct {
 	delivery InvoiceDelivery
 	// delivering holds the requests whose wiRef mail is being sent, so two sends never overlap.
 	delivering sync.Map
+	// location is the makerspace time zone: the cash journal and the cashbook work in its whole days.
+	location *time.Location
 }
 
 func NewService(pool *pgxpool.Pool, jobs *machinelogbook.Service) *Service {
-	return &Service{pool: pool, jobs: jobs}
+	return &Service{pool: pool, jobs: jobs, location: time.UTC}
+}
+
+// WithLocation sets the makerspace time zone for day-based cash reports. Without it they use UTC days.
+func (s *Service) WithLocation(location *time.Location) *Service {
+	if location != nil {
+		s.location = location
+	}
+	return s
 }
 func require(p authorization.Principal, perms ...authorization.Permission) error {
 	for _, v := range perms {

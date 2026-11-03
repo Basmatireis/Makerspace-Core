@@ -127,4 +127,31 @@ func TestCashCountsOverHTTP(t *testing.T) {
 	if register.Expected != "1.20" || register.Corrections != "-1.20" || err != nil || last.Id != count.Id {
 		t.Fatalf("register = %+v", register)
 	}
+
+	journalURL := h.server.URL + "/api/v1/payments/cash-journal"
+	response = doJSON(t, anonymous, http.MethodGet, journalURL, "", "", nil)
+	assertStatus(t, response, http.StatusUnauthorized)
+	response.Body.Close()
+	today := time.Now().In(mustVienna(t)).Format("2006-01-02")
+	response = doJSON(t, h.client, http.MethodGet,
+		journalURL+"?from="+today+"&to="+today+"&kind=count&kind=correction&direction=desc", "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	var journal openapi.CashJournal
+	decodeResponse(t, response, &journal)
+	if journal.Total != 3 || len(journal.Items) != 3 || journal.Items[0].Kind != openapi.CashJournalKindCorrection ||
+		journal.Items[0].BalanceAfter != "1.20" || journal.Facts.Counts != 2 || journal.Register.Expected != "1.20" {
+		t.Fatalf("journal = %+v", journal)
+	}
+	response = doJSON(t, h.client, http.MethodGet, journalURL+"?from=2026-11-02&to=2026-11-01", "", "", nil)
+	assertStatus(t, response, http.StatusUnprocessableEntity)
+	response.Body.Close()
+}
+
+func mustVienna(t *testing.T) *time.Location {
+	t.Helper()
+	location, err := time.LoadLocation("Europe/Vienna")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return location
 }

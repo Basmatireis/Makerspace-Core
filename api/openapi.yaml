@@ -9346,6 +9346,35 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+  /payments/cash-journal:
+    get:
+      tags: [Payments]
+      operationId: getCashJournal
+      summary: The cash register journal
+      description: >-
+        Requires payments.read and cash_movements.read. Every cash entry of the register (cash receipts, refunds and
+        corrections of cash payments, withdrawals, deposits, count corrections and the counts) with the running
+        balance after it, paged. `from` and `to` are whole days in the makerspace time zone, both inclusive; without
+        them the journal covers everything recorded. The balance always counts from the very first entry, whatever
+        the filters. `kind` and `search` filter the items only: `days`, `openingBalance`, `register` and `facts`
+        describe the whole range. `days` holds the opening and closing balance of every day that appears on this
+        page. `register` is the expected cash at the end of the range with its derivation and the last count before
+        that end. The customer name of an order is returned, and searched, only with orders.read.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: from, in: query, description: "First day, inclusive (makerspace time zone).", schema: {type: string, format: date}}
+        - {name: to, in: query, description: "Last day, inclusive (makerspace time zone).", schema: {type: string, format: date}}
+        - {name: kind, in: query, style: form, explode: true, schema: {type: array, maxItems: 6, items: {$ref: "#/components/schemas/CashJournalKind"}}}
+        - {name: search, in: query, description: "Matches references, order references, reasons, notes and, with orders.read, customer names.", schema: {type: string, maxLength: 200}}
+        - {name: direction, in: query, description: "`asc` is oldest first (chronological), `desc` newest first.", schema: {type: string, enum: [asc, desc], default: asc}}
+        - {name: page, in: query, schema: {type: integer, minimum: 1, maximum: 2147483647}}
+        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100}}
+      responses:
+        "200": {description: The journal page., content: {application/json: {schema: {$ref: "#/components/schemas/CashJournal"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /payments/cash-counts:
     get:
       tags: [Payments]
@@ -19467,6 +19496,97 @@ components:
         recordedBy: {allOf: [{$ref: "#/components/schemas/ActorReference"}], nullable: true}
         cashCountId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The count that booked this correction."}
         cashCountReference: {type: string, nullable: true, description: "K-YYYY-NNNN of that count."}
+    CashJournalKind:
+      type: string
+      enum: [receipt, refund, correction, withdrawal, deposit, count]
+      description: "`correction` covers corrections of cash payments and corrections booked by counts."
+    CashJournalEntrySource:
+      type: string
+      enum: [payment, movement, count]
+      description: "Which record the entry is: a cash payment, a cash movement or a count."
+    CashJournalOrder:
+      type: object
+      additionalProperties: false
+      required: [id, reference, customerName]
+      properties:
+        id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Null when the order was deleted."}
+        reference: {type: string, description: "O-YYYY-NNNNNN"}
+        customerName: {type: string, nullable: true, description: "Null without orders.read, and for anonymous orders."}
+    CashJournalCount:
+      type: object
+      additionalProperties: false
+      required: [id, reference, countedAmount, expectedAmount, difference, reason]
+      description: "The count of a count entry, or the count that booked a correction."
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        reference: {type: string, description: "K-YYYY-NNNN"}
+        countedAmount: {$ref: "#/components/schemas/Money"}
+        expectedAmount: {$ref: "#/components/schemas/Decimal"}
+        difference: {$ref: "#/components/schemas/Decimal"}
+        reason: {allOf: [{$ref: "#/components/schemas/CashCountReason"}], nullable: true}
+    CashJournalEntry:
+      type: object
+      additionalProperties: false
+      required: [id, source, kind, reference, occurredAt, day, amountIn, amountOut, balanceAfter, recordedBy, order, paymentReason, reversedPaymentReference, movementReason, note, count]
+      properties:
+        id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: "Id of the payment, movement or count."}
+        source: {$ref: "#/components/schemas/CashJournalEntrySource"}
+        kind: {$ref: "#/components/schemas/CashJournalKind"}
+        reference: {type: string, description: "P-…, C-… or K-…"}
+        occurredAt: {type: string, format: date-time}
+        day: {type: string, format: date, description: "The day in the makerspace time zone, to group by."}
+        amountIn: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: "Cash that entered the register; null for other entries."}
+        amountOut: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: "Cash that left the register; null for other entries."}
+        balanceAfter: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "What the register should hold after this entry. A count changes nothing; its correction follows it."}
+        recordedBy: {allOf: [{$ref: "#/components/schemas/ActorReference"}], nullable: true}
+        order: {allOf: [{$ref: "#/components/schemas/CashJournalOrder"}], nullable: true, description: "The order a cash payment belongs to."}
+        paymentReason: {type: string, description: "Reason of a refund or correction of a payment; empty otherwise."}
+        reversedPaymentReference: {type: string, nullable: true, description: "The receipt a refund or correction reverses."}
+        movementReason: {allOf: [{$ref: "#/components/schemas/CashMovementReason"}], nullable: true}
+        note: {type: string, description: "Note of a movement, or of the count for counts and count corrections."}
+        count: {allOf: [{$ref: "#/components/schemas/CashJournalCount"}], nullable: true}
+    CashJournalDay:
+      type: object
+      additionalProperties: false
+      required: [date, openingBalance, closingBalance, cashIn, cashOut]
+      properties:
+        date: {type: string, format: date}
+        openingBalance: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Expected cash at the start of the day."}
+        closingBalance: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Expected cash at the end of the day."}
+        cashIn: {$ref: "#/components/schemas/Money"}
+        cashOut: {$ref: "#/components/schemas/Money"}
+    CashJournalFacts:
+      type: object
+      additionalProperties: false
+      required: [cashIn, cashInEntries, receipts, deposits, cashOut, cashOutEntries, refunds, corrections, withdrawals, net, counts]
+      description: "What happened in the range. Entries count the receipts, deposits and surplus corrections (in) or refunds, payment corrections, shortfall corrections and withdrawals (out)."
+      properties:
+        cashIn: {$ref: "#/components/schemas/Money"}
+        cashInEntries: {type: integer, format: int64}
+        receipts: {type: integer, format: int64}
+        deposits: {type: integer, format: int64}
+        cashOut: {$ref: "#/components/schemas/Money"}
+        cashOutEntries: {type: integer, format: int64}
+        refunds: {type: integer, format: int64}
+        corrections: {type: integer, format: int64}
+        withdrawals: {type: integer, format: int64}
+        net: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "cashIn - cashOut"}
+        counts: {type: integer, format: int64}
+    CashJournal:
+      type: object
+      additionalProperties: false
+      required: [from, to, items, page, pageSize, total, days, openingBalance, register, facts]
+      properties:
+        from: {type: string, format: date, nullable: true}
+        to: {type: string, format: date, nullable: true}
+        items: {type: array, items: {$ref: "#/components/schemas/CashJournalEntry"}}
+        page: {type: integer}
+        pageSize: {type: integer}
+        total: {type: integer, format: int64, description: "Entries matching kind and search in the range."}
+        days: {type: array, items: {$ref: "#/components/schemas/CashJournalDay"}, description: "The days of the items on this page, in the order of the items."}
+        openingBalance: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Expected cash at the start of the range."}
+        register: {allOf: [{$ref: "#/components/schemas/CashRegister"}], description: "Expected cash at the end of the range, its derivation and the last count before that end."}
+        facts: {$ref: "#/components/schemas/CashJournalFacts"}
     CashCountReason:
       type: string
       enum: [counting_error, change_given_wrong, receipt_not_recorded, unknown, other]

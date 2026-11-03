@@ -161,6 +161,16 @@ type CashMovement struct {
 	CashCountID        *uuid.UUID
 }
 
+type CashRegisterEntry struct {
+	ID         uuid.UUID
+	Source     string
+	Kind       string
+	OccurredAt time.Time
+	SortRank   int32
+	Effect     pgtype.Numeric
+	Reference  string
+}
+
 type CompetencyCategory struct {
 	ID          uuid.UUID
 	Name        string

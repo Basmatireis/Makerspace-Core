@@ -21,11 +21,13 @@
 import type {
   CashCount,
   CashCountPage,
+  CashJournal,
   CashMovement,
   CashMovementPage,
   CashRegister,
   CreateCashCountRequest,
   CreateCashMovementRequest,
+  GetCashJournalParams,
   GetCashRegisterParams,
   GetPaymentReconciliationParams,
   ListCashCountsParams,
@@ -258,6 +260,45 @@ export const getGetCashRegisterUrl = (params?: GetCashRegisterParams,) => {
 export const getCashRegister = async (params?: GetCashRegisterParams, options?: Parameters<typeof apiFetch>[1]): Promise<CashRegister> => {
 
   return apiFetch<CashRegister>(getGetCashRegisterUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getGetCashJournalUrl = (params?: GetCashJournalParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["kind"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : String(v));
+      });
+      return;
+    }
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/payments/cash-journal?${stringifiedParams}` : `/api/v1/payments/cash-journal`
+}
+
+/**
+ * Requires payments.read and cash_movements.read. Every cash entry of the register (cash receipts, refunds and corrections of cash payments, withdrawals, deposits, count corrections and the counts) with the running balance after it, paged. `from` and `to` are whole days in the makerspace time zone, both inclusive; without them the journal covers everything recorded. The balance always counts from the very first entry, whatever the filters. `kind` and `search` filter the items only: `days`, `openingBalance`, `register` and `facts` describe the whole range. `days` holds the opening and closing balance of every day that appears on this page. `register` is the expected cash at the end of the range with its derivation and the last count before that end. The customer name of an order is returned, and searched, only with orders.read.
+ * @summary The cash register journal
+ */
+export const getCashJournal = async (params?: GetCashJournalParams, options?: Parameters<typeof apiFetch>[1]): Promise<CashJournal> => {
+
+  return apiFetch<CashJournal>(getGetCashJournalUrl(params),
   {
     ...options,
     method: 'GET'
