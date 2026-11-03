@@ -268,20 +268,15 @@ describe('pricing page', () => {
     );
   });
 
-  it('prices articles sold from stock per group, with the type rate as fallback', async () => {
+  it('prices articles of types without machine use per group; machine-use articles follow the type rate', async () => {
     configure([
       PermissionId.pricingread,
       PermissionId.pricingmanage,
       PermissionId.machinesread,
       PermissionId.inventoryread,
     ]);
-    let create: Record<string, unknown> | undefined;
     let update: Record<string, unknown> | undefined;
     server.use(
-      http.post('*/api/v1/pricing-groups/group-1/rules', async ({ request }) => {
-        create = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(group.rules[2], { status: 201 });
-      }),
       http.patch('*/api/v1/pricing-rules/rule-3', async ({ request }) => {
         update = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({ ...group.rules[2], ...update });
@@ -293,22 +288,8 @@ describe('pricing page', () => {
     expect(await within(table).findByText('Articles sold from stock · per unit')).toBeInTheDocument();
     const insert = within(table).getByText('A-0001 · Brass insert').closest('tr')!;
     expect(insert).toHaveTextContent('0,12');
-    const pla = within(table).getByText('A-0002 · PLA Black').closest('tr')!;
-    expect(pla).toHaveTextContent('type rate');
-
-    await user.click(within(pla).getByRole('button', { name: /for A-0002 · PLA Black in Partners/ }));
-    await user.type(await screen.findByLabelText(/^Rate for A-0002 · PLA Black in Partners/), '0,04');
-    await user.click(screen.getByRole('button', { name: 'Save rate' }));
-    await waitFor(() =>
-      expect(create).toEqual({
-        kind: 'stock_article',
-        processId: null,
-        materialTypeId: null,
-        materialId: 'art-pla',
-        measure: null,
-        rate: '0.04',
-      }),
-    );
+    // PLA is used on machines: its articles sell at the PLA type rate and get no row of their own.
+    expect(within(table).queryByText('A-0002 · PLA Black')).not.toBeInTheDocument();
 
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Set rate' })).not.toBeInTheDocument());
     await user.click(within(insert).getByRole('button', { name: /for A-0001 · Brass insert in Partners/ }));

@@ -76,8 +76,9 @@ export function rateSelectors(
       kind: 'material',
       materialTypeId: type.id,
     }));
+  // Articles of machine-use types sell at the type rate; only articles of other types carry prices of their own.
   const stock = articles
-    .filter((article) => article.active)
+    .filter((article) => article.active && !article.machineUse)
     .sort((a, b) => a.displayId.localeCompare(b.displayId, 'en', { numeric: true }))
     .map((article): RateSelector => ({
       key: `article-${article.id}`,

@@ -192,8 +192,8 @@ export function RatesTable({
       </Table>
       {selectors.some((selector) => selector.section === 'article') && (
         <p className="sales-secondary sales-table-note">
-          Articles whose material type is used on machines are priced by the type rate until they get a price of their
-          own; articles without any price cannot be sold to that group.
+          Articles of material types used on machines sell at the type rate above; only other articles have prices of
+          their own, and an article without a price cannot be sold to that group.
         </p>
       )}
       {editing && <SetRateModal group={editing.group} selector={editing.selector} onClose={() => setEditing(null)} />}
