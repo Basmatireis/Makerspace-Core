@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button, IconButton, Tag } from '@carbon/react';
+import { Button, DefinitionTooltip, IconButton, Tag } from '@carbon/react';
 import { Add, ArrowRight, Checkmark, Close, Receipt, Subtract, WarningAlt } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
 import type { CashCount, CashJournal, CashJournalEntry } from '../../api/generated/models';
@@ -100,8 +100,13 @@ export function RegisterPanel({
         {registerDerivation(register).map((line) => (
           <div key={line.label} className={line.total ? 'sales-sum__total' : undefined}>
             <dt>
-              {line.label}
-              {line.helper && <span className="sales-sum__helper">{line.helper}</span>}
+              {line.helper ? (
+                <DefinitionTooltip definition={line.helper} align="bottom-left" openOnHover>
+                  {line.label}
+                </DefinitionTooltip>
+              ) : (
+                line.label
+              )}
             </dt>
             <dd>{formatCents(line.cents)}</dd>
           </div>

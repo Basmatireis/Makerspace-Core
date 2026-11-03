@@ -202,11 +202,6 @@
   border-block-start: 1px solid theme.$border-strong-01;
   font-weight: 600;
 }
-.sales-sum__helper {
-  @include type-style('helper-text-01');
-  display: block;
-  color: theme.$text-secondary;
-}
 
 // Payments: filter tags, the register panel and the count dialog --------------------------------------------------------
 // The applied filters as removable tags at the start of the table toolbar.
