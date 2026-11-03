@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-
 func (f *fixture) movementAt(t *testing.T, kind CashMovementKind, amount string, at time.Time) CashMovement {
 	t.Helper()
 	m, e := f.cashMove(f.p, kind, amount, CashReasonSafe, "", at)
