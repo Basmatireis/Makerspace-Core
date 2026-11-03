@@ -171,8 +171,10 @@ test('sells billable jobs and manual items, takes cash and card, runs the wiRef 
   await createDialog.getByRole('button', { name: 'Create draft' }).click();
   await expect(page).toHaveURL(/\/orders\/[0-9a-f-]+$/);
   const cardOrderId = page.url().split('/').at(-1)!;
-  await page.getByRole('button', { name: 'Add items' }).click();
-  await page.getByRole('menuitem', { name: 'Custom item…' }).click();
+  await page.getByRole('button', { name: 'Add item' }).click();
+  const choice = dialogTitled(page, 'Add to order');
+  await choice.getByText('A custom line').click();
+  await choice.getByRole('button', { name: 'Continue' }).click();
   const item = dialogTitled(page, 'Add custom item');
   await item.getByLabel('Description').fill('Special material service');
   await item.getByLabel('Unit price (€)').fill('12,50');
@@ -193,8 +195,9 @@ test('sells billable jobs and manual items, takes cash and card, runs the wiRef 
   // The orders list keeps both under Paid.
   await page.goto('/orders');
   await page.getByRole('tab', { name: /^Paid \(\d+\)$/ }).click();
-  await expect(page.getByRole('link', { name: cashPaid.reference, exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: cardPaid.reference, exact: true })).toBeVisible();
+  // Wide screens select the order into a panel; the reference is a button there, a link on narrow screens.
+  await expect(page.getByRole('button', { name: cashPaid.reference, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: cardPaid.reference, exact: true })).toBeVisible();
   await accessibility(page);
   await resize(page, 390, 844);
   await accessibility(page);

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Button, InlineNotification, Modal, Stack } from '@carbon/react';
+import { Button, InlineNotification, Link as CarbonLink, Modal, Stack } from '@carbon/react';
 import { Restart, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import {
   purgeMachineJob,
   purgeMachineRun,
@@ -16,7 +17,7 @@ import { saveError } from './dialogs/jobFormHelpers';
 import { machineLogbookKeys, recycleBinQuery } from './queries';
 import { DirectoryTable, type Column } from './shared/DirectoryTable';
 import { formatDateTime } from './shared/format';
-import { machineLogbookPaths } from './shared/paths';
+import { inventorySectionPath, machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
 import { useNotify } from './shared/toasts';
 import './styles/jobs.scss';
@@ -217,6 +218,13 @@ export function RecycleBinPage() {
         { label: 'Recycle bin' },
       ]}
     >
+      <p className="mj-secondary">
+        Deleted articles, retired spools and deleted ledger entries are in the{' '}
+        <CarbonLink as={Link} to={inventorySectionPath('bin')} inline>
+          inventory recycle bin
+        </CarbonLink>
+        .
+      </p>
       <QueryBoundary query={bin} errorMessage="The recycle bin could not be loaded.">
         {({ jobs, runs }) =>
           jobs.length === 0 && runs.length === 0 ? (
