@@ -197,11 +197,44 @@ SELECT count(*) FROM cash_counts WHERE (sqlc.narg(from_time)::timestamptz IS NUL
 -- name: GetCashCountDetails :one
 -- A count with its correction movement and the name of the person who counted.
 SELECT c.id,c.reference,c.counted_amount,c.expected_amount,c.difference,c.reason,c.note,c.counted_at,c.created_at,c.recorded_by_person_id,
+ c.version,c.updated_at,
  COALESCE(btrim(pe.first_name||' '||pe.last_name),'')::text AS recorded_by_name,m.id AS correction_id,m.reference AS correction_reference
 FROM cash_counts c LEFT JOIN people pe ON pe.id=c.recorded_by_person_id LEFT JOIN cash_movements m ON m.cash_count_id=c.id
 WHERE c.id=$1;
 -- name: LatestCashCountID :one
 SELECT id FROM cash_counts WHERE (sqlc.narg(to_time)::timestamptz IS NULL OR counted_at<sqlc.narg(to_time)) ORDER BY counted_at DESC,id DESC LIMIT 1;
+-- name: GetCashMovementForUpdate :one
+SELECT * FROM cash_movements WHERE id=$1 FOR UPDATE;
+-- name: GetCashCountCorrection :one
+SELECT * FROM cash_movements WHERE cash_count_id=$1;
+-- name: UpdateCashMovement :one
+UPDATE cash_movements SET amount=sqlc.arg(amount),reason=sqlc.arg(reason),note=sqlc.arg(note),occurred_at=sqlc.arg(occurred_at),
+ version=version+1,updated_at=now()
+WHERE id=sqlc.arg(id) RETURNING *;
+-- name: DeleteCashMovement :exec
+DELETE FROM cash_movements WHERE id=$1;
+-- name: GetCashCountForUpdate :one
+SELECT * FROM cash_counts WHERE id=$1 FOR UPDATE;
+-- name: UpdateCashCount :one
+UPDATE cash_counts SET counted_amount=sqlc.arg(counted_amount),expected_amount=sqlc.arg(expected_amount),
+ difference=sqlc.arg(difference),reason=sqlc.narg(reason),note=sqlc.arg(note),counted_at=sqlc.arg(counted_at),
+ version=version+1,updated_at=now()
+WHERE id=sqlc.arg(id) RETURNING *;
+-- name: DeleteCashCount :exec
+DELETE FROM cash_counts WHERE id=$1;
+-- name: PreviousCashCountTime :one
+SELECT counted_at FROM cash_counts WHERE counted_at<$1 ORDER BY counted_at DESC LIMIT 1;
+-- name: NextCashCountTime :one
+SELECT counted_at FROM cash_counts WHERE counted_at>$1 ORDER BY counted_at LIMIT 1;
+-- name: ListCashCountsFrom :many
+-- Counts at or after from_time, oldest first, for recalculating them after an edit.
+SELECT * FROM cash_counts WHERE counted_at>=sqlc.arg(from_time) ORDER BY counted_at,id;
+-- name: LowestCashBalanceFrom :one
+-- The lowest running balance after any register entry at or after from_time, in journal order; null without one.
+SELECT min(l.balance)::numeric AS lowest FROM (
+    SELECT e.occurred_at, sum(e.effect) OVER (ORDER BY e.occurred_at, e.sort_rank, e.id ROWS UNBOUNDED PRECEDING) AS balance
+    FROM cash_register_entries e
+) l WHERE l.occurred_at>=sqlc.arg(from_time)::timestamptz;
 -- name: ListOwnPayableOrderIDs :many
 -- The person's finalized orders with an outstanding amount that no active external invoice request covers.
 SELECT o.id FROM orders o
@@ -258,7 +291,9 @@ WITH ledger AS (
         (CASE WHEN m.id IS NOT NULL AND m.kind <> 'correction' THEN m.note ELSE COALESCE(c.note, '') END)::text AS note,
         c.id AS count_id, COALESCE(c.reference, '')::text AS count_reference,
         c.counted_amount, c.expected_amount, c.difference, c.reason AS count_reason,
-        rb.id AS recorded_by_id, COALESCE(btrim(rb.first_name || ' ' || rb.last_name), '')::text AS recorded_by_name
+        rb.id AS recorded_by_id, COALESCE(btrim(rb.first_name || ' ' || rb.last_name), '')::text AS recorded_by_name,
+        m.version AS movement_version, m.updated_at AS movement_updated_at,
+        c.version AS count_version, c.updated_at AS count_updated_at
     FROM ledger l
     LEFT JOIN payments p ON l.source = 'payment' AND p.id = l.id
     LEFT JOIN LATERAL (
@@ -279,7 +314,8 @@ WITH ledger AS (
 SELECT d.id, d.source, d.kind, d.occurred_at, d.effect, d.reference, d.balance, d.order_id, d.order_reference,
     d.customer_name, d.payment_reason, d.reversed_payment_reference, d.movement_reason, d.note, d.count_id,
     d.count_reference, d.counted_amount, d.expected_amount, d.difference, d.count_reason, d.recorded_by_id,
-    d.recorded_by_name, count(*) OVER () AS total
+    d.recorded_by_name, d.movement_version, d.movement_updated_at, d.count_version, d.count_updated_at,
+    count(*) OVER () AS total
 FROM detailed d
 WHERE sqlc.arg(search)::text = ''
     OR d.reference ILIKE '%' || sqlc.arg(search)::text || '%'

@@ -27,6 +27,7 @@ const (
 	ExternalInvoiceRequestsApprove Permission = Permission(openapi.ExternalInvoiceRequestsApprove)
 	CashMovementsRead              Permission = Permission(openapi.CashMovementsRead)
 	CashMovementsRecord            Permission = Permission(openapi.CashMovementsRecord)
+	CashMovementsManage            Permission = Permission(openapi.CashMovementsManage)
 
 	PeopleReadSelf                     Permission = Permission(openapi.PeopleReadSelf)
 	PeopleReadAll                      Permission = Permission(openapi.PeopleReadAll)
@@ -159,6 +160,7 @@ var registry = []Permission{
 	ExternalInvoiceRequestsApprove,
 	CashMovementsRead,
 	CashMovementsRecord,
+	CashMovementsManage,
 	PeopleReadSelf, PeopleReadAll, PeopleCreate, PeopleUpdateSelf, PeopleUpdateAll,
 	PeopleDelete, PeopleMerge, PeopleReadMatriculation, PeopleUpdateMatriculation,
 	PeopleProfileImageUpdateSelf,
@@ -214,6 +216,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	ExternalInvoiceRequestsApprove: "Approve external invoice requests: edit, return for correction, forward to wiRef, or cancel while they await approval.",
 	CashMovementsRead:              "Read cash withdrawals and deposits.",
 	CashMovementsRecord:            "Record cash withdrawals and deposits.",
+	CashMovementsManage:            "Edit and delete cash movements and counts.",
 
 	PeopleReadSelf:                     "Read the person record linked to the current account.",
 	PeopleReadAll:                      "Read every person record.",

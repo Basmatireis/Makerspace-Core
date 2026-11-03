@@ -140,3 +140,91 @@ func (s *Server) RecordCashCount(
 	}
 	return openapi.RecordCashCount201JSONResponse(dto), nil
 }
+
+func (s *Server) UpdateCashCount(
+	ctx context.Context,
+	r openapi.UpdateCashCountRequestObject,
+) (openapi.UpdateCashCountResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	change, err := mapFinancialJSON[orders.CashCountChange](r.Body)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.orders.UpdateCashCount(ctx, p, r.CountId, change, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := mapFinancialJSON[openapi.CashCount](result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.UpdateCashCount200JSONResponse(dto), nil
+}
+
+func (s *Server) DeleteCashCount(
+	ctx context.Context,
+	r openapi.DeleteCashCountRequestObject,
+) (openapi.DeleteCashCountResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	deletion := orders.CashEntryDeletion{ExpectedVersion: r.Body.ExpectedVersion}
+	if err = s.orders.DeleteCashCount(ctx, p, r.CountId, deletion, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteCashCount204Response{}, nil
+}
+
+func (s *Server) UpdateCashMovement(
+	ctx context.Context,
+	r openapi.UpdateCashMovementRequestObject,
+) (openapi.UpdateCashMovementResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	change, err := mapFinancialJSON[orders.CashMovementChange](r.Body)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.orders.UpdateCashMovement(ctx, p, r.MovementId, change, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := mapFinancialJSON[openapi.CashMovement](result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.UpdateCashMovement200JSONResponse(dto), nil
+}
+
+func (s *Server) DeleteCashMovement(
+	ctx context.Context,
+	r openapi.DeleteCashMovementRequestObject,
+) (openapi.DeleteCashMovementResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	deletion := orders.CashEntryDeletion{ExpectedVersion: r.Body.ExpectedVersion}
+	if err = s.orders.DeleteCashMovement(ctx, p, r.MovementId, deletion, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteCashMovement204Response{}, nil
+}

@@ -678,10 +678,10 @@ func TestCashMovementRules(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("movements %d", n)
 	}
-	// Immutable: no edit, not even by SQL.
+	// A movement keeps its identity, even against SQL; edits go through the service (cash_movements.manage).
 	for _, sql := range []string{
-		"UPDATE cash_movements SET amount=1",
-		"UPDATE cash_movements SET note='x'",
+		"UPDATE cash_movements SET reference='C-2000-000001'",
+		"UPDATE cash_movements SET operation_key=id",
 		"UPDATE cash_movements SET recorded_by_person_id='" + ids.New().String() + "'",
 	} {
 		if _, e = f.pool.Exec(ctx, sql); e == nil {

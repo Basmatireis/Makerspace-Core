@@ -17,7 +17,7 @@ import (
 )
 
 // The register counts cash only. Card payments and external (wiRef) payments never go through it, whatever
-// their reversals: figures are derived from method='cash' payments plus the immutable cash movements.
+// their reversals: figures are derived from method='cash' payments plus the cash movements.
 
 // cashFigures are sums up to a point in time. corrections is signed: what count corrections added to the register;
 // countSurpluses and countShortfalls are its two directions, each as a positive amount.
@@ -102,6 +102,8 @@ func (s *Service) cashMovement(ctx context.Context, q *db.Queries, row db.CashMo
 		OccurredAt:  row.OccurredAt,
 		CreatedAt:   row.CreatedAt,
 		CashCountID: row.CashCountID,
+		Version:     row.Version,
+		UpdatedAt:   row.UpdatedAt,
 	}
 	if v.Kind == CashWithdrawal || amount.IsNegative() {
 		v.Direction = CashOut
@@ -175,8 +177,8 @@ func (s *Service) ListCashMovements(
 	return result, nil
 }
 
-// CreateCashMovement records a withdrawal or deposit. Movements are immutable; a mistake is corrected with
-// another movement. A withdrawal cannot exceed what the register should hold, neither at its own time nor now.
+// CreateCashMovement records a withdrawal or deposit; cash_movements.manage can edit or delete it later. A
+// withdrawal cannot exceed what the register should hold, neither at its own time nor now.
 func (s *Service) CreateCashMovement(
 	ctx context.Context,
 	p authorization.Principal,

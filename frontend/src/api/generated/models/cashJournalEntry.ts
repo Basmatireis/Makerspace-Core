@@ -58,4 +58,14 @@ export interface CashJournalEntry {
   /** Note of a movement, or of the count for counts and count corrections. */
   note: string;
   count: CashJournalCount | null;
+  /**
+     * Version of the movement or count, for editing it; null for payments.
+     * @nullable
+     */
+  version: number | null;
+  /**
+     * Last change of the movement or count; null for payments.
+     * @nullable
+     */
+  updatedAt: string | null;
 }

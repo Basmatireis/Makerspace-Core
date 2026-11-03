@@ -70,6 +70,37 @@ func TestWriteAcceptsOpaqueRoleIDAndDefaultsHTTPSource(t *testing.T) {
 	}
 }
 
+func TestWriteKeepsOnlyWellFormedFinancialBeforeValues(t *testing.T) {
+	valid := map[string]any{
+		"reference":          "C-2026-000004",
+		"previousKind":       "withdrawal",
+		"previousAmount":     "-2.50",
+		"previousOccurredAt": "2026-11-03T09:00:00.123456Z",
+		"previousReason":     "bank_deposit",
+	}
+	queries := &recordingAuditQueries{}
+	if err := write(context.Background(), queries, Event{
+		Action: "cash_movement.updated", ResourceType: "cash_movement", Metadata: valid,
+	}); err != nil || queries.inserted == nil {
+		t.Fatalf("valid financial metadata refused: %v", err)
+	}
+	for key, value := range map[string]any{
+		"previousAmount":     "Ada paid 2.50",
+		"previousOccurredAt": "yesterday",
+		"previousReason":     "Lent to Ada Lovelace",
+		"reference":          "ada@example.test",
+		"previousNote":       "x",
+	} {
+		queries = &recordingAuditQueries{}
+		err := write(context.Background(), queries, Event{
+			Action: "cash_movement.updated", ResourceType: "cash_movement", Metadata: map[string]any{key: value},
+		})
+		if err == nil || queries.inserted != nil {
+			t.Fatalf("%s = %q was accepted", key, value)
+		}
+	}
+}
+
 func TestWriteDerivesUserActorType(t *testing.T) {
 	queries := &recordingAuditQueries{}
 	actorID := ids.New()

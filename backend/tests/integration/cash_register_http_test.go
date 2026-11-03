@@ -173,6 +173,104 @@ func TestCashCountsJournalAndCashbookOverHTTP(t *testing.T) {
 	response.Body.Close()
 }
 
+func TestEditingAndDeletingCashEntriesOverHTTP(t *testing.T) {
+	h := newCashRegisterHTTP(t)
+	movementsURL := h.server.URL + "/api/v1/cash-movements"
+	countsURL := h.server.URL + "/api/v1/payments/cash-counts"
+	start := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	move := func(kind, amount, reason string, at time.Time) openapi.CashMovement {
+		t.Helper()
+		response := doJSON(t, h.client, http.MethodPost, movementsURL, h.origin, h.csrf, map[string]any{
+			"operationKey": ids.New().String(), "kind": kind, "amount": amount, "reason": reason, "occurredAt": at,
+		})
+		assertStatus(t, response, http.StatusCreated)
+		var movement openapi.CashMovement
+		decodeResponse(t, response, &movement)
+		return movement
+	}
+	refusedWith := func(response *http.Response, status int, code string) {
+		t.Helper()
+		assertStatus(t, response, status)
+		var refused openapi.Error
+		decodeResponse(t, response, &refused)
+		if refused.Code != code {
+			t.Fatalf("refusal = %+v, want %s", refused, code)
+		}
+	}
+
+	deposit := move("deposit", "50", "float", start)
+	if deposit.Version != 1 {
+		t.Fatalf("deposit = %+v", deposit)
+	}
+	depositURL := movementsURL + "/" + deposit.Id.String()
+	anonymous := newCookieClient(t)
+	response := doJSON(t, anonymous, http.MethodPatch, depositURL, h.origin, "", map[string]any{"expectedVersion": 1})
+	assertStatus(t, response, http.StatusUnauthorized)
+	response.Body.Close()
+	response = doJSON(t, h.client, http.MethodPatch, depositURL, h.origin, "", map[string]any{"expectedVersion": 1})
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
+
+	response = doJSON(t, h.client, http.MethodPatch, depositURL, h.origin, h.csrf, map[string]any{
+		"expectedVersion": 1, "amount": "40", "note": "change float",
+	})
+	assertStatus(t, response, http.StatusOK)
+	decodeResponse(t, response, &deposit)
+	if deposit.Amount != "40.00" || deposit.Note != "change float" || deposit.Version != 2 {
+		t.Fatalf("edited deposit = %+v", deposit)
+	}
+	response = doJSON(t, h.client, http.MethodPatch, depositURL, h.origin, h.csrf, map[string]any{
+		"expectedVersion": 1, "amount": "30",
+	})
+	refusedWith(response, http.StatusConflict, "stale_write")
+
+	response = doJSON(t, h.client, http.MethodPost, countsURL, h.origin, h.csrf, map[string]any{
+		"operationKey": ids.New().String(), "countedAmount": "40", "countedAt": start.Add(time.Minute),
+	})
+	assertStatus(t, response, http.StatusCreated)
+	var count openapi.CashCount
+	decodeResponse(t, response, &count)
+	countURL := countsURL + "/" + count.Id.String()
+	response = doJSON(t, h.client, http.MethodPatch, countURL, h.origin, h.csrf, map[string]any{
+		"expectedVersion": count.Version, "countedAmount": "38.50", "reason": "counting_error",
+	})
+	assertStatus(t, response, http.StatusOK)
+	decodeResponse(t, response, &count)
+	if count.Difference != "-1.50" || count.Correction.IsNull() || count.Version != 2 {
+		t.Fatalf("edited count = %+v", count)
+	}
+
+	// A later withdrawal limits what a count may say it found, and what may be taken from before it.
+	withdrawal := move("withdrawal", "30", "bank_deposit", start.Add(2*time.Minute))
+	response = doJSON(t, h.client, http.MethodPatch, countURL, h.origin, h.csrf, map[string]any{
+		"expectedVersion": count.Version, "countedAmount": "20",
+	})
+	refusedWith(response, http.StatusConflict, "cash_balance_negative")
+	response = doJSON(t, h.client, http.MethodDelete, countURL, h.origin, h.csrf, map[string]any{"expectedVersion": count.Version})
+	assertStatus(t, response, http.StatusNoContent)
+	response.Body.Close()
+	response = doJSON(t, h.client, http.MethodDelete, depositURL, h.origin, h.csrf, map[string]any{"expectedVersion": 2})
+	refusedWith(response, http.StatusConflict, "cash_balance_negative")
+	response = doJSON(t, h.client, http.MethodDelete, movementsURL+"/"+withdrawal.Id.String(), h.origin, h.csrf,
+		map[string]any{"expectedVersion": 1})
+	assertStatus(t, response, http.StatusNoContent)
+	response.Body.Close()
+	response = doJSON(t, h.client, http.MethodDelete, depositURL, h.origin, h.csrf, map[string]any{"expectedVersion": 2})
+	assertStatus(t, response, http.StatusNoContent)
+	response.Body.Close()
+	response = doJSON(t, h.client, http.MethodDelete, countURL, h.origin, h.csrf, map[string]any{"expectedVersion": 1})
+	assertStatus(t, response, http.StatusNotFound)
+	response.Body.Close()
+
+	response = doJSON(t, h.client, http.MethodGet, h.server.URL+"/api/v1/payments/cash-register", "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	var register openapi.CashRegister
+	decodeResponse(t, response, &register)
+	if register.Expected != "0.00" || !register.LastCount.IsNull() {
+		t.Fatalf("register = %+v", register)
+	}
+}
+
 func mustVienna(t *testing.T) *time.Location {
 	t.Helper()
 	location, err := time.LoadLocation("Europe/Vienna")

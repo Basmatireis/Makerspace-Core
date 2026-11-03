@@ -24,6 +24,7 @@ import type { CashMovementKind } from './cashMovementKind';
 import type { CashMovementReason } from './cashMovementReason';
 import type { Money } from './money';
 import type { UUIDv7 } from './uUIDv7';
+import type { Version } from './version';
 
 export interface CashMovement {
   id: UUIDv7;
@@ -45,4 +46,7 @@ export interface CashMovement {
      * @nullable
      */
   cashCountReference: string | null;
+  version: Version;
+  /** Last change; equals createdAt until the movement is edited or its count recalculated. */
+  updatedAt: string;
 }

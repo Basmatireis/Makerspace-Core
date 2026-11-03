@@ -1,13 +1,20 @@
 import type { ReactNode } from 'react';
 import { Button, DefinitionTooltip, IconButton, Tag } from '@carbon/react';
-import { Add, ArrowRight, Checkmark, Close, Receipt, Subtract, WarningAlt } from '@carbon/icons-react';
+import { Add, ArrowRight, Checkmark, Close, Edit, Receipt, Subtract, TrashCan, WarningAlt } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
 import type { CashCount, CashJournal, CashJournalEntry } from '../../api/generated/models';
 import { DetailPanel, DetailPanelSection } from '../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../app/components/Facts';
 import { RefLink } from '../../app/RefLink';
 import { formatDateTime } from '../../app/dateTime';
-import { countReasonLabel, differenceText, entryEffect, journalKindLabel, registerDerivation } from './cashJournal';
+import {
+  countReasonLabel,
+  differenceText,
+  entryEffect,
+  isEditableEntry,
+  journalKindLabel,
+  registerDerivation,
+} from './cashJournal';
 import { cashMovementReasonLabel } from './labels';
 import { formatCents, formatSignedCents, toCents } from './money';
 import { periodName, type Period } from './period';
@@ -182,14 +189,23 @@ function LastCount({ count }: { count: CashCount }) {
   );
 }
 
-/** One journal entry in the panel: a payment, a withdrawal or deposit, a count correction or a count. */
+/**
+ * One journal entry in the panel: a payment, a withdrawal or deposit, a count correction or a count. With
+ * cash_movements.manage a withdrawal, deposit or count offers Edit and Delete.
+ */
 export function EntryPanel({
   entry,
   canOrders,
+  canManage = false,
+  onEdit,
+  onDelete,
   onClose,
 }: {
   entry: CashJournalEntry;
   canOrders: boolean;
+  canManage?: boolean;
+  onEdit?: (entry: CashJournalEntry) => void;
+  onDelete?: (entry: CashJournalEntry) => void;
   onClose: () => void;
 }) {
   const effect = entryEffect(entry);
@@ -229,6 +245,16 @@ export function EntryPanel({
               Show receipt
             </Button>
           )}
+        </div>
+      )}
+      {canManage && isEditableEntry(entry) && (
+        <div className="sales-inline">
+          <Button kind="secondary" size="md" renderIcon={Edit} onClick={() => onEdit?.(entry)}>
+            Edit
+          </Button>
+          <Button kind="danger--tertiary" size="md" renderIcon={TrashCan} onClick={() => onDelete?.(entry)}>
+            Delete
+          </Button>
         </div>
       )}
       <FactsGrid>
@@ -273,6 +299,9 @@ export function EntryPanel({
           <Fact label="Reason" helper={entry.note || undefined}>
             {countReasonLabel[count.reason]}
           </Fact>
+        )}
+        {entry.version != null && entry.version > 1 && entry.updatedAt && (
+          <Fact label="Last edited">{formatDateTime(entry.updatedAt)}</Fact>
         )}
         {entry.source === 'payment' && (
           <Fact label="Payment">
