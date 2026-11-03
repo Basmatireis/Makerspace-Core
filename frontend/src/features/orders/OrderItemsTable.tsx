@@ -59,7 +59,10 @@ function ItemName({ item, canReadInventory }: { item: OrderItem; canReadInventor
 
 function ItemDetail({ item }: { item: OrderItem }) {
   const snapshot = item.snapshot;
-  if (!snapshot) return <>{item.kind === 'inventory_item' ? 'From inventory' : 'Custom line'}</>;
+  if (!snapshot)
+    return (
+      <>{item.kind === 'inventory_item' ? 'From inventory' : item.kind === 'machine_job' ? 'Job' : 'Custom line'}</>
+    );
   const usage =
     snapshot.usages
       .map((entry) => `${formatQuantity(entry.quantity)} ${entry.unit} ${entry.materialName}`)

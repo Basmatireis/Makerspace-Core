@@ -41,9 +41,7 @@ export function BalanceCard({ order, rows, action }: { order: Order; rows: Payme
     .filter((entry) => entry.net !== 0);
   return (
     <StackCard title="Balance" action={action} className="sales-balance">
-      <p className={`sales-hero${!draft && outstanding > 0 ? ' sales-num--due' : ''}`}>
-        {formatCents(draft ? total : outstanding)}
-      </p>
+      <p className="sales-hero">{formatCents(draft ? total : outstanding)}</p>
       <p className="sales-secondary">{line}</p>
       <dl className="sales-summary sales-summary--amounts">
         <div>

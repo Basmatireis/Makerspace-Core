@@ -94,7 +94,7 @@ export function SalesOverviewPage() {
           to: `/orders/${order.id}`,
           tag: { label: 'To approve', type: 'purple' },
           action: (
-            <Button as={Link} to={`/orders/${order.id}`} kind="tertiary" size="sm">
+            <Button as={Link} to={`/orders/${order.id}`} kind="ghost" size="sm">
               Review
             </Button>
           ),
@@ -115,7 +115,7 @@ export function SalesOverviewPage() {
         },
         action:
           canRecord && acceptsCashAndCard(order) ? (
-            <Button kind="tertiary" size="sm" onClick={() => setPaying(order)}>
+            <Button kind="ghost" size="sm" onClick={() => setPaying(order)}>
               Take payment
             </Button>
           ) : undefined,
@@ -139,7 +139,7 @@ export function SalesOverviewPage() {
         to: '/orders?review=1',
         tag: { label: 'Ready to bill', type: 'green' },
         action: (
-          <Button as={Link} to="/orders?review=1" kind="tertiary" size="sm">
+          <Button as={Link} to="/orders?review=1" kind="ghost" size="sm">
             Review jobs
           </Button>
         ),
@@ -249,7 +249,7 @@ export function SalesOverviewPage() {
         can(PermissionId.pricingread) || can(PermissionId.orderswrite) ? (
           <>
             {can(PermissionId.pricingread) && (
-              <Button kind="tertiary" renderIcon={Calculator} onClick={() => setLookupOpen(true)}>
+              <Button kind="secondary" renderIcon={Calculator} onClick={() => setLookupOpen(true)}>
                 Price lookup
               </Button>
             )}

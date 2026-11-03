@@ -8,6 +8,11 @@
   text-align: end;
   font-variant-numeric: tabular-nums;
 }
+.cds--data-table td.sales-num,
+.cds--data-table th.sales-num,
+.cds--data-table th.sales-num .cds--table-header-label {
+  text-align: end;
+}
 .sales-num--due {
   color: theme.$text-error;
 }
@@ -54,7 +59,10 @@
   min-inline-size: 0;
 }
 // Wide tables scroll inside their own container instead of widening the page.
+// Positioned, so absolutely placed content of the cells (Carbon's visually hidden header text of the attention column)
+// stays inside the scroll area instead of widening the page.
 .sales-page .cds--data-table-content {
+  position: relative;
   overflow-x: auto;
 }
 
@@ -328,6 +336,11 @@
 .sales-page .cds--actionable-notification--inline {
   max-inline-size: none;
 }
+// A notice with actions puts them under its text, the ghost buttons' labels aligned with it.
+.cds--actionable-notification__text-wrapper:has(.sales-notice-actions) {
+  flex-direction: column;
+  align-items: flex-start;
+}
 .sales-notice-actions {
   display: flex;
   flex-wrap: wrap;
@@ -387,6 +400,16 @@
   color: theme.$link-primary;
   text-align: start;
   cursor: pointer;
+}
+.sales-ref-button {
+  white-space: nowrap;
+}
+// The fourth head line holds the status tags, which are taller than a line of helper text.
+.sales-page .detail-panel__lines {
+  grid-template-rows: 1.75rem 1.125rem 1rem 1.5rem;
+}
+.sales-page .detail-panel__helper {
+  overflow: visible;
 }
 .sales-ref-button:hover {
   color: theme.$link-primary-hover;
