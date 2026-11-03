@@ -127,21 +127,23 @@ func mlPricingRuleDTO(item machinelogbook.PricingRule) openapi.PricingRule {
 		unit = nullable.NewNullableWithValue(openapi.MaterialUnit(*item.MaterialUnit))
 	}
 	return openapi.PricingRule{
-		Id:                item.ID,
-		PricingGroupId:    item.PricingGroupID,
-		Kind:              openapi.PricingRuleKind(item.Kind),
-		ProcessId:         nullableUUIDValue(item.ProcessID),
-		MaterialTypeId:    nullableUUIDValue(item.MaterialTypeID),
-		MaterialTypeName:  nullableString(item.MaterialTypeName),
-		MaterialUnit:      unit,
-		MaterialId:        nullableUUIDValue(item.MaterialID),
-		MaterialName:      nullableString(item.MaterialName),
-		MaterialDisplayId: nullableString(item.MaterialDisplayID),
-		Measure:           runMeasureKeyValue(item.Measure),
-		BlockSize:         nullableInt32Value(item.BlockSize),
-		Rate:              item.Rate,
-		Active:            item.Active,
-		Version:           item.Version,
+		Id:                      item.ID,
+		PricingGroupId:          item.PricingGroupID,
+		Kind:                    openapi.PricingRuleKind(item.Kind),
+		ProcessId:               nullableUUIDValue(item.ProcessID),
+		MaterialTypeId:          nullableUUIDValue(item.MaterialTypeID),
+		MaterialTypeName:        nullableString(item.MaterialTypeName),
+		MaterialTypeVariantId:   nullableUUIDValue(item.MaterialTypeVariantID),
+		MaterialTypeVariantName: nullableString(item.MaterialTypeVariantName),
+		MaterialUnit:            unit,
+		MaterialId:              nullableUUIDValue(item.MaterialID),
+		MaterialName:            nullableString(item.MaterialName),
+		MaterialDisplayId:       nullableString(item.MaterialDisplayID),
+		Measure:                 runMeasureKeyValue(item.Measure),
+		BlockSize:               nullableInt32Value(item.BlockSize),
+		Rate:                    item.Rate,
+		Active:                  item.Active,
+		Version:                 item.Version,
 	}
 }
 func mlMaterialTypeDTO(item machinelogbook.MaterialType) openapi.MaterialType {
@@ -153,12 +155,31 @@ func mlMaterialTypeDTO(item machinelogbook.MaterialType) openapi.MaterialType {
 		MachineUse:       item.MachineUse,
 		Unit:             openapi.MaterialUnit(item.Unit),
 		ProcessIds:       uuidSlice(item.ProcessIDs),
+		Variants:         mlMaterialTypeVariantsDTO(item.Variants),
 		Active:           item.Active,
 		MaterialCount:    item.MaterialCount,
 		PricingRuleCount: item.PricingRuleCount,
 		Version:          item.Version,
 		CreatedAt:        item.CreatedAt,
 		UpdatedAt:        item.UpdatedAt,
+	}
+}
+
+func mlMaterialTypeVariantsDTO(items []machinelogbook.MaterialTypeVariant) []openapi.MaterialTypeVariant {
+	out := make([]openapi.MaterialTypeVariant, 0, len(items))
+	for _, item := range items {
+		out = append(out, mlMaterialTypeVariantDTO(item))
+	}
+	return out
+}
+
+func mlMaterialTypeVariantDTO(item machinelogbook.MaterialTypeVariant) openapi.MaterialTypeVariant {
+	return openapi.MaterialTypeVariant{
+		Id:               item.ID,
+		MaterialTypeId:   item.MaterialTypeID,
+		Name:             item.Name,
+		MaterialCount:    item.MaterialCount,
+		PricingRuleCount: item.PricingRuleCount,
 	}
 }
 func runMeasureKeyNullable(value nullable.Nullable[openapi.RunMeasureKey]) *string {
@@ -244,6 +265,7 @@ func mlMaterialDTO(item machinelogbook.Material) openapi.Material {
 		Attention:          attentionDTO(item.Attention),
 		Kind:               openapi.MaterialKind(item.Kind),
 		Variant:            nullableString(item.Variant),
+		VariantId:          nullableUUIDValue(item.VariantID),
 		Manufacturer:       nullableString(item.Manufacturer),
 		PackageSize:        nullableDecimalValue(item.PackageSize),
 		StorageLocation:    nullableString(item.StorageLocation),

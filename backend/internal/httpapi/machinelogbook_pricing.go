@@ -5,6 +5,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/oapi-codegen/nullable"
 )
 
@@ -92,6 +93,9 @@ func (s *Server) CreatePricingRule(
 		return nil, invalidRequest("request body is required")
 	}
 	if r.Body.Kind == openapi.PricingRuleKindStockArticle {
+		if uuidNullable(r.Body.MaterialTypeVariantId) != nil {
+			return nil, apperror.Invalid("materialTypeVariantId applies to material rules only")
+		}
 		materialID := uuidNullable(r.Body.MaterialId)
 		if materialID == nil || r.Body.ProcessId.IsSpecified() && !r.Body.ProcessId.IsNull() ||
 			r.Body.MaterialTypeId.IsSpecified() && !r.Body.MaterialTypeId.IsNull() ||
@@ -109,13 +113,14 @@ func (s *Server) CreatePricingRule(
 	if r.Body.MaterialId.IsSpecified() && !r.Body.MaterialId.IsNull() {
 		return nil, invalidRequest("materialId applies to stock_article rules only")
 	}
-	item, err := s.machineLogbook.CreatePricingRule(
+	item, err := s.machineLogbook.CreatePricingRuleWithVariant(
 		ctx,
 		p,
 		r.PricingGroupId,
 		machinelogbook.PricingRuleKind(r.Body.Kind),
 		uuidNullable(r.Body.ProcessId),
 		uuidNullable(r.Body.MaterialTypeId),
+		uuidNullable(r.Body.MaterialTypeVariantId),
 		runMeasureKeyNullable(r.Body.Measure),
 		r.Body.Rate,
 		requestIDPointer(ctx),
@@ -138,6 +143,9 @@ func (s *Server) UpdatePricingRule(
 		return nil, invalidRequest("request body is required")
 	}
 	if r.Body.Kind == openapi.PricingRuleKindStockArticle {
+		if uuidNullable(r.Body.MaterialTypeVariantId) != nil {
+			return nil, apperror.Invalid("materialTypeVariantId applies to material rules only")
+		}
 		materialID := uuidNullable(r.Body.MaterialId)
 		if materialID == nil || r.Body.ProcessId.IsSpecified() && !r.Body.ProcessId.IsNull() ||
 			r.Body.MaterialTypeId.IsSpecified() && !r.Body.MaterialTypeId.IsNull() ||
@@ -155,7 +163,7 @@ func (s *Server) UpdatePricingRule(
 	if r.Body.MaterialId.IsSpecified() && !r.Body.MaterialId.IsNull() {
 		return nil, invalidRequest("materialId applies to stock_article rules only")
 	}
-	item, err := s.machineLogbook.UpdatePricingRule(
+	item, err := s.machineLogbook.UpdatePricingRuleWithVariant(
 		ctx,
 		p,
 		r.PricingRuleId,
@@ -163,6 +171,7 @@ func (s *Server) UpdatePricingRule(
 		machinelogbook.PricingRuleKind(r.Body.Kind),
 		uuidNullable(r.Body.ProcessId),
 		uuidNullable(r.Body.MaterialTypeId),
+		uuidNullable(r.Body.MaterialTypeVariantId),
 		runMeasureKeyNullable(r.Body.Measure),
 		r.Body.Rate,
 		r.Body.Active,
@@ -309,6 +318,7 @@ func priceQuoteDTO(quote machinelogbook.PriceQuote) openapi.PriceQuote {
 				Name:             m.Name,
 				Unit:             openapi.MaterialUnit(m.Unit),
 				MaterialTypeName: typeName,
+				Variant:          nullableString(m.Variant),
 			},
 		)
 	}

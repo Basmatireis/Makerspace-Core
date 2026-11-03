@@ -6,7 +6,10 @@ import { createMaterialType, updateMaterialType } from '../../../api/generated/i
 import type { MaterialKind, MaterialType, MaterialUnit, Process } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
 import { typeNounLower } from '../components/inventoryShared';
+import { materialTypesQuery } from '../inventoryQueries';
 import { machineLogbookKeys, processesQuery } from '../queries';
+import { VariantRatesEditor } from './VariantRatesEditor';
+import { VariantsEditor } from './VariantsEditor';
 import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
 import { useLatestCallback } from '../../../app/useLatestCallback';
@@ -65,6 +68,9 @@ export function MaterialTypeFormModal({
   const options = (processesList.data?.items ?? []).filter(
     (item) => item.active || materialType?.processIds.includes(item.id),
   );
+  // The dialog is opened with a snapshot of the type; variants change on their own, so read the live list.
+  const live = useQuery({ ...materialTypesQuery(), enabled: open && Boolean(materialType) });
+  const liveType = materialType ? (live.data?.find((item) => item.id === materialType.id) ?? materialType) : undefined;
   const client = useQueryClient();
   const notify = useNotify();
   const inUse = Boolean(materialType && (materialType.materialCount > 0 || materialType.pricingRuleCount > 0));
@@ -151,7 +157,7 @@ export function MaterialTypeFormModal({
   return (
     <Modal
       open={open}
-      size="sm"
+      size={liveType && liveType.kind !== 'part' && liveType.machineUse && can('pricing.read') ? 'lg' : 'md'}
       modalHeading={materialType ? `Edit ${noun}` : `Add ${noun}`}
       primaryButtonText={pending ? 'Saving…' : materialType ? `Save ${noun}` : `Add ${noun}`}
       secondaryButtonText={materialType && onDelete ? 'Delete' : 'Cancel'}
@@ -296,6 +302,11 @@ export function MaterialTypeFormModal({
               )}
             />
           )}
+          {liveType && kind !== 'part' && liveType.kind !== 'part' && <VariantsEditor type={liveType} />}
+          {!materialType && kind !== 'part' && (
+            <p className="mj-secondary">Variants such as Basic or Matte can be added after the type is saved.</p>
+          )}
+          {liveType && liveType.kind !== 'part' && liveType.machineUse && <VariantRatesEditor type={liveType} />}
           {failure && (
             <InlineNotification
               kind="error"

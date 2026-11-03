@@ -28,4 +28,9 @@ export interface PriceQuoteMaterial {
   unit: MaterialUnit;
   /** @nullable */
   materialTypeName: string | null;
+  /**
+     * The article's variant; its rate is used when the group prices it.
+     * @nullable
+     */
+  variant?: string | null;
 }

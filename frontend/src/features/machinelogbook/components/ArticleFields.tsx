@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- the shared article fields and their value helpers belong together */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
 import { Button, ComboBox, Link as CarbonLink, Select, SelectItem, TextArea, TextInput } from '@carbon/react';
 import { Link } from 'react-router-dom';
@@ -145,6 +145,8 @@ export function SuggestionComboBox({
   invalidText?: string;
   placeholder?: string;
 }) {
+  // The value that is selected (initially or by picking); while the input shows exactly it, every item is offered.
+  const selected = useRef(value);
   return (
     <ComboBox<string>
       autoAlign
@@ -158,10 +160,14 @@ export function SuggestionComboBox({
       invalid={invalid}
       invalidText={invalidText}
       shouldFilterItem={({ item, inputValue }) =>
-        !inputValue || String(item).toLowerCase().includes(inputValue.toLowerCase())
+        !inputValue || inputValue === selected.current || String(item).toLowerCase().includes(inputValue.toLowerCase())
       }
-      onInputChange={(text) => onChange(text ?? '')}
-      onChange={({ selectedItem }) => onChange(selectedItem ?? '')}
+      // Carbon calls this while rendering; updating the parent then warns, so defer it.
+      onInputChange={(text) => queueMicrotask(() => onChange(text ?? ''))}
+      onChange={({ selectedItem }) => {
+        selected.current = selectedItem ?? '';
+        onChange(selectedItem ?? '');
+      }}
     />
   );
 }
@@ -332,11 +338,13 @@ export function ArticleFields({
               key={`${idPrefix}-variant-${values.materialTypeId}`}
               id={`${idPrefix}-variant`}
               titleText="Variant (optional)"
-              items={suggestions?.variants ?? []}
+              items={(chosenType?.variants ?? []).map((variant) => variant.name)}
               value={field.value}
               onChange={field.onChange}
               helperText={
-                kind === 'filament' ? 'For example Basic, Matte, Silk, High Flow, CF.' : 'For example 3 mm or matte.'
+                chosenType
+                  ? "Pick one of the type's variants or type a new name to add it."
+                  : 'Choose a material type first. A new variant name is added to the type.'
               }
             />
           )}

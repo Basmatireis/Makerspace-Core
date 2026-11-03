@@ -29,6 +29,8 @@ export interface UpdatePricingRuleRequest {
   processId?: UUIDv7 | null;
   /** Required for material rules, forbidden otherwise. */
   materialTypeId?: UUIDv7 | null;
+  /** Optional on material rules, forbidden otherwise; see CreatePricingRuleRequest. */
+  materialTypeVariantId?: UUIDv7 | null;
   /** Required for stock_article rules, forbidden otherwise. */
   materialId?: UUIDv7 | null;
   /** Required for machine_measure rules (with processId), forbidden otherwise. */

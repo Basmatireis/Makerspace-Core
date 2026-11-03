@@ -28,6 +28,8 @@ export interface CreatePricingRuleRequest {
   processId?: UUIDv7 | null;
   /** Required for material rules, forbidden otherwise. The type must have machineUse. */
   materialTypeId?: UUIDv7 | null;
+  /** Optional on material rules, forbidden otherwise: prices this variant of materialTypeId instead of the whole type (422 material_type_variant_mismatch when it belongs to another type). One active material rule per group, type and variant (null variant included). */
+  materialTypeVariantId?: UUIDv7 | null;
   /** Required for stock_article rules, forbidden otherwise. */
   materialId?: UUIDv7 | null;
   /** Required for machine_measure rules (with processId), forbidden otherwise. The machine type's process must support the measure. */

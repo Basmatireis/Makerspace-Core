@@ -243,18 +243,21 @@ WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: CreatePricingRule :one
-INSERT INTO pricing_rules (id, pricing_group_id, kind, process_id, material_type_id, material_unit, measure, block_size, rate, material_id)
-VALUES (sqlc.arg(id), sqlc.arg(pricing_group_id), sqlc.arg(kind), sqlc.narg(process_id), sqlc.narg(material_type_id), sqlc.narg(material_unit), sqlc.narg(measure), sqlc.narg(block_size), sqlc.arg(rate), sqlc.narg(material_id))
+INSERT INTO pricing_rules (id, pricing_group_id, kind, process_id, material_type_id, material_unit, measure, block_size, rate, material_id, material_type_variant_id)
+VALUES (sqlc.arg(id), sqlc.arg(pricing_group_id), sqlc.arg(kind), sqlc.narg(process_id), sqlc.narg(material_type_id), sqlc.narg(material_unit), sqlc.narg(measure), sqlc.narg(block_size), sqlc.arg(rate), sqlc.narg(material_id),
+    sqlc.narg(material_type_variant_id))
 RETURNING *;
 
 -- name: ListPricingRulesByGroup :many
 -- Rules of articles in the recycle bin are left out.
-SELECT r.*, mt.name AS material_type_name, ma.name AS material_name, ma.display_id AS material_display_id, ma.unit AS article_unit
+SELECT r.*, mt.name AS material_type_name, ma.name AS material_name, ma.display_id AS material_display_id, ma.unit AS article_unit,
+       v.name AS material_type_variant_name
 FROM pricing_rules r
 LEFT JOIN material_types mt ON mt.id = r.material_type_id
+LEFT JOIN material_type_variants v ON v.id = r.material_type_variant_id
 LEFT JOIN materials ma ON ma.id = r.material_id
 WHERE r.pricing_group_id = sqlc.arg(pricing_group_id) AND (ma.id IS NULL OR ma.deleted_at IS NULL)
-ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, lower(ma.name) NULLS FIRST, r.process_id NULLS FIRST, r.measure NULLS FIRST, r.id;
+ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, lower(v.name) NULLS FIRST, lower(ma.name) NULLS FIRST, r.process_id NULLS FIRST, r.measure NULLS FIRST, r.id;
 
 -- name: GetPricingRuleForUpdate :one
 SELECT * FROM pricing_rules WHERE id = sqlc.arg(id) FOR UPDATE;
@@ -263,7 +266,7 @@ SELECT * FROM pricing_rules WHERE id = sqlc.arg(id) FOR UPDATE;
 UPDATE pricing_rules SET kind = sqlc.arg(kind), process_id = sqlc.narg(process_id),
     material_type_id = sqlc.narg(material_type_id), material_unit = sqlc.narg(material_unit), measure = sqlc.narg(measure),
     block_size = sqlc.narg(block_size), rate = sqlc.arg(rate), material_id = sqlc.narg(material_id),
-    active = sqlc.arg(active), version = version + 1, updated_at = now()
+    material_type_variant_id = sqlc.narg(material_type_variant_id), active = sqlc.arg(active), version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
@@ -316,9 +319,9 @@ RETURNING *;
 DELETE FROM organization_pricing_group_assignments WHERE organization_id = sqlc.arg(organization_id) AND version = sqlc.arg(expected_version) RETURNING organization_id;
 
 -- name: CreateMaterial :one
-INSERT INTO materials (id, display_id, name, material_type_id, color_name, color_hex, unit, low_stock_threshold, variant, manufacturer, package_size, storage_location, notes)
+INSERT INTO materials (id, display_id, name, material_type_id, color_name, color_hex, unit, low_stock_threshold, variant, variant_id, manufacturer, package_size, storage_location, notes)
 VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(name), sqlc.arg(material_type_id), sqlc.narg(color_name), sqlc.narg(color_hex), sqlc.arg(unit), sqlc.narg(low_stock_threshold),
-    sqlc.narg(variant), sqlc.narg(manufacturer), sqlc.narg(package_size), sqlc.narg(storage_location), sqlc.narg(notes)) RETURNING *;
+    sqlc.narg(variant), sqlc.narg(variant_id), sqlc.narg(manufacturer), sqlc.narg(package_size), sqlc.narg(storage_location), sqlc.narg(notes)) RETURNING *;
 
 -- name: CreateMaterialBalance :one
 INSERT INTO material_balances (material_id) VALUES (sqlc.arg(material_id)) RETURNING *;
@@ -406,7 +409,8 @@ SELECT COALESCE(sum(b.inventory_value), 0)::numeric FROM material_balances b JOI
 
 -- name: UpdateMaterial :one
 UPDATE materials SET name = sqlc.arg(name), material_type_id = sqlc.arg(material_type_id), color_name = sqlc.narg(color_name), color_hex = sqlc.narg(color_hex), unit = sqlc.arg(unit),
-    active = sqlc.arg(active), low_stock_threshold = sqlc.narg(low_stock_threshold), variant = sqlc.narg(variant), manufacturer = sqlc.narg(manufacturer),
+    active = sqlc.arg(active), low_stock_threshold = sqlc.narg(low_stock_threshold), variant = sqlc.narg(variant), variant_id = sqlc.narg(variant_id),
+    manufacturer = sqlc.narg(manufacturer),
     package_size = sqlc.narg(package_size), storage_location = sqlc.narg(storage_location), notes = sqlc.narg(notes),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
@@ -706,7 +710,7 @@ SELECT u.id, u.material_id, u.quantity, u.active, u.created_at, u.updated_at, u.
        u.estimate_quality, u.report_revision, u.staff_corrected, u.material_name AS material_name_snapshot, u.material_unit AS material_unit_snapshot,
        u.material_type_id AS own_material_type_id,
        COALESCE(u.external_material_name, m.name, u.material_name, et.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'Own material' END)::text AS material_name_text,
-       m.material_type_id,
+       m.material_type_id, m.variant_id, m.variant AS variant_name,
        COALESCE(mt.name, et.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'External' END)::text AS material_type_name,
        COALESCE(m.unit, u.material_unit, et.unit, 'g')::text AS unit
 FROM machine_run_usages u
@@ -947,9 +951,10 @@ VALUES (sqlc.arg(id), sqlc.arg(machine_job_id), sqlc.arg(revision), sqlc.narg(pr
     sqlc.arg(reason), sqlc.arg(complete), sqlc.narg(calculated_amount), sqlc.narg(captured_by_account_id)) RETURNING *;
 
 -- name: InsertPricingSnapshotRule :one
-INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, material_type_id, measure, block_size, unit, rate, missing)
+INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, material_type_id, material_type_variant_id, material_id,
+    measure, block_size, unit, rate, missing)
 VALUES (sqlc.arg(id), sqlc.arg(snapshot_id), sqlc.narg(source_rule_id), sqlc.arg(kind), sqlc.arg(label), sqlc.arg(selector), sqlc.narg(material_type_id),
-    sqlc.narg(measure), sqlc.narg(block_size), sqlc.arg(unit), sqlc.narg(rate), sqlc.arg(missing)) RETURNING *;
+    sqlc.narg(material_type_variant_id), sqlc.narg(material_id), sqlc.narg(measure), sqlc.narg(block_size), sqlc.arg(unit), sqlc.narg(rate), sqlc.arg(missing)) RETURNING *;
 
 -- name: GetPricingSnapshot :one
 SELECT * FROM machine_job_pricing_snapshots WHERE id = sqlc.arg(id);
@@ -1471,6 +1476,64 @@ SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.material_type_id = sqlc.arg(id
 -- name: DeleteMaterialType :execrows
 DELETE FROM material_types WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version);
 
+-- name: ListMaterialTypeVariants :many
+-- Variants of the given types by name, with the articles (deleted ones included) and the active material pricing
+-- rules that use them.
+SELECT v.id, v.material_type_id, v.name,
+       (SELECT count(*) FROM materials m WHERE m.variant_id = v.id)::bigint AS material_count,
+       (SELECT count(*) FROM pricing_rules r WHERE r.material_type_variant_id = v.id AND r.active)::bigint AS pricing_rule_count
+FROM material_type_variants v
+WHERE v.material_type_id = ANY((sqlc.arg(material_type_ids)::text[])::uuid[])
+ORDER BY v.material_type_id, lower(v.name), v.name, v.id;
+
+-- name: GetMaterialTypeVariantForUpdate :one
+SELECT * FROM material_type_variants WHERE id = sqlc.arg(id) AND material_type_id = sqlc.arg(material_type_id) FOR UPDATE;
+
+-- name: GetMaterialTypeVariantForRename :one
+-- Locks the variant FOR NO KEY UPDATE: articles reading its name (FOR SHARE) wait, foreign-key checks do not.
+SELECT * FROM material_type_variants WHERE id = sqlc.arg(id) AND material_type_id = sqlc.arg(material_type_id) FOR NO KEY UPDATE;
+
+-- name: GetMaterialTypeVariant :one
+SELECT * FROM material_type_variants WHERE id = sqlc.arg(id);
+
+-- name: FindMaterialTypeVariantByName :one
+-- Share-locks the variant so its name cannot change before the article that takes it commits.
+SELECT * FROM material_type_variants WHERE material_type_id = sqlc.arg(material_type_id) AND lower(name) = lower(sqlc.arg(name)::text)
+FOR SHARE;
+
+-- name: CreateMaterialTypeVariant :one
+INSERT INTO material_type_variants (id, material_type_id, name) VALUES (sqlc.arg(id), sqlc.arg(material_type_id), sqlc.arg(name))
+RETURNING *;
+
+-- name: RenameMaterialTypeVariant :one
+UPDATE material_type_variants SET name = sqlc.arg(name), updated_at = now() WHERE id = sqlc.arg(id) RETURNING *;
+
+-- name: MaterialTypeVariantIsReferenced :one
+-- True while an article (deleted ones included) or an active pricing rule uses the variant.
+SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.variant_id = sqlc.arg(id)::uuid)
+    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_variant_id = sqlc.arg(id)::uuid AND r.active))::boolean AS referenced;
+
+-- name: DeleteInactivePricingRulesOfVariant :execrows
+-- Removes the inactive rules of a variant before the variant row (the composite foreign key restricts them).
+DELETE FROM pricing_rules WHERE material_type_variant_id = sqlc.arg(id)::uuid AND NOT active;
+
+-- name: DeleteMaterialTypeVariant :execrows
+DELETE FROM material_type_variants WHERE id = sqlc.arg(id);
+
+-- name: CountMaterialTypeVariants :one
+SELECT count(*) FROM material_type_variants WHERE material_type_id = sqlc.arg(material_type_id);
+
+-- name: ListMaterialsOfVariantForUpdate :many
+-- Articles of a variant, deleted ones included, locked for a rename of the variant.
+SELECT m.id, m.name, m.color_name, m.manufacturer FROM materials m
+WHERE m.variant_id = sqlc.arg(variant_id)
+ORDER BY m.id
+FOR UPDATE;
+
+-- name: RenameVariantOfMaterial :exec
+UPDATE materials SET variant = sqlc.arg(variant), name = sqlc.arg(name), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id);
+
 -- name: ListWorkItemMaterialTotals :many
 -- Material of jobs (their runs that are not replaced) and of unassigned runs, summed per material type and unit.
 SELECT COALESCE(r.job_id, r.id)::uuid AS item_id, COALESCE(mt.name, 'External')::text AS material_type_name, COALESCE(m.unit, 'g')::text AS unit, sum(u.quantity)::numeric AS quantity
@@ -1726,18 +1789,20 @@ SELECT id FROM material_types WHERE upper(code) = upper(sqlc.arg(code)::text);
 
 -- name: ListMaterialPrices :many
 -- Sale prices of articles per active pricing group: the article's own stock_article rule, else the material rule of
--- its machine-use type.
+-- its variant, else the material rule of its machine-use type.
 SELECT m.id AS material_id, g.id AS pricing_group_id, g.name AS pricing_group_name,
-       COALESCE(sr.rate, tr.rate)::numeric AS rate,
-       (CASE WHEN sr.id IS NOT NULL THEN 'stock_article' ELSE 'material_type' END)::text AS source,
-       COALESCE(sr.id, tr.id)::uuid AS pricing_rule_id
+       COALESCE(sr.rate, vr.rate, tr.rate)::numeric AS rate,
+       (CASE WHEN sr.id IS NOT NULL THEN 'stock_article' WHEN vr.id IS NOT NULL THEN 'material_type_variant' ELSE 'material_type' END)::text AS source,
+       COALESCE(sr.id, vr.id, tr.id)::uuid AS pricing_rule_id
 FROM materials m
 JOIN material_types mt ON mt.id = m.material_type_id
 CROSS JOIN pricing_groups g
 LEFT JOIN pricing_rules sr ON sr.pricing_group_id = g.id AND sr.kind = 'stock_article' AND sr.active AND sr.material_id = m.id
+LEFT JOIN pricing_rules vr ON vr.pricing_group_id = g.id AND vr.kind = 'material' AND vr.active AND mt.machine_use
+    AND vr.material_type_id = m.material_type_id AND vr.material_unit = m.unit AND vr.material_type_variant_id = m.variant_id
 LEFT JOIN pricing_rules tr ON tr.pricing_group_id = g.id AND tr.kind = 'material' AND tr.active AND mt.machine_use
-    AND tr.material_type_id = m.material_type_id AND tr.material_unit = m.unit
-WHERE m.id = ANY((sqlc.arg(material_ids)::text[])::uuid[]) AND g.active AND (sr.id IS NOT NULL OR tr.id IS NOT NULL)
+    AND tr.material_type_id = m.material_type_id AND tr.material_unit = m.unit AND tr.material_type_variant_id IS NULL
+WHERE m.id = ANY((sqlc.arg(material_ids)::text[])::uuid[]) AND g.active AND (sr.id IS NOT NULL OR vr.id IS NOT NULL OR tr.id IS NOT NULL)
 ORDER BY m.id, g.is_default DESC, lower(g.name), g.id;
 
 -- name: CountMaterialUses :one
@@ -1947,7 +2012,9 @@ HAVING sum(t.inventory_value_delta) < 0
 ORDER BY lower(mt.name), mt.id;
 
 -- name: StatisticMaterialChargesByType :many
--- Makerspace material of the period's jobs at the material rates of each job's active pricing snapshot.
+-- Makerspace material of the period's jobs at the material rates of each job's active pricing snapshot, by the
+-- article's type. A usage takes the most specific entry of the snapshot that covers it, as job pricing does: the
+-- article's own rate, else its variant's, else its type's.
 SELECT mt.id::text AS key, mt.name AS label, round(sum(u.quantity * sr.rate), 2)::numeric AS value
 FROM machine_jobs j
 JOIN machine_job_run_summaries s ON s.job_id = j.id
@@ -1956,7 +2023,14 @@ JOIN machine_run_usages u ON u.run_id = r.id AND u.active AND u.ownership = 'mak
 JOIN materials m ON m.id = u.material_id
 JOIN material_types mt ON mt.id = m.material_type_id
 JOIN machine_job_pricing_snapshot_rules sr
-  ON sr.snapshot_id = j.active_pricing_snapshot_id AND sr.kind = 'material' AND sr.material_type_id = mt.id AND NOT sr.missing
+  ON sr.snapshot_id = j.active_pricing_snapshot_id AND sr.kind IN ('material', 'stock_article') AND sr.material_type_id = mt.id
+     AND NOT sr.missing
+     AND (sr.material_id = m.id OR (sr.material_id IS NULL AND (sr.material_type_variant_id IS NULL OR sr.material_type_variant_id = m.variant_id)))
+     AND (CASE WHEN sr.material_id IS NOT NULL THEN 1 WHEN sr.material_type_variant_id IS NOT NULL THEN 2 ELSE 3 END) = (
+         SELECT min(CASE WHEN x.material_id IS NOT NULL THEN 1 WHEN x.material_type_variant_id IS NOT NULL THEN 2 ELSE 3 END)
+         FROM machine_job_pricing_snapshot_rules x
+         WHERE x.snapshot_id = j.active_pricing_snapshot_id AND x.kind IN ('material', 'stock_article') AND x.material_type_id = mt.id
+           AND (x.material_id = m.id OR (x.material_id IS NULL AND (x.material_type_variant_id IS NULL OR x.material_type_variant_id = m.variant_id))))
 WHERE s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time)
 GROUP BY mt.id, mt.name ORDER BY lower(mt.name), mt.id;
 

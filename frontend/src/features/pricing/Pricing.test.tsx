@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { PermissionId, type PricingGroup } from '../../api/generated/models';
+import { PermissionId, type PricingGroup, type PricingRule } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { currentUserFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
@@ -59,8 +59,35 @@ const group: PricingGroup = {
       active: true,
       version: 4,
     },
+    {
+      id: 'rule-5',
+      pricingGroupId: 'group-1',
+      kind: 'material',
+      materialTypeId: 'mat-pla',
+      materialTypeName: 'PLA',
+      materialTypeVariantId: 'var-silk',
+      materialTypeVariantName: 'Silk',
+      materialUnit: 'g',
+      rate: '0.045000',
+      active: true,
+      version: 5,
+    },
   ],
 };
+const typeRule: PricingRule = {
+  id: 'rule-4',
+  pricingGroupId: 'group-1',
+  kind: 'material',
+  materialTypeId: 'mat-pla',
+  materialTypeName: 'PLA',
+  materialTypeVariantId: null,
+  materialTypeVariantName: null,
+  materialUnit: 'g',
+  rate: '0.030000',
+  active: true,
+  version: 2,
+};
+const withTypeRate: PricingGroup = { ...group, rules: [...group.rules, typeRule] };
 const articleOf = (id: string, displayId: string, name: string, extra: Record<string, unknown>) => ({
   id,
   displayId,
@@ -91,10 +118,10 @@ const processOf = (id: string, name: string, measures: unknown[] = []) => ({
   updatedAt: now,
 });
 
-function configure(permissions: PermissionId[]) {
+function configure(permissions: PermissionId[], pricingGroup: PricingGroup = group) {
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
-    http.get('*/api/v1/pricing-groups', () => HttpResponse.json({ items: [group] })),
+    http.get('*/api/v1/pricing-groups', () => HttpResponse.json({ items: [pricingGroup] })),
     http.get('*/api/v1/processes', () =>
       HttpResponse.json({
         items: [
@@ -117,7 +144,11 @@ function configure(permissions: PermissionId[]) {
             processes: ['fdm_printing'],
             active: true,
             materialCount: 1,
-            pricingRuleCount: 0,
+            pricingRuleCount: 2,
+            variants: [
+              { id: 'var-silk', materialTypeId: 'mat-pla', name: 'Silk', materialCount: 0, pricingRuleCount: 1 },
+              { id: 'var-matte', materialTypeId: 'mat-pla', name: 'Matte', materialCount: 0, pricingRuleCount: 0 },
+            ],
             version: 1,
             createdAt: now,
             updatedAt: now,
@@ -261,6 +292,7 @@ describe('pricing page', () => {
         kind: 'material',
         processId: null,
         materialTypeId: 'mat-pla',
+        materialTypeVariantId: null,
         materialId: null,
         measure: null,
         rate: '0.03',
@@ -303,6 +335,114 @@ describe('pricing page', () => {
         expectedVersion: 4,
       }),
     );
+  });
+
+  describe('variants', () => {
+    const manage = [
+      PermissionId.pricingread,
+      PermissionId.pricingmanage,
+      PermissionId.machinesread,
+      PermissionId.inventoryread,
+    ];
+
+    it('nests variants under their type with their own or the inherited rate', async () => {
+      configure(manage, withTypeRate);
+      const user = userEvent.setup();
+      renderRoute(<App />, '/pricing');
+      const table = await screen.findByRole('table', { name: 'Rates' });
+      expect(await within(table).findByText('PLA')).toBeInTheDocument();
+      expect(within(table).queryByText('Silk')).not.toBeInTheDocument();
+      await user.click(within(table).getByRole('button', { name: 'Show variants of PLA' }));
+      const silk = within(table).getByText('Silk').closest('tr')!;
+      const matte = within(table).getByText('Matte').closest('tr')!;
+      expect(silk).toHaveTextContent('0,045');
+      expect(silk).not.toHaveTextContent('inherited');
+      expect(matte).toHaveTextContent('0,03');
+      expect(matte).toHaveTextContent('inherited');
+      // Variants are nested after their type row.
+      const rows = within(table).getAllByRole('row');
+      expect(rows.indexOf(silk)).toBe(rows.indexOf(within(table).getByText('PLA').closest('tr')!) + 1);
+    });
+
+    it('finds a variant by name and expands its type', async () => {
+      configure(manage, withTypeRate);
+      const user = userEvent.setup();
+      renderRoute(<App />, '/pricing');
+      const table = await screen.findByRole('table', { name: 'Rates' });
+      await user.type(await screen.findByRole('searchbox', { name: 'Search rates' }), 'matte');
+      expect(within(table).getByText('PLA')).toBeInTheDocument();
+      expect(within(table).getByText('Matte')).toBeInTheDocument();
+      expect(within(table).queryByText('Silk')).not.toBeInTheDocument();
+      expect(within(table).queryByText('Laser runtime')).not.toBeInTheDocument();
+    });
+
+    it('creates a variant rate with its variant id', async () => {
+      configure(manage, withTypeRate);
+      let create: Record<string, unknown> | undefined;
+      server.use(
+        http.post('*/api/v1/pricing-groups/group-1/rules', async ({ request }) => {
+          create = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json(typeRule, { status: 201 });
+        }),
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, '/pricing');
+      const table = await screen.findByRole('table', { name: 'Rates' });
+      await user.click(await within(table).findByRole('button', { name: 'Show variants of PLA' }));
+      await user.click(within(table).getByRole('button', { name: /for PLA · Matte in Partners/ }));
+      const input = await screen.findByLabelText(/^Rate for PLA · Matte in Partners/);
+      expect(input).toHaveAttribute('placeholder', '0,03');
+      await user.type(input, '0.05');
+      await user.click(screen.getByRole('button', { name: 'Save rate' }));
+      await waitFor(() =>
+        expect(create).toEqual({
+          kind: 'material',
+          processId: null,
+          materialTypeId: 'mat-pla',
+          materialTypeVariantId: 'var-matte',
+          materialId: null,
+          measure: null,
+          rate: '0.05',
+        }),
+      );
+    });
+
+    it('removes a variant rate by deactivating it so the variant inherits again', async () => {
+      configure(manage, withTypeRate);
+      let update: Record<string, unknown> | undefined;
+      server.use(
+        http.patch('*/api/v1/pricing-rules/rule-5', async ({ request }) => {
+          update = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...group.rules[3], ...update });
+        }),
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, '/pricing');
+      const table = await screen.findByRole('table', { name: 'Rates' });
+      await user.click(await within(table).findByRole('button', { name: 'Show variants of PLA' }));
+      await user.click(within(table).getByRole('button', { name: /for PLA · Silk in Partners/ }));
+      await user.clear(await screen.findByLabelText(/^Rate for PLA · Silk in Partners/));
+      await user.click(screen.getByRole('button', { name: 'Remove variant rate' }));
+      await waitFor(() =>
+        expect(update).toMatchObject({
+          kind: 'material',
+          materialTypeId: 'mat-pla',
+          materialTypeVariantId: 'var-silk',
+          active: false,
+          expectedVersion: 5,
+        }),
+      );
+    });
+
+    it('does not count variants as missing rates', async () => {
+      configure([...manage]);
+      renderRoute(<App />, '/pricing');
+      const table = await screen.findByRole('table', { name: 'Rates' });
+      await userEvent.click(await within(table).findByRole('button', { name: 'Show variants of PLA' }));
+      // Embroidery runtime and PLA itself; Matte has no rate but inherits, so it is no gap.
+      expect(within(table).getAllByText('Missing')).toHaveLength(2);
+      expect(within(table).getByText('Matte').closest('tr')).toHaveTextContent('No rate');
+    });
   });
 
   it('saves the role mapping with priorities and links organizations', async () => {

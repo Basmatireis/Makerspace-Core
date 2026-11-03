@@ -19,6 +19,13 @@ const now = '2026-09-15T11:26:00Z';
 const MANAGER = [PermissionId.inventoryread, PermissionId.inventorymanage];
 const WITH_SPOOLS = [...MANAGER, PermissionId.filament_spoolsmanage];
 
+const variantOf = (n: number, name: string) => ({
+  id: id(50 + n),
+  materialTypeId: id(1),
+  name,
+  materialCount: 0,
+  pricingRuleCount: 0,
+});
 const plaType: MaterialType = {
   id: id(1),
   name: 'PLA',
@@ -30,6 +37,7 @@ const plaType: MaterialType = {
   active: true,
   materialCount: 1,
   pricingRuleCount: 0,
+  variants: [variantOf(1, 'Basic'), variantOf(2, 'Matte')],
   version: 1,
   createdAt: now,
   updatedAt: now,
@@ -45,6 +53,7 @@ const partType: MaterialType = {
   active: true,
   materialCount: 1,
   pricingRuleCount: 0,
+  variants: [],
   version: 1,
   createdAt: now,
   updatedAt: now,
@@ -286,6 +295,27 @@ describe('Receive stock', () => {
       placement: { mode: 'new_spools', tareWeightG: '210', identifiers: [{ kind: 'nfc', value: '04AA11' }] },
     });
     expect(await screen.findByRole('button', { name: 'Open S-PLA-MATTE-RED-01' })).toBeInTheDocument();
+  });
+
+  it('offers the variants of the chosen type and still takes a new name', async () => {
+    auth.permissions = MANAGER;
+    serve([black, insert]);
+    const user = userEvent.setup();
+    renderModal(<ReceiveStockModal open onClose={vi.fn()} kind="filament" />);
+    const dialog = await screen.findByRole('dialog', { name: 'Receive stock' });
+
+    await pickArticle(user, dialog, 'New article…');
+    await user.click(await within(dialog).findByRole('combobox', { name: 'Material type' }));
+    await user.click(await screen.findByText('PLA (g)'));
+    await user.click(within(dialog).getByRole('combobox', { name: 'Variant (optional)' }));
+    expect(await screen.findByRole('option', { name: 'Basic' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Matte' })).toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Matte' }));
+    expect(within(dialog).getByRole('combobox', { name: 'Variant (optional)' })).toHaveValue('Matte');
+    await user.clear(within(dialog).getByRole('combobox', { name: 'Variant (optional)' }));
+    await user.type(within(dialog).getByRole('combobox', { name: 'Variant (optional)' }), 'Silk');
+    expect(within(dialog).getByRole('combobox', { name: 'Variant (optional)' })).toHaveValue('Silk');
+    expect(within(dialog).getByText(/Leave empty to name it "PLA Silk"/)).toBeInTheDocument();
   });
 
   it('switches to the existing article when the backend reports a name conflict', async () => {

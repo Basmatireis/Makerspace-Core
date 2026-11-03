@@ -33,6 +33,7 @@ type Querier interface {
 	ListDeviceTypes(ctx context.Context) ([]ListDeviceTypesRow, error)
 	ListLabRulesVersions(ctx context.Context) ([]ListLabRulesVersionsRow, error)
 	ListMachines(ctx context.Context) ([]ListMachinesRow, error)
+	ListMaterialTypeVariants(ctx context.Context) ([]ListMaterialTypeVariantsRow, error)
 	ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow, error)
 	ListMaterials(ctx context.Context) ([]ListMaterialsRow, error)
 	ListPricingGroups(ctx context.Context) ([]ListPricingGroupsRow, error)

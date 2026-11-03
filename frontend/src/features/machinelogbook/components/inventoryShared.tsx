@@ -174,6 +174,7 @@ export function ColorSwatch({ hex, name }: { hex?: string | null; name?: string 
 export const priceSourceLabel: Record<MaterialPriceSource, string> = {
   stock_article: 'Article price',
   material_type: 'Material type rate',
+  material_type_variant: 'Variant rate',
 };
 
 /** "€35.00 / kg": a sale price per unit of the article. */

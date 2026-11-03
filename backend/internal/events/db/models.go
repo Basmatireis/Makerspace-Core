@@ -580,18 +580,20 @@ type MachineJobPricingSnapshot struct {
 }
 
 type MachineJobPricingSnapshotRule struct {
-	ID             uuid.UUID
-	SnapshotID     uuid.UUID
-	SourceRuleID   *uuid.UUID
-	Kind           string
-	Label          string
-	Selector       string
-	Unit           string
-	Rate           pgtype.Numeric
-	Missing        bool
-	MaterialTypeID *uuid.UUID
-	Measure        *string
-	BlockSize      *int32
+	ID                    uuid.UUID
+	SnapshotID            uuid.UUID
+	SourceRuleID          *uuid.UUID
+	Kind                  string
+	Label                 string
+	Selector              string
+	Unit                  string
+	Rate                  pgtype.Numeric
+	Missing               bool
+	MaterialTypeID        *uuid.UUID
+	Measure               *string
+	BlockSize             *int32
+	MaterialID            *uuid.UUID
+	MaterialTypeVariantID *uuid.UUID
 }
 
 type MachineJobRunSummary struct {
@@ -806,6 +808,7 @@ type Material struct {
 	DisplayID         string
 	DeletedAt         pgtype.Timestamptz
 	DeletedBy         *uuid.UUID
+	VariantID         *uuid.UUID
 }
 
 type MaterialBalance struct {
@@ -840,6 +843,14 @@ type MaterialType struct {
 type MaterialTypeProcess struct {
 	MaterialTypeID uuid.UUID
 	ProcessID      uuid.UUID
+}
+
+type MaterialTypeVariant struct {
+	ID             uuid.UUID
+	MaterialTypeID uuid.UUID
+	Name           string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type MfaRecoveryCode struct {
@@ -1205,20 +1216,21 @@ type PricingGroup struct {
 }
 
 type PricingRule struct {
-	ID             uuid.UUID
-	PricingGroupID uuid.UUID
-	Kind           string
-	ProcessID      *uuid.UUID
-	MaterialUnit   *string
-	Rate           pgtype.Numeric
-	Active         bool
-	Version        int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	MaterialTypeID *uuid.UUID
-	Measure        *string
-	BlockSize      *int32
-	MaterialID     *uuid.UUID
+	ID                    uuid.UUID
+	PricingGroupID        uuid.UUID
+	Kind                  string
+	ProcessID             *uuid.UUID
+	MaterialUnit          *string
+	Rate                  pgtype.Numeric
+	Active                bool
+	Version               int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	MaterialTypeID        *uuid.UUID
+	Measure               *string
+	BlockSize             *int32
+	MaterialID            *uuid.UUID
+	MaterialTypeVariantID *uuid.UUID
 }
 
 type PrintArtifact struct {

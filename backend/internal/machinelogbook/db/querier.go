@@ -43,6 +43,7 @@ type Querier interface {
 	CountMachineJobs(ctx context.Context, arg CountMachineJobsParams) (int64, error)
 	CountMachines(ctx context.Context, arg CountMachinesParams) (int64, error)
 	CountMaterialSpools(ctx context.Context, materialID uuid.UUID) (int64, error)
+	CountMaterialTypeVariants(ctx context.Context, materialTypeID uuid.UUID) (int64, error)
 	// Rows that still point at an article; an article with any of them is not removed by the configuration import.
 	CountMaterialUses(ctx context.Context, id uuid.UUID) (CountMaterialUsesRow, error)
 	CountMaterials(ctx context.Context, arg CountMaterialsParams) (int64, error)
@@ -58,6 +59,7 @@ type Querier interface {
 	CreateMaterial(ctx context.Context, arg CreateMaterialParams) (Material, error)
 	CreateMaterialBalance(ctx context.Context, materialID uuid.UUID) (MaterialBalance, error)
 	CreateMaterialType(ctx context.Context, arg CreateMaterialTypeParams) (MaterialType, error)
+	CreateMaterialTypeVariant(ctx context.Context, arg CreateMaterialTypeVariantParams) (MaterialTypeVariant, error)
 	CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (Organization, error)
 	CreatePricingGroup(ctx context.Context, arg CreatePricingGroupParams) (PricingGroup, error)
 	CreatePricingRule(ctx context.Context, arg CreatePricingRuleParams) (PricingRule, error)
@@ -68,6 +70,8 @@ type Querier interface {
 	DeleteFilamentSpoolIdentifier(ctx context.Context, arg DeleteFilamentSpoolIdentifierParams) (int64, error)
 	// Deletes file rows and queues their storage blobs for the maintenance loop.
 	DeleteFilesQueueBlobs(ctx context.Context, fileIds []uuid.UUID) error
+	// Removes the inactive rules of a variant before the variant row (the composite foreign key restricts them).
+	DeleteInactivePricingRulesOfVariant(ctx context.Context, id uuid.UUID) (int64, error)
 	// The printer profile, its input units, slots and live statuses go with it through ON DELETE CASCADE.
 	DeleteMachine(ctx context.Context, arg DeleteMachineParams) (int64, error)
 	DeleteMachineConnectorAssignments(ctx context.Context, machineID uuid.UUID) error
@@ -83,6 +87,7 @@ type Querier interface {
 	DeleteMaterialFilamentProperties(ctx context.Context, materialID uuid.UUID) error
 	DeleteMaterialType(ctx context.Context, arg DeleteMaterialTypeParams) (int64, error)
 	DeleteMaterialTypeProcesses(ctx context.Context, materialTypeID uuid.UUID) error
+	DeleteMaterialTypeVariant(ctx context.Context, id uuid.UUID) (int64, error)
 	// Members, the pricing group assignment and invoicing requirements go with it
 	// through ON DELETE CASCADE.
 	DeleteOrganization(ctx context.Context, arg DeleteOrganizationParams) (int64, error)
@@ -102,6 +107,8 @@ type Querier interface {
 	FindFilamentSpoolByIdentifier(ctx context.Context, arg FindFilamentSpoolByIdentifierParams) (uuid.UUID, error)
 	FindMaterialByName(ctx context.Context, name string) (uuid.UUID, error)
 	FindMaterialTypeByCode(ctx context.Context, code string) (uuid.UUID, error)
+	// Share-locks the variant so its name cannot change before the article that takes it commits.
+	FindMaterialTypeVariantByName(ctx context.Context, arg FindMaterialTypeVariantByNameParams) (MaterialTypeVariant, error)
 	ForgetFormerJobOfRuns(ctx context.Context, jobID *uuid.UUID) error
 	GetActivePricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]PricingRule, error)
 	GetArtifactReference(ctx context.Context, id uuid.UUID) (GetArtifactReferenceRow, error)
@@ -126,6 +133,10 @@ type Querier interface {
 	GetMaterialTypeForShare(ctx context.Context, id uuid.UUID) (MaterialType, error)
 	GetMaterialTypeForUpdate(ctx context.Context, id uuid.UUID) (MaterialType, error)
 	GetMaterialTypeOfMaterial(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetMaterialTypeVariant(ctx context.Context, id uuid.UUID) (MaterialTypeVariant, error)
+	// Locks the variant FOR NO KEY UPDATE: articles reading its name (FOR SHARE) wait, foreign-key checks do not.
+	GetMaterialTypeVariantForRename(ctx context.Context, arg GetMaterialTypeVariantForRenameParams) (MaterialTypeVariant, error)
+	GetMaterialTypeVariantForUpdate(ctx context.Context, arg GetMaterialTypeVariantForUpdateParams) (MaterialTypeVariant, error)
 	GetOrderItemSaleTransaction(ctx context.Context, orderItemID *uuid.UUID) (InventoryTransaction, error)
 	GetOrganization(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationDetail(ctx context.Context, id uuid.UUID) (GetOrganizationDetailRow, error)
@@ -194,12 +205,17 @@ type Querier interface {
 	ListMachineRunningRuns(ctx context.Context, now time.Time) ([]ListMachineRunningRunsRow, error)
 	ListMachines(ctx context.Context, arg ListMachinesParams) ([]ListMachinesRow, error)
 	// Sale prices of articles per active pricing group: the article's own stock_article rule, else the material rule of
-	// its machine-use type.
+	// its variant, else the material rule of its machine-use type.
 	ListMaterialPrices(ctx context.Context, materialIds []string) ([]ListMaterialPricesRow, error)
 	ListMaterialTypeProcessNames(ctx context.Context, materialTypeID uuid.UUID) ([]uuid.UUID, error)
 	ListMaterialTypeProcesses(ctx context.Context, materialTypeIds []uuid.UUID) ([]MaterialTypeProcess, error)
+	// Variants of the given types by name, with the articles (deleted ones included) and the active material pricing
+	// rules that use them.
+	ListMaterialTypeVariants(ctx context.Context, materialTypeIds []string) ([]ListMaterialTypeVariantsRow, error)
 	ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow, error)
 	ListMaterials(ctx context.Context, arg ListMaterialsParams) ([]ListMaterialsRow, error)
+	// Articles of a variant, deleted ones included, locked for a rename of the variant.
+	ListMaterialsOfVariantForUpdate(ctx context.Context, variantID *uuid.UUID) ([]ListMaterialsOfVariantForUpdateRow, error)
 	// Materials of the given ones whose type is not usable for the process.
 	ListMaterialsOutsideProcess(ctx context.Context, arg ListMaterialsOutsideProcessParams) ([]ListMaterialsOutsideProcessRow, error)
 	ListOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationMembersRow, error)
@@ -250,6 +266,8 @@ type Querier interface {
 	// True while a material or a pricing rule (active or not) uses the type. Pricing
 	// snapshots only keep a nullable pointer and their own label text.
 	MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
+	// True while an article (deleted ones included) or an active pricing rule uses the variant.
+	MaterialTypeVariantIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
 	NextMachineJobSequence(ctx context.Context) (int64, error)
 	NextMachineRunSequence(ctx context.Context) (int64, error)
 	NextMaterialSequence(ctx context.Context) (int64, error)
@@ -271,6 +289,8 @@ type Querier interface {
 	// Keeps the price of a running job current without bumping its version.
 	RefreshMachineJobPrice(ctx context.Context, arg RefreshMachineJobPriceParams) (MachineJob, error)
 	RemoveOrganizationMember(ctx context.Context, arg RemoveOrganizationMemberParams) (uuid.UUID, error)
+	RenameMaterialTypeVariant(ctx context.Context, arg RenameMaterialTypeVariantParams) (MaterialTypeVariant, error)
+	RenameVariantOfMaterial(ctx context.Context, arg RenameVariantOfMaterialParams) error
 	ReplaceProcessMeasures(ctx context.Context, processID uuid.UUID) error
 	RestoreFilamentSpool(ctx context.Context, arg RestoreFilamentSpoolParams) (FilamentSpool, error)
 	RestoreMachineJob(ctx context.Context, id uuid.UUID) error
@@ -313,7 +333,9 @@ type Querier interface {
 	// the open-day seconds of the period. Runs of jobs and unassigned recorded runs; a running run counts until now.
 	StatisticMachineUtilization(ctx context.Context, arg StatisticMachineUtilizationParams) ([]StatisticMachineUtilizationRow, error)
 	StatisticMaterialByMonth(ctx context.Context, arg StatisticMaterialByMonthParams) ([]StatisticMaterialByMonthRow, error)
-	// Makerspace material of the period's jobs at the material rates of each job's active pricing snapshot.
+	// Makerspace material of the period's jobs at the material rates of each job's active pricing snapshot, by the
+	// article's type. A usage takes the most specific entry of the snapshot that covers it, as job pricing does: the
+	// article's own rate, else its variant's, else its type's.
 	StatisticMaterialChargesByType(ctx context.Context, arg StatisticMaterialChargesByTypeParams) ([]StatisticMaterialChargesByTypeRow, error)
 	StatisticMaterialCostByType(ctx context.Context, arg StatisticMaterialCostByTypeParams) ([]StatisticMaterialCostByTypeRow, error)
 	// Inventory value consumed by failed or cancelled runs (net of their corrections) plus disposals and negative stock

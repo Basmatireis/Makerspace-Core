@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	configtransferdb "github.com/Basmatireis/Makerspace-Core/backend/internal/configtransfer/db"
@@ -22,8 +23,11 @@ type pricingRuleEntry struct {
 	Kind         string  `json:"kind"`
 	Process      *string `json:"process"`
 	MaterialType *string `json:"materialType"`
-	Measure      *string `json:"measure"`
-	Rate         string  `json:"rate"`
+	// Variant is the name of one of the material type's variants (kind material only); absent prices the whole type.
+	// It is left out when empty so files without variant rules stay readable by releases that predate variants.
+	Variant *string `json:"variant,omitempty"`
+	Measure *string `json:"measure"`
+	Rate    string  `json:"rate"`
 }
 
 type pricingGroupEntry struct {
@@ -65,13 +69,21 @@ func ruleKey(rule pricingRuleEntry) string {
 	if rule.MaterialType != nil {
 		material = nameKey(*rule.MaterialType)
 	}
+	variant := ""
+	if rule.Variant != nil {
+		variant = nameKey(*rule.Variant)
+	}
 	measure := ""
 	if rule.Measure != nil {
 		measure = *rule.Measure
 	}
-	return rule.Kind + "\x00" + target + "\x00" + material + "\x00" + measure
+	return rule.Kind + "\x00" + target + "\x00" + material + "\x00" + variant + "\x00" + measure
 }
 
+// validatePricing checks the pricing section on its own. Whether a variant exists in its material type cannot be
+// decided here: sections validate independently, and a pricing-only file refers to the importing instance's types. The
+// apply step resolves the type and variant names and reports an unknown variant as a pricing_target_missing conflict,
+// which includes the variants the same import adds through the materialTypes section before it.
 func validatePricing(data *pricingData) error {
 	if data.Groups == nil {
 		data.Groups = []pricingGroupEntry{}
@@ -102,6 +114,13 @@ func validatePricing(data *pricingData) error {
 			rule := &group.Rules[j]
 			rule.Process, rule.MaterialType, rule.Measure = trimmed(rule.Process), trimmed(rule.MaterialType),
 				trimmed(rule.Measure)
+			rule.Variant = trimmed(rule.Variant)
+			if rule.Variant != nil && (rule.Kind != string(machinelogbook.PricingRuleMaterial) || rule.MaterialType == nil) {
+				return fmt.Errorf("a rule of pricing group %q names a variant but is not a material rule", group.Name)
+			}
+			if rule.Variant != nil && utf8.RuneCountInString(*rule.Variant) > 80 {
+				return fmt.Errorf("a variant name of pricing group %q is longer than 80 characters", group.Name)
+			}
 			rate, err := normalizeDecimal(&rule.Rate)
 			if err != nil || rate == nil {
 				return fmt.Errorf("a rule of pricing group %q has an invalid rate", group.Name)
@@ -165,6 +184,7 @@ func ruleEntry(row configtransferdb.ListActivePricingRulesRow) pricingRuleEntry 
 		Kind:         row.Kind,
 		Process:      row.ProcessName,
 		MaterialType: row.MaterialTypeName,
+		Variant:      row.VariantName,
 		Measure:      row.Measure,
 		Rate:         rate,
 	}
@@ -256,25 +276,52 @@ func summarizeRules(changes []ruleChange) string {
 	return fmt.Sprintf("Rules: %d created, %d updated, %d deactivated.", created, updated, deactivated)
 }
 
-type targetIDs struct{ processes, materialTypes map[string]uuid.UUID }
+type targetIDs struct {
+	processes, materialTypes map[string]uuid.UUID
+	// variants maps a material type id and a variant name to the variant's id.
+	variants map[variantRef]uuid.UUID
+}
 
-func (t targetIDs) resolve(rule pricingRuleEntry) (*uuid.UUID, *uuid.UUID, string) {
-	var processID, materialTypeID *uuid.UUID
+type variantRef struct {
+	materialType uuid.UUID
+	name         string
+}
+
+func (t targetIDs) resolve(rule pricingRuleEntry) (processID, materialTypeID, variantID *uuid.UUID, problem string) {
 	if rule.Process != nil {
 		id, ok := t.processes[nameKey(*rule.Process)]
 		if !ok {
-			return nil, nil, fmt.Sprintf("The process %q does not exist.", *rule.Process)
+			return nil, nil, nil, fmt.Sprintf("The process %q does not exist.", *rule.Process)
 		}
 		processID = &id
 	}
 	if rule.MaterialType != nil {
 		id, ok := t.materialTypes[nameKey(*rule.MaterialType)]
 		if !ok {
-			return nil, nil, fmt.Sprintf("The material type %q does not exist.", *rule.MaterialType)
+			return nil, nil, nil, fmt.Sprintf("The material type %q does not exist.", *rule.MaterialType)
 		}
 		materialTypeID = &id
+		if rule.Variant != nil {
+			variant, ok := t.variants[variantRef{id, nameKey(*rule.Variant)}]
+			if !ok {
+				return nil, nil, nil, fmt.Sprintf("The material type %q has no variant %q.", *rule.MaterialType, *rule.Variant)
+			}
+			variantID = &variant
+		}
 	}
-	return processID, materialTypeID, ""
+	return processID, materialTypeID, variantID, ""
+}
+
+func variantIDs(ctx context.Context, q *configtransferdb.Queries) (map[variantRef]uuid.UUID, error) {
+	rows, err := q.ListMaterialTypeVariants(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[variantRef]uuid.UUID, len(rows))
+	for _, row := range rows {
+		result[variantRef{row.MaterialTypeID, nameKey(row.Name)}] = row.ID
+	}
+	return result, nil
 }
 
 func pricingGroupRow(ctx context.Context, tx pgx.Tx, id uuid.UUID) (configtransferdb.ListPricingGroupsRow, error) {
@@ -296,22 +343,22 @@ func (r *run) applyRuleChanges(tx pgx.Tx, groupID uuid.UUID, changes []ruleChang
 		var err error
 		switch {
 		case change.create != nil:
-			processID, materialTypeID, _ := targets.resolve(*change.create)
+			processID, materialTypeID, variantID, _ := targets.resolve(*change.create)
 			_, err = logbook.CreatePricingRuleTx(
 				r.ctx, tx, r.p, groupID, machinelogbook.PricingRuleKind(change.create.Kind), processID,
-				materialTypeID, change.create.Measure, change.create.Rate, r.requestID,
+				materialTypeID, variantID, change.create.Measure, change.create.Rate, r.requestID,
 			)
 		case change.update != nil:
 			row := change.update
 			_, err = logbook.UpdatePricingRuleTx(
 				r.ctx, tx, r.p, row.ID, row.Version, machinelogbook.PricingRuleKind(row.Kind), row.ProcessID,
-				row.MaterialTypeID, row.Measure, change.rate, true, r.requestID,
+				row.MaterialTypeID, row.MaterialTypeVariantID, row.Measure, change.rate, true, r.requestID,
 			)
 		default:
 			row := change.deactivate
 			_, err = logbook.UpdatePricingRuleTx(
 				r.ctx, tx, r.p, row.ID, row.Version, machinelogbook.PricingRuleKind(row.Kind), row.ProcessID,
-				row.MaterialTypeID, row.Measure, ruleEntry(*row).Rate, false, r.requestID,
+				row.MaterialTypeID, row.MaterialTypeVariantID, row.Measure, ruleEntry(*row).Rate, false, r.requestID,
 			)
 		}
 		if err != nil {
@@ -333,6 +380,9 @@ func applyPricing(r *run, data *pricingData) (func() error, error) {
 	if targets.materialTypes, err = materialTypeIDs(r.ctx, r.q); err != nil {
 		return nil, err
 	}
+	if targets.variants, err = variantIDs(r.ctx, r.q); err != nil {
+		return nil, err
+	}
 	existing := map[string]storedGroup{}
 	for _, group := range groups {
 		existing[nameKey(group.row.Name)] = group
@@ -348,7 +398,7 @@ func applyPricing(r *run, data *pricingData) (func() error, error) {
 		}
 		problem := ""
 		for _, rule := range item.Rules {
-			if _, _, problem = targets.resolve(rule); problem != "" {
+			if _, _, _, problem = targets.resolve(rule); problem != "" {
 				break
 			}
 		}

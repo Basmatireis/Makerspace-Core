@@ -87,6 +87,11 @@ SELECT t.id, t.name, t.kind, t.unit, t.active, t.version,
 FROM material_types t
 ORDER BY lower(t.name), t.id;
 
+-- name: ListMaterialTypeVariants :many
+SELECT v.id, v.material_type_id, v.name
+FROM material_type_variants v
+ORDER BY v.material_type_id, lower(v.name), v.name, v.id;
+
 -- name: ListMaterials :many
 SELECT m.id, m.name, t.name AS material_type_name, m.active, m.low_stock_threshold,
     m.color_name, m.color_hex, m.variant, m.manufacturer,
@@ -103,13 +108,14 @@ SELECT id, name, description, active, is_default, version FROM pricing_groups OR
 
 -- name: ListActivePricingRules :many
 SELECT r.id, r.pricing_group_id, r.kind, mt.name AS process_name, mat.name AS material_type_name,
-    r.measure, r.rate, r.process_id, r.material_type_id, r.version
+    r.measure, r.rate, r.process_id, r.material_type_id, r.material_type_variant_id, v.name AS variant_name, r.version
 FROM pricing_rules r
 LEFT JOIN processes mt ON mt.id = r.process_id
 LEFT JOIN material_types mat ON mat.id = r.material_type_id
+LEFT JOIN material_type_variants v ON v.id = r.material_type_variant_id
 -- Sale prices of single articles (stock_article) belong to the inventory, not to the transferred catalog.
 WHERE r.active AND r.kind <> 'stock_article'
-ORDER BY r.pricing_group_id, r.kind, lower(COALESCE(mt.name, mat.name)), r.measure, r.id;
+ORDER BY r.pricing_group_id, r.kind, lower(COALESCE(mt.name, mat.name)), lower(v.name) NULLS FIRST, r.measure, r.id;
 
 -- name: ListRolePricingGroups :many
 SELECT r.id AS role_id, r.name AS role_name, g.id AS pricing_group_id, g.name AS pricing_group_name, rpg.priority

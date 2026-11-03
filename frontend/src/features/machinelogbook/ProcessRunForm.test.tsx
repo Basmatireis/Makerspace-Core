@@ -61,6 +61,7 @@ const typeOf = (
   active,
   materialCount: 1,
   pricingRuleCount: 0,
+  variants: [],
   version: 1,
   createdAt: now,
   updatedAt: now,

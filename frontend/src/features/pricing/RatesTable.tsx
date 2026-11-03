@@ -5,6 +5,8 @@ import {
   TableBody,
   TableCell,
   TableContainer,
+  TableExpandHeader,
+  TableExpandRow,
   TableHead,
   TableHeader,
   TableRow,
@@ -17,7 +19,7 @@ import { Add } from '@carbon/icons-react';
 import type { PricingGroup } from '../../api/generated/models';
 import { rateText } from './pricingShared';
 import { SetRateModal } from './SetRateModal';
-import { fallbackOf, RATE_SECTIONS, ruleOf, type RateSelector } from './selectors';
+import { fallbackOf, inheritedOf, RATE_SECTIONS, ruleOf, selectorName, type RateSelector } from './selectors';
 
 function RateValue({
   group,
@@ -31,17 +33,26 @@ function RateValue({
   onEdit: () => void;
 }) {
   const rule = ruleOf(group, selector);
-  const fallback = !rule && selector.section === 'article' ? fallbackOf(group, selector) : undefined;
+  // A row without a rate of its own shows the rate it falls back to: the type rate for an article or a variant.
+  const variant = !!selector.materialTypeVariantId;
+  const fallback = rule
+    ? undefined
+    : variant
+      ? inheritedOf(group, selector)
+      : selector.section === 'article'
+        ? fallbackOf(group, selector)
+        : undefined;
+  const marker = variant ? 'inherited' : 'type rate';
   // The accessible name starts with the visible text and says which row and group the button changes.
-  const target = ` for ${selector.label} in ${group.name}`;
+  const target = ` for ${selectorName(selector)} in ${group.name}`;
   if (rule || fallback) {
-    const text = `${rateText((rule ?? fallback)!.rate)} ${selector.unit}${fallback ? ' · type rate' : ''}`;
+    const text = `${rateText((rule ?? fallback)!.rate)} ${selector.unit}${fallback ? ` · ${marker}` : ''}`;
     const value = (
       <>
         <span className="sales-rate__value">{rateText((rule ?? fallback)!.rate)}</span>{' '}
         <span className="sales-secondary">
           {selector.unit}
-          {fallback && ' · type rate'}
+          {fallback && ` · ${marker}`}
         </span>
       </>
     );
@@ -62,8 +73,8 @@ function RateValue({
   const article = selector.section === 'article';
   return (
     <span className="sales-rate">
-      {article ? (
-        <span className="sales-secondary">No price</span>
+      {article || variant ? (
+        <span className="sales-secondary">{variant ? 'No rate' : 'No price'}</span>
       ) : (
         <Tag type="red" size="sm">
           Missing
@@ -98,13 +109,22 @@ export function RatesTable({
   canEdit: boolean;
 }) {
   const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [editing, setEditing] = useState<{ group: PricingGroup; selector: RateSelector } | null>(null);
   const active = groups.filter((group) => group.active);
   const term = search.trim().toLowerCase();
+  const matches = (selector: RateSelector) => `${selector.label} ${selector.description}`.toLowerCase().includes(term);
+  // A type stays visible when one of its variants matches, and then it is expanded to show that variant.
+  const matchedParents = new Set(
+    term ? selectors.filter((s) => s.parentKey && matches(s)).map((s) => s.parentKey) : [],
+  );
   const shown = term
-    ? selectors.filter((selector) => `${selector.label} ${selector.description}`.toLowerCase().includes(term))
+    ? selectors.filter((selector) =>
+        selector.parentKey ? matches(selector) : matches(selector) || matchedParents.has(selector.key),
+      )
     : selectors;
-  const columns = active.length + 1;
+  const isExpanded = (selector: RateSelector) => expanded.has(selector.key) || matchedParents.has(selector.key);
+  const columns = active.length + 2;
   return (
     <TableContainer
       title="Rates"
@@ -128,6 +148,7 @@ export function RatesTable({
       <Table aria-label="Rates" className="sales-rates">
         <TableHead>
           <TableRow>
+            <TableExpandHeader aria-label="Variants" />
             <TableHeader>Rate</TableHeader>
             {active.map((group) => (
               <TableHeader key={group.id}>
@@ -160,26 +181,65 @@ export function RatesTable({
                     <strong>{section.title}</strong>
                   </TableCell>
                 </TableRow>
-                {rows.map((selector) => (
-                  <TableRow key={selector.key}>
-                    <TableCell>
-                      <div className="sales-cell">
-                        <strong>{selector.label}</strong>
-                        <span className="sales-secondary">{selector.description}</span>
-                      </div>
-                    </TableCell>
-                    {active.map((group) => (
+                {rows.flatMap((selector) => {
+                  if (selector.parentKey) return [];
+                  const variants = rows.filter((row) => row.parentKey === selector.key);
+                  const cells = (row: RateSelector) =>
+                    active.map((group) => (
                       <TableCell key={group.id}>
                         <RateValue
                           group={group}
-                          selector={selector}
+                          selector={row}
                           canEdit={canEdit}
-                          onEdit={() => setEditing({ group, selector })}
+                          onEdit={() => setEditing({ group, selector: row })}
                         />
                       </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
+                    ));
+                  const name = (row: RateSelector) => (
+                    <TableCell>
+                      <div className="sales-cell">
+                        <strong>{row.label}</strong>
+                        <span className="sales-secondary">{row.description}</span>
+                      </div>
+                    </TableCell>
+                  );
+                  const head =
+                    variants.length > 0 ? (
+                      <TableExpandRow
+                        key={selector.key}
+                        aria-label={`Show variants of ${selector.label}`}
+                        isExpanded={isExpanded(selector)}
+                        onExpand={() =>
+                          setExpanded((current) => {
+                            const next = new Set(current);
+                            if (!next.delete(selector.key)) next.add(selector.key);
+                            return next;
+                          })
+                        }
+                      >
+                        {name(selector)}
+                        {cells(selector)}
+                      </TableExpandRow>
+                    ) : (
+                      <TableRow key={selector.key}>
+                        <TableCell />
+                        {name(selector)}
+                        {cells(selector)}
+                      </TableRow>
+                    );
+                  return [
+                    head,
+                    ...(isExpanded(selector)
+                      ? variants.map((variant) => (
+                          <TableRow key={variant.key}>
+                            <TableCell />
+                            {name(variant)}
+                            {cells(variant)}
+                          </TableRow>
+                        ))
+                      : []),
+                  ];
+                })}
               </Fragment>
             );
           })}

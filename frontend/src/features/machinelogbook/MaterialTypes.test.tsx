@@ -30,6 +30,7 @@ const type = (overrides: Partial<MaterialType>): MaterialType => ({
   active: true,
   materialCount: 3,
   pricingRuleCount: 2,
+  variants: [],
   version: 2,
   createdAt: now,
   updatedAt: now,
@@ -271,6 +272,214 @@ describe('Types and categories', () => {
     await screen.findByText('Delete this material type?');
     await user.click(await screen.findByRole('button', { name: 'Delete material type' }));
     expect(await screen.findByText('In use')).toBeInTheDocument();
+  });
+});
+
+describe('Variants of a type', () => {
+  const variantOf = (n: number, name: string, materialCount = 0, pricingRuleCount = 0) => ({
+    id: `0192f6f8-743e-7c77-a349-cd07c3e8f9${String(n).padStart(2, '0')}`,
+    materialTypeId: pla.id,
+    name,
+    materialCount,
+    pricingRuleCount,
+  });
+  const basic = variantOf(1, 'Basic', 3, 1);
+  const matte = variantOf(2, 'Matte');
+  const group = (rules: object[]) => ({
+    id: '0192f6f8-743e-7c77-a349-cd07c3e8fa01',
+    name: 'Partner',
+    description: null,
+    active: true,
+    isDefault: false,
+    rules,
+    version: 1,
+    createdAt: now,
+    updatedAt: now,
+  });
+  const rule = (overrides: object) => ({
+    id: '0192f6f8-743e-7c77-a349-cd07c3e8fb01',
+    pricingGroupId: '0192f6f8-743e-7c77-a349-cd07c3e8fa01',
+    kind: 'material',
+    materialTypeId: pla.id,
+    materialTypeVariantId: null,
+    rate: '0.040000',
+    active: true,
+    version: 1,
+    ...overrides,
+  });
+
+  async function openPla(user: ReturnType<typeof userEvent.setup>) {
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    const table = await openTypes(user);
+    await user.click(await within(table).findByRole('button', { name: 'PLA' }));
+    return screen.findByRole('dialog', { name: 'Edit material type' });
+  }
+
+  it('lists variants in the table, adds and renames them, and blocks deleting a used one', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    let variants = [basic, matte];
+    serveTypes();
+    server.use(http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants }] })));
+    const bodies: { method: string; url: string; body: unknown }[] = [];
+    server.use(
+      http.post(`*/api/v1/material-types/${pla.id}/variants`, async ({ request }) => {
+        const body = (await request.json()) as { name: string };
+        bodies.push({ method: 'POST', url: request.url, body });
+        const created = variantOf(3, body.name);
+        variants = [...variants, created];
+        return HttpResponse.json(created, { status: 201 });
+      }),
+      http.patch(`*/api/v1/material-types/${pla.id}/variants/${matte.id}`, async ({ request }) => {
+        const body = (await request.json()) as { name: string };
+        bodies.push({ method: 'PATCH', url: request.url, body });
+        variants = variants.map((item) => (item.id === matte.id ? { ...item, name: body.name } : item));
+        return HttpResponse.json({ ...matte, name: body.name });
+      }),
+    );
+    const user = userEvent.setup();
+    const table = await (async () => {
+      renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+      return openTypes(user);
+    })();
+    const plaRow = (await within(table).findByText('PLA')).closest('tr') as HTMLElement;
+    expect(await within(plaRow).findByText('Basic, Matte')).toBeInTheDocument();
+    await user.click(within(table).getByRole('button', { name: 'PLA' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit material type' });
+    expect(within(dialog).getByText(/only saves the type itself/)).toBeInTheDocument();
+    expect(within(dialog).getByText('Used by 3 articles and 1 price rule.')).toBeInTheDocument();
+    expect(
+      within(dialog).getByLabelText('Basic is in use and cannot be deleted', { selector: 'button' }),
+    ).toBeDisabled();
+    expect(within(dialog).getByLabelText('Delete Matte', { selector: 'button' })).toBeEnabled();
+
+    await user.type(within(dialog).getByLabelText('New variant'), 'Silk');
+    await user.click(within(dialog).getByRole('button', { name: 'Add variant' }));
+    await waitFor(() =>
+      expect(bodies).toContainEqual(expect.objectContaining({ method: 'POST', body: { name: 'Silk' } })),
+    );
+    expect(await within(dialog).findByLabelText('Name of variant Silk')).toBeInTheDocument();
+
+    const field = within(dialog).getByLabelText('Name of variant Matte');
+    await user.clear(field);
+    await user.type(field, 'Satin');
+    await user.click(within(dialog).getByLabelText('Save name of Matte', { selector: 'button' }));
+    await waitFor(() =>
+      expect(bodies).toContainEqual(expect.objectContaining({ method: 'PATCH', body: { name: 'Satin' } })),
+    );
+  });
+
+  it('deletes an unused variant at once', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    serveTypes();
+    server.use(
+      http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants: [basic, matte] }] })),
+    );
+    let deleted = false;
+    server.use(
+      http.delete(`*/api/v1/material-types/${pla.id}/variants/${matte.id}`, () => {
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    const dialog = await openPla(user);
+    await user.click(await within(dialog).findByLabelText('Delete Matte', { selector: 'button' }));
+    await waitFor(() => expect(deleted).toBe(true));
+  });
+
+  it('shows own and inherited rates and sends the variant when a cell is edited', async () => {
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventorymanage,
+      PermissionId.pricingread,
+      PermissionId.pricingmanage,
+    ];
+    serveTypes();
+    server.use(
+      http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants: [basic, matte] }] })),
+      http.get('*/api/v1/pricing-groups', () =>
+        HttpResponse.json({
+          items: [
+            group([
+              rule({}),
+              rule({
+                id: '0192f6f8-743e-7c77-a349-cd07c3e8fb02',
+                materialTypeVariantId: basic.id,
+                rate: '0.050000',
+              }),
+            ]),
+          ],
+        }),
+      ),
+    );
+    let created: unknown;
+    server.use(
+      http.post('*/api/v1/pricing-groups/:groupId/rules', async ({ request }) => {
+        created = await request.json();
+        return HttpResponse.json(rule({ materialTypeVariantId: matte.id, rate: '0.060000' }), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    const dialog = await openPla(user);
+    const rates = await within(dialog).findByRole('table', { name: 'Rates of PLA per variant' });
+    expect(within(rates).getByRole('button', { name: 'Edit rate for All variants in Partner' })).toHaveTextContent(
+      '0,04 €/g',
+    );
+    expect(within(rates).getByRole('button', { name: 'Edit rate for Basic in Partner' })).toHaveTextContent('0,05 €/g');
+    expect(within(rates).getByRole('button', { name: 'Edit rate for Matte in Partner' })).toHaveTextContent(
+      '0,04 €/g · inherited',
+    );
+    await user.click(within(rates).getByRole('button', { name: 'Edit rate for Matte in Partner' }));
+    await user.type(within(rates).getByLabelText(/Rate for Matte in Partner/), '0,06');
+    await user.click(within(rates).getByLabelText('Save rate for Matte in Partner', { selector: 'button' }));
+    await waitFor(() =>
+      expect(created).toEqual({
+        kind: 'material',
+        materialTypeId: pla.id,
+        materialTypeVariantId: matte.id,
+        rate: '0.06',
+      }),
+    );
+  });
+
+  it('explains where to create a pricing group when none exists', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage, PermissionId.pricingread];
+    serveTypes();
+    server.use(
+      http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants: [basic, matte] }] })),
+      http.get('*/api/v1/pricing-groups', () => HttpResponse.json({ items: [] })),
+    );
+    const user = userEvent.setup();
+    const dialog = await openPla(user);
+    expect(await within(dialog).findByText('Rates per variant')).toBeInTheDocument();
+    expect(within(dialog).getByText(/Rates per variant appear once a pricing group exists under/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'Sales → Pricing' })).toHaveAttribute('href', '/pricing');
+    expect(within(dialog).queryByRole('table', { name: 'Rates of PLA per variant' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the rates read-only without pricing.manage and hides them without pricing.read', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage, PermissionId.pricingread];
+    serveTypes();
+    server.use(
+      http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants: [basic, matte] }] })),
+      http.get('*/api/v1/pricing-groups', () => HttpResponse.json({ items: [group([rule({})])] })),
+    );
+    const user = userEvent.setup();
+    const dialog = await openPla(user);
+    const rates = await within(dialog).findByRole('table', { name: 'Rates of PLA per variant' });
+    expect(within(rates).queryByRole('button')).not.toBeInTheDocument();
+    expect(within(rates).getAllByText('0,04 €/g · inherited')).toHaveLength(2);
+  });
+
+  it('shows no variants for part categories', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    serveTypes();
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    const table = await openTypes(user);
+    await user.click(await within(table).findByRole('button', { name: 'Fasteners' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit category' });
+    expect(within(dialog).queryByText('Variants')).not.toBeInTheDocument();
   });
 });
 

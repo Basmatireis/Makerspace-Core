@@ -17,7 +17,9 @@ import (
 const (
 	// FormatName identifies a configuration file.
 	FormatName = "makerspace-core-config"
-	// FormatVersion is the only file format version this release reads and writes.
+	// FormatVersion is the only file format version this release reads and writes. Material type variants did not
+	// raise it: their fields are optional and omitted when empty, files without them read as before, and a reader
+	// that predates them rejects a file that uses them as an unknown field instead of misreading it.
 	FormatVersion = 1
 	// MaxFileBytes bounds an import file and an export. It leaves room for custom branding assets and a Lab Rules PDF
 	// encoded as base64.

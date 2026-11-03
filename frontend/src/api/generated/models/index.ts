@@ -463,6 +463,8 @@ export * from './materialPriceSource';
 export * from './materialType';
 export * from './materialTypeCode';
 export * from './materialTypeList';
+export * from './materialTypeVariant';
+export * from './materialTypeVariantRequest';
 export * from './materialUnit';
 export * from './minimalPerson';
 export * from './money';

@@ -157,6 +157,10 @@ type PricingRule struct {
 	MaterialTypeID   *uuid.UUID
 	MaterialTypeName *string
 	MaterialUnit     *string
+	// MaterialTypeVariantID and its name are set on material rules that price one variant of the type; articles of
+	// a variant without a rule of its own use the rule of the type.
+	MaterialTypeVariantID   *uuid.UUID
+	MaterialTypeVariantName *string
 	// MaterialID, its name and display ID are set on stock_article rules: Rate is the sale price per unit of
 	// that article.
 	MaterialID                      *uuid.UUID
@@ -178,10 +182,19 @@ type MaterialType struct {
 	Kind                            MaterialKind
 	MachineUse                      bool
 	ProcessIDs                      []uuid.UUID
+	Variants                        []MaterialTypeVariant
 	Active                          bool
 	MaterialCount, PricingRuleCount int64
 	Version                         int64
 	CreatedAt, UpdatedAt            time.Time
+}
+
+// MaterialTypeVariant is one variant of a material type (PLA: Basic, Matte, Silk ...). Articles pick their variant
+// from this list, and a material pricing rule may price one variant. Parts have none.
+type MaterialTypeVariant struct {
+	ID, MaterialTypeID              uuid.UUID
+	Name                            string
+	MaterialCount, PricingRuleCount int64
 }
 
 type PricingGroup struct {
@@ -203,10 +216,12 @@ type Material struct {
 	MachineUse                                    bool
 	ColorName, ColorHex                           *string
 	Variant, Manufacturer, StorageLocation, Notes *string
-	PackageSize                                   *string
-	Active                                        bool
-	Prices                                        []MaterialPrice
-	Attention                                     []Attention
+	// VariantID is the variant of the material type; Variant is its name.
+	VariantID   *uuid.UUID
+	PackageSize *string
+	Active      bool
+	Prices      []MaterialPrice
+	Attention   []Attention
 	// deleted: the article is in the recycle bin.
 	deleted                                            bool
 	LowStockThreshold                                  *string

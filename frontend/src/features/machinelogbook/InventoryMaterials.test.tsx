@@ -376,4 +376,39 @@ describe('Inventory recycle bin', () => {
     const ledger = screen.getByRole('table', { name: 'Deleted ledger entries' });
     expect(within(ledger).getByRole('button', { name: /^Restore Sold/ })).toBeInTheDocument();
   });
+
+  it('offers every variant while the field shows the current one and filters once typed into', async () => {
+    auth.permissions = MANAGE;
+    panelFits(true);
+    serve();
+    const variant = (n: number, name: string) => ({
+      id: invId(60 + n),
+      materialTypeId: plaType.id,
+      name,
+      materialCount: 0,
+      pricingRuleCount: 0,
+    });
+    server.use(
+      http.get('*/api/v1/material-types', () =>
+        HttpResponse.json({
+          items: [{ ...plaType, variants: [variant(1, 'Basic'), variant(2, 'Matte')] }, partType],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderAt(`/workshop/inventory?selected=${blue.id}`);
+    const panel = await screen.findByRole('complementary', { name: 'Article details' });
+    await user.click(within(panel).getByRole('img', { name: 'More article actions' }));
+    await user.click(await screen.findByText('Edit article'));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit article' });
+    const input = await within(dialog).findByRole('combobox', { name: /Variant/ });
+    expect(input).toHaveValue('Basic');
+    await user.click(input);
+    expect(await screen.findByRole('option', { name: 'Matte' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Basic' })).toBeInTheDocument();
+    await user.clear(input);
+    await user.type(input, 'Mat');
+    await waitFor(() => expect(screen.queryByRole('option', { name: 'Basic' })).not.toBeInTheDocument());
+    expect(screen.getByRole('option', { name: 'Matte' })).toBeInTheDocument();
+  });
 });

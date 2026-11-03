@@ -34,6 +34,10 @@ export interface PricingRule {
   materialTypeId?: UUIDv7 | null;
   /** @nullable */
   materialTypeName?: string | null;
+  /** Set on material rules that price one variant of the type; null is the rate of the type itself, which variants without a rule of their own inherit. */
+  materialTypeVariantId?: UUIDv7 | null;
+  /** @nullable */
+  materialTypeVariantName?: string | null;
   /** The unit of the material type, or of the article for stock_article rules. */
   materialUnit?: MaterialUnit | null;
   /** Set on stock_article rules; the rate is per unit of this article. */

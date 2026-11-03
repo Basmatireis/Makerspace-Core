@@ -699,6 +699,17 @@ func (q *Queries) CountMaterialSpools(ctx context.Context, materialID uuid.UUID)
 	return count, err
 }
 
+const countMaterialTypeVariants = `-- name: CountMaterialTypeVariants :one
+SELECT count(*) FROM material_type_variants WHERE material_type_id = $1
+`
+
+func (q *Queries) CountMaterialTypeVariants(ctx context.Context, materialTypeID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countMaterialTypeVariants, materialTypeID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countMaterialUses = `-- name: CountMaterialUses :one
 SELECT (SELECT count(*) FROM inventory_transactions x WHERE x.material_id = m.id)::bigint AS ledger_entries,
        (SELECT count(*) FROM filament_spools x WHERE x.material_id = m.id)::bigint AS spools,
@@ -1027,9 +1038,9 @@ func (q *Queries) CreateMachineJob(ctx context.Context, arg CreateMachineJobPara
 }
 
 const createMaterial = `-- name: CreateMaterial :one
-INSERT INTO materials (id, display_id, name, material_type_id, color_name, color_hex, unit, low_stock_threshold, variant, manufacturer, package_size, storage_location, notes)
+INSERT INTO materials (id, display_id, name, material_type_id, color_name, color_hex, unit, low_stock_threshold, variant, variant_id, manufacturer, package_size, storage_location, notes)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-    $9, $10, $11, $12, $13) RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by
+    $9, $10, $11, $12, $13, $14) RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id
 `
 
 type CreateMaterialParams struct {
@@ -1042,6 +1053,7 @@ type CreateMaterialParams struct {
 	Unit              string
 	LowStockThreshold pgtype.Numeric
 	Variant           *string
+	VariantID         *uuid.UUID
 	Manufacturer      *string
 	PackageSize       pgtype.Numeric
 	StorageLocation   *string
@@ -1059,6 +1071,7 @@ func (q *Queries) CreateMaterial(ctx context.Context, arg CreateMaterialParams) 
 		arg.Unit,
 		arg.LowStockThreshold,
 		arg.Variant,
+		arg.VariantID,
 		arg.Manufacturer,
 		arg.PackageSize,
 		arg.StorageLocation,
@@ -1085,6 +1098,7 @@ func (q *Queries) CreateMaterial(ctx context.Context, arg CreateMaterialParams) 
 		&i.DisplayID,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.VariantID,
 	)
 	return i, err
 }
@@ -1142,6 +1156,30 @@ func (q *Queries) CreateMaterialType(ctx context.Context, arg CreateMaterialType
 		&i.Kind,
 		&i.Code,
 		&i.MachineUse,
+	)
+	return i, err
+}
+
+const createMaterialTypeVariant = `-- name: CreateMaterialTypeVariant :one
+INSERT INTO material_type_variants (id, material_type_id, name) VALUES ($1, $2, $3)
+RETURNING id, material_type_id, name, created_at, updated_at
+`
+
+type CreateMaterialTypeVariantParams struct {
+	ID             uuid.UUID
+	MaterialTypeID uuid.UUID
+	Name           string
+}
+
+func (q *Queries) CreateMaterialTypeVariant(ctx context.Context, arg CreateMaterialTypeVariantParams) (MaterialTypeVariant, error) {
+	row := q.db.QueryRow(ctx, createMaterialTypeVariant, arg.ID, arg.MaterialTypeID, arg.Name)
+	var i MaterialTypeVariant
+	err := row.Scan(
+		&i.ID,
+		&i.MaterialTypeID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -1230,22 +1268,24 @@ func (q *Queries) CreatePricingGroup(ctx context.Context, arg CreatePricingGroup
 }
 
 const createPricingRule = `-- name: CreatePricingRule :one
-INSERT INTO pricing_rules (id, pricing_group_id, kind, process_id, material_type_id, material_unit, measure, block_size, rate, material_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, pricing_group_id, kind, process_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size, material_id
+INSERT INTO pricing_rules (id, pricing_group_id, kind, process_id, material_type_id, material_unit, measure, block_size, rate, material_id, material_type_variant_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+    $11)
+RETURNING id, pricing_group_id, kind, process_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size, material_id, material_type_variant_id
 `
 
 type CreatePricingRuleParams struct {
-	ID             uuid.UUID
-	PricingGroupID uuid.UUID
-	Kind           string
-	ProcessID      *uuid.UUID
-	MaterialTypeID *uuid.UUID
-	MaterialUnit   *string
-	Measure        *string
-	BlockSize      *int32
-	Rate           pgtype.Numeric
-	MaterialID     *uuid.UUID
+	ID                    uuid.UUID
+	PricingGroupID        uuid.UUID
+	Kind                  string
+	ProcessID             *uuid.UUID
+	MaterialTypeID        *uuid.UUID
+	MaterialUnit          *string
+	Measure               *string
+	BlockSize             *int32
+	Rate                  pgtype.Numeric
+	MaterialID            *uuid.UUID
+	MaterialTypeVariantID *uuid.UUID
 }
 
 func (q *Queries) CreatePricingRule(ctx context.Context, arg CreatePricingRuleParams) (PricingRule, error) {
@@ -1260,6 +1300,7 @@ func (q *Queries) CreatePricingRule(ctx context.Context, arg CreatePricingRulePa
 		arg.BlockSize,
 		arg.Rate,
 		arg.MaterialID,
+		arg.MaterialTypeVariantID,
 	)
 	var i PricingRule
 	err := row.Scan(
@@ -1277,6 +1318,7 @@ func (q *Queries) CreatePricingRule(ctx context.Context, arg CreatePricingRulePa
 		&i.Measure,
 		&i.BlockSize,
 		&i.MaterialID,
+		&i.MaterialTypeVariantID,
 	)
 	return i, err
 }
@@ -1404,6 +1446,19 @@ ON CONFLICT (storage_key) DO NOTHING
 func (q *Queries) DeleteFilesQueueBlobs(ctx context.Context, fileIds []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteFilesQueueBlobs, fileIds)
 	return err
+}
+
+const deleteInactivePricingRulesOfVariant = `-- name: DeleteInactivePricingRulesOfVariant :execrows
+DELETE FROM pricing_rules WHERE material_type_variant_id = $1::uuid AND NOT active
+`
+
+// Removes the inactive rules of a variant before the variant row (the composite foreign key restricts them).
+func (q *Queries) DeleteInactivePricingRulesOfVariant(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteInactivePricingRulesOfVariant, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteMachine = `-- name: DeleteMachine :execrows
@@ -1544,6 +1599,18 @@ DELETE FROM material_type_processes WHERE material_type_id = $1
 func (q *Queries) DeleteMaterialTypeProcesses(ctx context.Context, materialTypeID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteMaterialTypeProcesses, materialTypeID)
 	return err
+}
+
+const deleteMaterialTypeVariant = `-- name: DeleteMaterialTypeVariant :execrows
+DELETE FROM material_type_variants WHERE id = $1
+`
+
+func (q *Queries) DeleteMaterialTypeVariant(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMaterialTypeVariant, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteOrganization = `-- name: DeleteOrganization :execrows
@@ -1760,6 +1827,30 @@ func (q *Queries) FindMaterialTypeByCode(ctx context.Context, code string) (uuid
 	return id, err
 }
 
+const findMaterialTypeVariantByName = `-- name: FindMaterialTypeVariantByName :one
+SELECT id, material_type_id, name, created_at, updated_at FROM material_type_variants WHERE material_type_id = $1 AND lower(name) = lower($2::text)
+FOR SHARE
+`
+
+type FindMaterialTypeVariantByNameParams struct {
+	MaterialTypeID uuid.UUID
+	Name           string
+}
+
+// Share-locks the variant so its name cannot change before the article that takes it commits.
+func (q *Queries) FindMaterialTypeVariantByName(ctx context.Context, arg FindMaterialTypeVariantByNameParams) (MaterialTypeVariant, error) {
+	row := q.db.QueryRow(ctx, findMaterialTypeVariantByName, arg.MaterialTypeID, arg.Name)
+	var i MaterialTypeVariant
+	err := row.Scan(
+		&i.ID,
+		&i.MaterialTypeID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const forgetFormerJobOfRuns = `-- name: ForgetFormerJobOfRuns :exec
 UPDATE machine_runs SET former_job_id = NULL WHERE former_job_id = $1
 `
@@ -1770,7 +1861,7 @@ func (q *Queries) ForgetFormerJobOfRuns(ctx context.Context, jobID *uuid.UUID) e
 }
 
 const getActivePricingRulesByGroup = `-- name: GetActivePricingRulesByGroup :many
-SELECT id, pricing_group_id, kind, process_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size, material_id FROM pricing_rules WHERE pricing_group_id = $1 AND active
+SELECT id, pricing_group_id, kind, process_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size, material_id, material_type_variant_id FROM pricing_rules WHERE pricing_group_id = $1 AND active
 ORDER BY kind, material_type_id NULLS FIRST, process_id NULLS FIRST, id
 `
 
@@ -1798,6 +1889,7 @@ func (q *Queries) GetActivePricingRulesByGroup(ctx context.Context, pricingGroup
 			&i.Measure,
 			&i.BlockSize,
 			&i.MaterialID,
+			&i.MaterialTypeVariantID,
 		); err != nil {
 			return nil, err
 		}
@@ -2368,7 +2460,7 @@ func (q *Queries) GetMachineProcess(ctx context.Context, machineID uuid.UUID) (G
 }
 
 const getMaterial = `-- name: GetMaterial :one
-SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, mt.name AS material_type_name, mt.kind AS material_kind, mt.code AS material_type_code, mt.machine_use,
+SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, m.variant_id, mt.name AS material_type_name, mt.kind AS material_kind, mt.code AS material_type_code, mt.machine_use,
        b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
         + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
@@ -2405,6 +2497,7 @@ type GetMaterialRow struct {
 	DisplayID          string
 	DeletedAt          pgtype.Timestamptz
 	DeletedBy          *uuid.UUID
+	VariantID          *uuid.UUID
 	MaterialTypeName   string
 	MaterialKind       string
 	MaterialTypeCode   string
@@ -2444,6 +2537,7 @@ func (q *Queries) GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow
 		&i.DisplayID,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.VariantID,
 		&i.MaterialTypeName,
 		&i.MaterialKind,
 		&i.MaterialTypeCode,
@@ -2463,7 +2557,7 @@ func (q *Queries) GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow
 }
 
 const getMaterialForUpdate = `-- name: GetMaterialForUpdate :one
-SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at
+SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, m.variant_id, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at
 FROM materials m JOIN material_balances b ON b.material_id = m.id
 WHERE m.id = $1
 FOR UPDATE OF b, m
@@ -2489,6 +2583,7 @@ type GetMaterialForUpdateRow struct {
 	DisplayID         string
 	DeletedAt         pgtype.Timestamptz
 	DeletedBy         *uuid.UUID
+	VariantID         *uuid.UUID
 	Quantity          pgtype.Numeric
 	InventoryValue    pgtype.Numeric
 	AverageUnitCost   pgtype.Numeric
@@ -2519,6 +2614,7 @@ func (q *Queries) GetMaterialForUpdate(ctx context.Context, id uuid.UUID) (GetMa
 		&i.DisplayID,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.VariantID,
 		&i.Quantity,
 		&i.InventoryValue,
 		&i.AverageUnitCost,
@@ -2623,6 +2719,68 @@ func (q *Queries) GetMaterialTypeOfMaterial(ctx context.Context, id uuid.UUID) (
 	var material_type_id uuid.UUID
 	err := row.Scan(&material_type_id)
 	return material_type_id, err
+}
+
+const getMaterialTypeVariant = `-- name: GetMaterialTypeVariant :one
+SELECT id, material_type_id, name, created_at, updated_at FROM material_type_variants WHERE id = $1
+`
+
+func (q *Queries) GetMaterialTypeVariant(ctx context.Context, id uuid.UUID) (MaterialTypeVariant, error) {
+	row := q.db.QueryRow(ctx, getMaterialTypeVariant, id)
+	var i MaterialTypeVariant
+	err := row.Scan(
+		&i.ID,
+		&i.MaterialTypeID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMaterialTypeVariantForRename = `-- name: GetMaterialTypeVariantForRename :one
+SELECT id, material_type_id, name, created_at, updated_at FROM material_type_variants WHERE id = $1 AND material_type_id = $2 FOR NO KEY UPDATE
+`
+
+type GetMaterialTypeVariantForRenameParams struct {
+	ID             uuid.UUID
+	MaterialTypeID uuid.UUID
+}
+
+// Locks the variant FOR NO KEY UPDATE: articles reading its name (FOR SHARE) wait, foreign-key checks do not.
+func (q *Queries) GetMaterialTypeVariantForRename(ctx context.Context, arg GetMaterialTypeVariantForRenameParams) (MaterialTypeVariant, error) {
+	row := q.db.QueryRow(ctx, getMaterialTypeVariantForRename, arg.ID, arg.MaterialTypeID)
+	var i MaterialTypeVariant
+	err := row.Scan(
+		&i.ID,
+		&i.MaterialTypeID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMaterialTypeVariantForUpdate = `-- name: GetMaterialTypeVariantForUpdate :one
+SELECT id, material_type_id, name, created_at, updated_at FROM material_type_variants WHERE id = $1 AND material_type_id = $2 FOR UPDATE
+`
+
+type GetMaterialTypeVariantForUpdateParams struct {
+	ID             uuid.UUID
+	MaterialTypeID uuid.UUID
+}
+
+func (q *Queries) GetMaterialTypeVariantForUpdate(ctx context.Context, arg GetMaterialTypeVariantForUpdateParams) (MaterialTypeVariant, error) {
+	row := q.db.QueryRow(ctx, getMaterialTypeVariantForUpdate, arg.ID, arg.MaterialTypeID)
+	var i MaterialTypeVariant
+	err := row.Scan(
+		&i.ID,
+		&i.MaterialTypeID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getOrderItemSaleTransaction = `-- name: GetOrderItemSaleTransaction :one
@@ -2919,7 +3077,7 @@ func (q *Queries) GetPricingGroupForUpdate(ctx context.Context, id uuid.UUID) (P
 }
 
 const getPricingRuleForUpdate = `-- name: GetPricingRuleForUpdate :one
-SELECT id, pricing_group_id, kind, process_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size, material_id FROM pricing_rules WHERE id = $1 FOR UPDATE
+SELECT id, pricing_group_id, kind, process_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size, material_id, material_type_variant_id FROM pricing_rules WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetPricingRuleForUpdate(ctx context.Context, id uuid.UUID) (PricingRule, error) {
@@ -2940,6 +3098,7 @@ func (q *Queries) GetPricingRuleForUpdate(ctx context.Context, id uuid.UUID) (Pr
 		&i.Measure,
 		&i.BlockSize,
 		&i.MaterialID,
+		&i.MaterialTypeVariantID,
 	)
 	return i, err
 }
@@ -3286,24 +3445,27 @@ func (q *Queries) InsertMaterialTypeProcess(ctx context.Context, arg InsertMater
 }
 
 const insertPricingSnapshotRule = `-- name: InsertPricingSnapshotRule :one
-INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, material_type_id, measure, block_size, unit, rate, missing)
+INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, material_type_id, material_type_variant_id, material_id,
+    measure, block_size, unit, rate, missing)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
-    $8, $9, $10, $11, $12) RETURNING id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing, material_type_id, measure, block_size
+    $8, $9, $10, $11, $12, $13, $14) RETURNING id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing, material_type_id, measure, block_size, material_id, material_type_variant_id
 `
 
 type InsertPricingSnapshotRuleParams struct {
-	ID             uuid.UUID
-	SnapshotID     uuid.UUID
-	SourceRuleID   *uuid.UUID
-	Kind           string
-	Label          string
-	Selector       string
-	MaterialTypeID *uuid.UUID
-	Measure        *string
-	BlockSize      *int32
-	Unit           string
-	Rate           pgtype.Numeric
-	Missing        bool
+	ID                    uuid.UUID
+	SnapshotID            uuid.UUID
+	SourceRuleID          *uuid.UUID
+	Kind                  string
+	Label                 string
+	Selector              string
+	MaterialTypeID        *uuid.UUID
+	MaterialTypeVariantID *uuid.UUID
+	MaterialID            *uuid.UUID
+	Measure               *string
+	BlockSize             *int32
+	Unit                  string
+	Rate                  pgtype.Numeric
+	Missing               bool
 }
 
 func (q *Queries) InsertPricingSnapshotRule(ctx context.Context, arg InsertPricingSnapshotRuleParams) (MachineJobPricingSnapshotRule, error) {
@@ -3315,6 +3477,8 @@ func (q *Queries) InsertPricingSnapshotRule(ctx context.Context, arg InsertPrici
 		arg.Label,
 		arg.Selector,
 		arg.MaterialTypeID,
+		arg.MaterialTypeVariantID,
+		arg.MaterialID,
 		arg.Measure,
 		arg.BlockSize,
 		arg.Unit,
@@ -3335,6 +3499,8 @@ func (q *Queries) InsertPricingSnapshotRule(ctx context.Context, arg InsertPrici
 		&i.MaterialTypeID,
 		&i.Measure,
 		&i.BlockSize,
+		&i.MaterialID,
+		&i.MaterialTypeVariantID,
 	)
 	return i, err
 }
@@ -5143,16 +5309,18 @@ func (q *Queries) ListMachines(ctx context.Context, arg ListMachinesParams) ([]L
 
 const listMaterialPrices = `-- name: ListMaterialPrices :many
 SELECT m.id AS material_id, g.id AS pricing_group_id, g.name AS pricing_group_name,
-       COALESCE(sr.rate, tr.rate)::numeric AS rate,
-       (CASE WHEN sr.id IS NOT NULL THEN 'stock_article' ELSE 'material_type' END)::text AS source,
-       COALESCE(sr.id, tr.id)::uuid AS pricing_rule_id
+       COALESCE(sr.rate, vr.rate, tr.rate)::numeric AS rate,
+       (CASE WHEN sr.id IS NOT NULL THEN 'stock_article' WHEN vr.id IS NOT NULL THEN 'material_type_variant' ELSE 'material_type' END)::text AS source,
+       COALESCE(sr.id, vr.id, tr.id)::uuid AS pricing_rule_id
 FROM materials m
 JOIN material_types mt ON mt.id = m.material_type_id
 CROSS JOIN pricing_groups g
 LEFT JOIN pricing_rules sr ON sr.pricing_group_id = g.id AND sr.kind = 'stock_article' AND sr.active AND sr.material_id = m.id
+LEFT JOIN pricing_rules vr ON vr.pricing_group_id = g.id AND vr.kind = 'material' AND vr.active AND mt.machine_use
+    AND vr.material_type_id = m.material_type_id AND vr.material_unit = m.unit AND vr.material_type_variant_id = m.variant_id
 LEFT JOIN pricing_rules tr ON tr.pricing_group_id = g.id AND tr.kind = 'material' AND tr.active AND mt.machine_use
-    AND tr.material_type_id = m.material_type_id AND tr.material_unit = m.unit
-WHERE m.id = ANY(($1::text[])::uuid[]) AND g.active AND (sr.id IS NOT NULL OR tr.id IS NOT NULL)
+    AND tr.material_type_id = m.material_type_id AND tr.material_unit = m.unit AND tr.material_type_variant_id IS NULL
+WHERE m.id = ANY(($1::text[])::uuid[]) AND g.active AND (sr.id IS NOT NULL OR vr.id IS NOT NULL OR tr.id IS NOT NULL)
 ORDER BY m.id, g.is_default DESC, lower(g.name), g.id
 `
 
@@ -5166,7 +5334,7 @@ type ListMaterialPricesRow struct {
 }
 
 // Sale prices of articles per active pricing group: the article's own stock_article rule, else the material rule of
-// its machine-use type.
+// its variant, else the material rule of its machine-use type.
 func (q *Queries) ListMaterialPrices(ctx context.Context, materialIds []string) ([]ListMaterialPricesRow, error) {
 	rows, err := q.db.Query(ctx, listMaterialPrices, materialIds)
 	if err != nil {
@@ -5244,6 +5412,51 @@ func (q *Queries) ListMaterialTypeProcesses(ctx context.Context, materialTypeIds
 	return items, nil
 }
 
+const listMaterialTypeVariants = `-- name: ListMaterialTypeVariants :many
+SELECT v.id, v.material_type_id, v.name,
+       (SELECT count(*) FROM materials m WHERE m.variant_id = v.id)::bigint AS material_count,
+       (SELECT count(*) FROM pricing_rules r WHERE r.material_type_variant_id = v.id AND r.active)::bigint AS pricing_rule_count
+FROM material_type_variants v
+WHERE v.material_type_id = ANY(($1::text[])::uuid[])
+ORDER BY v.material_type_id, lower(v.name), v.name, v.id
+`
+
+type ListMaterialTypeVariantsRow struct {
+	ID               uuid.UUID
+	MaterialTypeID   uuid.UUID
+	Name             string
+	MaterialCount    int64
+	PricingRuleCount int64
+}
+
+// Variants of the given types by name, with the articles (deleted ones included) and the active material pricing
+// rules that use them.
+func (q *Queries) ListMaterialTypeVariants(ctx context.Context, materialTypeIds []string) ([]ListMaterialTypeVariantsRow, error) {
+	rows, err := q.db.Query(ctx, listMaterialTypeVariants, materialTypeIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMaterialTypeVariantsRow{}
+	for rows.Next() {
+		var i ListMaterialTypeVariantsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.MaterialTypeID,
+			&i.Name,
+			&i.MaterialCount,
+			&i.PricingRuleCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMaterialTypes = `-- name: ListMaterialTypes :many
 SELECT t.id, t.name, t.unit, t.active, t.version, t.created_at, t.updated_at, t.kind, t.code, t.machine_use,
        (SELECT count(*) FROM materials m WHERE m.material_type_id = t.id)::bigint AS material_count,
@@ -5301,7 +5514,7 @@ func (q *Queries) ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow
 }
 
 const listMaterials = `-- name: ListMaterials :many
-SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, mt.name AS material_type_name, mt.kind AS material_kind, mt.code AS material_type_code, mt.machine_use,
+SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, m.variant_id, mt.name AS material_type_name, mt.kind AS material_kind, mt.code AS material_type_code, mt.machine_use,
        b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
         + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
@@ -5360,6 +5573,7 @@ type ListMaterialsRow struct {
 	DisplayID          string
 	DeletedAt          pgtype.Timestamptz
 	DeletedBy          *uuid.UUID
+	VariantID          *uuid.UUID
 	MaterialTypeName   string
 	MaterialKind       string
 	MaterialTypeCode   string
@@ -5412,6 +5626,7 @@ func (q *Queries) ListMaterials(ctx context.Context, arg ListMaterialsParams) ([
 			&i.DisplayID,
 			&i.DeletedAt,
 			&i.DeletedBy,
+			&i.VariantID,
 			&i.MaterialTypeName,
 			&i.MaterialKind,
 			&i.MaterialTypeCode,
@@ -5426,6 +5641,46 @@ func (q *Queries) ListMaterials(ctx context.Context, arg ListMaterialsParams) ([
 			&i.AssignedQuantity,
 			&i.DeletedByFirstName,
 			&i.DeletedByLastName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMaterialsOfVariantForUpdate = `-- name: ListMaterialsOfVariantForUpdate :many
+SELECT m.id, m.name, m.color_name, m.manufacturer FROM materials m
+WHERE m.variant_id = $1
+ORDER BY m.id
+FOR UPDATE
+`
+
+type ListMaterialsOfVariantForUpdateRow struct {
+	ID           uuid.UUID
+	Name         string
+	ColorName    *string
+	Manufacturer *string
+}
+
+// Articles of a variant, deleted ones included, locked for a rename of the variant.
+func (q *Queries) ListMaterialsOfVariantForUpdate(ctx context.Context, variantID *uuid.UUID) ([]ListMaterialsOfVariantForUpdateRow, error) {
+	rows, err := q.db.Query(ctx, listMaterialsOfVariantForUpdate, variantID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMaterialsOfVariantForUpdateRow{}
+	for rows.Next() {
+		var i ListMaterialsOfVariantForUpdateRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.ColorName,
+			&i.Manufacturer,
 		); err != nil {
 			return nil, err
 		}
@@ -5817,33 +6072,37 @@ func (q *Queries) ListPricingGroups(ctx context.Context) ([]PricingGroup, error)
 }
 
 const listPricingRulesByGroup = `-- name: ListPricingRulesByGroup :many
-SELECT r.id, r.pricing_group_id, r.kind, r.process_id, r.material_unit, r.rate, r.active, r.version, r.created_at, r.updated_at, r.material_type_id, r.measure, r.block_size, r.material_id, mt.name AS material_type_name, ma.name AS material_name, ma.display_id AS material_display_id, ma.unit AS article_unit
+SELECT r.id, r.pricing_group_id, r.kind, r.process_id, r.material_unit, r.rate, r.active, r.version, r.created_at, r.updated_at, r.material_type_id, r.measure, r.block_size, r.material_id, r.material_type_variant_id, mt.name AS material_type_name, ma.name AS material_name, ma.display_id AS material_display_id, ma.unit AS article_unit,
+       v.name AS material_type_variant_name
 FROM pricing_rules r
 LEFT JOIN material_types mt ON mt.id = r.material_type_id
+LEFT JOIN material_type_variants v ON v.id = r.material_type_variant_id
 LEFT JOIN materials ma ON ma.id = r.material_id
 WHERE r.pricing_group_id = $1 AND (ma.id IS NULL OR ma.deleted_at IS NULL)
-ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, lower(ma.name) NULLS FIRST, r.process_id NULLS FIRST, r.measure NULLS FIRST, r.id
+ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, lower(v.name) NULLS FIRST, lower(ma.name) NULLS FIRST, r.process_id NULLS FIRST, r.measure NULLS FIRST, r.id
 `
 
 type ListPricingRulesByGroupRow struct {
-	ID                uuid.UUID
-	PricingGroupID    uuid.UUID
-	Kind              string
-	ProcessID         *uuid.UUID
-	MaterialUnit      *string
-	Rate              pgtype.Numeric
-	Active            bool
-	Version           int64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	MaterialTypeID    *uuid.UUID
-	Measure           *string
-	BlockSize         *int32
-	MaterialID        *uuid.UUID
-	MaterialTypeName  *string
-	MaterialName      *string
-	MaterialDisplayID *string
-	ArticleUnit       *string
+	ID                      uuid.UUID
+	PricingGroupID          uuid.UUID
+	Kind                    string
+	ProcessID               *uuid.UUID
+	MaterialUnit            *string
+	Rate                    pgtype.Numeric
+	Active                  bool
+	Version                 int64
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+	MaterialTypeID          *uuid.UUID
+	Measure                 *string
+	BlockSize               *int32
+	MaterialID              *uuid.UUID
+	MaterialTypeVariantID   *uuid.UUID
+	MaterialTypeName        *string
+	MaterialName            *string
+	MaterialDisplayID       *string
+	ArticleUnit             *string
+	MaterialTypeVariantName *string
 }
 
 // Rules of articles in the recycle bin are left out.
@@ -5871,10 +6130,12 @@ func (q *Queries) ListPricingRulesByGroup(ctx context.Context, pricingGroupID uu
 			&i.Measure,
 			&i.BlockSize,
 			&i.MaterialID,
+			&i.MaterialTypeVariantID,
 			&i.MaterialTypeName,
 			&i.MaterialName,
 			&i.MaterialDisplayID,
 			&i.ArticleUnit,
+			&i.MaterialTypeVariantName,
 		); err != nil {
 			return nil, err
 		}
@@ -5887,7 +6148,7 @@ func (q *Queries) ListPricingRulesByGroup(ctx context.Context, pricingGroupID uu
 }
 
 const listPricingSnapshotRules = `-- name: ListPricingSnapshotRules :many
-SELECT id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing, material_type_id, measure, block_size FROM machine_job_pricing_snapshot_rules WHERE snapshot_id = $1 ORDER BY kind, label, id
+SELECT id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing, material_type_id, measure, block_size, material_id, material_type_variant_id FROM machine_job_pricing_snapshot_rules WHERE snapshot_id = $1 ORDER BY kind, label, id
 `
 
 func (q *Queries) ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.UUID) ([]MachineJobPricingSnapshotRule, error) {
@@ -5912,6 +6173,8 @@ func (q *Queries) ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.
 			&i.MaterialTypeID,
 			&i.Measure,
 			&i.BlockSize,
+			&i.MaterialID,
+			&i.MaterialTypeVariantID,
 		); err != nil {
 			return nil, err
 		}
@@ -6271,7 +6534,7 @@ SELECT u.id, u.material_id, u.quantity, u.active, u.created_at, u.updated_at, u.
        u.estimate_quality, u.report_revision, u.staff_corrected, u.material_name AS material_name_snapshot, u.material_unit AS material_unit_snapshot,
        u.material_type_id AS own_material_type_id,
        COALESCE(u.external_material_name, m.name, u.material_name, et.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'Own material' END)::text AS material_name_text,
-       m.material_type_id,
+       m.material_type_id, m.variant_id, m.variant AS variant_name,
        COALESCE(mt.name, et.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'External' END)::text AS material_type_name,
        COALESCE(m.unit, u.material_unit, et.unit, 'g')::text AS unit
 FROM machine_run_usages u
@@ -6306,6 +6569,8 @@ type ListRunUsagesForRunsRow struct {
 	OwnMaterialTypeID    *uuid.UUID
 	MaterialNameText     string
 	MaterialTypeID       *uuid.UUID
+	VariantID            *uuid.UUID
+	VariantName          *string
 	MaterialTypeName     string
 	Unit                 string
 }
@@ -6345,6 +6610,8 @@ func (q *Queries) ListRunUsagesForRuns(ctx context.Context, runIds []uuid.UUID) 
 			&i.OwnMaterialTypeID,
 			&i.MaterialNameText,
 			&i.MaterialTypeID,
+			&i.VariantID,
+			&i.VariantName,
 			&i.MaterialTypeName,
 			&i.Unit,
 		); err != nil {
@@ -7016,6 +7283,19 @@ func (q *Queries) MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (b
 	return referenced, err
 }
 
+const materialTypeVariantIsReferenced = `-- name: MaterialTypeVariantIsReferenced :one
+SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.variant_id = $1::uuid)
+    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_variant_id = $1::uuid AND r.active))::boolean AS referenced
+`
+
+// True while an article (deleted ones included) or an active pricing rule uses the variant.
+func (q *Queries) MaterialTypeVariantIsReferenced(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, materialTypeVariantIsReferenced, id)
+	var referenced bool
+	err := row.Scan(&referenced)
+	return referenced, err
+}
+
 const nextMachineJobSequence = `-- name: NextMachineJobSequence :one
 SELECT nextval('machine_job_display_sequence')::bigint
 `
@@ -7317,6 +7597,44 @@ func (q *Queries) RemoveOrganizationMember(ctx context.Context, arg RemoveOrgani
 	return person_id, err
 }
 
+const renameMaterialTypeVariant = `-- name: RenameMaterialTypeVariant :one
+UPDATE material_type_variants SET name = $1, updated_at = now() WHERE id = $2 RETURNING id, material_type_id, name, created_at, updated_at
+`
+
+type RenameMaterialTypeVariantParams struct {
+	Name string
+	ID   uuid.UUID
+}
+
+func (q *Queries) RenameMaterialTypeVariant(ctx context.Context, arg RenameMaterialTypeVariantParams) (MaterialTypeVariant, error) {
+	row := q.db.QueryRow(ctx, renameMaterialTypeVariant, arg.Name, arg.ID)
+	var i MaterialTypeVariant
+	err := row.Scan(
+		&i.ID,
+		&i.MaterialTypeID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const renameVariantOfMaterial = `-- name: RenameVariantOfMaterial :exec
+UPDATE materials SET variant = $1, name = $2, version = version + 1, updated_at = now()
+WHERE id = $3
+`
+
+type RenameVariantOfMaterialParams struct {
+	Variant *string
+	Name    string
+	ID      uuid.UUID
+}
+
+func (q *Queries) RenameVariantOfMaterial(ctx context.Context, arg RenameVariantOfMaterialParams) error {
+	_, err := q.db.Exec(ctx, renameVariantOfMaterial, arg.Variant, arg.Name, arg.ID)
+	return err
+}
+
 const replaceProcessMeasures = `-- name: ReplaceProcessMeasures :exec
 DELETE FROM process_measures WHERE process_id = $1
 `
@@ -7394,7 +7712,7 @@ func (q *Queries) RestoreMachineRun(ctx context.Context, arg RestoreMachineRunPa
 const restoreMaterial = `-- name: RestoreMaterial :one
 UPDATE materials SET deleted_at = NULL, deleted_by = NULL, version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2 AND deleted_at IS NOT NULL
-RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by
+RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id
 `
 
 type RestoreMaterialParams struct {
@@ -7425,6 +7743,7 @@ func (q *Queries) RestoreMaterial(ctx context.Context, arg RestoreMaterialParams
 		&i.DisplayID,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.VariantID,
 	)
 	return i, err
 }
@@ -7905,7 +8224,7 @@ func (q *Queries) SoftDeleteMachineRun(ctx context.Context, arg SoftDeleteMachin
 const softDeleteMaterial = `-- name: SoftDeleteMaterial :one
 UPDATE materials SET deleted_at = $1, deleted_by = $2, version = version + 1, updated_at = now()
 WHERE id = $3 AND version = $4 AND deleted_at IS NULL
-RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by
+RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id
 `
 
 type SoftDeleteMaterialParams struct {
@@ -7943,6 +8262,7 @@ func (q *Queries) SoftDeleteMaterial(ctx context.Context, arg SoftDeleteMaterial
 		&i.DisplayID,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.VariantID,
 	)
 	return i, err
 }
@@ -8485,7 +8805,14 @@ JOIN machine_run_usages u ON u.run_id = r.id AND u.active AND u.ownership = 'mak
 JOIN materials m ON m.id = u.material_id
 JOIN material_types mt ON mt.id = m.material_type_id
 JOIN machine_job_pricing_snapshot_rules sr
-  ON sr.snapshot_id = j.active_pricing_snapshot_id AND sr.kind = 'material' AND sr.material_type_id = mt.id AND NOT sr.missing
+  ON sr.snapshot_id = j.active_pricing_snapshot_id AND sr.kind IN ('material', 'stock_article') AND sr.material_type_id = mt.id
+     AND NOT sr.missing
+     AND (sr.material_id = m.id OR (sr.material_id IS NULL AND (sr.material_type_variant_id IS NULL OR sr.material_type_variant_id = m.variant_id)))
+     AND (CASE WHEN sr.material_id IS NOT NULL THEN 1 WHEN sr.material_type_variant_id IS NOT NULL THEN 2 ELSE 3 END) = (
+         SELECT min(CASE WHEN x.material_id IS NOT NULL THEN 1 WHEN x.material_type_variant_id IS NOT NULL THEN 2 ELSE 3 END)
+         FROM machine_job_pricing_snapshot_rules x
+         WHERE x.snapshot_id = j.active_pricing_snapshot_id AND x.kind IN ('material', 'stock_article') AND x.material_type_id = mt.id
+           AND (x.material_id = m.id OR (x.material_id IS NULL AND (x.material_type_variant_id IS NULL OR x.material_type_variant_id = m.variant_id))))
 WHERE s.started_at >= $1 AND s.started_at < $2
 GROUP BY mt.id, mt.name ORDER BY lower(mt.name), mt.id
 `
@@ -8501,7 +8828,9 @@ type StatisticMaterialChargesByTypeRow struct {
 	Value pgtype.Numeric
 }
 
-// Makerspace material of the period's jobs at the material rates of each job's active pricing snapshot.
+// Makerspace material of the period's jobs at the material rates of each job's active pricing snapshot, by the
+// article's type. A usage takes the most specific entry of the snapshot that covers it, as job pricing does: the
+// article's own rate, else its variant's, else its type's.
 func (q *Queries) StatisticMaterialChargesByType(ctx context.Context, arg StatisticMaterialChargesByTypeParams) ([]StatisticMaterialChargesByTypeRow, error) {
 	rows, err := q.db.Query(ctx, statisticMaterialChargesByType, arg.FromTime, arg.ToTime)
 	if err != nil {
@@ -9258,11 +9587,12 @@ func (q *Queries) UpdateManualRunFacts(ctx context.Context, arg UpdateManualRunF
 
 const updateMaterial = `-- name: UpdateMaterial :one
 UPDATE materials SET name = $1, material_type_id = $2, color_name = $3, color_hex = $4, unit = $5,
-    active = $6, low_stock_threshold = $7, variant = $8, manufacturer = $9,
-    package_size = $10, storage_location = $11, notes = $12,
+    active = $6, low_stock_threshold = $7, variant = $8, variant_id = $9,
+    manufacturer = $10,
+    package_size = $11, storage_location = $12, notes = $13,
     version = version + 1, updated_at = now()
-WHERE id = $13 AND version = $14
-RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by
+WHERE id = $14 AND version = $15
+RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id
 `
 
 type UpdateMaterialParams struct {
@@ -9274,6 +9604,7 @@ type UpdateMaterialParams struct {
 	Active            bool
 	LowStockThreshold pgtype.Numeric
 	Variant           *string
+	VariantID         *uuid.UUID
 	Manufacturer      *string
 	PackageSize       pgtype.Numeric
 	StorageLocation   *string
@@ -9292,6 +9623,7 @@ func (q *Queries) UpdateMaterial(ctx context.Context, arg UpdateMaterialParams) 
 		arg.Active,
 		arg.LowStockThreshold,
 		arg.Variant,
+		arg.VariantID,
 		arg.Manufacturer,
 		arg.PackageSize,
 		arg.StorageLocation,
@@ -9320,6 +9652,7 @@ func (q *Queries) UpdateMaterial(ctx context.Context, arg UpdateMaterialParams) 
 		&i.DisplayID,
 		&i.DeletedAt,
 		&i.DeletedBy,
+		&i.VariantID,
 	)
 	return i, err
 }
@@ -9503,23 +9836,24 @@ const updatePricingRule = `-- name: UpdatePricingRule :one
 UPDATE pricing_rules SET kind = $1, process_id = $2,
     material_type_id = $3, material_unit = $4, measure = $5,
     block_size = $6, rate = $7, material_id = $8,
-    active = $9, version = version + 1, updated_at = now()
-WHERE id = $10 AND version = $11
-RETURNING id, pricing_group_id, kind, process_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size, material_id
+    material_type_variant_id = $9, active = $10, version = version + 1, updated_at = now()
+WHERE id = $11 AND version = $12
+RETURNING id, pricing_group_id, kind, process_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size, material_id, material_type_variant_id
 `
 
 type UpdatePricingRuleParams struct {
-	Kind            string
-	ProcessID       *uuid.UUID
-	MaterialTypeID  *uuid.UUID
-	MaterialUnit    *string
-	Measure         *string
-	BlockSize       *int32
-	Rate            pgtype.Numeric
-	MaterialID      *uuid.UUID
-	Active          bool
-	ID              uuid.UUID
-	ExpectedVersion int64
+	Kind                  string
+	ProcessID             *uuid.UUID
+	MaterialTypeID        *uuid.UUID
+	MaterialUnit          *string
+	Measure               *string
+	BlockSize             *int32
+	Rate                  pgtype.Numeric
+	MaterialID            *uuid.UUID
+	MaterialTypeVariantID *uuid.UUID
+	Active                bool
+	ID                    uuid.UUID
+	ExpectedVersion       int64
 }
 
 func (q *Queries) UpdatePricingRule(ctx context.Context, arg UpdatePricingRuleParams) (PricingRule, error) {
@@ -9532,6 +9866,7 @@ func (q *Queries) UpdatePricingRule(ctx context.Context, arg UpdatePricingRulePa
 		arg.BlockSize,
 		arg.Rate,
 		arg.MaterialID,
+		arg.MaterialTypeVariantID,
 		arg.Active,
 		arg.ID,
 		arg.ExpectedVersion,
@@ -9552,6 +9887,7 @@ func (q *Queries) UpdatePricingRule(ctx context.Context, arg UpdatePricingRulePa
 		&i.Measure,
 		&i.BlockSize,
 		&i.MaterialID,
+		&i.MaterialTypeVariantID,
 	)
 	return i, err
 }

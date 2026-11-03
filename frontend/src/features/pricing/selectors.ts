@@ -30,6 +30,11 @@ export type RateSelector = {
   kind: PricingRule['kind'];
   processId?: string;
   materialTypeId?: string;
+  /** Variant rows only: the variant this row prices; its rate falls back to the type row's rate. */
+  materialTypeVariantId?: string;
+  /** Variant rows only: the key and name of the type row they are nested under. */
+  parentKey?: string;
+  parentLabel?: string;
   materialId?: string;
   measure?: RunMeasureKey;
   /** Articles only: the prices the article has now, per group (own price or the rate of its machine-use type). */
@@ -67,15 +72,32 @@ export function rateSelectors(
   // Material rates price what machines use; types without machine use are sold only as articles.
   const materials = materialTypes
     .filter((type) => type.active && type.machineUse)
-    .map((type): RateSelector => ({
-      key: `material-${type.id}`,
-      section: 'material',
-      label: type.name,
-      description: `Per ${unitText(type.unit as MaterialUnit)} of material`,
-      unit: `€/${unitText(type.unit as MaterialUnit)}`,
-      kind: 'material',
-      materialTypeId: type.id,
-    }));
+    .flatMap((type): RateSelector[] => {
+      const unit = `€/${unitText(type.unit as MaterialUnit)}`;
+      return [
+        {
+          key: `material-${type.id}`,
+          section: 'material',
+          label: type.name,
+          description: `Per ${unitText(type.unit as MaterialUnit)} of material`,
+          unit,
+          kind: 'material',
+          materialTypeId: type.id,
+        },
+        ...(type.variants ?? []).map((variant): RateSelector => ({
+          key: `material-${type.id}-${variant.id}`,
+          section: 'material',
+          label: variant.name,
+          description: `Variant of ${type.name}`,
+          unit,
+          kind: 'material',
+          materialTypeId: type.id,
+          materialTypeVariantId: variant.id,
+          parentKey: `material-${type.id}`,
+          parentLabel: type.name,
+        })),
+      ];
+    });
   // Articles of machine-use types sell at the type rate; only articles of other types carry prices of their own.
   const stock = articles
     .filter((article) => article.active && !article.machineUse)
@@ -101,20 +123,38 @@ export const ruleOf = (group: PricingGroup, selector: RateSelector): PricingRule
       rule.kind === selector.kind &&
       (rule.processId ?? undefined) === selector.processId &&
       (rule.materialTypeId ?? undefined) === selector.materialTypeId &&
+      (rule.materialTypeVariantId ?? undefined) === selector.materialTypeVariantId &&
       (rule.materialId ?? undefined) === selector.materialId &&
       (rule.measure ?? undefined) === selector.measure,
   );
 
-/** The rate of an article's machine-use type that prices it in a group while it has no price of its own. */
-export const fallbackOf = (group: PricingGroup, selector: RateSelector): MaterialPrice | undefined =>
-  selector.prices?.find((price) => price.pricingGroupId === group.id && price.source === 'material_type');
+/** The name of a row including its type, e.g. "PLA · Silk" for a variant. */
+export const selectorName = (selector: RateSelector) =>
+  selector.parentLabel ? `${selector.parentLabel} · ${selector.label}` : selector.label;
 
-/** Active groups that lack a rate for a selector. Articles are not gaps: without a price they are not sold. */
+/** The rate a variant row inherits in a group: the rule of its type, while the variant has none of its own. */
+export const inheritedOf = (group: PricingGroup, selector: RateSelector): PricingRule | undefined =>
+  selector.materialTypeVariantId ? ruleOf(group, { ...selector, materialTypeVariantId: undefined }) : undefined;
+
+/** The rate of an article's variant or machine-use type that prices it in a group while it has no price of its own. */
+export const fallbackOf = (group: PricingGroup, selector: RateSelector): MaterialPrice | undefined =>
+  selector.prices?.find(
+    (price) =>
+      price.pricingGroupId === group.id &&
+      (price.source === 'material_type_variant' || price.source === 'material_type'),
+  );
+
+/**
+ * Active groups that lack a rate for a selector. Articles are not gaps (without a price they are not sold) and neither
+ * are variants (they inherit the rate of their type).
+ */
 export const pricingGaps = (groups: PricingGroup[], selectors: RateSelector[]) =>
   groups
     .filter((group) => group.active)
     .flatMap((group) =>
       selectors
-        .filter((selector) => selector.section !== 'article' && !ruleOf(group, selector))
+        .filter(
+          (selector) => selector.section !== 'article' && !selector.materialTypeVariantId && !ruleOf(group, selector),
+        )
         .map((selector) => ({ group, selector })),
     );

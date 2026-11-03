@@ -7069,8 +7069,8 @@ paths:
       summary: Price a machine run or an amount of an inventory article for every active pricing group
       description: >-
         Read-only lookup. A machine with hours prices the runtime with the machine's process runtime rate. An article with
-        a quantity is priced like a machine run usage (the material rate of its material type) when a machine is given, and
-        like a sale from stock otherwise (its stock_article rule, else the material type rate of a machine-use type).
+        a quantity is priced the way machine run usages and sales from stock both are: its own stock_article rule, else the
+        rule of its variant, else the material rate of its machine-use material type; the first that exists in the group wins.
         Amounts use the same rates and rounding as job pricing (total rounded to cents). Needs pricing.read, plus
         machines.read for a machine and inventory.read for an article.
       security: [{sessionCookie: []}]
@@ -7207,6 +7207,66 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /material-types/{materialTypeId}/variants:
+    parameters:
+      - {name: materialTypeId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Inventory]
+      operationId: createMaterialTypeVariant
+      summary: Add a variant to a material type
+      description: >-
+        Requires `inventory.manage`. Variants (Basic, Matte, Silk …) are the list an article of the type picks its variant from and the level a
+        material pricing rule can target. Names are trimmed and unique per type ignoring case (409 material_type_variant_exists). Parts take no
+        variants (422 material_type_variant_not_allowed).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MaterialTypeVariantRequest"}}}}
+      responses:
+        "201": {description: Variant created., content: {application/json: {schema: {$ref: "#/components/schemas/MaterialTypeVariant"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /material-types/{materialTypeId}/variants/{variantId}:
+    parameters:
+      - {name: materialTypeId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: variantId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    patch:
+      tags: [Inventory]
+      operationId: updateMaterialTypeVariant
+      summary: Rename a variant
+      description: >-
+        Requires `inventory.manage`. The new name is unique per type ignoring case (409 material_type_variant_exists). Articles of the variant
+        follow the rename; an article whose name was generated from type, variant, colour and manufacturer is renamed with it, a typed name
+        stays. Spool labels keep the old name.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MaterialTypeVariantRequest"}}}}
+      responses:
+        "200": {description: Variant renamed., content: {application/json: {schema: {$ref: "#/components/schemas/MaterialTypeVariant"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Inventory]
+      operationId: deleteMaterialTypeVariant
+      summary: Delete a variant
+      description: >-
+        Requires `inventory.manage`. Deletes a variant that no article (deleted ones included) and no active pricing rule uses; otherwise
+        409 material_type_variant_in_use. Inactive pricing rules of the variant (cleared rates) are deleted with it.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Variant deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /materials:
@@ -16877,6 +16937,8 @@ components:
         processId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set on material rules; the rate is per unit of this material type."}
         materialTypeName: {type: string, nullable: true}
+        materialTypeVariantId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set on material rules that price one variant of the type; null is the rate of the type itself, which variants without a rule of their own inherit."}
+        materialTypeVariantName: {type: string, nullable: true}
         materialUnit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true, description: "The unit of the material type, or of the article for stock_article rules."}
         materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set on stock_article rules; the rate is per unit of this article."}
         materialName: {type: string, nullable: true}
@@ -16917,6 +16979,7 @@ components:
         name: {type: string}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         materialTypeName: {type: string, nullable: true}
+        variant: {type: string, nullable: true, description: The article's variant; its rate is used when the group prices it.}
 
     PriceQuoteGroup:
       type: object
@@ -16984,6 +17047,7 @@ components:
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
         processId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden otherwise. The type must have machineUse."}
+        materialTypeVariantId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional on material rules, forbidden otherwise: prices this variant of materialTypeId instead of the whole type (422 material_type_variant_mismatch when it belongs to another type). One active material rule per group, type and variant (null variant included)."}
         materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for stock_article rules, forbidden otherwise."}
         measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Required for machine_measure rules (with processId), forbidden otherwise. The machine type's process must support the measure."}
         rate: {$ref: "#/components/schemas/Decimal"}
@@ -16996,6 +17060,7 @@ components:
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
         processId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden otherwise."}
+        materialTypeVariantId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional on material rules, forbidden otherwise; see CreatePricingRuleRequest."}
         materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for stock_article rules, forbidden otherwise."}
         measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Required for machine_measure rules (with processId), forbidden otherwise."}
         rate: {$ref: "#/components/schemas/Decimal"}
@@ -17035,7 +17100,8 @@ components:
         materialTypeName: {type: string}
         materialTypeCode: {type: string}
         machineUse: {type: boolean, description: The material type is used in machine runs.}
-        variant: {type: string, maxLength: 80, nullable: true}
+        variantId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: The variant of the material type the article belongs to.}
+        variant: {type: string, maxLength: 80, nullable: true, description: The name of that variant.}
         manufacturer: {type: string, maxLength: 150, nullable: true}
         packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: "Quantity per package in the article's unit (1000 g per roll, 100 pieces per bag)."}
         storageLocation: {type: string, maxLength: 200, nullable: true}
@@ -17062,8 +17128,10 @@ components:
 
     MaterialPriceSource:
       type: string
-      description: stock_article is the article's own rule; material_type is the rate of its machine-use material type.
-      enum: [stock_article, material_type]
+      description: >-
+        stock_article is the article's own rule; material_type_variant is the rate of the article's variant; material_type is the rate of its
+        machine-use material type. The first that exists wins.
+      enum: [stock_article, material_type_variant, material_type]
 
     MaterialPrice:
       type: object
@@ -17100,7 +17168,7 @@ components:
     MaterialType:
       type: object
       additionalProperties: false
-      required: [id, name, code, kind, machineUse, unit, processIds, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
+      required: [id, name, code, kind, machineUse, unit, processIds, variants, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
@@ -17109,12 +17177,34 @@ components:
         machineUse: {type: boolean, description: "Materials of the type are used in machine runs and priced by material rules; always true for filament."}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         processIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Processes whose machines can consume materials of this type in new runs."}
+        variants: {type: array, items: {$ref: "#/components/schemas/MaterialTypeVariant"}, description: "The variants of the type, by name; empty for parts."}
         active: {type: boolean}
         materialCount: {type: integer, format: int64, minimum: 0, description: Materials of this type.}
-        pricingRuleCount: {type: integer, format: int64, minimum: 0, description: "Material pricing rules for this type, active or not."}
+        pricingRuleCount: {type: integer, format: int64, minimum: 0, description: "Material pricing rules for this type, active or not, variant rules included."}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+
+    MaterialTypeVariant:
+      type: object
+      additionalProperties: false
+      required: [id, materialTypeId, name, materialCount, pricingRuleCount]
+      description: >-
+        A variant of a material type (PLA: Basic, Matte, Silk …). An article's variant is one of its type's variants; a material pricing rule
+        may price one variant, and articles of a variant without a rule of its own use the type's rate.
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 80}
+        materialCount: {type: integer, format: int64, minimum: 0, description: "Articles of the variant, deleted ones included."}
+        pricingRuleCount: {type: integer, format: int64, minimum: 0, description: "Active material pricing rules of the variant."}
+
+    MaterialTypeVariantRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80, description: Trimmed; unique per type ignoring case.}
 
     MaterialTypeCode:
       type: string
@@ -17178,7 +17268,7 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 150}
         materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
-        variant: {type: string, maxLength: 80, nullable: true}
+        variant: {type: string, maxLength: 80, nullable: true, description: "The name of one of the type's variants, matched ignoring case after trimming; an unknown name is added to the type's variants. Parts take none."}
         manufacturer: {type: string, maxLength: 150, nullable: true}
         packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         storageLocation: {type: string, maxLength: 200, nullable: true}
@@ -17197,7 +17287,7 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 150}
         materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
-        variant: {type: string, maxLength: 80, nullable: true}
+        variant: {type: string, maxLength: 80, nullable: true, description: "The name of one of the type's variants, matched ignoring case after trimming; an unknown name is added to the type's variants. Parts take none."}
         manufacturer: {type: string, maxLength: 150, nullable: true}
         packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         storageLocation: {type: string, maxLength: 200, nullable: true}
