@@ -7,8 +7,6 @@ import {
   invoiceRequestBlocker,
   latestReturn,
   orderAttention,
-  periodRange,
-  periodText,
   readyToBillGroups,
   requestProgress,
   requestReadiness,
@@ -84,31 +82,7 @@ describe('order sections', () => {
   });
 });
 
-describe('period', () => {
-  const now = new Date('2026-10-19T10:00:00Z');
-  it('computes today, yesterday, the week and the month in Vienna time', () => {
-    const today = periodRange('today', '', '', now);
-    expect(new Date(today.to).getTime() - new Date(today.from).getTime()).toBe(86_400_000);
-    expect(periodText('today', today, '', '')).toBe('Today · 19.10.2026');
-    expect(periodRange('yesterday', '', '', now).to).toBe(today.from);
-    const week = periodRange('week', '', '', now);
-    expect(new Date(week.from).toISOString()).toBe('2026-10-18T22:00:00.000Z');
-    const month = periodRange('month', '', '', now);
-    expect(new Date(month.from).toISOString()).toBe('2026-09-30T22:00:00.000Z');
-  });
-  it('covers everything from the beginning up to the end of today for all time', () => {
-    const all = periodRange('all', '', '', now);
-    expect(all.from).toBe(0);
-    expect(all.to).toBe(periodRange('today', '', '', now).to);
-    expect(periodText('all', all, '', '')).toBe('All time · up to 19.10.2026');
-  });
-  it('treats a custom range as inclusive days and needs both dates', () => {
-    const range = periodRange('custom', '2026-10-01', '2026-10-05');
-    expect(range.valid).toBe(true);
-    expect(new Date(range.to).getTime() - new Date(range.from).getTime()).toBe(5 * 86_400_000);
-    expect(periodRange('custom', '2026-10-05', '').valid).toBe(false);
-    expect(periodRange('custom', '2026-10-06', '2026-10-05').valid).toBe(false);
-  });
+describe('takings', () => {
   it('nets takings per method', () => {
     const result = takings([
       { entryKind: 'receipt', method: 'cash', amount: '10.00' },

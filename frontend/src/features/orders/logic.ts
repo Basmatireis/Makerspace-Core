@@ -11,7 +11,7 @@ import type {
   OrderPayment,
   OrderPaymentMethod,
 } from '../../api/generated/models';
-import { addCalendarDays, dateInAppTimeZone, formatDate, zonedDateTimeToISO } from '../../app/dateTime';
+import { formatDate } from '../../app/dateTime';
 import { formatMoney } from './formatting';
 import { methodLabel, requestNextStep } from './labels';
 import { toCents } from './money';
@@ -202,72 +202,6 @@ export function takings(
 }
 
 // Cashbook -------------------------------------------------------------------------------------------------------------
-
-export type PeriodPreset = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'custom';
-/** The cashbook shows everything from the beginning unless another period is chosen. */
-export const defaultPeriodPreset: PeriodPreset = 'all';
-export const periodPresets: { id: PeriodPreset; label: string }[] = [
-  { id: 'all', label: 'All time' },
-  { id: 'today', label: 'Today' },
-  { id: 'yesterday', label: 'Yesterday' },
-  { id: 'week', label: 'This week' },
-  { id: 'month', label: 'This month' },
-  { id: 'custom', label: 'Custom' },
-];
-const midnight = (day: string) => new Date(zonedDateTimeToISO(day, '00:00')).getTime();
-
-/** A period in the app time zone as [from, to) instants. `from` and `to` of a custom range are inclusive calendar days. */
-export function periodRange(
-  preset: PeriodPreset,
-  from = '',
-  to = '',
-  now = new Date(),
-): { from: number; to: number; label: string; valid: boolean } {
-  const today = dateInAppTimeZone(now);
-  if (preset === 'all') return { from: 0, to: midnight(addCalendarDays(today, 1)), label: 'All time', valid: true };
-  if (preset === 'today')
-    return { from: midnight(today), to: midnight(addCalendarDays(today, 1)), label: 'Today', valid: true };
-  if (preset === 'yesterday')
-    return { from: midnight(addCalendarDays(today, -1)), to: midnight(today), label: 'Yesterday', valid: true };
-  if (preset === 'week') {
-    const weekday = (new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7;
-    return {
-      from: midnight(addCalendarDays(today, -weekday)),
-      to: midnight(addCalendarDays(today, 1)),
-      label: 'This week',
-      valid: true,
-    };
-  }
-  if (preset === 'month')
-    return {
-      from: midnight(`${today.slice(0, 8)}01`),
-      to: midnight(addCalendarDays(today, 1)),
-      label: 'This month',
-      valid: true,
-    };
-  const valid = !!from && !!to && from <= to;
-  return {
-    from: from ? midnight(from) : 0,
-    to: to ? midnight(addCalendarDays(to, 1)) : 0,
-    label: valid ? `${from} to ${to}` : 'Custom range',
-    valid,
-  };
-}
-
-/** "All time · up to 19.10.2026", "Today · 19.10.2026", "This week · 12.10.2026 to 19.10.2026", "Custom range · 01.10.2026 to 05.10.2026". */
-export function periodText(
-  preset: PeriodPreset,
-  range: ReturnType<typeof periodRange>,
-  from: string,
-  to: string,
-): string {
-  if (!range.valid) return 'Custom range · choose both dates';
-  if (preset === 'all') return `All time · up to ${formatDate(new Date(range.to - 1).toISOString())}`;
-  if (preset === 'custom')
-    return `Custom range · ${formatDate(`${from}T12:00:00Z`)} to ${formatDate(`${to}T12:00:00Z`)}`;
-  const start = formatDate(new Date(range.from).toISOString());
-  return `${range.label} · ${preset === 'today' || preset === 'yesterday' ? start : `${start} to ${formatDate(new Date(range.to - 1).toISOString())}`}`;
-}
 
 export type PaymentLine = {
   type: 'payment';
