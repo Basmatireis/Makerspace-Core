@@ -186,7 +186,7 @@ func (e *Emitter) RunFinished(
 		kind:  KindRunFinished,
 		title: "Run " + run.DisplayID + " " + ending,
 		body:  body,
-		link:  "/machine-logbook/jobs/runs/" + runID.String(),
+		link:  "/workshop/jobs/runs/" + runID.String(),
 	}, rule, printerParties{
 		operator:             run.OperatorPersonID,
 		customerPerson:       run.CustomerPersonID,
@@ -380,5 +380,5 @@ func withMaterial(material string) string {
 
 // machinePrinterLink opens the machine's printer setup, where slots and errors are shown.
 func machinePrinterLink(machineID uuid.UUID) string {
-	return "/machine-logbook/machines/" + machineID.String() + "?tab=printer"
+	return "/workshop/machines/" + machineID.String() + "?tab=printer"
 }
