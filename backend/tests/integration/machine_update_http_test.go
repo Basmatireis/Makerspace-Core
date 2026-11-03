@@ -375,6 +375,22 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 	if len(profile.Slots) != 1 {
 		t.Fatalf("profile slots: %+v", profile)
 	}
+	// A spool needs a filament article; register it from a purchase onto the spool.
+	spoolCode := "MDL"
+	spoolType, err := logbook.CreateMaterialTypeWithOptions(
+		ctx, master, "Delete printer PLA", machinelogbook.KindFilament, "g", []uuid.UUID{process.ID},
+		machinelogbook.MaterialTypeOptions{Code: &spoolCode}, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diameter := "1.75"
+	spoolMaterial, err := logbook.CreateMaterial(ctx, master, machinelogbook.MaterialInput{
+		Name: "Delete printer PLA", MaterialTypeID: spoolType.ID, FilamentDiameterMM: &diameter,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var spool struct {
 		Id uuid.UUID `json:"id"`
 	}
@@ -384,10 +400,12 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 		"/filament-spools",
 		http.StatusCreated,
 		map[string]any{
-			"kind":       "reusable",
-			"label":      "Mdel spool",
-			"stockMode":  "empty",
-			"occurredAt": time.Now().UTC().Format(time.RFC3339),
+			"materialId":               spoolMaterial.ID.String(),
+			"initialNetWeightG":        "1000",
+			"stockMode":                "new_acquisition",
+			"totalPrice":               "20.00",
+			"occurredAt":               time.Now().UTC().Format(time.RFC3339),
+			"expectedInventoryVersion": spoolMaterial.InventoryVersion,
 		},
 		&spool,
 	)
