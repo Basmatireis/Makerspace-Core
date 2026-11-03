@@ -2,6 +2,16 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Upgrade notes
+
+- **Migrations 00100–00101 (cash counts, register view).** New table `cash_counts` (immutable, `K-YYYY-NNNN`); `cash_movements` gains `cash_count_id` and the kind `correction` with the reason `count_difference` (signed amount); new view `cash_register_entries`. API: `POST|GET /payments/cash-counts`, `GET /payments/cash-journal`, `GET /payments/cashbook-export`; `CashRegister` gains `corrections`, `refundsAndCorrections` and `lastCount`; `CashMovement` gains `direction`, `cashCountId` and `cashCountReference`; `CashMovementKind`/`CashMovementReason` gain `correction`/`count_difference` while `CreateCashMovementRequest` keeps withdrawals and deposits only. The orders service uses `MAKERSPACE_TIME_ZONE` for whole days. Audit `cash_count.recorded`. People merge, data-subject exports and the privacy catalog cover the counts.
+
+### Added
+
+- **Counting the cash register, journal and cashbook export (API).** A count records the counted cash against what the register should have held at that moment and books any difference as a correction with a reason, so the expected cash follows reality. The register journal lists every cash entry with its running balance, daily opening and closing balances, the expected cash at the end of the period with its derivation, the last count and the period's facts. The cashbook downloads as the HTU Kassabuch PDF (20 rows per page, balance carried over, totals and signature lines) or as CSV for Excel, either for the cash register or for all payments.
+
 ## [0.13.0] - 2026-11-01
 
 ### Upgrade notes
