@@ -2,6 +2,22 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Upgrade notes
+
+- **Migration 00103 (material type variants).** New table `material_type_variants` (`id`, `material_type_id` with `ON DELETE CASCADE`, `name` 1–80 trimmed characters, timestamps, `UNIQUE (id, material_type_id)`; names unique per type ignoring case). The backfill creates one variant per type and distinct free-text `materials.variant` (ignoring case, deleted articles included), named like the earliest article of that pair; the migration-created rows get PostgreSQL `uuidv7()` ids. `materials` gains `variant_id` (composite foreign key with the type, `ON DELETE RESTRICT`; `variant` and `variant_id` are set together) and `variant` now carries the variant's name. The variant text of part articles, which the application never offered, is cleared. `pricing_rules` gains `material_type_variant_id` (only on `material` rules, same composite key), and the unique index `pricing_rules_active_material_idx` is replaced by `pricing_rules_active_material_type_idx` (variant null) and `pricing_rules_active_material_variant_idx`: one active material rule per pricing group, type and variant. `machine_job_pricing_snapshot_rules` gains `material_id` and `material_type_variant_id` (copies without foreign keys) and the kind `stock_article`. Down refuses to run while a pricing rule has a variant or a snapshot rule has a variant or the kind `stock_article`, and otherwise drops the table, the columns, the index and the check changes (the variant text of parts is not restored).
+- **API.** `MaterialType.variants` (`MaterialTypeVariant`: `id`, `materialTypeId`, `name`, `materialCount`, `pricingRuleCount`); `Material.variantId`; `PricingRule.materialTypeVariantId` and `materialTypeVariantName`, `materialTypeVariantId` on the create and update rule requests; `MaterialPriceSource` gains `material_type_variant`; `PriceQuoteMaterial.variant`. New `POST /material-types/{materialTypeId}/variants`, `PATCH|DELETE /material-types/{materialTypeId}/variants/{variantId}` (`inventory.manage`); errors `material_type_variant_exists` (409), `material_type_variant_in_use` (409), `material_type_variant_not_allowed` (422) and `material_type_variant_mismatch` (422). Audit `material_type.variant_created|renamed|deleted`.
+
+### Added
+
+- **Variants of a material type.** A filament or consumable type has a list of variants (Basic, Matte, Silk …), unique per type ignoring case; parts have none. An article's variant is one of them: an unknown name in an article or material request adds the variant to the type. Renaming a variant renames it on its articles and the generated article names that contain it (typed names and existing spool labels stay); deleting is refused while an article (deleted ones too) or a pricing rule uses it. The category dialog lists the variants and, for machine-use types, a rates table of variants × pricing groups; the Categories table has a Variants column and the article form picks the variant from the type's list.
+- **Rates per variant.** A `material` pricing rule can price one variant of its type. An article's rate resolves as its own `stock_article` rule, else its variant's rule, else its type's rule, in machine runs, price quotes, sales from stock and `Material.prices` (`source` `stock_article`, `material_type_variant` or `material_type`). Sales → Pricing shows the variants as expandable rows under their type, with the inherited rate muted. Job pricing snapshots record the rule that priced a usage (`material_id`, `material_type_variant_id`, kind `stock_article`).
+
+### Changed
+
+- **Machine runs use an article's own rate.** A run usage was priced by the material rate of its type only; it is now priced like a sale from stock, so a `stock_article` rule of the article (previously sales only) or a variant rate takes precedence over the type's rate. Stored snapshots are not rewritten.
+
 ## [0.14.0] - 2026-11-03
 
 ### Upgrade notes
