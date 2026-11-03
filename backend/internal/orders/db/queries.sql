@@ -166,12 +166,17 @@ ORDER BY occurred_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(pag
 -- name: CountCashMovements :one
 SELECT count(*) FROM cash_movements WHERE (sqlc.arg(kind)::text='' OR kind=sqlc.arg(kind)) AND (sqlc.narg(from_time)::timestamptz IS NULL OR occurred_at>=sqlc.narg(from_time)) AND (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));
 -- name: CashPaymentFigures :one
-SELECT COALESCE(sum(amount) FILTER (WHERE entry_kind='receipt'),0)::numeric AS receipts,COALESCE(sum(amount) FILTER (WHERE entry_kind='reversal'),0)::numeric AS refunds
+-- Refunds are reversals that gave cash back; every other reversal reason is a correction of a recorded payment.
+SELECT COALESCE(sum(amount) FILTER (WHERE entry_kind='receipt'),0)::numeric AS receipts,
+COALESCE(sum(amount) FILTER (WHERE entry_kind='reversal' AND reversal_reason_kind='refund'),0)::numeric AS refunds,
+COALESCE(sum(amount) FILTER (WHERE entry_kind='reversal' AND reversal_reason_kind IS DISTINCT FROM 'refund'),0)::numeric AS payment_corrections
 FROM payments WHERE method='cash' AND (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));
 -- name: CashMovementFigures :one
--- Corrections are signed: what they added to the register.
+-- Corrections are signed: what they added to the register. Surpluses are the positive ones, shortfalls the negative ones.
 SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits,
-COALESCE(sum(amount) FILTER (WHERE kind='correction'),0)::numeric AS corrections
+COALESCE(sum(amount) FILTER (WHERE kind='correction'),0)::numeric AS corrections,
+COALESCE(sum(amount) FILTER (WHERE kind='correction' AND amount>0),0)::numeric AS count_surpluses,
+COALESCE(-sum(amount) FILTER (WHERE kind='correction' AND amount<0),0)::numeric AS count_shortfalls
 FROM cash_movements WHERE (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));
 -- name: GetCashCountReference :one
 SELECT reference FROM cash_counts WHERE id=$1;

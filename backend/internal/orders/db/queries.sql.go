@@ -259,38 +259,52 @@ func (q *Queries) CashJournalFacts(ctx context.Context, arg CashJournalFactsPara
 
 const cashMovementFigures = `-- name: CashMovementFigures :one
 SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits,
-COALESCE(sum(amount) FILTER (WHERE kind='correction'),0)::numeric AS corrections
+COALESCE(sum(amount) FILTER (WHERE kind='correction'),0)::numeric AS corrections,
+COALESCE(sum(amount) FILTER (WHERE kind='correction' AND amount>0),0)::numeric AS count_surpluses,
+COALESCE(-sum(amount) FILTER (WHERE kind='correction' AND amount<0),0)::numeric AS count_shortfalls
 FROM cash_movements WHERE ($1::timestamptz IS NULL OR occurred_at<$1)
 `
 
 type CashMovementFiguresRow struct {
-	Withdrawals pgtype.Numeric
-	Deposits    pgtype.Numeric
-	Corrections pgtype.Numeric
+	Withdrawals     pgtype.Numeric
+	Deposits        pgtype.Numeric
+	Corrections     pgtype.Numeric
+	CountSurpluses  pgtype.Numeric
+	CountShortfalls pgtype.Numeric
 }
 
-// Corrections are signed: what they added to the register.
+// Corrections are signed: what they added to the register. Surpluses are the positive ones, shortfalls the negative ones.
 func (q *Queries) CashMovementFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashMovementFiguresRow, error) {
 	row := q.db.QueryRow(ctx, cashMovementFigures, toTime)
 	var i CashMovementFiguresRow
-	err := row.Scan(&i.Withdrawals, &i.Deposits, &i.Corrections)
+	err := row.Scan(
+		&i.Withdrawals,
+		&i.Deposits,
+		&i.Corrections,
+		&i.CountSurpluses,
+		&i.CountShortfalls,
+	)
 	return i, err
 }
 
 const cashPaymentFigures = `-- name: CashPaymentFigures :one
-SELECT COALESCE(sum(amount) FILTER (WHERE entry_kind='receipt'),0)::numeric AS receipts,COALESCE(sum(amount) FILTER (WHERE entry_kind='reversal'),0)::numeric AS refunds
+SELECT COALESCE(sum(amount) FILTER (WHERE entry_kind='receipt'),0)::numeric AS receipts,
+COALESCE(sum(amount) FILTER (WHERE entry_kind='reversal' AND reversal_reason_kind='refund'),0)::numeric AS refunds,
+COALESCE(sum(amount) FILTER (WHERE entry_kind='reversal' AND reversal_reason_kind IS DISTINCT FROM 'refund'),0)::numeric AS payment_corrections
 FROM payments WHERE method='cash' AND ($1::timestamptz IS NULL OR occurred_at<$1)
 `
 
 type CashPaymentFiguresRow struct {
-	Receipts pgtype.Numeric
-	Refunds  pgtype.Numeric
+	Receipts           pgtype.Numeric
+	Refunds            pgtype.Numeric
+	PaymentCorrections pgtype.Numeric
 }
 
+// Refunds are reversals that gave cash back; every other reversal reason is a correction of a recorded payment.
 func (q *Queries) CashPaymentFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashPaymentFiguresRow, error) {
 	row := q.db.QueryRow(ctx, cashPaymentFigures, toTime)
 	var i CashPaymentFiguresRow
-	err := row.Scan(&i.Receipts, &i.Refunds)
+	err := row.Scan(&i.Receipts, &i.Refunds, &i.PaymentCorrections)
 	return i, err
 }
 

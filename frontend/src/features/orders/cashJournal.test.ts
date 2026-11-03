@@ -45,7 +45,10 @@ describe('register panel', () => {
     const register = {
       receipts: '115.70',
       refunds: '0.00',
+      paymentCorrections: '0.00',
       corrections: '2.50',
+      countSurpluses: '0.00',
+      countShortfalls: '2.50',
       refundsAndCorrections: '2.50',
       withdrawals: '80.00',
       deposits: '50.00',
@@ -56,18 +59,18 @@ describe('register panel', () => {
     expect(registerDerivation(register).map(({ label, cents, total }) => ({ label, cents, total }))).toEqual([
       { label: 'Cash receipts', cents: 11570, total: undefined },
       { label: '+ Deposits', cents: 5000, total: undefined },
-      { label: '− Refunds and payment corrections', cents: 0, total: undefined },
+      { label: '− Refunds', cents: 0, total: undefined },
+      { label: '− Payment corrections', cents: 0, total: undefined },
       { label: '− Withdrawals', cents: 8000, total: undefined },
-      { label: '− Count differences', cents: 250, total: undefined },
+      { label: '− Count shortfalls', cents: 250, total: undefined },
       { label: '= Expected', cents: 8320, total: true },
     ]);
-    // A net surplus adds to the register; no difference means no line.
-    expect(registerDerivation({ ...register, corrections: '-4.00' }).map((line) => line.label)).toContain(
-      '+ Count differences',
+    // Surpluses and shortfalls are separate lines, each only when counts found one.
+    const labels = registerDerivation({ ...register, countSurpluses: '4.00', countShortfalls: '0.00' }).map(
+      (line) => line.label,
     );
-    expect(registerDerivation({ ...register, corrections: '0.00' }).map((line) => line.label)).not.toContain(
-      '− Count differences',
-    );
+    expect(labels).toContain('+ Count surpluses');
+    expect(labels).not.toContain('− Count shortfalls');
   });
   it('words a count difference', () => {
     expect(differenceText(0)).toBe('Matches expected');

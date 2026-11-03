@@ -20237,13 +20237,16 @@ components:
     CashRegister:
       type: object
       additionalProperties: false
-      required: [receipts, refunds, corrections, refundsAndCorrections, withdrawals, deposits, expected, to, lastCount]
+      required: [receipts, refunds, paymentCorrections, corrections, countSurpluses, countShortfalls, refundsAndCorrections, withdrawals, deposits, expected, to, lastCount]
       description: "Only cash payments count. Card and external (wiRef) payments never change the register."
       properties:
         receipts: {$ref: "#/components/schemas/Money"}
-        refunds: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Cash refunds and corrections of cash payments."}
+        refunds: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Cash given back (reversals with the reason refund)."}
+        paymentCorrections: {allOf: [{$ref: "#/components/schemas/Money"}], description: "Cash receipts reversed because they were recorded wrongly (every reversal reason but refund)."}
         corrections: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "Net cash the count corrections took out of the register; negative when counts found more cash than expected."}
-        refundsAndCorrections: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "refunds + corrections: the \"− Refunds and corrections\" line of the derivation."}
+        countSurpluses: {allOf: [{$ref: "#/components/schemas/Money"}], description: "What counts found over the expected amount, booked into the register."}
+        countShortfalls: {allOf: [{$ref: "#/components/schemas/Money"}], description: "What counts found short of the expected amount, booked out of the register."}
+        refundsAndCorrections: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "refunds + paymentCorrections + corrections."}
         withdrawals: {$ref: "#/components/schemas/Money"}
         deposits: {$ref: "#/components/schemas/Money"}
         expected: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: "receipts - refundsAndCorrections - withdrawals + deposits"}

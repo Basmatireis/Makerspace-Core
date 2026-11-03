@@ -117,7 +117,8 @@ func TestCashJournalRunningBalancesDaysAndFacts(t *testing.T) {
 		t.Fatalf("%v %+v", e, one)
 	}
 	r := one.Register
-	if r.Receipts != "60.00" || r.Refunds != "20.00" || r.Corrections != "1.00" || r.RefundsAndCorrections != "21.00" ||
+	if r.Receipts != "60.00" || r.Refunds != "20.00" || r.PaymentCorrections != "0.00" || r.Corrections != "1.00" ||
+		r.CountSurpluses != "0.00" || r.CountShortfalls != "1.00" || r.RefundsAndCorrections != "21.00" ||
 		r.Withdrawals != "5.00" || r.Deposits != "10.00" || r.Expected != "44.00" || r.LastCount == nil {
 		t.Fatalf("register %+v", r)
 	}

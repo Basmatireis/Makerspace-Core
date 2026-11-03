@@ -23,8 +23,9 @@ type Querier interface {
 	CashJournalDayTotals(ctx context.Context, arg CashJournalDayTotalsParams) ([]CashJournalDayTotalsRow, error)
 	// What happened in the register within [from_time, to_time); both ends are optional.
 	CashJournalFacts(ctx context.Context, arg CashJournalFactsParams) (CashJournalFactsRow, error)
-	// Corrections are signed: what they added to the register.
+	// Corrections are signed: what they added to the register. Surpluses are the positive ones, shortfalls the negative ones.
 	CashMovementFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashMovementFiguresRow, error)
+	// Refunds are reversals that gave cash back; every other reversal reason is a correction of a recorded payment.
 	CashPaymentFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashPaymentFiguresRow, error)
 	ClaimJob(ctx context.Context, arg ClaimJobParams) error
 	CommittedReplacement(ctx context.Context, replacesOrderID *uuid.UUID) (CommittedReplacementRow, error)

@@ -27,11 +27,17 @@ import type { Money } from './money';
  */
 export interface CashRegister {
   receipts: Money;
-  /** Cash refunds and corrections of cash payments. */
+  /** Cash given back (reversals with the reason refund). */
   refunds: Money;
+  /** Cash receipts reversed because they were recorded wrongly (every reversal reason but refund). */
+  paymentCorrections: Money;
   /** Net cash the count corrections took out of the register; negative when counts found more cash than expected. */
   corrections: Decimal;
-  /** refunds + corrections: the "− Refunds and corrections" line of the derivation. */
+  /** What counts found over the expected amount, booked into the register. */
+  countSurpluses: Money;
+  /** What counts found short of the expected amount, booked out of the register. */
+  countShortfalls: Money;
+  /** refunds + paymentCorrections + corrections. */
   refundsAndCorrections: Decimal;
   withdrawals: Money;
   deposits: Money;

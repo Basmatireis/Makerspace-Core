@@ -19,11 +19,15 @@ import (
 // The register counts cash only. Card payments and external (wiRef) payments never go through it, whatever
 // their reversals: figures are derived from method='cash' payments plus the immutable cash movements.
 
-// cashFigures are sums up to a point in time. corrections is signed: what count corrections added to the register.
-type cashFigures struct{ receipts, refunds, withdrawals, deposits, corrections decimal.Decimal }
+// cashFigures are sums up to a point in time. corrections is signed: what count corrections added to the register;
+// countSurpluses and countShortfalls are its two directions, each as a positive amount.
+type cashFigures struct {
+	receipts, refunds, paymentCorrections, withdrawals, deposits decimal.Decimal
+	corrections, countSurpluses, countShortfalls                 decimal.Decimal
+}
 
 func (f cashFigures) expected() decimal.Decimal {
-	return f.receipts.Sub(f.refunds).Sub(f.withdrawals).Add(f.deposits).Add(f.corrections)
+	return f.receipts.Sub(f.refunds).Sub(f.paymentCorrections).Sub(f.withdrawals).Add(f.deposits).Add(f.corrections)
 }
 
 // cashFiguresUntil sums everything that occurred before `to` (exclusive); nil means everything recorded.
@@ -37,11 +41,14 @@ func cashFiguresUntil(ctx context.Context, q *db.Queries, to *time.Time) (cashFi
 		return cashFigures{}, err
 	}
 	return cashFigures{
-		receipts:    d(payments.Receipts),
-		refunds:     d(payments.Refunds),
-		withdrawals: d(movements.Withdrawals),
-		deposits:    d(movements.Deposits),
-		corrections: d(movements.Corrections),
+		receipts:           d(payments.Receipts),
+		refunds:            d(payments.Refunds),
+		paymentCorrections: d(payments.PaymentCorrections),
+		withdrawals:        d(movements.Withdrawals),
+		deposits:           d(movements.Deposits),
+		corrections:        d(movements.Corrections),
+		countSurpluses:     d(movements.CountSurpluses),
+		countShortfalls:    d(movements.CountShortfalls),
 	}, nil
 }
 
@@ -51,8 +58,11 @@ func (f cashFigures) register() CashRegister {
 	return CashRegister{
 		Receipts:              f.receipts.StringFixed(2),
 		Refunds:               f.refunds.StringFixed(2),
+		PaymentCorrections:    f.paymentCorrections.StringFixed(2),
 		Corrections:           takenOut.StringFixed(2),
-		RefundsAndCorrections: f.refunds.Add(takenOut).StringFixed(2),
+		CountSurpluses:        f.countSurpluses.StringFixed(2),
+		CountShortfalls:       f.countShortfalls.StringFixed(2),
+		RefundsAndCorrections: f.refunds.Add(f.paymentCorrections).Add(takenOut).StringFixed(2),
 		Withdrawals:           f.withdrawals.StringFixed(2),
 		Deposits:              f.deposits.StringFixed(2),
 		Expected:              f.expected().StringFixed(2),

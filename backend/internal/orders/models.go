@@ -391,9 +391,14 @@ type CashMovementPage struct {
 // CashRegister counts cash only: card and external (wiRef) payments never change it.
 type CashRegister struct {
 	Receipts string `json:"receipts"`
-	Refunds  string `json:"refunds"`
-	// Corrections is what count corrections took out of the register, negative when they added cash.
+	// Refunds gave cash back; PaymentCorrections reversed cash receipts that were recorded wrongly.
+	Refunds            string `json:"refunds"`
+	PaymentCorrections string `json:"paymentCorrections"`
+	// Corrections is what count corrections took out of the register, negative when they added cash;
+	// CountSurpluses and CountShortfalls are its two directions as positive amounts.
 	Corrections           string     `json:"corrections"`
+	CountSurpluses        string     `json:"countSurpluses"`
+	CountShortfalls       string     `json:"countShortfalls"`
 	RefundsAndCorrections string     `json:"refundsAndCorrections"`
 	Withdrawals           string     `json:"withdrawals"`
 	Deposits              string     `json:"deposits"`

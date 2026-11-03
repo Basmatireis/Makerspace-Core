@@ -27,7 +27,10 @@ const movement = {
 const register = {
   receipts: '10.00',
   refunds: '0.00',
+  paymentCorrections: '0.00',
   corrections: '0.00',
+  countSurpluses: '0.00',
+  countShortfalls: '0.00',
   refundsAndCorrections: '0.00',
   withdrawals: '20.00',
   deposits: '50.00',

@@ -51,26 +51,24 @@ export type DerivationLine = { label: string; cents: number; helper?: string; to
  * corrections, withdrawals) and, when counts found more or less cash than expected, their net difference.
  */
 export function registerDerivation(register: CashRegister): DerivationLine[] {
-  const countDifferences = toCents(register.corrections);
+  const surpluses = toCents(register.countSurpluses);
+  const shortfalls = toCents(register.countShortfalls);
   return [
     { label: 'Cash receipts', cents: toCents(register.receipts) },
     { label: '+ Deposits', cents: toCents(register.deposits), helper: 'Change floats and other cash put in' },
+    ...(surpluses > 0
+      ? [{ label: '+ Count surpluses', cents: surpluses, helper: 'Counts found more cash than expected' }]
+      : []),
+    { label: '− Refunds', cents: toCents(register.refunds), helper: 'Cash given back to customers' },
     {
-      label: '− Refunds and payment corrections',
-      cents: toCents(register.refunds),
-      helper: 'Cash given back or re-booked',
+      label: '− Payment corrections',
+      cents: toCents(register.paymentCorrections),
+      helper: 'Receipts reversed because they were recorded wrongly',
     },
     { label: '− Withdrawals', cents: toCents(register.withdrawals), helper: 'Bank deposits and cash taken out' },
-    ...(countDifferences === 0
-      ? []
-      : [
-          {
-            label: countDifferences < 0 ? '+ Count differences' : '− Count differences',
-            cents: Math.abs(countDifferences),
-            helper:
-              countDifferences < 0 ? 'Counts found more cash than expected' : 'Counts found less cash than expected',
-          },
-        ]),
+    ...(shortfalls > 0
+      ? [{ label: '− Count shortfalls', cents: shortfalls, helper: 'Counts found less cash than expected' }]
+      : []),
     { label: '= Expected', cents: toCents(register.expected), total: true },
   ];
 }

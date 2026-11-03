@@ -509,7 +509,10 @@ export function createSalesWorld(permissions: string[] = salesPermissions) {
   const register: CashRegister = {
     receipts: '115.70',
     refunds: '0.00',
+    paymentCorrections: '0.00',
     corrections: '2.50',
+    countSurpluses: '0.00',
+    countShortfalls: '2.50',
     refundsAndCorrections: '2.50',
     withdrawals: '80.00',
     deposits: '50.00',
