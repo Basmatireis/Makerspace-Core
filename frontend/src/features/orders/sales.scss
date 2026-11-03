@@ -201,24 +201,35 @@
   margin-inline-start: $spacing-03;
 }
 .sales-rate {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
   gap: $spacing-03;
-  min-inline-size: 7rem;
+  font-variant-numeric: tabular-nums;
 }
-.sales-rate-edit {
-  display: flex;
-  align-items: center;
-  gap: $spacing-01;
-  min-inline-size: 11rem;
+// A rate is a ghost button that reads as the value; it keeps Carbon's hover and focus.
+.sales-rate.cds--btn--ghost {
+  padding-inline: $spacing-03;
+  margin-inline-start: -$spacing-03;
+  color: theme.$text-primary;
 }
-.sales-rate-edit .cds--form-item {
-  flex: 1;
+.sales-rate__value {
+  @include type-style('body-compact-01');
+}
+.sales-rate--fallback .sales-rate__value {
+  color: theme.$text-secondary;
+  font-style: italic;
 }
 .sales-rates td,
 .sales-rates th {
   white-space: nowrap;
+}
+.sales-rates tr.sales-rates__group td {
+  background: theme.$layer-accent-01;
+  border-block-start: 0;
+}
+.sales-table-note {
+  padding: $spacing-04 $spacing-05;
+  background: theme.$layer-01;
 }
 .sales-tab-panel .mj-cell-stack {
   justify-items: start;
