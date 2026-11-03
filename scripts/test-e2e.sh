@@ -13,6 +13,8 @@ export FRONTEND_PORT="55173"
 export PUBLIC_BASE_URL="$e2e_origin"
 export APP_ENV="test"
 export SESSION_COOKIE_SECURE="false"
+# The dev server serves every page of the suite from one process; a larger heap keeps it from dying mid-run.
+export FRONTEND_NODE_OPTIONS="${FRONTEND_NODE_OPTIONS:---max-old-space-size=4096}"
 
 cleanup() {
 	docker compose down --volumes --remove-orphans
@@ -42,6 +44,7 @@ if [ -n "${PLAYWRIGHT_SHARD:-}" ]; then
 fi
 
 cd frontend
+set +e
 if [ -n "${PLAYWRIGHT_NODE_BINARY:-}" ]; then
 	PLAYWRIGHT_BASE_URL="$e2e_origin" \
 		PLAYWRIGHT_EXTERNAL_SERVER=true \
@@ -53,3 +56,10 @@ else
 		PLAYWRIGHT_FULL_STACK=true \
 		pnpm exec playwright test $shard_args
 fi
+status=$?
+set -e
+if [ "$status" -ne 0 ]; then
+	# The stack's own logs say whether a page failed or the server behind it went away.
+	docker compose logs --tail=300 backend frontend >&2
+fi
+exit "$status"

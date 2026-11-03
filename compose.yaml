@@ -87,6 +87,8 @@ services:
       target: development
     environment:
       VITE_DEV_API_TARGET: ${VITE_DEV_API_TARGET:-http://backend:8080}
+      # Room for the dev server's module graph; the end-to-end script raises it on the small CI runners.
+      NODE_OPTIONS: ${FRONTEND_NODE_OPTIONS:-}
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     volumes:
