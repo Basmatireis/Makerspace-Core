@@ -18,9 +18,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { CleanUpFilamentSpoolCandidate } from './cleanUpFilamentSpoolCandidate';
+import type { Decimal } from './decimal';
+import type { MaterialPriceSource } from './materialPriceSource';
+import type { UUIDv7 } from './uUIDv7';
 
-export interface CleanUpFilamentSpoolsResult {
-  items: CleanUpFilamentSpoolCandidate[];
-  deleted: boolean;
+export interface MaterialPrice {
+  pricingGroupId: UUIDv7;
+  pricingGroupName: string;
+  /** EUR per unit of the article. */
+  rate: Decimal;
+  source: MaterialPriceSource;
+  pricingRuleId: UUIDv7;
 }

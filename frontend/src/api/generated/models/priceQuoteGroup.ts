@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Decimal } from './decimal';
+import type { MaterialPriceSource } from './materialPriceSource';
 import type { Money } from './money';
 import type { UUIDv7 } from './uUIDv7';
 
@@ -29,9 +30,11 @@ export interface PriceQuoteGroup {
   /** Runtime rate per hour; null without a machine or without an active rate. */
   machineRate: Decimal | null;
   machineAmount: Money | null;
-  /** Material rate per unit; null without an article or without an active rate. */
+  /** Article rate per unit: the material type rate with a machine, the sale price from stock without one; null without an article or without an active rate. */
   materialRate: Decimal | null;
   materialAmount: Money | null;
+  /** Which rule the article rate comes from; null without a rate. */
+  materialPriceSource: MaterialPriceSource | null;
   /** Machine and material together; null when a requested part has no rate. */
   total: Money | null;
   /** Every requested part has an active rate in this group. */

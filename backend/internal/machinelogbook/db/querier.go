@@ -189,7 +189,7 @@ type Querier interface {
 	ListMachines(ctx context.Context, arg ListMachinesParams) ([]ListMachinesRow, error)
 	// Sale prices of articles per active pricing group: the article's own stock_article rule, else the material rule of
 	// its machine-use type.
-	ListMaterialPrices(ctx context.Context, materialIds []uuid.UUID) ([]ListMaterialPricesRow, error)
+	ListMaterialPrices(ctx context.Context, materialIds []string) ([]ListMaterialPricesRow, error)
 	ListMaterialTypeProcessNames(ctx context.Context, materialTypeID uuid.UUID) ([]uuid.UUID, error)
 	ListMaterialTypeProcesses(ctx context.Context, materialTypeIds []uuid.UUID) ([]MaterialTypeProcess, error)
 	ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow, error)

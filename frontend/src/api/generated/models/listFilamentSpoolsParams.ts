@@ -18,35 +18,32 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { FilamentSpoolKind } from './filamentSpoolKind';
-import type { FilamentSpoolStatus } from './filamentSpoolStatus';
 import type { ListFilamentSpoolsLifecycle } from './listFilamentSpoolsLifecycle';
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListFilamentSpoolsParams = {
 /**
- * Case-insensitive substring match on spool display ID, label, storage location, notes, acquisition reference, spool identifier values (such as tag IDs), the material name, type and colour, manufacturer, product name and the name of the machine the spool is mounted on.
+ * Case-insensitive substring match on the spool label (display ID), storage location, notes, acquisition reference, spool identifier values (such as tag IDs), the article's display ID, name, type, colour and manufacturer and the name of the machine the spool is mounted on.
  * @maxLength 200
  */
 search?: string;
 materialId?: UUIDv7;
+/**
+ * active spools are in use; archived spools are retired and sit in the recycle bin.
+ */
 lifecycle?: ListFilamentSpoolsLifecycle;
 /**
  * @maxLength 200
  */
 location?: string;
-kind?: FilamentSpoolKind;
-/**
- * @maxItems 4
- */
-status?: FilamentSpoolStatus[];
 mounted?: boolean;
 /**
+ * Manufacturer of the spool's article.
  * @maxLength 150
  */
 manufacturer?: string;
 /**
- * true returns only spools with an open fill that are not archived (usable for mounting and job usage).
+ * true returns only active spools (usable for mounting and job usage).
  */
 consumable?: boolean;
 /**

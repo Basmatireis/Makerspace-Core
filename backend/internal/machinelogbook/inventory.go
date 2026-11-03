@@ -101,10 +101,10 @@ func attachMaterialPrices(ctx context.Context, q *machinelogbookdb.Queries, item
 	if len(items) == 0 {
 		return nil
 	}
-	materialIDs := make([]uuid.UUID, 0, len(items))
+	materialIDs := make([]string, 0, len(items))
 	index := make(map[uuid.UUID]int, len(items))
 	for i := range items {
-		materialIDs = append(materialIDs, items[i].ID)
+		materialIDs = append(materialIDs, items[i].ID.String())
 		index[items[i].ID] = i
 	}
 	rows, err := q.ListMaterialPrices(ctx, materialIDs)

@@ -44,7 +44,6 @@ export interface UpdateMaterialRequest {
      * @nullable
      */
   manufacturer?: string | null;
-  salePrice?: Decimal | null;
   packageSize?: Decimal | null;
   /**
      * @maxLength 200

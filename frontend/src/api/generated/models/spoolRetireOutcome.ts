@@ -18,15 +18,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { CleanUpFilamentSpoolsRequestOlderThanMonths } from './cleanUpFilamentSpoolsRequestOlderThanMonths';
-import type { UUIDv7 } from './uUIDv7';
 
-export interface CleanUpFilamentSpoolsRequest {
-  olderThanMonths: CleanUpFilamentSpoolsRequestOlderThanMonths;
-  dryRun: boolean;
-  /**
-     * Required without dryRun.
-     * @maxItems 500
-     */
-  spoolIds?: UUIDv7[];
-}
+/**
+ * empty: the spool ran empty, its remaining quantity is booked as used up; discarded: the rest was thrown away and is booked as disposed.
+ */
+export type SpoolRetireOutcome = typeof SpoolRetireOutcome[keyof typeof SpoolRetireOutcome];
+
+
+export const SpoolRetireOutcome = {
+  empty: 'empty',
+  discarded: 'discarded',
+} as const;

@@ -23,8 +23,10 @@ import type {
   CorrectMaterialStockRequest,
   CreateMaterialRequest,
   CreateMaterialTypeRequest,
+  DeleteInventoryTransactionRequest,
   InventoryMutationResult,
   InventoryReceiptResult,
+  InventoryRecycleBin,
   InventorySuggestions,
   InventoryTransactionPage,
   ListInventorySuggestionsParams,
@@ -225,7 +227,7 @@ export const getListMaterialsUrl = (params?: ListMaterialsParams,) => {
 }
 
 /**
- * Requires `inventory.read`. `search` matches name, material type, variant and manufacturer.
+ * Requires `inventory.read`. Articles in the recycle bin are left out. Every article carries its sale prices per pricing group (`prices`) and its attention flags.
  * @summary List inventory articles and balances
  */
 export const listMaterials = async (params?: ListMaterialsParams, options?: Parameters<typeof apiFetch>[1]): Promise<MaterialPage> => {
@@ -348,8 +350,8 @@ export const getDeleteMaterialUrl = (materialId: UUIDv7,) => {
 }
 
 /**
- * Requires `inventory.manage`. Permanently deletes an article that has no ledger entries, spool fills, run or job usages and order items. A used article answers 409 material_in_use with the uses in `details`; deactivate it instead.
- * @summary Delete an article that nothing uses yet
+ * Requires `inventory.delete`. The article leaves every list and picker together with its spools (mounted spools are unmounted); its stock, ledger and history stay and come back with a restore. Purging it from the bin deletes it for good. Audited as `material.deleted`.
+ * @summary Move an article to the inventory recycle bin
  */
 export const deleteMaterial = async (materialId: UUIDv7,
     versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -457,7 +459,7 @@ export const getReceiveInventoryStockUrl = () => {
 }
 
 /**
- * Requires `inventory.manage`; a placement on spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for an existing or a newly described article in a single transaction with one audit event.
+ * Requires `inventory.manage`; a placement on new spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for an existing or a newly described article in a single transaction with one audit event.
  * @summary Receive purchased stock
  */
 export const receiveInventoryStock = async (receiveInventoryStockRequest: ReceiveInventoryStockRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryReceiptResult> => {
@@ -627,6 +629,195 @@ return apiFetch<InventoryMutationResult>(getMarkMaterialEmptyUrl(materialId),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(markMaterialEmptyRequest)
+  }
+);}
+
+
+export const getDeleteInventoryTransactionUrl = (transactionId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/inventory/ledger/${transactionId}`
+}
+
+/**
+ * Requires `inventory.ledger.delete`. The entry no longer counts: the article's quantity and value and the spool's remaining quantity drop its effect (409 insufficient_stock, insufficient_spool_stock or insufficient_unassigned_stock when that would go negative). Run usages and order items are not touched. Audited as `inventory.transaction_deleted`.
+ * @summary Move a ledger entry to the inventory recycle bin
+ */
+export const deleteInventoryTransaction = async (transactionId: UUIDv7,
+    deleteInventoryTransactionRequest: DeleteInventoryTransactionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getDeleteInventoryTransactionUrl(transactionId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(deleteInventoryTransactionRequest)
+  }
+);}
+
+
+export const getGetInventoryRecycleBinUrl = () => {
+
+
+
+
+  return `/api/v1/inventory/recycle-bin`
+}
+
+/**
+ * Requires `inventory.read`. Newest first, at most 500 of each. Spools of articles in the bin are counted on the article and not listed separately.
+ * @summary Deleted articles, retired spools and deleted ledger entries
+ */
+export const getInventoryRecycleBin = async ( options?: Parameters<typeof apiFetch>[1]): Promise<InventoryRecycleBin> => {
+
+  return apiFetch<InventoryRecycleBin>(getGetInventoryRecycleBinUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getRestoreMaterialUrl = (materialId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/inventory/recycle-bin/materials/${materialId}/restore`
+}
+
+/**
+ * Requires `inventory.delete`. The article comes back with its spools, stock and ledger; a name another article took meanwhile answers 409 material_name_conflict. Audited as `material.restored`.
+ * @summary Bring a deleted article back
+ */
+export const restoreMaterial = async (materialId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Material> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<Material>(getRestoreMaterialUrl(materialId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getPurgeMaterialUrl = (materialId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/inventory/recycle-bin/materials/${materialId}/purge`
+}
+
+/**
+ * Requires `inventory.delete`. A genuine hard delete: the article, its balance, spools, identifiers, mount history, stock_article pricing rules and every ledger entry go. Run usages keep the article name and order items their description; both lose the link. Audited as `material.purged`.
+ * @summary Delete an article in the bin for good
+ */
+export const purgeMaterial = async (materialId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getPurgeMaterialUrl(materialId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getRestoreInventoryTransactionUrl = (transactionId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/inventory/recycle-bin/ledger-entries/${transactionId}/restore`
+}
+
+/**
+ * Requires `inventory.ledger.delete`. The entry counts again (409 like deleting it when the stock would go negative); an entry of an article in the bin answers 409 material_in_bin. Audited as `inventory.transaction_restored`.
+ * @summary Bring a deleted ledger entry back
+ */
+export const restoreInventoryTransaction = async (transactionId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getRestoreInventoryTransactionUrl(transactionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getPurgeInventoryTransactionUrl = (transactionId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/inventory/recycle-bin/ledger-entries/${transactionId}/purge`
+}
+
+/**
+ * Requires `inventory.ledger.delete`. A genuine hard delete of an entry in the bin; balances already leave it out. Audited as `inventory.transaction_purged`.
+ * @summary Delete a deleted ledger entry for good
+ */
+export const purgeInventoryTransaction = async (transactionId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getPurgeInventoryTransactionUrl(transactionId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
   }
 );}
 

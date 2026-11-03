@@ -14,7 +14,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// article creates a part article with the given sale price (nil for none) and
+// article creates a part article with the given sale price in the fixture's default pricing group (nil for
+// none) and
 // `stock` pieces received for `value` in total (loose, in storage).
 func (f *fixture) article(t *testing.T, salePrice *string, stock, value string) uuid.UUID {
 	t.Helper()
@@ -25,11 +26,16 @@ func (f *fixture) article(t *testing.T, salePrice *string, stock, value string) 
 	m, e := f.jobs.CreateMaterial(
 		t.Context(),
 		f.p,
-		machinelogbook.MaterialInput{Name: "Screw " + ids.New().String(), MaterialTypeID: typ.ID, SalePrice: salePrice},
+		machinelogbook.MaterialInput{Name: "Screw " + ids.New().String(), MaterialTypeID: typ.ID},
 		nil,
 	)
 	if e != nil {
 		t.Fatal(e)
+	}
+	if salePrice != nil {
+		if _, e = f.jobs.CreateStockArticlePricingRule(t.Context(), f.p, f.group, m.ID, *salePrice, nil); e != nil {
+			t.Fatal(e)
+		}
 	}
 	if stock != "" {
 		if _, e = f.jobs.AddPurchase(t.Context(), f.p, m.ID, m.InventoryVersion, stock, value, time.Now(), nil, nil, nil, nil); e != nil {
@@ -129,7 +135,7 @@ func TestInventoryItemsAreAddedAndAuthorized(t *testing.T) {
 	}
 	if e := add(f.p, OrderItemInput{Kind: ItemInventory, MaterialID: unpriced, Quantity: "1"}); !apperror.IsCode(
 		e,
-		"sale_price_required",
+		"article_price_missing",
 	) {
 		t.Fatalf("missing price: %v", e)
 	}
@@ -292,11 +298,13 @@ func TestInsufficientLooseStockFailsTheWholeFinalization(t *testing.T) {
 		machinelogbook.MaterialInput{
 			Name:           "Spooled " + ids.New().String(),
 			MaterialTypeID: filamentType.ID,
-			SalePrice:      optional.Of("1"),
 		},
 		nil,
 	)
 	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = f.jobs.CreateStockArticlePricingRule(ctx, f.p, f.group, filament.ID, "1", nil); e != nil {
 		t.Fatal(e)
 	}
 	spooled := filament.ID

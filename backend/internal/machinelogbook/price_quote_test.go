@@ -69,13 +69,14 @@ func newQuoteFixture(t *testing.T) *quoteFixture {
 		&f.request,
 	)
 	must(err)
-	sale := "2.5"
 	f.saleMaterial, err = f.s.CreateMaterial(
 		ctx,
 		f.p,
-		MaterialInput{Name: "Quote PLA " + suffix, MaterialTypeID: materialTypeID, SalePrice: &sale},
+		MaterialInput{Name: "Quote PLA " + suffix, MaterialTypeID: materialTypeID},
 		&f.request,
 	)
+	must(err)
+	_, err = f.s.CreateStockArticlePricingRule(ctx, f.p, f.group.ID, f.saleMaterial.ID, "2.5", &f.request)
 	must(err)
 	t.Cleanup(func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -117,7 +118,7 @@ func TestQuotePriceMachineOnly(t *testing.T) {
 	f := newQuoteFixture(t)
 	quote := f.quote(t, PriceQuoteInput{MachineID: &f.machine.ID, Hours: ptr("2.5")})
 	if quote.Machine == nil || quote.Machine.ID != f.machine.ID || quote.Material != nil ||
-		text(quote.Hours) != "2.5" || quote.Quantity != nil || quote.SaleAmount != nil {
+		text(quote.Hours) != "2.5" || quote.Quantity != nil {
 		t.Fatalf("unexpected quote header: %+v", quote)
 	}
 	first, second := quote.group(t, f.group.ID), quote.group(t, f.second.ID)
@@ -157,28 +158,31 @@ func TestQuotePriceGroupsAreOrderedDefaultFirstThenByName(t *testing.T) {
 	}
 }
 
-func TestQuotePriceArticleOnlyIncludesSaleAmount(t *testing.T) {
+func TestQuotePriceArticleOnlyIsPricedAsAStockSale(t *testing.T) {
 	f := newQuoteFixture(t)
 	quote := f.quote(t, PriceQuoteInput{MaterialID: &f.saleMaterial.ID, Quantity: ptr("100")})
 	if quote.Machine != nil || quote.Material == nil || text(quote.Quantity) != "100" || quote.Hours != nil ||
-		text(quote.SaleAmount) != "250" || text(quote.Material.SalePrice) != "2.5" ||
-		quote.Material.Unit != "g" || text(quote.Material.MaterialTypeName) != f.materialType.Name {
+		quote.Material.DisplayID == "" || quote.Material.Unit != "g" ||
+		text(quote.Material.MaterialTypeName) != f.materialType.Name {
 		t.Fatalf("unexpected quote: %+v material %+v", quote, quote.Material)
 	}
 	first, second, partial := quote.group(t, f.group.ID), quote.group(t, f.second.ID), quote.group(t, f.partial.ID)
-	if text(first.MaterialRate) != "0.1" || text(first.MaterialAmount) != "10" || text(first.Total) != "10" ||
-		first.MachineRate != nil {
+	// The first group has a stock price for the article; the second falls back to its material type rate.
+	if text(first.MaterialRate) != "2.5" || text(first.MaterialAmount) != "250" || text(first.Total) != "250" ||
+		first.MaterialPriceSource == nil || *first.MaterialPriceSource != PriceFromStockArticle || first.MachineRate != nil {
 		t.Fatalf("first group: %+v", first)
 	}
-	if text(second.MaterialAmount) != "1.5" || text(second.Total) != "1.5" || !second.Complete {
+	if text(second.MaterialAmount) != "1.5" || text(second.Total) != "1.5" || !second.Complete ||
+		second.MaterialPriceSource == nil || *second.MaterialPriceSource != PriceFromMaterialType {
 		t.Fatalf("second group: %+v", second)
 	}
 	if partial.MaterialRate != nil || partial.MaterialAmount != nil || partial.Total != nil || partial.Complete {
 		t.Fatalf("partial group has no material rate: %+v", partial)
 	}
-	noSale := f.quote(t, PriceQuoteInput{MaterialID: &f.material.ID, Quantity: ptr("1")})
-	if noSale.SaleAmount != nil || noSale.Material.SalePrice != nil {
-		t.Fatalf("article without sale price: %+v", noSale)
+	// With a machine the article is priced like a run usage: the material type rate, not the stock price.
+	run := f.quote(t, PriceQuoteInput{MachineID: &f.machine.ID, Hours: ptr("0"), MaterialID: &f.saleMaterial.ID, Quantity: ptr("100")})
+	if g := run.group(t, f.group.ID); text(g.MaterialRate) != "0.1" || *g.MaterialPriceSource != PriceFromMaterialType {
+		t.Fatalf("run usage price: %+v", g)
 	}
 }
 

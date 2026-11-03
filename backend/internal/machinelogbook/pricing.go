@@ -270,8 +270,10 @@ func (s *Service) UpdatePricingGroupTx(
 type ruleTarget struct {
 	MaterialUnit, MaterialTypeName  *string
 	MaterialName, MaterialDisplayID *string
-	Measure                         *string
-	BlockSize                       *int32
+	// ArticleUnit is the unit of a stock_article rule's article; it is shown, not stored.
+	ArticleUnit *string
+	Measure     *string
+	BlockSize   *int32
 }
 
 // resolveRuleTarget checks which selector a rule needs for its kind. For
@@ -302,7 +304,7 @@ func resolveRuleTarget(
 			return ruleTarget{}, err
 		}
 		name, displayID, unit := material.Name, material.DisplayID, material.Unit
-		return ruleTarget{MaterialName: &name, MaterialDisplayID: &displayID, MaterialUnit: &unit}, nil
+		return ruleTarget{MaterialName: &name, MaterialDisplayID: &displayID, ArticleUnit: &unit}, nil
 	case PricingRuleMachineRuntime:
 		if processID == nil || materialTypeID != nil || measure != nil {
 			return ruleTarget{}, apperror.Invalid("machine runtime rules require only processId")
@@ -473,6 +475,9 @@ func (s *Service) createPricingRuleTx(
 	}
 	rule := pricingRuleFromRow(row, target.MaterialTypeName)
 	rule.MaterialName, rule.MaterialDisplayID = target.MaterialName, target.MaterialDisplayID
+	if target.ArticleUnit != nil {
+		rule.MaterialUnit = target.ArticleUnit
+	}
 	return rule, nil
 }
 
@@ -621,6 +626,9 @@ func (s *Service) updatePricingRuleTx(
 	}
 	rule := pricingRuleFromRow(row, target.MaterialTypeName)
 	rule.MaterialName, rule.MaterialDisplayID = target.MaterialName, target.MaterialDisplayID
+	if target.ArticleUnit != nil {
+		rule.MaterialUnit = target.ArticleUnit
+	}
 	return rule, nil
 }
 

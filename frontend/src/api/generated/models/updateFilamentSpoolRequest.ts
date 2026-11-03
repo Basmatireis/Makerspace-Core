@@ -19,31 +19,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Decimal } from './decimal';
-import type { FilamentSpoolKind } from './filamentSpoolKind';
-import type { UpdateFilamentSpoolRequestLifecycle } from './updateFilamentSpoolRequestLifecycle';
 import type { Version } from './version';
 
 /**
- * manufacturer and productName edit the open fill's snapshot. Archiving unmounts the spool.
+ * Edits the descriptive fields; retiring and restoring have their own operations.
  */
 export interface UpdateFilamentSpoolRequest {
-  kind?: FilamentSpoolKind;
-  /**
-     * @minLength 1
-     * @maxLength 120
-     * @nullable
-     */
-  label?: string | null;
-  /**
-     * @maxLength 150
-     * @nullable
-     */
-  manufacturer?: string | null;
-  /**
-     * @maxLength 200
-     * @nullable
-     */
-  productName?: string | null;
   tareWeightG?: Decimal | null;
   /** @nullable */
   acquiredOn?: string | null;
@@ -62,6 +43,5 @@ export interface UpdateFilamentSpoolRequest {
      * @nullable
      */
   notes?: string | null;
-  lifecycle: UpdateFilamentSpoolRequestLifecycle;
   expectedVersion: Version;
 }

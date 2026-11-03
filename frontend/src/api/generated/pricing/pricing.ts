@@ -226,7 +226,7 @@ export const getGetPriceQuoteUrl = (params?: GetPriceQuoteParams,) => {
 }
 
 /**
- * Read-only lookup. A machine with hours prices the runtime with the machine type's runtime rate; an article with a quantity prices it with the material rate of its material type and unit, and with its sale price when it has one. Machine and article can be combined into one run. Amounts use the same rates and rounding as job pricing (total rounded to cents). Needs pricing.read, plus machines.read for a machine and inventory.read for an article.
+ * Read-only lookup. A machine with hours prices the runtime with the machine's process runtime rate. An article with a quantity is priced like a machine run usage (the material rate of its material type) when a machine is given, and like a sale from stock otherwise (its stock_article rule, else the material type rate of a machine-use type). Amounts use the same rates and rounding as job pricing (total rounded to cents). Needs pricing.read, plus machines.read for a machine and inventory.read for an article.
  * @summary Price a machine run or an amount of an inventory article for every active pricing group
  */
 export const getPriceQuote = async (params?: GetPriceQuoteParams, options?: Parameters<typeof apiFetch>[1]): Promise<PriceQuote> => {

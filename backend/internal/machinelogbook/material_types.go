@@ -211,8 +211,12 @@ func defaultMaterialTypeCode(name string) string {
 	return code
 }
 
-// freeMaterialTypeCode appends a number to a derived code another type already uses.
+// freeMaterialTypeCode appends a number to a derived code another type already uses. The base is locked until
+// the transaction ends, so concurrent creations derive different codes.
 func freeMaterialTypeCode(ctx context.Context, q *machinelogbookdb.Queries, base string) (string, error) {
+	if err := q.LockSpoolLabelPrefix(ctx, "material-type-code:"+base); err != nil {
+		return "", err
+	}
 	candidate := base
 	for n := 2; ; n++ {
 		_, err := q.FindMaterialTypeByCode(ctx, candidate)

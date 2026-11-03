@@ -63,7 +63,7 @@ func (s *Service) SaleSource(
 		return SaleArticle{}, err
 	}
 	article.PricingGroupName = group.Name
-	prices, err := q.ListMaterialPrices(ctx, []uuid.UUID{id})
+	prices, err := q.ListMaterialPrices(ctx, []string{id.String()})
 	if err != nil {
 		return SaleArticle{}, err
 	}

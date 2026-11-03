@@ -190,11 +190,10 @@ func TestPriceQuoteOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	salePrice := "2"
 	material, err := logbook.CreateMaterial(
 		ctx,
 		master,
-		machinelogbook.MaterialInput{Name: "Quote PLA", MaterialTypeID: materialType.ID, SalePrice: &salePrice},
+		machinelogbook.MaterialInput{Name: "Quote PLA", MaterialTypeID: materialType.ID},
 		nil,
 	)
 	if err != nil {
@@ -208,6 +207,9 @@ func TestPriceQuoteOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "material", nil, &materialType.ID, nil, "0.5", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = logbook.CreateStockArticlePricingRule(ctx, master, group.ID, material.ID, "2", nil); err != nil {
 		t.Fatal(err)
 	}
 	get := func(s session, query string, status int, target any) {
@@ -225,7 +227,7 @@ func TestPriceQuoteOverHTTP(t *testing.T) {
 	var quote openapi.PriceQuote
 	get(full, combined, http.StatusOK, &quote)
 	if quote.Machine.GetOrEmpty().Id != machine.ID || quote.Material.GetOrEmpty().Id != material.ID ||
-		quote.SaleAmount.GetOrEmpty() != "20" || quote.Hours.GetOrEmpty() != "1.5" {
+		quote.Hours.GetOrEmpty() != "1.5" {
 		t.Fatalf("unexpected quote: %+v", quote)
 	}
 	found := false
@@ -240,6 +242,14 @@ func TestPriceQuoteOverHTTP(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("pricing group missing from quote")
+	}
+	// Without a machine the article is priced as a sale from stock.
+	get(full, "materialId="+material.ID.String()+"&quantity=10", http.StatusOK, &quote)
+	for _, g := range quote.Groups {
+		if g.PricingGroupId == group.ID && (g.MaterialAmount.GetOrEmpty() != "20" ||
+			g.MaterialPriceSource.GetOrEmpty() != openapi.MaterialPriceSourceStockArticle) {
+			t.Fatalf("stock sale quote: %+v", g)
+		}
 	}
 
 	get(noPricing, combined, http.StatusForbidden, nil)

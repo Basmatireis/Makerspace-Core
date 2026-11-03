@@ -19,11 +19,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type FilamentLeftoverInputBasis = typeof FilamentLeftoverInputBasis[keyof typeof FilamentLeftoverInputBasis];
+/**
+ * stock_article is the article's own rule; material_type is the rate of its machine-use material type.
+ */
+export type MaterialPriceSource = typeof MaterialPriceSource[keyof typeof MaterialPriceSource];
 
 
-export const FilamentLeftoverInputBasis = {
-  system: 'system',
-  weighed: 'weighed',
-  none: 'none',
+export const MaterialPriceSource = {
+  stock_article: 'stock_article',
+  material_type: 'material_type',
 } as const;

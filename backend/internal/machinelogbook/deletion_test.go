@@ -482,7 +482,7 @@ func TestDeleteJobWithRecordedRuns(t *testing.T) {
 	}
 	var fillID *uuid.UUID
 	var note string
-	if err = h.pool.QueryRow(ctx, `SELECT t.fill_id, t.note FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id
+	if err = h.pool.QueryRow(ctx, `SELECT t.spool_id, t.note FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id
 		WHERE u.run_id = $1 AND t.kind = 'adjustment'`, deletedRun).Scan(&fillID, &note); err != nil ||
 		fillID == nil ||
 		!strings.Contains(note, "R-") {
@@ -535,7 +535,7 @@ func TestReversalToLooseStockWhenTheSpoolFillIsClosed(t *testing.T) {
 	h.apply(t, id, "terminal_outcome")
 	if _, err := h.pool.Exec(
 		ctx,
-		`UPDATE filament_spool_fills SET closed_at = $2, leftover_g = 0, leftover_outcome = 'used_up' WHERE spool_id = $1 AND closed_at IS NULL`,
+		`UPDATE filament_spools SET lifecycle = 'archived', archived_at = $2 WHERE id = $1`,
 		h.spool.ID,
 		h.now.Add(time.Hour),
 	); err != nil {
@@ -550,7 +550,7 @@ func TestReversalToLooseStockWhenTheSpoolFillIsClosed(t *testing.T) {
 	var note string
 	if err := h.pool.QueryRow(
 		ctx,
-		`SELECT t.fill_id, t.note FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id WHERE u.run_id = $1 AND t.kind = 'adjustment'`,
+		`SELECT t.spool_id, t.note FROM inventory_transactions t JOIN machine_run_usages u ON u.id = t.run_usage_id WHERE u.run_id = $1 AND t.kind = 'adjustment'`,
 		id,
 	).Scan(&fillID, &note); err != nil {
 		t.Fatal(err)

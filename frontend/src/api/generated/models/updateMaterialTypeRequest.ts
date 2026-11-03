@@ -29,6 +29,14 @@ export interface UpdateMaterialTypeRequest {
      * @maxLength 120
      */
   name: string;
+  /**
+     * Omitted keeps the current code. Existing spool labels keep the old code.
+     * @minLength 1
+     * @maxLength 12
+     */
+  code?: string;
+  /** Omitted keeps the current value. Turning it off needs a type without material pricing rules (409 material_type_in_use). */
+  machineUse?: boolean;
   unit: MaterialUnit;
   /** Omitted keeps the current kind. The kind cannot change while materials use the type (409 material_type_in_use). */
   kind?: MaterialKind;

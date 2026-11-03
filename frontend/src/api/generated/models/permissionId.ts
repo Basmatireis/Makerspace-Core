@@ -119,6 +119,8 @@ export const PermissionId = {
   machine_jobsdelete: 'machine_jobs.delete',
   inventoryread: 'inventory.read',
   inventorymanage: 'inventory.manage',
+  inventorydelete: 'inventory.delete',
+  inventoryledgerdelete: 'inventory.ledger.delete',
   filament_spoolsmanage: 'filament_spools.manage',
   printer_slotsassign: 'printer_slots.assign',
   printer_connectorsread: 'printer_connectors.read',

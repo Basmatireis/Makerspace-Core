@@ -18,12 +18,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
+import type { InventoryTransaction } from './inventoryTransaction';
+import type { MaterialUnit } from './materialUnit';
 
-export interface CleanUpFilamentSpoolCandidate {
-  id: UUIDv7;
-  displayId: string;
+export interface DeletedInventoryTransaction {
+  transaction: InventoryTransaction;
+  materialName: string;
+  materialDisplayId: string;
+  unit: MaterialUnit;
+  deletedAt: string;
   /** @nullable */
-  label?: string | null;
-  archivedAt: string;
+  deletedByName: string | null;
 }

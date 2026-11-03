@@ -20,25 +20,23 @@
  */
 import type {
   AddFilamentSpoolIdentifierRequest,
-  ChangeFilamentSpoolFillRequest,
-  CleanUpFilamentSpoolsRequest,
-  CleanUpFilamentSpoolsResult,
   CorrectSpoolStockRequest,
   CreateFilamentSpoolRequest,
   FilamentSpool,
   FilamentSpoolIdentifier,
   FilamentSpoolPage,
-  FinishFilamentSpoolRequest,
   InventoryMutationResult,
   InventoryTransaction,
   InventoryTransactionPage,
   ListFilamentSpoolTransactionsParams,
   ListFilamentSpoolsParams,
   LookupFilamentSpoolParams,
+  RetireFilamentSpoolRequest,
   SpoolInventoryCommand,
   TransferSpoolStockRequest,
   UUIDv7,
-  UpdateFilamentSpoolRequest
+  UpdateFilamentSpoolRequest,
+  VersionRequest
 } from '../models';
 
 import { apiFetch } from '../../http-client';
@@ -85,14 +83,6 @@ export const getListFilamentSpoolsUrl = (params?: ListFilamentSpoolsParams,) => 
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    const explodeParameters = ["status"];
-
-    if (Array.isArray(value) && explodeParameters.includes(key)) {
-      value.forEach((v) => {
-        normalizedParams.append(key, v === null ? 'null' : String(v));
-      });
-      return;
-    }
 
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : String(value))
@@ -105,7 +95,8 @@ export const getListFilamentSpoolsUrl = (params?: ListFilamentSpoolsParams,) => 
 }
 
 /**
- * @summary List physical filament spools
+ * Requires `inventory.read`. Spools of articles in the recycle bin are left out.
+ * @summary List filament spools
  */
 export const listFilamentSpools = async (params?: ListFilamentSpoolsParams, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpoolPage> => {
 
@@ -128,6 +119,7 @@ export const getCreateFilamentSpoolUrl = () => {
 }
 
 /**
+ * Requires `filament_spools.manage` and `inventory.manage`. The spool gets the label S-<TYPECODE>-<VARIANT>-<COLOUR>-<NN> of its article, NN being the smallest number no active spool with the same prefix uses.
  * @summary Register a purchased or already-counted spool
  */
 export const createFilamentSpool = async (createFilamentSpoolRequest: CreateFilamentSpoolRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpool> => {
@@ -394,20 +386,20 @@ return apiFetch<InventoryMutationResult>(getCorrectFilamentSpoolStockUrl(spoolId
 );}
 
 
-export const getChangeFilamentSpoolFillUrl = (spoolId: UUIDv7,) => {
+export const getRetireFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 
 
 
 
-  return `/api/v1/filament-spools/${spoolId}/fills`
+  return `/api/v1/filament-spools/${spoolId}/retire`
 }
 
 /**
- * Writes the ledger entries of closing the fill (correction for a weighed or used-up difference, then transfer of the leftover to loose stock or its disposal) and of the new fill (transfer from loose stock or purchase), retires the identifiers that are not kept and adds new ones, all in one transaction. Mount state is unchanged.
- * @summary Close the current fill of a reusable spool (if any) and start the next fill atomically
+ * Requires `filament_spools.manage` and `inventory.manage`. `empty` books the remaining quantity as used up (manual consumption, reason unrecorded_consumption), `discarded` as disposed (disposal, reason disposed). The spool is unmounted, its identifiers are retired, it is archived and its label number becomes free. Audited as `filament_spool.retired`.
+ * @summary Retire a spool into the inventory recycle bin
  */
-export const changeFilamentSpoolFill = async (spoolId: UUIDv7,
-    changeFilamentSpoolFillRequest: ChangeFilamentSpoolFillRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpool> => {
+export const retireFilamentSpool = async (spoolId: UUIDv7,
+    retireFilamentSpoolRequest: RetireFilamentSpoolRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpool> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -423,29 +415,30 @@ export const changeFilamentSpoolFill = async (spoolId: UUIDv7,
     }
     return headers;
   };
-return apiFetch<FilamentSpool>(getChangeFilamentSpoolFillUrl(spoolId),
+return apiFetch<FilamentSpool>(getRetireFilamentSpoolUrl(spoolId),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(changeFilamentSpoolFillRequest)
+    body: JSON.stringify(retireFilamentSpoolRequest)
   }
 );}
 
 
-export const getFinishFilamentSpoolUrl = (spoolId: UUIDv7,) => {
+export const getRestoreFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 
 
 
 
-  return `/api/v1/filament-spools/${spoolId}/finish`
+  return `/api/v1/inventory/recycle-bin/spools/${spoolId}/restore`
 }
 
 /**
- * @summary Close the current fill; single-use spools are archived, every spool is unmounted
+ * Requires `filament_spools.manage` and `inventory.manage`. The spool becomes active again, unmounted. A spool retired as discarded gets the written-off quantity back (adjustment, reason other); one retired as empty stays at its remaining quantity. When another active spool took its label meanwhile, the spool gets the next free number of its article's prefix. Identifiers come back unless another spool uses them now. Audited as `filament_spool.restored`.
+ * @summary Bring a retired spool back
  */
-export const finishFilamentSpool = async (spoolId: UUIDv7,
-    finishFilamentSpoolRequest: FinishFilamentSpoolRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpool> => {
+export const restoreFilamentSpool = async (spoolId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpool> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -461,29 +454,30 @@ export const finishFilamentSpool = async (spoolId: UUIDv7,
     }
     return headers;
   };
-return apiFetch<FilamentSpool>(getFinishFilamentSpoolUrl(spoolId),
+return apiFetch<FilamentSpool>(getRestoreFilamentSpoolUrl(spoolId),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(finishFilamentSpoolRequest)
+    body: JSON.stringify(versionRequest)
   }
 );}
 
 
-export const getCleanUpArchivedFilamentSpoolsUrl = () => {
+export const getPurgeFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 
 
 
 
-  return `/api/v1/filament-spools/cleanup`
+  return `/api/v1/inventory/recycle-bin/spools/${spoolId}/purge`
 }
 
 /**
- * Candidates are single-use spools archived before now minus olderThanMonths that have no open fill. With dryRun the candidates are returned and nothing changes. Without dryRun only the listed spoolIds that are still candidates are deleted; ledger entries and job usages keep their spool display ID and fill number snapshots.
- * @summary Preview or hard-delete archived single-use spools older than a cutoff
+ * Requires `filament_spools.manage` and `inventory.delete`. Removes the spool with its identifiers and mount history; ledger entries and run usages keep its label and lose the link. Audited as `filament_spool.purged`.
+ * @summary Delete a retired spool for good
  */
-export const cleanUpArchivedFilamentSpools = async (cleanUpFilamentSpoolsRequest: CleanUpFilamentSpoolsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<CleanUpFilamentSpoolsResult> => {
+export const purgeFilamentSpool = async (spoolId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -499,12 +493,12 @@ export const cleanUpArchivedFilamentSpools = async (cleanUpFilamentSpoolsRequest
     }
     return headers;
   };
-return apiFetch<CleanUpFilamentSpoolsResult>(getCleanUpArchivedFilamentSpoolsUrl(),
+return apiFetch<void>(getPurgeFilamentSpoolUrl(spoolId),
   {
     ...options,
-    method: 'POST',
+    method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(cleanUpFilamentSpoolsRequest)
+    body: JSON.stringify(versionRequest)
   }
 );}
 

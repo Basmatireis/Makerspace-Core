@@ -19,15 +19,27 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Decimal } from './decimal';
-import type { FilamentLeftoverInputBasis } from './filamentLeftoverInputBasis';
-import type { FilamentLeftoverInputDisposition } from './filamentLeftoverInputDisposition';
+import type { MaterialKind } from './materialKind';
+import type { MaterialUnit } from './materialUnit';
+import type { UUIDv7 } from './uUIDv7';
+import type { Version } from './version';
 
-/**
- * system keeps the recorded remaining quantity; weighed uses grossWeightG minus the spool's tare weight and records the difference as a correction; none writes the remaining quantity off as used up. A leftover above zero needs a disposition.
- */
-export interface FilamentLeftoverInput {
-  basis: FilamentLeftoverInputBasis;
-  grossWeightG?: Decimal | null;
+export interface DeletedMaterial {
+  id: UUIDv7;
+  displayId: string;
+  name: string;
+  kind: MaterialKind;
+  materialTypeName: string;
+  unit: MaterialUnit;
+  /** Stock the article still holds. */
+  quantity: Decimal;
+  /**
+     * Spools that went into the bin with the article.
+     * @minimum 0
+     */
+  spoolCount: number;
+  deletedAt: string;
   /** @nullable */
-  disposition?: FilamentLeftoverInputDisposition;
+  deletedByName: string | null;
+  version: Version;
 }

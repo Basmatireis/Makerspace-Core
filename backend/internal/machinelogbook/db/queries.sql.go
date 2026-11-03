@@ -5034,7 +5034,7 @@ CROSS JOIN pricing_groups g
 LEFT JOIN pricing_rules sr ON sr.pricing_group_id = g.id AND sr.kind = 'stock_article' AND sr.active AND sr.material_id = m.id
 LEFT JOIN pricing_rules tr ON tr.pricing_group_id = g.id AND tr.kind = 'material' AND tr.active AND mt.machine_use
     AND tr.material_type_id = m.material_type_id AND tr.material_unit = m.unit
-WHERE m.id = ANY($1::uuid[]) AND g.active AND (sr.id IS NOT NULL OR tr.id IS NOT NULL)
+WHERE m.id = ANY(($1::text[])::uuid[]) AND g.active AND (sr.id IS NOT NULL OR tr.id IS NOT NULL)
 ORDER BY m.id, g.is_default DESC, lower(g.name), g.id
 `
 
@@ -5049,7 +5049,7 @@ type ListMaterialPricesRow struct {
 
 // Sale prices of articles per active pricing group: the article's own stock_article rule, else the material rule of
 // its machine-use type.
-func (q *Queries) ListMaterialPrices(ctx context.Context, materialIds []uuid.UUID) ([]ListMaterialPricesRow, error) {
+func (q *Queries) ListMaterialPrices(ctx context.Context, materialIds []string) ([]ListMaterialPricesRow, error) {
 	rows, err := q.db.Query(ctx, listMaterialPrices, materialIds)
 	if err != nil {
 		return nil, err

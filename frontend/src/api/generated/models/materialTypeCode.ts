@@ -20,12 +20,7 @@
  */
 
 /**
- * loose_stock moves grams from loose stock onto the spool (total unchanged); purchase adds stock.
+ * Short upper-case code used in spool labels (PLA, PETG); unique ignoring case.
+ * @pattern ^[A-Z0-9]{1,12}$
  */
-export type FilamentNewFillInputSource = typeof FilamentNewFillInputSource[keyof typeof FilamentNewFillInputSource];
-
-
-export const FilamentNewFillInputSource = {
-  loose_stock: 'loose_stock',
-  purchase: 'purchase',
-} as const;
+export type MaterialTypeCode = string;

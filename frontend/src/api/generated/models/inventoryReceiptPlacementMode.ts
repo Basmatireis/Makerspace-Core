@@ -25,5 +25,4 @@ export type InventoryReceiptPlacementMode = typeof InventoryReceiptPlacementMode
 export const InventoryReceiptPlacementMode = {
   storage: 'storage',
   new_spools: 'new_spools',
-  reusable_spool: 'reusable_spool',
 } as const;

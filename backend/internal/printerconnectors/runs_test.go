@@ -953,7 +953,7 @@ func (h *ingestHarness) materialOfSpool(spoolID uuid.UUID) uuid.UUID {
 	var id uuid.UUID
 	if err := h.pool.QueryRow(
 		h.t.Context(),
-		`SELECT material_id FROM filament_spool_fills WHERE spool_id = $1 ORDER BY fill_number DESC LIMIT 1`,
+		`SELECT material_id FROM filament_spools WHERE id = $1`,
 		spoolID,
 	).Scan(&id); err != nil {
 		h.t.Fatal(err)
