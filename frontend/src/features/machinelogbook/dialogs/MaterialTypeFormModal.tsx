@@ -11,7 +11,21 @@ import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
 import { useLatestCallback } from '../../../app/useLatestCallback';
 
-type Values = { name: string; unit: MaterialUnit; processIds: string[]; active: boolean };
+type Values = {
+  name: string;
+  code: string;
+  kind: MaterialKind;
+  machineUse: boolean;
+  unit: MaterialUnit;
+  processIds: string[];
+  active: boolean;
+};
+
+const kindLabels: Record<MaterialKind, string> = {
+  filament: 'Filament (kept on spools)',
+  consumable: 'Consumable (used on machines)',
+  part: 'Part (sold or used as is)',
+};
 
 const materialUnits: MaterialUnit[] = ['g', 'm', 'ml', 'cm2', 'm2', 'piece'];
 const unitNames: Record<MaterialUnit, string> = {
@@ -40,13 +54,13 @@ export function MaterialTypeFormModal({
   kind?: MaterialKind;
   onDelete?: () => void;
 }) {
-  const kind = materialType?.kind ?? requestedKind;
-  const noun = typeNounLower(kind);
+  const initialKind = materialType?.kind ?? requestedKind;
+  const noun = typeNounLower(initialKind);
   const can = useCan();
   // Without permission to read processes the list stays out and the type keeps the processes it has.
   const processesList = useQuery({
     ...processesQuery(),
-    enabled: open && kind === 'consumable' && can('machines.read'),
+    enabled: open && can('machines.read'),
   });
   const options = (processesList.data?.items ?? []).filter(
     (item) => item.active || materialType?.processIds.includes(item.id),
@@ -56,7 +70,10 @@ export function MaterialTypeFormModal({
   const inUse = Boolean(materialType && (materialType.materialCount > 0 || materialType.pricingRuleCount > 0));
   const defaults = (): Values => ({
     name: materialType?.name ?? '',
-    unit: materialType?.unit ?? (kind === 'filament' ? 'g' : 'piece'),
+    code: materialType?.code ?? '',
+    kind: initialKind,
+    machineUse: materialType?.machineUse ?? initialKind !== 'part',
+    unit: materialType?.unit ?? (initialKind === 'filament' ? 'g' : 'piece'),
     processIds: materialType?.processIds ?? [],
     active: materialType?.active ?? true,
   });
@@ -67,22 +84,29 @@ export function MaterialTypeFormModal({
     reset,
     setError,
     formState: { errors },
+    watch,
   } = useForm<Values>({ defaultValues: defaults() });
+  const kind = watch('kind');
 
   const save = useMutation({
     mutationFn: (values: Values) =>
       materialType
         ? updateMaterialType(materialType.id, {
             name: values.name.trim(),
-            unit: inUse || kind === 'filament' ? materialType.unit : values.unit,
+            ...(values.code.trim() ? { code: values.code.trim().toUpperCase() } : {}),
+            ...(values.kind !== materialType.kind ? { kind: values.kind } : {}),
+            machineUse: values.kind === 'filament' || values.machineUse,
+            unit: inUse || values.kind === 'filament' ? materialType.unit : values.unit,
             ...(kind === 'consumable' && processesList.isSuccess ? { processIds: values.processIds } : {}),
             active: values.active,
             expectedVersion: materialType.version,
           })
         : createMaterialType({
             name: values.name.trim(),
-            kind,
-            unit: kind === 'filament' ? 'g' : values.unit,
+            ...(values.code.trim() ? { code: values.code.trim().toUpperCase() } : {}),
+            kind: values.kind,
+            machineUse: values.kind === 'filament' || values.machineUse,
+            unit: values.kind === 'filament' ? 'g' : values.unit,
             ...(kind === 'consumable' && processesList.isSuccess ? { processIds: values.processIds } : {}),
           }),
     onSuccess: async (saved) => {
@@ -103,6 +127,8 @@ export function MaterialTypeFormModal({
     onError: (error) => {
       if (error instanceof ApiError && error.status === 409 && error.data?.code === 'material_type_exists')
         setError('name', { message: `A ${noun} with this name already exists.` });
+      if (error instanceof ApiError && error.status === 409 && error.data?.code === 'material_type_code_exists')
+        setError('code', { message: 'Another type uses this code.' });
     },
   });
   const resetForm = useLatestCallback(() => {
@@ -117,7 +143,10 @@ export function MaterialTypeFormModal({
     save.mutate(values);
   });
   const failure =
-    save.error instanceof ApiError && save.error.data?.code === 'material_type_exists' ? null : save.error;
+    save.error instanceof ApiError &&
+    (save.error.data?.code === 'material_type_exists' || save.error.data?.code === 'material_type_code_exists')
+      ? null
+      : save.error;
 
   return (
     <Modal
@@ -163,6 +192,54 @@ export function MaterialTypeFormModal({
             invalid={Boolean(errors.name)}
             invalidText={errors.name?.message}
             {...register('name', { validate: (value) => (value.trim() ? true : 'Enter a name.') })}
+          />
+          <TextInput
+            id="material-type-code"
+            labelText="Code (optional)"
+            autoComplete="off"
+            maxLength={12}
+            helperText={
+              materialType
+                ? 'Used in new spool labels (S-CODE-…). Existing labels keep the old code.'
+                : 'Used in spool labels (S-CODE-…). Defaults to the first word of the name.'
+            }
+            invalid={Boolean(errors.code)}
+            invalidText={errors.code?.message}
+            {...register('code', {
+              validate: (value) =>
+                !value.trim() || /^[A-Za-z0-9]{1,12}$/.test(value.trim()) || 'Use up to 12 letters or digits.',
+              setValueAs: (value: string) => value.toUpperCase(),
+            })}
+          />
+          <Select
+            id="material-type-kind"
+            labelText="Kind"
+            disabled={Boolean(materialType && materialType.materialCount > 0)}
+            helperText={
+              materialType && materialType.materialCount > 0
+                ? 'The kind cannot change while articles use this type.'
+                : 'Decides the unit, the processes and whether stock is kept on spools.'
+            }
+            {...register('kind')}
+          >
+            {(['filament', 'consumable', 'part'] as MaterialKind[]).map((item) => (
+              <SelectItem key={item} value={item} text={kindLabels[item]} />
+            ))}
+          </Select>
+          <Controller
+            control={control}
+            name="machineUse"
+            render={({ field }) => (
+              <Toggle
+                id="material-type-machine-use"
+                labelText="Machine use"
+                labelA="Not used in machine runs"
+                labelB="Used in machine runs"
+                disabled={kind === 'filament'}
+                toggled={kind === 'filament' || field.value}
+                onToggle={(checked) => field.onChange(checked)}
+              />
+            )}
           />
           <Select
             id="material-type-unit"

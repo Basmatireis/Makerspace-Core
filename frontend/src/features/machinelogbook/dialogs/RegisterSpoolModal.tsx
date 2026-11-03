@@ -219,7 +219,7 @@ export function RegisterSpoolModal({
     <Modal
       open={open}
       size="lg"
-      modalLabel={detected ? `Detected in ${detectedSlotText(detected)}` : 'Inventory'}
+      modalLabel={detected ? `Detected in ${detectedSlotText(detected)}` : undefined}
       modalHeading="Register spool"
       primaryButtonText={pending ? 'Saving…' : values.mount && canMount ? 'Register and mount' : 'Register spool'}
       secondaryButtonText="Cancel"

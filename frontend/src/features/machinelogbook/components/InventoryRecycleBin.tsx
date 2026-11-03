@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Button, InlineNotification, Link as CarbonLink, Stack } from '@carbon/react';
+import { Button, Link as CarbonLink, Stack } from '@carbon/react';
 import { Restart, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -70,7 +70,6 @@ function BinTables({
             size="sm"
             renderIcon={TrashCan}
             iconDescription={`Delete ${binEntryName(entry)} permanently`}
-            tooltipPosition="left"
             onClick={() => setPending({ mode: 'purge', entry })}
           />
         )}
@@ -216,19 +215,14 @@ function BinTables({
 
   return (
     <Stack gap={7}>
-      <InlineNotification
-        kind="info"
-        lowContrast
-        hideCloseButton
-        title="Deleted articles, retired spools and deleted ledger entries stay here."
-      >
-        Restore an entry if it went here by mistake; deleting it permanently cannot be undone. Deleted jobs and runs are
-        in the{' '}
+      <p className="inv-bin-intro">
+        Deleted articles, retired spools and deleted ledger entries stay here. Restore an entry if it went here by
+        mistake; deleting it permanently cannot be undone. Deleted jobs and runs are in the{' '}
         <CarbonLink as={Link} to={machineLogbookPaths.recycleBin()} inline>
           jobs recycle bin
         </CarbonLink>
         .
-      </InlineNotification>
+      </p>
       <section aria-labelledby="inv-bin-articles" className="mj-stack">
         <h2 id="inv-bin-articles" className="inv-section-title">
           Articles <span className="inv-count">{materials.length}</span>

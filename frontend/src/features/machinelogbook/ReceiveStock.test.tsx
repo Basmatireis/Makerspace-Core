@@ -22,7 +22,9 @@ const WITH_SPOOLS = [...MANAGER, PermissionId.filament_spoolsmanage];
 const plaType: MaterialType = {
   id: id(1),
   name: 'PLA',
+  code: 'PLA',
   kind: 'filament',
+  machineUse: true,
   unit: 'g',
   processIds: [printerProcessId],
   active: true,
@@ -35,7 +37,9 @@ const plaType: MaterialType = {
 const partType: MaterialType = {
   id: id(2),
   name: 'Fasteners',
+  code: 'FASTENERS',
   kind: 'part',
+  machineUse: false,
   unit: 'piece',
   processIds: [],
   active: true,
@@ -48,13 +52,17 @@ const partType: MaterialType = {
 
 const black: Material = {
   id: id(10),
+  displayId: 'A-0010',
   name: 'PLA Basic · Black · Bambu Lab',
   kind: 'filament',
+  materialTypeCode: 'PLA',
+  machineUse: true,
+  prices: [],
+  attention: [],
   materialTypeId: plaType.id,
   materialTypeName: 'PLA',
   variant: 'Basic',
   manufacturer: 'Bambu Lab',
-  salePrice: null,
   packageSize: '1000',
   storageLocation: null,
   notes: null,
@@ -83,6 +91,8 @@ const insert: Material = {
   kind: 'part',
   materialTypeId: partType.id,
   materialTypeName: 'Fasteners',
+  materialTypeCode: 'FASTENERS',
+  machineUse: false,
   variant: null,
   manufacturer: null,
   colorName: null,
@@ -95,18 +105,14 @@ const insert: Material = {
   inventoryVersion: 2,
 };
 
-const emptySpool = {
+const newSpool = {
   id: id(20),
-  displayId: 'S-2026-000020',
-  kind: 'reusable',
-  label: 'Bambu spool 01',
-  status: 'needs_refill',
-  fillNumber: 2,
-  remainingQuantity: '0',
+  displayId: 'S-PLA-MATTE-RED-01',
+  remainingQuantity: '1000',
   lifecycle: 'active',
   mounted: false,
   identifiers: [],
-  version: 4,
+  version: 1,
 } as unknown as FilamentSpool;
 
 const page = <T,>(items: T[]) => ({ items, page: 1, pageSize: 100, total: items.length });
@@ -123,7 +129,6 @@ function serve(materials: Material[] = [black, insert]) {
         storageLocations: ['Shelf A'],
       }),
     ),
-    http.get('*/api/v1/filament-spools', () => HttpResponse.json(page([emptySpool]))),
   );
 }
 
@@ -203,7 +208,7 @@ describe('Receive stock', () => {
     serve([]);
     let body: ReceiveInventoryStockRequest | undefined;
     const created = { ...black, id: id(12), name: 'PLA Matte · Red · Prusa' };
-    const spool = { ...emptySpool, id: id(21), displayId: 'S-2026-000021' } as FilamentSpool;
+    const spool = { ...newSpool, id: id(21), displayId: 'S-PLA-MATTE-RED-01' } as FilamentSpool;
     server.use(
       http.post('*/api/v1/inventory/receipts', async ({ request }) => {
         body = (await request.json()) as ReceiveInventoryStockRequest;
@@ -225,6 +230,7 @@ describe('Receive stock', () => {
     await waitFor(() => expect(within(dialog).getByLabelText(/Size of one package/)).toHaveValue('1000'));
     await user.type(within(dialog).getByLabelText('Total price in EUR'), '24');
     await user.click(within(dialog).getByLabelText('On new spools (one per package)'));
+    expect(within(dialog).getByText(/The spool is labelled S-PLA-MATTE-RED-NN/)).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText(/Tare weight per spool/), '210');
     await user.type(within(dialog).getByLabelText('Identifier value (optional)'), '04AA11');
     await user.click(within(dialog).getByRole('button', { name: 'Receive stock' }));
@@ -246,7 +252,7 @@ describe('Receive stock', () => {
       totalPrice: '24.00',
       placement: { mode: 'new_spools', tareWeightG: '210', identifiers: [{ kind: 'nfc', value: '04AA11' }] },
     });
-    expect(await screen.findByRole('button', { name: 'Open S-2026-000021' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Open S-PLA-MATTE-RED-01' })).toBeInTheDocument();
   });
 
   it('switches to the existing article when the backend reports a name conflict', async () => {
@@ -319,36 +325,14 @@ describe('Receive stock', () => {
     expect(within(dialog).queryByLabelText('Load onto a reusable spool')).not.toBeInTheDocument();
   });
 
-  it('loads one package onto an empty reusable spool and disables it for several packages', async () => {
+  it('offers storage and new spools only, never a reusable spool', async () => {
     auth.permissions = WITH_SPOOLS;
     serve();
-    let body: ReceiveInventoryStockRequest | undefined;
-    server.use(
-      http.post('*/api/v1/inventory/receipts', async ({ request }) => {
-        body = (await request.json()) as ReceiveInventoryStockRequest;
-        return HttpResponse.json(receipt(black, [emptySpool]), { status: 201 });
-      }),
-    );
-    const user = userEvent.setup();
     renderModal(<ReceiveStockModal open onClose={vi.fn()} kind="filament" article={black} />);
     const dialog = await screen.findByRole('dialog', { name: 'Receive stock' });
-
-    const count = await within(dialog).findByLabelText('Packages');
-    await user.clear(count);
-    await user.type(count, '2');
-    expect(within(dialog).getByLabelText('Load onto a reusable spool')).toBeDisabled();
-    await user.clear(count);
-    await user.type(count, '1');
-    await user.type(within(dialog).getByLabelText('Total price in EUR'), '19,9');
-    await user.click(within(dialog).getByLabelText('Load onto a reusable spool'));
-    await user.click(await within(dialog).findByRole('combobox', { name: 'Reusable spool' }));
-    await user.click(await screen.findByText('S-2026-000020 · Bambu spool 01'));
-    await user.click(within(dialog).getByRole('button', { name: 'Receive stock' }));
-
-    await waitFor(() => expect(body).toBeDefined());
-    expect(body).toMatchObject({
-      placement: { mode: 'reusable_spool', reusableSpoolId: emptySpool.id, reusableSpoolExpectedVersion: 4 },
-    });
+    expect(await within(dialog).findByLabelText('In storage')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('On new spools (one per package)')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/reusable/i)).not.toBeInTheDocument();
   });
 
   it('does not offer spool placement for parts and validates the price and date', async () => {

@@ -83,7 +83,6 @@ export function SpoolPanel({
             size="sm"
             renderIcon={Close}
             iconDescription="Close panel"
-            tooltipPosition="left"
             onClick={onClose}
           />
         }

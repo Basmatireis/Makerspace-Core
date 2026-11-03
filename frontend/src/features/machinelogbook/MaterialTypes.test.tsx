@@ -22,7 +22,9 @@ const now = '2026-09-15T11:26:00Z';
 const type = (overrides: Partial<MaterialType>): MaterialType => ({
   id: '0192f6f8-743e-7c77-a349-cd07c3e8f001',
   name: 'PLA',
+  code: 'PLAX',
   kind: 'filament',
+  machineUse: true,
   unit: 'g',
   processIds: [printerProcessId],
   active: true,
@@ -37,6 +39,7 @@ const pla = type({});
 const plywood = type({
   id: '0192f6f8-743e-7c77-a349-cd07c3e8f002',
   name: 'Plywood',
+  code: 'PLYWOOD',
   kind: 'consumable',
   unit: 'm2',
   processIds: [laserProcessId],
@@ -47,6 +50,7 @@ const plywood = type({
 const retired = type({
   id: '0192f6f8-743e-7c77-a349-cd07c3e8f003',
   name: 'ABS',
+  code: 'ABSX',
   active: false,
   materialCount: 0,
   pricingRuleCount: 0,
@@ -54,7 +58,9 @@ const retired = type({
 const fasteners = type({
   id: '0192f6f8-743e-7c77-a349-cd07c3e8f004',
   name: 'Fasteners',
+  code: 'FASTENERS',
   kind: 'part',
+  machineUse: false,
   unit: 'piece',
   processIds: [],
   materialCount: 2,
@@ -171,7 +177,7 @@ describe('Types and categories', () => {
     expect(await within(dialog).findByText('Enter a name.')).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Name'), 'PETG-CF');
     await user.click(within(dialog).getByRole('button', { name: 'Add material type' }));
-    await waitFor(() => expect(submitted).toEqual({ name: 'PETG-CF', kind: 'filament', unit: 'g' }));
+    await waitFor(() => expect(submitted).toEqual({ name: 'PETG-CF', kind: 'filament', machineUse: true, unit: 'g' }));
     expect(await screen.findByText('Material type added')).toBeInTheDocument();
   });
 
@@ -201,7 +207,13 @@ describe('Types and categories', () => {
     await user.click(await within(dialog).findByText('Laser'));
     await user.click(within(dialog).getByRole('button', { name: 'Add material type' }));
     await waitFor(() => expect(bodies).toHaveLength(1));
-    expect(bodies[0]).toEqual({ name: 'Vinyl foil', kind: 'consumable', unit: 'm2', processIds: [laserProcessId] });
+    expect(bodies[0]).toEqual({
+      name: 'Vinyl foil',
+      kind: 'consumable',
+      machineUse: true,
+      unit: 'm2',
+      processIds: [laserProcessId],
+    });
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add material type' })).not.toBeInTheDocument());
 
     await newType(user, 'Part category');
@@ -210,7 +222,35 @@ describe('Types and categories', () => {
     await user.type(within(dialog).getByLabelText('Name'), 'Bike');
     await user.click(within(dialog).getByRole('button', { name: 'Add category' }));
     await waitFor(() => expect(bodies).toHaveLength(2));
-    expect(bodies[1]).toEqual({ name: 'Bike', kind: 'part', unit: 'piece' });
+    expect(bodies[1]).toEqual({ name: 'Bike', kind: 'part', machineUse: false, unit: 'piece' });
+  });
+
+  it('opens the edit dialog from a row and saves code and machine use', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    serveTypes();
+    let submitted: Record<string, unknown> | undefined;
+    server.use(
+      http.patch(`*/api/v1/material-types/${fasteners.id}`, async ({ request }) => {
+        submitted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(fasteners);
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    const table = await openTypes(user);
+    const row = within(table).getByRole('button', { name: 'Fasteners' }).closest('tr') as HTMLElement;
+    expect(within(row).getByText('FASTENERS')).toBeInTheDocument();
+    expect(within(row).getByText('Not used in machine runs')).toBeInTheDocument();
+    await user.click(within(row).getByText('FASTENERS'));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit category' });
+    expect(within(dialog).getByLabelText('Kind')).toBeDisabled();
+    const code = within(dialog).getByLabelText('Code (optional)');
+    await user.clear(code);
+    await user.type(code, 'fix');
+    await user.click(within(dialog).getByRole('switch', { name: 'Machine use' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save category' }));
+    await waitFor(() => expect(submitted).toMatchObject({ name: 'Fasteners', code: 'FIX', machineUse: true }));
+    expect(submitted).not.toHaveProperty('kind');
   });
 
   it('locks the unit of a used type and explains a refused delete', async () => {
@@ -237,8 +277,13 @@ describe('Types and categories', () => {
 describe('Article form', () => {
   const material = {
     id: '0192f6f8-743e-7c77-a349-cd07c3e8f100',
+    displayId: 'A-0100',
     name: 'PLA Red',
     kind: 'filament',
+    materialTypeCode: 'PLA',
+    machineUse: true,
+    prices: [],
+    attention: [],
     materialTypeId: pla.id,
     materialTypeName: 'PLA',
     colorName: 'Red',

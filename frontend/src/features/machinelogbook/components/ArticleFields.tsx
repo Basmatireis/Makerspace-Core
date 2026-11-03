@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- the shared article fields and their value helpers belong together */
 import { useState } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
-import { Button, ComboBox, InlineNotification, Link as CarbonLink, TextArea, TextInput } from '@carbon/react';
+import { Button, ComboBox, Link as CarbonLink, TextArea, TextInput } from '@carbon/react';
 import { Link } from 'react-router-dom';
 import { useStableItems } from '../../../app/useStableItems';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -476,15 +476,15 @@ export function ArticleFields({
         )}
       />
       {showPricingNote && (
-        <InlineNotification kind="info" lowContrast hideCloseButton title="Sale prices">
+        <p className="mj-secondary">
           {kind === 'part'
-            ? 'Prices per pricing group are set under '
-            : 'Runs use the material type rate. Prices per pricing group for selling from stock are set under '}
+            ? 'Sale prices per pricing group are set under '
+            : 'Machine runs use the material type rate. Sale prices per pricing group for selling from stock are set under '}
           <CarbonLink as={Link} to="/pricing" inline>
             Sales → Pricing
           </CarbonLink>
           .
-        </InlineNotification>
+        </p>
       )}
       {showNotes && (
         <TextArea

@@ -167,7 +167,6 @@ export function InventoryLedgerTable({
                 size="sm"
                 renderIcon={TrashCan}
                 iconDescription={`Delete ${transactionKindLabel(tx).toLowerCase()} of ${formatDateTime(tx.occurredAt)}`}
-                tooltipPosition="left"
                 onClick={() => onDelete(tx)}
               />
             ),

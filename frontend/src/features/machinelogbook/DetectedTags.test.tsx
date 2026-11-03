@@ -17,9 +17,7 @@ import { server } from '../../test/server';
 import { DetectedTrayCell } from './components/DetectedTrayCell';
 import { IdentifierModal } from './dialogs/IdentifierModal';
 import { ReceiveStockModal } from './dialogs/ReceiveStockModal';
-import { SpoolFormModal } from './dialogs/SpoolFormModal';
-import { TagsStep } from './dialogs/changeFilament/TagsStep';
-import { useChangeFilamentWizard } from './dialogs/changeFilament/useChangeFilamentWizard';
+import { RegisterSpoolModal } from './dialogs/RegisterSpoolModal';
 import { ToastProvider } from './shared/toasts';
 import { tray } from './printerTestData';
 
@@ -125,36 +123,14 @@ describe('Identifier modal detected tags', () => {
   });
 });
 
-function TagsHarness() {
-  const wizard = useChangeFilamentWizard({ open: true, onClose: vi.fn(), preselected: spool });
-  return wizard.ready ? <TagsStep wizard={wizard} spool={spool} /> : null;
-}
-
-describe('Change filament tags step detected tags', () => {
-  it('adds a picked detected tag as a new NFC identifier', async () => {
-    auth.permissions = BOTH;
-    useTags([detected()]);
-    server.use(
-      http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
-      http.get('*/api/v1/materials', () =>
-        HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0, totalInventoryValue: '0' }),
-      ),
-    );
-    const user = userEvent.setup();
-    renderUi(<TagsHarness />);
-    const picker = await screen.findByRole('combobox', { name: /Detected in a printer/ });
-    await user.click(within(picker.closest('.cds--list-box') as HTMLElement).getByRole('button', { name: 'Open' }));
-    await user.click(await screen.findByRole('option', { name: /AABB0011/ }));
-    expect(screen.getByLabelText('Value')).toHaveValue('AABB0011');
-    expect(await screen.findByText(/Add NFC tag AABB0011/)).toBeInTheDocument();
-  });
-});
-
 const WITH_STOCK = [...BOTH, PermissionId.inventorymanage];
 
 const filament = {
   id: id(30),
+  displayId: 'A-0030',
   name: 'PLA Basic · White · Bambu Lab',
+  materialTypeCode: 'PLA',
+  storageLocation: null,
   kind: 'filament',
   materialTypeId: id(31),
   materialTypeName: 'PLA',
@@ -215,8 +191,8 @@ describe('Receive stock detected tags', () => {
   });
 });
 
-describe('Spool form detected tags', () => {
-  it('registers a spool with a detected tag on its first fill', async () => {
+describe('Register spool detected tags', () => {
+  it('registers a spool with a tag a printer detects', async () => {
     auth.permissions = WITH_STOCK;
     useTags([detected()]);
     serveInventory();
@@ -224,80 +200,48 @@ describe('Spool form detected tags', () => {
     server.use(
       http.post('*/api/v1/filament-spools', async ({ request }) => {
         body = (await request.json()) as CreateFilamentSpoolRequest;
-        return HttpResponse.json(spool, { status: 201 });
+        return HttpResponse.json({ ...spool, materialName: filament.name }, { status: 201 });
       }),
     );
     const user = userEvent.setup();
-    renderUi(<SpoolFormModal open onClose={vi.fn()} initialMaterialId={filament.id} />);
+    renderUi(<RegisterSpoolModal open onClose={vi.fn()} initialMaterialId={filament.id} />);
     const dialog = await screen.findByRole('dialog', { name: 'Register spool' });
-    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Register spool' })).toBeEnabled());
+    await waitFor(() =>
+      expect(within(dialog).getByRole('combobox', { name: 'Article' })).toHaveValue(
+        'A-0030 · PLA Basic · White · Bambu Lab · 2,000 g loose',
+      ),
+    );
     await pickDetected(dialog, user);
-    expect(within(dialog).getByLabelText('NFC tag (optional)')).toHaveValue('AABB0011');
+    expect(within(dialog).getByLabelText('RFID tag UID (optional)')).toHaveValue('AABB0011');
     await user.click(within(dialog).getByRole('button', { name: 'Register spool' }));
-    await waitFor(() => expect(body).toBeDefined());
-    expect(body).toMatchObject({
-      stockMode: 'existing_stock',
-      materialId: filament.id,
-      identifiers: [{ kind: 'nfc', value: 'AABB0011' }],
-    });
-  });
-
-  const loaded = {
-    ...spool,
-    fillId: id(21),
-    materialId: filament.id,
-    initialNetWeightG: '1000',
-    lifecycle: 'active',
-    identifiers: [],
-  } as unknown as FilamentSpool;
-
-  it('adds a detected tag to the current fill before saving an edited spool', async () => {
-    auth.permissions = WITH_STOCK;
-    useTags([detected()]);
-    serveInventory();
-    const calls: string[] = [];
-    let added: AddFilamentSpoolIdentifierRequest | undefined;
-    server.use(
-      http.post(`*/api/v1/filament-spools/${loaded.id}/identifiers`, async ({ request }) => {
-        calls.push('identifier');
-        added = (await request.json()) as AddFilamentSpoolIdentifierRequest;
-        return HttpResponse.json(loaded);
-      }),
-      http.patch(`*/api/v1/filament-spools/${loaded.id}`, () => {
-        calls.push('update');
-        return HttpResponse.json(loaded);
+    await waitFor(() =>
+      expect(body).toMatchObject({
+        materialId: filament.id,
+        stockMode: 'existing_stock',
+        identifiers: [{ kind: 'nfc', value: 'AABB0011' }],
       }),
     );
-    const user = userEvent.setup();
-    renderUi(<SpoolFormModal open onClose={vi.fn()} spool={loaded} />);
-    const dialog = await screen.findByRole('dialog', { name: `Edit ${loaded.displayId}` });
-    await pickDetected(dialog, user);
-    await user.click(within(dialog).getByRole('button', { name: 'Save spool' }));
-    await waitFor(() => expect(calls).toEqual(['identifier', 'update']));
-    expect(added).toEqual({ kind: 'nfc', value: 'AABB0011' });
   });
 
-  it('keeps the spool unchanged when the tag is already in use', async () => {
+  it('keeps the dialog open and marks the tag when it is already in use', async () => {
     auth.permissions = WITH_STOCK;
     useTags([]);
     serveInventory();
-    let updated = false;
     server.use(
-      http.post(`*/api/v1/filament-spools/${loaded.id}/identifiers`, () =>
-        HttpResponse.json({ code: 'identifier_in_use', message: 'In use' }, { status: 409 }),
+      http.post('*/api/v1/filament-spools', () =>
+        HttpResponse.json({ code: 'identifier_in_use', message: 'in use' }, { status: 409 }),
       ),
-      http.patch(`*/api/v1/filament-spools/${loaded.id}`, () => {
-        updated = true;
-        return HttpResponse.json(loaded);
-      }),
     );
     const user = userEvent.setup();
-    renderUi(<SpoolFormModal open onClose={vi.fn()} spool={loaded} />);
-    const dialog = await screen.findByRole('dialog', { name: `Edit ${loaded.displayId}` });
-    await user.type(within(dialog).getByLabelText('Add NFC tag (optional)'), 'TAKEN');
-    await user.click(within(dialog).getByRole('button', { name: 'Save spool' }));
+    renderUi(<RegisterSpoolModal open onClose={vi.fn()} initialMaterialId={filament.id} />);
+    const dialog = await screen.findByRole('dialog', { name: 'Register spool' });
+    await user.type(within(dialog).getByLabelText('RFID tag UID (optional)'), 'TAKEN');
+    await waitFor(() =>
+      expect(within(dialog).getByRole('combobox', { name: 'Article' })).toHaveValue(
+        'A-0030 · PLA Basic · White · Bambu Lab · 2,000 g loose',
+      ),
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Register spool' }));
     expect(await within(dialog).findByText('This tag is already assigned to a spool.')).toBeInTheDocument();
-    expect(within(dialog).queryByText('Not saved')).not.toBeInTheDocument();
-    expect(updated).toBe(false);
   });
 });

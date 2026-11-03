@@ -117,7 +117,6 @@ function SpoolDetail({ spool }: { spool: FilamentSpool }) {
                 size="sm"
                 renderIcon={TrashCan}
                 iconDescription={`Remove ${identifierLabel(item.kind)} ${item.value}`}
-                tooltipPosition="left"
                 onClick={() => {
                   removeIdentifier.reset();
                   setRemoving(item);
