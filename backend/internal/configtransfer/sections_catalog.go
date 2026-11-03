@@ -190,6 +190,10 @@ type materialTypeEntry struct {
 	// Processes are names of entries in the processes section.
 	Processes []string `json:"processes"`
 	Active    bool     `json:"active"`
+	// Variants are the variant names of the type, ordered by name. Import only adds variants; it never removes
+	// local ones. The field is left out when empty so files of types without variants stay readable by releases
+	// that predate variants.
+	Variants []string `json:"variants,omitempty"`
 }
 
 func materialTypesSection() section {
@@ -202,6 +206,10 @@ func materialTypesSection() section {
 			if err != nil {
 				return nil, err
 			}
+			variants, err := variantNamesByType(ctx, q)
+			if err != nil {
+				return nil, err
+			}
 			items := make([]materialTypeEntry, 0, len(rows))
 			for _, row := range rows {
 				items = append(items, materialTypeEntry{
@@ -210,6 +218,7 @@ func materialTypesSection() section {
 					Unit:      row.Unit,
 					Processes: sortedStrings(row.Processes),
 					Active:    row.Active,
+					Variants:  variants[row.ID],
 				})
 			}
 			return items, nil
@@ -219,11 +228,58 @@ func materialTypesSection() section {
 			for i := range *items {
 				names[i] = &(*items)[i].Name
 				(*items)[i].Processes = sortedStrings((*items)[i].Processes)
+				if err := checkVariantNames(&(*items)[i]); err != nil {
+					return err
+				}
 			}
 			return checkNames("material type", names, 120)
 		},
 		applyMaterialTypes,
 	)
+}
+
+// variantNamesByType lists the variant names of every type, ordered by name.
+func variantNamesByType(ctx context.Context, q *configtransferdb.Queries) (map[uuid.UUID][]string, error) {
+	rows, err := q.ListMaterialTypeVariants(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := map[uuid.UUID][]string{}
+	for _, row := range rows {
+		result[row.MaterialTypeID] = append(result[row.MaterialTypeID], row.Name)
+	}
+	return result, nil
+}
+
+// checkVariantNames trims the variant names of a type and refuses empty, overlong and duplicate (ignoring case)
+// names, and variants on parts, which take none.
+func checkVariantNames(item *materialTypeEntry) error {
+	if len(item.Variants) > 0 && item.Kind == string(machinelogbook.KindPart) {
+		return fmt.Errorf("the material type %q is a part and takes no variants", item.Name)
+	}
+	names := make([]*string, len(item.Variants))
+	for i := range item.Variants {
+		names[i] = &item.Variants[i]
+	}
+	if err := checkNames("variant of material type "+item.Name, names, 80); err != nil {
+		return err
+	}
+	return nil
+}
+
+// variantsMissing returns the wanted variant names that are not among the stored ones, ignoring case.
+func variantsMissing(stored, wanted []string) []string {
+	have := make(map[string]bool, len(stored))
+	for _, name := range stored {
+		have[nameKey(name)] = true
+	}
+	var missing []string
+	for _, name := range wanted {
+		if !have[nameKey(name)] {
+			missing = append(missing, name)
+		}
+	}
+	return missing
 }
 
 func sortedStrings(values []string) []string {
@@ -244,9 +300,22 @@ func applyMaterialTypes(r *run, items *[]materialTypeEntry) (func() error, error
 	if err != nil {
 		return nil, err
 	}
+	stored, err := variantNamesByType(r.ctx, r.q)
+	if err != nil {
+		return nil, err
+	}
 	existing := map[string]configtransferdb.ListMaterialTypesRow{}
 	for _, row := range rows {
 		existing[nameKey(row.Name)] = row
+	}
+	// addVariants adds the variants the type lacks; local variants the file does not list stay.
+	addVariants := func(tx pgx.Tx, typeID uuid.UUID, names []string) error {
+		for _, name := range names {
+			if _, err := r.svc.MachineLogbook.MaterialTypeVariantTx(r.ctx, tx, r.p, typeID, name, r.requestID); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	inFile := map[string]bool{}
 	for _, item := range *items {
@@ -257,6 +326,7 @@ func applyMaterialTypes(r *run, items *[]materialTypeEntry) (func() error, error
 			continue
 		}
 		kind := machinelogbook.MaterialKind(item.Kind)
+		missingVariants := variantsMissing(stored[current.ID], item.Variants)
 		processIDs, missing := resolveProcessNames(processes, item.Processes)
 		if missing != "" {
 			r.conflict(item.Name, "process_missing", fmt.Sprintf("The process %q does not exist.", missing))
@@ -268,7 +338,10 @@ func applyMaterialTypes(r *run, items *[]materialTypeEntry) (func() error, error
 				created, err := r.svc.MachineLogbook.CreateMaterialTypeTx(
 					r.ctx, tx, r.p, item.Name, kind, item.Unit, processIDs, r.requestID,
 				)
-				if err != nil || item.Active {
+				if err != nil {
+					return err
+				}
+				if err = addVariants(tx, created.ID, item.Variants); err != nil || item.Active {
 					return err
 				}
 				_, err = r.svc.MachineLogbook.UpdateMaterialTypeTx(
@@ -279,15 +352,22 @@ func applyMaterialTypes(r *run, items *[]materialTypeEntry) (func() error, error
 		case r.mode == ModeInsert:
 			r.skip(item.Name, reasonExists)
 		case current.Name == item.Name && current.Kind == item.Kind && current.Unit == item.Unit &&
-			current.Active == item.Active && slices.Equal(sortedStrings(current.Processes), item.Processes):
+			current.Active == item.Active && slices.Equal(sortedStrings(current.Processes), item.Processes) &&
+			len(missingVariants) == 0:
 			r.skip(item.Name, reasonUnchanged)
 		default:
+			sameType := current.Name == item.Name && current.Kind == item.Kind && current.Unit == item.Unit &&
+				current.Active == item.Active && slices.Equal(sortedStrings(current.Processes), item.Processes)
 			_, err = r.attempt(item.Name, ActionUpdate, "", func(tx pgx.Tx) error {
-				_, err := r.svc.MachineLogbook.UpdateMaterialTypeTx(
-					r.ctx, tx, r.p, current.ID, current.Version, item.Name, kind, item.Unit, processIDs,
-					item.Active, r.requestID,
-				)
-				return err
+				if !sameType {
+					if _, err := r.svc.MachineLogbook.UpdateMaterialTypeTx(
+						r.ctx, tx, r.p, current.ID, current.Version, item.Name, kind, item.Unit, processIDs,
+						item.Active, r.requestID,
+					); err != nil {
+						return err
+					}
+				}
+				return addVariants(tx, current.ID, missingVariants)
 			})
 		}
 		if err != nil {

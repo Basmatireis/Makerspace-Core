@@ -213,8 +213,14 @@ func (e *env) seed() {
 			},
 		}},
 	}, nil))
+	matte := must(logbook.CreateMaterialTypeVariant(ctx, p, pla.ID, "Matte", nil))
+	must(logbook.CreateMaterialTypeVariant(ctx, p, pla.ID, "Silk", nil))
 	must(logbook.CreateMaterial(ctx, p, machinelogbook.MaterialInput{
 		Name: "PLA Red", MaterialTypeID: pla.ID, ColorName: ptr("Red"), ColorHex: ptr("#FF0000"),
+		LowStockThreshold: ptr("100"), FilamentDiameterMM: ptr("1.75"),
+	}, nil))
+	must(logbook.CreateMaterial(ctx, p, machinelogbook.MaterialInput{
+		Name: "PLA Silk Gold", MaterialTypeID: pla.ID, ColorName: ptr("Gold"), Variant: ptr("Silk"),
 		LowStockThreshold: ptr("100"), FilamentDiameterMM: ptr("1.75"),
 	}, nil))
 	group := must(logbook.CreatePricingGroup(ctx, p, "Members", ptr("Everyone with a role"), true, nil))
@@ -222,6 +228,12 @@ func (e *env) seed() {
 	must(logbook.CreatePricingRule(ctx, p, group.ID, runtime, &fdm.ID, nil, nil, "2.5", nil))
 	must(logbook.CreatePricingRule(ctx, p, group.ID, machinelogbook.PricingRuleMaterial, nil, &pla.ID, nil,
 		"0.04", nil))
+	tx := must(e.pool.Begin(ctx))
+	must(logbook.CreatePricingRuleTx(ctx, tx, p, group.ID, machinelogbook.PricingRuleMaterial, nil, &pla.ID,
+		&matte.ID, nil, "0.06", nil))
+	if err := tx.Commit(ctx); err != nil {
+		e.t.Fatal(err)
+	}
 	must(logbook.CreatePricingRule(ctx, p, group.ID, machinelogbook.PricingRuleMachineMeasure, &embroidery.ID,
 		nil, ptr("stitches"), "0.1", nil))
 	must(logbook.SetRolePricingGroups(ctx, p, []machinelogbook.RolePricingGroupInput{
@@ -1111,4 +1123,142 @@ func TestProcessesTravelWithMeasuresAndMaterialTypesResolveThemByName(t *testing
 			t.Fatalf("Embroidery = %+v", got)
 		}
 	})
+}
+
+func TestMaterialTypeVariantsTravelAndOlderFilesStillImport(t *testing.T) {
+	source := newEnv(t)
+	source.seed()
+	keys := []SectionKey{
+		SectionDeviceTypes, SectionRoles, SectionProcesses, SectionMaterialTypes, SectionInventoryArticles, SectionPricing,
+	}
+	data := source.export(source.master, keys...)
+	sections := sectionsOf(t, data)
+	if !strings.Contains(canonical(t, sections[SectionMaterialTypes]), `"variants":["Matte","Silk"]`) ||
+		!strings.Contains(canonical(t, sections[SectionInventoryArticles]), `"variant":"Silk"`) ||
+		!strings.Contains(canonical(t, sections[SectionPricing]), `"variant":"Matte"`) {
+		t.Fatalf("export does not carry the variants: %s", data)
+	}
+	t.Run("round trip into a fresh instance", func(t *testing.T) {
+		target := newEnv(t)
+		target.importFile(target.master, ModeOverwrite, data, keys...)
+		got := sectionsOf(t, target.export(target.master, keys...))
+		for _, key := range keys {
+			if canonical(t, got[key]) != canonical(t, sections[key]) {
+				t.Errorf("section %s differs:\n got %s\nwant %s", key, got[key], sections[key])
+			}
+		}
+		var matteRules, typeRules int
+		if err := target.pool.QueryRow(target.ctx, `SELECT
+			count(*) FILTER (WHERE v.name = 'Matte'), count(*) FILTER (WHERE r.material_type_variant_id IS NULL)
+			FROM pricing_rules r LEFT JOIN material_type_variants v ON v.id = r.material_type_variant_id
+			WHERE r.kind = 'material' AND r.active`).Scan(&matteRules, &typeRules); err != nil ||
+			matteRules != 1 || typeRules != 1 {
+			t.Fatalf("variant rules = %d, type rules = %d, %v", matteRules, typeRules, err)
+		}
+		var articleVariant string
+		if err := target.pool.QueryRow(target.ctx, `SELECT v.name FROM materials m
+			JOIN material_type_variants v ON v.id = m.variant_id WHERE m.name = 'PLA Silk Gold' AND m.variant = v.name`).
+			Scan(&articleVariant); err != nil || articleVariant != "Silk" {
+			t.Fatalf("article variant = %q, %v", articleVariant, err)
+		}
+		again := must(target.svc.Preview(target.ctx, target.master, ModeOverwrite, keys, bytes.NewReader(data)))
+		for _, section := range again.Sections {
+			c := section.Counts
+			if c.Create+c.Update+c.Delete+c.Deactivate+c.Conflict != 0 {
+				t.Errorf("section %s is not idempotent: %+v %+v", section.Key, c, section.Items)
+			}
+		}
+	})
+
+	t.Run("overwrite adds variants and keeps local ones", func(t *testing.T) {
+		target := newEnv(t)
+		target.importFile(target.master, ModeOverwrite, data, keys...)
+		pla := must(target.s.MachineLogbook.ListMaterialTypes(target.ctx, target.master))
+		var plaID uuid.UUID
+		for _, materialType := range pla {
+			if materialType.Name == "PLA" {
+				plaID = materialType.ID
+			}
+		}
+		must(target.s.MachineLogbook.CreateMaterialTypeVariant(target.ctx, target.master, plaID, "Local only", nil))
+		target.importFile(target.master, ModeOverwrite, data, keys...)
+		var names string
+		if err := target.pool.QueryRow(target.ctx, `SELECT string_agg(name, ',' ORDER BY name) FROM material_type_variants`).
+			Scan(&names); err != nil || names != "Local only,Matte,Silk" {
+			t.Fatalf("variants = %q, %v", names, err)
+		}
+	})
+
+	t.Run("a rule for an unknown variant is a conflict", func(t *testing.T) {
+		target := newEnv(t)
+		bad := regexp.MustCompile(`"variant":\s*"Matte"`).ReplaceAllString(string(data), `"variant": "Unknown"`)
+		if bad == string(data) {
+			t.Fatal("the variant rule is not in the file")
+		}
+		preview := must(target.svc.Preview(target.ctx, target.master, ModeOverwrite, keys, strings.NewReader(bad)))
+		if got := item(t, preview, SectionPricing, "Members"); got.Action != ActionConflict ||
+			got.Code != "pricing_target_missing" {
+			t.Fatalf("Members = %+v", got)
+		}
+	})
+
+	t.Run("a variant on another kind is refused", func(t *testing.T) {
+		target := newEnv(t)
+		bad := `{"format":"makerspace-core-config","version":1,"sections":{"pricing":{"groups":[{"name":"G","active":true,` +
+			`"isDefault":false,"rules":[{"kind":"machine_runtime","process":"FDM","variant":"Matte","rate":"1"}]}],` +
+			`"rolePricingGroups":[]}}}`
+		if _, err := target.svc.Preview(target.ctx, target.master, ModeOverwrite, []SectionKey{SectionPricing},
+			strings.NewReader(bad)); !apperror.IsCode(err, "configuration_file_invalid") {
+			t.Fatalf("error = %v", err)
+		}
+	})
+
+	t.Run("older files without variants import unchanged", func(t *testing.T) {
+		older := withoutVariants(t, data)
+		if strings.Contains(string(older), "ariant") {
+			t.Fatal("test file still contains variants")
+		}
+		target := newEnv(t)
+		target.importFile(target.master, ModeOverwrite, older, keys...)
+		var variants int
+		if err := target.pool.QueryRow(target.ctx, `SELECT count(*) FROM material_type_variants`).Scan(&variants); err != nil ||
+			variants != 0 {
+			t.Fatalf("variants = %d, %v", variants, err)
+		}
+	})
+}
+
+// withoutVariants removes every variant field from the sections of an export, as a release without variants wrote it.
+func withoutVariants(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var parsed map[string]any
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	var strip func(value any) any
+	strip = func(value any) any {
+		switch v := value.(type) {
+		case map[string]any:
+			delete(v, "variants")
+			delete(v, "variant")
+			for key, child := range v {
+				v[key] = strip(child)
+			}
+		case []any:
+			kept := v[:0]
+			for _, child := range v {
+				if m, ok := child.(map[string]any); ok && m["kind"] == "material" && m["variant"] != nil {
+					continue // a variant rule did not exist
+				}
+				kept = append(kept, strip(child))
+			}
+			return kept
+		}
+		return value
+	}
+	out, err := json.Marshal(strip(parsed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return out
 }

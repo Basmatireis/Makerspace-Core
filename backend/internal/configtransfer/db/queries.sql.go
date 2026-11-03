@@ -249,25 +249,28 @@ func (q *Queries) GetWirefDeliverySettings(ctx context.Context) (GetWirefDeliver
 
 const listActivePricingRules = `-- name: ListActivePricingRules :many
 SELECT r.id, r.pricing_group_id, r.kind, mt.name AS process_name, mat.name AS material_type_name,
-    r.measure, r.rate, r.process_id, r.material_type_id, r.version
+    r.measure, r.rate, r.process_id, r.material_type_id, r.material_type_variant_id, v.name AS variant_name, r.version
 FROM pricing_rules r
 LEFT JOIN processes mt ON mt.id = r.process_id
 LEFT JOIN material_types mat ON mat.id = r.material_type_id
+LEFT JOIN material_type_variants v ON v.id = r.material_type_variant_id
 WHERE r.active AND r.kind <> 'stock_article'
-ORDER BY r.pricing_group_id, r.kind, lower(COALESCE(mt.name, mat.name)), r.measure, r.id
+ORDER BY r.pricing_group_id, r.kind, lower(COALESCE(mt.name, mat.name)), lower(v.name) NULLS FIRST, r.measure, r.id
 `
 
 type ListActivePricingRulesRow struct {
-	ID               uuid.UUID
-	PricingGroupID   uuid.UUID
-	Kind             string
-	ProcessName      *string
-	MaterialTypeName *string
-	Measure          *string
-	Rate             pgtype.Numeric
-	ProcessID        *uuid.UUID
-	MaterialTypeID   *uuid.UUID
-	Version          int64
+	ID                    uuid.UUID
+	PricingGroupID        uuid.UUID
+	Kind                  string
+	ProcessName           *string
+	MaterialTypeName      *string
+	Measure               *string
+	Rate                  pgtype.Numeric
+	ProcessID             *uuid.UUID
+	MaterialTypeID        *uuid.UUID
+	MaterialTypeVariantID *uuid.UUID
+	VariantName           *string
+	Version               int64
 }
 
 // Sale prices of single articles (stock_article) belong to the inventory, not to the transferred catalog.
@@ -290,6 +293,8 @@ func (q *Queries) ListActivePricingRules(ctx context.Context) ([]ListActivePrici
 			&i.Rate,
 			&i.ProcessID,
 			&i.MaterialTypeID,
+			&i.MaterialTypeVariantID,
+			&i.VariantName,
 			&i.Version,
 		); err != nil {
 			return nil, err
@@ -511,6 +516,38 @@ func (q *Queries) ListMachines(ctx context.Context) ([]ListMachinesRow, error) {
 			&i.AutomaticCollectionEnabled,
 			&i.Version,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMaterialTypeVariants = `-- name: ListMaterialTypeVariants :many
+SELECT v.id, v.material_type_id, v.name
+FROM material_type_variants v
+ORDER BY v.material_type_id, lower(v.name), v.name, v.id
+`
+
+type ListMaterialTypeVariantsRow struct {
+	ID             uuid.UUID
+	MaterialTypeID uuid.UUID
+	Name           string
+}
+
+func (q *Queries) ListMaterialTypeVariants(ctx context.Context) ([]ListMaterialTypeVariantsRow, error) {
+	rows, err := q.db.Query(ctx, listMaterialTypeVariants)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMaterialTypeVariantsRow{}
+	for rows.Next() {
+		var i ListMaterialTypeVariantsRow
+		if err := rows.Scan(&i.ID, &i.MaterialTypeID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
