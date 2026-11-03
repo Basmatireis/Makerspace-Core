@@ -203,6 +203,39 @@ describe('Receive stock', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 
+  it('receives any article when no kind is given and takes the kind from the article', async () => {
+    auth.permissions = WITH_SPOOLS;
+    serve();
+    let body: ReceiveInventoryStockRequest | undefined;
+    server.use(
+      http.post('*/api/v1/inventory/receipts', async ({ request }) => {
+        body = (await request.json()) as ReceiveInventoryStockRequest;
+        return HttpResponse.json(receipt(insert), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderModal(<ReceiveStockModal open onClose={vi.fn()} />);
+    const dialog = await screen.findByRole('dialog', { name: 'Receive stock' });
+
+    // Filament and parts are both offered; a part needs no placement.
+    await user.click(await within(dialog).findByRole('combobox', { name: 'Article' }));
+    expect(await screen.findByText(/PLA Basic · Black · Bambu Lab/)).toBeInTheDocument();
+    await user.click(screen.getByText(new RegExp(insert.name)));
+    await waitFor(() => expect(within(dialog).queryByLabelText('In storage')).not.toBeInTheDocument());
+    const count = within(dialog).getByLabelText('Packages');
+    await user.clear(count);
+    await user.type(count, '2');
+    const size = within(dialog).getByLabelText(/Size of one package/);
+    await user.clear(size);
+    await user.type(size, '50');
+    await user.type(within(dialog).getByLabelText('Total price in EUR'), '10');
+    await user.click(within(dialog).getByRole('button', { name: 'Receive stock' }));
+
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body).toMatchObject({ materialId: insert.id, packageCount: 2, packageSize: '50', totalPrice: '10.00' });
+    expect(body).not.toHaveProperty('placement');
+  });
+
   it('describes a new filament article and puts each package on a new spool', async () => {
     auth.permissions = WITH_SPOOLS;
     serve([]);

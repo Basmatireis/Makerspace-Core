@@ -186,3 +186,16 @@
   font-family: var(--cds-code-02-font-family, monospace);
   overflow-wrap: anywhere;
 }
+
+// Page tabs under a page title (PageSectionTabs) keep Carbon's own scrolling; nothing of them may widen the page on
+// a phone, and their empty panels take no space.
+.mj-page-tabs {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  position: relative;
+  overflow-x: clip;
+}
+
+.mj-page-tabs__panel {
+  display: none;
+}

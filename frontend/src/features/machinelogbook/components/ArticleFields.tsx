@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- the shared article fields and their value helpers belong together */
 import { useState } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
-import { Button, ComboBox, Link as CarbonLink, TextArea, TextInput } from '@carbon/react';
+import { Button, ComboBox, Link as CarbonLink, Select, SelectItem, TextArea, TextInput } from '@carbon/react';
 import { Link } from 'react-router-dom';
 import { useStableItems } from '../../../app/useStableItems';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -169,7 +169,8 @@ export function SuggestionComboBox({
 type TypeItem = { id: string; label: string; create?: boolean };
 
 type Props = {
-  kind: MaterialKind;
+  /** The kind of article; without it the kind follows the chosen type (or the Kind select for a new type). */
+  kind?: MaterialKind;
   /** Prefix of element IDs, unique per dialog. */
   idPrefix: string;
   /** The unit shown next to the package size; the type's unit once a type is chosen. */
@@ -190,7 +191,7 @@ type Props = {
  * The material type (category for parts) is a combo box that can create a missing type on the spot.
  */
 export function ArticleFields({
-  kind,
+  kind: fixedKind,
   idPrefix,
   unit,
   keepTypeId,
@@ -211,12 +212,15 @@ export function ArticleFields({
   const [typeText, setTypeText] = useState('');
   const [typeError, setTypeError] = useState<string | null>(null);
   const values = useWatch({ control, name: 'article' });
-  const noun = typeNoun(kind);
-  const choices = [
+  const [pickedKind, setPickedKind] = useState<MaterialKind>('filament');
+  const allTypes = [
     ...(types.data ?? []),
     ...created.filter((item) => !(types.data ?? []).some((known) => known.id === item.id)),
-  ].filter((item) => item.kind === kind && (item.active || item.id === keepTypeId));
-  const chosenType = choices.find((item) => item.id === values.materialTypeId);
+  ].filter((item) => item.active || item.id === keepTypeId);
+  const chosenType = allTypes.find((item) => item.id === values.materialTypeId);
+  const kind: MaterialKind = fixedKind ?? chosenType?.kind ?? pickedKind;
+  const noun = typeNoun(kind);
+  const choices = fixedKind ? allTypes.filter((item) => item.kind === fixedKind) : allTypes;
   const suggestions = useQuery(suggestionsQuery(values.materialTypeId || undefined)).data;
   const activeUnit = chosenType?.unit ?? unit;
   const previewHex = COLOR_HEX_PATTERN.test(values.colorHex.trim().toUpperCase())
@@ -253,7 +257,7 @@ export function ArticleFields({
   const choiceItems = useStableItems<TypeItem>(
     choices.map((item) => ({
       id: item.id,
-      label: kind === 'part' ? item.name : `${item.name} (${unitLabel(item.unit)})`,
+      label: item.kind === 'part' ? item.name : `${item.name} (${unitLabel(item.unit)})`,
     })),
   );
   const items: TypeItem[] =
@@ -264,6 +268,20 @@ export function ArticleFields({
 
   return (
     <>
+      {!fixedKind && (
+        <Select
+          id={`${idPrefix}-kind`}
+          labelText="Kind"
+          helperText={chosenType ? 'Follows the chosen type.' : 'What a new type would be.'}
+          value={kind}
+          disabled={Boolean(chosenType)}
+          onChange={(event) => setPickedKind(event.target.value as MaterialKind)}
+        >
+          <SelectItem value="filament" text="Filament" />
+          <SelectItem value="consumable" text="Consumable" />
+          <SelectItem value="part" text="Part" />
+        </Select>
+      )}
       <Controller
         control={control}
         name="article.materialTypeId"
@@ -272,7 +290,7 @@ export function ArticleFields({
           <ComboBox<TypeItem>
             autoAlign
             id={`${idPrefix}-type`}
-            titleText={noun === 'Category' ? 'Category' : 'Material type'}
+            titleText={fixedKind ? (noun === 'Category' ? 'Category' : 'Material type') : 'Type or category'}
             items={items}
             itemToString={(item) => item?.label ?? ''}
             placeholder={kind === 'part' ? 'Choose or create a category' : 'Choose or create a material type'}

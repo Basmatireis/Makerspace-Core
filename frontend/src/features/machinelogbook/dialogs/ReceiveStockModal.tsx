@@ -102,16 +102,15 @@ export function ReceiveStockModal({
 }: {
   open: boolean;
   onClose: () => void;
-  kind: MaterialKind;
+  /** Restricts the articles to one kind; without it any article can be received and a new one takes its type's kind. */
+  kind?: MaterialKind;
   article?: Material;
 }) {
   const can = useCan();
   const notify = useNotify();
   const refresh = useRefreshInventory();
-  const kind = fixedArticle?.kind ?? requestedKind;
-  const filament = kind === 'filament';
-  const canSpools = filament && can('filament_spools.manage');
-  const form = useForm<Values>({ defaultValues: defaultsFor(kind, fixedArticle) });
+  const fixedKind = fixedArticle?.kind ?? requestedKind;
+  const form = useForm<Values>({ defaultValues: defaultsFor(fixedKind ?? 'consumable', fixedArticle) });
   const {
     control,
     handleSubmit,
@@ -125,11 +124,16 @@ export function ReceiveStockModal({
 
   const articles = useQuery({ ...allMaterialsQuery(), enabled: open && !fixedArticle });
   const types = useQuery({ ...materialTypesQuery(), enabled: open });
-  const candidates = (articles.data?.items ?? []).filter((item) => item.kind === kind);
+  const candidates = (articles.data?.items ?? []).filter((item) => !fixedKind || item.kind === fixedKind);
   const selectable = candidates.filter((item) => item.active);
   const chosen: Material | undefined =
     fixedArticle ?? (values.mode === 'existing' ? candidates.find((item) => item.id === values.materialId) : undefined);
   const newType = (types.data ?? []).find((item) => item.id === values.article?.materialTypeId);
+  // The kind of what arrives: the article's, else the new article's type, else what the dialog was opened for.
+  const kind: MaterialKind =
+    chosen?.kind ?? (values.mode === 'new' ? newType?.kind : undefined) ?? fixedKind ?? 'consumable';
+  const filament = kind === 'filament';
+  const canSpools = filament && can('filament_spools.manage');
   const unit: MaterialUnit | undefined = chosen?.unit ?? newType?.unit;
   const suggestions = useQuery({
     ...suggestionsQuery(
@@ -211,12 +215,12 @@ export function ReceiveStockModal({
   });
 
   const resetForm = useLatestCallback(() => {
-    reset(defaultsFor(kind, fixedArticle));
+    reset(defaultsFor(fixedKind ?? 'consumable', fixedArticle));
     save.reset();
   });
   useEffect(() => {
     if (open) resetForm();
-  }, [open, fixedArticle?.id, kind, resetForm]);
+  }, [open, fixedArticle?.id, fixedKind, resetForm]);
 
   const submit = handleSubmit(async (data) => {
     let result;
@@ -353,7 +357,7 @@ export function ReceiveStockModal({
                 />
                 {values.mode === 'new' && (
                   <>
-                    <ArticleFields kind={kind} idPrefix="receive" />
+                    <ArticleFields kind={fixedKind} idPrefix="receive" />
                     {duplicate && (
                       <ActionableNotification
                         inline
