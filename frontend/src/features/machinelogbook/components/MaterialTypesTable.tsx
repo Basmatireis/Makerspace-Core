@@ -98,6 +98,11 @@ function TypesTable({
       render: (row) => processLabels(row).join(', ') || '—',
     },
     {
+      key: 'variants',
+      header: 'Variants',
+      render: (row) => row.variants.map((variant) => variant.name).join(', ') || '—',
+    },
+    {
       key: 'articles',
       header: 'Articles',
       narrow: true,
@@ -141,6 +146,7 @@ function TypesTable({
             row.code,
             kindNames[row.kind],
             row.machineUse ? 'Machine use' : '',
+            ...row.variants.map((variant) => variant.name),
             unitLabel(row.unit),
             ...processLabels(row),
             row.active ? 'Active' : 'Inactive',

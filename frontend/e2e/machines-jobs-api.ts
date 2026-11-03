@@ -118,6 +118,10 @@ const materialTypes: MaterialType[] = [
     active: true,
     materialCount: 1,
     pricingRuleCount: 1,
+    variants: [
+      { id: id(910), materialTypeId: id(900), name: 'Silk', materialCount: 0, pricingRuleCount: 0 },
+      { id: id(911), materialTypeId: id(900), name: 'Matte', materialCount: 0, pricingRuleCount: 0 },
+    ],
     version: 1,
     createdAt: created,
     updatedAt: created,
@@ -133,6 +137,7 @@ const materialTypes: MaterialType[] = [
     active: true,
     materialCount: 1,
     pricingRuleCount: 0,
+    variants: [],
     version: 1,
     createdAt: created,
     updatedAt: created,

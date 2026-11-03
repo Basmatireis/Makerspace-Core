@@ -49,6 +49,7 @@ const ids = {
   external: id(2),
   fdm: id(3),
   pla: id(4),
+  plaSilk: id(60),
   fasteners: id(5),
   plaBlack: id(6),
   insert: id(7),
@@ -71,6 +72,8 @@ function rule(n: number, groupId: string, kind: PricingRule['kind'], rate: strin
     processId: null,
     materialTypeId: null,
     materialTypeName: null,
+    materialTypeVariantId: null,
+    materialTypeVariantName: null,
     materialUnit: null,
     materialId: null,
     materialName: null,
@@ -204,6 +207,13 @@ export function createSalesWorld(permissions: string[] = salesPermissions) {
     materialTypeName: 'PLA',
     materialUnit: 'g',
   });
+  const silkRule = rule(5, ids.members, 'material', '0.045', {
+    materialTypeId: ids.pla,
+    materialTypeName: 'PLA',
+    materialTypeVariantId: ids.plaSilk,
+    materialTypeVariantName: 'Silk',
+    materialUnit: 'g',
+  });
   const insertRule = rule(4, ids.members, 'stock_article', '0.12', {
     materialId: ids.insert,
     materialName: 'M3 heat-set insert',
@@ -214,6 +224,7 @@ export function createSalesWorld(permissions: string[] = salesPermissions) {
     group(ids.members, 'Members', true, [
       rule(1, ids.members, 'machine_runtime', '2.00', { processId: ids.fdm }),
       plaRule,
+      silkRule,
       insertRule,
     ]),
     group(ids.external, 'External', false, [rule(2, ids.external, 'machine_runtime', '4.00', { processId: ids.fdm })]),
@@ -864,6 +875,7 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
         processId: (body!.processId as string | null) ?? null,
         materialTypeId: (body!.materialTypeId as string | null) ?? null,
         materialId: (body!.materialId as string | null) ?? null,
+        materialTypeVariantId: (body!.materialTypeVariantId as string | null) ?? null,
       });
       target.rules.push(created);
       return ok(route, created, 201);
@@ -895,7 +907,19 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
     if (path === '/api/v1/material-types')
       return ok(route, {
         items: [
-          { id: ids.pla, name: 'PLA', code: 'PLA', machineUse: true, unit: 'g', active: true, version: 1 },
+          {
+            id: ids.pla,
+            name: 'PLA',
+            code: 'PLA',
+            machineUse: true,
+            unit: 'g',
+            active: true,
+            variants: [
+              { id: ids.plaSilk, materialTypeId: ids.pla, name: 'Silk', materialCount: 0, pricingRuleCount: 1 },
+              { id: id(61), materialTypeId: ids.pla, name: 'Matte', materialCount: 0, pricingRuleCount: 0 },
+            ],
+            version: 1,
+          },
           {
             id: ids.fasteners,
             name: 'Fasteners',

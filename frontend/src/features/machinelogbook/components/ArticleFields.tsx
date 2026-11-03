@@ -332,11 +332,13 @@ export function ArticleFields({
               key={`${idPrefix}-variant-${values.materialTypeId}`}
               id={`${idPrefix}-variant`}
               titleText="Variant (optional)"
-              items={suggestions?.variants ?? []}
+              items={(chosenType?.variants ?? []).map((variant) => variant.name)}
               value={field.value}
               onChange={field.onChange}
               helperText={
-                kind === 'filament' ? 'For example Basic, Matte, Silk, High Flow, CF.' : 'For example 3 mm or matte.'
+                chosenType
+                  ? "Pick one of the type's variants or type a new name to add it."
+                  : 'Choose a material type first. A new variant name is added to the type.'
               }
             />
           )}

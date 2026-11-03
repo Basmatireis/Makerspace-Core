@@ -24,6 +24,7 @@ export const materialType = (overrides: Partial<MaterialType> = {}): MaterialTyp
   active: true,
   materialCount: 1,
   pricingRuleCount: 1,
+  variants: [],
   version: 1,
   createdAt: now,
   updatedAt: now,
