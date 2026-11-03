@@ -380,5 +380,5 @@ func withMaterial(material string) string {
 
 // machinePrinterLink opens the machine's printer setup, where slots and errors are shown.
 func machinePrinterLink(machineID uuid.UUID) string {
-	return "/workshop/machines/" + machineID.String() + "?tab=printer"
+	return "/workshop/machines/" + machineID.String() + "/printer"
 }

@@ -116,7 +116,7 @@ func TestIngestPrinterErrorNotifiesTheOperatorAndTheChosenRoleOnce(t *testing.T)
 	titles, bodies, links := h.notifications(supervisor.AccountID, "printer_error")
 	if len(titles) != 1 || titles[0] != "Printer error on "+h.machine.Name ||
 		!strings.Contains(bodies[0], "0300-0D00-0002-0001 (serious): Filament ran out") || !strings.Contains(bodies[0], "during run R-") ||
-		links[0] != "/machine-logbook/machines/"+h.machine.ID.String()+"?tab=printer" {
+		links[0] != "/workshop/machines/"+h.machine.ID.String()+"/printer" {
 		t.Fatalf("role holder notifications: %q %q %q", titles, bodies, links)
 	}
 	if operator, _, _ := h.notifications(h.principal.AccountID, "printer_error"); len(operator) != 1 {
@@ -339,7 +339,7 @@ func TestIngestSlotObservationsTellTheOperatorAboutFilamentChanges(t *testing.T)
 		t.Fatalf("filament notification bodies = %q", bodies)
 	}
 	for _, link := range links {
-		if link != "/machine-logbook/machines/"+h.machine.ID.String()+"?tab=printer" {
+		if link != "/workshop/machines/"+h.machine.ID.String()+"/printer" {
 			t.Fatalf("filament notification link = %q", link)
 		}
 	}

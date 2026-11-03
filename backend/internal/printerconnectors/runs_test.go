@@ -843,7 +843,7 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		ctx,
 		`SELECT count(*) FROM inbox_recipients r JOIN inbox_notifications n ON n.id = r.notification_id
 		 WHERE r.account_id = $1 AND n.kind = 'run_finished' AND n.link = $2`,
-		h.principal.AccountID, "/machine-logbook/jobs/runs/"+runID.String(),
+		h.principal.AccountID, "/workshop/jobs/runs/"+runID.String(),
 	).Scan(&finished); err != nil || finished != 1 {
 		t.Fatalf("run_finished notifications for the operator = %d, %v", finished, err)
 	}
