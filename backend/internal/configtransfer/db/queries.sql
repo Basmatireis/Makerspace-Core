@@ -89,12 +89,13 @@ ORDER BY lower(t.name), t.id;
 
 -- name: ListMaterials :many
 SELECT m.id, m.name, t.name AS material_type_name, m.active, m.low_stock_threshold,
-    m.color_name, m.color_hex, m.variant, m.manufacturer, m.sale_price,
+    m.color_name, m.color_hex, m.variant, m.manufacturer,
     m.package_size, m.storage_location, m.notes, fp.diameter_mm AS filament_diameter_mm,
     m.version
 FROM materials m
 JOIN material_types t ON t.id = m.material_type_id
 LEFT JOIN material_filament_properties fp ON fp.material_id = m.id
+WHERE m.deleted_at IS NULL
 ORDER BY lower(m.name), m.id;
 
 -- name: ListPricingGroups :many
@@ -106,7 +107,8 @@ SELECT r.id, r.pricing_group_id, r.kind, mt.name AS process_name, mat.name AS ma
 FROM pricing_rules r
 LEFT JOIN processes mt ON mt.id = r.process_id
 LEFT JOIN material_types mat ON mat.id = r.material_type_id
-WHERE r.active
+-- Sale prices of single articles (stock_article) belong to the inventory, not to the transferred catalog.
+WHERE r.active AND r.kind <> 'stock_article'
 ORDER BY r.pricing_group_id, r.kind, lower(COALESCE(mt.name, mat.name)), r.measure, r.id;
 
 -- name: ListRolePricingGroups :many

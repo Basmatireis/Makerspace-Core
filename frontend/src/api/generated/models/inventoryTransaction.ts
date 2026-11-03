@@ -57,18 +57,12 @@ export interface InventoryTransaction {
   spoolId?: UUIDv7 | null;
   /** @nullable */
   spoolDisplayId?: string | null;
-  /** @nullable */
-  fillNumber?: number | null;
   fromSpoolId?: UUIDv7 | null;
   /** @nullable */
   fromSpoolDisplayId?: string | null;
-  /** @nullable */
-  fromFillNumber?: number | null;
   toSpoolId?: UUIDv7 | null;
   /** @nullable */
   toSpoolDisplayId?: string | null;
-  /** @nullable */
-  toFillNumber?: number | null;
   transferQuantity?: Decimal | null;
   /**
      * Display name of the person who recorded the entry.

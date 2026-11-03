@@ -55,6 +55,6 @@ export interface DetectedSpoolTag {
      */
   remainPercent: number | null;
   observedAt: string;
-  /** The spool whose open fill already carries this tag as an NFC identifier. */
+  /** The active spool that already carries this tag as an NFC identifier. */
   spool: DetectedSpoolTagSpool | null;
 }

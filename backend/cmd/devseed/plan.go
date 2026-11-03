@@ -355,24 +355,7 @@ func (s *seeder) stockEvents() {
 	})
 	// r8 planned change and finish
 	add(d(6, 1), func() { s.changeFill(s.reus[6], d(6, 1), "PLA Red", "purchase") })
-	add(d(9, 28), func() {
-		r := s.reus[6]
-		sp := s.spool(r.id)
-		at := d(9, 28)
-		_, err := s.mlAt(at).
-			FinishFilamentSpool(
-				s.ctx,
-				s.actor,
-				r.id,
-				machinelogbook.FinishSpoolInput{
-					Leftover:        *s.leftover(sp, false),
-					OccurredAt:      at,
-					ExpectedVersion: sp.Version,
-				},
-				nil,
-			)
-		check("finish r8", err)
-	})
+	add(d(9, 28), func() { s.retire(s.reus[6].id, d(9, 28), false) })
 	add(d(7, 15), func() {
 		r := s.newReusable(d(7, 15), "bl-red", "Shelf A · Spare 1", "existing_stock")
 		_ = r
@@ -420,7 +403,7 @@ func (s *seeder) ensure(sl *slot, qty float64, at time.Time) (uuid.UUID, float64
 	rem := dnum(sp.RemainingQuantity)
 	if sl.reu != nil {
 		if rem < qty+1 {
-			s.changeFill(sl.reu, at.Add(-8*time.Minute), *sp.MaterialName, "purchase", true)
+			s.changeFill(sl.reu, at.Add(-8*time.Minute), sp.MaterialName, "purchase", true)
 			sp = s.spool(sl.cur)
 		}
 		return sl.cur, qty
@@ -428,22 +411,10 @@ func (s *seeder) ensure(sl *slot, qty float64, at time.Time) (uuid.UUID, float64
 	due := sl.gi+1 < len(sl.gens) && !sl.gens[sl.gi].rotate.IsZero() && at.After(sl.gens[sl.gi].rotate)
 	if (rem < qty+1 || due) && sl.gi+1 < len(sl.gens) {
 		fa := at.Add(-9 * time.Minute)
-		if sp.FilledAt != nil && !fa.After(sp.FilledAt.Add(time.Minute)) {
-			fa = sp.FilledAt.Add(2 * time.Minute)
+		if !fa.After(sp.CreatedAt.Add(time.Minute)) {
+			fa = sp.CreatedAt.Add(2 * time.Minute)
 		}
-		_, err := s.mlAt(fa).
-			FinishFilamentSpool(
-				s.ctx,
-				s.actor,
-				sl.cur,
-				machinelogbook.FinishSpoolInput{
-					Leftover:        *s.leftover(sp, rem < qty+1),
-					OccurredAt:      fa,
-					ExpectedVersion: sp.Version,
-				},
-				nil,
-			)
-		check("finish spool", err)
+		s.retire(sl.cur, fa, rem < qty+1)
 		sl.gi++
 		sl.cur = uuid.Nil
 		na := fa.Add(2 * time.Minute)
@@ -532,7 +503,7 @@ func (s *seeder) usagesFor(p *plan, single bool) ([]machinelogbook.UsageInput, *
 			out = append(
 				out,
 				machinelogbook.UsageInput{
-					MaterialID:    *sp.MaterialID,
+					MaterialID:    sp.MaterialID,
 					SpoolID:       &spoolID,
 					Ownership:     "makerspace",
 					Quantity:      f1(qq),

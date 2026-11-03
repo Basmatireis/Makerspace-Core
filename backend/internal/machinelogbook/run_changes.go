@@ -54,14 +54,14 @@ func (s *Service) replaceRunUsages(
 		versions[materialID] = row.InventoryVersion
 	}
 	for _, u := range old {
-		if UsageOwnership(u.Ownership) != OwnershipExternal {
+		if UsageOwnership(u.Ownership) != OwnershipExternal && u.MaterialID != nil {
 			row, err := q.GetMaterialForUpdate(ctx, *u.MaterialID)
 			if err != nil {
 				return err
 			}
 			average := decimalFromNumeric(row.AverageUnitCost)
 			quantity := decimalFromNumeric(u.Quantity)
-			reversal, err := s.reversalFill(ctx, q, u)
+			reversal, err := s.reversalSpool(ctx, q, u)
 			if err != nil {
 				return err
 			}
@@ -81,7 +81,7 @@ func (s *Service) replaceRunUsages(
 					OccurredAt:    time.Now().UTC(),
 					Reason:        stringPointer("job_corrected"),
 					UsageID:       &usageID,
-					Fill:          reversal,
+					Spool:         reversal,
 				},
 				requestID,
 			); err != nil {
@@ -93,7 +93,7 @@ func (s *Service) replaceRunUsages(
 			return err
 		}
 	}
-	if err := s.resolveUsageFills(ctx, q, parsed); err != nil {
+	if err := s.resolveUsageSpools(ctx, q, parsed); err != nil {
 		return err
 	}
 	if err := s.insertUsages(ctx, q, runID, parsed); err != nil {
@@ -123,7 +123,7 @@ func (s *Service) replaceRunUsages(
 				ValueDelta:    u.Quantity.Mul(average).Neg(),
 				OccurredAt:    occurredAt,
 				UsageID:       &usageID,
-				Fill:          u.Fill,
+				Spool:         u.Spool,
 			},
 			requestID,
 		); err != nil {

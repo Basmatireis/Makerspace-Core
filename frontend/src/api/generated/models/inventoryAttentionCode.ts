@@ -18,20 +18,11 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { FilamentLeftoverInput } from './filamentLeftoverInput';
-import type { FilamentNewFillInput } from './filamentNewFillInput';
-import type { NewFilamentSpoolIdentifier } from './newFilamentSpoolIdentifier';
-import type { UUIDv7 } from './uUIDv7';
-import type { Version } from './version';
 
-export interface ChangeFilamentSpoolFillRequest {
-  /** Required when the spool has an open fill. */
-  leftover?: FilamentLeftoverInput | null;
-  fill: FilamentNewFillInput;
-  /** @maxItems 20 */
-  keepIdentifierIds: UUIDv7[];
-  /** @maxItems 20 */
-  newIdentifiers: NewFilamentSpoolIdentifier[];
-  occurredAt: string;
-  expectedVersion: Version;
-}
+export type InventoryAttentionCode = typeof InventoryAttentionCode[keyof typeof InventoryAttentionCode];
+
+
+export const InventoryAttentionCode = {
+  low_stock: 'low_stock',
+  remainder_low: 'remainder_low',
+} as const;

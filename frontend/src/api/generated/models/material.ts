@@ -20,7 +20,9 @@
  */
 import type { ColorHex } from './colorHex';
 import type { Decimal } from './decimal';
+import type { InventoryAttention } from './inventoryAttention';
 import type { MaterialKind } from './materialKind';
+import type { MaterialPrice } from './materialPrice';
 import type { MaterialUnit } from './materialUnit';
 import type { StockState } from './stockState';
 import type { UUIDv7 } from './uUIDv7';
@@ -28,11 +30,19 @@ import type { Version } from './version';
 
 export interface Material {
   id: UUIDv7;
+  /**
+     * Article number assigned on creation.
+     * @pattern ^A-[0-9]{4,}$
+     */
+  displayId: string;
   name: string;
   /** The kind of the material type. */
   kind: MaterialKind;
   materialTypeId: UUIDv7;
   materialTypeName: string;
+  materialTypeCode: string;
+  /** The material type is used in machine runs. */
+  machineUse: boolean;
   /**
      * @maxLength 80
      * @nullable
@@ -43,8 +53,6 @@ export interface Material {
      * @nullable
      */
   manufacturer?: string | null;
-  /** Default EUR price per unit when the article is sold. */
-  salePrice?: Decimal | null;
   /** Quantity per package in the article's unit (1000 g per roll, 100 pieces per bag). */
   packageSize?: Decimal | null;
   /**
@@ -76,8 +84,9 @@ export interface Material {
   stockState: StockState;
   inventoryVersion: Version;
   recentConsumption: Decimal;
-  /** True while nothing uses the article yet (no ledger entries, spool fills, run or job usages, order items), so deleteMaterial would succeed. */
-  deletable?: boolean;
+  /** Sale price per active pricing group that has one; groups without a price are missing. */
+  prices: MaterialPrice[];
+  attention: InventoryAttention[];
   version: Version;
   createdAt: string;
   updatedAt: string;

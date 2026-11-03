@@ -20,60 +20,39 @@
  */
 import type { ColorHex } from './colorHex';
 import type { Decimal } from './decimal';
-import type { FilamentSpoolFill } from './filamentSpoolFill';
 import type { FilamentSpoolIdentifier } from './filamentSpoolIdentifier';
-import type { FilamentSpoolKind } from './filamentSpoolKind';
 import type { FilamentSpoolLifecycle } from './filamentSpoolLifecycle';
 import type { FilamentSpoolMount } from './filamentSpoolMount';
-import type { FilamentSpoolStatus } from './filamentSpoolStatus';
+import type { InventoryAttention } from './inventoryAttention';
 import type { MaterialUnit } from './materialUnit';
+import type { SpoolRetireOutcome } from './spoolRetireOutcome';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
 /**
- * Material, weights and identifiers describe the current (open) fill. A reusable spool without an open fill needs a refill; its material fields are null and remainingQuantity is 0.
+ * One filament unit of one article. displayId is its label S-<TYPECODE>-<VARIANT>-<COLOUR>-<NN> (spools registered before keep S-<YEAR>-<NNNNNN>); it is unique among active spools. Archived spools are retired and sit in the recycle bin.
  */
 export interface FilamentSpool {
   id: UUIDv7;
+  /** The spool label. */
   displayId: string;
-  kind: FilamentSpoolKind;
-  /** @nullable */
-  label?: string | null;
-  status: FilamentSpoolStatus;
+  materialId: UUIDv7;
+  materialDisplayId: string;
+  materialName: string;
+  materialTypeName: string;
   /**
-     * The open fill or the most recent closed one.
-     * @minimum 1
-     */
-  fillNumber: number;
-  /** Open fill. */
-  fillId?: UUIDv7 | null;
-  /** @nullable */
-  filledAt?: string | null;
-  /** @nullable */
-  archivedAt?: string | null;
-  materialId?: UUIDv7 | null;
-  /** @nullable */
-  materialName?: string | null;
-  /** @nullable */
-  materialTypeName?: string | null;
-  /**
-     * Colour of the material; spools never hold their own.
+     * Colour of the article; spools never hold their own.
      * @nullable
      */
   colorName?: string | null;
   colorHex?: ColorHex | null;
-  unit?: MaterialUnit | null;
   /**
-     * Snapshot taken when the fill started.
+     * Manufacturer of the article.
      * @nullable
      */
   manufacturer?: string | null;
-  /**
-     * Snapshot taken when the fill started.
-     * @nullable
-     */
-  productName?: string | null;
-  initialNetWeightG?: Decimal | null;
+  unit: MaterialUnit;
+  initialNetWeightG: Decimal;
   remainingQuantity: Decimal;
   tareWeightG?: Decimal | null;
   /** @nullable */
@@ -85,12 +64,21 @@ export interface FilamentSpool {
   /** @nullable */
   notes?: string | null;
   lifecycle: FilamentSpoolLifecycle;
+  /**
+     * When the spool was retired.
+     * @nullable
+     */
+  archivedAt: string | null;
+  retiredOutcome: SpoolRetireOutcome | null;
+  /** Quantity written off when it was retired. */
+  retiredQuantity: Decimal | null;
+  /** @nullable */
+  retiredByName: string | null;
   mounted: boolean;
   mountedOn?: FilamentSpoolMount | null;
-  /** Identifiers of the open fill. */
+  /** Active identifiers. */
   identifiers: FilamentSpoolIdentifier[];
-  /** Closed fills, newest first; only returned by GET /filament-spools/{spoolId}. */
-  fills?: FilamentSpoolFill[];
+  attention: InventoryAttention[];
   version: Version;
   createdAt: string;
   updatedAt: string;

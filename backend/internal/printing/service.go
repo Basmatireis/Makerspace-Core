@@ -587,19 +587,19 @@ func (s *Service) Mount(
 	if SlotStatus(slot.Status) != SlotAvailable {
 		return Slot{}, apperror.Conflicting("slot_unavailable", "Printer slot is not available")
 	}
-	// A spool can be mounted while it is active and its open fill still holds stock.
+	// A spool can be mounted while it is active and still holds stock.
 	lifecycle, err := q.LockSpoolLifecycle(ctx, spoolID)
 	if err != nil {
 		return Slot{}, noRows(err)
 	}
-	remaining, err := q.GetOpenFillRemainingQuantity(ctx, spoolID)
+	remaining, err := q.GetSpoolRemainingQuantity(ctx, spoolID)
 	if err != nil {
 		return Slot{}, err
 	}
 	if SpoolLifecycle(lifecycle) != SpoolActive || !remaining.Valid || !decimal.NewFromBigInt(remaining.Int, remaining.Exp).IsPositive() {
 		return Slot{}, apperror.Conflicting(
 			"spool_unavailable",
-			"Only active spools with an open, nonempty fill can be mounted",
+			"Only active spools that still hold filament can be mounted",
 		)
 	}
 	if _, err = q.GetOpenAssignmentForSlot(ctx, slotID); err == nil {

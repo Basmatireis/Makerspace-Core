@@ -124,13 +124,13 @@ func (s *Service) reverseRunConsumption(
 			if quantity.IsPositive() {
 				value := decimalFromNumeric(ledger.Value).Neg()
 				unitCost := value.Div(quantity).Round(6)
-				fill, err := s.reversalFill(ctx, q, u)
+				spool, err := s.reversalSpool(ctx, q, u)
 				if err != nil {
 					return decimal.Zero, err
 				}
 				note := "Consumption reversed with the deletion of " + item.run.DisplayID
-				if fill == nil && usageFillRef(u) != nil {
-					note += "; the spool fill was closed, so the material went back to loose stock"
+				if spool == nil && usageSpoolRef(u) != nil {
+					note += "; the spool was retired, so the material went back to loose stock"
 				}
 				usageID := u.ID
 				if _, err = s.applyInventoryMutation(
@@ -149,7 +149,7 @@ func (s *Service) reverseRunConsumption(
 						Reason:        stringPointer("job_corrected"),
 						Note:          &note,
 						UsageID:       &usageID,
-						Fill:          fill,
+						Spool:         spool,
 					},
 					requestID,
 				); err != nil {

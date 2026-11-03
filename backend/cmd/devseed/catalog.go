@@ -9,6 +9,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 func (s *seeder) createOrgsAndPricing() {
@@ -348,7 +349,7 @@ func (s *seeder) createCatalog() {
 			return
 		}
 		receivedAt := s.dateOf(9, 20)
-		_, err := ml.ReceiveStock(
+		received, err := ml.ReceiveStock(
 			s.ctx,
 			s.actor,
 			machinelogbook.ReceiptInput{
@@ -357,7 +358,6 @@ func (s *seeder) createCatalog() {
 					MaterialTypeID:  s.matTypes[typeName],
 					Manufacturer:    &manufacturer,
 					StorageLocation: &location,
-					SalePrice:       &salePrice,
 					PackageSize:     &packageSize,
 				},
 				PackageCount: packageCount,
@@ -369,6 +369,21 @@ func (s *seeder) createCatalog() {
 			nil,
 		)
 		check("part "+name, err)
+		// Parts are sold from stock: one stock_article rate per pricing group, externals pay double.
+		groups, err := ml.ListPricingGroups(s.ctx, s.actor)
+		check("pricing groups", err)
+		base := decimal.RequireFromString(salePrice)
+		for _, g := range groups {
+			if !g.Active {
+				continue
+			}
+			rate := base
+			if g.Name == "External" {
+				rate = base.Mul(decimal.NewFromInt(2))
+			}
+			_, err = ml.CreateStockArticlePricingRule(s.ctx, s.actor, g.ID, received.Material.ID, rate.String(), nil)
+			check("stock price "+name, err)
+		}
 	}
 	part("M3 heat-set insert", "Fasteners", "Ruthex", "Shelf B2", "100", "0.15", 5, "62.50", "Fasteners Online")
 	part("M3x8 screw", "Fasteners", "Würth", "Shelf B2", "200", "0.05", 4, "28.00", "Fasteners Online")

@@ -18,11 +18,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { Version } from './version';
 
-export type UpdateFilamentSpoolRequestLifecycle = typeof UpdateFilamentSpoolRequestLifecycle[keyof typeof UpdateFilamentSpoolRequestLifecycle];
-
-
-export const UpdateFilamentSpoolRequestLifecycle = {
-  active: 'active',
-  archived: 'archived',
-} as const;
+export interface DeleteInventoryTransactionRequest {
+  /** Inventory version of the entry's article. */
+  expectedInventoryVersion: Version;
+}

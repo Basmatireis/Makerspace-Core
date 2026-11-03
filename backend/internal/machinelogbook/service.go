@@ -144,6 +144,10 @@ type PricingRule struct {
 	MaterialTypeID   *uuid.UUID
 	MaterialTypeName *string
 	MaterialUnit     *string
+	// MaterialID, its name and display ID are set on stock_article rules: Rate is the sale price per unit of
+	// that article.
+	MaterialID                      *uuid.UUID
+	MaterialName, MaterialDisplayID *string
 	// Measure and BlockSize are set on machine_measure rules: Rate is the price
 	// per BlockSize units of the measure on machines of ProcessID.
 	Measure   *string
@@ -157,8 +161,9 @@ type PricingRule struct {
 // materials of a type and its pricing rules share the type's unit.
 type MaterialType struct {
 	ID                              uuid.UUID
-	Name, Unit                      string
+	Name, Code, Unit                string
 	Kind                            MaterialKind
+	MachineUse                      bool
 	ProcessIDs                      []uuid.UUID
 	Active                          bool
 	MaterialCount, PricingRuleCount int64
@@ -177,15 +182,20 @@ type PricingGroup struct {
 }
 
 type Material struct {
-	ID                                                 uuid.UUID
-	Name, Unit                                         string
-	Kind                                               MaterialKind
-	MaterialTypeID                                     uuid.UUID
-	MaterialTypeName                                   string
-	ColorName, ColorHex                                *string
-	Variant, Manufacturer, StorageLocation, Notes      *string
-	SalePrice, PackageSize                             *string
-	Active, Deletable                                  bool
+	ID                                            uuid.UUID
+	DisplayID, Name, Unit                         string
+	Kind                                          MaterialKind
+	MaterialTypeID                                uuid.UUID
+	MaterialTypeName, MaterialTypeCode            string
+	MachineUse                                    bool
+	ColorName, ColorHex                           *string
+	Variant, Manufacturer, StorageLocation, Notes *string
+	PackageSize                                   *string
+	Active                                        bool
+	Prices                                        []MaterialPrice
+	Attention                                     []Attention
+	// deleted: the article is in the recycle bin.
+	deleted                                            bool
 	LowStockThreshold                                  *string
 	FilamentDiameterMM                                 *string
 	Quantity, AssignedQuantity, UnassignedQuantity     string
@@ -208,7 +218,6 @@ type InventoryTransaction struct {
 	OrderReference                                          *string
 	SpoolID, FromSpoolID, ToSpoolID                         *uuid.UUID
 	SpoolDisplayID, FromSpoolDisplayID, ToSpoolDisplayID    *string
-	FillNumber, FromFillNumber, ToFillNumber                *int32
 	TransferQuantity                                        *string
 	ActorName                                               *string
 }
@@ -290,7 +299,6 @@ type MachineJobUsage struct {
 	Ownership                            UsageOwnership
 	QuantityBasis                        QuantityBasis
 	SpoolDisplayID                       *string
-	FillNumber                           *int32
 	EstimationMethod, CalculationVersion *string
 	EstimateQuality                      *EstimateQuality
 	ReportRevision                       *int64
@@ -309,8 +317,6 @@ type FilamentSpoolIdentifier struct {
 	CreatedAt time.Time
 }
 
-// FilamentSpool is a physical spool. Material, product, weights and
-// identifiers describe its open fill; they are empty while no fill is open.
 // SpoolMount locates the machine slot a spool is currently mounted in.
 type SpoolMount struct {
 	MachineID, SlotID     uuid.UUID
@@ -318,121 +324,65 @@ type SpoolMount struct {
 	InputUnitName         *string
 }
 
+// FilamentSpool is one filament unit of one article. DisplayID is its label.
 type FilamentSpool struct {
 	ID                                           uuid.UUID
 	DisplayID                                    string
-	Kind                                         SpoolKind
-	Status                                       SpoolStatus
-	Label                                        *string
-	FillNumber                                   int32
-	FillID, MaterialID                           *uuid.UUID
-	FilledAt, ArchivedAt                         *time.Time
-	MaterialName, MaterialTypeName, Unit         *string
-	ColorName, ColorHex                          *string
-	Manufacturer, ProductName                    *string
-	InitialNetWeightG                            *string
-	RemainingQuantity                            string
+	MaterialID                                   uuid.UUID
+	MaterialDisplayID, MaterialName              string
+	MaterialTypeName, Unit                       string
+	ColorName, ColorHex, Manufacturer            *string
+	InitialNetWeightG, RemainingQuantity         string
 	TareWeightG                                  *string
 	AcquiredOn                                   *time.Time
 	AcquisitionReference, StorageLocation, Notes *string
 	Lifecycle                                    SpoolLifecycle
+	ArchivedAt                                   *time.Time
+	RetiredOutcome                               *SpoolRetireOutcome
+	RetiredQuantity, RetiredByName               *string
 	Mounted                                      bool
 	MountedOn                                    *SpoolMount
 	Identifiers                                  []FilamentSpoolIdentifier
-	Fills                                        []FilamentSpoolFill
+	Attention                                    []Attention
 	Version                                      int64
 	CreatedAt, UpdatedAt                         time.Time
-}
-
-// FilamentSpoolFill is a closed fill of a spool.
-type FilamentSpoolFill struct {
-	ID, MaterialID                      uuid.UUID
-	FillNumber                          int32
-	MaterialName                        string
-	Manufacturer, ProductName           *string
-	InitialNetWeightG, UsedG, LeftoverG string
-	Outcome                             FillOutcome
-	FilledAt, ClosedAt                  time.Time
-	Identifiers                         []FilamentSpoolIdentifier
+	// materialDeleted: the article is in the recycle bin, so the spool is hidden.
+	materialDeleted bool
 }
 
 type FilamentSpoolInput struct {
-	Kind                                         SpoolKind
-	Label                                        string
 	MaterialID                                   uuid.UUID
 	InitialNetWeightG                            string
 	StockMode                                    StockMode
 	Supplier                                     *string
 	TotalPrice                                   *string
-	Manufacturer, ProductName, TareWeightG       *string
+	TareWeightG                                  *string
 	AcquiredOn                                   *time.Time
 	AcquisitionReference, StorageLocation, Notes *string
 	OccurredAt                                   time.Time
 	ExpectedInventoryVersion                     int64
-	// Identifiers tag the first fill.
-	Identifiers []NewSpoolIdentifier
+	Identifiers                                  []NewSpoolIdentifier
 }
 
 type FilamentSpoolUpdate struct {
-	ExpectedVersion                               int64
-	Kind                                          *SpoolKind
-	Label, Manufacturer, ProductName, TareWeightG *string
-	AcquiredOn                                    *time.Time
-	AcquisitionReference, StorageLocation, Notes  *string
-	Lifecycle                                     SpoolLifecycle
+	ExpectedVersion                              int64
+	TareWeightG                                  *string
+	AcquiredOn                                   *time.Time
+	AcquisitionReference, StorageLocation, Notes *string
 }
 
 type SpoolFilters struct {
 	Search, Location, Manufacturer string
 	Lifecycle                      SpoolLifecycle
-	Kind                           SpoolKind
 	MaterialID                     *uuid.UUID
-	Statuses                       []SpoolStatus
 	Mounted                        *bool
 	Consumable                     bool
 	Page, PageSize                 int
 }
 
-// LeftoverInput describes what is left on a fill that is being closed.
-type LeftoverInput struct {
-	Basis        LeftoverBasis
-	GrossWeightG *string
-	Disposition  *LeftoverDisposition
-}
-
-type NewFillInput struct {
-	MaterialID                uuid.UUID
-	Manufacturer, ProductName *string
-	NetWeightG                string
-	Source                    FillSource
-	TotalPrice, Supplier      *string
-}
-
 type NewSpoolIdentifier struct {
 	Kind  IdentifierKind
 	Value string
-}
-
-type ChangeFillInput struct {
-	Leftover          *LeftoverInput
-	Fill              NewFillInput
-	KeepIdentifierIDs []uuid.UUID
-	NewIdentifiers    []NewSpoolIdentifier
-	OccurredAt        time.Time
-	ExpectedVersion   int64
-}
-
-type FinishSpoolInput struct {
-	Leftover        LeftoverInput
-	OccurredAt      time.Time
-	ExpectedVersion int64
-}
-
-type CleanUpCandidate struct {
-	ID         uuid.UUID
-	DisplayID  string
-	Label      *string
-	ArchivedAt time.Time
 }
 
 type PricingSnapshotRule struct {

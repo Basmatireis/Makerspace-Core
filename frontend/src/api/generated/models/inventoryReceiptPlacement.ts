@@ -21,11 +21,9 @@
 import type { Decimal } from './decimal';
 import type { InventoryReceiptPlacementMode } from './inventoryReceiptPlacementMode';
 import type { NewFilamentSpoolIdentifier } from './newFilamentSpoolIdentifier';
-import type { UUIDv7 } from './uUIDv7';
-import type { Version } from './version';
 
 /**
- * Filament only. storage books loose stock; new_spools creates one single-use spool per package; reusable_spool loads one package onto an empty, active reusable spool (409 spool_already_loaded otherwise). identifiers are only valid when exactly one spool is created or loaded.
+ * Filament only. storage books loose stock; new_spools creates one spool per package, each with its own label. identifiers are only valid when exactly one spool is created.
  */
 export interface InventoryReceiptPlacement {
   mode: InventoryReceiptPlacementMode;
@@ -35,8 +33,6 @@ export interface InventoryReceiptPlacement {
      * @nullable
      */
   storageLocation?: string | null;
-  reusableSpoolId?: UUIDv7;
-  reusableSpoolExpectedVersion?: Version;
   /** @maxItems 20 */
   identifiers?: NewFilamentSpoolIdentifier[];
 }

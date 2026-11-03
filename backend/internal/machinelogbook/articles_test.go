@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (f *fillFixture) receipt(material *MaterialInput, id *uuid.UUID, version int64) ReceiptInput {
+func (f *spoolFixture) receipt(material *MaterialInput, id *uuid.UUID, version int64) ReceiptInput {
 	return ReceiptInput{
 		MaterialID:               id,
 		Material:                 material,
@@ -25,7 +25,7 @@ func (f *fillFixture) receipt(material *MaterialInput, id *uuid.UUID, version in
 	}
 }
 
-func (f *fillFixture) auditCount(t *testing.T, action string, id uuid.UUID) int {
+func (f *spoolFixture) auditCount(t *testing.T, action string, id uuid.UUID) int {
 	t.Helper()
 	var n int
 	if err := f.pool.QueryRow(t.Context(), `SELECT count(*) FROM audit_events WHERE action = $1 AND resource_id = $2`, action, id).Scan(&n); err != nil {
@@ -35,7 +35,7 @@ func (f *fillFixture) auditCount(t *testing.T, action string, id uuid.UUID) int 
 }
 
 func TestMaterialTypeKindRules(t *testing.T) {
-	f := newFillFixture(t)
+	f := newSpoolFixture(t)
 	ctx := t.Context()
 	s, p := f.s, f.p
 	name := func(n string) string { return n + " " + f.suffix }
@@ -192,10 +192,10 @@ func TestMaterialTypeKindRules(t *testing.T) {
 }
 
 func TestArticleNamesDiameterAndFields(t *testing.T) {
-	f := newFillFixture(t)
+	f := newSpoolFixture(t)
 	ctx := t.Context()
 	s, p := f.s, f.p
-	typeName := "Fill PLA " + f.suffix
+	typeName := "Spool PLA " + f.suffix
 	m, err := s.CreateMaterial(
 		ctx,
 		p,
@@ -204,7 +204,6 @@ func TestArticleNamesDiameterAndFields(t *testing.T) {
 			Variant:         ptr("Basic"),
 			ColorName:       ptr("Black"),
 			Manufacturer:    ptr("Bambu Lab"),
-			SalePrice:       ptr("0.03"),
 			PackageSize:     ptr("1000"),
 			StorageLocation: ptr("Shelf 1"),
 			Notes:           ptr("note"),
@@ -218,8 +217,6 @@ func TestArticleNamesDiameterAndFields(t *testing.T) {
 		t.Fatalf("name %q, want %q", m.Name, want)
 	}
 	if m.Kind != KindFilament || m.FilamentDiameterMM == nil || *m.FilamentDiameterMM != "1.75" || m.Variant == nil ||
-		m.SalePrice == nil ||
-		*m.SalePrice != "0.03" ||
 		m.PackageSize == nil ||
 		*m.PackageSize != "1000" {
 		t.Fatalf("article: %+v", m)
@@ -293,12 +290,6 @@ func TestArticleNamesDiameterAndFields(t *testing.T) {
 	) {
 		t.Fatalf("part without name: %v", err)
 	}
-	if _, err = s.CreateMaterial(ctx, p, MaterialInput{Name: "Bad " + f.suffix, MaterialTypeID: part.ID, SalePrice: ptr("-1")}, &f.request); !apperror.IsCode(
-		err,
-		"validation_failed",
-	) {
-		t.Fatalf("negative sale price: %v", err)
-	}
 	// Updating without a name regenerates it, and an article stays within its kind.
 	renamed, err := s.UpdateMaterial(
 		ctx,
@@ -326,7 +317,7 @@ func TestArticleNamesDiameterAndFields(t *testing.T) {
 }
 
 func TestReceiveStockToStorageAndNewArticle(t *testing.T) {
-	f := newFillFixture(t)
+	f := newSpoolFixture(t)
 	ctx := t.Context()
 	s, p := f.s, f.p
 	input := MaterialInput{
@@ -403,15 +394,6 @@ func TestReceiveStockToStorageAndNewArticle(t *testing.T) {
 	// A failing receipt rolls the inline article back.
 	rollback := MaterialInput{MaterialTypeID: f.typeID, Variant: ptr("Rollback"), Manufacturer: ptr("R " + f.suffix)}
 	failing := f.receipt(&rollback, nil, 0)
-	failing.Placement = &ReceiptPlacement{
-		Mode:                         PlacementReusableSpool,
-		ReusableSpoolID:              ptr(uuid.Must(uuid.NewV7())),
-		ReusableSpoolExpectedVersion: 1,
-	}
-	if _, err = s.ReceiveStock(ctx, p, failing, &f.request); !apperror.IsCode(err, "not_found") {
-		t.Fatalf("unknown spool: %v", err)
-	}
-	failing.Placement = nil
 	failing.PackageSize, failing.OccurredAt = nil, f.now
 	if _, err = s.ReceiveStock(ctx, p, failing, &f.request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("missing package size: %v", err)
@@ -424,7 +406,7 @@ func TestReceiveStockToStorageAndNewArticle(t *testing.T) {
 }
 
 func TestReceiveStockOnNewSpools(t *testing.T) {
-	f := newFillFixture(t)
+	f := newSpoolFixture(t)
 	ctx := t.Context()
 	s, p := f.s, f.p
 	input := MaterialInput{
@@ -448,7 +430,7 @@ func TestReceiveStockOnNewSpools(t *testing.T) {
 	}
 	prices := []string{"33.33", "33.33", "33.34"}
 	for i, spool := range got.Spools {
-		if spool.Kind != SpoolSingleUse || spool.RemainingQuantity != "1000" || spool.FillNumber != 1 ||
+		if spool.RemainingQuantity != "1000" || spool.InitialNetWeightG != "1000" ||
 			spool.StorageLocation == nil ||
 			*spool.StorageLocation != "Rack A" ||
 			spool.Manufacturer == nil ||
@@ -486,77 +468,13 @@ func TestReceiveStockOnNewSpools(t *testing.T) {
 	if _, err = s.ReceiveStock(ctx, p, in3, &f.request); !apperror.IsCode(err, "identifier_in_use") {
 		t.Fatalf("identifier reuse: %v", err)
 	}
-	if after := f.refresh(t, got.Material); after.Quantity != "4000" {
+	if after := f.refresh(t, got.Material.ID); after.Quantity != "4000" {
 		t.Fatalf("refused receipt changed stock: %+v", after)
 	}
 }
 
-func TestReceiveStockOntoReusableSpool(t *testing.T) {
-	f := newFillFixture(t)
-	ctx := t.Context()
-	s, p := f.s, f.p
-	m := f.material(t, "")
-	empty, err := s.CreateFilamentSpool(
-		ctx,
-		p,
-		FilamentSpoolInput{Kind: "reusable", StockMode: "empty", OccurredAt: f.now},
-		&f.request,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	placement := func(spool FilamentSpool) *ReceiptPlacement {
-		return &ReceiptPlacement{
-			Mode:                         PlacementReusableSpool,
-			ReusableSpoolID:              &spool.ID,
-			ReusableSpoolExpectedVersion: spool.Version,
-		}
-	}
-	in := f.receipt(nil, &m.ID, m.InventoryVersion)
-	in.Placement = placement(empty)
-	in.PackageCount = 2
-	if _, err = s.ReceiveStock(ctx, p, in, &f.request); !apperror.IsCode(err, "validation_failed") {
-		t.Fatalf("two packages on one spool: %v", err)
-	}
-	in.PackageCount = 1
-	got, err := s.ReceiveStock(ctx, p, in, &f.request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got.Spools) != 1 || got.Spools[0].ID != empty.ID || got.Spools[0].FillNumber != 1 ||
-		got.Spools[0].RemainingQuantity != "1000" ||
-		got.Material.AssignedQuantity != "1000" {
-		t.Fatalf("loaded spool: %+v", got.Spools)
-	}
-	// Loaded, single-use and archived spools are refused without side effects.
-	loaded := f.get(t, empty.ID)
-	again := f.receipt(nil, &m.ID, got.Material.InventoryVersion)
-	again.Placement = placement(loaded)
-	if _, err = s.ReceiveStock(ctx, p, again, &f.request); !apperror.IsCode(err, "spool_already_loaded") {
-		t.Fatalf("loaded spool: %v", err)
-	}
-	single := f.purchasedSpool(t, m, "single_use", "100")
-	again = f.receipt(nil, &m.ID, f.refresh(t, m).InventoryVersion)
-	again.Placement = placement(single)
-	if _, err = s.ReceiveStock(ctx, p, again, &f.request); !apperror.IsCode(err, "spool_not_reusable") {
-		t.Fatalf("single-use spool: %v", err)
-	}
-	stale := f.receipt(nil, &m.ID, f.refresh(t, m).InventoryVersion)
-	stale.Placement = &ReceiptPlacement{
-		Mode:                         PlacementReusableSpool,
-		ReusableSpoolID:              &empty.ID,
-		ReusableSpoolExpectedVersion: 99,
-	}
-	if _, err = s.ReceiveStock(ctx, p, stale, &f.request); !apperror.IsCode(err, "stale_write") {
-		t.Fatalf("stale spool: %v", err)
-	}
-	if after := f.refresh(t, m); after.Quantity != "1100" {
-		t.Fatalf("refused receipts changed stock: %+v", after)
-	}
-}
-
 func TestReceiveStockRefusesSpoolPlacementForOtherKinds(t *testing.T) {
-	f := newFillFixture(t)
+	f := newSpoolFixture(t)
 	ctx := t.Context()
 	part, err := f.s.CreateMaterialType(ctx, f.p, "Parts "+f.suffix, "part", "piece", nil, &f.request)
 	if err != nil {
@@ -583,7 +501,7 @@ func TestReceiveStockRefusesSpoolPlacementForOtherKinds(t *testing.T) {
 }
 
 func TestReceiptsAndSuggestionsRequirePermissions(t *testing.T) {
-	f := newFillFixture(t)
+	f := newSpoolFixture(t)
 	ctx := t.Context()
 	nobody := authorization.Principal{AccountID: uuid.Must(uuid.NewV7()), PersonID: uuid.Must(uuid.NewV7())}
 	m := f.material(t, "")
@@ -601,7 +519,7 @@ func TestReceiptsAndSuggestionsRequirePermissions(t *testing.T) {
 }
 
 func TestInventorySuggestionsAreOrderedByFrequency(t *testing.T) {
-	f := newFillFixture(t)
+	f := newSpoolFixture(t)
 	ctx := t.Context()
 	for i, variant := range []string{"Zeta", "Alpha", "Zeta"} {
 		in := MaterialInput{
@@ -642,7 +560,7 @@ func TestInventorySuggestionsAreOrderedByFrequency(t *testing.T) {
 }
 
 func TestPurchaseReferenceIsImmutable(t *testing.T) {
-	f := newFillFixture(t)
+	f := newSpoolFixture(t)
 	ctx := t.Context()
 	m := f.material(t, "")
 	res, err := f.s.AddPurchase(

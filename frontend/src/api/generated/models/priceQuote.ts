@@ -19,7 +19,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Decimal } from './decimal';
-import type { Money } from './money';
 import type { PriceQuoteGroup } from './priceQuoteGroup';
 import type { PriceQuoteMachine } from './priceQuoteMachine';
 import type { PriceQuoteMaterial } from './priceQuoteMaterial';
@@ -29,8 +28,6 @@ export interface PriceQuote {
   material: PriceQuoteMaterial | null;
   hours: Decimal | null;
   quantity: Decimal | null;
-  /** Quantity times the article's sale price; the same for every group. */
-  saleAmount: Money | null;
   /** Active pricing groups, the default group first, then by name. */
   groups: PriceQuoteGroup[];
 }

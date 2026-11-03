@@ -301,19 +301,6 @@ func (q *Queries) GetOpenAssignmentForSpool(ctx context.Context, spoolID uuid.UU
 	return i, err
 }
 
-const getOpenFillRemainingQuantity = `-- name: GetOpenFillRemainingQuantity :one
-SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)::numeric AS remaining
-FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
-WHERE f.spool_id=$1 AND f.closed_at IS NULL
-`
-
-func (q *Queries) GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error) {
-	row := q.db.QueryRow(ctx, getOpenFillRemainingQuantity, spoolID)
-	var remaining pgtype.Numeric
-	err := row.Scan(&remaining)
-	return remaining, err
-}
-
 const getPrinterInputUnitForUpdate = `-- name: GetPrinterInputUnitForUpdate :one
 SELECT id, machine_id, name, position, external_identifier, enabled, version, created_at, updated_at, nozzle FROM printer_input_units WHERE id=$1 FOR UPDATE
 `
@@ -478,6 +465,17 @@ func (q *Queries) GetPrinterSlotForUpdate(ctx context.Context, id uuid.UUID) (Ge
 		&i.MachineID,
 	)
 	return i, err
+}
+
+const getSpoolRemainingQuantity = `-- name: GetSpoolRemainingQuantity :one
+SELECT filament_spool_remaining($1::uuid)::numeric AS remaining
+`
+
+func (q *Queries) GetSpoolRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getSpoolRemainingQuantity, spoolID)
+	var remaining pgtype.Numeric
+	err := row.Scan(&remaining)
+	return remaining, err
 }
 
 const listOpenAssignedPrinterSlotIDs = `-- name: ListOpenAssignedPrinterSlotIDs :many

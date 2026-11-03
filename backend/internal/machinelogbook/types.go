@@ -1,5 +1,7 @@
 package machinelogbook
 
+import "github.com/google/uuid"
+
 // MachineStatus is whether a machine can take work.
 type MachineStatus string
 
@@ -132,6 +134,7 @@ const (
 	PricingRuleMachineRuntime PricingRuleKind = "machine_runtime"
 	PricingRuleMaterial       PricingRuleKind = "material"
 	PricingRuleMachineMeasure PricingRuleKind = "machine_measure"
+	PricingRuleStockArticle   PricingRuleKind = "stock_article"
 )
 
 // PriceAdjustmentKind is how staff changed a calculated price.
@@ -170,25 +173,6 @@ const (
 	SpoolArchived SpoolLifecycle = "archived"
 )
 
-// SpoolKind says whether a spool is refilled or thrown away when empty.
-type SpoolKind string
-
-const (
-	SpoolReusable  SpoolKind = "reusable"
-	SpoolSingleUse SpoolKind = "single_use"
-)
-
-// SpoolStatus is the display status derived from a spool's lifecycle, kind
-// and open fill.
-type SpoolStatus string
-
-const (
-	SpoolStatusLoaded      SpoolStatus = "loaded"
-	SpoolStatusNeedsRefill SpoolStatus = "needs_refill"
-	SpoolStatusActive      SpoolStatus = "active"
-	SpoolStatusArchived    SpoolStatus = "archived"
-)
-
 // IdentifierKind is the code type of a spool identifier.
 type IdentifierKind string
 
@@ -204,50 +188,14 @@ type StockMode string
 const (
 	StockModeNewAcquisition StockMode = "new_acquisition"
 	StockModeExistingStock  StockMode = "existing_stock"
-	StockModeEmpty          StockMode = "empty"
-)
-
-// LeftoverBasis is how the leftover of a closed fill was determined.
-type LeftoverBasis string
-
-const (
-	LeftoverSystem  LeftoverBasis = "system"
-	LeftoverWeighed LeftoverBasis = "weighed"
-	LeftoverNone    LeftoverBasis = "none"
-)
-
-// LeftoverDisposition is what happens to the leftover of a closed fill.
-type LeftoverDisposition string
-
-const (
-	DispositionReturnedToStock LeftoverDisposition = "returned_to_stock"
-	DispositionDisposed        LeftoverDisposition = "disposed"
-)
-
-// FillOutcome is how a closed fill ended.
-type FillOutcome string
-
-const (
-	FillUsedUp          FillOutcome = "used_up"
-	FillReturnedToStock FillOutcome = FillOutcome(DispositionReturnedToStock)
-	FillDisposed        FillOutcome = FillOutcome(DispositionDisposed)
-)
-
-// FillSource is where the material of a new fill comes from.
-type FillSource string
-
-const (
-	FillSourceLooseStock FillSource = "loose_stock"
-	FillSourcePurchase   FillSource = "purchase"
 )
 
 // PlacementMode is where received filament goes.
 type PlacementMode string
 
 const (
-	PlacementStorage       PlacementMode = "storage"
-	PlacementNewSpools     PlacementMode = "new_spools"
-	PlacementReusableSpool PlacementMode = "reusable_spool"
+	PlacementStorage   PlacementMode = "storage"
+	PlacementNewSpools PlacementMode = "new_spools"
 )
 
 // StockState classifies the stock level of a material.
@@ -336,3 +284,42 @@ const (
 	SortAsc  SortDirection = "asc"
 	SortDesc SortDirection = "desc"
 )
+
+// SpoolRetireOutcome is why a spool was retired: it ran empty, or the rest was thrown away.
+type SpoolRetireOutcome string
+
+const (
+	SpoolRetiredEmpty     SpoolRetireOutcome = "empty"
+	SpoolRetiredDiscarded SpoolRetireOutcome = "discarded"
+)
+
+// AttentionCode names something about an article or spool that staff should look at.
+type AttentionCode string
+
+const (
+	AttentionLowStock     AttentionCode = "low_stock"
+	AttentionRemainderLow AttentionCode = "remainder_low"
+)
+
+// Attention is one attention flag with a readable message.
+type Attention struct {
+	Code    AttentionCode
+	Message string
+}
+
+// MaterialPriceSource says which rule an article's sale price comes from.
+type MaterialPriceSource string
+
+const (
+	PriceFromStockArticle MaterialPriceSource = "stock_article"
+	PriceFromMaterialType MaterialPriceSource = "material_type"
+)
+
+// MaterialPrice is the sale price of an article in one pricing group.
+type MaterialPrice struct {
+	PricingGroupID   uuid.UUID
+	PricingGroupName string
+	Rate             string
+	Source           MaterialPriceSource
+	PricingRuleID    uuid.UUID
+}

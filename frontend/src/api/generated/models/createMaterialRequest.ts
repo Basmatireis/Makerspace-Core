@@ -43,7 +43,6 @@ export interface CreateMaterialRequest {
      * @nullable
      */
   manufacturer?: string | null;
-  salePrice?: Decimal | null;
   packageSize?: Decimal | null;
   /**
      * @maxLength 200

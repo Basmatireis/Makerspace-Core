@@ -148,21 +148,19 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			},
 		},
 		{"inventory.manage delete material type", func() error { return s.DeleteMaterialType(ctx, p, id, 1, nil) }},
-		{"inventory.manage delete material", func() error { return s.DeleteMaterial(ctx, p, id, 1, nil) }},
+		{"inventory.delete delete material", func() error { return s.DeleteMaterial(ctx, p, id, 1, nil) }},
+		{"inventory.delete purge material", func() error { return s.PurgeMaterial(ctx, p, id, 1, nil) }},
+		{"inventory.ledger.delete", func() error { return s.DeleteInventoryTransaction(ctx, p, id, 1, nil) }},
 		{
 			"filament_spools.manage",
 			func() error { _, err := s.CreateFilamentSpool(ctx, p, FilamentSpoolInput{}, nil); return err },
 		},
-		{"filament_spools.manage change fill", func() error {
-			_, err := s.ChangeFilamentSpoolFill(ctx, p, id, ChangeFillInput{}, nil)
+		{"filament_spools.manage retire", func() error {
+			_, err := s.RetireFilamentSpool(ctx, p, id, 1, SpoolRetiredEmpty, nil)
 			return err
 		}},
-		{"filament_spools.manage finish", func() error {
-			_, err := s.FinishFilamentSpool(ctx, p, id, FinishSpoolInput{}, nil)
-			return err
-		}},
-		{"filament_spools.manage cleanup", func() error {
-			_, _, err := s.CleanUpFilamentSpools(ctx, p, 3, true, nil, nil)
+		{"filament_spools.manage restore", func() error {
+			_, err := s.RestoreFilamentSpool(ctx, p, id, 1, nil)
 			return err
 		}},
 		{"organizations.read", func() error {

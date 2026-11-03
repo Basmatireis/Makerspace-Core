@@ -19,7 +19,9 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestDeleteMaterialOverHTTP(t *testing.T) {
+// Articles and ledger entries go into the inventory recycle bin, come back and can be purged; the reader with
+// inventory.read only sees the bin and is refused every change.
+func TestInventoryRecycleBinOverHTTP(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	const (
@@ -136,27 +138,62 @@ func TestDeleteMaterialOverHTTP(t *testing.T) {
 	body := func(m machinelogbook.Material) map[string]any { return map[string]any{"expectedVersion": m.Version} }
 
 	var read openapi.Material
-	post(reader, http.MethodGet, "/materials/"+unused.ID.String(), http.StatusOK, nil, &read)
-	if read.Deletable == nil || !*read.Deletable {
-		t.Fatalf("unused article must be deletable: %+v", read.Deletable)
-	}
 	post(reader, http.MethodGet, "/materials/"+used.ID.String(), http.StatusOK, nil, &read)
-	if read.Deletable == nil || *read.Deletable {
-		t.Fatalf("used article must not be deletable: %+v", read.Deletable)
+	if read.DisplayId == "" || read.MaterialTypeCode == "" || read.Prices == nil || read.Attention == nil {
+		t.Fatalf("article fields: %+v", read)
 	}
 
-	// Only inventory.manage deletes; the reader is refused before anything is touched.
+	// The reader holds inventory.read only: every bin change is refused.
 	post(reader, http.MethodDelete, "/materials/"+unused.ID.String(), http.StatusForbidden, body(unused), nil)
-	post(root, http.MethodDelete, "/materials/"+unused.ID.String(), http.StatusConflict,
-		map[string]any{"expectedVersion": unused.Version + 1}, nil)
+	var ledger openapi.InventoryTransactionPage
+	post(reader, http.MethodGet, "/materials/"+used.ID.String()+"/transactions", http.StatusOK, nil, &ledger)
+	if len(ledger.Items) != 1 {
+		t.Fatalf("ledger: %+v", ledger.Items)
+	}
+	entry := ledger.Items[0].Id.String()
+	post(reader, http.MethodDelete, "/inventory/ledger/"+entry, http.StatusForbidden,
+		map[string]any{"expectedInventoryVersion": used.InventoryVersion}, nil)
 
-	var refused openapi.Error
-	post(root, http.MethodDelete, "/materials/"+used.ID.String(), http.StatusConflict, body(used), &refused)
-	if refused.Code != "material_in_use" || refused.Details == nil || (*refused.Details)["uses"] == nil {
-		t.Fatalf("in-use refusal: %+v", refused)
+	// Deleting the purchase takes its stock away; restoring brings it back.
+	post(root, http.MethodDelete, "/inventory/ledger/"+entry, http.StatusNoContent,
+		map[string]any{"expectedInventoryVersion": used.InventoryVersion}, nil)
+	post(root, http.MethodGet, "/materials/"+used.ID.String(), http.StatusOK, nil, &read)
+	if read.Quantity != "0" {
+		t.Fatalf("quantity after deleting the purchase: %s", read.Quantity)
+	}
+	var bin openapi.InventoryRecycleBin
+	post(reader, http.MethodGet, "/inventory/recycle-bin", http.StatusOK, nil, &bin)
+	if len(bin.LedgerEntries) != 1 || bin.LedgerEntries[0].Transaction.Id.String() != entry {
+		t.Fatalf("bin ledger entries: %+v", bin.LedgerEntries)
+	}
+	post(reader, http.MethodPost, "/inventory/recycle-bin/ledger-entries/"+entry+"/restore", http.StatusForbidden, nil, nil)
+	post(root, http.MethodPost, "/inventory/recycle-bin/ledger-entries/"+entry+"/restore", http.StatusNoContent, nil, nil)
+	post(root, http.MethodGet, "/materials/"+used.ID.String(), http.StatusOK, nil, &read)
+	if read.Quantity != "1000" {
+		t.Fatalf("quantity after restoring the purchase: %s", read.Quantity)
 	}
 
-	post(root, http.MethodDelete, "/materials/"+unused.ID.String(), http.StatusNoContent, body(unused), nil)
-	post(root, http.MethodGet, "/materials/"+unused.ID.String(), http.StatusNotFound, nil, nil)
-	post(root, http.MethodGet, "/materials/"+used.ID.String(), http.StatusOK, nil, nil)
+	// The article goes into the bin, leaves the lists, comes back and is purged for good.
+	post(root, http.MethodDelete, "/materials/"+used.ID.String(), http.StatusNoContent, map[string]any{"expectedVersion": read.Version}, nil)
+	post(root, http.MethodGet, "/materials/"+used.ID.String(), http.StatusNotFound, nil, nil)
+	post(reader, http.MethodGet, "/inventory/recycle-bin", http.StatusOK, nil, &bin)
+	if len(bin.Materials) != 1 || bin.Materials[0].Id != used.ID || bin.Materials[0].DeletedByName == nil {
+		t.Fatalf("bin materials: %+v", bin.Materials)
+	}
+	version := bin.Materials[0].Version
+	post(reader, http.MethodPost, "/inventory/recycle-bin/materials/"+used.ID.String()+"/restore", http.StatusForbidden,
+		map[string]any{"expectedVersion": version}, nil)
+	post(root, http.MethodPost, "/inventory/recycle-bin/materials/"+used.ID.String()+"/restore", http.StatusOK,
+		map[string]any{"expectedVersion": version}, &read)
+	post(root, http.MethodDelete, "/materials/"+used.ID.String(), http.StatusNoContent, map[string]any{"expectedVersion": read.Version}, nil)
+	post(reader, http.MethodDelete, "/inventory/recycle-bin/materials/"+used.ID.String()+"/purge", http.StatusForbidden,
+		map[string]any{"expectedVersion": read.Version + 1}, nil)
+	post(root, http.MethodDelete, "/inventory/recycle-bin/materials/"+used.ID.String()+"/purge", http.StatusNoContent,
+		map[string]any{"expectedVersion": read.Version + 1}, nil)
+	var count int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1`, used.ID).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("ledger rows after purge: %d %v", count, err)
+	}
+	post(root, http.MethodDelete, "/inventory/recycle-bin/materials/"+unused.ID.String()+"/purge", http.StatusConflict,
+		body(unused), nil)
 }

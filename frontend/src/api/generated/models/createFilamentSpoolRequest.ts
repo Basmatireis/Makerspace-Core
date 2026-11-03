@@ -20,40 +20,24 @@
  */
 import type { CreateFilamentSpoolRequestStockMode } from './createFilamentSpoolRequestStockMode';
 import type { Decimal } from './decimal';
-import type { FilamentSpoolKind } from './filamentSpoolKind';
 import type { Money } from './money';
 import type { NewFilamentSpoolIdentifier } from './newFilamentSpoolIdentifier';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
 export interface CreateFilamentSpoolRequest {
-  kind?: FilamentSpoolKind;
-  /**
-     * @minLength 1
-     * @maxLength 120
-     * @nullable
-     */
-  label?: string | null;
-  materialId?: UUIDv7;
-  initialNetWeightG?: Decimal;
-  /** new_acquisition records a purchase for the first fill, existing_stock moves loose stock onto it, empty registers a reusable spool without a fill (materialId and initialNetWeightG are then ignored). */
+  /** A filament article (409 material_not_filament otherwise). */
+  materialId: UUIDv7;
+  initialNetWeightG: Decimal;
+  /** new_acquisition records a purchase onto the spool, existing_stock moves loose stock of the article onto it. */
   stockMode: CreateFilamentSpoolRequestStockMode;
   /**
      * @maxLength 200
      * @nullable
      */
   supplier?: string | null;
+  /** Required for new_acquisition. */
   totalPrice?: Money | null;
-  /**
-     * @maxLength 150
-     * @nullable
-     */
-  manufacturer?: string | null;
-  /**
-     * @maxLength 200
-     * @nullable
-     */
-  productName?: string | null;
   tareWeightG?: Decimal | null;
   /** @nullable */
   acquiredOn?: string | null;
@@ -73,9 +57,9 @@ export interface CreateFilamentSpoolRequest {
      */
   notes?: string | null;
   occurredAt: string;
-  expectedInventoryVersion?: Version;
+  expectedInventoryVersion: Version;
   /**
-     * Tags the first fill (409 identifier_in_use when a tag is taken). Not valid with stockMode empty.
+     * Tags the spool (409 identifier_in_use when a tag is taken).
      * @maxItems 20
      */
   identifiers?: NewFilamentSpoolIdentifier[];

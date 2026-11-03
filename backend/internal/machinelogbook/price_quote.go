@@ -25,10 +25,9 @@ type PriceQuoteMachine struct {
 }
 
 type PriceQuoteMaterial struct {
-	ID               uuid.UUID
-	Name, Unit       string
-	MaterialTypeName *string
-	SalePrice        *string
+	ID                    uuid.UUID
+	DisplayID, Name, Unit string
+	MaterialTypeName      *string
 }
 
 // PriceQuoteGroup prices the request with one pricing group's active rules. A
@@ -42,17 +41,18 @@ type PriceQuoteGroup struct {
 	MachineAmount  *string
 	MaterialRate   *string
 	MaterialAmount *string
-	Total          *string
-	Complete       bool
+	// MaterialPriceSource says which rule MaterialRate comes from.
+	MaterialPriceSource *MaterialPriceSource
+	Total               *string
+	Complete            bool
 }
 
 type PriceQuote struct {
-	Machine    *PriceQuoteMachine
-	Material   *PriceQuoteMaterial
-	Hours      *string
-	Quantity   *string
-	SaleAmount *string
-	Groups     []PriceQuoteGroup
+	Machine  *PriceQuoteMachine
+	Material *PriceQuoteMaterial
+	Hours    *string
+	Quantity *string
+	Groups   []PriceQuoteGroup
 }
 
 // QuotePrice is a read-only lookup with the rates and rounding of job pricing.
@@ -78,6 +78,7 @@ func (s *Service) QuotePrice(ctx context.Context, p authorization.Principal, in 
 	quote := PriceQuote{}
 	var processID, materialTypeID uuid.UUID
 	var unit string
+	var machineUse bool
 	if in.MachineID != nil {
 		machine, err := q.GetMachine(ctx, *in.MachineID)
 		if err != nil {
@@ -92,20 +93,19 @@ func (s *Service) QuotePrice(ctx context.Context, p authorization.Principal, in 
 		if err != nil {
 			return PriceQuote{}, noRows(err)
 		}
-		materialTypeID, unit = material.MaterialTypeID, material.Unit
+		if material.DeletedAt.Valid {
+			return PriceQuote{}, apperror.NotFound
+		}
+		materialTypeID, unit, machineUse = material.MaterialTypeID, material.Unit, material.MachineUse
 		typeName := material.MaterialTypeName
 		quote.Material = &PriceQuoteMaterial{
 			ID:               material.ID,
+			DisplayID:        material.DisplayID,
 			Name:             material.Name,
 			Unit:             material.Unit,
 			MaterialTypeName: &typeName,
-			SalePrice:        nullableDecimal(material.SalePrice),
 		}
 		quote.Quantity = decimalPointer(quantity)
-		if material.SalePrice.Valid {
-			amount := quantity.Mul(decimalFromNumeric(material.SalePrice)).Round(2)
-			quote.SaleAmount = decimalPointer(amount)
-		}
 	}
 	groups, err := q.ListPricingGroups(ctx)
 	if err != nil {
@@ -133,10 +133,21 @@ func (s *Service) QuotePrice(ctx context.Context, p authorization.Principal, in 
 			}
 		}
 		if in.MaterialID != nil {
-			if rule := materialRuleFor(rules, materialTypeID, unit); rule != nil {
+			// With a machine the article is priced like a run usage, otherwise like a sale from stock.
+			var rule *machinelogbookdb.PricingRule
+			source := PriceFromMaterialType
+			if in.MachineID != nil {
+				rule = materialRuleFor(rules, materialTypeID, unit)
+			} else if rule = stockArticleRuleFor(rules, *in.MaterialID); rule != nil {
+				source = PriceFromStockArticle
+			} else if machineUse {
+				rule = materialRuleFor(rules, materialTypeID, unit)
+			}
+			if rule != nil {
 				rate := decimalFromNumeric(rule.Rate)
 				amount := quantity.Mul(rate)
 				item.MaterialRate, item.MaterialAmount = decimalPointer(rate), decimalPointer(amount.Round(2))
+				item.MaterialPriceSource = &source
 				total = total.Add(amount)
 			} else {
 				item.Complete = false
@@ -203,6 +214,16 @@ func materialRuleFor(
 	for i := range rules {
 		if PricingRuleKind(rules[i].Kind) == PricingRuleMaterial && rules[i].MaterialTypeID != nil &&
 			*rules[i].MaterialTypeID == materialTypeID && rules[i].MaterialUnit != nil && *rules[i].MaterialUnit == unit {
+			return &rules[i]
+		}
+	}
+	return nil
+}
+
+func stockArticleRuleFor(rules []machinelogbookdb.PricingRule, materialID uuid.UUID) *machinelogbookdb.PricingRule {
+	for i := range rules {
+		if PricingRuleKind(rules[i].Kind) == PricingRuleStockArticle && rules[i].MaterialID != nil &&
+			*rules[i].MaterialID == materialID {
 			return &rules[i]
 		}
 	}

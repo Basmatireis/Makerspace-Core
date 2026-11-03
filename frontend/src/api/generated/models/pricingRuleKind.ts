@@ -19,6 +19,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * machine_runtime prices an hour on a process, machine_measure a block of a run measure, material a unit of a material type used in machine runs, stock_article a unit of one article sold from stock.
+ */
 export type PricingRuleKind = typeof PricingRuleKind[keyof typeof PricingRuleKind];
 
 
@@ -26,4 +29,5 @@ export const PricingRuleKind = {
   machine_runtime: 'machine_runtime',
   material: 'material',
   machine_measure: 'machine_measure',
+  stock_article: 'stock_article',
 } as const;

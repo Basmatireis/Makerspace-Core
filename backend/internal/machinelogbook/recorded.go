@@ -149,13 +149,13 @@ func (s *Service) consumeReportedUsage(
 	if err != nil {
 		return false, err
 	}
-	if spool.MaterialID == nil {
+	if SpoolLifecycle(spool.Lifecycle) != SpoolActive || spool.MaterialDeletedAt.Valid {
 		return false, nil
 	}
 	parsed, err := parseUsages(
 		[]UsageInput{
 			{
-				MaterialID:    *spool.MaterialID,
+				MaterialID:    spool.MaterialID,
 				SpoolID:       run.ReportedSpoolID,
 				Ownership:     OwnershipMakerspace,
 				Quantity:      decimalString(run.ReportedQuantityG),
@@ -239,7 +239,7 @@ func (s *Service) consumeItemizedReportedUsage(
 			continue
 		}
 		spool, spoolErr := q.GetFilamentSpool(ctx, *item.SpoolID)
-		if errors.Is(spoolErr, pgx.ErrNoRows) || (spoolErr == nil && spool.MaterialID == nil) {
+		if errors.Is(spoolErr, pgx.ErrNoRows) || (spoolErr == nil && (SpoolLifecycle(spool.Lifecycle) != SpoolActive || spool.MaterialDeletedAt.Valid)) {
 			continue
 		}
 		if spoolErr != nil {
@@ -249,7 +249,7 @@ func (s *Service) consumeItemizedReportedUsage(
 		parsed = append(
 			parsed,
 			parsedUsage{
-				MaterialID:           spool.MaterialID,
+				MaterialID:           &spool.MaterialID,
 				SpoolID:              item.SpoolID,
 				Ownership:            string(OwnershipMakerspace),
 				QuantityBasis:        string(QuantityBasisEstimated),

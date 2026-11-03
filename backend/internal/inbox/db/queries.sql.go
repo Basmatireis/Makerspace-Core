@@ -394,11 +394,8 @@ func (q *Queries) GetSentMessageForUpdate(ctx context.Context, arg GetSentMessag
 const getSpoolNotificationFacts = `-- name: GetSpoolNotificationFacts :one
 SELECT s.display_id, mat.name AS material_name, mat.color_name
 FROM filament_spools s
-LEFT JOIN filament_spool_fills f ON f.spool_id = s.id AND f.closed_at IS NULL
-LEFT JOIN materials mat ON mat.id = f.material_id
+LEFT JOIN materials mat ON mat.id = s.material_id
 WHERE s.id = $1
-ORDER BY f.fill_number DESC NULLS LAST
-LIMIT 1
 `
 
 type GetSpoolNotificationFactsRow struct {
@@ -407,7 +404,7 @@ type GetSpoolNotificationFactsRow struct {
 	ColorName    *string
 }
 
-// How a spool is named to people: its display id and the material of its open fill, if any.
+// How a spool is named to people: its label and its article.
 func (q *Queries) GetSpoolNotificationFacts(ctx context.Context, id uuid.UUID) (GetSpoolNotificationFactsRow, error) {
 	row := q.db.QueryRow(ctx, getSpoolNotificationFacts, id)
 	var i GetSpoolNotificationFactsRow

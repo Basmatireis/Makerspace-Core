@@ -59,13 +59,13 @@ type Querier interface {
 	GetConnectorForUpdate(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDigest []byte) (PrinterConnectorEnrollment, error)
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
-	GetOpenFillRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error)
 	GetOpenMountSpoolForSlot(ctx context.Context, slotID uuid.UUID) (uuid.UUID, error)
 	GetPrinterErrorCodeSync(ctx context.Context) (GetPrinterErrorCodeSyncRow, error)
 	GetPrinterNotificationSettings(ctx context.Context) (GetPrinterNotificationSettingsRow, error)
 	// The slot a connector names, with the names people know it by; any status, so a change in a slot that
 	// is unavailable right now is still reported.
 	GetSlotByExternalIDs(ctx context.Context, arg GetSlotByExternalIDsParams) (GetSlotByExternalIDsRow, error)
+	GetSpoolRemainingQuantity(ctx context.Context, spoolID uuid.UUID) (pgtype.Numeric, error)
 	GetTimelapseCollectionEnabled(ctx context.Context) (bool, error)
 	InsertConnectorActivity(ctx context.Context, arg InsertConnectorActivityParams) error
 	InsertConnectorEvent(ctx context.Context, arg InsertConnectorEventParams) (PrinterEvent, error)

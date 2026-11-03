@@ -322,7 +322,7 @@ func (s *Service) capturePricingSnapshot(
 		entry := machinelogbookdb.InsertPricingSnapshotRuleParams{
 			ID:             ids.New(),
 			Kind:           string(PricingRuleMaterial),
-			Label:          usage.MaterialName,
+			Label:          usage.MaterialNameText,
 			Selector:       usage.MaterialTypeName,
 			MaterialTypeID: usage.MaterialTypeID,
 			Unit:           usage.Unit,

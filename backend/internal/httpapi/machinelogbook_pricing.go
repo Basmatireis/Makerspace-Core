@@ -91,6 +91,24 @@ func (s *Server) CreatePricingRule(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
+	if r.Body.Kind == openapi.PricingRuleKindStockArticle {
+		materialID := uuidNullable(r.Body.MaterialId)
+		if materialID == nil || r.Body.ProcessId.IsSpecified() && !r.Body.ProcessId.IsNull() ||
+			r.Body.MaterialTypeId.IsSpecified() && !r.Body.MaterialTypeId.IsNull() ||
+			r.Body.Measure.IsSpecified() && !r.Body.Measure.IsNull() {
+			return nil, invalidRequest("stock_article rules require only materialId")
+		}
+		item, err := s.machineLogbook.CreateStockArticlePricingRule(
+			ctx, p, r.PricingGroupId, *materialID, r.Body.Rate, requestIDPointer(ctx),
+		)
+		if err != nil {
+			return nil, err
+		}
+		return openapi.CreatePricingRule201JSONResponse(mlPricingRuleDTO(item)), nil
+	}
+	if r.Body.MaterialId.IsSpecified() && !r.Body.MaterialId.IsNull() {
+		return nil, invalidRequest("materialId applies to stock_article rules only")
+	}
 	item, err := s.machineLogbook.CreatePricingRule(
 		ctx,
 		p,
@@ -118,6 +136,24 @@ func (s *Server) UpdatePricingRule(
 	}
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
+	}
+	if r.Body.Kind == openapi.PricingRuleKindStockArticle {
+		materialID := uuidNullable(r.Body.MaterialId)
+		if materialID == nil || r.Body.ProcessId.IsSpecified() && !r.Body.ProcessId.IsNull() ||
+			r.Body.MaterialTypeId.IsSpecified() && !r.Body.MaterialTypeId.IsNull() ||
+			r.Body.Measure.IsSpecified() && !r.Body.Measure.IsNull() {
+			return nil, invalidRequest("stock_article rules require only materialId")
+		}
+		item, err := s.machineLogbook.UpdateStockArticlePricingRule(
+			ctx, p, r.PricingRuleId, r.Body.ExpectedVersion, *materialID, r.Body.Rate, r.Body.Active, requestIDPointer(ctx),
+		)
+		if err != nil {
+			return nil, err
+		}
+		return openapi.UpdatePricingRule200JSONResponse(mlPricingRuleDTO(item)), nil
+	}
+	if r.Body.MaterialId.IsSpecified() && !r.Body.MaterialId.IsNull() {
+		return nil, invalidRequest("materialId applies to stock_article rules only")
 	}
 	item, err := s.machineLogbook.UpdatePricingRule(
 		ctx,
@@ -250,12 +286,11 @@ func (s *Server) GetPriceQuote(
 
 func priceQuoteDTO(quote machinelogbook.PriceQuote) openapi.PriceQuote {
 	dto := openapi.PriceQuote{
-		Machine:    nullable.NewNullNullable[openapi.PriceQuoteMachine](),
-		Material:   nullable.NewNullNullable[openapi.PriceQuoteMaterial](),
-		Hours:      nullableDecimalValue(quote.Hours),
-		Quantity:   nullableDecimalValue(quote.Quantity),
-		SaleAmount: nullableMoney(quote.SaleAmount),
-		Groups:     make([]openapi.PriceQuoteGroup, 0, len(quote.Groups)),
+		Machine:  nullable.NewNullNullable[openapi.PriceQuoteMachine](),
+		Material: nullable.NewNullNullable[openapi.PriceQuoteMaterial](),
+		Hours:    nullableDecimalValue(quote.Hours),
+		Quantity: nullableDecimalValue(quote.Quantity),
+		Groups:   make([]openapi.PriceQuoteGroup, 0, len(quote.Groups)),
 	}
 	if m := quote.Machine; m != nil {
 		dto.Machine = nullable.NewNullableWithValue(
@@ -270,26 +305,31 @@ func priceQuoteDTO(quote machinelogbook.PriceQuote) openapi.PriceQuote {
 		dto.Material = nullable.NewNullableWithValue(
 			openapi.PriceQuoteMaterial{
 				Id:               m.ID,
+				DisplayId:        m.DisplayID,
 				Name:             m.Name,
 				Unit:             openapi.MaterialUnit(m.Unit),
 				MaterialTypeName: typeName,
-				SalePrice:        nullableDecimalValue(m.SalePrice),
 			},
 		)
 	}
 	for _, g := range quote.Groups {
+		source := nullable.NewNullNullable[openapi.MaterialPriceSource]()
+		if g.MaterialPriceSource != nil {
+			source = nullable.NewNullableWithValue(openapi.MaterialPriceSource(*g.MaterialPriceSource))
+		}
 		dto.Groups = append(
 			dto.Groups,
 			openapi.PriceQuoteGroup{
-				PricingGroupId: g.PricingGroupID,
-				Name:           g.Name,
-				IsDefault:      g.IsDefault,
-				MachineRate:    nullableDecimalValue(g.MachineRate),
-				MachineAmount:  nullableMoney(g.MachineAmount),
-				MaterialRate:   nullableDecimalValue(g.MaterialRate),
-				MaterialAmount: nullableMoney(g.MaterialAmount),
-				Total:          nullableMoney(g.Total),
-				Complete:       g.Complete,
+				PricingGroupId:      g.PricingGroupID,
+				Name:                g.Name,
+				IsDefault:           g.IsDefault,
+				MachineRate:         nullableDecimalValue(g.MachineRate),
+				MachineAmount:       nullableMoney(g.MachineAmount),
+				MaterialRate:        nullableDecimalValue(g.MaterialRate),
+				MaterialAmount:      nullableMoney(g.MaterialAmount),
+				MaterialPriceSource: source,
+				Total:               nullableMoney(g.Total),
+				Complete:            g.Complete,
 			},
 		)
 	}

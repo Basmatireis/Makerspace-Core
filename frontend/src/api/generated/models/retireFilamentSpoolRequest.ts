@@ -18,32 +18,10 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { Decimal } from './decimal';
-import type { FilamentNewFillInputSource } from './filamentNewFillInputSource';
-import type { Money } from './money';
-import type { UUIDv7 } from './uUIDv7';
+import type { SpoolRetireOutcome } from './spoolRetireOutcome';
+import type { Version } from './version';
 
-export interface FilamentNewFillInput {
-  materialId: UUIDv7;
-  /**
-     * Defaults to the manufacturer of the material.
-     * @maxLength 150
-     * @nullable
-     */
-  manufacturer?: string | null;
-  /**
-     * @maxLength 200
-     * @nullable
-     */
-  productName?: string | null;
-  netWeightG: Decimal;
-  /** loose_stock moves grams from loose stock onto the spool (total unchanged); purchase adds stock. */
-  source: FilamentNewFillInputSource;
-  /** Required for purchase. */
-  totalPrice?: Money | null;
-  /**
-     * @maxLength 200
-     * @nullable
-     */
-  supplier?: string | null;
+export interface RetireFilamentSpoolRequest {
+  expectedVersion: Version;
+  outcome: SpoolRetireOutcome;
 }

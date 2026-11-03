@@ -18,11 +18,13 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { FilamentLeftoverInput } from './filamentLeftoverInput';
-import type { Version } from './version';
+import type { DeletedInventoryTransaction } from './deletedInventoryTransaction';
+import type { DeletedMaterial } from './deletedMaterial';
+import type { FilamentSpool } from './filamentSpool';
 
-export interface FinishFilamentSpoolRequest {
-  leftover: FilamentLeftoverInput;
-  occurredAt: string;
-  expectedVersion: Version;
+export interface InventoryRecycleBin {
+  materials: DeletedMaterial[];
+  /** Retired spools of articles that are not in the bin. */
+  spools: FilamentSpool[];
+  ledgerEntries: DeletedInventoryTransaction[];
 }

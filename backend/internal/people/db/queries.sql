@@ -511,8 +511,12 @@ WITH c01 AS (
     UPDATE machine_job_pricing_snapshots SET captured_by_account_id = sqlc.arg(target_account_id)::uuid
     WHERE captured_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
 ), c13 AS (
-    UPDATE inventory_transactions SET actor_account_id = sqlc.arg(target_account_id)::uuid
-    WHERE actor_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
+    UPDATE inventory_transactions SET
+        actor_account_id = CASE WHEN actor_account_id = sqlc.arg(source_account_id)::uuid
+            THEN sqlc.arg(target_account_id)::uuid ELSE actor_account_id END,
+        deleted_by = CASE WHEN deleted_by = sqlc.arg(source_account_id)::uuid
+            THEN sqlc.arg(target_account_id)::uuid ELSE deleted_by END
+    WHERE actor_account_id = sqlc.arg(source_account_id)::uuid OR deleted_by = sqlc.arg(source_account_id)::uuid RETURNING 1
 ), c14 AS (
     UPDATE branding_configuration SET updated_by_account_id = sqlc.arg(target_account_id)::uuid
     WHERE updated_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
@@ -663,6 +667,12 @@ WITH c01 AS (
 ), c56 AS (
     UPDATE privacy_subject_request_steps SET actor_account_id = sqlc.arg(target_account_id)::uuid
     WHERE actor_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
+), c57 AS (
+    UPDATE materials SET deleted_by = sqlc.arg(target_account_id)::uuid
+    WHERE deleted_by = sqlc.arg(source_account_id)::uuid RETURNING 1
+), c58 AS (
+    UPDATE filament_spools SET retired_by = sqlc.arg(target_account_id)::uuid
+    WHERE retired_by = sqlc.arg(source_account_id)::uuid RETURNING 1
 )
 SELECT (
     (SELECT count(*) FROM c01) + (SELECT count(*) FROM c02) + (SELECT count(*) FROM c03) + (SELECT count(*) FROM c04)
@@ -679,6 +689,7 @@ SELECT (
     + (SELECT count(*) FROM c45) + (SELECT count(*) FROM c46) + (SELECT count(*) FROM c47) + (SELECT count(*) FROM c48)
     + (SELECT count(*) FROM c49) + (SELECT count(*) FROM c50) + (SELECT count(*) FROM c51) + (SELECT count(*) FROM c52)
     + (SELECT count(*) FROM c53) + (SELECT count(*) FROM c54) + (SELECT count(*) FROM c55) + (SELECT count(*) FROM c56)
+    + (SELECT count(*) FROM c57) + (SELECT count(*) FROM c58)
 )::bigint AS moved;
 
 -- name: RepointMergeAuditEvents :execrows

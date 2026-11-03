@@ -26,8 +26,10 @@ import type { UUIDv7 } from './uUIDv7';
 export interface CreatePricingRuleRequest {
   kind: PricingRuleKind;
   processId?: UUIDv7 | null;
-  /** Required for material rules, forbidden for runtime and measure rules. */
+  /** Required for material rules, forbidden otherwise. The type must have machineUse. */
   materialTypeId?: UUIDv7 | null;
+  /** Required for stock_article rules, forbidden otherwise. */
+  materialId?: UUIDv7 | null;
   /** Required for machine_measure rules (with processId), forbidden otherwise. The machine type's process must support the measure. */
   measure?: RunMeasureKey | null;
   rate: Decimal;

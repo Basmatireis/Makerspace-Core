@@ -7068,10 +7068,11 @@ paths:
       operationId: getPriceQuote
       summary: Price a machine run or an amount of an inventory article for every active pricing group
       description: >-
-        Read-only lookup. A machine with hours prices the runtime with the machine type's runtime rate; an article with a
-        quantity prices it with the material rate of its material type and unit, and with its sale price when it has one.
-        Machine and article can be combined into one run. Amounts use the same rates and rounding as job pricing
-        (total rounded to cents). Needs pricing.read, plus machines.read for a machine and inventory.read for an article.
+        Read-only lookup. A machine with hours prices the runtime with the machine's process runtime rate. An article with
+        a quantity is priced like a machine run usage (the material rate of its material type) when a machine is given, and
+        like a sale from stock otherwise (its stock_article rule, else the material type rate of a machine-use type).
+        Amounts use the same rates and rounding as job pricing (total rounded to cents). Needs pricing.read, plus
+        machines.read for a machine and inventory.read for an article.
       security: [{sessionCookie: []}]
       parameters:
         - {name: machineId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -7213,10 +7214,12 @@ paths:
       tags: [Inventory]
       operationId: listMaterials
       summary: List inventory articles and balances
-      description: Requires `inventory.read`. `search` matches name, material type, variant and manufacturer.
+      description: >-
+        Requires `inventory.read`. Articles in the recycle bin are left out. Every article carries its sale prices per
+        pricing group (`prices`) and its attention flags.
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, description: "Case-insensitive substring match on material name, material type, variant, manufacturer, colour name, storage location and notes.", schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Case-insensitive substring match on display ID, material name, material type and its code, variant, manufacturer, colour name, storage location and notes.", schema: {type: string, maxLength: 200}}
         - {name: materialTypeId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: kind, in: query, schema: {$ref: "#/components/schemas/MaterialKind"}}
         - {name: stockState, in: query, schema: {$ref: "#/components/schemas/StockState"}}
@@ -7276,10 +7279,11 @@ paths:
     delete:
       tags: [Inventory]
       operationId: deleteMaterial
-      summary: Delete an article that nothing uses yet
+      summary: Move an article to the inventory recycle bin
       description: >-
-        Requires `inventory.manage`. Permanently deletes an article that has no ledger entries, spool fills, run or job
-        usages and order items. A used article answers 409 material_in_use with the uses in `details`; deactivate it instead.
+        Requires `inventory.delete`. The article leaves every list and picker together with its spools (mounted spools are
+        unmounted); its stock, ledger and history stay and come back with a restore. Purging it from the bin deletes it
+        for good. Audited as `material.deleted`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:
@@ -7334,8 +7338,8 @@ paths:
       operationId: receiveInventoryStock
       summary: Receive purchased stock
       description: >-
-        Requires `inventory.manage`; a placement on spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for an
-        existing or a newly described article in a single transaction with one audit event.
+        Requires `inventory.manage`; a placement on new spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for
+        an existing or a newly described article in a single transaction with one audit event.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReceiveInventoryStockRequest"}}}}
       responses:
@@ -7440,18 +7444,17 @@ paths:
     get:
       tags: [Filament Spools]
       operationId: listFilamentSpools
-      summary: List physical filament spools
+      summary: List filament spools
+      description: Requires `inventory.read`. Spools of articles in the recycle bin are left out.
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, description: "Case-insensitive substring match on spool display ID, label, storage location, notes, acquisition reference, spool identifier values (such as tag IDs), the material name, type and colour, manufacturer, product name and the name of the machine the spool is mounted on.", schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: "Case-insensitive substring match on the spool label (display ID), storage location, notes, acquisition reference, spool identifier values (such as tag IDs), the article's display ID, name, type, colour and manufacturer and the name of the machine the spool is mounted on.", schema: {type: string, maxLength: 200}}
         - {name: materialId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
-        - {name: lifecycle, in: query, schema: {type: string, enum: [active, archived]}}
+        - {name: lifecycle, in: query, description: "active spools are in use; archived spools are retired and sit in the recycle bin.", schema: {type: string, enum: [active, archived]}}
         - {name: location, in: query, schema: {type: string, maxLength: 200}}
-        - {name: kind, in: query, schema: {$ref: "#/components/schemas/FilamentSpoolKind"}}
-        - {name: status, in: query, style: form, explode: true, schema: {type: array, maxItems: 4, items: {$ref: "#/components/schemas/FilamentSpoolStatus"}}}
         - {name: mounted, in: query, schema: {type: boolean}}
-        - {name: manufacturer, in: query, schema: {type: string, maxLength: 150}}
-        - {name: consumable, in: query, description: "true returns only spools with an open fill that are not archived (usable for mounting and job usage).", schema: {type: boolean}}
+        - {name: manufacturer, in: query, description: Manufacturer of the spool's article., schema: {type: string, maxLength: 150}}
+        - {name: consumable, in: query, description: "true returns only active spools (usable for mounting and job usage).", schema: {type: boolean}}
         - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
         - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
       responses:
@@ -7463,6 +7466,10 @@ paths:
       tags: [Filament Spools]
       operationId: createFilamentSpool
       summary: Register a purchased or already-counted spool
+      description: >-
+        Requires `filament_spools.manage` and `inventory.manage`. The spool gets the label
+        S-<TYPECODE>-<VARIANT>-<COLOUR>-<NN> of its article, NN being the smallest number no active spool with the same
+        prefix uses.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateFilamentSpoolRequest"}}}}
       responses:
@@ -7598,21 +7605,22 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /filament-spools/{spoolId}/fills:
+  /filament-spools/{spoolId}/retire:
     parameters:
       - {name: spoolId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
     post:
       tags: [Filament Spools]
-      operationId: changeFilamentSpoolFill
-      summary: Close the current fill of a reusable spool (if any) and start the next fill atomically
+      operationId: retireFilamentSpool
+      summary: Retire a spool into the inventory recycle bin
       description: >-
-        Writes the ledger entries of closing the fill (correction for a weighed or used-up difference, then transfer of
-        the leftover to loose stock or its disposal) and of the new fill (transfer from loose stock or purchase), retires
-        the identifiers that are not kept and adds new ones, all in one transaction. Mount state is unchanged.
+        Requires `filament_spools.manage` and `inventory.manage`. `empty` books the remaining quantity as used up
+        (manual consumption, reason unrecorded_consumption), `discarded` as disposed (disposal, reason disposed). The
+        spool is unmounted, its identifiers are retired, it is archived and its label number becomes free. Audited as
+        `filament_spool.retired`.
       security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ChangeFilamentSpoolFillRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RetireFilamentSpoolRequest"}}}}
       responses:
-        "201": {description: New fill started., content: {application/json: {schema: {$ref: "#/components/schemas/FilamentSpool"}}}}
+        "200": {description: Spool retired., content: {application/json: {schema: {$ref: "#/components/schemas/FilamentSpool"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -7620,17 +7628,22 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /filament-spools/{spoolId}/finish:
+  /inventory/ledger/{transactionId}:
     parameters:
-      - {name: spoolId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    post:
-      tags: [Filament Spools]
-      operationId: finishFilamentSpool
-      summary: Close the current fill; single-use spools are archived, every spool is unmounted
+      - {name: transactionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Inventory]
+      operationId: deleteInventoryTransaction
+      summary: Move a ledger entry to the inventory recycle bin
+      description: >-
+        Requires `inventory.ledger.delete`. The entry no longer counts: the article's quantity and value and the spool's
+        remaining quantity drop its effect (409 insufficient_stock, insufficient_spool_stock or
+        insufficient_unassigned_stock when that would go negative). Run usages and order items are not touched. Audited
+        as `inventory.transaction_deleted`.
       security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/FinishFilamentSpoolRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DeleteInventoryTransactionRequest"}}}}
       responses:
-        "200": {description: Spool finished., content: {application/json: {schema: {$ref: "#/components/schemas/FilamentSpool"}}}}
+        "204": {description: Entry moved to the recycle bin.}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -7638,22 +7651,144 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /filament-spools/cleanup:
-    post:
-      tags: [Filament Spools]
-      operationId: cleanUpArchivedFilamentSpools
-      summary: Preview or hard-delete archived single-use spools older than a cutoff
+  /inventory/recycle-bin:
+    get:
+      tags: [Inventory]
+      operationId: getInventoryRecycleBin
+      summary: Deleted articles, retired spools and deleted ledger entries
       description: >-
-        Candidates are single-use spools archived before now minus olderThanMonths that have no open fill. With dryRun
-        the candidates are returned and nothing changes. Without dryRun only the listed spoolIds that are still
-        candidates are deleted; ledger entries and job usages keep their spool display ID and fill number snapshots.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CleanUpFilamentSpoolsRequest"}}}}
+        Requires `inventory.read`. Newest first, at most 500 of each. Spools of articles in the bin are counted on the
+        article and not listed separately.
+      security: [{sessionCookie: []}]
       responses:
-        "200": {description: Candidates or deleted spools., content: {application/json: {schema: {$ref: "#/components/schemas/CleanUpFilamentSpoolsResult"}}}}
+        "200": {description: The bin., content: {application/json: {schema: {$ref: "#/components/schemas/InventoryRecycleBin"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /inventory/recycle-bin/materials/{materialId}/restore:
+    parameters:
+      - {name: materialId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Inventory]
+      operationId: restoreMaterial
+      summary: Bring a deleted article back
+      description: >-
+        Requires `inventory.delete`. The article comes back with its spools, stock and ledger; a name another article
+        took meanwhile answers 409 material_name_conflict. Audited as `material.restored`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Restored., content: {application/json: {schema: {$ref: "#/components/schemas/Material"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /inventory/recycle-bin/materials/{materialId}/purge:
+    parameters:
+      - {name: materialId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Inventory]
+      operationId: purgeMaterial
+      summary: Delete an article in the bin for good
+      description: >-
+        Requires `inventory.delete`. A genuine hard delete: the article, its balance, spools, identifiers, mount history,
+        stock_article pricing rules and every ledger entry go. Run usages keep the article name and order items their
+        description; both lose the link. Audited as `material.purged`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Gone for good.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /inventory/recycle-bin/spools/{spoolId}/restore:
+    parameters:
+      - {name: spoolId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Filament Spools]
+      operationId: restoreFilamentSpool
+      summary: Bring a retired spool back
+      description: >-
+        Requires `filament_spools.manage` and `inventory.manage`. The spool becomes active again, unmounted. A spool
+        retired as discarded gets the written-off quantity back (adjustment, reason other); one retired as empty stays
+        at its remaining quantity. When another active spool took its label meanwhile, the spool gets the next free
+        number of its article's prefix. Identifiers come back unless another spool uses them now. Audited as
+        `filament_spool.restored`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Restored., content: {application/json: {schema: {$ref: "#/components/schemas/FilamentSpool"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /inventory/recycle-bin/spools/{spoolId}/purge:
+    parameters:
+      - {name: spoolId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Filament Spools]
+      operationId: purgeFilamentSpool
+      summary: Delete a retired spool for good
+      description: >-
+        Requires `filament_spools.manage` and `inventory.delete`. Removes the spool with its identifiers and mount
+        history; ledger entries and run usages keep its label and lose the link. Audited as `filament_spool.purged`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Gone for good.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /inventory/recycle-bin/ledger-entries/{transactionId}/restore:
+    parameters:
+      - {name: transactionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Inventory]
+      operationId: restoreInventoryTransaction
+      summary: Bring a deleted ledger entry back
+      description: >-
+        Requires `inventory.ledger.delete`. The entry counts again (409 like deleting it when the stock would go
+        negative); an entry of an article in the bin answers 409 material_in_bin. Audited as `inventory.transaction_restored`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Restored.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /inventory/recycle-bin/ledger-entries/{transactionId}/purge:
+    parameters:
+      - {name: transactionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    delete:
+      tags: [Inventory]
+      operationId: purgeInventoryTransaction
+      summary: Delete a deleted ledger entry for good
+      description: >-
+        Requires `inventory.ledger.delete`. A genuine hard delete of an entry in the bin; balances already leave it out.
+        Audited as `inventory.transaction_purged`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Gone for good.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /machines/{machineId}/printer:
@@ -11169,6 +11304,8 @@ components:
         - machine_jobs.delete
         - inventory.read
         - inventory.manage
+        - inventory.delete
+        - inventory.ledger.delete
         - filament_spools.manage
         - printer_slots.assign
         - printer_connectors.read
@@ -16504,7 +16641,10 @@ components:
 
     PricingRuleKind:
       type: string
-      enum: [machine_runtime, material, machine_measure]
+      description: >-
+        machine_runtime prices an hour on a process, machine_measure a block of a run measure, material a unit of a
+        material type used in machine runs, stock_article a unit of one article sold from stock.
+      enum: [machine_runtime, material, machine_measure, stock_article]
 
     PricingRule:
       type: object
@@ -16517,7 +16657,10 @@ components:
         processId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set on material rules; the rate is per unit of this material type."}
         materialTypeName: {type: string, nullable: true}
-        materialUnit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true, description: The unit of the material type.}
+        materialUnit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true, description: "The unit of the material type, or of the article for stock_article rules."}
+        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set on stock_article rules; the rate is per unit of this article."}
+        materialName: {type: string, nullable: true}
+        materialDisplayId: {type: string, nullable: true}
         measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Set on machine_measure rules together with processId."}
         blockSize: {type: integer, minimum: 1, nullable: true, description: "Set on machine_measure rules: the rate is per this many units of the measure (1000 for stitches)."}
         rate: {$ref: "#/components/schemas/Decimal"}
@@ -16527,13 +16670,12 @@ components:
     PriceQuote:
       type: object
       additionalProperties: false
-      required: [machine, material, hours, quantity, saleAmount, groups]
+      required: [machine, material, hours, quantity, groups]
       properties:
         machine: {allOf: [{$ref: "#/components/schemas/PriceQuoteMachine"}], nullable: true}
         material: {allOf: [{$ref: "#/components/schemas/PriceQuoteMaterial"}], nullable: true}
         hours: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         quantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
-        saleAmount: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: Quantity times the article's sale price; the same for every group.}
         groups: {type: array, items: {$ref: "#/components/schemas/PriceQuoteGroup"}, description: "Active pricing groups, the default group first, then by name."}
 
     PriceQuoteMachine:
@@ -16548,26 +16690,27 @@ components:
     PriceQuoteMaterial:
       type: object
       additionalProperties: false
-      required: [id, name, unit, materialTypeName, salePrice]
+      required: [id, displayId, name, unit, materialTypeName]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
+        displayId: {type: string}
         name: {type: string}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         materialTypeName: {type: string, nullable: true}
-        salePrice: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
 
     PriceQuoteGroup:
       type: object
       additionalProperties: false
-      required: [pricingGroupId, name, isDefault, machineRate, machineAmount, materialRate, materialAmount, total, complete]
+      required: [pricingGroupId, name, isDefault, machineRate, machineAmount, materialRate, materialAmount, materialPriceSource, total, complete]
       properties:
         pricingGroupId: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         isDefault: {type: boolean}
         machineRate: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: Runtime rate per hour; null without a machine or without an active rate.}
         machineAmount: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
-        materialRate: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: Material rate per unit; null without an article or without an active rate.}
+        materialRate: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: "Article rate per unit: the material type rate with a machine, the sale price from stock without one; null without an article or without an active rate."}
         materialAmount: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
+        materialPriceSource: {allOf: [{$ref: "#/components/schemas/MaterialPriceSource"}], nullable: true, description: Which rule the article rate comes from; null without a rate.}
         total: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: Machine and material together; null when a requested part has no rate.}
         complete: {type: boolean, description: Every requested part has an active rate in this group.}
 
@@ -16620,7 +16763,8 @@ components:
       properties:
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
         processId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden for runtime and measure rules."}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden otherwise. The type must have machineUse."}
+        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for stock_article rules, forbidden otherwise."}
         measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Required for machine_measure rules (with processId), forbidden otherwise. The machine type's process must support the measure."}
         rate: {$ref: "#/components/schemas/Decimal"}
 
@@ -16631,7 +16775,8 @@ components:
       properties:
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
         processId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden for runtime and measure rules."}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden otherwise."}
+        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for stock_article rules, forbidden otherwise."}
         measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Required for machine_measure rules (with processId), forbidden otherwise."}
         rate: {$ref: "#/components/schemas/Decimal"}
         expectedVersion: {$ref: "#/components/schemas/Version"}
@@ -16660,16 +16805,18 @@ components:
     Material:
       type: object
       additionalProperties: false
-      required: [id, name, kind, materialTypeId, materialTypeName, unit, active, quantity, assignedQuantity, unassignedQuantity, averageUnitCost, inventoryValue, stockState, inventoryVersion, recentConsumption, version, createdAt, updatedAt]
+      required: [id, displayId, name, kind, materialTypeId, materialTypeName, materialTypeCode, machineUse, unit, active, quantity, assignedQuantity, unassignedQuantity, averageUnitCost, inventoryValue, stockState, inventoryVersion, recentConsumption, prices, attention, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
+        displayId: {type: string, pattern: "^A-[0-9]{4,}$", description: Article number assigned on creation.}
         name: {type: string}
         kind: {allOf: [{$ref: "#/components/schemas/MaterialKind"}], description: The kind of the material type.}
         materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
         materialTypeName: {type: string}
+        materialTypeCode: {type: string}
+        machineUse: {type: boolean, description: The material type is used in machine runs.}
         variant: {type: string, maxLength: 80, nullable: true}
         manufacturer: {type: string, maxLength: 150, nullable: true}
-        salePrice: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: Default EUR price per unit when the article is sold.}
         packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: "Quantity per package in the article's unit (1000 g per roll, 100 pieces per bag)."}
         storageLocation: {type: string, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
@@ -16687,10 +16834,36 @@ components:
         stockState: {$ref: "#/components/schemas/StockState"}
         inventoryVersion: {$ref: "#/components/schemas/Version"}
         recentConsumption: {$ref: "#/components/schemas/Decimal"}
-        deletable: {type: boolean, description: "True while nothing uses the article yet (no ledger entries, spool fills, run or job usages, order items), so deleteMaterial would succeed."}
+        prices: {type: array, items: {$ref: "#/components/schemas/MaterialPrice"}, description: "Sale price per active pricing group that has one; groups without a price are missing."}
+        attention: {type: array, items: {$ref: "#/components/schemas/InventoryAttention"}}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+
+    MaterialPriceSource:
+      type: string
+      description: stock_article is the article's own rule; material_type is the rate of its machine-use material type.
+      enum: [stock_article, material_type]
+
+    MaterialPrice:
+      type: object
+      additionalProperties: false
+      required: [pricingGroupId, pricingGroupName, rate, source, pricingRuleId]
+      properties:
+        pricingGroupId: {$ref: "#/components/schemas/UUIDv7"}
+        pricingGroupName: {type: string}
+        rate: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: EUR per unit of the article.}
+        source: {$ref: "#/components/schemas/MaterialPriceSource"}
+        pricingRuleId: {$ref: "#/components/schemas/UUIDv7"}
+
+    InventoryAttention:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      description: "low_stock: the article's quantity is at or below its low-stock threshold; remainder_low: an active spool holds less than 10 % of its initial net weight."
+      properties:
+        code: {type: string, enum: [low_stock, remainder_low]}
+        message: {type: string}
 
     MaterialKind:
       type: string
@@ -16707,11 +16880,13 @@ components:
     MaterialType:
       type: object
       additionalProperties: false
-      required: [id, name, kind, unit, processIds, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
+      required: [id, name, code, kind, machineUse, unit, processIds, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
+        code: {allOf: [{$ref: "#/components/schemas/MaterialTypeCode"}]}
         kind: {$ref: "#/components/schemas/MaterialKind"}
+        machineUse: {type: boolean, description: "Materials of the type are used in machine runs and priced by material rules; always true for filament."}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         processIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Processes whose machines can consume materials of this type in new runs."}
         active: {type: boolean}
@@ -16720,6 +16895,11 @@ components:
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+
+    MaterialTypeCode:
+      type: string
+      pattern: "^[A-Z0-9]{1,12}$"
+      description: Short upper-case code used in spool labels (PLA, PETG); unique ignoring case.
 
     MaterialTypeList:
       type: object
@@ -16737,7 +16917,9 @@ components:
         takes no process.
       properties:
         name: {type: string, minLength: 1, maxLength: 120}
+        code: {type: string, minLength: 1, maxLength: 12, description: "Upper-cased; defaults to the first word of the name (409 material_type_code_exists when taken)."}
         kind: {$ref: "#/components/schemas/MaterialKind"}
+        machineUse: {type: boolean, description: "Defaults to true for filament and consumables and false for parts; filament always has it."}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         processIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
 
@@ -16747,6 +16929,8 @@ components:
       required: [name, unit, expectedVersion, active]
       properties:
         name: {type: string, minLength: 1, maxLength: 120}
+        code: {type: string, minLength: 1, maxLength: 12, description: "Omitted keeps the current code. Existing spool labels keep the old code."}
+        machineUse: {type: boolean, description: "Omitted keeps the current value. Turning it off needs a type without material pricing rules (409 material_type_in_use)."}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         kind: {allOf: [{$ref: "#/components/schemas/MaterialKind"}], description: "Omitted keeps the current kind. The kind cannot change while materials use the type (409 material_type_in_use)."}
         processIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Omitted keeps the current processes. The kind decides which processes are valid."}
@@ -16776,7 +16960,6 @@ components:
         materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
         variant: {type: string, maxLength: 80, nullable: true}
         manufacturer: {type: string, maxLength: 150, nullable: true}
-        salePrice: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         storageLocation: {type: string, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
@@ -16796,7 +16979,6 @@ components:
         materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
         variant: {type: string, maxLength: 80, nullable: true}
         manufacturer: {type: string, maxLength: 150, nullable: true}
-        salePrice: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         storageLocation: {type: string, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
@@ -16839,13 +17021,10 @@ components:
         orderReference: {type: string, nullable: true, description: Reference of that order (for example O-2026-000012). No customer data.}
         spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null once the spool was deleted; the snapshot stays.}
         spoolDisplayId: {type: string, nullable: true}
-        fillNumber: {type: integer, nullable: true}
         fromSpoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         fromSpoolDisplayId: {type: string, nullable: true}
-        fromFillNumber: {type: integer, nullable: true}
         toSpoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         toSpoolDisplayId: {type: string, nullable: true}
-        toFillNumber: {type: integer, nullable: true}
         transferQuantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         actorName: {type: string, nullable: true, description: Display name of the person who recorded the entry.}
         createdAt: {type: string, format: date-time}
@@ -16939,14 +17118,12 @@ components:
       additionalProperties: false
       required: [mode]
       description: >-
-        Filament only. storage books loose stock; new_spools creates one single-use spool per package; reusable_spool loads one package onto an
-        empty, active reusable spool (409 spool_already_loaded otherwise). identifiers are only valid when exactly one spool is created or loaded.
+        Filament only. storage books loose stock; new_spools creates one spool per package, each with its own label.
+        identifiers are only valid when exactly one spool is created.
       properties:
-        mode: {type: string, enum: [storage, new_spools, reusable_spool]}
+        mode: {type: string, enum: [storage, new_spools]}
         tareWeightG: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         storageLocation: {type: string, maxLength: 200, nullable: true}
-        reusableSpoolId: {$ref: "#/components/schemas/UUIDv7"}
-        reusableSpoolExpectedVersion: {$ref: "#/components/schemas/Version"}
         identifiers: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/NewFilamentSpoolIdentifier"}}
 
     InventoryReceiptResult:
@@ -16982,28 +17159,22 @@ components:
       type: object
       additionalProperties: false
       description: >-
-        Material, weights and identifiers describe the current (open) fill. A reusable spool without an open
-        fill needs a refill; its material fields are null and remainingQuantity is 0.
-      required: [id, displayId, kind, status, fillNumber, remainingQuantity, lifecycle, mounted, identifiers, version, createdAt, updatedAt]
+        One filament unit of one article. displayId is its label S-<TYPECODE>-<VARIANT>-<COLOUR>-<NN> (spools registered
+        before keep S-<YEAR>-<NNNNNN>); it is unique among active spools. Archived spools are retired and sit in the
+        recycle bin.
+      required: [id, displayId, materialId, materialDisplayId, materialName, materialTypeName, unit, initialNetWeightG, remainingQuantity, lifecycle, archivedAt, retiredOutcome, retiredQuantity, retiredByName, mounted, identifiers, attention, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
-        displayId: {type: string}
-        kind: {$ref: "#/components/schemas/FilamentSpoolKind"}
-        label: {type: string, nullable: true}
-        status: {$ref: "#/components/schemas/FilamentSpoolStatus"}
-        fillNumber: {type: integer, minimum: 1, description: The open fill or the most recent closed one.}
-        fillId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Open fill.}
-        filledAt: {type: string, format: date-time, nullable: true}
-        archivedAt: {type: string, format: date-time, nullable: true}
-        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        materialName: {type: string, nullable: true}
-        materialTypeName: {type: string, nullable: true}
-        colorName: {type: string, nullable: true, description: Colour of the material; spools never hold their own.}
+        displayId: {type: string, description: The spool label.}
+        materialId: {$ref: "#/components/schemas/UUIDv7"}
+        materialDisplayId: {type: string}
+        materialName: {type: string}
+        materialTypeName: {type: string}
+        colorName: {type: string, nullable: true, description: Colour of the article; spools never hold their own.}
         colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
-        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true}
-        manufacturer: {type: string, nullable: true, description: Snapshot taken when the fill started.}
-        productName: {type: string, nullable: true, description: Snapshot taken when the fill started.}
-        initialNetWeightG: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        manufacturer: {type: string, nullable: true, description: Manufacturer of the article.}
+        unit: {$ref: "#/components/schemas/MaterialUnit"}
+        initialNetWeightG: {$ref: "#/components/schemas/Decimal"}
         remainingQuantity: {$ref: "#/components/schemas/Decimal"}
         tareWeightG: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         acquiredOn: {type: string, format: date, nullable: true}
@@ -17011,10 +17182,14 @@ components:
         storageLocation: {type: string, nullable: true}
         notes: {type: string, nullable: true}
         lifecycle: {type: string, enum: [active, archived]}
+        archivedAt: {type: string, format: date-time, nullable: true, description: When the spool was retired.}
+        retiredOutcome: {allOf: [{$ref: "#/components/schemas/SpoolRetireOutcome"}], nullable: true}
+        retiredQuantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: Quantity written off when it was retired.}
+        retiredByName: {type: string, nullable: true}
         mounted: {type: boolean}
         mountedOn: {$ref: "#/components/schemas/FilamentSpoolMount"}
-        identifiers: {type: array, items: {$ref: "#/components/schemas/FilamentSpoolIdentifier"}, description: Identifiers of the open fill.}
-        fills: {type: array, items: {$ref: "#/components/schemas/FilamentSpoolFill"}, description: "Closed fills, newest first; only returned by GET /filament-spools/{spoolId}."}
+        identifiers: {type: array, items: {$ref: "#/components/schemas/FilamentSpoolIdentifier"}, description: Active identifiers.}
+        attention: {type: array, items: {$ref: "#/components/schemas/InventoryAttention"}}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -17031,64 +17206,18 @@ components:
         slotId: {$ref: "#/components/schemas/UUIDv7"}
         slotName: {type: string}
 
-    FilamentSpoolKind:
+    SpoolRetireOutcome:
       type: string
-      description: reusable spools are refilled; single_use spools are archived once finished.
-      enum: [reusable, single_use]
+      description: "empty: the spool ran empty, its remaining quantity is booked as used up; discarded: the rest was thrown away and is booked as disposed."
+      enum: [empty, discarded]
 
-    FilamentSpoolStatus:
-      type: string
-      description: "loaded and needs_refill for reusable spools, active for single-use spools, archived for both."
-      enum: [loaded, needs_refill, active, archived]
-
-    FilamentSpoolFill:
+    RetireFilamentSpoolRequest:
       type: object
       additionalProperties: false
-      required: [id, fillNumber, materialId, materialName, initialNetWeightG, usedG, leftoverG, leftoverOutcome, filledAt, closedAt, identifiers]
+      required: [expectedVersion, outcome]
       properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        fillNumber: {type: integer, minimum: 1}
-        materialId: {$ref: "#/components/schemas/UUIDv7"}
-        materialName: {type: string}
-        manufacturer: {type: string, nullable: true}
-        productName: {type: string, nullable: true}
-        initialNetWeightG: {$ref: "#/components/schemas/Decimal"}
-        usedG: {$ref: "#/components/schemas/Decimal"}
-        leftoverG: {$ref: "#/components/schemas/Decimal"}
-        leftoverOutcome: {$ref: "#/components/schemas/LeftoverOutcome"}
-        filledAt: {type: string, format: date-time}
-        closedAt: {type: string, format: date-time}
-        identifiers: {type: array, items: {$ref: "#/components/schemas/FilamentSpoolIdentifier"}}
-
-    LeftoverOutcome:
-      type: string
-      enum: [used_up, returned_to_stock, disposed]
-
-    FilamentLeftoverInput:
-      type: object
-      additionalProperties: false
-      required: [basis]
-      description: >-
-        system keeps the recorded remaining quantity; weighed uses grossWeightG minus the spool's tare weight and
-        records the difference as a correction; none writes the remaining quantity off as used up. A leftover above
-        zero needs a disposition.
-      properties:
-        basis: {type: string, enum: [system, weighed, none]}
-        grossWeightG: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
-        disposition: {type: string, enum: [returned_to_stock, disposed], nullable: true}
-
-    FilamentNewFillInput:
-      type: object
-      additionalProperties: false
-      required: [materialId, netWeightG, source]
-      properties:
-        materialId: {$ref: "#/components/schemas/UUIDv7"}
-        manufacturer: {type: string, maxLength: 150, nullable: true, description: "Defaults to the manufacturer of the material."}
-        productName: {type: string, maxLength: 200, nullable: true}
-        netWeightG: {$ref: "#/components/schemas/Decimal"}
-        source: {type: string, enum: [loose_stock, purchase], description: "loose_stock moves grams from loose stock onto the spool (total unchanged); purchase adds stock."}
-        totalPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: Required for purchase.}
-        supplier: {type: string, maxLength: 200, nullable: true}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        outcome: {$ref: "#/components/schemas/SpoolRetireOutcome"}
 
     NewFilamentSpoolIdentifier:
       type: object
@@ -17097,54 +17226,6 @@ components:
       properties:
         kind: {type: string, enum: [barcode, qr, nfc]}
         value: {type: string, minLength: 1, maxLength: 255}
-
-    ChangeFilamentSpoolFillRequest:
-      type: object
-      additionalProperties: false
-      required: [fill, keepIdentifierIds, newIdentifiers, occurredAt, expectedVersion]
-      properties:
-        leftover: {allOf: [{$ref: "#/components/schemas/FilamentLeftoverInput"}], nullable: true, description: Required when the spool has an open fill.}
-        fill: {$ref: "#/components/schemas/FilamentNewFillInput"}
-        keepIdentifierIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
-        newIdentifiers: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/NewFilamentSpoolIdentifier"}}
-        occurredAt: {type: string, format: date-time}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-
-    FinishFilamentSpoolRequest:
-      type: object
-      additionalProperties: false
-      required: [leftover, occurredAt, expectedVersion]
-      properties:
-        leftover: {$ref: "#/components/schemas/FilamentLeftoverInput"}
-        occurredAt: {type: string, format: date-time}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-
-    CleanUpFilamentSpoolsRequest:
-      type: object
-      additionalProperties: false
-      required: [olderThanMonths, dryRun]
-      properties:
-        olderThanMonths: {type: integer, enum: [1, 3, 6, 12]}
-        dryRun: {type: boolean}
-        spoolIds: {type: array, maxItems: 500, items: {$ref: "#/components/schemas/UUIDv7"}, description: Required without dryRun.}
-
-    CleanUpFilamentSpoolCandidate:
-      type: object
-      additionalProperties: false
-      required: [id, displayId, archivedAt]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        displayId: {type: string}
-        label: {type: string, nullable: true}
-        archivedAt: {type: string, format: date-time}
-
-    CleanUpFilamentSpoolsResult:
-      type: object
-      additionalProperties: false
-      required: [items, deleted]
-      properties:
-        items: {type: array, items: {$ref: "#/components/schemas/CleanUpFilamentSpoolCandidate"}}
-        deleted: {type: boolean}
 
     FilamentSpoolPage:
       type: object
@@ -17159,22 +17240,16 @@ components:
     CreateFilamentSpoolRequest:
       type: object
       additionalProperties: false
-      required: [stockMode, occurredAt]
+      required: [materialId, initialNetWeightG, stockMode, occurredAt, expectedInventoryVersion]
       properties:
-        kind: {allOf: [{$ref: "#/components/schemas/FilamentSpoolKind"}], default: single_use}
-        label: {type: string, minLength: 1, maxLength: 120, nullable: true}
-        materialId: {$ref: "#/components/schemas/UUIDv7"}
+        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: A filament article (409 material_not_filament otherwise).}
         initialNetWeightG: {$ref: "#/components/schemas/Decimal"}
         stockMode:
           type: string
-          enum: [new_acquisition, existing_stock, empty]
-          description: >-
-            new_acquisition records a purchase for the first fill, existing_stock moves loose stock onto it, empty
-            registers a reusable spool without a fill (materialId and initialNetWeightG are then ignored).
+          enum: [new_acquisition, existing_stock]
+          description: new_acquisition records a purchase onto the spool, existing_stock moves loose stock of the article onto it.
         supplier: {type: string, maxLength: 200, nullable: true}
-        totalPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
-        manufacturer: {type: string, maxLength: 150, nullable: true}
-        productName: {type: string, maxLength: 200, nullable: true}
+        totalPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, description: Required for new_acquisition.}
         tareWeightG: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         acquiredOn: {type: string, format: date, nullable: true}
         acquisitionReference: {type: string, maxLength: 200, nullable: true}
@@ -17185,25 +17260,20 @@ components:
         identifiers:
           type: array
           maxItems: 20
-          description: Tags the first fill (409 identifier_in_use when a tag is taken). Not valid with stockMode empty.
+          description: Tags the spool (409 identifier_in_use when a tag is taken).
           items: {$ref: "#/components/schemas/NewFilamentSpoolIdentifier"}
 
     UpdateFilamentSpoolRequest:
       type: object
       additionalProperties: false
-      required: [lifecycle, expectedVersion]
-      description: manufacturer and productName edit the open fill's snapshot. Archiving unmounts the spool.
+      required: [expectedVersion]
+      description: Edits the descriptive fields; retiring and restoring have their own operations.
       properties:
-        kind: {$ref: "#/components/schemas/FilamentSpoolKind"}
-        label: {type: string, minLength: 1, maxLength: 120, nullable: true}
-        manufacturer: {type: string, maxLength: 150, nullable: true}
-        productName: {type: string, maxLength: 200, nullable: true}
         tareWeightG: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         acquiredOn: {type: string, format: date, nullable: true}
         acquisitionReference: {type: string, maxLength: 200, nullable: true}
         storageLocation: {type: string, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
-        lifecycle: {type: string, enum: [active, archived]}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     AddFilamentSpoolIdentifierRequest:
@@ -17251,6 +17321,51 @@ components:
         note: {type: string, maxLength: 1000, nullable: true}
         occurredAt: {type: string, format: date-time}
         expectedInventoryVersion: {$ref: "#/components/schemas/Version"}
+
+    InventoryRecycleBin:
+      type: object
+      additionalProperties: false
+      required: [materials, spools, ledgerEntries]
+      properties:
+        materials: {type: array, items: {$ref: "#/components/schemas/DeletedMaterial"}}
+        spools: {type: array, items: {$ref: "#/components/schemas/FilamentSpool"}, description: Retired spools of articles that are not in the bin.}
+        ledgerEntries: {type: array, items: {$ref: "#/components/schemas/DeletedInventoryTransaction"}}
+
+    DeletedMaterial:
+      type: object
+      additionalProperties: false
+      required: [id, displayId, name, kind, materialTypeName, unit, quantity, spoolCount, deletedAt, deletedByName, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        displayId: {type: string}
+        name: {type: string}
+        kind: {$ref: "#/components/schemas/MaterialKind"}
+        materialTypeName: {type: string}
+        unit: {$ref: "#/components/schemas/MaterialUnit"}
+        quantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: Stock the article still holds.}
+        spoolCount: {type: integer, format: int64, minimum: 0, description: Spools that went into the bin with the article.}
+        deletedAt: {type: string, format: date-time}
+        deletedByName: {type: string, nullable: true}
+        version: {$ref: "#/components/schemas/Version"}
+
+    DeletedInventoryTransaction:
+      type: object
+      additionalProperties: false
+      required: [transaction, materialName, materialDisplayId, unit, deletedAt, deletedByName]
+      properties:
+        transaction: {$ref: "#/components/schemas/InventoryTransaction"}
+        materialName: {type: string}
+        materialDisplayId: {type: string}
+        unit: {$ref: "#/components/schemas/MaterialUnit"}
+        deletedAt: {type: string, format: date-time}
+        deletedByName: {type: string, nullable: true}
+
+    DeleteInventoryTransactionRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedInventoryVersion]
+      properties:
+        expectedInventoryVersion: {allOf: [{$ref: "#/components/schemas/Version"}], description: Inventory version of the entry's article.}
 
     PrinterProfile:
       type: object
@@ -17541,7 +17656,7 @@ components:
         colorHex: {type: string, pattern: "^[0-9A-Fa-f]{6}$", nullable: true}
         remainPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
         observedAt: {type: string, format: date-time}
-        spool: {allOf: [{$ref: "#/components/schemas/DetectedSpoolTagSpool"}], nullable: true, description: The spool whose open fill already carries this tag as an NFC identifier.}
+        spool: {allOf: [{$ref: "#/components/schemas/DetectedSpoolTagSpool"}], nullable: true, description: The active spool that already carries this tag as an NFC identifier.}
 
     DetectedSpoolTagSpool:
       type: object
@@ -18315,8 +18430,7 @@ components:
         materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         spoolDisplayId: {type: string, nullable: true, description: Snapshot; kept when the spool was deleted (spoolId null).}
-        fillNumber: {type: integer, nullable: true}
-        materialName: {type: string}
+        materialName: {type: string, description: "Kept when the article was purged (materialId null)."}
         materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null for material the customer brought.}
         materialTypeName: {type: string, description: "\"External\" for material the customer brought."}
         unit: {$ref: "#/components/schemas/MaterialUnit"}

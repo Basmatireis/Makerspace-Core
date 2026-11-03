@@ -110,7 +110,7 @@ func reconcileBambuSlotObservation(
 		return err
 	}
 
-	remaining, err := q.GetOpenFillRemainingQuantity(ctx, spoolID)
+	remaining, err := q.GetSpoolRemainingQuantity(ctx, spoolID)
 	if err != nil {
 		return err
 	}

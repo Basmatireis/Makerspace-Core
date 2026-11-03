@@ -2,8 +2,6 @@ package machinelogbook
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -13,7 +11,6 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/shopspring/decimal"
 )
@@ -27,14 +24,12 @@ const (
 )
 
 // ReceiptPlacement says where received filament goes. StorageLocation and
-// TareWeightG apply to new spools only, ReusableSpool* to a reusable spool.
+// TareWeightG apply to new spools only.
 type ReceiptPlacement struct {
-	Mode                         PlacementMode
-	TareWeightG                  *string
-	StorageLocation              *string
-	ReusableSpoolID              *uuid.UUID
-	ReusableSpoolExpectedVersion int64
-	Identifiers                  []NewSpoolIdentifier
+	Mode            PlacementMode
+	TareWeightG     *string
+	StorageLocation *string
+	Identifiers     []NewSpoolIdentifier
 }
 
 // ReceiptInput books purchased stock. Exactly one of MaterialID (with
@@ -107,7 +102,7 @@ type receiptBooking struct {
 	result     ReceiptResult
 }
 
-func (b *receiptBooking) purchase(quantity, price decimal.Decimal, fill *fillRef) error {
+func (b *receiptBooking) purchase(quantity, price decimal.Decimal, spool *spoolRef) error {
 	booked, err := b.s.applyInventoryMutation(
 		b.ctx,
 		b.tx,
@@ -125,8 +120,8 @@ func (b *receiptBooking) purchase(quantity, price decimal.Decimal, fill *fillRef
 			Supplier:         b.v.supplier,
 			Reference:        b.v.reference,
 			Note:             b.in.Note,
-			Fill:             fill,
-			KeepSpoolVersion: fill != nil,
+			Spool:            spool,
+			KeepSpoolVersion: spool != nil,
 			SkipAudit:        true,
 		},
 		b.requestID,
@@ -138,49 +133,12 @@ func (b *receiptBooking) purchase(quantity, price decimal.Decimal, fill *fillRef
 	return nil
 }
 
-// fillSpool opens a fill of the given spool, books its purchase and tags it.
-func (b *receiptBooking) fillSpool(
-	spool machinelogbookdb.FilamentSpool,
-	number int32,
-	price decimal.Decimal,
-) error {
-	fill, err := b.q.InsertFilamentSpoolFill(
-		b.ctx,
-		machinelogbookdb.InsertFilamentSpoolFillParams{
-			ID:                ids.New(),
-			SpoolID:           spool.ID,
-			FillNumber:        number,
-			MaterialID:        b.materialID,
-			Manufacturer:      b.detail.Manufacturer,
-			InitialNetWeightG: numericFromDecimal(b.v.size),
-			FilledAt:          b.in.OccurredAt.UTC(),
-		},
-	)
-	if err != nil {
-		return databaseError(err)
-	}
-	ref := refFromFill(spool, fill)
-	if err = b.purchase(b.v.size, price, &ref); err != nil {
-		return err
-	}
-	if _, err = b.q.BumpFilamentSpoolVersion(
-		b.ctx,
-		machinelogbookdb.BumpFilamentSpoolVersionParams{ID: spool.ID, ExpectedVersion: spool.Version},
-	); err != nil {
-		return err
-	}
-	if err = addFillIdentifiers(b.ctx, b.q, spool.ID, fill.ID, b.v.identifier); err != nil {
-		return err
-	}
-	b.result.Spools = append(b.result.Spools, FilamentSpool{ID: spool.ID})
-	return nil
-}
-
-// newSpools puts every package on a new single-use spool.
+// newSpools puts every package on a new spool with its own label.
 func (b *receiptBooking) newSpools() error {
 	prices := splitCents(b.v.price, b.v.count)
+	prefix := spoolLabelPrefix(b.detail.MaterialTypeCode, b.detail.Variant, b.detail.ColorName)
 	for i := range b.v.count {
-		sequence, err := b.q.NextFilamentSpoolSequence(b.ctx)
+		label, err := nextSpoolLabel(b.ctx, b.q, prefix)
 		if err != nil {
 			return err
 		}
@@ -188,8 +146,9 @@ func (b *receiptBooking) newSpools() error {
 			b.ctx,
 			machinelogbookdb.CreateFilamentSpoolParams{
 				ID:                   ids.New(),
-				DisplayID:            fmt.Sprintf("S-%04d-%06d", b.s.now().UTC().Year(), sequence),
-				Kind:                 string(SpoolSingleUse),
+				DisplayID:            label,
+				MaterialID:           b.materialID,
+				InitialNetWeightG:    numericFromDecimal(b.v.size),
 				TareWeightG:          b.v.tare,
 				AcquiredOn:           pgDate(&b.in.OccurredAt),
 				AcquisitionReference: b.v.reference,
@@ -199,17 +158,27 @@ func (b *receiptBooking) newSpools() error {
 		if err != nil {
 			return databaseError(err)
 		}
-		if err = b.fillSpool(spool, 1, prices[i]); err != nil {
+		ref := spoolRef{SpoolID: spool.ID, SpoolDisplayID: spool.DisplayID, MaterialID: spool.MaterialID}
+		if err = b.purchase(b.v.size, prices[i], &ref); err != nil {
 			return err
 		}
+		if _, err = b.q.BumpFilamentSpoolVersion(
+			b.ctx,
+			machinelogbookdb.BumpFilamentSpoolVersionParams{ID: spool.ID, ExpectedVersion: spool.Version},
+		); err != nil {
+			return err
+		}
+		if err = addSpoolIdentifiers(b.ctx, b.q, spool.ID, b.v.identifier); err != nil {
+			return err
+		}
+		b.result.Spools = append(b.result.Spools, FilamentSpool{ID: spool.ID})
 	}
 	return nil
 }
 
 // ReceiveStock books purchased stock for an existing or a newly described
 // article in one transaction with one audit event. Filament can go to loose
-// stock, onto one new single-use spool per package, or onto an empty reusable
-// spool.
+// stock or onto one new spool per package.
 func (s *Service) ReceiveStock(
 	ctx context.Context,
 	p authorization.Principal,
@@ -219,7 +188,7 @@ func (s *Service) ReceiveStock(
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return ReceiptResult{}, err
 	}
-	if in.Placement != nil && (in.Placement.Mode == PlacementNewSpools || in.Placement.Mode == PlacementReusableSpool) {
+	if in.Placement != nil && in.Placement.Mode == PlacementNewSpools {
 		if err := require(p, authorization.FilamentSpoolsManage); err != nil {
 			return ReceiptResult{}, err
 		}
@@ -235,22 +204,15 @@ func (s *Service) ReceiveStock(
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := machinelogbookdb.New(tx)
 
-	// A reusable spool is locked before the material, like every other
-	// operation that touches both, so concurrent changes cannot deadlock.
-	var reusable machinelogbookdb.FilamentSpool
-	if v.mode == PlacementReusableSpool {
-		reusable, err = lockEmptyReusableSpool(ctx, q, in.Placement)
-		if err != nil {
-			return ReceiptResult{}, err
-		}
-	}
-
 	var materialID uuid.UUID
 	if in.MaterialID != nil {
 		materialID = *in.MaterialID
 		current, lockErr := q.GetMaterialForUpdate(ctx, materialID)
 		if lockErr != nil {
 			return ReceiptResult{}, noRows(lockErr)
+		}
+		if current.DeletedAt.Valid {
+			return ReceiptResult{}, errMaterialInBin
 		}
 		if current.InventoryVersion != in.ExpectedInventoryVersion {
 			return ReceiptResult{}, apperror.StaleWrite
@@ -293,19 +255,13 @@ func (s *Service) ReceiveStock(
 		err = b.purchase(v.quantity, v.price, nil)
 	case PlacementNewSpools:
 		err = b.newSpools()
-	case PlacementReusableSpool:
-		number, numErr := q.NextFilamentSpoolFillNumber(ctx, reusable.ID)
-		if numErr != nil {
-			return ReceiptResult{}, numErr
-		}
-		err = b.fillSpool(reusable, number, v.price)
 	}
 	if err != nil {
 		return ReceiptResult{}, err
 	}
 	result := b.result
 	for i := range result.Spools {
-		spool, loadErr := s.loadSpool(ctx, q, result.Spools[i].ID, false)
+		spool, loadErr := s.loadSpool(ctx, q, result.Spools[i].ID)
 		if loadErr != nil {
 			return ReceiptResult{}, loadErr
 		}
@@ -329,14 +285,14 @@ func (s *Service) ReceiveStock(
 	); err != nil {
 		return ReceiptResult{}, err
 	}
-	row, err := q.GetMaterial(ctx, materialID)
+	material, err := s.loadMaterial(ctx, q, materialID)
 	if err != nil {
 		return ReceiptResult{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return ReceiptResult{}, err
 	}
-	result.Material = materialFromGet(row)
+	result.Material = material
 	return result, nil
 }
 
@@ -419,13 +375,10 @@ func (v *validatedReceipt) validatePlacement(pl *ReceiptPlacement) error {
 	var err error
 	switch pl.Mode {
 	case PlacementStorage:
-		if pl.TareWeightG != nil || pl.StorageLocation != nil || pl.ReusableSpoolID != nil || len(pl.Identifiers) > 0 {
+		if pl.TareWeightG != nil || pl.StorageLocation != nil || len(pl.Identifiers) > 0 {
 			return apperror.Invalid("placement storage takes no further placement fields")
 		}
 	case PlacementNewSpools:
-		if pl.ReusableSpoolID != nil || pl.ReusableSpoolExpectedVersion != 0 {
-			return apperror.Invalid("reusableSpoolId applies to the placement reusable_spool only")
-		}
 		v.tare, err = pgNullableNumeric(pl.TareWeightG, false)
 		if err != nil || (v.tare.Valid && decimalFromNumeric(v.tare).IsNegative()) {
 			return apperror.Invalid("tareWeightG must be non-negative")
@@ -436,87 +389,8 @@ func (v *validatedReceipt) validatePlacement(pl *ReceiptPlacement) error {
 		if len(pl.Identifiers) > 0 && v.count != 1 {
 			return apperror.Invalid("identifiers are only valid when exactly one spool is created")
 		}
-	case PlacementReusableSpool:
-		if v.count != 1 {
-			return apperror.Invalid("a reusable spool takes exactly one package")
-		}
-		if pl.ReusableSpoolID == nil || pl.ReusableSpoolExpectedVersion < 1 {
-			return apperror.Invalid("reusableSpoolId and reusableSpoolExpectedVersion are required")
-		}
-		if pl.TareWeightG != nil || pl.StorageLocation != nil {
-			return apperror.Invalid("tareWeightG and storageLocation apply to new spools only")
-		}
 	default:
 		return apperror.Invalid("invalid placement mode")
-	}
-	return nil
-}
-
-// lockEmptyReusableSpool locks the reusable spool a receipt loads and checks it
-// is active, unchanged and without an open fill.
-func lockEmptyReusableSpool(
-	ctx context.Context,
-	q *machinelogbookdb.Queries,
-	pl *ReceiptPlacement,
-) (machinelogbookdb.FilamentSpool, error) {
-	spool, err := q.GetFilamentSpoolForUpdate(ctx, *pl.ReusableSpoolID)
-	if err != nil {
-		return spool, noRows(err)
-	}
-	if SpoolKind(spool.Kind) != SpoolReusable {
-		return spool, apperror.Conflicting("spool_not_reusable", "Only reusable spools can be refilled")
-	}
-	if SpoolLifecycle(spool.Lifecycle) == SpoolArchived {
-		return spool, apperror.Conflicting("spool_archived", "An archived spool cannot be refilled")
-	}
-	if spool.Version != pl.ReusableSpoolExpectedVersion {
-		return spool, apperror.StaleWrite
-	}
-	if _, err = q.GetOpenFilamentSpoolFill(ctx, spool.ID); err == nil {
-		return spool, apperror.Conflicting(
-			"spool_already_loaded",
-			"The spool already holds a fill; finish it or change its fill instead",
-		)
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return spool, err
-	}
-	return spool, nil
-}
-
-// addFillIdentifiers tags a fill; an identifier that is in use stays refused.
-func addFillIdentifiers(
-	ctx context.Context,
-	q *machinelogbookdb.Queries,
-	spoolID, fillID uuid.UUID,
-	identifiers []NewSpoolIdentifier,
-) error {
-	for _, identifier := range identifiers {
-		inUse, err := q.FilamentSpoolIdentifierInUse(
-			ctx,
-			machinelogbookdb.FilamentSpoolIdentifierInUseParams{Kind: string(identifier.Kind), Value: identifier.Value},
-		)
-		if err != nil {
-			return err
-		}
-		if inUse {
-			return apperror.Conflicting("identifier_in_use", "An identifier is already assigned to a fill")
-		}
-		if _, err = q.AddFilamentSpoolIdentifier(
-			ctx,
-			machinelogbookdb.AddFilamentSpoolIdentifierParams{
-				ID:      ids.New(),
-				SpoolID: spoolID,
-				FillID:  fillID,
-				Kind:    string(identifier.Kind),
-				Value:   identifier.Value,
-			},
-		); err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				return apperror.Conflicting("identifier_in_use", "An identifier is already assigned to a fill")
-			}
-			return databaseError(err)
-		}
 	}
 	return nil
 }

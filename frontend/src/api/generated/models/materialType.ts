@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { MaterialKind } from './materialKind';
+import type { MaterialTypeCode } from './materialTypeCode';
 import type { MaterialUnit } from './materialUnit';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
@@ -26,7 +27,10 @@ import type { Version } from './version';
 export interface MaterialType {
   id: UUIDv7;
   name: string;
+  code: MaterialTypeCode;
   kind: MaterialKind;
+  /** Materials of the type are used in machine runs and priced by material rules; always true for filament. */
+  machineUse: boolean;
   unit: MaterialUnit;
   /** Processes whose machines can consume materials of this type in new runs. */
   processIds: UUIDv7[];

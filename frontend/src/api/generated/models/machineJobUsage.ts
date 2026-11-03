@@ -35,8 +35,7 @@ export interface MachineJobUsage {
      * @nullable
      */
   spoolDisplayId?: string | null;
-  /** @nullable */
-  fillNumber?: number | null;
+  /** Kept when the article was purged (materialId null). */
   materialName: string;
   /** Null for material the customer brought. */
   materialTypeId?: UUIDv7 | null;

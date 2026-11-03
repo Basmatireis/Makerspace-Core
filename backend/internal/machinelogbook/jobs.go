@@ -92,7 +92,7 @@ func (s *Service) storeManualRun(
 	if err = storeRunMeasures(ctx, q, run.ID, plan.Measures); err != nil {
 		return run, err
 	}
-	if err = s.resolveUsageFills(ctx, q, plan.Usages); err != nil {
+	if err = s.resolveUsageSpools(ctx, q, plan.Usages); err != nil {
 		return run, err
 	}
 	if err = s.insertUsages(ctx, q, run.ID, plan.Usages); err != nil {

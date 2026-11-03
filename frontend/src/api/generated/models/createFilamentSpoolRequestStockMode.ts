@@ -20,7 +20,7 @@
  */
 
 /**
- * new_acquisition records a purchase for the first fill, existing_stock moves loose stock onto it, empty registers a reusable spool without a fill (materialId and initialNetWeightG are then ignored).
+ * new_acquisition records a purchase onto the spool, existing_stock moves loose stock of the article onto it.
  */
 export type CreateFilamentSpoolRequestStockMode = typeof CreateFilamentSpoolRequestStockMode[keyof typeof CreateFilamentSpoolRequestStockMode];
 
@@ -28,5 +28,4 @@ export type CreateFilamentSpoolRequestStockMode = typeof CreateFilamentSpoolRequ
 export const CreateFilamentSpoolRequestStockMode = {
   new_acquisition: 'new_acquisition',
   existing_stock: 'existing_stock',
-  empty: 'empty',
 } as const;

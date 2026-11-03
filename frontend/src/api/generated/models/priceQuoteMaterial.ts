@@ -18,15 +18,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { Decimal } from './decimal';
 import type { MaterialUnit } from './materialUnit';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface PriceQuoteMaterial {
   id: UUIDv7;
+  displayId: string;
   name: string;
   unit: MaterialUnit;
   /** @nullable */
   materialTypeName: string | null;
-  salePrice: Decimal | null;
 }

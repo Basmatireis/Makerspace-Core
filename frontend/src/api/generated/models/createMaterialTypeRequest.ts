@@ -31,7 +31,15 @@ export interface CreateMaterialTypeRequest {
      * @maxLength 120
      */
   name: string;
+  /**
+     * Upper-cased; defaults to the first word of the name (409 material_type_code_exists when taken).
+     * @minLength 1
+     * @maxLength 12
+     */
+  code?: string;
   kind: MaterialKind;
+  /** Defaults to true for filament and consumables and false for parts; filament always has it. */
+  machineUse?: boolean;
   unit: MaterialUnit;
   processIds?: UUIDv7[];
 }

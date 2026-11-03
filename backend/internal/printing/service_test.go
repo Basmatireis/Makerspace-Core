@@ -296,15 +296,12 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if finishedSpool, err = jobs.FinishFilamentSpool(
+	if finishedSpool, err = jobs.RetireFilamentSpool(
 		ctx,
 		p,
 		finishedSpool.ID,
-		machinelogbook.FinishSpoolInput{
-			Leftover:        machinelogbook.LeftoverInput{Basis: "none"},
-			OccurredAt:      time.Now().UTC(),
-			ExpectedVersion: finishedSpool.Version,
-		},
+		finishedSpool.Version,
+		machinelogbook.SpoolRetiredEmpty,
 		&requestID,
 	); err != nil {
 		t.Fatal(err)

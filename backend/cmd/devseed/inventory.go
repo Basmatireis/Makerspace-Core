@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 	_ "time/tzdata"
@@ -76,57 +75,56 @@ func (s *seeder) newSingleUse(at time.Time, key, label string) uuid.UUID {
 		s.ctx,
 		s.actor,
 		machinelogbook.FilamentSpoolInput{
-			Kind:         "single_use",
-			Label:        label,
-			Manufacturer: &p.maker,
-			ProductName:  &p.name,
-			MaterialID:   s.mats[p.mat].id,
-			InitialNetWeightG: f1(
-				p.weight,
-			),
+			MaterialID:               s.mats[p.mat].id,
+			InitialNetWeightG:        f1(p.weight),
 			StockMode:                "new_acquisition",
 			TotalPrice:               ptr(f2(p.price * (0.97 + s.rng.Float64()*0.06))),
 			TareWeightG:              ptr("210"),
 			AcquiredOn:               &at,
 			AcquisitionReference:     ptr(fmt.Sprintf("RE-%d-%04d", at.Year(), 1000+s.rng.Intn(8000))),
 			StorageLocation:          ptr("Filament shelf"),
+			Notes:                    ptr(label),
 			OccurredAt:               at,
 			ExpectedInventoryVersion: m.InventoryVersion,
 		},
 		nil,
 	)
-	check("single-use spool "+key, err)
+	check("spool "+key, err)
 	_, err = svc.AddFilamentSpoolIdentifier(s.ctx, s.actor, sp.ID, "barcode", s.nextBarcode(), nil)
+	check("identifier", err)
+	return sp.ID
+}
+
+// registerSpool registers a 1 kg spool of the material (bought, or moved from loose stock) with an NFC tag.
+func (s *seeder) registerSpool(at time.Time, matName, mode string, price *string, label string) uuid.UUID {
+	m := s.mat(matName)
+	svc := s.mlAt(at)
+	in := machinelogbook.FilamentSpoolInput{
+		MaterialID:               s.mats[matName].id,
+		InitialNetWeightG:        "1000",
+		StockMode:                machinelogbook.StockMode(mode),
+		TareWeightG:              ptr("250"),
+		AcquiredOn:               &at,
+		StorageLocation:          ptr("AMS"),
+		Notes:                    ptr(label),
+		OccurredAt:               at,
+		ExpectedInventoryVersion: m.InventoryVersion,
+	}
+	if mode == "new_acquisition" {
+		in.TotalPrice = price
+		in.Supplier = ptr("Bambu Lab Store EU")
+	}
+	sp, err := svc.CreateFilamentSpool(s.ctx, s.actor, in, nil)
+	check("spool "+label, err)
+	_, err = svc.AddFilamentSpoolIdentifier(s.ctx, s.actor, sp.ID, "nfc", s.nfc(), nil)
 	check("identifier", err)
 	return sp.ID
 }
 
 func (s *seeder) newReusable(at time.Time, key, label, mode string) *reusable {
 	p := s.prods[key]
-	m := s.mat(p.mat)
-	svc := s.mlAt(at)
-	in := machinelogbook.FilamentSpoolInput{
-		Kind:                     "reusable",
-		Label:                    label,
-		Manufacturer:             &p.maker,
-		ProductName:              &p.name,
-		MaterialID:               s.mats[p.mat].id,
-		InitialNetWeightG:        f1(p.weight),
-		StockMode:                machinelogbook.StockMode(mode),
-		TareWeightG:              ptr("250"),
-		AcquiredOn:               &at,
-		StorageLocation:          ptr("AMS"),
-		OccurredAt:               at,
-		ExpectedInventoryVersion: m.InventoryVersion,
-	}
-	if mode == "new_acquisition" {
-		in.TotalPrice = ptr(f2(p.price))
-	}
-	sp, err := svc.CreateFilamentSpool(s.ctx, s.actor, in, nil)
-	check("reusable spool "+label, err)
-	_, err = svc.AddFilamentSpoolIdentifier(s.ctx, s.actor, sp.ID, "nfc", s.nfc(), nil)
-	check("identifier", err)
-	r := &reusable{id: sp.ID, label: label}
+	id := s.registerSpool(at, p.mat, mode, ptr(f2(p.price)), label)
+	r := &reusable{id: id, label: label}
 	s.reus = append(s.reus, r)
 	return r
 }
@@ -152,102 +150,46 @@ func (s *seeder) spool(id uuid.UUID) machinelogbook.FilamentSpool {
 	return sp
 }
 
-func (s *seeder) leftover(sp machinelogbook.FilamentSpool, exhausted bool) *machinelogbook.LeftoverInput {
+// retireOutcome picks how a spool leaves: almost empty spools ran empty, others had their rest thrown away.
+func (s *seeder) retireOutcome(sp machinelogbook.FilamentSpool, exhausted bool) machinelogbook.SpoolRetireOutcome {
 	rem := dnum(sp.RemainingQuantity)
-	tare := 250.0
-	if sp.TareWeightG != nil {
-		tare = dnum(*sp.TareWeightG)
+	if rem < 15 || (exhausted && s.rng.Float64() < 0.5) {
+		return machinelogbook.SpoolRetiredEmpty
 	}
-	if rem < 15 {
-		return &machinelogbook.LeftoverInput{Basis: "none"}
-	}
-	if exhausted && rem < 200 {
-		if s.rng.Float64() < 0.5 {
-			return &machinelogbook.LeftoverInput{Basis: "none"}
-		}
-		return &machinelogbook.LeftoverInput{
-			Basis:        "weighed",
-			GrossWeightG: ptr(f1(tare + math.Floor(rem))),
-			Disposition:  ptr(machinelogbook.DispositionDisposed),
-		}
-	}
-	switch r := s.rng.Float64(); {
-	case r < 0.4:
-		return &machinelogbook.LeftoverInput{
-			Basis:       "system",
-			Disposition: ptr(machinelogbook.DispositionReturnedToStock),
-		}
-	case r < 0.75:
-		return &machinelogbook.LeftoverInput{
-			Basis:        "weighed",
-			GrossWeightG: ptr(f1(tare + math.Floor(rem*0.96))),
-			Disposition:  ptr(machinelogbook.DispositionReturnedToStock),
-		}
-	default:
-		if rem < 120 {
-			return &machinelogbook.LeftoverInput{
-				Basis:        "weighed",
-				GrossWeightG: ptr(f1(tare + math.Floor(rem))),
-				Disposition:  ptr(machinelogbook.DispositionDisposed),
-			}
-		}
-		return &machinelogbook.LeftoverInput{
-			Basis:       "system",
-			Disposition: ptr(machinelogbook.DispositionReturnedToStock),
-		}
-	}
+	return machinelogbook.SpoolRetiredDiscarded
 }
 
+func (s *seeder) retire(id uuid.UUID, at time.Time, exhausted bool) {
+	sp := s.spool(id)
+	_, err := s.mlAt(at).RetireFilamentSpool(s.ctx, s.actor, id, sp.Version, s.retireOutcome(sp, exhausted), nil)
+	check("retire spool "+sp.DisplayID, err)
+}
+
+// changeFill replaces the spool r holds: the old spool is retired and a new spool of the material takes its
+// place (and its slot, when it has one).
 func (s *seeder) changeFill(r *reusable, at time.Time, matName, source string, exhausted ...bool) {
 	sp := s.spool(r.id)
-	if sp.FilledAt != nil && !at.After(sp.FilledAt.Add(time.Minute)) {
-		at = sp.FilledAt.Add(2 * time.Minute)
+	if !at.After(sp.CreatedAt.Add(time.Minute)) {
+		at = sp.CreatedAt.Add(2 * time.Minute)
 	}
-	svc := s.mlAt(at)
-	var lo *machinelogbook.LeftoverInput
-	if sp.FillID != nil {
-		lo = s.leftover(sp, len(exhausted) > 0 && exhausted[0])
-	}
-	var keep []uuid.UUID
-	for _, id := range sp.Identifiers {
-		keep = append(keep, id.ID)
-	}
-	fill := machinelogbook.NewFillInput{MaterialID: s.mats[matName].id, NetWeightG: "1000", Source: "purchase"}
-	var key string
-	for k, p := range s.prods {
-		if p.mat == matName && p.maker == "Bambu Lab" && p.name != "PLA Matte Charcoal (refill)" {
-			key = k
-		}
-	}
+	s.retire(r.id, at, len(exhausted) > 0 && exhausted[0])
+	mode := "new_acquisition"
 	if source == "loose" {
 		m := s.mat(matName)
-		// leftover returned in this very operation may not count yet; require existing loose stock
 		if dnum(m.Quantity)-dnum(m.AssignedQuantity) >= 1000 {
-			fill.Source = "loose_stock"
+			mode = "existing_stock"
 		}
 	}
-	if fill.Source == "purchase" {
-		if key != "" {
-			p := s.prods[key]
-			fill.Manufacturer, fill.ProductName = &p.maker, &p.name
-			fill.TotalPrice = ptr(f2(p.price * (0.96 + s.rng.Float64()*0.08)))
-		} else {
-			fill.TotalPrice = ptr("19.99")
+	price := ptr("19.99")
+	for _, p := range s.prods {
+		if p.mat == matName && p.maker == "Bambu Lab" {
+			price = ptr(f2(p.price * (0.96 + s.rng.Float64()*0.08)))
+			break
 		}
-		fill.Supplier = ptr("Bambu Lab Store EU")
 	}
-	_, err := svc.ChangeFilamentSpoolFill(
-		s.ctx,
-		s.actor,
-		r.id,
-		machinelogbook.ChangeFillInput{
-			Leftover:          lo,
-			Fill:              fill,
-			KeepIdentifierIDs: keep,
-			OccurredAt:        at,
-			ExpectedVersion:   sp.Version,
-		},
-		nil,
-	)
-	check(fmt.Sprintf("change fill %s %s", r.label, matName), err)
+	next := at.Add(time.Minute)
+	r.id = s.registerSpool(next, matName, mode, price, r.label)
+	if r.slot != nil {
+		s.mount(r.slot, r.id, next)
+	}
 }

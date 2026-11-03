@@ -215,7 +215,7 @@ func (e *env) seed() {
 	}, nil))
 	must(logbook.CreateMaterial(ctx, p, machinelogbook.MaterialInput{
 		Name: "PLA Red", MaterialTypeID: pla.ID, ColorName: ptr("Red"), ColorHex: ptr("#FF0000"),
-		SalePrice: ptr("0.05"), LowStockThreshold: ptr("100"), FilamentDiameterMM: ptr("1.75"),
+		LowStockThreshold: ptr("100"), FilamentDiameterMM: ptr("1.75"),
 	}, nil))
 	group := must(logbook.CreatePricingGroup(ctx, p, "Members", ptr("Everyone with a role"), true, nil))
 	runtime := machinelogbook.PricingRuleMachineRuntime

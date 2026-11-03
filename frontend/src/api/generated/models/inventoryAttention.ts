@@ -18,26 +18,12 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { Decimal } from './decimal';
-import type { FilamentSpoolIdentifier } from './filamentSpoolIdentifier';
-import type { LeftoverOutcome } from './leftoverOutcome';
-import type { UUIDv7 } from './uUIDv7';
+import type { InventoryAttentionCode } from './inventoryAttentionCode';
 
-export interface FilamentSpoolFill {
-  id: UUIDv7;
-  /** @minimum 1 */
-  fillNumber: number;
-  materialId: UUIDv7;
-  materialName: string;
-  /** @nullable */
-  manufacturer?: string | null;
-  /** @nullable */
-  productName?: string | null;
-  initialNetWeightG: Decimal;
-  usedG: Decimal;
-  leftoverG: Decimal;
-  leftoverOutcome: LeftoverOutcome;
-  filledAt: string;
-  closedAt: string;
-  identifiers: FilamentSpoolIdentifier[];
+/**
+ * low_stock: the article's quantity is at or below its low-stock threshold; remainder_low: an active spool holds less than 10 % of its initial net weight.
+ */
+export interface InventoryAttention {
+  code: InventoryAttentionCode;
+  message: string;
 }

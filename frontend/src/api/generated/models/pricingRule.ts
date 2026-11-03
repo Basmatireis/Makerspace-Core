@@ -34,8 +34,14 @@ export interface PricingRule {
   materialTypeId?: UUIDv7 | null;
   /** @nullable */
   materialTypeName?: string | null;
-  /** The unit of the material type. */
+  /** The unit of the material type, or of the article for stock_article rules. */
   materialUnit?: MaterialUnit | null;
+  /** Set on stock_article rules; the rate is per unit of this article. */
+  materialId?: UUIDv7 | null;
+  /** @nullable */
+  materialName?: string | null;
+  /** @nullable */
+  materialDisplayId?: string | null;
   /** Set on machine_measure rules together with processId. */
   measure?: RunMeasureKey | null;
   /**

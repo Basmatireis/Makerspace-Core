@@ -34,7 +34,7 @@ type Querier interface {
 	GetRunNotificationFacts(ctx context.Context, id uuid.UUID) (GetRunNotificationFactsRow, error)
 	GetSentMessage(ctx context.Context, id uuid.UUID) (GetSentMessageRow, error)
 	GetSentMessageForUpdate(ctx context.Context, arg GetSentMessageForUpdateParams) (GetSentMessageForUpdateRow, error)
-	// How a spool is named to people: its display id and the material of its open fill, if any.
+	// How a spool is named to people: its label and its article.
 	GetSpoolNotificationFacts(ctx context.Context, id uuid.UUID) (GetSpoolNotificationFactsRow, error)
 	InsertNotification(ctx context.Context, arg InsertNotificationParams) (InboxNotification, error)
 	InsertNotificationRoles(ctx context.Context, arg InsertNotificationRolesParams) error
