@@ -11,7 +11,7 @@ import { DateInput } from '../../app/DateInput';
 import { PageShell } from '../../app/PageShell';
 import { RefLink } from '../../app/RefLink';
 import { RichNotification } from '../../app/RichNotification';
-import { SectionSwitcher } from '../../app/SectionSwitcher';
+import { PageSectionTabs } from '../machinelogbook/components/machineParts';
 import { dateInAppTimeZone, formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
@@ -397,164 +397,165 @@ function OrdersTable({ orders }: { orders: Order[] }) {
         </span>
       </RichNotification>
     ) : undefined;
-  return (
-    <ListWithPanel
-      panelLabel="Order details"
-      panel={
-        selected ? (
-          <OrderPanel
-            order={selected}
-            attention={reasonsOf(selected)}
-            onClose={() => select(null)}
-            actions={
-              <OrderActionsMenu
-                order={selected}
-                actions={orderActions.actionsFor(selected)}
-                onAction={orderActions.run}
-                disabled={orderActions.busy}
-              />
-            }
-          />
-        ) : (
-          <DetailPanel className="sales-panel-empty">
-            <p>Select an order to see its items, payments and invoice.</p>
-          </DetailPanel>
-        )
+  const tabs = (
+    <PageSectionTabs
+      label="Order sections"
+      selected={tab}
+      sections={TABS.map((id) => ({ id, label: `${TAB_LABEL[id]} (${counts.tabs[id]})` }))}
+      onChange={(id) =>
+        setParam({
+          section: id === 'open' ? (landing ? 'open' : null) : id,
+          status: null,
+          attention: null,
+          // Needs attention has no Customer and Created filters, so their values must not narrow it unseen.
+          ...(id === 'attention' ? { customer: null, from: null, to: null } : {}),
+        })
       }
-    >
-      <DirectoryTable<Order>
-        id="orders"
-        urlPrefix=""
-        label="Orders"
-        columns={columns}
-        rows={rows}
-        totalCount={counts.tabs[tab]}
-        notice={readyNotice}
-        searchText={orderSearchText}
-        defaultSort={{ key: 'updated', direction: 'DESC' }}
-        pageSizes={[10, 25, 50]}
-        onRowClick={(order) =>
-          panelFits ? select(order.id === selected?.id ? null : order.id) : navigate(`/orders/${order.id}`)
+    />
+  );
+  return (
+    <PageShell className="sales-page" title="Orders" width="wide" breadcrumbs={ORDERS_CRUMBS} tabs={tabs}>
+      <ListWithPanel
+        panelLabel="Order details"
+        panel={
+          selected ? (
+            <OrderPanel
+              order={selected}
+              attention={reasonsOf(selected)}
+              onClose={() => select(null)}
+              actions={
+                <OrderActionsMenu
+                  order={selected}
+                  actions={orderActions.actionsFor(selected)}
+                  onAction={orderActions.run}
+                  disabled={orderActions.busy}
+                />
+              }
+            />
+          ) : (
+            <DetailPanel className="sales-panel-empty">
+              <p>Select an order to see its items, payments and invoice.</p>
+            </DetailPanel>
+          )
         }
-        switcher={
-          <SectionSwitcher
-            label="Order sections"
-            selected={tab}
-            sections={TABS.map((id) => ({ id, label: `${TAB_LABEL[id]} (${counts.tabs[id]})` }))}
-            onChange={(id) =>
-              setParam({
-                section: id === 'open' ? (landing ? 'open' : null) : id,
-                status: null,
-                attention: null,
-                // Needs attention has no Customer and Created filters, so their values must not narrow it unseen.
-                ...(id === 'attention' ? { customer: null, from: null, to: null } : {}),
-              })
-            }
-          />
-        }
-        filterCategories={[
-          // Paid and cancelled orders have a single status each, so the Status category only exists for the open section.
-          ...(tab === 'open'
-            ? [
-                {
-                  key: 'status',
-                  label: 'Status',
-                  options: STATUS_VIEWS.map((view) => ({
-                    id: view.id,
-                    label: `${view.label} (${counts.views[view.id]})`,
-                  })),
-                },
-              ]
-            : []),
-          ...(tab === 'attention'
-            ? [
-                {
-                  key: 'attention',
-                  label: 'Needs attention',
-                  options: ORDER_ATTENTION_KEYS.map((id) => ({
-                    id,
-                    label: `${ATTENTION_LABEL[id]} (${counts.reasons[id]})`,
-                  })),
-                },
-              ]
-            : []),
-          {
-            key: 'invoice',
-            label: 'Invoice',
-            options: INVOICE_KEYS.map((id) => ({ id, label: `${invoiceLabel(id)} (${counts.invoices[id]})` })),
-          },
-          { key: 'type', label: 'Customer type', options: customerTypeOptions },
-          ...(tab === 'attention' ? [] : customerAndCreated),
-        ]}
-        toolbarAction={
-          <>
-            {readySummary.jobs > 0 && (
-              <>
-                <span id="orders-review-hint" className="cds--visually-hidden">
-                  {formatCents(readySummary.total)} from {readySummary.customers}{' '}
-                  {readySummary.customers === 1 ? 'customer' : 'customers'}
-                </span>
+      >
+        <DirectoryTable<Order>
+          id="orders"
+          urlPrefix=""
+          label="Orders"
+          columns={columns}
+          rows={rows}
+          totalCount={counts.tabs[tab]}
+          notice={readyNotice}
+          searchText={orderSearchText}
+          defaultSort={{ key: 'updated', direction: 'DESC' }}
+          pageSizes={[10, 25, 50]}
+          onRowClick={(order) =>
+            panelFits ? select(order.id === selected?.id ? null : order.id) : navigate(`/orders/${order.id}`)
+          }
+          filterCategories={[
+            // Paid and cancelled orders have a single status each, so the Status category only exists for the open section.
+            ...(tab === 'open'
+              ? [
+                  {
+                    key: 'status',
+                    label: 'Status',
+                    options: STATUS_VIEWS.map((view) => ({
+                      id: view.id,
+                      label: `${view.label} (${counts.views[view.id]})`,
+                    })),
+                  },
+                ]
+              : []),
+            ...(tab === 'attention'
+              ? [
+                  {
+                    key: 'attention',
+                    label: 'Needs attention',
+                    options: ORDER_ATTENTION_KEYS.map((id) => ({
+                      id,
+                      label: `${ATTENTION_LABEL[id]} (${counts.reasons[id]})`,
+                    })),
+                  },
+                ]
+              : []),
+            {
+              key: 'invoice',
+              label: 'Invoice',
+              options: INVOICE_KEYS.map((id) => ({ id, label: `${invoiceLabel(id)} (${counts.invoices[id]})` })),
+            },
+            { key: 'type', label: 'Customer type', options: customerTypeOptions },
+            ...(tab === 'attention' ? [] : customerAndCreated),
+          ]}
+          toolbarAction={
+            <>
+              {readySummary.jobs > 0 && (
+                <>
+                  <span id="orders-review-hint" className="cds--visually-hidden">
+                    {formatCents(readySummary.total)} from {readySummary.customers}{' '}
+                    {readySummary.customers === 1 ? 'customer' : 'customers'}
+                  </span>
+                  <Button
+                    kind="secondary"
+                    size="lg"
+                    renderIcon={ListChecked}
+                    className="sales-toolbar-action"
+                    aria-describedby="orders-review-hint"
+                    onClick={() => setParam({ review: '1' })}
+                  >
+                    Review jobs ({readySummary.jobs})
+                  </Button>
+                </>
+              )}
+              {canWrite && (
                 <Button
-                  kind="secondary"
+                  kind="primary"
                   size="lg"
-                  renderIcon={ListChecked}
+                  renderIcon={Add}
                   className="sales-toolbar-action"
-                  aria-describedby="orders-review-hint"
-                  onClick={() => setParam({ review: '1' })}
+                  onClick={() => setCreating(true)}
                 >
-                  Review jobs ({readySummary.jobs})
+                  New order
                 </Button>
-              </>
-            )}
-            {canWrite && (
-              <Button
-                kind="primary"
-                size="lg"
-                renderIcon={Add}
-                className="sales-toolbar-action"
-                onClick={() => setCreating(true)}
-              >
-                New order
-              </Button>
-            )}
-          </>
-        }
-        empty={{
-          title: orders.length === 0 ? 'No orders yet' : EMPTY_TITLE[tab],
-          description:
-            orders.length === 0
-              ? 'Orders are created from finished jobs or by hand.'
-              : tab === 'attention'
-                ? 'Overdue balances, changed jobs, open invoice requests, partly paid orders and old drafts appear here.'
-                : 'Orders appear here as they move through their life.',
-          action:
-            canWrite && orders.length === 0 ? (
-              <Button kind="tertiary" onClick={() => setCreating(true)}>
-                New order
-              </Button>
-            ) : undefined,
-        }}
-      />
-      {orderActions.dialogs}
-      {reviewing && <ReadyToBillModal canCreate={canWrite} onClose={() => setParam({ review: null })} />}
-      {creating && (
-        <EditOrderModal order={null} onClose={() => setCreating(false)} onSaved={(id) => navigate(`/orders/${id}`)} />
-      )}
-    </ListWithPanel>
+              )}
+            </>
+          }
+          empty={{
+            title: orders.length === 0 ? 'No orders yet' : EMPTY_TITLE[tab],
+            description:
+              orders.length === 0
+                ? 'Orders are created from finished jobs or by hand.'
+                : tab === 'attention'
+                  ? 'Overdue balances, changed jobs, open invoice requests, partly paid orders and old drafts appear here.'
+                  : 'Orders appear here as they move through their life.',
+            action:
+              canWrite && orders.length === 0 ? (
+                <Button kind="tertiary" onClick={() => setCreating(true)}>
+                  New order
+                </Button>
+              ) : undefined,
+          }}
+        />
+        {orderActions.dialogs}
+        {reviewing && <ReadyToBillModal canCreate={canWrite} onClose={() => setParam({ review: null })} />}
+        {creating && (
+          <EditOrderModal order={null} onClose={() => setCreating(false)} onSaved={(id) => navigate(`/orders/${id}`)} />
+        )}
+      </ListWithPanel>
+    </PageShell>
   );
 }
 
+const ORDERS_CRUMBS = [{ label: 'Sales & payments', to: '/orders' }, { label: 'Orders' }];
+
 export function OrdersPage() {
   const query = useQuery(allOrdersQuery());
+  // The table owns the page shell: its tabs under the title carry the counts of the loaded orders.
+  if (query.data) return <OrdersTable orders={query.data} />;
   return (
-    <PageShell
-      className="sales-page"
-      title="Orders"
-      width="wide"
-      breadcrumbs={[{ label: 'Sales & payments', to: '/orders' }, { label: 'Orders' }]}
-    >
+    <PageShell className="sales-page" title="Orders" width="wide" breadcrumbs={ORDERS_CRUMBS}>
       <QueryBoundary query={query} errorMessage="The orders could not be loaded.">
-        {(orders) => <OrdersTable orders={orders} />}
+        {() => null}
       </QueryBoundary>
     </PageShell>
   );
