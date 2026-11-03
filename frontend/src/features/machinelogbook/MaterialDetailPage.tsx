@@ -229,6 +229,7 @@ function MaterialDetail({ material }: { material: Material }) {
             kind="warning"
             lowContrast
             hideCloseButton
+            role="status"
             title="Needs attention"
             subtitle={material.attention.map((item) => item.message).join(' · ')}
             actionButtonLabel={allowed.manage ? 'Receive stock' : ''}

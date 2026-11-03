@@ -453,6 +453,7 @@ export function PrinterSetup({
           lowContrast
           hideCloseButton
           inline
+          role="status"
           title="Needs attention"
           subtitle={[
             waiting.length
