@@ -143,7 +143,7 @@ export function ExportCashbookModal({
             value="pdf"
             labelText={option(
               'PDF',
-              'The HTU Kassabuch sheet: Nr., Datum, Kassierer*in, Text, Einnahme, Ausgabe, with the balance carried forward and a signature field.',
+              'The HTU Kassabuch form: sheets of numbered entries with the balance carried over, then a final sheet with the totals and the three signature fields.',
             )}
           />
           <RadioButton

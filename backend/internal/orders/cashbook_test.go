@@ -2,6 +2,7 @@ package orders
 
 import (
 	"bytes"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -11,51 +12,48 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func TestCashbookLayoutPutsTwentyRowsOnASheet(t *testing.T) {
-	type sheet struct {
-		first, last, padding int
-		header, carry, sum   bool
-	}
+func TestCashbookLayoutFillsFourteenThenSeventeenRows(t *testing.T) {
 	cases := []struct {
-		name         string
-		rows         int
-		cashRegister bool
-		want         []sheet
+		rows int
+		want []cashbookSheet
 	}{
-		{"empty", 0, true, []sheet{{0, 0, 6, true, true, true}}},
-		{"short", 5, false, []sheet{{0, 5, 1, true, false, true}}},
-		{"one full sheet moves the totals on", 20, true, []sheet{
-			{0, 20, 0, true, true, false}, {20, 20, 0, false, true, true},
-		}},
-		{"full sheet without balance", 20, false, []sheet{
-			{0, 20, 0, true, false, false}, {20, 20, 0, false, true, true},
-		}},
-		{"totals below the last rows", 25, true, []sheet{
-			{0, 20, 0, true, true, false}, {20, 25, 0, false, true, true},
-		}},
-		{"three sheets", 45, true, []sheet{
-			{0, 20, 0, true, true, false}, {20, 40, 0, false, true, false}, {40, 45, 0, false, true, true},
-		}},
-		{"full continuation sheet keeps the totals", 40, true, []sheet{
-			{0, 20, 0, true, true, false}, {20, 40, 0, false, true, true},
-		}},
+		{0, []cashbookSheet{{0, 0}}},
+		{1, []cashbookSheet{{0, 1}}},
+		{14, []cashbookSheet{{0, 14}}},
+		{15, []cashbookSheet{{0, 14}, {14, 15}}},
+		{31, []cashbookSheet{{0, 14}, {14, 31}}},
+		{40, []cashbookSheet{{0, 14}, {14, 31}, {31, 40}}},
 	}
 	for _, c := range cases {
-		pages := layoutCashbook(c.rows, c.cashRegister)
-		if len(pages) != len(c.want) {
-			t.Fatalf("%s: %d sheets %+v", c.name, len(pages), pages)
+		got := layoutCashbook(c.rows)
+		if len(got) != len(c.want) {
+			t.Fatalf("%d rows: sheets %+v", c.rows, got)
 		}
-		for i, want := range c.want {
-			got := sheet{pages[i].first, pages[i].last, pages[i].padding, pages[i].header, pages[i].carry, pages[i].summary}
-			if got != want {
-				t.Fatalf("%s sheet %d = %+v, want %+v", c.name, i, got, want)
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Fatalf("%d rows: sheet %d = %+v, want %+v", c.rows, i, got[i], c.want[i])
 			}
 		}
-		for _, page := range pages {
-			if page.bottom() > kbContentBottom {
-				t.Fatalf("%s: rows run into the footer: %+v", c.name, page)
-			}
+	}
+	// Both sheet kinds end where the form ends, above the footer.
+	for _, g := range []kbSheet{kbFirstSheet, kbNextSheet} {
+		top := kbTop + kbTitleRow + kbOrgRow + kbYearRow
+		if g.rows == CashbookSheetRows {
+			top = kbTop
 		}
+		bottom := top + g.carry + g.head + float64(g.rows)*g.body + g.sum
+		if bottom < 240.5 || bottom > 241.5 {
+			t.Fatalf("sheet with %d rows ends at %.2f mm", g.rows, bottom)
+		}
+	}
+	if ops, err := parseLetterhead(kassabuchLetterhead); err != nil || len(ops) < 1000 {
+		t.Fatalf("letterhead: %d ops, %v", len(ops), err)
+	}
+	if _, err := parseLetterhead("#12345\nF"); err == nil {
+		t.Fatal("bad colour accepted")
+	}
+	if _, err := parseLetterhead("M 1"); err == nil {
+		t.Fatal("short operator accepted")
 	}
 }
 
@@ -152,39 +150,75 @@ func pdfPages(t *testing.T, data []byte) []string {
 	return pages
 }
 
-func TestCashbookPDFCarriesTheBalanceOverTwoSheets(t *testing.T) {
-	data, err := renderCashbookPDF(sampleCashbook(25, CashbookCashRegister))
+func requireTexts(t *testing.T, page string, texts ...string) {
+	t.Helper()
+	for _, text := range texts {
+		if !strings.Contains(page, text) {
+			t.Fatalf("page lacks %q: %s", text, page)
+		}
+	}
+}
+
+func TestCashbookPDFFollowsTheKassabuchSheets(t *testing.T) {
+	finalTexts := []string{
+		"Gesamtsumme (aller Einnahmen & Ausgaben)", "Anfangsbestand (Wirtschaftsjahr)", "Endbestand (Wirtschaftsjahr)",
+		"Kostenstellenverantwortliche/r", "Wirtschaftsreferent/in", "Vorsitzende/r", "Name, Datum & Unterschrift",
+	}
+	for _, c := range []struct{ entries, pages int }{{0, 2}, {1, 2}, {14, 2}, {15, 3}, {40, 4}} {
+		b := sampleCashbook(c.entries, CashbookCashRegister)
+		data, err := renderCashbookPDF(b)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pages := pdfPages(t, data)
+		if len(pages) != c.pages {
+			t.Fatalf("%d entries: %d pages", c.entries, len(pages))
+		}
+		requireTexts(t, pages[0], "Kassabuch", "Studienvertretung", "Makerspace (Studienlabor)", "Wirtschaftsjahr",
+			"2026 · Zeitraum 01.10.2026 – 31.10.2026", "Bestand/Übertrag von", "vorheriger Seite", "Kassierer*in",
+			"Einnahme", "Ausgabe", "1.000,00", "Summe/Bestand")
+		if c.entries > 0 {
+			requireTexts(t, pages[0], "Einnahme O-2026-000123 · Jürgen Weiß", "Anna Kassierer", "01.10.2026", "234,50")
+		}
+		// The first sheet closes with the balance after its last entry, which the next sheet carries over.
+		firstClose := b.opening
+		if c.entries > 0 {
+			firstClose = b.lines[min(c.entries, CashbookFirstSheetRows)-1].balance
+		}
+		requireTexts(t, pages[0], germanAmount(firstClose))
+		for i, page := range pages[1 : len(pages)-1] {
+			requireTexts(t, page, "Bestand/Übertrag von", "Summe/Bestand", "Nr.", "Kassierer*in",
+				strconv.Itoa(CashbookFirstSheetRows+i*CashbookSheetRows+1))
+			if strings.Contains(page, "Wirtschaftsjahr") || strings.Contains(page, "Gesamtsumme") {
+				t.Fatalf("%d entries: head block or totals on sheet %d", c.entries, i+2)
+			}
+		}
+		if c.entries > CashbookFirstSheetRows {
+			requireTexts(t, pages[1], germanAmount(firstClose), strconv.Itoa(min(c.entries, 31)))
+		}
+		final := pages[len(pages)-1]
+		requireTexts(t, final, finalTexts...)
+		requireTexts(t, final, germanAmount(b.totalIn), germanAmount(b.totalOut), "1.000,00", germanAmount(b.closing))
+		if strings.Contains(final, "Summe/Bestand") || strings.Contains(final, "Kassierer*in") {
+			t.Fatalf("%d entries: entry table on the final sheet", c.entries)
+		}
+	}
+
+	b := sampleCashbook(2, CashbookAllPayments)
+	data, err := renderCashbookPDF(b)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pages := pdfPages(t, data)
 	if len(pages) != 2 {
-		t.Fatalf("%d pages", len(pages))
+		t.Fatalf("all payments: %d pages", len(pages))
 	}
-	first, second := pages[0], pages[1]
-	for _, want := range []string{"Kassabuch", "Makerspace (Studienlabor)", "Wirtschaftsjahr", "2026 · Zeitraum 01.10.2026",
-		"vorheriger Seite", "1.000,00", "Kassierer*in", "Einnahme O-2026-000123", "Anna Kassierer", "HTU Graz"} {
-		if !strings.Contains(first, want) {
-			t.Fatalf("page 1 lacks %q: %s", want, first)
-		}
-	}
-	if strings.Contains(first, "Summe") || strings.Contains(second, "Wirtschaftsjahr") {
-		t.Fatal("totals on the first sheet or header block on the second")
-	}
-	for _, want := range []string{"vorheriger Seite", "Summe/Bestand", "Datum, Unterschrift Kassier*in",
-		"Datum, Unterschrift Finanzreferat", "Körperschaft öffentlichen Rechts", "21", "25"} {
-		if !strings.Contains(second, want) {
-			t.Fatalf("page 2 lacks %q: %s", want, second)
-		}
-	}
-	short, err := renderCashbookPDF(sampleCashbook(2, CashbookAllPayments))
-	if err != nil {
-		t.Fatal(err)
-	}
-	pages = pdfPages(t, short)
-	if len(pages) != 1 || !strings.Contains(pages[0], "alle Zahlungen") || !strings.Contains(pages[0], "(Bar)") ||
-		strings.Contains(pages[0], "Summe/Bestand") || !strings.Contains(pages[0], "Summe") {
-		t.Fatalf("all payments %q", pages)
+	// Without a balance the sheet sums both columns and no opening or closing balance appears anywhere.
+	requireTexts(t, pages[0], "alle Zahlungen", "(Bar)", "Summe/Bestand", "234,50", "50,00")
+	requireTexts(t, pages[1], finalTexts...)
+	requireTexts(t, pages[1], "234,50", "50,00")
+	if strings.Contains(pages[0]+pages[1], "1.000,00") || strings.Contains(pages[0]+pages[1], "1.184,50") {
+		t.Fatalf("balance without the cash register: %q", pages)
 	}
 }
 
@@ -223,8 +257,9 @@ func TestCashbookExportFromTheRegister(t *testing.T) {
 		t.Fatalf("%v %s", err, file.ContentType)
 	}
 	pages := pdfPages(t, file.Data)
-	if len(pages) != 1 || !strings.Contains(pages[0], "Entnahme · Bankeinzahlung (Bar)") ||
-		!strings.Contains(pages[0], "Rückzahlung O-") {
+	// One entry sheet and the final sheet with the totals and signatures.
+	if len(pages) != 2 || !strings.Contains(pages[0], "Entnahme · Bankeinzahlung (Bar)") ||
+		!strings.Contains(pages[0], "Rückzahlung O-") || !strings.Contains(pages[1], "Gesamtsumme") {
 		t.Fatalf("%q", pages)
 	}
 	query.From = time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)

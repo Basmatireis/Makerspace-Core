@@ -2,237 +2,268 @@ package orders
 
 import (
 	"bytes"
+	_ "embed"
 	"fmt"
 	"strconv"
+	"strings"
+	"sync"
 
 	"github.com/go-pdf/fpdf"
 	"github.com/shopspring/decimal"
 )
 
-// The cashbook PDF reproduces the HTU Kassabuch sheet: the HTU letterhead and footer on every page, the header block
-// (Kassabuch, Studienlabor, Wirtschaftsjahr) on the first page, the balance carried over at the top of every other
-// page and the totals with two signature lines at the end. Lengths are millimetres on A4.
-
-// CashbookRowsPerPage is the number of entry rows on one sheet.
-const CashbookRowsPerPage = 20
-
-// cashbookMinimumRows pads a short cashbook with empty rows, so the sheet still reads as a form.
-const cashbookMinimumRows = 6
+// The cashbook PDF reproduces the HTU Kassabuch form (Kassabuch_Vorlage): the letterhead on every page, a first
+// sheet with the head block and 14 entry rows, continuation sheets with 17 entry rows, each opened by the balance
+// carried over and closed by Summe/Bestand, and a final sheet with the totals and three signature fields. Sheets are
+// always complete, so unused rows stay empty as on the paper form. Lengths are millimetres on A4, measured from the
+// template; y grows downwards and positions name the centre of a rule.
 
 const (
-	kbLeft          = 20.0
-	kbWidth         = 170.0
-	kbTableTop      = 50.0
-	kbTitleRow      = 8.0
-	kbOrgRow        = 13.0
-	kbYearRow       = 8.5
-	kbCarryRow      = 9.0
-	kbHeadRow       = 6.5
-	kbRow           = 7.0
-	kbSignature     = 18.0
-	kbContentBottom = 238.0
-	kbFontSize      = 8.0
-	kbSmallFontSize = 6.5
+	// CashbookFirstSheetRows is the number of entry rows on the first sheet, below the head block.
+	CashbookFirstSheetRows = 14
+	// CashbookSheetRows is the number of entry rows on every following sheet.
+	CashbookSheetRows = 17
 )
 
-// kbColumns are Nr., Datum, Kassierer*in, Text, Einnahme, Ausgabe; they add up to kbWidth.
-var kbColumns = [6]float64{15, 22.4, 27.5, 60.1, 22.5, 22.5}
+// kbRules are the vertical rules of the table: Nr., Datum, Kassierer*in, Text, Einnahme, Ausgabe.
+var kbRules = [7]float64{20.03, 35.10, 57.58, 85.10, 145.10, 167.64, 190.07}
 
-// cashbookPage is one sheet: rows [first, last) of the lines, with the header block on the first sheet, the
-// carry-over row on every other sheet (and on the first one of the cash register) and the totals on the last.
-type cashbookPage struct {
-	first, last int
-	header      bool
-	carry       bool
-	padding     int
-	summary     bool
-}
+const (
+	kbTop       = 52.08
+	kbPad       = 1.88 // text inset from a rule
+	kbRule      = 0.17 // 0.48 pt
+	kbLineGap   = 4.47 // between the lines of a label
+	kbLabelSize = 11.04
+	kbValueSize = 9.0  // entries
+	kbTotalSize = 10.0 // carried balance, sums and totals
+	kbTextSize  = 9.0
+	kbRefSize   = 7.0
+	// The head block of the first sheet: title, Studienvertretung/Studienlabor/Referat and Wirtschaftsjahr rows.
+	kbTitleRow   = 7.49
+	kbOrgRow     = 15.70
+	kbYearRow    = 10.0
+	kbHeadInset  = 3.73 // baseline of a top-aligned label below the rule
+	kbTitleInset = 6.01
+	kbSumInset   = 6.14
+	// The final sheet: three amount rows, then three signature rows with a narrower label cell.
+	kbTotalInset   = 6.18
+	kbSignatureEnd = 115.17
+)
 
-// layoutCashbook splits rows into sheets of CashbookRowsPerPage. When the totals and the signature lines do not fit
-// below the last rows, they move to a sheet of their own that starts with the carry-over row.
-func layoutCashbook(rows int, cashRegister bool) []cashbookPage {
-	var pages []cashbookPage
-	for first := 0; first < rows || first == 0; first += CashbookRowsPerPage {
-		last := min(first+CashbookRowsPerPage, rows)
-		pages = append(pages, cashbookPage{first: first, last: last, header: first == 0, carry: first > 0 || cashRegister})
-		if rows == 0 {
-			break
-		}
-	}
-	if rows < cashbookMinimumRows {
-		pages[0].padding = cashbookMinimumRows - rows
-	}
-	last := &pages[len(pages)-1]
-	sums := 1
-	if cashRegister {
-		sums = 2
-	}
-	if last.bottom()+float64(sums)*kbRow+kbSignature <= kbContentBottom {
-		last.summary = true
-		return pages
-	}
-	return append(pages, cashbookPage{first: rows, last: rows, carry: true, summary: true})
-}
+var (
+	kbTotalRows     = [3]float64{9.52, 9.48, 9.53}
+	kbSignatureRows = [3]float64{19.65, 20.02, 19.98}
+)
 
-// bottom is where the rows of the page end.
-func (p cashbookPage) bottom() float64 {
-	y := kbTableTop + kbHeadRow + float64(p.last-p.first+p.padding)*kbRow
-	if p.header {
-		y += kbTitleRow + kbOrgRow + kbYearRow
-	}
-	if p.carry {
-		y += kbCarryRow
-	}
-	return y
+// kbSheet is the row geometry of a sheet; the first sheet is shorter in rows because of its head block.
+type kbSheet struct {
+	rows                  int
+	carry, head, body     float64
+	sum                   float64
+	carryInset, headInset float64
+	headSmall             bool
 }
 
 var (
-	kbRed    = [3]int{238, 63, 35}
-	kbTeal   = [3]int{99, 201, 174}
-	kbBlue   = [3]int{46, 115, 149}
-	kbYellow = [3]int{250, 195, 10}
-	kbDark   = [3]int{43, 43, 43}
-	kbGrey   = [3]int{128, 128, 128}
+	kbFirstSheet = kbSheet{
+		rows:       CashbookFirstSheetRows,
+		carry:      9.10,
+		head:       4.67,
+		body:       9.4536,
+		sum:        9.48,
+		carryInset: 3.72,
+		headInset:  3.73,
+		headSmall:  true,
+	}
+	kbNextSheet = kbSheet{
+		rows:       CashbookSheetRows,
+		carry:      9.48,
+		head:       9.44,
+		body:       9.457,
+		sum:        9.44,
+		carryInset: 3.93,
+		headInset:  6.14,
+	}
 )
+
+// cashbookSheet holds the entries [first, last) of one sheet.
+type cashbookSheet struct {
+	first, last int
+}
+
+// layoutCashbook splits entries into the first sheet and continuation sheets. There is always at least one sheet;
+// the final sheet with the totals and signatures follows the last one.
+func layoutCashbook(rows int) []cashbookSheet {
+	sheets := []cashbookSheet{{first: 0, last: min(rows, CashbookFirstSheetRows)}}
+	for first := CashbookFirstSheetRows; first < rows; first += CashbookSheetRows {
+		sheets = append(sheets, cashbookSheet{first: first, last: min(first+CashbookSheetRows, rows)})
+	}
+	return sheets
+}
+
+var (
+	kbInk  = [3]int{60, 60, 60} // text colour of the form
+	kbGrey = [3]int{127, 127, 127}
+	kbRef  = [3]int{111, 111, 111}
+)
+
+// kassabuchLetterhead is the letterhead artwork of the template (logo, triangles and footer text as outlines), as
+// filled paths in millimetres: "#rrggbb" sets the colour, M/L/C/Z build a path, F fills it.
+//
+//go:embed kassabuch_letterhead.txt
+var kassabuchLetterhead string
+
+type kbPathOp struct {
+	op     byte
+	values []float64
+	color  [3]int
+}
+
+var kbLetterheadOps = sync.OnceValues(func() ([]kbPathOp, error) {
+	return parseLetterhead(kassabuchLetterhead)
+})
+
+func parseLetterhead(source string) ([]kbPathOp, error) {
+	arity := map[byte]int{'M': 2, 'L': 2, 'C': 6, 'Z': 0, 'F': 0}
+	var ops []kbPathOp
+	for n, line := range strings.Split(strings.TrimSpace(source), "\n") {
+		if strings.HasPrefix(line, "#") {
+			value, err := strconv.ParseUint(strings.TrimPrefix(line, "#"), 16, 32)
+			if err != nil || len(line) != 7 {
+				return nil, fmt.Errorf("letterhead line %d: bad colour", n+1)
+			}
+			ops = append(ops, kbPathOp{op: '#', color: [3]int{int(value >> 16), int(value >> 8 & 0xff), int(value & 0xff)}})
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) == 0 || len(fields[0]) != 1 {
+			return nil, fmt.Errorf("letterhead line %d: no operator", n+1)
+		}
+		op := fields[0][0]
+		want, ok := arity[op]
+		if !ok || len(fields)-1 != want {
+			return nil, fmt.Errorf("letterhead line %d: bad operator", n+1)
+		}
+		values := make([]float64, want)
+		for i, field := range fields[1:] {
+			v, err := strconv.ParseFloat(field, 64)
+			if err != nil {
+				return nil, fmt.Errorf("letterhead line %d: %w", n+1, err)
+			}
+			values[i] = v
+		}
+		ops = append(ops, kbPathOp{op: op, values: values})
+	}
+	return ops, nil
+}
+
+// drawLetterhead paints the letterhead and the two fold marks of the template.
+func drawLetterhead(t *fpdf.Fpdf, ops []kbPathOp) {
+	for _, o := range ops {
+		v := o.values
+		switch o.op {
+		case '#':
+			t.SetFillColor(o.color[0], o.color[1], o.color[2])
+		case 'M':
+			t.MoveTo(v[0], v[1])
+		case 'L':
+			t.LineTo(v[0], v[1])
+		case 'C':
+			t.CurveBezierCubicTo(v[0], v[1], v[2], v[3], v[4], v[5])
+		case 'Z':
+			t.ClosePath()
+		case 'F':
+			t.DrawPath("F")
+		}
+	}
+	t.SetFillColor(kbInk[0], kbInk[1], kbInk[2])
+	t.Rect(0, 104.88, 10.71, 0.49, "F")
+	t.Rect(0, 210.03, 10.71, 0.49, "F")
+}
 
 type kbPDF struct {
 	*fpdf.Fpdf
 	tr func(string) string
 }
 
-func (k kbPDF) fill(c [3]int) { k.SetFillColor(c[0], c[1], c[2]) }
+// capHalf lifts a baseline from the middle of a cell so that capitals of the size sit centred (Arial cap height).
+func capHalf(size float64) float64 { return size * 0.716 * 25.4 / 72 / 2 }
 
-func (k kbPDF) triangle(c [3]int, points ...float64) {
-	k.fill(c)
-	k.Polygon([]fpdf.PointType{{X: points[0], Y: points[1]}, {X: points[2], Y: points[3]}, {X: points[4], Y: points[5]}}, "F")
+func (k kbPDF) font(style string, size float64, color [3]int) {
+	k.SetFont("Helvetica", style, size)
+	k.SetTextColor(color[0], color[1], color[2])
 }
 
-// logo draws the HTU hexagon with its letters as vector shapes.
-func (k kbPDF) logo(x, y float64) {
-	const width, height = 17.9, 20.6
-	point := func(px, py float64) fpdf.PointType { return fpdf.PointType{X: x + px*width, Y: y + py*height} }
-	hexagon := func(inset float64) []fpdf.PointType {
-		return []fpdf.PointType{
-			point(0.5, inset), point(1-inset*0.87, 0.25+inset*0.5), point(1-inset*0.87, 0.75-inset*0.5),
-			point(0.5, 1-inset), point(inset*0.87, 0.75-inset*0.5), point(inset*0.87, 0.25+inset*0.5),
+func (k kbPDF) text(x, baseline float64, text, style string, size float64) {
+	k.font(style, size, kbInk)
+	k.Text(x, baseline, k.tr(text))
+}
+
+func (k kbPDF) textRight(right, baseline float64, text, style string, size float64) {
+	k.font(style, size, kbInk)
+	text = k.tr(text)
+	k.Text(right-k.GetStringWidth(text), baseline, text)
+}
+
+// fit shrinks text down to minSize and then shortens it with an ellipsis until it fits the width; it returns the
+// encoded text and leaves the font set.
+func (k kbPDF) fit(text, style string, size, minSize, width float64) string {
+	return k.fitEncoded(k.tr(text), style, size, minSize, width)
+}
+
+// fitEncoded is fit for text already in the PDF encoding.
+func (k kbPDF) fitEncoded(text, style string, size, minSize, width float64) string {
+	for ; size > minSize; size -= 0.5 {
+		k.SetFont("Helvetica", style, size)
+		if k.GetStringWidth(text) <= width {
+			return text
 		}
 	}
-	k.fill(kbRed)
-	k.Polygon(hexagon(0), "F")
-	k.SetFillColor(255, 255, 255)
-	k.Polygon(hexagon(0.1), "F")
-	k.fill(kbRed)
-	box := func(x0, y0, x1, y1 float64) {
-		k.Rect(x+x0*width, y+y0*height, (x1-x0)*width, (y1-y0)*height, "F")
-	}
-	box(0.14, 0.26, 0.23, 0.78) // h: stem
-	box(0.14, 0.40, 0.42, 0.47) // h: shoulder
-	box(0.33, 0.40, 0.42, 0.78) // h: leg
-	box(0.32, 0.18, 0.72, 0.26) // T: bar
-	box(0.46, 0.18, 0.55, 0.90) // T: stem
-	box(0.60, 0.36, 0.69, 0.78) // U: left
-	box(0.78, 0.30, 0.87, 0.78) // U: right
-	box(0.60, 0.71, 0.87, 0.78) // U: bottom
-}
-
-// sheet draws the letterhead, the decoration and the footer of the template.
-func (k kbPDF) sheet() {
-	k.logo(23, 19.8)
-	k.SetTextColor(kbDark[0], kbDark[1], kbDark[2])
-	k.SetFont("Helvetica", "B", 17)
-	k.Text(44.7, 30.3, "HTU Graz")
-	k.SetFont("Helvetica", "", 9)
-	k.Text(44.7, 34.6, "Vertretung. Beratung. Service.")
-	k.triangle(kbTeal, 182.0, 13.8, 191.8, 7.9, 191.8, 19.8)
-	k.triangle(kbBlue, 191.8, 19.8, 201.9, 13.8, 201.9, 25.7)
-	k.triangle(kbRed, 191.8, 31.7, 201.9, 25.7, 201.9, 37.6)
-	k.triangle(kbYellow, 191.8, 31.7, 191.8, 43.5, 201.9, 37.6)
-	k.triangle(kbRed, 191.8, 241.5, 191.8, 253.4, 201.9, 247.4)
-	k.triangle(kbTeal, 191.8, 253.4, 191.8, 265.2, 201.9, 259.3)
-	k.triangle(kbYellow, 182.0, 271.2, 191.8, 265.2, 191.8, 277.1)
-	k.triangle(kbDark, 182.0, 271.2, 182.0, 283.1, 191.8, 277.1)
-	k.triangle(kbBlue, 191.8, 277.1, 191.8, 289.0, 201.9, 283.1)
-	k.triangle(kbTeal, 8.0, 261.5, 8.0, 273.4, 17.8, 267.5)
-	// Fold marks.
-	k.SetDrawColor(kbDark[0], kbDark[1], kbDark[2])
-	k.SetLineWidth(0.3)
-	k.Line(0, 105, 10.7, 105)
-	k.Line(0, 210, 10.7, 210)
-	k.SetFont("Helvetica", "B", 7.5)
-	k.Text(23, 269.5, k.tr("HOCHSCHÜLERINNEN- UND HOCHSCHÜLERSCHAFT AN DER TECHNISCHEN UNIVERSITÄT GRAZ"))
-	k.SetFont("Helvetica", "", 7.5)
-	k.Text(23, 273.8, k.tr("Körperschaft öffentlichen Rechts"))
-	k.Text(23, 278.1, k.tr("Rechbauerstraße 12, 8010 Graz | +43-316 873-5111 | info@htugraz.at | www.htugraz.at"))
-	k.Text(23, 282.4, k.tr("Steiermaerkische Bank und Sparkassen AG, IBAN: AT312081500043449370, BIC: STSPAT2GXXX"))
-	k.SetDrawColor(29, 29, 27)
-	k.SetLineWidth(0.25)
-}
-
-// fit shortens text with an ellipsis until it fits the width.
-func (k kbPDF) fit(text string, width float64) string {
-	text = k.tr(text)
+	k.SetFont("Helvetica", style, minSize)
 	if k.GetStringWidth(text) <= width {
 		return text
 	}
 	ellipsis := "\x85" // … in cp1252
-	runes := []byte(text)
-	for len(runes) > 0 && k.GetStringWidth(string(runes)+ellipsis) > width {
-		runes = runes[:len(runes)-1]
+	cut := []byte(text)
+	for len(cut) > 0 && k.GetStringWidth(string(cut)+ellipsis) > width {
+		cut = cut[:len(cut)-1]
 	}
-	return string(runes) + ellipsis
+	return string(cut) + ellipsis
 }
 
-// cell draws one bordered cell with a single line of text; bold and right alignment as asked.
-func (k kbPDF) cell(x, y, w, h float64, text string, bold, right bool) {
-	k.Rect(x, y, w, h, "D")
-	if text == "" {
+// cell draws one bordered cell, grey when asked.
+func (k kbPDF) cell(x0, x1, y, h float64, grey bool) {
+	style := "D"
+	if grey {
+		k.SetFillColor(kbGrey[0], kbGrey[1], kbGrey[2])
+		style = "FD"
+	}
+	k.Rect(x0, y, x1-x0, h, style)
+}
+
+// row draws the six cells of a table row; greyOut fills the Ausgabe cell.
+func (k kbPDF) row(y, h float64, greyOut bool) {
+	for i := range 6 {
+		k.cell(kbRules[i], kbRules[i+1], y, h, greyOut && i == 5)
+	}
+}
+
+// amount writes a right-aligned amount into column 4 (Einnahme) or 5 (Ausgabe); totals are bold and larger.
+func (k kbPDF) amount(column int, y, h float64, value string, total bool) {
+	if value == "" {
 		return
 	}
-	style := ""
-	if bold {
-		style = "B"
+	style, size := "", kbValueSize
+	if total {
+		style, size = "B", kbTotalSize
 	}
-	k.SetFont("Helvetica", style, kbFontSize)
-	k.SetTextColor(29, 29, 27)
-	text = k.fit(text, w-2.4)
-	tx := x + 1.2
-	if right {
-		tx = x + w - 1.2 - k.GetStringWidth(text)
-	}
-	k.Text(tx, y+h/2+1.1, text)
+	k.textRight(kbRules[column+1]-kbPad, y+h/2+capHalf(size), value, style, size)
 }
 
-func (k kbPDF) greyCell(x, y, w, h float64) {
-	k.fill(kbGrey)
-	k.Rect(x, y, w, h, "FD")
-}
-
-func columnX(i int) float64 {
-	x := kbLeft
-	for _, w := range kbColumns[:i] {
-		x += w
-	}
-	return x
-}
-
-// labelRow is a row with a bold label in the text column and two amount cells.
-func (k kbPDF) labelRow(y, h float64, label []string, in string, out *string) {
-	for i := range 3 {
-		k.Rect(columnX(i), y, kbColumns[i], h, "D")
-	}
-	k.Rect(columnX(3), y, kbColumns[3], h, "D")
-	k.SetFont("Helvetica", "B", kbFontSize)
-	k.SetTextColor(29, 29, 27)
-	lineY := y + h/2 + 1.1 - float64(len(label)-1)*1.7
-	for _, line := range label {
-		k.Text(columnX(3)+1.2, lineY, k.tr(line))
-		lineY += 3.4
-	}
-	k.cell(columnX(4), y, kbColumns[4], h, in, true, true)
-	if out == nil {
-		k.greyCell(columnX(5), y, kbColumns[5], h)
-	} else {
-		k.cell(columnX(5), y, kbColumns[5], h, *out, true, true)
+// label writes the lines of a bold label from the first baseline down.
+func (k kbPDF) label(x, baseline float64, lines ...string) {
+	for i, line := range lines {
+		k.text(x, baseline+float64(i)*kbLineGap, line, "B", kbLabelSize)
 	}
 }
 
@@ -248,103 +279,191 @@ func (b cashbook) yearText() string {
 	return text
 }
 
+// headBlock draws the title, Studienvertretung/Studienlabor/Referat and Wirtschaftsjahr rows of the first sheet and
+// returns where the table continues.
+func (k kbPDF) headBlock(b cashbook) float64 {
+	left, split, right := kbRules[0], kbRules[2], kbRules[6]
+	y := kbTop
+	k.cell(left, right, y, kbTitleRow, false)
+	k.font("B", 18, kbInk)
+	k.Text((left+right-k.GetStringWidth("Kassabuch"))/2, y+kbTitleInset, "Kassabuch")
+	y += kbTitleRow
+	k.cell(left, split, y, kbOrgRow, false)
+	k.cell(split, right, y, kbOrgRow, false)
+	k.label(left+kbPad, y+kbHeadInset, "Studienvertretung", "Studienlabor", "Referat")
+	k.text(split+kbPad, y+kbOrgRow/2+capHalf(kbLabelSize), "Makerspace (Studienlabor)", "", kbLabelSize)
+	y += kbOrgRow
+	k.cell(left, split, y, kbYearRow, false)
+	k.cell(split, right, y, kbYearRow, false)
+	k.label(left+kbPad, y+kbHeadInset, "Wirtschaftsjahr")
+	k.font("", kbLabelSize, kbInk)
+	year := k.fit(b.yearText(), "", kbLabelSize, 8, right-split-2*kbPad)
+	k.Text(split+kbPad, y+kbHeadInset, year)
+	return y + kbYearRow
+}
+
+// wrap breaks encoded text into at most two lines of the width in the given font, shortening the second line with
+// an ellipsis when the text is longer still.
+func (k kbPDF) wrap(text string, size, width float64) []string {
+	k.SetFont("Helvetica", "", size)
+	var lines []string
+	// SplitLines keeps the cell margin free on both sides; the inset here is kbPad already.
+	for _, part := range k.SplitLines([]byte(text), width+2*k.GetCellMargin()) {
+		lines = append(lines, string(part))
+	}
+	if len(lines) > 2 {
+		lines = []string{lines[0], k.fitEncoded(strings.Join(lines[1:], " "), "", size, size, width)}
+	}
+	return lines
+}
+
+// entry fills one body row. A long cashier name takes two smaller lines; a long text takes two smaller lines above
+// the receipt number.
+func (k kbPDF) entry(b cashbook, n int, y, h float64) {
+	line := b.lines[n]
+	middle := y + h/2 + capHalf(kbValueSize)
+	k.text(kbRules[0]+kbPad, middle, strconv.Itoa(n+1), "", kbValueSize)
+	k.text(kbRules[1]+kbPad, middle, line.at.In(b.location).Format("02.01.2006"), "", kbValueSize)
+	x, width := kbRules[2]+kbPad, kbRules[3]-kbRules[2]-2*kbPad
+	name := k.tr(line.recordedBy)
+	k.SetFont("Helvetica", "", kbValueSize)
+	if k.GetStringWidth(name) <= width {
+		k.Text(x, middle, name)
+	} else if parts := k.wrap(name, 8.5, width); len(parts) == 1 {
+		k.Text(x, y+h/2+capHalf(8.5), parts[0])
+	} else {
+		for i, part := range parts {
+			k.Text(x, y+h/2-0.63+float64(i)*3.4, part)
+		}
+	}
+	x, width = kbRules[3]+kbPad, kbRules[4]-kbRules[3]-2*kbPad
+	text := k.tr(germanWords.describe(line, !b.withBalance))
+	refBaseline, refSize := y+7.54, kbRefSize
+	size := kbTextSize
+	for ; size > 7.5; size -= 0.5 {
+		if k.SetFont("Helvetica", "", size); k.GetStringWidth(text) <= width {
+			break
+		}
+	}
+	if parts := k.wrap(text, size, width); len(parts) == 1 {
+		k.Text(x, y+4.17, parts[0])
+	} else {
+		for i, part := range parts {
+			k.Text(x, y+3.05+float64(i)*2.9, part)
+		}
+		refBaseline, refSize = y+8.6, 6
+	}
+	k.font("", refSize, kbRef)
+	k.Text(x, refBaseline, k.fit(line.reference, "", refSize, refSize, width))
+	in, out := b.amounts(line)
+	k.amount(4, y, h, optionalAmount(in, germanAmount), false)
+	k.amount(5, y, h, optionalAmount(out, germanAmount), false)
+}
+
+// finalSheet draws the totals, the opening and closing balance and the three signature fields.
+func (k kbPDF) finalSheet(b cashbook) {
+	y := kbTop
+	totals := []struct {
+		label   string
+		in, out string
+		greyOut bool
+	}{
+		{"Gesamtsumme (aller Einnahmen & Ausgaben)", germanAmount(b.totalIn), germanAmount(b.totalOut), false},
+		{"Anfangsbestand (Wirtschaftsjahr)", "", "", true},
+		{"Endbestand (Wirtschaftsjahr)", "", "", true},
+	}
+	if b.withBalance {
+		totals[1].in, totals[2].in = germanAmount(b.opening), germanAmount(b.closing)
+	}
+	for i, total := range totals {
+		h := kbTotalRows[i]
+		k.cell(kbRules[0], kbRules[4], y, h, false)
+		k.cell(kbRules[4], kbRules[5], y, h, false)
+		k.cell(kbRules[5], kbRules[6], y, h, total.greyOut)
+		k.textRight(kbRules[4]-kbPad, y+kbTotalInset, total.label, "B", kbLabelSize)
+		k.amount(4, y, h, total.in, true)
+		k.amount(5, y, h, total.out, true)
+		y += h
+	}
+	for i, role := range []string{"Kostenstellenverantwortliche/r", "Wirtschaftsreferent/in", "Vorsitzende/r"} {
+		h := kbSignatureRows[i]
+		k.cell(kbRules[0], kbSignatureEnd, y, h, false)
+		k.cell(kbSignatureEnd, kbRules[6], y, h, false)
+		baseline := y + h/2 - 0.8
+		k.textRight(kbSignatureEnd-kbPad, baseline, "Name, Datum & Unterschrift", "B", kbLabelSize)
+		k.textRight(kbSignatureEnd-kbPad, baseline+4.45, role, "B", kbLabelSize)
+		y += h
+	}
+}
+
 func renderCashbookPDF(b cashbook) ([]byte, error) {
+	letterhead, err := kbLetterheadOps()
+	if err != nil {
+		return nil, fmt.Errorf("read cashbook letterhead: %w", err)
+	}
 	pdf := fpdf.New("P", "mm", "A4", "")
 	pdf.SetMargins(0, 0, 0)
 	pdf.SetAutoPageBreak(false, 0)
 	pdf.SetTitle("Kassabuch "+b.yearText(), true)
 	pdf.SetCreator("Makerspace Core", true)
 	k := kbPDF{Fpdf: pdf, tr: pdf.UnicodeTranslatorFromDescriptor("")}
-	cashRegister := b.withBalance
-	// carried is what the carry-over row shows: the balance for the cash register, the running totals otherwise.
-	carriedBalance := b.opening
-	carriedIn, carriedOut := decimal.Zero, decimal.Zero
-	for _, page := range layoutCashbook(len(b.lines), cashRegister) {
+	var template fpdf.Template
+	newPage := func() {
 		pdf.AddPage()
-		k.sheet()
-		y := kbTableTop
-		if page.header {
-			k.SetFont("Helvetica", "B", 14)
-			k.Rect(kbLeft, y, kbWidth, kbTitleRow, "D")
-			title := "Kassabuch"
-			k.Text(kbLeft+(kbWidth-k.GetStringWidth(title))/2, y+kbTitleRow/2+1.8, title)
-			y += kbTitleRow
-			labelWidth := kbColumns[0] + kbColumns[1] + kbColumns[2]
-			k.Rect(kbLeft, y, labelWidth, kbOrgRow, "D")
-			k.Rect(kbLeft+labelWidth, y, kbWidth-labelWidth, kbOrgRow, "D")
-			k.SetFont("Helvetica", "B", 9)
-			for i, line := range []string{"Studienvertretung", "Studienlabor", "Referat"} {
-				k.Text(kbLeft+1.2, y+3.8+float64(i)*3.6, line)
-			}
-			k.SetFont("Helvetica", "", 9)
-			k.Text(kbLeft+labelWidth+1.5, y+3.8, "Makerspace (Studienlabor)")
-			y += kbOrgRow
-			k.Rect(kbLeft, y, labelWidth, kbYearRow, "D")
-			k.Rect(kbLeft+labelWidth, y, kbWidth-labelWidth, kbYearRow, "D")
-			k.SetFont("Helvetica", "B", 9)
-			k.Text(kbLeft+1.2, y+3.8, "Wirtschaftsjahr")
-			k.SetFont("Helvetica", "", 9)
-			k.Text(kbLeft+labelWidth+1.5, y+3.8, k.fit(b.yearText(), kbWidth-labelWidth-3))
-			y += kbYearRow
+		if template == nil {
+			// One form XObject carries the letterhead, so its outlines are stored once however many pages follow.
+			template = pdf.CreateTemplate(func(t *fpdf.Tpl) { drawLetterhead(&t.Fpdf, letterhead) })
 		}
-		if page.carry {
-			if cashRegister {
-				k.labelRow(y, kbCarryRow, []string{"Bestand/Übertrag von", "vorheriger Seite"}, germanAmount(carriedBalance), nil)
-			} else {
-				out := germanAmount(carriedOut)
-				k.labelRow(y, kbCarryRow, []string{"Übertrag von", "vorheriger Seite"}, germanAmount(carriedIn), &out)
-			}
-			y += kbCarryRow
-		}
-		for i, title := range []string{"Nr.", "Datum", "Kassierer*in", "Text", "Einnahme", "Ausgabe"} {
-			k.cell(columnX(i), y, kbColumns[i], kbHeadRow, title, true, false)
-		}
-		y += kbHeadRow
-		for n := page.first; n < page.last; n++ {
-			line := b.lines[n]
-			in, out := b.amounts(line)
-			k.cell(columnX(0), y, kbColumns[0], kbRow, strconv.Itoa(n+1), false, true)
-			k.cell(columnX(1), y, kbColumns[1], kbRow, line.at.In(b.location).Format("02.01.2006"), false, false)
-			k.cell(columnX(2), y, kbColumns[2], kbRow, line.recordedBy, false, false)
-			k.Rect(columnX(3), y, kbColumns[3], kbRow, "D")
-			k.SetFont("Helvetica", "", kbFontSize)
-			k.SetTextColor(29, 29, 27)
-			k.Text(columnX(3)+1.2, y+3.1, k.fit(germanWords.describe(line, !cashRegister), kbColumns[3]-2.4))
-			k.SetFont("Helvetica", "", kbSmallFontSize)
-			k.SetTextColor(111, 111, 111)
-			k.Text(columnX(3)+1.2, y+5.9, k.tr(line.reference))
-			k.cell(columnX(4), y, kbColumns[4], kbRow, optionalAmount(in, germanAmount), false, true)
-			k.cell(columnX(5), y, kbColumns[5], kbRow, optionalAmount(out, germanAmount), false, true)
-			carriedBalance = line.balance
-			carriedIn, carriedOut = carriedIn.Add(in), carriedOut.Add(out)
-			y += kbRow
-		}
-		for range page.padding {
-			for i := range kbColumns {
-				k.Rect(columnX(i), y, kbColumns[i], kbRow, "D")
-			}
-			y += kbRow
-		}
-		if !page.summary {
-			continue
-		}
-		totalOut := germanAmount(b.totalOut)
-		k.labelRow(y, kbRow, []string{"Summe"}, germanAmount(b.totalIn), &totalOut)
-		y += kbRow
-		if cashRegister {
-			k.labelRow(y, kbRow, []string{"Summe/Bestand"}, germanAmount(b.closing), nil)
-			y += kbRow
-		}
-		lineY := y + 12
-		k.SetLineWidth(0.3)
-		k.Line(kbLeft, lineY, kbLeft+75, lineY)
-		k.Line(kbLeft+kbWidth-75, lineY, kbLeft+kbWidth, lineY)
-		k.SetFont("Helvetica", "", 7.5)
-		k.SetTextColor(82, 82, 82)
-		k.Text(kbLeft, lineY+3.5, "Datum, Unterschrift Kassier*in")
-		k.Text(kbLeft+kbWidth-75, lineY+3.5, "Datum, Unterschrift Finanzreferat")
-		k.SetLineWidth(0.25)
+		pdf.UseTemplate(template)
+		pdf.SetDrawColor(0, 0, 0)
+		pdf.SetLineWidth(kbRule)
 	}
+	balance := b.opening
+	for _, sheet := range layoutCashbook(len(b.lines)) {
+		newPage()
+		g, y := kbNextSheet, kbTop
+		if sheet.first == 0 {
+			g, y = kbFirstSheet, k.headBlock(b)
+		}
+		// The carried balance and the balance rows belong to the cash register; with every payment method there is
+		// no balance, so those cells stay empty.
+		k.row(y, g.carry, true)
+		k.label(kbRules[3]+kbPad, y+g.carryInset, "Bestand/Übertrag von", "vorheriger Seite")
+		if b.withBalance {
+			k.amount(4, y, g.carry, germanAmount(balance), true)
+		}
+		y += g.carry
+		k.row(y, g.head, false)
+		for i, title := range []string{"Nr.", "Datum", "Kassierer*in", "Text", "Einnahme", "Ausgabe"} {
+			size := kbLabelSize
+			if g.headSmall && i == 2 {
+				size = 10.56 // as on the form, where the narrow header row needs it
+			}
+			k.text(kbRules[i]+kbPad, y+g.headInset, title, "B", size)
+		}
+		y += g.head
+		sumIn, sumOut := decimal.Zero, decimal.Zero
+		for i := range g.rows {
+			k.row(y, g.body, false)
+			if n := sheet.first + i; n < sheet.last {
+				k.entry(b, n, y, g.body)
+				in, out := b.amounts(b.lines[n])
+				sumIn, sumOut = sumIn.Add(in), sumOut.Add(out)
+				balance = b.lines[n].balance
+			}
+			y += g.body
+		}
+		k.row(y, g.sum, b.withBalance)
+		k.label(kbRules[3]+kbPad, y+kbSumInset, "Summe/Bestand")
+		if b.withBalance {
+			k.amount(4, y, g.sum, germanAmount(balance), true)
+		} else {
+			k.amount(4, y, g.sum, germanAmount(sumIn), true)
+			k.amount(5, y, g.sum, germanAmount(sumOut), true)
+		}
+	}
+	newPage()
+	k.finalSheet(b)
 	if err := pdf.Error(); err != nil {
 		return nil, fmt.Errorf("render cashbook pdf: %w", err)
 	}
