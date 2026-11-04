@@ -68,6 +68,14 @@ async function readResponse(response: Response): Promise<unknown> {
   return response.text();
 }
 
+export type ApiTransport = (url: string, init: RequestInit) => Promise<Response>;
+let apiTransport: ApiTransport | null = null;
+
+/** Routes every API request through `transport` instead of the network (demo mode); null restores `fetch`. */
+export function setApiTransport(transport: ApiTransport | null): void {
+  apiTransport = transport;
+}
+
 export type ReauthenticationRequest = { requiredAssurance?: string; withinMinutes?: number };
 type ReauthenticationHandler = (request: ReauthenticationRequest) => Promise<boolean>;
 
@@ -126,7 +134,7 @@ async function send<T>(url: string, options: RequestInit): Promise<T> {
     headers.set(ENROLLMENT_CSRF_HEADER_NAME, enrollmentCSRFToken);
   }
 
-  const response = await fetch(url, {
+  const response = await (apiTransport ?? fetch)(url, {
     ...options,
     cache: 'no-store',
     credentials: 'same-origin',
