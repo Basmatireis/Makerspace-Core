@@ -26,8 +26,6 @@ export const PeopleMergeConflictCode = {
   source_scim_managed: 'source_scim_managed',
   actor_is_source: 'actor_is_source',
   open_visit_conflict: 'open_visit_conflict',
-  attendance_hold_conflict: 'attendance_hold_conflict',
-  lab_rules_request_conflict: 'lab_rules_request_conflict',
   open_day_assignment_conflict: 'open_day_assignment_conflict',
   pin_conflict: 'pin_conflict',
   totp_conflict: 'totp_conflict',

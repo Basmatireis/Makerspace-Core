@@ -21,13 +21,17 @@
 import type { LaborordnungStatusMode } from './laborordnungStatusMode';
 import type { LaborordnungStatusState } from './laborordnungStatusState';
 import type { LaborordnungVersion } from './laborordnungVersion';
-import type { UUIDv7 } from './uUIDv7';
 
 export interface LaborordnungStatus {
   mode: LaborordnungStatusMode;
   state: LaborordnungStatusState;
+  /** True when the Person must confirm currentVersion. */
   actionRequired: boolean;
   currentVersion: LaborordnungVersion | null;
   latestConfirmedVersion: LaborordnungVersion | null;
-  requestId: UUIDv7 | null;
+  /**
+     * When latestConfirmedVersion was confirmed.
+     * @nullable
+     */
+  latestConfirmedAt: string | null;
 }

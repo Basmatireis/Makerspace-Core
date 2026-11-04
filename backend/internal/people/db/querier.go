@@ -24,12 +24,11 @@ type Querier interface {
 	CountMasterAssignments(ctx context.Context) (int64, error)
 	// History of the source People that a merge moves to the target, per category.
 	CountMergeHistory(ctx context.Context, arg CountMergeHistoryParams) (CountMergeHistoryRow, error)
-	CountMergePendingLabRulesVersions(ctx context.Context, ids []string) (int64, error)
 	CountPeople(ctx context.Context, arg CountPeopleParams) (int64, error)
 	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
 	DeleteDuplicateMergeInboxRecipients(ctx context.Context, arg DeleteDuplicateMergeInboxRecipientsParams) (int64, error)
-	// One pending request per Person: the target's pending request for the same version wins.
-	DeleteDuplicateMergeLabRulesRequests(ctx context.Context, arg DeleteDuplicateMergeLabRulesRequestsParams) (int64, error)
+	// One confirmation per Person and version: the target's confirmation of the same version wins.
+	DeleteDuplicateMergeLabRulesConfirmations(ctx context.Context, arg DeleteDuplicateMergeLabRulesConfirmationsParams) (int64, error)
 	DeleteDuplicateMergeOpenDayAssignments(ctx context.Context, arg DeleteDuplicateMergeOpenDayAssignmentsParams) (int64, error)
 	DeleteDuplicateMergeOrganizationMembers(ctx context.Context, arg DeleteDuplicateMergeOrganizationMembersParams) (int64, error)
 	DeleteDuplicateMergeRecoveryCodes(ctx context.Context, arg DeleteDuplicateMergeRecoveryCodesParams) (int64, error)
@@ -75,7 +74,7 @@ type Querier interface {
 	LockPeopleForMerge(ctx context.Context, ids []string) ([]Person, error)
 	MoveMergeAuthIdentities(ctx context.Context, arg MoveMergeAuthIdentitiesParams) (int64, error)
 	MoveMergeInboxRecipients(ctx context.Context, arg MoveMergeInboxRecipientsParams) (int64, error)
-	MoveMergeLabRulesRequests(ctx context.Context, arg MoveMergeLabRulesRequestsParams) (int64, error)
+	MoveMergeLabRulesConfirmations(ctx context.Context, arg MoveMergeLabRulesConfirmationsParams) (int64, error)
 	MoveMergeOpenDayAssignments(ctx context.Context, arg MoveMergeOpenDayAssignmentsParams) (int64, error)
 	MoveMergeOrganizationMembers(ctx context.Context, arg MoveMergeOrganizationMembersParams) (int64, error)
 	MoveMergeSecondFactors(ctx context.Context, arg MoveMergeSecondFactorsParams) (int64, error)
@@ -89,8 +88,8 @@ type Querier interface {
 	RepointMergeAccountReferences(ctx context.Context, arg RepointMergeAccountReferencesParams) (int64, error)
 	// Keeps the activity history of a merged Person and Account (actor and resource) on the surviving records.
 	RepointMergeAuditEvents(ctx context.Context, arg RepointMergeAuditEventsParams) (int64, error)
-	// Re-points the person references that carry no uniqueness rule. Conflicting open visits and attendance holds are
-	// rejected before this runs.
+	// Re-points the person references that carry no uniqueness rule. Conflicting open visits are rejected before this
+	// runs.
 	RepointMergePersonReferences(ctx context.Context, arg RepointMergePersonReferencesParams) (RepointMergePersonReferencesRow, error)
 	RevokeMergeSessions(ctx context.Context, accountIds []string) (int64, error)
 	SetProfileImage(ctx context.Context, arg SetProfileImageParams) (Person, error)

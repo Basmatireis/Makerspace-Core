@@ -1,0 +1,16 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+
+// Pages of a PDF rendered by pdf.js into canvases (see PdfPages).
+.pdf-viewer__pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $spacing-05;
+}
+
+.pdf-viewer__page {
+  max-inline-size: 100%;
+  background: #fff;
+  box-shadow: 0 0 0 1px $border-subtle;
+}

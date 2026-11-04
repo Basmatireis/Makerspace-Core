@@ -19,11 +19,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * The visitor confirmed the Lab Rules while enrolling (or their role does not ask for them) and is admitted.
+ */
 export type VisitorEnrollmentResultAdmission = typeof VisitorEnrollmentResultAdmission[keyof typeof VisitorEnrollmentResultAdmission];
 
 
 export const VisitorEnrollmentResultAdmission = {
   admitted: 'admitted',
-  warning: 'warning',
-  blocked: 'blocked',
 } as const;

@@ -31,7 +31,7 @@ type NoticeMailer interface {
 	SendNotice(ctx context.Context, to, subject, body, link string) error
 }
 
-// MailDelivery sends the queued e-mails of printer notifications after their transaction committed.
+// MailDelivery sends the queued e-mails of notifications after their transaction committed.
 type MailDelivery struct {
 	pool   *pgxpool.Pool
 	mailer NoticeMailer

@@ -1,8 +1,8 @@
 import { Tile } from '@carbon/react';
 
-export function StatTile({ value, label, alert = false }: { value: number | string; label: string; alert?: boolean }) {
+export function StatTile({ value, label }: { value: number | string; label: string }) {
   return (
-    <Tile className={`attendance-stat${alert ? ' is-alert' : ''}`}>
+    <Tile className="attendance-stat">
       <strong>{value}</strong>
       <span>{label}</span>
     </Tile>

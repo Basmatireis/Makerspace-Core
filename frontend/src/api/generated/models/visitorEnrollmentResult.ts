@@ -30,8 +30,8 @@ export interface VisitorEnrollmentResult {
   accountStatus: VisitorEnrollmentResultAccountStatus;
   /** @nullable */
   invitationDelivery: VisitorEnrollmentResultInvitationDelivery;
-  labRulesRequestId: UUIDv7 | null;
+  /** The visitor confirmed the Lab Rules while enrolling (or their role does not ask for them) and is admitted. */
   admission: VisitorEnrollmentResultAdmission;
-  /** Completing enrollment counts as arriving; blocked roles wait for a supervisor to confirm the Lab Rules. */
+  /** Completing enrollment counts as arriving. */
   attendance: VisitorEnrollmentResultAttendance;
 }

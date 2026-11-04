@@ -24,7 +24,7 @@ export type NotificationKind = typeof NotificationKind[keyof typeof Notification
 
 export const NotificationKind = {
   NotificationKindMessage: 'message',
-  NotificationKindLabRulesConfirmationRequested: 'lab_rules_confirmation_requested',
+  NotificationKindLabRulesPublished: 'lab_rules_published',
   NotificationKindOpenDayPeriodOpen: 'open_day_period_open',
   NotificationKindOpenDayPlaceFreed: 'open_day_place_freed',
   NotificationKindRunFinished: 'run_finished',

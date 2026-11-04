@@ -1,7 +1,8 @@
 import { InlineLoading, InlineNotification, Link } from '@carbon/react';
 import { useEffect, useRef, useState } from 'react';
+import './pdf.scss';
 
-/** Shows a same-origin PDF as canvases; the pdf.js renderer is imported only when this mounts (the modal opens). */
+/** Shows a same-origin PDF as canvases; the pdf.js renderer is imported only when this mounts (when it is shown). */
 export function PdfPages({ url }: { url: string }) {
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
   const host = useRef<HTMLDivElement>(null);
@@ -20,7 +21,7 @@ export function PdfPages({ url }: { url: string }) {
   }, [url]);
 
   return (
-    <div className="visitor-pdf">
+    <div className="pdf-viewer">
       {status === 'loading' && <InlineLoading description="Loading Lab Rules…" />}
       {status === 'failed' && (
         <>
@@ -37,7 +38,7 @@ export function PdfPages({ url }: { url: string }) {
           </Link>
         </>
       )}
-      <div ref={host} className="visitor-pdf__pages" />
+      <div ref={host} className="pdf-viewer__pages" />
     </div>
   );
 }

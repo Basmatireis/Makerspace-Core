@@ -18,8 +18,37 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LaborordnungRequest } from './laborordnungRequest';
+import type { LaborordnungConfirmationMethod } from './laborordnungConfirmationMethod';
+import type { ListLaborordnungConfirmationsDirection } from './listLaborordnungConfirmationsDirection';
+import type { ListLaborordnungConfirmationsSort } from './listLaborordnungConfirmationsSort';
+import type { UUIDv7 } from './uUIDv7';
 
-export interface LaborordnungRequestList {
-  items: LaborordnungRequest[];
-}
+export type ListLaborordnungConfirmationsParams = {
+/**
+ * @maxLength 200
+ */
+search?: string;
+/**
+ * Only confirmations of this Lab Rules version.
+ */
+versionId?: UUIDv7;
+/**
+ * Only confirmations of this person.
+ */
+personId?: UUIDv7;
+/**
+ * Only confirmations made this way.
+ */
+method?: LaborordnungConfirmationMethod;
+sort?: ListLaborordnungConfirmationsSort;
+direction?: ListLaborordnungConfirmationsDirection;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: number;
+};

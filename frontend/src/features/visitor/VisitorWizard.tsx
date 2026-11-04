@@ -14,12 +14,14 @@ import {
 } from '@carbon/react';
 import { ArrowLeft, ArrowRight } from '@carbon/icons-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   submitVisitorEnrollment,
   type getVisitorEnrollmentState,
 } from '../../api/generated/visitor-enrollment/visitor-enrollment';
 import type { VisitorAuthenticationMethod } from '../../api/generated/models';
+import { apiErrorCode } from '../../api/http-client';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { BrandMark } from '../../app/BrandMark';
 import { usePageTitle, useBranding } from '../branding/branding';
@@ -55,6 +57,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   usePageTitle('Visitor enrollment');
   useKeyboardAvoidance();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const heading = useRef<HTMLHeadingElement>(null);
   const [step, setStep] = useState(0);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -67,6 +70,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const [loginName, setLoginName] = useState('');
   const [pin, setPIN] = useState('');
   const [ready, setReady] = useState(false);
+  const [rulesChanged, setRulesChanged] = useState(false);
   const [outcome, setOutcome] = useState<EnrollmentOutcome>();
   const mutation = useSecretMutation(submitVisitorEnrollment, { gcTime: 0 });
 
@@ -111,6 +115,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
       return;
     }
     if (!method) return;
+    setRulesChanged(false);
     try {
       const result = await mutation.mutateAsync({
         firstName: firstName.trim(),
@@ -122,12 +127,10 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
         pin: method === 'pin' ? pin : null,
         profileImageBase64: image?.base64 ?? null,
         profileImageFilename: image?.filename ?? null,
-        requestConfirmation: ready,
+        labRulesAccepted: ready,
       });
       setOutcome({
         firstName: firstName.trim(),
-        admission: result.admission,
-        attendance: result.attendance,
         invitationDelivery: result.invitationDelivery,
         method,
         email: email.trim(),
@@ -135,8 +138,15 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
       });
       setPIN('');
       setImage(undefined);
-    } catch {
-      /* The notification below renders the failure. */
+    } catch (error) {
+      if (apiErrorCode(error) === 'lab_rules_changed') {
+        // A newer revision became effective while the visitor was filling in the form: load it, ask again.
+        setReady(false);
+        setRulesChanged(true);
+        setStep(2);
+        await queryClient.invalidateQueries({ queryKey: ['visitor-enrollment', 'state'] });
+      }
+      /* Other failures are rendered by the notification below. */
     }
   };
 
@@ -174,7 +184,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
             {stepTitles[step]}
           </h1>
 
-          {mutation.isError && (
+          {mutation.isError && apiErrorCode(mutation.error) !== 'lab_rules_changed' && (
             <InlineNotification
               kind="error"
               lowContrast
@@ -312,9 +322,19 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
           {step === 2 &&
             (state.currentLabRules ? (
               <div className="visitor-flow__rules">
+                {rulesChanged && (
+                  <InlineNotification
+                    kind="warning"
+                    lowContrast
+                    hideCloseButton
+                    role="alert"
+                    title="The Lab Rules changed"
+                    subtitle="A newer revision became effective while you were filling in the form. Please read the new revision and accept it again."
+                  />
+                )}
                 <p className="visitor-flow__lead">
-                  Read the current Lab Rules (revision {state.currentLabRules.humanRevision}). After you submit, a
-                  supervisor has you sign the paper version before you may use machines.
+                  Read the current Lab Rules (revision {state.currentLabRules.humanRevision}). By accepting them you are
+                  checked in and may use the lab.
                 </p>
                 <div>
                   <Button type="button" kind="secondary" onClick={() => setRulesOpen(true)}>
@@ -328,7 +348,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                 </div>
                 <Checkbox
                   id="visitor-ready"
-                  labelText="I am ready to sign the physical Lab Rules document and request supervisor confirmation *"
+                  labelText="I have read and accept the Lab Rules *"
                   checked={ready}
                   onChange={(_, data) => setReady(data.checked)}
                 />

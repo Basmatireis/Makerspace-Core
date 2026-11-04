@@ -67,7 +67,7 @@ export function UsersPage() {
   const mayCreate = hasPermission(currentUser, PermissionId.peoplecreate);
   const showAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const mayReadRoles = hasPermission(currentUser, PermissionId.rolesread);
-  const mayReadLabRules = hasPermission(currentUser, PermissionId.laborordnungrequestsread);
+  const mayReadLabRules = hasPermission(currentUser, PermissionId.laborordnungconfirmationsread);
   const mayViewSupervisorStaffing = hasPermission(currentUser, PermissionId.supervisor_dashboardread);
 
   useEffect(() => setSearchValue(search), [search]);

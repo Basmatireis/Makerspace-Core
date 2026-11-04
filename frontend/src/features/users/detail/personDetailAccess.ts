@@ -18,7 +18,7 @@ export function getPersonDetailAccess(
   const canReadRoles = hasPermission(currentUser, PermissionId.rolesread);
   const canReadMakerspaceStatus =
     hasPermission(currentUser, PermissionId.open_daysread_assignments) ||
-    hasPermission(currentUser, PermissionId.laborordnungrequestsread);
+    hasPermission(currentUser, PermissionId.laborordnungconfirmationsread);
   const canUpdateProfileImage =
     hasPermission(currentUser, PermissionId.peopleprofile_imageupdateall) ||
     (currentUser.person.id === person.id && hasPermission(currentUser, PermissionId.peopleprofile_imageupdateself));

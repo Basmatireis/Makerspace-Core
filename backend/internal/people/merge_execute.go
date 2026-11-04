@@ -428,12 +428,12 @@ func moveMergePerson(
 				SourcePersonID: source, TargetPersonID: target,
 			})
 		}},
-		{MergedLabRulesRequests, func() (int64, error) {
-			return queries.DeleteDuplicateMergeLabRulesRequests(ctx, peopledb.DeleteDuplicateMergeLabRulesRequestsParams{
+		{MergedLabRulesConfirmations, func() (int64, error) {
+			return queries.DeleteDuplicateMergeLabRulesConfirmations(ctx, peopledb.DeleteDuplicateMergeLabRulesConfirmationsParams{
 				SourcePersonID: source, TargetPersonID: target,
 			})
 		}, func() (int64, error) {
-			return queries.MoveMergeLabRulesRequests(ctx, peopledb.MoveMergeLabRulesRequestsParams{
+			return queries.MoveMergeLabRulesConfirmations(ctx, peopledb.MoveMergeLabRulesConfirmationsParams{
 				SourcePersonID: source, TargetPersonID: target,
 			})
 		}},
@@ -483,7 +483,6 @@ func moveMergePerson(
 		return err
 	}
 	counts[MergedVisits] += row.Visits
-	counts[MergedAttendanceHolds] += row.AttendanceHolds
 	counts[MergedSurveyInvitations] += row.SurveyInvitations
 	counts[MergedSurveyResponses] += row.SurveyResponses
 	counts[MergedEventPlanning] += row.EventPlanning

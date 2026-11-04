@@ -90,7 +90,6 @@ function LabRulesOverview({ status }: { status: LaborordnungStatus }) {
         </div>
         <div className="tag-list">
           <Tag type={tagType}>{stateLabel}</Tag>
-          {status.requestId && <Tag type="purple">Confirmation pending</Tag>}
         </div>
       </div>
       <div className="lab-rules-overview__versions">

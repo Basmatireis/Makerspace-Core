@@ -262,6 +262,17 @@ func (q *Queries) GetAccountPersonName(ctx context.Context, accountID uuid.UUID)
 	return i, err
 }
 
+const getLabRulesVersionRevision = `-- name: GetLabRulesVersionRevision :one
+SELECT human_revision FROM laborordnung_versions WHERE id = $1
+`
+
+func (q *Queries) GetLabRulesVersionRevision(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getLabRulesVersionRevision, id)
+	var human_revision string
+	err := row.Scan(&human_revision)
+	return human_revision, err
+}
+
 const getMachineNotificationFacts = `-- name: GetMachineNotificationFacts :one
 SELECT m.id, m.name AS machine_name, r.id AS run_id, r.display_id AS run_display_id, j.operator_person_id,
        j.customer_person_id, j.customer_organization_id
@@ -741,6 +752,48 @@ func (q *Queries) ListEnabledAccountIDsWithPermission(ctx context.Context, arg L
 	return items, nil
 }
 
+const listEnabledAccountsAwaitingLabRules = `-- name: ListEnabledAccountsAwaitingLabRules :many
+SELECT a.id, a.person_id
+FROM accounts a
+WHERE a.status = 'enabled'
+  AND EXISTS (
+      SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
+      WHERE pr.person_id = a.person_id AND r.laborordnung_mode IN ('warning', 'blocking')
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM laborordnung_confirmations c
+      WHERE c.person_id = a.person_id AND c.version_id = $1
+  )
+ORDER BY a.person_id, a.id
+`
+
+type ListEnabledAccountsAwaitingLabRulesRow struct {
+	ID       uuid.UUID
+	PersonID uuid.UUID
+}
+
+// Active accounts of people whose roles ask for the Lab Rules (warning or blocking) and who have not confirmed the
+// version.
+func (q *Queries) ListEnabledAccountsAwaitingLabRules(ctx context.Context, versionID uuid.UUID) ([]ListEnabledAccountsAwaitingLabRulesRow, error) {
+	rows, err := q.db.Query(ctx, listEnabledAccountsAwaitingLabRules, versionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEnabledAccountsAwaitingLabRulesRow{}
+	for rows.Next() {
+		var i ListEnabledAccountsAwaitingLabRulesRow
+		if err := rows.Scan(&i.ID, &i.PersonID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEnabledAccountsOfPeople = `-- name: ListEnabledAccountsOfPeople :many
 SELECT id, person_id FROM accounts
 WHERE person_id = ANY($1::text[]::uuid[]) AND status = 'enabled'
@@ -1048,6 +1101,22 @@ type MarkAllOwnNotificationsReadParams struct {
 
 func (q *Queries) MarkAllOwnNotificationsRead(ctx context.Context, arg MarkAllOwnNotificationsReadParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markAllOwnNotificationsRead, arg.Now, arg.AccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const markLabRulesPublishedRead = `-- name: MarkLabRulesPublishedRead :execrows
+UPDATE inbox_recipients r
+SET read_at = now()
+FROM inbox_notifications n, accounts a
+WHERE n.id = r.notification_id AND n.kind = 'lab_rules_published'
+  AND a.id = r.account_id AND a.person_id = $1 AND r.read_at IS NULL
+`
+
+func (q *Queries) MarkLabRulesPublishedRead(ctx context.Context, personID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, markLabRulesPublishedRead, personID)
 	if err != nil {
 		return 0, err
 	}

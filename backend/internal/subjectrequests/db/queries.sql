@@ -185,15 +185,11 @@ SELECT jsonb_build_object(
     'visits', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
         'checkedInAt', v.checked_in_at, 'checkedOutAt', v.checked_out_at, 'status', v.status, 'checkInMethod', v.check_in_method,
         'checkOutMethod', v.check_out_method, 'admissionDecision', v.admission_decision, 'correctionReason', v.correction_reason)
-        ORDER BY v.checked_in_at), '[]'::jsonb) FROM visits v WHERE v.person_id = sqlc.arg(subject_person)::uuid),
-    'holds', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
-        'requestedAt', h.requested_at, 'expiresAt', h.expires_at, 'checkInMethod', h.check_in_method) ORDER BY h.requested_at), '[]'::jsonb)
-        FROM attendance_holds h WHERE h.person_id = sqlc.arg(subject_person)::uuid)
+        ORDER BY v.checked_in_at), '[]'::jsonb) FROM visits v WHERE v.person_id = sqlc.arg(subject_person)::uuid)
 )::jsonb AS document;
 
 -- name: CountVisits :one
-SELECT ((SELECT count(*) FROM visits v WHERE v.person_id = sqlc.arg(subject_person)::uuid)
-    + (SELECT count(*) FROM attendance_holds ah WHERE ah.person_id = sqlc.arg(subject_person)::uuid))::bigint AS total;
+SELECT count(*)::bigint AS total FROM visits v WHERE v.person_id = sqlc.arg(subject_person)::uuid;
 
 -- name: ExportSurveyInvitations :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -255,15 +251,16 @@ FROM training_records r JOIN trainings t ON t.id = r.training_id WHERE r.person_
 -- name: CountTrainingRecords :one
 SELECT count(*)::bigint FROM training_records WHERE person_id = sqlc.arg(subject_person)::uuid;
 
--- name: ExportLabRulesRequests :one
+-- name: ExportLabRulesConfirmations :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object(
-    'status', r.status, 'requestedAt', r.requested_at, 'completedAt', r.completed_at, 'supersededAt', r.superseded_at,
-    'signedDate', r.signed_date, 'physicalDocumentReference', r.physical_document_reference, 'archiveNote', r.archive_note)
-    ORDER BY r.requested_at), '[]'::jsonb)::jsonb AS document
-FROM laborordnung_requests r WHERE r.person_id = sqlc.arg(subject_person)::uuid;
+    'revision', v.human_revision, 'method', c.method, 'confirmedAt', c.confirmed_at,
+    'signedDate', c.signed_date, 'physicalDocumentReference', c.physical_document_reference, 'archiveNote', c.archive_note)
+    ORDER BY c.confirmed_at), '[]'::jsonb)::jsonb AS document
+FROM laborordnung_confirmations c JOIN laborordnung_versions v ON v.id = c.version_id
+WHERE c.person_id = sqlc.arg(subject_person)::uuid;
 
--- name: CountLabRulesRequests :one
-SELECT count(*)::bigint FROM laborordnung_requests WHERE person_id = sqlc.arg(subject_person)::uuid;
+-- name: CountLabRulesConfirmations :one
+SELECT count(*)::bigint FROM laborordnung_confirmations WHERE person_id = sqlc.arg(subject_person)::uuid;
 
 -- name: ExportAuditEvents :one
 SELECT jsonb_build_object(
@@ -335,7 +332,7 @@ SELECT count(*)::bigint FROM inbox_recipients WHERE account_id = sqlc.arg(subjec
 SELECT jsonb_build_object(
     'visitsCheckedIn', (SELECT count(*) FROM visits v WHERE v.checked_in_by_account_id = sqlc.arg(subject_account)::uuid OR v.checked_out_by_account_id = sqlc.arg(subject_account)::uuid),
     'trainingRecordsRecorded', (SELECT count(*) FROM training_records tr WHERE tr.recorded_by_account_id = sqlc.arg(subject_account)::uuid),
-    'labRulesConfirmed', (SELECT count(*) FROM laborordnung_requests lr WHERE lr.confirmed_by_account_id = sqlc.arg(subject_account)::uuid),
+    'labRulesConfirmed', (SELECT count(*) FROM laborordnung_confirmations lr WHERE lr.confirmed_by_account_id = sqlc.arg(subject_account)::uuid),
     'ordersCreated', (SELECT count(*) FROM orders o WHERE o.created_by_account_id = sqlc.arg(subject_account)::uuid),
     'paymentsRecorded', (SELECT count(*) FROM payments p WHERE p.actor_account_id = sqlc.arg(subject_account)::uuid),
     'eventsCreated', (SELECT count(*) FROM events e WHERE e.created_by_account_id = sqlc.arg(subject_account)::uuid),

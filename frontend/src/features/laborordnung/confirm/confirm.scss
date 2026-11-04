@@ -1,0 +1,55 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// The PDF scrolls inside its own box so the checkbox and the buttons stay reachable without scrolling the page.
+.lab-rules-agreement {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+.lab-rules-agreement__pdf {
+  max-block-size: min(60dvh, 40rem);
+  min-block-size: 8rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: $spacing-05;
+  background: $layer-02;
+  border: 1px solid $border-subtle;
+}
+
+.lab-rules-agreement__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+// Standalone confirm page outside the application shell.
+.lab-rules-confirm-page {
+  max-inline-size: 56rem;
+  margin-inline: auto;
+  padding: $spacing-07 $spacing-05;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+.lab-rules-confirm-page__heading {
+  margin: 0;
+}
+
+// A blocking confirmation has no way out except confirming, so the close button goes away with Escape and the overlay.
+.lab-rules-modal--blocking .cds--modal-close-button {
+  display: none;
+}
+
+.lab-rules-modal__lead {
+  margin-block-end: $spacing-05;
+}
+
+// Touch targets on the entrance tablet: a larger label to tap and read.
+.lab-rules-agreement__checkbox--lg .cds--checkbox-label-text {
+  @include type-style('body-02');
+  padding-block: $spacing-03;
+}

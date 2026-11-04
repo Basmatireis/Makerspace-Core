@@ -13,19 +13,21 @@ import (
 
 // Category identifiers.
 const (
-	PeopleIdentity         privacy.CategoryID = "people.identity"
-	AccountsCredentials    privacy.CategoryID = "accounts.credentials"
-	AuthSessions           privacy.CategoryID = "auth.sessions"
-	AuthPendingState       privacy.CategoryID = "auth.pending_state"
-	SCIMMappings           privacy.CategoryID = "scim.mappings"
-	AttendanceVisits       privacy.CategoryID = "attendance.visits"
-	SurveyInvitations      privacy.CategoryID = "surveys.invitations"
-	SurveyResponses        privacy.CategoryID = "surveys.responses"
-	EventExternalSignups   privacy.CategoryID = "events.external_signups"
-	EventContent           privacy.CategoryID = "events.content"
-	OpenDayAssignments     privacy.CategoryID = "opendays.assignments"
-	TrainingRecords        privacy.CategoryID = "trainings.records"
-	LabRulesRequests       privacy.CategoryID = "laborordnung.requests"
+	PeopleIdentity       privacy.CategoryID = "people.identity"
+	AccountsCredentials  privacy.CategoryID = "accounts.credentials"
+	AuthSessions         privacy.CategoryID = "auth.sessions"
+	AuthPendingState     privacy.CategoryID = "auth.pending_state"
+	SCIMMappings         privacy.CategoryID = "scim.mappings"
+	AttendanceVisits     privacy.CategoryID = "attendance.visits"
+	SurveyInvitations    privacy.CategoryID = "surveys.invitations"
+	SurveyResponses      privacy.CategoryID = "surveys.responses"
+	EventExternalSignups privacy.CategoryID = "events.external_signups"
+	EventContent         privacy.CategoryID = "events.content"
+	OpenDayAssignments   privacy.CategoryID = "opendays.assignments"
+	TrainingRecords      privacy.CategoryID = "trainings.records"
+	// LabRulesConfirmations keeps the identifier it had when confirmations were paper requests: policies,
+	// retention holds and subject requests store category identifiers.
+	LabRulesConfirmations  privacy.CategoryID = "laborordnung.requests"
 	AuditEvents            privacy.CategoryID = "audit.events"
 	OrdersFinancialRecords privacy.CategoryID = "orders.financial_records"
 	OrdersIdempotency      privacy.CategoryID = "orders.idempotency"
@@ -140,11 +142,11 @@ func Definitions() []privacy.Definition {
 			Subject:  privacy.SubjectPerson,
 		},
 		{
-			ID: AttendanceVisits, Owner: Attendance, Name: "Visits and holds",
-			Description:    "Who was in the lab when, including kiosk check-ins, corrections and admission holds.",
-			Contains:       "Check-in and check-out times, corrections, admission holds",
+			ID: AttendanceVisits, Owner: Attendance, Name: "Visits",
+			Description:    "Who was in the lab when, including kiosk check-ins and corrections.",
+			Contains:       "Check-in and check-out times, corrections",
 			ErasureOutcome: privacy.ErasureErased,
-			Fields:         []string{"visits.*", "attendance_holds.*"},
+			Fields:         []string{"visits.*"},
 			Triggers:       []privacy.Trigger{privacy.TriggerCompletedAt},
 			Actions:        []privacy.Action{privacy.ActionAnonymize, privacy.ActionDelete},
 			Subject:        privacy.SubjectPerson,
@@ -223,14 +225,17 @@ func Definitions() []privacy.Definition {
 			Subject:        privacy.SubjectPerson,
 		},
 		{
-			ID: LabRulesRequests, Owner: Laborordnung, Name: "Lab Rules confirmations",
-			Description:    "Physical document references, signed dates and archive notes of Lab Rules confirmations.",
-			Contains:       "Physical document reference, signed date, archive note",
+			ID: LabRulesConfirmations, Owner: Laborordnung, Name: "Lab Rules confirmations",
+			Description:    "Who confirmed which Lab Rules version, when and how; for older paper confirmations also the document reference, signed date and archive note.",
+			Contains:       "Confirmed version, time and method; physical document reference, signed date, archive note",
 			ErasureOutcome: privacy.ErasureErased,
-			Fields:         []string{"laborordnung_requests.person_id", "laborordnung_requests.physical_document_reference", "laborordnung_requests.signed_date", "laborordnung_requests.archive_note"},
-			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt, privacy.TriggerLegalPeriodEnd},
-			Actions:        []privacy.Action{privacy.ActionRetainWithReview},
-			Subject:        privacy.SubjectPerson,
+			Fields: []string{
+				"laborordnung_confirmations.person_id", "laborordnung_confirmations.physical_document_reference",
+				"laborordnung_confirmations.signed_date", "laborordnung_confirmations.archive_note",
+			},
+			Triggers: []privacy.Trigger{privacy.TriggerAccountClosedAt, privacy.TriggerLegalPeriodEnd},
+			Actions:  []privacy.Action{privacy.ActionRetainWithReview},
+			Subject:  privacy.SubjectPerson,
 		},
 		{
 			ID: AuditEvents, Owner: Platform, Name: "Audit events",

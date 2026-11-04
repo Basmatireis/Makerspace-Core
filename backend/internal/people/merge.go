@@ -36,9 +36,8 @@ type MergeCategory string
 
 const (
 	MergedVisits                  MergeCategory = "visits"
-	MergedAttendanceHolds         MergeCategory = "attendance_holds"
 	MergedTrainingRecords         MergeCategory = "training_records"
-	MergedLabRulesRequests        MergeCategory = "lab_rules_requests"
+	MergedLabRulesConfirmations   MergeCategory = "lab_rules_confirmations"
 	MergedOpenDayAssignments      MergeCategory = "open_day_assignments"
 	MergedEventShiftAssignments   MergeCategory = "event_shift_assignments"
 	MergedEventPlanning           MergeCategory = "event_planning"
@@ -58,7 +57,7 @@ const (
 
 // mergeCategoryOrder is the stable order of categories in previews, results and audit metadata.
 var mergeCategoryOrder = []MergeCategory{
-	MergedVisits, MergedAttendanceHolds, MergedTrainingRecords, MergedLabRulesRequests, MergedOpenDayAssignments,
+	MergedVisits, MergedTrainingRecords, MergedLabRulesConfirmations, MergedOpenDayAssignments,
 	MergedEventShiftAssignments, MergedEventPlanning, MergedOrders, MergedMachineJobs, MergedInvoiceRequests,
 	MergedCashMovements, MergedSurveyInvitations, MergedSurveyResponses, MergedOrganizationMemberships,
 	MergedNotifications, MergedPrivacyHolds, MergedActorReferences, MergedAuthenticationMethods, MergedAuditEvents,
@@ -71,8 +70,6 @@ const (
 	ConflictSourceSCIMManaged     MergeConflictCode = "source_scim_managed"
 	ConflictActorIsSource         MergeConflictCode = "actor_is_source"
 	ConflictOpenVisits            MergeConflictCode = "open_visit_conflict"
-	ConflictAttendanceHolds       MergeConflictCode = "attendance_hold_conflict"
-	ConflictLabRulesRequests      MergeConflictCode = "lab_rules_request_conflict"
 	ConflictOpenDayAssignments    MergeConflictCode = "open_day_assignment_conflict"
 	ConflictPINs                  MergeConflictCode = "pin_conflict"
 	ConflictTOTP                  MergeConflictCode = "totp_conflict"
@@ -310,13 +307,10 @@ func analyzeMerge(
 				[]uuid.UUID{id})
 		}
 	}
-	var openVisits, holds, pins, totps []uuid.UUID
+	var openVisits, pins, totps []uuid.UUID
 	for _, id := range state.ordered() {
 		if state.facts[id].OpenVisit {
 			openVisits = append(openVisits, id)
-		}
-		if state.facts[id].AttendanceHold {
-			holds = append(holds, id)
 		}
 		if account, ok := state.accounts[id]; ok {
 			if state.methods[account.ID].HasPin {
@@ -330,10 +324,6 @@ func analyzeMerge(
 	if len(openVisits) > 1 {
 		add(ConflictOpenVisits, "Several of these people are checked in; check them out first.", openVisits)
 	}
-	if len(holds) > 1 {
-		add(ConflictAttendanceHolds,
-			"Several of these people await a Lab Rules sign-off at check-in; resolve the holds first.", holds)
-	}
 	if len(pins) > 1 {
 		add(ConflictPINs, "Several of these accounts have a PIN; remove all but one first.", pins)
 	}
@@ -341,14 +331,6 @@ func analyzeMerge(
 		add(ConflictTOTP, "Several of these accounts have an authenticator app; remove all but one first.", totps)
 	}
 	ids := uuidStrings(state.ordered())
-	versions, err := queries.CountMergePendingLabRulesVersions(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	if versions > 1 {
-		add(ConflictLabRulesRequests,
-			"These people have pending Lab Rules requests for different versions; settle them first.", nil)
-	}
 	openDays, err := queries.ListMergeOpenDayConflicts(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -504,9 +486,8 @@ func mergeHistory(ctx context.Context, queries *peopledb.Queries, state mergeSta
 	}
 	return mergeCounts(map[MergeCategory]int64{
 		MergedVisits:                  row.Visits,
-		MergedAttendanceHolds:         row.AttendanceHolds,
 		MergedTrainingRecords:         row.TrainingRecords,
-		MergedLabRulesRequests:        row.LabRulesRequests,
+		MergedLabRulesConfirmations:   row.LabRulesConfirmations,
 		MergedOpenDayAssignments:      row.OpenDayAssignments,
 		MergedEventShiftAssignments:   row.EventShiftAssignments,
 		MergedEventPlanning:           row.EventPlanning,

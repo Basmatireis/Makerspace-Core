@@ -189,13 +189,6 @@ JOIN open_day_assignments target ON target.open_day_id=source.open_day_id
 WHERE source.person_id=sqlc.arg(source_person_id) AND target.person_id=sqlc.arg(target_person_id)
   AND source.requirement_id<>target.requirement_id;
 
--- name: ListPendingLabRuleConflicts :many
-SELECT source.id
-FROM laborordnung_requests source
-JOIN laborordnung_requests target ON target.person_id=sqlc.arg(target_person_id) AND target.status='pending'
-WHERE source.person_id=sqlc.arg(source_person_id) AND source.status='pending'
-  AND source.required_version_id<>target.required_version_id;
-
 -- name: DeduplicateOpenDayAssignments :exec
 DELETE FROM open_day_assignments source
 USING open_day_assignments target
@@ -205,15 +198,15 @@ WHERE source.person_id=sqlc.arg(source_person_id) AND target.person_id=sqlc.arg(
 -- name: MoveOpenDayAssignments :exec
 UPDATE open_day_assignments SET person_id=sqlc.arg(target_person_id) WHERE person_id=sqlc.arg(source_person_id);
 
--- name: DeduplicatePendingLabRuleRequests :exec
-DELETE FROM laborordnung_requests source
-USING laborordnung_requests target
+-- name: DeduplicateLabRuleConfirmations :exec
+-- One confirmation per person and version: the target's confirmation of the same version wins.
+DELETE FROM laborordnung_confirmations source
+USING laborordnung_confirmations target
 WHERE source.person_id=sqlc.arg(source_person_id) AND target.person_id=sqlc.arg(target_person_id)
-  AND source.status='pending' AND target.status='pending'
-  AND source.required_version_id=target.required_version_id;
+  AND source.version_id=target.version_id;
 
--- name: MoveLabRuleRequests :exec
-UPDATE laborordnung_requests SET person_id=sqlc.arg(target_person_id) WHERE person_id=sqlc.arg(source_person_id);
+-- name: MoveLabRuleConfirmations :exec
+UPDATE laborordnung_confirmations SET person_id=sqlc.arg(target_person_id) WHERE person_id=sqlc.arg(source_person_id);
 
 -- name: TransferProfileImage :exec
 UPDATE people target SET profile_image_file_id=source.profile_image_file_id,

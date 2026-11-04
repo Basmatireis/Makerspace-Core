@@ -2,10 +2,9 @@ import { Button, ComboBox, InlineNotification, ModalBody, ModalFooter, ModalHead
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { supervisedVisitCheckIn } from '../../../api/generated/attendance/attendance';
-import type { AttendanceHold } from '../../../api/generated/models';
+import { apiErrorCode } from '../../../api/http-client';
 import { useStableItems } from '../../../app/useStableItems';
 import { attendanceKeys, candidatesOptions } from '../queries';
-import { isHold } from '../presentation';
 
 type Candidate = { id: string; label: string };
 
@@ -13,12 +12,10 @@ export function AssistedCheckInStep({
   excludedPersonIds,
   onCancel,
   onDone,
-  onHeld,
 }: {
   excludedPersonIds: ReadonlySet<string>;
   onCancel: () => void;
   onDone: () => void;
-  onHeld: (hold: AttendanceHold) => void;
 }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -33,10 +30,9 @@ export function AssistedCheckInStep({
   if (picked && !items.some((item) => item.id === picked.id)) items.unshift(picked);
   const checkIn = useMutation({
     mutationFn: (personId: string) => supervisedVisitCheckIn({ personId }),
-    onSuccess: async (result) => {
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: attendanceKeys.all });
-      if (isHold(result)) onHeld(result);
-      else onDone();
+      onDone();
     },
   });
 
@@ -71,7 +67,11 @@ export function AssistedCheckInStep({
               lowContrast
               hideCloseButton
               title="Check-in failed"
-              subtitle={checkIn.error.message}
+              subtitle={
+                apiErrorCode(checkIn.error) === 'lab_rules_confirmation_required'
+                  ? `${picked?.label ?? 'This person'} must confirm the Lab Rules on the tablet or in the app first.`
+                  : checkIn.error.message
+              }
             />
           )}
         </Stack>

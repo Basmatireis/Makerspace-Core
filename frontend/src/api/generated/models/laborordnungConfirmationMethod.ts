@@ -19,14 +19,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListLaborordnungSignaturesSort = typeof ListLaborordnungSignaturesSort[keyof typeof ListLaborordnungSignaturesSort];
+/**
+ * How the Person confirmed: `app` in the application, `kiosk` at the terminal check-in, `enrollment` when
+ * enrolling as a visitor. `paper` marks signed paper checked by a supervisor before people confirmed themselves.
+ */
+export type LaborordnungConfirmationMethod = typeof LaborordnungConfirmationMethod[keyof typeof LaborordnungConfirmationMethod];
 
 
-export const ListLaborordnungSignaturesSort = {
-  person: 'person',
-  version: 'version',
-  signedDate: 'signedDate',
-  reference: 'reference',
-  confirmedBy: 'confirmedBy',
-  confirmedAt: 'confirmedAt',
+export const LaborordnungConfirmationMethod = {
+  LaborordnungConfirmationMethodPaper: 'paper',
+  LaborordnungConfirmationMethodApp: 'app',
+  LaborordnungConfirmationMethodKiosk: 'kiosk',
+  LaborordnungConfirmationMethodEnrollment: 'enrollment',
 } as const;

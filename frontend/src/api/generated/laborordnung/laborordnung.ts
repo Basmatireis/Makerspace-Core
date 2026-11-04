@@ -19,14 +19,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
-  ConfirmLaborordnungRequest,
-  LaborordnungRequest,
-  LaborordnungRequestList,
-  LaborordnungSignaturePage,
+  ConfirmOwnLaborordnungRequest,
+  LaborordnungConfirmationPage,
   LaborordnungStatus,
   LaborordnungVersion,
   LaborordnungVersionList,
-  ListLaborordnungSignaturesParams,
+  ListLaborordnungConfirmationsParams,
   PublishLaborordnungRequest
 } from '../models';
 
@@ -55,25 +53,44 @@ export const getOwnLaborordnungStatus = async ( options?: Parameters<typeof apiF
 );}
 
 
-export const getRequestOwnLaborordnungConfirmationUrl = () => {
+export const getConfirmOwnLaborordnungUrl = () => {
 
 
 
 
-  return `/api/v1/laborordnung/requests/me`
+  return `/api/v1/laborordnung/confirmations/me`
 }
 
 /**
- * @summary Explicitly create or reuse the current Person's physical-signature request
+ * Records that the signed-in Person read and accepts the current effective Lab Rules version (method `app`).
+ * `versionId` must name that version, so a confirmation never applies to a document the Person did not see.
+ * Confirming again is harmless and returns the same status. Errors (409): `lab_rules_not_required` when no role
+ * of the Person asks for the Lab Rules, `lab_rules_unavailable` when no version is effective, and
+ * `lab_rules_version_outdated` when `versionId` is not the current version.
+ * @summary Confirm the current Lab Rules version as the signed-in Person
  */
-export const requestOwnLaborordnungConfirmation = async ( options?: Parameters<typeof apiFetch>[1]): Promise<LaborordnungRequest> => {
+export const confirmOwnLaborordnung = async (confirmOwnLaborordnungRequest: ConfirmOwnLaborordnungRequest, options?: Parameters<typeof apiFetch>[1]): Promise<LaborordnungStatus> => {
 
-  return apiFetch<LaborordnungRequest>(getRequestOwnLaborordnungConfirmationUrl(),
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<LaborordnungStatus>(getConfirmOwnLaborordnungUrl(),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(confirmOwnLaborordnungRequest)
   }
 );}
 
@@ -199,30 +216,7 @@ export const getLaborordnungPDF = async (laborordnungVersionId: string, options?
 );}
 
 
-export const getListLaborordnungRequestsUrl = () => {
-
-
-
-
-  return `/api/v1/laborordnung/requests`
-}
-
-/**
- * @summary List the supervisor physical-evidence confirmation queue
- */
-export const listLaborordnungRequests = async ( options?: Parameters<typeof apiFetch>[1]): Promise<LaborordnungRequestList> => {
-
-  return apiFetch<LaborordnungRequestList>(getListLaborordnungRequestsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getListLaborordnungSignaturesUrl = (params?: ListLaborordnungSignaturesParams,) => {
+export const getListLaborordnungConfirmationsUrl = (params?: ListLaborordnungConfirmationsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -234,61 +228,24 @@ export const getListLaborordnungSignaturesUrl = (params?: ListLaborordnungSignat
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/v1/laborordnung/signatures?${stringifiedParams}` : `/api/v1/laborordnung/signatures`
+  return stringifiedParams.length > 0 ? `/api/v1/laborordnung/confirmations?${stringifiedParams}` : `/api/v1/laborordnung/confirmations`
 }
 
 /**
- * Requires `laborordnung.requests.read`. Only completed requests appear: one entry per confirmed signature
- * with its physical document reference. `search` matches the person name and the document reference.
- * @summary List confirmed physical Lab Rules signatures
+ * Requires `laborordnung.confirmations.read` and a person read permission: with only `people.read.self` the
+ * list holds the caller's own confirmations. `search` matches the person name and, for paper confirmations,
+ * the document reference. Paper confirmations are history from before people confirmed themselves; only
+ * they carry a document reference, a signed date and the name of the checking supervisor.
+ * @summary List who confirmed which Lab Rules version
  */
-export const listLaborordnungSignatures = async (params?: ListLaborordnungSignaturesParams, options?: Parameters<typeof apiFetch>[1]): Promise<LaborordnungSignaturePage> => {
+export const listLaborordnungConfirmations = async (params?: ListLaborordnungConfirmationsParams, options?: Parameters<typeof apiFetch>[1]): Promise<LaborordnungConfirmationPage> => {
 
-  return apiFetch<LaborordnungSignaturePage>(getListLaborordnungSignaturesUrl(params),
+  return apiFetch<LaborordnungConfirmationPage>(getListLaborordnungConfirmationsUrl(params),
   {
     ...options,
     method: 'GET'
 
 
-  }
-);}
-
-
-export const getConfirmLaborordnungRequestUrl = (laborordnungRequestId: string,) => {
-
-
-
-
-  return `/api/v1/laborordnung/requests/${laborordnungRequestId}/confirm`
-}
-
-/**
- * Also completes a held check-in of the person that has not expired; the visit starts now.
- * @summary Confirm verification of a physical signed document
- */
-export const confirmLaborordnungRequest = async (laborordnungRequestId: string,
-    confirmLaborordnungRequestBody: ConfirmLaborordnungRequest, options?: Parameters<typeof apiFetch>[1]): Promise<LaborordnungRequest> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<LaborordnungRequest>(getConfirmLaborordnungRequestUrl(laborordnungRequestId),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(confirmLaborordnungRequestBody)
   }
 );}
 

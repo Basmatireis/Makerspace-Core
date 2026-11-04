@@ -417,8 +417,12 @@ func resolveGrants(
 ) ([]authorization.PermissionGrant, string) {
 	grants := make([]authorization.PermissionGrant, 0, len(entries))
 	for _, entry := range entries {
+		permission, ok := legacyPermission(entry.Permission)
+		if !ok {
+			continue
+		}
 		grant := authorization.PermissionGrant{
-			PermissionID:        authorization.Permission(entry.Permission),
+			PermissionID:        permission,
 			Scope:               authorization.GrantScope(entry.Scope),
 			MinimumAssurance:    authorization.Assurance(entry.MinimumAssurance),
 			ReauthWithinMinutes: entry.ReauthWithinMinutes,
@@ -433,6 +437,19 @@ func resolveGrants(
 		grants = append(grants, grant)
 	}
 	return grants, ""
+}
+
+// legacyPermission reads a permission of a file exported by an earlier release: laborordnung.requests.read was
+// renamed to laborordnung.confirmations.read, and laborordnung.confirm (checking signed paper) no longer exists and
+// is skipped.
+func legacyPermission(id string) (authorization.Permission, bool) {
+	switch id {
+	case "laborordnung.requests.read":
+		return authorization.LaborordnungConfirmationsRead, true
+	case "laborordnung.confirm":
+		return "", false
+	}
+	return authorization.Permission(id), true
 }
 
 func deviceTypeIDs(ctx context.Context, q *configtransferdb.Queries) (map[string]uuid.UUID, error) {

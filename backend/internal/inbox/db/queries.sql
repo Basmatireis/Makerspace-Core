@@ -260,3 +260,29 @@ UPDATE notification_mail_outbox SET next_attempt_at = sqlc.arg(next_attempt_at) 
 
 -- name: DeleteNotificationMailsCreatedBefore :execrows
 DELETE FROM notification_mail_outbox WHERE created_at < sqlc.arg(before_time);
+
+-- name: ListEnabledAccountsAwaitingLabRules :many
+-- Active accounts of people whose roles ask for the Lab Rules (warning or blocking) and who have not confirmed the
+-- version.
+SELECT a.id, a.person_id
+FROM accounts a
+WHERE a.status = 'enabled'
+  AND EXISTS (
+      SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
+      WHERE pr.person_id = a.person_id AND r.laborordnung_mode IN ('warning', 'blocking')
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM laborordnung_confirmations c
+      WHERE c.person_id = a.person_id AND c.version_id = sqlc.arg(version_id)
+  )
+ORDER BY a.person_id, a.id;
+
+-- name: GetLabRulesVersionRevision :one
+SELECT human_revision FROM laborordnung_versions WHERE id = sqlc.arg(id);
+
+-- name: MarkLabRulesPublishedRead :execrows
+UPDATE inbox_recipients r
+SET read_at = now()
+FROM inbox_notifications n, accounts a
+WHERE n.id = r.notification_id AND n.kind = 'lab_rules_published'
+  AND a.id = r.account_id AND a.person_id = sqlc.arg(person_id) AND r.read_at IS NULL;

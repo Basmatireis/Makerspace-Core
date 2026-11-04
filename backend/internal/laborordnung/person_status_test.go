@@ -54,13 +54,13 @@ func laborordnungPrincipal(t *testing.T, permissions ...authorization.Permission
 	return principal
 }
 
-func TestEvaluateForPersonRequiresBothPersonAndRequestRead(t *testing.T) {
+func TestEvaluateForPersonRequiresBothPersonAndConfirmationsRead(t *testing.T) {
 	personID := ids.New()
 	service := NewService(nil, inbox.NewEmitter(), nil)
 
 	for name, principal := range map[string]authorization.Principal{
 		"person read without feature": laborordnungPrincipal(t, authorization.PeopleReadAll),
-		"feature read without person": laborordnungPrincipal(t, authorization.LaborordnungRequestsRead),
+		"feature read without person": laborordnungPrincipal(t, authorization.LaborordnungConfirmationsRead),
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := service.EvaluateForPerson(t.Context(), principal, personID)

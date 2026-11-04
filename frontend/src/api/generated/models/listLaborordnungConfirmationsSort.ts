@@ -18,27 +18,13 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
 
-/**
- * A check-in held until a supervisor confirms the person's signed Lab Rules. It lapses at expiresAt.
- */
-export interface AttendanceHold {
-  id: UUIDv7;
-  personId: UUIDv7;
-  displayName: string;
-  requestedAt: string;
-  expiresAt: string;
-  checkInMethod: string;
-  laborordnungRequestId: UUIDv7 | null;
-  /**
-     * Lab Rules revision that needs the signature.
-     * @nullable
-     */
-  requiredRevision: string | null;
-  /**
-     * Last confirmed revision; null when the person never signed.
-     * @nullable
-     */
-  previousRevision: string | null;
-}
+export type ListLaborordnungConfirmationsSort = typeof ListLaborordnungConfirmationsSort[keyof typeof ListLaborordnungConfirmationsSort];
+
+
+export const ListLaborordnungConfirmationsSort = {
+  person: 'person',
+  version: 'version',
+  method: 'method',
+  confirmedAt: 'confirmedAt',
+} as const;

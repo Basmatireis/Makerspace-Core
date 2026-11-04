@@ -69,18 +69,18 @@ func (s *Service) Reconcile(
 	); err != nil {
 		return report, err
 	}
-	if err := queries.DeduplicatePendingLabRuleRequests(
+	if err := queries.DeduplicateLabRuleConfirmations(
 		ctx,
-		scimdb.DeduplicatePendingLabRuleRequestsParams{
+		scimdb.DeduplicateLabRuleConfirmationsParams{
 			SourcePersonID: source.PersonID,
 			TargetPersonID: target.PersonID,
 		},
 	); err != nil {
 		return report, err
 	}
-	if err := queries.MoveLabRuleRequests(
+	if err := queries.MoveLabRuleConfirmations(
 		ctx,
-		scimdb.MoveLabRuleRequestsParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID},
+		scimdb.MoveLabRuleConfirmationsParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID},
 	); err != nil {
 		return report, err
 	}
@@ -307,24 +307,6 @@ func analyzeReconciliation(
 				Code:       "open_day_assignment_conflict",
 				ResourceID: &id,
 				Message:    "The People hold different positions on the same Open Day.",
-			},
-		)
-	}
-	labRules, err := queries.ListPendingLabRuleConflicts(
-		ctx,
-		scimdb.ListPendingLabRuleConflictsParams{SourcePersonID: source.PersonID, TargetPersonID: target.PersonID},
-	)
-	if err != nil {
-		return report, err
-	}
-	for _, id := range labRules {
-		id := id
-		report.Conflicts = append(
-			report.Conflicts,
-			Conflict{
-				Code:       "lab_rules_request_conflict",
-				ResourceID: &id,
-				Message:    "The People have pending requests for different Lab Rules versions.",
 			},
 		)
 	}

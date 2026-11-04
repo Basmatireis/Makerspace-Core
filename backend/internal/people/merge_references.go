@@ -28,7 +28,6 @@ const (
 // MergeReferences lists every handled reference column.
 var MergeReferences = []MergeReference{
 	{"accounts", "person_id", "people", ruleAttached},
-	{"attendance_holds", "person_id", "people", ruleConflict},
 	{"cash_counts", "recorded_by_person_id", "people", ruleMoved},
 	{"cash_movements", "recorded_by_person_id", "people", ruleMoved},
 	{"event_shift_assignments", "person_id", "people", ruleDeduplicated},
@@ -36,7 +35,7 @@ var MergeReferences = []MergeReference{
 	{"events", "owner_person_id", "people", ruleMoved},
 	{"external_invoice_request_details", "contact_person_id", "people", ruleMoved},
 	{"external_invoice_request_details", "recipient_person_id", "people", ruleMoved},
-	{"laborordnung_requests", "person_id", "people", ruleDeduplicated},
+	{"laborordnung_confirmations", "person_id", "people", ruleDeduplicated},
 	{"machine_jobs", "customer_person_id", "people", ruleMoved},
 	{"machine_jobs", "operator_person_id", "people", ruleMoved},
 	{"open_day_assignments", "person_id", "people", ruleDeduplicated},
@@ -49,7 +48,6 @@ var MergeReferences = []MergeReference{
 	{"training_records", "person_id", "people", ruleDeduplicated},
 	{"visits", "person_id", "people", ruleConflict},
 
-	{"attendance_holds", "checked_in_by_account_id", "accounts", ruleActor},
 	{"audit_events", "actor_account_id", "accounts", ruleAuditRepoint},
 	{"auth_challenges", "account_id", "accounts", ruleTransient},
 	{"auth_challenges", "created_by_account_id", "accounts", ruleActor},
@@ -69,7 +67,7 @@ var MergeReferences = []MergeReference{
 	{"filament_spools", "retired_by", "accounts", ruleActor},
 	{"inventory_transactions", "actor_account_id", "accounts", ruleActor},
 	{"inventory_transactions", "deleted_by", "accounts", ruleActor},
-	{"laborordnung_requests", "confirmed_by_account_id", "accounts", ruleActor},
+	{"laborordnung_confirmations", "confirmed_by_account_id", "accounts", ruleActor},
 	{"laborordnung_versions", "created_by_account_id", "accounts", ruleActor},
 	{"machine_job_pricing_snapshots", "captured_by_account_id", "accounts", ruleActor},
 	{"machine_jobs", "deleted_by", "accounts", ruleActor},

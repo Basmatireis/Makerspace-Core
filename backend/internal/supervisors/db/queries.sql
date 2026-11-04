@@ -25,8 +25,8 @@ SELECT sp.id AS person_id, sp.version AS person_version, sp.first_name, sp.last_
       WHEN m.mode_rank = 0 THEN 'not_required'
       WHEN NOT EXISTS (SELECT 1 FROM current_version) THEN 'no_published_version'
       WHEN EXISTS (
-          SELECT 1 FROM laborordnung_requests lr, current_version cv
-          WHERE lr.person_id = sp.id AND lr.status = 'completed' AND lr.required_version_id = cv.id
+          SELECT 1 FROM laborordnung_confirmations lc, current_version cv
+          WHERE lc.person_id = sp.id AND lc.version_id = cv.id
       ) THEN 'current'
       ELSE 'outdated'
     END::text AS laborordnung_state

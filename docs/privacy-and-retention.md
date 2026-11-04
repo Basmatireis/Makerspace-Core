@@ -39,14 +39,14 @@ The table lists every built-in category. Legacy defaults are the behaviour that 
 | `auth.sessions` | Sessions and sign-in state | `identity` | account | expired, 0 (`admin cleanup`) |
 | `auth.pending_state` | Pending sign-in and enrollment state | `identity` | account | none |
 | `scim.mappings` | SCIM provisioning mappings | `identity` | person | none |
-| `attendance.visits` | Visits and holds | `attendance` | person | completed, 90 days, anonymize (`admin cleanup`) |
+| `attendance.visits` | Visits | `attendance` | person | completed, 90 days, anonymize (`admin cleanup`) |
 | `surveys.invitations` | Survey invitations | `attendance` | person | expired, 7 days, unlink (`admin cleanup`) |
 | `surveys.responses` | Survey responses | `attendance` | person | none |
 | `events.external_signups` | External event sign-ups | `events` | person | completed, 180 days, redact (`EVENT_SIGNUP_RETENTION`) |
 | `events.content` | Event planning content | `events` | person | none |
 | `opendays.assignments` | Open day assignments | `open_days` | person | none |
 | `trainings.records` | Training records | `trainings` | person | none |
-| `laborordnung.requests` | Lab Rules confirmations | `laborordnung` | person | none |
+| `laborordnung.requests` | Lab Rules confirmations (the identifier predates self-confirmation and is kept because policies store it) | `laborordnung` | person | none |
 | `audit.events` | Audit events | `platform` | account | created, 365 days, delete (`AUDIT_RETENTION`) |
 | `orders.financial_records` | Financial records | `orders` | person | none |
 | `orders.idempotency` | Idempotency evidence | `orders` | account | none |

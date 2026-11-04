@@ -22,7 +22,6 @@ export const ACCOUNT_STATUS_OPTIONS: Array<FilterOption<PeopleAccountStatusFilte
 
 export const LAB_RULES_STATUS_OPTIONS: Array<FilterOption<PeopleLaborordnungStatusFilter>> = [
   { value: 'current', label: 'Current' },
-  { value: 'pending', label: 'Confirmation pending' },
   { value: 'outdated', label: 'Acknowledgement outdated' },
   { value: 'no_published_version', label: 'No published version' },
   { value: 'not_required', label: 'Not required' },
@@ -40,7 +39,7 @@ export const fullName = (person: Person) => `${person.firstName} ${person.lastNa
 
 export type LabRulesStatusPresentation = {
   label: string;
-  type: 'gray' | 'green' | 'purple' | 'warm-gray';
+  type: 'gray' | 'green' | 'warm-gray';
 };
 
 export function positiveInteger(value: string | null, fallback: number): number {
@@ -54,7 +53,6 @@ export function peopleWithAccounts(people: Person[]): Person[] {
 
 export function formatLabRulesStatus(status?: LaborordnungStatus): LabRulesStatusPresentation {
   if (!status) return { label: 'Unavailable', type: 'gray' };
-  if (status.requestId) return { label: 'Confirmation pending', type: 'purple' };
   if (status.state === 'current') return { label: 'Current', type: 'green' };
   if (status.state === 'outdated') {
     return {

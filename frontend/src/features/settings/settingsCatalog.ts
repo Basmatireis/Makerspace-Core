@@ -129,13 +129,13 @@ export const settingsItems: readonly SettingsItem[] = [
     id: 'laborordnung',
     group: 'lab',
     title: 'Lab Rules',
-    description: 'Publish PDFs and verify physical evidence.',
+    description: 'Publish Lab Rules PDFs and see who confirmed them.',
     path: '/settings/laborordnung',
     icon: Document,
     permissions: [
       PermissionId.laborordnungread,
       PermissionId.laborordnungmanage,
-      PermissionId.laborordnungrequestsread,
+      PermissionId.laborordnungconfirmationsread,
     ],
   },
   {

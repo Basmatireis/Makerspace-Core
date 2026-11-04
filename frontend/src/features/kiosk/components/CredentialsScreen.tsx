@@ -11,35 +11,29 @@ import {
 import { ArrowLeft, UserFollow } from '@carbon/icons-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  terminalPasswordCheckIn,
-  terminalPasswordCheckOut,
-  terminalPinCheckIn,
-  terminalPinCheckOut,
-} from '../../../api/generated/attendance/attendance';
-import type { AttendanceHold, Visit } from '../../../api/generated/models';
+import type { Visit } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
 import { useSecretMutation } from '../../../api/use-secret-mutation';
 import { PinKeypad } from './PinKeypad';
+import { checkIn, checkOut, labRulesNeed, type Credentials, type KioskAuthMethod, type LabRulesNeed } from './checkIn';
 import { useIdleCountdown } from './useIdleCountdown';
 import { useKeyboardAvoidance } from '../useKeyboardAvoidance';
 
-export type KioskAuthMethod = 'pin' | 'password';
-
 const pinLength = { min: 6, max: 12 };
-
-type Credentials = { method: KioskAuthMethod; identifier: string; secret: string };
 
 // Credentials are entered here for check-in and, when the kiosk has no public tap checkout, for check-out.
 export function CredentialsScreen({
   mode,
   methods,
   onSuccess,
+  onLabRulesNeeded,
   onCancel,
 }: {
   mode: 'check-in' | 'check-out';
   methods: string[];
-  onSuccess: (result: Visit | AttendanceHold) => void;
+  onSuccess: (result: Visit) => void;
+  /** Check-in was refused until the person deals with the Lab Rules; the credentials go on to that screen. */
+  onLabRulesNeeded?: (credentials: Credentials, need: LabRulesNeed) => void;
   onCancel: () => void;
 }) {
   const available = (['pin', 'password'] as const).filter((item) => methods.includes(item));
@@ -52,15 +46,8 @@ export function CredentialsScreen({
   const ready = identifier.trim() !== '' && (activeMethod === 'pin' ? secret.length >= pinLength.min : secret !== '');
   const label = mode === 'check-in' ? 'Check in' : 'Check out';
 
-  const attendance = useSecretMutation(
-    async ({ method: chosen, identifier: name, secret: value }: Credentials): Promise<Visit | AttendanceHold> => {
-      if (chosen === 'password') {
-        const payload = { email: name, password: value };
-        return mode === 'check-in' ? terminalPasswordCheckIn(payload) : terminalPasswordCheckOut(payload);
-      }
-      const payload = { loginName: name, pin: value };
-      return mode === 'check-in' ? terminalPinCheckIn(payload) : terminalPinCheckOut(payload);
-    },
+  const attendance = useSecretMutation((credentials: Credentials): Promise<Visit> =>
+    mode === 'check-in' ? checkIn(credentials) : checkOut(credentials),
   );
 
   async function submit() {
@@ -71,8 +58,15 @@ export function CredentialsScreen({
       const result = await attendance.mutateAsync(credentials);
       setIdentifier('');
       onSuccess(result);
-    } catch {
-      // The error is shown from the mutation state; the secret is already cleared.
+    } catch (error) {
+      // The error is shown from the mutation state; the secret is already cleared. A check-in that waits for the
+      // Lab Rules hands the credentials over instead: the person confirms next and the same entries are resubmitted.
+      const need = mode === 'check-in' ? labRulesNeed(error) : null;
+      if (need && onLabRulesNeeded) {
+        setIdentifier('');
+        attendance.reset();
+        onLabRulesNeeded(credentials, need);
+      }
     }
   }
 

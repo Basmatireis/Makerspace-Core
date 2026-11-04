@@ -34,17 +34,6 @@ type AttendanceDailyStatistic struct {
 	UpdatedAt             time.Time
 }
 
-type AttendanceHold struct {
-	ID                   uuid.UUID
-	PersonID             uuid.UUID
-	RequestedAt          time.Time
-	ExpiresAt            time.Time
-	CheckInDeviceID      *uuid.UUID
-	CheckInMethod        string
-	CheckInAssurance     string
-	CheckedInByAccountID *uuid.UUID
-}
-
 type AuditEvent struct {
 	ID             uuid.UUID
 	ActorAccountID *uuid.UUID
@@ -487,21 +476,16 @@ type InventoryTransaction struct {
 	DeletedBy           *uuid.UUID
 }
 
-type LaborordnungRequest struct {
+type LaborordnungConfirmation struct {
 	ID                        uuid.UUID
 	PersonID                  uuid.UUID
-	RequiredVersionID         uuid.UUID
-	PreviousVersionID         *uuid.UUID
-	Status                    string
-	RequestedAt               time.Time
-	CompletedAt               pgtype.Timestamptz
-	SupersededAt              pgtype.Timestamptz
+	VersionID                 uuid.UUID
+	ConfirmedAt               time.Time
 	ConfirmedByAccountID      *uuid.UUID
 	PhysicalDocumentReference *string
 	SignedDate                pgtype.Date
 	ArchiveNote               *string
-	CreatedAt                 time.Time
-	UpdatedAt                 time.Time
+	Method                    string
 }
 
 type LaborordnungVersion struct {
@@ -515,6 +499,7 @@ type LaborordnungVersion struct {
 	CreatedByAccountID *uuid.UUID
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	AnnouncedAt        pgtype.Timestamptz
 }
 
 type LegacyMaterialType struct {

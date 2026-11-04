@@ -1,13 +1,9 @@
 import { useState } from 'react';
 import {
   Button,
-  ComposedModal,
   DataTable,
   FileUploaderDropContainer,
   InlineNotification,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
   Stack,
   Table,
   TableBody,
@@ -17,30 +13,26 @@ import {
   TableHeader,
   TableRow,
   Tag,
-  TextArea,
   TextInput,
   Tile,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { LaborordnungRequest, LaborordnungVersion } from '../../api/generated/models';
+import type { LaborordnungVersion } from '../../api/generated/models';
 import {
-  confirmLaborordnungRequest,
   getCreateLaborordnungVersionUrl,
   getGetLaborordnungPDFUrl,
-  listLaborordnungRequests,
   listLaborordnungVersions,
   publishLaborordnungVersion,
 } from '../../api/generated/laborordnung/laborordnung';
 import { apiFetch } from '../../api/http-client';
 import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
 import { ErrorState } from '../../app/PageState';
-import { DateInput } from '../../app/DateInput';
 import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { SettingsTabs, type SettingsTab } from '../settings/SettingsTabs';
 import { laborordnungKeys } from './queries';
-import { SignaturesPanel } from './SignaturesPanel';
+import { ConfirmationsPanel } from './ConfirmationsPanel';
 
 const keys = laborordnungKeys;
 
@@ -48,20 +40,10 @@ export function LaborordnungPage() {
   const currentUser = useCurrentUser();
   const queryClient = useQueryClient();
   const canManage = hasPermission(currentUser, PermissionId.laborordnungmanage);
-  const canReadQueue = hasPermission(currentUser, PermissionId.laborordnungrequestsread);
-  const canConfirm = hasPermission(currentUser, PermissionId.laborordnungconfirm);
+  const canReadConfirmations = hasPermission(currentUser, PermissionId.laborordnungconfirmationsread);
   const versions = useQuery({ queryKey: keys.versions, queryFn: () => listLaborordnungVersions() });
-  const requests = useQuery({
-    queryKey: keys.requests,
-    queryFn: () => listLaborordnungRequests(),
-    enabled: canReadQueue,
-  });
   const [revision, setRevision] = useState('');
   const [file, setFile] = useState<File>();
-  const [selected, setSelected] = useState<LaborordnungRequest>();
-  const [reference, setReference] = useState('');
-  const [signedDate, setSignedDate] = useState('');
-  const [archiveNote, setArchiveNote] = useState('');
 
   const upload = useMutation({
     mutationFn: () =>
@@ -84,22 +66,6 @@ export function LaborordnungPage() {
     mutationFn: (id: string) => publishLaborordnungVersion(id, { effectiveAt: new Date().toISOString() }),
     onSuccess: async () => queryClient.invalidateQueries({ queryKey: keys.versions }),
   });
-  const confirm = useMutation({
-    mutationFn: () =>
-      confirmLaborordnungRequest(selected!.id, {
-        physicalDocumentReference: reference.trim(),
-        signedDate: signedDate || null,
-        archiveNote: archiveNote.trim() || null,
-      }),
-    onSuccess: async () => {
-      setSelected(undefined);
-      setReference('');
-      setSignedDate('');
-      setArchiveNote('');
-      await queryClient.invalidateQueries({ queryKey: keys.requests });
-    },
-  });
-
   const documents = (
     <div className="settings-section">
       {canManage && (
@@ -214,127 +180,24 @@ export function LaborordnungPage() {
           )}
         </Stack>
       </Tile>
-      {canReadQueue && (
-        <Tile>
-          <Stack gap={5}>
-            <h2>Physical confirmation queue</h2>
-            {requests.isPending && <SettingsLoading label="Loading requests" />}
-            {requests.isError && (
-              <ErrorState message="Unable to load confirmation requests." onRetry={() => void requests.refetch()} />
-            )}
-            {requests.data && (
-              <DataTable
-                rows={requests.data.items.map((item) => ({
-                  id: item.id,
-                  personName: item.personName,
-                  revision: item.requiredVersion.humanRevision,
-                  status: item.status,
-                  requested: formatDateTime(item.requestedAt),
-                  action: '',
-                }))}
-                headers={[
-                  { key: 'personName', header: 'Person' },
-                  { key: 'revision', header: 'Required revision' },
-                  { key: 'requested', header: 'Requested' },
-                  { key: 'status', header: 'Status' },
-                  { key: 'action', header: '' },
-                ]}
-              >
-                {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
-                  <TableContainer>
-                    <Table {...getTableProps()}>
-                      <TableHead>
-                        <TableRow>
-                          {headers.map((header) => (
-                            <TableHeader {...getHeaderProps({ header })} key={header.key}>
-                              {header.header}
-                            </TableHeader>
-                          ))}
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {rows.map((row) => {
-                          const request = requests.data.items.find((item) => item.id === row.id)!;
-                          return (
-                            <TableRow {...getRowProps({ row })} key={row.id}>
-                              {row.cells.map((cell) => (
-                                <TableCell key={cell.id}>
-                                  {cell.info.header === 'action' && request.status === 'pending' && canConfirm ? (
-                                    <Button kind="tertiary" size="sm" onClick={() => setSelected(request)}>
-                                      Verify physical document
-                                    </Button>
-                                  ) : (
-                                    String(cell.value ?? '')
-                                  )}
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-              </DataTable>
-            )}
-          </Stack>
-        </Tile>
-      )}
     </div>
   );
   const tabs: SettingsTab[] = [
     { key: 'documents', label: 'Documents', panel: documents },
-    ...(canReadQueue
-      ? [{ key: 'signatures', label: 'Signatures', panel: <SignaturesPanel versions={versions.data?.items ?? []} /> }]
+    ...(canReadConfirmations
+      ? [
+          {
+            key: 'confirmations',
+            label: 'Confirmations',
+            panel: <ConfirmationsPanel versions={versions.data?.items ?? []} />,
+          },
+        ]
       : []),
   ];
 
   return (
     <SettingsPageLayout page="laborordnung">
       {tabs.length > 1 ? <SettingsTabs label="Lab Rules sections" tabs={tabs} /> : documents}
-      <ComposedModal open={Boolean(selected)} onClose={() => setSelected(undefined)}>
-        <ModalHeader title="Confirm physical document" />
-        <ModalBody>
-          <Stack gap={5}>
-            <p>Confirm only after checking the signed physical document.</p>
-            {confirm.isError && (
-              <InlineNotification
-                kind="error"
-                lowContrast
-                hideCloseButton
-                title="Confirmation failed"
-                subtitle="The request may no longer be pending."
-              />
-            )}
-            <TextInput
-              id="physical-reference"
-              labelText="Physical document reference"
-              value={reference}
-              onChange={(event) => setReference(event.target.value)}
-            />
-            <DateInput
-              id="signed-date"
-              labelText="Signed date (optional)"
-              value={signedDate}
-              onChange={setSignedDate}
-            />
-            <TextArea
-              id="archive-note"
-              labelText="Archive note (optional)"
-              value={archiveNote}
-              onChange={(event) => setArchiveNote(event.target.value)}
-            />
-          </Stack>
-        </ModalBody>
-        <ModalFooter>
-          <Button kind="secondary" onClick={() => setSelected(undefined)}>
-            Cancel
-          </Button>
-          <Button disabled={!reference.trim() || confirm.isPending} onClick={() => confirm.mutate()}>
-            Confirm evidence
-          </Button>
-        </ModalFooter>
-      </ComposedModal>
     </SettingsPageLayout>
   );
 }

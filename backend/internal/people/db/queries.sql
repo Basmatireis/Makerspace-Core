@@ -38,18 +38,12 @@ LEFT JOIN LATERAL (
     WHERE pr.person_id = p.id
 ) laborordnung_mode ON true
 LEFT JOIN LATERAL (
-    SELECT required_version_id
-    FROM laborordnung_requests
-    WHERE person_id = p.id AND status = 'completed'
-    ORDER BY completed_at DESC, id DESC
+    SELECT version_id
+    FROM laborordnung_confirmations
+    WHERE person_id = p.id
+    ORDER BY confirmed_at DESC, id DESC
     LIMIT 1
 ) latest_confirmation ON true
-LEFT JOIN LATERAL (
-    SELECT required_version_id
-    FROM laborordnung_requests
-    WHERE person_id = p.id AND status = 'pending'
-    LIMIT 1
-) pending_confirmation ON true
 WHERE (
        sqlc.arg(search)::text = ''
        OR p.first_name ILIKE '%' || sqlc.arg(search)::text || '%'
@@ -77,8 +71,7 @@ WHERE (
        OR (CASE
            WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
            WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
-           WHEN latest_confirmation.required_version_id = current_laborordnung.id THEN 'current'
-           WHEN pending_confirmation.required_version_id = current_laborordnung.id THEN 'pending'
+           WHEN latest_confirmation.version_id = current_laborordnung.id THEN 'current'
            ELSE 'outdated'
        END) = ANY(sqlc.arg(laborordnung_statuses)::text[])
    )
@@ -105,18 +98,12 @@ LEFT JOIN LATERAL (
     WHERE pr.person_id = p.id
 ) laborordnung_mode ON true
 LEFT JOIN LATERAL (
-    SELECT required_version_id
-    FROM laborordnung_requests
-    WHERE person_id = p.id AND status = 'completed'
-    ORDER BY completed_at DESC, id DESC
+    SELECT version_id
+    FROM laborordnung_confirmations
+    WHERE person_id = p.id
+    ORDER BY confirmed_at DESC, id DESC
     LIMIT 1
 ) latest_confirmation ON true
-LEFT JOIN LATERAL (
-    SELECT required_version_id
-    FROM laborordnung_requests
-    WHERE person_id = p.id AND status = 'pending'
-    LIMIT 1
-) pending_confirmation ON true
 WHERE (
        sqlc.arg(search)::text = ''
        OR p.first_name ILIKE '%' || sqlc.arg(search)::text || '%'
@@ -144,8 +131,7 @@ WHERE (
        OR (CASE
            WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
            WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
-           WHEN latest_confirmation.required_version_id = current_laborordnung.id THEN 'current'
-           WHEN pending_confirmation.required_version_id = current_laborordnung.id THEN 'pending'
+           WHEN latest_confirmation.version_id = current_laborordnung.id THEN 'current'
            ELSE 'outdated'
        END) = ANY(sqlc.arg(laborordnung_statuses)::text[])
    );
@@ -284,8 +270,7 @@ SELECT * FROM accounts WHERE person_id = ANY((sqlc.arg(person_ids)::text[])::uui
 -- name: ListMergePersonFacts :many
 SELECT p.id AS person_id,
     EXISTS (SELECT 1 FROM scim_users su WHERE su.person_id = p.id) AS scim_managed,
-    EXISTS (SELECT 1 FROM visits v WHERE v.person_id = p.id AND v.status = 'checked_in') AS open_visit,
-    EXISTS (SELECT 1 FROM attendance_holds h WHERE h.person_id = p.id) AS attendance_hold
+    EXISTS (SELECT 1 FROM visits v WHERE v.person_id = p.id AND v.status = 'checked_in') AS open_visit
 FROM people p
 WHERE p.id = ANY((sqlc.arg(ids)::text[])::uuid[])
 ORDER BY p.id;
@@ -314,10 +299,6 @@ GROUP BY open_day_id
 HAVING count(DISTINCT requirement_id) > 1
 ORDER BY open_day_id;
 
--- name: CountMergePendingLabRulesVersions :one
-SELECT count(DISTINCT required_version_id) FROM laborordnung_requests
-WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]) AND status = 'pending';
-
 -- name: CountEnabledMastersOutsideMerge :one
 SELECT count(*) FROM accounts a
 JOIN person_roles pr ON pr.person_id = a.person_id
@@ -329,9 +310,8 @@ WHERE a.status = 'enabled' AND r.system_key = 'master'
 -- History of the source People that a merge moves to the target, per category.
 SELECT
     (SELECT count(*) FROM visits WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS visits,
-    (SELECT count(*) FROM attendance_holds WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS attendance_holds,
     (SELECT count(*) FROM training_records WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS training_records,
-    (SELECT count(*) FROM laborordnung_requests WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS lab_rules_requests,
+    (SELECT count(*) FROM laborordnung_confirmations WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS lab_rules_confirmations,
     (SELECT count(*) FROM open_day_assignments WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS open_day_assignments,
     (SELECT count(*) FROM event_shift_assignments WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))::bigint AS event_shift_assignments,
     ((SELECT count(*) FROM events WHERE owner_person_id = ANY((sqlc.arg(ids)::text[])::uuid[]))
@@ -378,15 +358,15 @@ WHERE loser.training_id = winner.training_id
 -- name: MoveMergeTrainingRecords :execrows
 UPDATE training_records SET person_id = sqlc.arg(target_person_id) WHERE person_id = sqlc.arg(source_person_id);
 
--- name: DeleteDuplicateMergeLabRulesRequests :execrows
--- One pending request per Person: the target's pending request for the same version wins.
-DELETE FROM laborordnung_requests source
-USING laborordnung_requests target
+-- name: DeleteDuplicateMergeLabRulesConfirmations :execrows
+-- One confirmation per Person and version: the target's confirmation of the same version wins.
+DELETE FROM laborordnung_confirmations source
+USING laborordnung_confirmations target
 WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.arg(target_person_id)
-  AND source.status = 'pending' AND target.status = 'pending';
+  AND source.version_id = target.version_id;
 
--- name: MoveMergeLabRulesRequests :execrows
-UPDATE laborordnung_requests SET person_id = sqlc.arg(target_person_id), updated_at = now()
+-- name: MoveMergeLabRulesConfirmations :execrows
+UPDATE laborordnung_confirmations SET person_id = sqlc.arg(target_person_id)
 WHERE person_id = sqlc.arg(source_person_id);
 
 -- name: DeleteDuplicateMergeOpenDayAssignments :execrows
@@ -419,12 +399,10 @@ WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.
 UPDATE organization_members SET person_id = sqlc.arg(target_person_id) WHERE person_id = sqlc.arg(source_person_id);
 
 -- name: RepointMergePersonReferences :one
--- Re-points the person references that carry no uniqueness rule. Conflicting open visits and attendance holds are
--- rejected before this runs.
+-- Re-points the person references that carry no uniqueness rule. Conflicting open visits are rejected before this
+-- runs.
 WITH visits_moved AS (
     UPDATE visits SET person_id = sqlc.arg(target_person_id)::uuid WHERE person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
-), holds_moved AS (
-    UPDATE attendance_holds SET person_id = sqlc.arg(target_person_id)::uuid WHERE person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
 ), invitations_moved AS (
     UPDATE survey_invitations SET person_id = sqlc.arg(target_person_id)::uuid WHERE person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
 ), responses_moved AS (
@@ -464,7 +442,6 @@ WITH visits_moved AS (
 SELECT
     ((SELECT count(*) FROM privacy_holds_moved) + (SELECT count(*) FROM privacy_requests_moved))::bigint AS privacy_holds,
     (SELECT count(*) FROM visits_moved)::bigint AS visits,
-    (SELECT count(*) FROM holds_moved)::bigint AS attendance_holds,
     (SELECT count(*) FROM invitations_moved)::bigint AS survey_invitations,
     (SELECT count(*) FROM responses_moved)::bigint AS survey_responses,
     ((SELECT count(*) FROM events_moved) + (SELECT count(*) FROM tasks_moved))::bigint AS event_planning,
@@ -491,7 +468,7 @@ WITH c01 AS (
     UPDATE laborordnung_versions SET created_by_account_id = sqlc.arg(target_account_id)::uuid
     WHERE created_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
 ), c06 AS (
-    UPDATE laborordnung_requests SET confirmed_by_account_id = sqlc.arg(target_account_id)::uuid
+    UPDATE laborordnung_confirmations SET confirmed_by_account_id = sqlc.arg(target_account_id)::uuid
     WHERE confirmed_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
 ), c07 AS (
     UPDATE scim_connector_tokens SET created_by_account_id = sqlc.arg(target_account_id)::uuid
@@ -626,9 +603,6 @@ WITH c01 AS (
 ), c41 AS (
     UPDATE inbox_notifications SET created_by_account_id = sqlc.arg(target_account_id)::uuid
     WHERE created_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
-), c42 AS (
-    UPDATE attendance_holds SET checked_in_by_account_id = sqlc.arg(target_account_id)::uuid
-    WHERE checked_in_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
 ), c43 AS (
     UPDATE training_records SET recorded_by_account_id = sqlc.arg(target_account_id)::uuid
     WHERE recorded_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
@@ -689,7 +663,7 @@ SELECT (
     + (SELECT count(*) FROM c29) + (SELECT count(*) FROM c30) + (SELECT count(*) FROM c31) + (SELECT count(*) FROM c32)
     + (SELECT count(*) FROM c33) + (SELECT count(*) FROM c34) + (SELECT count(*) FROM c35) + (SELECT count(*) FROM c36)
     + (SELECT count(*) FROM c37) + (SELECT count(*) FROM c39) + (SELECT count(*) FROM c40)
-    + (SELECT count(*) FROM c41) + (SELECT count(*) FROM c42) + (SELECT count(*) FROM c43) + (SELECT count(*) FROM c44)
+    + (SELECT count(*) FROM c41) + (SELECT count(*) FROM c43) + (SELECT count(*) FROM c44)
     + (SELECT count(*) FROM c45) + (SELECT count(*) FROM c46) + (SELECT count(*) FROM c47) + (SELECT count(*) FROM c48)
     + (SELECT count(*) FROM c49) + (SELECT count(*) FROM c50) + (SELECT count(*) FROM c51) + (SELECT count(*) FROM c52)
     + (SELECT count(*) FROM c53) + (SELECT count(*) FROM c54) + (SELECT count(*) FROM c55) + (SELECT count(*) FROM c56)

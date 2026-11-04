@@ -146,7 +146,7 @@ function currentUser(permissions: string[] = []) {
       actionRequired: false,
       currentVersion: null,
       latestConfirmedVersion: null,
-      requestId: null,
+      latestConfirmedAt: null,
     },
   };
 }
@@ -218,7 +218,7 @@ function personMakerspaceStatus() {
       actionRequired: true,
       currentVersion: { humanRevision: '2026-09' },
       latestConfirmedVersion: { humanRevision: '2025-09' },
-      requestId: null,
+      latestConfirmedAt: null,
     },
     upcomingOpenDayAssignments: [
       {
@@ -408,7 +408,7 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
-    if (path === '/api/v1/laborordnung/signatures' && request.method() === 'GET') {
+    if (path === '/api/v1/laborordnung/confirmations' && request.method() === 'GET') {
       await json(route, { items: [], page: 1, pageSize: 25, total: 0 });
       return;
     }
@@ -617,7 +617,7 @@ test('shows Lab Rules between roles and a centered Status column', async ({ page
     people: [person],
     makerspaceStatus: personMakerspaceStatus(),
     role,
-    user: currentUser(['people.read.all', 'accounts.read', 'roles.read', 'laborordnung.requests.read']),
+    user: currentUser(['people.read.all', 'accounts.read', 'roles.read', 'laborordnung.confirmations.read']),
   });
 
   await page.goto('/people');
@@ -650,7 +650,7 @@ test('opens responsive Directory filters for roles, Lab Rules, and account statu
   await installApi(page, {
     authenticated: true,
     role,
-    user: currentUser(['people.read.all', 'accounts.read', 'roles.read', 'laborordnung.requests.read']),
+    user: currentUser(['people.read.all', 'accounts.read', 'roles.read', 'laborordnung.confirmations.read']),
   });
 
   await page.goto('/people');
@@ -805,7 +805,7 @@ test('renders the responsive person detail hierarchy and functional tabs', async
       'people.roles.assign',
       'roles.read',
       'open_days.read_assignments',
-      'laborordnung.requests.read',
+      'laborordnung.confirmations.read',
     ]),
   });
 

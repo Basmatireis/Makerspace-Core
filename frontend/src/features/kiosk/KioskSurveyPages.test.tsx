@@ -32,14 +32,7 @@ function mockKiosk(checkoutMode: 'public_tap' | 'authenticated', presence: objec
 const adaPresence = {
   items: [{ visitId, displayName: 'Ada L.', checkedInAt: '2026-10-09T12:00:00Z' }],
   count: 1,
-  waiting: [],
 };
-
-async function enterPin(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: 'Check in' }));
-  await user.type(await screen.findByLabelText('Login name'), 'ada');
-  for (const digit of '123456') await user.click(screen.getByRole('button', { name: digit }));
-}
 
 describe('public kiosk and survey pages', () => {
   it('keeps the visitor kiosk public and performs privacy-conscious tap checkout', async () => {
@@ -82,48 +75,6 @@ describe('public kiosk and survey pages', () => {
     await user.click(await screen.findByRole('button', { name: 'Check out Ada L.' }));
     await waitFor(() => expect(checkedOut).toBe(true));
     expect(await screen.findByRole('heading', { name: 'See you, Ada!' })).toBeInTheDocument();
-  });
-
-  it('shows the Lab Rules hold screen and lists waiting people', async () => {
-    mockKiosk('public_tap', {
-      items: [],
-      count: 0,
-      waiting: [{ holdId: visitId, displayName: 'Grace Hopper', requestedAt: '2026-10-09T12:00:00Z' }],
-    });
-    server.use(
-      http.post('*/api/v1/terminal/check-in/pin', () =>
-        HttpResponse.json(
-          {
-            id: visitId,
-            personId,
-            displayName: 'Grace Hopper',
-            requestedAt: '2026-10-09T12:00:00Z',
-            expiresAt: '2026-10-09T18:00:00Z',
-            checkInMethod: 'pin',
-            laborordnungRequestId: null,
-            requiredRevision: '3',
-            previousRevision: null,
-          },
-          { status: 202 },
-        ),
-      ),
-    );
-    const user = userEvent.setup();
-    renderRoute(<App />, '/kiosk');
-
-    expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
-    expect(screen.getByText('Awaiting sign-off')).toBeInTheDocument();
-    expect(screen.queryByText('Waiting for Lab Rules')).not.toBeInTheDocument();
-    // Awaiting people have no visit, so tapping the name must not offer a checkout.
-    await user.click(screen.getByText('Grace Hopper'));
-    expect(screen.queryByRole('button', { name: /Check out Grace/ })).not.toBeInTheDocument();
-
-    await enterPin(user);
-    await user.click(screen.getAllByRole('button', { name: 'Check in' }).at(-1) as HTMLElement);
-    expect(await screen.findByText('Check-in on hold')).toBeInTheDocument();
-    expect(screen.getByText('Grace, you are not checked in.')).toBeInTheDocument();
-    expect(screen.getByText('You have not signed the Lab Rules yet. Ask a supervisor for help.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Understood/ })).toBeInTheDocument();
   });
 
   it('offers visitor registration on the check-in screen only and shows the PIN length as a counter', async () => {

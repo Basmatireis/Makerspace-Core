@@ -18,8 +18,35 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AttendanceHold } from './attendanceHold';
+import type { LaborordnungConfirmationMethod } from './laborordnungConfirmationMethod';
+import type { UUIDv7 } from './uUIDv7';
 
-export interface AttendanceHoldList {
-  items: AttendanceHold[];
+export interface LaborordnungConfirmation {
+  id: UUIDv7;
+  personId: UUIDv7;
+  /**
+     * @minLength 1
+     * @maxLength 201
+     */
+  personName: string;
+  versionId: UUIDv7;
+  humanRevision: string;
+  method: LaborordnungConfirmationMethod;
+  confirmedAt: string;
+  /**
+     * Where the signed paper is filed; paper confirmations only.
+     * @maxLength 255
+     * @nullable
+     */
+  physicalDocumentReference: string | null;
+  /**
+     * Date written on the signed paper; paper confirmations only.
+     * @nullable
+     */
+  signedDate: string | null;
+  /**
+     * Supervisor who checked the paper; null for other methods and once that account is gone.
+     * @nullable
+     */
+  confirmedByName: string | null;
 }

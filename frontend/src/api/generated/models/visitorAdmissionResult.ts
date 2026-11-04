@@ -19,11 +19,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LaborordnungStatus } from './laborordnungStatus';
-import type { UUIDv7 } from './uUIDv7';
 import type { VisitorAdmissionResultDecision } from './visitorAdmissionResultDecision';
 
 export interface VisitorAdmissionResult {
   decision: VisitorAdmissionResultDecision;
   status: LaborordnungStatus;
-  requestId: UUIDv7 | null;
 }

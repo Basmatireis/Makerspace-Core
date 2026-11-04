@@ -19,8 +19,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
-  AttendanceHold,
-  AttendanceHoldList,
   AttendancePasswordRequest,
   AttendancePinRequest,
   AttendanceStatistics,
@@ -29,6 +27,9 @@ import type {
   PublicPresenceList,
   SupervisedCheckInRequest,
   TerminalContext,
+  TerminalLabRules,
+  TerminalPasswordCheckInRequest,
+  TerminalPinCheckInRequest,
   UUIDv7,
   Visit,
   VisitList,
@@ -77,6 +78,52 @@ export const listTerminalPresence = async ( options?: Parameters<typeof apiFetch
 );}
 
 
+export const getGetTerminalLabRulesUrl = () => {
+
+
+
+
+  return `/api/v1/terminal/lab-rules`
+}
+
+/**
+ * @summary Read the current effective Lab Rules version for confirmation at the terminal
+ */
+export const getTerminalLabRules = async ( options?: Parameters<typeof apiFetch>[1]): Promise<TerminalLabRules> => {
+
+  return apiFetch<TerminalLabRules>(getGetTerminalLabRulesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getGetTerminalLabRulesPDFUrl = () => {
+
+
+
+
+  return `/api/v1/terminal/lab-rules.pdf`
+}
+
+/**
+ * @summary Read the PDF of the current effective Lab Rules version; no other version is ever served
+ */
+export const getTerminalLabRulesPDF = async ( options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getGetTerminalLabRulesPDFUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 export const getTerminalPasswordCheckInUrl = () => {
 
 
@@ -85,7 +132,15 @@ export const getTerminalPasswordCheckInUrl = () => {
   return `/api/v1/terminal/check-in/password`
 }
 
-export const terminalPasswordCheckIn = async (attendancePasswordRequest: AttendancePasswordRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit | AttendanceHold> => {
+/**
+ * When the person must confirm the current Lab Rules, the terminal shows them and repeats the check-in with
+ * `confirmLabRulesVersionId` (records the confirmation, method `kiosk`, and admits the person) or, for roles
+ * that only warn, `deferLabRules` (admits the person with admission decision `warning`). Without either the
+ * answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
+ * `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
+ * A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+ */
+export const terminalPasswordCheckIn = async (terminalPasswordCheckInRequest: TerminalPasswordCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -101,12 +156,12 @@ export const terminalPasswordCheckIn = async (attendancePasswordRequest: Attenda
     }
     return headers;
   };
-return apiFetch<Visit | AttendanceHold>(getTerminalPasswordCheckInUrl(),
+return apiFetch<Visit>(getTerminalPasswordCheckInUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(attendancePasswordRequest)
+    body: JSON.stringify(terminalPasswordCheckInRequest)
   }
 );}
 
@@ -119,7 +174,15 @@ export const getTerminalPinCheckInUrl = () => {
   return `/api/v1/terminal/check-in/pin`
 }
 
-export const terminalPinCheckIn = async (attendancePinRequest: AttendancePinRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit | AttendanceHold> => {
+/**
+ * When the person must confirm the current Lab Rules, the terminal shows them and repeats the check-in with
+ * `confirmLabRulesVersionId` (records the confirmation, method `kiosk`, and admits the person) or, for roles
+ * that only warn, `deferLabRules` (admits the person with admission decision `warning`). Without either the
+ * answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
+ * `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
+ * A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+ */
+export const terminalPinCheckIn = async (terminalPinCheckInRequest: TerminalPinCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -135,12 +198,12 @@ export const terminalPinCheckIn = async (attendancePinRequest: AttendancePinRequ
     }
     return headers;
   };
-return apiFetch<Visit | AttendanceHold>(getTerminalPinCheckInUrl(),
+return apiFetch<Visit>(getTerminalPinCheckInUrl(),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(attendancePinRequest)
+    body: JSON.stringify(terminalPinCheckInRequest)
   }
 );}
 
@@ -268,7 +331,12 @@ export const getSupervisedVisitCheckInUrl = () => {
   return `/api/v1/visits`
 }
 
-export const supervisedVisitCheckIn = async (supervisedCheckInRequest: SupervisedCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit | AttendanceHold> => {
+/**
+ * A person whose role blocks admission without the current Lab Rules and who has not confirmed them cannot be
+ * checked in by someone else (409 `lab_rules_confirmation_required`); they confirm themselves at the terminal or
+ * in the app. Roles that only warn are admitted with admission decision `warning`.
+ */
+export const supervisedVisitCheckIn = async (supervisedCheckInRequest: SupervisedCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -284,7 +352,7 @@ export const supervisedVisitCheckIn = async (supervisedCheckInRequest: Supervise
     }
     return headers;
   };
-return apiFetch<Visit | AttendanceHold>(getSupervisedVisitCheckInUrl(),
+return apiFetch<Visit>(getSupervisedVisitCheckInUrl(),
   {
     ...options,
     method: 'POST',
@@ -345,52 +413,6 @@ return apiFetch<Visit>(getVoidVisitUrl(visitId),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(voidVisitRequest)
-  }
-);}
-
-
-export const getListAttendanceHoldsUrl = () => {
-
-
-
-
-  return `/api/v1/attendance/holds`
-}
-
-/**
- * @summary Check-ins held until a supervisor confirms the person's Lab Rules
- */
-export const listAttendanceHolds = async ( options?: Parameters<typeof apiFetch>[1]): Promise<AttendanceHoldList> => {
-
-  return apiFetch<AttendanceHoldList>(getListAttendanceHoldsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getCancelAttendanceHoldUrl = (holdId: UUIDv7,) => {
-
-
-
-
-  return `/api/v1/attendance/holds/${holdId}`
-}
-
-/**
- * @summary Cancel a held check-in without admitting the person
- */
-export const cancelAttendanceHold = async (holdId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
-
-  return apiFetch<void>(getCancelAttendanceHoldUrl(holdId),
-  {
-    ...options,
-    method: 'DELETE'
-
-
   }
 );}
 

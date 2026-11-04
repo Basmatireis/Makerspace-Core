@@ -449,7 +449,7 @@ export const getGetPersonMakerspaceStatusUrl = (personId: string,) => {
  * Requires the applicable `people.read.self` or `people.read.all`
  * permission. Upcoming Open Day assignments are omitted without
  * `open_days.read.assignments`; Lab Rules status is omitted without
- * `laborordnung.requests.read`.
+ * `laborordnung.confirmations.read`.
  * @summary Get permission-filtered Makerspace status for one person
  */
 export const getPersonMakerspaceStatus = async (personId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PersonMakerspaceStatus> => {

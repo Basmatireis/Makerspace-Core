@@ -18,11 +18,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { Email } from './email';
+import type { ExistingPassword } from './existingPassword';
+import type { UUIDv7 } from './uUIDv7';
 
-export type ListLaborordnungSignaturesDirection = typeof ListLaborordnungSignaturesDirection[keyof typeof ListLaborordnungSignaturesDirection];
-
-
-export const ListLaborordnungSignaturesDirection = {
-  asc: 'asc',
-  desc: 'desc',
-} as const;
+export interface TerminalPasswordCheckInRequest {
+  email: Email;
+  password: ExistingPassword;
+  /** The Lab Rules version the person read and confirms while checking in; it must be the current one. */
+  confirmLabRulesVersionId?: UUIDv7;
+  /** Check in without confirming; only allowed when the person's role merely warns. */
+  deferLabRules?: boolean;
+}

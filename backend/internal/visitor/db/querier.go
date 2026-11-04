@@ -17,7 +17,6 @@ type Querier interface {
 	ClearAllowedDeviceTypes(ctx context.Context) error
 	ConsumeEnrollmentContext(ctx context.Context, id uuid.UUID) (int64, error)
 	CreateEnrollmentContext(ctx context.Context, arg CreateEnrollmentContextParams) (VisitorEnrollmentContext, error)
-	CreateLabRulesRequest(ctx context.Context, arg CreateLabRulesRequestParams) (LaborordnungRequest, error)
 	CreateVisitorAccount(ctx context.Context, arg CreateVisitorAccountParams) (Account, error)
 	CreateVisitorInvitation(ctx context.Context, arg CreateVisitorInvitationParams) (AuthChallenge, error)
 	CreateVisitorPINCredential(ctx context.Context, arg CreateVisitorPINCredentialParams) error

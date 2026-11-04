@@ -110,10 +110,5 @@ RETURNING *;
 UPDATE auth_challenges SET delivery_status=sqlc.arg(delivery_status), delivery_attempted_at=now(), delivery_failure_code=sqlc.narg(delivery_failure_code)
 WHERE id=sqlc.arg(id);
 
--- name: CreateLabRulesRequest :one
-INSERT INTO laborordnung_requests (id, person_id, required_version_id)
-VALUES (sqlc.arg(id), sqlc.arg(person_id), sqlc.arg(required_version_id))
-RETURNING *;
-
 -- name: DeleteExpiredEnrollmentContexts :execrows
 DELETE FROM visitor_enrollment_contexts WHERE expires_at < sqlc.arg(before_time);

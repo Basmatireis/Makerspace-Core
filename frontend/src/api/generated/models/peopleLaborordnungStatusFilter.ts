@@ -27,5 +27,4 @@ export const PeopleLaborordnungStatusFilter = {
   no_published_version: 'no_published_version',
   current: 'current',
   outdated: 'outdated',
-  pending: 'pending',
 } as const;

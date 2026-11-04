@@ -1,16 +1,22 @@
 import { queryOptions } from '@tanstack/react-query';
-import { listLaborordnungSignatures } from '../../api/generated/laborordnung/laborordnung';
-import type { ListLaborordnungSignaturesParams } from '../../api/generated/models';
+import { listLaborordnungConfirmations } from '../../api/generated/laborordnung/laborordnung';
+import type { ListLaborordnungConfirmationsParams } from '../../api/generated/models';
 
 export const laborordnungKeys = {
   versions: ['laborordnung', 'versions'] as const,
-  requests: ['laborordnung', 'requests'] as const,
-  signatures: (params: ListLaborordnungSignaturesParams) => ['laborordnung', 'signatures', params] as const,
+  confirmations: (params: ListLaborordnungConfirmationsParams) => ['laborordnung', 'confirmations', params] as const,
 };
 
-/** Needs `laborordnung.requests.read`. */
-export const signaturesQuery = (params: ListLaborordnungSignaturesParams) =>
+/** Needs `laborordnung.confirmations.read`. */
+export const confirmationsQuery = (params: ListLaborordnungConfirmationsParams) =>
   queryOptions({
-    queryKey: laborordnungKeys.signatures(params),
-    queryFn: ({ signal }) => listLaborordnungSignatures(params, { signal }),
+    queryKey: laborordnungKeys.confirmations(params),
+    queryFn: ({ signal }) => listLaborordnungConfirmations(params, { signal }),
   });
+
+export const confirmationMethodLabels = {
+  app: 'App',
+  kiosk: 'Kiosk',
+  enrollment: 'Enrollment',
+  paper: 'Paper',
+} as const;

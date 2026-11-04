@@ -102,9 +102,6 @@ export const conflictMessages: Record<PeopleMergeConflictCode, string> = {
     'A person to be deleted is provisioned through SCIM. Choose the SCIM-managed person as the one that stays, or remove them in the identity provider.',
   actor_is_source: 'You are one of the people to be deleted. Choose yourself as the person that stays.',
   open_visit_conflict: 'More than one of these people is currently checked in. Check them out first.',
-  attendance_hold_conflict:
-    'More than one of these people has a pending Lab Rules check-in hold. Resolve the holds first.',
-  lab_rules_request_conflict: 'These people have pending Lab Rules requests for different versions.',
   open_day_assignment_conflict: 'These people hold different positions on the same open day.',
   pin_conflict: 'More than one of these accounts has a PIN. Remove all but one first.',
   totp_conflict: 'More than one of these accounts has a confirmed authenticator app. Reset all but one first.',
@@ -115,9 +112,8 @@ export const conflictMessages: Record<PeopleMergeConflictCode, string> = {
 
 export const categoryLabels: Record<PeopleMergeCategory, string> = {
   visits: 'Visits',
-  attendance_holds: 'Attendance holds',
   training_records: 'Training records',
-  lab_rules_requests: 'Lab Rules requests',
+  lab_rules_confirmations: 'Lab Rules confirmations',
   open_day_assignments: 'Open day assignments',
   event_shift_assignments: 'Event shift assignments',
   event_planning: 'Owned events and tasks',

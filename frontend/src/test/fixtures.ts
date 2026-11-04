@@ -161,7 +161,7 @@ export function currentUserFixture(permissions: PermissionId[] = [], master = fa
       actionRequired: false,
       currentVersion: null,
       latestConfirmedVersion: null,
-      requestId: null,
+      latestConfirmedAt: null,
     },
   };
 }

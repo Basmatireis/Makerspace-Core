@@ -25,6 +25,11 @@ export class ApiError<T = ErrorEnvelope> extends Error {
   }
 }
 
+/** The machine-readable `code` of an API error envelope, or undefined for other failures. */
+export function apiErrorCode(error: unknown): string | undefined {
+  return error instanceof ApiError ? (error.data as ErrorEnvelope | undefined)?.code : undefined;
+}
+
 export type ErrorType<T> = ApiError<T>;
 export type BodyType<T> = T;
 

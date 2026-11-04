@@ -55,8 +55,7 @@ roleIds?: UUIDv7[];
 accountStatuses?: PeopleAccountStatusFilter[];
 /**
  * Return people matching at least one permission-gated Lab Rules presentation
- * status. `pending` means an outstanding confirmation request for the current
- * published version. Supplying this filter requires `laborordnung.requests.read`.
+ * status. Supplying this filter requires `laborordnung.confirmations.read`.
  * @maxItems 5
  */
 laborordnungStatuses?: PeopleLaborordnungStatusFilter[];

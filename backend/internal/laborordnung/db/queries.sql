@@ -30,85 +30,75 @@ WHERE pr.person_id = sqlc.arg(person_id);
 -- name: LockPerson :exec
 SELECT id FROM people WHERE id = sqlc.arg(id) FOR UPDATE;
 
--- name: GetLatestCompletedRequest :one
-SELECT * FROM laborordnung_requests
-WHERE person_id = sqlc.arg(person_id) AND status = 'completed'
-ORDER BY completed_at DESC, id DESC LIMIT 1;
+-- name: GetLatestConfirmation :one
+-- The confirmation of the current version when there is one, otherwise the most recent one.
+SELECT * FROM laborordnung_confirmations
+WHERE person_id = sqlc.arg(person_id)
+ORDER BY version_id = sqlc.arg(current_version_id) DESC, confirmed_at DESC, id DESC LIMIT 1;
 
--- name: GetPendingRequest :one
-SELECT * FROM laborordnung_requests
-WHERE person_id = sqlc.arg(person_id) AND status = 'pending'
-FOR UPDATE;
+-- name: InsertConfirmation :execrows
+-- A repeated confirmation of the same version keeps the first one.
+INSERT INTO laborordnung_confirmations (id, person_id, version_id, method, confirmed_at)
+VALUES (sqlc.arg(id), sqlc.arg(person_id), sqlc.arg(version_id), sqlc.arg(method), now())
+ON CONFLICT (person_id, version_id) DO NOTHING;
 
--- name: GetPendingRequestForStatus :one
-SELECT * FROM laborordnung_requests
-WHERE person_id = sqlc.arg(person_id) AND status = 'pending';
+-- name: GetCurrentUnannouncedVersionForUpdate :one
+-- Locks the current version while it is announced. SKIP LOCKED lets a second process that runs the job at the same
+-- time pass instead of announcing it again; the current version is chosen before locking, so a locked one is never
+-- replaced by an older version.
+SELECT v.* FROM laborordnung_versions v
+WHERE v.id = (
+    SELECT c.id FROM laborordnung_versions c
+    WHERE c.status = 'published' AND c.effective_at <= now()
+    ORDER BY c.effective_at DESC, c.id DESC LIMIT 1
+)
+  AND v.announced_at IS NULL
+FOR UPDATE SKIP LOCKED;
 
--- name: SupersedePendingRequest :exec
-UPDATE laborordnung_requests
-SET status = 'superseded', superseded_at = now(), updated_at = now()
-WHERE id = sqlc.arg(id) AND status = 'pending';
-
--- name: CreateRequest :one
-INSERT INTO laborordnung_requests (id, person_id, required_version_id, previous_version_id)
-VALUES (sqlc.arg(id), sqlc.arg(person_id), sqlc.arg(required_version_id), sqlc.narg(previous_version_id))
-RETURNING *;
-
--- name: ListRequests :many
-SELECT * FROM laborordnung_requests ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'completed' THEN 1 ELSE 2 END, requested_at, id;
-
--- name: GetRequestForUpdate :one
-SELECT * FROM laborordnung_requests WHERE id = sqlc.arg(id) FOR UPDATE;
-
--- name: ConfirmRequest :one
-UPDATE laborordnung_requests
-SET status = 'completed', completed_at = now(), confirmed_by_account_id = sqlc.arg(confirmed_by_account_id),
-    physical_document_reference = sqlc.arg(physical_document_reference), signed_date = sqlc.narg(signed_date),
-    archive_note = sqlc.narg(archive_note), updated_at = now()
-WHERE id = sqlc.arg(id) AND status = 'pending'
-RETURNING *;
+-- name: MarkVersionsAnnounced :execrows
+-- Marks the version and every older effective version that was never announced; a newer version that became
+-- effective before the job ran supersedes them.
+UPDATE laborordnung_versions
+SET announced_at = now()
+WHERE status = 'published' AND announced_at IS NULL AND effective_at <= sqlc.arg(effective_at);
 
 -- name: GetPersonName :one
 SELECT first_name, last_name FROM people WHERE id = sqlc.arg(id);
 
--- name: ListSignatures :many
-SELECT r.id, r.person_id, btrim(p.first_name || ' ' || p.last_name) AS person_name,
-       r.required_version_id AS version_id, v.human_revision, r.signed_date, r.physical_document_reference,
-       r.completed_at, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS confirmed_by_name
-FROM laborordnung_requests r
-JOIN people p ON p.id = r.person_id
-JOIN laborordnung_versions v ON v.id = r.required_version_id
-LEFT JOIN accounts ca ON ca.id = r.confirmed_by_account_id
+-- name: ListConfirmations :many
+SELECT c.id, c.person_id, btrim(p.first_name || ' ' || p.last_name) AS person_name,
+       c.version_id, v.human_revision, c.method, c.confirmed_at, c.signed_date, c.physical_document_reference,
+       COALESCE(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS confirmed_by_name
+FROM laborordnung_confirmations c
+JOIN people p ON p.id = c.person_id
+JOIN laborordnung_versions v ON v.id = c.version_id
+LEFT JOIN accounts ca ON ca.id = c.confirmed_by_account_id
 LEFT JOIN people cp ON cp.id = ca.person_id
-WHERE r.status = 'completed'
-  AND (sqlc.narg(person_id)::uuid IS NULL OR r.person_id = sqlc.narg(person_id)::uuid)
-  AND (sqlc.narg(version_id)::uuid IS NULL OR r.required_version_id = sqlc.narg(version_id)::uuid)
+WHERE (sqlc.narg(person_id)::uuid IS NULL OR c.person_id = sqlc.narg(person_id)::uuid)
+  AND (sqlc.narg(version_id)::uuid IS NULL OR c.version_id = sqlc.narg(version_id)::uuid)
+  AND (sqlc.narg(method)::text IS NULL OR c.method = sqlc.narg(method)::text)
   AND (sqlc.arg(search)::text = ''
        OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
-       OR lower(COALESCE(r.physical_document_reference, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
+       OR lower(COALESCE(c.physical_document_reference, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
 ORDER BY
   CASE WHEN sqlc.arg(sort)::text = 'person' AND sqlc.arg(descending)::boolean = false THEN lower(p.last_name || ' ' || p.first_name) END ASC,
   CASE WHEN sqlc.arg(sort)::text = 'person' AND sqlc.arg(descending)::boolean THEN lower(p.last_name || ' ' || p.first_name) END DESC,
   CASE WHEN sqlc.arg(sort)::text = 'version' AND sqlc.arg(descending)::boolean = false THEN lower(v.human_revision) END ASC,
   CASE WHEN sqlc.arg(sort)::text = 'version' AND sqlc.arg(descending)::boolean THEN lower(v.human_revision) END DESC,
-  CASE WHEN sqlc.arg(sort)::text = 'signedDate' AND sqlc.arg(descending)::boolean = false THEN r.signed_date END ASC,
-  CASE WHEN sqlc.arg(sort)::text = 'signedDate' AND sqlc.arg(descending)::boolean THEN r.signed_date END DESC,
-  CASE WHEN sqlc.arg(sort)::text = 'reference' AND sqlc.arg(descending)::boolean = false THEN lower(r.physical_document_reference) END ASC,
-  CASE WHEN sqlc.arg(sort)::text = 'reference' AND sqlc.arg(descending)::boolean THEN lower(r.physical_document_reference) END DESC,
-  CASE WHEN sqlc.arg(sort)::text = 'confirmedBy' AND sqlc.arg(descending)::boolean = false THEN lower(cp.last_name || ' ' || cp.first_name) END ASC,
-  CASE WHEN sqlc.arg(sort)::text = 'confirmedBy' AND sqlc.arg(descending)::boolean THEN lower(cp.last_name || ' ' || cp.first_name) END DESC,
-  CASE WHEN sqlc.arg(sort)::text = 'confirmedAt' AND sqlc.arg(descending)::boolean = false THEN r.completed_at END ASC,
-  CASE WHEN sqlc.arg(sort)::text = 'confirmedAt' AND sqlc.arg(descending)::boolean THEN r.completed_at END DESC,
-  r.completed_at DESC, r.id
+  CASE WHEN sqlc.arg(sort)::text = 'method' AND sqlc.arg(descending)::boolean = false THEN c.method END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'method' AND sqlc.arg(descending)::boolean THEN c.method END DESC,
+  CASE WHEN sqlc.arg(sort)::text = 'confirmedAt' AND sqlc.arg(descending)::boolean = false THEN c.confirmed_at END ASC,
+  CASE WHEN sqlc.arg(sort)::text = 'confirmedAt' AND sqlc.arg(descending)::boolean THEN c.confirmed_at END DESC,
+  c.confirmed_at DESC, c.id
 LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 
--- name: CountSignatures :one
+-- name: CountConfirmations :one
 SELECT count(*)
-FROM laborordnung_requests r
-JOIN people p ON p.id = r.person_id
-WHERE r.status = 'completed'
-  AND (sqlc.narg(person_id)::uuid IS NULL OR r.person_id = sqlc.narg(person_id)::uuid)
-  AND (sqlc.narg(version_id)::uuid IS NULL OR r.required_version_id = sqlc.narg(version_id)::uuid)
+FROM laborordnung_confirmations c
+JOIN people p ON p.id = c.person_id
+WHERE (sqlc.narg(person_id)::uuid IS NULL OR c.person_id = sqlc.narg(person_id)::uuid)
+  AND (sqlc.narg(version_id)::uuid IS NULL OR c.version_id = sqlc.narg(version_id)::uuid)
+  AND (sqlc.narg(method)::text IS NULL OR c.method = sqlc.narg(method)::text)
   AND (sqlc.arg(search)::text = ''
        OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
-       OR lower(COALESCE(r.physical_document_reference, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%');
+       OR lower(COALESCE(c.physical_document_reference, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%');

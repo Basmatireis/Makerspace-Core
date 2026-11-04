@@ -27,8 +27,9 @@ type Querier interface {
 	CreateProvisionedAccount(ctx context.Context, arg CreateProvisionedAccountParams) (Account, error)
 	CreateProvisionedPerson(ctx context.Context, arg CreateProvisionedPersonParams) (Person, error)
 	CreateSCIMUser(ctx context.Context, arg CreateSCIMUserParams) (ScimUser, error)
+	// One confirmation per person and version: the target's confirmation of the same version wins.
+	DeduplicateLabRuleConfirmations(ctx context.Context, arg DeduplicateLabRuleConfirmationsParams) error
 	DeduplicateOpenDayAssignments(ctx context.Context, arg DeduplicateOpenDayAssignmentsParams) error
-	DeduplicatePendingLabRuleRequests(ctx context.Context, arg DeduplicatePendingLabRuleRequestsParams) error
 	DeleteReconciledAccount(ctx context.Context, id uuid.UUID) error
 	DeleteReconciledPerson(ctx context.Context, id uuid.UUID) error
 	DeleteSCIMUser(ctx context.Context, arg DeleteSCIMUserParams) error
@@ -39,12 +40,11 @@ type Querier interface {
 	GetSCIMUser(ctx context.Context, arg GetSCIMUserParams) (GetSCIMUserRow, error)
 	ListConnectors(ctx context.Context) ([]ListConnectorsRow, error)
 	ListOpenDayReconciliationConflicts(ctx context.Context, arg ListOpenDayReconciliationConflictsParams) ([]uuid.UUID, error)
-	ListPendingLabRuleConflicts(ctx context.Context, arg ListPendingLabRuleConflictsParams) ([]uuid.UUID, error)
 	ListSCIMMappingConnectorConflicts(ctx context.Context, arg ListSCIMMappingConnectorConflictsParams) ([]uuid.UUID, error)
 	ListSCIMUsers(ctx context.Context, arg ListSCIMUsersParams) ([]ListSCIMUsersRow, error)
 	LockProvisionedPerson(ctx context.Context, id uuid.UUID) error
 	LockReconciliationPeople(ctx context.Context, arg LockReconciliationPeopleParams) error
-	MoveLabRuleRequests(ctx context.Context, arg MoveLabRuleRequestsParams) error
+	MoveLabRuleConfirmations(ctx context.Context, arg MoveLabRuleConfirmationsParams) error
 	MoveOpenDayAssignments(ctx context.Context, arg MoveOpenDayAssignmentsParams) error
 	ReenableConnectorOIDCIdentity(ctx context.Context, arg ReenableConnectorOIDCIdentityParams) error
 	RevokeActiveConnectorTokens(ctx context.Context, connectorID uuid.UUID) error

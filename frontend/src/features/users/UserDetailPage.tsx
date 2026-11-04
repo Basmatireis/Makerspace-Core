@@ -25,7 +25,7 @@ import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
-import { PersonSignaturesSection } from '../laborordnung/PersonSignaturesSection';
+import { PersonConfirmationsSection } from '../laborordnung/PersonConfirmationsSection';
 import { useBranding } from '../branding/branding';
 import { AccountAccessSection } from './detail/AccountAccessSection';
 import { AccountDialogs } from './detail/AccountDialogs';
@@ -244,8 +244,8 @@ function UserDetailContent({ person }: { person: Person }) {
     />
   );
   const makerspaceStatusSection = <MakerspaceStatusSection statusLabel={statusLabel} query={makerspaceStatusQuery} />;
-  const canReadSignatures = hasPermission(currentUser, PermissionId.laborordnungrequestsread);
-  const signaturesSection = canReadSignatures ? <PersonSignaturesSection personId={person.id} /> : null;
+  const canReadConfirmations = hasPermission(currentUser, PermissionId.laborordnungconfirmationsread);
+  const confirmationsSection = canReadConfirmations ? <PersonConfirmationsSection personId={person.id} /> : null;
 
   const renderTabContent = (tab: PersonDetailTab) => {
     if (tab === 'personal-information') {
@@ -273,7 +273,7 @@ function UserDetailContent({ person }: { person: Person }) {
       return (
         <Stack gap={6}>
           {makerspaceStatusSection}
-          {signaturesSection}
+          {confirmationsSection}
         </Stack>
       );
     }
@@ -296,11 +296,11 @@ function UserDetailContent({ person }: { person: Person }) {
             {rolesSection}
           </Stack>
         </Column>
-        {(canReadMakerspaceStatus || canReadSignatures) && (
+        {(canReadMakerspaceStatus || canReadConfirmations) && (
           <Column sm={4} md={8} lg={16}>
             <Stack gap={6}>
               {canReadMakerspaceStatus && makerspaceStatusSection}
-              {signaturesSection}
+              {confirmationsSection}
             </Stack>
           </Column>
         )}
