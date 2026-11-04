@@ -6,6 +6,50 @@ export const TARGET_TIMEOUT_MS = 4000;
 export type TargetState =
   { status: 'none' | 'pending' | 'missing'; element: null } | { status: 'found'; element: HTMLElement };
 
+const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
+
+// Collapsed navigation is opened for a step and closed again once no step needs it. A new step's lookup runs
+// before the delayed close, so moving between two navigation steps keeps it open.
+const revealed = new Set<() => void>();
+let revealTouched = 0;
+
+/** Opens the collapsed side navigation (narrow screens) and collapsed menus around a target inside it. */
+function revealInSideNav(element: HTMLElement) {
+  const nav = element.closest<HTMLElement>('.cds--side-nav');
+  if (!nav) return;
+  revealTouched += 1;
+  const toggle = document.querySelector<HTMLElement>('.cds--header__menu-toggle');
+  if (
+    toggle &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia(NARROW_SHELL_QUERY).matches &&
+    !nav.classList.contains('cds--side-nav--expanded')
+  ) {
+    toggle.click();
+    revealed.add(() => {
+      if (toggle.isConnected && nav.classList.contains('cds--side-nav--expanded')) toggle.click();
+    });
+  }
+  for (let ancestor = element.parentElement; ancestor && ancestor !== nav; ancestor = ancestor.parentElement) {
+    if (!ancestor.matches('li')) continue;
+    const button = ancestor.querySelector<HTMLElement>(':scope > button[aria-expanded="false"]');
+    if (!button) continue;
+    button.click();
+    revealed.add(() => {
+      if (button.isConnected && button.getAttribute('aria-expanded') === 'true') button.click();
+    });
+  }
+}
+
+function scheduleHideRevealed() {
+  const touched = revealTouched;
+  window.setTimeout(() => {
+    if (touched !== revealTouched) return;
+    revealed.forEach((undo) => undo());
+    revealed.clear();
+  }, 60);
+}
+
 function hasBox(element: HTMLElement): boolean {
   const rect = element.getBoundingClientRect();
   return rect.width > 0 || rect.height > 0;
@@ -24,6 +68,7 @@ export function useGuideTarget(selector: string | undefined): TargetState {
     let frame = 0;
     const find = () => {
       const match = document.querySelector<HTMLElement>(selector);
+      if (match) revealInSideNav(match);
       const element = match && hasBox(match) ? match : null;
       setFound((previous) =>
         previous?.selector === selector && previous.element === element ? previous : { selector, element },
@@ -38,13 +83,14 @@ export function useGuideTarget(selector: string | undefined): TargetState {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'hidden'],
+      attributeFilter: ['class', 'hidden', 'aria-expanded'],
     });
     const timer = window.setTimeout(() => setTimedOutFor(selector), TARGET_TIMEOUT_MS);
     return () => {
       observer.disconnect();
       cancelAnimationFrame(frame);
       window.clearTimeout(timer);
+      scheduleHideRevealed();
     };
   }, [selector]);
 
@@ -61,24 +107,83 @@ export interface TargetRect {
   height: number;
 }
 
-/** The viewport rectangle of an element, kept current while the page scrolls, resizes or reflows. */
-export function useElementRect(element: HTMLElement | null): TargetRect | null {
-  const [rect, setRect] = useState<{ element: HTMLElement; rect: TargetRect } | null>(null);
+export type Highlight = 'content' | 'element';
+
+const CONTENT_SELECTOR = 'a, button, input, select, textarea, img, [role="tab"], [role="menuitem"], li > a';
+const MAX_TEXT_NODES = 400;
+
+function boxOf(rect: DOMRect): TargetRect {
+  return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+}
+
+function isShown(element: Element | null): boolean {
+  return !element || typeof element.checkVisibility !== 'function' || element.checkVisibility();
+}
+
+/**
+ * The union of what a person actually sees inside the element (text and controls), clipped to its box. A tab bar
+ * spans the page, but its tabs do not; falls back to the element's box when nothing measurable is inside.
+ */
+export function contentRect(element: HTMLElement): TargetRect {
+  const box = element.getBoundingClientRect();
+  const whole = boxOf(box);
+  if (element.matches(CONTENT_SELECTOR)) return whole;
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  const add = (rect: { left: number; top: number; right: number; bottom: number }) => {
+    const l = Math.max(rect.left, box.left);
+    const t = Math.max(rect.top, box.top);
+    const r = Math.min(rect.right, box.right);
+    const b = Math.min(rect.bottom, box.bottom);
+    if (r - l <= 1 || b - t <= 1) return;
+    left = Math.min(left, l);
+    top = Math.min(top, t);
+    right = Math.max(right, r);
+    bottom = Math.max(bottom, b);
+  };
+  const controls = element.querySelectorAll(CONTENT_SELECTOR);
+  if (controls.length > MAX_TEXT_NODES) return whole;
+  controls.forEach((control) => {
+    if (isShown(control)) add(control.getBoundingClientRect());
+  });
+  if (typeof document.createRange === 'function') {
+    const range = document.createRange();
+    if (typeof range.getClientRects === 'function') {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let seen = 0;
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.nodeValue?.trim()) continue;
+        if (++seen > MAX_TEXT_NODES) return whole;
+        if (!isShown(node.parentElement)) continue;
+        range.selectNodeContents(node);
+        for (const rect of Array.from(range.getClientRects())) add(rect);
+      }
+    }
+  }
+  if (right <= left || bottom <= top) return whole;
+  return { top, left, width: right - left, height: bottom - top };
+}
+
+/** The viewport rectangle of an element (or of its visible content), kept current while the page changes. */
+export function useElementRect(element: HTMLElement | null, highlight: Highlight = 'element'): TargetRect | null {
+  const [rect, setRect] = useState<{ element: HTMLElement; highlight: Highlight; rect: TargetRect } | null>(null);
 
   useEffect(() => {
     if (!element) return;
     let frame = 0;
     const measure = () => {
-      const box = element.getBoundingClientRect();
-      const next = { top: box.top, left: box.left, width: box.width, height: box.height };
+      const next = highlight === 'content' ? contentRect(element) : boxOf(element.getBoundingClientRect());
       setRect((previous) =>
         previous?.element === element &&
+        previous.highlight === highlight &&
         previous.rect.top === next.top &&
         previous.rect.left === next.left &&
         previous.rect.width === next.width &&
         previous.rect.height === next.height
           ? previous
-          : { element, rect: next },
+          : { element, highlight, rect: next },
       );
     };
     const schedule = () => {
@@ -92,28 +197,34 @@ export function useElementRect(element: HTMLElement | null): TargetRect | null {
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
     observer?.observe(element);
     observer?.observe(document.body);
+    const mutations = new MutationObserver(schedule);
+    mutations.observe(element, { childList: true, subtree: true, characterData: true });
+    // Transitions (a drawer opening, a modal sliding in) and layout shifts nobody observes settle within moments.
+    const poll = window.setInterval(measure, 250);
     return () => {
       window.removeEventListener('scroll', schedule, true);
       window.removeEventListener('resize', schedule);
       observer?.disconnect();
+      mutations.disconnect();
+      window.clearInterval(poll);
       cancelAnimationFrame(frame);
     };
-  }, [element]);
+  }, [element, highlight]);
 
-  return element && rect?.element === element ? rect.rect : null;
+  return element && rect?.element === element && rect.highlight === highlight ? rect.rect : null;
 }
 
-const OPEN_MODAL = '.cds--modal.is-visible:not(.guide-modal)';
+const OPEN_MODAL = '.cds--modal.is-visible:not(.guide-modal) .cds--modal-container';
 
-/** Whether a Carbon modal of the page itself (not the tour's own panel) is open. */
-export function useAppModalOpen(): boolean {
-  const [open, setOpen] = useState(() => document.querySelector(OPEN_MODAL) !== null);
+/** The box of a Carbon modal of the page itself (not the tour's own panel) while one is open. */
+export function useAppModal(): HTMLElement | null {
+  const [modal, setModal] = useState<HTMLElement | null>(() => document.querySelector<HTMLElement>(OPEN_MODAL));
   useEffect(() => {
-    const check = () => setOpen(document.querySelector(OPEN_MODAL) !== null);
+    const check = () => setModal(document.querySelector<HTMLElement>(OPEN_MODAL));
     check();
     const observer = new MutationObserver(check);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
-  return open;
+  return modal;
 }

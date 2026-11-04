@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PermissionId } from '../../api/generated/models';
@@ -95,6 +96,25 @@ vi.mock('./content', () => {
     },
     {
       ...base,
+      id: 'choice',
+      title: 'Choice',
+      steps: [
+        {
+          id: 'pick',
+          title: 'Pick the second one',
+          body: 'Choose Beta option.',
+          target: '[data-guide="menu"]',
+          allowOnly: { field: '[data-guide="menu"]', text: 'Beta option' },
+          advance: {
+            kind: 'when',
+            check: () => document.querySelector('output[aria-label="picked"]')?.textContent === 'Beta option',
+          },
+        },
+        { id: 'after', title: 'After the pick', body: 'Moved on by itself.', target: '[data-guide="alpha"]' },
+      ],
+    },
+    {
+      ...base,
       id: 'workflow',
       title: 'Workflow',
       kind: 'workflow' as const,
@@ -108,8 +128,17 @@ vi.mock('./content', () => {
 function Harness({ guide }: { guide: string }) {
   const { startGuide, activeGuideId } = useGuides();
   const location = useLocation();
+  const [picked, setPicked] = useState('nothing');
   return (
     <>
+      <ul data-guide="menu" role="listbox">
+        {['Alpha option', 'Beta option', 'Gamma option'].map((name) => (
+          <li key={name} role="option" aria-selected={picked === name} onClick={() => setPicked(name)}>
+            {name}
+          </li>
+        ))}
+      </ul>
+      <output aria-label="picked">{picked}</output>
       <button onClick={() => startGuide(guide)}>launch</button>
       <button data-guide="alpha">Alpha</button>
       <button data-guide="beta">Beta</button>
@@ -212,7 +241,8 @@ describe('guide engine', () => {
 
     await user.click(launch);
     await expectStep('First step');
-    await user.click(button('Close tour'));
+    // The icon button's name comes from a tooltip that jsdom treats as hidden.
+    await user.click(currentStep()!.querySelector<HTMLElement>('button[aria-labelledby]')!);
     await expectNoStep();
     expect(screen.getByLabelText('active')).toHaveTextContent('none');
     expect(written).not.toHaveBeenCalled();
@@ -232,7 +262,7 @@ describe('guide engine', () => {
     await user.click(screen.getByRole('button', { name: 'launch' }));
 
     await expectStep('Click it');
-    expect(currentStep()).toHaveTextContent('Click the highlighted element.');
+    expect(currentStep()).toHaveTextContent('Click the highlighted element');
     expect(screen.queryByText('Next', { selector: 'button' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Beta' }));
 
@@ -278,5 +308,38 @@ describe('guide engine', () => {
     });
     await expectNoStep();
     expect(screen.getByLabelText('active')).toHaveTextContent('none');
+  });
+
+  it('blocks the options a choice step does not allow and moves on by itself after the right pick', async () => {
+    const { user } = setup('choice');
+    await user.click(screen.getByRole('button', { name: 'launch' }));
+    await expectStep('Pick the second one');
+    // No Next button: the hint replaces it.
+    expect(currentStep()).toHaveTextContent('Make your choice to move on');
+    expect(screen.queryByText('Next', { selector: 'button' })).not.toBeInTheDocument();
+
+    const alpha = screen.getByRole('option', { name: 'Alpha option' });
+    const beta = screen.getByRole('option', { name: 'Beta option' });
+    await waitFor(() => expect(alpha).toHaveAttribute('aria-disabled', 'true'));
+    expect(alpha).toHaveClass('guide-option-disabled');
+    expect(beta).not.toHaveAttribute('aria-disabled');
+
+    await user.click(alpha);
+    expect(screen.getByLabelText('picked')).toHaveTextContent('nothing');
+    expect(currentStep()).toHaveTextContent('Pick the second one');
+
+    await user.click(beta);
+    expect(screen.getByLabelText('picked')).toHaveTextContent('Beta option');
+    await expectStep('After the pick');
+    // Leaving the step lifts the restriction.
+    await waitFor(() => expect(alpha).not.toHaveAttribute('aria-disabled'));
+  });
+
+  it('advances on a programmatic click of the target', async () => {
+    const { user } = setup('interactive');
+    await user.click(screen.getByRole('button', { name: 'launch' }));
+    await expectStep('Click it');
+    act(() => screen.getByRole('button', { name: 'Beta' }).click());
+    await expectStep('Go there');
   });
 });

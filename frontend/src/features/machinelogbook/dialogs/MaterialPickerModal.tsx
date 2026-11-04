@@ -185,6 +185,7 @@ function PickerBody({
                       key={key}
                       {...rowProps}
                       isSelected={selected}
+                      data-guide="material-picker-row"
                       className="mj-row-clickable"
                       onClick={(event: MouseEvent<HTMLElement>) => {
                         if (!(event.target as HTMLElement).closest('input, label')) pick();

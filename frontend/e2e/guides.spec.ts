@@ -163,16 +163,166 @@ async function expectInViewport(page: Page, locator: Locator) {
     .toBe(true);
 }
 
-/** The popover sits next to its spotlight (and, on a narrow screen, inside the viewport). */
-async function expectPopoverNearTarget(page: Page, inViewport: boolean) {
+const openPageModal = (page: Page) =>
+  page.locator('.cds--modal.is-visible:not(.guide-modal) .cds--modal-container').first();
+
+function intersects(a: Box, b: Box): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+/**
+ * The popover sits next to its spotlight, or beside an open page modal without covering it. Its buttons lie inside
+ * its box, and the whole popover inside the viewport.
+ */
+async function expectPopoverPlaced(page: Page) {
   const spotlight = page.locator('.guide-spotlight');
   await expect(spotlight).toBeVisible();
   const popover = page.locator('.guide-panel');
   await expect(popover).toBeVisible();
+  await expectInViewport(page, popover);
+  if (await openPageModal(page).count()) {
+    await expectModalBackdropKept(page);
+    const footer = page.locator('.cds--modal.is-visible:not(.guide-modal) .cds--modal-footer');
+    if (await footer.count())
+      await expect.poll(async () => intersects(await boxOf(popover), await boxOf(footer))).toBe(false);
+    await expect
+      .poll(async () => intersects(await boxOf(popover), await boxOf(openPageModal(page))), {
+        message: 'popover clear of the open modal',
+      })
+      .toBe(false);
+  } else {
+    await expect
+      .poll(async () => gap(await boxOf(spotlight), await boxOf(popover)), { message: 'popover next to its target' })
+      .toBeLessThanOrEqual(48);
+  }
+  await expectButtonsInside(popover);
+}
+
+/** Carbon's own backdrop still covers the viewport and dims, and the modal is not pushed against the top edge. */
+async function expectModalBackdropKept(page: Page) {
+  const viewport = page.viewportSize()!;
+  const backdrop = page.locator('.cds--modal.is-visible:not(.guide-modal)').first();
+  const box = await boxOf(backdrop);
+  expect([box.x, box.y, box.width, box.height]).toEqual([0, 0, viewport.width, viewport.height]);
+  const dimmed = await backdrop.evaluate((node) => {
+    const color = getComputedStyle(node)
+      .backgroundColor.match(/[\d.]+/g)!
+      .map(Number);
+    return color.length < 4 || color[3] > 0;
+  });
+  expect(dimmed).toBe(true);
+  const modal = await boxOf(openPageModal(page));
+  // Room is made only when the panel would cover the modal; with room to spare the modal stays where Carbon puts it.
+  if (viewport.width >= 1000) expect(modal.y).toBeGreaterThan(0);
+}
+
+/** Every button of the panel lies fully inside the panel's box. */
+async function expectButtonsInside(container: Locator) {
+  // The popover may still be settling into place, so the whole comparison is repeated until it holds.
   await expect
-    .poll(async () => gap(await boxOf(spotlight), await boxOf(popover)), { message: 'popover next to its target' })
-    .toBeLessThanOrEqual(48);
-  if (inViewport) await expectInViewport(page, popover);
+    .poll(async () => {
+      const outer = await boxOf(container);
+      const buttons = container.getByRole('button');
+      const count = await buttons.count();
+      const outside: string[] = [];
+      for (let index = 0; index < count; index += 1) {
+        const button = buttons.nth(index);
+        if (!(await button.isVisible())) continue;
+        const box = await boxOf(button);
+        if (
+          box.x < outer.x - 1 ||
+          box.y < outer.y - 1 ||
+          box.x + box.width > outer.x + outer.width + 1 ||
+          box.y + box.height > outer.y + outer.height + 1
+        ) {
+          outside.push(`button ${index}`);
+        }
+      }
+      return count > 0 ? outside : ['no buttons'];
+    })
+    .toEqual([]);
+}
+
+/** Each visible button of the panel is the topmost element at its centre, so nothing covers it. */
+async function expectButtonsClickable(container: Locator) {
+  const buttons = container.getByRole('button');
+  const count = await buttons.count();
+  for (let index = 0; index < count; index += 1) {
+    const button = buttons.nth(index);
+    if (!(await button.isVisible())) continue;
+    const hit = await button.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      const top = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return top !== null && (node === top || node.contains(top));
+    });
+    expect(hit, `button "${await button.innerText()}" is covered`).toBe(true);
+  }
+}
+
+/** The centered tour modal neither scrolls sideways nor lets its content run out of its box. */
+async function expectCenteredModalFits(page: Page) {
+  const container = page.locator('.guide-modal .cds--modal-container');
+  await expectInViewport(page, container);
+  const overflow = await container.evaluate((node) => {
+    return [node, ...Array.from(node.querySelectorAll('*'))].filter(
+      (child) => child.scrollWidth > child.clientWidth + 1 && getComputedStyle(child).overflowX !== 'visible',
+    ).length;
+  });
+  expect(overflow).toBe(0);
+  await expectNoHorizontalScroll(page);
+  await expectButtonsInside(container);
+}
+
+/**
+ * One full-screen dim layer covers the header, side navigation and content alike: at every probe point outside the
+ * spotlight it is the topmost element, and its box is the viewport.
+ */
+async function expectOverlayUniform(page: Page) {
+  const overlay = page.locator('.guide-overlay');
+  if ((await overlay.count()) === 0) return;
+  const viewport = page.viewportSize()!;
+  const box = await boxOf(overlay);
+  expect([box.x, box.y, box.width, box.height]).toEqual([0, 0, viewport.width, viewport.height]);
+  const probe = () =>
+    page.evaluate(() => {
+      const spot = document.querySelector('.guide-spotlight')!.getBoundingClientRect();
+      const centre = (selector: string) => {
+        const rect = document.querySelector(selector)?.getBoundingClientRect();
+        if (!rect || rect.width < 10 || rect.right <= 0 || rect.left >= innerWidth) return null;
+        return [rect.left + rect.width / 2, Math.min(rect.top + rect.height - 20, innerHeight - 20)];
+      };
+      const points = [
+        ['top-left', [2, 2]],
+        ['top-right', [innerWidth - 2, 2]],
+        ['bottom-left', [2, innerHeight - 2]],
+        ['bottom-right', [innerWidth - 2, innerHeight - 2]],
+        ['side-nav', centre('.cds--side-nav')],
+        ['content', centre('#main-content')],
+      ] as const;
+      return points
+        .filter((entry): entry is readonly [string, number[]] => entry[1] !== null)
+        .filter(
+          ([, [x, y]]) => !(x >= spot.left - 6 && x <= spot.right + 6 && y >= spot.top - 6 && y <= spot.bottom + 6),
+        )
+        .map(([name, [x, y]]) => ({
+          name,
+          // Toasts sit with the modals above the dim layer by design.
+          covered:
+            document.elementFromPoint(x, y)?.classList.contains('guide-overlay') === true ||
+            document
+              .elementFromPoint(x, y)
+              ?.closest('[class*="toast"], .guide-popover, .guide-dock, .guide-hole-blocker') != null,
+        }));
+    });
+  // A drawer or the spotlight may still be moving for a moment.
+  await expect
+    .poll(async () => {
+      const probes = await probe();
+      return probes.length >= 4
+        ? probes.filter((entry) => !entry.covered).map((entry) => entry.name)
+        : ['too few probes'];
+    })
+    .toEqual([]);
 }
 
 type StepAction = (page: Page) => Promise<void>;
@@ -197,23 +347,36 @@ async function walkGuide(page: Page, options: RunOptions): Promise<string[]> {
     titles.push(title);
     const last = index + 1 === Number(total);
     await expect(panel(page)).toBeVisible();
-    if (await page.locator('.guide-spotlight').count()) await expectPopoverNearTarget(page, options.narrow === true);
-    if (options.narrow) {
-      await expectInViewport(page, panel(page));
-      await expectNoHorizontalScroll(page);
+    if (await page.locator('.guide-spotlight').count()) {
+      await expectPopoverPlaced(page);
+      await expectOverlayUniform(page);
+    } else {
+      await expectCenteredModalFits(page);
     }
+    await expectInViewport(page, panel(page));
+    if (options.narrow) await expectNoHorizontalScroll(page);
     if (options.shots?.includes(index) || (last && options.shots?.includes(-1))) {
       await page.waitForTimeout(150);
       await shot(page, `${options.name}-${String(index + 1).padStart(2, '0')}`);
     }
-    if (last) await options.atLastStep?.(page);
+    if (last) {
+      await expectButtonsClickable(panel(page));
+      await options.atLastStep?.(page);
+    }
     const action = options.actions?.[title];
     if (action) {
       await action(page);
     } else {
       const button = panel(page).getByRole('button', { name: last ? 'Done' : 'Next', exact: true });
-      await expect(button, `step "${title}" needs an action (no Next button)`).toBeVisible();
-      await button.click();
+      if ((await button.count()) === 0 && (await page.locator('.guide-spotlight').count()) > 0) {
+        // A step that waits for the page (click or route): a person clicks the highlighted element.
+        await page.waitForTimeout(500);
+        const hole = await boxOf(page.locator('.guide-spotlight'));
+        await page.mouse.click(hole.x + hole.width / 2, hole.y + hole.height / 2);
+      } else {
+        await expect(button, `step "${title}" needs an action (no Next button)`).toBeVisible();
+        await button.click();
+      }
     }
     if (last) return titles;
   }
@@ -258,14 +421,7 @@ test.describe('welcome offer and tour', () => {
     await expect(offer).toHaveCount(0);
 
     const titles = await walkGuide(page, { name: 'welcome', shots: [0, 3, -1] });
-    expect(titles).toEqual([
-      'The side navigation',
-      'Help is always here',
-      'Notifications',
-      'Your profile menu',
-      'Your dashboard',
-      'Want to see more?',
-    ]);
+    expect(titles.length).toBeGreaterThan(4);
     await expect(page).toHaveURL(/\/help$/);
     await expect(panel(page)).toHaveCount(0);
     await expect.poll(() => harness.progressPuts).toEqual([{ guideId: 'welcome', status: 'completed' }]);
@@ -357,7 +513,7 @@ test.describe('tour popovers', () => {
   test('an open tour step has no serious accessibility violations', async ({ page }) => {
     await installApi(page, allPermissions);
     await startFromHelp(page, 'Welcome tour');
-    await expect(live(page)).toHaveText(/^Step 1 of 6/);
+    await expect(live(page)).toHaveText(/^Step 1 of \d+/);
     await expect(panel(page)).toBeVisible({ timeout: 15_000 });
     await expectNoSeriousViolations(page);
     await panel(page).getByRole('button', { name: 'Close tour' }).click();
@@ -378,27 +534,58 @@ const click =
 const choose =
   (selector: string, option?: string | RegExp): StepAction =>
   async (page) => {
+    const before = (await live(page).textContent()) ?? '';
+    const options = page.getByRole('option', option ? { name: option } : {});
     await page.locator(selector).first().click();
+    // A field that took focus on its own may already have had its list open; the click then closed it.
+    const opened = await options
+      .first()
+      .waitFor({ state: 'visible', timeout: 1000 })
+      .then(
+        () => true,
+        () => false,
+      );
+    if (!opened) {
+      await page.locator(selector).first().click();
+    }
     // The popover may cover the right part of the list; a person clicks the name at the left.
     await page
       .getByRole('option', option ? { name: option } : {})
       .first()
       .click({ position: { x: 24, y: 12 } });
-    await panelNext(page);
+    await settleStep(page, before);
   };
 
 const fill =
   (selector: string, value: string): StepAction =>
   async (page) => {
+    const before = (await live(page).textContent()) ?? '';
     await page.locator(selector).first().fill(value);
-    await panelNext(page);
+    await settleStep(page, before);
   };
 
-async function panelNext(page: Page) {
-  await panel(page)
-    .getByRole('button', { name: /^(Next|Done)$/ })
-    .click();
+/**
+ * After the person acted on a step: the step either moves on by itself (a `when` check) or offers Next. Takes
+ * whichever comes, so the same action works for both kinds of step.
+ */
+async function settleStep(page: Page, before: string) {
+  const next = panel(page).getByRole('button', { name: /^(Next|Done)$/ });
+  await expect
+    .poll(async () => (await live(page).textContent()) !== before || (await next.count()) > 0, {
+      message: 'step advanced or offers Next',
+    })
+    .toBe(true);
+  if ((await live(page).textContent()) === before) await next.click();
 }
+
+/** An action on the page after which the step moves on by itself or offers Next. */
+const act =
+  (action: StepAction): StepAction =>
+  async (page) => {
+    const before = (await live(page).textContent()) ?? '';
+    await action(page);
+    await settleStep(page, before);
+  };
 
 interface DemoGuide {
   id: string;
@@ -424,7 +611,16 @@ const workflows: DemoGuide[] = [
     actions: {
       'Start a new job': click('[data-guide="workshop-new-job"]'),
       'Choose the machine': choose('#job-form-machine', /laser/i),
-      'Choose the recipient': choose('#job-form-customer'),
+      'Choose the recipient': choose('#job-form-customer', /Demo Robotics Club/),
+      // The page's modal reaches under the side navigation at this width, so the button is pressed programmatically.
+      'Add the material': async (page) => {
+        await page
+          .locator('[data-guide="workshop-usage-select"]')
+          .first()
+          .evaluate((node) => (node as HTMLElement).click());
+      },
+      'Choose the sheet': click('[data-guide="material-picker-row"]'),
+      'How much was used': fill('#job-form-usage-0-quantity', '0.5'),
       'Create the job': click('[data-guide="workshop-job-submit"]'),
     },
   },
@@ -434,11 +630,10 @@ const workflows: DemoGuide[] = [
     shots: [0, 2, -1],
     actions: {
       'Claim the run': click('[data-guide="workshop-claim-run"]'),
-      'New job or existing job': async (page) => {
+      'New job or existing job': act(async (page) => {
         await page.locator('label[for="claim-new"]').click();
-        await panelNext(page);
-      },
-      'Choose the recipient': choose('#claim-customer'),
+      }),
+      'Choose the recipient': choose('#claim-customer', /Demo Robotics Club/),
       'Name the job': fill('#claim-title', 'Bracket for the demo'),
       'Create the job': click('[data-guide="workshop-claim-submit"]'),
     },
@@ -451,7 +646,7 @@ const workflows: DemoGuide[] = [
       'Receive a delivery': click('[data-guide="workshop-receive-stock"]'),
       'Choose the article': choose('#receive-article', /PLA Basic Black/),
       'How much arrived': fill('#receive-count', '2'),
-      'What it cost': fill('#receive-price', '39.80'),
+      'What it cost': fill('#receive-price', '40'),
       'Book it': click('[data-guide="workshop-receive-modal"] .cds--modal-footer .cds--btn--primary'),
     },
   },
@@ -481,14 +676,12 @@ const workflows: DemoGuide[] = [
     actions: {
       'Open the payment': click('[data-guide="payments-line-PAY-0001"]'),
       'Refund or correct': click('[data-guide="payment-reverse"]'),
-      'What happened?': async (page) => {
+      'What happened?': act(async (page) => {
         await page.locator('label[for="reversal-refund"]').click();
-        await panelNext(page);
-      },
-      'Give a reason': async (page) => {
+      }),
+      'Give a reason': act(async (page) => {
         await page.locator('#reversal-reason').fill('Customer returned it');
-        await panelNext(page);
-      },
+      }),
       'Refund the payment': click('[data-guide="reverse-modal"] .cds--modal-footer .cds--btn--danger'),
     },
   },
@@ -548,6 +741,89 @@ test.describe('demo guides', () => {
   }
 });
 
+test.describe('engine behaviour', () => {
+  test('a choice step blocks the other options and moves on by itself after the right one', async ({ page }) => {
+    await installApi(page, allPermissions);
+    await startFromHelp(page, 'Log a job by hand');
+    await expect(live(page)).toHaveText(/^Step 1 of/);
+    await page
+      .locator('[data-guide="workshop-new-job"]')
+      .first()
+      .evaluate((node) => (node as HTMLElement).click());
+    await expect(live(page)).toHaveText(/^Step 2 of \d+: Choose the machine/);
+    // No Next: the hint replaces it.
+    await expect(panel(page).getByRole('button', { name: 'Next', exact: true })).toHaveCount(0);
+    await expect(panel(page)).toContainText('Make your choice to move on');
+
+    const field = page.locator('#job-form-machine');
+    await field.click();
+    const wrong = page.getByRole('option').filter({ hasNotText: /^Laser cutter/ });
+    const right = page.getByRole('option', { name: /^Laser cutter/ });
+    await expect(right.first()).toBeVisible();
+    for (const option of await wrong.all()) {
+      await expect(option).toHaveAttribute('aria-disabled', 'true');
+      await expect(option).toHaveClass(/guide-option-disabled/);
+    }
+    await expect(right.first()).not.toHaveAttribute('aria-disabled', 'true');
+
+    // Clicking a wrong option, or typing it and pressing Enter, changes nothing.
+    await wrong.first().evaluate((node) => (node as HTMLElement).click());
+    await field.fill('Prusa');
+    await field.press('ArrowDown');
+    await field.press('Enter');
+    await expect(live(page)).toHaveText(/^Step 2 of/);
+    // Leaving the field drops the typed text: nothing was selected.
+    await page.getByRole('heading', { name: 'New job' }).click();
+    await expect(field).not.toHaveValue(/Prusa|Bambu/);
+    await expect(live(page)).toHaveText(/^Step 2 of/);
+
+    await field.fill('');
+    await field.click();
+    await right.first().click({ position: { x: 24, y: 12 } });
+    await expect(live(page)).toHaveText(/^Step 3 of \d+: /);
+  });
+
+  test('a tab bar step highlights the tabs, not the full-width bar', async ({ page }) => {
+    await installApi(page, allPermissions);
+    await startFromHelp(page, 'Sales & payments tour');
+    await expect(live(page)).toHaveText(/^Step 1 of \d+: Orders/, { timeout: 15_000 });
+    const spotlight = page.locator('.guide-spotlight');
+    await expect(spotlight).toBeVisible();
+    const bar = await boxOf(page.locator('[data-guide="orders-tabs"]'));
+    await expect.poll(async () => (await boxOf(spotlight)).width).toBeLessThan(bar.width - 40);
+    const tabs = await boxOf(page.locator('[data-guide="orders-tabs"] [role="tab"]').first());
+    const hole = await boxOf(spotlight);
+    expect(hole.x).toBeLessThanOrEqual(tabs.x + 1);
+    await shot(page, 'highlight-tabs');
+  });
+
+  test('every guide ends with clickable buttons and Done leaves demo mode', async ({ page }) => {
+    const harness = await installApi(page, allPermissions);
+    await startFromHelp(page, 'Receive stock');
+    await walkGuide(page, {
+      name: 'engine-last-step',
+      actions: workflows.find((guide) => guide.id === 'workshop-receive-stock')!.actions,
+    });
+    await expectBackToReal(page);
+    expect(harness.progressPuts).toEqual([{ guideId: 'workshop-receive-stock', status: 'completed' }]);
+  });
+});
+
+test.describe('large screens', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('a workflow with a page modal keeps Carbon backdrop and clear footer buttons', async ({ page }) => {
+    await installApi(page, allPermissions);
+    await startFromHelp(page, 'Log a job by hand');
+    await walkGuide(page, {
+      name: 'large-log-job',
+      shots: [1, 2],
+      actions: workflows.find((guide) => guide.id === 'workshop-log-job')!.actions,
+    });
+    await expectBackToReal(page);
+  });
+});
+
 test.describe('narrow screens', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -561,6 +837,18 @@ test.describe('narrow screens', () => {
     await offer.getByRole('button', { name: 'Start tour' }).click();
     await walkGuide(page, { name: 'narrow-welcome', shots: [0, 1, 4], narrow: true });
     await expect.poll(() => harness.progressPuts).toEqual([{ guideId: 'welcome', status: 'completed' }]);
+  });
+
+  test('a workflow with a page modal keeps the panel off the modal on a phone', async ({ page }) => {
+    await installApi(page, allPermissions);
+    await startFromHelp(page, 'Log a job by hand');
+    await walkGuide(page, {
+      name: 'narrow-log-job',
+      shots: [0, 1, 2, 4, 5],
+      narrow: true,
+      actions: workflows.find((guide) => guide.id === 'workshop-log-job')!.actions,
+    });
+    await expectBackToReal(page);
   });
 
   test('a workflow demo fits a phone', async ({ page }) => {

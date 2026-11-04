@@ -8,7 +8,6 @@ import { renderRoute } from '../../../test/render';
 import { currentUserFixture } from '../../../test/fixtures';
 import { enterDemoMode, exitDemoMode } from '../../demo/demoMode';
 import { demoPermissions, demoTestUser } from '../../demo/demoTestUser';
-import { DEMO_IDS } from '../../demo/fake/ids';
 import { salesGuides } from './sales';
 
 vi.mock('@carbon/charts-react', () => ({
@@ -46,35 +45,40 @@ describe('sales guides', () => {
       expect(guide.requires(nobody)).toBe(false);
       expect(guide.requires(currentUserFixture(everything))).toBe(true);
       expect(guide.steps.length).toBeGreaterThanOrEqual(5);
-      expect(guide.steps.length).toBeLessThanOrEqual(10);
+      expect(guide.steps.length).toBeLessThanOrEqual(14);
     }
     expect(salesGuides[2].requires(currentUserFixture(['payments.read', 'orders.read']))).toBe(false);
     expect(salesGuides[1].requires(currentUserFixture(['orders.read']))).toBe(false);
   });
 
-  it('tour: every target exists on its page', async () => {
+  it('tour: only the first step jumps to a route and permissions skip unreachable pages', () => {
+    const steps = salesGuides[0].steps;
+    expect(steps[0].route).toBe('/orders');
+    expect(steps.slice(1).filter((step) => step.route)).toEqual([]);
+    const ids = (permissions: PermissionId[]) =>
+      steps.filter((step) => step.requires?.(currentUserFixture(permissions)) ?? true).map((step) => step.id);
+    expect(ids(['payments.read'])).toEqual(['nav-payments', 'payments']);
+    expect(ids(['pricing.read'])).toEqual(['nav-pricing', 'pricing-tabs', 'pricing-lookup']);
+    expect(ids(['orders.read'])).not.toContain('nav-payments');
+  });
+
+  it('tour: follows the pages through orders, payments and pricing', async () => {
+    const user = userEvent.setup();
+    const step = (id: string) => stepTarget('sales-tour', id);
+    const click = async (id: string) => user.click(await target(step(id)));
     await start('/orders');
-    for (const id of ['orders-tabs', 'orders-review', 'orders-new']) {
-      await target(`[data-guide="${id}"]`);
-    }
-    expect(stepTarget('sales-tour', 'orders-tabs')).toBe('[data-guide="orders-tabs"]');
-  });
-
-  it('tour: order detail targets exist', async () => {
-    await start(`/orders/${DEMO_IDS.order}`);
-    await target(stepTarget('sales-tour', 'order-facts'));
-    await target(stepTarget('sales-tour', 'order-primary'));
-  });
-
-  it('tour: payments and pricing targets exist', async () => {
-    await start('/payments');
-    await target(stepTarget('sales-tour', 'payments'));
-  });
-
-  it('tour: pricing targets exist', async () => {
-    await start('/pricing');
-    await target(stepTarget('sales-tour', 'pricing-tabs'));
-    await target(stepTarget('sales-tour', 'pricing-lookup'));
+    for (const id of ['orders-tabs', 'orders-review', 'orders-new']) await target(step(id));
+    await click('order-row');
+    // A wide screen opens a panel with the link; a narrow one has already gone to the order.
+    await waitFor(() => expect(found(step('order-open')) ?? found(step('order-facts'))).not.toBeNull());
+    if (found(step('order-open'))) await click('order-open');
+    await target(step('order-facts'));
+    await target(step('order-primary'));
+    await click('nav-payments');
+    await target(step('payments'));
+    await click('nav-pricing');
+    await target(step('pricing-tabs'));
+    await target(step('pricing-lookup'));
   });
 
   it('order payment: every step can be followed to a paid order', async () => {
@@ -106,7 +110,11 @@ describe('sales guides', () => {
     await user.click(await target(step('reverse')));
     await target(step('kind'));
     const reason = await target(step('reason'));
+    const reasonStep = salesGuides[2].steps.find((item) => item.id === 'reason')!.advance;
+    if (reasonStep?.kind !== 'when') throw new Error('The reason step advances by a check');
+    expect(reasonStep.check()).toBe(false);
     await user.type(reason.querySelector('textarea')!, 'Customer returned it');
+    expect(reasonStep.check()).toBe(true);
     const submit = await target(step('submit'));
     await waitFor(() => expect(submit).toBeEnabled());
     await user.click(submit);

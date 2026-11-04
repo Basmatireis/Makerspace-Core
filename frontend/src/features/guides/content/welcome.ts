@@ -12,10 +12,10 @@ export const welcome: GuideDefinition = {
   steps: [
     {
       id: 'navigation',
-      title: 'The side navigation',
-      body: 'Everything you can open lives here. The groups follow your permissions, so you only see the areas you can work in.\n\nOn a narrow screen the navigation folds away; open it with the menu button in the top left.',
+      title: 'The menu',
+      body: 'Everything you can open lives here. The groups follow your permissions, so you only see the areas you can work in.\n\nOn a narrow screen the menu folds away; open it with the button in the top left.',
       route: '/dashboard',
-      target: '[data-guide="shell-nav"]',
+      target: '.app-side-nav__primary',
       placement: 'right',
     },
     {
@@ -43,15 +43,23 @@ export const welcome: GuideDefinition = {
       id: 'dashboard',
       title: 'Your dashboard',
       body: 'The dashboard is your starting point. It shows what is coming up for you and what needs your attention.',
-      route: '/dashboard',
       target: '[data-page-shell] .page-header',
       placement: 'bottom',
     },
     {
+      id: 'nav-help',
+      title: 'Open the help center',
+      body: 'Click Help in the menu to see the tours and articles for your areas.',
+      target: '[data-guide="nav-help"]',
+      placement: 'right',
+      advance: { kind: 'route', pattern: /^\/help/ },
+    },
+    {
       id: 'more',
-      title: 'Want to see more?',
-      body: 'The help center lists tours for the areas you work in. You can start any tour again at any time.',
-      route: '/help',
+      title: 'The help center',
+      body: "You're now in the help center. It lists the tours for the areas you work in, and you can start any of them again at any time.",
+      target: '[data-page-shell] .page-header',
+      placement: 'bottom',
     },
   ],
 };

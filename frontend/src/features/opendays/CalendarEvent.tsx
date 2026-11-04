@@ -71,6 +71,7 @@ export function CalendarEvent({
         type="button"
         className={classes}
         onClick={onActivate}
+        data-guide="open-days-day"
         disabled={disabled}
         aria-label={accessibleLabel}
       >
@@ -85,6 +86,7 @@ export function CalendarEvent({
         type="button"
         className="calendar-slot__main"
         onClick={onActivate}
+        data-guide="open-days-day"
         disabled={disabled}
         aria-label={accessibleLabel}
       >

@@ -63,7 +63,11 @@ export function InventoryPage() {
 
   return (
     <PageShell {...header}>
-      {tab === 'spools' && <InventorySpoolsTable onReceive={canManage ? start : undefined} />}
+      {tab === 'spools' && (
+        <div data-guide="workshop-spools-list">
+          <InventorySpoolsTable onReceive={canManage ? start : undefined} />
+        </div>
+      )}
       {tab === 'bin' && <InventoryRecycleBin />}
       {tab === 'types' && <MaterialTypesTable canManage={canManage} />}
       {tab === 'articles' && (

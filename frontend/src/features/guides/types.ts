@@ -7,7 +7,19 @@ export type GuideArea = 'getting-started' | 'workshop' | 'sales' | 'open-days';
 export type GuideRequirement = (user: CurrentUser) => boolean;
 
 /** How a step moves on: with the Next button, once the user clicks the target, or once a route matches. */
-export type GuideAdvance = { kind: 'next' } | { kind: 'click' } | { kind: 'route'; pattern: RegExp };
+export type GuideAdvance =
+  | { kind: 'next' }
+  | { kind: 'click' }
+  | { kind: 'route'; pattern: RegExp }
+  /** Moves on by itself once the check passes, for example after the expected option was picked. */
+  | { kind: 'when'; check: () => boolean };
+
+/** The one choice a step lets the user make, matched by its visible text. */
+export interface GuideChoice {
+  /** The element whose options are restricted (the step's dropdown); options rendered in a floating list count too. */
+  field: string;
+  text: string | RegExp;
+}
 
 export interface GuideStep {
   id: string;
@@ -24,6 +36,11 @@ export interface GuideStep {
    * bar or the links of a menu; `element` highlights the target's whole box.
    */
   highlight?: 'content' | 'element';
+  /**
+   * While the step shows, only these choices can be picked: clicks on other options of a dropdown, combo box or
+   * list (`[role="option"]`, `[role="menuitem"]`, `li`) are blocked and those options look disabled.
+   */
+  allowOnly?: GuideChoice;
   /** Default `{ kind: 'next' }`. */
   advance?: GuideAdvance;
   /** Skip the step for people it does not apply to. */

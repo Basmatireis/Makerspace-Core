@@ -195,6 +195,7 @@ function UsageRowFields({
               aria-describedby={`${idPrefix}-material-label`}
               disabled={!canReadInventory}
               onClick={onPick}
+              data-guide="workshop-usage-select"
             >
               Select material
             </Button>

@@ -34,6 +34,11 @@ const stepTarget = (guideId: string, stepId: string) => {
   if (!target) throw new Error(`No target for ${guideId}/${stepId}`);
   return target;
 };
+const passes = (guideId: string, stepId: string) => {
+  const advance = guide(guideId).steps.find((step) => step.id === stepId)?.advance;
+  if (advance?.kind !== 'when') throw new Error(`${guideId}/${stepId} does not advance by a check`);
+  return advance.check();
+};
 const start = async (route: string) => {
   await enterDemoMode(demoTestUser());
   renderRoute(<App />, route);
@@ -60,41 +65,70 @@ describe('workshop guides', () => {
   it('keeps only the tour steps a read-only person can use', () => {
     const user = demoTestUser(['inventory.read']);
     const steps = guide('workshop-tour').steps.filter((step) => step.requires?.(user) ?? true);
-    expect(steps.map((step) => step.id)).toEqual(['inventory-articles', 'inventory-spools']);
+    expect(steps.map((step) => step.id)).toEqual([
+      'nav-inventory',
+      'inventory-articles',
+      'spools-tab',
+      'inventory-spools',
+    ]);
+    const noMachines = demoTestUser(['machine_jobs.read', 'inventory.read']);
+    const ids = guide('workshop-tour')
+      .steps.filter((step) => step.requires?.(noMachines) ?? true)
+      .map((step) => step.id);
+    expect(ids).not.toContain('nav-machines');
+    expect(ids).not.toContain('machines');
   });
 
-  it('tour: every target exists on its page', async () => {
+  it('tour: only the first step jumps to a route', () => {
     const steps = guide('workshop-tour').steps;
-    const routes = [...new Set(steps.map((step) => step.route))];
-    // The jobs page is the first route; later routes are visited by the guide itself.
-    await start(routes[0]!);
-    for (const route of routes) {
-      if (route !== routes[0]) {
-        await exitDemoMode();
-        queryClient.clear();
-        document.body.innerHTML = '';
-        await start(route!);
-      }
-      let current = '';
-      for (const step of steps) {
-        if (step.route) current = step.route;
-        if (current === route && step.target) await exists(step.target);
-      }
-    }
+    expect(steps[0].route).toBeDefined();
+    expect(steps.slice(1).filter((step) => step.route)).toEqual([]);
   });
 
-  it('log a job: the form fields and the result are there', async () => {
+  it('tour: follows the pages through the menu and the tabs', async () => {
     const user = userEvent.setup();
+    const step = (id: string) => stepTarget('workshop-tour', id);
+    const click = async (id: string) => {
+      await exists(step(id));
+      await user.click(document.querySelector<HTMLElement>(step(id))!);
+    };
     await start('/workshop/jobs');
-    await exists(stepTarget('workshop-log-job', 'new-job'));
-    await user.click(document.querySelector<HTMLElement>(stepTarget('workshop-log-job', 'new-job'))!);
-    await exists(stepTarget('workshop-log-job', 'machine'));
-    await exists(stepTarget('workshop-log-job', 'recipient'));
-    await exists(stepTarget('workshop-log-job', 'operator'));
-    await exists(stepTarget('workshop-log-job', 'create'));
-    await user.click(document.querySelector<HTMLElement>('#job-form-machine')!);
-    await user.click(await screen.findByRole('option', { name: /Laser/ }));
-    await exists(stepTarget('workshop-log-job', 'first-run'));
+    for (const id of ['jobs-tabs', 'unassigned', 'toolbar']) await exists(step(id));
+    await click('job-link');
+    await exists(step('job-detail'));
+    await click('nav-machines');
+    for (const id of ['machines', 'machine-tabs']) await exists(step(id));
+    await click('nav-inventory');
+    await exists(step('inventory-articles'));
+    await click('spools-tab');
+    await exists(step('inventory-spools'));
+  });
+
+  it('log a job: machine, recipient and material are picked step by step', async () => {
+    const user = userEvent.setup();
+    const step = (id: string) => stepTarget('workshop-log-job', id);
+    await start('/workshop/jobs');
+    await exists(step('new-job'));
+    await user.click(document.querySelector<HTMLElement>(step('new-job'))!);
+    for (const id of ['machine', 'recipient', 'operator', 'create']) await exists(step(id));
+    expect(passes('workshop-log-job', 'machine')).toBe(false);
+    await user.click(document.querySelector<HTMLElement>(step('machine'))!);
+    await user.click(await screen.findByRole('option', { name: /Laser cutter/ }));
+    expect(passes('workshop-log-job', 'machine')).toBe(true);
+    await exists(step('first-run'));
+    expect(passes('workshop-log-job', 'recipient')).toBe(false);
+    await user.click(document.querySelector<HTMLElement>(step('recipient'))!);
+    await user.click(await screen.findByRole('option', { name: /Demo Robotics Club/ }));
+    expect(passes('workshop-log-job', 'recipient')).toBe(true);
+    expect(passes('workshop-log-job', 'pick-material')).toBe(false);
+    await user.click(document.querySelector<HTMLElement>(step('material'))!);
+    await exists(step('pick-material'));
+    expect(document.querySelectorAll(step('pick-material'))).toHaveLength(1);
+    await user.click(document.querySelector<HTMLElement>(step('pick-material'))!);
+    await waitFor(() => expect(passes('workshop-log-job', 'pick-material')).toBe(true));
+    expect(passes('workshop-log-job', 'amount')).toBe(false);
+    await user.type(document.querySelector<HTMLInputElement>(step('amount'))!, '0.5');
+    expect(passes('workshop-log-job', 'amount')).toBe(true);
   });
 
   it('log a job: the new job page has the runs target', async () => {
@@ -111,20 +145,37 @@ describe('workshop guides', () => {
     await exists(stepTarget('workshop-claim-run', 'mode'));
     await exists(stepTarget('workshop-claim-run', 'create'));
     await user.click(await screen.findByLabelText('New job'));
+    expect(passes('workshop-claim-run', 'mode')).toBe(true);
     await exists(stepTarget('workshop-claim-run', 'recipient'));
     await exists(stepTarget('workshop-claim-run', 'title'));
+    await user.click(document.querySelector<HTMLElement>('#claim-customer')!);
+    await user.click(await screen.findByRole('option', { name: /Demo Robotics Club/ }));
+    expect(passes('workshop-claim-run', 'recipient')).toBe(true);
   });
 
   it('receive stock: button, modal fields and the list', async () => {
     const user = userEvent.setup();
+    const step = (id: string) => stepTarget('workshop-receive-stock', id);
     await start('/workshop/inventory');
-    await exists(stepTarget('workshop-receive-stock', 'open'));
-    await exists(stepTarget('workshop-receive-stock', 'result'));
-    await user.click(document.querySelector<HTMLElement>(stepTarget('workshop-receive-stock', 'open'))!);
-    await exists(stepTarget('workshop-receive-stock', 'article'));
-    await exists(stepTarget('workshop-receive-stock', 'packages'));
-    await exists(stepTarget('workshop-receive-stock', 'price'));
-    await exists(stepTarget('workshop-receive-stock', 'submit'));
+    await exists(step('open'));
+    await exists(step('result'));
+    await user.click(document.querySelector<HTMLElement>(step('open'))!);
+    await exists(step('article'));
+    await exists(step('packages'));
+    await exists(step('price'));
+    await exists(step('submit'));
+    expect(passes('workshop-receive-stock', 'article')).toBe(false);
+    await user.click(document.querySelector<HTMLElement>(step('article'))!);
+    await user.click(await screen.findByRole('option', { name: /PLA Basic Black/ }));
+    expect(passes('workshop-receive-stock', 'article')).toBe(true);
+    const count = document.querySelector<HTMLInputElement>(step('packages'))!;
+    await user.clear(count);
+    await user.type(count, '2');
+    expect(passes('workshop-receive-stock', 'packages')).toBe(true);
+    const price = document.querySelector<HTMLInputElement>(step('price'))!;
+    await user.clear(price);
+    await user.type(price, '40');
+    expect(passes('workshop-receive-stock', 'price')).toBe(true);
   });
 
   it('articles load, are gated by permission and point at existing guides', async () => {

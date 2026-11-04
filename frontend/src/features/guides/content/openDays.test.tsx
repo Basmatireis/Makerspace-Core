@@ -48,34 +48,57 @@ describe('open days guides', () => {
     const tour = openDaysGuides[0];
     expect(tour.requires(readOnly)).toBe(true);
     const visible = tour.steps.filter((step) => step.requires?.(readOnly) ?? true).map((step) => step.id);
+    expect(visible).toContain('nav-open-days');
     expect(visible).not.toContain('join');
+    expect(visible).not.toContain('period-link');
     expect(visible).not.toContain('assign');
     expect(visible).not.toContain('periods');
     expect(openDaysGuides[1].requires(readOnly)).toBe(false);
     expect(openDaysGuides[2].requires(readOnly)).toBe(false);
   });
 
+  it('only the first step of the tour jumps to a route', () => {
+    const [first, ...rest] = openDaysGuides[0].steps;
+    expect(first.route).toBe('/dashboard');
+    expect(rest.filter((step) => step.route)).toEqual([]);
+  });
+
+  const tourStep = (id: string) => openDaysGuides[0].steps.find((step) => step.id === id)!.target!;
+
+  it('tour: follows the pages from the dashboard to a day', async () => {
+    await enterDemoMode(everything);
+    renderRoute(<App />, '/dashboard');
+    for (const id of ['next-up', 'semester', 'coming-up']) await appear(tourStep(id));
+    fireEvent.click(await appear(tourStep('nav-open-days')));
+    await appear(tourStep('periods'));
+    fireEvent.click(await appear(tourStep('period-link')));
+    await appear(tourStep('schedule'));
+    fireEvent.click(await appear(tourStep('day-click')));
+    await appear(tourStep('positions'));
+    await appear(tourStep('join'));
+    await appear(tourStep('assign'));
+  });
+
   const routes = [
     ...new Set(openDaysGuides.flatMap((guide) => guide.steps.flatMap((step) => (step.route ? [step.route] : [])))),
   ];
 
-  it.each(routes)('shows the page targets on %s', async (route) => {
+  it.each(routes)('shows the page targets of the workflows on %s', async (route) => {
     await enterDemoMode(everything);
     renderRoute(<App />, route);
-    const targets = openDaysGuides.flatMap((guide) => {
+    const targets = openDaysGuides.slice(1).flatMap((guide) => {
       let current = '';
       return guide.steps.flatMap((step) => {
         current = step.route ?? current;
         return current === route && step.target && !modalOnly(step.target) ? [step.target] : [];
       });
     });
-    expect(targets.length).toBeGreaterThan(0);
     for (const target of new Set(targets)) {
       await waitFor(() => expect(find(target), target).not.toBeNull(), { timeout: 3000 });
     }
   });
 
-  const dayRoute = routes.find((route) => route.includes('/days/'))!;
+  const dayRoute = openDaysGuides[1].steps[0].route!;
 
   it('reaches the leave button and its confirmation after joining', async () => {
     await enterDemoMode(everything);

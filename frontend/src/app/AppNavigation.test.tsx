@@ -178,4 +178,28 @@ describe('AppNavigation', () => {
     expect(screen.getByRole('link', { name: 'Imprint' })).toHaveAttribute('href', 'https://example.test/imprint');
     expect(screen.getByRole('link', { name: 'Privacy policy' })).toHaveAttribute('href', '/legal/privacy');
   });
+
+  it('exposes stable guide hooks on the groups and on every item', async () => {
+    const user = userEvent.setup();
+    renderRoute(
+      <AppNavigation
+        currentUser={currentUserFixture([PermissionId.machinesread, PermissionId.ordersread, PermissionId.pricingread])}
+        legal={defaultPublicConfiguration.legal}
+        onNavigate={vi.fn()}
+      />,
+      '/dashboard',
+    );
+    expect(document.querySelector('ul.app-side-nav__primary')).not.toBeNull();
+    expect(document.querySelector('a[data-guide="nav-dashboard"]')).toHaveAttribute('href', '/dashboard');
+    expect(document.querySelector('li[data-guide="nav-group-workshop"] > button')).not.toBeNull();
+    expect(document.querySelector('li[data-guide="nav-group-sales"] > button')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Workshop' }));
+    expect(document.querySelector('a[data-guide="nav-workshop-machines"]')).toHaveAttribute(
+      'href',
+      '/workshop/machines',
+    );
+    await user.click(screen.getByRole('button', { name: 'Sales & payments' }));
+    expect(document.querySelector('a[data-guide="nav-pricing"]')).toHaveAttribute('href', '/pricing');
+    expect(document.querySelector('a[data-guide="nav-orders"]')).toHaveAttribute('href', '/orders');
+  });
 });

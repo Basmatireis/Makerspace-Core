@@ -64,7 +64,14 @@ export function OrderPanel({
         }
       />
       <div className="sales-inline">
-        <Button as={Link} to={`/orders/${order.id}`} kind="primary" size="md" renderIcon={ArrowRight}>
+        <Button
+          as={Link}
+          to={`/orders/${order.id}`}
+          kind="primary"
+          size="md"
+          renderIcon={ArrowRight}
+          data-guide="orders-open"
+        >
           Open order
         </Button>
         {actions}

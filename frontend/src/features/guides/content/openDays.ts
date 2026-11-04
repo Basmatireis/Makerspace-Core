@@ -2,7 +2,8 @@ import { canAccessOpenDays, hasPermission } from '../../auth/permissions';
 import { DEMO_IDS } from '../../demo/fake/ids';
 import type { GuideDefinition } from '../types';
 
-const periodRoute = `/open-days/${DEMO_IDS.period}`;
+const canManage = (user: Parameters<GuideDefinition['requires']>[0]) => hasPermission(user, 'open_days.manage');
+const periodPage = /^\/open-days\/(?!manage)[^/]+$/;
 const dayRoute = `/open-days/${DEMO_IDS.period}/days/${DEMO_IDS.openDay}`;
 
 export const openDaysGuides: GuideDefinition[] = [
@@ -23,6 +24,7 @@ export const openDaysGuides: GuideDefinition[] = [
         route: '/dashboard',
         target: '[data-guide="dashboard-next-up"]',
         placement: 'bottom',
+        highlight: 'element',
         requires: canAccessOpenDays,
       },
       {
@@ -31,6 +33,7 @@ export const openDaysGuides: GuideDefinition[] = [
         body: 'Members sign up for a minimum number of open days per semester. This tile counts yours. Trainees count towards becoming a supervisor instead.',
         target: '[data-guide="dashboard-semester"]',
         placement: 'bottom',
+        highlight: 'element',
         requires: canAccessOpenDays,
       },
       {
@@ -39,33 +42,61 @@ export const openDaysGuides: GuideDefinition[] = [
         body: 'All open days you have signed up for are listed here, in date order. You can leave one again from this list.',
         target: '[data-guide="dashboard-coming-up"]',
         placement: 'top',
+        highlight: 'element',
+        requires: canAccessOpenDays,
+      },
+      {
+        id: 'nav-open-days',
+        title: 'Go to Open Days',
+        body: 'Open Days is in the Operations menu. Click it to see the periods and days.',
+        target: '[data-guide="nav-open-days"]',
+        placement: 'right',
+        advance: { kind: 'route', pattern: /^\/open-days/ },
         requires: canAccessOpenDays,
       },
       {
         id: 'periods',
         title: 'Periods',
-        body: 'Open days are grouped into periods, usually one per semester. The table shows how many supervisor places are still open in each.',
-        route: '/open-days',
+        body: "You're now on Open Days. Days are grouped into periods, usually one per semester. The table shows how many supervisor places are still open in each.",
         target: '[data-guide="open-days-periods"]',
         placement: 'top',
-        requires: (user) => hasPermission(user, 'open_days.manage'),
+        highlight: 'element',
+        requires: canManage,
+      },
+      {
+        id: 'period-link',
+        title: 'Open a period',
+        body: 'Click the name of a period to see its schedule.',
+        target: '[data-guide="open-days-periods"] a',
+        placement: 'right',
+        advance: { kind: 'route', pattern: periodPage },
+        requires: canManage,
       },
       {
         id: 'schedule',
         title: 'The schedule of a period',
-        body: 'Every open day of the period appears in the calendar or in the list. Switch the view in the toolbar, then pick a day to see who is signed up.',
-        route: periodRoute,
+        body: "You're now on a period. Every open day appears in the calendar or in the list; switch the view in the toolbar.",
         target: '[data-guide="open-days-schedule"]',
         placement: 'top',
+        highlight: 'element',
+        requires: canAccessOpenDays,
+      },
+      {
+        id: 'day-click',
+        title: 'Open a day',
+        body: 'Click an open day to see who is signed up.',
+        target: '[data-guide="open-days-day"]',
+        placement: 'right',
+        advance: { kind: 'click' },
         requires: canAccessOpenDays,
       },
       {
         id: 'positions',
         title: 'Positions on a day',
         body: 'Each open day has supervisor and trainee places. The tag shows how many are taken. Only supervisor places decide whether the day can take place.',
-        route: dayRoute,
         target: '[data-guide="open-days-positions"]',
         placement: 'top',
+        highlight: 'element',
         requires: canAccessOpenDays,
       },
       {

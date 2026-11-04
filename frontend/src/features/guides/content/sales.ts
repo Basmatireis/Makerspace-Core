@@ -1,6 +1,7 @@
 import { hasAnyPermission, hasPermission } from '../../auth/permissions';
 import { DEMO_IDS } from '../../demo/fake/ids';
 import type { GuideDefinition, GuideRequirement } from '../types';
+import { fieldHolds } from './checks';
 
 const can =
   (...permissions: Parameters<typeof hasPermission>[1][]): GuideRequirement =>
@@ -11,7 +12,7 @@ const readOrders = can('orders.read');
 const readPayments = can('payments.read');
 const readPricing = can('pricing.read');
 
-const orderRoute = `/orders/${DEMO_IDS.order}`;
+const orderPage = /^\/orders\/[^/]+$/;
 const customerGroup = `[data-guide="orders-ready-${DEMO_IDS.customer}"]`;
 
 export const salesGuides: GuideDefinition[] = [
@@ -51,12 +52,30 @@ export const salesGuides: GuideDefinition[] = [
         requires: can('orders.read', 'orders.write'),
       },
       {
+        id: 'order-row',
+        title: 'Pick an order',
+        body: 'Click the reference of an order. On a wide screen a panel opens next to the list; on a narrow one you go straight to the order.',
+        target: '[data-guide="orders-row"]',
+        placement: 'right',
+        advance: { kind: 'click' },
+        requires: readOrders,
+      },
+      {
+        id: 'order-open',
+        title: 'Open the order',
+        body: 'Click "Open order" to get to the full page.',
+        target: '[data-guide="orders-open"]',
+        placement: 'left',
+        advance: { kind: 'route', pattern: orderPage },
+        requires: readOrders,
+      },
+      {
         id: 'order-facts',
         title: 'An order at a glance',
-        body: 'The order page shows the total, what is paid, what is still open and who the customer is. Items, payments and the invoice are listed below.',
-        route: orderRoute,
+        body: "You're now on the order. It shows the total, what is paid, what is still open and who the customer is. Items, payments and the invoice are listed below.",
         target: '[data-guide="order-facts"]',
         placement: 'bottom',
+        highlight: 'element',
         requires: readOrders,
       },
       {
@@ -68,19 +87,36 @@ export const salesGuides: GuideDefinition[] = [
         requires: can('orders.read', 'payments.read', 'payments.record'),
       },
       {
+        id: 'nav-payments',
+        title: 'Go to Payments',
+        body: 'Payments is in the Sales & payments menu. Click it to see the money that came in.',
+        target: '[data-guide="nav-payments"]',
+        placement: 'right',
+        advance: { kind: 'route', pattern: /^\/payments/ },
+        requires: readPayments,
+      },
+      {
         id: 'payments',
         title: 'Payments',
-        body: 'Every payment is listed here with its method and the order it belongs to. The Cashbook tab shows all payments; open one to refund or correct it.',
-        route: '/payments',
+        body: "You're now on Payments. Every payment is listed with its method and the order it belongs to. The Cashbook tab shows all of them; open one to refund or correct it.",
         target: '[data-guide="payments-content"]',
         placement: 'top',
+        highlight: 'element',
         requires: readPayments,
+      },
+      {
+        id: 'nav-pricing',
+        title: 'Go to Pricing',
+        body: 'Pricing is in the same menu. Click it to see how prices are set.',
+        target: '[data-guide="nav-pricing"]',
+        placement: 'right',
+        advance: { kind: 'route', pattern: /^\/pricing/ },
+        requires: readPricing,
       },
       {
         id: 'pricing-tabs',
         title: 'Pricing groups',
-        body: 'Prices depend on the customer. Each pricing group has its own rates; Role mapping decides which group a role gets, and an organization can have its own group.',
-        route: '/pricing',
+        body: "You're now on Pricing. Prices depend on the customer: each pricing group has its own rates. Role mapping decides which group a role gets, and an organization can have its own group.",
         target: '[data-guide="pricing-tabs"]',
         placement: 'bottom',
         requires: readPricing,
@@ -91,6 +127,7 @@ export const salesGuides: GuideDefinition[] = [
         body: 'Not sure what something costs? Pick a machine or material and a time or quantity to see the price for every group.',
         target: '[data-guide="pricing-lookup"]',
         placement: 'bottom',
+        highlight: 'element',
         requires: readPricing,
       },
     ],
@@ -148,9 +185,10 @@ export const salesGuides: GuideDefinition[] = [
       {
         id: 'method',
         title: 'Choose how they pay',
-        body: 'Cash and Card cover one payment; Split mixes both. Cash is already selected.',
+        body: 'Cash and Card cover one payment; Split mixes both. Keep Cash, which is already selected.',
         target: '[data-guide="pay-method"]',
         placement: 'bottom',
+        allowOnly: { field: '[data-guide="pay-method"]', text: 'Cash' },
       },
       {
         id: 'amount',
@@ -208,6 +246,7 @@ export const salesGuides: GuideDefinition[] = [
         route: '/payments?tab=cashbook',
         target: '[data-guide="payments-content"]',
         placement: 'top',
+        highlight: 'element',
       },
       {
         id: 'open',
@@ -235,9 +274,10 @@ export const salesGuides: GuideDefinition[] = [
       {
         id: 'kind',
         title: 'What happened?',
-        body: 'Refund means you gave the money back. Recorded by mistake means the entry should never have been made. Pick refund here.',
+        body: 'Refund means you gave the money back. Recorded by mistake means the entry should never have been made. Keep "Give the money back (refund)".',
         target: '[data-guide="reverse-kind"]',
         placement: 'left',
+        allowOnly: { field: '[data-guide="reverse-kind"]', text: /refund/i },
       },
       {
         id: 'reason',
@@ -245,6 +285,7 @@ export const salesGuides: GuideDefinition[] = [
         body: 'Write a short reason, for example “Customer returned it”. It is shown on the payment and the order, so leave out personal data.',
         target: '[data-guide="reverse-reason"]',
         placement: 'left',
+        advance: { kind: 'when', check: () => fieldHolds('#reversal-reason', /\S/)() },
       },
       {
         id: 'submit',

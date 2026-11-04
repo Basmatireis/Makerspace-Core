@@ -26,7 +26,10 @@ interface NavigationItem {
   active: boolean;
 }
 
+const navSlug = (to: string) => `nav-${to.replace(/^\//, '').replace(/\//g, '-')}`;
+
 interface NavigationGroupProps {
+  id: NavigationGroupId;
   title: string;
   icon: typeof Calendar;
   items: NavigationItem[];
@@ -41,7 +44,7 @@ export interface AppNavigationProps {
   onNavigate: () => void;
 }
 
-function NavigationGroup({ title, icon, items, active, pathname, onNavigate }: NavigationGroupProps) {
+function NavigationGroup({ id, title, icon, items, active, pathname, onNavigate }: NavigationGroupProps) {
   const menuButtonRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -53,12 +56,20 @@ function NavigationGroup({ title, icon, items, active, pathname, onNavigate }: N
   if (items.length === 0) return null;
 
   return (
-    <SideNavMenu ref={menuButtonRef} title={title} defaultExpanded={active} isActive={active} renderIcon={icon}>
+    <SideNavMenu
+      ref={menuButtonRef}
+      data-guide={`nav-group-${id}`}
+      title={title}
+      defaultExpanded={active}
+      isActive={active}
+      renderIcon={icon}
+    >
       {items.map((item) => (
         <SideNavMenuItem
           key={item.to}
           as={Link}
           to={item.to}
+          data-guide={navSlug(item.to)}
           isActive={item.active}
           aria-current={item.active ? 'page' : undefined}
           onClick={onNavigate}
@@ -193,6 +204,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
     items: NavigationItem[],
   ): ReactNode => (
     <NavigationGroup
+      id={id}
       title={title}
       icon={icon}
       items={items}
@@ -208,6 +220,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         <SideNavLink
           as={Link}
           to="/dashboard"
+          data-guide="nav-dashboard"
           isActive={pathname === '/dashboard'}
           aria-current={pathname === '/dashboard' ? 'page' : undefined}
           renderIcon={Dashboard}
@@ -228,6 +241,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
               <SideNavLink
                 as={Link}
                 to="/statistics"
+                data-guide="nav-statistics"
                 isActive={pathname === '/statistics'}
                 aria-current={pathname === '/statistics' ? 'page' : undefined}
                 renderIcon={ChartBar}
@@ -240,6 +254,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
               <SideNavLink
                 as={Link}
                 to="/settings"
+                data-guide="nav-settings"
                 isActive={pathname.startsWith('/settings')}
                 aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
                 renderIcon={Settings}
@@ -252,6 +267,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
               <SideNavLink
                 as={Link}
                 to="/audit-log"
+                data-guide="nav-audit-log"
                 isActive={pathname === '/audit-log'}
                 aria-current={pathname === '/audit-log' ? 'page' : undefined}
                 renderIcon={DocumentSecurity}
@@ -267,6 +283,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         <SideNavLink
           as={Link}
           to="/help"
+          data-guide="nav-help"
           isActive={pathname.startsWith('/help')}
           aria-current={pathname === '/help' ? 'page' : undefined}
           renderIcon={Help}
@@ -277,6 +294,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         <SideNavLink
           as={Link}
           to="/about"
+          data-guide="nav-about"
           isActive={pathname === '/about'}
           renderIcon={Information}
           onClick={onNavigate}

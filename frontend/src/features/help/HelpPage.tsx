@@ -42,6 +42,7 @@ function GuideCard({ guide, completed }: { guide: GuideDefinition; completed: bo
         className="help-card__action"
         kind="tertiary"
         size="sm"
+        aria-label={`Start ${guide.title}`}
         renderIcon={PlayFilledAlt}
         onClick={() => startGuide(guide.id)}
       >

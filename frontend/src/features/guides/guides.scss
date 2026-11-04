@@ -2,34 +2,35 @@
 @use '@carbon/styles/scss/theme' as theme;
 @use '@carbon/styles/scss/type' as type;
 
-// Glue for the guided-tour overlay. It sits above the header (8000) and below page modals (9000); while a page modal
-// is open the dim layer goes away and only a ring and the popover stay, above the modal.
-.guide-blocker {
+// Glue for the guided-tour overlay. The dim layer, ring and popover sit above the header and side navigation
+// (8000) and below the page's modals and toasts (9000). While a page modal is open the dim layer goes away and
+// only the ring and the docked panel stay, above the modal.
+.guide-overlay {
   position: fixed;
   inset: 0;
-  z-index: 8500;
+  z-index: 8900;
+  background: theme.$overlay;
+}
+
+// Keeps a next-step's highlighted element from being used; click-steps leave the hole open.
+.guide-hole-blocker {
+  position: fixed;
+  z-index: 8901;
 }
 
 .guide-spotlight {
   position: fixed;
-  z-index: 8500;
-  border-radius: 2px;
-  box-shadow: 0 0 0 100vmax theme.$overlay;
+  z-index: 8902;
+  border-radius: spacing.$spacing-02;
   outline: 2px solid theme.$focus;
   pointer-events: none;
-  transition:
-    top 150ms ease,
-    left 150ms ease,
-    width 150ms ease,
-    height 150ms ease;
 }
 
 .guide-spotlight--ring {
   z-index: 9001;
-  box-shadow: none;
 }
 
-// The invisible box the popover attaches to; it follows the target's rectangle.
+// The invisible box the popover attaches to; it follows the highlight's rectangle.
 .guide-anchor {
   position: fixed;
   pointer-events: none;
@@ -44,38 +45,76 @@
   block-size: 0;
   pointer-events: none;
   // A fixed box is its own stacking context, so the layer has to be set here, not on the inner popover.
-  z-index: 8501;
+  z-index: 8903;
 }
 
-.guide-popover .cds--popover {
+.guide-popover > .cds--popover {
   pointer-events: auto;
 }
 
-.guide-popover--above-modal.cds--popover-container {
-  z-index: 9100;
+// The close button's tooltip layer is as large as the whole popover while it is closed and would swallow every
+// click on the buttons below it.
+.guide-panel .cds--tooltip .cds--popover {
+  pointer-events: none;
 }
 
-.guide-popover__content {
-  inline-size: min(22rem, calc(100vw - #{spacing.$spacing-07}));
+.guide-popover__content,
+.guide-dock {
+  inline-size: min(20rem, calc(100vw - #{spacing.$spacing-07}));
+}
+
+.guide-dock {
+  position: fixed;
+  z-index: 9100;
+  background: theme.$layer;
+  color: theme.$text-primary;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 30%);
+}
+
+// While the panel is a bar at the bottom of the screen and would cover the modal, the modal moves up just enough
+// to end above it. Its backdrop (the `.cds--modal` box itself) stays as Carbon draws it.
+:root[data-guide-dock='bottom'] .cds--modal.is-visible:not(.guide-modal) {
+  padding-block-end: var(--guide-dock-height);
+
+  .cds--modal-container {
+    max-block-size: calc(100dvh - var(--guide-dock-height) - #{spacing.$spacing-05});
+  }
 }
 
 .guide-panel {
-  padding: spacing.$spacing-05;
   outline: none;
+}
+
+.guide-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: spacing.$spacing-03;
+  padding-block-start: spacing.$spacing-05;
+  padding-inline: spacing.$spacing-05 spacing.$spacing-03;
+
+  // Stays on the heading's first line.
+  .cds--popover-container {
+    flex: none;
+  }
+}
+
+.guide-panel__title {
+  @include type.type-style('heading-02');
+
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  padding-block-start: spacing.$spacing-02;
 }
 
 .guide-panel__body {
   display: grid;
   gap: spacing.$spacing-04;
-}
+  padding: spacing.$spacing-03 spacing.$spacing-05 spacing.$spacing-05;
 
-.guide-panel__title {
-  @include type.type-style('heading-03');
-}
-
-.guide-panel__hint {
-  color: theme.$text-secondary;
-  font-style: italic;
+  p:not(.guide-panel__progress) {
+    @include type.type-style('body-01');
+  }
 }
 
 .guide-panel__progress {
@@ -84,25 +123,28 @@
   color: theme.$text-secondary;
 }
 
-.guide-panel__actions {
+// Flush with the popover's edges and split in half like the footer of a Carbon modal.
+.guide-panel__footer.cds--btn-set {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: spacing.$spacing-03;
+  inline-size: 100%;
 
-  // Carbon sizes the buttons of a set for wider containers; on a phone they would run out of the panel.
-  .cds--btn-set {
-    flex: 1 1 12rem;
-    min-inline-size: 0;
-    justify-content: flex-end;
-  }
-
-  .cds--btn-set .cds--btn {
-    flex: 1 1 0;
+  .cds--btn {
+    flex: 1 1 50%;
     min-inline-size: 0;
     max-inline-size: none;
   }
+}
+
+.guide-panel__hint {
+  @include type.type-style('helper-text-01');
+
+  flex: 1 1 50%;
+  display: flex;
+  align-items: center;
+  padding-inline: spacing.$spacing-05;
+  min-block-size: spacing.$spacing-09;
+  color: theme.$text-secondary;
+  border-block-start: 1px solid theme.$border-subtle;
 }
 
 .guide-live {
@@ -114,8 +156,8 @@
   white-space: nowrap;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .guide-spotlight {
-    transition: none;
-  }
+// Options a choice step does not allow.
+.guide-option-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

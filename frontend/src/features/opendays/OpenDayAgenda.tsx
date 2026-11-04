@@ -64,7 +64,13 @@ export function OpenDayAgenda({
                 )}
                 <div className="open-day-agenda__item-heading">
                   {onOpen ? (
-                    <Button kind="ghost" size="md" className="open-day-agenda__open" onClick={() => onOpen(item.id)}>
+                    <Button
+                      kind="ghost"
+                      size="md"
+                      className="open-day-agenda__open"
+                      data-guide="open-days-day"
+                      onClick={() => onOpen(item.id)}
+                    >
                       {item.summary}
                     </Button>
                   ) : (

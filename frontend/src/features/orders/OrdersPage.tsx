@@ -223,7 +223,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
       header: 'Order',
       sortValue: (order) => order.reference,
       render: (order) => (
-        <div className="mj-cell-stack">
+        <div className="mj-cell-stack" data-guide="orders-row">
           {panelFits ? (
             <button
               type="button"
