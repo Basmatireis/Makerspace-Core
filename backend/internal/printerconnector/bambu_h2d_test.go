@@ -447,7 +447,7 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 	}
 	at := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
 	initial := []byte(
-		`{"print":{"gcode_state":"RUNNING","task_id":"23","subtask_id":"7","subtask_name":"Customer project","gcode_file":"/cache/generated-name.3mf","mc_percent":12,"mc_remaining_time":8,"layer_num":3,"total_layer_num":20,"print_error":134184963,"ams":{"ams":[{"id":"0","tray":[{"id":"1","tag_uid":"ABC","tray_uuid":"6C8E4B1A2F3D4E5F6A7B8C9D0E1F2A3B","tray_type":"PLA","tray_color":"FF0000FF","tray_weight":"1000","remain":"80"}]}]},"tray_now":"0:1"}}`,
+		`{"print":{"gcode_state":"RUNNING","task_id":"23","subtask_id":"7","subtask_name":"Customer project","gcode_file":"/cache/generated-name.3mf","mc_percent":12,"mc_remaining_time":8,"layer_num":3,"total_layer_num":20,"print_error":134184963,"ams":{"ams":[{"id":"0","tray":[{"id":"1","tag_uid":"ABC","tray_uuid":"observed-only","tray_type":"PLA","tray_color":"FF0000FF","tray_weight":"1000","remain":"80"}]}]},"tray_now":"0:1"}}`,
 	)
 	observations, ready, err := processor.apply(ctx, initial, at)
 	if err != nil || !ready {
@@ -495,7 +495,7 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 		t.Fatal("active print did not receive a run ID")
 	}
 	facts := processor.state.RunFacts[runID.String()]
-	if facts.InputUnitExternalID != "0" || facts.SlotExternalID != "1" || facts.TagUID != "6C8E4B1A2F3D4E5F6A7B8C9D0E1F2A3B" {
+	if facts.InputUnitExternalID != "0" || facts.SlotExternalID != "1" || facts.TagUID != "ABC" {
 		t.Fatalf("active slot was not retained for terminal consumption: %#v", facts)
 	}
 	volatile, _, err := processor.apply(

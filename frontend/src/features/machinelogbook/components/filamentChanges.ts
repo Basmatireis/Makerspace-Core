@@ -7,10 +7,17 @@ type Snapshot = PrinterLiveStatusSnapshot | null | undefined;
 /** What identifies the material in a tray; the remaining percentage is left out because it changes all the time. */
 function identity(tray: PrinterLiveStatusTray): string | null {
   if (tray.empty) return null;
-  return [tray.tagUid ?? '', tray.rfid, tray.materialType ?? '', tray.subBrand ?? '', tray.colorHex ?? ''].join('|');
+  return [
+    tray.trayUuid ?? '',
+    tray.tagUid ?? '',
+    tray.rfid,
+    tray.materialType ?? '',
+    tray.subBrand ?? '',
+    tray.colorHex ?? '',
+  ].join('|');
 }
 
-const hasTag = (tray: PrinterLiveStatusTray) => Boolean(tray.tagUid) || tray.rfid;
+const hasTag = (tray: PrinterLiveStatusTray) => Boolean(tray.trayUuid) || Boolean(tray.tagUid) || tray.rfid;
 const materialOf = (tray: PrinterLiveStatusTray) => tray.subBrand || tray.materialType || 'unknown material';
 
 /**

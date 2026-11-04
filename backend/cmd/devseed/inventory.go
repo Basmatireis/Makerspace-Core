@@ -67,6 +67,13 @@ func (s *seeder) nfc() string {
 	return strings.Join(parts, ":")
 }
 
+// trayUUID is a Bambu tray_uuid: 32 upper-case hexadecimal characters.
+func (s *seeder) trayUUID() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return strings.ToUpper(hex.EncodeToString(b))
+}
+
 func (s *seeder) newSingleUse(at time.Time, key, label string) uuid.UUID {
 	p := s.prods[key]
 	m := s.mat(p.mat)
@@ -95,7 +102,8 @@ func (s *seeder) newSingleUse(at time.Time, key, label string) uuid.UUID {
 	return sp.ID
 }
 
-// registerSpool registers a 1 kg spool of the material (bought, or moved from loose stock) with an NFC tag.
+// registerSpool registers a 1 kg spool of the material (bought, or moved from loose stock) with the Bambu tray UUID
+// its two RFID tags carry. It returns the spool and that tray UUID.
 func (s *seeder) registerSpool(at time.Time, matName, mode string, price *string, label string) (uuid.UUID, string) {
 	m := s.mat(matName)
 	svc := s.mlAt(at)
@@ -116,10 +124,10 @@ func (s *seeder) registerSpool(at time.Time, matName, mode string, price *string
 	}
 	sp, err := svc.CreateFilamentSpool(s.ctx, s.actor, in, nil)
 	check("spool "+label, err)
-	tag := s.nfc()
-	_, err = svc.AddFilamentSpoolIdentifier(s.ctx, s.actor, sp.ID, "nfc", tag, nil)
+	trayUUID := s.trayUUID()
+	_, err = svc.AddFilamentSpoolIdentifier(s.ctx, s.actor, sp.ID, machinelogbook.IdentifierBambuTrayUUID, trayUUID, nil)
 	check("identifier", err)
-	return sp.ID, tag
+	return sp.ID, trayUUID
 }
 
 func (s *seeder) newReusable(at time.Time, key, label, mode string) *reusable {

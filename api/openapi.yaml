@@ -7548,7 +7548,7 @@ paths:
       operationId: lookupFilamentSpool
       security: [{sessionCookie: []}]
       parameters:
-        - {name: kind, in: query, required: true, schema: {type: string, enum: [barcode, qr, nfc]}}
+        - {name: kind, in: query, required: true, schema: {type: string, enum: [barcode, qr, nfc, bambu_tray_uuid]}}
         - {name: value, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
       responses:
         "200": {description: Spool., content: {application/json: {schema: {$ref: "#/components/schemas/FilamentSpool"}}}}
@@ -8030,8 +8030,10 @@ paths:
       operationId: listDetectedSpoolTags
       summary: Spool tags the printers currently report in their slots
       description: >-
-        Every RFID/NFC tag UID in the latest live status of each printer with an active connector assignment, so staff
-        can link a loaded spool's tag without typing it. A tag that is an active identifier of a spool names that spool.
+        Every RFID/NFC tag (chip UID and, for Bambu spools, the spool's tray UUID) in the latest live status of each printer
+        with an active connector assignment, so staff can link a loaded spool's tag without typing it. A tray whose
+        trayUuid or tagUid is an active identifier of a spool names that spool. A spool seen in several trays is listed
+        once, from the newest observation.
         Needs machines.read and inventory.read.
       security: [{sessionCookie: []}]
       responses:
@@ -17448,7 +17450,7 @@ components:
       required: [id, kind, value, createdAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
-        kind: {type: string, enum: [barcode, qr, nfc]}
+        kind: {type: string, enum: [barcode, qr, nfc, bambu_tray_uuid]}
         value: {type: string}
         createdAt: {type: string, format: date-time}
 
@@ -17521,7 +17523,7 @@ components:
       additionalProperties: false
       required: [kind, value]
       properties:
-        kind: {type: string, enum: [barcode, qr, nfc]}
+        kind: {type: string, enum: [barcode, qr, nfc, bambu_tray_uuid]}
         value: {type: string, minLength: 1, maxLength: 255}
 
     FilamentSpoolPage:
@@ -17578,7 +17580,7 @@ components:
       additionalProperties: false
       required: [kind, value]
       properties:
-        kind: {type: string, enum: [barcode, qr, nfc]}
+        kind: {type: string, enum: [barcode, qr, nfc, bambu_tray_uuid]}
         value: {type: string, minLength: 1, maxLength: 255}
 
     SpoolInventoryCommand:
@@ -17793,7 +17795,8 @@ components:
         colorHex: {type: string, pattern: "^[0-9A-Fa-f]{6}$", nullable: true, description: "RRGGBB without alpha."}
         remainPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
         rfid: {type: boolean}
-        tagUid: {type: string, minLength: 1, maxLength: 255, nullable: true, description: "UID of the spool's RFID/NFC tag as the printer read it. Absent from connectors before 0.8.1."}
+        tagUid: {type: string, minLength: 1, maxLength: 255, nullable: true, description: "UID of the RFID/NFC chip as the printer read it. A Bambu spool carries two chips with different UIDs, so this is not the spool's identity; use trayUuid for that. Absent from connectors before 0.8.1."}
+        trayUuid: {type: string, minLength: 1, maxLength: 255, nullable: true, description: "The spool's own identifier as the printer read it (Bambu tray_uuid). Both RFID chips of one Bambu spool report the same value. Absent from older connectors and for tags without one."}
         productCode: {type: string, maxLength: 40, nullable: true, description: "Manufacturer's product code from the tag (Bambu tray_id_name, for example \"A00-K0\"). Absent from connectors before 0.15.0."}
         filamentProfileId: {type: string, maxLength: 40, nullable: true, description: "Manufacturer's filament profile id from the tag (Bambu tray_info_idx, for example \"GFA00\"). Absent from connectors before 0.15.0."}
         empty: {type: boolean}
@@ -17971,7 +17974,7 @@ components:
     DetectedSpoolTag:
       type: object
       additionalProperties: false
-      required: [machineId, machineName, unitExternalId, unitLabel, trayExternalId, slotId, slotName, inputUnitName, tagUid, materialType, subBrand, colorHex, remainPercent, productCode, filamentProfileId, observedAt, spool]
+      required: [machineId, machineName, unitExternalId, unitLabel, trayExternalId, slotId, slotName, inputUnitName, tagUid, trayUuid, materialType, subBrand, colorHex, remainPercent, productCode, filamentProfileId, observedAt, spool]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         machineName: {type: string}
@@ -17981,7 +17984,8 @@ components:
         slotId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The configured printer slot this tray maps to, if any."}
         slotName: {type: string, nullable: true}
         inputUnitName: {type: string, nullable: true}
-        tagUid: {type: string, minLength: 1, maxLength: 255}
+        tagUid: {type: string, minLength: 1, maxLength: 255, nullable: true, description: "The RFID/NFC chip UID the printer reads. Null when the tray reports only a trayUuid. At least one of tagUid and trayUuid is set."}
+        trayUuid: {type: string, minLength: 1, maxLength: 255, nullable: true, description: "The spool's own identifier (Bambu tray_uuid), the same for both RFID chips of a spool. Null for tags without one. Link a spool with identifier kind bambu_tray_uuid when set, otherwise nfc with tagUid."}
         materialType: {type: string, nullable: true}
         subBrand: {type: string, nullable: true}
         colorHex: {type: string, pattern: "^[0-9A-Fa-f]{6}$", nullable: true}
@@ -17989,7 +17993,7 @@ components:
         productCode: {type: string, maxLength: 40, nullable: true, description: "The manufacturer's product code read from the tag, for example Bambu's \"A00-K0\" whose suffix names the colour. Null when the printer reports none."}
         filamentProfileId: {type: string, maxLength: 40, nullable: true, description: "The manufacturer's filament profile id read from the tag, for example Bambu's \"GFA00\". Null when the printer reports none."}
         observedAt: {type: string, format: date-time}
-        spool: {allOf: [{$ref: "#/components/schemas/DetectedSpoolTagSpool"}], nullable: true, description: The active spool that already carries this tag as an NFC identifier.}
+        spool: {allOf: [{$ref: "#/components/schemas/DetectedSpoolTagSpool"}], nullable: true, description: "The active spool that already carries this tray: matched by trayUuid against a bambu_tray_uuid identifier first and, when that finds none or the tray has no trayUuid, by tagUid against an nfc identifier."}
 
     DetectedSpoolTagSpool:
       type: object

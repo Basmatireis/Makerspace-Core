@@ -64,6 +64,7 @@ func bambuMatchingFacts(facts bambuRunFacts) bambuRunFacts {
 			InputUnitExternalID: head.InputUnitExternalID,
 			SlotExternalID:      head.SlotExternalID,
 			TagUID:              head.TagUID,
+			TrayUUID:            head.TrayUUID,
 		}
 		if !containsBambuSpoolEvidence(evidence, candidate) {
 			evidence = append(evidence, candidate)
@@ -110,6 +111,7 @@ func applyFeedSegments(
 		delete(item, "inputUnitExternalId")
 		delete(item, "slotExternalId")
 		delete(item, "tagUid")
+		delete(item, "trayUuid")
 		slicerID, _ := item["slicerFilamentId"].(string)
 		var quantities []int64
 		method := ""
@@ -129,6 +131,9 @@ func applyFeedSegments(
 			}
 			if segment.TagUID != "" {
 				entry["tagUid"] = segment.TagUID
+			}
+			if segment.TrayUUID != "" {
+				entry["trayUuid"] = segment.TrayUUID
 			}
 			if segment.StartLayer != nil {
 				entry["startLayer"] = *segment.StartLayer
@@ -157,6 +162,8 @@ func feedLineForItem(item map[string]any, lines []bambuFeedLine) (bambuFeedLine,
 	unitID, _ := item["inputUnitExternalId"].(string)
 	slotID, _ := item["slotExternalId"].(string)
 	tagUID, _ := item["tagUid"].(string)
+	trayUUID, _ := item["trayUuid"].(string)
+	itemTag := bambuSpoolTag{TagUID: tagUID, TrayUUID: trayUUID}
 	if slotID == "" {
 		return bambuFeedLine{}, false
 	}
@@ -167,7 +174,7 @@ func feedLineForItem(item map[string]any, lines []bambuFeedLine) (bambuFeedLine,
 		}
 		for _, segment := range line.Segments {
 			if segment.InputUnitExternalID == unitID && segment.SlotExternalID == slotID &&
-				(tagUID == "" || segment.TagUID == "" || tagUID == segment.TagUID) {
+				itemTag.sameSpool(bambuSpoolTag{TagUID: segment.TagUID, TrayUUID: segment.TrayUUID}) {
 				if match >= 0 && match != index {
 					return bambuFeedLine{}, false
 				}

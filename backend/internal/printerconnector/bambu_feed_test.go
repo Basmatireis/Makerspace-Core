@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -600,5 +601,32 @@ func assertSegmentsSum(t *testing.T, item map[string]any, segments []map[string]
 	}
 	if sum != total {
 		t.Fatalf("segments sum to %d µg, item reports %d µg", sum, total)
+	}
+}
+
+func TestBambuFeedKeepsOneSegmentWhenASlotReadsBothChipsOfASpool(t *testing.T) {
+	t.Parallel()
+	const spool = "6C8E4B1A2F3D4E5F6A7B8C9D0E1F2A3B"
+	status := func(layer int, chip string) string {
+		return fmt.Sprintf(`{"print":{"layer_num":%d,"ams":{"tray_now":"0","tray_exist_bits":"1","ams":[{"id":"0","tray":[`+
+			`{"id":"0","tag_uid":%q,"tray_uuid":%q,"tray_type":"PLA"}]}]}}}`, layer, chip, spool)
+	}
+	processor := newFeedTestProcessor(AdapterBambuX1C)
+	at := time.Date(2026, 11, 4, 9, 0, 0, 0, time.UTC)
+	applyFeedStatus(t, processor, `{"print":{"gcode_state":"RUNNING","task_id":"81","layer_num":1,"mc_percent":1,`+
+		`"ams_mapping2":[{"ams_id":0,"slot_id":0}],"ams":{"tray_now":"0","tray_exist_bits":"1","ams":[{"id":"0","tray":[`+
+		`{"id":"0","tag_uid":"CAD2E2DC00000100","tray_uuid":"`+spool+`","tray_type":"PLA"}]}]}}}`, at)
+	applyFeedStatus(t, processor, status(10, "7A99DCDC00000100"), at.Add(time.Minute))
+	applyFeedStatus(t, processor, status(20, "CAD2E2DC00000100"), at.Add(2*time.Minute))
+	facts := processor.state.RunFacts[processor.state.CurrentRunID]
+	if len(facts.FeedLines) != 1 || len(facts.FeedLines[0].Segments) != 1 {
+		t.Fatalf("the chips of one spool must not start a new segment: %+v", facts.FeedLines)
+	}
+	segment := facts.FeedLines[0].Segments[0]
+	if segment.TrayUUID != spool || segment.TagUID != "CAD2E2DC00000100" {
+		t.Fatalf("segment = %+v", segment)
+	}
+	if facts.TrayUUID != spool || len(facts.SpoolEvidence) != 1 || facts.SpoolEvidence[0].TrayUUID != spool {
+		t.Fatalf("facts = %+v", facts)
 	}
 }

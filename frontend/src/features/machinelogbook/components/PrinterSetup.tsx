@@ -70,7 +70,7 @@ const EVENTS_SHOWN = 8;
 
 /** A loaded spool the printer reports in a slot without a spool in Core. */
 const unregistered = (tray: PrinterLiveStatusTray | null, slot: PrinterSlot) =>
-  Boolean(tray && !tray.empty && (tray.rfid || tray.tagUid) && !slot.spoolId);
+  Boolean(tray && !tray.empty && (tray.rfid || tray.tagUid || tray.trayUuid) && !slot.spoolId);
 
 function PrinterEvents({ machineId }: { machineId: string }) {
   const can = useCan();

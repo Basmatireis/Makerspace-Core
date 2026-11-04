@@ -49,6 +49,7 @@ type bambuRunFacts struct {
 	InputUnitExternalID string               `json:"inputUnitExternalId,omitempty"`
 	SlotExternalID      string               `json:"slotExternalId,omitempty"`
 	TagUID              string               `json:"tagUid,omitempty"`
+	TrayUUID            string               `json:"trayUuid,omitempty"`
 	SpoolEvidence       []bambuSpoolEvidence `json:"spoolEvidence,omitempty"`
 	// FeedLines is the run's feed timeline (see recordBambuFeed). It is used
 	// for consumption only when FeedTracked says it covers the whole run and
@@ -82,6 +83,7 @@ type bambuSpoolEvidence struct {
 	InputUnitExternalID string `json:"inputUnitExternalId"`
 	SlotExternalID      string `json:"slotExternalId"`
 	TagUID              string `json:"tagUid,omitempty"`
+	TrayUUID            string `json:"trayUuid,omitempty"`
 }
 
 type bambuProcessor struct {
@@ -307,17 +309,21 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 		}
 		applyBambuPrintSource(&facts, patch, printState)
 		p.recordBambuFeed(runID.String(), &facts, lifecycle, printState, observedAt)
-		if unitID, trayID, tagUID, ok := bambuActiveSlotFor(p.adapterKind, printState); ok {
+		if unitID, trayID, tag, ok := bambuActiveSlotFor(p.adapterKind, printState); ok {
 			facts.InputUnitExternalID = unitID
 			facts.SlotExternalID = trayID
-			facts.TagUID = tagUID
+			facts.TagUID = tag.TagUID
+			facts.TrayUUID = tag.TrayUUID
 		}
 		for _, route := range bambuSpoolRoutesFor(p.adapterKind, printState) {
+			tag := bambuSpoolTagOf(route.ref.tray)
 			evidence := bambuSpoolEvidence{
 				SlicerFilamentID:    route.slicerFilamentID,
 				Extruder:            route.extruderID,
 				InputUnitExternalID: route.ref.unitID,
-				SlotExternalID:      route.ref.trayID, TagUID: bambuTagUID(route.ref.tray),
+				SlotExternalID:      route.ref.trayID,
+				TagUID:              tag.TagUID,
+				TrayUUID:            tag.TrayUUID,
 			}
 			if !containsBambuSpoolEvidence(facts.SpoolEvidence, evidence) {
 				facts.SpoolEvidence = append(facts.SpoolEvidence, evidence)
@@ -656,22 +662,57 @@ type bambuTrayRef struct {
 	unit           map[string]any
 }
 
-// bambuTagUID is the spool's RFID identity. A Bambu spool carries one tag per
-// side, each with its own chip UID (tag_uid), so which UID the AMS reports
-// depends on the slot and on neighbouring readers. Both tags store the same
-// tray_uuid, which is therefore the identity whenever it is present; tag_uid
-// is the fallback for tags without one. Bambu reports all-zero values for
-// holders without a readable tag. Keep that sentinel out of authoritative
-// spool evidence: only a real tag may participate in exact NFC matching.
+// Bambu uses an all-zero tag UID for holders without a readable RFID tag.
+// Keep that sentinel out of authoritative spool evidence: only a real tag may
+// participate in exact historical NFC matching.
 func bambuTagUID(tray map[string]any) string {
-	if spool := strings.TrimSpace(firstScalar(tray, "tray_uuid")); spool != "" && !isZeroIdentifier(spool) {
-		return spool
-	}
 	tag := strings.TrimSpace(firstScalar(tray, "tag_uid"))
 	if tag == "" || isZeroIdentifier(tag) {
 		return ""
 	}
 	return tag
+}
+
+// bambuTrayUUID is the spool's own identity. A Bambu spool carries one RFID tag
+// per flange, each with its own chip UID (tag_uid), but both store the same
+// tray_uuid. Which chip an AMS slot reads depends on the slot, so tag_uid alone
+// cannot identify the spool. All-zero means the holder has no readable tag.
+func bambuTrayUUID(tray map[string]any) string {
+	value := strings.TrimSpace(firstScalar(tray, "tray_uuid"))
+	if value == "" || isZeroIdentifier(value) {
+		return ""
+	}
+	return value
+}
+
+// bambuSpoolTag is what a tray reports about the spool's RFID tags.
+type bambuSpoolTag struct {
+	TagUID   string
+	TrayUUID string
+}
+
+func bambuSpoolTagOf(tray map[string]any) bambuSpoolTag {
+	return bambuSpoolTag{TagUID: bambuTagUID(tray), TrayUUID: bambuTrayUUID(tray)}
+}
+
+func (t bambuSpoolTag) present() bool { return t.TagUID != "" || t.TrayUUID != "" }
+
+// sameSpool reports whether two reads can belong to one physical spool. The
+// tray UUID is the spool identity: both chips of a spool share it, so differing
+// chip UIDs with the same tray UUID are one spool. An unread tag is compatible
+// with any tag: Bambu reports all-zero values while an RFID read is pending or
+// failed, which is not a spool change.
+func (t bambuSpoolTag) sameSpool(other bambuSpoolTag) bool {
+	if t.TrayUUID != "" && other.TrayUUID != "" {
+		return strings.EqualFold(t.TrayUUID, other.TrayUUID)
+	}
+	if !t.present() || !other.present() {
+		return true
+	}
+	if t.TagUID != "" && other.TagUID != "" {
+		return strings.EqualFold(t.TagUID, other.TagUID)
+	}
+	return true
 }
 
 // bambuTrayRefs lists AMS trays first and external holders last. The second
@@ -712,9 +753,9 @@ func bambuTrayRefs(state map[string]any) ([]bambuTrayRef, bool) {
 // resolved from tray_now alone. A bare
 // tray_now of 128 or more may name a single-tray AMS HT unit by its unit ID;
 // that is an assumption pending real captures.
-func bambuActiveSlot(state map[string]any) (string, string, string, bool) {
-	if unitID, trayID, tagUID, ok := bambuActiveExtruderSlot(state); ok {
-		return unitID, trayID, tagUID, true
+func bambuActiveSlot(state map[string]any) (string, string, bambuSpoolTag, bool) {
+	if unitID, trayID, tag, ok := bambuActiveExtruderSlot(state); ok {
+		return unitID, trayID, tag, true
 	}
 	ams := objectAt(state, "ams")
 	trayNow := firstScalar(state, "tray_now")
@@ -722,13 +763,13 @@ func bambuActiveSlot(state map[string]any) (string, string, string, bool) {
 		trayNow = firstScalar(ams, "tray_now")
 	}
 	if trayNow == "" || trayNow == "255" {
-		return "", "", "", false
+		return "", "", bambuSpoolTag{}, false
 	}
 	requestedUnit, requestedTray := "", trayNow
 	if before, after, found := strings.Cut(trayNow, ":"); found {
 		requestedUnit, requestedTray = strings.TrimSpace(before), strings.TrimSpace(after)
 		if requestedUnit == "" || requestedTray == "" {
-			return "", "", "", false
+			return "", "", bambuSpoolTag{}, false
 		}
 	}
 	refs, _ := bambuTrayRefs(state)
@@ -756,12 +797,12 @@ func bambuActiveSlot(state map[string]any) (string, string, string, bool) {
 		}
 	}
 	if len(matches) != 1 {
-		return "", "", "", false
+		return "", "", bambuSpoolTag{}, false
 	}
-	return matches[0].unitID, matches[0].trayID, bambuTagUID(matches[0].tray), true
+	return matches[0].unitID, matches[0].trayID, bambuSpoolTagOf(matches[0].tray), true
 }
 
-func bambuActiveSlotFor(adapterKind AdapterKind, state map[string]any) (string, string, string, bool) {
+func bambuActiveSlotFor(adapterKind AdapterKind, state map[string]any) (string, string, bambuSpoolTag, bool) {
 	if adapterKind == AdapterBambuX1C {
 		return bambuX1CActiveSlot(state)
 	}
@@ -771,27 +812,27 @@ func bambuActiveSlotFor(adapterKind AdapterKind, state map[string]any) (string, 
 // X1C reports tray_now as a global AMS tray index: unit*4+tray. Value 255 is
 // also emitted while no tray is selected, even when vir_slot 255 retains
 // descriptive material data, so it must never become run spool evidence.
-func bambuX1CActiveSlot(state map[string]any) (string, string, string, bool) {
+func bambuX1CActiveSlot(state map[string]any) (string, string, bambuSpoolTag, bool) {
 	ams := objectAt(state, "ams")
 	value := firstScalar(ams, "tray_now")
 	if value == "" {
 		value = firstScalar(state, "tray_now")
 	}
 	if value == "255" {
-		return "", "", "", false
+		return "", "", bambuSpoolTag{}, false
 	}
 	index, err := strconv.Atoi(value)
 	if err != nil || index < 0 || index > 15 {
-		return "", "", "", false
+		return "", "", bambuSpoolTag{}, false
 	}
 	unitID, trayID := strconv.Itoa(index/4), strconv.Itoa(index%4)
 	refs, _ := bambuTrayRefs(state)
 	for _, ref := range refs {
 		if !ref.external && ref.unitID == unitID && ref.trayID == trayID {
-			return unitID, trayID, bambuTagUID(ref.tray), true
+			return unitID, trayID, bambuSpoolTagOf(ref.tray), true
 		}
 	}
-	return "", "", "", false
+	return "", "", bambuSpoolTag{}, false
 }
 
 type bambuExtruderRoute struct {
@@ -950,7 +991,7 @@ func bambuExtruderSlots(state map[string]any) []bambuExtruderRoute {
 	return candidates
 }
 
-func bambuActiveExtruderSlot(state map[string]any) (string, string, string, bool) {
+func bambuActiveExtruderSlot(state map[string]any) (string, string, bambuSpoolTag, bool) {
 	extruder := objectAt(objectAt(state, "device"), "extruder")
 	activeID := -1
 	if rawState, ok := boundedInt(extruder["state"], 0, math.MaxInt32); ok {
@@ -960,20 +1001,20 @@ func bambuActiveExtruderSlot(state map[string]any) (string, string, string, bool
 	if activeID >= 0 {
 		for _, item := range candidates {
 			if item.extruderID == activeID {
-				return item.ref.unitID, item.ref.trayID, bambuTagUID(item.ref.tray), true
+				return item.ref.unitID, item.ref.trayID, bambuSpoolTagOf(item.ref.tray), true
 			}
 		}
 		// The active hotend may briefly report no tray while unloading even
 		// though the inactive hotend still has filament loaded. Do not fall
 		// through to that other hotend: doing so replaces the run's last
 		// trustworthy AMS slot with an unrelated external holder.
-		return "", "", "", false
+		return "", "", bambuSpoolTag{}, false
 	}
 	if len(candidates) != 1 {
-		return "", "", "", false
+		return "", "", bambuSpoolTag{}, false
 	}
 	item := candidates[0]
-	return item.ref.unitID, item.ref.trayID, bambuTagUID(item.ref.tray), true
+	return item.ref.unitID, item.ref.trayID, bambuSpoolTagOf(item.ref.tray), true
 }
 
 func bambuAMSExtruder(unit map[string]any) (int, bool) {
@@ -994,7 +1035,7 @@ func containsBambuSpoolEvidence(values []bambuSpoolEvidence, candidate bambuSpoo
 		if existing.SlicerFilamentID == candidate.SlicerFilamentID && existing.Extruder == candidate.Extruder &&
 			existing.InputUnitExternalID == candidate.InputUnitExternalID &&
 			existing.SlotExternalID == candidate.SlotExternalID &&
-			existing.TagUID == candidate.TagUID {
+			existing.TrayUUID == candidate.TrayUUID && (existing.TrayUUID != "" || existing.TagUID == candidate.TagUID) {
 			return true
 		}
 	}
@@ -1106,8 +1147,8 @@ func (p *bambuProcessor) slotTransitions(
 			"externalSlotKey":     slotKey,
 			"freshness":           "live",
 		}
-		tagUID := bambuTagUID(tray)
-		if tagUID == "" {
+		tag := bambuSpoolTagOf(tray)
+		if !tag.present() {
 			if p.state.EmptySlotCounts[slotKey] < 2 {
 				p.state.EmptySlotCounts[slotKey]++
 			}
@@ -1119,9 +1160,13 @@ func (p *bambuProcessor) slotTransitions(
 			payload["empty"] = true
 		} else {
 			delete(p.state.EmptySlotCounts, slotKey)
-			payload["tagUid"] = tagUID
+			if tag.TagUID != "" {
+				payload["tagUid"] = tag.TagUID
+			}
+			if tag.TrayUUID != "" {
+				payload["trayUuid"] = tag.TrayUUID
+			}
 		}
-		copyScalar(payload, tray, "trayUuid", "tray_uuid")
 		copyScalar(payload, tray, "trayType", "tray_type")
 		copyScalar(payload, tray, "productName", "tray_sub_brands")
 		copyScalar(payload, tray, "color", "tray_color")

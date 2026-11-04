@@ -7,6 +7,7 @@ import { materialTypesQuery } from '../inventoryQueries';
 import { detectedSpoolTagsQuery } from '../queries';
 import { useCan } from '../shared/useCan';
 import { ColorSwatch, formatGrams } from './inventoryShared';
+import { trayIdentityDisplay } from './spoolShared';
 
 const tagKey = (tag: DetectedSpoolTag) => `${tag.machineId}:${tag.unitExternalId}:${tag.trayExternalId}`;
 
@@ -21,6 +22,7 @@ function DetectedRow({
   types: readonly MaterialType[];
   onRegister?: (tag: DetectedSpoolTag) => void;
 }) {
+  const identity = trayIdentityDisplay(tag);
   const suggestion = suggestArticle(tag, materials, types);
   const grams = detectedGrams(tag, Number(suggestion.article?.packageSize ?? 0));
   const reported = [tag.subBrand ?? tag.materialType ?? 'Unknown filament'];
@@ -54,8 +56,10 @@ function DetectedRow({
         </span>
       </div>
       <div>
-        <span className="inv-detected__key">RFID</span>
-        <span className="inv-detected__value inv-mono">{tag.tagUid}</span>
+        <span className="inv-detected__key">{identity?.label ?? 'RFID'}</span>
+        <span className="inv-detected__value inv-mono inv-detected__id" title={identity?.value}>
+          {identity?.value}
+        </span>
       </div>
       <div>
         <span className="inv-detected__key">Suggested article</span>

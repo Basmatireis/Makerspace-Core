@@ -18,6 +18,7 @@ type observedSlot struct {
 	slotID   uuid.UUID
 	name     string
 	tagUID   string
+	trayUUID string
 	empty    bool
 	material string
 	// before is the spool mounted in the slot when the observation arrived.
@@ -31,6 +32,7 @@ func observeSlot(ctx context.Context, q *db.Queries, machineID uuid.UUID, payloa
 		InputUnitExternalID string `json:"inputUnitExternalId"`
 		SlotExternalID      string `json:"slotExternalId"`
 		TagUID              string `json:"tagUid"`
+		TrayUUID            string `json:"trayUuid"`
 		Empty               bool   `json:"empty"`
 		TrayType            string `json:"trayType"`
 		ProductName         string `json:"productName"`
@@ -57,6 +59,7 @@ func observeSlot(ctx context.Context, q *db.Queries, machineID uuid.UUID, payloa
 		slotID:   slot.ID,
 		name:     slot.UnitName + " · " + slot.SlotName,
 		tagUID:   strings.TrimSpace(value.TagUID),
+		trayUUID: strings.TrimSpace(value.TrayUUID),
 		empty:    value.Empty,
 		material: trayMaterial(value.TrayType, value.ProductName, value.Color),
 	}
@@ -104,8 +107,8 @@ func notifyFilamentChange(
 	q := db.New(tx)
 	change := inbox.FilamentChange{Slot: slot.name, Material: slot.material}
 	switch {
-	case slot.tagUID != "":
-		known, err := q.FindActiveSpoolByNFCTag(ctx, slot.tagUID)
+	case slot.tagUID != "" || slot.trayUUID != "":
+		known, err := findActiveSpoolByTag(ctx, q, slot.trayUUID, slot.tagUID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			change.Kind = inbox.FilamentUnknownTag
 		} else if err != nil {
@@ -131,4 +134,18 @@ func notifyFilamentChange(
 		return nil
 	}
 	return emitter.FilamentChange(ctx, tx, machineID, change)
+}
+
+// findActiveSpoolByTag is lockActiveSpoolByTag without the lock.
+func findActiveSpoolByTag(ctx context.Context, q *db.Queries, trayUUID, tagUID string) (uuid.UUID, error) {
+	if trayUUID != "" {
+		id, err := q.FindActiveSpoolByTrayUUID(ctx, trayUUID)
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return id, err
+		}
+	}
+	if tagUID == "" {
+		return uuid.Nil, pgx.ErrNoRows
+	}
+	return q.FindActiveSpoolByNFCTag(ctx, tagUID)
 }

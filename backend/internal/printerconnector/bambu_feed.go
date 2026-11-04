@@ -30,6 +30,7 @@ type bambuFeedSegment struct {
 	InputUnitExternalID string `json:"inputUnitExternalId"`
 	SlotExternalID      string `json:"slotExternalId"`
 	TagUID              string `json:"tagUid,omitempty"`
+	TrayUUID            string `json:"trayUuid,omitempty"`
 	// SlotLoad counts how often the slot was confirmed empty and then loaded
 	// again during the run. It tells two tagless spools in one slot apart.
 	SlotLoad      int       `json:"slotLoad,omitempty"`
@@ -54,7 +55,7 @@ type bambuFeedSource struct {
 	slicerFilamentID string
 	extruder         int
 	unitID, slotID   string
-	tagUID           string
+	tag              bambuSpoolTag
 	slotLoad         int
 }
 
@@ -66,11 +67,11 @@ func (s bambuFeedSource) routeKey() string {
 }
 
 func (s bambuFeedSource) compatible(segment bambuFeedSegment) bool {
-	// An unread tag is compatible with any tag: Bambu reports an all-zero UID
-	// while an RFID read is pending or failed, which is not a spool change.
+	// The spool identity is the tray UUID, so a slot that alternately reads the
+	// spool's two chips stays one segment; see bambuSpoolTag.sameSpool.
 	return s.unitID == segment.InputUnitExternalID && s.slotID == segment.SlotExternalID &&
 		s.slotLoad == segment.SlotLoad &&
-		(s.tagUID == "" || segment.TagUID == "" || s.tagUID == segment.TagUID)
+		s.tag.sameSpool(bambuSpoolTag{TagUID: segment.TagUID, TrayUUID: segment.TrayUUID})
 }
 
 func (p *bambuProcessor) feedTracker(runID string) *bambuFeedTracker {
@@ -261,8 +262,11 @@ func (r *bambuFeedRecorder) observe(source bambuFeedSource) {
 	for _, index := range lines {
 		segments := r.facts.FeedLines[index].Segments
 		if last := &segments[len(segments)-1]; source.compatible(*last) {
-			if last.TagUID == "" && source.tagUID != "" {
-				last.TagUID = source.tagUID
+			if last.TagUID == "" {
+				last.TagUID = source.tag.TagUID
+			}
+			if last.TrayUUID == "" {
+				last.TrayUUID = source.tag.TrayUUID
 			}
 			r.tracker.Current[key] = index
 			return
@@ -309,7 +313,8 @@ func (r *bambuFeedRecorder) observe(source bambuFeedSource) {
 	segment := r.segment
 	segment.InputUnitExternalID = source.unitID
 	segment.SlotExternalID = source.slotID
-	segment.TagUID = source.tagUID
+	segment.TagUID = source.tag.TagUID
+	segment.TrayUUID = source.tag.TrayUUID
 	segment.SlotLoad = source.slotLoad
 	if target < 0 {
 		r.facts.FeedLines = append(
@@ -351,7 +356,7 @@ func (t *bambuFeedTracker) source(slicerFilamentID string, extruder int, ref bam
 		extruder:         extruder,
 		unitID:           ref.unitID,
 		slotID:           ref.trayID,
-		tagUID:           bambuTagUID(ref.tray),
+		tag:              bambuSpoolTagOf(ref.tray),
 		slotLoad:         t.SlotLoads[ref.unitID+":"+ref.trayID],
 	}
 }

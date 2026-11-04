@@ -613,13 +613,18 @@ export function ReceiveStockModal({
                         />
                       </div>
                     )}
-                    {placement === 'new_spools' && single && values.idKind === 'nfc' && (
-                      <DetectedTagPicker
-                        id="receive-detected-tag"
-                        open={open}
-                        onPick={(tagUid) => setValue('idValue', tagUid, { shouldDirty: true })}
-                      />
-                    )}
+                    {placement === 'new_spools' &&
+                      single &&
+                      (values.idKind === 'nfc' || values.idKind === 'bambu_tray_uuid') && (
+                        <DetectedTagPicker
+                          id="receive-detected-tag"
+                          open={open}
+                          onPick={(identifier) => {
+                            setValue('idKind', identifier.kind, { shouldDirty: true });
+                            setValue('idValue', identifier.value, { shouldDirty: true });
+                          }}
+                        />
+                      )}
                   </Stack>
                 )}
               </fieldset>

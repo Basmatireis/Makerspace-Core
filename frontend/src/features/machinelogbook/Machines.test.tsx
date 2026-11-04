@@ -621,107 +621,120 @@ describe('Machine detail', () => {
     expect(await screen.findByText(/feeds nozzle 2 \(right\)/, undefined, { timeout: 5000 })).toBeInTheDocument();
   });
 
-  it('registers the spool a printer reports in a slot and mounts it there', async () => {
-    setup([
-      PermissionId.machinesread,
-      PermissionId.printer_slotsassign,
-      PermissionId.inventoryread,
-      PermissionId.inventorymanage,
-    ]);
-    const article = {
-      id: 'material-1',
-      displayId: 'A-0001',
-      name: 'PLA Basic Black',
-      kind: 'filament',
-      materialTypeId: 'type-1',
-      materialTypeName: 'PLA',
-      materialTypeCode: 'PLA',
-      machineUse: true,
-      colorName: 'Black',
-      colorHex: '#111111',
-      packageSize: '1000',
-      unit: 'g',
-      active: true,
-      unassignedQuantity: '2000',
-      inventoryVersion: 9,
-    };
-    let created: Record<string, unknown> | undefined;
-    let mounted: unknown;
-    server.use(
-      http.get(`*/api/v1/machines/${bambu.id}/printer`, () =>
-        HttpResponse.json({
-          ...profile,
-          inputUnits: [{ ...profile.inputUnits[0], externalIdentifier: '0' }],
-          slots: [{ ...profile.slots[0], externalIdentifier: '1' }],
+  it.each([
+    ['only a chip UID', null, { kind: 'nfc', value: 'TAG-1' }],
+    [
+      'a tray UUID',
+      '0123456789ABCDEF0123456789ABCDEF',
+      { kind: 'bambu_tray_uuid', value: '0123456789ABCDEF0123456789ABCDEF' },
+    ],
+  ])(
+    'registers the spool a printer reports with %s in a slot and mounts it there',
+    async (_name, trayUuid, identifier) => {
+      setup([
+        PermissionId.machinesread,
+        PermissionId.printer_slotsassign,
+        PermissionId.inventoryread,
+        PermissionId.inventorymanage,
+      ]);
+      const article = {
+        id: 'material-1',
+        displayId: 'A-0001',
+        name: 'PLA Basic Black',
+        kind: 'filament',
+        materialTypeId: 'type-1',
+        materialTypeName: 'PLA',
+        materialTypeCode: 'PLA',
+        machineUse: true,
+        colorName: 'Black',
+        colorHex: '#111111',
+        packageSize: '1000',
+        unit: 'g',
+        active: true,
+        unassignedQuantity: '2000',
+        inventoryVersion: 9,
+      };
+      let created: Record<string, unknown> | undefined;
+      let mounted: unknown;
+      server.use(
+        http.get(`*/api/v1/machines/${bambu.id}/printer`, () =>
+          HttpResponse.json({
+            ...profile,
+            inputUnits: [{ ...profile.inputUnits[0], externalIdentifier: '0' }],
+            slots: [{ ...profile.slots[0], externalIdentifier: '1' }],
+          }),
+        ),
+        http.get(`*/api/v1/machines/${bambu.id}/printer/live-status`, () =>
+          HttpResponse.json({
+            machineId: bambu.id,
+            assignmentId: 'assignment-1',
+            receivedAt: now,
+            observedAt: now,
+            status: {
+              state: 'idle',
+              job: null,
+              temperatures: { extruders: [], bedC: null, bedTargetC: null, chamberC: null },
+              nozzles: [],
+              units: [
+                {
+                  externalId: '0',
+                  label: 'AMS 1',
+                  kind: 'ams',
+                  trays: [
+                    {
+                      externalId: '1',
+                      materialType: 'PLA',
+                      subBrand: 'PLA Basic',
+                      colorHex: '111111',
+                      remainPercent: 50,
+                      rfid: true,
+                      tagUid: 'TAG-1',
+                      trayUuid,
+                      empty: false,
+                    },
+                  ],
+                },
+              ],
+              activeTray: null,
+              errors: [],
+              firmwareVersion: null,
+              wifiSignalDbm: null,
+            },
+          }),
+        ),
+        http.get('*/api/v1/materials', () => HttpResponse.json({ items: [article], page: 1, pageSize: 100, total: 1 })),
+        http.post('*/api/v1/filament-spools', async ({ request }) => {
+          created = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ ...spool, id: 'spool-9', displayId: 'S-PLA-BLK-01' }, { status: 201 });
         }),
-      ),
-      http.get(`*/api/v1/machines/${bambu.id}/printer/live-status`, () =>
-        HttpResponse.json({
-          machineId: bambu.id,
-          assignmentId: 'assignment-1',
-          receivedAt: now,
-          observedAt: now,
-          status: {
-            state: 'idle',
-            job: null,
-            temperatures: { extruders: [], bedC: null, bedTargetC: null, chamberC: null },
-            nozzles: [],
-            units: [
-              {
-                externalId: '0',
-                label: 'AMS 1',
-                kind: 'ams',
-                trays: [
-                  {
-                    externalId: '1',
-                    materialType: 'PLA',
-                    subBrand: 'PLA Basic',
-                    colorHex: '111111',
-                    remainPercent: 50,
-                    rfid: true,
-                    tagUid: 'TAG-1',
-                    empty: false,
-                  },
-                ],
-              },
-            ],
-            activeTray: null,
-            errors: [],
-            firmwareVersion: null,
-            wifiSignalDbm: null,
-          },
+        http.post('*/api/v1/printer-slots/slot-1/mount', async ({ request }) => {
+          mounted = await request.json();
+          return HttpResponse.json(profile.slots[0]);
         }),
-      ),
-      http.get('*/api/v1/materials', () => HttpResponse.json({ items: [article], page: 1, pageSize: 100, total: 1 })),
-      http.post('*/api/v1/filament-spools', async ({ request }) => {
-        created = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ ...spool, id: 'spool-9', displayId: 'S-PLA-BLK-01' }, { status: 201 });
-      }),
-      http.post('*/api/v1/printer-slots/slot-1/mount', async ({ request }) => {
-        mounted = await request.json();
-        return HttpResponse.json(profile.slots[0]);
-      }),
-    );
-    const user = userEvent.setup();
-    renderPage(`/workshop/machines/${bambu.id}/printer`);
-    expect(await screen.findByText('Not registered', undefined, { timeout: 5000 })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Register' }));
-    const dialog = await screen.findByRole('dialog', { name: /Bambu H2D/ });
-    // The article matching type and colour is suggested; half a roll is left.
-    await waitFor(() =>
-      expect(within(dialog).getByRole('combobox', { name: 'Article' })).toHaveValue('A-0001 · PLA Basic Black · Black'),
-    );
-    expect(within(dialog).getByLabelText('Net filament on the spool (g)')).toHaveValue('500');
-    await user.click(within(dialog).getByRole('button', { name: 'Register and mount' }));
-    await waitFor(() => expect(mounted).toEqual({ spoolId: 'spool-9' }));
-    expect(created).toMatchObject({
-      materialId: 'material-1',
-      initialNetWeightG: '500',
-      stockMode: 'existing_stock',
-      expectedInventoryVersion: 9,
-      identifiers: [{ kind: 'nfc', value: 'TAG-1' }],
-    });
-  });
+      );
+      const user = userEvent.setup();
+      renderPage(`/workshop/machines/${bambu.id}/printer`);
+      expect(await screen.findByText('Not registered', undefined, { timeout: 5000 })).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Register' }));
+      const dialog = await screen.findByRole('dialog', { name: /Bambu H2D/ });
+      // The article matching type and colour is suggested; half a roll is left.
+      await waitFor(() =>
+        expect(within(dialog).getByRole('combobox', { name: 'Article' })).toHaveValue(
+          'A-0001 · PLA Basic Black · Black',
+        ),
+      );
+      expect(within(dialog).getByLabelText('Net filament on the spool (g)')).toHaveValue('500');
+      await user.click(within(dialog).getByRole('button', { name: 'Register and mount' }));
+      await waitFor(() => expect(mounted).toEqual({ spoolId: 'spool-9' }));
+      expect(created).toMatchObject({
+        materialId: 'material-1',
+        initialNetWeightG: '500',
+        stockMode: 'existing_stock',
+        expectedInventoryVersion: 9,
+        identifiers: [identifier],
+      });
+    },
+  );
 
   it('switches automatic recording with the machine version', async () => {
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);

@@ -593,6 +593,7 @@ func applyLegacySpoolEvidence(item map[string]any, facts bambuRunFacts) {
 			InputUnitExternalID: facts.InputUnitExternalID,
 			SlotExternalID:      facts.SlotExternalID,
 			TagUID:              facts.TagUID,
+			TrayUUID:            facts.TrayUUID,
 		},
 	)
 }
@@ -602,6 +603,9 @@ func applySpoolEvidence(item map[string]any, evidence bambuSpoolEvidence) {
 	item["slotExternalId"] = evidence.SlotExternalID
 	if evidence.TagUID != "" {
 		item["tagUid"] = evidence.TagUID
+	}
+	if evidence.TrayUUID != "" {
+		item["trayUuid"] = evidence.TrayUUID
 	}
 }
 

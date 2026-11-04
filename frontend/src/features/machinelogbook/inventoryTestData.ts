@@ -193,6 +193,7 @@ export const detectedTag = (overrides: Partial<DetectedSpoolTag> = {}): Detected
   slotName: 'Slot 2',
   inputUnitName: 'AMS 1',
   tagUid: 'A1C4D77E',
+  trayUuid: null,
   materialType: 'PLA',
   subBrand: 'PLA Basic',
   colorHex: '0A2989',

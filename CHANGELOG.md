@@ -6,11 +6,12 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Upgrade notes
 
-- **Bambu spool tags are now identified by `tray_uuid`.** NFC identifiers of Bambu spools that were registered with the chip `tag_uid` (16 hex characters ending in `00000100`) no longer match; register those spools again from the detected tag. Update the printer connector together with Core.
+- **Migration 00106 (Bambu tray UUID identifier).** `filament_spool_identifiers.kind` accepts the new value `bambu_tray_uuid`; no data is rewritten. Down deletes the `bambu_tray_uuid` identifiers. Update the printer connector together with Core so it reports `trayUuid`.
+- **API.** The spool identifier kind enum (`FilamentSpoolIdentifier`, `NewFilamentSpoolIdentifier`, `AddFilamentSpoolIdentifierRequest`, the `kind` parameter of the spool lookup) gains `bambu_tray_uuid`. `PrinterLiveStatusTray` gains the optional `trayUuid`. `DetectedSpoolTag` gains `trayUuid` (nullable) and its `tagUid` becomes nullable: a tray may report only a tray UUID. A spool is resolved by `trayUuid` against `bambu_tray_uuid` first and, when there is none or no spool carries it, by `tagUid` against `nfc`; spools registered with a chip UID as `nfc` therefore keep matching. The detected tags list shows a spool seen in several trays once.
 
 ### Fixed
 
-- **A Bambu spool is recognised whichever of its two tags the AMS reads.** Each Bambu spool carries one RFID tag per side with different chip UIDs, and which one an AMS slot reads depends on the slot and on nearby readers, so the same spool showed up under two serials. The connector now reports the spool's `tray_uuid`, which both tags share, as its tag identity on every printer, and the chip `tag_uid` only for tags without one.
+- **A Bambu spool is recognised whichever of its two tags the AMS reads.** Each Bambu spool carries one RFID tag per flange with different chip UIDs but the same `tray_uuid`, and which one an AMS slot reads depends on the slot, so the same spool showed up under two serials and mounting by RFID missed it. The connector now reports the chip `tagUid` and the spool's `trayUuid`, Core identifies Bambu spools by the new identifier kind `bambu_tray_uuid`, and a slot that alternately reads both chips of one spool no longer starts a new consumption segment.
 
 ## [0.16.0] - 2026-11-04
 

@@ -17,6 +17,7 @@ import { server } from '../../test/server';
 import { bambuColorName } from './bambuColors';
 import { DetectedSpoolsStrip } from './components/DetectedSpoolsStrip';
 import { DetectedTrayCell } from './components/DetectedTrayCell';
+import { spoolMatchesTag, trayIdentifier, trayIdentityDisplay } from './components/spoolShared';
 import { suggestArticle } from './detectedSpools';
 import { materialType } from './inventoryTestData';
 import { IdentifierModal } from './dialogs/IdentifierModal';
@@ -41,6 +42,7 @@ const detected = (overrides: Partial<DetectedSpoolTag> = {}): DetectedSpoolTag =
   slotName: 'Slot 1',
   inputUnitName: 'AMS A',
   tagUid: 'AABB0011',
+  trayUuid: null,
   materialType: 'PLA',
   subBrand: 'PLA Basic',
   colorHex: 'CC0000',
@@ -82,6 +84,72 @@ describe('Detected tray tag UID', () => {
     );
     expect(screen.getAllByText('AABB0011')).toHaveLength(1);
     expect(screen.getAllByText('Copy tag UID', { selector: '.cds--tooltip-content' })).toHaveLength(1);
+  });
+
+  it('shows the tray UUID instead of a chip UID when the printer reports one', () => {
+    renderUi(
+      <DetectedTrayCell
+        tray={tray('0', {
+          empty: false,
+          rfid: true,
+          materialType: 'PLA',
+          tagUid: 'AABB0011',
+          trayUuid: '0123456789ABCDEF0123456789ABCDEF',
+        })}
+      />,
+    );
+    expect(screen.getByText('0123456789ABCDEF0123456789ABCDEF')).toBeInTheDocument();
+    expect(screen.queryByText('AABB0011')).not.toBeInTheDocument();
+    expect(screen.getByText('Copy spool UUID', { selector: '.cds--tooltip-content' })).toBeInTheDocument();
+  });
+});
+
+describe('Spool identifiers of detected trays', () => {
+  const uuid = '0123456789ABCDEF0123456789ABCDEF';
+
+  it('prefers the tray UUID, falls back to the chip UID and matches case-insensitively', () => {
+    expect(trayIdentifier({ tagUid: 'AABB', trayUuid: uuid })).toEqual({ kind: 'bambu_tray_uuid', value: uuid });
+    expect(trayIdentifier({ tagUid: 'AABB', trayUuid: null })).toEqual({ kind: 'nfc', value: 'AABB' });
+    expect(trayIdentifier({ tagUid: null, trayUuid: null })).toBeNull();
+    expect(trayIdentityDisplay({ tagUid: 'AABB', trayUuid: uuid })).toEqual({ label: 'Bambu spool', value: uuid });
+    expect(trayIdentityDisplay({ tagUid: 'AABB' })).toEqual({ label: 'RFID', value: 'AABB' });
+    const carrier = {
+      identifiers: [{ kind: 'bambu_tray_uuid', value: uuid.toLowerCase() }],
+    } as unknown as FilamentSpool;
+    expect(spoolMatchesTag(carrier, { tagUid: 'OTHER', trayUuid: uuid })).toBe(true);
+    expect(spoolMatchesTag(carrier, { tagUid: 'AABB', trayUuid: null })).toBe(false);
+    const chip = { identifiers: [{ kind: 'nfc', value: 'aabb' }] } as unknown as FilamentSpool;
+    expect(spoolMatchesTag(chip, { tagUid: 'AABB' })).toBe(true);
+  });
+
+  it('lists a tag without a chip UID by its tray UUID in the strip', async () => {
+    auth.permissions = BOTH;
+    useTags([detected({ tagUid: null, trayUuid: uuid })]);
+    server.use(http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [] })));
+    renderUi(<DetectedSpoolsStrip materials={[]} />);
+    expect(await screen.findByText(uuid)).toBeInTheDocument();
+    expect(screen.getByText('Bambu spool')).toBeInTheDocument();
+  });
+
+  it('adds a tray UUID identifier from a detected tag', async () => {
+    auth.permissions = BOTH;
+    useTags([detected({ trayUuid: uuid })]);
+    let body: AddFilamentSpoolIdentifierRequest | undefined;
+    server.use(
+      http.post('*/api/v1/filament-spools/:id/identifiers', async ({ request }) => {
+        body = (await request.json()) as AddFilamentSpoolIdentifierRequest;
+        return HttpResponse.json(spool);
+      }),
+      http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
+    );
+    const user = userEvent.setup();
+    renderUi(<IdentifierModal open onClose={vi.fn()} spool={spool} />);
+    const dialog = await screen.findByRole('dialog', { name: /S-2026-000001/ });
+    await user.click(await within(dialog).findByRole('combobox', { name: /Detected in a printer/ }));
+    await user.click(await screen.findByRole('option', { name: new RegExp(uuid) }));
+    expect(within(dialog).getByLabelText('Value')).toHaveValue(uuid);
+    await user.click(within(dialog).getByRole('button', { name: 'Add identifier' }));
+    await waitFor(() => expect(body).toEqual({ kind: 'bambu_tray_uuid', value: uuid }));
   });
 });
 
@@ -227,6 +295,33 @@ describe('Register spool detected tags', () => {
         identifiers: [{ kind: 'nfc', value: 'AABB0011' }],
       }),
     );
+  });
+
+  it('registers a spool detected with a tray UUID as a bambu_tray_uuid identifier', async () => {
+    auth.permissions = WITH_STOCK;
+    const uuid = '0123456789ABCDEF0123456789ABCDEF';
+    useTags([detected({ trayUuid: uuid })]);
+    serveInventory();
+    let body: CreateFilamentSpoolRequest | undefined;
+    server.use(
+      http.post('*/api/v1/filament-spools', async ({ request }) => {
+        body = (await request.json()) as CreateFilamentSpoolRequest;
+        return HttpResponse.json({ ...spool, materialName: filament.name }, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderUi(
+      <RegisterSpoolModal
+        open
+        onClose={vi.fn()}
+        initialMaterialId={filament.id}
+        detected={detected({ trayUuid: uuid })}
+      />,
+    );
+    const dialog = await screen.findByRole('dialog', { name: /Detected in/ });
+    await waitFor(() => expect(within(dialog).getByLabelText('Bambu spool identifier (optional)')).toHaveValue(uuid));
+    await user.click(within(dialog).getByRole('button', { name: 'Register spool' }));
+    await waitFor(() => expect(body?.identifiers).toEqual([{ kind: 'bambu_tray_uuid', value: uuid }]));
   });
 
   it('keeps the dialog open and marks the tag when it is already in use', async () => {

@@ -12,6 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFilamentSpool } from '../../../api/generated/filament-spools/filament-spools';
 import { mountPrinterSpool } from '../../../api/generated/printing/printing';
+import { trayIdentifier, trayIdentityDisplay } from '../components/spoolShared';
 import type { Material, PrinterLiveStatusTray, PrinterSlot } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
 import { FuzzyComboBox } from '../../../app/components/FuzzyComboBox';
@@ -55,7 +56,7 @@ const loose = (material: Material | undefined) => Number(material?.unassignedQua
 
 /**
  * Registers the spool the printer reports in a slot as a filament unit of an article, from loose stock or as a new
- * purchase, tags it with the RFID tag the printer read and mounts it in the slot.
+ * purchase, tags it with the spool identifier the printer read and mounts it in the slot.
  */
 export function RegisterSlotSpoolModal({
   machineName,
@@ -70,6 +71,8 @@ export function RegisterSlotSpoolModal({
   canMount: boolean;
   onClose: () => void;
 }) {
+  const identifier = trayIdentifier(tray);
+  const identity = trayIdentityDisplay(tray);
   const client = useQueryClient();
   const notify = useNotify();
   const articles = useQuery(filamentArticlesQuery());
@@ -111,7 +114,7 @@ export function RegisterSlotSpoolModal({
           : {}),
         occurredAt: new Date().toISOString(),
         expectedInventoryVersion: material.inventoryVersion,
-        identifiers: tray.tagUid ? [{ kind: 'nfc', value: tray.tagUid }] : undefined,
+        identifiers: identifier ? [identifier] : undefined,
       });
       if (values.mount && canMount) await mountPrinterSpool(slot.id, { spoolId: spool.id });
       return spool;
@@ -172,7 +175,7 @@ export function RegisterSlotSpoolModal({
                   </span>
                 ),
               },
-              tray.tagUid ? { label: 'RFID tag', value: tray.tagUid, mono: true } : null,
+              identity ? { label: identity.label, value: identity.value, mono: true } : null,
             ]}
           />
           {articles.isPending && <InlineLoading description="Loading filament articles" />}

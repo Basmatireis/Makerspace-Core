@@ -111,12 +111,15 @@ export function IdentifierModal({
               <SelectItem key={kind.id} value={kind.id} text={kind.label} />
             ))}
           </Select>
-          {kind === 'nfc' && (
+          {(kind === 'nfc' || kind === 'bambu_tray_uuid') && (
             <DetectedTagPicker
               id="identifier-detected-tag"
               open={open}
               spoolId={spool.id}
-              onPick={(tagUid) => setValue('value', tagUid, { shouldValidate: true, shouldDirty: true })}
+              onPick={(identifier) => {
+                setValue('kind', identifier.kind, { shouldDirty: true });
+                setValue('value', identifier.value, { shouldValidate: true, shouldDirty: true });
+              }}
             />
           )}
           <TextInput

@@ -366,7 +366,7 @@ export const getListDetectedSpoolTagsUrl = () => {
 }
 
 /**
- * Every RFID/NFC tag UID in the latest live status of each printer with an active connector assignment, so staff can link a loaded spool's tag without typing it. A tag that is an active identifier of a spool names that spool. Needs machines.read and inventory.read.
+ * Every RFID/NFC tag (chip UID and, for Bambu spools, the spool's tray UUID) in the latest live status of each printer with an active connector assignment, so staff can link a loaded spool's tag without typing it. A tray whose trayUuid or tagUid is an active identifier of a spool names that spool. A spool seen in several trays is listed once, from the newest observation. Needs machines.read and inventory.read.
  * @summary Spool tags the printers currently report in their slots
  */
 export const listDetectedSpoolTags = async ( options?: Parameters<typeof apiFetch>[1]): Promise<DetectedSpoolTagList> => {

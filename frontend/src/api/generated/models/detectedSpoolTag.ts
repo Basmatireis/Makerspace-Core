@@ -35,10 +35,19 @@ export interface DetectedSpoolTag {
   /** @nullable */
   inputUnitName: string | null;
   /**
+     * The RFID/NFC chip UID the printer reads. Null when the tray reports only a trayUuid. At least one of tagUid and trayUuid is set.
      * @minLength 1
      * @maxLength 255
+     * @nullable
      */
-  tagUid: string;
+  tagUid: string | null;
+  /**
+     * The spool's own identifier (Bambu tray_uuid), the same for both RFID chips of a spool. Null for tags without one. Link a spool with identifier kind bambu_tray_uuid when set, otherwise nfc with tagUid.
+     * @minLength 1
+     * @maxLength 255
+     * @nullable
+     */
+  trayUuid: string | null;
   /** @nullable */
   materialType: string | null;
   /** @nullable */
@@ -67,6 +76,6 @@ export interface DetectedSpoolTag {
      */
   filamentProfileId: string | null;
   observedAt: string;
-  /** The active spool that already carries this tag as an NFC identifier. */
+  /** The active spool that already carries this tray: matched by trayUuid against a bambu_tray_uuid identifier first and, when that finds none or the tray has no trayUuid, by tagUid against an nfc identifier. */
   spool: DetectedSpoolTagSpool | null;
 }

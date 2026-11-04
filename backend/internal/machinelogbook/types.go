@@ -189,6 +189,8 @@ const (
 	IdentifierBarcode IdentifierKind = "barcode"
 	IdentifierQR      IdentifierKind = "qr"
 	IdentifierNFC     IdentifierKind = "nfc"
+	// IdentifierBambuTrayUUID is the tray_uuid both RFID chips of a Bambu spool store.
+	IdentifierBambuTrayUUID IdentifierKind = "bambu_tray_uuid"
 )
 
 // StockMode is how the stock of a new spool entered inventory.
