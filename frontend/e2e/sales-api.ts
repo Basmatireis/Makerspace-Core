@@ -579,6 +579,7 @@ function currentUser(permissions: string[]) {
       email: 'lena@example.test',
       phone: null,
       roles: [],
+      memberSince: '2025-09-01',
       account,
       createdAt: at(1),
       updatedAt: at(1),

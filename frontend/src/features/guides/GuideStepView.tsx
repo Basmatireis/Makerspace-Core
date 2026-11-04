@@ -7,6 +7,8 @@ import { useAppModalOpen, useElementRect, useGuideTarget } from './useGuideTarge
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 const SPOTLIGHT_PADDING = 4;
+const OVERSIZED_SHARE = 0.7;
+const VIEWPORT_MARGIN = 8;
 
 interface Props {
   step: GuideStep;
@@ -113,8 +115,11 @@ export function GuideStepView(props: Props) {
     });
   }, [element]);
 
-  const centered = element === null && !waiting;
-  const popoverShown = element !== null && rect !== null;
+  // A target taller than the screen leaves no room beside it for the popover, so a step that only needs reading
+  // shows as the centered panel instead.
+  const oversized = rect !== null && advance.kind === 'next' && rect.height > window.innerHeight * OVERSIZED_SHARE;
+  const centered = (element === null && !waiting) || oversized;
+  const popoverShown = element !== null && rect !== null && !oversized;
 
   const closeOnEscape = useLatestCallback((event: KeyboardEvent) => {
     // A modal of the page closes itself on Escape; the tour stays.
@@ -125,6 +130,33 @@ export function GuideStepView(props: Props) {
     document.addEventListener('keydown', closeOnEscape);
     return () => document.removeEventListener('keydown', closeOnEscape);
   }, [popoverShown, closeOnEscape]);
+
+  // The popover centers on its target, which for a button at the edge of a narrow screen pushes it out of the
+  // viewport. It is positioned a few frames after it appears, so the fit is repeated for a moment.
+  useEffect(() => {
+    if (!popoverShown) return;
+    let frame = 0;
+    let attempts = 0;
+    const fit = () => {
+      const popover = panelRef.current?.closest<HTMLElement>('.guide-popover__content');
+      if (popover) {
+        const shift = Number(popover.dataset.guideShift ?? 0);
+        const box = popover.getBoundingClientRect();
+        const left = box.left - shift;
+        const right = box.right - shift;
+        let next = 0;
+        if (right > window.innerWidth - VIEWPORT_MARGIN) next = window.innerWidth - VIEWPORT_MARGIN - right;
+        if (left + next < VIEWPORT_MARGIN) next = VIEWPORT_MARGIN - left;
+        if (next !== shift) {
+          popover.dataset.guideShift = String(next);
+          popover.style.translate = `${next}px 0`;
+        }
+      }
+      if (attempts++ < 30) frame = requestAnimationFrame(fit);
+    };
+    fit();
+    return () => cancelAnimationFrame(frame);
+  }, [popoverShown, rect]);
 
   // Each step moves focus into the panel, except while a modal of the page holds focus. The popover stays
   // `visibility: hidden` until it has been positioned, and a hidden element cannot take focus, hence the retries.

@@ -19,6 +19,11 @@ export interface GuideStep {
   /** A CSS selector, preferably `[data-guide="…"]`; without one the step shows as a centered dialog. */
   target?: string;
   placement?: 'top' | 'bottom' | 'left' | 'right';
+  /**
+   * `content` (default) shrinks the highlight to the visible content inside the target, such as the tabs of a tab
+   * bar or the links of a menu; `element` highlights the target's whole box.
+   */
+  highlight?: 'content' | 'element';
   /** Default `{ kind: 'next' }`. */
   advance?: GuideAdvance;
   /** Skip the step for people it does not apply to. */

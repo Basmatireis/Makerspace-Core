@@ -129,14 +129,14 @@ export function PricingPage() {
       ) : pricing.isError ? (
         <ErrorState message="The pricing could not be loaded." onRetry={() => pricing.refetch()} />
       ) : (
-        <div data-guide="pricing-tabs">
+        <div>
           <Tabs
             selectedIndex={tab}
             onChange={({ selectedIndex }) =>
               setParams(selectedIndex === 0 ? {} : { tab: tabs[selectedIndex] }, { replace: true })
             }
           >
-            <TabList aria-label="Pricing sections" contained>
+            <TabList aria-label="Pricing sections" contained data-guide="pricing-tabs">
               <Tab>
                 Groups &amp; rates
                 {gaps > 0 && (

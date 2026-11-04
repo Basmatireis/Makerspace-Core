@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { CurrentUser } from '../../api/generated/models';
 import { setApiTransport } from '../../api/http-client';
 import { queryClient } from '../../api/query-client';
+import { authQueryKey } from '../auth/auth';
 
 /**
  * Demo mode answers every API request in the browser with sample data (see `./fake`). The fake backend is a lazily
@@ -16,13 +17,17 @@ function notify(): void {
   listeners.forEach((listener) => listener());
 }
 
+const keepsSession = (query: { queryKey: readonly unknown[] }) => query.queryKey.join('/') !== authQueryKey.join('/');
+
 /**
  * Drops every cached response and refetches the mounted queries from the current transport. `resetQueries` is
  * used instead of a plain clear because the shell and the open page stay mounted and must load again at once.
+ * The signed-in user stays: the demo is served as that same user, and resetting it would send the protected shell
+ * back to its loading screen, which unmounts the running tour.
  */
 function reloadQueries(): void {
-  void queryClient.cancelQueries();
-  void queryClient.resetQueries();
+  void queryClient.cancelQueries({ predicate: keepsSession });
+  void queryClient.resetQueries({ predicate: keepsSession });
 }
 
 export function isDemoMode(): boolean {

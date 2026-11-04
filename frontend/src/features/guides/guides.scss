@@ -43,14 +43,15 @@
   inline-size: 0;
   block-size: 0;
   pointer-events: none;
+  // A fixed box is its own stacking context, so the layer has to be set here, not on the inner popover.
+  z-index: 8501;
 }
 
 .guide-popover .cds--popover {
-  z-index: 8501;
   pointer-events: auto;
 }
 
-.guide-popover--above-modal .cds--popover {
+.guide-popover--above-modal.cds--popover-container {
   z-index: 9100;
 }
 
@@ -89,6 +90,19 @@
   align-items: center;
   justify-content: space-between;
   gap: spacing.$spacing-03;
+
+  // Carbon sizes the buttons of a set for wider containers; on a phone they would run out of the panel.
+  .cds--btn-set {
+    flex: 1 1 12rem;
+    min-inline-size: 0;
+    justify-content: flex-end;
+  }
+
+  .cds--btn-set .cds--btn {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    max-inline-size: none;
+  }
 }
 
 .guide-live {
