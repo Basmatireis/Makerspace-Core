@@ -13,6 +13,7 @@ import type {
   WorkItem,
 } from '../src/api/generated/models';
 import { defaultPublicBrandingConfiguration } from './branding-fixtures';
+import { welcomeTourSeen } from './guide-progress';
 
 /**
  * Stateful mock of the Sales & payments API for the mocked-API sales spec: orders with attention flags, payments,
@@ -636,6 +637,7 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
     if (path === '/api/v1/auth/activity') return ok(route, currentUser(world.permissions).session);
     if (path === '/api/v1/notifications/unread-count') return ok(route, { unreadCount: 0 });
     if (path === '/api/v1/laborordnung/status/me') return ok(route, currentUser(world.permissions).laborordnungStatus);
+    if (path === '/api/v1/me/guides') return ok(route, welcomeTourSeen);
     if (path === '/api/v1/public/config') return ok(route, defaultPublicBrandingConfiguration());
     if (path === '/api/v1/public/open-days') return ok(route, { items: [] });
     if (path === '/api/v1/auth/oidc/providers') return ok(route, { items: [] });
