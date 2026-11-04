@@ -12,6 +12,7 @@ import { ArticleMeta } from './ArticlePanel';
 import { formatGrams } from './inventoryShared';
 import { ledgerQuantityText, ledgerReferenceText, transactionKindLabel } from './InventoryLedgerTable';
 import { PanelTable } from './PanelTable';
+import { RanOutNotice } from './RanOutNotice';
 import { spoolActionsFor, useSpoolPermissions, type SpoolDialog } from './spoolActions';
 import {
   articleShortName,
@@ -110,6 +111,7 @@ export function SpoolPanel({
           </OverflowMenu>
         )}
       </div>
+      {!retired && <RanOutNotice spool={spool} onAction={onAction} />}
       <FactsGrid columns={2}>
         <Fact
           label="Remaining"

@@ -16,7 +16,12 @@ import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { detachMachineRun, setMachineRunSignageVisibility } from '../../api/generated/machine-runs/machine-runs';
-import type { MachineJob, MachineRunArtifactUploadResult, MachineRunRecording } from '../../api/generated/models';
+import type {
+  MachineJob,
+  MachineRunArtifactUploadResult,
+  MachineRunRecording,
+  MachineRunReportedUsageItem,
+} from '../../api/generated/models';
 import { StackCard } from '../../app/components/CardList';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
@@ -28,6 +33,7 @@ import { UsageFormModal } from './dialogs/UsageFormModal';
 import { ClaimRunModal } from './jobs/ClaimRunModal';
 import { MediaCard } from './jobs/MediaCard';
 import { RecipientMaterialModal } from './jobs/RecipientMaterialModal';
+import { ReportedSegments } from './jobs/ReportedSegments';
 import { openReportedLines, reportedLineName, reportedLineQuantity } from './jobs/runLines';
 import { useUpdateJobFacts } from './jobs/jobsQueries';
 import { RunFileUpload, UploadMismatchNotice } from './recording/RunFileUpload';
@@ -89,6 +95,7 @@ export function RunDetailPage() {
   const [dialog, setDialog] = useState<'claim' | 'detach' | 'delete' | 'delete-job' | 'usage' | null>(null);
   const [uploaded, setUploaded] = useState<{ result: MachineRunArtifactUploadResult; fileName: string } | null>(null);
   const [resolutionLine, setResolutionLine] = useState<number | null>(null);
+  const [resolutionSegment, setResolutionSegment] = useState<MachineRunReportedUsageItem | null>(null);
   const [recipientLine, setRecipientLine] = useState<number | null>(null);
   const close = () => setDialog(null);
 
@@ -270,6 +277,15 @@ export function RunDetailPage() {
                 onUploaded={onUploaded}
               />
             )}
+            {run.materialChangedDuringRun && (
+              <InlineNotification
+                kind="info"
+                lowContrast
+                hideCloseButton
+                title="Material changed during the print"
+                subtitle="The filament was booked per spool and priced per article."
+              />
+            )}
             {staffAndMachineMaterial && (
               <InlineNotification
                 kind="warning"
@@ -365,45 +381,65 @@ export function RunDetailPage() {
                           {
                             label: 'Reported material',
                             value: reportedMaterial,
-                            note:
-                              !live && canEdit && can(PermissionId.inventoryread) && openLines.length > 0 ? (
-                                <ul className="jobs-lines">
-                                  {openLines.map((item) => {
-                                    const grams = reportedLineQuantity(item);
-                                    return (
-                                      <li
-                                        key={`${item.reportRevision}-${item.lineNumber}`}
-                                        className="jobs-lines__line"
-                                      >
-                                        <span>
-                                          {reportedLineName(item)}
-                                          {grams != null ? ` · ${formatQuantity(grams)} g` : ''} · not booked
-                                        </span>
-                                        <span className="mj-inline">
-                                          <Button
-                                            kind="ghost"
-                                            size="sm"
-                                            onClick={() => setResolutionLine(item.lineNumber)}
-                                          >
-                                            Map{' '}
-                                            {item.slicerFilamentId
-                                              ? `filament ${item.slicerFilamentId}`
-                                              : `line ${item.lineNumber + 1}`}{' '}
-                                            to a spool
-                                          </Button>
-                                          <Button
-                                            kind="ghost"
-                                            size="sm"
-                                            onClick={() => setRecipientLine(item.lineNumber)}
-                                          >
-                                            Recipient’s own
-                                          </Button>
-                                        </span>
-                                      </li>
-                                    );
-                                  })}
-                                </ul>
-                              ) : undefined,
+                            note: (
+                              <>
+                                <ReportedSegments
+                                  run={run}
+                                  onMap={
+                                    !live &&
+                                    canEdit &&
+                                    can(PermissionId.inventoryread) &&
+                                    !run.usages.some((usage) => usage.staffCorrected)
+                                      ? (item, segment) =>
+                                          setResolutionSegment({
+                                            ...item,
+                                            plannedQuantityGrams: null,
+                                            estimatedQuantityGrams: segment.estimatedQuantityGrams ?? null,
+                                            segments: [],
+                                          })
+                                      : undefined
+                                  }
+                                />
+                                {!live && canEdit && can(PermissionId.inventoryread) && openLines.length > 0 ? (
+                                  <ul className="jobs-lines">
+                                    {openLines.map((item) => {
+                                      const grams = reportedLineQuantity(item);
+                                      return (
+                                        <li
+                                          key={`${item.reportRevision}-${item.lineNumber}`}
+                                          className="jobs-lines__line"
+                                        >
+                                          <span>
+                                            {reportedLineName(item)}
+                                            {grams != null ? ` · ${formatQuantity(grams)} g` : ''} · not booked
+                                          </span>
+                                          <span className="mj-inline">
+                                            <Button
+                                              kind="ghost"
+                                              size="sm"
+                                              onClick={() => setResolutionLine(item.lineNumber)}
+                                            >
+                                              Map{' '}
+                                              {item.slicerFilamentId
+                                                ? `filament ${item.slicerFilamentId}`
+                                                : `line ${item.lineNumber + 1}`}{' '}
+                                              to a spool
+                                            </Button>
+                                            <Button
+                                              kind="ghost"
+                                              size="sm"
+                                              onClick={() => setRecipientLine(item.lineNumber)}
+                                            >
+                                              Recipient’s own
+                                            </Button>
+                                          </span>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                ) : undefined}
+                              </>
+                            ),
                           },
                         ]
                       : []),
@@ -596,6 +632,9 @@ export function RunDetailPage() {
       {job && canDeleteJob && <DeleteJobModal open={dialog === 'delete-job'} onClose={close} job={job} />}
 
       {run && canEdit && <UsageFormModal open={dialog === 'usage'} onClose={close} run={run} />}
+      {run && resolutionSegment && (
+        <ResolveReportedUsageModal open onClose={() => setResolutionSegment(null)} run={run} item={resolutionSegment} />
+      )}
       {run &&
         resolutionLine !== null &&
         (() => {

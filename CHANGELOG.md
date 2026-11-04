@@ -2,6 +2,12 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## Unreleased
+
+### Added
+
+- **Filament booked per spool when a spool runs out mid-print.** When a print continues from another spool (the same slot refilled, an AMS backup slot, a spool of another colour), the connector splits the consumption line into segments by G-code layer, or by progress when no G-code split is possible, and Core books each segment on the spool that was in the slot when it started, with that spool's article and price. New table `machine_run_reported_usage_segments` (migration 00104); `MachineRunReportedUsageItem.segments`, `MachineRun.materialChangedDuringRun`, the consumption reasons `segment_without_spool` and `segment_quantity_unavailable`, and the spool attention `ran_out_during_run`. The run page lists a line's spools with grams and start, tags a segment without spool, offers staff to book it through the material correction, and says when the material changed during the print. A spool that ran out is flagged on its page and panel with Weigh and Retire at hand until it is weighed, retired or remounted. Update the printer connector together with Core to get segments.
+
 ## [0.15.0] - 2026-11-03
 
 ### Upgrade notes
