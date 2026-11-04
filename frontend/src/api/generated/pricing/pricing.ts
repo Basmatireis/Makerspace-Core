@@ -31,7 +31,8 @@ import type {
   SetRolePricingGroupsRequest,
   UUIDv7,
   UpdatePricingGroupRequest,
-  UpdatePricingRuleRequest
+  UpdatePricingRuleRequest,
+  VersionRequest
 } from '../models';
 
 import { apiFetch } from '../../http-client';
@@ -206,6 +207,45 @@ return apiFetch<PricingRule>(getUpdatePricingRuleUrl(pricingRuleId),
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(updatePricingRuleRequest)
+  }
+);}
+
+
+export const getDeletePricingRuleUrl = (pricingRuleId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/pricing-rules/${pricingRuleId}`
+}
+
+/**
+ * Requires `pricing.manage`. Removes the rule for good, active or not; the stored pricing snapshots of jobs keep their copy of its rate and only lose the pointer to it. A stale `expectedVersion` answers 409 `stale_write`. Audited as `pricing_rule.deleted`.
+ * @summary Delete a pricing rule
+ */
+export const deletePricingRule = async (pricingRuleId: UUIDv7,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getDeletePricingRuleUrl(pricingRuleId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
   }
 );}
 

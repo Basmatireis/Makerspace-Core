@@ -183,7 +183,7 @@ export const getDeleteMaterialTypeUrl = (materialTypeId: UUIDv7,) => {
 }
 
 /**
- * Requires `inventory.manage`. Permanently deletes a type that no material and no pricing rule uses. A referenced type answers 409 material_type_in_use; deactivate it instead.
+ * Requires `inventory.manage`. Permanently deletes a type that no material uses (deleted articles included), together with its variants and its pricing rules, active or not. A type with materials answers 409 material_type_in_use; deactivate it instead.
  * @summary Delete a material type
  */
 export const deleteMaterialType = async (materialTypeId: UUIDv7,

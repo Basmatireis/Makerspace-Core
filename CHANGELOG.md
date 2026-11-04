@@ -2,6 +2,16 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Upgrade notes
+
+- **API.** New `DELETE /pricing-rules/{pricingRuleId}` (`pricing.manage`, body `VersionRequest`, 204; 404, 409 `stale_write`), audited as `pricing_rule.deleted`. `DELETE /material-types/{materialTypeId}` now deletes the type together with its variants and all its pricing rules; it answers 409 `material_type_in_use` only while a material (deleted ones included) uses the type, no longer because of pricing rules. The audit event `material_type.deleted` carries `countPricingRulesRemoved` and `countVariantsRemoved`. No migration.
+
+### Changed
+
+- **Prices and categories can be deleted.** A pricing rule can be deleted outright; stored job snapshots keep their rate. A material type with variants or pricing rules but no articles can be deleted, which removes its variants and rules; articles (deleted ones too) still block it. The configuration import's overwrite mode deletes such types instead of deactivating them.
+
 ## [0.15.0] - 2026-11-03
 
 ### Upgrade notes

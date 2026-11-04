@@ -7061,6 +7061,24 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Pricing]
+      operationId: deletePricingRule
+      summary: Delete a pricing rule
+      description: >-
+        Requires `pricing.manage`. Removes the rule for good, active or not; the stored pricing snapshots of jobs keep
+        their copy of its rate and only lose the pointer to it. A stale `expectedVersion` answers 409 `stale_write`.
+        Audited as `pricing_rule.deleted`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Pricing rule deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /pricing/quote:
     get:
@@ -7196,8 +7214,8 @@ paths:
       operationId: deleteMaterialType
       summary: Delete a material type
       description: >-
-        Requires `inventory.manage`. Permanently deletes a type that no material and no pricing rule uses. A referenced type answers 409 material_type_in_use;
-        deactivate it instead.
+        Requires `inventory.manage`. Permanently deletes a type that no material uses (deleted articles included), together with its variants
+        and its pricing rules, active or not. A type with materials answers 409 material_type_in_use; deactivate it instead.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:

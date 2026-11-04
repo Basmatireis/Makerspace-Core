@@ -92,6 +92,8 @@ type Querier interface {
 	// through ON DELETE CASCADE.
 	DeleteOrganization(ctx context.Context, arg DeleteOrganizationParams) (int64, error)
 	DeleteOrganizationPricingAssignment(ctx context.Context, arg DeleteOrganizationPricingAssignmentParams) (uuid.UUID, error)
+	DeletePricingRule(ctx context.Context, arg DeletePricingRuleParams) (int64, error)
+	DeletePricingRulesOfMaterialType(ctx context.Context, materialTypeID *uuid.UUID) (int64, error)
 	DeleteRolePricingGroups(ctx context.Context) error
 	DeleteRunMeasures(ctx context.Context, runID uuid.UUID) error
 	// Removes the timelapse rows of runs being deleted and returns their files; the
@@ -119,6 +121,8 @@ type Querier interface {
 	GetDeletedMachineRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	GetFilamentSpool(ctx context.Context, id uuid.UUID) (GetFilamentSpoolRow, error)
 	GetFilamentSpoolForUpdate(ctx context.Context, id uuid.UUID) (FilamentSpool, error)
+	// The unit cost of the spool's own purchase; existing-stock spools have none.
+	GetFilamentSpoolPurchaseUnitCost(ctx context.Context, spoolID *uuid.UUID) (pgtype.Numeric, error)
 	GetInventoryTransaction(ctx context.Context, id uuid.UUID) (InventoryTransaction, error)
 	GetMachine(ctx context.Context, id uuid.UUID) (GetMachineRow, error)
 	GetMachineForUpdate(ctx context.Context, id uuid.UUID) (Machine, error)
@@ -263,6 +267,8 @@ type Querier interface {
 	MachineHasMountedSpool(ctx context.Context, machineID uuid.UUID) (bool, error)
 	MarkManualRunReplaced(ctx context.Context, id uuid.UUID) error
 	MaterialTypeExists(ctx context.Context, id uuid.UUID) (bool, error)
+	// True while a material (deleted ones included) uses the type.
+	MaterialTypeHasMaterials(ctx context.Context, id uuid.UUID) (bool, error)
 	// True while a material or a pricing rule (active or not) uses the type. Pricing
 	// snapshots only keep a nullable pointer and their own label text.
 	MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)

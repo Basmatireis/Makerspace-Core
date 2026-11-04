@@ -619,6 +619,13 @@ SELECT spool_id FROM filament_spool_identifiers WHERE kind=sqlc.arg(kind) AND lo
 -- name: FilamentSpoolIdentifierInUse :one
 SELECT EXISTS(SELECT 1 FROM filament_spool_identifiers WHERE kind=sqlc.arg(kind) AND lower(value)=lower(sqlc.arg(value)) AND retired_at IS NULL);
 
+-- name: GetFilamentSpoolPurchaseUnitCost :one
+-- The unit cost of the spool's own purchase; existing-stock spools have none.
+SELECT unit_acquisition_cost FROM inventory_transactions
+WHERE spool_id=sqlc.arg(spool_id) AND kind='purchase' AND deleted_at IS NULL
+ORDER BY occurred_at DESC, id DESC
+LIMIT 1;
+
 -- name: FilamentSpoolMounted :one
 SELECT EXISTS(SELECT 1 FROM printer_spool_assignments WHERE spool_id=sqlc.arg(spool_id) AND unmounted_at IS NULL);
 
@@ -1472,6 +1479,16 @@ RETURNING *;
 -- snapshots only keep a nullable pointer and their own label text.
 SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.material_type_id = sqlc.arg(id)::uuid)
     OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_id = sqlc.arg(id)::uuid))::boolean AS referenced;
+
+-- name: MaterialTypeHasMaterials :one
+-- True while a material (deleted ones included) uses the type.
+SELECT EXISTS (SELECT 1 FROM materials m WHERE m.material_type_id = sqlc.arg(id)::uuid)::boolean AS has_materials;
+
+-- name: DeletePricingRulesOfMaterialType :execrows
+DELETE FROM pricing_rules WHERE material_type_id = sqlc.arg(material_type_id);
+
+-- name: DeletePricingRule :execrows
+DELETE FROM pricing_rules WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version);
 
 -- name: DeleteMaterialType :execrows
 DELETE FROM material_types WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version);

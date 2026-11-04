@@ -1648,6 +1648,35 @@ func (q *Queries) DeleteOrganizationPricingAssignment(ctx context.Context, arg D
 	return organization_id, err
 }
 
+const deletePricingRule = `-- name: DeletePricingRule :execrows
+DELETE FROM pricing_rules WHERE id = $1 AND version = $2
+`
+
+type DeletePricingRuleParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) DeletePricingRule(ctx context.Context, arg DeletePricingRuleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePricingRule, arg.ID, arg.ExpectedVersion)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deletePricingRulesOfMaterialType = `-- name: DeletePricingRulesOfMaterialType :execrows
+DELETE FROM pricing_rules WHERE material_type_id = $1
+`
+
+func (q *Queries) DeletePricingRulesOfMaterialType(ctx context.Context, materialTypeID *uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePricingRulesOfMaterialType, materialTypeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteRolePricingGroups = `-- name: DeleteRolePricingGroups :exec
 DELETE FROM role_pricing_groups
 `
@@ -2195,6 +2224,21 @@ func (q *Queries) GetFilamentSpoolForUpdate(ctx context.Context, id uuid.UUID) (
 		&i.RetiredBy,
 	)
 	return i, err
+}
+
+const getFilamentSpoolPurchaseUnitCost = `-- name: GetFilamentSpoolPurchaseUnitCost :one
+SELECT unit_acquisition_cost FROM inventory_transactions
+WHERE spool_id=$1 AND kind='purchase' AND deleted_at IS NULL
+ORDER BY occurred_at DESC, id DESC
+LIMIT 1
+`
+
+// The unit cost of the spool's own purchase; existing-stock spools have none.
+func (q *Queries) GetFilamentSpoolPurchaseUnitCost(ctx context.Context, spoolID *uuid.UUID) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getFilamentSpoolPurchaseUnitCost, spoolID)
+	var unit_acquisition_cost pgtype.Numeric
+	err := row.Scan(&unit_acquisition_cost)
+	return unit_acquisition_cost, err
 }
 
 const getInventoryTransaction = `-- name: GetInventoryTransaction :one
@@ -7267,6 +7311,18 @@ func (q *Queries) MaterialTypeExists(ctx context.Context, id uuid.UUID) (bool, e
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const materialTypeHasMaterials = `-- name: MaterialTypeHasMaterials :one
+SELECT EXISTS (SELECT 1 FROM materials m WHERE m.material_type_id = $1::uuid)::boolean AS has_materials
+`
+
+// True while a material (deleted ones included) uses the type.
+func (q *Queries) MaterialTypeHasMaterials(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, materialTypeHasMaterials, id)
+	var has_materials bool
+	err := row.Scan(&has_materials)
+	return has_materials, err
 }
 
 const materialTypeIsReferenced = `-- name: MaterialTypeIsReferenced :one
