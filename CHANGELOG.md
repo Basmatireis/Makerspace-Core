@@ -12,6 +12,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - **Prices and categories can be deleted.** A pricing rule can be deleted outright; stored job snapshots keep their rate. A material type with variants or pricing rules but no articles can be deleted, which removes its variants and rules; articles (deleted ones too) still block it. The configuration import's overwrite mode deletes such types instead of deactivating them.
 
+### Fixed
+
+- **Weighing a spool that holds more than recorded no longer fails** with "acquisitionUnitCost is required without an average cost". The found filament is valued at the spool's own purchase price, else the article's average cost, else 0 for existing stock whose price is unknown.
+
 ## [0.15.0] - 2026-11-03
 
 ### Upgrade notes

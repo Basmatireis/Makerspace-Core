@@ -994,15 +994,21 @@ func (s *Service) CorrectFilamentSpoolStock(
 		return InventoryMutationResult{}, apperror.Invalid("physicalQuantity equals current spool stock")
 	}
 	unitCost := decimalFromNumeric(material.AverageUnitCost)
-	if delta.IsPositive() && unitCost.IsZero() {
-		if acquisitionCost == nil {
-			return InventoryMutationResult{}, apperror.Invalid(
-				"acquisitionUnitCost is required without an average cost",
-			)
-		}
-		unitCost, err = parseDecimal(*acquisitionCost, false)
-		if err != nil || unitCost.IsNegative() {
-			return InventoryMutationResult{}, apperror.Invalid("invalid acquisitionUnitCost")
+	if delta.IsPositive() {
+		// Found filament is valued at what the spool cost when bought, then at the material
+		// average; existing-stock spools without either are booked at 0.
+		if acquisitionCost != nil {
+			unitCost, err = parseDecimal(*acquisitionCost, false)
+			if err != nil || unitCost.IsNegative() {
+				return InventoryMutationResult{}, apperror.Invalid("invalid acquisitionUnitCost")
+			}
+		} else {
+			purchaseCost, costErr := q.GetFilamentSpoolPurchaseUnitCost(ctx, &spoolID)
+			if costErr == nil {
+				unitCost = decimalFromNumeric(purchaseCost)
+			} else if !errors.Is(costErr, pgx.ErrNoRows) {
+				return InventoryMutationResult{}, costErr
+			}
 		}
 	}
 	reason = strings.TrimSpace(reason)
