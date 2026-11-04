@@ -31,6 +31,7 @@ export function NotificationAction({ expanded, actionRef, onToggle }: ActionProp
       align="bottom-end"
       className={`cds--header__action${expanded ? ' cds--header__action--active' : ''}`}
       ref={actionRef}
+      data-guide="header-notifications"
       badgeCount={unread > 0 ? unread : undefined}
       onClick={onToggle}
     >

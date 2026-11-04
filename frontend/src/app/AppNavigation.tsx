@@ -5,6 +5,7 @@ import {
   ChartBar,
   Dashboard,
   DocumentSecurity,
+  Help,
   Information,
   Policy,
   Receipt,
@@ -263,6 +264,16 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         )}
       </SideNavItems>
       <SideNavItems className="app-side-nav__secondary">
+        <SideNavLink
+          as={Link}
+          to="/help"
+          isActive={pathname.startsWith('/help')}
+          aria-current={pathname === '/help' ? 'page' : undefined}
+          renderIcon={Help}
+          onClick={onNavigate}
+        >
+          Help
+        </SideNavLink>
         <SideNavLink
           as={Link}
           to="/about"

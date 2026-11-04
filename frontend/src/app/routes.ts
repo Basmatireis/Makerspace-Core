@@ -22,6 +22,10 @@ export const VisitorEnrollmentPage = lazy(() =>
 export const LegalPage = lazy(() =>
   import('../features/branding/LegalPage').then(({ LegalPage }) => ({ default: LegalPage })),
 );
+export const HelpPage = lazy(() => import('../features/help/HelpPage').then(({ HelpPage }) => ({ default: HelpPage })));
+export const HelpArticlePage = lazy(() =>
+  import('../features/help/HelpArticlePage').then(({ HelpArticlePage }) => ({ default: HelpArticlePage })),
+);
 export const ProfilePage = lazy(() =>
   import('../features/profile/ProfilePage').then(({ ProfilePage }) => ({ default: ProfilePage })),
 );

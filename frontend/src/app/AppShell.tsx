@@ -14,10 +14,12 @@ import {
   Tag,
   Theme,
 } from '@carbon/react';
-import { Logout, UserAvatar } from '@carbon/icons-react';
+import { Help, Logout, UserAvatar } from '@carbon/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
+import { DemoBanner } from '../features/demo/DemoBanner';
+import { GuideProvider } from '../features/guides/GuideProvider';
 import { NotificationAction, NotificationPanel } from '../features/notifications/NotificationBell';
 import { PersonAvatar } from '../features/users/PersonAvatar';
 import { BrandMark } from './BrandMark';
@@ -29,6 +31,8 @@ import { useBranding } from '../features/branding/branding';
 
 // The confirmation form pulls in the PDF viewer, so it loads only for people who have to confirm.
 const LabRulesConfirmModal = lazy(() => import('../features/laborordnung/confirm/LabRulesConfirmModal'));
+// The first-sign-in tour offer asks the server about progress, so it loads (and fetches) after the shell is up.
+const GuideOffer = lazy(() => import('../features/guides/GuideOffer'));
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 
@@ -97,163 +101,180 @@ export function AppShell() {
 
   return (
     <ToastProvider>
-      <div className="app-shell">
-        <Theme theme="g100">
-          <Header aria-label={branding.identity.applicationName}>
-            <SkipToContent
-              onClick={(event) => {
-                event.preventDefault();
-                document.getElementById('main-content')?.focus();
-              }}
-            />
-            <HeaderMenuButton
-              aria-label={sideNavExpanded ? 'Close navigation' : 'Open navigation'}
-              isActive={sideNavExpanded}
-              isCollapsible
-              onClick={() => setSideNavExpanded((expanded) => !expanded)}
-            />
-            <HeaderName as={Link} to="/dashboard" prefix="" className="app-header__brand">
-              <BrandMark kind="compact" className="app-header__logo" />
-              <span className="app-header__wordmark">
-                <span>{branding.identity.legalOrganizationName}</span>
-                <strong>{branding.identity.displayName}</strong>
-              </span>
-            </HeaderName>
-            <HeaderGlobalBar>
-              <span className="header-account__name">{displayName}</span>
-              <NotificationAction
-                expanded={notificationPanelOpen}
-                actionRef={notificationActionRef}
-                onToggle={() => {
-                  setProfilePanelOpen(false);
-                  setNotificationPanelOpen((open) => !open);
+      <GuideProvider>
+        <div className="app-shell">
+          <Theme theme="g100">
+            <Header aria-label={branding.identity.applicationName}>
+              <SkipToContent
+                onClick={(event) => {
+                  event.preventDefault();
+                  document.getElementById('main-content')?.focus();
                 }}
               />
-              <HeaderGlobalAction
-                aria-label={`${profilePanelOpen ? 'Close' : 'Open'} profile menu for ${displayName}`}
-                tooltipAlignment="end"
-                isActive={profilePanelOpen}
-                ref={profileActionRef}
-                onClick={() => {
-                  setNotificationPanelOpen(false);
-                  setProfilePanelOpen((open) => !open);
+              <HeaderMenuButton
+                aria-label={sideNavExpanded ? 'Close navigation' : 'Open navigation'}
+                isActive={sideNavExpanded}
+                isCollapsible
+                onClick={() => setSideNavExpanded((expanded) => !expanded)}
+              />
+              <HeaderName as={Link} to="/dashboard" prefix="" className="app-header__brand">
+                <BrandMark kind="compact" className="app-header__logo" />
+                <span className="app-header__wordmark">
+                  <span>{branding.identity.legalOrganizationName}</span>
+                  <strong>{branding.identity.displayName}</strong>
+                </span>
+              </HeaderName>
+              <HeaderGlobalBar>
+                <span className="header-account__name">{displayName}</span>
+                <HeaderGlobalAction
+                  aria-label="Help"
+                  tooltipAlignment="end"
+                  data-guide="header-help"
+                  onClick={() => navigate('/help')}
+                >
+                  <Help size={20} />
+                </HeaderGlobalAction>
+                <NotificationAction
+                  expanded={notificationPanelOpen}
+                  actionRef={notificationActionRef}
+                  onToggle={() => {
+                    setProfilePanelOpen(false);
+                    setNotificationPanelOpen((open) => !open);
+                  }}
+                />
+                <HeaderGlobalAction
+                  aria-label={`${profilePanelOpen ? 'Close' : 'Open'} profile menu for ${displayName}`}
+                  data-guide="header-profile"
+                  tooltipAlignment="end"
+                  isActive={profilePanelOpen}
+                  ref={profileActionRef}
+                  onClick={() => {
+                    setNotificationPanelOpen(false);
+                    setProfilePanelOpen((open) => !open);
+                  }}
+                >
+                  {currentUser.person.profileImage ? (
+                    <PersonAvatar
+                      firstName={currentUser.person.firstName}
+                      lastName={currentUser.person.lastName}
+                      profileImage={currentUser.person.profileImage}
+                      size="sm"
+                      decorative
+                    />
+                  ) : (
+                    <UserAvatar size={20} />
+                  )}
+                </HeaderGlobalAction>
+              </HeaderGlobalBar>
+              <NotificationPanel
+                expanded={notificationPanelOpen}
+                actionRef={notificationActionRef}
+                onClose={() => setNotificationPanelOpen(false)}
+              />
+              <HeaderPanel
+                expanded={profilePanelOpen}
+                className="profile-panel"
+                ref={profilePanelRef}
+                onHeaderPanelFocus={() => {
+                  const restoreFocus = profilePanelRef.current?.contains(document.activeElement);
+                  setProfilePanelOpen(false);
+                  if (restoreFocus) {
+                    profileActionRef.current?.focus();
+                  }
                 }}
               >
-                {currentUser.person.profileImage ? (
-                  <PersonAvatar
-                    firstName={currentUser.person.firstName}
-                    lastName={currentUser.person.lastName}
-                    profileImage={currentUser.person.profileImage}
+                <Stack gap={5} className="profile-panel__content">
+                  <div>
+                    <p className="profile-panel__name">{displayName}</p>
+                    {(currentUser.person.email || currentUser.person.phone) && (
+                      <p className="profile-panel__email">{currentUser.person.email ?? currentUser.person.phone}</p>
+                    )}
+                  </div>
+                  <Tag type={currentUser.account.status === 'enabled' ? 'green' : 'gray'}>
+                    {currentUser.account.status === 'enabled' ? 'Active' : 'Inactive'}
+                  </Tag>
+                  <Button kind="ghost" size="sm" onClick={() => navigate('/profile')}>
+                    View profile
+                  </Button>
+                  <Button kind="ghost" size="sm" onClick={() => setColorScheme(dark ? 'light' : 'dark')}>
+                    {dark ? 'Use light theme' : 'Use dark theme'}
+                  </Button>
+                  <Button
+                    kind="ghost"
                     size="sm"
-                    decorative
-                  />
-                ) : (
-                  <UserAvatar size={20} />
-                )}
-              </HeaderGlobalAction>
-            </HeaderGlobalBar>
-            <NotificationPanel
-              expanded={notificationPanelOpen}
-              actionRef={notificationActionRef}
-              onClose={() => setNotificationPanelOpen(false)}
-            />
-            <HeaderPanel
-              expanded={profilePanelOpen}
-              className="profile-panel"
-              ref={profilePanelRef}
-              onHeaderPanelFocus={() => {
-                const restoreFocus = profilePanelRef.current?.contains(document.activeElement);
-                setProfilePanelOpen(false);
-                if (restoreFocus) {
-                  profileActionRef.current?.focus();
-                }
-              }}
-            >
-              <Stack gap={5} className="profile-panel__content">
-                <div>
-                  <p className="profile-panel__name">{displayName}</p>
-                  {(currentUser.person.email || currentUser.person.phone) && (
-                    <p className="profile-panel__email">{currentUser.person.email ?? currentUser.person.phone}</p>
+                    renderIcon={Logout}
+                    disabled={logoutMutation.isPending}
+                    onClick={() => logoutMutation.mutate()}
+                  >
+                    {logoutMutation.isPending
+                      ? 'Ending staff session…'
+                      : currentUser.session.postSessionDestination === 'visitor_terminal'
+                        ? 'Return to public kiosk'
+                        : 'Sign out'}
+                  </Button>
+                  {logoutMutation.isError && (
+                    <InlineNotification
+                      kind="error"
+                      lowContrast
+                      hideCloseButton
+                      title="Sign out failed"
+                      subtitle="Sign-out could not be confirmed. Check the connection and try again."
+                    />
                   )}
-                </div>
-                <Tag type={currentUser.account.status === 'enabled' ? 'green' : 'gray'}>
-                  {currentUser.account.status === 'enabled' ? 'Active' : 'Inactive'}
-                </Tag>
-                <Button kind="ghost" size="sm" onClick={() => navigate('/profile')}>
-                  View profile
-                </Button>
-                <Button kind="ghost" size="sm" onClick={() => setColorScheme(dark ? 'light' : 'dark')}>
-                  {dark ? 'Use light theme' : 'Use dark theme'}
-                </Button>
-                <Button
-                  kind="ghost"
-                  size="sm"
-                  renderIcon={Logout}
-                  disabled={logoutMutation.isPending}
-                  onClick={() => logoutMutation.mutate()}
-                >
-                  {logoutMutation.isPending
-                    ? 'Ending staff session…'
-                    : currentUser.session.postSessionDestination === 'visitor_terminal'
-                      ? 'Return to public kiosk'
-                      : 'Sign out'}
-                </Button>
-                {logoutMutation.isError && (
+                </Stack>
+              </HeaderPanel>
+              <SideNav
+                aria-label="Primary navigation"
+                data-guide="shell-nav"
+                expanded={sideNavExpanded}
+                isFixedNav
+                isPersistent={false}
+                onOverlayClick={() => setSideNavExpanded(false)}
+              >
+                <AppNavigation currentUser={currentUser} legal={branding.legal} onNavigate={handleNavigation} />
+              </SideNav>
+            </Header>
+          </Theme>
+
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className={`app-main${sideNavExpanded && !isNarrow ? ' app-main--nav-expanded' : ''}`}
+          >
+            <DemoBanner />
+            {currentUser.authentication.mfaRequired &&
+              currentUser.authentication.mfaEnrolled &&
+              currentUser.authentication.assurance !== 'strong_mfa' && (
+                <section className="lab-rules-warning" aria-label="Second factor confirmation">
                   <InlineNotification
-                    kind="error"
+                    kind="info"
                     lowContrast
                     hideCloseButton
-                    title="Sign out failed"
-                    subtitle="Sign-out could not be confirmed. Check the connection and try again."
+                    title="Some of your permissions need a second factor"
+                    subtitle="This session was signed in without one, so those permissions are unavailable until you confirm it's you."
                   />
-                )}
-              </Stack>
-            </HeaderPanel>
-            <SideNav
-              aria-label="Primary navigation"
-              expanded={sideNavExpanded}
-              isFixedNav
-              isPersistent={false}
-              onOverlayClick={() => setSideNavExpanded(false)}
-            >
-              <AppNavigation currentUser={currentUser} legal={branding.legal} onNavigate={handleNavigation} />
-            </SideNav>
-          </Header>
-        </Theme>
-
-        <main
-          id="main-content"
-          tabIndex={-1}
-          className={`app-main${sideNavExpanded && !isNarrow ? ' app-main--nav-expanded' : ''}`}
-        >
-          {currentUser.authentication.mfaRequired &&
-            currentUser.authentication.mfaEnrolled &&
-            currentUser.authentication.assurance !== 'strong_mfa' && (
-              <section className="lab-rules-warning" aria-label="Second factor confirmation">
-                <InlineNotification
-                  kind="info"
-                  lowContrast
-                  hideCloseButton
-                  title="Some of your permissions need a second factor"
-                  subtitle="This session was signed in without one, so those permissions are unavailable until you confirm it's you."
-                />
-                <div className="button-cluster">
-                  <Button kind="primary" size="sm" onClick={() => void confirmSecondFactor()}>
-                    Confirm with second factor
-                  </Button>
-                </div>
-              </section>
-            )}
-          <Suspense fallback={<FullPageLoading label="Loading page" />}>
-            <Outlet />
-          </Suspense>
-        </main>
-        {showLabRulesModal && (
-          <Suspense fallback={null}>
-            <LabRulesConfirmModal status={labRules} onLater={() => setLabRulesDeferred(true)} />
-          </Suspense>
-        )}
-      </div>
+                  <div className="button-cluster">
+                    <Button kind="primary" size="sm" onClick={() => void confirmSecondFactor()}>
+                      Confirm with second factor
+                    </Button>
+                  </div>
+                </section>
+              )}
+            <Suspense fallback={<FullPageLoading label="Loading page" />}>
+              <Outlet />
+            </Suspense>
+          </main>
+          {showLabRulesModal ? (
+            <Suspense fallback={null}>
+              <LabRulesConfirmModal status={labRules} onLater={() => setLabRulesDeferred(true)} />
+            </Suspense>
+          ) : (
+            <Suspense fallback={null}>
+              <GuideOffer />
+            </Suspense>
+          )}
+        </div>
+      </GuideProvider>
     </ToastProvider>
   );
 }

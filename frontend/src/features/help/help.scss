@@ -1,0 +1,70 @@
+@use '@carbon/styles/scss/spacing' as spacing;
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/type' as type;
+
+// Help center layout: equal-width guide cards in a responsive grid.
+.help-search {
+  max-inline-size: 32rem;
+}
+
+.help-section h2 {
+  @include type.type-style('productive-heading-04');
+
+  margin-block-end: spacing.$spacing-05;
+}
+
+.help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: spacing.$spacing-03;
+}
+
+.help-card {
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: spacing.$spacing-03;
+}
+
+.help-card h3 {
+  @include type.type-style('productive-heading-03');
+}
+
+.help-card p {
+  color: theme.$text-secondary;
+}
+
+.help-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: spacing.$spacing-02;
+}
+
+.help-card__action {
+  margin-block-start: auto;
+}
+
+.help-articles {
+  display: grid;
+  gap: spacing.$spacing-04;
+  margin-block-start: spacing.$spacing-05;
+  padding: 0;
+  list-style: none;
+}
+
+.help-articles p {
+  color: theme.$text-secondary;
+}
+
+.help-article {
+  max-inline-size: 48rem;
+}
+
+.help-article__guides {
+  display: flex;
+  flex-wrap: wrap;
+  gap: spacing.$spacing-03;
+  margin-block-start: spacing.$spacing-06;
+}

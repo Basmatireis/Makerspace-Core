@@ -1,0 +1,107 @@
+@use '@carbon/styles/scss/spacing' as spacing;
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/type' as type;
+
+// Glue for the guided-tour overlay. It sits above the header (8000) and below page modals (9000); while a page modal
+// is open the dim layer goes away and only a ring and the popover stay, above the modal.
+.guide-blocker {
+  position: fixed;
+  inset: 0;
+  z-index: 8500;
+}
+
+.guide-spotlight {
+  position: fixed;
+  z-index: 8500;
+  border-radius: 2px;
+  box-shadow: 0 0 0 100vmax theme.$overlay;
+  outline: 2px solid theme.$focus;
+  pointer-events: none;
+  transition:
+    top 150ms ease,
+    left 150ms ease,
+    width 150ms ease,
+    height 150ms ease;
+}
+
+.guide-spotlight--ring {
+  z-index: 9001;
+  box-shadow: none;
+}
+
+// The invisible box the popover attaches to; it follows the target's rectangle.
+.guide-anchor {
+  position: fixed;
+  pointer-events: none;
+}
+
+// The popover container takes no space; its content floats next to the anchor.
+.guide-popover.cds--popover-container {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 0;
+  block-size: 0;
+  pointer-events: none;
+}
+
+.guide-popover .cds--popover {
+  z-index: 8501;
+  pointer-events: auto;
+}
+
+.guide-popover--above-modal .cds--popover {
+  z-index: 9100;
+}
+
+.guide-popover__content {
+  inline-size: min(22rem, calc(100vw - #{spacing.$spacing-07}));
+}
+
+.guide-panel {
+  padding: spacing.$spacing-05;
+  outline: none;
+}
+
+.guide-panel__body {
+  display: grid;
+  gap: spacing.$spacing-04;
+}
+
+.guide-panel__title {
+  @include type.type-style('heading-03');
+}
+
+.guide-panel__hint {
+  color: theme.$text-secondary;
+  font-style: italic;
+}
+
+.guide-panel__progress {
+  @include type.type-style('helper-text-01');
+
+  color: theme.$text-secondary;
+}
+
+.guide-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: spacing.$spacing-03;
+}
+
+.guide-live {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-spotlight {
+    transition: none;
+  }
+}

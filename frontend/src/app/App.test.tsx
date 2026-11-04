@@ -30,6 +30,17 @@ describe('protected application routing', () => {
     );
   });
 
+  it('marks the shell regions the welcome tour points at and offers the help center', async () => {
+    server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture())));
+    renderRoute(<App />, '/dashboard');
+    await screen.findByRole('heading', { name: 'Dashboard' });
+    for (const target of ['shell-nav', 'header-help', 'header-notifications', 'header-profile']) {
+      expect(document.querySelector(`[data-guide="${target}"]`), target).not.toBeNull();
+    }
+    expect(screen.getByRole('button', { name: 'Help' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help');
+  });
+
   it.each([
     [PermissionId.oidcmanage, 'Single sign-on'],
     [PermissionId.mailmanage, 'Email delivery'],

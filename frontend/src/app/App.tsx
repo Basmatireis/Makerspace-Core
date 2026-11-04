@@ -22,6 +22,8 @@ import {
   EventsPage,
   ExternalInvoiceRedirect,
   FilamentSpoolDetailPage,
+  HelpArticlePage,
+  HelpPage,
   InventoryPage,
   InvitationPage,
   InvoicingSettingsPage,
@@ -707,6 +709,8 @@ export function App() {
                 </PermissionRoute>
               }
             />
+            <Route path="help" element={<HelpPage />} />
+            <Route path="help/:articleId" element={<HelpArticlePage />} />
             <Route path="about" element={<InformationPage title="About" />} />
             <Route path="settings/users/*" element={<LegacyRedirect from="/settings/users" to="/people" />} />
             <Route path="settings/activity" element={<LegacyRedirect from="/settings/activity" to="/audit-log" />} />

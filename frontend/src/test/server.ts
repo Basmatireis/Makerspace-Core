@@ -11,6 +11,10 @@ export const server = setupServer(
   ),
   // The header bell polls these on every page that renders the application shell.
   http.get('*/api/v1/notifications/unread-count', () => HttpResponse.json({ unreadCount: 0 })),
+  // The welcome tour offer asks for guide progress; by default it was already dismissed.
+  http.get('*/api/v1/me/guides', () =>
+    HttpResponse.json({ items: [{ guideId: 'welcome', status: 'dismissed', updatedAt: '2026-01-01T00:00:00Z' }] }),
+  ),
   http.get('*/api/v1/session-policies', () => HttpResponse.json({ items: [] })),
   http.get('*/api/v1/managed-device-types', () => HttpResponse.json({ items: [] })),
   http.get('*/api/v1/permissions', () => HttpResponse.json({ items: [] })),
