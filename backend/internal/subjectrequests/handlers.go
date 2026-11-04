@@ -265,6 +265,16 @@ func registerBuiltinHandlers(service *privacy.Service, fileService *files.Servic
 		},
 		outcome: privacy.OutcomeErased, note: "Deliveries to the account are deleted; the notifications themselves belong to their roles.",
 	})
+	register(privacycatalog.GuideProgress, builtin{
+		account: true,
+		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
+			return q.ExportGuideProgress(ctx, account(s))
+		},
+		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
+			return q.CountGuideProgress(ctx, account(s))
+		},
+		outcome: privacy.OutcomeErased, note: "Deleted with the account.",
+	})
 	register(privacycatalog.ActorReferences, builtin{
 		account: true,
 		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {

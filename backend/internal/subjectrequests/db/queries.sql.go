@@ -60,6 +60,17 @@ func (q *Queries) CountFinancialRecords(ctx context.Context, subjectPerson uuid.
 	return total, err
 }
 
+const countGuideProgress = `-- name: CountGuideProgress :one
+SELECT count(*)::bigint FROM account_guide_progress WHERE account_id = $1::uuid
+`
+
+func (q *Queries) CountGuideProgress(ctx context.Context, subjectAccount uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countGuideProgress, subjectAccount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countLabRulesConfirmations = `-- name: CountLabRulesConfirmations :one
 SELECT count(*)::bigint FROM laborordnung_confirmations WHERE person_id = $1::uuid
 `
@@ -391,6 +402,18 @@ SELECT jsonb_build_object(
 
 func (q *Queries) ExportFinancialRecords(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
 	row := q.db.QueryRow(ctx, exportFinancialRecords, subjectPerson)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportGuideProgress = `-- name: ExportGuideProgress :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object('guideId', guide_id, 'status', status, 'updatedAt', updated_at) ORDER BY guide_id), '[]'::jsonb)::jsonb AS document
+FROM account_guide_progress WHERE account_id = $1::uuid
+`
+
+func (q *Queries) ExportGuideProgress(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportGuideProgress, subjectAccount)
 	var document []byte
 	err := row.Scan(&document)
 	return document, err

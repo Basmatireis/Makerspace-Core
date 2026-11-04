@@ -327,6 +327,13 @@ FROM inbox_recipients r JOIN inbox_notifications n ON n.id = r.notification_id W
 -- name: CountNotifications :one
 SELECT count(*)::bigint FROM inbox_recipients WHERE account_id = sqlc.arg(subject_account)::uuid;
 
+-- name: ExportGuideProgress :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object('guideId', guide_id, 'status', status, 'updatedAt', updated_at) ORDER BY guide_id), '[]'::jsonb)::jsonb AS document
+FROM account_guide_progress WHERE account_id = sqlc.arg(subject_account)::uuid;
+
+-- name: CountGuideProgress :one
+SELECT count(*)::bigint FROM account_guide_progress WHERE account_id = sqlc.arg(subject_account)::uuid;
+
 -- name: ExportActorReferences :one
 -- Counts of records that name the account as the acting staff member (no content, the records belong to others).
 SELECT jsonb_build_object(
