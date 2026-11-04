@@ -307,12 +307,13 @@ describe('pricing page', () => {
       PermissionId.machinesread,
       PermissionId.inventoryread,
     ]);
-    let update: Record<string, unknown> | undefined;
+    let removed: unknown;
     server.use(
-      http.patch('*/api/v1/pricing-rules/rule-3', async ({ request }) => {
-        update = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ ...group.rules[2], ...update });
+      http.delete('*/api/v1/pricing-rules/rule-3', async ({ request }) => {
+        removed = await request.json();
+        return new HttpResponse(null, { status: 204 });
       }),
+      http.patch('*/api/v1/pricing-rules/rule-3', () => HttpResponse.json({}, { status: 500 })),
     );
     const user = userEvent.setup();
     renderRoute(<App />, '/pricing');
@@ -327,14 +328,7 @@ describe('pricing page', () => {
     await user.click(within(insert).getByRole('button', { name: /for A-0001 · Brass insert in Partners/ }));
     await user.clear(await screen.findByLabelText(/^Rate for A-0001 · Brass insert in Partners/));
     await user.click(screen.getByRole('button', { name: 'Remove price' }));
-    await waitFor(() =>
-      expect(update).toMatchObject({
-        kind: 'stock_article',
-        materialId: 'art-insert',
-        active: false,
-        expectedVersion: 4,
-      }),
-    );
+    await waitFor(() => expect(removed).toEqual({ expectedVersion: 4 }));
   });
 
   describe('variants', () => {
@@ -407,14 +401,15 @@ describe('pricing page', () => {
       );
     });
 
-    it('removes a variant rate by deactivating it so the variant inherits again', async () => {
+    it('removes a variant rate by deleting it so the variant inherits again', async () => {
       configure(manage, withTypeRate);
-      let update: Record<string, unknown> | undefined;
+      let removed: unknown;
       server.use(
-        http.patch('*/api/v1/pricing-rules/rule-5', async ({ request }) => {
-          update = (await request.json()) as Record<string, unknown>;
-          return HttpResponse.json({ ...group.rules[3], ...update });
+        http.delete('*/api/v1/pricing-rules/rule-5', async ({ request }) => {
+          removed = await request.json();
+          return new HttpResponse(null, { status: 204 });
         }),
+        http.patch('*/api/v1/pricing-rules/rule-5', () => HttpResponse.json({}, { status: 500 })),
       );
       const user = userEvent.setup();
       renderRoute(<App />, '/pricing');
@@ -423,15 +418,7 @@ describe('pricing page', () => {
       await user.click(within(table).getByRole('button', { name: /for PLA · Silk in Partners/ }));
       await user.clear(await screen.findByLabelText(/^Rate for PLA · Silk in Partners/));
       await user.click(screen.getByRole('button', { name: 'Remove variant rate' }));
-      await waitFor(() =>
-        expect(update).toMatchObject({
-          kind: 'material',
-          materialTypeId: 'mat-pla',
-          materialTypeVariantId: 'var-silk',
-          active: false,
-          expectedVersion: 5,
-        }),
-      );
+      await waitFor(() => expect(removed).toEqual({ expectedVersion: 5 }));
     });
 
     it('does not count variants as missing rates', async () => {

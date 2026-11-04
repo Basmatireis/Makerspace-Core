@@ -677,8 +677,8 @@ func ensureKindChangeAllowed(ctx context.Context, q *machinelogbookdb.Queries, i
 	return nil
 }
 
-// DeleteMaterialType hard-deletes a type that no material or pricing rule uses.
-// Referenced types answer 409 material_type_in_use; deactivate those instead.
+// DeleteMaterialType hard-deletes a type together with its variants and pricing rules (active or not). Only
+// materials, deleted ones included, block it: 409 material_type_in_use; deactivate the type instead.
 func (s *Service) DeleteMaterialType(
 	ctx context.Context,
 	p authorization.Principal,
@@ -717,15 +717,24 @@ func (s *Service) DeleteMaterialTypeTx(
 	if current.Version != expected {
 		return apperror.StaleWrite
 	}
-	referenced, err := q.MaterialTypeIsReferenced(ctx, id)
+	hasMaterials, err := q.MaterialTypeHasMaterials(ctx, id)
 	if err != nil {
 		return err
 	}
-	if referenced {
+	if hasMaterials {
 		return apperror.Conflicting(
 			"material_type_in_use",
-			"Materials or pricing rules use this material type and it cannot be deleted; deactivate it instead",
+			"Materials use this material type and it cannot be deleted; deactivate it instead",
 		)
+	}
+	variants, err := q.CountMaterialTypeVariants(ctx, id)
+	if err != nil {
+		return err
+	}
+	// Pricing rules point at the type and its variants (RESTRICT), so they go first; snapshots keep their rate.
+	rules, err := q.DeletePricingRulesOfMaterialType(ctx, &id)
+	if err != nil {
+		return databaseError(err)
 	}
 	rows, err := q.DeleteMaterialType(ctx, machinelogbookdb.DeleteMaterialTypeParams{ID: id, ExpectedVersion: expected})
 	if err != nil {
@@ -734,10 +743,13 @@ func (s *Service) DeleteMaterialTypeTx(
 	if rows == 0 {
 		return apperror.StaleWrite
 	}
-	if err = writeAudit(ctx, tx, p, "material_type.deleted", "material_type", id, requestID, nil); err != nil {
-		return err
-	}
-	return nil
+	return writeAuditWithMetadata(
+		ctx, tx, p, "material_type.deleted", "material_type", id, requestID, nil,
+		map[string]any{
+			"countPricingRulesRemoved": strconv.FormatInt(rules, 10),
+			"countVariantsRemoved":     strconv.FormatInt(variants, 10),
+		},
+	)
 }
 
 // resolveMaterialType loads the type a material or pricing rule points at and

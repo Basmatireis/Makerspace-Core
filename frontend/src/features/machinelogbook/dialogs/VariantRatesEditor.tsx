@@ -15,8 +15,10 @@ import {
 import { Checkmark, Close } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createPricingRule, updatePricingRule } from '../../../api/generated/pricing/pricing';
+import { createPricingRule, deletePricingRule, updatePricingRule } from '../../../api/generated/pricing/pricing';
 import type { MaterialType, MaterialUnit, PricingGroup, PricingRule } from '../../../api/generated/models';
+import { ApiError } from '../../../api/http-client';
+import { useNotify } from '../shared/toasts';
 import { parseDecimalInput } from '../../orders/money';
 import { unitText } from '../processConfig';
 import { machineLogbookKeys, pricingQuery } from '../queries';
@@ -43,6 +45,7 @@ type Cell = { groupId: string; variantId: string | null };
 export function VariantRatesEditor({ type }: { type: MaterialType }) {
   const can = useCan();
   const client = useQueryClient();
+  const notify = useNotify();
   const pricing = useQuery({ ...pricingQuery(), enabled: can('pricing.read') });
   const canManage = can('pricing.manage');
   const [editing, setEditing] = useState<Cell | null>(null);
@@ -59,16 +62,27 @@ export function VariantRatesEditor({ type }: { type: MaterialType }) {
     }: Cell & { group: PricingGroup; rate: string | null; clear: boolean }) => {
       const rule = ruleOf(group, type.id, variantId);
       const target = { kind: 'material' as const, materialTypeId: type.id, materialTypeVariantId: variantId };
+      if (rule && clear) {
+        try {
+          await deletePricingRule(rule.id, { expectedVersion: rule.version });
+        } catch (error) {
+          if (error instanceof ApiError && error.data?.code === 'stale_write')
+            throw new Error('The rate changed meanwhile. Reload and try again.', { cause: error });
+          throw error;
+        }
+        return;
+      }
       if (rule)
         return updatePricingRule(rule.id, {
           ...target,
-          rate: clear ? rule.rate : (rate as string),
-          active: !clear,
+          rate: rate as string,
+          active: rule.active,
           expectedVersion: rule.version,
         });
       return createPricingRule(group.id, { ...target, rate: rate as string });
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      if (variables.clear) notify({ kind: 'success', title: 'Rate removed' });
       setEditing(null);
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
     },

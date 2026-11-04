@@ -2,11 +2,23 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
-## Unreleased
+## [Unreleased]
+
+### Upgrade notes
+
+- **API.** New `DELETE /pricing-rules/{pricingRuleId}` (`pricing.manage`, body `VersionRequest`, 204; 404, 409 `stale_write`), audited as `pricing_rule.deleted`. `DELETE /material-types/{materialTypeId}` now deletes the type together with its variants and all its pricing rules; it answers 409 `material_type_in_use` only while a material (deleted ones included) uses the type, no longer because of pricing rules. The audit event `material_type.deleted` carries `countPricingRulesRemoved` and `countVariantsRemoved`. No migration.
 
 ### Added
 
-- **Filament booked per spool when a spool runs out mid-print.** When a print continues from another spool (the same slot refilled, an AMS backup slot, a spool of another colour), the connector splits the consumption line into segments by G-code layer, or by progress when no G-code split is possible, and Core books each segment on the spool that was in the slot when it started, with that spool's article and price. New table `machine_run_reported_usage_segments` (migration 00106); `MachineRunReportedUsageItem.segments`, `MachineRun.materialChangedDuringRun`, the consumption reasons `segment_without_spool` and `segment_quantity_unavailable`, and the spool attention `ran_out_during_run`. The run page lists a line's spools with grams and start, tags a segment without spool, offers staff to book it through the material correction, and says when the material changed during the print. A spool that ran out is flagged on its page and panel with Weigh and Retire at hand until it is weighed, retired or remounted. Update the printer connector together with Core to get segments.
+- **Filament booked per spool when a spool runs out mid-print.** When a print continues from another spool (the same slot refilled, an AMS backup slot, a spool of another colour), the connector splits the consumption line into segments by G-code layer, or by progress when no G-code split is possible, and Core books each segment on the spool that was in the slot when it started, with that spool's article and price. New table `machine_run_reported_usage_segments` (migration 00105); `MachineRunReportedUsageItem.segments`, `MachineRun.materialChangedDuringRun`, the consumption reasons `segment_without_spool` and `segment_quantity_unavailable`, and the spool attention `ran_out_during_run`. The run page lists a line's spools with grams and start, tags a segment without spool, offers staff to book it through the material correction, and says when the material changed during the print. A spool that ran out is flagged on its page and panel with Weigh and Retire at hand until it is weighed, retired or remounted. Update the printer connector together with Core to get segments.
+
+### Changed
+
+- **Prices and categories can be deleted.** A pricing rule can be deleted outright; stored job snapshots keep their rate. A material type with variants or pricing rules but no articles can be deleted, which removes its variants and rules; articles (deleted ones too) still block it. The configuration import's overwrite mode deletes such types instead of deactivating them.
+
+### Fixed
+
+- **Weighing a spool that holds more than recorded no longer fails** with "acquisitionUnitCost is required without an average cost". The found filament is valued at the spool's own purchase price, else the article's average cost, else 0 for existing stock whose price is unknown.
 
 ## [0.15.0] - 2026-11-03
 

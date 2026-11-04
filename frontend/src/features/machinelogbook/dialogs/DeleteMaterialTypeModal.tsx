@@ -32,6 +32,12 @@ export function DeleteMaterialTypeModal({
   const code = remove.error instanceof ApiError ? remove.error.data?.code : undefined;
   const inUse = code === 'material_type_in_use';
   const noun = typeNounLower(materialType.kind);
+  const variants = materialType.variants.length;
+  const rules = materialType.pricingRuleCount;
+  const goesWith = [
+    rules > 0 ? `${rules} ${rules === 1 ? 'price rule' : 'price rules'}` : '',
+    variants > 0 ? `${variants} ${variants === 1 ? 'variant' : 'variants'}` : '',
+  ].filter(Boolean);
   return (
     <Modal
       open
@@ -55,13 +61,16 @@ export function DeleteMaterialTypeModal({
       }}
     >
       <p>{materialType.name} will be deleted permanently. This cannot be undone.</p>
+      {goesWith.length > 0 && (
+        <p>{`Its ${goesWith.join(' and ')} ${rules + variants === 1 ? 'is' : 'are'} deleted with it.`}</p>
+      )}
       {inUse && (
         <InlineNotification
           kind="error"
           lowContrast
           hideCloseButton
           title="In use"
-          subtitle="Articles or pricing rules use it, so it cannot be deleted. Deactivate it instead to stop using it for new articles."
+          subtitle="Articles use it, so it cannot be deleted. Deactivate it instead to stop using it for new articles."
         />
       )}
       {remove.isError && !inUse && (

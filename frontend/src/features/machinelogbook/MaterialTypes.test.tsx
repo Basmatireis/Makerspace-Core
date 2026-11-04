@@ -275,6 +275,60 @@ describe('Types and categories', () => {
   });
 });
 
+describe('Deleting a type', () => {
+  const user0 = () => userEvent.setup();
+
+  async function openDelete(row: string, heading: string, name: string) {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    serveTypes([
+      {
+        ...pla,
+        materialCount: 0,
+        variants: [{ id: 'v1', materialTypeId: pla.id, name: 'Matte', materialCount: 0, pricingRuleCount: 1 }],
+      },
+      fasteners,
+    ]);
+    const user = user0();
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    const table = await openTypes(user);
+    await user.click(await within(table).findByRole('button', { name: row }));
+    const dialog = await screen.findByRole('dialog', { name: heading });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    return { user, name };
+  }
+
+  it('deletes a type that has pricing rules but no articles and names what goes with it', async () => {
+    let deleted = false;
+    server.use(
+      http.delete(`*/api/v1/material-types/${pla.id}`, () => {
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { user } = await openDelete('PLA', 'Edit material type', 'PLA');
+    await screen.findByText('Delete this material type?');
+    expect(screen.getByText('Its 2 price rules and 1 variant are deleted with it.')).toBeInTheDocument();
+    const confirm = screen.getByRole('button', { name: 'Delete material type' });
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    await waitFor(() => expect(deleted).toBe(true));
+  });
+
+  it('keeps refusing a type that still has articles', async () => {
+    server.use(
+      http.delete(`*/api/v1/material-types/${fasteners.id}`, () =>
+        HttpResponse.json({ code: 'material_type_in_use', message: 'in use' }, { status: 409 }),
+      ),
+    );
+    const { user } = await openDelete('Fasteners', 'Edit category', 'Fasteners');
+    await screen.findByText('Delete this category?');
+    expect(screen.queryByText(/deleted with it/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Delete category' }));
+    expect(await screen.findByText('In use')).toBeInTheDocument();
+    expect(screen.getByText(/Articles use it/)).toBeInTheDocument();
+  });
+});
+
 describe('Variants of a type', () => {
   const variantOf = (n: number, name: string, materialCount = 0, pricingRuleCount = 0) => ({
     id: `0192f6f8-743e-7c77-a349-cd07c3e8f9${String(n).padStart(2, '0')}`,
@@ -440,6 +494,40 @@ describe('Variants of a type', () => {
         rate: '0.06',
       }),
     );
+  });
+
+  it('deletes the rule of a variant when its rate is cleared', async () => {
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventorymanage,
+      PermissionId.pricingread,
+      PermissionId.pricingmanage,
+    ];
+    serveTypes();
+    const ownId = '0192f6f8-743e-7c77-a349-cd07c3e8fb02';
+    server.use(
+      http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants: [basic, matte] }] })),
+      http.get('*/api/v1/pricing-groups', () =>
+        HttpResponse.json({
+          items: [
+            group([rule({}), rule({ id: ownId, materialTypeVariantId: basic.id, rate: '0.050000', version: 4 })]),
+          ],
+        }),
+      ),
+    );
+    let deleted: unknown;
+    server.use(
+      http.delete(`*/api/v1/pricing-rules/${ownId}`, async ({ request }) => {
+        deleted = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.patch(`*/api/v1/pricing-rules/${ownId}`, () => HttpResponse.json({}, { status: 500 })),
+    );
+    const user = userEvent.setup();
+    const dialog = await openPla(user);
+    const rates = await within(dialog).findByRole('table', { name: 'Rates of PLA per variant' });
+    await user.click(within(rates).getByLabelText('Clear rate for Basic in Partner', { selector: 'button' }));
+    await waitFor(() => expect(deleted).toEqual({ expectedVersion: 4 }));
   });
 
   it('explains where to create a pricing group when none exists', async () => {

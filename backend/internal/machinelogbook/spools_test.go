@@ -539,3 +539,62 @@ func TestStockArticlePricesPerGroup(t *testing.T) {
 		t.Fatalf("inactive stock price must fall back to the type rate: %+v", price)
 	}
 }
+
+func TestSpoolCorrectionValuesFoundFilamentAtTheSpoolCost(t *testing.T) {
+	f := newSpoolFixture(t)
+	ctx := t.Context()
+	correct := func(spool FilamentSpool, physical string, cost *string) string {
+		t.Helper()
+		fresh := f.get(t, spool.ID)
+		if _, err := f.s.CorrectFilamentSpoolStock(ctx, f.p, spool.ID, f.refresh(t, spool.MaterialID).InventoryVersion,
+			fresh.Version, physical, cost, f.now, "inventory_count", nil, &f.request); err != nil {
+			t.Fatal(err)
+		}
+		var unitCost string
+		if err := f.pool.QueryRow(ctx, `SELECT unit_acquisition_cost::numeric::float8::text FROM inventory_transactions
+			WHERE spool_id = $1 AND kind = 'adjustment' ORDER BY created_at DESC, id DESC LIMIT 1`, spool.ID).Scan(&unitCost); err != nil {
+			t.Fatal(err)
+		}
+		return unitCost
+	}
+
+	// Existing stock without a known purchase price is booked at 0 instead of being refused.
+	free := f.material(t, "")
+	if _, err := f.s.AddPurchase(ctx, f.p, free.ID, free.InventoryVersion, "1000", "0", f.now, nil, nil, nil, &f.request); err != nil {
+		t.Fatal(err)
+	}
+	legacy := f.spool(t, free, "1000")
+	if got := correct(legacy, "1047", nil); got != "0" {
+		t.Fatalf("legacy spool unit cost = %s, want 0", got)
+	}
+
+	// A bought spool keeps its own price although the material average differs.
+	priced := f.material(t, "1000")
+	total := "25"
+	bought, err := f.s.CreateFilamentSpool(ctx, f.p, FilamentSpoolInput{
+		MaterialID:               priced.ID,
+		InitialNetWeightG:        "1000",
+		StockMode:                StockModeNewAcquisition,
+		TotalPrice:               &total,
+		OccurredAt:               f.now,
+		ExpectedInventoryVersion: f.refresh(t, priced.ID).InventoryVersion,
+	}, &f.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := correct(bought, "1100", nil); got != "0.025" {
+		t.Fatalf("bought spool unit cost = %s, want 0.025", got)
+	}
+
+	// Existing stock of a priced material falls back to the material average.
+	stocked := f.spool(t, priced, "500")
+	if got := correct(stocked, "550", nil); got == "0" || got == "0.025" {
+		t.Fatalf("existing-stock spool unit cost = %s, want the material average", got)
+	}
+
+	// An explicit cost, including 0, wins.
+	zero := "0"
+	if got := correct(bought, "1150", &zero); got != "0" {
+		t.Fatalf("explicit unit cost = %s, want 0", got)
+	}
+}

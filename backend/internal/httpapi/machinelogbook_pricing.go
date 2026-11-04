@@ -345,3 +345,22 @@ func priceQuoteDTO(quote machinelogbook.PriceQuote) openapi.PriceQuote {
 	}
 	return dto
 }
+
+func (s *Server) DeletePricingRule(
+	ctx context.Context,
+	r openapi.DeletePricingRuleRequestObject,
+) (openapi.DeletePricingRuleResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err = s.machineLogbook.DeletePricingRule(
+		ctx, p, r.PricingRuleId, r.Body.ExpectedVersion, requestIDPointer(ctx),
+	); err != nil {
+		return nil, err
+	}
+	return openapi.DeletePricingRule204Response{}, nil
+}

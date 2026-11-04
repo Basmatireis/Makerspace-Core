@@ -954,3 +954,41 @@ func (s *Service) SetRolePricingGroupsTx(
 	}
 	return items, nil
 }
+
+// DeletePricingRule removes a rule for good, whatever its state. Pricing snapshots keep their copied rate; only
+// their source pointer is cleared (ON DELETE SET NULL).
+func (s *Service) DeletePricingRule(
+	ctx context.Context,
+	p authorization.Principal,
+	id uuid.UUID,
+	expected int64,
+	requestID *uuid.UUID,
+) error {
+	if err := require(p, authorization.PricingManage); err != nil {
+		return err
+	}
+	if expected < 1 {
+		return apperror.Invalid("expectedVersion must be positive")
+	}
+	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		q := machinelogbookdb.New(tx)
+		current, err := q.GetPricingRuleForUpdate(ctx, id)
+		if err != nil {
+			return noRows(err)
+		}
+		if current.Version != expected {
+			return apperror.StaleWrite
+		}
+		rows, err := q.DeletePricingRule(ctx, machinelogbookdb.DeletePricingRuleParams{ID: id, ExpectedVersion: expected})
+		if err != nil {
+			return databaseError(err)
+		}
+		if rows == 0 {
+			return apperror.StaleWrite
+		}
+		return writeAudit(
+			ctx, tx, p, "pricing_rule.deleted", "pricing_rule", id, requestID,
+			[]string{"kind", "selector", "measure", "rate", "active"},
+		)
+	})
+}

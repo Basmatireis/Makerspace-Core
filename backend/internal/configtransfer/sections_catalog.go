@@ -394,13 +394,13 @@ func applyMaterialTypes(r *run, items *[]materialTypeEntry) (func() error, error
 				continue
 			}
 			if !row.Active {
-				r.keep(row.Name, "Articles or pricing rules use this material type; it stays inactive.")
+				r.keep(row.Name, "Articles use this material type; it stays inactive.")
 				continue
 			}
 			if _, err := r.attempt(
 				row.Name,
 				ActionDeactivate,
-				"Articles or pricing rules use this material type.",
+				"Articles use this material type.",
 				func(tx pgx.Tx) error {
 					_, err := r.svc.MachineLogbook.UpdateMaterialTypeTx(
 						r.ctx, tx, r.p, row.ID, row.Version, row.Name, machinelogbook.MaterialKind(row.Kind), row.Unit,

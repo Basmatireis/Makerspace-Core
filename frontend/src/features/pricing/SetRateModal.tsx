@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { InlineNotification, Modal, Stack, TextInput } from '@carbon/react';
 import { useMutation } from '@tanstack/react-query';
-import { createPricingRule, updatePricingRule } from '../../api/generated/pricing/pricing';
+import { createPricingRule, deletePricingRule, updatePricingRule } from '../../api/generated/pricing/pricing';
 import type { PricingGroup } from '../../api/generated/models';
+import { ApiError } from '../../api/http-client';
+import { useNotify } from '../../app/toasts';
 import { parseDecimalInput } from '../orders/money';
 import { rateText, useRefresh } from './pricingShared';
 import { fallbackOf, inheritedOf, ruleOf, selectorName, type RateSelector } from './selectors';
 
 /**
  * Sets the rate of one row for one pricing group: creates the rule, changes its rate, or, for an article, removes its
- * own price when the field is emptied (the rule is deactivated, so the article falls back to its type rate or is no
+ * own price when the field is emptied (the rule is deleted, so the article falls back to its type rate or is no
  * longer sold to that group).
  */
 export function SetRateModal({
@@ -22,6 +24,7 @@ export function SetRateModal({
   onClose: () => void;
 }) {
   const refresh = useRefresh();
+  const notify = useNotify();
   const rule = ruleOf(group, selector);
   const article = selector.kind === 'stock_article';
   const variant = !!selector.materialTypeVariantId;
@@ -31,7 +34,17 @@ export function SetRateModal({
   const parsed = parseDecimalInput(text);
   const removing = (article || variant) && !!rule && text.trim() === '';
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
+      if (rule && removing) {
+        try {
+          await deletePricingRule(rule.id, { expectedVersion: rule.version });
+        } catch (error) {
+          if (error instanceof ApiError && error.data?.code === 'stale_write')
+            throw new Error('The rate changed meanwhile. Reload and try again.', { cause: error });
+          throw error;
+        }
+        return;
+      }
       const target = {
         kind: selector.kind,
         processId: selector.processId ?? null,
@@ -44,14 +57,15 @@ export function SetRateModal({
       if (rule)
         return updatePricingRule(rule.id, {
           ...target,
-          rate: removing ? rule.rate : parsed!,
-          active: !removing,
+          rate: parsed!,
+          active: rule.active,
           expectedVersion: rule.version,
         });
       return createPricingRule(group.id, { ...target, rate: parsed! });
     },
     onSuccess: async () => {
       await refresh();
+      if (removing) notify({ kind: 'success', title: 'Rate removed', subtitle: name });
       onClose();
     },
   });
