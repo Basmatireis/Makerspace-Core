@@ -314,6 +314,30 @@ describe('Spool page', () => {
     );
   });
 
+  it('suggests weighing or retiring a spool that ran out during a print, by permission', async () => {
+    const ranOut = spool({
+      id: invId(31),
+      mounted: false,
+      mountedOn: null,
+      attention: [{ code: 'ran_out_during_run', message: 'Ran out during RN-2026-000007 · Core still holds 12 g' }],
+    });
+    auth.permissions = MANAGE;
+    serve();
+    const user = userEvent.setup();
+    const view = renderPage(ranOut);
+    const notice = await screen.findByText(/Core still holds 12 g/);
+    const banner = notice.closest('[role="status"]') as HTMLElement;
+    expect(within(banner).getByRole('button', { name: 'Weigh' })).toBeInTheDocument();
+    await user.click(within(banner).getByRole('button', { name: 'Retire' }));
+    expect(await screen.findByRole('alertdialog', { name: /Retire/ })).toBeInTheDocument();
+    view.unmount();
+
+    auth.permissions = READ;
+    renderPage(ranOut);
+    const readOnly = (await screen.findByText(/Core still holds 12 g/)).closest('[role="status"]') as HTMLElement;
+    expect(within(readOnly).queryByRole('button')).not.toBeInTheDocument();
+  });
+
   it('offers Restore and Delete permanently for a retired spool', async () => {
     auth.permissions = MANAGE;
     serve();

@@ -1465,7 +1465,7 @@ func (q *Queries) InsertObservedRun(ctx context.Context, arg InsertObservedRunPa
 	return i, err
 }
 
-const insertReportedUsageItem = `-- name: InsertReportedUsageItem :exec
+const insertReportedUsageItem = `-- name: InsertReportedUsageItem :execrows
 INSERT INTO machine_run_reported_usage_items (
     id, run_id, source_printer_event_id, report_revision, line_number,
     slicer_filament_id, extruder, input_unit_external_id, slot_external_id,
@@ -1499,8 +1499,8 @@ type InsertReportedUsageItemParams struct {
 	Quality              string
 }
 
-func (q *Queries) InsertReportedUsageItem(ctx context.Context, arg InsertReportedUsageItemParams) error {
-	_, err := q.db.Exec(ctx, insertReportedUsageItem,
+func (q *Queries) InsertReportedUsageItem(ctx context.Context, arg InsertReportedUsageItemParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertReportedUsageItem,
 		arg.ID,
 		arg.RunID,
 		arg.SourcePrinterEventID,
@@ -1518,6 +1518,48 @@ func (q *Queries) InsertReportedUsageItem(ctx context.Context, arg InsertReporte
 		arg.Method,
 		arg.CalculationVersion,
 		arg.Quality,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const insertReportedUsageSegment = `-- name: InsertReportedUsageSegment :exec
+INSERT INTO machine_run_reported_usage_segments (
+    id, item_id, segment_index, input_unit_external_id, slot_external_id, started_at, start_layer,
+    estimated_quantity_g, split, spool_id
+) VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8, $9, $10
+)
+`
+
+type InsertReportedUsageSegmentParams struct {
+	ID                  uuid.UUID
+	ItemID              uuid.UUID
+	SegmentIndex        int32
+	InputUnitExternalID *string
+	SlotExternalID      *string
+	StartedAt           time.Time
+	StartLayer          *int32
+	EstimatedQuantityG  pgtype.Numeric
+	Split               *string
+	SpoolID             *uuid.UUID
+}
+
+func (q *Queries) InsertReportedUsageSegment(ctx context.Context, arg InsertReportedUsageSegmentParams) error {
+	_, err := q.db.Exec(ctx, insertReportedUsageSegment,
+		arg.ID,
+		arg.ItemID,
+		arg.SegmentIndex,
+		arg.InputUnitExternalID,
+		arg.SlotExternalID,
+		arg.StartedAt,
+		arg.StartLayer,
+		arg.EstimatedQuantityG,
+		arg.Split,
+		arg.SpoolID,
 	)
 	return err
 }

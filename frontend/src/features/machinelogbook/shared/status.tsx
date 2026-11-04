@@ -189,6 +189,9 @@ export function runConsumptionText(run: Pick<MachineRun, 'usages' | 'measures'>)
   return consumptionSummary(sumUsages(run.usages), run.measures) ?? 'None recorded';
 }
 
+/** A line fed by several spools is booked per segment and never maps to one usage or needs one spool. */
+export const hasSegments = (item: Pick<MachineRunReportedUsageItem, 'segments'>) => (item.segments?.length ?? 0) > 0;
+
 function reportUsageMatches(run: Pick<MachineRun, 'reportedUsageItems' | 'usages'>) {
   const matches = new Map<number, MachineJobUsage>();
   const claimedUsageIDs = new Set<string>();
@@ -198,7 +201,7 @@ function reportUsageMatches(run: Pick<MachineRun, 'reportedUsageItems' | 'usages
   // A connector-resolved spool is authoritative. Match those first so a
   // staff correction with the same quantity cannot claim the wrong line.
   for (const item of reportedUsageItems) {
-    if (!item.spoolId) continue;
+    if (!item.spoolId || hasSegments(item)) continue;
     const usage = usages.find((candidate) => candidate.spoolId === item.spoolId && !claimedUsageIDs.has(candidate.id));
     if (usage) {
       matches.set(item.lineNumber, usage);
@@ -210,7 +213,7 @@ function reportUsageMatches(run: Pick<MachineRun, 'reportedUsageItems' | 'usages
   // as resolved only when exactly one correction has its exact quantity (and
   // material, when the connector knew it).
   for (const item of reportedUsageItems) {
-    if (matches.has(item.lineNumber)) continue;
+    if (matches.has(item.lineNumber) || hasSegments(item)) continue;
     const quantity = item.estimatedQuantityGrams ?? item.plannedQuantityGrams;
     if (quantity == null) continue;
     const candidates = usages.filter(
@@ -236,7 +239,7 @@ export function unresolvedReportedUsageItems(
   const reportedUsageItems = Array.isArray(run.reportedUsageItems) ? run.reportedUsageItems : [];
   return reportedUsageItems.filter((item) => {
     const quantity = item.estimatedQuantityGrams ?? item.plannedQuantityGrams;
-    return quantity != null && Number(quantity) > 0 && !matches.has(item.lineNumber);
+    return quantity != null && Number(quantity) > 0 && !matches.has(item.lineNumber) && !hasSegments(item);
   });
 }
 
@@ -251,6 +254,7 @@ export function reportedUsageText(
         const quantity = item.estimatedQuantityGrams ?? item.plannedQuantityGrams;
         const prefix = quantity == null ? 'Unknown quantity' : `${formatQuantity(quantity)} g`;
         const usage = matches.get(item.lineNumber);
+        if (hasSegments(item)) return `${prefix} on ${item.segments!.length} spools`;
         if (usage) {
           return `${prefix} ${usage.materialName}${usage.spoolDisplayId ? ` (${usage.spoolDisplayId})` : ''}${!item.spoolId ? ' · mapped by staff' : ''}`;
         }

@@ -3,6 +3,7 @@ package machinelogbook
 import (
 	"context"
 	"errors"
+	"sort"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/shopspring/decimal"
 )
 
 // RecordedRunEvent tells the logbook that a machine connector changed a
@@ -228,29 +230,40 @@ func (s *Service) consumeItemizedReportedUsage(
 	if provenance.StaffUsage || provenance.ReportApplied || (provenance.AnyUsage && !provenance.ActiveMachineUsage) {
 		return false, nil
 	}
+	segmentRows, err := q.ListLatestReportedUsageSegmentsForRuns(ctx, []uuid.UUID{run.ID})
+	if err != nil {
+		return false, err
+	}
+	segments := segmentsFromRows(segmentRows)
 	parsed := make([]parsedUsage, 0, len(items))
-	for _, item := range items {
-		if item.SourcePrinterEventID != eventID || item.SpoolID == nil || !item.EstimatedQuantityG.Valid ||
-			EstimateQuality(item.Quality) == EstimateQualityUnresolved {
-			continue
+	bySpool := map[uuid.UUID]int{}
+	book := func(item machinelogbookdb.MachineRunReportedUsageItem, spoolID *uuid.UUID, quantity decimal.Decimal) error {
+		if spoolID == nil || !quantity.IsPositive() {
+			return nil
 		}
-		quantity := decimalFromNumeric(item.EstimatedQuantityG)
-		if !quantity.IsPositive() {
-			continue
+		spool, err := q.GetFilamentSpool(ctx, *spoolID)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && (SpoolLifecycle(spool.Lifecycle) != SpoolActive || spool.MaterialDeletedAt.Valid)) {
+			return nil
 		}
-		spool, spoolErr := q.GetFilamentSpool(ctx, *item.SpoolID)
-		if errors.Is(spoolErr, pgx.ErrNoRows) || (spoolErr == nil && (SpoolLifecycle(spool.Lifecycle) != SpoolActive || spool.MaterialDeletedAt.Valid)) {
-			continue
+		if err != nil {
+			return err
 		}
-		if spoolErr != nil {
-			return false, spoolErr
+		// Lines or segments that drew from the same spool are one usage: a run holds one active usage per spool.
+		if index, seen := bySpool[*spoolID]; seen {
+			parsed[index].Quantity = parsed[index].Quantity.Add(quantity)
+			if estimateQualityRank(item.Quality) < estimateQualityRank(*parsed[index].EstimateQuality) {
+				quality := item.Quality
+				parsed[index].EstimateQuality = &quality
+			}
+			return nil
 		}
 		method, version, quality, revision := item.Method, item.CalculationVersion, item.Quality, item.ReportRevision
+		bySpool[*spoolID] = len(parsed)
 		parsed = append(
 			parsed,
 			parsedUsage{
 				MaterialID:           &spool.MaterialID,
-				SpoolID:              item.SpoolID,
+				SpoolID:              spoolID,
 				Ownership:            string(OwnershipMakerspace),
 				QuantityBasis:        string(QuantityBasisEstimated),
 				Quantity:             quantity,
@@ -262,7 +275,35 @@ func (s *Service) consumeItemizedReportedUsage(
 				ReportRevision:       &revision,
 			},
 		)
+		return nil
 	}
+	for _, item := range items {
+		if item.SourcePrinterEventID != eventID || !item.EstimatedQuantityG.Valid ||
+			EstimateQuality(item.Quality) == EstimateQualityUnresolved {
+			continue
+		}
+		// A line fed by several spools is booked per segment, each on the spool it resolved to and with its
+		// share of the line; a segment without spool or quantity is left to staff.
+		if lineSegments := segments[item.ID]; len(lineSegments) > 0 {
+			for _, segment := range lineSegments {
+				if segment.EstimatedQuantityGrams == nil {
+					continue
+				}
+				quantity, parseErr := decimal.NewFromString(*segment.EstimatedQuantityGrams)
+				if parseErr != nil {
+					continue
+				}
+				if err = book(item, segment.SpoolID, quantity); err != nil {
+					return false, err
+				}
+			}
+			continue
+		}
+		if err = book(item, item.SpoolID, decimalFromNumeric(item.EstimatedQuantityG)); err != nil {
+			return false, err
+		}
+	}
+	sort.Slice(parsed, func(i, j int) bool { return usageSortKey(parsed[i]) < usageSortKey(parsed[j]) })
 	if len(parsed) == 0 {
 		return false, nil
 	}
@@ -302,4 +343,18 @@ func (s *Service) consumeItemizedReportedUsage(
 		return false, err
 	}
 	return true, nil
+}
+
+// estimateQualityRank orders estimate qualities from worst to best, so a usage merged from several reported
+// lines keeps the weakest one.
+func estimateQualityRank(quality string) int {
+	switch EstimateQuality(quality) {
+	case EstimateQualityHigh:
+		return 3
+	case EstimateQualityMedium:
+		return 2
+	case EstimateQualityLow:
+		return 1
+	}
+	return 0
 }

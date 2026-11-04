@@ -21,7 +21,7 @@
 import type { InventoryAttentionCode } from './inventoryAttentionCode';
 
 /**
- * low_stock: the article's quantity is at or below its low-stock threshold; remainder_low: an active spool holds less than 10 % of its initial net weight.
+ * low_stock: the article's quantity is at or below its low-stock threshold; remainder_low: an active spool holds less than 10 % of its initial net weight; ran_out_during_run: the printer's feed moved on from this active spool to another during a print (it likely ran empty) and nobody has retired, weighed, corrected or mounted it since; the message names the run and Core's remaining quantity.
  */
 export interface InventoryAttention {
   code: InventoryAttentionCode;

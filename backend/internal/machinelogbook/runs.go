@@ -31,6 +31,65 @@ type RunReportedUsageItem struct {
 	PlannedQuantityGrams, PlannedLengthMillimeters, EstimatedQuantityGrams *string
 	MaterialID, SpoolID                                                    *uuid.UUID
 	Method, CalculationVersion, Quality                                    string
+	// Segments are the spools that fed the line, in time order, when it was fed by two or more during the
+	// print; the line then has no spool of its own and each segment is booked on its own spool.
+	Segments []RunReportedUsageSegment
+}
+
+// RunReportedUsageSegment is one spool that fed a reported line during the print, resolved at the time the
+// feed moved to it. SpoolMaterialID is that spool's article.
+type RunReportedUsageSegment struct {
+	Index                               int
+	InputUnitExternalID, SlotExternalID *string
+	StartedAt                           time.Time
+	StartLayer                          *int
+	EstimatedQuantityGrams, Split       *string
+	SpoolID, SpoolMaterialID            *uuid.UUID
+}
+
+// segmentsFromRows groups the segment rows of the latest report revisions by their line.
+func segmentsFromRows(rows []machinelogbookdb.ListLatestReportedUsageSegmentsForRunsRow) map[uuid.UUID][]RunReportedUsageSegment {
+	byItem := map[uuid.UUID][]RunReportedUsageSegment{}
+	for _, row := range rows {
+		segment := RunReportedUsageSegment{
+			Index:               int(row.SegmentIndex),
+			InputUnitExternalID: row.InputUnitExternalID,
+			SlotExternalID:      row.SlotExternalID,
+			StartedAt:           row.StartedAt.UTC(),
+			Split:               row.Split,
+			SpoolID:             row.SpoolID,
+			SpoolMaterialID:     row.SpoolMaterialID,
+		}
+		if row.StartLayer != nil {
+			layer := int(*row.StartLayer)
+			segment.StartLayer = &layer
+		}
+		if row.EstimatedQuantityG.Valid {
+			quantity := decimalString(row.EstimatedQuantityG)
+			segment.EstimatedQuantityGrams = &quantity
+		}
+		byItem[row.ItemID] = append(byItem[row.ItemID], segment)
+	}
+	return byItem
+}
+
+// materialChangedDuringRun says whether some reported line was fed by spools of different articles, for
+// example another colour after a refill.
+func materialChangedDuringRun(items []RunReportedUsageItem) bool {
+	for _, item := range items {
+		var first *uuid.UUID
+		for _, segment := range item.Segments {
+			if segment.SpoolMaterialID == nil {
+				continue
+			}
+			if first == nil {
+				first = segment.SpoolMaterialID
+			} else if *first != *segment.SpoolMaterialID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type RunJobReference struct {
@@ -60,7 +119,9 @@ type MachineRun struct {
 	UsagesFromMachine       bool
 	ReportedUsage           *RunReportedUsage
 	ReportedUsageItems      []RunReportedUsageItem
-	Artifact                *ArtifactReference
+	// MaterialChangedDuringRun: a reported line was fed by spools of different articles during the print.
+	MaterialChangedDuringRun bool
+	Artifact                 *ArtifactReference
 	// ConsumptionStatus explains a recorded run's consumption; nil for manual runs.
 	ConsumptionStatus *ConsumptionStatus
 	// HiddenFromSignage hides the machine from signage displays while the run is running.
@@ -321,6 +382,11 @@ func (s *Service) queryRuns(
 	if err != nil {
 		return nil, 0, err
 	}
+	segmentRows, err := q.ListLatestReportedUsageSegmentsForRuns(ctx, ids)
+	if err != nil {
+		return nil, 0, err
+	}
+	segments := segmentsFromRows(segmentRows)
 	byReported := map[uuid.UUID][]RunReportedUsageItem{}
 	for _, item := range reported {
 		line := int(item.LineNumber)
@@ -353,12 +419,14 @@ func (s *Service) queryRuns(
 				Method:                   item.Method,
 				CalculationVersion:       item.CalculationVersion,
 				Quality:                  item.Quality,
+				Segments:                 segments[item.ID],
 			},
 		)
 	}
 	for i := range runs {
 		if list := byReported[runs[i].ID]; list != nil {
 			runs[i].ReportedUsageItems = list
+			runs[i].MaterialChangedDuringRun = materialChangedDuringRun(list)
 		}
 	}
 	if err = s.attachConsumptionStatuses(ctx, q, runs, ids, now); err != nil {

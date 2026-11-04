@@ -270,6 +270,7 @@ describe('Run detail page', () => {
           method: 'slicer_complete',
           calculationVersion: 'bambu-3mf-v1',
           quality: 'high',
+          segments: [],
         },
         {
           lineNumber: 1,
@@ -284,6 +285,7 @@ describe('Run detail page', () => {
           method: 'slicer_complete',
           calculationVersion: 'bambu-3mf-v1',
           quality: 'high',
+          segments: [],
         },
       ],
       version: 7,
@@ -523,5 +525,96 @@ describe('Run detail page', () => {
     await user.click(document.querySelector('.cds--overflow-menu')!);
     expect(await screen.findByText('Delete run')).toBeInTheDocument();
     expect(screen.queryByText('Detach from job')).not.toBeInTheDocument();
+  });
+});
+
+describe('Run detail · spool segments', () => {
+  const first = '0192f6f8-743e-7c77-a349-cd07c3e8d701';
+  const second = '0192f6f8-743e-7c77-a349-cd07c3e8d702';
+  const blue = '0192f6f8-743e-7c77-a349-cd07c3e8d703';
+  const line = {
+    lineNumber: 0,
+    reportRevision: 1,
+    slicerFilamentId: '1',
+    inputUnitExternalId: '0',
+    slotExternalId: '2',
+    estimatedQuantityGrams: '70',
+    method: 'gcode_estimate',
+    calculationVersion: 'v1',
+    quality: 'high' as const,
+    segments: [
+      {
+        index: 0,
+        startedAt: '2026-09-15T08:00:00Z',
+        startLayer: 0,
+        estimatedQuantityGrams: '40',
+        split: 'gcode_layer' as const,
+        spoolId: first,
+        materialId: ids.material,
+      },
+      {
+        index: 1,
+        startedAt: '2026-09-15T08:30:00Z',
+        startLayer: 120,
+        estimatedQuantityGrams: '20',
+        split: 'progress' as const,
+        spoolId: second,
+        materialId: blue,
+      },
+      {
+        index: 2,
+        startedAt: '2026-09-15T08:45:00Z',
+        startLayer: null,
+        estimatedQuantityGrams: '10',
+        split: 'progress' as const,
+        spoolId: null,
+        materialId: null,
+      },
+    ],
+  };
+  const segmented = (overrides = {}) =>
+    recordedRun({
+      reportedUsage: null,
+      reportedUsageItems: [line],
+      materialChangedDuringRun: true,
+      usages: [
+        usage({
+          id: first,
+          spoolId: first,
+          spoolDisplayId: 'S-PLA-BLACK-01',
+          quantity: '40',
+          materialName: 'PLA Black',
+        }),
+        usage({
+          id: second,
+          spoolId: second,
+          spoolDisplayId: 'S-PLA-BLUE-01',
+          quantity: '20',
+          materialName: 'PLA Blue',
+        }),
+      ],
+      ...overrides,
+    });
+
+  it('lists the spools of a line, flags the unresolved one and announces the material change', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit, PermissionId.inventoryread];
+    serveRun(segmented());
+    renderRun();
+    expect(await screen.findByText('Material changed during the print')).toBeInTheDocument();
+    expect(screen.getByText(/Unit 0 · Slot 2 · fed by 3 spools/)).toBeInTheDocument();
+    expect(screen.getByText(/PLA Black · 40 g · from layer 0/)).toBeInTheDocument();
+    expect(screen.getByText(/PLA Blue · 20 g · from layer 120 · estimated by progress/)).toBeInTheDocument();
+    expect(screen.getByText('No spool')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Map filament/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Book Unit 0 · Slot 2 part 3 on a spool' })).toBeInTheDocument();
+  });
+
+  it('shows no notice and no booking button for a run without a material change', async () => {
+    auth.permissions = [PermissionId.machine_jobsread];
+    serveRun(segmented({ materialChangedDuringRun: false }));
+    renderRun();
+    expect(await screen.findByText('No spool')).toBeInTheDocument();
+    expect(screen.queryByText('Material changed during the print')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /on a spool/ })).not.toBeInTheDocument();
   });
 });

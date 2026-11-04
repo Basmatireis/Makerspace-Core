@@ -108,7 +108,7 @@ const missing = (reason: MachineRunConsumptionReason | null, detail: string | nu
 describe('recording texts', () => {
   it('explains every consumption reason code with its own sentence', () => {
     const messages = Object.values(MachineRunConsumptionReason).map((reason) => consumptionReasonMessage(reason));
-    expect(messages).toHaveLength(16);
+    expect(messages).toHaveLength(18);
     expect(new Set(messages).size).toBe(messages.length);
     for (const message of messages) expect(message).not.toBe('The reason is not known.');
     expect(consumptionReasonMessage('from_a_newer_backend')).toBe('The reason is not known.');

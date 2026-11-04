@@ -76,10 +76,24 @@ func spoolMount(
 	}
 }
 
-// spoolAttention flags an active spool that holds less than 10 % of its initial net weight.
-func spoolAttention(lifecycle SpoolLifecycle, initial, remaining decimal.Decimal, unit string) []Attention {
+// spoolAttention flags an active spool that holds less than 10 % of its initial net weight, and one that ran
+// out during a print (ranOutRun is the run's display id; empty when it did not). Running out is only a
+// suggestion: Core keeps the spool and its remainder until staff retire, weigh, correct or mount it.
+func spoolAttention(lifecycle SpoolLifecycle, initial, remaining decimal.Decimal, unit, ranOutRun string) []Attention {
 	items := []Attention{}
-	if lifecycle != SpoolActive || !initial.IsPositive() {
+	if lifecycle != SpoolActive {
+		return items
+	}
+	if ranOutRun != "" {
+		items = append(items, Attention{
+			Code: AttentionRanOutDuringRun,
+			Message: fmt.Sprintf(
+				"Ran out during %s; Core still holds %s %s. Retire or weigh it.",
+				ranOutRun, remaining.Round(1).String(), unit,
+			),
+		})
+	}
+	if !initial.IsPositive() {
 		return items
 	}
 	if remaining.LessThan(initial.Mul(spoolRemainderLowShare)) {
@@ -92,6 +106,14 @@ func spoolAttention(lifecycle SpoolLifecycle, initial, remaining decimal.Decimal
 		})
 	}
 	return items
+}
+
+// ranOutRun names the run a spool ran out during, or is empty.
+func ranOutRun(ranOut bool, runDisplayID string) string {
+	if !ranOut {
+		return ""
+	}
+	return runDisplayID
 }
 
 func spoolFromGet(row machinelogbookdb.GetFilamentSpoolRow) FilamentSpool {
@@ -130,7 +152,7 @@ func spoolFromGet(row machinelogbookdb.GetFilamentSpoolRow) FilamentSpool {
 			row.MountSlotName,
 		),
 		Identifiers:     []FilamentSpoolIdentifier{},
-		Attention:       spoolAttention(lifecycle, initial, remaining, row.Unit),
+		Attention:       spoolAttention(lifecycle, initial, remaining, row.Unit, ranOutRun(row.RanOut, row.RanOutRunDisplayID)),
 		Version:         row.Version,
 		CreatedAt:       row.CreatedAt,
 		UpdatedAt:       row.UpdatedAt,

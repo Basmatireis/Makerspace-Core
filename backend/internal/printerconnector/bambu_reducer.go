@@ -37,6 +37,7 @@ type bambuPersistedState struct {
 	AutoDetectSpools  bool                     `json:"autoDetectSpools"`
 	DisconnectedAt    *time.Time               `json:"disconnectedAt,omitempty"`
 	RunTimedOut       bool                     `json:"runTimedOut,omitempty"`
+	Feed              *bambuFeedTracker        `json:"feed,omitempty"`
 }
 
 type bambuRunFacts struct {
@@ -49,6 +50,12 @@ type bambuRunFacts struct {
 	SlotExternalID      string               `json:"slotExternalId,omitempty"`
 	TagUID              string               `json:"tagUid,omitempty"`
 	SpoolEvidence       []bambuSpoolEvidence `json:"spoolEvidence,omitempty"`
+	// FeedLines is the run's feed timeline (see recordBambuFeed). It is used
+	// for consumption only when FeedTracked says it covers the whole run and
+	// FeedOverflow says it is complete; SpoolEvidence stays for older state.
+	FeedLines    []bambuFeedLine `json:"feedLines,omitempty"`
+	FeedTracked  bool            `json:"feedTracked,omitempty"`
+	FeedOverflow bool            `json:"feedOverflow,omitempty"`
 	// ReportedURL is the last `url` a status message carried during this run's
 	// session. The merged document keeps the previous print's url, so it cannot
 	// answer that question.
@@ -299,6 +306,7 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 			facts.LastProgress = &value
 		}
 		applyBambuPrintSource(&facts, patch, printState)
+		p.recordBambuFeed(runID.String(), &facts, lifecycle, printState, observedAt)
 		if unitID, trayID, tagUID, ok := bambuActiveSlotFor(p.adapterKind, printState); ok {
 			facts.InputUnitExternalID = unitID
 			facts.SlotExternalID = trayID

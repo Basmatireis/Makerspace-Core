@@ -679,6 +679,20 @@ type MachineRunReportedUsageItem struct {
 	CreatedAt            time.Time
 }
 
+type MachineRunReportedUsageSegment struct {
+	ID                  uuid.UUID
+	ItemID              uuid.UUID
+	SegmentIndex        int32
+	InputUnitExternalID *string
+	SlotExternalID      *string
+	StartedAt           time.Time
+	StartLayer          *int32
+	EstimatedQuantityG  pgtype.Numeric
+	Split               *string
+	SpoolID             *uuid.UUID
+	CreatedAt           time.Time
+}
+
 type MachineRunTimelapse struct {
 	RunID     uuid.UUID
 	FileID    uuid.UUID

@@ -1143,7 +1143,7 @@ func TestMultiMaterialConsumptionMapsEachPhysicalSpool(t *testing.T) {
 			{ID: "5", WeightGrams: &gramsB, Extruders: []int{1}},
 		},
 	}
-	payload, err := marshalSlicerConsumption(parsed, bambuRunFacts{
+	payload, err := marshalSlicerConsumption(parsed, nil, bambuRunFacts{
 		HistoryComplete: true,
 		SpoolEvidence: []bambuSpoolEvidence{
 			{Extruder: 0, InputUnitExternalID: "0", SlotExternalID: "2", TagUID: "RIGHT"},
@@ -1181,7 +1181,7 @@ func TestInterruptedX1CConsumptionUsesExplicitMaterialMapping(t *testing.T) {
 		// the positive-quantity slice_info filament 3 before resolving the spool.
 		Filaments: []parser.FilamentEstimate{{FilamentID: "2", Extruders: []int{1}, WeightGrams: &consumedWhite}},
 	}
-	payload, err := marshalGCodeConsumption(parsed, estimate, bambuRunFacts{
+	payload, err := marshalGCodeConsumption(parsed, estimate, nil, bambuRunFacts{
 		InputUnitExternalID: "0", SlotExternalID: "0",
 		SpoolEvidence: []bambuSpoolEvidence{
 			{SlicerFilamentID: "1", Extruder: 1, InputUnitExternalID: "0", SlotExternalID: "0", TagUID: "GREEN"},
@@ -1215,7 +1215,7 @@ func TestMultiMaterialConsumptionMapsUniqueRemainingH2DRoute(t *testing.T) {
 			{ID: "3", WeightGrams: &whiteGrams, Extruders: []int{1}},
 		},
 	}
-	payload, err := marshalSlicerConsumption(parsed, bambuRunFacts{
+	payload, err := marshalSlicerConsumption(parsed, nil, bambuRunFacts{
 		HistoryComplete: true,
 		SpoolEvidence: []bambuSpoolEvidence{
 			{Extruder: 0, InputUnitExternalID: "255", SlotExternalID: "255"},
@@ -1250,7 +1250,7 @@ func TestMultiMaterialConsumptionMapsOrderedChangesOnOneExtruder(t *testing.T) {
 		},
 		FilamentSequence: []string{"5", "1"},
 	}
-	payload, err := marshalSlicerConsumption(parsed, bambuRunFacts{
+	payload, err := marshalSlicerConsumption(parsed, nil, bambuRunFacts{
 		HistoryComplete: true,
 		SpoolEvidence: []bambuSpoolEvidence{
 			{Extruder: 1, InputUnitExternalID: "0", SlotExternalID: "3", TagUID: "FIRST"},
@@ -1286,7 +1286,7 @@ func TestMultiMaterialConsumptionDoesNotGuessWithIncompleteHistory(t *testing.T)
 		},
 		FilamentSequence: []string{"1", "5"},
 	}
-	payload, err := marshalSlicerConsumption(parsed, bambuRunFacts{
+	payload, err := marshalSlicerConsumption(parsed, nil, bambuRunFacts{
 		HistoryComplete: false,
 		SpoolEvidence: []bambuSpoolEvidence{
 			{Extruder: 1, InputUnitExternalID: "0", SlotExternalID: "0"},

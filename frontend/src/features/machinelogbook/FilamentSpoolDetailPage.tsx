@@ -15,6 +15,7 @@ import { StackCard } from '../../app/components/CardList';
 import { ArticleMeta } from './components/ArticlePanel';
 import { formatGrams, NoInventoryAccess } from './components/inventoryShared';
 import { InventoryLedgerTable } from './components/InventoryLedgerTable';
+import { RanOutNotice } from './components/RanOutNotice';
 import { SpoolDialogs, spoolActionsFor, useSpoolPermissions, type SpoolDialog } from './components/spoolActions';
 import { SpoolTags } from './components/SpoolPanel';
 import {
@@ -137,6 +138,7 @@ function SpoolDetail({ spool }: { spool: FilamentSpool }) {
       actions={actions}
     >
       <div className="mj-stack">
+        {!retired && <RanOutNotice spool={spool} onAction={setDialog} />}
         {retired && (
           <InlineNotification
             kind="info"

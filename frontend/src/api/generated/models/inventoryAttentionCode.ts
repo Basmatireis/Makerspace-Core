@@ -25,4 +25,5 @@ export type InventoryAttentionCode = typeof InventoryAttentionCode[keyof typeof 
 export const InventoryAttentionCode = {
   low_stock: 'low_stock',
   remainder_low: 'remainder_low',
+  ran_out_during_run: 'ran_out_during_run',
 } as const;

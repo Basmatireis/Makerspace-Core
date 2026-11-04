@@ -428,6 +428,8 @@ export * from './machineRunRecordingList';
 export * from './machineRunReportedUsage';
 export * from './machineRunReportedUsageItem';
 export * from './machineRunReportedUsageItemQuality';
+export * from './machineRunReportedUsageSegment';
+export * from './machineRunReportedUsageSegmentSplit';
 export * from './machineRunSource';
 export * from './machineRunState';
 export * from './machineRunTimelapse';

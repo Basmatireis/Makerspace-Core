@@ -70,7 +70,8 @@ type Querier interface {
 	InsertConnectorActivity(ctx context.Context, arg InsertConnectorActivityParams) error
 	InsertConnectorEvent(ctx context.Context, arg InsertConnectorEventParams) (PrinterEvent, error)
 	InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (MachineRun, error)
-	InsertReportedUsageItem(ctx context.Context, arg InsertReportedUsageItemParams) error
+	InsertReportedUsageItem(ctx context.Context, arg InsertReportedUsageItemParams) (int64, error)
+	InsertReportedUsageSegment(ctx context.Context, arg InsertReportedUsageSegmentParams) error
 	ListActiveAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListActiveAssignmentsRow, error)
 	// tag_uids must be lower case; the match is case-insensitive like LockActiveSpoolByNFCTag.
 	ListActiveSpoolsByNFCTags(ctx context.Context, tagUids []string) ([]ListActiveSpoolsByNFCTagsRow, error)

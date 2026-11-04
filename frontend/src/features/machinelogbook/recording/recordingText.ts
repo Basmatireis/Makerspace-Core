@@ -40,6 +40,9 @@ const consumptionReasonText: Record<MachineRunConsumptionReason, string> = {
   consumption_pending: 'The machine has not sent the final consumption report yet.',
   run_in_progress: 'The run is still in progress. Consumption is recorded when it ends.',
   consumption_not_reported: 'The machine did not report any consumption for this run.',
+  segment_without_spool: 'A spool that took over during the print could not be matched to a spool in Core.',
+  segment_quantity_unavailable:
+    'The spool changed during the print, but the filament could not be split between the spools.',
 };
 
 const consumptionTitle: Record<MachineRunConsumptionStatus['state'], string> = {

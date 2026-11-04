@@ -20,6 +20,15 @@ func TestDeriveConsumptionStatusExplainsEveryRecordedRun(t *testing.T) {
 	unmapped := RunReportedUsageItem{Method: "gcode_checkpoint", Quality: "medium", EstimatedQuantityGrams: &grams}
 	noWeights := RunReportedUsageItem{Method: "slicer_complete", Quality: "unresolved"}
 	noCheckpoint := RunReportedUsageItem{Method: "gcode_checkpoint", Quality: "unresolved"}
+	other, zero := uuid.New(), "0"
+	segmented := func(segments ...RunReportedUsageSegment) RunReportedUsageItem {
+		return RunReportedUsageItem{Method: "gcode_checkpoint", Quality: "medium", EstimatedQuantityGrams: &grams, Segments: segments}
+	}
+	bookedSegment := RunReportedUsageSegment{Index: 0, EstimatedQuantityGrams: &grams, SpoolID: &spool}
+	refilledSegment := RunReportedUsageSegment{Index: 1, EstimatedQuantityGrams: &grams, SpoolID: &other}
+	strayedSegment := RunReportedUsageSegment{Index: 1, EstimatedQuantityGrams: &grams, SlotExternalID: &slot}
+	emptySegment := RunReportedUsageSegment{Index: 1, EstimatedQuantityGrams: &zero}
+	unsplitSegment := RunReportedUsageSegment{Index: 0, SpoolID: &spool}
 	ended := func(f ConsumptionFacts) ConsumptionFacts {
 		f.Recorded = true
 		if f.State == "" {
@@ -61,6 +70,20 @@ func TestDeriveConsumptionStatusExplainsEveryRecordedRun(t *testing.T) {
 		{"partial", ended(ConsumptionFacts{Items: []RunReportedUsageItem{booked, unmappedSlot}, MachineUsages: 1}),
 			ConsumptionPartial, ReasonSlotWithoutSpoolAssignment, ""},
 		{"no slot known", ended(ConsumptionFacts{Items: []RunReportedUsageItem{unmapped}}), ConsumptionMissing, ReasonNoSpoolMapping, ""},
+		{"every segment booked", ended(ConsumptionFacts{Items: []RunReportedUsageItem{segmented(bookedSegment, refilledSegment)},
+			MachineUsages: 2}), ConsumptionRecorded, "", ""},
+		{"segment without spool", ended(ConsumptionFacts{Items: []RunReportedUsageItem{segmented(bookedSegment, strayedSegment)},
+			MachineUsages: 1}), ConsumptionPartial, ReasonSegmentWithoutSpool, ""},
+		{"segment that fed nothing needs no spool", ended(ConsumptionFacts{
+			Items: []RunReportedUsageItem{segmented(bookedSegment, emptySegment)}, MachineUsages: 1}), ConsumptionRecorded, "", ""},
+		{"segment without quantity", ended(ConsumptionFacts{Items: []RunReportedUsageItem{segmented(unsplitSegment, refilledSegment)},
+			MachineUsages: 1}), ConsumptionPartial, ReasonSegmentQuantityUnavailable, ""},
+		{"segments without any quantity", ended(ConsumptionFacts{
+			Items: []RunReportedUsageItem{segmented(unsplitSegment, RunReportedUsageSegment{Index: 1, SpoolID: &other})}}),
+			ConsumptionMissing, ReasonSegmentQuantityUnavailable, ""},
+		{"segmented line without estimate keeps the line's reason", ended(ConsumptionFacts{Items: []RunReportedUsageItem{
+			{Method: "gcode_checkpoint", Quality: "unresolved", Segments: []RunReportedUsageSegment{unsplitSegment}}}}),
+			ConsumptionMissing, ReasonGCodeEstimateUnavailable, ""},
 		{"slicer without weights", ended(ConsumptionFacts{Items: []RunReportedUsageItem{noWeights}}),
 			ConsumptionMissing, ReasonNoSlicerWeightsInArtifact, ""},
 		{"gcode without checkpoint", ended(ConsumptionFacts{Items: []RunReportedUsageItem{noCheckpoint}}),

@@ -111,7 +111,12 @@ const (
 // EstimateQuality is how reliable a reported usage item is.
 type EstimateQuality string
 
-const EstimateQualityUnresolved EstimateQuality = "unresolved"
+const (
+	EstimateQualityHigh       EstimateQuality = "high"
+	EstimateQualityMedium     EstimateQuality = "medium"
+	EstimateQualityLow        EstimateQuality = "low"
+	EstimateQualityUnresolved EstimateQuality = "unresolved"
+)
 
 // PartyKind is the kind of a billing party.
 type PartyKind string
@@ -316,6 +321,7 @@ const (
 	AttentionRunsUnassigned         AttentionCode = "runs_unassigned"
 	AttentionLowStock               AttentionCode = "low_stock"
 	AttentionRemainderLow           AttentionCode = "remainder_low"
+	AttentionRanOutDuringRun        AttentionCode = "ran_out_during_run"
 )
 
 // Attention is one reason to look at an item, with a short English message for people.

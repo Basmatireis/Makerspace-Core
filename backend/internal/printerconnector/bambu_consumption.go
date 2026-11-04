@@ -302,16 +302,6 @@ func buildBambuConsumptionPayloadFor(
 	if err != nil {
 		return nil, fmt.Errorf("parse staged artifact for consumption: %w", err)
 	}
-	if facts.Outcome == OutcomeCompleted {
-		return marshalSlicerConsumption(parsed, facts)
-	}
-	if facts.LastLayer == nil && facts.LastProgress == nil {
-		return marshalUnresolvedConsumption(
-			"gcode_checkpoint",
-			parser.CalculationVersion,
-			"no reliable printer checkpoint was observed",
-		)
-	}
 	filaments := make([]parser.GCodeFilament, 0, len(parsed.Filaments))
 	for _, filament := range parsed.Filaments {
 		filaments = append(
@@ -330,6 +320,32 @@ func buildBambuConsumptionPayloadFor(
 		physicalExtruder := 1
 		options.PhysicalExtruder = &physicalExtruder
 	}
+	// The sampler re-reads the archive. Only a run whose feed timeline shows a
+	// spool change calls it, at most once per distinct segment boundary.
+	sample := func(layer *int) (map[string]float64, bool) {
+		sampleOptions := options
+		sampleOptions.LastReliableLayer = layer
+		estimates, sampleErr := parser.EstimateArchiveGCode(
+			file,
+			transfer.SizeBytes,
+			parser.DefaultLimits(),
+			sampleOptions,
+		)
+		if sampleErr != nil || len(estimates) != 1 || (layer != nil && estimates[0].Estimate.SelectedLayer == nil) {
+			return nil, false
+		}
+		return gcodeLengthsBySlicerID(parsed, estimates[0].Estimate), true
+	}
+	if facts.Outcome == OutcomeCompleted {
+		return marshalSlicerConsumption(parsed, sample, facts)
+	}
+	if facts.LastLayer == nil && facts.LastProgress == nil {
+		return marshalUnresolvedConsumption(
+			"gcode_checkpoint",
+			parser.CalculationVersion,
+			"no reliable printer checkpoint was observed",
+		)
+	}
 	if facts.LastLayer != nil {
 		options.LastReliableLayer = facts.LastLayer
 	}
@@ -347,10 +363,14 @@ func buildBambuConsumptionPayloadFor(
 			"archive does not identify exactly one printable G-code stream",
 		)
 	}
-	return marshalGCodeConsumption(parsed, estimates[0].Estimate, facts)
+	return marshalGCodeConsumption(parsed, estimates[0].Estimate, sample, facts)
 }
 
-func marshalSlicerConsumption(parsed parser.Result, facts bambuRunFacts) (json.RawMessage, error) {
+func marshalSlicerConsumption(
+	parsed parser.Result,
+	sample bambuLayerSampler,
+	facts bambuRunFacts,
+) (json.RawMessage, error) {
 	items := make([]map[string]any, 0, len(parsed.Filaments))
 	for _, filament := range parsed.Filaments {
 		// Bambu project settings include every configured filament preset, even
@@ -374,13 +394,24 @@ func marshalSlicerConsumption(parsed parser.Result, facts bambuRunFacts) (json.R
 			"artifact has no defensible per-filament quantity",
 		)
 	}
-	applyFilamentEvidence(items, parsed, facts)
+	applyFilamentEvidence(items, parsed, bambuMatchingFacts(facts))
+	if facts.hasSpoolChange() {
+		// The slicer weight covers the whole file, so segment boundaries are
+		// measured against the whole file's G-code extrusion.
+		var reference map[string]float64
+		if sample != nil {
+			reference, _ = sample(nil)
+		}
+		complete := 100.0
+		applyFeedSegments(items, facts, sample, reference, &complete)
+	}
 	return json.Marshal(map[string]any{"items": items})
 }
 
 func marshalGCodeConsumption(
 	parsed parser.Result,
 	estimate parser.GCodeEstimate,
+	sample bambuLayerSampler,
 	facts bambuRunFacts,
 ) (json.RawMessage, error) {
 	items := make([]map[string]any, 0, len(estimate.Filaments))
@@ -414,7 +445,8 @@ func marshalGCodeConsumption(
 			"no defensible G-code checkpoint quantity",
 		)
 	}
-	applyFilamentEvidence(items, parsed, facts)
+	applyFilamentEvidence(items, parsed, bambuMatchingFacts(facts))
+	applyFeedSegments(items, facts, sample, gcodeLengthsBySlicerID(parsed, estimate), facts.LastProgress)
 	return json.Marshal(map[string]any{"items": items})
 }
 

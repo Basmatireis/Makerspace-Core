@@ -96,6 +96,7 @@ export function manualRun(overrides: Partial<MachineRun> = {}): MachineRun {
     jobHiddenFromSignage: false,
     reportedUsage: null,
     reportedUsageItems: [],
+    materialChangedDuringRun: false,
     artifact: null,
     version: 2,
     ...overrides,
@@ -127,6 +128,7 @@ export function recordedRun(overrides: Partial<MachineRunDetail> = {}): MachineR
     hiddenFromSignage: false,
     jobHiddenFromSignage: false,
     reportedUsageItems: [],
+    materialChangedDuringRun: false,
     artifact: null,
     reportedUsage: {
       quantity: '42.000',
