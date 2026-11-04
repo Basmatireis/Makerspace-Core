@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page, type Route, type TestInfo } from '@playwright/test';
 import { defaultPublicBrandingConfiguration } from './branding-fixtures';
+import { welcomeTourSeen } from './guide-progress';
 
 const personId = '0192f6f8-743e-7c77-a349-cd07c3e8b001';
 const accountId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
@@ -242,6 +243,7 @@ test('keeps other identities and management fields private while staff sign up',
       await json(route, staffOpenDay(true).myAssignment);
       return;
     }
+    if (path === '/api/v1/me/guides') return route.fulfill({ json: welcomeTourSeen });
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 
@@ -346,6 +348,7 @@ test('creates and atomically saves a manager schedule working copy', async ({ pa
       await json(route, { items: [] });
       return;
     }
+    if (path === '/api/v1/me/guides') return route.fulfill({ json: welcomeTourSeen });
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 
@@ -521,6 +524,7 @@ test('manages inclusive academic-break context on a focused screen', async ({ pa
       });
       return;
     }
+    if (path === '/api/v1/me/guides') return route.fulfill({ json: welcomeTourSeen });
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 
@@ -640,6 +644,7 @@ async function mockResponsivePeriod(page: Page) {
       saveRequests.push(route.request().postDataJSON());
       return json(route, { period: draft, items: [day], timeZone: 'Europe/Vienna' });
     }
+    if (path === '/api/v1/me/guides') return route.fulfill({ json: welcomeTourSeen });
     throw new Error(`Unexpected API request: ${method} ${path}`);
   });
   return { saveRequests };

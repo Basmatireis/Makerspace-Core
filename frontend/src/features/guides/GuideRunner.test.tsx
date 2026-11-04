@@ -115,6 +115,36 @@ vi.mock('./content', () => {
     },
     {
       ...base,
+      id: 'centered',
+      title: 'Centered',
+      steps: [
+        { id: 'c1', title: 'Nothing to point at', body: 'First paragraph.\n\nSecond paragraph.' },
+        { id: 'c2', title: 'Still nothing', body: 'Another one.' },
+      ],
+    },
+    {
+      ...base,
+      id: 'leave',
+      title: 'Leave',
+      steps: [
+        {
+          id: 'open',
+          title: 'Open the dialog',
+          body: 'Press it.',
+          route: '/home',
+          target: '[data-guide="home-open"]',
+          advance: { kind: 'click' },
+        },
+        {
+          id: 'inside',
+          title: 'Fill the dialog',
+          body: 'Type something.',
+          target: '[data-guide="in-dialog"]',
+        },
+      ],
+    },
+    {
+      ...base,
       id: 'workflow',
       title: 'Workflow',
       kind: 'workflow' as const,
@@ -125,12 +155,31 @@ vi.mock('./content', () => {
   return { guides };
 });
 
+/** A page with a button that opens a modal of its own; leaving the page closes the modal. */
+function HomePage() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  return (
+    <>
+      <button data-guide="home-open" onClick={() => setDialogOpen(true)}>
+        Open dialog
+      </button>
+      {dialogOpen && (
+        <div className="cds--modal is-visible">
+          <input data-guide="in-dialog" aria-label="field" />
+        </div>
+      )}
+    </>
+  );
+}
+
 function Harness({ guide }: { guide: string }) {
   const { startGuide, activeGuideId } = useGuides();
   const location = useLocation();
   const [picked, setPicked] = useState('nothing');
   return (
     <>
+      {location.pathname === '/home' && <HomePage />}
+      <Link to="/elsewhere">go elsewhere</Link>
       <ul data-guide="menu" role="listbox">
         {['Alpha option', 'Beta option', 'Gamma option'].map((name) => (
           <li key={name} role="option" aria-selected={picked === name} onClick={() => setPicked(name)}>
@@ -341,5 +390,89 @@ describe('guide engine', () => {
     await expectStep('Click it');
     act(() => screen.getByRole('button', { name: 'Beta' }).click());
     await expectStep('Go there');
+  });
+
+  it('shows a centered step as a standard modal: heading, spaced text, progress and a two-button footer', async () => {
+    const { user } = setup('centered');
+    await user.click(screen.getByRole('button', { name: 'launch' }));
+
+    const heading = await screen.findByRole('heading', { name: 'Nothing to point at' });
+    const modal = heading.closest<HTMLElement>('.cds--modal-container')!;
+    expect(modal.closest('.guide-modal')).not.toBeNull();
+    expect(within(modal).getByText('First paragraph.')).toBeInTheDocument();
+    expect(within(modal).getByText('Second paragraph.')).toBeInTheDocument();
+    expect(within(modal).getByText('Step 1 of 2')).toBeInTheDocument();
+    // The first step only has its primary button.
+    const footer = modal.querySelector('.cds--modal-footer')!;
+    expect(
+      within(footer as HTMLElement)
+        .getAllByRole('button')
+        .map((item) => item.textContent),
+    ).toEqual(['Next']);
+
+    await user.click(within(footer as HTMLElement).getByRole('button', { name: 'Next' }));
+    const second = (await screen.findByRole('heading', { name: 'Still nothing' })).closest<HTMLElement>(
+      '.cds--modal-container',
+    )!;
+    expect(
+      within(second.querySelector<HTMLElement>('.cds--modal-footer')!)
+        .getAllByRole('button')
+        .map((item) => item.textContent),
+    ).toEqual(['Back', 'Done']);
+  });
+
+  it('says so when the person leaves the tour and brings them back to the step', async () => {
+    const { user } = setup('leave');
+    await user.click(screen.getByRole('button', { name: 'launch' }));
+    await expectStep('Open the dialog');
+    expect(screen.getByLabelText('location')).toHaveTextContent('/home');
+
+    // Navigating elsewhere takes the step's target away; the tour does not fall back to the centered text.
+    await user.click(screen.getByRole('link', { name: 'go elsewhere' }));
+    expect(await screen.findByText('You left the tour')).toBeInTheDocument();
+    expect(screen.getByLabelText('location')).toHaveTextContent('/elsewhere');
+    expect(screen.queryByText('Press it.')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Back to the tour' }));
+    await expectStep('Open the dialog');
+    expect(screen.getByLabelText('location')).toHaveTextContent('/home');
+    expect(screen.queryByText('You left the tour')).not.toBeInTheDocument();
+  });
+
+  it('returns to the step that opens a page modal when the person leaves while it is open', async () => {
+    const { user } = setup('leave');
+    await user.click(screen.getByRole('button', { name: 'launch' }));
+    await expectStep('Open the dialog');
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }));
+    await expectStep('Fill the dialog');
+
+    await user.click(screen.getByRole('link', { name: 'go elsewhere' }));
+    expect(await screen.findByText('You left the tour')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Back to the tour' }));
+    // The modal is gone after leaving, so the tour is back at the click that opens it, on its page.
+    await expectStep('Open the dialog');
+    expect(screen.getByLabelText('location')).toHaveTextContent('/home');
+    expect(screen.queryByRole('textbox', { name: 'field' })).not.toBeInTheDocument();
+  });
+
+  it('ends the tour from the left-the-tour dialog', async () => {
+    const { user } = setup('leave');
+    await user.click(screen.getByRole('button', { name: 'launch' }));
+    await expectStep('Open the dialog');
+    await user.click(screen.getByRole('link', { name: 'go elsewhere' }));
+    await user.click(await screen.findByRole('button', { name: 'End tour' }));
+    await waitFor(() => expect(screen.getByLabelText('active')).toHaveTextContent('none'));
+    expect(screen.queryByText('You left the tour')).not.toBeInTheDocument();
+  });
+
+  it("keeps today's behaviour on the expected page: a missing target waits instead of claiming the tour was left", async () => {
+    const { user } = setup('leave');
+    await user.click(screen.getByRole('button', { name: 'launch' }));
+    await expectStep('Open the dialog');
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }));
+    await expectStep('Fill the dialog');
+    // Same page, target present: nothing about leaving.
+    expect(screen.queryByText('You left the tour')).not.toBeInTheDocument();
   });
 });

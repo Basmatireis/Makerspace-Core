@@ -9,7 +9,7 @@ export const demoPermissions = [
   'machine_jobs.edit',
   'inventory.read',
   'inventory.manage',
-  'inventory.purchase',
+  'filament_spools.manage',
   'orders.read',
   'orders.write',
   'orders.finalize',

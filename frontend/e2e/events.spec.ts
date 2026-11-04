@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { defaultPublicBrandingConfiguration } from './branding-fixtures';
+import { welcomeTourSeen } from './guide-progress';
 
 const eventId = '0192f6f8-743e-7c77-a349-cd07c3e8c001';
 const sessionId = '0192f6f8-743e-7c77-a349-cd07c3e8c002';
@@ -421,6 +422,7 @@ async function mockApi(page: Page, options: Mock = {}) {
     if (path === '/api/v1/event-people') return json(route, { items: [] });
     if (path === `/api/v1/public/events/${publicId}`) return json(route, publicEvent);
     if (path === `/api/v1/events/public/${publicId}/assignments/me`) return json(route, { items: [] });
+    if (path === '/api/v1/me/guides') return route.fulfill({ json: welcomeTourSeen });
     throw new Error(`Unexpected API request: ${method} ${path}`);
   });
 }

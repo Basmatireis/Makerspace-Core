@@ -152,7 +152,7 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
             subtitle="Open Days can still be edited, but holidays and academic breaks are temporarily hidden."
           />
         )}
-        <div data-guide="open-days-schedule">
+        <div className="open-day-schedule-view" data-guide="open-days-schedule">
           {editMode ? (
             <ScheduleWorkingView
               key={tableRevision}

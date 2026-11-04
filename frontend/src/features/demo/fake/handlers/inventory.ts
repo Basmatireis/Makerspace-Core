@@ -206,8 +206,16 @@ export function registerInventory(router: DemoRouter<DemoStore>): void {
     .add(
       'POST',
       '/inventory/receipts',
-      ({ store, body }) => receive(store, body as unknown as ReceiveInventoryStockRequest),
-      'inventory.purchase',
+      ({ store, body }) => {
+        const request = body as unknown as ReceiveInventoryStockRequest;
+        // Like the API: new spools additionally need filament_spools.manage.
+        const rights = store.user.permissions as string[];
+        if (request.placement?.mode === 'new_spools' && !rights.includes('filament_spools.manage')) {
+          return fail(403, 'forbidden', 'You do not have permission to do this.');
+        }
+        return receive(store, request);
+      },
+      'inventory.manage',
     )
     .add(
       'POST',

@@ -1,6 +1,6 @@
 import { hasAnyPermission, hasPermission } from '../../auth/permissions';
 import type { GuideDefinition } from '../types';
-import { fieldHolds, radioSelected } from './checks';
+import { fieldHolds, radioSelected, modalClosed } from './checks';
 
 const canReadJobs = (user: Parameters<GuideDefinition['requires']>[0]) => hasPermission(user, 'machine_jobs.read');
 const canReadMachines = (user: Parameters<GuideDefinition['requires']>[0]) => hasPermission(user, 'machines.read');
@@ -348,7 +348,7 @@ const receiveStock: GuideDefinition = {
       body: 'Click "Receive stock" at the bottom. Nothing is saved for real in this demo.',
       target: '[data-guide="workshop-receive-modal"] .cds--modal-footer .cds--btn--primary',
       placement: 'top',
-      advance: { kind: 'click' },
+      advance: { kind: 'when', check: modalClosed('[data-guide="workshop-receive-modal"]') },
     },
     {
       id: 'result',

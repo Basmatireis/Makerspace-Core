@@ -63,16 +63,37 @@ describe('help center', () => {
     renderHelp([]);
     expect(await screen.findByRole('heading', { name: 'Getting started', level: 2 })).toBeInTheDocument();
     expect(await screen.findByText('Welcome tour')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /Help, tours and demos/ })).toHaveLength(2); // card and menu
     expect(screen.queryByText('Record a job')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Workshop' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Open days' })).not.toBeInTheDocument();
   });
 
-  it('shows a workflow demo to someone with the permission', async () => {
-    renderHelp([PermissionId.machine_jobsread]);
+  it('builds the topic menu from the permitted areas and articles only', async () => {
+    renderHelp([]);
+    const menu = await screen.findByRole('navigation', { name: 'Help topics' });
+    expect(within(menu).getAllByRole('link', { name: 'Getting started' })).toHaveLength(2); // area and article
+    expect(within(menu).getAllByRole('link', { name: 'Getting started' })[0]).toHaveAttribute(
+      'href',
+      '/help#getting-started',
+    );
+    expect(within(menu).getByRole('link', { name: 'Help, tours and demos' })).toHaveAttribute(
+      'href',
+      '/help/help-and-tours',
+    );
+    expect(within(menu).getByRole('link', { name: 'All help topics' })).toHaveAttribute('aria-current', 'page');
+    expect(within(menu).queryByText('Workshop')).not.toBeInTheDocument();
+    expect(within(menu).queryByText('Machines')).not.toBeInTheDocument();
+  });
+
+  it('shows a workflow demo and the workshop topics to someone with the permission', async () => {
+    renderHelp([PermissionId.machine_jobsread, PermissionId.machinesread]);
     expect(await screen.findByRole('heading', { name: 'Workshop', level: 2 })).toBeInTheDocument();
     const card = (await screen.findByText('Record a job')).closest('.help-card') as HTMLElement;
     expect(within(card).getByText('Workflow · Demo')).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Start Record a job' })).toBeInTheDocument();
+    const menu = screen.getByRole('navigation', { name: 'Help topics' });
+    expect(within(menu).getByRole('link', { name: 'Machines' })).toBeInTheDocument();
   });
 
   it('marks completed guides and finds articles with the search', async () => {
@@ -87,11 +108,12 @@ describe('help center', () => {
     await waitFor(() => expect(within(card).getByText('Completed')).toBeInTheDocument());
 
     await user.type(screen.getByRole('searchbox', { name: 'Search help' }), 'demos');
-    expect(await screen.findByRole('link', { name: 'Help, tours and demos' })).toHaveAttribute(
+    const results = await screen.findByRole('region', { name: 'Search results' });
+    expect(within(results).getByRole('link', { name: /Help, tours and demos/ })).toHaveAttribute(
       'href',
       '/help/help-and-tours',
     );
-    expect(screen.queryByRole('link', { name: 'Getting started' })).not.toBeInTheDocument();
+    expect(within(results).queryByRole('link', { name: /^The side navigation/ })).not.toBeInTheDocument();
     await user.clear(screen.getByRole('searchbox', { name: 'Search help' }));
     await user.type(screen.getByRole('searchbox', { name: 'Search help' }), 'zzzz');
     expect(await screen.findByText(/Nothing in the help center matches/)).toBeInTheDocument();
@@ -111,11 +133,19 @@ describe('help center', () => {
     await waitFor(() => expect(reset).toHaveBeenCalled());
   });
 
-  it('renders an article with its related guide and a link back to the help center', async () => {
+  it('renders an article with the current topic selected, a related guide and the way back', async () => {
     renderHelp([], '/help/getting-started');
     expect(await screen.findByRole('heading', { name: 'The side navigation' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help');
     expect(await screen.findByRole('button', { name: /Start the related guide: Welcome tour/ })).toBeInTheDocument();
+    const menu = screen.getByRole('navigation', { name: 'Help topics' });
+    expect(within(menu).getAllByRole('link', { name: 'Getting started' })[1]).toHaveAttribute('aria-current', 'page');
+    expect(within(menu).getByRole('link', { name: 'Help, tours and demos' })).not.toHaveAttribute('aria-current');
+    const pager = screen.getByRole('navigation', { name: 'More articles' });
+    expect(within(pager).getByRole('link', { name: /Next.*Help, tours and demos/ })).toHaveAttribute(
+      'href',
+      '/help/help-and-tours',
+    );
   });
 
   it('shows the not-found page for an unknown article', async () => {

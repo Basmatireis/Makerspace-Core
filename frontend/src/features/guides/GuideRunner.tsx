@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useLatestCallback } from '../../app/useLatestCallback';
 import { useCurrentUser } from '../auth/auth';
 import { enterDemoMode, exitDemoMode, useDemoMode } from '../demo/demoMode';
-import { GuideStepView } from './GuideStepView';
+import { GuideStepView, type StepAnchor } from './GuideStepView';
 import { guideProgressKey, recordGuideProgress } from './progress';
 import { loadGuides } from './registry';
 import type { GuideDefinition, GuideStep } from './types';
@@ -115,6 +115,26 @@ export default function GuideRunner({ guideId, onClose }: { guideId: string; onC
   });
   const back = useLatestCallback(() => setIndex((current) => Math.max(0, current - 1)));
 
+  // Where each step was last on screen, and whether its target lives inside a page modal. A person who wanders off
+  // the tour's page is sent back to the nearest step that does not need an open modal.
+  const [anchors, setAnchors] = useState<Record<string, StepAnchor>>({});
+  const anchor = useLatestCallback((stepId: string, value: StepAnchor) => {
+    setAnchors((known) =>
+      known[stepId]?.path === value.path && known[stepId].insideModal === value.insideModal
+        ? known
+        : { ...known, [stepId]: value },
+    );
+  });
+  const returnToTour = useLatestCallback(() => {
+    if (!loaded) return;
+    let target = index;
+    while (target > 0 && anchors[loaded.steps[target].id]?.insideModal === true) target -= 1;
+    const destination = loaded.steps[target];
+    const path = destination.route ?? anchors[destination.id]?.path;
+    if (path && path !== `${pathname}${search}`) void navigate(path);
+    if (target !== index) setIndex(target);
+  });
+
   const advance = step?.advance;
   useEffect(() => {
     if (advance?.kind === 'route' && advance.pattern.test(pathname)) next();
@@ -122,6 +142,7 @@ export default function GuideRunner({ guideId, onClose }: { guideId: string; onC
 
   if (!loaded || !step) return null;
   const total = loaded.steps.length;
+  const home = step.route ?? anchors[step.id]?.path;
   return (
     <>
       <div className="guide-live" role="status" aria-live="polite">
@@ -132,6 +153,9 @@ export default function GuideRunner({ guideId, onClose }: { guideId: string; onC
         step={step}
         index={index}
         total={total}
+        home={home}
+        onAnchor={anchor}
+        onReturn={returnToTour}
         onBack={back}
         onNext={next}
         onClose={() => void finish(false)}

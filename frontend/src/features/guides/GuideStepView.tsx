@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type Ref } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocation } from 'react-router-dom';
 import { Button, ButtonSet, IconButton, Modal, Popover, PopoverContent } from '@carbon/react';
 import { Close } from '@carbon/icons-react';
 import { useLatestCallback } from '../../app/useLatestCallback';
@@ -14,10 +15,24 @@ const OVERSIZED_SHARE = 0.7;
 const VIEWPORT_MARGIN = 8;
 const MODAL_GAP = 16;
 
+/** Where a step's target was last seen: the page (path and query) and whether it sits inside a page modal. */
+export interface StepAnchor {
+  path: string;
+  insideModal: boolean;
+}
+
+/** How long a step's target may be missing on a different page before the tour asks whether it was left. */
+const LEFT_TOUR_DELAY_MS = 200;
+
 interface Props {
   step: GuideStep;
   index: number;
   total: number;
+  /** The page the step belongs to, when it is known beforehand (its route, or where it was seen before). */
+  home?: string;
+  onAnchor?: (stepId: string, anchor: StepAnchor) => void;
+  /** Takes the person back to the page (and step) they left. */
+  onReturn?: () => void;
   onBack: () => void;
   onNext: () => void;
   onClose: () => void;
@@ -198,7 +213,8 @@ function DockedPanel({
 
 /** One tour step: a spotlight and popover on the real page, or a centered modal when there is nothing to point at. */
 export function GuideStepView(props: Props) {
-  const { step, index, total, onNext, onBack, onClose } = props;
+  const { step, index, total, home, onAnchor, onReturn, onNext, onBack, onClose } = props;
+  const { pathname, search } = useLocation();
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const target = useGuideTarget(step.target);
@@ -216,6 +232,33 @@ export function GuideStepView(props: Props) {
   }, [modalOpen, modal]);
 
   const element = target.element;
+
+  // The page this step belongs to: where its target was last found, else its known home, else where it started
+  // (null while a route step is still on its way there). A missing target on a different page means the person
+  // left; on the right page it only means the page is still loading.
+  const [anchorPath, setAnchorPath] = useState<string | null>(() =>
+    home === undefined ? pathname : pathname === home.split('?')[0] ? pathname : null,
+  );
+  useEffect(() => {
+    if (anchorPath === null && home !== undefined && pathname === home.split('?')[0]) setAnchorPath(pathname);
+  }, [anchorPath, home, pathname]);
+  useEffect(() => {
+    // The previous page's element lingers for a frame after the route changed.
+    if (!element?.isConnected) return;
+    setAnchorPath(pathname);
+    onAnchor?.(step.id, { path: `${pathname}${search}`, insideModal: element.closest('.cds--modal') !== null });
+  }, [element, pathname, search, step.id, onAnchor]);
+  const away = step.target !== undefined && element === null && anchorPath !== null && anchorPath !== pathname;
+  const [left, setLeft] = useState(false);
+  useEffect(() => {
+    if (!away) {
+      setLeft(false);
+      return;
+    }
+    // The page may still be switching over to the step's own page.
+    const timer = window.setTimeout(() => setLeft(true), LEFT_TOUR_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [away]);
 
   // Restricted choices and the menu they open (which stays usable through the dim layer).
   const menu = useGuideChoice(step.allowOnly);
@@ -342,6 +385,25 @@ export function GuideStepView(props: Props) {
     return () => cancelAnimationFrame(frame);
   }, [popoverShown, modalOpen, step.id]);
 
+  if (left && onReturn) {
+    return (
+      <Modal
+        open
+        size="sm"
+        className="guide-modal"
+        modalHeading="You left the tour"
+        primaryButtonText="Back to the tour"
+        secondaryButtonText="End tour"
+        onRequestSubmit={onReturn}
+        onSecondarySubmit={onClose}
+        onRequestClose={onClose}
+        closeButtonLabel="Close tour"
+        preventCloseOnClickOutside
+      >
+        <p>This step belongs on another page. Go back to carry on where you were, or end the tour.</p>
+      </Modal>
+    );
+  }
   if (centered) {
     return (
       <Modal

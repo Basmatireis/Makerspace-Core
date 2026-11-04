@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import { defaultPublicBrandingConfiguration } from './branding-fixtures';
+import { welcomeTourSeen } from './guide-progress';
 
 type ApiState = {
   authenticated: boolean;
@@ -481,6 +482,7 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
+    if (path === '/api/v1/me/guides') return route.fulfill({ json: welcomeTourSeen });
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 }

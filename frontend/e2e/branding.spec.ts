@@ -1,4 +1,5 @@
 import { expect, test, type Route } from '@playwright/test';
+import { welcomeTourSeen } from './guide-progress';
 
 const personId = '0192f6f8-743e-7c77-a349-cd07c3e8c001';
 const accountId = '0192f6f8-743e-7c77-a349-cd07c3e8c002';
@@ -193,6 +194,7 @@ test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal
       await route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('mock-image') });
       return;
     }
+    if (path === '/api/v1/me/guides') return route.fulfill({ json: welcomeTourSeen });
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 

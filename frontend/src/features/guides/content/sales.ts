@@ -1,7 +1,7 @@
 import { hasAnyPermission, hasPermission } from '../../auth/permissions';
 import { DEMO_IDS } from '../../demo/fake/ids';
 import type { GuideDefinition, GuideRequirement } from '../types';
-import { fieldHolds } from './checks';
+import { fieldHolds, modalClosed } from './checks';
 
 const can =
   (...permissions: Parameters<typeof hasPermission>[1][]): GuideRequirement =>
@@ -210,7 +210,7 @@ export const salesGuides: GuideDefinition[] = [
         body: 'This finalizes the order and records the payment in one go.',
         target: '[data-guide="pay-modal"] .cds--modal-footer .cds--btn--primary',
         placement: 'top',
-        advance: { kind: 'click' },
+        advance: { kind: 'when', check: modalClosed('[data-guide="pay-modal"]') },
       },
       {
         id: 'paid',
@@ -293,7 +293,7 @@ export const salesGuides: GuideDefinition[] = [
         body: 'The button works once the reason is filled in. A new line undoes the payment and the order is open again.',
         target: '[data-guide="reverse-modal"] .cds--modal-footer .cds--btn--danger',
         placement: 'top',
-        advance: { kind: 'click' },
+        advance: { kind: 'when', check: modalClosed('[data-guide="reverse-modal"]') },
       },
       {
         id: 'reversed',

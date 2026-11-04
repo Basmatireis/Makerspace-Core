@@ -899,7 +899,9 @@
   max-inline-size: 100%;
 }
 .open-day-period-page .page-shell__content,
-.open-day-period-page .responsive-table {
+.open-day-period-page .responsive-table,
+// The tour hook around the schedule views must not widen the page.
+.open-day-schedule-view {
   min-inline-size: 0;
   max-inline-size: 100%;
 }

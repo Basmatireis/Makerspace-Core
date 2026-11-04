@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionableNotification, Button } from '@carbon/react';
+import { ActionableNotification } from '@carbon/react';
 import { useCurrentUser } from '../auth/auth';
 import { useGuides } from './GuideProvider';
 import { useGuideProgress, useUpdateGuideProgress } from './progress';
@@ -41,22 +41,15 @@ export default function GuideOffer() {
           setHidden(true);
           startGuide(WELCOME_GUIDE_ID);
         }}
-        onClose={() => false}
+        aria-label="Not now"
+        onClose={() => {
+          setHidden(true);
+          update.mutate({ guideId: WELCOME_GUIDE_ID, status: 'dismissed' });
+          return false;
+        }}
         closeOnEscape={false}
-        hideCloseButton
         inline={false}
-      >
-        <Button
-          kind="ghost"
-          size="sm"
-          onClick={() => {
-            setHidden(true);
-            update.mutate({ guideId: WELCOME_GUIDE_ID, status: 'dismissed' });
-          }}
-        >
-          Not now
-        </Button>
-      </ActionableNotification>
+      />
     </div>
   );
 }

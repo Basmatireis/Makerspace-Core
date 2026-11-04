@@ -18,7 +18,6 @@ const allPermissions = [
     'machine_jobs.create',
     'machine_jobs.edit',
     'inventory.manage',
-    'inventory.purchase',
     'organizations.read',
     'people.read.all',
     'open_days.read',
@@ -476,7 +475,7 @@ test.describe('help center', () => {
     await page.goto('/help');
     await page.getByRole('searchbox', { name: 'Search help' }).fill('assign');
     const link = page.getByRole('region', { name: 'Search results' }).getByRole('link').first();
-    const title = (await link.textContent())!;
+    const title = (await link.getByRole('heading').textContent())!;
     await link.click();
     await expect(page).toHaveURL(/\/help\/[a-z0-9-]+$/);
     await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();
@@ -506,7 +505,37 @@ test.describe('help center', () => {
     await page.goto('/help');
     await expect(page.getByRole('heading', { name: 'Open days', level: 2 })).toBeVisible();
     await expectNoSeriousViolations(page);
+    await page.goto('/help/workshop-machines');
+    await expect(page.getByRole('heading', { name: 'Machines', level: 1 })).toBeVisible();
+    await expectNoSeriousViolations(page);
   });
+
+  test('marks the open article in the topic menu and links to its neighbours', async ({ page }) => {
+    await installApi(page, allPermissions);
+    await page.goto('/help/workshop-machines');
+    const menu = page.getByRole('navigation', { name: 'Help topics' });
+    await expect(menu.getByRole('link', { name: 'Machines' })).toHaveAttribute('aria-current', 'page');
+    await expect(menu.getByRole('link', { name: 'Jobs and runs' })).not.toHaveAttribute('aria-current');
+    await page.getByRole('navigation', { name: 'More articles' }).getByRole('link').first().click();
+    await expect(page).toHaveURL(/\/help\/workshop-/);
+  });
+
+  for (const route of ['/help', '/help/workshop-machines']) {
+    test(`${route} does not scroll sideways on a phone`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await installApi(page, allPermissions);
+      await page.goto(route);
+      await expect(page.getByRole('button', { name: 'Topics' })).toBeVisible();
+      await expect(page.locator('.help-panel').first()).toBeVisible();
+      const dimensions = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+      await shot(page, `help-phone-${route.split('/').pop() || 'home'}`);
+      await expectNoSeriousViolations(page);
+    });
+  }
 });
 
 test.describe('tour popovers', () => {
@@ -878,5 +907,119 @@ test.describe('narrow screens', () => {
     await expectBackToReal(page);
     expectNothingWritten(harness, from, until);
     await expectNoHorizontalScroll(page);
+  });
+});
+
+test.describe('tour robustness', () => {
+  /** Hides the targets of the first steps, so they wait and then show as the centered modal. */
+  async function hideTargets(page: Page, ...selectors: string[]) {
+    await page.evaluate((hidden) => {
+      const style = document.createElement('style');
+      style.textContent = `${hidden.join(',')} { display: none !important; }`;
+      document.body.append(style);
+    }, selectors);
+  }
+
+  for (const viewport of [
+    { name: 'desktop', width: 1280, height: 720 },
+    { name: 'phone', width: 390, height: 844 },
+  ]) {
+    test(`the centered step is a standard small modal with a full-width footer (${viewport.name})`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await installApi(page, allPermissions);
+      await startFromHelp(page, 'Workshop tour');
+      await expect(live(page)).toHaveText(/^Step 1 of \d+: Jobs/, { timeout: 15_000 });
+      await hideTargets(page, '[data-guide="workshop-jobs-tabs"]', '[data-guide="workshop-unassigned-strip"]');
+
+      const modal = page.locator('.guide-modal.is-visible .cds--modal-container');
+      await expect(modal).toBeVisible({ timeout: 10_000 });
+      await expect(modal.getByRole('heading', { name: 'Jobs' })).toBeVisible();
+      await expect(modal).toContainText(/Step 1 of \d+/);
+      // The first step has no Back button; its one button is the primary action.
+      await expect(modal.getByRole('button', { name: 'Back' })).toHaveCount(0);
+      await expect(modal.getByRole('button', { name: 'Next', exact: true })).toBeVisible();
+      await expectCenteredModalFits(page);
+      await shot(page, `robust-centered-first-${viewport.name}`);
+
+      await modal.getByRole('button', { name: 'Next', exact: true }).click();
+      await expect(live(page)).toHaveText(/^Step 2 of \d+: Runs without a job/);
+      await expect(modal).toBeVisible({ timeout: 10_000 });
+      await expect(modal).toContainText('Step 2 of');
+
+      // Back and Next share the footer: together they span it edge to edge, each about half.
+      const footer = modal.locator('.cds--modal-footer');
+      await expect
+        .poll(async () => {
+          const area = await boxOf(footer);
+          const back = await boxOf(modal.getByRole('button', { name: 'Back' }));
+          const next = await boxOf(modal.getByRole('button', { name: 'Next', exact: true }));
+          return {
+            starts: Math.abs(back.x - area.x) <= 1,
+            ends: Math.abs(next.x + next.width - (area.x + area.width)) <= 1,
+            equal: Math.abs(back.width - next.width) <= 2,
+            touching: Math.abs(back.x + back.width - next.x) <= 1,
+          };
+        })
+        .toEqual({ starts: true, ends: true, equal: true, touching: true });
+      await expectCenteredModalFits(page);
+      await expectButtonsClickable(modal);
+      await shot(page, `robust-centered-second-${viewport.name}`);
+    });
+  }
+
+  for (const viewport of [
+    { name: 'desktop', width: 1280, height: 720 },
+    { name: 'phone', width: 390, height: 844 },
+  ]) {
+    test(`navigating away mid-tour says so and "Back to the tour" returns to a working step (${viewport.name})`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await installApi(page, allPermissions);
+      await startFromHelp(page, 'Workshop tour');
+      await expect(live(page)).toHaveText(/^Step 1 of \d+: Jobs/, { timeout: 15_000 });
+      await expect(page).toHaveURL(/\/workshop\/jobs/);
+      await expect(page.locator('.guide-panel')).toBeVisible();
+
+      // The dim layer blocks real clicks outside the highlight, so the person's navigation is a programmatic click.
+      await page
+        .getByRole('link', { name: 'Help', exact: true })
+        .first()
+        .evaluate((node) => (node as HTMLElement).click());
+      await expect(page).toHaveURL(/\/help/);
+      const modal = page.locator('.guide-modal.is-visible .cds--modal-container');
+      await expect(modal.getByRole('heading', { name: 'You left the tour' })).toBeVisible();
+      await expect(modal.getByRole('button', { name: 'End tour' })).toBeVisible();
+      await expectCenteredModalFits(page);
+      await shot(page, `robust-left-tour-${viewport.name}`);
+      await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+      await expect(modal).toBeVisible();
+      await shot(page, `robust-left-tour-dark-${viewport.name}`);
+      await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+
+      await modal.getByRole('button', { name: 'Back to the tour' }).click();
+      await expect(page).toHaveURL(/\/workshop\/jobs/);
+      await expect(page.locator('.guide-panel')).toBeVisible();
+      await expect(page.locator('.guide-panel')).toContainText('Jobs');
+      await expect(page.locator('.guide-modal')).toHaveCount(0);
+      await page.locator('.guide-panel').getByRole('button', { name: 'Next' }).click();
+      await expect(live(page)).toHaveText(/^Step 2 of/);
+    });
+  }
+
+  test('"End tour" on the left-the-tour dialog stops the tour', async ({ page }) => {
+    await installApi(page, allPermissions);
+    await startFromHelp(page, 'Workshop tour');
+    await expect(live(page)).toHaveText(/^Step 1 of/, { timeout: 15_000 });
+    await expect(page.locator('.guide-panel')).toBeVisible();
+    await page
+      .getByRole('link', { name: 'Help', exact: true })
+      .first()
+      .evaluate((node) => (node as HTMLElement).click());
+    await page.getByRole('button', { name: 'End tour' }).click();
+    await expect(page.locator('.guide-modal')).toHaveCount(0);
+    await expect(live(page)).toHaveCount(0);
   });
 });

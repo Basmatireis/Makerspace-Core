@@ -15,6 +15,7 @@ import type {
   WorkItem,
 } from '../src/api/generated/models';
 import { defaultPublicBrandingConfiguration } from './branding-fixtures';
+import { welcomeTourSeen } from './guide-progress';
 
 /**
  * Stateful mock of the Machines & Jobs API for the mocked-API specs. Every request that is not a GET is recorded in
@@ -1139,6 +1140,7 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
     // The dashboard is where redirects land; it asks for these three once it renders.
     if (path === '/api/v1/me/dashboard') return ok(route, { person: { firstName: 'Ada', memberSince: '2025-01-01' } });
     if (path === '/api/v1/laborordnung/status/me') return ok(route, currentUser(world.permissions).laborordnungStatus);
+    if (path === '/api/v1/me/guides') return ok(route, welcomeTourSeen);
     if (path === '/api/v1/public/open-days') return ok(route, { items: [] });
     if (path === '/api/v1/auth/oidc/providers') return ok(route, { items: [] });
     if (path === '/api/v1/public/config') return ok(route, defaultPublicBrandingConfiguration());

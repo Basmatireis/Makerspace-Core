@@ -147,6 +147,21 @@
   border-block-start: 1px solid theme.$border-subtle;
 }
 
+// The centered step is a plain Carbon small modal. Carbon's button-set rule caps every button of a set at 196px,
+// which wins over the modal footer's own rule and leaves the two buttons squeezed to the right; the footer
+// buttons take their usual half each. Paragraphs are separated like running text.
+.guide-modal .cds--modal-footer .cds--btn {
+  max-inline-size: none;
+}
+
+.guide-modal .cds--modal-content > p + p {
+  margin-block-start: spacing.$spacing-05;
+}
+
+.guide-modal .cds--modal-content > .guide-panel__progress {
+  margin-block-start: spacing.$spacing-05;
+}
+
 .guide-live {
   position: absolute;
   inline-size: 1px;

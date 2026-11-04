@@ -2,20 +2,162 @@
 @use '@carbon/styles/scss/theme' as theme;
 @use '@carbon/styles/scss/type' as type;
 
-// Help center layout: equal-width guide cards in a responsive grid.
-.help-search {
-  max-inline-size: 32rem;
+// Help center layout glue: content on a solid panel, the topic menu on the right. Carbon supplies every control.
+$menu-breakpoint: 66rem;
+
+.help-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: spacing.$spacing-06;
+  align-items: start;
 }
 
-.help-section h2 {
+// On narrow screens the topics come first, collapsed.
+.help-layout__aside {
+  order: -1;
+}
+
+@media (min-width: $menu-breakpoint) {
+  .help-layout {
+    grid-template-columns: minmax(0, 3fr) minmax(16rem, 1fr);
+    gap: spacing.$spacing-07;
+  }
+
+  .help-layout__aside {
+    position: sticky;
+    inset-block-start: spacing.$spacing-09;
+    order: 0;
+    // A long menu scrolls inside itself instead of being cut off on short screens.
+    max-block-size: calc(100vh - #{spacing.$spacing-09} - #{spacing.$spacing-05});
+    overflow-y: auto;
+  }
+}
+
+.help-panel {
+  box-sizing: border-box;
+  padding: spacing.$spacing-05;
+  background: theme.$layer-01;
+  border: 1px solid theme.$border-subtle-01;
+}
+
+@media (min-width: 42rem) {
+  .help-panel {
+    padding: spacing.$spacing-07;
+  }
+}
+
+.help-layout__aside .cds--accordion {
+  background: theme.$layer-01;
+  border: 1px solid theme.$border-subtle-01;
+}
+
+// Topic menu ------------------------------------------------------------------------------------------------------
+
+.help-panel--menu {
+  padding: spacing.$spacing-05 0;
+}
+
+.help-layout__aside-title {
+  @include type.type-style('heading-compact-02');
+
+  margin: 0 spacing.$spacing-05 spacing.$spacing-03;
+  color: theme.$text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.32px;
+}
+
+.help-nav ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.help-nav__groups > li + li {
+  margin-block-start: spacing.$spacing-05;
+}
+
+.help-nav__group {
+  @include type.type-style('heading-compact-01');
+
+  display: block;
+  padding: spacing.$spacing-02 spacing.$spacing-05;
+  color: theme.$text-primary;
+  text-decoration: underline;
+  text-decoration-color: theme.$border-strong-01;
+  text-underline-offset: 3px;
+}
+
+.help-nav__group:hover {
+  color: theme.$link-primary-hover;
+  text-decoration-color: currentcolor;
+}
+
+.help-nav__group:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+.help-nav__link {
+  @include type.type-style('body-compact-01');
+
+  display: block;
+  padding: spacing.$spacing-03 spacing.$spacing-05;
+  border-inline-start: 3px solid transparent;
+  color: theme.$link-primary;
+  text-decoration: none;
+}
+
+.help-nav__link:hover {
+  background: theme.$layer-hover-01;
+  color: theme.$link-primary-hover;
+  text-decoration: underline;
+}
+
+.help-nav__link:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+.help-nav__link[aria-current='page'] {
+  border-inline-start-color: theme.$interactive;
+  background: theme.$layer-selected-01;
+  color: theme.$text-primary;
+  font-weight: 600;
+}
+
+.help-nav__link--home {
+  font-weight: 600;
+}
+
+// Home --------------------------------------------------------------------------------------------------------------
+
+.help-lead {
+  @include type.type-style('body-02');
+
+  margin-block-end: spacing.$spacing-05;
+  color: theme.$text-secondary;
+}
+
+.help-search {
+  max-inline-size: 40rem;
+}
+
+.help-section__title {
   @include type.type-style('productive-heading-04');
 
   margin-block-end: spacing.$spacing-05;
+  padding-block-end: spacing.$spacing-03;
+  border-block-end: 1px solid theme.$border-subtle-01;
+}
+
+// Tour tiles first, then the article cards, as one block.
+.help-section .help-grid + .help-grid {
+  margin-block-start: spacing.$spacing-03;
 }
 
 .help-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
   gap: spacing.$spacing-03;
 }
 
@@ -25,13 +167,25 @@
   flex-direction: column;
   align-items: flex-start;
   gap: spacing.$spacing-03;
+  min-block-size: 0;
 }
 
-.help-card h3 {
+.help-card__title {
   @include type.type-style('productive-heading-03');
 }
 
-.help-card p {
+.help-card__summary {
+  @include type.type-style('body-compact-01');
+
+  color: theme.$text-secondary;
+}
+
+.help-card__duration {
+  @include type.type-style('label-01');
+
+  display: flex;
+  align-items: center;
+  gap: spacing.$spacing-02;
   color: theme.$text-secondary;
 }
 
@@ -46,25 +200,177 @@
   margin-block-start: auto;
 }
 
-.help-articles {
-  display: grid;
-  gap: spacing.$spacing-04;
-  margin-block-start: spacing.$spacing-05;
-  padding: 0;
-  list-style: none;
-}
+// Article -----------------------------------------------------------------------------------------------------------
 
-.help-articles p {
+.help-article__summary {
+  @include type.type-style('body-02');
+
+  max-inline-size: 70ch;
+  margin-block-end: spacing.$spacing-06;
   color: theme.$text-secondary;
 }
 
-.help-article {
-  max-inline-size: 48rem;
+.help-prose {
+  @include type.type-style('body-02');
+
+  max-inline-size: 70ch;
+  color: theme.$text-primary;
 }
 
-.help-article__guides {
+.help-prose > * + * {
+  margin-block-start: spacing.$spacing-05;
+}
+
+.help-prose h2 {
+  @include type.type-style('productive-heading-04');
+
+  margin-block-start: spacing.$spacing-08;
+  padding-block-start: spacing.$spacing-05;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+
+.help-prose h3 {
+  @include type.type-style('productive-heading-03');
+
+  margin-block-start: spacing.$spacing-06;
+}
+
+.help-prose h2 + *,
+.help-prose h3 + * {
+  margin-block-start: spacing.$spacing-04;
+}
+
+.help-prose ul,
+.help-prose ol {
+  padding-inline-start: spacing.$spacing-06;
+}
+
+.help-prose ul {
+  list-style: disc;
+}
+
+.help-prose ol {
+  list-style: decimal;
+}
+
+.help-prose li + li {
+  margin-block-start: spacing.$spacing-03;
+}
+
+.help-prose code {
+  @include type.type-style('code-02');
+
+  padding: 0 spacing.$spacing-02;
+  background: theme.$layer-02;
+}
+
+.help-prose pre {
+  overflow-x: auto;
+  padding: spacing.$spacing-04;
+  background: theme.$layer-02;
+}
+
+.help-prose pre code {
+  padding: 0;
+  background: none;
+}
+
+.help-prose blockquote {
+  padding-inline-start: spacing.$spacing-05;
+  border-inline-start: 3px solid theme.$border-strong-01;
+  color: theme.$text-secondary;
+}
+
+.help-prose table {
+  @include type.type-style('body-compact-01');
+
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.help-prose th,
+.help-prose td {
+  padding: spacing.$spacing-03 spacing.$spacing-05;
+  border: 1px solid theme.$border-subtle-01;
+  text-align: start;
+}
+
+.help-prose th {
+  background: theme.$layer-02;
+}
+
+.help-tryit {
+  max-inline-size: 70ch;
+  margin-block-start: spacing.$spacing-08;
+}
+
+.help-tryit__title {
+  @include type.type-style('productive-heading-03');
+
+  margin-block-end: spacing.$spacing-03;
+}
+
+.help-tryit__actions {
   display: flex;
   flex-wrap: wrap;
   gap: spacing.$spacing-03;
-  margin-block-start: spacing.$spacing-06;
+  margin-block-start: spacing.$spacing-05;
+}
+
+.help-tryit__actions .cds--btn {
+  max-inline-size: 100%;
+  white-space: normal;
+}
+
+.help-pager {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: spacing.$spacing-05;
+  max-inline-size: 70ch;
+  margin-block-start: spacing.$spacing-08;
+  padding-block-start: spacing.$spacing-05;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+
+.help-pager__link {
+  display: flex;
+  flex-direction: column;
+  gap: spacing.$spacing-02;
+  padding: spacing.$spacing-04;
+  border: 1px solid theme.$border-subtle-01;
+  color: theme.$link-primary;
+  text-decoration: none;
+}
+
+.help-pager__link:hover {
+  background: theme.$layer-hover-02;
+  color: theme.$link-primary-hover;
+}
+
+.help-pager__link:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+.help-pager__link--next {
+  grid-column: 2;
+  text-align: end;
+}
+
+.help-pager__link--next .help-pager__label {
+  justify-content: flex-end;
+}
+
+.help-pager__label {
+  @include type.type-style('label-01');
+
+  display: flex;
+  align-items: center;
+  gap: spacing.$spacing-02;
+  color: theme.$text-secondary;
+}
+
+.help-pager__title {
+  @include type.type-style('productive-heading-02');
 }
