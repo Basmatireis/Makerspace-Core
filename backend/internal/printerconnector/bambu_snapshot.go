@@ -122,10 +122,7 @@ func bambuTrayExistBit(bits string, unitID, trayID string) (present, known bool)
 func bambuLiveTray(ref bambuTrayRef, existBits string) liveTray {
 	tray := ref.tray
 	materialType := boundedText(stringAt(tray, "tray_type"), 40)
-	rfid := false
-	if bambuSpoolTagOf(tray).present() {
-		rfid = true
-	}
+	rfid := bambuSpoolTagOf(tray).present()
 	empty := materialType == nil && !rfid
 	if !ref.external {
 		if present, known := bambuTrayExistBit(existBits, ref.unitID, ref.trayID); known && !present &&
