@@ -2,12 +2,16 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
-## [Unreleased]
+## [0.16.1] - 2026-11-05
 
 ### Upgrade notes
 
 - **Migration 00106 (Bambu tray UUID identifier).** `filament_spool_identifiers.kind` accepts the new value `bambu_tray_uuid`; no data is rewritten. Down deletes the `bambu_tray_uuid` identifiers. Update the printer connector together with Core so it reports `trayUuid`.
 - **API.** The spool identifier kind enum (`FilamentSpoolIdentifier`, `NewFilamentSpoolIdentifier`, `AddFilamentSpoolIdentifierRequest`, the `kind` parameter of the spool lookup) gains `bambu_tray_uuid`. `PrinterLiveStatusTray` gains the optional `trayUuid`. `DetectedSpoolTag` gains `trayUuid` (nullable) and its `tagUid` becomes nullable: a tray may report only a tray UUID. A spool is resolved by `trayUuid` against `bambu_tray_uuid` first and, when there is none or no spool carries it, by `tagUid` against `nfc`; spools registered with a chip UID as `nfc` therefore keep matching. The detected tags list shows a spool seen in several trays once.
+
+### Added
+
+- **About page.** The About page describes the lab and the areas of the application and shows the release version (linked to its GitHub release; development builds say so), the Apache License 2.0 with its copyright holder, the source code, the third-party notices, the imprint and the privacy policy. The frontend image takes the version as the build argument `VERSION`.
 
 ### Fixed
 
@@ -770,6 +774,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.16.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.13.0...v0.14.0
