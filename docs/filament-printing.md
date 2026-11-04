@@ -18,7 +18,7 @@ The label (`displayId`) is `S-<TYPECODE>-<VARIANT>-<COLOUR>-<NN>` in upper case,
 - **Restore** (`POST /inventory/recycle-bin/spools/{id}/restore`, same permissions): the spool becomes active and unmounted; a discarded spool gets the written-off quantity back as a positive adjustment (reason `other`); identifiers come back unless another spool uses them.
 - **Purge** (`DELETE /inventory/recycle-bin/spools/{id}/purge`, `filament_spools.manage` and `inventory.delete`): a genuine hard delete of a retired spool; identifiers and mount history go, ledger entries and run usages keep the label.
 
-Spools carry `attention`: `remainder_low` while an active spool holds less than 10 % of its initial net weight.
+Spools carry `attention`: `remainder_low` while an active spool holds less than 10 % of its initial net weight, and `ran_out_during_run` while an active spool fed a segment of a reported line that was followed by a segment on another (or no) spool in the latest report of a run that is not deleted, and nobody has weighed or corrected it (an adjustment other than a job correction) or mounted it since the next segment started. The message names the run and Core's remainder. It is only a suggestion: the confirmed-empty unmount stays, and Core neither retires the spool nor books its remainder.
 
 Material usage on a machine run distinguishes makerspace and external filament. Makerspace usage must reference an article and may reference an active spool; it consumes inventory and participates in material pricing. External usage carries a description, never references a spool and does not change inventory. Every usage records whether its quantity is actual or estimated.
 
@@ -50,7 +50,7 @@ Artifact filament quantities remain plans until a recorded run reaches a termina
 
 Print submissions, print attempts, filament declarations, printer-event reconciliation, and the printing-operation idempotency records were removed with their tables and `/print-submissions` and `/print-attempts` endpoints. Printer connectors report recorded runs, which staff attach to or create [jobs](machine-logbook.md#jobs-and-runs) from.
 
-Normalized connector events use a versioned source ID and event key. Repeating identical facts is idempotent; reusing the key for different facts is rejected. A consumption report becomes the run's reported usage and is consumed when the run ends; a later revision replaces it without double counting, keeping the source-event reference on the usage. The inventory entries, pricing recalculation, and audits commit in one database transaction.
+Normalized connector events use a versioned source ID and event key. Repeating identical facts is idempotent; reusing the key for different facts is rejected. A consumption report becomes the run's reported usage and is consumed when the run ends; a later revision replaces it, segments included, without double counting, keeping the source-event reference on the usage. A line fed by several spools is booked per segment on the spool each one resolved to at its start (see [Machine-reported material](machine-logbook.md#jobs-and-runs)). The inventory entries, pricing recalculation, and audits commit in one database transaction.
 
 ## Permissions and routes
 

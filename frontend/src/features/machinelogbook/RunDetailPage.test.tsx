@@ -270,6 +270,7 @@ describe('Run detail page', () => {
           method: 'slicer_complete',
           calculationVersion: 'bambu-3mf-v1',
           quality: 'high',
+          segments: [],
         },
         {
           lineNumber: 1,
@@ -284,6 +285,7 @@ describe('Run detail page', () => {
           method: 'slicer_complete',
           calculationVersion: 'bambu-3mf-v1',
           quality: 'high',
+          segments: [],
         },
       ],
       version: 7,

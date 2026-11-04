@@ -319,6 +319,7 @@ export function manualRunFixture(overrides: RunInit): MachineRun {
     jobHiddenFromSignage: false,
     reportedUsage: null,
     reportedUsageItems: [],
+    materialChangedDuringRun: false,
     version: 2,
     ...overrides,
   } as MachineRun;
@@ -514,6 +515,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
       usagesFromMachine: false,
       hiddenFromSignage: false,
       reportedUsageItems: [],
+      materialChangedDuringRun: false,
       reportedUsage: {
         quantity: '42.000',
         quantityBasis: 'actual',

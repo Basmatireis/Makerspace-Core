@@ -72,6 +72,8 @@ export interface MachineRun {
   usagesFromMachine: boolean;
   reportedUsage?: MachineRunReportedUsage | null;
   reportedUsageItems: MachineRunReportedUsageItem[];
+  /** A reported line was fed by spools of different articles during the print (for example another colour after a refill); each article is booked and priced for its own segment. */
+  materialChangedDuringRun: boolean;
   artifact?: PrintArtifactReference | null;
   /** Why consumption is (not) recorded; null for manual runs. See MachineRunConsumptionStatus. */
   consumptionStatus?: MachineRunConsumptionStatus | null;

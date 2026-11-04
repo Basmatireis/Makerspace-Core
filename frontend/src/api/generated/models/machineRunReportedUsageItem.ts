@@ -20,6 +20,7 @@
  */
 import type { Decimal } from './decimal';
 import type { MachineRunReportedUsageItemQuality } from './machineRunReportedUsageItemQuality';
+import type { MachineRunReportedUsageSegment } from './machineRunReportedUsageSegment';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface MachineRunReportedUsageItem {
@@ -57,4 +58,9 @@ export interface MachineRunReportedUsageItem {
   /** @maxLength 80 */
   calculationVersion: string;
   quality: MachineRunReportedUsageItemQuality;
+  /**
+     * The spools that fed this line in time order, when two or more did during the print (an AMS refill, a reloaded tray, a new RFID tag); empty otherwise. A line with segments has no spool of its own: each segment is booked on its own spool with its own quantity, and the segments' quantities add up to the line's.
+     * @maxItems 24
+     */
+  segments: MachineRunReportedUsageSegment[];
 }

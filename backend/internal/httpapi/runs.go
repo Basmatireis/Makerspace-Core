@@ -344,6 +344,7 @@ func mlRunBase(item machinelogbook.MachineRun) openapi.MachineRun {
 				Method:                   u.Method,
 				CalculationVersion:       u.CalculationVersion,
 				Quality:                  openapi.MachineRunReportedUsageItemQuality(u.Quality),
+				Segments:                 mlReportedSegmentsDTO(u.Segments),
 			},
 		)
 	}
@@ -362,24 +363,25 @@ func mlRunBase(item machinelogbook.MachineRun) openapi.MachineRun {
 		ConnectorName: nullableString(
 			item.ConnectorName,
 		),
-		FileName:             nullableString(item.FileName),
-		StartedAt:            item.StartedAt,
-		EndedAt:              nullableValue(item.EndedAt),
-		EstimatedEndAt:       nullableValue(item.EstimatedEndAt),
-		DurationSeconds:      item.DurationSeconds,
-		ProgressPercent:      nullableInt(item.ProgressPercent),
-		Outcome:              outcome,
-		OutcomeFromMachine:   item.OutcomeFromMachine,
-		Usages:               usages,
-		Measures:             mlMeasuresDTO(item.Measures),
-		UsagesFromMachine:    item.UsagesFromMachine,
-		HiddenFromSignage:    item.HiddenFromSignage,
-		JobHiddenFromSignage: item.JobHiddenFromSignage,
-		ReportedUsage:        reported,
-		ReportedUsageItems:   reportedItems,
-		Artifact:             artifact,
-		ConsumptionStatus:    consumptionStatusDTO(item.ConsumptionStatus),
-		Version:              item.Version,
+		FileName:                 nullableString(item.FileName),
+		StartedAt:                item.StartedAt,
+		EndedAt:                  nullableValue(item.EndedAt),
+		EstimatedEndAt:           nullableValue(item.EstimatedEndAt),
+		DurationSeconds:          item.DurationSeconds,
+		ProgressPercent:          nullableInt(item.ProgressPercent),
+		Outcome:                  outcome,
+		OutcomeFromMachine:       item.OutcomeFromMachine,
+		Usages:                   usages,
+		Measures:                 mlMeasuresDTO(item.Measures),
+		UsagesFromMachine:        item.UsagesFromMachine,
+		HiddenFromSignage:        item.HiddenFromSignage,
+		JobHiddenFromSignage:     item.JobHiddenFromSignage,
+		ReportedUsage:            reported,
+		ReportedUsageItems:       reportedItems,
+		MaterialChangedDuringRun: item.MaterialChangedDuringRun,
+		Artifact:                 artifact,
+		ConsumptionStatus:        consumptionStatusDTO(item.ConsumptionStatus),
+		Version:                  item.Version,
 	}
 }
 
@@ -417,33 +419,34 @@ func mlRunDetailDTO(item machinelogbook.RunDetail) openapi.MachineRunDetail {
 		)
 	}
 	return openapi.MachineRunDetail{
-		Id:                   base.Id,
-		DisplayId:            base.DisplayId,
-		MachineId:            base.MachineId,
-		MachineName:          base.MachineName,
-		Source:               base.Source,
-		State:                base.State,
-		Job:                  base.Job,
-		ConnectorName:        base.ConnectorName,
-		FileName:             base.FileName,
-		StartedAt:            base.StartedAt,
-		EndedAt:              base.EndedAt,
-		EstimatedEndAt:       base.EstimatedEndAt,
-		DurationSeconds:      base.DurationSeconds,
-		ProgressPercent:      base.ProgressPercent,
-		Outcome:              base.Outcome,
-		OutcomeFromMachine:   base.OutcomeFromMachine,
-		Usages:               base.Usages,
-		Measures:             base.Measures,
-		UsagesFromMachine:    base.UsagesFromMachine,
-		HiddenFromSignage:    base.HiddenFromSignage,
-		JobHiddenFromSignage: base.JobHiddenFromSignage,
-		ReportedUsage:        base.ReportedUsage,
-		ReportedUsageItems:   base.ReportedUsageItems,
-		Artifact:             base.Artifact,
-		ConsumptionStatus:    base.ConsumptionStatus,
-		Version:              base.Version,
-		Events:               events,
+		Id:                       base.Id,
+		DisplayId:                base.DisplayId,
+		MachineId:                base.MachineId,
+		MachineName:              base.MachineName,
+		Source:                   base.Source,
+		State:                    base.State,
+		Job:                      base.Job,
+		ConnectorName:            base.ConnectorName,
+		FileName:                 base.FileName,
+		StartedAt:                base.StartedAt,
+		EndedAt:                  base.EndedAt,
+		EstimatedEndAt:           base.EstimatedEndAt,
+		DurationSeconds:          base.DurationSeconds,
+		ProgressPercent:          base.ProgressPercent,
+		Outcome:                  base.Outcome,
+		OutcomeFromMachine:       base.OutcomeFromMachine,
+		Usages:                   base.Usages,
+		Measures:                 base.Measures,
+		UsagesFromMachine:        base.UsagesFromMachine,
+		HiddenFromSignage:        base.HiddenFromSignage,
+		JobHiddenFromSignage:     base.JobHiddenFromSignage,
+		ReportedUsage:            base.ReportedUsage,
+		ReportedUsageItems:       base.ReportedUsageItems,
+		MaterialChangedDuringRun: base.MaterialChangedDuringRun,
+		Artifact:                 base.Artifact,
+		ConsumptionStatus:        base.ConsumptionStatus,
+		Version:                  base.Version,
+		Events:                   events,
 	}
 }
 
@@ -630,4 +633,29 @@ func runEventTransition(value *string) nullable.Nullable[openapi.MachineRunEvent
 		return nullable.NewNullNullable[openapi.MachineRunEventTransition]()
 	}
 	return nullable.NewNullableWithValue(openapi.MachineRunEventTransition(*value))
+}
+
+func mlReportedSegmentsDTO(items []machinelogbook.RunReportedUsageSegment) []openapi.MachineRunReportedUsageSegment {
+	out := make([]openapi.MachineRunReportedUsageSegment, 0, len(items))
+	for _, segment := range items {
+		split := nullable.NewNullNullable[openapi.MachineRunReportedUsageSegmentSplit]()
+		if segment.Split != nil {
+			split = nullable.NewNullableWithValue(openapi.MachineRunReportedUsageSegmentSplit(*segment.Split))
+		}
+		out = append(
+			out,
+			openapi.MachineRunReportedUsageSegment{
+				Index:                  segment.Index,
+				InputUnitExternalId:    nullableString(segment.InputUnitExternalID),
+				SlotExternalId:         nullableString(segment.SlotExternalID),
+				StartedAt:              segment.StartedAt,
+				StartLayer:             nullableValue(segment.StartLayer),
+				EstimatedQuantityGrams: nullableDecimalValue(segment.EstimatedQuantityGrams),
+				Split:                  split,
+				SpoolId:                nullableUUIDValue(segment.SpoolID),
+				MaterialId:             nullableUUIDValue(segment.SpoolMaterialID),
+			},
+		)
+	}
+	return out
 }

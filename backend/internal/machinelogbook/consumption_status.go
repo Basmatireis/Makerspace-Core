@@ -3,6 +3,8 @@ package machinelogbook
 import (
 	"regexp"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 // ConsumptionState says whether a recorded run's material consumption is booked.
@@ -36,6 +38,8 @@ const (
 	ReasonConsumptionPending         ConsumptionReason = "consumption_pending"
 	ReasonRunInProgress              ConsumptionReason = "run_in_progress"
 	ReasonConsumptionNotReported     ConsumptionReason = "consumption_not_reported"
+	ReasonSegmentWithoutSpool        ConsumptionReason = "segment_without_spool"
+	ReasonSegmentQuantityUnavailable ConsumptionReason = "segment_quantity_unavailable"
 )
 
 var consumptionReasons = map[ConsumptionReason]bool{
@@ -44,6 +48,7 @@ var consumptionReasons = map[ConsumptionReason]bool{
 	ReasonCancelledBeforeFirstLayer: true, ReasonOutcomeUnknown: true, ReasonSlotWithoutSpoolAssignment: true,
 	ReasonNoSpoolMapping: true, ReasonConnectorOfflineDuringRun: true, ReasonInventoryNotBooked: true,
 	ReasonConsumptionPending: true, ReasonRunInProgress: true, ReasonConsumptionNotReported: true,
+	ReasonSegmentWithoutSpool: true, ReasonSegmentQuantityUnavailable: true,
 }
 
 // ConsumptionPendingGrace is how long after a recorded run ended Core waits for
@@ -84,11 +89,13 @@ var reasonCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,79}$`)
 //  1. a running run is pending (run_in_progress), except that a connector report of pending with
 //     artifact_on_internal_storage wins: the connector knows already that no 3MF will ever be readable;
 //  2. usage entered by staff with nothing booked from the machine is recorded;
-//  3. reported lines: a line is booked when it has a quantity, a quality other than unresolved and a spool.
+//  3. reported lines: a line is booked when it has a quantity, a quality other than unresolved and a spool;
+//     a line fed by several spools instead counts each segment, booked when it has a quantity and a spool.
 //     All booked is recorded, none booked missing, otherwise partial; the reason is the first unbooked
 //     line's (unresolved quality: no_slicer_weights_in_artifact for slicer reports, otherwise the
 //     connector's reason or gcode_estimate_unavailable; no spool: slot_without_spool_assignment when the
-//     slot is known, else no_spool_mapping). Bookable lines without machine usage are inventory_not_booked;
+//     slot is known, else no_spool_mapping; segments: segment_quantity_unavailable, then
+//     segment_without_spool). Bookable lines without machine usage are inventory_not_booked;
 //  4. a legacy single-line report is recorded when booked, else missing;
 //  5. without a report, the connector's report decides (pending or its unavailable reason);
 //  6. otherwise Core's own facts: a printer connection timeout or a removed connector is
@@ -163,14 +170,24 @@ func DeriveConsumptionStatus(f ConsumptionFacts, now time.Time) *ConsumptionStat
 func itemizedConsumptionStatus(f ConsumptionFacts) *ConsumptionStatus {
 	bookable := 0
 	var firstReason *ConsumptionReason
-	for _, item := range f.Items {
-		reason, ok := unbookedLineReason(item, f)
+	note := func(reason ConsumptionReason, ok bool) {
 		if ok {
 			bookable++
+		} else if firstReason == nil {
+			firstReason = &reason
+		}
+	}
+	for _, item := range f.Items {
+		if len(item.Segments) == 0 {
+			note(unbookedLineReason(item, f))
 			continue
 		}
-		if firstReason == nil {
-			firstReason = &reason
+		if reason, ok := unresolvedLineReason(item, f); !ok {
+			note(reason, false)
+			continue
+		}
+		for _, segment := range item.Segments {
+			note(unbookedSegmentReason(segment))
 		}
 	}
 	switch {
@@ -189,6 +206,35 @@ func itemizedConsumptionStatus(f ConsumptionFacts) *ConsumptionStatus {
 
 // unbookedLineReason reports ok when the line can be booked, otherwise why not.
 func unbookedLineReason(item RunReportedUsageItem, f ConsumptionFacts) (ConsumptionReason, bool) {
+	if reason, ok := unresolvedLineReason(item, f); !ok {
+		return reason, false
+	}
+	if item.SpoolID == nil {
+		if item.SlotExternalID != nil && *item.SlotExternalID != "" {
+			return ReasonSlotWithoutSpoolAssignment, false
+		}
+		return ReasonNoSpoolMapping, false
+	}
+	return "", true
+}
+
+// unbookedSegmentReason reports ok when a segment of a line fed by several spools can be booked. A segment
+// that fed nothing needs no spool.
+func unbookedSegmentReason(segment RunReportedUsageSegment) (ConsumptionReason, bool) {
+	if segment.EstimatedQuantityGrams == nil {
+		return ReasonSegmentQuantityUnavailable, false
+	}
+	if quantity, err := decimal.NewFromString(*segment.EstimatedQuantityGrams); err == nil && quantity.IsZero() {
+		return "", true
+	}
+	if segment.SpoolID == nil {
+		return ReasonSegmentWithoutSpool, false
+	}
+	return "", true
+}
+
+// unresolvedLineReason reports ok when the line has a defensible quantity, otherwise why not.
+func unresolvedLineReason(item RunReportedUsageItem, f ConsumptionFacts) (ConsumptionReason, bool) {
 	if item.Quality == string(EstimateQualityUnresolved) || item.EstimatedQuantityGrams == nil {
 		if item.Method == "slicer_complete" {
 			return ReasonNoSlicerWeightsInArtifact, false
@@ -200,12 +246,6 @@ func unbookedLineReason(item RunReportedUsageItem, f ConsumptionFacts) (Consumpt
 			}
 		}
 		return ReasonGCodeEstimateUnavailable, false
-	}
-	if item.SpoolID == nil {
-		if item.SlotExternalID != nil && *item.SlotExternalID != "" {
-			return ReasonSlotWithoutSpoolAssignment, false
-		}
-		return ReasonNoSpoolMapping, false
 	}
 	return "", true
 }

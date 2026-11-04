@@ -195,6 +195,8 @@ type Querier interface {
 	ListJobAttentionFacts(ctx context.Context, jobIds []uuid.UUID) ([]ListJobAttentionFactsRow, error)
 	ListJobRunsForUpdate(ctx context.Context, jobID *uuid.UUID) ([]MachineRun, error)
 	ListLatestReportedUsageItemsForRuns(ctx context.Context, runIds []uuid.UUID) ([]MachineRunReportedUsageItem, error)
+	// The segments of the latest report revision, with the article of the spool each one resolved to.
+	ListLatestReportedUsageSegmentsForRuns(ctx context.Context, runIds []uuid.UUID) ([]ListLatestReportedUsageSegmentsForRunsRow, error)
 	ListLowStockMaterialIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
 	ListMachineActivityMachines(ctx context.Context) ([]ListMachineActivityMachinesRow, error)
 	// The connector of each machine's active assignment, its open printer errors and its ended runs without a job.

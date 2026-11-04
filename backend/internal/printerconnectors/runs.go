@@ -403,7 +403,7 @@ func applyReportedUsage(
 	if err != nil {
 		return err
 	}
-	if err = q.InsertReportedUsageItem(
+	if _, err = q.InsertReportedUsageItem(
 		ctx,
 		db.InsertReportedUsageItemParams{
 			ID:                   ids.New(),
@@ -469,9 +469,17 @@ func applyReportedUsageItems(
 		if !estimatedOK || !plannedOK || !lengthOK {
 			continue
 		}
-		spoolID, err := resolveReportedSpool(ctx, q, run.MachineID, item, at)
+		segments, segmented, err := reportedSegments(ctx, q, run.MachineID, item)
 		if err != nil {
 			return err
+		}
+		// A line fed by several spools is booked per segment; its own spool stays empty even if the payload
+		// also names a slot, so the whole line is never booked on one spool.
+		var spoolID *uuid.UUID
+		if !segmented {
+			if spoolID, err = resolveReportedSpool(ctx, q, run.MachineID, item, at); err != nil {
+				return err
+			}
 		}
 		materialID := optionalUUID(item, "materialId")
 		var extruder *int32
@@ -483,10 +491,11 @@ func applyReportedUsageItems(
 		slicerID := boundedPayloadString(item, "slicerFilamentId", 120)
 		inputUnit := boundedPayloadString(item, "inputUnitExternalId", 200)
 		slot := boundedPayloadString(item, "slotExternalId", 200)
-		if err = q.InsertReportedUsageItem(
+		itemID := ids.New()
+		inserted, err := q.InsertReportedUsageItem(
 			ctx,
 			db.InsertReportedUsageItemParams{
-				ID:                   ids.New(),
+				ID:                   itemID,
 				RunID:                run.ID,
 				SourcePrinterEventID: eventID,
 				ReportRevision:       revision,
@@ -504,8 +513,14 @@ func applyReportedUsageItems(
 				CalculationVersion:   calculationVersion,
 				Quality:              quality,
 			},
-		); err != nil {
+		)
+		if err != nil {
 			return err
+		}
+		if inserted == 1 {
+			if err = insertReportedSegments(ctx, q, itemID, segments); err != nil {
+				return err
+			}
 		}
 		valid++
 		if estimated != nil {

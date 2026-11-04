@@ -199,7 +199,7 @@ UPDATE machine_runs r SET reported_quantity_g=sqlc.arg(quantity_g), reported_qua
     reported_spool_id=sqlc.narg(spool_id), reported_event_id=sqlc.arg(event_id)
 WHERE r.id=sqlc.arg(id) AND (r.reported_event_id IS NULL OR sqlc.arg(report_revision)::bigint >= COALESCE((SELECT e.report_revision FROM printer_events e WHERE e.id=r.reported_event_id), 0));
 
--- name: InsertReportedUsageItem :exec
+-- name: InsertReportedUsageItem :execrows
 INSERT INTO machine_run_reported_usage_items (
     id, run_id, source_printer_event_id, report_revision, line_number,
     slicer_filament_id, extruder, input_unit_external_id, slot_external_id,
@@ -211,6 +211,15 @@ INSERT INTO machine_run_reported_usage_items (
     sqlc.narg(planned_quantity_g), sqlc.narg(planned_length_mm), sqlc.narg(estimated_quantity_g), sqlc.narg(material_id), sqlc.narg(spool_id),
     sqlc.arg(method), sqlc.arg(calculation_version), sqlc.arg(quality)
 ) ON CONFLICT (run_id, report_revision, line_number) DO NOTHING;
+
+-- name: InsertReportedUsageSegment :exec
+INSERT INTO machine_run_reported_usage_segments (
+    id, item_id, segment_index, input_unit_external_id, slot_external_id, started_at, start_layer,
+    estimated_quantity_g, split, spool_id
+) VALUES (
+    sqlc.arg(id), sqlc.arg(item_id), sqlc.arg(segment_index), sqlc.narg(input_unit_external_id), sqlc.narg(slot_external_id),
+    sqlc.arg(started_at), sqlc.narg(start_layer), sqlc.narg(estimated_quantity_g), sqlc.narg(split), sqlc.narg(spool_id)
+);
 
 -- name: UpsertPrinterErrorOccurrence :one
 -- inserted is true when this is the first observation of a still open occurrence.

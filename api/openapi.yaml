@@ -17148,9 +17148,9 @@ components:
       type: object
       additionalProperties: false
       required: [code, message]
-      description: "low_stock: the article's quantity is at or below its low-stock threshold; remainder_low: an active spool holds less than 10 % of its initial net weight."
+      description: "low_stock: the article's quantity is at or below its low-stock threshold; remainder_low: an active spool holds less than 10 % of its initial net weight; ran_out_during_run: the printer's feed moved on from this active spool to another during a print (it likely ran empty) and nobody has retired, weighed, corrected or mounted it since; the message names the run and Core's remaining quantity."
       properties:
-        code: {type: string, enum: [low_stock, remainder_low]}
+        code: {type: string, enum: [low_stock, remainder_low, ran_out_during_run]}
         message: {type: string}
 
     MaterialKind:
@@ -18166,7 +18166,7 @@ components:
     MachineRunReportedUsageItem:
       type: object
       additionalProperties: false
-      required: [lineNumber, reportRevision, method, calculationVersion, quality]
+      required: [lineNumber, reportRevision, method, calculationVersion, quality, segments]
       properties:
         lineNumber: {type: integer, minimum: 0}
         reportRevision: {type: integer, format: int64, minimum: 1}
@@ -18182,11 +18182,37 @@ components:
         method: {type: string, maxLength: 80}
         calculationVersion: {type: string, maxLength: 80}
         quality: {type: string, enum: [high, medium, low, unresolved]}
+        segments:
+          type: array
+          maxItems: 24
+          items: {$ref: "#/components/schemas/MachineRunReportedUsageSegment"}
+          description: >-
+            The spools that fed this line in time order, when two or more did during the print (an AMS refill, a reloaded tray, a new RFID
+            tag); empty otherwise. A line with segments has no spool of its own: each segment is booked on its own spool with its own
+            quantity, and the segments' quantities add up to the line's.
+
+    MachineRunReportedUsageSegment:
+      type: object
+      additionalProperties: false
+      required: [index, startedAt]
+      description: >-
+        One spool that fed a reported line, resolved at startedAt from the slot's historical assignment and the exact RFID tag (a
+        disagreement stays unresolved). A segment without spool or quantity is not booked.
+      properties:
+        index: {type: integer, minimum: 0}
+        inputUnitExternalId: {type: string, maxLength: 200, nullable: true}
+        slotExternalId: {type: string, maxLength: 200, nullable: true}
+        startedAt: {type: string, format: date-time, description: When the feed moved to this spool.}
+        startLayer: {type: integer, minimum: 0, nullable: true, description: "The printer layer at startedAt, when known."}
+        estimatedQuantityGrams: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: This segment's share of the line; null when no split was possible.}
+        split: {type: string, enum: [gcode_layer, progress], nullable: true, description: "How the line was split: by the G-code extrusion before each segment's first layer, or by printer progress (a time-based estimate)."}
+        spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: The article of the resolved spool.}
 
     MachineRun:
       type: object
       additionalProperties: false
-      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, measures, usagesFromMachine, reportedUsageItems, outcomeFromMachine, hiddenFromSignage, jobHiddenFromSignage, version]
+      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, measures, usagesFromMachine, reportedUsageItems, materialChangedDuringRun, outcomeFromMachine, hiddenFromSignage, jobHiddenFromSignage, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -18209,6 +18235,7 @@ components:
         usagesFromMachine: {type: boolean, description: The usage was consumed automatically from the machine's report.}
         reportedUsage: {$ref: "#/components/schemas/MachineRunReportedUsage"}
         reportedUsageItems: {type: array, items: {$ref: "#/components/schemas/MachineRunReportedUsageItem"}}
+        materialChangedDuringRun: {type: boolean, description: "A reported line was fed by spools of different articles during the print (for example another colour after a refill); each article is booked and priced for its own segment."}
         artifact: {$ref: "#/components/schemas/PrintArtifactReference"}
         consumptionStatus: {allOf: [{$ref: "#/components/schemas/MachineRunConsumptionStatus"}], nullable: true, description: "Why consumption is (not) recorded; null for manual runs. See MachineRunConsumptionStatus."}
         hiddenFromSignage: {type: boolean, description: "The run's own flag: while the run is running, its machine (status and camera) is hidden from every signage display, and its timelapse is never shown."}
@@ -18256,7 +18283,8 @@ components:
         could not be mapped to a printer slot; connector_offline_during_run: the printer connection or the connector was lost during the run;
         inventory_not_booked: the lines are resolved but inventory refused the booking (for example no stock); consumption_pending: the
         connector is still working on it; run_in_progress: the run has not ended; consumption_not_reported: the connector reported nothing
-        and gave no reason (older connector).
+        and gave no reason (older connector); segment_quantity_unavailable: a line was fed by several spools and its quantity could not be
+        split between them; segment_without_spool: a segment of a line fed by several spools resolved to no spool at its start.
       enum:
         - artifact_not_found_on_printer
         - artifact_on_internal_storage
@@ -18274,6 +18302,8 @@ components:
         - consumption_pending
         - run_in_progress
         - consumption_not_reported
+        - segment_without_spool
+        - segment_quantity_unavailable
 
     MachineRunConsumptionStatus:
       type: object

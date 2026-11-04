@@ -480,7 +480,8 @@ SELECT s.id, s.display_id, s.material_id, s.initial_net_weight_g, s.lifecycle, s
        (pa.id IS NOT NULL)::boolean AS mounted,
        mu.machine_id AS mount_machine_id, mc.name AS mount_machine_name, mu.name AS mount_input_unit_name,
        pl.id AS mount_slot_id, pl.name AS mount_slot_name,
-       rp.first_name AS retired_by_first_name, rp.last_name AS retired_by_last_name
+       rp.first_name AS retired_by_first_name, rp.last_name AS retired_by_last_name,
+       (ro.ran_out_at IS NOT NULL)::boolean AS ran_out, COALESCE(ro.ran_out_run_display_id, '')::text AS ran_out_run_display_id
 FROM filament_spools s
 JOIN materials m ON m.id=s.material_id
 JOIN material_types mt ON mt.id=m.material_type_id
@@ -490,6 +491,24 @@ LEFT JOIN printer_input_units mu ON mu.id=pl.input_unit_id
 LEFT JOIN machines mc ON mc.id=mu.machine_id
 LEFT JOIN accounts ra ON ra.id=s.retired_by
 LEFT JOIN people rp ON rp.id=ra.person_id
+LEFT JOIN LATERAL (
+    -- An active spool ran out during a print when a segment it fed was followed by a segment on another (or no)
+    -- spool in the latest report of a run that is not deleted, and nobody weighed, corrected or mounted it since.
+    SELECT n.started_at AS ran_out_at, r.display_id AS ran_out_run_display_id
+    FROM machine_run_reported_usage_segments g
+    JOIN machine_run_reported_usage_items i ON i.id = g.item_id
+    JOIN machine_runs r ON r.id = i.run_id AND r.deleted_at IS NULL
+    JOIN machine_run_reported_usage_segments n ON n.item_id = g.item_id AND n.segment_index = g.segment_index + 1
+    WHERE s.lifecycle = 'active' AND g.spool_id = s.id AND n.spool_id IS DISTINCT FROM s.id
+      AND i.report_revision = (SELECT max(x.report_revision) FROM machine_run_reported_usage_items x WHERE x.run_id = i.run_id)
+      AND NOT EXISTS (SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id = s.id AND a.mounted_at > n.started_at)
+      AND NOT EXISTS (
+          SELECT 1 FROM inventory_transactions t
+          WHERE t.spool_id = s.id AND t.kind = 'adjustment' AND t.deleted_at IS NULL
+            AND t.adjustment_reason IS DISTINCT FROM 'job_corrected' AND t.created_at > n.started_at)
+    ORDER BY n.started_at DESC, r.id
+    LIMIT 1
+) ro ON true
 WHERE s.id=sqlc.arg(id);
 
 -- name: GetFilamentSpoolForUpdate :one
@@ -507,7 +526,8 @@ SELECT s.id, s.display_id, s.material_id, s.initial_net_weight_g, s.lifecycle, s
        (pa.id IS NOT NULL)::boolean AS mounted,
        mu.machine_id AS mount_machine_id, mc.name AS mount_machine_name, mu.name AS mount_input_unit_name,
        pl.id AS mount_slot_id, pl.name AS mount_slot_name,
-       rp.first_name AS retired_by_first_name, rp.last_name AS retired_by_last_name
+       rp.first_name AS retired_by_first_name, rp.last_name AS retired_by_last_name,
+       (ro.ran_out_at IS NOT NULL)::boolean AS ran_out, COALESCE(ro.ran_out_run_display_id, '')::text AS ran_out_run_display_id
 FROM filament_spools s
 JOIN materials m ON m.id=s.material_id
 JOIN material_types mt ON mt.id=m.material_type_id
@@ -517,6 +537,24 @@ LEFT JOIN printer_input_units mu ON mu.id=pl.input_unit_id
 LEFT JOIN machines mc ON mc.id=mu.machine_id
 LEFT JOIN accounts ra ON ra.id=s.retired_by
 LEFT JOIN people rp ON rp.id=ra.person_id
+LEFT JOIN LATERAL (
+    -- An active spool ran out during a print when a segment it fed was followed by a segment on another (or no)
+    -- spool in the latest report of a run that is not deleted, and nobody weighed, corrected or mounted it since.
+    SELECT n.started_at AS ran_out_at, r.display_id AS ran_out_run_display_id
+    FROM machine_run_reported_usage_segments g
+    JOIN machine_run_reported_usage_items i ON i.id = g.item_id
+    JOIN machine_runs r ON r.id = i.run_id AND r.deleted_at IS NULL
+    JOIN machine_run_reported_usage_segments n ON n.item_id = g.item_id AND n.segment_index = g.segment_index + 1
+    WHERE s.lifecycle = 'active' AND g.spool_id = s.id AND n.spool_id IS DISTINCT FROM s.id
+      AND i.report_revision = (SELECT max(x.report_revision) FROM machine_run_reported_usage_items x WHERE x.run_id = i.run_id)
+      AND NOT EXISTS (SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id = s.id AND a.mounted_at > n.started_at)
+      AND NOT EXISTS (
+          SELECT 1 FROM inventory_transactions t
+          WHERE t.spool_id = s.id AND t.kind = 'adjustment' AND t.deleted_at IS NULL
+            AND t.adjustment_reason IS DISTINCT FROM 'job_corrected' AND t.created_at > n.started_at)
+    ORDER BY n.started_at DESC, r.id
+    LIMIT 1
+) ro ON true
 WHERE m.deleted_at IS NULL
   AND (sqlc.arg(search)::text='' OR lower(s.display_id) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(m.name) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
@@ -725,6 +763,17 @@ SELECT i.* FROM machine_run_reported_usage_items i
 WHERE i.run_id = ANY(sqlc.arg(run_ids)::uuid[])
   AND i.report_revision = (SELECT max(x.report_revision) FROM machine_run_reported_usage_items x WHERE x.run_id = i.run_id)
 ORDER BY i.run_id, i.line_number;
+
+-- name: ListLatestReportedUsageSegmentsForRuns :many
+-- The segments of the latest report revision, with the article of the spool each one resolved to.
+SELECT g.id, g.item_id, g.segment_index, g.input_unit_external_id, g.slot_external_id, g.started_at, g.start_layer,
+       g.estimated_quantity_g, g.split, g.spool_id, s.material_id AS spool_material_id
+FROM machine_run_reported_usage_segments g
+JOIN machine_run_reported_usage_items i ON i.id = g.item_id
+LEFT JOIN filament_spools s ON s.id = g.spool_id
+WHERE i.run_id = ANY(sqlc.arg(run_ids)::uuid[])
+  AND i.report_revision = (SELECT max(x.report_revision) FROM machine_run_reported_usage_items x WHERE x.run_id = i.run_id)
+ORDER BY g.item_id, g.segment_index;
 
 -- name: ListActiveRunUsagesForUpdate :many
 SELECT * FROM machine_run_usages WHERE run_id = sqlc.arg(run_id) AND active
