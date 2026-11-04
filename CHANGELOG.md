@@ -2,6 +2,16 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Upgrade notes
+
+- **Bambu spool tags are now identified by `tray_uuid`.** NFC identifiers of Bambu spools that were registered with the chip `tag_uid` (16 hex characters ending in `00000100`) no longer match; register those spools again from the detected tag. Update the printer connector together with Core.
+
+### Fixed
+
+- **A Bambu spool is recognised whichever of its two tags the AMS reads.** Each Bambu spool carries one RFID tag per side with different chip UIDs, and which one an AMS slot reads depends on the slot and on nearby readers, so the same spool showed up under two serials. The connector now reports the spool's `tray_uuid`, which both tags share, as its tag identity on every printer, and the chip `tag_uid` only for tags without one.
+
 ## [0.16.0] - 2026-11-04
 
 ### Upgrade notes

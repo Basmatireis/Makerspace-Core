@@ -732,3 +732,18 @@ func TestBambuErrorCodesUseTheFormatBambuShows(t *testing.T) {
 		}
 	}
 }
+
+func TestBambuTagUIDPrefersTheSpoolsTrayUUID(t *testing.T) {
+	// The two tags of one Bambu spool differ in tag_uid but share tray_uuid.
+	left := map[string]any{"tag_uid": "95AF720500000100", "tray_uuid": "6C8E4B1A2F3D4E5F6A7B8C9D0E1F2A3B"}
+	right := map[string]any{"tag_uid": "02342A2900000100", "tray_uuid": "6C8E4B1A2F3D4E5F6A7B8C9D0E1F2A3B"}
+	if bambuTagUID(left) != "6C8E4B1A2F3D4E5F6A7B8C9D0E1F2A3B" || bambuTagUID(left) != bambuTagUID(right) {
+		t.Fatalf("both tags of one spool must yield its tray_uuid: %q, %q", bambuTagUID(left), bambuTagUID(right))
+	}
+	if got := bambuTagUID(map[string]any{"tag_uid": "12424729", "tray_uuid": "00000000000000000000000000000000"}); got != "12424729" {
+		t.Fatalf("a tag without tray_uuid must fall back to tag_uid, got %q", got)
+	}
+	if got := bambuTagUID(map[string]any{"tag_uid": "0000000000000000", "tray_uuid": "00000000000000000000000000000000"}); got != "" {
+		t.Fatalf("a holder without a readable tag must have no identity, got %q", got)
+	}
+}

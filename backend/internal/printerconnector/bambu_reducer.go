@@ -656,10 +656,17 @@ type bambuTrayRef struct {
 	unit           map[string]any
 }
 
-// Bambu uses an all-zero tag UID for holders without a readable RFID tag.
-// Keep that sentinel out of authoritative spool evidence: only a real tag may
-// participate in exact historical NFC matching.
+// bambuTagUID is the spool's RFID identity. A Bambu spool carries one tag per
+// side, each with its own chip UID (tag_uid), so which UID the AMS reports
+// depends on the slot and on neighbouring readers. Both tags store the same
+// tray_uuid, which is therefore the identity whenever it is present; tag_uid
+// is the fallback for tags without one. Bambu reports all-zero values for
+// holders without a readable tag. Keep that sentinel out of authoritative
+// spool evidence: only a real tag may participate in exact NFC matching.
 func bambuTagUID(tray map[string]any) string {
+	if spool := strings.TrimSpace(firstScalar(tray, "tray_uuid")); spool != "" && !isZeroIdentifier(spool) {
+		return spool
+	}
 	tag := strings.TrimSpace(firstScalar(tray, "tag_uid"))
 	if tag == "" || isZeroIdentifier(tag) {
 		return ""
