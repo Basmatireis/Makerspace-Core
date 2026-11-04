@@ -24,6 +24,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/camerarelay"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -162,6 +163,16 @@ func NewApplicationWithRelay(
 			},
 		})
 	}
+	jobs.Add(scheduler.Job{
+		ID: "laborordnung.announce", Interval: laborordnung.AnnounceInterval, RunAtStart: true,
+		Run: func(ctx context.Context) (scheduler.Summary, error) {
+			announced, err := server.laborordnung.Announce(ctx)
+			if announced {
+				return scheduler.Summary{"announced": 1}, err
+			}
+			return scheduler.Summary{"announced": 0}, err
+		},
+	})
 	jobs.Add(scheduler.Job{
 		ID: "inbox.mail_delivery", Interval: inbox.MailDeliveryInterval, RunAtStart: true,
 		Run: func(ctx context.Context) (scheduler.Summary, error) {

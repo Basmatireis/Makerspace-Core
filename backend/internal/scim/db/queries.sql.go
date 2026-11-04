@@ -373,6 +373,24 @@ func (q *Queries) CreateSCIMUser(ctx context.Context, arg CreateSCIMUserParams) 
 	return i, err
 }
 
+const deduplicateLabRuleConfirmations = `-- name: DeduplicateLabRuleConfirmations :exec
+DELETE FROM laborordnung_confirmations source
+USING laborordnung_confirmations target
+WHERE source.person_id=$1 AND target.person_id=$2
+  AND source.version_id=target.version_id
+`
+
+type DeduplicateLabRuleConfirmationsParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// One confirmation per person and version: the target's confirmation of the same version wins.
+func (q *Queries) DeduplicateLabRuleConfirmations(ctx context.Context, arg DeduplicateLabRuleConfirmationsParams) error {
+	_, err := q.db.Exec(ctx, deduplicateLabRuleConfirmations, arg.SourcePersonID, arg.TargetPersonID)
+	return err
+}
+
 const deduplicateOpenDayAssignments = `-- name: DeduplicateOpenDayAssignments :exec
 DELETE FROM open_day_assignments source
 USING open_day_assignments target
@@ -387,24 +405,6 @@ type DeduplicateOpenDayAssignmentsParams struct {
 
 func (q *Queries) DeduplicateOpenDayAssignments(ctx context.Context, arg DeduplicateOpenDayAssignmentsParams) error {
 	_, err := q.db.Exec(ctx, deduplicateOpenDayAssignments, arg.SourcePersonID, arg.TargetPersonID)
-	return err
-}
-
-const deduplicatePendingLabRuleRequests = `-- name: DeduplicatePendingLabRuleRequests :exec
-DELETE FROM laborordnung_requests source
-USING laborordnung_requests target
-WHERE source.person_id=$1 AND target.person_id=$2
-  AND source.status='pending' AND target.status='pending'
-  AND source.required_version_id=target.required_version_id
-`
-
-type DeduplicatePendingLabRuleRequestsParams struct {
-	SourcePersonID uuid.UUID
-	TargetPersonID uuid.UUID
-}
-
-func (q *Queries) DeduplicatePendingLabRuleRequests(ctx context.Context, arg DeduplicatePendingLabRuleRequestsParams) error {
-	_, err := q.db.Exec(ctx, deduplicatePendingLabRuleRequests, arg.SourcePersonID, arg.TargetPersonID)
 	return err
 }
 
@@ -697,39 +697,6 @@ func (q *Queries) ListOpenDayReconciliationConflicts(ctx context.Context, arg Li
 	return items, nil
 }
 
-const listPendingLabRuleConflicts = `-- name: ListPendingLabRuleConflicts :many
-SELECT source.id
-FROM laborordnung_requests source
-JOIN laborordnung_requests target ON target.person_id=$1 AND target.status='pending'
-WHERE source.person_id=$2 AND source.status='pending'
-  AND source.required_version_id<>target.required_version_id
-`
-
-type ListPendingLabRuleConflictsParams struct {
-	TargetPersonID uuid.UUID
-	SourcePersonID uuid.UUID
-}
-
-func (q *Queries) ListPendingLabRuleConflicts(ctx context.Context, arg ListPendingLabRuleConflictsParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listPendingLabRuleConflicts, arg.TargetPersonID, arg.SourcePersonID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []uuid.UUID{}
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listSCIMMappingConnectorConflicts = `-- name: ListSCIMMappingConnectorConflicts :many
 SELECT source.connector_id
 FROM scim_users source
@@ -877,17 +844,17 @@ func (q *Queries) LockReconciliationPeople(ctx context.Context, arg LockReconcil
 	return err
 }
 
-const moveLabRuleRequests = `-- name: MoveLabRuleRequests :exec
-UPDATE laborordnung_requests SET person_id=$1 WHERE person_id=$2
+const moveLabRuleConfirmations = `-- name: MoveLabRuleConfirmations :exec
+UPDATE laborordnung_confirmations SET person_id=$1 WHERE person_id=$2
 `
 
-type MoveLabRuleRequestsParams struct {
+type MoveLabRuleConfirmationsParams struct {
 	TargetPersonID uuid.UUID
 	SourcePersonID uuid.UUID
 }
 
-func (q *Queries) MoveLabRuleRequests(ctx context.Context, arg MoveLabRuleRequestsParams) error {
-	_, err := q.db.Exec(ctx, moveLabRuleRequests, arg.TargetPersonID, arg.SourcePersonID)
+func (q *Queries) MoveLabRuleConfirmations(ctx context.Context, arg MoveLabRuleConfirmationsParams) error {
+	_, err := q.db.Exec(ctx, moveLabRuleConfirmations, arg.TargetPersonID, arg.SourcePersonID)
 	return err
 }
 

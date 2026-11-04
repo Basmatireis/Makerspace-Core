@@ -18,12 +18,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LaborordnungConfirmation } from './laborordnungConfirmation';
 
-export type LaborordnungRequestStatus = typeof LaborordnungRequestStatus[keyof typeof LaborordnungRequestStatus];
-
-
-export const LaborordnungRequestStatus = {
-  pending: 'pending',
-  completed: 'completed',
-  superseded: 'superseded',
-} as const;
+export interface LaborordnungConfirmationPage {
+  items: LaborordnungConfirmation[];
+  /** @minimum 1 */
+  page: number;
+  /** @minimum 1 */
+  pageSize: number;
+  /** @minimum 0 */
+  total: number;
+}

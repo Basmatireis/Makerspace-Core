@@ -32,11 +32,18 @@ const (
 	StateOutdated           State = "outdated"
 )
 
-// RequestStatus is the state of a physical-signature request.
-type RequestStatus string
+// ConfirmationMethod is how a person confirmed a Lab Rules version.
+type ConfirmationMethod string
 
 const (
-	RequestPending    RequestStatus = "pending"
-	RequestCompleted  RequestStatus = "completed"
-	RequestSuperseded RequestStatus = "superseded"
+	// MethodPaper marks signed paper a supervisor checked before people confirmed themselves; only history has it.
+	MethodPaper      ConfirmationMethod = "paper"
+	MethodApp        ConfirmationMethod = "app"
+	MethodKiosk      ConfirmationMethod = "kiosk"
+	MethodEnrollment ConfirmationMethod = "enrollment"
 )
+
+// Valid reports whether m is a known method.
+func (m ConfirmationMethod) Valid() bool {
+	return m == MethodPaper || m == MethodApp || m == MethodKiosk || m == MethodEnrollment
+}

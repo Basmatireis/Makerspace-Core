@@ -18,32 +18,11 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ListLaborordnungSignaturesDirection } from './listLaborordnungSignaturesDirection';
-import type { ListLaborordnungSignaturesSort } from './listLaborordnungSignaturesSort';
-import type { UUIDv7 } from './uUIDv7';
 
-export type ListLaborordnungSignaturesParams = {
-/**
- * @maxLength 200
- */
-search?: string;
-/**
- * Only signatures of this Lab Rules version.
- */
-versionId?: UUIDv7;
-/**
- * Only signatures of this person.
- */
-personId?: UUIDv7;
-sort?: ListLaborordnungSignaturesSort;
-direction?: ListLaborordnungSignaturesDirection;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
-};
+export type ListLaborordnungConfirmationsDirection = typeof ListLaborordnungConfirmationsDirection[keyof typeof ListLaborordnungConfirmationsDirection];
+
+
+export const ListLaborordnungConfirmationsDirection = {
+  asc: 'asc',
+  desc: 'desc',
+} as const;

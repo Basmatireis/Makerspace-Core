@@ -8,27 +8,31 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
-	ConfirmRequest(ctx context.Context, arg ConfirmRequestParams) (LaborordnungRequest, error)
-	CountSignatures(ctx context.Context, arg CountSignaturesParams) (int64, error)
-	CreateRequest(ctx context.Context, arg CreateRequestParams) (LaborordnungRequest, error)
+	CountConfirmations(ctx context.Context, arg CountConfirmationsParams) (int64, error)
 	CreateVersion(ctx context.Context, arg CreateVersionParams) (LaborordnungVersion, error)
+	// Locks the current version while it is announced. SKIP LOCKED lets a second process that runs the job at the same
+	// time pass instead of announcing it again; the current version is chosen before locking, so a locked one is never
+	// replaced by an older version.
+	GetCurrentUnannouncedVersionForUpdate(ctx context.Context) (LaborordnungVersion, error)
 	GetCurrentVersion(ctx context.Context) (LaborordnungVersion, error)
-	GetLatestCompletedRequest(ctx context.Context, personID uuid.UUID) (LaborordnungRequest, error)
-	GetPendingRequest(ctx context.Context, personID uuid.UUID) (LaborordnungRequest, error)
-	GetPendingRequestForStatus(ctx context.Context, personID uuid.UUID) (LaborordnungRequest, error)
+	// The confirmation of the current version when there is one, otherwise the most recent one.
+	GetLatestConfirmation(ctx context.Context, arg GetLatestConfirmationParams) (LaborordnungConfirmation, error)
 	GetPersonMode(ctx context.Context, personID uuid.UUID) (string, error)
 	GetPersonName(ctx context.Context, id uuid.UUID) (GetPersonNameRow, error)
-	GetRequestForUpdate(ctx context.Context, id uuid.UUID) (LaborordnungRequest, error)
 	GetVersion(ctx context.Context, id uuid.UUID) (LaborordnungVersion, error)
-	ListRequests(ctx context.Context) ([]LaborordnungRequest, error)
-	ListSignatures(ctx context.Context, arg ListSignaturesParams) ([]ListSignaturesRow, error)
+	// A repeated confirmation of the same version keeps the first one.
+	InsertConfirmation(ctx context.Context, arg InsertConfirmationParams) (int64, error)
+	ListConfirmations(ctx context.Context, arg ListConfirmationsParams) ([]ListConfirmationsRow, error)
 	ListVersions(ctx context.Context) ([]LaborordnungVersion, error)
 	LockPerson(ctx context.Context, id uuid.UUID) error
+	// Marks the version and every older effective version that was never announced; a newer version that became
+	// effective before the job ran supersedes them.
+	MarkVersionsAnnounced(ctx context.Context, effectiveAt pgtype.Timestamptz) (int64, error)
 	PublishVersion(ctx context.Context, arg PublishVersionParams) (LaborordnungVersion, error)
-	SupersedePendingRequest(ctx context.Context, id uuid.UUID) error
 }
 
 var _ Querier = (*Queries)(nil)

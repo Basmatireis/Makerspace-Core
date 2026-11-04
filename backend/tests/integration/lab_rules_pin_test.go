@@ -21,7 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
+func TestLabRulesStatusIsReadOnlyAndSelfConfirmationIsIdempotent(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	accountID, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
@@ -65,7 +65,7 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE person_id=$1`, 0, personID)
+	assertCount(t, pool, `SELECT count(*) FROM laborordnung_confirmations WHERE person_id=$1`, 0, personID)
 
 	service := laborordnung.NewService(pool, inbox.NewEmitter(), nil)
 	status, err := service.Evaluate(ctx, personID)
@@ -75,13 +75,13 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	if status.Mode != "warning" || status.State != "outdated" || !status.ActionRequired ||
 		status.CurrentVersion == nil ||
 		status.CurrentVersion.ID != versionID ||
-		status.RequestID != nil {
+		status.LatestConfirmedAt != nil {
 		t.Fatalf("unexpected warning status: %#v", status)
 	}
 	if _, err := service.Evaluate(ctx, personID); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE person_id=$1`, 0, personID)
+	assertCount(t, pool, `SELECT count(*) FROM laborordnung_confirmations WHERE person_id=$1`, 0, personID)
 
 	principal := authorization.Principal{
 		AccountID:       accountID,
@@ -90,32 +90,32 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 		Assurance:       authorization.AssuranceNormal,
 		AuthenticatedAt: time.Now().UTC(),
 	}
-	first, created, err := service.RequestOwnConfirmation(ctx, principal, nil)
-	if err != nil || !created {
-		t.Fatalf("create explicit request: created=%v err=%v", created, err)
-	}
-	second, created, err := service.RequestOwnConfirmation(ctx, principal, nil)
-	if err != nil || created || second.ID != first.ID {
-		t.Fatalf("reuse explicit request: first=%s second=%s created=%v err=%v", first.ID, second.ID, created, err)
-	}
-	assertCount(
-		t,
-		pool,
-		`SELECT count(*) FROM laborordnung_requests WHERE person_id=$1 AND status='pending'`,
-		1,
-		personID,
-	)
-	status, err = service.Evaluate(ctx, personID)
-	if err != nil || status.RequestID == nil || *status.RequestID != first.ID {
-		t.Fatalf("status after explicit request: %#v err=%v", status, err)
-	}
-	if _, err := service.Confirm(ctx, principal, first.ID, "physical-folder-42", nil, nil, nil); err != nil {
+	other := seedAccount(t, pool, "other-member", false)
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id,role_id) VALUES ($1,$2)`, other.personID, warningRoleID); err != nil {
 		t.Fatal(err)
 	}
-	status, err = service.Evaluate(ctx, personID)
+	outdated := ids.New()
+	if _, err := service.ConfirmOwn(ctx, principal, outdated, nil); !apperror.IsCode(err, "lab_rules_version_outdated") {
+		t.Fatalf("confirming another version error=%v, want lab_rules_version_outdated", err)
+	}
+	status, err = service.ConfirmOwn(ctx, principal, versionID, nil)
 	if err != nil || status.State != "current" || status.ActionRequired || status.LatestConfirmedVersion == nil ||
-		status.LatestConfirmedVersion.ID != versionID {
+		status.LatestConfirmedVersion.ID != versionID || status.LatestConfirmedAt == nil {
 		t.Fatalf("status after confirmation: %#v err=%v", status, err)
+	}
+	again, err := service.ConfirmOwn(ctx, principal, versionID, nil)
+	if err != nil || again.State != "current" || !again.LatestConfirmedAt.Equal(*status.LatestConfirmedAt) {
+		t.Fatalf("repeated confirmation: %#v err=%v", again, err)
+	}
+	assertCount(t, pool, `
+		SELECT count(*) FROM laborordnung_confirmations
+		WHERE person_id=$1 AND version_id=$2 AND method='app' AND confirmed_by_account_id IS NULL`, 1, personID, versionID)
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='laborordnung.confirmation.created'`, 1)
+	// Confirming records only the signed-in person.
+	assertCount(t, pool, `SELECT count(*) FROM laborordnung_confirmations WHERE person_id=$1`, 0, other.personID)
+	otherStatus, err := service.Evaluate(ctx, other.personID)
+	if err != nil || otherStatus.State != "outdated" {
+		t.Fatalf("other person's status: %#v err=%v", otherStatus, err)
 	}
 
 	blockingRoleID := ids.New()
@@ -138,6 +138,32 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	if err != nil || status.Mode != "blocking" {
 		t.Fatalf("strongest effective policy = %#v err=%v", status, err)
 	}
+}
+
+func TestLabRulesSelfConfirmationRefusesWhenNotRequiredOrUnavailable(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	service := laborordnung.NewService(pool, inbox.NewEmitter(), nil)
+	person := seedAccount(t, pool, "unrequired-member", false)
+	principal := authorization.Principal{AccountID: person.accountID, PersonID: person.personID}
+	if _, err := service.ConfirmOwn(ctx, principal, ids.New(), nil); !apperror.IsCode(err, "lab_rules_not_required") {
+		t.Fatalf("confirmation without a Lab Rules role error=%v, want lab_rules_not_required", err)
+	}
+	roleID := ids.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO roles (id,name,laborordnung_mode) VALUES ($1,'Lab members','blocking')`, roleID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id,role_id) VALUES ($1,$2)`, person.personID, roleID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfirmOwn(ctx, principal, ids.New(), nil); !apperror.IsCode(err, "lab_rules_unavailable") {
+		t.Fatalf("confirmation without an effective version error=%v, want lab_rules_unavailable", err)
+	}
+	future := insertPublishedLabRulesVersionAt(t, pool, person.accountID, "2027.1", time.Now().Add(24*time.Hour))
+	if _, err := service.ConfirmOwn(ctx, principal, future, nil); !apperror.IsCode(err, "lab_rules_unavailable") {
+		t.Fatalf("confirming a version that is not yet effective error=%v, want lab_rules_unavailable", err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM laborordnung_confirmations`, 0)
 }
 
 func TestAdministratorPINEnrollmentChallengeCreatesUsernamePINIdentity(t *testing.T) {
@@ -766,6 +792,18 @@ func TestStandaloneEmailVerificationIsSingleUse(t *testing.T) {
 
 func insertPublishedLabRulesVersion(t *testing.T, pool *pgxpool.Pool, accountID uuid.UUID, revision string) uuid.UUID {
 	t.Helper()
+	return insertPublishedLabRulesVersionAt(t, pool, accountID, revision, time.Now().Add(-time.Minute))
+}
+
+// insertPublishedLabRulesVersionAt publishes a version that takes effect at effectiveAt.
+func insertPublishedLabRulesVersionAt(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	accountID uuid.UUID,
+	revision string,
+	effectiveAt time.Time,
+) uuid.UUID {
+	t.Helper()
 	ctx := testContext(t)
 	fileID, versionID := ids.New(), ids.New()
 	digest := bytes.Repeat([]byte{5}, 32)
@@ -776,7 +814,7 @@ func insertPublishedLabRulesVersion(t *testing.T, pool *pgxpool.Pool, accountID 
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO laborordnung_versions (id,status,human_revision,pdf_file_id,pdf_sha256,effective_at,published_at,created_by_account_id)
-		VALUES ($1,'published',$2,$3,$4,now()-interval '1 minute',now(),$5)`, versionID, revision, fileID, digest, accountID); err != nil {
+		VALUES ($1,'published',$2,$3,$4,$6,now(),$5)`, versionID, revision, fileID, digest, accountID, effectiveAt.UTC()); err != nil {
 		t.Fatal(err)
 	}
 	return versionID

@@ -20,12 +20,11 @@
  */
 
 /**
- * Completing enrollment counts as arriving; blocked roles wait for a supervisor to confirm the Lab Rules.
+ * Completing enrollment counts as arriving.
  */
 export type VisitorEnrollmentResultAttendance = typeof VisitorEnrollmentResultAttendance[keyof typeof VisitorEnrollmentResultAttendance];
 
 
 export const VisitorEnrollmentResultAttendance = {
   checked_in: 'checked_in',
-  awaiting_sign_off: 'awaiting_sign_off',
 } as const;

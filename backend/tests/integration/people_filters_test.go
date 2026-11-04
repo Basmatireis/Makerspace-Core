@@ -53,10 +53,10 @@ func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := seedAccount(t, pool, "directory-filter-lab-current", false)
-	pending := seedAccount(t, pool, "directory-filter-lab-pending", false)
+	selfConfirmed := seedAccount(t, pool, "directory-filter-lab-self", false)
 	outdated := seedAccount(t, pool, "directory-filter-lab-outdated", false)
 	notRequired := seedAccount(t, pool, "directory-filter-lab-not-required", false)
-	for _, personID := range []uuid.UUID{current.personID, pending.personID, outdated.personID} {
+	for _, personID := range []uuid.UUID{current.personID, selfConfirmed.personID, outdated.personID} {
 		if _, err := pool.Exec(
 			ctx,
 			`INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`,
@@ -67,24 +67,28 @@ func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 		}
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO laborordnung_requests(
-			id,person_id,required_version_id,status,completed_at,confirmed_by_account_id,physical_document_reference
-		) VALUES($1,$2,$3,'completed',now(),$4,'directory-filter-current')`,
+		INSERT INTO laborordnung_confirmations(
+			id,person_id,version_id,method,confirmed_at,confirmed_by_account_id,physical_document_reference
+		) VALUES($1,$2,$3,'paper',now(),$4,'directory-filter-current')`,
 		ids.New(), current.personID, currentVersionID, creator.accountID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO laborordnung_requests(id,person_id,required_version_id) VALUES($1,$2,$3)`,
-		ids.New(), pending.personID, currentVersionID); err != nil {
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO laborordnung_confirmations(id,person_id,version_id,method,confirmed_at) VALUES($1,$2,$3,'kiosk',now())`,
+		ids.New(), selfConfirmed.personID, currentVersionID); err != nil {
 		t.Fatal(err)
 	}
 
 	page, err = service.List(ctx, principal, 1, 100, people.ListFilters{
-		Search: "directory-filter-lab-", LaborordnungStatuses: []string{"current", "pending"},
+		Search: "directory-filter-lab-", LaborordnungStatuses: []string{"current"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertPeoplePageIDs(t, page, current.personID, pending.personID)
+	assertPeoplePageIDs(t, page, current.personID, selfConfirmed.personID)
+	if _, err = service.List(ctx, principal, 1, 100, people.ListFilters{LaborordnungStatuses: []string{"pending"}}); err == nil {
+		t.Fatal("the pending Lab Rules filter no longer exists and must be rejected")
+	}
 
 	page, err = service.List(ctx, principal, 1, 100, people.ListFilters{
 		Search: "directory-filter-lab-", LaborordnungStatuses: []string{"outdated"},

@@ -928,8 +928,7 @@ paths:
           in: query
           description: |
             Return people matching at least one permission-gated Lab Rules presentation
-            status. `pending` means an outstanding confirmation request for the current
-            published version. Supplying this filter requires `laborordnung.requests.read`.
+            status. Supplying this filter requires `laborordnung.confirmations.read`.
           style: form
           explode: true
           schema:
@@ -1321,7 +1320,7 @@ paths:
         Requires the applicable `people.read.self` or `people.read.all`
         permission. Upcoming Open Day assignments are omitted without
         `open_days.read.assignments`; Lab Rules status is omitted without
-        `laborordnung.requests.read`.
+        `laborordnung.confirmations.read`.
       security:
         - sessionCookie: []
       responses:
@@ -3807,15 +3806,22 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /laborordnung/requests/me:
+  /laborordnung/confirmations/me:
     post:
       tags: [Laborordnung]
-      operationId: requestOwnLaborordnungConfirmation
-      summary: Explicitly create or reuse the current Person's physical-signature request
+      operationId: confirmOwnLaborordnung
+      summary: Confirm the current Lab Rules version as the signed-in Person
+      description: |
+        Records that the signed-in Person read and accepts the current effective Lab Rules version (method `app`).
+        `versionId` must name that version, so a confirmation never applies to a document the Person did not see.
+        Confirming again is harmless and returns the same status. Errors (409): `lab_rules_not_required` when no role
+        of the Person asks for the Lab Rules, `lab_rules_unavailable` when no version is effective, and
+        `lab_rules_version_outdated` when `versionId` is not the current version.
       security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ConfirmOwnLaborordnungRequest"}}}}
       responses:
-        "200": {description: Existing pending request reused., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungRequest"}}}}
-        "201": {description: New pending request created., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungRequest"}}}}
+        "200": {description: Status after confirming., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungStatus"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
@@ -4094,58 +4100,31 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /laborordnung/requests:
+  /laborordnung/confirmations:
     get:
       tags: [Laborordnung]
-      operationId: listLaborordnungRequests
-      summary: List the supervisor physical-evidence confirmation queue
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Pending and completed requests., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungRequestList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /laborordnung/signatures:
-    get:
-      tags: [Laborordnung]
-      operationId: listLaborordnungSignatures
-      summary: List confirmed physical Lab Rules signatures
+      operationId: listLaborordnungConfirmations
+      summary: List who confirmed which Lab Rules version
       description: |
-        Requires `laborordnung.requests.read`. Only completed requests appear: one entry per confirmed signature
-        with its physical document reference. `search` matches the person name and the document reference.
+        Requires `laborordnung.confirmations.read` and a person read permission: with only `people.read.self` the
+        list holds the caller's own confirmations. `search` matches the person name and, for paper confirmations,
+        the document reference. Paper confirmations are history from before people confirmed themselves; only
+        they carry a document reference, a signed date and the name of the checking supervisor.
       security: [{sessionCookie: []}]
       parameters:
         - {name: search, in: query, schema: {type: string, maxLength: 200}}
-        - {name: versionId, in: query, description: Only signatures of this Lab Rules version., schema: {$ref: "#/components/schemas/UUIDv7"}}
-        - {name: personId, in: query, description: Only signatures of this person., schema: {$ref: "#/components/schemas/UUIDv7"}}
-        - {name: sort, in: query, schema: {type: string, enum: [person, version, signedDate, reference, confirmedBy, confirmedAt], default: confirmedAt}}
+        - {name: versionId, in: query, description: Only confirmations of this Lab Rules version., schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: personId, in: query, description: Only confirmations of this person., schema: {$ref: "#/components/schemas/UUIDv7"}}
+        - {name: method, in: query, description: Only confirmations made this way., schema: {$ref: "#/components/schemas/LaborordnungConfirmationMethod"}}
+        - {name: sort, in: query, schema: {type: string, enum: [person, version, method, confirmedAt], default: confirmedAt}}
         - {name: direction, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
         - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
         - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
       responses:
-        "200": {description: Signatures., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungSignaturePage"}}}}
+        "200": {description: Confirmations., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungConfirmationPage"}}}}
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /laborordnung/requests/{laborordnungRequestId}/confirm:
-    parameters: [{$ref: "#/components/parameters/LaborordnungRequestId"}]
-    post:
-      tags: [Laborordnung]
-      operationId: confirmLaborordnungRequest
-      summary: Confirm verification of a physical signed document
-      description: Also completes a held check-in of the person that has not expired; the visit starts now.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ConfirmLaborordnungRequest"}}}}
-      responses:
-        "200": {description: Completed request., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungRequest"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /open-day-requirements:
@@ -5717,7 +5696,12 @@ paths:
       tags: [Visitor Enrollment]
       operationId: submitVisitorEnrollment
       summary: Atomically create one visitor using the backend-configured Role
-      description: Confirmation requests refer to the immutable Lab Rules version pinned by the enrollment context. Current device, method, and initial-role configuration is still enforced.
+      description: |
+        Completing enrollment counts as arriving: the visitor is checked in. When the configured role asks for the Lab
+        Rules, `labRulesAccepted` must be true (422 otherwise) and records the visitor's confirmation (method
+        `enrollment`) of the Lab Rules version pinned by the enrollment context. When that version is no longer the
+        current one, the answer is 409 `lab_rules_changed` and the kiosk must start over with the new version.
+        Current device, method, and initial-role configuration is still enforced.
       security: []
       parameters:
         - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
@@ -5736,7 +5720,7 @@ paths:
     post:
       tags: [Visitor Enrollment]
       operationId: evaluateVisitorAdmission
-      summary: Explicitly request/reuse required physical confirmation and evaluate admission on an approved ManagedDevice
+      summary: Evaluate Lab Rules admission of the signed-in Person on an approved ManagedDevice
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "200": {description: Admission decision., content: {application/json: {schema: {$ref: "#/components/schemas/VisitorAdmissionResult"}}}}
@@ -10639,15 +10623,41 @@ paths:
         "200": {description: Privacy-minimized current presence., content: {application/json: {schema: {$ref: "#/components/schemas/PublicPresenceList"}}}}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/lab-rules:
+    get:
+      tags: [Attendance]
+      operationId: getTerminalLabRules
+      summary: Read the current effective Lab Rules version for confirmation at the terminal
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "200": {description: The current version., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalLabRules"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/lab-rules.pdf:
+    get:
+      tags: [Attendance]
+      operationId: getTerminalLabRulesPDF
+      summary: Read the PDF of the current effective Lab Rules version; no other version is ever served
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "200": {description: Exact PDF of the current version., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/pdf: {schema: {type: string, format: binary}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/check-in/password:
     post:
       tags: [Attendance]
       operationId: terminalPasswordCheckIn
+      description: |
+        When the person must confirm the current Lab Rules, the terminal shows them and repeats the check-in with
+        `confirmLabRulesVersionId` (records the confirmation, method `kiosk`, and admits the person) or, for roles
+        that only warn, `deferLabRules` (admits the person with admission decision `warning`). Without either the
+        answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
+        `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
+        A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePasswordRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalPasswordCheckInRequest"}}}}
       responses:
         "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
-        "202": {description: Check-in held until the Lab Rules are confirmed., content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceHold"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
@@ -10657,11 +10667,17 @@ paths:
     post:
       tags: [Attendance]
       operationId: terminalPinCheckIn
+      description: |
+        When the person must confirm the current Lab Rules, the terminal shows them and repeats the check-in with
+        `confirmLabRulesVersionId` (records the confirmation, method `kiosk`, and admits the person) or, for roles
+        that only warn, `deferLabRules` (admits the person with admission decision `warning`). Without either the
+        answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
+        `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
+        A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePinRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalPinCheckInRequest"}}}}
       responses:
         "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
-        "202": {description: Check-in held until the Lab Rules are confirmed., content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceHold"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
@@ -10721,11 +10737,14 @@ paths:
     post:
       tags: [Attendance]
       operationId: supervisedVisitCheckIn
+      description: |
+        A person whose role blocks admission without the current Lab Rules and who has not confirmed them cannot be
+        checked in by someone else (409 `lab_rules_confirmation_required`); they confirm themselves at the terminal or
+        in the app. Roles that only warn are admitted with admission decision `warning`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupervisedCheckInRequest"}}}}
       responses:
         "201": {description: Supervised check-in completed., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
-        "202": {description: Check-in held until the Lab Rules are confirmed., content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceHold"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -10758,30 +10777,6 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-  /attendance/holds:
-    get:
-      tags: [Attendance]
-      operationId: listAttendanceHolds
-      summary: Check-ins held until a supervisor confirms the person's Lab Rules
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Active held check-ins., content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceHoldList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-  /attendance/holds/{holdId}:
-    parameters: [{name: holdId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
-    delete:
-      tags: [Attendance]
-      operationId: cancelAttendanceHold
-      summary: Cancel a held check-in without admitting the person
-      security: [{sessionCookie: [], csrfHeader: []}]
-      responses:
-        "204": {description: Held check-in cancelled.}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
   /attendance/statistics:
     get:
@@ -11287,11 +11282,6 @@ components:
       in: path
       required: true
       schema: {$ref: "#/components/schemas/UUIDv7"}
-    LaborordnungRequestId:
-      name: laborordnungRequestId
-      in: path
-      required: true
-      schema: {$ref: "#/components/schemas/UUIDv7"}
     OIDCProviderId:
       name: oidcProviderId
       in: path
@@ -11546,8 +11536,7 @@ components:
         - surveys.manage
         - laborordnung.read
         - laborordnung.manage
-        - laborordnung.requests.read
-        - laborordnung.confirm
+        - laborordnung.confirmations.read
         - visitor_enrollment.manage
         - supervisor_dashboard.read
         - identities.oidc.link.self
@@ -11616,8 +11605,8 @@ components:
 
     NotificationKind:
       type: string
-      enum: [message, lab_rules_confirmation_requested, open_day_period_open, open_day_place_freed, run_finished, printer_error, filament_change]
-      x-enum-varnames: [NotificationKindMessage, NotificationKindLabRulesConfirmationRequested, NotificationKindOpenDayPeriodOpen, NotificationKindOpenDayPlaceFreed, NotificationKindRunFinished, NotificationKindPrinterError, NotificationKindFilamentChange]
+      enum: [message, lab_rules_published, open_day_period_open, open_day_place_freed, run_finished, printer_error, filament_change]
+      x-enum-varnames: [NotificationKindMessage, NotificationKindLabRulesPublished, NotificationKindOpenDayPeriodOpen, NotificationKindOpenDayPlaceFreed, NotificationKindRunFinished, NotificationKindPrinterError, NotificationKindFilamentChange]
 
     Notification:
       type: object
@@ -12895,8 +12884,6 @@ components:
             - source_scim_managed
             - actor_is_source
             - open_visit_conflict
-            - attendance_hold_conflict
-            - lab_rules_request_conflict
             - open_day_assignment_conflict
             - pin_conflict
             - totp_conflict
@@ -12913,9 +12900,8 @@ components:
       type: string
       enum:
         - visits
-        - attendance_holds
         - training_records
-        - lab_rules_requests
+        - lab_rules_confirmations
         - open_day_assignments
         - event_shift_assignments
         - event_planning
@@ -12992,7 +12978,7 @@ components:
           items:
             $ref: "#/components/schemas/PersonOpenDayAssignmentSummary"
         laborordnungStatus:
-          description: Omitted unless the caller may read Lab Rules confirmation requests.
+          description: Omitted unless the caller may read Lab Rules confirmations.
           allOf:
             - $ref: "#/components/schemas/LaborordnungStatus"
 
@@ -13035,69 +13021,54 @@ components:
     LaborordnungStatus:
       type: object
       additionalProperties: false
-      required: [mode, state, actionRequired, currentVersion, latestConfirmedVersion, requestId]
+      required: [mode, state, actionRequired, currentVersion, latestConfirmedVersion, latestConfirmedAt]
       properties:
         mode: {type: string, enum: [not_required, warning, blocking]}
         state: {type: string, enum: [not_required, no_published_version, current, outdated]}
-        actionRequired: {type: boolean}
+        actionRequired: {type: boolean, description: True when the Person must confirm currentVersion.}
         currentVersion: {allOf: [{$ref: "#/components/schemas/LaborordnungVersion"}], nullable: true}
         latestConfirmedVersion: {allOf: [{$ref: "#/components/schemas/LaborordnungVersion"}], nullable: true}
-        requestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        latestConfirmedAt: {type: string, format: date-time, nullable: true, description: When latestConfirmedVersion was confirmed.}
     PeopleLaborordnungStatusFilter:
       type: string
-      enum: [not_required, no_published_version, current, outdated, pending]
-    LaborordnungRequest:
+      enum: [not_required, no_published_version, current, outdated]
+    ConfirmOwnLaborordnungRequest:
       type: object
       additionalProperties: false
-      required: [id, personId, personName, requiredVersion, previousVersion, status, requestedAt, completedAt, physicalDocumentReference, signedDate, archiveNote]
+      required: [versionId]
       properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        personId: {$ref: "#/components/schemas/UUIDv7"}
-        personName: {type: string, minLength: 1, maxLength: 201}
-        requiredVersion: {$ref: "#/components/schemas/LaborordnungVersion"}
-        previousVersion: {allOf: [{$ref: "#/components/schemas/LaborordnungVersion"}], nullable: true}
-        status: {type: string, enum: [pending, completed, superseded]}
-        requestedAt: {type: string, format: date-time}
-        completedAt: {type: string, format: date-time, nullable: true}
-        physicalDocumentReference: {type: string, maxLength: 255, nullable: true}
-        signedDate: {type: string, format: date, nullable: true}
-        archiveNote: {type: string, maxLength: 1000, nullable: true}
-    LaborordnungRequestList:
+        versionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: The version the Person read; it must be the current one.}
+    LaborordnungConfirmationMethod:
+      type: string
+      description: |
+        How the Person confirmed: `app` in the application, `kiosk` at the terminal check-in, `enrollment` when
+        enrolling as a visitor. `paper` marks signed paper checked by a supervisor before people confirmed themselves.
+      enum: [paper, app, kiosk, enrollment]
+      x-enum-varnames: [LaborordnungConfirmationMethodPaper, LaborordnungConfirmationMethodApp, LaborordnungConfirmationMethodKiosk, LaborordnungConfirmationMethodEnrollment]
+    LaborordnungConfirmation:
       type: object
       additionalProperties: false
-      required: [items]
-      properties: {items: {type: array, items: {$ref: "#/components/schemas/LaborordnungRequest"}}}
-    LaborordnungSignature:
-      type: object
-      additionalProperties: false
-      required: [id, personId, personName, versionId, humanRevision, signedDate, physicalDocumentReference, confirmedByName, confirmedAt]
+      required: [id, personId, personName, versionId, humanRevision, method, confirmedAt, physicalDocumentReference, signedDate, confirmedByName]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         personId: {$ref: "#/components/schemas/UUIDv7"}
         personName: {type: string, minLength: 1, maxLength: 201}
         versionId: {$ref: "#/components/schemas/UUIDv7"}
         humanRevision: {type: string}
-        signedDate: {type: string, format: date, nullable: true}
-        physicalDocumentReference: {type: string, maxLength: 255, nullable: true}
-        confirmedByName: {type: string, nullable: true, description: Name of the confirming person; null once that account is gone.}
+        method: {$ref: "#/components/schemas/LaborordnungConfirmationMethod"}
         confirmedAt: {type: string, format: date-time}
-    LaborordnungSignaturePage:
+        physicalDocumentReference: {type: string, maxLength: 255, nullable: true, description: Where the signed paper is filed; paper confirmations only.}
+        signedDate: {type: string, format: date, nullable: true, description: Date written on the signed paper; paper confirmations only.}
+        confirmedByName: {type: string, nullable: true, description: Supervisor who checked the paper; null for other methods and once that account is gone.}
+    LaborordnungConfirmationPage:
       type: object
       additionalProperties: false
       required: [items, page, pageSize, total]
       properties:
-        items: {type: array, items: {$ref: "#/components/schemas/LaborordnungSignature"}}
+        items: {type: array, items: {$ref: "#/components/schemas/LaborordnungConfirmation"}}
         page: {type: integer, minimum: 1}
         pageSize: {type: integer, minimum: 1}
         total: {type: integer, format: int64, minimum: 0}
-    ConfirmLaborordnungRequest:
-      type: object
-      additionalProperties: false
-      required: [physicalDocumentReference]
-      properties:
-        physicalDocumentReference: {type: string, minLength: 1, maxLength: 255}
-        signedDate: {type: string, format: date, nullable: true}
-        archiveNote: {type: string, maxLength: 1000, nullable: true}
 
     StaffingLevel:
       type: string
@@ -15766,7 +15737,7 @@ components:
     VisitorEnrollmentSubmission:
       type: object
       additionalProperties: false
-      required: [firstName, lastName, email, phone, authMethods, pinLoginName, pin, profileImageBase64, profileImageFilename, requestConfirmation]
+      required: [firstName, lastName, email, phone, authMethods, pinLoginName, pin, profileImageBase64, profileImageFilename, labRulesAccepted]
       properties:
         firstName: {type: string, minLength: 1, maxLength: 100}
         lastName: {type: string, minLength: 1, maxLength: 100}
@@ -15777,32 +15748,30 @@ components:
         pin: {type: string, pattern: "^[0-9]{6,12}$", writeOnly: true, nullable: true}
         profileImageBase64: {type: string, format: byte, minLength: 4, maxLength: 12000000, writeOnly: true, nullable: true, description: Required when the enrolling device's effective capabilities include camera or file_upload; otherwise it may be null.}
         profileImageFilename: {type: string, minLength: 1, maxLength: 255, nullable: true}
-        requestConfirmation: {type: boolean, description: Must be true as the visitor's explicit request to enter the physical-signature workflow.}
+        labRulesAccepted: {type: boolean, description: "The visitor read and accepts the pinned Lab Rules (\"I have read and accept the Lab Rules\"). Must be true when the visitor role asks for the Lab Rules."}
 
     VisitorEnrollmentResult:
       type: object
       additionalProperties: false
-      required: [personId, accountId, accountStatus, invitationDelivery, labRulesRequestId, admission, attendance]
+      required: [personId, accountId, accountStatus, invitationDelivery, admission, attendance]
       properties:
         personId: {$ref: "#/components/schemas/UUIDv7"}
         accountId: {$ref: "#/components/schemas/UUIDv7"}
         accountStatus: {type: string, enum: [enabled, disabled]}
         invitationDelivery: {type: string, enum: [sent, failed], nullable: true}
-        labRulesRequestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        admission: {type: string, enum: [admitted, warning, blocked]}
+        admission: {type: string, enum: [admitted], description: The visitor confirmed the Lab Rules while enrolling (or their role does not ask for them) and is admitted.}
         attendance:
           type: string
-          enum: [checked_in, awaiting_sign_off]
-          description: Completing enrollment counts as arriving; blocked roles wait for a supervisor to confirm the Lab Rules.
+          enum: [checked_in]
+          description: Completing enrollment counts as arriving.
 
     VisitorAdmissionResult:
       type: object
       additionalProperties: false
-      required: [decision, status, requestId]
+      required: [decision, status]
       properties:
         decision: {type: string, enum: [admitted, warning, blocked]}
         status: {$ref: "#/components/schemas/LaborordnungStatus"}
-        requestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
 
     PrinterConnector:
       type: object
@@ -20633,40 +20602,19 @@ components:
     PublicPresenceList:
       type: object
       additionalProperties: false
-      required: [items, count, waiting]
+      required: [items, count]
       properties:
         items: {type: array, items: {$ref: "#/components/schemas/PublicPresence"}}
         count: {type: integer, minimum: 0}
-        waiting: {type: array, description: Held check-ins waiting for Lab Rules confirmation., items: {$ref: "#/components/schemas/PublicWaiting"}}
-    PublicWaiting:
+    TerminalLabRules:
       type: object
       additionalProperties: false
-      required: [holdId, displayName, requestedAt]
-      properties:
-        holdId: {$ref: "#/components/schemas/UUIDv7"}
-        displayName: {type: string, minLength: 1, maxLength: 205}
-        requestedAt: {type: string, format: date-time}
-    AttendanceHold:
-      type: object
-      additionalProperties: false
-      description: A check-in held until a supervisor confirms the person's signed Lab Rules. It lapses at expiresAt.
-      required: [id, personId, displayName, requestedAt, expiresAt, checkInMethod, laborordnungRequestId, requiredRevision, previousRevision]
+      description: The current effective Lab Rules version, which a person confirms during check-in.
+      required: [id, humanRevision, effectiveAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
-        personId: {$ref: "#/components/schemas/UUIDv7"}
-        displayName: {type: string}
-        requestedAt: {type: string, format: date-time}
-        expiresAt: {type: string, format: date-time}
-        checkInMethod: {type: string}
-        laborordnungRequestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        requiredRevision: {type: string, nullable: true, description: Lab Rules revision that needs the signature.}
-        previousRevision: {type: string, nullable: true, description: Last confirmed revision; null when the person never signed.}
-    AttendanceHoldList:
-      type: object
-      additionalProperties: false
-      required: [items]
-      properties:
-        items: {type: array, items: {$ref: "#/components/schemas/AttendanceHold"}}
+        humanRevision: {type: string}
+        effectiveAt: {type: string, format: date-time}
     AttendancePasswordRequest:
       type: object
       additionalProperties: false
@@ -20681,6 +20629,24 @@ components:
       properties:
         loginName: {type: string, minLength: 3, maxLength: 64}
         pin: {type: string, format: password, minLength: 6, maxLength: 12, pattern: "^[0-9]{6,12}$", writeOnly: true}
+    TerminalPasswordCheckInRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+        password: {$ref: "#/components/schemas/ExistingPassword"}
+        confirmLabRulesVersionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: The Lab Rules version the person read and confirms while checking in; it must be the current one.}
+        deferLabRules: {type: boolean, description: Check in without confirming; only allowed when the person's role merely warns.}
+    TerminalPinCheckInRequest:
+      type: object
+      additionalProperties: false
+      required: [loginName, pin]
+      properties:
+        loginName: {type: string, minLength: 3, maxLength: 64}
+        pin: {type: string, format: password, minLength: 6, maxLength: 12, pattern: "^[0-9]{6,12}$", writeOnly: true}
+        confirmLabRulesVersionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: The Lab Rules version the person read and confirms while checking in; it must be the current one.}
+        deferLabRules: {type: boolean, description: Check in without confirming; only allowed when the person's role merely warns.}
     VisitStatus:
       type: string
       enum: [checked_in, checked_out, voided]

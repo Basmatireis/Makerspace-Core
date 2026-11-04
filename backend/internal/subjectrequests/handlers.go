@@ -198,14 +198,14 @@ func registerBuiltinHandlers(service *privacy.Service, fileService *files.Servic
 		},
 		outcome: privacy.OutcomeErased,
 	})
-	register(privacycatalog.LabRulesRequests, builtin{
+	register(privacycatalog.LabRulesConfirmations, builtin{
 		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
-			return q.ExportLabRulesRequests(ctx, s.PersonID)
+			return q.ExportLabRulesConfirmations(ctx, s.PersonID)
 		},
 		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
-			return q.CountLabRulesRequests(ctx, s.PersonID)
+			return q.CountLabRulesConfirmations(ctx, s.PersonID)
 		},
-		outcome: privacy.OutcomeErased, note: "The physical confirmation document is outside the system; its archive reference is deleted.",
+		outcome: privacy.OutcomeErased, note: "A signed paper from before people confirmed themselves is outside the system; its archive reference is deleted.",
 	})
 	register(privacycatalog.AuditEvents, builtin{
 		account: true,

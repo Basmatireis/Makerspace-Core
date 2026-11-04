@@ -227,9 +227,8 @@ func (q *Queries) CountMasterAssignments(ctx context.Context) (int64, error) {
 const countMergeHistory = `-- name: CountMergeHistory :one
 SELECT
     (SELECT count(*) FROM visits WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS visits,
-    (SELECT count(*) FROM attendance_holds WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS attendance_holds,
     (SELECT count(*) FROM training_records WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS training_records,
-    (SELECT count(*) FROM laborordnung_requests WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS lab_rules_requests,
+    (SELECT count(*) FROM laborordnung_confirmations WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS lab_rules_confirmations,
     (SELECT count(*) FROM open_day_assignments WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS open_day_assignments,
     (SELECT count(*) FROM event_shift_assignments WHERE person_id = ANY(($1::text[])::uuid[]))::bigint AS event_shift_assignments,
     ((SELECT count(*) FROM events WHERE owner_person_id = ANY(($1::text[])::uuid[]))
@@ -258,9 +257,8 @@ type CountMergeHistoryParams struct {
 
 type CountMergeHistoryRow struct {
 	Visits                  int64
-	AttendanceHolds         int64
 	TrainingRecords         int64
-	LabRulesRequests        int64
+	LabRulesConfirmations   int64
 	OpenDayAssignments      int64
 	EventShiftAssignments   int64
 	EventPlanning           int64
@@ -281,9 +279,8 @@ func (q *Queries) CountMergeHistory(ctx context.Context, arg CountMergeHistoryPa
 	var i CountMergeHistoryRow
 	err := row.Scan(
 		&i.Visits,
-		&i.AttendanceHolds,
 		&i.TrainingRecords,
-		&i.LabRulesRequests,
+		&i.LabRulesConfirmations,
 		&i.OpenDayAssignments,
 		&i.EventShiftAssignments,
 		&i.EventPlanning,
@@ -298,18 +295,6 @@ func (q *Queries) CountMergeHistory(ctx context.Context, arg CountMergeHistoryPa
 		&i.PrivacyHolds,
 	)
 	return i, err
-}
-
-const countMergePendingLabRulesVersions = `-- name: CountMergePendingLabRulesVersions :one
-SELECT count(DISTINCT required_version_id) FROM laborordnung_requests
-WHERE person_id = ANY(($1::text[])::uuid[]) AND status = 'pending'
-`
-
-func (q *Queries) CountMergePendingLabRulesVersions(ctx context.Context, ids []string) (int64, error) {
-	row := q.db.QueryRow(ctx, countMergePendingLabRulesVersions, ids)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
 }
 
 const countPeople = `-- name: CountPeople :one
@@ -332,18 +317,12 @@ LEFT JOIN LATERAL (
     WHERE pr.person_id = p.id
 ) laborordnung_mode ON true
 LEFT JOIN LATERAL (
-    SELECT required_version_id
-    FROM laborordnung_requests
-    WHERE person_id = p.id AND status = 'completed'
-    ORDER BY completed_at DESC, id DESC
+    SELECT version_id
+    FROM laborordnung_confirmations
+    WHERE person_id = p.id
+    ORDER BY confirmed_at DESC, id DESC
     LIMIT 1
 ) latest_confirmation ON true
-LEFT JOIN LATERAL (
-    SELECT required_version_id
-    FROM laborordnung_requests
-    WHERE person_id = p.id AND status = 'pending'
-    LIMIT 1
-) pending_confirmation ON true
 WHERE (
        $1::text = ''
        OR p.first_name ILIKE '%' || $1::text || '%'
@@ -371,8 +350,7 @@ WHERE (
        OR (CASE
            WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
            WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
-           WHEN latest_confirmation.required_version_id = current_laborordnung.id THEN 'current'
-           WHEN pending_confirmation.required_version_id = current_laborordnung.id THEN 'pending'
+           WHEN latest_confirmation.version_id = current_laborordnung.id THEN 'current'
            ELSE 'outdated'
        END) = ANY($5::text[])
    )
@@ -466,21 +444,21 @@ func (q *Queries) DeleteDuplicateMergeInboxRecipients(ctx context.Context, arg D
 	return result.RowsAffected(), nil
 }
 
-const deleteDuplicateMergeLabRulesRequests = `-- name: DeleteDuplicateMergeLabRulesRequests :execrows
-DELETE FROM laborordnung_requests source
-USING laborordnung_requests target
+const deleteDuplicateMergeLabRulesConfirmations = `-- name: DeleteDuplicateMergeLabRulesConfirmations :execrows
+DELETE FROM laborordnung_confirmations source
+USING laborordnung_confirmations target
 WHERE source.person_id = $1 AND target.person_id = $2
-  AND source.status = 'pending' AND target.status = 'pending'
+  AND source.version_id = target.version_id
 `
 
-type DeleteDuplicateMergeLabRulesRequestsParams struct {
+type DeleteDuplicateMergeLabRulesConfirmationsParams struct {
 	SourcePersonID uuid.UUID
 	TargetPersonID uuid.UUID
 }
 
-// One pending request per Person: the target's pending request for the same version wins.
-func (q *Queries) DeleteDuplicateMergeLabRulesRequests(ctx context.Context, arg DeleteDuplicateMergeLabRulesRequestsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteDuplicateMergeLabRulesRequests, arg.SourcePersonID, arg.TargetPersonID)
+// One confirmation per Person and version: the target's confirmation of the same version wins.
+func (q *Queries) DeleteDuplicateMergeLabRulesConfirmations(ctx context.Context, arg DeleteDuplicateMergeLabRulesConfirmationsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDuplicateMergeLabRulesConfirmations, arg.SourcePersonID, arg.TargetPersonID)
 	if err != nil {
 		return 0, err
 	}
@@ -1052,18 +1030,16 @@ func (q *Queries) ListMergeOpenDayConflicts(ctx context.Context, ids []string) (
 const listMergePersonFacts = `-- name: ListMergePersonFacts :many
 SELECT p.id AS person_id,
     EXISTS (SELECT 1 FROM scim_users su WHERE su.person_id = p.id) AS scim_managed,
-    EXISTS (SELECT 1 FROM visits v WHERE v.person_id = p.id AND v.status = 'checked_in') AS open_visit,
-    EXISTS (SELECT 1 FROM attendance_holds h WHERE h.person_id = p.id) AS attendance_hold
+    EXISTS (SELECT 1 FROM visits v WHERE v.person_id = p.id AND v.status = 'checked_in') AS open_visit
 FROM people p
 WHERE p.id = ANY(($1::text[])::uuid[])
 ORDER BY p.id
 `
 
 type ListMergePersonFactsRow struct {
-	PersonID       uuid.UUID
-	ScimManaged    bool
-	OpenVisit      bool
-	AttendanceHold bool
+	PersonID    uuid.UUID
+	ScimManaged bool
+	OpenVisit   bool
 }
 
 func (q *Queries) ListMergePersonFacts(ctx context.Context, ids []string) ([]ListMergePersonFactsRow, error) {
@@ -1075,12 +1051,7 @@ func (q *Queries) ListMergePersonFacts(ctx context.Context, ids []string) ([]Lis
 	items := []ListMergePersonFactsRow{}
 	for rows.Next() {
 		var i ListMergePersonFactsRow
-		if err := rows.Scan(
-			&i.PersonID,
-			&i.ScimManaged,
-			&i.OpenVisit,
-			&i.AttendanceHold,
-		); err != nil {
+		if err := rows.Scan(&i.PersonID, &i.ScimManaged, &i.OpenVisit); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1111,18 +1082,12 @@ LEFT JOIN LATERAL (
     WHERE pr.person_id = p.id
 ) laborordnung_mode ON true
 LEFT JOIN LATERAL (
-    SELECT required_version_id
-    FROM laborordnung_requests
-    WHERE person_id = p.id AND status = 'completed'
-    ORDER BY completed_at DESC, id DESC
+    SELECT version_id
+    FROM laborordnung_confirmations
+    WHERE person_id = p.id
+    ORDER BY confirmed_at DESC, id DESC
     LIMIT 1
 ) latest_confirmation ON true
-LEFT JOIN LATERAL (
-    SELECT required_version_id
-    FROM laborordnung_requests
-    WHERE person_id = p.id AND status = 'pending'
-    LIMIT 1
-) pending_confirmation ON true
 WHERE (
        $1::text = ''
        OR p.first_name ILIKE '%' || $1::text || '%'
@@ -1150,8 +1115,7 @@ WHERE (
        OR (CASE
            WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
            WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
-           WHEN latest_confirmation.required_version_id = current_laborordnung.id THEN 'current'
-           WHEN pending_confirmation.required_version_id = current_laborordnung.id THEN 'pending'
+           WHEN latest_confirmation.version_id = current_laborordnung.id THEN 'current'
            ELSE 'outdated'
        END) = ANY($5::text[])
    )
@@ -1521,18 +1485,18 @@ func (q *Queries) MoveMergeInboxRecipients(ctx context.Context, arg MoveMergeInb
 	return result.RowsAffected(), nil
 }
 
-const moveMergeLabRulesRequests = `-- name: MoveMergeLabRulesRequests :execrows
-UPDATE laborordnung_requests SET person_id = $1, updated_at = now()
+const moveMergeLabRulesConfirmations = `-- name: MoveMergeLabRulesConfirmations :execrows
+UPDATE laborordnung_confirmations SET person_id = $1
 WHERE person_id = $2
 `
 
-type MoveMergeLabRulesRequestsParams struct {
+type MoveMergeLabRulesConfirmationsParams struct {
 	TargetPersonID uuid.UUID
 	SourcePersonID uuid.UUID
 }
 
-func (q *Queries) MoveMergeLabRulesRequests(ctx context.Context, arg MoveMergeLabRulesRequestsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, moveMergeLabRulesRequests, arg.TargetPersonID, arg.SourcePersonID)
+func (q *Queries) MoveMergeLabRulesConfirmations(ctx context.Context, arg MoveMergeLabRulesConfirmationsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeLabRulesConfirmations, arg.TargetPersonID, arg.SourcePersonID)
 	if err != nil {
 		return 0, err
 	}
@@ -1705,7 +1669,7 @@ WITH c01 AS (
     UPDATE laborordnung_versions SET created_by_account_id = $1::uuid
     WHERE created_by_account_id = $2::uuid RETURNING 1
 ), c06 AS (
-    UPDATE laborordnung_requests SET confirmed_by_account_id = $1::uuid
+    UPDATE laborordnung_confirmations SET confirmed_by_account_id = $1::uuid
     WHERE confirmed_by_account_id = $2::uuid RETURNING 1
 ), c07 AS (
     UPDATE scim_connector_tokens SET created_by_account_id = $1::uuid
@@ -1840,9 +1804,6 @@ WITH c01 AS (
 ), c41 AS (
     UPDATE inbox_notifications SET created_by_account_id = $1::uuid
     WHERE created_by_account_id = $2::uuid RETURNING 1
-), c42 AS (
-    UPDATE attendance_holds SET checked_in_by_account_id = $1::uuid
-    WHERE checked_in_by_account_id = $2::uuid RETURNING 1
 ), c43 AS (
     UPDATE training_records SET recorded_by_account_id = $1::uuid
     WHERE recorded_by_account_id = $2::uuid RETURNING 1
@@ -1903,7 +1864,7 @@ SELECT (
     + (SELECT count(*) FROM c29) + (SELECT count(*) FROM c30) + (SELECT count(*) FROM c31) + (SELECT count(*) FROM c32)
     + (SELECT count(*) FROM c33) + (SELECT count(*) FROM c34) + (SELECT count(*) FROM c35) + (SELECT count(*) FROM c36)
     + (SELECT count(*) FROM c37) + (SELECT count(*) FROM c39) + (SELECT count(*) FROM c40)
-    + (SELECT count(*) FROM c41) + (SELECT count(*) FROM c42) + (SELECT count(*) FROM c43) + (SELECT count(*) FROM c44)
+    + (SELECT count(*) FROM c41) + (SELECT count(*) FROM c43) + (SELECT count(*) FROM c44)
     + (SELECT count(*) FROM c45) + (SELECT count(*) FROM c46) + (SELECT count(*) FROM c47) + (SELECT count(*) FROM c48)
     + (SELECT count(*) FROM c49) + (SELECT count(*) FROM c50) + (SELECT count(*) FROM c51) + (SELECT count(*) FROM c52)
     + (SELECT count(*) FROM c53) + (SELECT count(*) FROM c54) + (SELECT count(*) FROM c55) + (SELECT count(*) FROM c56)
@@ -1961,8 +1922,6 @@ func (q *Queries) RepointMergeAuditEvents(ctx context.Context, arg RepointMergeA
 const repointMergePersonReferences = `-- name: RepointMergePersonReferences :one
 WITH visits_moved AS (
     UPDATE visits SET person_id = $1::uuid WHERE person_id = $2::uuid RETURNING 1
-), holds_moved AS (
-    UPDATE attendance_holds SET person_id = $1::uuid WHERE person_id = $2::uuid RETURNING 1
 ), invitations_moved AS (
     UPDATE survey_invitations SET person_id = $1::uuid WHERE person_id = $2::uuid RETURNING 1
 ), responses_moved AS (
@@ -2002,7 +1961,6 @@ WITH visits_moved AS (
 SELECT
     ((SELECT count(*) FROM privacy_holds_moved) + (SELECT count(*) FROM privacy_requests_moved))::bigint AS privacy_holds,
     (SELECT count(*) FROM visits_moved)::bigint AS visits,
-    (SELECT count(*) FROM holds_moved)::bigint AS attendance_holds,
     (SELECT count(*) FROM invitations_moved)::bigint AS survey_invitations,
     (SELECT count(*) FROM responses_moved)::bigint AS survey_responses,
     ((SELECT count(*) FROM events_moved) + (SELECT count(*) FROM tasks_moved))::bigint AS event_planning,
@@ -2020,7 +1978,6 @@ type RepointMergePersonReferencesParams struct {
 type RepointMergePersonReferencesRow struct {
 	PrivacyHolds      int64
 	Visits            int64
-	AttendanceHolds   int64
 	SurveyInvitations int64
 	SurveyResponses   int64
 	EventPlanning     int64
@@ -2030,15 +1987,14 @@ type RepointMergePersonReferencesRow struct {
 	CashMovements     int64
 }
 
-// Re-points the person references that carry no uniqueness rule. Conflicting open visits and attendance holds are
-// rejected before this runs.
+// Re-points the person references that carry no uniqueness rule. Conflicting open visits are rejected before this
+// runs.
 func (q *Queries) RepointMergePersonReferences(ctx context.Context, arg RepointMergePersonReferencesParams) (RepointMergePersonReferencesRow, error) {
 	row := q.db.QueryRow(ctx, repointMergePersonReferences, arg.TargetPersonID, arg.SourcePersonID)
 	var i RepointMergePersonReferencesRow
 	err := row.Scan(
 		&i.PrivacyHolds,
 		&i.Visits,
-		&i.AttendanceHolds,
 		&i.SurveyInvitations,
 		&i.SurveyResponses,
 		&i.EventPlanning,

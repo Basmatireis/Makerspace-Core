@@ -38,6 +38,14 @@ import (
 
 const enrollmentTTL = 15 * time.Minute
 
+// errLabRulesChanged tells the kiosk that the Lab Rules the visitor accepted are no longer the current version, so it
+// must start over and show the new one.
+var errLabRulesChanged = apperror.New(
+	http.StatusConflict,
+	"lab_rules_changed",
+	"The Lab Rules changed while enrolling; read and accept the current version",
+)
+
 type InvitationNotifier interface {
 	SendInvitation(context.Context, string, string, time.Time) error
 }
@@ -98,7 +106,8 @@ type SubmissionInput struct {
 	// ProfileImage is required when the device can take or upload a photo and ignored otherwise.
 	ProfileImage         []byte
 	ProfileImageFilename string
-	RequestConfirmation  bool
+	// LabRulesAccepted is the visitor's "I have read and accept the Lab Rules"; required when the role asks for them.
+	LabRulesAccepted bool
 }
 
 type SubmissionResult struct {
@@ -106,7 +115,6 @@ type SubmissionResult struct {
 	AccountID          uuid.UUID
 	AccountStatus      authorization.AccountStatus
 	InvitationDelivery *auth.DeliveryStatus
-	LabRulesRequestID  *uuid.UUID
 	Admission          Admission
 	// Attendance reports the check-in that completing enrollment implies.
 	Attendance Attendance
@@ -115,20 +123,16 @@ type SubmissionResult struct {
 // Attendance is the outcome of the check-in that completes enrollment.
 type Attendance string
 
-const (
-	AttendanceCheckedIn       Attendance = "checked_in"
-	AttendanceAwaitingSignOff Attendance = "awaiting_sign_off"
-)
+const AttendanceCheckedIn Attendance = "checked_in"
 
 // EnrollmentAttendance counts a finished enrollment as arriving, inside the enrollment transaction.
 type EnrollmentAttendance interface {
-	CheckInAtEnrollment(context.Context, pgx.Tx, attendance.EnrollmentCheckIn) (bool, error)
+	CheckInAtEnrollment(context.Context, pgx.Tx, attendance.EnrollmentCheckIn) error
 }
 
 type AdmissionResult struct {
-	Decision  Admission
-	Status    laborordnung.Status
-	RequestID *uuid.UUID
+	Decision Admission
+	Status   laborordnung.Status
 }
 
 type Service struct {
@@ -546,9 +550,19 @@ func (s *Service) Submit(
 	); err != nil {
 		return SubmissionResult{}, err
 	}
-	result := SubmissionResult{PersonID: personID, AccountID: accountID, AccountStatus: status, Admission: AdmissionAdmitted}
+	result := SubmissionResult{
+		PersonID:      personID,
+		AccountID:     accountID,
+		AccountStatus: status,
+		Admission:     AdmissionAdmitted,
+		Attendance:    AttendanceCheckedIn,
+	}
+	var confirmedVersionID *uuid.UUID
 	if laborordnung.Mode(role.LaborordnungMode) != laborordnung.ModeNotRequired {
-		current, err := queries.GetPinnedLabRulesVersion(ctx, enrollment.ID)
+		if !clean.LabRulesAccepted {
+			return SubmissionResult{}, apperror.InvalidField("the Lab Rules must be read and accepted")
+		}
+		pinned, err := queries.GetPinnedLabRulesVersion(ctx, enrollment.ID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SubmissionResult{}, apperror.New(
 				http.StatusConflict,
@@ -559,43 +573,25 @@ func (s *Service) Submit(
 		if err != nil {
 			return SubmissionResult{}, err
 		}
-		requestRow, err := queries.CreateLabRulesRequest(
-			ctx,
-			visitordb.CreateLabRulesRequestParams{
-				ID:                ids.New(),
-				PersonID:          personID,
-				RequiredVersionID: current.ID,
-			},
+		actor := accountID
+		err = s.labRules.ConfirmTx(
+			ctx, tx, personID, pinned.ID, laborordnung.MethodEnrollment, &actor, requestID,
 		)
+		if apperror.IsCode(err, "lab_rules_version_outdated") || apperror.IsCode(err, "lab_rules_unavailable") {
+			// The visitor accepted a version that is no longer in effect; the kiosk starts over with the new one.
+			return SubmissionResult{}, errLabRulesChanged
+		}
 		if err != nil {
 			return SubmissionResult{}, err
 		}
-		result.LabRulesRequestID = &requestRow.ID
-		if laborordnung.Mode(role.LaborordnungMode) == laborordnung.ModeBlocking {
-			result.Admission = AdmissionBlocked
-		} else {
-			result.Admission = AdmissionWarning
-		}
+		confirmedVersionID = &pinned.ID
 	}
 	if s.attendance != nil {
-		var versionID *uuid.UUID
-		if result.LabRulesRequestID != nil {
-			if current, err := queries.GetPinnedLabRulesVersion(ctx, enrollment.ID); err == nil {
-				versionID = &current.ID
-			}
-		}
-		checkedIn, err := s.attendance.CheckInAtEnrollment(ctx, tx, attendance.EnrollmentCheckIn{
+		if err := s.attendance.CheckInAtEnrollment(ctx, tx, attendance.EnrollmentCheckIn{
 			PersonID: personID, AccountID: accountID, DeviceID: enrollment.ManagedDeviceID,
-			Blocking:       result.Admission == AdmissionBlocked,
-			ActionRequired: result.Admission == AdmissionWarning,
-			VersionID:      versionID, RequestID: requestID,
-		})
-		if err != nil {
+			VersionID: confirmedVersionID, RequestID: requestID,
+		}); err != nil {
 			return SubmissionResult{}, err
-		}
-		result.Attendance = AttendanceAwaitingSignOff
-		if checkedIn {
-			result.Attendance = AttendanceCheckedIn
 		}
 	}
 	if affected, err := queries.ConsumeEnrollmentContext(ctx, enrollment.ID); err != nil || affected != 1 {
@@ -649,11 +645,8 @@ func (s *Service) Submit(
 	return result, nil
 }
 
-func (s *Service) Admission(
-	ctx context.Context,
-	principal authorization.Principal,
-	requestID *uuid.UUID,
-) (AdmissionResult, error) {
+// Admission evaluates the signed-in person's Lab Rules status on an approved device. It is read-only.
+func (s *Service) Admission(ctx context.Context, principal authorization.Principal) (AdmissionResult, error) {
 	if principal.Device == nil {
 		return AdmissionResult{}, apperror.PermissionDenied
 	}
@@ -668,25 +661,13 @@ func (s *Service) Admission(
 	if err != nil {
 		return AdmissionResult{}, err
 	}
-	var requestIDValue *uuid.UUID
-	if status.ActionRequired {
-		request, _, err := s.labRules.RequestOwnConfirmation(ctx, principal, requestID)
-		if err != nil {
-			return AdmissionResult{}, err
-		}
-		requestIDValue = &request.ID
-		status, err = s.labRules.Evaluate(ctx, principal.PersonID)
-		if err != nil {
-			return AdmissionResult{}, err
-		}
-	}
 	decision := AdmissionAdmitted
 	if status.ActionRequired && status.Mode == laborordnung.ModeBlocking {
 		decision = AdmissionBlocked
 	} else if status.ActionRequired && status.Mode == laborordnung.ModeWarning {
 		decision = AdmissionWarning
 	}
-	return AdmissionResult{Decision: decision, Status: status, RequestID: requestIDValue}, nil
+	return AdmissionResult{Decision: decision, Status: status}, nil
 }
 
 // PhotoRequired reports whether enrollment on a device with these effective capabilities must include a profile photo.
@@ -740,11 +721,6 @@ func (s *Service) validateSubmission(input SubmissionInput, photoRequired bool) 
 		if err != nil {
 			return SubmissionInput{}, "", "", "", nil, apperror.InvalidField(err.Error())
 		}
-	}
-	if !input.RequestConfirmation {
-		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField(
-			"explicit Lab Rules signing request is required",
-		)
 	}
 	imageBytes := input.ProfileImage
 	if len(imageBytes) == 0 && photoRequired {

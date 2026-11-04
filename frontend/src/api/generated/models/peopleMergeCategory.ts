@@ -24,9 +24,8 @@ export type PeopleMergeCategory = typeof PeopleMergeCategory[keyof typeof People
 
 export const PeopleMergeCategory = {
   visits: 'visits',
-  attendance_holds: 'attendance_holds',
   training_records: 'training_records',
-  lab_rules_requests: 'lab_rules_requests',
+  lab_rules_confirmations: 'lab_rules_confirmations',
   open_day_assignments: 'open_day_assignments',
   event_shift_assignments: 'event_shift_assignments',
   event_planning: 'event_planning',

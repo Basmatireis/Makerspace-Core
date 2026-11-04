@@ -154,7 +154,7 @@ func (s *Server) SubmitVisitorEnrollment(
 		PINLoginName: nullableStringPointer(request.Body.PinLoginName),
 		PIN:          nullableStringPointer(request.Body.Pin),
 		ProfileImage: profileImage, ProfileImageFilename: request.Body.ProfileImageFilename.GetOrEmpty(),
-		RequestConfirmation: request.Body.RequestConfirmation,
+		LabRulesAccepted: request.Body.LabRulesAccepted,
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -170,10 +170,6 @@ func (s *Server) SubmitVisitorEnrollment(
 				return openapi.VisitorEnrollmentResultInvitationDelivery(value)
 			},
 		),
-		LabRulesRequestId: nullablePointer(
-			result.LabRulesRequestID,
-			func(value uuid.UUID) openapi.UUIDv7 { return value },
-		),
 	}
 	return visitorSubmissionCookieResponse{config: s.config, body: body}, nil
 }
@@ -186,13 +182,12 @@ func (s *Server) EvaluateVisitorAdmission(
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.visitor.Admission(ctx, principal, requestIDPointer(ctx))
+	result, err := s.visitor.Admission(ctx, principal)
 	if err != nil {
 		return nil, err
 	}
 	return openapi.EvaluateVisitorAdmission200JSONResponse{
 		Decision: openapi.VisitorAdmissionResultDecision(result.Decision), Status: laborordnungStatusDTO(result.Status),
-		RequestId: nullablePointer(result.RequestID, func(value uuid.UUID) openapi.UUIDv7 { return value }),
 	}, nil
 }
 

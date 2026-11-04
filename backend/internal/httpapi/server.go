@@ -201,8 +201,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		Privacy:         privacyService,
 		SubjectRequests: subjectRequestService,
 	})
-	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService, location)
-	labRulesService.SetConfirmationListener(attendanceService)
+	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService)
 	visitorService.SetAttendance(attendanceService)
 	runRecordingsService := runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg))
 	auditRetention, eventSignupRetention := cfg.AuditRetention, cfg.EventSignupRetention

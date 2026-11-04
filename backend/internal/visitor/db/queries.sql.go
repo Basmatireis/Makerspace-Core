@@ -94,40 +94,6 @@ func (q *Queries) CreateEnrollmentContext(ctx context.Context, arg CreateEnrollm
 	return i, err
 }
 
-const createLabRulesRequest = `-- name: CreateLabRulesRequest :one
-INSERT INTO laborordnung_requests (id, person_id, required_version_id)
-VALUES ($1, $2, $3)
-RETURNING id, person_id, required_version_id, previous_version_id, status, requested_at, completed_at, superseded_at, confirmed_by_account_id, physical_document_reference, signed_date, archive_note, created_at, updated_at
-`
-
-type CreateLabRulesRequestParams struct {
-	ID                uuid.UUID
-	PersonID          uuid.UUID
-	RequiredVersionID uuid.UUID
-}
-
-func (q *Queries) CreateLabRulesRequest(ctx context.Context, arg CreateLabRulesRequestParams) (LaborordnungRequest, error) {
-	row := q.db.QueryRow(ctx, createLabRulesRequest, arg.ID, arg.PersonID, arg.RequiredVersionID)
-	var i LaborordnungRequest
-	err := row.Scan(
-		&i.ID,
-		&i.PersonID,
-		&i.RequiredVersionID,
-		&i.PreviousVersionID,
-		&i.Status,
-		&i.RequestedAt,
-		&i.CompletedAt,
-		&i.SupersededAt,
-		&i.ConfirmedByAccountID,
-		&i.PhysicalDocumentReference,
-		&i.SignedDate,
-		&i.ArchiveNote,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const createVisitorAccount = `-- name: CreateVisitorAccount :one
 INSERT INTO accounts (id, person_id, status, provisioning_source)
 VALUES ($1, $2, $3, 'visitor')
@@ -479,7 +445,7 @@ func (q *Queries) GetEnrollmentContextForUpdate(ctx context.Context, id uuid.UUI
 }
 
 const getPinnedLabRulesVersion = `-- name: GetPinnedLabRulesVersion :one
-SELECT v.id, v.status, v.human_revision, v.pdf_file_id, v.pdf_sha256, v.effective_at, v.published_at, v.created_by_account_id, v.created_at, v.updated_at FROM laborordnung_versions v
+SELECT v.id, v.status, v.human_revision, v.pdf_file_id, v.pdf_sha256, v.effective_at, v.published_at, v.created_by_account_id, v.created_at, v.updated_at, v.announced_at FROM laborordnung_versions v
 JOIN visitor_enrollment_contexts ec ON ec.lab_rules_version_id=v.id
 WHERE ec.id=$1
 `
@@ -498,6 +464,7 @@ func (q *Queries) GetPinnedLabRulesVersion(ctx context.Context, contextID uuid.U
 		&i.CreatedByAccountID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AnnouncedAt,
 	)
 	return i, err
 }

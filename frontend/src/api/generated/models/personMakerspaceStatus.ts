@@ -24,6 +24,6 @@ import type { PersonOpenDayAssignmentSummary } from './personOpenDayAssignmentSu
 export interface PersonMakerspaceStatus {
   /** Omitted unless the caller may read Open Day assignment identities. */
   upcomingOpenDayAssignments?: PersonOpenDayAssignmentSummary[];
-  /** Omitted unless the caller may read Lab Rules confirmation requests. */
+  /** Omitted unless the caller may read Lab Rules confirmations. */
   laborordnungStatus?: LaborordnungStatus;
 }

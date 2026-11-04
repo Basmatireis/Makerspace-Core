@@ -115,8 +115,7 @@ func resolvePrinterAudience(
 	return audience, nil
 }
 
-// deliverPrinterEvent writes the in-app notification and queues the e-mails of one printer event. Mail is only
-// queued while mail delivery is switched on; the delivery job sends it after the transaction committed.
+// deliverPrinterEvent writes the in-app notification and queues the e-mails of one printer event.
 func (e *Emitter) deliverPrinterEvent(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -133,7 +132,19 @@ func (e *Emitter) deliverPrinterEvent(
 	if err = e.deliver(ctx, tx, n, audience.accounts); err != nil {
 		return err
 	}
-	if len(audience.mailPeople) == 0 && audience.mailOrganization == nil {
+	return queueNoticeMails(ctx, queries, n, audience.mailPeople, audience.mailOrganization)
+}
+
+// queueNoticeMails queues the e-mail of a notification for people and an organization. Mail is only queued while
+// mail delivery is switched on; the delivery job sends it after the transaction committed.
+func queueNoticeMails(
+	ctx context.Context,
+	queries *inboxdb.Queries,
+	n notice,
+	people []uuid.UUID,
+	organization *uuid.UUID,
+) error {
+	if len(people) == 0 && organization == nil {
 		return nil
 	}
 	enabled, err := queries.MailDeliveryEnabled(ctx)
@@ -155,13 +166,13 @@ func (e *Emitter) deliverPrinterEvent(
 			Link:           &link,
 		})
 	}
-	for i := range audience.mailPeople {
-		if err = queue(&audience.mailPeople[i], nil); err != nil {
+	for i := range people {
+		if err = queue(&people[i], nil); err != nil {
 			return fmt.Errorf("queue %s mail: %w", n.kind, err)
 		}
 	}
-	if audience.mailOrganization != nil {
-		if err = queue(nil, audience.mailOrganization); err != nil {
+	if organization != nil {
+		if err = queue(nil, organization); err != nil {
 			return fmt.Errorf("queue %s mail: %w", n.kind, err)
 		}
 	}

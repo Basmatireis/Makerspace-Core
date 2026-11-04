@@ -7,125 +7,47 @@ package laborordnungdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const confirmRequest = `-- name: ConfirmRequest :one
-UPDATE laborordnung_requests
-SET status = 'completed', completed_at = now(), confirmed_by_account_id = $1,
-    physical_document_reference = $2, signed_date = $3,
-    archive_note = $4, updated_at = now()
-WHERE id = $5 AND status = 'pending'
-RETURNING id, person_id, required_version_id, previous_version_id, status, requested_at, completed_at, superseded_at, confirmed_by_account_id, physical_document_reference, signed_date, archive_note, created_at, updated_at
-`
-
-type ConfirmRequestParams struct {
-	ConfirmedByAccountID      *uuid.UUID
-	PhysicalDocumentReference *string
-	SignedDate                pgtype.Date
-	ArchiveNote               *string
-	ID                        uuid.UUID
-}
-
-func (q *Queries) ConfirmRequest(ctx context.Context, arg ConfirmRequestParams) (LaborordnungRequest, error) {
-	row := q.db.QueryRow(ctx, confirmRequest,
-		arg.ConfirmedByAccountID,
-		arg.PhysicalDocumentReference,
-		arg.SignedDate,
-		arg.ArchiveNote,
-		arg.ID,
-	)
-	var i LaborordnungRequest
-	err := row.Scan(
-		&i.ID,
-		&i.PersonID,
-		&i.RequiredVersionID,
-		&i.PreviousVersionID,
-		&i.Status,
-		&i.RequestedAt,
-		&i.CompletedAt,
-		&i.SupersededAt,
-		&i.ConfirmedByAccountID,
-		&i.PhysicalDocumentReference,
-		&i.SignedDate,
-		&i.ArchiveNote,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const countSignatures = `-- name: CountSignatures :one
+const countConfirmations = `-- name: CountConfirmations :one
 SELECT count(*)
-FROM laborordnung_requests r
-JOIN people p ON p.id = r.person_id
-WHERE r.status = 'completed'
-  AND ($1::uuid IS NULL OR r.person_id = $1::uuid)
-  AND ($2::uuid IS NULL OR r.required_version_id = $2::uuid)
-  AND ($3::text = ''
-       OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower($3::text) || '%'
-       OR lower(COALESCE(r.physical_document_reference, '')) LIKE '%' || lower($3::text) || '%')
+FROM laborordnung_confirmations c
+JOIN people p ON p.id = c.person_id
+WHERE ($1::uuid IS NULL OR c.person_id = $1::uuid)
+  AND ($2::uuid IS NULL OR c.version_id = $2::uuid)
+  AND ($3::text IS NULL OR c.method = $3::text)
+  AND ($4::text = ''
+       OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower($4::text) || '%'
+       OR lower(COALESCE(c.physical_document_reference, '')) LIKE '%' || lower($4::text) || '%')
 `
 
-type CountSignaturesParams struct {
+type CountConfirmationsParams struct {
 	PersonID  *uuid.UUID
 	VersionID *uuid.UUID
+	Method    *string
 	Search    string
 }
 
-func (q *Queries) CountSignatures(ctx context.Context, arg CountSignaturesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countSignatures, arg.PersonID, arg.VersionID, arg.Search)
+func (q *Queries) CountConfirmations(ctx context.Context, arg CountConfirmationsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countConfirmations,
+		arg.PersonID,
+		arg.VersionID,
+		arg.Method,
+		arg.Search,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
-const createRequest = `-- name: CreateRequest :one
-INSERT INTO laborordnung_requests (id, person_id, required_version_id, previous_version_id)
-VALUES ($1, $2, $3, $4)
-RETURNING id, person_id, required_version_id, previous_version_id, status, requested_at, completed_at, superseded_at, confirmed_by_account_id, physical_document_reference, signed_date, archive_note, created_at, updated_at
-`
-
-type CreateRequestParams struct {
-	ID                uuid.UUID
-	PersonID          uuid.UUID
-	RequiredVersionID uuid.UUID
-	PreviousVersionID *uuid.UUID
-}
-
-func (q *Queries) CreateRequest(ctx context.Context, arg CreateRequestParams) (LaborordnungRequest, error) {
-	row := q.db.QueryRow(ctx, createRequest,
-		arg.ID,
-		arg.PersonID,
-		arg.RequiredVersionID,
-		arg.PreviousVersionID,
-	)
-	var i LaborordnungRequest
-	err := row.Scan(
-		&i.ID,
-		&i.PersonID,
-		&i.RequiredVersionID,
-		&i.PreviousVersionID,
-		&i.Status,
-		&i.RequestedAt,
-		&i.CompletedAt,
-		&i.SupersededAt,
-		&i.ConfirmedByAccountID,
-		&i.PhysicalDocumentReference,
-		&i.SignedDate,
-		&i.ArchiveNote,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const createVersion = `-- name: CreateVersion :one
 INSERT INTO laborordnung_versions (id, human_revision, pdf_file_id, pdf_sha256, created_by_account_id)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at
+RETURNING id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at, announced_at
 `
 
 type CreateVersionParams struct {
@@ -156,12 +78,46 @@ func (q *Queries) CreateVersion(ctx context.Context, arg CreateVersionParams) (L
 		&i.CreatedByAccountID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AnnouncedAt,
+	)
+	return i, err
+}
+
+const getCurrentUnannouncedVersionForUpdate = `-- name: GetCurrentUnannouncedVersionForUpdate :one
+SELECT v.id, v.status, v.human_revision, v.pdf_file_id, v.pdf_sha256, v.effective_at, v.published_at, v.created_by_account_id, v.created_at, v.updated_at, v.announced_at FROM laborordnung_versions v
+WHERE v.id = (
+    SELECT c.id FROM laborordnung_versions c
+    WHERE c.status = 'published' AND c.effective_at <= now()
+    ORDER BY c.effective_at DESC, c.id DESC LIMIT 1
+)
+  AND v.announced_at IS NULL
+FOR UPDATE SKIP LOCKED
+`
+
+// Locks the current version while it is announced. SKIP LOCKED lets a second process that runs the job at the same
+// time pass instead of announcing it again; the current version is chosen before locking, so a locked one is never
+// replaced by an older version.
+func (q *Queries) GetCurrentUnannouncedVersionForUpdate(ctx context.Context) (LaborordnungVersion, error) {
+	row := q.db.QueryRow(ctx, getCurrentUnannouncedVersionForUpdate)
+	var i LaborordnungVersion
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.HumanRevision,
+		&i.PdfFileID,
+		&i.PdfSha256,
+		&i.EffectiveAt,
+		&i.PublishedAt,
+		&i.CreatedByAccountID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AnnouncedAt,
 	)
 	return i, err
 }
 
 const getCurrentVersion = `-- name: GetCurrentVersion :one
-SELECT id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at FROM laborordnung_versions
+SELECT id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at, announced_at FROM laborordnung_versions
 WHERE status = 'published' AND effective_at <= now()
 ORDER BY effective_at DESC, id DESC LIMIT 1
 `
@@ -180,89 +136,36 @@ func (q *Queries) GetCurrentVersion(ctx context.Context) (LaborordnungVersion, e
 		&i.CreatedByAccountID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AnnouncedAt,
 	)
 	return i, err
 }
 
-const getLatestCompletedRequest = `-- name: GetLatestCompletedRequest :one
-SELECT id, person_id, required_version_id, previous_version_id, status, requested_at, completed_at, superseded_at, confirmed_by_account_id, physical_document_reference, signed_date, archive_note, created_at, updated_at FROM laborordnung_requests
-WHERE person_id = $1 AND status = 'completed'
-ORDER BY completed_at DESC, id DESC LIMIT 1
+const getLatestConfirmation = `-- name: GetLatestConfirmation :one
+SELECT id, person_id, version_id, confirmed_at, confirmed_by_account_id, physical_document_reference, signed_date, archive_note, method FROM laborordnung_confirmations
+WHERE person_id = $1
+ORDER BY version_id = $2 DESC, confirmed_at DESC, id DESC LIMIT 1
 `
 
-func (q *Queries) GetLatestCompletedRequest(ctx context.Context, personID uuid.UUID) (LaborordnungRequest, error) {
-	row := q.db.QueryRow(ctx, getLatestCompletedRequest, personID)
-	var i LaborordnungRequest
-	err := row.Scan(
-		&i.ID,
-		&i.PersonID,
-		&i.RequiredVersionID,
-		&i.PreviousVersionID,
-		&i.Status,
-		&i.RequestedAt,
-		&i.CompletedAt,
-		&i.SupersededAt,
-		&i.ConfirmedByAccountID,
-		&i.PhysicalDocumentReference,
-		&i.SignedDate,
-		&i.ArchiveNote,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+type GetLatestConfirmationParams struct {
+	PersonID         uuid.UUID
+	CurrentVersionID uuid.UUID
 }
 
-const getPendingRequest = `-- name: GetPendingRequest :one
-SELECT id, person_id, required_version_id, previous_version_id, status, requested_at, completed_at, superseded_at, confirmed_by_account_id, physical_document_reference, signed_date, archive_note, created_at, updated_at FROM laborordnung_requests
-WHERE person_id = $1 AND status = 'pending'
-FOR UPDATE
-`
-
-func (q *Queries) GetPendingRequest(ctx context.Context, personID uuid.UUID) (LaborordnungRequest, error) {
-	row := q.db.QueryRow(ctx, getPendingRequest, personID)
-	var i LaborordnungRequest
+// The confirmation of the current version when there is one, otherwise the most recent one.
+func (q *Queries) GetLatestConfirmation(ctx context.Context, arg GetLatestConfirmationParams) (LaborordnungConfirmation, error) {
+	row := q.db.QueryRow(ctx, getLatestConfirmation, arg.PersonID, arg.CurrentVersionID)
+	var i LaborordnungConfirmation
 	err := row.Scan(
 		&i.ID,
 		&i.PersonID,
-		&i.RequiredVersionID,
-		&i.PreviousVersionID,
-		&i.Status,
-		&i.RequestedAt,
-		&i.CompletedAt,
-		&i.SupersededAt,
+		&i.VersionID,
+		&i.ConfirmedAt,
 		&i.ConfirmedByAccountID,
 		&i.PhysicalDocumentReference,
 		&i.SignedDate,
 		&i.ArchiveNote,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getPendingRequestForStatus = `-- name: GetPendingRequestForStatus :one
-SELECT id, person_id, required_version_id, previous_version_id, status, requested_at, completed_at, superseded_at, confirmed_by_account_id, physical_document_reference, signed_date, archive_note, created_at, updated_at FROM laborordnung_requests
-WHERE person_id = $1 AND status = 'pending'
-`
-
-func (q *Queries) GetPendingRequestForStatus(ctx context.Context, personID uuid.UUID) (LaborordnungRequest, error) {
-	row := q.db.QueryRow(ctx, getPendingRequestForStatus, personID)
-	var i LaborordnungRequest
-	err := row.Scan(
-		&i.ID,
-		&i.PersonID,
-		&i.RequiredVersionID,
-		&i.PreviousVersionID,
-		&i.Status,
-		&i.RequestedAt,
-		&i.CompletedAt,
-		&i.SupersededAt,
-		&i.ConfirmedByAccountID,
-		&i.PhysicalDocumentReference,
-		&i.SignedDate,
-		&i.ArchiveNote,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.Method,
 	)
 	return i, err
 }
@@ -298,34 +201,8 @@ func (q *Queries) GetPersonName(ctx context.Context, id uuid.UUID) (GetPersonNam
 	return i, err
 }
 
-const getRequestForUpdate = `-- name: GetRequestForUpdate :one
-SELECT id, person_id, required_version_id, previous_version_id, status, requested_at, completed_at, superseded_at, confirmed_by_account_id, physical_document_reference, signed_date, archive_note, created_at, updated_at FROM laborordnung_requests WHERE id = $1 FOR UPDATE
-`
-
-func (q *Queries) GetRequestForUpdate(ctx context.Context, id uuid.UUID) (LaborordnungRequest, error) {
-	row := q.db.QueryRow(ctx, getRequestForUpdate, id)
-	var i LaborordnungRequest
-	err := row.Scan(
-		&i.ID,
-		&i.PersonID,
-		&i.RequiredVersionID,
-		&i.PreviousVersionID,
-		&i.Status,
-		&i.RequestedAt,
-		&i.CompletedAt,
-		&i.SupersededAt,
-		&i.ConfirmedByAccountID,
-		&i.PhysicalDocumentReference,
-		&i.SignedDate,
-		&i.ArchiveNote,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getVersion = `-- name: GetVersion :one
-SELECT id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at FROM laborordnung_versions WHERE id = $1
+SELECT id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at, announced_at FROM laborordnung_versions WHERE id = $1
 `
 
 func (q *Queries) GetVersion(ctx context.Context, id uuid.UUID) (LaborordnungVersion, error) {
@@ -342,84 +219,70 @@ func (q *Queries) GetVersion(ctx context.Context, id uuid.UUID) (LaborordnungVer
 		&i.CreatedByAccountID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AnnouncedAt,
 	)
 	return i, err
 }
 
-const listRequests = `-- name: ListRequests :many
-SELECT id, person_id, required_version_id, previous_version_id, status, requested_at, completed_at, superseded_at, confirmed_by_account_id, physical_document_reference, signed_date, archive_note, created_at, updated_at FROM laborordnung_requests ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'completed' THEN 1 ELSE 2 END, requested_at, id
+const insertConfirmation = `-- name: InsertConfirmation :execrows
+INSERT INTO laborordnung_confirmations (id, person_id, version_id, method, confirmed_at)
+VALUES ($1, $2, $3, $4, now())
+ON CONFLICT (person_id, version_id) DO NOTHING
 `
 
-func (q *Queries) ListRequests(ctx context.Context) ([]LaborordnungRequest, error) {
-	rows, err := q.db.Query(ctx, listRequests)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []LaborordnungRequest{}
-	for rows.Next() {
-		var i LaborordnungRequest
-		if err := rows.Scan(
-			&i.ID,
-			&i.PersonID,
-			&i.RequiredVersionID,
-			&i.PreviousVersionID,
-			&i.Status,
-			&i.RequestedAt,
-			&i.CompletedAt,
-			&i.SupersededAt,
-			&i.ConfirmedByAccountID,
-			&i.PhysicalDocumentReference,
-			&i.SignedDate,
-			&i.ArchiveNote,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+type InsertConfirmationParams struct {
+	ID        uuid.UUID
+	PersonID  uuid.UUID
+	VersionID uuid.UUID
+	Method    string
 }
 
-const listSignatures = `-- name: ListSignatures :many
-SELECT r.id, r.person_id, btrim(p.first_name || ' ' || p.last_name) AS person_name,
-       r.required_version_id AS version_id, v.human_revision, r.signed_date, r.physical_document_reference,
-       r.completed_at, NULLIF(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS confirmed_by_name
-FROM laborordnung_requests r
-JOIN people p ON p.id = r.person_id
-JOIN laborordnung_versions v ON v.id = r.required_version_id
-LEFT JOIN accounts ca ON ca.id = r.confirmed_by_account_id
+// A repeated confirmation of the same version keeps the first one.
+func (q *Queries) InsertConfirmation(ctx context.Context, arg InsertConfirmationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertConfirmation,
+		arg.ID,
+		arg.PersonID,
+		arg.VersionID,
+		arg.Method,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const listConfirmations = `-- name: ListConfirmations :many
+SELECT c.id, c.person_id, btrim(p.first_name || ' ' || p.last_name) AS person_name,
+       c.version_id, v.human_revision, c.method, c.confirmed_at, c.signed_date, c.physical_document_reference,
+       COALESCE(btrim(cp.first_name || ' ' || cp.last_name), '')::text AS confirmed_by_name
+FROM laborordnung_confirmations c
+JOIN people p ON p.id = c.person_id
+JOIN laborordnung_versions v ON v.id = c.version_id
+LEFT JOIN accounts ca ON ca.id = c.confirmed_by_account_id
 LEFT JOIN people cp ON cp.id = ca.person_id
-WHERE r.status = 'completed'
-  AND ($1::uuid IS NULL OR r.person_id = $1::uuid)
-  AND ($2::uuid IS NULL OR r.required_version_id = $2::uuid)
-  AND ($3::text = ''
-       OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower($3::text) || '%'
-       OR lower(COALESCE(r.physical_document_reference, '')) LIKE '%' || lower($3::text) || '%')
+WHERE ($1::uuid IS NULL OR c.person_id = $1::uuid)
+  AND ($2::uuid IS NULL OR c.version_id = $2::uuid)
+  AND ($3::text IS NULL OR c.method = $3::text)
+  AND ($4::text = ''
+       OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower($4::text) || '%'
+       OR lower(COALESCE(c.physical_document_reference, '')) LIKE '%' || lower($4::text) || '%')
 ORDER BY
-  CASE WHEN $4::text = 'person' AND $5::boolean = false THEN lower(p.last_name || ' ' || p.first_name) END ASC,
-  CASE WHEN $4::text = 'person' AND $5::boolean THEN lower(p.last_name || ' ' || p.first_name) END DESC,
-  CASE WHEN $4::text = 'version' AND $5::boolean = false THEN lower(v.human_revision) END ASC,
-  CASE WHEN $4::text = 'version' AND $5::boolean THEN lower(v.human_revision) END DESC,
-  CASE WHEN $4::text = 'signedDate' AND $5::boolean = false THEN r.signed_date END ASC,
-  CASE WHEN $4::text = 'signedDate' AND $5::boolean THEN r.signed_date END DESC,
-  CASE WHEN $4::text = 'reference' AND $5::boolean = false THEN lower(r.physical_document_reference) END ASC,
-  CASE WHEN $4::text = 'reference' AND $5::boolean THEN lower(r.physical_document_reference) END DESC,
-  CASE WHEN $4::text = 'confirmedBy' AND $5::boolean = false THEN lower(cp.last_name || ' ' || cp.first_name) END ASC,
-  CASE WHEN $4::text = 'confirmedBy' AND $5::boolean THEN lower(cp.last_name || ' ' || cp.first_name) END DESC,
-  CASE WHEN $4::text = 'confirmedAt' AND $5::boolean = false THEN r.completed_at END ASC,
-  CASE WHEN $4::text = 'confirmedAt' AND $5::boolean THEN r.completed_at END DESC,
-  r.completed_at DESC, r.id
-LIMIT $7 OFFSET $6
+  CASE WHEN $5::text = 'person' AND $6::boolean = false THEN lower(p.last_name || ' ' || p.first_name) END ASC,
+  CASE WHEN $5::text = 'person' AND $6::boolean THEN lower(p.last_name || ' ' || p.first_name) END DESC,
+  CASE WHEN $5::text = 'version' AND $6::boolean = false THEN lower(v.human_revision) END ASC,
+  CASE WHEN $5::text = 'version' AND $6::boolean THEN lower(v.human_revision) END DESC,
+  CASE WHEN $5::text = 'method' AND $6::boolean = false THEN c.method END ASC,
+  CASE WHEN $5::text = 'method' AND $6::boolean THEN c.method END DESC,
+  CASE WHEN $5::text = 'confirmedAt' AND $6::boolean = false THEN c.confirmed_at END ASC,
+  CASE WHEN $5::text = 'confirmedAt' AND $6::boolean THEN c.confirmed_at END DESC,
+  c.confirmed_at DESC, c.id
+LIMIT $8 OFFSET $7
 `
 
-type ListSignaturesParams struct {
+type ListConfirmationsParams struct {
 	PersonID   *uuid.UUID
 	VersionID  *uuid.UUID
+	Method     *string
 	Search     string
 	Sort       string
 	Descending bool
@@ -427,22 +290,24 @@ type ListSignaturesParams struct {
 	PageLimit  int32
 }
 
-type ListSignaturesRow struct {
+type ListConfirmationsRow struct {
 	ID                        uuid.UUID
 	PersonID                  uuid.UUID
 	PersonName                string
 	VersionID                 uuid.UUID
 	HumanRevision             string
+	Method                    string
+	ConfirmedAt               time.Time
 	SignedDate                pgtype.Date
 	PhysicalDocumentReference *string
-	CompletedAt               pgtype.Timestamptz
 	ConfirmedByName           string
 }
 
-func (q *Queries) ListSignatures(ctx context.Context, arg ListSignaturesParams) ([]ListSignaturesRow, error) {
-	rows, err := q.db.Query(ctx, listSignatures,
+func (q *Queries) ListConfirmations(ctx context.Context, arg ListConfirmationsParams) ([]ListConfirmationsRow, error) {
+	rows, err := q.db.Query(ctx, listConfirmations,
 		arg.PersonID,
 		arg.VersionID,
+		arg.Method,
 		arg.Search,
 		arg.Sort,
 		arg.Descending,
@@ -453,18 +318,19 @@ func (q *Queries) ListSignatures(ctx context.Context, arg ListSignaturesParams) 
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListSignaturesRow{}
+	items := []ListConfirmationsRow{}
 	for rows.Next() {
-		var i ListSignaturesRow
+		var i ListConfirmationsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PersonID,
 			&i.PersonName,
 			&i.VersionID,
 			&i.HumanRevision,
+			&i.Method,
+			&i.ConfirmedAt,
 			&i.SignedDate,
 			&i.PhysicalDocumentReference,
-			&i.CompletedAt,
 			&i.ConfirmedByName,
 		); err != nil {
 			return nil, err
@@ -478,7 +344,7 @@ func (q *Queries) ListSignatures(ctx context.Context, arg ListSignaturesParams) 
 }
 
 const listVersions = `-- name: ListVersions :many
-SELECT id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at FROM laborordnung_versions ORDER BY COALESCE(effective_at, created_at) DESC, id DESC
+SELECT id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at, announced_at FROM laborordnung_versions ORDER BY COALESCE(effective_at, created_at) DESC, id DESC
 `
 
 func (q *Queries) ListVersions(ctx context.Context) ([]LaborordnungVersion, error) {
@@ -501,6 +367,7 @@ func (q *Queries) ListVersions(ctx context.Context) ([]LaborordnungVersion, erro
 			&i.CreatedByAccountID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AnnouncedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -521,11 +388,27 @@ func (q *Queries) LockPerson(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const markVersionsAnnounced = `-- name: MarkVersionsAnnounced :execrows
+UPDATE laborordnung_versions
+SET announced_at = now()
+WHERE status = 'published' AND announced_at IS NULL AND effective_at <= $1
+`
+
+// Marks the version and every older effective version that was never announced; a newer version that became
+// effective before the job ran supersedes them.
+func (q *Queries) MarkVersionsAnnounced(ctx context.Context, effectiveAt pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, markVersionsAnnounced, effectiveAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const publishVersion = `-- name: PublishVersion :one
 UPDATE laborordnung_versions
 SET status = 'published', effective_at = $1, published_at = now(), updated_at = now()
 WHERE id = $2 AND status = 'draft'
-RETURNING id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at
+RETURNING id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at, announced_at
 `
 
 type PublishVersionParams struct {
@@ -547,17 +430,7 @@ func (q *Queries) PublishVersion(ctx context.Context, arg PublishVersionParams) 
 		&i.CreatedByAccountID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AnnouncedAt,
 	)
 	return i, err
-}
-
-const supersedePendingRequest = `-- name: SupersedePendingRequest :exec
-UPDATE laborordnung_requests
-SET status = 'superseded', superseded_at = now(), updated_at = now()
-WHERE id = $1 AND status = 'pending'
-`
-
-func (q *Queries) SupersedePendingRequest(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, supersedePendingRequest, id)
-	return err
 }

@@ -20,12 +20,11 @@
  */
 import type { UUIDv7 } from './uUIDv7';
 
-export interface PublicWaiting {
-  holdId: UUIDv7;
-  /**
-     * @minLength 1
-     * @maxLength 205
-     */
-  displayName: string;
-  requestedAt: string;
+/**
+ * The current effective Lab Rules version, which a person confirms during check-in.
+ */
+export interface TerminalLabRules {
+  id: UUIDv7;
+  humanRevision: string;
+  effectiveAt: string;
 }

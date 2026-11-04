@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	inboxdb "github.com/Basmatireis/Makerspace-Core/backend/internal/inbox/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
@@ -68,32 +68,45 @@ func (e *Emitter) deliver(ctx context.Context, tx pgx.Tx, n notice, accountIDs [
 	return nil
 }
 
-// LabRulesConfirmationRequested tells everyone who may confirm Lab Rules signatures, except the
-// requester, that a person asked for a confirmation. Call it when a new request was created.
-func (e *Emitter) LabRulesConfirmationRequested(
-	ctx context.Context,
-	tx pgx.Tx,
-	requesterAccountID uuid.UUID,
-) error {
+// LabRulesPublished tells everyone who must confirm the Lab Rules version and has not done so that it is in
+// effect: in the app on their enabled accounts and, while mail delivery is switched on, by e-mail. People whose
+// roles do not ask for the Lab Rules and people without an enabled account (who could not confirm) are skipped.
+func (e *Emitter) LabRulesPublished(ctx context.Context, tx pgx.Tx, versionID uuid.UUID) error {
 	queries := inboxdb.New(tx)
-	person, err := queries.GetAccountPersonName(ctx, requesterAccountID)
+	revision, err := queries.GetLabRulesVersionRevision(ctx, versionID)
 	if err != nil {
-		return fmt.Errorf("load requester name: %w", err)
+		return fmt.Errorf("load Lab Rules version: %w", err)
 	}
-	recipients, err := queries.ListEnabledAccountIDsWithPermission(ctx, inboxdb.ListEnabledAccountIDsWithPermissionParams{
-		PermissionID:       string(authorization.LaborordnungConfirm),
-		ExcludedAccountIds: []string{requesterAccountID.String()},
-	})
+	accounts, err := queries.ListEnabledAccountsAwaitingLabRules(ctx, versionID)
 	if err != nil {
-		return fmt.Errorf("resolve Lab Rules confirmers: %w", err)
+		return fmt.Errorf("resolve people awaiting Lab Rules: %w", err)
 	}
-	name := strings.TrimSpace(person.FirstName + " " + person.LastName)
-	return e.deliver(ctx, tx, notice{
-		kind:  KindLabRulesConfirmationRequested,
-		title: "Lab Rules confirmation requested",
-		body:  name + " asked for a physical signature confirmation of the current Lab Rules.",
-		link:  "/settings/laborordnung",
-	}, recipients)
+	recipients := make([]uuid.UUID, 0, len(accounts))
+	var people []uuid.UUID
+	for _, account := range accounts {
+		recipients = append(recipients, account.ID)
+		if !slices.Contains(people, account.PersonID) {
+			people = append(people, account.PersonID)
+		}
+	}
+	n := notice{
+		kind:  KindLabRulesPublished,
+		title: "New Lab Rules",
+		body:  fmt.Sprintf("The Lab Rules %s are now in effect. Please read and confirm them.", revision),
+		link:  LabRulesConfirmLink,
+	}
+	if err = e.deliver(ctx, tx, n, recipients); err != nil {
+		return err
+	}
+	return queueNoticeMails(ctx, queries, n, people, nil)
+}
+
+// LabRulesConfirmed marks the person's lab_rules_published notifications read once they confirmed the Lab Rules.
+func (e *Emitter) LabRulesConfirmed(ctx context.Context, tx pgx.Tx, personID uuid.UUID) error {
+	if _, err := inboxdb.New(tx).MarkLabRulesPublishedRead(ctx, personID); err != nil {
+		return fmt.Errorf("mark Lab Rules notifications read: %w", err)
+	}
+	return nil
 }
 
 // OpenDayPeriodOpen tells everyone with an open day staffing level that sign-up for a period is open.

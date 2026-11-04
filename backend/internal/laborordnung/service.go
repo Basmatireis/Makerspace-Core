@@ -6,13 +6,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -31,6 +31,9 @@ import (
 // MaxPDFBytes is the largest Lab Rules PDF.
 const MaxPDFBytes = 25 << 20
 
+// AnnounceInterval is how often the scheduler looks for a version that became effective and was not announced.
+const AnnounceInterval = time.Minute
+
 type Version struct {
 	ID            uuid.UUID
 	Status        VersionStatus
@@ -48,51 +51,24 @@ type Status struct {
 	ActionRequired         bool
 	CurrentVersion         *Version
 	LatestConfirmedVersion *Version
-	RequestID              *uuid.UUID
-}
-
-type Request struct {
-	ID                        uuid.UUID
-	PersonID                  uuid.UUID
-	PersonName                string
-	RequiredVersion           Version
-	PreviousVersion           *Version
-	Status                    RequestStatus
-	RequestedAt               time.Time
-	CompletedAt               *time.Time
-	PhysicalDocumentReference *string
-	SignedDate                *time.Time
-	ArchiveNote               *string
-}
-
-// ConfirmationListener reacts to a confirmed request inside the confirming transaction, so its writes commit or
-// roll back together with the confirmation.
-type ConfirmationListener interface {
-	LabRulesConfirmed(ctx context.Context, tx pgx.Tx, personID, versionID, actorAccountID uuid.UUID,
-		requestID *uuid.UUID) error
+	LatestConfirmedAt      *time.Time
 }
 
 type Service struct {
-	pool     *pgxpool.Pool
-	files    *files.Service
-	inbox    InboxEmitter
-	listener ConfirmationListener
+	pool  *pgxpool.Pool
+	files *files.Service
+	inbox InboxEmitter
 }
 
 // InboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
 // the caller's transaction.
 type InboxEmitter interface {
-	LabRulesConfirmationRequested(ctx context.Context, tx pgx.Tx, requesterAccountID uuid.UUID) error
+	LabRulesPublished(ctx context.Context, tx pgx.Tx, versionID uuid.UUID) error
+	LabRulesConfirmed(ctx context.Context, tx pgx.Tx, personID uuid.UUID) error
 }
 
 func NewService(pool *pgxpool.Pool, emitter InboxEmitter, fileService *files.Service) *Service {
 	return &Service{pool: pool, files: fileService, inbox: emitter}
-}
-
-// SetConfirmationListener registers the attendance module, which itself depends on this service and therefore
-// cannot be passed to NewService.
-func (s *Service) SetConfirmationListener(listener ConfirmationListener) {
-	s.listener = listener
 }
 
 func (s *Service) CreateVersion(
@@ -348,10 +324,12 @@ func (s *Service) OpenPDF(
 	return s.files.Open(ctx, row.PdfFileID)
 }
 
-// Evaluate is deliberately read-only. Merely authenticating or reading status
-// must never enqueue a physical-signature request.
+// Evaluate is deliberately read-only: authenticating or reading status never records anything.
 func (s *Service) Evaluate(ctx context.Context, personID uuid.UUID) (Status, error) {
-	queries := laborordnungdb.New(s.pool)
+	return evaluate(ctx, laborordnungdb.New(s.pool), personID)
+}
+
+func evaluate(ctx context.Context, queries *laborordnungdb.Queries, personID uuid.UUID) (Status, error) {
 	mode, err := queries.GetPersonMode(ctx, personID)
 	if err != nil {
 		return Status{}, err
@@ -370,30 +348,27 @@ func (s *Service) Evaluate(ctx context.Context, personID uuid.UUID) (Status, err
 	}
 	version := versionFromRow(current)
 	status.CurrentVersion = &version
-	completed, completedErr := queries.GetLatestCompletedRequest(ctx, personID)
-	if completedErr != nil && !errors.Is(completedErr, pgx.ErrNoRows) {
-		return Status{}, completedErr
-	}
-	if completedErr == nil {
-		confirmed, err := queries.GetVersion(ctx, completed.RequiredVersionID)
+	latest, err := queries.GetLatestConfirmation(ctx, laborordnungdb.GetLatestConfirmationParams{
+		PersonID: personID, CurrentVersionID: current.ID,
+	})
+	switch {
+	case err == nil:
+		confirmed, err := queries.GetVersion(ctx, latest.VersionID)
 		if err != nil {
 			return Status{}, err
 		}
 		value := versionFromRow(confirmed)
 		status.LatestConfirmedVersion = &value
-		if completed.RequiredVersionID == current.ID {
+		status.LatestConfirmedAt = &latest.ConfirmedAt
+		if latest.VersionID == current.ID {
 			status.State = StateCurrent
 			return status, nil
 		}
+	case !errors.Is(err, pgx.ErrNoRows):
+		return Status{}, err
 	}
 	status.State = StateOutdated
 	status.ActionRequired = true
-	pending, pendingErr := queries.GetPendingRequestForStatus(ctx, personID)
-	if pendingErr == nil && pending.RequiredVersionID == current.ID {
-		status.RequestID = &pending.ID
-	} else if pendingErr != nil && !errors.Is(pendingErr, pgx.ErrNoRows) {
-		return Status{}, pendingErr
-	}
 	return status, nil
 }
 
@@ -402,263 +377,170 @@ func (s *Service) EvaluateForPerson(
 	principal authorization.Principal,
 	personID uuid.UUID,
 ) (Status, error) {
-	if !principal.CanReadPerson(personID) || !principal.Has(authorization.LaborordnungRequestsRead) {
+	if !principal.CanReadPerson(personID) || !principal.Has(authorization.LaborordnungConfirmationsRead) {
 		return Status{}, apperror.PermissionDenied
 	}
 	return s.Evaluate(ctx, personID)
 }
 
-// RequestOwnConfirmation is the explicit, idempotent command that enqueues a
-// physical-signature confirmation. It is never called from authentication or
-// status reads.
-func (s *Service) RequestOwnConfirmation(
+// ErrNotRequired, ErrUnavailable and ErrVersionOutdated are the reasons a confirmation is refused.
+var (
+	ErrNotRequired = apperror.New(
+		http.StatusConflict,
+		"lab_rules_not_required",
+		"Lab Rules confirmation is not required",
+	)
+	ErrUnavailable = apperror.New(
+		http.StatusConflict,
+		"lab_rules_unavailable",
+		"No effective Lab Rules version is available",
+	)
+	ErrVersionOutdated = apperror.New(
+		http.StatusConflict,
+		"lab_rules_version_outdated",
+		"These Lab Rules are no longer the current version",
+	)
+)
+
+// ConfirmOwn records that the signed-in person read and accepts versionID, which must be the current version.
+// Confirming a version again changes nothing. It returns the person's status afterwards.
+func (s *Service) ConfirmOwn(
 	ctx context.Context,
 	principal authorization.Principal,
+	versionID uuid.UUID,
 	requestID *uuid.UUID,
-) (Request, bool, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Request{}, false, err
+) (Status, error) {
+	var status Status
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		queries := laborordnungdb.New(tx)
+		if err := queries.LockPerson(ctx, principal.PersonID); err != nil {
+			return err
+		}
+		actor := principal.AccountID
+		if err := s.ConfirmTx(ctx, tx, principal.PersonID, versionID, MethodApp, &actor, requestID); err != nil {
+			return err
+		}
+		var err error
+		status, err = evaluate(ctx, queries, principal.PersonID)
+		return err
+	})
+	return status, err
+}
+
+// ConfirmTx records inside the caller's transaction that personID read and accepts versionID. It refuses when the
+// person's roles do not ask for the Lab Rules (ErrNotRequired), when no version is effective (ErrUnavailable) and when
+// versionID is not the current version (ErrVersionOutdated), so a confirmation never applies to a document the
+// person did not see. A repeated confirmation of the same version keeps the first one and writes nothing. The
+// person's lab_rules_published notifications are marked read. Callers verify who the person is: the signed-in
+// person, the person whose PIN or password the terminal just checked, or the visitor completing enrollment.
+func (s *Service) ConfirmTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	personID, versionID uuid.UUID,
+	method ConfirmationMethod,
+	actorAccountID *uuid.UUID,
+	requestID *uuid.UUID,
+) error {
+	if !method.Valid() || method == MethodPaper {
+		return apperror.InvalidField("unknown confirmation method")
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	queries := laborordnungdb.New(tx)
-	if err := queries.LockPerson(ctx, principal.PersonID); err != nil {
-		return Request{}, false, err
-	}
-	mode, err := queries.GetPersonMode(ctx, principal.PersonID)
+	mode, err := queries.GetPersonMode(ctx, personID)
 	if err != nil {
-		return Request{}, false, err
+		return err
 	}
 	if Mode(mode) == ModeNotRequired {
-		return Request{}, false, apperror.New(
-			http.StatusConflict,
-			"lab_rules_not_required",
-			"Lab Rules confirmation is not required",
-		)
+		return ErrNotRequired
 	}
 	current, err := queries.GetCurrentVersion(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Request{}, false, apperror.New(
-			http.StatusConflict,
-			"lab_rules_unavailable",
-			"No effective Lab Rules version is available",
-		)
+		return ErrUnavailable
 	}
 	if err != nil {
-		return Request{}, false, err
+		return err
 	}
-	completed, completedErr := queries.GetLatestCompletedRequest(ctx, principal.PersonID)
-	if completedErr == nil && completed.RequiredVersionID == current.ID {
-		return Request{}, false, apperror.New(
-			http.StatusConflict,
-			"lab_rules_current",
-			"The current Lab Rules are already confirmed",
-		)
+	if current.ID != versionID {
+		return ErrVersionOutdated
 	}
-	if completedErr != nil && !errors.Is(completedErr, pgx.ErrNoRows) {
-		return Request{}, false, completedErr
-	}
-	pending, pendingErr := queries.GetPendingRequest(ctx, principal.PersonID)
-	if pendingErr == nil && pending.RequiredVersionID == current.ID {
-		result, err := s.hydrateRequest(ctx, queries, pending)
-		if err != nil {
-			return Request{}, false, err
-		}
-		if err := tx.Commit(ctx); err != nil {
-			return Request{}, false, err
-		}
-		return result, false, nil
-	}
-	if pendingErr == nil {
-		if err := queries.SupersedePendingRequest(ctx, pending.ID); err != nil {
-			return Request{}, false, err
-		}
-	} else if !errors.Is(pendingErr, pgx.ErrNoRows) {
-		return Request{}, false, pendingErr
-	}
-	var previous *uuid.UUID
-	if completedErr == nil {
-		previous = &completed.RequiredVersionID
-	}
-	created, err := queries.CreateRequest(ctx, laborordnungdb.CreateRequestParams{
-		ID: ids.New(), PersonID: principal.PersonID,
-		RequiredVersionID: current.ID, PreviousVersionID: previous,
+	id := ids.New()
+	inserted, err := queries.InsertConfirmation(ctx, laborordnungdb.InsertConfirmationParams{
+		ID: id, PersonID: personID, VersionID: versionID, Method: string(method),
 	})
 	if err != nil {
-		return Request{}, false, err
+		return err
 	}
-	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "laborordnung.request.created",
-			ResourceType:   "laborordnung_request",
-			ResourceID:     &created.ID,
-			RequestID:      requestID,
-		},
-	); err != nil {
-		return Request{}, false, err
+	if inserted == 0 {
+		return nil
 	}
-	if err := s.inbox.LabRulesConfirmationRequested(ctx, tx, principal.AccountID); err != nil {
-		return Request{}, false, err
+	if err := audit.Write(ctx, tx, audit.Event{
+		ActorAccountID: actorAccountID,
+		Action:         "laborordnung.confirmation.created",
+		ResourceType:   "laborordnung_confirmation",
+		ResourceID:     &id,
+		RequestID:      requestID,
+		Metadata:       map[string]any{"personId": personID.String()},
+	}); err != nil {
+		return err
 	}
-	result, err := s.hydrateRequest(ctx, queries, created)
-	if err != nil {
-		return Request{}, false, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return Request{}, false, err
-	}
-	return result, true, nil
+	return s.inbox.LabRulesConfirmed(ctx, tx, personID)
 }
 
-func (s *Service) ListRequests(ctx context.Context, principal authorization.Principal) ([]Request, error) {
-	if !principal.Has(authorization.LaborordnungRequestsRead) {
-		return nil, apperror.PermissionDenied
-	}
-	queries := laborordnungdb.New(s.pool)
-	rows, err := queries.ListRequests(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]Request, 0, len(rows))
-	for _, row := range rows {
-		hydrated, err := s.hydrateRequest(ctx, queries, row)
-		if err != nil {
-			return nil, err
+// Announce tells everyone who must confirm the current version that it became effective, once per version. It runs
+// from the scheduler; versions that became effective earlier but were never announced are marked announced with it,
+// because only the current version can be confirmed. It returns whether a version was announced.
+func (s *Service) Announce(ctx context.Context) (bool, error) {
+	announced := false
+	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		queries := laborordnungdb.New(tx)
+		current, err := queries.GetCurrentUnannouncedVersionForUpdate(ctx)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
 		}
-		result = append(result, hydrated)
-	}
-	return result, nil
+		if err != nil {
+			return fmt.Errorf("lock current Lab Rules version: %w", err)
+		}
+		if _, err = queries.MarkVersionsAnnounced(ctx, current.EffectiveAt); err != nil {
+			return fmt.Errorf("mark Lab Rules versions announced: %w", err)
+		}
+		if err = audit.Write(ctx, tx, audit.Event{
+			ActorType:     audit.ActorSystem,
+			Action:        "laborordnung.version.announced",
+			ResourceType:  "laborordnung_version",
+			ResourceID:    &current.ID,
+			ChangedFields: []string{"announcedAt"},
+			Source:        audit.SourceSystem,
+		}); err != nil {
+			return err
+		}
+		if err = s.inbox.LabRulesPublished(ctx, tx, current.ID); err != nil {
+			return err
+		}
+		announced = true
+		return nil
+	})
+	return announced, err
 }
 
-func (s *Service) Confirm(
-	ctx context.Context,
-	principal authorization.Principal,
-	id uuid.UUID,
-	reference string,
-	signedDate *time.Time,
-	archiveNote *string,
-	requestID *uuid.UUID,
-) (Request, error) {
-	if !principal.Has(authorization.LaborordnungConfirm) {
-		return Request{}, apperror.PermissionDenied
-	}
-	reference = strings.TrimSpace(reference)
-	if reference == "" || len([]rune(reference)) > 255 {
-		return Request{}, apperror.InvalidField("physical document reference is required and limited to 255 characters")
-	}
-	archiveNote = optional.Trimmed(archiveNote)
-	if archiveNote != nil && len([]rune(*archiveNote)) > 1000 {
-		return Request{}, apperror.InvalidField("archive note is too long")
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Request{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	queries := laborordnungdb.New(tx)
-	current, err := queries.GetRequestForUpdate(ctx, id)
+// CurrentVersion returns the version in effect now, or apperror.NotFound when there is none.
+func (s *Service) CurrentVersion(ctx context.Context) (Version, error) {
+	row, err := laborordnungdb.New(s.pool).GetCurrentVersion(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Request{}, apperror.NotFound
+		return Version{}, apperror.NotFound
 	}
 	if err != nil {
-		return Request{}, err
+		return Version{}, err
 	}
-	if RequestStatus(current.Status) != RequestPending {
-		return Request{}, apperror.New(
-			http.StatusConflict,
-			"laborordnung_request_not_pending",
-			"Only a pending request can be confirmed",
-		)
-	}
-	var date pgtype.Date
-	if signedDate != nil {
-		date = pgtype.Date{Time: signedDate.UTC(), Valid: true}
-	}
-	actor := principal.AccountID
-	row, err := queries.ConfirmRequest(
-		ctx,
-		laborordnungdb.ConfirmRequestParams{
-			ID:                        id,
-			ConfirmedByAccountID:      &actor,
-			PhysicalDocumentReference: &reference,
-			SignedDate:                date,
-			ArchiveNote:               archiveNote,
-		},
-	)
-	if err != nil {
-		return Request{}, err
-	}
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "laborordnung.request.confirmed",
-			ResourceType:   "laborordnung_request",
-			ResourceID:     &id,
-			RequestID:      requestID,
-			ChangedFields:  []string{"status", "physicalDocumentReference", "signedDate", "archiveNote"},
-		},
-	); err != nil {
-		return Request{}, err
-	}
-	if s.listener != nil {
-		if err := s.listener.LabRulesConfirmed(ctx, tx, row.PersonID, row.RequiredVersionID, actor, requestID); err != nil {
-			return Request{}, err
-		}
-	}
-	result, err := s.hydrateRequest(ctx, queries, row)
-	if err != nil {
-		return Request{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return Request{}, err
-	}
-	return result, nil
+	return versionFromRow(row), nil
 }
 
-func (s *Service) hydrateRequest(
-	ctx context.Context,
-	queries *laborordnungdb.Queries,
-	row laborordnungdb.LaborordnungRequest,
-) (Request, error) {
-	name, err := queries.GetPersonName(ctx, row.PersonID)
+// OpenCurrentPDF opens the PDF of the version in effect now; the terminal shows it to people who confirm while
+// checking in. No other version is ever served this way.
+func (s *Service) OpenCurrentPDF(ctx context.Context) (files.File, io.ReadCloser, error) {
+	current, err := s.CurrentVersion(ctx)
 	if err != nil {
-		return Request{}, err
+		return files.File{}, nil, err
 	}
-	required, err := queries.GetVersion(ctx, row.RequiredVersionID)
-	if err != nil {
-		return Request{}, err
-	}
-	result := Request{
-		ID:                        row.ID,
-		PersonID:                  row.PersonID,
-		PersonName:                name.FirstName + " " + name.LastName,
-		RequiredVersion:           versionFromRow(required),
-		Status:                    RequestStatus(row.Status),
-		RequestedAt:               row.RequestedAt,
-		PhysicalDocumentReference: row.PhysicalDocumentReference,
-		ArchiveNote:               row.ArchiveNote,
-	}
-	if row.PreviousVersionID != nil {
-		previous, err := queries.GetVersion(ctx, *row.PreviousVersionID)
-		if err != nil {
-			return Request{}, err
-		}
-		value := versionFromRow(previous)
-		result.PreviousVersion = &value
-	}
-	if row.CompletedAt.Valid {
-		result.CompletedAt = &row.CompletedAt.Time
-	}
-	if row.SignedDate.Valid {
-		result.SignedDate = &row.SignedDate.Time
-	}
-	return result, nil
+	return s.files.Open(ctx, current.PDFFileID)
 }
 
 func versionFromRow(row laborordnungdb.LaborordnungVersion) Version {

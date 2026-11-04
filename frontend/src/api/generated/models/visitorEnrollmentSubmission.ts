@@ -65,6 +65,6 @@ export interface VisitorEnrollmentSubmission {
      * @nullable
      */
   profileImageFilename: string | null;
-  /** Must be true as the visitor's explicit request to enter the physical-signature workflow. */
-  requestConfirmation: boolean;
+  /** The visitor read and accepts the pinned Lab Rules ("I have read and accept the Lab Rules"). Must be true when the visitor role asks for the Lab Rules. */
+  labRulesAccepted: boolean;
 }

@@ -18,34 +18,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LaborordnungRequestStatus } from './laborordnungRequestStatus';
-import type { LaborordnungVersion } from './laborordnungVersion';
 import type { UUIDv7 } from './uUIDv7';
 
-export interface LaborordnungRequest {
-  id: UUIDv7;
-  personId: UUIDv7;
-  /**
-     * @minLength 1
-     * @maxLength 201
-     */
-  personName: string;
-  requiredVersion: LaborordnungVersion;
-  previousVersion: LaborordnungVersion | null;
-  status: LaborordnungRequestStatus;
-  requestedAt: string;
-  /** @nullable */
-  completedAt: string | null;
-  /**
-     * @maxLength 255
-     * @nullable
-     */
-  physicalDocumentReference: string | null;
-  /** @nullable */
-  signedDate: string | null;
-  /**
-     * @maxLength 1000
-     * @nullable
-     */
-  archiveNote: string | null;
+export interface ConfirmOwnLaborordnungRequest {
+  /** The version the Person read; it must be the current one. */
+  versionId: UUIDv7;
 }

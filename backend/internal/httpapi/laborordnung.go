@@ -25,23 +25,25 @@ func (s *Server) GetOwnLaborordnungStatus(
 	return openapi.GetOwnLaborordnungStatus200JSONResponse(laborordnungStatusDTO(status)), nil
 }
 
-func (s *Server) RequestOwnLaborordnungConfirmation(
+func (s *Server) ConfirmOwnLaborordnung(
 	ctx context.Context,
-	_ openapi.RequestOwnLaborordnungConfirmationRequestObject,
-) (openapi.RequestOwnLaborordnungConfirmationResponseObject, error) {
+	request openapi.ConfirmOwnLaborordnungRequestObject,
+) (openapi.ConfirmOwnLaborordnungResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result, created, err := s.laborordnung.RequestOwnConfirmation(ctx, principal, requestIDPointer(ctx))
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	status, err := s.laborordnung.ConfirmOwn(ctx, principal, request.Body.VersionId, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
-	response := laborordnungRequestDTO(result)
-	if created {
-		return openapi.RequestOwnLaborordnungConfirmation201JSONResponse(response), nil
-	}
-	return openapi.RequestOwnLaborordnungConfirmation200JSONResponse(response), nil
+	return openapi.ConfirmOwnLaborordnung200JSONResponse{
+		Body:    laborordnungStatusDTO(status),
+		Headers: openapi.ConfirmOwnLaborordnung200ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
 func (s *Server) ListLaborordnungVersions(
@@ -131,59 +133,48 @@ func (s *Server) GetLaborordnungPDF(
 	}, nil
 }
 
-func (s *Server) ListLaborordnungRequests(
+func (s *Server) ListLaborordnungConfirmations(
 	ctx context.Context,
-	_ openapi.ListLaborordnungRequestsRequestObject,
-) (openapi.ListLaborordnungRequestsResponseObject, error) {
-	principal, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	requests, err := s.laborordnung.ListRequests(ctx, principal)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]openapi.LaborordnungRequest, 0, len(requests))
-	for _, request := range requests {
-		items = append(items, laborordnungRequestDTO(request))
-	}
-	return openapi.ListLaborordnungRequests200JSONResponse{Items: items}, nil
-}
-
-func (s *Server) ListLaborordnungSignatures(
-	ctx context.Context,
-	request openapi.ListLaborordnungSignaturesRequestObject,
-) (openapi.ListLaborordnungSignaturesResponseObject, error) {
+	request openapi.ListLaborordnungConfirmationsRequestObject,
+) (openapi.ListLaborordnungConfirmationsResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
 	params := request.Params
-	sort := laborordnung.SignatureSortConfirmedAt
+	sort := laborordnung.ConfirmationSortConfirmedAt
 	if params.Sort != nil {
-		sort = laborordnung.SignatureSort(*params.Sort)
+		sort = laborordnung.ConfirmationSort(*params.Sort)
+	}
+	var method *laborordnung.ConfirmationMethod
+	if params.Method != nil {
+		value := laborordnung.ConfirmationMethod(*params.Method)
+		method = &value
 	}
 	page, pageSize := defaultInt(params.Page, 1), defaultInt(params.PageSize, 25)
-	items, total, err := s.laborordnung.ListSignatures(ctx, principal, laborordnung.SignatureFilters{
+	items, total, err := s.laborordnung.ListConfirmations(ctx, principal, laborordnung.ConfirmationFilters{
 		Search:     defaultString(params.Search),
 		VersionID:  params.VersionId,
 		PersonID:   params.PersonId,
+		Method:     method,
 		Sort:       sort,
-		Descending: params.Direction == nil || *params.Direction == openapi.ListLaborordnungSignaturesParamsDirectionDesc,
+		Descending: params.Direction == nil || *params.Direction == openapi.ListLaborordnungConfirmationsParamsDirectionDesc,
 		Page:       page,
 		PageSize:   pageSize,
 	})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]openapi.LaborordnungSignature, 0, len(items))
+	result := make([]openapi.LaborordnungConfirmation, 0, len(items))
 	for _, item := range items {
-		result = append(result, openapi.LaborordnungSignature{
+		result = append(result, openapi.LaborordnungConfirmation{
 			Id:            item.ID,
 			PersonId:      item.PersonID,
 			PersonName:    item.PersonName,
 			VersionId:     item.VersionID,
 			HumanRevision: item.HumanRevision,
+			Method:        openapi.LaborordnungConfirmationMethod(item.Method),
+			ConfirmedAt:   item.ConfirmedAt,
 			SignedDate: nullablePointer[time.Time](
 				item.SignedDate,
 				func(value time.Time) openapi_types.Date { return openapi_types.Date{Time: value} },
@@ -193,43 +184,12 @@ func (s *Server) ListLaborordnungSignatures(
 				func(value string) string { return value },
 			),
 			ConfirmedByName: nullablePointer[string](item.ConfirmedByName, func(value string) string { return value }),
-			ConfirmedAt:     item.ConfirmedAt,
 		})
 	}
-	return openapi.ListLaborordnungSignatures200JSONResponse{
-		Items: result, Page: page, PageSize: pageSize, Total: total,
+	return openapi.ListLaborordnungConfirmations200JSONResponse{
+		Body:    openapi.LaborordnungConfirmationPage{Items: result, Page: page, PageSize: pageSize, Total: total},
+		Headers: openapi.ListLaborordnungConfirmations200ResponseHeaders{CacheControl: "no-store"},
 	}, nil
-}
-
-func (s *Server) ConfirmLaborordnungRequest(
-	ctx context.Context,
-	request openapi.ConfirmLaborordnungRequestRequestObject,
-) (openapi.ConfirmLaborordnungRequestResponseObject, error) {
-	principal, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if request.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	var signedDate *time.Time
-	if request.Body.SignedDate.IsSpecified() && !request.Body.SignedDate.IsNull() {
-		value := request.Body.SignedDate.GetOrEmpty().Time
-		signedDate = &value
-	}
-	result, err := s.laborordnung.Confirm(
-		ctx,
-		principal,
-		request.LaborordnungRequestId,
-		request.Body.PhysicalDocumentReference,
-		signedDate,
-		nullableStringPointer(request.Body.ArchiveNote),
-		requestIDPointer(ctx),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return openapi.ConfirmLaborordnungRequest200JSONResponse(laborordnungRequestDTO(result)), nil
 }
 
 func laborordnungVersionDTO(version laborordnung.Version) openapi.LaborordnungVersion {
@@ -257,37 +217,6 @@ func laborordnungStatusDTO(status laborordnung.Status) openapi.LaborordnungStatu
 	} else {
 		result.LatestConfirmedVersion = nullable.NewNullableWithValue(laborordnungVersionDTO(*status.LatestConfirmedVersion))
 	}
-	result.RequestId = nullablePointer(status.RequestID, func(value openapi.UUIDv7) openapi.UUIDv7 { return value })
-	return result
-}
-
-func laborordnungRequestDTO(request laborordnung.Request) openapi.LaborordnungRequest {
-	result := openapi.LaborordnungRequest{
-		Id: request.ID, PersonId: request.PersonID, PersonName: request.PersonName,
-		RequiredVersion: laborordnungVersionDTO(
-			request.RequiredVersion,
-		), Status: openapi.LaborordnungRequestStatus(request.Status), RequestedAt: request.RequestedAt,
-		CompletedAt: nullablePointer[time.Time](
-			request.CompletedAt,
-			func(value time.Time) time.Time { return value },
-		),
-		PhysicalDocumentReference: nullablePointer[string](
-			request.PhysicalDocumentReference,
-			func(value string) string { return value },
-		),
-		ArchiveNote: nullablePointer[string](
-			request.ArchiveNote,
-			func(value string) string { return value },
-		),
-	}
-	if request.PreviousVersion == nil {
-		result.PreviousVersion = nullable.NewNullNullable[openapi.LaborordnungVersion]()
-	} else {
-		result.PreviousVersion = nullable.NewNullableWithValue(laborordnungVersionDTO(*request.PreviousVersion))
-	}
-	result.SignedDate = nullablePointer[time.Time](
-		request.SignedDate,
-		func(value time.Time) openapi_types.Date { return openapi_types.Date{Time: value} },
-	)
+	result.LatestConfirmedAt = nullablePointer(status.LatestConfirmedAt, func(value time.Time) time.Time { return value })
 	return result
 }

@@ -36,8 +36,8 @@ re-pointed to the target and the surviving Account. The implementation lives in 
   or OIDC subjects are returned.
 - `resultingRoles` (the union), `survivingAccountId` (the target's Account, otherwise the first source Account in
   request order, otherwise null).
-- `history`: what moves from the sources per category (`visits`, `attendance_holds`, `training_records`,
-  `lab_rules_requests`, `open_day_assignments`, `event_shift_assignments`, `event_planning` (owned events and assigned
+- `history`: what moves from the sources per category (`visits`, `training_records`,
+  `lab_rules_confirmations`, `open_day_assignments`, `event_shift_assignments`, `event_planning` (owned events and assigned
   tasks), `orders`, `machine_jobs`, `invoice_requests`, `cash_movements`, `survey_invitations`, `survey_responses`,
   `organization_memberships`, `notifications`); only non-zero categories are listed.
 - `conflicts` and `canMerge`.
@@ -49,8 +49,6 @@ re-pointed to the target and the surviving Account. The implementation lives in 
 | `source_scim_managed`          | A source is provisioned through SCIM (its mapping restricts deletion). A SCIM-managed target is fine and keeps its mapping; use SCIM reconciliation for provisional SCIM accounts. |
 | `actor_is_source`              | The caller's own Person is a source. Choose yourself as the target instead.                                                                                                        |
 | `open_visit_conflict`          | More than one involved Person is checked in.                                                                                                                                       |
-| `attendance_hold_conflict`     | More than one involved Person has a pending Lab Rules check-in hold.                                                                                                               |
-| `lab_rules_request_conflict`   | Pending Lab Rules requests for different versions.                                                                                                                                 |
 | `open_day_assignment_conflict` | The People hold different positions on the same Open Day.                                                                                                                          |
 | `pin_conflict`                 | More than one Account has a PIN.                                                                                                                                                   |
 | `totp_conflict`                | More than one Account has a confirmed authenticator app.                                                                                                                           |
@@ -108,9 +106,9 @@ migration that adds such a column fails the integration suite until the merge ha
 | Records                                                                                                                  | Rule                                                                                                                                               |
 | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `person_roles`                                                                                                           | United on the target (`assigned_by` = caller for added roles).                                                                                     |
-| `visits`, `attendance_holds`                                                                                             | Moved; more than one open visit or hold blocks the merge.                                                                                          |
+| `visits`                                                                                                                 | Moved; more than one open visit blocks the merge.                                                                                                  |
 | `training_records`                                                                                                       | Moved; for the same training the higher status (`trainer` over `trained`) wins, then the most recently updated, then the target's.                 |
-| `laborordnung_requests`                                                                                                  | Moved; when two pending requests exist (same version, otherwise blocked), the target's wins.                                                       |
+| `laborordnung_confirmations`                                                                                             | Moved; when both confirmed the same version, the target's confirmation wins.                                                                       |
 | `open_day_assignments`                                                                                                   | Moved; the same position on the same Open Day is kept once (the target's).                                                                         |
 | `event_shift_assignments`                                                                                                | Moved; two active assignments to the same shift keep the target's.                                                                                 |
 | `organization_members`                                                                                                   | Moved; duplicate memberships keep the target's.                                                                                                    |

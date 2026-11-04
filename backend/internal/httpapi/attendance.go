@@ -54,7 +54,7 @@ func (s *Server) ListTerminalPresence(
 	if err != nil {
 		return nil, err
 	}
-	items, waiting, err := s.attendance.PublicPresence(ctx, device)
+	items, err := s.attendance.PublicPresence(ctx, device)
 	if err != nil {
 		return nil, err
 	}
@@ -66,15 +66,7 @@ func (s *Server) ListTerminalPresence(
 			CheckedInAt: item.CheckedInAt,
 		}
 	}
-	waitingDTOs := make([]openapi.PublicWaiting, len(waiting))
-	for i, item := range waiting {
-		waitingDTOs[i] = openapi.PublicWaiting{
-			HoldId:      item.HoldID,
-			DisplayName: item.DisplayName,
-			RequestedAt: item.RequestedAt,
-		}
-	}
-	return openapi.ListTerminalPresence200JSONResponse{Items: result, Count: len(result), Waiting: waitingDTOs}, nil
+	return openapi.ListTerminalPresence200JSONResponse{Items: result, Count: len(result)}, nil
 }
 
 func (s *Server) TerminalPasswordCheckIn(
@@ -94,15 +86,16 @@ func (s *Server) TerminalPasswordCheckIn(
 		string(request.Body.Email),
 		*request.Body.Password,
 		sourceAddress(ctx),
+		attendance.LabRulesChoice{
+			ConfirmVersionID: request.Body.ConfirmLabRulesVersionId,
+			Defer:            request.Body.DeferLabRules != nil && *request.Body.DeferLabRules,
+		},
 		requestIDPointer(ctx),
 	)
 	if err != nil {
 		return nil, err
 	}
-	if value.Hold != nil {
-		return openapi.TerminalPasswordCheckIn202JSONResponse(holdDTO(*value.Hold)), nil
-	}
-	return openapi.TerminalPasswordCheckIn201JSONResponse(visitDTO(*value.Visit)), nil
+	return openapi.TerminalPasswordCheckIn201JSONResponse(visitDTO(value)), nil
 }
 
 func (s *Server) TerminalPinCheckIn(
@@ -122,15 +115,16 @@ func (s *Server) TerminalPinCheckIn(
 		request.Body.LoginName,
 		*request.Body.Pin,
 		sourceAddress(ctx),
+		attendance.LabRulesChoice{
+			ConfirmVersionID: request.Body.ConfirmLabRulesVersionId,
+			Defer:            request.Body.DeferLabRules != nil && *request.Body.DeferLabRules,
+		},
 		requestIDPointer(ctx),
 	)
 	if err != nil {
 		return nil, err
 	}
-	if value.Hold != nil {
-		return openapi.TerminalPinCheckIn202JSONResponse(holdDTO(*value.Hold)), nil
-	}
-	return openapi.TerminalPinCheckIn201JSONResponse(visitDTO(*value.Visit)), nil
+	return openapi.TerminalPinCheckIn201JSONResponse(visitDTO(value)), nil
 }
 
 func (s *Server) TerminalPasswordCheckOut(
@@ -238,57 +232,51 @@ func (s *Server) SupervisedVisitCheckIn(
 	if err != nil {
 		return nil, err
 	}
-	if value.Hold != nil {
-		return openapi.SupervisedVisitCheckIn202JSONResponse(holdDTO(*value.Hold)), nil
-	}
-	return openapi.SupervisedVisitCheckIn201JSONResponse(visitDTO(*value.Visit)), nil
+	return openapi.SupervisedVisitCheckIn201JSONResponse(visitDTO(value)), nil
 }
 
-func (s *Server) ListAttendanceHolds(
+func (s *Server) GetTerminalLabRules(
 	ctx context.Context,
-	_ openapi.ListAttendanceHoldsRequestObject,
-) (openapi.ListAttendanceHoldsResponseObject, error) {
-	p, err := requirePrincipal(ctx)
+	_ openapi.GetTerminalLabRulesRequestObject,
+) (openapi.GetTerminalLabRulesResponseObject, error) {
+	if _, err := s.terminalKiosk(ctx); err != nil {
+		return nil, err
+	}
+	version, err := s.laborordnung.CurrentVersion(ctx)
 	if err != nil {
 		return nil, err
 	}
-	holds, err := s.attendance.ListHolds(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]openapi.AttendanceHold, len(holds))
-	for i, hold := range holds {
-		items[i] = holdDTO(hold)
-	}
-	return openapi.ListAttendanceHolds200JSONResponse{Items: items}, nil
+	return openapi.GetTerminalLabRules200JSONResponse{
+		Body:    openapi.TerminalLabRules{Id: version.ID, HumanRevision: version.HumanRevision, EffectiveAt: *version.EffectiveAt},
+		Headers: openapi.GetTerminalLabRules200ResponseHeaders{CacheControl: "private, no-store"},
+	}, nil
 }
 
-func (s *Server) CancelAttendanceHold(
+func (s *Server) GetTerminalLabRulesPDF(
 	ctx context.Context,
-	request openapi.CancelAttendanceHoldRequestObject,
-) (openapi.CancelAttendanceHoldResponseObject, error) {
-	p, err := requirePrincipal(ctx)
+	_ openapi.GetTerminalLabRulesPDFRequestObject,
+) (openapi.GetTerminalLabRulesPDFResponseObject, error) {
+	if _, err := s.terminalKiosk(ctx); err != nil {
+		return nil, err
+	}
+	file, reader, err := s.laborordnung.OpenCurrentPDF(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if err = s.attendance.CancelHold(ctx, p, request.HoldId, requestIDPointer(ctx)); err != nil {
-		return nil, err
-	}
-	return openapi.CancelAttendanceHold204Response{}, nil
+	return openapi.GetTerminalLabRulesPDF200ApplicationpdfResponse{
+		Body:          reader,
+		ContentLength: file.Size,
+		Headers:       openapi.GetTerminalLabRulesPDF200ResponseHeaders{CacheControl: "private, no-store"},
+	}, nil
 }
 
-func holdDTO(value attendance.Hold) openapi.AttendanceHold {
-	return openapi.AttendanceHold{
-		Id:                    value.ID,
-		PersonId:              value.PersonID,
-		DisplayName:           value.DisplayName,
-		RequestedAt:           value.RequestedAt,
-		ExpiresAt:             value.ExpiresAt,
-		CheckInMethod:         value.CheckInMethod,
-		LaborordnungRequestId: nullableUUIDValue(value.LaborordnungRequestID),
-		RequiredRevision:      nullableValue(value.RequiredRevision),
-		PreviousRevision:      nullableValue(value.PreviousRevision),
+// terminalKiosk resolves the attendance terminal of the request; devices that are not terminals get 404.
+func (s *Server) terminalKiosk(ctx context.Context) (attendance.KioskContext, error) {
+	device, err := kioskDevice(ctx)
+	if err != nil {
+		return attendance.KioskContext{}, err
 	}
+	return s.attendance.KioskContext(ctx, device)
 }
 
 func (s *Server) SupervisedVisitCheckOut(

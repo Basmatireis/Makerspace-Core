@@ -201,7 +201,7 @@ func (s *Server) GetPersonMakerspaceStatus(
 		}
 		response.UpcomingOpenDayAssignments = &items
 	}
-	if principal.Has(authorization.LaborordnungRequestsRead) {
+	if principal.Has(authorization.LaborordnungConfirmationsRead) {
 		status, err := s.laborordnung.EvaluateForPerson(ctx, principal, request.PersonId)
 		if err != nil {
 			return nil, err

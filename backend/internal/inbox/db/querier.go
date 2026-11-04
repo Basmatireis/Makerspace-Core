@@ -31,6 +31,7 @@ type Querier interface {
 	// Recipient rows and role rows go with it (ON DELETE CASCADE).
 	DeleteSentMessage(ctx context.Context, arg DeleteSentMessageParams) (int64, error)
 	GetAccountPersonName(ctx context.Context, accountID uuid.UUID) (GetAccountPersonNameRow, error)
+	GetLabRulesVersionRevision(ctx context.Context, id uuid.UUID) (string, error)
 	// The machine and the operator of the run that is printing on it right now, if any.
 	GetMachineNotificationFacts(ctx context.Context, id uuid.UUID) (GetMachineNotificationFactsRow, error)
 	// The address is read only when the mail is sent; a deleted person or organization yields none.
@@ -53,6 +54,9 @@ type Querier interface {
 	ListEnabledAccountIDsOfPerson(ctx context.Context, personID uuid.UUID) ([]uuid.UUID, error)
 	// Active accounts holding a permission through a role; master holds every registered permission.
 	ListEnabledAccountIDsWithPermission(ctx context.Context, arg ListEnabledAccountIDsWithPermissionParams) ([]uuid.UUID, error)
+	// Active accounts of people whose roles ask for the Lab Rules (warning or blocking) and who have not confirmed the
+	// version.
+	ListEnabledAccountsAwaitingLabRules(ctx context.Context, versionID uuid.UUID) ([]ListEnabledAccountsAwaitingLabRulesRow, error)
 	ListEnabledAccountsOfPeople(ctx context.Context, personIds []string) ([]ListEnabledAccountsOfPeopleRow, error)
 	// Active accounts of people with any open day staffing level (supervisor or trainee).
 	ListEnabledStaffingAccountIDs(ctx context.Context) ([]uuid.UUID, error)
@@ -65,6 +69,7 @@ type Querier interface {
 	ListUnassignedSupervisorAccountIDs(ctx context.Context, arg ListUnassignedSupervisorAccountIDsParams) ([]uuid.UUID, error)
 	MailDeliveryEnabled(ctx context.Context) (bool, error)
 	MarkAllOwnNotificationsRead(ctx context.Context, arg MarkAllOwnNotificationsReadParams) (int64, error)
+	MarkLabRulesPublishedRead(ctx context.Context, personID uuid.UUID) (int64, error)
 	// Idempotent: an already read notification keeps its first read time but still counts as found.
 	MarkOwnNotificationRead(ctx context.Context, arg MarkOwnNotificationReadParams) (int64, error)
 	UpdateSentMessage(ctx context.Context, arg UpdateSentMessageParams) error

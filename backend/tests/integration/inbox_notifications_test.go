@@ -1,11 +1,13 @@
 package integration_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
@@ -371,29 +373,91 @@ func TestInboxExpiredNotificationsAreHiddenAndRetained(t *testing.T) {
 	assertCount(t, e.pool, `SELECT count(*) FROM inbox_notifications WHERE id=$1`, 0, id)
 }
 
-func TestInboxLabRulesConfirmationRequestNotifiesConfirmersExceptTheRequester(t *testing.T) {
-	e := newInboxEnv(t)
-	confirmerRole := e.role("Confirmers", nil, authorization.LaborordnungConfirm)
-	requester := e.person("requester", confirmerRole.ID)
-	confirmer := e.person("confirmer", confirmerRole.ID)
-	disabled := e.person("disabled-confirmer", confirmerRole.ID)
-	e.disable(disabled)
-	plain := e.person("plain", e.role("Reader", nil, authorization.LaborordnungRead).ID)
-	// master holds every permission, including laborordnung.confirm.
-	master := e.master
+// labRulesRole is a role whose holders must confirm the Lab Rules in the given mode.
+func (e *inboxEnv) labRulesRole(name, mode string) roles.Role {
+	e.t.Helper()
+	role := e.role(name, nil)
+	e.exec(`UPDATE roles SET laborordnung_mode=$2 WHERE id=$1`, role.ID, mode)
+	return role
+}
 
-	e.emit(func(tx pgx.Tx) error {
-		return inbox.NewEmitter().LabRulesConfirmationRequested(testContext(e.t), tx, requester.AccountID)
-	})
-	e.expectCount(confirmer, inbox.KindLabRulesConfirmationRequested, 1, "confirmer")
-	e.expectCount(master, inbox.KindLabRulesConfirmationRequested, 1, "master")
-	e.expectCount(requester, inbox.KindLabRulesConfirmationRequested, 0, "requester")
-	e.expectCount(disabled, inbox.KindLabRulesConfirmationRequested, 0, "disabled confirmer")
-	e.expectCount(plain, inbox.KindLabRulesConfirmationRequested, 0, "reader without confirm")
-	item := e.kinds(confirmer, inbox.KindLabRulesConfirmationRequested)[0]
-	if item.Link == nil || *item.Link != "/settings/laborordnung" {
-		t.Fatalf("link = %v", item.Link)
+func TestLabRulesAnnouncementReachesPeopleWhoMustConfirmOnce(t *testing.T) {
+	e := newInboxEnv(t)
+	ctx := testContext(t)
+	e.exec(`UPDATE mail_configuration SET enabled=true`)
+	blocking := e.labRulesRole("Members", "blocking")
+	warning := e.labRulesRole("Guests", "warning")
+	member := e.person("member", blocking.ID)
+	guest := e.person("guest", warning.ID)
+	confirmed := e.person("confirmed", blocking.ID)
+	disabled := e.person("disabled", blocking.ID)
+	e.disable(disabled)
+	plain := e.person("plain", e.role("Staff", nil).ID)
+	labRules := laborordnung.NewService(e.pool, inbox.NewEmitter(), nil)
+
+	// A version that was already in effect when it was published counts as announced at migration time.
+	old := insertPublishedLabRulesVersionAt(t, e.pool, e.master.AccountID, "2025.1", time.Now().Add(-time.Hour))
+	e.exec(`UPDATE laborordnung_versions SET announced_at=now() WHERE id=$1`, old)
+	if announced, err := labRules.Announce(ctx); err != nil || announced {
+		t.Fatalf("announcing an announced version = %v, %v", announced, err)
 	}
+	e.expectCount(member, inbox.KindLabRulesPublished, 0, "member before a new version")
+
+	// Two versions became effective before the job ran: only the newer one is announced, the older is marked.
+	insertPublishedLabRulesVersionAt(t, e.pool, e.master.AccountID, "2026.1", time.Now().Add(-10*time.Minute))
+	current := insertPublishedLabRulesVersion(t, e.pool, e.master.AccountID, "2026.2")
+	e.exec(`INSERT INTO laborordnung_confirmations(id,person_id,version_id,method,confirmed_at) VALUES($1,$2,$3,'app',now())`,
+		ids.New(), confirmed.PersonID, current)
+	announced, err := labRules.Announce(ctx)
+	if err != nil || !announced {
+		t.Fatalf("announce = %v, %v", announced, err)
+	}
+	assertCount(t, e.pool, `SELECT count(*) FROM laborordnung_versions WHERE announced_at IS NULL`, 0)
+	e.expectCount(member, inbox.KindLabRulesPublished, 1, "blocking role holder")
+	e.expectCount(guest, inbox.KindLabRulesPublished, 1, "warning role holder")
+	e.expectCount(confirmed, inbox.KindLabRulesPublished, 0, "person who already confirmed")
+	e.expectCount(disabled, inbox.KindLabRulesPublished, 0, "disabled account")
+	e.expectCount(plain, inbox.KindLabRulesPublished, 0, "role without Lab Rules")
+	e.expectCount(e.master, inbox.KindLabRulesPublished, 0, "master without a Lab Rules role")
+	item := e.kinds(member, inbox.KindLabRulesPublished)[0]
+	if item.Link == nil || *item.Link != "/lab-rules/confirm" || item.Title != "New Lab Rules" ||
+		!strings.Contains(item.Body, "2026.2") {
+		t.Fatalf("notification = %+v", item)
+	}
+	assertCount(t, e.pool, `
+		SELECT count(*) FROM notification_mail_outbox
+		WHERE kind='lab_rules_published' AND link='/lab-rules/confirm' AND person_id IN ($1,$2)`,
+		2, member.PersonID, guest.PersonID)
+	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox`, 2)
+	assertCount(t, e.pool, `
+		SELECT count(*) FROM audit_events WHERE action='laborordnung.version.announced' AND resource_id=$1`, 1, current)
+
+	// The next run finds nothing to announce.
+	if announced, err = labRules.Announce(ctx); err != nil || announced {
+		t.Fatalf("second announce = %v, %v", announced, err)
+	}
+	e.expectCount(member, inbox.KindLabRulesPublished, 1, "member after the second run")
+	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox`, 2)
+
+	// Confirming marks the notification read.
+	if _, err = labRules.ConfirmOwn(ctx, member, current, nil); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ := e.inbox.UnreadCount(ctx, member); n != 0 {
+		t.Fatalf("member unread after confirming = %d, want 0", n)
+	}
+}
+
+func TestLabRulesAnnouncementQueuesNoMailWhileMailIsOff(t *testing.T) {
+	e := newInboxEnv(t)
+	member := e.person("member", e.labRulesRole("Members", "blocking").ID)
+	insertPublishedLabRulesVersion(t, e.pool, e.master.AccountID, "2026.3")
+	if announced, err := laborordnung.NewService(e.pool, inbox.NewEmitter(), nil).Announce(testContext(t)); err != nil ||
+		!announced {
+		t.Fatalf("announce = %v, %v", announced, err)
+	}
+	e.expectCount(member, inbox.KindLabRulesPublished, 1, "member")
+	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox`, 0)
 }
 
 func TestInboxOpenDayPeriodOpeningNotifiesPeopleWithAStaffingLevel(t *testing.T) {
@@ -486,19 +550,20 @@ func TestInboxFreedSupervisorPlaceNotifiesUnassignedSupervisorsWithinTwoWeeks(t 
 func TestInboxDismissingTheLastCopyDeletesASystemNotificationButKeepsMessages(t *testing.T) {
 	e := newInboxEnv(t)
 	ctx := testContext(t)
-	confirmerRole := e.role("Confirmers", nil, authorization.LaborordnungConfirm)
-	requester := e.person("requester")
-	confirmer := e.person("confirmer", confirmerRole.ID)
+	members := e.labRulesRole("Members", "warning")
+	first := e.person("first", members.ID)
+	second := e.person("second", members.ID)
+	version := insertPublishedLabRulesVersion(t, e.pool, e.master.AccountID, "2026.4")
 	e.emit(func(tx pgx.Tx) error {
-		return inbox.NewEmitter().LabRulesConfirmationRequested(ctx, tx, requester.AccountID)
+		return inbox.NewEmitter().LabRulesPublished(ctx, tx, version)
 	})
-	// Master receives it too, so both copies must go before the notification does.
-	for _, p := range []authorization.Principal{confirmer, e.master} {
-		item := e.kinds(p, inbox.KindLabRulesConfirmationRequested)[0]
+	// Both copies must go before the notification does.
+	for _, p := range []authorization.Principal{first, second} {
+		item := e.kinds(p, inbox.KindLabRulesPublished)[0]
 		assertCount(t, e.pool, `SELECT count(*) FROM inbox_notifications WHERE id=$1`, 1, item.ID)
 		if err := e.inbox.Dismiss(ctx, p, item.ID); err != nil {
 			t.Fatal(err)
 		}
 	}
-	assertCount(t, e.pool, `SELECT count(*) FROM inbox_notifications WHERE kind='lab_rules_confirmation_requested'`, 0)
+	assertCount(t, e.pool, `SELECT count(*) FROM inbox_notifications WHERE kind='lab_rules_published'`, 0)
 }

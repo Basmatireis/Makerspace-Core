@@ -54,10 +54,16 @@ SELECT ae.*,
                FROM event_files ef JOIN events e ON e.id = ef.event_id WHERE ef.id = ae.resource_id
            )
            WHEN 'laborordnung_version' THEN (SELECT lv.human_revision FROM laborordnung_versions lv WHERE lv.id = ae.resource_id)
+           -- Paper confirmations kept the id of the request they completed, so older events still resolve.
            WHEN 'laborordnung_request' THEN (
                SELECT NULLIF(btrim(p.first_name || ' ' || p.last_name), '')
-               FROM laborordnung_requests lr JOIN people p ON p.id = lr.person_id
-               WHERE lr.id = ae.resource_id
+               FROM laborordnung_confirmations lc JOIN people p ON p.id = lc.person_id
+               WHERE lc.id = ae.resource_id
+           )
+           WHEN 'laborordnung_confirmation' THEN (
+               SELECT NULLIF(btrim(p.first_name || ' ' || p.last_name), '')
+               FROM laborordnung_confirmations lc JOIN people p ON p.id = lc.person_id
+               WHERE lc.id = ae.resource_id
            )
            WHEN 'oidc_provider' THEN (SELECT op.display_name FROM oidc_providers op WHERE op.id = ae.resource_id)
            WHEN 'scim_connector' THEN (SELECT sc.name FROM scim_connectors sc WHERE sc.id = ae.resource_id)

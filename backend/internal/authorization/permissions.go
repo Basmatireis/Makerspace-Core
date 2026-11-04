@@ -86,8 +86,7 @@ const (
 	SurveysManage                      Permission = Permission(openapi.SurveysManage)
 	LaborordnungRead                   Permission = Permission(openapi.LaborordnungRead)
 	LaborordnungManage                 Permission = Permission(openapi.LaborordnungManage)
-	LaborordnungRequestsRead           Permission = Permission(openapi.LaborordnungRequestsRead)
-	LaborordnungConfirm                Permission = Permission(openapi.LaborordnungConfirm)
+	LaborordnungConfirmationsRead      Permission = Permission(openapi.LaborordnungConfirmationsRead)
 	VisitorEnrollmentManage            Permission = Permission(openapi.VisitorEnrollmentManage)
 	SupervisorDashboardRead            Permission = Permission(openapi.SupervisorDashboardRead)
 	OIDCLinkSelf                       Permission = Permission(openapi.IdentitiesOidcLinkSelf)
@@ -179,7 +178,7 @@ var registry = []Permission{
 	ManagedDevicesRead, ManagedDevicesManage, SessionPoliciesManage,
 	AttendanceRead, AttendanceAssist, AttendanceCorrect, AttendanceStatisticsRead,
 	SurveysRead, SurveysManage,
-	LaborordnungRead, LaborordnungManage, LaborordnungRequestsRead, LaborordnungConfirm,
+	LaborordnungRead, LaborordnungManage, LaborordnungConfirmationsRead,
 	VisitorEnrollmentManage, SupervisorDashboardRead,
 	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage, InvoicingSettingsManage,
 	MachinesRead, MachinesManage,
@@ -275,8 +274,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	SurveysManage:                      "Build, publish, close, and trigger surveys.",
 	LaborordnungRead:                   "Read Lab Rules versions and exact PDFs.",
 	LaborordnungManage:                 "Upload and publish immutable Lab Rules versions.",
-	LaborordnungRequestsRead:           "Read the physical-document confirmation queue.",
-	LaborordnungConfirm:                "Confirm physical Lab Rules evidence.",
+	LaborordnungConfirmationsRead:      "Read who confirmed which Lab Rules version.",
 	VisitorEnrollmentManage:            "Configure controlled visitor-kiosk enrollment.",
 	SupervisorDashboardRead:            "Read the privacy-minimized supervisor dashboard.",
 	OIDCLinkSelf:                       "Link an OIDC identity to the current Account after recent password or OIDC reauthentication.",

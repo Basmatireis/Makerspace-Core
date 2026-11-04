@@ -204,7 +204,6 @@ var validLaborordnungStatuses = map[string]struct{}{
 	"no_published_version": {},
 	"current":              {},
 	"outdated":             {},
-	"pending":              {},
 }
 
 func (s *Service) List(
@@ -219,7 +218,7 @@ func (s *Service) List(
 	if len(filters.AccountStatuses) > 0 && !principal.Has(authorization.AccountsRead) {
 		return Page{}, apperror.PermissionDenied
 	}
-	if len(filters.LaborordnungStatuses) > 0 && !principal.Has(authorization.LaborordnungRequestsRead) {
+	if len(filters.LaborordnungStatuses) > 0 && !principal.Has(authorization.LaborordnungConfirmationsRead) {
 		return Page{}, apperror.PermissionDenied
 	}
 	if page < 1 || pageSize < 1 || pageSize > 100 || page > math.MaxInt32/pageSize ||

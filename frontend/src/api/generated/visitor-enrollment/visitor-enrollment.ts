@@ -167,7 +167,11 @@ export const getSubmitVisitorEnrollmentUrl = () => {
 }
 
 /**
- * Confirmation requests refer to the immutable Lab Rules version pinned by the enrollment context. Current device, method, and initial-role configuration is still enforced.
+ * Completing enrollment counts as arriving: the visitor is checked in. When the configured role asks for the Lab
+ * Rules, `labRulesAccepted` must be true (422 otherwise) and records the visitor's confirmation (method
+ * `enrollment`) of the Lab Rules version pinned by the enrollment context. When that version is no longer the
+ * current one, the answer is 409 `lab_rules_changed` and the kiosk must start over with the new version.
+ * Current device, method, and initial-role configuration is still enforced.
  * @summary Atomically create one visitor using the backend-configured Role
  */
 export const submitVisitorEnrollment = async (visitorEnrollmentSubmission: VisitorEnrollmentSubmission, options?: Parameters<typeof apiFetch>[1]): Promise<VisitorEnrollmentResult> => {
@@ -205,7 +209,7 @@ export const getEvaluateVisitorAdmissionUrl = () => {
 }
 
 /**
- * @summary Explicitly request/reuse required physical confirmation and evaluate admission on an approved ManagedDevice
+ * @summary Evaluate Lab Rules admission of the signed-in Person on an approved ManagedDevice
  */
 export const evaluateVisitorAdmission = async ( options?: Parameters<typeof apiFetch>[1]): Promise<VisitorAdmissionResult> => {
 

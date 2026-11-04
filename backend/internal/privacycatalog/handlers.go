@@ -22,7 +22,7 @@ func RegisterBuiltinHandlers(service *privacy.Service, runRecordings *runrecordi
 	service.Register(AuthSessions, auth.SessionRetention())
 	service.Register(AuthPendingState, pendingState())
 	service.Register(SurveyInvitations, surveys.InvitationRetention())
-	service.Register(AttendanceVisits, attendance.VisitRetention(service.Now))
+	service.Register(AttendanceVisits, attendance.VisitRetention())
 	service.Register(AuditEvents, privacy.AuditEventRetention())
 	service.Register(EventExternalSignups, events.SignupRetention())
 	service.Register(InboxNotifications, inbox.NotificationRetention())

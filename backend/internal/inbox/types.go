@@ -10,14 +10,18 @@ import (
 type Kind string
 
 const (
-	KindMessage                       Kind = "message"
-	KindLabRulesConfirmationRequested Kind = "lab_rules_confirmation_requested"
-	KindOpenDayPeriodOpen             Kind = "open_day_period_open"
-	KindOpenDayPlaceFreed             Kind = "open_day_place_freed"
-	KindRunFinished                   Kind = "run_finished"
-	KindPrinterError                  Kind = "printer_error"
-	KindFilamentChange                Kind = "filament_change"
+	KindMessage           Kind = "message"
+	KindLabRulesPublished Kind = "lab_rules_published"
+	KindOpenDayPeriodOpen Kind = "open_day_period_open"
+	KindOpenDayPlaceFreed Kind = "open_day_place_freed"
+	KindRunFinished       Kind = "run_finished"
+	KindPrinterError      Kind = "printer_error"
+	KindFilamentChange    Kind = "filament_change"
 )
+
+// LabRulesConfirmLink is the page that shows the current Lab Rules and asks for the confirmation; Lab Rules
+// notifications and their e-mails link to it.
+const LabRulesConfirmLink = "/lab-rules/confirm"
 
 const (
 	// Retention is how long a notification is kept; expired ones are hard-deleted.
