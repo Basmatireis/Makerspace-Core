@@ -25,6 +25,7 @@ export function JobsPage() {
       tabs={
         <PageSectionTabs
           label="Jobs sections"
+          guide="workshop-jobs-tabs"
           sections={TABS}
           selected={tab}
           onChange={(id) => setParams(id === 'all' ? {} : { tab: id }, { replace: true })}

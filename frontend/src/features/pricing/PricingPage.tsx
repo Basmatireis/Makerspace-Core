@@ -114,7 +114,12 @@ export function PricingPage() {
       width="wide"
       breadcrumbs={[{ label: 'Sales & payments', to: '/orders' }, { label: 'Pricing' }]}
       actions={
-        <Button kind="secondary" renderIcon={Calculator} onClick={() => setLookupOpen(true)}>
+        <Button
+          kind="secondary"
+          renderIcon={Calculator}
+          data-guide="pricing-lookup"
+          onClick={() => setLookupOpen(true)}
+        >
           Price lookup
         </Button>
       }
@@ -124,43 +129,45 @@ export function PricingPage() {
       ) : pricing.isError ? (
         <ErrorState message="The pricing could not be loaded." onRetry={() => pricing.refetch()} />
       ) : (
-        <Tabs
-          selectedIndex={tab}
-          onChange={({ selectedIndex }) =>
-            setParams(selectedIndex === 0 ? {} : { tab: tabs[selectedIndex] }, { replace: true })
-          }
-        >
-          <TabList aria-label="Pricing sections" contained>
-            <Tab>
-              Groups &amp; rates
-              {gaps > 0 && (
-                <Tag type="red" size="sm" className="sales-tab-count">
-                  {gaps}
-                </Tag>
-              )}
-            </Tab>
-            <Tab>Role mapping</Tab>
-            {canOrganizations && <Tab>Organizations</Tab>}
-          </TabList>
-          <TabPanels>
-            <TabPanel className="sales-tab-panel">
-              <RatesTab
-                groups={groups}
-                selectors={selectors}
-                canEdit={canEdit}
-                partial={!canMachines || !canInventory}
-              />
-            </TabPanel>
-            <TabPanel className="sales-tab-panel">
-              <RoleMappingTab groups={groups} canEdit={canEdit} />
-            </TabPanel>
-            {canOrganizations && (
+        <div data-guide="pricing-tabs">
+          <Tabs
+            selectedIndex={tab}
+            onChange={({ selectedIndex }) =>
+              setParams(selectedIndex === 0 ? {} : { tab: tabs[selectedIndex] }, { replace: true })
+            }
+          >
+            <TabList aria-label="Pricing sections" contained>
+              <Tab>
+                Groups &amp; rates
+                {gaps > 0 && (
+                  <Tag type="red" size="sm" className="sales-tab-count">
+                    {gaps}
+                  </Tag>
+                )}
+              </Tab>
+              <Tab>Role mapping</Tab>
+              {canOrganizations && <Tab>Organizations</Tab>}
+            </TabList>
+            <TabPanels>
               <TabPanel className="sales-tab-panel">
-                <OrganizationsTab defaultName={defaultName} />
+                <RatesTab
+                  groups={groups}
+                  selectors={selectors}
+                  canEdit={canEdit}
+                  partial={!canMachines || !canInventory}
+                />
               </TabPanel>
-            )}
-          </TabPanels>
-        </Tabs>
+              <TabPanel className="sales-tab-panel">
+                <RoleMappingTab groups={groups} canEdit={canEdit} />
+              </TabPanel>
+              {canOrganizations && (
+                <TabPanel className="sales-tab-panel">
+                  <OrganizationsTab defaultName={defaultName} />
+                </TabPanel>
+              )}
+            </TabPanels>
+          </Tabs>
+        </div>
       )}
       {lookupOpen && <PriceLookupModal onClose={() => setLookupOpen(false)} />}
     </PageShell>

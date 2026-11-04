@@ -96,7 +96,12 @@ function PaymentDetail({ payment }: { payment: OrderPayment }) {
             </Button>
           )}
           {actionable && canReverse && order.data && (
-            <Button kind="danger--tertiary" renderIcon={Undo} onClick={() => setDialog(true)}>
+            <Button
+              kind="danger--tertiary"
+              renderIcon={Undo}
+              data-guide="payment-reverse"
+              onClick={() => setDialog(true)}
+            >
               Refund or correct
             </Button>
           )}
@@ -128,16 +133,18 @@ function PaymentDetail({ payment }: { payment: OrderPayment }) {
         )}
         <div className="mj-detail-layout">
           <div className="mj-stack">
-            <ContainedList label="What happened to this payment" kind="on-page">
-              {history.map((line, index) => (
-                <ContainedListItem key={`${line.at}-${index}`}>
-                  <span className="mj-cell-stack">
-                    <span>{line.text}</span>
-                    <span className="mj-secondary">{formatDateTime(line.at)}</span>
-                  </span>
-                </ContainedListItem>
-              ))}
-            </ContainedList>
+            <div data-guide="payment-history">
+              <ContainedList label="What happened to this payment" kind="on-page">
+                {history.map((line, index) => (
+                  <ContainedListItem key={`${line.at}-${index}`}>
+                    <span className="mj-cell-stack">
+                      <span>{line.text}</span>
+                      <span className="mj-secondary">{formatDateTime(line.at)}</span>
+                    </span>
+                  </ContainedListItem>
+                ))}
+              </ContainedList>
+            </div>
           </div>
           <Tile>
             <h2 className="mj-section-title">Details</h2>

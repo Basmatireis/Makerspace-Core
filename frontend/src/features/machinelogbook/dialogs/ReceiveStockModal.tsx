@@ -266,6 +266,7 @@ export function ReceiveStockModal({
     <Modal
       open={open}
       size="lg"
+      data-guide="workshop-receive-modal"
       modalHeading="Receive stock"
       primaryButtonText={pending ? 'Saving…' : 'Receive stock'}
       secondaryButtonText="Cancel"

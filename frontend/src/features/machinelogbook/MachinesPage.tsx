@@ -228,6 +228,7 @@ export function MachinesPage() {
   const tabsNode = (
     <PageSectionTabs
       label="Machine sections"
+      guide="workshop-machines-tabs"
       sections={tabs.map((id) => ({ id, label: tabLabels[id] }))}
       selected={tab}
       onChange={selectTab}
@@ -263,45 +264,47 @@ export function MachinesPage() {
               )
             }
           >
-            <DirectoryTable<MachineRow>
-              id="machines"
-              urlPrefix=""
-              label="Machines"
-              columns={columns}
-              rows={rows}
-              totalCount={allRows.length}
-              searchText={machineSearchText}
-              defaultSort={{ key: 'machine', direction: 'ASC' }}
-              pageSizes={[25, 50, 100]}
-              onRowClick={open}
-              filterCategories={[
-                {
-                  key: 'status',
-                  label: 'Availability',
-                  options: statusOptions,
-                  helperText: 'Retired machines only appear when selected.',
-                },
-                { key: 'process', label: 'Process', options: processOptions },
-                { key: 'collection', label: 'Collection', options: collectionOptions },
-                { key: 'connector', label: 'Connector', options: connectorOptions },
-              ]}
-              toolbarAction={
-                canManage ? (
-                  <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setFormOpen(true)}>
-                    Add machine
-                  </Button>
-                ) : undefined
-              }
-              empty={{
-                title: 'No machines yet',
-                description: 'Add a machine to start logging jobs.',
-                action: canManage ? (
-                  <Button kind="tertiary" onClick={() => setFormOpen(true)}>
-                    Add machine
-                  </Button>
-                ) : undefined,
-              }}
-            />
+            <div data-guide="workshop-machines-table">
+              <DirectoryTable<MachineRow>
+                id="machines"
+                urlPrefix=""
+                label="Machines"
+                columns={columns}
+                rows={rows}
+                totalCount={allRows.length}
+                searchText={machineSearchText}
+                defaultSort={{ key: 'machine', direction: 'ASC' }}
+                pageSizes={[25, 50, 100]}
+                onRowClick={open}
+                filterCategories={[
+                  {
+                    key: 'status',
+                    label: 'Availability',
+                    options: statusOptions,
+                    helperText: 'Retired machines only appear when selected.',
+                  },
+                  { key: 'process', label: 'Process', options: processOptions },
+                  { key: 'collection', label: 'Collection', options: collectionOptions },
+                  { key: 'connector', label: 'Connector', options: connectorOptions },
+                ]}
+                toolbarAction={
+                  canManage ? (
+                    <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setFormOpen(true)}>
+                      Add machine
+                    </Button>
+                  ) : undefined
+                }
+                empty={{
+                  title: 'No machines yet',
+                  description: 'Add a machine to start logging jobs.',
+                  action: canManage ? (
+                    <Button kind="tertiary" onClick={() => setFormOpen(true)}>
+                      Add machine
+                    </Button>
+                  ) : undefined,
+                }}
+              />
+            </div>
           </ListWithPanel>
         </QueryBoundary>
       )}

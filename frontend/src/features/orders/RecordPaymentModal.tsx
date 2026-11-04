@@ -96,6 +96,7 @@ export function RecordPaymentModal({
   return (
     <Modal
       open
+      data-guide="pay-modal"
       size="md"
       modalHeading={checkout ? 'Finalize and take payment' : 'Record payment'}
       modalLabel={order.reference}

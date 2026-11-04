@@ -41,7 +41,9 @@ export function PaymentsPage() {
         ) : undefined
       }
     >
-      {tab === 'register' ? <CashRegisterTab key="register" /> : <CashbookTab key="cashbook" />}
+      <div data-guide="payments-content">
+        {tab === 'register' ? <CashRegisterTab key="register" /> : <CashbookTab key="cashbook" />}
+      </div>
     </PageShell>
   );
 }

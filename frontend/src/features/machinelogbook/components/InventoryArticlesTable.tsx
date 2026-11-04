@@ -198,7 +198,7 @@ function ArticlesTable({
         onRowClick={open}
         toolbarAction={
           allowed.manage ? (
-            <Button renderIcon={Add} onClick={onReceive}>
+            <Button renderIcon={Add} onClick={onReceive} data-guide="workshop-receive-stock">
               Receive stock
             </Button>
           ) : undefined

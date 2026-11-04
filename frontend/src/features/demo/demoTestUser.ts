@@ -15,6 +15,7 @@ export const demoPermissions = [
   'orders.finalize',
   'payments.read',
   'payments.record',
+  'payments.reverse',
   'pricing.read',
   'organizations.read',
   'people.read.all',

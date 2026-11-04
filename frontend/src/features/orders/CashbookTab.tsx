@@ -135,7 +135,7 @@ function CashbookTable({
       header: 'Payment',
       render: (line) =>
         line.type === 'payment' ? (
-          <div className="mj-cell-stack">
+          <div className="mj-cell-stack" data-guide={`payments-line-${line.reference}`}>
             <RefLink reference={line.reference} id={line.payment.id} kind="payment" />
             <span className="sales-inline">
               <PaymentKindTag payment={line.payment} />

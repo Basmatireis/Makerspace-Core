@@ -1,4 +1,7 @@
 import type { GuideArea, GuideRequirement } from '../../guides/types';
+import { openDaysArticles } from './openDays';
+import { salesArticles } from './sales';
+import { workshopArticles } from './workshop';
 
 export interface HelpArticle {
   id: string;
@@ -12,8 +15,7 @@ export interface HelpArticle {
   load: () => Promise<string>;
 }
 
-/** Every help article. Other areas add their articles here; the help center hides areas without any. */
-export const articles: HelpArticle[] = [
+const gettingStartedArticles: HelpArticle[] = [
   {
     id: 'getting-started',
     area: 'getting-started',
@@ -32,4 +34,12 @@ export const articles: HelpArticle[] = [
     relatedGuides: ['welcome'],
     load: () => import('./help-and-tours.md?raw').then((module) => module.default),
   },
+];
+
+/** Every help article; the help center hides areas without any. */
+export const articles: HelpArticle[] = [
+  ...gettingStartedArticles,
+  ...workshopArticles,
+  ...salesArticles,
+  ...openDaysArticles,
 ];

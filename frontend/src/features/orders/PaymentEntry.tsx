@@ -249,41 +249,43 @@ export function PaymentEntryForm({
 
   return (
     <Stack gap={5}>
-      <TileGroup
-        legend="Payment method"
-        name={`${idPrefix}-preset`}
-        valueSelected={entry.preset}
-        disabled={disabled}
-        onChange={(value) => onChange(presetEntry(entry, value as PaymentPreset, due))}
-        className="sales-method-tiles"
-      >
-        <RadioTile id={`${idPrefix}-cash`} value="cash">
-          <span className="sales-method-tile">
-            <Currency size={20} />
-            Cash
-          </span>
-        </RadioTile>
-        <RadioTile id={`${idPrefix}-card`} value="card">
-          <span className="sales-method-tile">
-            <Wallet size={20} />
-            Card
-          </span>
-        </RadioTile>
-        <RadioTile id={`${idPrefix}-split`} value="split">
-          <span className="sales-method-tile">
-            <Add size={20} />
-            Split
-          </span>
-        </RadioTile>
-        {allowInvoice && (
-          <RadioTile id={`${idPrefix}-invoice`} value="invoice">
+      <div data-guide="pay-method">
+        <TileGroup
+          legend="Payment method"
+          name={`${idPrefix}-preset`}
+          valueSelected={entry.preset}
+          disabled={disabled}
+          onChange={(value) => onChange(presetEntry(entry, value as PaymentPreset, due))}
+          className="sales-method-tiles"
+        >
+          <RadioTile id={`${idPrefix}-cash`} value="cash">
             <span className="sales-method-tile">
-              <Document size={20} />
-              Invoice
+              <Currency size={20} />
+              Cash
             </span>
           </RadioTile>
-        )}
-      </TileGroup>
+          <RadioTile id={`${idPrefix}-card`} value="card">
+            <span className="sales-method-tile">
+              <Wallet size={20} />
+              Card
+            </span>
+          </RadioTile>
+          <RadioTile id={`${idPrefix}-split`} value="split">
+            <span className="sales-method-tile">
+              <Add size={20} />
+              Split
+            </span>
+          </RadioTile>
+          {allowInvoice && (
+            <RadioTile id={`${idPrefix}-invoice`} value="invoice">
+              <span className="sales-method-tile">
+                <Document size={20} />
+                Invoice
+              </span>
+            </RadioTile>
+          )}
+        </TileGroup>
+      </div>
       {entry.preset === 'invoice' && (
         <Tile className="sales-invoice-choice">
           <p>
@@ -302,6 +304,7 @@ export function PaymentEntryForm({
             return (
               <div
                 key={item.key}
+                data-guide={index === 0 ? 'pay-amount' : undefined}
                 className={split ? 'sales-payment-row sales-payment-row--split' : 'sales-payment-row'}
               >
                 {split && (
@@ -372,7 +375,7 @@ export function PaymentEntryForm({
               Add another payment
             </Button>
           )}
-          <div className="sales-cover" aria-live="polite">
+          <div className="sales-cover" aria-live="polite" data-guide="pay-covered">
             <span className="mj-secondary">Covered</span>
             <strong>
               {formatCents(check.covered)} of {formatCents(due)}

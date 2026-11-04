@@ -496,7 +496,7 @@ function JobForm({ onClose, mode, job, initialValues, onSaved }: JobFormProps) {
                 )}
               />
               {creating && machine && (
-                <section className="jobs-form-run" aria-labelledby="job-form-run-title">
+                <section className="jobs-form-run" aria-labelledby="job-form-run-title" data-guide="workshop-job-run">
                   <h3 id="job-form-run-title" className="jobs-form-run__title">
                     First run
                   </h3>
@@ -525,7 +525,12 @@ function JobForm({ onClose, mode, job, initialValues, onSaved }: JobFormProps) {
           <Button kind="secondary" disabled={pending} onClick={() => guard.requestDiscard(onClose)}>
             Cancel
           </Button>
-          <Button kind="primary" disabled={pending || !machineId || (creating && !customer)} onClick={submit}>
+          <Button
+            kind="primary"
+            disabled={pending || !machineId || (creating && !customer)}
+            onClick={submit}
+            data-guide="workshop-job-submit"
+          >
             {pending ? 'Saving…' : creating ? 'Create job' : 'Save job'}
           </Button>
         </ModalFooter>

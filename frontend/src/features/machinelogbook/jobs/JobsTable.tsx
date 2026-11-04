@@ -321,7 +321,7 @@ export function JobsTable({
       <DataTable rows={rows.map((row) => ({ id: row.id }))} headers={headers} size="lg">
         {({ rows: tableRows, headers: tableHeaders, getTableProps, getRowProps }) => (
           <TableContainer className="mj-table-container jobs-table">
-            <TableToolbar aria-label="Jobs table toolbar">
+            <TableToolbar aria-label="Jobs table toolbar" data-guide="workshop-jobs-toolbar">
               <TableToolbarContent>
                 <TableToolbarSearch
                   key={searchKey}
@@ -355,7 +355,13 @@ export function JobsTable({
                   <Filter />
                 </IconButton>
                 {canCreate && (
-                  <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setJobOpen(true)}>
+                  <Button
+                    kind="primary"
+                    size="lg"
+                    renderIcon={Add}
+                    onClick={() => setJobOpen(true)}
+                    data-guide="workshop-new-job"
+                  >
                     New job
                   </Button>
                 )}
@@ -423,6 +429,7 @@ export function JobsTable({
                       {...rowProps}
                       isSelected={isSelected}
                       aria-selected={isSelected || undefined}
+                      data-guide={tableRow.id === tableRows[0]?.id ? 'workshop-job-row' : undefined}
                       className="mj-row-clickable"
                       onClick={(event: MouseEvent<HTMLElement>) => {
                         if (!(event.target as HTMLElement).closest('a, button, input'))

@@ -194,7 +194,12 @@ function OrderDetail({ order }: { order: Order }) {
             </Button>
           )}
           {canPrintReceipt(order) && canReadPayments && (
-            <Button kind="tertiary" renderIcon={Printer} onClick={() => navigate(`/orders/${order.id}/receipt`)}>
+            <Button
+              kind="tertiary"
+              renderIcon={Printer}
+              data-guide="order-receipt"
+              onClick={() => navigate(`/orders/${order.id}/receipt`)}
+            >
               Print receipt
             </Button>
           )}
@@ -209,7 +214,13 @@ function OrderDetail({ order }: { order: Order }) {
             </Button>
           )}
           {primary && (
-            <Button kind="primary" renderIcon={primary.icon} disabled={primary.disabled} onClick={primary.run}>
+            <Button
+              kind="primary"
+              renderIcon={primary.icon}
+              disabled={primary.disabled}
+              data-guide="order-primary"
+              onClick={primary.run}
+            >
               {primary.label}
             </Button>
           )}
@@ -280,42 +291,44 @@ function OrderDetail({ order }: { order: Order }) {
           </RichNotification>
         )}
 
-        <FactTiles
-          label="Order facts"
-          items={[
-            {
-              label: order.status === 'reversed' ? 'Total (reversed)' : 'Total',
-              value: formatCents(toCents(order.totalAmount)),
-              helper:
-                order.netCharge !== order.totalAmount
-                  ? `Net charge ${formatCents(toCents(order.netCharge))} after reversal`
-                  : `${items.length} ${items.length === 1 ? 'item' : 'items'}${draft ? ' · prices not frozen yet' : ''}`,
-            },
-            {
-              label: 'Paid',
-              value: formatCents(toCents(order.settledAmount)),
-              helper: lastPayment
-                ? `${methodLabel(lastPayment.method)} · ${formatDateTime(lastPayment.occurredAt)}`
-                : 'No payment yet',
-            },
-            {
-              label: 'Outstanding',
-              value: draft ? '—' : formatCents(outstanding),
-              helper: draft ? 'Finalize to charge' : outstanding > 0 ? 'Net charge minus payments' : 'Settled',
-            },
-            { label: 'Customer', value: customerLabel(order), helper: customerKindLabel(order.customerKind) },
-            {
-              label: 'Hand-over',
-              value: order.fulfillmentMode === 'immediate' ? 'Handed over' : 'Later',
-              helper: order.fulfillmentMode === 'immediate' ? 'Taken along on the day' : 'Pick-up or shipping later',
-            },
-            {
-              label: 'Created',
-              value: formatDateTime(order.createdAt),
-              helper: order.createdBy ? `by ${order.createdBy.displayName}` : undefined,
-            },
-          ]}
-        />
+        <div data-guide="order-facts">
+          <FactTiles
+            label="Order facts"
+            items={[
+              {
+                label: order.status === 'reversed' ? 'Total (reversed)' : 'Total',
+                value: formatCents(toCents(order.totalAmount)),
+                helper:
+                  order.netCharge !== order.totalAmount
+                    ? `Net charge ${formatCents(toCents(order.netCharge))} after reversal`
+                    : `${items.length} ${items.length === 1 ? 'item' : 'items'}${draft ? ' · prices not frozen yet' : ''}`,
+              },
+              {
+                label: 'Paid',
+                value: formatCents(toCents(order.settledAmount)),
+                helper: lastPayment
+                  ? `${methodLabel(lastPayment.method)} · ${formatDateTime(lastPayment.occurredAt)}`
+                  : 'No payment yet',
+              },
+              {
+                label: 'Outstanding',
+                value: draft ? '—' : formatCents(outstanding),
+                helper: draft ? 'Finalize to charge' : outstanding > 0 ? 'Net charge minus payments' : 'Settled',
+              },
+              { label: 'Customer', value: customerLabel(order), helper: customerKindLabel(order.customerKind) },
+              {
+                label: 'Hand-over',
+                value: order.fulfillmentMode === 'immediate' ? 'Handed over' : 'Later',
+                helper: order.fulfillmentMode === 'immediate' ? 'Taken along on the day' : 'Pick-up or shipping later',
+              },
+              {
+                label: 'Created',
+                value: formatDateTime(order.createdAt),
+                helper: order.createdBy ? `by ${order.createdBy.displayName}` : undefined,
+              },
+            ]}
+          />
+        </div>
 
         <div className="sales-detail">
           <div className="sales-stack">

@@ -71,7 +71,7 @@ describe('help center', () => {
   it('shows a workflow demo to someone with the permission', async () => {
     renderHelp([PermissionId.machine_jobsread]);
     expect(await screen.findByRole('heading', { name: 'Workshop', level: 2 })).toBeInTheDocument();
-    const card = screen.getByText('Record a job').closest('.help-card') as HTMLElement;
+    const card = (await screen.findByText('Record a job')).closest('.help-card') as HTMLElement;
     expect(within(card).getByText('Workflow · Demo')).toBeInTheDocument();
   });
 

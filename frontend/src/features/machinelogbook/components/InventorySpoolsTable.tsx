@@ -218,7 +218,7 @@ function SpoolsTable({
                   Register spool
                 </Button>
                 {onReceive && (
-                  <Button renderIcon={Add} onClick={onReceive}>
+                  <Button renderIcon={Add} onClick={onReceive} data-guide="workshop-receive-stock">
                     Receive stock
                   </Button>
                 )}

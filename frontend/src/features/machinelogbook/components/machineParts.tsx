@@ -93,14 +93,17 @@ export function PageSectionTabs({
   selected,
   onChange,
   label,
+  guide,
 }: {
   sections: PageSection[];
   selected: string;
   onChange: (id: string) => void;
   label: string;
+  /** The `data-guide` name of the tab bar, so guided tours can point at it. */
+  guide?: string;
 }) {
   return (
-    <div className="mj-page-tabs">
+    <div className="mj-page-tabs" data-guide={guide}>
       <Tabs
         selectedIndex={Math.max(
           0,

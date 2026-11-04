@@ -74,7 +74,7 @@ export function UnassignedRunsStrip({
   if (runs.length === 0) return null;
   const select = (item: WorkItem) => onOpen({ kind: 'run', id: item.id });
   return (
-    <section className="jobs-strip" aria-labelledby="jobs-strip-title">
+    <section className="jobs-strip" aria-labelledby="jobs-strip-title" data-guide="workshop-unassigned-strip">
       <div className="jobs-strip__head">
         <h2 id="jobs-strip-title" className="jobs-strip__title">
           Reported by machines, not assigned
@@ -113,7 +113,13 @@ export function UnassignedRunsStrip({
                 </span>
                 <span className="jobs-strip__actions">
                   {canClaim && (
-                    <Button kind="ghost" size="lg" renderIcon={Add} onClick={() => setClaiming(item.id)}>
+                    <Button
+                      kind="ghost"
+                      size="lg"
+                      renderIcon={Add}
+                      onClick={() => setClaiming(item.id)}
+                      data-guide="workshop-claim-run"
+                    >
                       Claim
                     </Button>
                   )}

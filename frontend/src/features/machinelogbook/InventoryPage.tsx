@@ -41,6 +41,7 @@ export function InventoryPage() {
   const tabs = (
     <PageSectionTabs
       label="Inventory sections"
+      guide="workshop-inventory-tabs"
       selected={tab}
       sections={SECTIONS}
       onChange={(id) => setParams(new URLSearchParams({ tab: id }), { replace: true })}
@@ -65,7 +66,11 @@ export function InventoryPage() {
       {tab === 'spools' && <InventorySpoolsTable onReceive={canManage ? start : undefined} />}
       {tab === 'bin' && <InventoryRecycleBin />}
       {tab === 'types' && <MaterialTypesTable canManage={canManage} />}
-      {tab === 'articles' && <InventoryArticlesTable onReceive={start} />}
+      {tab === 'articles' && (
+        <div data-guide="workshop-inventory-list">
+          <InventoryArticlesTable onReceive={start} />
+        </div>
+      )}
       {receiving && <ReceiveStockModal open onClose={close} kind={tab === 'spools' ? 'filament' : undefined} />}
     </PageShell>
   );

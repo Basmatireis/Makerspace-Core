@@ -398,20 +398,22 @@ function OrdersTable({ orders }: { orders: Order[] }) {
       </RichNotification>
     ) : undefined;
   const tabs = (
-    <PageSectionTabs
-      label="Order sections"
-      selected={tab}
-      sections={TABS.map((id) => ({ id, label: `${TAB_LABEL[id]} (${counts.tabs[id]})` }))}
-      onChange={(id) =>
-        setParam({
-          section: id === 'open' ? (landing ? 'open' : null) : id,
-          status: null,
-          attention: null,
-          // Needs attention has no Customer and Created filters, so their values must not narrow it unseen.
-          ...(id === 'attention' ? { customer: null, from: null, to: null } : {}),
-        })
-      }
-    />
+    <div data-guide="orders-tabs">
+      <PageSectionTabs
+        label="Order sections"
+        selected={tab}
+        sections={TABS.map((id) => ({ id, label: `${TAB_LABEL[id]} (${counts.tabs[id]})` }))}
+        onChange={(id) =>
+          setParam({
+            section: id === 'open' ? (landing ? 'open' : null) : id,
+            status: null,
+            attention: null,
+            // Needs attention has no Customer and Created filters, so their values must not narrow it unseen.
+            ...(id === 'attention' ? { customer: null, from: null, to: null } : {}),
+          })
+        }
+      />
+    </div>
   );
   return (
     <PageShell className="sales-page" title="Orders" width="wide" breadcrumbs={ORDERS_CRUMBS} tabs={tabs}>
@@ -500,6 +502,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
                     size="lg"
                     renderIcon={ListChecked}
                     className="sales-toolbar-action"
+                    data-guide="orders-review"
                     aria-describedby="orders-review-hint"
                     onClick={() => setParam({ review: '1' })}
                   >
@@ -513,6 +516,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
                   size="lg"
                   renderIcon={Add}
                   className="sales-toolbar-action"
+                  data-guide="orders-new"
                   onClick={() => setCreating(true)}
                 >
                   New order

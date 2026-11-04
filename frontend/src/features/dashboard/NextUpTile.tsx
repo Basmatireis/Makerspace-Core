@@ -100,7 +100,7 @@ export function NextUpTile(props: Props) {
   const hint = <NextUpHint {...props} />;
   if (!next) {
     return (
-      <Tile className="db-tile">
+      <Tile className="db-tile" data-guide="dashboard-next-up">
         <span className="db-tile__eyebrow">
           <Calendar size={16} aria-hidden />
           Next up
@@ -120,7 +120,7 @@ export function NextUpTile(props: Props) {
   }
   const openDay = next.kind === 'open_day';
   return (
-    <Tile className="db-tile">
+    <Tile className="db-tile" data-guide="dashboard-next-up">
       <span className="db-tile__eyebrow">
         <Calendar size={16} aria-hidden />
         Next up{total > 1 ? ` · 1 of ${total} upcoming` : ''}

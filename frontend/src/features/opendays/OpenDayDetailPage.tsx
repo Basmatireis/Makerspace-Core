@@ -216,6 +216,7 @@ function OpenDayDetails({
             <Button
               kind="danger--ghost"
               size="sm"
+              data-guide="open-days-leave"
               disabled={leaveMutation.isPending}
               onClick={() => setAssignmentRemoval('self')}
             >
@@ -232,7 +233,7 @@ function OpenDayDetails({
           subtitle="The position may be full, you may not be eligible, or sign-ups may have closed."
         />
       )}
-      <div className="requirements-grid">
+      <div className="requirements-grid" data-guide="open-days-positions">
         {day.requirements.map((requirement) => {
           const full = requirement.assignedCount >= requirement.requiredCount;
           return (
@@ -277,6 +278,7 @@ function OpenDayDetails({
                   <Button
                     kind="ghost"
                     renderIcon={Add}
+                    data-guide="open-days-join"
                     disabled={mutationPending}
                     onClick={() => joinMutation.mutate(requirement.id)}
                   >
@@ -300,6 +302,7 @@ function OpenDayDetails({
                   kind="ghost"
                   size="sm"
                   renderIcon={Add}
+                  data-guide="open-days-assign"
                   disabled={mutationPending}
                   onClick={() => {
                     assignMutation.reset();
@@ -372,6 +375,7 @@ function OpenDayDetails({
         <Button
           key={person.personId}
           kind="ghost"
+          data-guide="open-days-eligible-person"
           disabled={mutationPending}
           onClick={() =>
             assignRequirement &&

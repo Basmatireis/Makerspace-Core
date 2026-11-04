@@ -173,23 +173,25 @@ export function ReadyToBillModal({ canCreate, onClose }: { canCreate: boolean; o
                     >
                       {canCreate && (
                         <TableCell>
-                          <Checkbox
-                            id={`ready-group-${group.key}`}
-                            labelText={`Select all ready jobs of ${name}`}
-                            hideLabel
-                            disabled={group.ready.length === 0}
-                            checked={chosen > 0 && chosen === group.ready.length}
-                            indeterminate={chosen > 0 && chosen < group.ready.length}
-                            onChange={(_event, { checked }) =>
-                              setSelected((current) => {
-                                const next = new Set(current);
-                                group.ready.forEach((row) =>
-                                  checked ? next.add(row.job.id) : next.delete(row.job.id),
-                                );
-                                return next;
-                              })
-                            }
-                          />
+                          <div data-guide={`orders-ready-${group.key}`}>
+                            <Checkbox
+                              id={`ready-group-${group.key}`}
+                              labelText={`Select all ready jobs of ${name}`}
+                              hideLabel
+                              disabled={group.ready.length === 0}
+                              checked={chosen > 0 && chosen === group.ready.length}
+                              indeterminate={chosen > 0 && chosen < group.ready.length}
+                              onChange={(_event, { checked }) =>
+                                setSelected((current) => {
+                                  const next = new Set(current);
+                                  group.ready.forEach((row) =>
+                                    checked ? next.add(row.job.id) : next.delete(row.job.id),
+                                  );
+                                  return next;
+                                })
+                              }
+                            />
+                          </div>
                         </TableCell>
                       )}
                       <TableCell>
@@ -274,6 +276,7 @@ export function ReadyToBillModal({ canCreate, onClose }: { canCreate: boolean; o
           <Button
             kind="primary"
             renderIcon={Add}
+            data-guide="orders-ready-create"
             disabled={selected.size === 0 || create.isPending}
             onClick={() => create.mutate()}
           >

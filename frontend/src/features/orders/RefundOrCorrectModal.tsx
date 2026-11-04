@@ -97,6 +97,7 @@ export function RefundOrCorrectModal({
   return (
     <Modal
       open
+      data-guide="reverse-modal"
       size="md"
       danger
       modalHeading="Refund or correct"
@@ -132,17 +133,19 @@ export function RefundOrCorrectModal({
         )}
         {!options.blocker && (
           <>
-            <RadioButtonGroup
-              legendText="What happened?"
-              name="reversal-kind"
-              orientation="vertical"
-              valueSelected={kind}
-              onChange={(value) => setKind(value as PaymentReversalInputReasonKind)}
-            >
-              {options.kinds.map((item) => (
-                <RadioButton key={item} id={`reversal-${item}`} value={item} labelText={reasonKindHelp[item].title} />
-              ))}
-            </RadioButtonGroup>
+            <div data-guide="reverse-kind">
+              <RadioButtonGroup
+                legendText="What happened?"
+                name="reversal-kind"
+                orientation="vertical"
+                valueSelected={kind}
+                onChange={(value) => setKind(value as PaymentReversalInputReasonKind)}
+              >
+                {options.kinds.map((item) => (
+                  <RadioButton key={item} id={`reversal-${item}`} value={item} labelText={reasonKindHelp[item].title} />
+                ))}
+              </RadioButtonGroup>
+            </div>
             <p className="mj-secondary">{reasonKindHelp[kind].help}</p>
             {kind !== 'recording_error' && (
               <DateTimeInput
@@ -174,18 +177,20 @@ export function RefundOrCorrectModal({
                 }
               />
             )}
-            <TextArea
-              id="reversal-reason"
-              labelText="Reason"
-              rows={3}
-              maxCount={500}
-              enableCounter
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              helperText="Shown on the payment and the order. Do not add personal data."
-              invalid={reason.length > 0 && !reasonOk}
-              invalidText="Give a reason of up to 500 characters"
-            />
+            <div data-guide="reverse-reason">
+              <TextArea
+                id="reversal-reason"
+                labelText="Reason"
+                rows={3}
+                maxCount={500}
+                enableCounter
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                helperText="Shown on the payment and the order. Do not add personal data."
+                invalid={reason.length > 0 && !reasonOk}
+                invalidText="Give a reason of up to 500 characters"
+              />
+            </div>
             <StructuredListWrapper isCondensed aria-label="What will change">
               <StructuredListBody>
                 <StructuredListRow>

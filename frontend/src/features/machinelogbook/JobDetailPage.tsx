@@ -322,14 +322,16 @@ function JobDetail({ job }: { job: MachineJob }) {
         />
         <div className="mj-detail-layout">
           <div className="mj-stack">
-            <JobRunsTable
-              job={job}
-              now={now}
-              canEdit={canEdit}
-              canDelete={canDelete}
-              onAction={openRun}
-              onAdd={() => open('add-run')}
-            />
+            <div data-guide="workshop-job-runs">
+              <JobRunsTable
+                job={job}
+                now={now}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                onAction={openRun}
+                onAdd={() => open('add-run')}
+              />
+            </div>
             <DataTable rows={usageRows} headers={usageHeaders} size="md">
               {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
                 <TableContainer title="Material usage" description="Everything consumed by the runs of this job.">

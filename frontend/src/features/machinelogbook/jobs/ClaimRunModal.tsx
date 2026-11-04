@@ -161,6 +161,7 @@ function ClaimForm({ onClose, run, canCreate, canAttach }: ClaimProps & { run: M
             </dl>
             <RadioButtonGroup
               name="claim-mode"
+              data-guide="workshop-claim-mode"
               legendText="Who gets this run?"
               orientation="vertical"
               valueSelected={mode}
@@ -240,7 +241,12 @@ function ClaimForm({ onClose, run, canCreate, canAttach }: ClaimProps & { run: M
         <Button kind="secondary" disabled={pending} onClick={onClose}>
           Cancel
         </Button>
-        <Button kind="primary" disabled={pending || (mode === 'existing' ? !job : !customer)} onClick={submit}>
+        <Button
+          kind="primary"
+          disabled={pending || (mode === 'existing' ? !job : !customer)}
+          onClick={submit}
+          data-guide="workshop-claim-submit"
+        >
           {pending ? 'Saving…' : mode === 'new' ? 'Create job' : 'Attach to job'}
         </Button>
       </ModalFooter>

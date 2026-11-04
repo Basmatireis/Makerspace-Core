@@ -21,7 +21,7 @@ export function SemesterTile({
   const heading = `${trainee ? 'Trainee' : 'This semester'}${semester ? ` · ${semester.name}` : ''}`;
 
   return (
-    <Tile className="db-tile">
+    <Tile className="db-tile" data-guide="dashboard-semester">
       <span className="db-tile__eyebrow">
         <Partnership size={16} aria-hidden />
         {heading}

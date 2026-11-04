@@ -152,58 +152,62 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
             subtitle="Open Days can still be edited, but holidays and academic breaks are temporarily hidden."
           />
         )}
-        {editMode ? (
-          <ScheduleWorkingView
-            key={tableRevision}
-            view={view}
-            isPhone={isPhone}
-            disableDrag={isPhone || hasCoarsePointer}
-            onView={setView}
-            dateTimeFilter={dateTimeFilter}
-            onDateTimeFilter={setDateTimeFilter}
-            slots={state.slots}
-            startsOn={scheduleQuery.data.period.startsOn}
-            endsOn={scheduleQuery.data.period.endsOn}
-            entries={contextQuery.data?.entries ?? []}
-            timeZone={scheduleQuery.data.timeZone}
-            periodStatus={scheduleQuery.data.period.status}
-            dirty={state.dirty}
-            canUndo={Boolean(state.previous)}
-            lifecyclePending={lifecycleMutation.isPending}
-            savePending={saveMutation.isPending}
-            onUndo={() => dispatch({ type: 'undo' })}
-            onSave={() => (period?.status === 'published' ? setPublishedSaveConfirmation(true) : saveMutation.mutate())}
-            onCreate={() => openCreate()}
-            onPreview={() => showMode('preview')}
-            onAdd={(date) => openCreate('single', date)}
-            onEdit={(slot) => {
-              setTimeError(null);
-              setEditing(slot);
-            }}
-            onRemove={(slots) => setPendingRemoval(slots)}
-            onBulkEdit={beginBulkEdit}
-          />
-        ) : (
-          <OpenDayPreviewView
-            filter={previewFilter}
-            dateTimeFilter={dateTimeFilter}
-            items={previewItems}
-            timeZone={scheduleQuery.data.timeZone}
-            view={view}
-            isPhone={isPhone}
-            canEdit={editingAllowed}
-            period={scheduleQuery.data.period}
-            entries={contextQuery.data?.entries ?? []}
-            onFilter={setPreviewFilter}
-            onDateTimeFilter={setDateTimeFilter}
-            onView={setView}
-            onEdit={() => showMode('edit')}
-            onOpenDay={(day) => {
-              const slot = state.slots.find((item) => item.id === day.id);
-              if (slot?.serverId) setSelectedOpenDayId(slot.serverId);
-            }}
-          />
-        )}
+        <div data-guide="open-days-schedule">
+          {editMode ? (
+            <ScheduleWorkingView
+              key={tableRevision}
+              view={view}
+              isPhone={isPhone}
+              disableDrag={isPhone || hasCoarsePointer}
+              onView={setView}
+              dateTimeFilter={dateTimeFilter}
+              onDateTimeFilter={setDateTimeFilter}
+              slots={state.slots}
+              startsOn={scheduleQuery.data.period.startsOn}
+              endsOn={scheduleQuery.data.period.endsOn}
+              entries={contextQuery.data?.entries ?? []}
+              timeZone={scheduleQuery.data.timeZone}
+              periodStatus={scheduleQuery.data.period.status}
+              dirty={state.dirty}
+              canUndo={Boolean(state.previous)}
+              lifecyclePending={lifecycleMutation.isPending}
+              savePending={saveMutation.isPending}
+              onUndo={() => dispatch({ type: 'undo' })}
+              onSave={() =>
+                period?.status === 'published' ? setPublishedSaveConfirmation(true) : saveMutation.mutate()
+              }
+              onCreate={() => openCreate()}
+              onPreview={() => showMode('preview')}
+              onAdd={(date) => openCreate('single', date)}
+              onEdit={(slot) => {
+                setTimeError(null);
+                setEditing(slot);
+              }}
+              onRemove={(slots) => setPendingRemoval(slots)}
+              onBulkEdit={beginBulkEdit}
+            />
+          ) : (
+            <OpenDayPreviewView
+              filter={previewFilter}
+              dateTimeFilter={dateTimeFilter}
+              items={previewItems}
+              timeZone={scheduleQuery.data.timeZone}
+              view={view}
+              isPhone={isPhone}
+              canEdit={editingAllowed}
+              period={scheduleQuery.data.period}
+              entries={contextQuery.data?.entries ?? []}
+              onFilter={setPreviewFilter}
+              onDateTimeFilter={setDateTimeFilter}
+              onView={setView}
+              onEdit={() => showMode('edit')}
+              onOpenDay={(day) => {
+                const slot = state.slots.find((item) => item.id === day.id);
+                if (slot?.serverId) setSelectedOpenDayId(slot.serverId);
+              }}
+            />
+          )}
+        </div>
         {selectedOpenDayId && !unsavedChanges.dialogOpen && (
           <OpenDayRegistrationModal
             periodId={scheduleQuery.data.period.id}

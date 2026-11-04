@@ -366,49 +366,49 @@ export function registerSales(router: DemoRouter<DemoStore>): void {
       },
       'payments.record',
     )
-    .add(
-      'POST',
-      '/payments/{paymentId}/reverse',
-      ({ store, params, body }) => {
-        const payment = store.payments.find((item) => item.id === params.paymentId);
-        const order = store.orders.find((item) => item.allocations.some((a) => a.paymentId === params.paymentId));
-        if (!payment || !order) return notFound('Payment');
-        if (payment.entryKind === 'reversal' || store.payments.some((item) => item.reversesPaymentId === payment.id)) {
-          return fail(409, 'payment_reversed', 'This payment is already reversed.');
-        }
-        const reversal = body.reversal as { reasonKind: string; reason: string; occurredAt: string };
-        const id = nextId(store);
-        const reference = nextReference(store, 'PAY', 1);
-        const share = (paymentId: string): OrderAllocation => ({
-          id: nextId(store),
-          paymentId,
-          paymentReference: reference,
-          orderId: order.id,
-          orderReference: order.reference,
-          amount: `-${payment.amount}`,
-          operationId: nextId(store),
-          createdAt: store.now.toISOString(),
-        });
-        store.payments.push({
-          id,
-          reference,
-          entryKind: 'reversal',
-          method: payment.method,
-          amount: payment.amount,
-          occurredAt: reversal.occurredAt,
-          recordedAt: store.now.toISOString(),
-          reversesPaymentId: payment.id,
-          reversedPaymentReference: payment.reference,
-          reasonKind: reversal.reasonKind,
-          reason: reversal.reason,
-          externalSource: '',
-          externalReference: '',
-          allocations: [share(id)],
-          recordedBy: actorOf(store),
-        });
-        order.allocations.push(share(payment.id));
-        return created(recalculateOrder(store, order));
-      },
-      'payments.record',
-    );
+    .add('POST', '/payments/{paymentId}/reverse', ({ store, params, body }) => {
+      const payment = store.payments.find((item) => item.id === params.paymentId);
+      const order = store.orders.find((item) => item.allocations.some((a) => a.paymentId === params.paymentId));
+      if (!payment || !order) return notFound('Payment');
+      // Like the API: reversing needs payments.read and payments.reverse.
+      const rights = store.user.permissions as string[];
+      if (!rights.includes('payments.read') || !rights.includes('payments.reverse')) {
+        return fail(403, 'forbidden', 'You do not have permission to do this.');
+      }
+      if (payment.entryKind === 'reversal' || store.payments.some((item) => item.reversesPaymentId === payment.id)) {
+        return fail(409, 'payment_reversed', 'This payment is already reversed.');
+      }
+      const reversal = body.reversal as { reasonKind: string; reason: string; occurredAt: string };
+      const id = nextId(store);
+      const reference = nextReference(store, 'PAY', 1);
+      const share = (paymentId: string): OrderAllocation => ({
+        id: nextId(store),
+        paymentId,
+        paymentReference: reference,
+        orderId: order.id,
+        orderReference: order.reference,
+        amount: `-${payment.amount}`,
+        operationId: nextId(store),
+        createdAt: store.now.toISOString(),
+      });
+      store.payments.push({
+        id,
+        reference,
+        entryKind: 'reversal',
+        method: payment.method,
+        amount: payment.amount,
+        occurredAt: reversal.occurredAt,
+        recordedAt: store.now.toISOString(),
+        reversesPaymentId: payment.id,
+        reversedPaymentReference: payment.reference,
+        reasonKind: reversal.reasonKind,
+        reason: reversal.reason,
+        externalSource: '',
+        externalReference: '',
+        allocations: [share(id)],
+        recordedBy: actorOf(store),
+      });
+      order.allocations.push(share(payment.id));
+      return created(recalculateOrder(store, order));
+    });
 }

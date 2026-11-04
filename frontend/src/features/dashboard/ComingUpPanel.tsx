@@ -42,6 +42,7 @@ export function ComingUpPanel({ items, now, canLeave, canFindOpenDays }: Props) 
         label="Coming up"
         kind="on-page"
         className="db-panel"
+        data-guide="dashboard-coming-up"
         action={
           canFindOpenDays ? (
             <Button as={Link} to="/open-days" kind="ghost" size="sm">

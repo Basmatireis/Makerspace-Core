@@ -188,7 +188,7 @@ export function OpenDaysPage() {
         />
       )}
       {periodsQuery.data && (
-        <section className="periods-table-section" aria-labelledby="periods-heading">
+        <section className="periods-table-section" aria-labelledby="periods-heading" data-guide="open-days-periods">
           <h2 id="periods-heading" className="open-days-section-title">
             Periods
           </h2>
