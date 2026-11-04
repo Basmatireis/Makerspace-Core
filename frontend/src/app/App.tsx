@@ -28,6 +28,7 @@ import {
   JobDetailPage,
   JobsPage,
   LaborordnungPage,
+  LabRulesConfirmPage,
   LegalPage,
   LocalServicesPage,
   ConfigurationTransferPage,
@@ -156,6 +157,17 @@ export function App() {
           <Route path="/legal-and-privacy" element={<Navigate to="/legal/imprint" replace />} />
           <Route path="/events/public/:publicId" element={<PublicEventPage />} />
           <Route path="/events/signup/manage" element={<EventSignupManagementPage />} />
+          {/* Opened from the "New Lab Rules" notification and e-mail: needs a session but not the application shell. */}
+          <Route
+            path="/lab-rules/confirm"
+            element={
+              <ColorSchemeRoot>
+                <ProtectedRoute>
+                  <LabRulesConfirmPage />
+                </ProtectedRoute>
+              </ColorSchemeRoot>
+            }
+          />
           <Route element={<ProtectedApp />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
@@ -476,7 +488,9 @@ export function App() {
             <Route
               path="settings/laborordnung"
               element={
-                <PermissionRoute anyOf={['laborordnung.read', 'laborordnung.manage', 'laborordnung.requests.read']}>
+                <PermissionRoute
+                  anyOf={['laborordnung.read', 'laborordnung.manage', 'laborordnung.confirmations.read']}
+                >
                   <LaborordnungPage />
                 </PermissionRoute>
               }

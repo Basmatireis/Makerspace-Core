@@ -56,7 +56,7 @@ const labRulesCurrent = {
   actionRequired: false,
   currentVersion: null,
   latestConfirmedVersion: null,
-  requestId: null,
+  latestConfirmedAt: null,
 };
 
 function serve(data: PersonalDashboard, permissions: PermissionId[], labRules: object = labRulesCurrent) {
@@ -302,7 +302,7 @@ describe('personal dashboard', () => {
 
     renderRoute(<App />, '/dashboard');
 
-    expect(await screen.findByText('Not signed yet')).toBeInTheDocument();
+    expect(await screen.findByText('Not confirmed yet')).toBeInTheDocument();
     expect(screen.getByText('Next open day')).toBeInTheDocument();
     const list = screen.getByText('Upcoming open days').closest('.cds--contained-list') as HTMLElement;
     expect(within(list).getAllByRole('listitem')).toHaveLength(1);
@@ -311,26 +311,19 @@ describe('personal dashboard', () => {
     expect(screen.queryByText(/This semester/)).not.toBeInTheDocument();
   });
 
-  it('shows the lab rules notice to staff only when action is required and requests a signature', async () => {
+  it('shows the lab rules notice to staff only when action is required and leads to the confirm page', async () => {
     const user = userEvent.setup();
-    let requested = false;
     serve(dashboard({ staffing: staffing() }), supervisorPermissions, {
       ...labRulesCurrent,
       state: 'outdated',
       actionRequired: true,
     });
-    server.use(
-      http.post('*/api/v1/laborordnung/requests/me', () => {
-        requested = true;
-        return HttpResponse.json({}, { status: 201 });
-      }),
-    );
 
-    renderRoute(<App />, '/dashboard');
+    const { router } = renderRoute(<App />, '/dashboard');
 
-    expect(await screen.findByText('New lab rules')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Request signature' }));
-    await waitFor(() => expect(requested).toBe(true));
+    expect(await screen.findByText('New Lab Rules')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Read and confirm' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/lab-rules/confirm'));
   });
 
   it('shows no lab rules notice when nothing is required', async () => {
@@ -339,7 +332,7 @@ describe('personal dashboard', () => {
     renderRoute(<App />, '/dashboard');
 
     expect(await screen.findByText(/^This semester/)).toBeInTheDocument();
-    expect(screen.queryByText('New lab rules')).not.toBeInTheDocument();
+    expect(screen.queryByText('New Lab Rules')).not.toBeInTheDocument();
   });
 
   it('reports an error with a retry when the dashboard cannot load', async () => {

@@ -81,7 +81,6 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
           accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
           accountStatus: 'enabled',
           invitationDelivery: null,
-          labRulesRequestId: null,
           admission: 'admitted',
           attendance: 'checked_in',
         },
@@ -119,7 +118,7 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   await page.screenshot({ path: testInfo.outputPath('visitor-lab-rules-pdf.png') });
   await page.keyboard.press('Escape');
   await expect(rules).toBeHidden();
-  await page.getByText(/I am ready to sign the physical Lab Rules document/).click();
+  await page.getByText(/I have read and accept the Lab Rules/).click();
   await page.screenshot({ path: testInfo.outputPath('visitor-step-3.png') });
   await page.getByRole('button', { name: 'Submit enrollment' }).click();
   await expect(page.getByRole('heading', { name: 'Local, your account is ready.' })).toBeVisible();

@@ -8,7 +8,7 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { VisitorEnrollmentPage } from './VisitorEnrollmentPage';
 
-vi.mock('./components/renderPdf', () => ({
+vi.mock('../../app/pdf/renderPdf', () => ({
   renderPdf: async (url: string, container: HTMLElement, _signal: AbortSignal, onFirstPage: () => void) => {
     container.textContent = `Mock PDF viewer ${url}`;
     onFirstPage();
@@ -37,7 +37,7 @@ describe('controlled visitor enrollment', () => {
     expect(screen.queryByRole('button', { name: /submit enrollment/i })).not.toBeInTheDocument();
   });
 
-  it('submits only the configured method and explicit confirmation request, never a Role ID', async () => {
+  it('submits only the configured method and the Lab Rules acceptance, never a Role ID', async () => {
     let submission: (VisitorEnrollmentSubmission & { roleId?: string }) | undefined;
     server.use(
       http.post('*/api/v1/visitor-enrollment/context', () => {
@@ -63,9 +63,8 @@ describe('controlled visitor enrollment', () => {
             accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
             accountStatus: 'enabled',
             invitationDelivery: null,
-            labRulesRequestId: '0192f6f8-743e-7c77-a349-cd07c3e8ab04',
-            admission: 'blocked',
-            attendance: 'awaiting_sign_off',
+            admission: 'admitted',
+            attendance: 'checked_in',
           },
           { status: 201 },
         );
@@ -117,12 +116,12 @@ describe('controlled visitor enrollment', () => {
     await waitFor(() => expect(screen.queryByText(/Mock PDF viewer/)).not.toBeInTheDocument());
     const submit = screen.getByRole('button', { name: 'Submit enrollment' });
     expect(submit).toBeDisabled();
-    await user.click(screen.getByLabelText(/I am ready to sign the physical Lab Rules document/));
+    await user.click(screen.getByLabelText('I have read and accept the Lab Rules *'));
     await user.click(submit);
 
     expect(await screen.findByRole('heading', { name: 'New, your account is ready.' })).toBeInTheDocument();
-    expect(screen.getByText(/checked in automatically once a supervisor confirms/)).toBeInTheDocument();
-    expect(screen.getByText(/Ask a supervisor for the paper Lab Rules/)).toBeInTheDocument();
+    expect(screen.getByText('You are checked in')).toBeInTheDocument();
+    expect(screen.queryByText(/supervisor/)).not.toBeInTheDocument();
     expect(screen.getByText('Visitor.One')).toBeInTheDocument();
     await waitFor(() => expect(submission).toBeDefined());
     expect(submission).toMatchObject({
@@ -133,7 +132,7 @@ describe('controlled visitor enrollment', () => {
       pinLoginName: 'Visitor.One',
       pin: '654321',
       profileImageFilename: 'profile-photo.jpg',
-      requestConfirmation: true,
+      labRulesAccepted: true,
     });
     expect(submission?.profileImageBase64).toBe('/9j/2Q==');
     expect(submission).not.toHaveProperty('roleId');
@@ -195,7 +194,6 @@ describe('controlled visitor enrollment', () => {
             accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
             accountStatus: 'enabled',
             invitationDelivery: null,
-            labRulesRequestId: null,
             admission: 'admitted',
             attendance: 'checked_in',
           },
@@ -214,11 +212,68 @@ describe('controlled visitor enrollment', () => {
     await user.type(await screen.findByLabelText('PIN login username'), 'Nora.No');
     await user.type(screen.getByLabelText('PIN (6–12 digits)'), '654321');
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(await screen.findByLabelText(/I am ready to sign the physical Lab Rules document/));
+    await user.click(await screen.findByLabelText('I have read and accept the Lab Rules *'));
     await user.click(screen.getByRole('button', { name: 'Submit enrollment' }));
     await waitFor(() => expect(submission).toBeDefined());
     expect(submission?.profileImageBase64).toBeNull();
     expect(submission?.profileImageFilename).toBeNull();
+  });
+
+  it('reloads the Lab Rules and asks again when a newer revision became effective during enrollment', async () => {
+    const newVersionId = '0192f6f8-743e-7c77-a349-cd07c3e8ab09';
+    let revision = { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' };
+    const submissions: VisitorEnrollmentSubmission[] = [];
+    server.use(
+      http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
+      http.get('*/api/v1/visitor-enrollment/state', () =>
+        HttpResponse.json({
+          allowedMethods: ['pin'],
+          capabilities: ['nfc'],
+          currentLabRules: revision,
+          expiresAt: '2026-09-20T12:15:00Z',
+        }),
+      ),
+      http.post('*/api/v1/visitor-enrollment/submissions', async ({ request }) => {
+        submissions.push((await request.json()) as VisitorEnrollmentSubmission);
+        if (submissions.length === 1) {
+          revision = { id: newVersionId, humanRevision: '2026-10', effectiveAt: '2026-10-01T00:00:00Z' };
+          return HttpResponse.json({ code: 'lab_rules_changed', message: 'The Lab Rules changed' }, { status: 409 });
+        }
+        return HttpResponse.json(
+          {
+            personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
+            accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
+            accountStatus: 'enabled',
+            invitationDelivery: null,
+            admission: 'admitted',
+            attendance: 'checked_in',
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderKioskAware();
+    await user.type(await screen.findByLabelText('First name'), 'Nora');
+    await user.type(screen.getByLabelText('Last name'), 'Nophoto');
+    await user.type(screen.getByLabelText('Phone'), '+43 660 1234567');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.type(await screen.findByLabelText('PIN login username'), 'Nora.No');
+    await user.type(screen.getByLabelText('PIN (6–12 digits)'), '654321');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByLabelText('I have read and accept the Lab Rules *'));
+    await user.click(screen.getByRole('button', { name: 'Submit enrollment' }));
+
+    expect(await screen.findByText('The Lab Rules changed')).toBeInTheDocument();
+    expect(await screen.findByText(/Read the current Lab Rules \(revision 2026-10\)/)).toBeInTheDocument();
+    expect(screen.queryByText('Enrollment not completed')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('I have read and accept the Lab Rules *')).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Submit enrollment' })).toBeDisabled();
+
+    await user.click(screen.getByLabelText('I have read and accept the Lab Rules *'));
+    await user.click(screen.getByRole('button', { name: 'Submit enrollment' }));
+    expect(await screen.findByRole('heading', { name: 'Nora, your account is ready.' })).toBeInTheDocument();
+    expect(submissions).toHaveLength(2);
   });
 
   describe('inactivity', () => {

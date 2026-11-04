@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   Button,
   Header,
@@ -15,13 +15,8 @@ import {
   Theme,
 } from '@carbon/react';
 import { Logout, UserAvatar } from '@carbon/icons-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import {
-  getGetLaborordnungPDFUrl,
-  requestOwnLaborordnungConfirmation,
-} from '../api/generated/laborordnung/laborordnung';
-import { evaluateVisitorAdmission } from '../api/generated/visitor-enrollment/visitor-enrollment';
 import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
 import { NotificationAction, NotificationPanel } from '../features/notifications/NotificationBell';
 import { PersonAvatar } from '../features/users/PersonAvatar';
@@ -31,6 +26,9 @@ import { AppNavigation } from './AppNavigation';
 import { FullPageLoading } from './PageState';
 import { ToastProvider } from './toasts';
 import { useBranding } from '../features/branding/branding';
+
+// The confirmation form pulls in the PDF viewer, so it loads only for people who have to confirm.
+const LabRulesConfirmModal = lazy(() => import('../features/laborordnung/confirm/LabRulesConfirmModal'));
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 
@@ -60,15 +58,11 @@ export function AppShell() {
   const profileActionRef = useRef<HTMLButtonElement>(null);
   const notificationActionRef = useRef<HTMLButtonElement>(null);
   const profilePanelRef = useRef<HTMLDivElement>(null);
-  const labRulesRequest = useMutation({
-    mutationFn: () => requestOwnLaborordnungConfirmation(),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
-  });
-  const admissionRequest = useMutation({
-    mutationFn: () => evaluateVisitorAdmission(),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
-  });
-  const useAdmissionAction = currentUser.laborordnungStatus.mode === 'blocking' && Boolean(currentUser.managedDevice);
+  // "Later" (warning mode) hides the modal for this page load only; nothing is stored.
+  const [labRulesDeferred, setLabRulesDeferred] = useState(false);
+  const labRules = currentUser.laborordnungStatus;
+  const showLabRulesModal =
+    labRules.actionRequired && labRules.currentVersion !== null && (labRules.mode === 'blocking' || !labRulesDeferred);
 
   const displayName = `${currentUser.person.firstName} ${currentUser.person.lastName}`;
 
@@ -250,71 +244,15 @@ export function AppShell() {
                 </div>
               </section>
             )}
-          {currentUser.laborordnungStatus.actionRequired && currentUser.laborordnungStatus.currentVersion && (
-            <section className="lab-rules-warning" aria-label="Lab Rules action required">
-              <InlineNotification
-                kind="warning"
-                lowContrast
-                hideCloseButton
-                title={
-                  currentUser.laborordnungStatus.mode === 'blocking'
-                    ? 'Current Lab Rules required for admission'
-                    : 'Your Lab Rules confirmation is outdated'
-                }
-                subtitle={`Review revision ${currentUser.laborordnungStatus.currentVersion.humanRevision}. Normal application access remains available${currentUser.laborordnungStatus.mode === 'warning' ? '' : ', but admission remains blocked until physical confirmation'}.`}
-              />
-              <div className="button-cluster">
-                <Button
-                  kind="tertiary"
-                  size="sm"
-                  href={getGetLaborordnungPDFUrl(currentUser.laborordnungStatus.currentVersion.id)}
-                  target="_blank"
-                >
-                  View current Lab Rules PDF
-                </Button>
-                <Button
-                  kind="primary"
-                  size="sm"
-                  disabled={
-                    Boolean(currentUser.laborordnungStatus.requestId) ||
-                    labRulesRequest.isPending ||
-                    admissionRequest.isPending
-                  }
-                  onClick={() => (useAdmissionAction ? admissionRequest.mutate() : labRulesRequest.mutate())}
-                >
-                  {currentUser.laborordnungStatus.requestId
-                    ? 'Signature confirmation requested'
-                    : labRulesRequest.isPending || admissionRequest.isPending
-                      ? 'Requesting…'
-                      : useAdmissionAction
-                        ? 'Request admission'
-                        : 'Request signature confirmation'}
-                </Button>
-              </div>
-              {labRulesRequest.isError && (
-                <InlineNotification
-                  kind="error"
-                  lowContrast
-                  hideCloseButton
-                  title="Request not created"
-                  subtitle="Try again or contact a supervisor."
-                />
-              )}
-              {admissionRequest.isError && (
-                <InlineNotification
-                  kind="error"
-                  lowContrast
-                  hideCloseButton
-                  title="Admission not evaluated"
-                  subtitle="This action requires an approved visitor kiosk."
-                />
-              )}
-            </section>
-          )}
           <Suspense fallback={<FullPageLoading label="Loading page" />}>
             <Outlet />
           </Suspense>
         </main>
+        {showLabRulesModal && (
+          <Suspense fallback={null}>
+            <LabRulesConfirmModal status={labRules} onLater={() => setLabRulesDeferred(true)} />
+          </Suspense>
+        )}
       </div>
     </ToastProvider>
   );

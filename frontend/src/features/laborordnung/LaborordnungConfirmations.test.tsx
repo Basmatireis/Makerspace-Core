@@ -17,36 +17,36 @@ const version = {
   effectiveAt: '2026-01-01T00:00:00Z',
   publishedAt: '2026-01-01T00:00:00Z',
 };
-const signature = {
+const confirmation = {
   id: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
   personId: '0192f6f8-743e-7c77-a349-cd07c3e8a933',
   personName: 'Grace Hopper',
   versionId: version.id,
   humanRevision: '2026.1',
+  method: 'paper' as const,
   signedDate: '2026-03-01',
   physicalDocumentReference: 'folder-7',
   confirmedByName: 'Ada Lovelace',
   confirmedAt: '2026-03-02T09:00:00Z',
 };
 
-describe('Lab Rules signatures', () => {
-  it('lists signatures for readers and passes search, filter and paging to the server', async () => {
+describe('Lab Rules confirmations', () => {
+  it('lists confirmations for readers and passes search, filter and paging to the server', async () => {
     const requests: URL[] = [];
     server.use(
       http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([PermissionId.laborordnungrequestsread])),
+        HttpResponse.json(currentUserFixture([PermissionId.laborordnungconfirmationsread])),
       ),
       http.get('*/api/v1/laborordnung/versions', () => HttpResponse.json({ items: [version] })),
-      http.get('*/api/v1/laborordnung/requests', () => HttpResponse.json({ items: [] })),
-      http.get('*/api/v1/laborordnung/signatures', ({ request }) => {
+      http.get('*/api/v1/laborordnung/confirmations', ({ request }) => {
         requests.push(new URL(request.url));
-        return HttpResponse.json({ items: [signature], page: 1, pageSize: 25, total: 1 });
+        return HttpResponse.json({ items: [confirmation], page: 1, pageSize: 25, total: 1 });
       }),
     );
-    renderRoute(<App />, '/settings/laborordnung?tab=signatures&sig-q=hopper&sig-version=' + version.id);
+    renderRoute(<App />, '/settings/laborordnung?tab=confirmations&conf-q=hopper&conf-version=' + version.id);
     const row = (await screen.findByText('folder-7')).closest('tr') as HTMLElement;
     expect(within(row).getByRole('link', { name: 'Grace Hopper' })).toBeInTheDocument();
-    expect(within(row).getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(within(row).getByText('Paper')).toBeInTheDocument();
     const last = requests[requests.length - 1];
     expect(last.searchParams.get('search')).toBe('hopper');
     expect(last.searchParams.get('versionId')).toBe(version.id);
@@ -54,19 +54,19 @@ describe('Lab Rules signatures', () => {
     expect(last.searchParams.get('direction')).toBe('desc');
   });
 
-  it('offers no Signatures tab without laborordnung.requests.read', async () => {
+  it('offers no Confirmations tab without laborordnung.confirmations.read', async () => {
     let called = false;
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.laborordnungmanage]))),
       http.get('*/api/v1/laborordnung/versions', () => HttpResponse.json({ items: [version] })),
-      http.get('*/api/v1/laborordnung/signatures', () => {
+      http.get('*/api/v1/laborordnung/confirmations', () => {
         called = true;
         return HttpResponse.json({ items: [], page: 1, pageSize: 25, total: 0 });
       }),
     );
-    renderRoute(<App />, '/settings/laborordnung?tab=signatures');
+    renderRoute(<App />, '/settings/laborordnung?tab=confirmations');
     expect(await screen.findByText('Version history')).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Signatures' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Confirmations' })).not.toBeInTheDocument();
     expect(called).toBe(false);
   });
 });

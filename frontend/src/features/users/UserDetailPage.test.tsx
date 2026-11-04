@@ -538,7 +538,7 @@ describe('User detail page', () => {
             PermissionId.peoplerolesassign,
             PermissionId.rolesread,
             PermissionId.open_daysread_assignments,
-            PermissionId.laborordnungrequestsread,
+            PermissionId.laborordnungconfirmationsread,
             PermissionId.supervisor_dashboardread,
           ]),
         ),
@@ -603,7 +603,7 @@ describe('User detail page', () => {
               publishedAt: '2025-08-20T00:00:00Z',
               createdAt: '2025-08-20T00:00:00Z',
             },
-            requestId: '0192f6f8-743e-7c77-a349-cd07c3e8a937',
+            latestConfirmedAt: '2025-09-02T09:00:00Z',
           },
         }),
       ),
@@ -628,7 +628,6 @@ describe('User detail page', () => {
     expect(screen.getByText('Grace Hopper · TU Graz')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Makerspace status' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Lab Rules' })).toBeInTheDocument();
-    expect(screen.getByText('Confirmation pending')).toBeInTheDocument();
     expect(screen.getByText('2026-09')).toBeInTheDocument();
     expect(screen.getByText('2025-09')).toBeInTheDocument();
     expect(screen.getByText('Autumn Open Days')).toBeInTheDocument();

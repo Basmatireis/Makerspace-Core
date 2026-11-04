@@ -1,6 +1,6 @@
 import { Modal } from '@carbon/react';
 import { useEffect } from 'react';
-import { PdfPages } from './PdfPages';
+import { PdfPages } from '../../../app/pdf/PdfPages';
 
 export const labRulesPdfUrl = '/api/v1/visitor-enrollment/lab-rules.pdf';
 

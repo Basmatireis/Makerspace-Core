@@ -5,13 +5,14 @@ import {
   listTerminalPresence,
   terminalPublicCheckOut,
 } from '../../api/generated/attendance/attendance';
-import type { AttendanceHold, Visit } from '../../api/generated/models';
+import type { Visit } from '../../api/generated/models';
 import { BrandMark } from '../../app/BrandMark';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useBranding } from '../branding/branding';
 import { CheckOutScreen } from './components/CheckOutScreen';
+import type { Credentials, LabRulesNeed } from './components/checkIn';
 import { CredentialsScreen } from './components/CredentialsScreen';
-import { HoldScreen } from './components/HoldScreen';
+import { LabRulesScreen } from './components/LabRulesScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { PresencePanel } from './components/PresencePanel';
 import { ResultScreen } from './components/ResultScreen';
@@ -23,7 +24,7 @@ type Screen =
   | { kind: 'home' }
   | { kind: 'check-in' }
   | { kind: 'check-out'; preselected: string | null }
-  | { kind: 'hold'; hold: AttendanceHold }
+  | { kind: 'lab-rules'; credentials: Credentials; need: LabRulesNeed }
   | { kind: 'result'; mode: 'check-in' | 'check-out'; displayName: string; at: string };
 
 export function VisitorKioskPage() {
@@ -78,12 +79,8 @@ export function VisitorKioskPage() {
     setScreen({ kind: 'check-out', preselected });
   };
 
-  function credentialsDone(mode: 'check-in' | 'check-out', result: Visit | AttendanceHold) {
+  function credentialsDone(mode: 'check-in' | 'check-out', result: Visit) {
     void queryClient.invalidateQueries({ queryKey: presenceKey });
-    if ('expiresAt' in result) {
-      setScreen({ kind: 'hold', hold: result });
-      return;
-    }
     const at = mode === 'check-in' ? result.checkedInAt : (result.checkedOutAt ?? new Date().toISOString());
     setScreen({ kind: 'result', mode, displayName: result.displayName, at });
   }
@@ -121,6 +118,7 @@ export function VisitorKioskPage() {
             mode="check-in"
             methods={context.authenticationMethods}
             onSuccess={(result) => credentialsDone('check-in', result)}
+            onLabRulesNeeded={(credentials, need) => setScreen({ kind: 'lab-rules', credentials, need })}
             onCancel={home}
           />
         )}
@@ -143,7 +141,14 @@ export function VisitorKioskPage() {
               onCancel={home}
             />
           ))}
-        {screen.kind === 'hold' && <HoldScreen hold={screen.hold} onDone={home} />}
+        {screen.kind === 'lab-rules' && (
+          <LabRulesScreen
+            credentials={screen.credentials}
+            need={screen.need}
+            onSuccess={(result) => credentialsDone('check-in', result)}
+            onCancel={home}
+          />
+        )}
         {screen.kind === 'result' && (
           <ResultScreen mode={screen.mode} displayName={screen.displayName} at={screen.at} onDone={home} />
         )}
@@ -151,7 +156,6 @@ export function VisitorKioskPage() {
 
       <PresencePanel
         items={presence.data?.items ?? []}
-        waiting={presence.data?.waiting ?? []}
         onSelect={publicTap ? (visit) => openCheckOut(visit.visitId) : undefined}
       />
     </main>

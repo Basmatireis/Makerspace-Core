@@ -78,7 +78,7 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   'surveys.manage',
   'laborordnung.read',
   'laborordnung.manage',
-  'laborordnung.requests.read',
+  'laborordnung.confirmations.read',
   'visitor_enrollment.manage',
   'scim.manage',
   'oidc.manage',

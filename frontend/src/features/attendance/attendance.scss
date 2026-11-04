@@ -21,69 +21,6 @@
   span {
     color: theme.$text-secondary;
   }
-
-  &.is-alert {
-    box-shadow: inset 4px 0 0 theme.$support-error;
-
-    strong {
-      color: theme.$text-error;
-    }
-  }
-}
-
-.attendance-hold {
-  box-shadow: inset 4px 0 0 theme.$support-error;
-
-  &.is-calm {
-    box-shadow: inset 4px 0 0 theme.$support-info;
-  }
-}
-
-.attendance-hold__header {
-  display: flex;
-  gap: $spacing-04;
-
-  svg {
-    flex-shrink: 0;
-    fill: theme.$support-error;
-  }
-
-  .is-calm & svg {
-    fill: theme.$support-info;
-  }
-
-  h2 {
-    @include type-style('heading-03');
-  }
-
-  p {
-    margin-block-start: $spacing-03;
-    color: theme.$text-secondary;
-  }
-}
-
-.attendance-hold__person {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: $spacing-03;
-
-  span:last-child {
-    flex-basis: 100%;
-    color: theme.$text-secondary;
-  }
-}
-
-.attendance-hold__actions {
-  display: flex;
-  gap: $spacing-03;
-}
-
-.attendance-person {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: $spacing-03;
 }
 
 .attendance-empty {

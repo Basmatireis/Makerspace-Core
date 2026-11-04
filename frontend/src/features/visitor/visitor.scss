@@ -334,16 +334,3 @@ body:has(.visitor-flow) {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-
-.visitor-pdf__pages {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: $spacing-05;
-}
-
-.visitor-pdf__page {
-  max-inline-size: 100%;
-  background: #fff;
-  box-shadow: 0 0 0 1px $border-subtle;
-}

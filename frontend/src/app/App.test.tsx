@@ -71,49 +71,6 @@ describe('protected application routing', () => {
     expect(router.state.location.pathname).toBe('/settings/roles');
   });
 
-  it('shows a nonblocking Lab Rules warning and creates a request only on explicit action', async () => {
-    const currentUser = currentUserFixture();
-    currentUser.laborordnungStatus = {
-      mode: 'warning',
-      state: 'outdated',
-      actionRequired: true,
-      currentVersion: {
-        id: '0192f6f8-743e-7c77-a349-cd07c3e8a930',
-        status: 'published',
-        humanRevision: '2026-09',
-        pdfFileId: '0192f6f8-743e-7c77-a349-cd07c3e8a931',
-        sha256: 'a'.repeat(64),
-        effectiveAt: '2026-09-01T00:00:00Z',
-        publishedAt: '2026-08-20T00:00:00Z',
-        createdAt: '2026-08-20T00:00:00Z',
-      },
-      latestConfirmedVersion: null,
-      requestId: null,
-    };
-    let requestCount = 0;
-    server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
-      http.post('*/api/v1/laborordnung/requests/me', () => {
-        requestCount += 1;
-        return HttpResponse.json({ id: '0192f6f8-743e-7c77-a349-cd07c3e8a932' }, { status: 201 });
-      }),
-    );
-    const user = userEvent.setup();
-    renderRoute(<App />, '/dashboard');
-
-    expect(await screen.findByText('Your Lab Rules confirmation is outdated')).toBeInTheDocument();
-    expect(screen.getByText(/Normal application access remains available/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View current Lab Rules PDF' })).toHaveAttribute(
-      'href',
-      '/api/v1/laborordnung/versions/0192f6f8-743e-7c77-a349-cd07c3e8a930/pdf',
-    );
-    expect(requestCount).toBe(0);
-
-    await user.click(screen.getByRole('button', { name: 'Request signature confirmation' }));
-    expect(requestCount).toBe(1);
-    expect(screen.queryByText(/Laborordnung/i)).not.toBeInTheDocument();
-  });
-
   it('offers a second-factor confirmation when a session lacks the assurance some permissions need', async () => {
     const currentUser = currentUserFixture();
     currentUser.authentication = { ...currentUser.authentication, mfaRequired: true, mfaEnrolled: true };

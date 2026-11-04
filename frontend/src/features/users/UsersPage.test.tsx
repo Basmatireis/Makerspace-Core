@@ -38,7 +38,7 @@ describe('People page', () => {
             PermissionId.peoplereadmatriculation,
             PermissionId.accountsread,
             PermissionId.rolesread,
-            PermissionId.laborordnungrequestsread,
+            PermissionId.laborordnungconfirmationsread,
             PermissionId.supervisor_dashboardread,
           ]),
         ),
@@ -133,7 +133,7 @@ describe('People page', () => {
             PermissionId.peoplereadall,
             PermissionId.accountsread,
             PermissionId.rolesread,
-            PermissionId.laborordnungrequestsread,
+            PermissionId.laborordnungconfirmationsread,
           ]),
         ),
       ),
@@ -149,13 +149,13 @@ describe('People page', () => {
 
     const { router } = renderRoute(
       <App />,
-      `/people?role=${roleFixture().id}&role=${secondRole.id}&labRules=current&labRules=pending&status=enabled&status=no_account`,
+      `/people?role=${roleFixture().id}&role=${secondRole.id}&labRules=current&labRules=outdated&status=enabled&status=no_account`,
     );
     const user = userEvent.setup();
 
     await waitFor(() => expect(requestedRoleIds).toEqual([roleFixture().id, secondRole.id]));
     expect(requestedAccountStatuses).toEqual(['enabled', 'no_account']);
-    expect(requestedLaborordnungStatuses).toEqual(['current', 'pending']);
+    expect(requestedLaborordnungStatuses).toEqual(['current', 'outdated']);
 
     await user.click(screen.getByRole('button', { name: 'Filters (6 applied)' }));
     const filters = screen.getByRole('group', { name: 'People filters' });

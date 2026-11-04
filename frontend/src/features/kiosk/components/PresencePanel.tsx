@@ -1,14 +1,12 @@
 import { ContainedList, ContainedListItem, Tag } from '@carbon/react';
-import type { PublicPresence, PublicWaiting } from '../../../api/generated/models';
+import type { PublicPresence } from '../../../api/generated/models';
 import { formatTime, initials } from './format';
 
 export function PresencePanel({
   items,
-  waiting,
   onSelect,
 }: {
   items: PublicPresence[];
-  waiting: PublicWaiting[];
   /** Set only when names may be tapped to check out (public_tap). */
   onSelect?: (visit: PublicPresence) => void;
 }) {
@@ -28,20 +26,7 @@ export function PresencePanel({
           </span>
         }
       >
-        {sorted.length === 0 && waiting.length === 0 && <ContainedListItem>Nobody is checked in.</ContainedListItem>}
-        {waiting.map((item) => (
-          <ContainedListItem key={item.holdId} className="tablet-person">
-            <span className="tablet-person__row">
-              <span className="tablet-person__avatar tablet-person__avatar--hold" aria-hidden="true">
-                {initials(item.displayName)}
-              </span>
-              <span className="tablet-person__name">{item.displayName}</span>
-              <Tag type="red" size="sm">
-                Awaiting sign-off
-              </Tag>
-            </span>
-          </ContainedListItem>
-        ))}
+        {sorted.length === 0 && <ContainedListItem>Nobody is checked in.</ContainedListItem>}
         {sorted.map((visit) => (
           <ContainedListItem
             key={visit.visitId}

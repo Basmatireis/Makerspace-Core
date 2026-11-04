@@ -59,7 +59,7 @@ function currentUser() {
       actionRequired: false,
       currentVersion: null,
       latestConfirmedVersion: null,
-      requestId: null,
+      latestConfirmedAt: null,
     },
   };
 }

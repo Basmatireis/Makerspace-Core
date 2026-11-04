@@ -332,57 +332,24 @@ body:has(.tablet) {
   color: $text-helper;
 }
 
-// Held check-in: deliberately loud, the person must not start working.
-
-.tablet-hold {
+// Lab Rules shown after PIN or password: the PDF scrolls in its own box, the actions stay below it.
+.tablet-rules {
   display: grid;
-  gap: $spacing-06;
-  max-inline-size: 44rem;
-}
-
-.tablet-hold__banner {
-  display: flex;
-  align-items: center;
   gap: $spacing-05;
-  padding: $spacing-06;
-  color: $text-on-color;
-  background: $support-error;
+  max-inline-size: 60rem;
 
-  svg {
-    flex-shrink: 0;
-    fill: currentColor;
+  .lab-rules-agreement__pdf {
+    max-block-size: 45dvh;
   }
 }
 
-.tablet-hold__eyebrow {
-  @include type-style('heading-02');
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.tablet-hold__title {
-  @include type-style('heading-06');
-}
-
-.tablet-hold__lead {
+.tablet-rules__lead {
   @include type-style('heading-03');
 }
 
-.tablet-hold__steps .cds--progress-step {
-  min-block-size: 4.5rem;
-}
-
-.tablet-hold__warning {
-  @include type-style('heading-03');
-  padding-inline-start: $spacing-05;
-  border-inline-start: 4px solid $support-error;
-  color: $text-error;
-  font-weight: 600;
-}
-
-.tablet-person__avatar--hold {
-  color: $text-on-color;
-  background: $support-error;
+.tablet-rules__actions {
+  display: grid;
+  gap: $spacing-04;
 }
 
 // Portrait tablets stack the presence list below the main area.
