@@ -38,6 +38,7 @@ const (
 	PrinterTelemetry       privacy.CategoryID = "printing.telemetry"
 	RunTimelapses          privacy.CategoryID = "runrecordings.timelapses"
 	InboxNotifications     privacy.CategoryID = "inbox.notifications"
+	GuideProgress          privacy.CategoryID = "guides.progress"
 	SignageAnnouncements   privacy.CategoryID = "signage.announcements"
 	DeviceCredentials      privacy.CategoryID = "devices.credentials" //nolint:gosec // a category identifier, not a credential
 	ActorReferences        privacy.CategoryID = "platform.actor_references"
@@ -365,6 +366,17 @@ func Definitions() []privacy.Definition {
 			Actions:        []privacy.Action{privacy.ActionDelete},
 			Subject:        privacy.SubjectAccount,
 			Legacy:         &privacy.LegacyDefault{Trigger: privacy.TriggerCreatedAt, Period: 90 * day, Action: privacy.ActionDelete, Source: "lazy sweep on read (code)"},
+		},
+		{
+			ID: GuideProgress, Owner: Platform, Name: "Guided tour progress",
+			Description:    "Which in-app guided tours an account has completed or dismissed.",
+			Contains:       "Guide identifiers with their status and the time of the last change, per account",
+			ErasureOutcome: privacy.ErasureErased,
+			Fields:         []string{"account_guide_progress.*"},
+			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt},
+			Actions:        []privacy.Action{privacy.ActionDelete},
+			Subject:        privacy.SubjectAccount,
+			RetentionNote:  "Rows are deleted with the account; a person can also reset them at any time.",
 		},
 		{
 			ID: SignageAnnouncements, Owner: Signage, Name: "Signage announcements",

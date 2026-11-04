@@ -17,6 +17,7 @@
 - [Surveys: conditional questions, share links, results](surveys.md)
 - [Semester staffing and the personal dashboard](staffing-and-dashboard.md)
 - [In-app notifications: the header inbox, messages to roles and system events](notifications.md)
+- [Guided tour progress: which in-app tours an account has completed or dismissed](guides.md)
 - [Training records and open-day competencies](trainings.md)
 - [Events](events.md)
 - [Orders, payments, and invoicing requests](orders.md)

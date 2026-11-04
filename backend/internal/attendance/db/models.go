@@ -23,6 +23,13 @@ type Account struct {
 	AdministrativelyDisabledAt pgtype.Timestamptz
 }
 
+type AccountGuideProgress struct {
+	AccountID uuid.UUID
+	GuideID   string
+	Status    string
+	UpdatedAt time.Time
+}
+
 type AttendanceDailyStatistic struct {
 	Day                   pgtype.Date
 	VisitorCount          int64

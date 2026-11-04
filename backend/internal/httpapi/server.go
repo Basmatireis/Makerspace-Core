@@ -18,6 +18,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/guides"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/invoicing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
@@ -82,6 +83,7 @@ type Server struct {
 	supervisors       *supervisors.Service
 	staffing          *staffing.Service
 	dashboard         *dashboard.Service
+	guides            *guides.Service
 	oidc              *oidcservice.Service
 	scim              *scimservice.Service
 	visitor           *visitor.Service
@@ -245,6 +247,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		signage:           signageService,
 		surveys:           surveyService,
 		inbox:             inbox.NewService(pool),
+		guides:            guides.NewService(pool),
 		configTransfer:    configTransferService,
 		trainings:         trainingsService,
 		privacy:           privacyService,

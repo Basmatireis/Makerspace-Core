@@ -21,6 +21,7 @@ const (
 	ruleUnionedRoles  = "roles united on the target"
 	ruleKeptIdentity  = "the chosen login email's identity moves to the surviving account; others are deleted"
 	ruleInboxMoved    = "moved to the surviving account; duplicate deliveries dropped"
+	ruleGuideProgress = "deleted with the source account; the surviving account keeps its own progress"
 	ruleAuditRepoint  = "re-pointed to the surviving account (resource IDs of the merged person/account too)"
 	ruleSurveyPreserv = "moved to the target; anonymous responses never carry a person"
 )
@@ -63,6 +64,7 @@ var MergeReferences = []MergeReference{
 	{"external_invoice_request_events", "actor_account_id", "accounts", ruleActor},
 	{"files", "created_by_account_id", "accounts", ruleActor},
 	{"inbox_notifications", "created_by_account_id", "accounts", ruleActor},
+	{"account_guide_progress", "account_id", "accounts", ruleGuideProgress},
 	{"inbox_recipients", "account_id", "accounts", ruleInboxMoved},
 	{"filament_spools", "retired_by", "accounts", ruleActor},
 	{"inventory_transactions", "actor_account_id", "accounts", ruleActor},

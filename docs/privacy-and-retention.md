@@ -57,6 +57,7 @@ The table lists every built-in category. Legacy defaults are the behaviour that 
 | `printing.telemetry` | Printer telemetry | `machines` | none | created, 30 days, delete (lazy prune of connector activity) |
 | `runrecordings.timelapses` | Run timelapses | `machines` | none | created, 90 days, delete (timelapse setting) |
 | `inbox.notifications` | In-app notifications | `platform` | account | created, 90 days, delete (lazy sweep on read) |
+| `guides.progress` | Guided tour progress | `platform` | account | none |
 | `signage.announcements` | Signage announcements | `signage` | none | ended, 30 days, delete (lazy sweep on read) |
 | `devices.credentials` | Device and service credentials | `platform` | none | none |
 | `platform.actor_references` | Actor references | `platform` | account | none |

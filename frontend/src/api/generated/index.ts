@@ -8,6 +8,7 @@ export * from './dashboard/dashboard';
 export * from './events/events';
 export * from './external-invoicing/external-invoicing';
 export * from './filament-spools/filament-spools';
+export * from './guides/guides';
 export * from './health/health';
 export * from './inventory/inventory';
 export * from './laborordnung/laborordnung';

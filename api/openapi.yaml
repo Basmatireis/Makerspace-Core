@@ -51,6 +51,8 @@ tags:
   - name: Signage Player
   - name: Notifications
     description: "In-app notifications: the signed-in account's own inbox and manual messages to roles (docs/notifications.md)."
+  - name: Guides
+    description: "Which in-app guided tours the signed-in account has completed or dismissed."
   - name: Configuration Transfer
     description: "Export the configuration of this makerspace as a versioned JSON file and import it section by section (docs/configuration-transfer.md)."
   - name: Privacy
@@ -4199,6 +4201,48 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/guides:
+    get:
+      tags: [Guides]
+      operationId: listMyGuideProgress
+      summary: List the guided tours the signed-in account has completed or dismissed
+      description: Always scoped to the session's account. Guides without an entry have not been finished yet.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Progress per guide., content: {application/json: {schema: {$ref: "#/components/schemas/GuideProgressList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Guides]
+      operationId: resetMyGuideProgress
+      summary: Forget the signed-in account's guide progress so every tour is offered again
+      description: Deletes every progress row of the session's account and nothing else.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Progress is reset.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/guides/{guideId}:
+    put:
+      tags: [Guides]
+      operationId: updateMyGuideProgress
+      summary: Record that the signed-in account completed or dismissed a guided tour
+      description: Creates or overwrites the account's entry for the guide. The account always comes from the session.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: guideId, in: path, required: true, schema: {type: string, pattern: "^[a-z][a-z0-9-]{0,63}$"}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/GuideProgressUpdate"}}}}
+      responses:
+        "200": {description: Stored progress., content: {application/json: {schema: {$ref: "#/components/schemas/GuideProgress"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -11631,6 +11675,35 @@ components:
         pageSize: {type: integer, minimum: 1, maximum: 100}
         total: {type: integer, format: int64, minimum: 0}
         unreadCount: {type: integer, format: int64, minimum: 0}
+
+    GuideProgressStatus:
+      type: string
+      enum: [completed, dismissed]
+
+    GuideProgress:
+      type: object
+      additionalProperties: false
+      required: [guideId, status, updatedAt]
+      properties:
+        guideId: {type: string, pattern: "^[a-z][a-z0-9-]{0,63}$"}
+        status: {$ref: "#/components/schemas/GuideProgressStatus"}
+        updatedAt: {type: string, format: date-time}
+
+    GuideProgressList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/GuideProgress"}
+
+    GuideProgressUpdate:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {$ref: "#/components/schemas/GuideProgressStatus"}
 
     NotificationUnreadCount:
       type: object
