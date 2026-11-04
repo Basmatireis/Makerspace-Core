@@ -6,11 +6,11 @@ import { canAccessSettings } from '../features/auth/permissions';
 import { AppShell } from './AppShell';
 import { ColorSchemeRoot } from './colorScheme';
 import { NotFoundPage } from './NotFoundPage';
-import { InformationPage } from './InformationPage';
 import { FullPageLoading } from './PageState';
 import { machineLogbookPaths } from '../features/machinelogbook/shared/paths';
 import { DeviceBridgeProvider } from '../features/kiosk/DeviceBridgeProvider';
 import {
+  AboutPage,
   ActivityPage,
   AttendancePage,
   BrandingLegalSettingsPage,
@@ -707,7 +707,7 @@ export function App() {
                 </PermissionRoute>
               }
             />
-            <Route path="about" element={<InformationPage title="About" />} />
+            <Route path="about" element={<AboutPage />} />
             <Route path="settings/users/*" element={<LegacyRedirect from="/settings/users" to="/people" />} />
             <Route path="settings/activity" element={<LegacyRedirect from="/settings/activity" to="/audit-log" />} />
             <Route

@@ -295,6 +295,15 @@ describe('protected application routing', () => {
     server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture())));
     renderRoute(<App />, '/about');
     expect(await screen.findByRole('heading', { name: 'About' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Software' })).toBeInTheDocument();
+    expect(screen.getByText('Development build')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Apache License 2.0' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'third-party notices' })).toHaveAttribute(
+      'href',
+      '/THIRD_PARTY_NOTICES.txt',
+    );
+    const main = screen.getByRole('main');
+    expect(within(main).getByRole('link', { name: 'Imprint' })).toHaveAttribute('href', '/legal/imprint');
   });
 
   it('redirects the legacy legal route to the public imprint', async () => {

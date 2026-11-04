@@ -25,7 +25,9 @@ FROM base AS build
 
 COPY frontend/ ./
 COPY api/ /workspace/api/
-RUN pnpm generate:api && pnpm build
+# The release workflow passes the release version, which the About page shows.
+ARG VERSION=
+RUN pnpm generate:api && VITE_APP_VERSION="$VERSION" pnpm build
 
 FROM nginxinc/nginx-unprivileged:1.31.7-alpine3.24 AS final
 
