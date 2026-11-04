@@ -62,6 +62,7 @@ export function AboutPage() {
               <Fact label="License">
                 <CarbonLink href={`${repositoryUrl}/blob/main/LICENSE`}>Apache License 2.0</CarbonLink>
               </Fact>
+              <Fact label="Copyright">© 2026 Noel Hauke</Fact>
               <Fact label="Source code">
                 <CarbonLink href={repositoryUrl}>GitHub</CarbonLink>
               </Fact>
