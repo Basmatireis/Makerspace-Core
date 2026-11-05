@@ -16,6 +16,7 @@ import { formatCents, sumCents, toCents } from './money';
 import { orderQuery, paymentQuery } from './queries';
 import './sales.scss';
 import '../machinelogbook/shared/shared.scss';
+import { unitDisplay } from '../machinelogbook/units';
 
 /**
  * Printable receipt of an order, or of one of its payments (?payment=). It carries no number of its own: the order reference and the
@@ -131,7 +132,9 @@ function Receipt({ order }: { order: Order }) {
                 <TableRow key={item.id}>
                   <TableCell>{item.description}</TableCell>
                   <TableCell className="sales-num">
-                    {item.kind === 'machine_job' ? '1 job' : `${formatQuantity(item.quantity, 6)} ${item.unit}`}
+                    {item.kind === 'machine_job'
+                      ? '1 job'
+                      : `${formatQuantity(item.quantity, 6)} ${unitDisplay(item.unit)}`}
                   </TableCell>
                   <TableCell className="sales-num">{formatMoney(item.unitPrice)}</TableCell>
                   <TableCell className="sales-num">{formatMoney(item.amount)}</TableCell>

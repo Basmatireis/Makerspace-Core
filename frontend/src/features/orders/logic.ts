@@ -15,6 +15,7 @@ import { formatDate } from '../../app/dateTime';
 import { formatMoney } from './formatting';
 import { methodLabel, requestNextStep } from './labels';
 import { toCents } from './money';
+import { unitDisplay } from '../machinelogbook/units';
 
 // Pure derivations over the orders API types. Settlement itself is derived by the backend and only read here.
 
@@ -473,7 +474,7 @@ export function wiRefCopyText(request: ExternalInvoiceRequest): string {
     'Items:',
     ...request.itemSummary.map(
       (item, index) =>
-        `${index + 1}. ${item.description} · ${item.quantity} ${item.unit} · ${formatMoney(item.unitPrice)} · ${formatMoney(item.amount)}`,
+        `${index + 1}. ${item.description} · ${item.quantity} ${unitDisplay(item.unit)} · ${formatMoney(item.unitPrice)} · ${formatMoney(item.amount)}`,
     ),
     '',
     `Total: ${formatMoney(request.requestedAmount)}`,

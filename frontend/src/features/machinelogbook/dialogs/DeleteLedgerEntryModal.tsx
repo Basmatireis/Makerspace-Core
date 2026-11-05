@@ -36,7 +36,7 @@ export function DeleteLedgerEntryModal({
 }: {
   transaction: InventoryTransaction;
   /** The entry's article, for its unit and inventory version. */
-  material: Pick<Material, 'name' | 'unit' | 'inventoryVersion'>;
+  material: Pick<Material, 'name' | 'unit' | 'countLabel' | 'inventoryVersion'>;
   onClose: () => void;
 }) {
   const notify = useNotify();
@@ -48,7 +48,7 @@ export function DeleteLedgerEntryModal({
       notify({
         kind: 'success',
         title: 'Ledger entry deleted',
-        subtitle: `${transactionKindLabel(transaction)} · ${ledgerQuantityText(transaction, material.unit)} reversed`,
+        subtitle: `${transactionKindLabel(transaction)} · ${ledgerQuantityText(transaction, material.unit, material.countLabel)} reversed`,
       });
       onClose();
       await refresh();
@@ -76,7 +76,7 @@ export function DeleteLedgerEntryModal({
         <dd>{material.name}</dd>
         <dt>Entry</dt>
         <dd>
-          {transactionKindLabel(transaction)} · {ledgerQuantityText(transaction, material.unit)}
+          {transactionKindLabel(transaction)} · {ledgerQuantityText(transaction, material.unit, material.countLabel)}
         </dd>
         <dt>Date</dt>
         <dd>{formatDateTime(transaction.occurredAt)}</dd>
@@ -92,7 +92,7 @@ export function DeleteLedgerEntryModal({
         title={
           transaction.kind === 'spool_transfer'
             ? 'The article total stays the same.'
-            : `The stock changes by ${formatSigned(delta, material.unit)}.`
+            : `The stock changes by ${formatSigned(delta, material.unit, material.countLabel)}.`
         }
         subtitle={consequence(transaction)}
       />

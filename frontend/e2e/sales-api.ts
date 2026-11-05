@@ -913,6 +913,7 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
             code: 'PLA',
             machineUse: true,
             unit: 'g',
+            dimension: 'mass',
             active: true,
             variants: [
               { id: ids.plaSilk, materialTypeId: ids.pla, name: 'Silk', materialCount: 0, pricingRuleCount: 1 },
@@ -926,6 +927,7 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
             code: 'FAST',
             machineUse: false,
             unit: 'piece',
+            dimension: 'count',
             active: true,
             version: 1,
           },

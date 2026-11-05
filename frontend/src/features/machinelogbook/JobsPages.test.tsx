@@ -56,6 +56,7 @@ const material: Material = {
   colorName: 'Black',
   colorHex: '#1A1A1A',
   unit: 'g',
+  dimension: 'mass',
   active: true,
   lowStockThreshold: '500',
   quantity: '8420',

@@ -20,6 +20,7 @@ export const materialType = (overrides: Partial<MaterialType> = {}): MaterialTyp
   kind: 'filament',
   machineUse: true,
   unit: 'g',
+  dimension: 'mass',
   processIds: [],
   active: true,
   materialCount: 1,
@@ -39,6 +40,7 @@ export const partType = materialType({
   kind: 'part',
   machineUse: false,
   unit: 'piece',
+  dimension: 'count',
   pricingRuleCount: 0,
 });
 
@@ -59,6 +61,7 @@ export const material = (overrides: Partial<Material> = {}): Material => ({
   colorName: 'Dark Blue',
   colorHex: '#0A2989',
   unit: 'g',
+  dimension: 'mass',
   active: true,
   lowStockThreshold: '500',
   quantity: '1612',
@@ -101,6 +104,7 @@ export const part = (overrides: Partial<Material> = {}): Material =>
     colorName: null,
     colorHex: null,
     unit: 'piece',
+    dimension: 'count',
     packageSize: '100',
     quantity: '240',
     assignedQuantity: '0',

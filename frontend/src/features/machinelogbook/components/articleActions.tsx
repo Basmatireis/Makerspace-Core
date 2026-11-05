@@ -13,7 +13,8 @@ import { StockMovementModal, type MovementMode } from '../dialogs/StockMovementM
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import { spoolErrorMessage, useRefreshInventory } from '../spoolData';
-import { formatQuantity, isFilament, unitLabel } from './inventoryShared';
+import { formatQuantity, isFilament } from './inventoryShared';
+import { articleUnitLabel } from '../units';
 
 export type ArticleDialog =
   | { name: 'receive' | 'edit' | 'register' | 'delete' | 'empty' }
@@ -61,7 +62,7 @@ function MarkEmptyDialog({ material, onClose }: { material: Material; onClose: (
       notify({
         kind: 'success',
         title: 'Marked as empty',
-        subtitle: `${material.name} stock is now 0 ${unitLabel(material.unit)}.`,
+        subtitle: `${material.name} stock is now 0 ${articleUnitLabel(material.unit, material.countLabel)}.`,
       });
       onClose();
       await refresh();
@@ -82,8 +83,8 @@ function MarkEmptyDialog({ material, onClose }: { material: Material; onClose: (
       onConfirm={() => emptying.mutate()}
     >
       <p>
-        The remaining {formatQuantity(material.quantity, material.unit)} of {material.name} is written off as a disposal
-        and stock becomes 0. The ledger keeps every entry.
+        The remaining {formatQuantity(material.quantity, material.unit, material.countLabel)} of {material.name} is
+        written off as a disposal and stock becomes 0. The ledger keeps every entry.
       </p>
     </DestructiveActionDialog>
   );

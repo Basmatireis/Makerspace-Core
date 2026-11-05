@@ -107,6 +107,7 @@ export const actionLabels: Record<string, string> = {
   'managed_device.token_rotated': 'Rotated managed-device token',
   'managed_device.updated': 'Updated managed device',
   'material.created': 'Created material',
+  'material.unit_converted': 'Converted material unit',
   'material.updated': 'Updated material',
   'oidc.provider_created': 'Created OpenID Connect provider',
   'oidc.provider_secret_reencrypted': 'Re-encrypted OpenID Connect provider secret',

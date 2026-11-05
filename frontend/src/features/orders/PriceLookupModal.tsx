@@ -26,6 +26,7 @@ import { allMaterialsQuery } from '../machinelogbook/inventoryQueries';
 import { machinesQuery } from '../machinelogbook/queries';
 import { formatMoney } from './formatting';
 import { priceQuoteQuery } from './queries';
+import { articleUnitLabel, unitSymbol } from '../machinelogbook/units';
 
 type Mode = 'machine' | 'item';
 type Option = { id: string; label: string };
@@ -94,7 +95,7 @@ function QuoteTable({ quote }: { quote: PriceQuote }) {
                 <Rate
                   amount={group.materialAmount}
                   rate={group.materialRate}
-                  unit={quote.material.unit}
+                  unit={unitSymbol(quote.material.unit)}
                   source={group.materialPriceSource}
                 />
               </TableCell>
@@ -130,9 +131,13 @@ export function PriceLookupModal({ onClose }: { onClose: () => void }) {
     // A machine run only uses articles whose material type is used on machines.
     materialList
       .filter((item) => item.active && (mode !== 'machine' || item.machineUse))
-      .map((item) => ({ id: item.id, label: `${item.displayId} · ${item.name} (${item.unit})` })),
+      .map((item) => ({
+        id: item.id,
+        label: `${item.displayId} · ${item.name} (${articleUnitLabel(item.unit, item.countLabel)})`,
+      })),
   );
-  const unit = materialList.find((item) => item.id === article?.id)?.unit;
+  const unitArticle = materialList.find((item) => item.id === article?.id);
+  const unit = unitArticle ? articleUnitLabel(unitArticle.unit, unitArticle.countLabel) : undefined;
 
   const hoursValue = positive(hours);
   const quantityValue = positive(quantity);

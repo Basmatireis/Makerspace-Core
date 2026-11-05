@@ -13,19 +13,19 @@ import type {
   StockState,
 } from '../../../api/generated/models';
 import { formatMoney } from '../shared/format';
+import { articleUnitLabel } from '../units';
 
 const number = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
 
 export type { StockState };
 
-export const unitLabel = (unit: MaterialUnit) =>
-  unit === 'm2' ? 'm²' : unit === 'cm2' ? 'cm²' : unit === 'piece' ? 'pcs' : unit;
+export { unitSymbol as unitLabel } from '../units';
 /** "1,250 g". The API sends decimal strings. */
-export const formatQuantity = (value: string | number, unit: MaterialUnit) =>
-  `${number.format(Number(value))} ${unitLabel(unit)}`;
-export const formatSigned = (value: string | number, unit: MaterialUnit) => {
+export const formatQuantity = (value: string | number, unit: MaterialUnit, countLabel?: string | null) =>
+  `${number.format(Number(value))} ${articleUnitLabel(unit, countLabel)}`;
+export const formatSigned = (value: string | number, unit: MaterialUnit, countLabel?: string | null) => {
   const n = Number(value);
-  return `${n > 0 ? '+' : n < 0 ? '−' : ''}${number.format(Math.abs(n))} ${unitLabel(unit)}`;
+  return `${n > 0 ? '+' : n < 0 ? '−' : ''}${number.format(Math.abs(n))} ${articleUnitLabel(unit, countLabel)}`;
 };
 export const formatSignedMoney = (value: string | number | null | undefined) => {
   if (value == null) return '—';
@@ -34,12 +34,16 @@ export const formatSignedMoney = (value: string | number | null | undefined) => 
 };
 
 /** Cost per stock unit; grams and millilitres read better per kilogram and litre. */
-export function formatUnitCost(cost: string | number | null | undefined, unit: MaterialUnit) {
+export function formatUnitCost(
+  cost: string | number | null | undefined,
+  unit: MaterialUnit,
+  countLabel?: string | null,
+) {
   if (cost == null) return '—';
   const n = Number(cost);
   if (unit === 'g') return `${formatMoney(n * 1000)} / kg`;
   if (unit === 'ml') return `${formatMoney(n * 1000)} / l`;
-  return `${formatMoney(n)} / ${unitLabel(unit)}`;
+  return `${formatMoney(n)} / ${articleUnitLabel(unit, countLabel)}`;
 }
 
 /** Average acquisition cost of a material; a material that never held stock has none yet. */
@@ -178,7 +182,8 @@ export const priceSourceLabel: Record<MaterialPriceSource, string> = {
 };
 
 /** "€35.00 / kg": a sale price per unit of the article. */
-export const formatRate = (rate: string | number, unit: MaterialUnit) => formatUnitCost(rate, unit);
+export const formatRate = (rate: string | number, unit: MaterialUnit, countLabel?: string | null) =>
+  formatUnitCost(rate, unit, countLabel);
 
 /** Colour swatch and name of a material; spools and lists only display the colour, they never hold their own. */
 export function MaterialColor({ name, hex }: { name?: string | null; hex?: string | null }) {

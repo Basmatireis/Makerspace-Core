@@ -26,6 +26,7 @@ const type = (overrides: Partial<MaterialType>): MaterialType => ({
   kind: 'filament',
   machineUse: true,
   unit: 'g',
+  dimension: 'mass',
   processIds: [printerProcessId],
   active: true,
   materialCount: 3,
@@ -43,6 +44,7 @@ const plywood = type({
   code: 'PLYWOOD',
   kind: 'consumable',
   unit: 'm2',
+  dimension: 'area',
   processIds: [laserProcessId],
   materialCount: 0,
   pricingRuleCount: 0,
@@ -63,6 +65,7 @@ const fasteners = type({
   kind: 'part',
   machineUse: false,
   unit: 'piece',
+  dimension: 'count',
   processIds: [],
   materialCount: 2,
   pricingRuleCount: 0,
@@ -272,6 +275,45 @@ describe('Types and categories', () => {
     await screen.findByText('Delete this material type?');
     await user.click(await screen.findByRole('button', { name: 'Delete material type' }));
     expect(await screen.findByText('In use')).toBeInTheDocument();
+  });
+  it('offers only units of the same kind for a used type and no units across kinds', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    const usedPlywood = { ...plywood, materialCount: 2 };
+    serveTypes([pla, usedPlywood, retired, fasteners]);
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    const table = await openTypes(user);
+    await user.click(await within(table).findByRole('button', { name: 'Plywood' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit material type' });
+    const select = within(dialog).getByLabelText('Unit');
+    expect(select).toBeEnabled();
+    const options = within(select)
+      .getAllByRole('option')
+      .map((option) => option.textContent);
+    expect(options).toEqual(['Square centimetres (cm²)', 'Square metres (m²)']);
+  });
+
+  it('offers every unit grouped by kind for an unused type', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    serveTypes();
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
+    const table = await openTypes(user);
+    await user.click(await within(table).findByRole('button', { name: 'Plywood' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Edit material type' });
+    const options = within(within(dialog).getByLabelText('Unit')).getAllByRole('option');
+    expect(options.map((option) => option.textContent)).toEqual([
+      'Grams (g)',
+      'Kilograms (kg)',
+      'Millimetres (mm)',
+      'Centimetres (cm)',
+      'Metres (m)',
+      'Square centimetres (cm²)',
+      'Square metres (m²)',
+      'Millilitres (ml)',
+      'Litres (l)',
+      'Pieces',
+    ]);
   });
 });
 
@@ -586,6 +628,7 @@ describe('Article form', () => {
     colorName: 'Red',
     colorHex: '#C62828',
     unit: 'g',
+    dimension: 'mass',
     active: true,
     lowStockThreshold: null,
     quantity: '0',
@@ -662,5 +705,83 @@ describe('Article form', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save article' }));
     await waitFor(() => expect(submitted).toBeDefined());
     expect(submitted).not.toHaveProperty('name');
+  });
+
+  it('limits the unit to the type dimension, warns about the conversion and sends the new unit', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    const tape = type({
+      id: '0192f6f8-743e-7c77-a349-cd07c3e8f010',
+      name: 'Tape',
+      code: 'TAPE',
+      kind: 'consumable',
+      unit: 'm',
+      dimension: 'length',
+      processIds: [],
+    });
+    serveTypes([pla, tape]);
+    const tapeRoll = {
+      ...material,
+      kind: 'consumable',
+      materialTypeId: tape.id,
+      materialTypeName: 'Tape',
+      unit: 'm',
+      dimension: 'length',
+      colorName: null,
+      colorHex: null,
+      filamentDiameterMm: null,
+      name: 'Tape roll',
+      quantity: '5',
+    } as Material;
+    let submitted: Record<string, unknown> | undefined;
+    server.use(
+      http.patch(`*/api/v1/materials/${material.id}`, async ({ request }) => {
+        submitted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(tapeRoll);
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<MaterialFormModal open onClose={() => undefined} material={tapeRoll} />, '/');
+    const dialog = await screen.findByRole('dialog');
+    const select = await within(dialog).findByLabelText('Unit');
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Millimetres (mm)', 'Centimetres (cm)', 'Metres (m)']);
+    expect(within(dialog).queryByText('Quantities are converted')).not.toBeInTheDocument();
+    await user.selectOptions(select, 'cm');
+    expect(await within(dialog).findByText('Quantities are converted')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Save article' }));
+    await waitFor(() => expect(submitted).toMatchObject({ unit: 'cm', countLabel: null }));
+  });
+
+  it('shows the count label only for pieces and sends it', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    serveTypes();
+    const bolts = {
+      ...material,
+      kind: 'part',
+      materialTypeId: fasteners.id,
+      materialTypeName: 'Fasteners',
+      unit: 'piece',
+      dimension: 'count',
+      colorName: null,
+      colorHex: null,
+      filamentDiameterMm: null,
+      name: 'M3 bolt',
+    } as Material;
+    let submitted: Record<string, unknown> | undefined;
+    server.use(
+      http.patch(`*/api/v1/materials/${material.id}`, async ({ request }) => {
+        submitted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(bolts);
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<MaterialFormModal open onClose={() => undefined} material={bolts} />, '/');
+    const dialog = await screen.findByRole('dialog');
+    await user.type(await within(dialog).findByLabelText('Count label (optional)'), 'pair');
+    await user.click(within(dialog).getByRole('button', { name: 'Save article' }));
+    await waitFor(() => expect(submitted).toMatchObject({ unit: 'piece', countLabel: 'pair' }));
   });
 });

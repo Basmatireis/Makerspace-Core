@@ -25,6 +25,7 @@ import { FuzzySelectField } from '../../../app/components/FuzzyComboBox';
 import { fuzzyScore } from '../../../app/fuzzy';
 import { materialTypesQuery } from '../inventoryQueries';
 import { materialsForProcess, unitText } from '../processConfig';
+import { articleUnitLabel } from '../units';
 import { materialsQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
 import '../styles/jobs.scss';
@@ -42,12 +43,12 @@ const rateFormat = new Intl.NumberFormat('en-IE', {
 });
 
 /** The sale price per unit over the active pricing groups: one rate, or the lowest and highest. */
-export function priceRange(material: Pick<Material, 'prices' | 'unit'>): string {
+export function priceRange(material: Pick<Material, 'prices' | 'unit' | 'countLabel'>): string {
   const rates = material.prices.map((price) => Number(price.rate)).filter((rate) => Number.isFinite(rate));
   if (rates.length === 0) return '—';
   const low = Math.min(...rates);
   const high = Math.max(...rates);
-  const unit = unitText(material.unit);
+  const unit = articleUnitLabel(material.unit, material.countLabel);
   return low === high
     ? `${rateFormat.format(low)} / ${unit}`
     : `${rateFormat.format(low)}–${rateFormat.format(high)} / ${unit}`;
@@ -57,8 +58,8 @@ export function priceRange(material: Pick<Material, 'prices' | 'unit'>): string 
 export const typesForProcess = (types: MaterialType[] | undefined, process: Pick<Process, 'id'> | undefined) =>
   (types ?? []).filter((type) => type.active && type.machineUse && (!process || type.processIds.includes(process.id)));
 
-export function stockText(material: Pick<Material, 'quantity' | 'unit'>) {
-  return `${formatQuantity(material.quantity)} ${unitText(material.unit as MaterialUnit)}`;
+export function stockText(material: Pick<Material, 'quantity' | 'unit' | 'countLabel'>) {
+  return `${formatQuantity(material.quantity)} ${articleUnitLabel(material.unit as MaterialUnit, material.countLabel)}`;
 }
 
 function StockCell({ material }: { material: Material }) {
@@ -218,7 +219,7 @@ function PickerBody({
                       </TableCell>
                       <TableCell>{material.storageLocation || '—'}</TableCell>
                       <TableCell className="jobs-picker__nowrap">{priceRange(material)}</TableCell>
-                      <TableCell>{unitText(material.unit)}</TableCell>
+                      <TableCell>{articleUnitLabel(material.unit, material.countLabel)}</TableCell>
                     </TableRow>
                   );
                 })}

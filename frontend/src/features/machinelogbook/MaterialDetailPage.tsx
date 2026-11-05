@@ -21,8 +21,8 @@ import {
   materialUnitCost,
   NoInventoryAccess,
   priceSourceLabel,
-  unitLabel,
 } from './components/inventoryShared';
+import { articleUnitLabel } from './units';
 import { InventoryLedgerTable } from './components/InventoryLedgerTable';
 import { MountLink, nfcTagOf, remainingOf, SpoolRemaining } from './components/spoolShared';
 import { SpoolDialogs, spoolActionsFor, useSpoolPermissions, type SpoolDialog } from './components/spoolActions';
@@ -241,25 +241,29 @@ function MaterialDetail({ material }: { material: Material }) {
           items={[
             {
               label: 'Stock',
-              value: formatQuantity(material.quantity, material.unit),
+              value: formatQuantity(material.quantity, material.unit, material.countLabel),
               helper: stockHelper(material, spools.data?.length),
             },
             {
               label: 'Minimum',
               value:
-                material.lowStockThreshold != null ? formatQuantity(material.lowStockThreshold, material.unit) : '—',
+                material.lowStockThreshold != null
+                  ? formatQuantity(material.lowStockThreshold, material.unit, material.countLabel)
+                  : '—',
               helper: minimumHelper(material),
             },
             {
               label: 'Used 30 d',
-              value: formatQuantity(material.recentConsumption, material.unit),
+              value: formatQuantity(material.recentConsumption, material.unit, material.countLabel),
               helper: material.machineUse ? 'runs and orders' : 'orders and consumption',
             },
             {
               label: 'Stock value',
               value: formatMoney(material.inventoryValue),
               helper:
-                unitCost != null ? `at ${formatUnitCost(unitCost, material.unit)} average cost` : 'no purchase yet',
+                unitCost != null
+                  ? `at ${formatUnitCost(unitCost, material.unit, material.countLabel)} average cost`
+                  : 'no purchase yet',
             },
             {
               label: material.kind === 'part' ? 'Category' : 'Material type',
@@ -291,6 +295,7 @@ function MaterialDetail({ material }: { material: Material }) {
                     id="ledger"
                     transactions={items}
                     unit={material.unit}
+                    countLabel={material.countLabel}
                     showSpool={filament}
                     onDelete={
                       allowed.deleteLedger
@@ -323,7 +328,7 @@ function MaterialDetail({ material }: { material: Material }) {
                       label={price.pricingGroupName}
                       helper={priceSourceLabel[price.source]}
                     >
-                      {formatRate(price.rate, material.unit)}
+                      {formatRate(price.rate, material.unit, material.countLabel)}
                     </Fact>
                   ))}
                 </FactsGrid>
@@ -355,10 +360,12 @@ function MaterialDetail({ material }: { material: Material }) {
                 )}
                 <Fact label="Manufacturer">{material.manufacturer || '—'}</Fact>
                 <Fact label="Package">
-                  {material.packageSize != null ? formatQuantity(material.packageSize, material.unit) : '—'}
+                  {material.packageSize != null
+                    ? formatQuantity(material.packageSize, material.unit, material.countLabel)
+                    : '—'}
                 </Fact>
-                <Fact label="Unit cost">{formatUnitCost(unitCost, material.unit)}</Fact>
-                <Fact label="Unit">{unitLabel(material.unit)}</Fact>
+                <Fact label="Unit cost">{formatUnitCost(unitCost, material.unit, material.countLabel)}</Fact>
+                <Fact label="Unit">{articleUnitLabel(material.unit, material.countLabel)}</Fact>
                 {material.filamentDiameterMm != null && (
                   <Fact label="Diameter">{Number(material.filamentDiameterMm)} mm</Fact>
                 )}

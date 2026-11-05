@@ -60,7 +60,7 @@ export function DeleteArticleModal({
       <p>
         {material.displayId} · {material.name} leaves the article lists, pickers and stock totals.
         {quantity > 0
-          ? ` Its ${formatQuantity(material.quantity, material.unit)} (${formatMoney(material.inventoryValue)}) are not written off; they come back with the article.`
+          ? ` Its ${formatQuantity(material.quantity, material.unit, material.countLabel)} (${formatMoney(material.inventoryValue)}) are not written off; they come back with the article.`
           : ''}
       </p>
       {active.length > 0 && (

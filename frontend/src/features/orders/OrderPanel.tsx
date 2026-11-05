@@ -16,6 +16,7 @@ import { activeItems, canPrintReceipt, customerLabel } from './logic';
 import { formatCents, formatSignedCents, toCents } from './money';
 import { useOrderPaymentRows } from './paymentRows';
 import { OrderStatusTag, PaymentKindTag, RequestStateTag } from './status';
+import { unitDisplay } from '../machinelogbook/units';
 
 const itemKind = { machine_job: 'Job', inventory_item: 'Stock', manual: 'Custom' } as const;
 
@@ -127,7 +128,7 @@ export function OrderPanel({
                       </span>
                       <span className="sales-secondary">
                         {itemKind[item.kind]} · {formatMoney(item.unitPrice)} per{' '}
-                        {item.kind === 'machine_job' ? 'job' : item.unit}
+                        {item.kind === 'machine_job' ? 'job' : unitDisplay(item.unit)}
                       </span>
                     </span>
                   </TableCell>

@@ -77,17 +77,17 @@ export function ArticleTags({ material, size = 'sm' }: { material: Material; siz
 /** Stock helper text: spools and loose stock for filament, packages for everything else. */
 export function stockHelper(material: Material, spoolCount: number | undefined) {
   if (isFilament(material))
-    return `${spoolCount === undefined ? 'On spools' : `${spoolCount} ${spoolCount === 1 ? 'spool' : 'spools'}`} · ${formatQuantity(material.unassignedQuantity, material.unit)} loose`;
+    return `${spoolCount === undefined ? 'On spools' : `${spoolCount} ${spoolCount === 1 ? 'spool' : 'spools'}`} · ${formatQuantity(material.unassignedQuantity, material.unit, material.countLabel)} loose`;
   const size = Number(material.packageSize ?? 0);
   if (size > 0)
-    return `≈ ${Math.round((Number(material.quantity) / size) * 10) / 10} × ${formatQuantity(size, material.unit)}`;
+    return `≈ ${Math.round((Number(material.quantity) / size) * 10) / 10} × ${formatQuantity(size, material.unit, material.countLabel)}`;
   return undefined;
 }
 
 export function minimumHelper(material: Material) {
   if (material.lowStockThreshold == null) return 'not set';
   const left = Number(material.quantity) - Number(material.lowStockThreshold);
-  return left <= 0 ? 'at or below minimum' : `${formatQuantity(left, material.unit)} above`;
+  return left <= 0 ? 'at or below minimum' : `${formatQuantity(left, material.unit, material.countLabel)} above`;
 }
 
 /** The permanent panel of the articles table: fixed head, facts, active spools and the latest ledger entries. */
@@ -158,23 +158,25 @@ export function ArticlePanel({
       </div>
       <FactsGrid columns={2}>
         <Fact label="Stock" helper={stockHelper(material, spools.data?.length)}>
-          {formatQuantity(material.quantity, material.unit)}
+          {formatQuantity(material.quantity, material.unit, material.countLabel)}
         </Fact>
         <Fact label="Minimum" helper={minimumHelper(material)}>
-          {material.lowStockThreshold != null ? formatQuantity(material.lowStockThreshold, material.unit) : '—'}
+          {material.lowStockThreshold != null
+            ? formatQuantity(material.lowStockThreshold, material.unit, material.countLabel)
+            : '—'}
         </Fact>
         <Fact label="Used 30 d" helper={material.machineUse ? 'runs and orders' : 'orders and consumption'}>
-          {formatQuantity(material.recentConsumption, material.unit)}
+          {formatQuantity(material.recentConsumption, material.unit, material.countLabel)}
         </Fact>
         <Fact
           label="Stock value"
-          helper={unitCost != null ? `at ${formatUnitCost(unitCost, material.unit)}` : undefined}
+          helper={unitCost != null ? `at ${formatUnitCost(unitCost, material.unit, material.countLabel)}` : undefined}
         >
           {formatMoney(material.inventoryValue)}
         </Fact>
         {material.prices.map((price) => (
           <Fact key={price.pricingGroupId} label={price.pricingGroupName} helper={priceSourceLabel[price.source]}>
-            {formatRate(price.rate, material.unit)}
+            {formatRate(price.rate, material.unit, material.countLabel)}
           </Fact>
         ))}
         {material.prices.length === 0 && (
@@ -190,7 +192,9 @@ export function ArticlePanel({
           </Fact>
         )}
         <Fact label="Package" helper={material.variant ? `Variant ${material.variant}` : undefined}>
-          {material.packageSize != null ? formatQuantity(material.packageSize, material.unit) : '—'}
+          {material.packageSize != null
+            ? formatQuantity(material.packageSize, material.unit, material.countLabel)
+            : '—'}
         </Fact>
         <Fact label="Category" helper={material.materialTypeCode}>
           {material.materialTypeName}
@@ -258,7 +262,7 @@ export function ArticlePanel({
               key: 'quantity',
               header: 'Quantity',
               numeric: true,
-              render: (tx) => ledgerQuantityText(tx, material.unit),
+              render: (tx) => ledgerQuantityText(tx, material.unit, material.countLabel),
             },
           ]}
         />

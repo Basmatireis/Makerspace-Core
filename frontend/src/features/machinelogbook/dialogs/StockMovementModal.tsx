@@ -9,7 +9,8 @@ import {
 import { correctMaterialStock, recordMaterialConsumption } from '../../../api/generated/inventory/inventory';
 import type { FilamentSpool, InventoryAdjustmentReason, Material } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
-import { formatQuantity, parseDecimal, toDecimal, unitLabel } from '../components/inventoryShared';
+import { formatQuantity, parseDecimal, toDecimal } from '../components/inventoryShared';
+import { articleUnitLabel } from '../units';
 import { machineLogbookKeys } from '../queries';
 import { useNotify } from '../shared/toasts';
 import { useLatestCallback } from '../../../app/useLatestCallback';
@@ -91,12 +92,12 @@ export function StockMovementModal({
     if (mode === 'correction') {
       if (quantity < 0) return 'The physical quantity cannot be negative.';
       if (quantity < onSpools)
-        return `${formatQuantity(onSpools, material.unit)} are on spools. Correct those spools instead.`;
+        return `${formatQuantity(onSpools, material.unit, material.countLabel)} are on spools. Correct those spools instead.`;
       return quantity === onRecord ? 'This matches the recorded stock. Nothing to correct.' : true;
     }
     if (quantity <= 0) return 'Enter a quantity above zero.';
     if (looseOnly && quantity > available)
-      return `Only ${formatQuantity(available, material.unit)} on record${onSpools > 0 ? ' that is not on a spool' : ''}.`;
+      return `Only ${formatQuantity(available, material.unit, material.countLabel)} on record${onSpools > 0 ? ' that is not on a spool' : ''}.`;
     return true;
   };
 
@@ -154,7 +155,7 @@ export function StockMovementModal({
       notify({
         kind: 'success',
         title: text.done,
-        subtitle: `${subject}: ${mode === 'correction' ? `now ${formatQuantity(quantity, material.unit)}` : formatQuantity(quantity, material.unit)}`,
+        subtitle: `${subject}: ${mode === 'correction' ? `now ${formatQuantity(quantity, material.unit, material.countLabel)}` : formatQuantity(quantity, material.unit, material.countLabel)}`,
       });
       onClose();
     },
@@ -204,14 +205,15 @@ export function StockMovementModal({
       >
         <Stack gap={6}>
           <p className="mj-secondary">
-            {looseOnly && onSpools > 0 ? 'Loose stock' : 'On record'}: {formatQuantity(current, material.unit)}
+            {looseOnly && onSpools > 0 ? 'Loose stock' : 'On record'}:{' '}
+            {formatQuantity(current, material.unit, material.countLabel)}
             {after != null && validateQuantity(String(typed)) === true
-              ? ` · after: ${formatQuantity(Math.max(0, after), material.unit)}`
+              ? ` · after: ${formatQuantity(Math.max(0, after), material.unit, material.countLabel)}`
               : ''}
           </p>
           <TextInput
             id="movement-quantity"
-            labelText={`${text.quantity} (${unitLabel(material.unit)})`}
+            labelText={`${text.quantity} (${articleUnitLabel(material.unit, material.countLabel)})`}
             inputMode="decimal"
             autoComplete="off"
             invalid={Boolean(errors.quantity)}
@@ -228,7 +230,7 @@ export function StockMovementModal({
           {needsUnitCost && (
             <TextInput
               id="movement-unit-cost"
-              labelText={`Cost per ${unitLabel(material.unit)} in EUR`}
+              labelText={`Cost per ${articleUnitLabel(material.unit, material.countLabel)} in EUR`}
               helperText="This material has no average cost yet, so the added stock needs one."
               inputMode="decimal"
               autoComplete="off"

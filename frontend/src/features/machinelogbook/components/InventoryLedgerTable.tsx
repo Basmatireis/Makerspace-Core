@@ -51,20 +51,24 @@ export const ledgerReferenceText = (tx: InventoryTransaction) =>
     .join(' · ');
 
 /** The signed quantity of an entry; a transfer only moves attribution, so it shows the moved amount. */
-export const ledgerQuantityText = (tx: InventoryTransaction, unit: MaterialUnit) =>
-  tx.kind === 'spool_transfer' ? formatQuantity(tx.transferQuantity ?? 0, unit) : formatSigned(tx.quantityDelta, unit);
+export const ledgerQuantityText = (tx: InventoryTransaction, unit: MaterialUnit, countLabel?: string | null) =>
+  tx.kind === 'spool_transfer'
+    ? formatQuantity(tx.transferQuantity ?? 0, unit, countLabel)
+    : formatSigned(tx.quantityDelta, unit, countLabel);
 
 /** Ledger of stock movements for one article or one spool, shown as a Directory-style table. */
 export function InventoryLedgerTable({
   id,
   transactions,
   unit,
+  countLabel,
   showSpool,
   onDelete,
 }: {
   id: string;
   transactions: InventoryTransaction[];
   unit: MaterialUnit;
+  countLabel?: string | null;
   showSpool: boolean;
   /** Offers Delete entry per row; pass it only with `inventory.ledger.delete`. */
   onDelete?: (transaction: InventoryTransaction) => void;
@@ -130,9 +134,9 @@ export function InventoryLedgerTable({
       sortValue: (tx) => Number(tx.kind === 'spool_transfer' ? (tx.transferQuantity ?? 0) : tx.quantityDelta),
       firstDirection: 'DESC',
       render: (tx) => {
-        if (tx.kind !== 'spool_transfer') return formatSigned(tx.quantityDelta, unit);
+        if (tx.kind !== 'spool_transfer') return formatSigned(tx.quantityDelta, unit, countLabel);
         // Transfers only move attribution between loose stock and a spool; the article total does not change.
-        const amount = formatQuantity(tx.transferQuantity ?? 0, unit);
+        const amount = formatQuantity(tx.transferQuantity ?? 0, unit, countLabel);
         const source = spoolText(from(tx));
         const target = spoolText(to(tx));
         return (

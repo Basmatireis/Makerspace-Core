@@ -22,6 +22,7 @@ import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import { materialTypesQuery } from '../inventoryQueries';
 import { isFdm, unitText } from '../processConfig';
+import { articleUnitLabel, unitSymbol } from '../units';
 import { machineLogbookKeys, machineQuery, materialsQuery, spoolsQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
 import { useCan } from '../shared/useCan';
@@ -41,10 +42,20 @@ import { MaterialPickerModal, stockText, type PickedMaterial } from './MaterialP
 import '../styles/jobs.scss';
 import '../jobs/jobs.scss';
 
-const roundArea = (value: number) => Math.round(value * 100) / 100;
+/** Square centimetres expressed in the usage unit, rounded to what the unit can show. */
+const areaIn = (cm2: number, unit: 'cm2' | 'm2') =>
+  unit === 'm2' ? Math.round((cm2 / 10000) * 1e6) / 1e6 : Math.round(cm2 * 100) / 100;
 
-/** Width x height x count in centimetres gives the square centimetres of cut material; the result stays editable. */
-function AreaHelper({ idPrefix, onArea }: { idPrefix: string; onArea: (area: number) => void }) {
+/** Width x height x count in centimetres gives the area of cut material in the usage unit (cm² or m²); the result stays editable. */
+function AreaHelper({
+  idPrefix,
+  unit,
+  onArea,
+}: {
+  idPrefix: string;
+  unit: 'cm2' | 'm2';
+  onArea: (area: number) => void;
+}) {
   const [size, setSize] = useState({ width: '', height: '', count: '1' });
   const area =
     (decimalNumber(size.width) ?? 0) *
@@ -57,7 +68,7 @@ function AreaHelper({ idPrefix, onArea }: { idPrefix: string; onArea: (area: num
       (decimalNumber(next.width) ?? 0) *
       (decimalNumber(next.height) ?? 0) *
       (decimalNumber(next.count, { integer: true }) ?? 0);
-    if (nextArea > 0) onArea(roundArea(nextArea));
+    if (nextArea > 0) onArea(areaIn(nextArea, unit));
   };
   const invalid = (value: string, integer = false) =>
     value.trim() !== '' && parseDecimalText(value, { integer }) === null;
@@ -89,7 +100,8 @@ function AreaHelper({ idPrefix, onArea }: { idPrefix: string; onArea: (area: num
         onChange={(value) => change('count', value)}
       />
       <p className="mj-secondary jobs-usage__area-note" aria-live="polite">
-        = {area > 0 ? `${formatQuantity(roundArea(area))} cm²` : '…'} · fills the quantity, which stays editable
+        = {area > 0 ? `${formatQuantity(areaIn(area, unit), 6)} ${unitSymbol(unit)}` : '…'} · fills the quantity, which
+        stays editable
       </p>
     </div>
   );
@@ -237,7 +249,7 @@ function UsageRowFields({
           render={({ field: quantity, fieldState }) => (
             <DecimalField
               id={`${idPrefix}-quantity`}
-              labelText={unit ? `Quantity (${unitText(unit)})` : 'Quantity'}
+              labelText={unit ? `Quantity (${articleUnitLabel(unit, material?.countLabel)})` : 'Quantity'}
               value={quantity.value}
               disabled={!chosen}
               helperText={chosen ? undefined : 'Select a material first.'}
@@ -248,9 +260,10 @@ function UsageRowFields({
           )}
         />
       </div>
-      {unit === 'cm2' && (
+      {(unit === 'cm2' || unit === 'm2') && (
         <AreaHelper
           idPrefix={idPrefix}
+          unit={unit}
           onArea={(area) =>
             setValue(`usages.${index}.quantity`, String(area), { shouldDirty: true, shouldValidate: true })
           }

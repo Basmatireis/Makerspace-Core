@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { dimensionOf } from './units';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -57,6 +58,7 @@ const typeOf = (
   machineUse: true,
   kind: processes.includes(fdm) ? 'filament' : 'consumable',
   unit,
+  dimension: dimensionOf(unit),
   processIds: processes.map((item) => item.id),
   active,
   materialCount: 1,
@@ -84,6 +86,7 @@ const materialOf = (
   prices: [],
   attention: [],
   unit,
+  dimension: dimensionOf(unit),
   active: true,
   quantity: '100',
   assignedQuantity: '0',

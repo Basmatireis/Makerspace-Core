@@ -230,7 +230,7 @@ describe('order items from inventory', () => {
     await user.clear(within(dialog).getByLabelText(/^Quantity/));
     await user.type(within(dialog).getByLabelText(/^Quantity/), '20');
     expect(
-      await within(dialog).findByText('Only 12 piece in loose stock — finalizing will fail until stock is received.'),
+      await within(dialog).findByText('Only 12 pcs in loose stock — finalizing will fail until stock is received.'),
     ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Add item' }));
     await waitFor(() => expect(captured.body).toMatchObject({ quantity: '20' }));
@@ -269,7 +269,7 @@ describe('order items from inventory', () => {
     await user.click(await screen.findByRole('button', { name: 'Finalize' }));
     const dialog = await screen.findByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Finalize' }));
-    const messages = await screen.findAllByText(/Not enough loose stock for M3 heat-set insert: 2 piece available\./);
+    const messages = await screen.findAllByText(/Not enough loose stock for M3 heat-set insert: 2 pcs available\./);
     expect(messages.length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Open the article' })[0]).toHaveAttribute(
       'href',
