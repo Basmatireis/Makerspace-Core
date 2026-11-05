@@ -609,3 +609,26 @@ func TestLedgerShowsOrderAndConsumptionIncludesSales(t *testing.T) {
 		t.Fatalf("ledger kinds: %v", seen)
 	}
 }
+
+func TestInventoryItemShowsTheCountLabelOfAPieceArticle(t *testing.T) {
+	f := newFixture(t)
+	typ, e := f.jobs.CreateMaterialType(t.Context(), f.p, "Sheets "+ids.New().String(), "part", "piece", nil, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	m, e := f.jobs.CreateMaterial(
+		t.Context(),
+		f.p,
+		machinelogbook.MaterialInput{
+			Name: "Sheet " + ids.New().String(), MaterialTypeID: typ.ID, CountLabel: optional.Of("Blatt"),
+		},
+		nil,
+	)
+	if e != nil {
+		t.Fatal(e)
+	}
+	o := f.addArticle(t, f.emptyDraft(t), m.ID, "2", "1")
+	if o.Items[0].Unit != "Blatt" {
+		t.Fatalf("unit = %q, want the count label", o.Items[0].Unit)
+	}
+}

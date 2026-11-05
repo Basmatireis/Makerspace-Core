@@ -95,7 +95,7 @@ ORDER BY v.material_type_id, lower(v.name), v.name, v.id;
 -- name: ListMaterials :many
 SELECT m.id, m.name, t.name AS material_type_name, m.active, m.low_stock_threshold,
     m.color_name, m.color_hex, m.variant, m.manufacturer,
-    m.package_size, m.storage_location, m.notes, fp.diameter_mm AS filament_diameter_mm,
+    m.package_size, m.unit, m.count_label, m.storage_location, m.notes, fp.diameter_mm AS filament_diameter_mm,
     m.version
 FROM materials m
 JOIN material_types t ON t.id = m.material_type_id

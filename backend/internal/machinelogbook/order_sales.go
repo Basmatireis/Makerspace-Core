@@ -15,10 +15,12 @@ import (
 )
 
 // SaleArticle is what an order needs to know about an article it sells. UnitPrice is the article's sale price
-// in the customer's pricing group; nil when that group has none.
+// in the customer's pricing group (per Unit); nil when that group has none. CountLabel names the piece of a piece
+// article and is what the order item shows instead of the unit.
 type SaleArticle struct {
 	ID               uuid.UUID
 	Name, Unit       string
+	CountLabel       *string
 	Kind             MaterialKind
 	Active           bool
 	UnitPrice        *string
@@ -48,11 +50,12 @@ func (s *Service) SaleSource(
 		return SaleArticle{}, apperror.NotFound
 	}
 	article := SaleArticle{
-		ID:     row.ID,
-		Name:   row.Name,
-		Unit:   row.Unit,
-		Kind:   MaterialKind(row.MaterialKind),
-		Active: row.Active,
+		ID:         row.ID,
+		Name:       row.Name,
+		Unit:       row.Unit,
+		CountLabel: row.CountLabel,
+		Kind:       MaterialKind(row.MaterialKind),
+		Active:     row.Active,
 	}
 	group, err := resolvePricingGroup(ctx, q, customerPersonID, customerOrganizationID, nil)
 	if err != nil {

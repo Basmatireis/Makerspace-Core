@@ -609,7 +609,7 @@ func (q *Queries) ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow
 const listMaterials = `-- name: ListMaterials :many
 SELECT m.id, m.name, t.name AS material_type_name, m.active, m.low_stock_threshold,
     m.color_name, m.color_hex, m.variant, m.manufacturer,
-    m.package_size, m.storage_location, m.notes, fp.diameter_mm AS filament_diameter_mm,
+    m.package_size, m.unit, m.count_label, m.storage_location, m.notes, fp.diameter_mm AS filament_diameter_mm,
     m.version
 FROM materials m
 JOIN material_types t ON t.id = m.material_type_id
@@ -629,6 +629,8 @@ type ListMaterialsRow struct {
 	Variant            *string
 	Manufacturer       *string
 	PackageSize        pgtype.Numeric
+	Unit               string
+	CountLabel         *string
 	StorageLocation    *string
 	Notes              *string
 	FilamentDiameterMm pgtype.Numeric
@@ -655,6 +657,8 @@ func (q *Queries) ListMaterials(ctx context.Context) ([]ListMaterialsRow, error)
 			&i.Variant,
 			&i.Manufacturer,
 			&i.PackageSize,
+			&i.Unit,
+			&i.CountLabel,
 			&i.StorageLocation,
 			&i.Notes,
 			&i.FilamentDiameterMm,

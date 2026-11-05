@@ -92,7 +92,7 @@ func TestMaterialTypeLifecycleAuditAndGuards(t *testing.T) {
 	) {
 		t.Fatalf("duplicate name: %v", err)
 	}
-	if _, err = s.CreateMaterialType(ctx, p, "Bad unit "+suffix, "consumable", "kg", []uuid.UUID{plain.ID}, &request); !apperror.IsCode(
+	if _, err = s.CreateMaterialType(ctx, p, "Bad unit "+suffix, "consumable", "lb", []uuid.UUID{plain.ID}, &request); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {

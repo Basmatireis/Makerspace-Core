@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ColorHex } from './colorHex';
+import type { CountLabel } from './countLabel';
 import type { Decimal } from './decimal';
 import type { MaterialUnit } from './materialUnit';
 import type { UUIDv7 } from './uUIDv7';
@@ -45,6 +46,7 @@ export interface CreateMaterialRequest {
      */
   manufacturer?: string | null;
   packageSize?: Decimal | null;
+  countLabel?: CountLabel | null;
   /**
      * @maxLength 200
      * @nullable
@@ -61,7 +63,7 @@ export interface CreateMaterialRequest {
      */
   colorName?: string | null;
   colorHex?: ColorHex | null;
-  /** Optional. The unit always is the unit of the material type; a different value is refused with 422 material_unit_mismatch. */
+  /** Optional. Any unit of the material type's dimension; defaults to the type's unit. Another dimension is refused with 422 material_unit_mismatch; filament is always g. */
   unit?: MaterialUnit;
   lowStockThreshold?: Decimal | null;
   filamentDiameterMm?: Decimal | null;

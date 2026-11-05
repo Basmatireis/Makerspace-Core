@@ -334,9 +334,11 @@ func (s *Service) capturePricingSnapshot(
 			complete = false
 			entry.Missing = true
 		} else {
+			// The entry keeps the rate per unit of the usage, so rate * quantity stays consistent.
+			rate := ruleRateIn(matched, usage.Unit)
 			entry.SourceRuleID = &matched.ID
-			entry.Rate = matched.Rate
-			total = total.Add(decimalFromNumeric(usage.Quantity).Mul(decimalFromNumeric(matched.Rate)))
+			entry.Rate = numericFromDecimal(rate)
+			total = total.Add(decimalFromNumeric(usage.Quantity).Mul(rate))
 		}
 		snapshotRules = append(snapshotRules, entry)
 	}
@@ -409,9 +411,10 @@ func isMaterialSnapshotRule(rule machinelogbookdb.MachineJobPricingSnapshotRule)
 }
 
 // snapshotRuleFor finds the snapshot entry that prices a usage, the most specific first: the entry of the usage's
-// article (its own rate), else the entry of its variant, else the entry of its material type, each for the usage's
-// unit. A snapshot never changes, so a missing entry still covers the usage: it records that the material had no
-// price at capture time. Nil means the snapshot has no entry for the usage.
+// article (its own rate), else the entry of its variant, else the entry of its material type, each of the usage's
+// dimension (snapshotRateIn converts the rate when the article's unit changed since). A snapshot never changes, so a
+// missing entry still covers the usage: it records that the material had no price at capture time. Nil means the
+// snapshot has no entry for the usage.
 func snapshotRuleFor(
 	rules []machinelogbookdb.MachineJobPricingSnapshotRule,
 	usage machinelogbookdb.ListRunUsagesForRunsRow,
@@ -419,7 +422,7 @@ func snapshotRuleFor(
 	var variantRule, typeRule *machinelogbookdb.MachineJobPricingSnapshotRule
 	for i := range rules {
 		rule := &rules[i]
-		if !isMaterialSnapshotRule(*rule) || rule.Unit != usage.Unit {
+		if !isMaterialSnapshotRule(*rule) || !sameDimension(rule.Unit, usage.Unit) {
 			continue
 		}
 		switch {
@@ -441,6 +444,16 @@ func snapshotRuleFor(
 		return variantRule
 	}
 	return typeRule
+}
+
+// snapshotRateIn is the rate of a snapshot entry per unit of the usage it prices. The entry was captured in the unit
+// of the article at the time, which may have changed since.
+func snapshotRateIn(rule *machinelogbookdb.MachineJobPricingSnapshotRule, unit string) decimal.Decimal {
+	rate := decimalFromNumeric(rule.Rate)
+	if sameDimension(rule.Unit, unit) {
+		return convertRate(rate, rule.Unit, unit)
+	}
+	return rate
 }
 
 func sameUUID(a, b *uuid.UUID) bool {
@@ -523,7 +536,7 @@ func (s *Service) computeFromSnapshot(
 			complete = false
 			continue
 		}
-		total = total.Add(decimalFromNumeric(usage.Quantity).Mul(decimalFromNumeric(rule.Rate)))
+		total = total.Add(decimalFromNumeric(usage.Quantity).Mul(snapshotRateIn(rule, usage.Unit)))
 	}
 	if !complete {
 		return PricingIncomplete, pgtype.Numeric{}, nil

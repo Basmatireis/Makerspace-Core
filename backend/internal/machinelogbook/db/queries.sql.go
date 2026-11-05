@@ -464,6 +464,124 @@ func (q *Queries) ClearMachineJobPriceAdjustment(ctx context.Context, arg ClearM
 	return i, err
 }
 
+const convertExternalRunUsagesUnit = `-- name: ConvertExternalRunUsagesUnit :exec
+UPDATE machine_run_usages SET
+    quantity = round(quantity * material_unit_factor($1::text) / material_unit_factor($2::text), 6),
+    material_unit = $2::text
+WHERE material_id IS NULL AND material_type_id = $3 AND material_unit = $1::text
+`
+
+type ConvertExternalRunUsagesUnitParams struct {
+	OldUnit        string
+	NewUnit        string
+	MaterialTypeID *uuid.UUID
+}
+
+// Usages of material the recipient brought, named only by type, count in the type's unit.
+func (q *Queries) ConvertExternalRunUsagesUnit(ctx context.Context, arg ConvertExternalRunUsagesUnitParams) error {
+	_, err := q.db.Exec(ctx, convertExternalRunUsagesUnit, arg.OldUnit, arg.NewUnit, arg.MaterialTypeID)
+	return err
+}
+
+const convertMaterialBalanceUnit = `-- name: ConvertMaterialBalanceUnit :exec
+UPDATE material_balances SET
+    quantity = round(quantity * material_unit_factor($1::text) / material_unit_factor($2::text), 6),
+    average_unit_cost = round(average_unit_cost * material_unit_factor($2::text) / material_unit_factor($1::text), 6),
+    version = version + 1, updated_at = now()
+WHERE material_id = $3
+`
+
+type ConvertMaterialBalanceUnitParams struct {
+	OldUnit    string
+	NewUnit    string
+	MaterialID uuid.UUID
+}
+
+func (q *Queries) ConvertMaterialBalanceUnit(ctx context.Context, arg ConvertMaterialBalanceUnitParams) error {
+	_, err := q.db.Exec(ctx, convertMaterialBalanceUnit, arg.OldUnit, arg.NewUnit, arg.MaterialID)
+	return err
+}
+
+const convertMaterialLedgerUnit = `-- name: ConvertMaterialLedgerUnit :exec
+UPDATE inventory_transactions SET
+    quantity_delta = round(quantity_delta * material_unit_factor($1::text) / material_unit_factor($2::text), 6),
+    unit_acquisition_cost = round(unit_acquisition_cost * material_unit_factor($2::text) / material_unit_factor($1::text), 6)
+WHERE material_id = $3
+`
+
+type ConvertMaterialLedgerUnitParams struct {
+	OldUnit    string
+	NewUnit    string
+	MaterialID uuid.UUID
+}
+
+// Expresses the ledger of an article (entries in the recycle bin included) in a new unit of its dimension. The inventory
+// value of every entry stays.
+func (q *Queries) ConvertMaterialLedgerUnit(ctx context.Context, arg ConvertMaterialLedgerUnitParams) error {
+	_, err := q.db.Exec(ctx, convertMaterialLedgerUnit, arg.OldUnit, arg.NewUnit, arg.MaterialID)
+	return err
+}
+
+const convertMaterialRulesUnit = `-- name: ConvertMaterialRulesUnit :execrows
+UPDATE pricing_rules SET
+    rate = round(rate * material_unit_factor($1::text) / material_unit_factor($2::text), 6),
+    version = version + 1, updated_at = now()
+WHERE kind = 'material' AND material_type_id = $3
+`
+
+type ConvertMaterialRulesUnitParams struct {
+	NewUnit        string
+	OldUnit        string
+	MaterialTypeID *uuid.UUID
+}
+
+// Material rules of a type (type and variant rates) are per its reference unit; a unit change keeps their price.
+func (q *Queries) ConvertMaterialRulesUnit(ctx context.Context, arg ConvertMaterialRulesUnitParams) (int64, error) {
+	result, err := q.db.Exec(ctx, convertMaterialRulesUnit, arg.NewUnit, arg.OldUnit, arg.MaterialTypeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const convertMaterialRunUsagesUnit = `-- name: ConvertMaterialRunUsagesUnit :exec
+UPDATE machine_run_usages SET
+    quantity = round(quantity * material_unit_factor($1::text) / material_unit_factor($2::text), 6),
+    material_unit = $2::text
+WHERE material_id = $3 AND COALESCE(material_unit, $1::text) = $1::text
+`
+
+type ConvertMaterialRunUsagesUnitParams struct {
+	OldUnit    string
+	NewUnit    string
+	MaterialID *uuid.UUID
+}
+
+// Usages count in the unit of their article; those of this article follow it. Usages that carry no unit yet count in old_unit.
+func (q *Queries) ConvertMaterialRunUsagesUnit(ctx context.Context, arg ConvertMaterialRunUsagesUnitParams) error {
+	_, err := q.db.Exec(ctx, convertMaterialRunUsagesUnit, arg.OldUnit, arg.NewUnit, arg.MaterialID)
+	return err
+}
+
+const convertStockArticleRulesUnit = `-- name: ConvertStockArticleRulesUnit :exec
+UPDATE pricing_rules SET
+    rate = round(rate * material_unit_factor($1::text) / material_unit_factor($2::text), 6),
+    version = version + 1, updated_at = now()
+WHERE kind = 'stock_article' AND material_id = $3
+`
+
+type ConvertStockArticleRulesUnitParams struct {
+	NewUnit    string
+	OldUnit    string
+	MaterialID *uuid.UUID
+}
+
+// A stock_article rate is per unit of the article.
+func (q *Queries) ConvertStockArticleRulesUnit(ctx context.Context, arg ConvertStockArticleRulesUnitParams) error {
+	_, err := q.db.Exec(ctx, convertStockArticleRulesUnit, arg.NewUnit, arg.OldUnit, arg.MaterialID)
+	return err
+}
+
 const countActivePricingRulesOfMaterialType = `-- name: CountActivePricingRulesOfMaterialType :one
 SELECT count(*) FROM pricing_rules WHERE material_type_id = $1 AND active
 `
@@ -1038,9 +1156,9 @@ func (q *Queries) CreateMachineJob(ctx context.Context, arg CreateMachineJobPara
 }
 
 const createMaterial = `-- name: CreateMaterial :one
-INSERT INTO materials (id, display_id, name, material_type_id, color_name, color_hex, unit, low_stock_threshold, variant, variant_id, manufacturer, package_size, storage_location, notes)
+INSERT INTO materials (id, display_id, name, material_type_id, color_name, color_hex, unit, low_stock_threshold, variant, variant_id, manufacturer, package_size, count_label, storage_location, notes)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-    $9, $10, $11, $12, $13, $14) RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id
+    $9, $10, $11, $12, $13, $14, $15) RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id, count_label
 `
 
 type CreateMaterialParams struct {
@@ -1056,6 +1174,7 @@ type CreateMaterialParams struct {
 	VariantID         *uuid.UUID
 	Manufacturer      *string
 	PackageSize       pgtype.Numeric
+	CountLabel        *string
 	StorageLocation   *string
 	Notes             *string
 }
@@ -1074,6 +1193,7 @@ func (q *Queries) CreateMaterial(ctx context.Context, arg CreateMaterialParams) 
 		arg.VariantID,
 		arg.Manufacturer,
 		arg.PackageSize,
+		arg.CountLabel,
 		arg.StorageLocation,
 		arg.Notes,
 	)
@@ -1099,6 +1219,7 @@ func (q *Queries) CreateMaterial(ctx context.Context, arg CreateMaterialParams) 
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.VariantID,
+		&i.CountLabel,
 	)
 	return i, err
 }
@@ -1781,6 +1902,15 @@ func (q *Queries) DetachRunFromJob(ctx context.Context, id uuid.UUID) (MachineRu
 	return i, err
 }
 
+const disableInventoryUnitConversion = `-- name: DisableInventoryUnitConversion :exec
+SELECT set_config('makerspace.inventory_unit_conversion', 'off', true)
+`
+
+func (q *Queries) DisableInventoryUnitConversion(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, disableInventoryUnitConversion)
+	return err
+}
+
 const enableInventoryPurge = `-- name: EnableInventoryPurge :exec
 SELECT set_config('makerspace.inventory_purge', 'on', true)
 `
@@ -1788,6 +1918,16 @@ SELECT set_config('makerspace.inventory_purge', 'on', true)
 // Lets this transaction hard-delete ledger rows; the immutability trigger checks the setting.
 func (q *Queries) EnableInventoryPurge(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, enableInventoryPurge)
+	return err
+}
+
+const enableInventoryUnitConversion = `-- name: EnableInventoryUnitConversion :exec
+SELECT set_config('makerspace.inventory_unit_conversion', 'on', true)
+`
+
+// Lets this transaction rewrite the quantities and unit costs of ledger rows; the immutability trigger checks the setting.
+func (q *Queries) EnableInventoryUnitConversion(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, enableInventoryUnitConversion)
 	return err
 }
 
@@ -2527,7 +2667,7 @@ func (q *Queries) GetMachineProcess(ctx context.Context, machineID uuid.UUID) (G
 }
 
 const getMaterial = `-- name: GetMaterial :one
-SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, m.variant_id, mt.name AS material_type_name, mt.kind AS material_kind, mt.code AS material_type_code, mt.machine_use,
+SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, m.variant_id, m.count_label, mt.name AS material_type_name, mt.kind AS material_kind, mt.code AS material_type_code, mt.machine_use,
        b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
         + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
@@ -2565,6 +2705,7 @@ type GetMaterialRow struct {
 	DeletedAt          pgtype.Timestamptz
 	DeletedBy          *uuid.UUID
 	VariantID          *uuid.UUID
+	CountLabel         *string
 	MaterialTypeName   string
 	MaterialKind       string
 	MaterialTypeCode   string
@@ -2605,6 +2746,7 @@ func (q *Queries) GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.VariantID,
+		&i.CountLabel,
 		&i.MaterialTypeName,
 		&i.MaterialKind,
 		&i.MaterialTypeCode,
@@ -2624,7 +2766,7 @@ func (q *Queries) GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow
 }
 
 const getMaterialForUpdate = `-- name: GetMaterialForUpdate :one
-SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, m.variant_id, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at
+SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, m.variant_id, m.count_label, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at
 FROM materials m JOIN material_balances b ON b.material_id = m.id
 WHERE m.id = $1
 FOR UPDATE OF b, m
@@ -2651,6 +2793,7 @@ type GetMaterialForUpdateRow struct {
 	DeletedAt         pgtype.Timestamptz
 	DeletedBy         *uuid.UUID
 	VariantID         *uuid.UUID
+	CountLabel        *string
 	Quantity          pgtype.Numeric
 	InventoryValue    pgtype.Numeric
 	AverageUnitCost   pgtype.Numeric
@@ -2682,6 +2825,7 @@ func (q *Queries) GetMaterialForUpdate(ctx context.Context, id uuid.UUID) (GetMa
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.VariantID,
+		&i.CountLabel,
 		&i.Quantity,
 		&i.InventoryValue,
 		&i.AverageUnitCost,
@@ -3048,10 +3192,10 @@ SELECT count(*)::bigint AS jobs,
        count(*) FILTER (WHERE outcome = 'successful')::bigint AS successful_jobs,
        count(*) FILTER (WHERE outcome <> 'unknown')::bigint AS finished_jobs,
        COALESCE(sum(runtime_seconds), 0)::bigint AS machine_seconds,
-       COALESCE((SELECT sum(u.quantity) FROM machine_run_usages u
+       COALESCE((SELECT sum(u.quantity * material_unit_factor(COALESCE(u.material_unit, mat.unit, 'g'))) FROM machine_run_usages u
                  JOIN machine_runs r ON r.id = u.run_id AND r.state IS DISTINCT FROM 'replaced'
                  LEFT JOIN materials mat ON mat.id = u.material_id
-                 WHERE r.job_id IN (SELECT id FROM own) AND u.active AND COALESCE(mat.unit, 'g') = 'g'), 0)::float8 AS material_grams
+                 WHERE r.job_id IN (SELECT id FROM own) AND u.active AND material_unit_dimension(COALESCE(u.material_unit, mat.unit, 'g')) = 'mass'), 0)::float8 AS material_grams
 FROM own
 `
 
@@ -3622,10 +3766,11 @@ func (q *Queries) InsertRolePricingGroup(ctx context.Context, arg InsertRolePric
 
 const insertRunUsage = `-- name: InsertRunUsage :one
 INSERT INTO machine_run_usages (id, run_id, material_id, spool_id, spool_display_id, ownership, external_material_name, quantity_basis, quantity, source_printer_event_id,
-    estimation_method, calculation_version, estimate_quality, report_revision, staff_corrected)
+    estimation_method, calculation_version, estimate_quality, report_revision, staff_corrected, material_unit)
 VALUES ($1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10,
-    $11, $12, $13, $14, $15) RETURNING id, material_id, quantity, active, created_at, updated_at, ownership, spool_id, external_material_name, quantity_basis, source_printer_event_id, spool_display_id, run_id, estimation_method, calculation_version, estimate_quality, report_revision, staff_corrected, material_name, material_unit, material_type_id
+    $11, $12, $13, $14, $15,
+    (SELECT m.unit FROM materials m WHERE m.id = $3::uuid)) RETURNING id, material_id, quantity, active, created_at, updated_at, ownership, spool_id, external_material_name, quantity_basis, source_printer_event_id, spool_display_id, run_id, estimation_method, calculation_version, estimate_quality, report_revision, staff_corrected, material_name, material_unit, material_type_id
 `
 
 type InsertRunUsageParams struct {
@@ -3646,6 +3791,7 @@ type InsertRunUsageParams struct {
 	StaffCorrected       bool
 }
 
+// The usage keeps the unit of its article at the time, so a later unit change of the article converts it explicitly.
 func (q *Queries) InsertRunUsage(ctx context.Context, arg InsertRunUsageParams) (MachineRunUsage, error) {
 	row := q.db.QueryRow(ctx, insertRunUsage,
 		arg.ID,
@@ -5457,7 +5603,8 @@ func (q *Queries) ListMachines(ctx context.Context, arg ListMachinesParams) ([]L
 
 const listMaterialPrices = `-- name: ListMaterialPrices :many
 SELECT m.id AS material_id, g.id AS pricing_group_id, g.name AS pricing_group_name,
-       COALESCE(sr.rate, vr.rate, tr.rate)::numeric AS rate,
+       COALESCE(sr.rate, round(vr.rate * material_unit_factor(m.unit) / material_unit_factor(vr.material_unit), 6),
+                round(tr.rate * material_unit_factor(m.unit) / material_unit_factor(tr.material_unit), 6))::numeric AS rate,
        (CASE WHEN sr.id IS NOT NULL THEN 'stock_article' WHEN vr.id IS NOT NULL THEN 'material_type_variant' ELSE 'material_type' END)::text AS source,
        COALESCE(sr.id, vr.id, tr.id)::uuid AS pricing_rule_id
 FROM materials m
@@ -5465,9 +5612,9 @@ JOIN material_types mt ON mt.id = m.material_type_id
 CROSS JOIN pricing_groups g
 LEFT JOIN pricing_rules sr ON sr.pricing_group_id = g.id AND sr.kind = 'stock_article' AND sr.active AND sr.material_id = m.id
 LEFT JOIN pricing_rules vr ON vr.pricing_group_id = g.id AND vr.kind = 'material' AND vr.active AND mt.machine_use
-    AND vr.material_type_id = m.material_type_id AND vr.material_unit = m.unit AND vr.material_type_variant_id = m.variant_id
+    AND vr.material_type_id = m.material_type_id AND vr.material_type_variant_id = m.variant_id
 LEFT JOIN pricing_rules tr ON tr.pricing_group_id = g.id AND tr.kind = 'material' AND tr.active AND mt.machine_use
-    AND tr.material_type_id = m.material_type_id AND tr.material_unit = m.unit AND tr.material_type_variant_id IS NULL
+    AND tr.material_type_id = m.material_type_id AND tr.material_type_variant_id IS NULL
 WHERE m.id = ANY(($1::text[])::uuid[]) AND g.active AND (sr.id IS NOT NULL OR vr.id IS NOT NULL OR tr.id IS NOT NULL)
 ORDER BY m.id, g.is_default DESC, lower(g.name), g.id
 `
@@ -5482,7 +5629,8 @@ type ListMaterialPricesRow struct {
 }
 
 // Sale prices of articles per active pricing group: the article's own stock_article rule, else the material rule of
-// its variant, else the material rule of its machine-use type.
+// its variant, else the material rule of its machine-use type. Material rules are per the type's reference unit and are
+// converted to the article's unit.
 func (q *Queries) ListMaterialPrices(ctx context.Context, materialIds []string) ([]ListMaterialPricesRow, error) {
 	rows, err := q.db.Query(ctx, listMaterialPrices, materialIds)
 	if err != nil {
@@ -5662,7 +5810,7 @@ func (q *Queries) ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow
 }
 
 const listMaterials = `-- name: ListMaterials :many
-SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, m.variant_id, mt.name AS material_type_name, mt.kind AS material_kind, mt.code AS material_type_code, mt.machine_use,
+SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, m.variant, m.manufacturer, m.package_size, m.storage_location, m.notes, m.display_id, m.deleted_at, m.deleted_by, m.variant_id, m.count_label, mt.name AS material_type_name, mt.kind AS material_kind, mt.code AS material_type_code, mt.machine_use,
        b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        (COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.kind NOT IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0)
         + GREATEST(COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.kind IN ('order_sale', 'order_sale_reversal') AND t.occurred_at >= now() - interval '30 days'), 0), 0))::numeric AS recent_consumption,
@@ -5722,6 +5870,7 @@ type ListMaterialsRow struct {
 	DeletedAt          pgtype.Timestamptz
 	DeletedBy          *uuid.UUID
 	VariantID          *uuid.UUID
+	CountLabel         *string
 	MaterialTypeName   string
 	MaterialKind       string
 	MaterialTypeCode   string
@@ -5775,6 +5924,7 @@ func (q *Queries) ListMaterials(ctx context.Context, arg ListMaterialsParams) ([
 			&i.DeletedAt,
 			&i.DeletedBy,
 			&i.VariantID,
+			&i.CountLabel,
 			&i.MaterialTypeName,
 			&i.MaterialKind,
 			&i.MaterialTypeCode,
@@ -6684,7 +6834,7 @@ SELECT u.id, u.material_id, u.quantity, u.active, u.created_at, u.updated_at, u.
        COALESCE(u.external_material_name, m.name, u.material_name, et.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'Own material' END)::text AS material_name_text,
        m.material_type_id, m.variant_id, m.variant AS variant_name,
        COALESCE(mt.name, et.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'External' END)::text AS material_type_name,
-       COALESCE(m.unit, u.material_unit, et.unit, 'g')::text AS unit
+       COALESCE(u.material_unit, m.unit, et.unit, 'g')::text AS unit
 FROM machine_run_usages u
 LEFT JOIN materials m ON m.id = u.material_id
 LEFT JOIN material_types mt ON mt.id = m.material_type_id
@@ -7032,7 +7182,7 @@ func (q *Queries) ListRunsDeletedWithJob(ctx context.Context, arg ListRunsDelete
 }
 
 const listWorkItemMaterialTotals = `-- name: ListWorkItemMaterialTotals :many
-SELECT COALESCE(r.job_id, r.id)::uuid AS item_id, COALESCE(mt.name, 'External')::text AS material_type_name, COALESCE(m.unit, 'g')::text AS unit, sum(u.quantity)::numeric AS quantity
+SELECT COALESCE(r.job_id, r.id)::uuid AS item_id, COALESCE(mt.name, 'External')::text AS material_type_name, COALESCE(u.material_unit, m.unit, 'g')::text AS unit, sum(u.quantity)::numeric AS quantity
 FROM machine_run_usages u
 JOIN machine_runs r ON r.id = u.run_id
 LEFT JOIN materials m ON m.id = u.material_id
@@ -7431,11 +7581,12 @@ func (q *Queries) MaterialTypeHasMaterials(ctx context.Context, id uuid.UUID) (b
 
 const materialTypeIsReferenced = `-- name: MaterialTypeIsReferenced :one
 SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.material_type_id = $1::uuid)
-    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_id = $1::uuid))::boolean AS referenced
+    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_id = $1::uuid)
+    OR EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.material_type_id = $1::uuid))::boolean AS referenced
 `
 
-// True while a material or a pricing rule (active or not) uses the type. Pricing
-// snapshots only keep a nullable pointer and their own label text.
+// True while a material, a pricing rule (active or not) or a run usage of material the recipient brought uses the type.
+// Pricing snapshots only keep a nullable pointer and their own label text.
 func (q *Queries) MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, materialTypeIsReferenced, id)
 	var referenced bool
@@ -7872,7 +8023,7 @@ func (q *Queries) RestoreMachineRun(ctx context.Context, arg RestoreMachineRunPa
 const restoreMaterial = `-- name: RestoreMaterial :one
 UPDATE materials SET deleted_at = NULL, deleted_by = NULL, version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2 AND deleted_at IS NOT NULL
-RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id
+RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id, count_label
 `
 
 type RestoreMaterialParams struct {
@@ -7904,6 +8055,7 @@ func (q *Queries) RestoreMaterial(ctx context.Context, arg RestoreMaterialParams
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.VariantID,
+		&i.CountLabel,
 	)
 	return i, err
 }
@@ -8288,7 +8440,9 @@ func (q *Queries) SetRunSignageHidden(ctx context.Context, arg SetRunSignageHidd
 }
 
 const setRunUsageMaterialType = `-- name: SetRunUsageMaterialType :exec
-UPDATE machine_run_usages SET material_type_id = $1 WHERE id = $2
+UPDATE machine_run_usages u SET material_type_id = $1,
+    material_unit = COALESCE(u.material_unit, (SELECT t.unit FROM material_types t WHERE t.id = $1::uuid))
+WHERE u.id = $2
 `
 
 type SetRunUsageMaterialTypeParams struct {
@@ -8384,7 +8538,7 @@ func (q *Queries) SoftDeleteMachineRun(ctx context.Context, arg SoftDeleteMachin
 const softDeleteMaterial = `-- name: SoftDeleteMaterial :one
 UPDATE materials SET deleted_at = $1, deleted_by = $2, version = version + 1, updated_at = now()
 WHERE id = $3 AND version = $4 AND deleted_at IS NULL
-RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id
+RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id, count_label
 `
 
 type SoftDeleteMaterialParams struct {
@@ -8423,6 +8577,7 @@ func (q *Queries) SoftDeleteMaterial(ctx context.Context, arg SoftDeleteMaterial
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.VariantID,
+		&i.CountLabel,
 	)
 	return i, err
 }
@@ -8908,7 +9063,8 @@ func (q *Queries) StatisticMachineUtilization(ctx context.Context, arg Statistic
 const statisticMaterialByMonth = `-- name: StatisticMaterialByMonth :many
 SELECT to_char(date_trunc('month', t.occurred_at AT TIME ZONE 'UTC'), 'YYYY-MM')::text AS month,
        mt.id AS material_type_id, mt.name AS material_type_name, mt.unit,
-       (-sum(t.quantity_delta))::numeric AS quantity, (-sum(t.inventory_value_delta))::numeric AS cost
+       round(-sum(t.quantity_delta * material_unit_factor(m.unit)) / material_unit_factor(mt.unit), 6)::numeric AS quantity,
+       (-sum(t.inventory_value_delta))::numeric AS cost
 FROM inventory_transactions t JOIN materials m ON m.id = t.material_id JOIN material_types mt ON mt.id = m.material_type_id
 WHERE (t.kind IN ('machine_run_consumption', 'manual_consumption') OR (t.kind = 'adjustment' AND t.adjustment_reason = 'job_corrected'))
   AND t.occurred_at >= $1 AND t.occurred_at < $2
@@ -8929,6 +9085,7 @@ type StatisticMaterialByMonthRow struct {
 	Cost             pgtype.Numeric
 }
 
+// Quantities are summed in the reference unit of the material type.
 func (q *Queries) StatisticMaterialByMonth(ctx context.Context, arg StatisticMaterialByMonthParams) ([]StatisticMaterialByMonthRow, error) {
 	rows, err := q.db.Query(ctx, statisticMaterialByMonth, arg.FromTime, arg.ToTime)
 	if err != nil {
@@ -8957,7 +9114,8 @@ func (q *Queries) StatisticMaterialByMonth(ctx context.Context, arg StatisticMat
 }
 
 const statisticMaterialChargesByType = `-- name: StatisticMaterialChargesByType :many
-SELECT mt.id::text AS key, mt.name AS label, round(sum(u.quantity * sr.rate), 2)::numeric AS value
+SELECT mt.id::text AS key, mt.name AS label,
+       round(sum(u.quantity * material_unit_factor(COALESCE(u.material_unit, m.unit)) / material_unit_factor(sr.unit) * sr.rate), 2)::numeric AS value
 FROM machine_jobs j
 JOIN machine_job_run_summaries s ON s.job_id = j.id
 JOIN machine_runs r ON r.job_id = j.id AND r.state IS DISTINCT FROM 'replaced' AND r.deleted_at IS NULL
@@ -9100,7 +9258,8 @@ func (q *Queries) StatisticMaterialLossByType(ctx context.Context, arg Statistic
 }
 
 const statisticMaterialUsage = `-- name: StatisticMaterialUsage :many
-SELECT mt.id::text AS key, mt.name AS label, COALESCE(-sum(t.quantity_delta), 0)::numeric AS value
+SELECT mt.id::text AS key, mt.name AS label,
+       COALESCE(-sum(t.quantity_delta * material_unit_factor(m.unit)) / material_unit_factor(mt.unit), 0)::numeric AS value
 FROM inventory_transactions t JOIN materials m ON m.id = t.material_id JOIN material_types mt ON mt.id = m.material_type_id
 WHERE (t.kind IN ('machine_run_consumption', 'manual_consumption') OR (t.kind = 'adjustment' AND t.adjustment_reason = 'job_corrected'))
   AND t.occurred_at >= $1 AND t.occurred_at < $2 AND t.deleted_at IS NULL
@@ -9749,10 +9908,10 @@ const updateMaterial = `-- name: UpdateMaterial :one
 UPDATE materials SET name = $1, material_type_id = $2, color_name = $3, color_hex = $4, unit = $5,
     active = $6, low_stock_threshold = $7, variant = $8, variant_id = $9,
     manufacturer = $10,
-    package_size = $11, storage_location = $12, notes = $13,
+    package_size = $11, count_label = $12, storage_location = $13, notes = $14,
     version = version + 1, updated_at = now()
-WHERE id = $14 AND version = $15
-RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id
+WHERE id = $15 AND version = $16
+RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex, variant, manufacturer, package_size, storage_location, notes, display_id, deleted_at, deleted_by, variant_id, count_label
 `
 
 type UpdateMaterialParams struct {
@@ -9767,6 +9926,7 @@ type UpdateMaterialParams struct {
 	VariantID         *uuid.UUID
 	Manufacturer      *string
 	PackageSize       pgtype.Numeric
+	CountLabel        *string
 	StorageLocation   *string
 	Notes             *string
 	ID                uuid.UUID
@@ -9786,6 +9946,7 @@ func (q *Queries) UpdateMaterial(ctx context.Context, arg UpdateMaterialParams) 
 		arg.VariantID,
 		arg.Manufacturer,
 		arg.PackageSize,
+		arg.CountLabel,
 		arg.StorageLocation,
 		arg.Notes,
 		arg.ID,
@@ -9813,6 +9974,7 @@ func (q *Queries) UpdateMaterial(ctx context.Context, arg UpdateMaterialParams) 
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.VariantID,
+		&i.CountLabel,
 	)
 	return i, err
 }

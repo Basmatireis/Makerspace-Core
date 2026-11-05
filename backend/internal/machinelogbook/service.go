@@ -219,9 +219,11 @@ type Material struct {
 	// VariantID is the variant of the material type; Variant is its name.
 	VariantID   *uuid.UUID
 	PackageSize *string
-	Active      bool
-	Prices      []MaterialPrice
-	Attention   []Attention
+	// CountLabel names the piece of a piece article (sheet, pair, roll); quantities stay in pieces.
+	CountLabel *string
+	Active     bool
+	Prices     []MaterialPrice
+	Attention  []Attention
 	// deleted: the article is in the recycle bin.
 	deleted                                            bool
 	LowStockThreshold                                  *string

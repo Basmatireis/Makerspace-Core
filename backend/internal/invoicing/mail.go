@@ -76,9 +76,23 @@ func trimNumber(value string) string {
 func (i Item) quantityText() string {
 	quantity := trimNumber(i.Quantity)
 	if i.Unit != "" {
-		quantity += " " + i.Unit
+		quantity += " " + unitSymbol(i.Unit)
 	}
 	return quantity
+}
+
+// unitSymbol is how an item's unit reads on a mail or invoice: the stored codes for squares and pieces become
+// their symbols; every other unit (including a count label such as "sheet") stays as it is.
+func unitSymbol(unit string) string {
+	switch unit {
+	case "cm2":
+		return "cm²"
+	case "m2":
+		return "m²"
+	case "piece":
+		return "pcs"
+	}
+	return unit
 }
 
 // paragraphs splits a template text at blank lines.

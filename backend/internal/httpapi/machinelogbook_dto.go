@@ -154,6 +154,7 @@ func mlMaterialTypeDTO(item machinelogbook.MaterialType) openapi.MaterialType {
 		Kind:             openapi.MaterialKind(item.Kind),
 		MachineUse:       item.MachineUse,
 		Unit:             openapi.MaterialUnit(item.Unit),
+		Dimension:        materialDimension(item.Unit),
 		ProcessIds:       uuidSlice(item.ProcessIDs),
 		Variants:         mlMaterialTypeVariantsDTO(item.Variants),
 		Active:           item.Active,
@@ -216,6 +217,13 @@ func runMeasuresInput(value *openapi.RunMeasures) machinelogbook.RunMeasures {
 	}
 	return result
 }
+
+// materialDimension is the dimension of a stored unit; the unit CHECK constraints admit only known units.
+func materialDimension(unit string) openapi.MaterialDimension {
+	dimension, _ := machinelogbook.DimensionOf(unit)
+	return openapi.MaterialDimension(dimension)
+}
+
 func materialUnitPointer(value *openapi.MaterialUnit) *string {
 	if value == nil {
 		return nil
@@ -268,6 +276,7 @@ func mlMaterialDTO(item machinelogbook.Material) openapi.Material {
 		VariantId:          nullableUUIDValue(item.VariantID),
 		Manufacturer:       nullableString(item.Manufacturer),
 		PackageSize:        nullableDecimalValue(item.PackageSize),
+		CountLabel:         nullableString(item.CountLabel),
 		StorageLocation:    nullableString(item.StorageLocation),
 		Notes:              nullableString(item.Notes),
 		MaterialTypeId:     item.MaterialTypeID,
@@ -275,6 +284,7 @@ func mlMaterialDTO(item machinelogbook.Material) openapi.Material {
 		ColorName:          nullableString(item.ColorName),
 		ColorHex:           nullableString(item.ColorHex),
 		Unit:               openapi.MaterialUnit(item.Unit),
+		Dimension:          materialDimension(item.Unit),
 		Active:             item.Active,
 		LowStockThreshold:  nullableDecimalValue(item.LowStockThreshold),
 		FilamentDiameterMm: nullableDecimalValue(item.FilamentDiameterMM),

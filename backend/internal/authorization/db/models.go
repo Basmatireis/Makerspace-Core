@@ -808,6 +808,7 @@ type Material struct {
 	DeletedAt         pgtype.Timestamptz
 	DeletedBy         *uuid.UUID
 	VariantID         *uuid.UUID
+	CountLabel        *string
 }
 
 type MaterialBalance struct {

@@ -7181,8 +7181,9 @@ paths:
       operationId: updateMaterialType
       summary: Update a material type
       description: >-
-        Requires `inventory.manage`. Renames, deactivates or reactivates the type. The unit can only change while no material or pricing rule uses the type
-        (409 material_type_unit_in_use).
+        Requires `inventory.manage`. Renames, deactivates or reactivates the type. The unit can change to another unit of the same dimension at any time:
+        the rates of the type's and its variants' material pricing rules are converted in the same transaction so prices stay the same (articles keep their
+        own units). A unit of another dimension is only possible while no material, pricing rule or run usage uses the type (409 material_type_unit_in_use).
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateMaterialTypeRequest"}}}}
       responses:
@@ -16478,8 +16479,15 @@ components:
 
     MaterialUnit:
       type: string
-      enum: [g, m, ml, m2, cm2, piece]
-      description: "m2 stays for existing data; new square-measure material uses cm2."
+      enum: [g, kg, mm, cm, m, cm2, m2, ml, l, piece]
+      description: >-
+        A unit of one dimension: mass (g, kg), length (mm, cm, m), area (cm2, m2), volume (ml, l) or count (piece).
+        Units convert within their dimension only.
+
+    MaterialDimension:
+      type: string
+      enum: [mass, length, area, volume, count]
+      description: The physical quantity of a unit (mass g/kg, length mm/cm/m, area cm2/m2, volume ml/l, count piece).
 
     ProcessIntegration:
       type: string
@@ -16928,7 +16936,7 @@ components:
         materialTypeName: {type: string, nullable: true}
         materialTypeVariantId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set on material rules that price one variant of the type; null is the rate of the type itself, which variants without a rule of their own inherit."}
         materialTypeVariantName: {type: string, nullable: true}
-        materialUnit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true, description: "The unit of the material type, or of the article for stock_article rules."}
+        materialUnit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true, description: "The reference unit of the material type (the rate is per this unit; it is converted to the unit of the article or usage it prices), or the unit of the article for stock_article rules."}
         materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set on stock_article rules; the rate is per unit of this article."}
         materialName: {type: string, nullable: true}
         materialDisplayId: {type: string, nullable: true}
@@ -17079,7 +17087,7 @@ components:
     Material:
       type: object
       additionalProperties: false
-      required: [id, displayId, name, kind, materialTypeId, materialTypeName, materialTypeCode, machineUse, unit, active, quantity, assignedQuantity, unassignedQuantity, averageUnitCost, inventoryValue, stockState, inventoryVersion, recentConsumption, prices, attention, version, createdAt, updatedAt]
+      required: [id, displayId, name, kind, materialTypeId, materialTypeName, materialTypeCode, machineUse, unit, dimension, active, quantity, assignedQuantity, unassignedQuantity, averageUnitCost, inventoryValue, stockState, inventoryVersion, recentConsumption, prices, attention, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string, pattern: "^A-[0-9]{4,}$", description: Article number assigned on creation.}
@@ -17097,7 +17105,9 @@ components:
         notes: {type: string, maxLength: 2000, nullable: true}
         colorName: {type: string, maxLength: 80, nullable: true}
         colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
-        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: The unit of the material type.}
+        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: "The unit the article is counted in: any unit of its material type's dimension (the type's unit by default). Quantities, package size, threshold and stock_article rates are in this unit."}
+        dimension: {allOf: [{$ref: "#/components/schemas/MaterialDimension"}], description: The dimension of the material type and of the article's unit.}
+        countLabel: {$ref: "#/components/schemas/CountLabel"}
         active: {type: boolean}
         lowStockThreshold: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         quantity: {$ref: "#/components/schemas/Decimal"}
@@ -17154,17 +17164,27 @@ components:
       pattern: "^#[0-9A-F]{6}$"
       description: "Colour code of a material as #RRGGBB with upper-case hexadecimal digits."
 
+    CountLabel:
+      type: string
+      nullable: true
+      minLength: 1
+      maxLength: 20
+      description: >-
+        What one piece of a piece article is called (sheet, pair, roll). Only valid when the unit is piece (400 otherwise); trimmed. Quantities
+        stay in pieces; the label is shown instead of the unit, for example on order items sold from stock.
+
     MaterialType:
       type: object
       additionalProperties: false
-      required: [id, name, code, kind, machineUse, unit, processIds, variants, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
+      required: [id, name, code, kind, machineUse, unit, dimension, processIds, variants, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         code: {allOf: [{$ref: "#/components/schemas/MaterialTypeCode"}]}
         kind: {$ref: "#/components/schemas/MaterialKind"}
         machineUse: {type: boolean, description: "Materials of the type are used in machine runs and priced by material rules; always true for filament."}
-        unit: {$ref: "#/components/schemas/MaterialUnit"}
+        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: "The reference unit of the type: material rates and statistics are per this unit."}
+        dimension: {allOf: [{$ref: "#/components/schemas/MaterialDimension"}], description: The dimension of the unit. Articles of the type are counted in any unit of this dimension.}
         processIds: {type: array, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Processes whose machines can consume materials of this type in new runs."}
         variants: {type: array, items: {$ref: "#/components/schemas/MaterialTypeVariant"}, description: "The variants of the type, by name; empty for parts."}
         active: {type: boolean}
@@ -17260,11 +17280,12 @@ components:
         variant: {type: string, maxLength: 80, nullable: true, description: "The name of one of the type's variants, matched ignoring case after trimming; an unknown name is added to the type's variants. Parts take none."}
         manufacturer: {type: string, maxLength: 150, nullable: true}
         packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        countLabel: {$ref: "#/components/schemas/CountLabel"}
         storageLocation: {type: string, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
         colorName: {type: string, maxLength: 80, nullable: true}
         colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
-        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: "Optional. The unit always is the unit of the material type; a different value is refused with 422 material_unit_mismatch."}
+        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: "Optional. Any unit of the material type's dimension; defaults to the type's unit. Another dimension is refused with 422 material_unit_mismatch; filament is always g."}
         lowStockThreshold: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         filamentDiameterMm: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
 
@@ -17278,13 +17299,14 @@ components:
         materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
         variant: {type: string, maxLength: 80, nullable: true, description: "The name of one of the type's variants, matched ignoring case after trimming; an unknown name is added to the type's variants. Parts take none."}
         manufacturer: {type: string, maxLength: 150, nullable: true}
-        packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        packageSize: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: "In the article's new unit when the request changes it; left as it was, it is converted along with the unit."}
+        countLabel: {$ref: "#/components/schemas/CountLabel"}
         storageLocation: {type: string, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
         colorName: {type: string, maxLength: 80, nullable: true}
         colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
-        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: "Optional. The unit always is the unit of the material type; a different value is refused with 422 material_unit_mismatch."}
-        lowStockThreshold: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: "Optional; omitted keeps the unit. Any unit of the material type's dimension. A different unit of that dimension converts, in the same transaction, the article's stock ledger and balance, package size and low-stock threshold (unless changed in this request), stock_article rates and run usages; pricing snapshots and order items keep their unit. Another dimension is refused with 422 material_unit_mismatch; filament is always g."}
+        lowStockThreshold: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: "In the article's new unit when the request changes it; left as it was, it is converted along with the unit."}
         filamentDiameterMm: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         expectedVersion: {$ref: "#/components/schemas/Version"}
         active: {type: boolean}
