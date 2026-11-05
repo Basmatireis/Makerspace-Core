@@ -31,6 +31,10 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
   page,
 }) => {
   test.setTimeout(120_000);
+  // Every fresh account is offered the guided tours on its first sign-in; the toast would cover dialog buttons.
+  await page.addLocatorHandler(page.getByRole('status').filter({ hasText: 'New here?' }), async (offer) => {
+    await offer.getByRole('button', { name: 'Not now' }).click();
+  });
   let personPath = '';
   let phoneOnlyPersonPath = '';
   let rolePath = '';
