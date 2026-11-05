@@ -3,6 +3,7 @@ import { ActionableNotification } from '@carbon/react';
 import { useCurrentUser } from '../auth/auth';
 import { useGuides } from './GuideProvider';
 import { useGuideProgress, useUpdateGuideProgress } from './progress';
+import { useAppOverlay } from './useGuideTarget';
 
 export const WELCOME_GUIDE_ID = 'welcome';
 
@@ -16,10 +17,14 @@ export default function GuideOffer() {
     currentUser.managedDevice === null && currentUser.session.postSessionDestination !== 'visitor_terminal';
   // Only people the offer is for ask the server.
   const progress = useGuideProgress(eligible);
+  // The toast sits at the bottom of the screen; it waits while a dialog or header panel is open so it never covers
+  // their buttons.
+  const overlay = useAppOverlay();
 
   if (
     !eligible ||
     hidden ||
+    overlay !== null ||
     activeGuideId !== null ||
     !progress.data ||
     progress.data.items.some((item) => item.guideId === WELCOME_GUIDE_ID)

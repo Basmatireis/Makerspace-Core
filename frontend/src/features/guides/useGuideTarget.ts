@@ -216,15 +216,24 @@ export function useElementRect(element: HTMLElement | null, highlight: Highlight
 
 const OPEN_MODAL = '.cds--modal.is-visible:not(.guide-modal) .cds--modal-container';
 
-/** The box of a Carbon modal of the page itself (not the tour's own panel) while one is open. */
-export function useAppModal(): HTMLElement | null {
-  const [modal, setModal] = useState<HTMLElement | null>(() => document.querySelector<HTMLElement>(OPEN_MODAL));
+function useOpenElement(selector: string): HTMLElement | null {
+  const [element, setElement] = useState<HTMLElement | null>(() => document.querySelector<HTMLElement>(selector));
   useEffect(() => {
-    const check = () => setModal(document.querySelector<HTMLElement>(OPEN_MODAL));
+    const check = () => setElement(document.querySelector<HTMLElement>(selector));
     check();
     const observer = new MutationObserver(check);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
-  }, []);
-  return modal;
+  }, [selector]);
+  return element;
+}
+
+/** The box of a Carbon modal of the page itself (not the tour's own panel) while one is open. */
+export function useAppModal(): HTMLElement | null {
+  return useOpenElement(OPEN_MODAL);
+}
+
+/** A page modal or an expanded header panel (profile, notifications) while one is open. */
+export function useAppOverlay(): HTMLElement | null {
+  return useOpenElement(`${OPEN_MODAL}, .cds--header-panel--expanded`);
 }

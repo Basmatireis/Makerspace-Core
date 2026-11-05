@@ -54,6 +54,25 @@ describe('welcome tour offer', () => {
     expect(screen.queryByText('New here?')).not.toBeInTheDocument();
   });
 
+  it('waits while a dialog or header panel is open so it never covers their buttons', async () => {
+    progress([]);
+    const overlay = document.createElement('div');
+    overlay.className = 'cds--header-panel cds--header-panel--expanded';
+    document.body.appendChild(overlay);
+    renderOffer();
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(screen.queryByText('New here?')).not.toBeInTheDocument();
+    overlay.className = 'cds--header-panel';
+    expect(await screen.findByText('New here?')).toBeInTheDocument();
+
+    overlay.className = '';
+    overlay.innerHTML = '<div class="cds--modal is-visible"><div class="cds--modal-container"></div></div>';
+    await waitFor(() => expect(screen.queryByText('New here?')).not.toBeInTheDocument());
+    overlay.remove();
+    expect(await screen.findByText('New here?')).toBeInTheDocument();
+  });
+
   it('stays away once the tour was completed or dismissed', async () => {
     progress([{ guideId: 'welcome', status: 'dismissed' }]);
     renderOffer();

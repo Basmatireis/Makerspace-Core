@@ -2,6 +2,12 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- **The welcome tour offer no longer covers dialogs.** On a new account's first sign-in the "New here?" toast waits while a dialog or the profile or notification panel is open, so it never hides their buttons.
+
 ## [0.18.0] - 2026-11-05
 
 ### Added
