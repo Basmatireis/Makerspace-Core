@@ -41,6 +41,15 @@ const h2dFeedDocument = `{"print":{"gcode_state":"RUNNING","task_id":"88","layer
 	`{"id":"1","tag_uid":"LEFTB","tray_type":"PLA"}]},` +
 	`{"id":"128","info":"51002104","tray":[{"id":"0","tag_uid":"RIGHT","tray_type":"PETG"}]}]}}}`
 
+// h2dRunOutStatus is AMS 0 of h2dFeedDocument after tray 0 ran out, as an
+// AMS 2 Pro reports it: the tray is absent and has no material or tag, and the
+// hotend source is external holder 255 while the filament tail is printed.
+const h2dRunOutStatus = `{"print":{"layer_num":10,"ams":{"tray_exist_bits":"10002","ams":[` +
+	`{"id":"0","info":"10001003","tray":[{"id":"0","state":26},{"id":"1","tag_uid":"0000000000000000","tray_type":"PLA"}]},` +
+	`{"id":"128","info":"51002104","tray":[{"id":"0","tag_uid":"RIGHT","tray_type":"PETG"}]}]},` +
+	`"vir_slot":[{"id":"254","tray_type":"","tag_uid":"0000000000000000"},{"id":"255","tray_type":"","tag_uid":"0000000000000000"}],` +
+	`"device":{"extruder":{"info":[{"id":0,"snow":65280,"info":2},{"id":1,"snow":32768,"info":2}]}}}}`
+
 func TestBambuFeedTimeline(t *testing.T) {
 	t.Parallel()
 	type segment struct {
@@ -159,6 +168,35 @@ func TestBambuFeedTimeline(t *testing.T) {
 			want: []line{
 				{extruder: 0, segments: []segment{{slot: "0", tag: "LEFTA"}, {slot: "1", tag: "LEFTB", layer: 25}}},
 				{extruder: 1, segments: []segment{{slot: "0", tag: "RIGHT"}}},
+			},
+		},
+		{
+			// Captured on an H2D with AMS 2 Pro and spools without RFID.
+			name:        "H2D backup refill after printing the run-out tail",
+			adapterKind: AdapterBambuH2D,
+			statuses: []string{
+				h2dFeedDocument,
+				h2dRunOutStatus,
+				`{"print":{"layer_num":39,"device":{"extruder":{"info":[{"id":0,"snow":65535,"info":2},{"id":1,"snow":32768,"info":2}]}}}}`,
+				`{"print":{"layer_num":39,"device":{"extruder":{"info":[{"id":0,"snow":1,"info":2},{"id":1,"snow":32768,"info":2}]}}}}`,
+			},
+			want: []line{
+				{extruder: 0, segments: []segment{{slot: "0", tag: "LEFTA"}, {slot: "1", layer: 39}}},
+				{extruder: 1, segments: []segment{{slot: "0", tag: "RIGHT"}}},
+			},
+		},
+		{
+			name:        "H2D external holder without filament is a source while the AMS slot is loaded",
+			adapterKind: AdapterBambuH2D,
+			statuses: []string{
+				h2dFeedDocument,
+				`{"print":{"layer_num":5,"vir_slot":[{"id":"255","tray_type":"","tag_uid":"0000000000000000"}],` +
+					`"device":{"extruder":{"info":[{"id":0,"snow":65280,"info":2},{"id":1,"snow":32768,"info":2}]}}}}`,
+			},
+			want: []line{
+				{extruder: 0, segments: []segment{{slot: "0", tag: "LEFTA"}}},
+				{extruder: 1, segments: []segment{{slot: "0", tag: "RIGHT"}}},
+				{extruder: 0, segments: []segment{{slot: "255"}}},
 			},
 		},
 		{

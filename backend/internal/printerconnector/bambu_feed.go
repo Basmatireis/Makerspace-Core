@@ -154,7 +154,11 @@ func (p *bambuProcessor) recordBambuFeed(
 	}
 	if !explicit {
 		for _, route := range routes {
-			recorder.observe(tracker.source(route.slicerFilamentID, route.extruderID, route.ref))
+			source := tracker.source(route.slicerFilamentID, route.extruderID, route.ref)
+			if recorder.runOutTail(source, route.ref) {
+				continue
+			}
+			recorder.observe(source)
 		}
 		return
 	}
@@ -243,6 +247,23 @@ type bambuFeedRecorder struct {
 	empty   map[string]bool
 	segment bambuFeedSegment
 	started bool
+}
+
+// runOutTail says whether a route names an external holder without filament
+// while the line it would feed ran out. The H2D reports the hotend source as
+// external holder 255 (snow 0xFF00) while it prints the tail of a run-out AMS
+// spool and until the backup tray takes over; that is no spool of its own.
+func (r *bambuFeedRecorder) runOutTail(source bambuFeedSource, ref bambuTrayRef) bool {
+	if !ref.external || source.tag.present() || stringAt(ref.tray, "tray_type") != "" {
+		return false
+	}
+	current, ok := r.tracker.Current[source.routeKey()]
+	if !ok || current >= len(r.facts.FeedLines) {
+		return false
+	}
+	segments := r.facts.FeedLines[current].Segments
+	last := segments[len(segments)-1]
+	return r.empty[last.InputUnitExternalID+":"+last.SlotExternalID]
 }
 
 func (r *bambuFeedRecorder) linesFor(key string) []int {

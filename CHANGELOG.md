@@ -2,6 +2,12 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- **An AMS backup refill on the H2D splits the consumption between both spools.** While the H2D prints the tail of a run-out AMS spool, it reports the hotend's source as external holder 255. The connector recorded that empty holder as a spool of its own, so the switch to the backup tray no longer counted as a refill and the whole quantity was booked on the backup spool. The connector now ignores an external holder without filament while the line's tray has run out. X1C refills were already split correctly.
+
 ## [0.16.1] - 2026-11-05
 
 ### Upgrade notes
