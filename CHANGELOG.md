@@ -2,7 +2,7 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
-## [Unreleased]
+## [0.18.0] - 2026-11-05
 
 ### Added
 
@@ -814,6 +814,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.18.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.16.3...v0.17.0
 [0.16.3]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.16.2...v0.16.3
 [0.16.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.16.1...v0.16.2
