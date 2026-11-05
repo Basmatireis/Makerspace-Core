@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"strings"
+	"unicode"
 
 	"github.com/google/uuid"
 )
@@ -30,8 +31,11 @@ var externalMediaPrefixes = []string{"/media/usb", "/mnt/sdcard", "/sdcard"}
 // The merged status document keeps `url` from the previous print, so only a
 // url that names external media and whose file name matches the print counts.
 // Without a url, or with a stale or mismatching one, the print is taken to
-// come from internal storage. A print without a subtask_name cannot be matched,
-// so a url on external media is trusted.
+// come from internal storage. Names are compared by their letters and digits:
+// for a print started on the printer's screen the H2D reports the project
+// title ("H2D / H2S / H2C USB Drive Protector") instead of the file name
+// ("H2D_H2S_H2C_USB_Drive_Protector"). A print without a subtask_name cannot be
+// matched, so a url on external media is trusted.
 //
 // An ftp(s) url means the slicer uploaded the archive to the printer's FTP
 // storage, which is the SD card or USB stick: the X1C reports such prints as
@@ -41,12 +45,12 @@ func classifyBambuPrintSource(sessionURL, subtaskName string) bambuPrintSource {
 	if !ok {
 		return bambuSourceInternal
 	}
-	printName := archiveBaseName(subtaskName)
+	printName := printNameKey(subtaskName)
 	if printName == "" {
 		return bambuSourceExternal
 	}
 	slash := strings.LastIndex(mediaPath, "/")
-	if strings.EqualFold(archiveBaseName(mediaPath[slash+1:]), printName) {
+	if printNameKey(mediaPath[slash+1:]) == printName {
 		return bambuSourceExternal
 	}
 	return bambuSourceInternal
@@ -96,6 +100,18 @@ func externalMediaPath(raw string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// printNameKey reduces a print or archive name to its lower-case letters and
+// digits, without the archive extensions.
+func printNameKey(name string) string {
+	var key strings.Builder
+	for _, character := range strings.ToLower(archiveBaseName(name)) {
+		if unicode.IsLetter(character) || unicode.IsDigit(character) {
+			key.WriteRune(character)
+		}
+	}
+	return key.String()
 }
 
 // archiveBaseName strips the archive extensions Bambu appends to a print name.

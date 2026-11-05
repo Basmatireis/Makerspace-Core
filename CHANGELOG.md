@@ -2,6 +2,12 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- **Prints started on the H2D's screen from a USB stick report their consumption.** For such a print the H2D reports the project title (`H2D / H2S / H2C USB Drive Protector`) instead of the file name (`H2D_H2S_H2C_USB_Drive_Protector`), so the connector took the archive for one on internal storage and reported the consumption as unavailable. Print and file names are now compared by their letters and digits only.
+
 ## [0.16.2] - 2026-11-05
 
 ### Fixed
