@@ -2,6 +2,10 @@
 
 The application offers guided tours ("guides") to new people. Which ones an account has completed or dismissed is stored per account so a tour is not offered again on another device. The feature lives in `backend/internal/guides` (HTTP tag _Guides_, migration 00108).
 
+## Offers
+
+The app shell (`GuideOffer`) offers one tour at a time as a toast at the bottom of the screen, on normal staff sessions only (not on managed devices or the visitor terminal): first the `welcome` tour, and once that is completed or dismissed, the tour of an area whenever a page of that area is open (`suggestOn` in the guide definition: Workshop on `/workshop/…`, Sales & payments on `/orders`, `/payments` and `/pricing`, Open days on `/open-days/…`) until it is completed or dismissed. "Start tour" runs it; "Not now" stores it as `dismissed`. The toast waits while a page dialog or a header panel is open and never shows during a tour. Workflows are not offered; they stay in the help center.
+
 ## Storage
 
 `account_guide_progress` has one row per account and guide: `guide_id` (`^[a-z][a-z0-9-]{0,63}$`), `status` (`completed` or `dismissed`) and `updated_at` (UTC, from the application clock). The primary key is `(account_id, guide_id)`; rows are deleted with the account. Guide identifiers are defined by the frontend, not by the database.

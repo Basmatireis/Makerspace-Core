@@ -9,6 +9,7 @@ const dayRoute = `/open-days/${DEMO_IDS.period}/days/${DEMO_IDS.openDay}`;
 export const openDaysGuides: GuideDefinition[] = [
   {
     id: 'open-days-tour',
+    suggestOn: /^\/open-days(\/|$)/,
     area: 'open-days',
     title: 'Open days tour',
     summary: 'See where your next open day, the semester minimum and the open places are shown.',

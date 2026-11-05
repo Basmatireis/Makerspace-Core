@@ -18,6 +18,7 @@ const customerGroup = `[data-guide="orders-ready-${DEMO_IDS.customer}"]`;
 export const salesGuides: GuideDefinition[] = [
   {
     id: 'sales-tour',
+    suggestOn: /^\/(orders|payments|pricing)(\/|$)/,
     area: 'sales',
     title: 'Sales & payments tour',
     summary: 'Orders, payments and pricing: where finished jobs turn into money and how prices are set.',

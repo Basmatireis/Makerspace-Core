@@ -10,6 +10,7 @@ const jobPage = /^\/workshop\/jobs\/(?!runs\/)[^/]+$/;
 
 const tour: GuideDefinition = {
   id: 'workshop-tour',
+  suggestOn: /^\/workshop(\/|$)/,
   area: 'workshop',
   title: 'Workshop tour',
   summary: 'Where to find jobs, runs reported by machines, machines and the inventory.',

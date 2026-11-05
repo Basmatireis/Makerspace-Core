@@ -58,6 +58,8 @@ export interface GuideDefinition {
   kind: 'tour' | 'workflow';
   /** Workflows run in demo mode: sample data in the browser, nothing reaches the server. */
   demo: boolean;
+  /** Pages of the guide's area: opening one offers the guide until it is finished or dismissed. */
+  suggestOn?: RegExp;
   requires: GuideRequirement;
   steps: GuideStep[];
 }

@@ -4,6 +4,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Added
+
+- **Area tours are offered where they apply.** Opening Workshop, Sales & payments or Open days for the first time offers that area's tour, after the welcome offer is settled. "Not now" dismisses it for good; the help center still lists it.
+
 ### Fixed
 
 - **The welcome tour offer no longer covers dialogs.** On a new account's first sign-in the "New here?" toast waits while a dialog or the profile or notification panel is open, so it never hides their buttons.

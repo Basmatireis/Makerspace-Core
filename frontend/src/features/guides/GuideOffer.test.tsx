@@ -9,13 +9,29 @@ import { renderRoute } from '../../test/render';
 import GuideOffer from './GuideOffer';
 import { GuideProvider } from './GuideProvider';
 
-const hoisted = vi.hoisted(() => ({ user: null as unknown }));
+const hoisted = vi.hoisted(() => ({
+  user: null as unknown,
+  guides: [
+    {
+      id: 'workshop-tour',
+      area: 'workshop',
+      title: 'Workshop tour',
+      summary: 'Jobs, machines and inventory.',
+      duration: '3 min',
+      kind: 'tour',
+      demo: true,
+      suggestOn: /^\/workshop(\/|$)/,
+      requires: () => true,
+      steps: [],
+    },
+  ],
+}));
 
 vi.mock('../auth/auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../auth/auth')>()),
   useCurrentUser: () => hoisted.user,
 }));
-vi.mock('./content', () => ({ guides: [] }));
+vi.mock('./content', () => ({ guides: hoisted.guides }));
 
 function progress(items: { guideId: string; status: 'completed' | 'dismissed' }[]) {
   server.use(
@@ -25,12 +41,13 @@ function progress(items: { guideId: string; status: 'completed' | 'dismissed' }[
   );
 }
 
-function renderOffer(user: CurrentUser = currentUserFixture()) {
+function renderOffer(user: CurrentUser = currentUserFixture(), route = '/') {
   hoisted.user = user;
   return renderRoute(
     <GuideProvider>
       <GuideOffer />
     </GuideProvider>,
+    route,
   );
 }
 
@@ -78,6 +95,47 @@ describe('welcome tour offer', () => {
     renderOffer();
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(screen.queryByText('New here?')).not.toBeInTheDocument();
+  });
+
+  it('offers an area\'s tour on its pages once the welcome offer is settled, and "Not now" dismisses it', async () => {
+    progress([{ guideId: 'welcome', status: 'completed' }]);
+    let body: unknown = null;
+    server.use(
+      http.put('*/api/v1/me/guides/workshop-tour', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ guideId: 'workshop-tour', status: 'dismissed', updatedAt: '2026-01-01T00:00:00Z' });
+      }),
+    );
+    const user = userEvent.setup();
+    renderOffer(currentUserFixture(), '/workshop/jobs');
+
+    expect(await screen.findByText('New to Workshop?')).toBeInTheDocument();
+    expect(screen.getByText('Jobs, machines and inventory.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Not now' }));
+    await waitFor(() => expect(body).toEqual({ status: 'dismissed' }));
+    expect(screen.queryByText('New to Workshop?')).not.toBeInTheDocument();
+  });
+
+  it('offers no area tour elsewhere, after it was settled, or before the welcome offer is', async () => {
+    progress([{ guideId: 'welcome', status: 'dismissed' }]);
+    const { unmount } = renderOffer(currentUserFixture(), '/orders');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    unmount();
+
+    progress([
+      { guideId: 'welcome', status: 'dismissed' },
+      { guideId: 'workshop-tour', status: 'completed' },
+    ]);
+    const second = renderOffer(currentUserFixture(), '/workshop/jobs');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    second.unmount();
+
+    progress([]);
+    renderOffer(currentUserFixture(), '/workshop/jobs');
+    expect(await screen.findByText('New here?')).toBeInTheDocument();
+    expect(screen.queryByText('New to Workshop?')).not.toBeInTheDocument();
   });
 
   it('is not offered on managed devices or visitor-terminal sessions, which never ask the server', async () => {
