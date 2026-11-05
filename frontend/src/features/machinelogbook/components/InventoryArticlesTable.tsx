@@ -137,7 +137,7 @@ function ArticlesTable({
           <StockTag state="empty" size="sm" />
         ) : (
           <div className="mj-cell-stack">
-            <span>{formatQuantity(row.quantity, row.unit)}</span>
+            <span>{formatQuantity(row.quantity, row.unit, row.countLabel)}</span>
             <span className="mj-secondary">
               {[
                 stockHelper(row, spoolCounts?.get(row.id) ?? (spoolCounts ? 0 : undefined)),

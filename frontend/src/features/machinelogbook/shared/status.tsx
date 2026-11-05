@@ -29,6 +29,7 @@ import type {
 } from '../../../api/generated/models';
 import { consumptionSummary, sumUsages } from '../processConfig';
 import { formatMoney, formatQuantity } from './format';
+import { unitSymbol } from '../units';
 
 // ---------------------------------------------------------------------------
 // Display names
@@ -176,7 +177,9 @@ export function FromMachineTag({ size = 'sm' }: { size?: 'sm' | 'md' }) {
 /** "12.5 g PLA Black, 3 pcs Insert", or "None recorded". */
 export const usagesText = (usages: Pick<MachineJobUsage, 'quantity' | 'unit' | 'materialName'>[]) =>
   usages.length
-    ? usages.map((usage) => `${formatQuantity(usage.quantity)} ${usage.unit} ${usage.materialName}`).join(', ')
+    ? usages
+        .map((usage) => `${formatQuantity(usage.quantity)} ${unitSymbol(usage.unit)} ${usage.materialName}`)
+        .join(', ')
     : 'None recorded';
 
 /**

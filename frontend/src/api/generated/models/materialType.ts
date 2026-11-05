@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { MaterialDimension } from './materialDimension';
 import type { MaterialKind } from './materialKind';
 import type { MaterialTypeCode } from './materialTypeCode';
 import type { MaterialTypeVariant } from './materialTypeVariant';
@@ -32,7 +33,10 @@ export interface MaterialType {
   kind: MaterialKind;
   /** Materials of the type are used in machine runs and priced by material rules; always true for filament. */
   machineUse: boolean;
+  /** The reference unit of the type: material rates and statistics are per this unit. */
   unit: MaterialUnit;
+  /** The dimension of the unit. Articles of the type are counted in any unit of this dimension. */
+  dimension: MaterialDimension;
   /** Processes whose machines can consume materials of this type in new runs. */
   processIds: UUIDv7[];
   /** The variants of the type, by name; empty for parts. */

@@ -16,6 +16,7 @@ import { formatMoney } from './formatting';
 import { articlePriceMissing } from './logic';
 import { formatCents, lineAmountCents, parseDecimalInput } from './money';
 import { useFinanceMutation } from './queries';
+import { articleUnitLabel, unitDisplay } from '../machinelogbook/units';
 
 type StockValues = { quantity: string; unitPrice: string };
 
@@ -74,7 +75,7 @@ export function InventoryItemModal({
   const [quantityText, unitPriceText] = form.watch(['quantity', 'unitPrice']);
   const quantity = parseDecimalInput(quantityText);
   const price = parseDecimalInput(unitPriceText);
-  const unit = item?.unit ?? article?.unit ?? '';
+  const unit = item ? unitDisplay(item.unit) : article ? articleUnitLabel(article.unit, article.countLabel) : '';
   const amount = quantity !== null && price !== null ? lineAmountCents(quantity, price) : null;
   const short = !editing && article && quantity !== null && Number(quantity) > Number(article.unassignedQuantity);
   const groupPrice = group && article?.prices.find((entry) => entry.pricingGroupId === group.id);
@@ -129,9 +130,12 @@ export function InventoryItemModal({
                 <span className="sales-option">
                   <span>{articleLabel(candidate)}</span>
                   <span className="sales-secondary">
-                    {formatQuantity(candidate.unassignedQuantity, 6)} {candidate.unit} in stock ·{' '}
+                    {formatQuantity(candidate.unassignedQuantity, 6)}{' '}
+                    {articleUnitLabel(candidate.unit, candidate.countLabel)} in stock ·{' '}
                     {candidate.prices.length
-                      ? candidate.prices.map((entry) => priceText(entry, candidate.unit)).join(' · ')
+                      ? candidate.prices
+                          .map((entry) => priceText(entry, articleUnitLabel(candidate.unit, candidate.countLabel)))
+                          .join(' · ')
                       : 'no price'}
                   </span>
                 </span>
@@ -151,7 +155,7 @@ export function InventoryItemModal({
             ) : (
               article.prices.map((entry) => (
                 <Tag key={entry.pricingGroupId} type={group?.id === entry.pricingGroupId ? 'blue' : 'gray'} size="sm">
-                  {priceText(entry, article.unit)}
+                  {priceText(entry, articleUnitLabel(article.unit, article.countLabel))}
                 </Tag>
               ))
             )}
@@ -177,7 +181,7 @@ export function InventoryItemModal({
             lowContrast
             hideCloseButton
             title="Low stock"
-            subtitle={`Only ${formatQuantity(article.unassignedQuantity, 6)} ${article.unit} in loose stock — finalizing will fail until stock is received.`}
+            subtitle={`Only ${formatQuantity(article.unassignedQuantity, 6)} ${articleUnitLabel(article.unit, article.countLabel)} in loose stock — finalizing will fail until stock is received.`}
           />
         )}
         <TextInput

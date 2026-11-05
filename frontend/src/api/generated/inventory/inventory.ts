@@ -144,7 +144,7 @@ export const getUpdateMaterialTypeUrl = (materialTypeId: UUIDv7,) => {
 }
 
 /**
- * Requires `inventory.manage`. Renames, deactivates or reactivates the type. The unit can only change while no material or pricing rule uses the type (409 material_type_unit_in_use).
+ * Requires `inventory.manage`. Renames, deactivates or reactivates the type. The unit can change to another unit of the same dimension at any time: the rates of the type's and its variants' material pricing rules are converted in the same transaction so prices stay the same (articles keep their own units). A unit of another dimension is only possible while no material, pricing rule or run usage uses the type (409 material_type_unit_in_use).
  * @summary Update a material type
  */
 export const updateMaterialType = async (materialTypeId: UUIDv7,

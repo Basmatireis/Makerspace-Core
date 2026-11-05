@@ -208,6 +208,7 @@ export const UserDetailPage = lazy(() =>
 export const ActivityPage = lazy(() =>
   import('../features/audit/ActivityPage').then(({ ActivityPage }) => ({ default: ActivityPage })),
 );
+export const AboutPage = lazy(() => import('./AboutPage').then(({ AboutPage }) => ({ default: AboutPage })));
 export const RolesPage = lazy(() =>
   import('../features/roles/RolesPage').then(({ RolesPage }) => ({ default: RolesPage })),
 );

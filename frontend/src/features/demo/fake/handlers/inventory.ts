@@ -42,6 +42,8 @@ function createMaterial(store: DemoStore, request: CreateMaterialRequest): Mater
     colorName: request.colorName ?? null,
     colorHex: request.colorHex ?? null,
     unit: request.unit ?? type.unit,
+    dimension: type.dimension,
+    countLabel: request.countLabel ?? null,
     active: true,
     lowStockThreshold: request.lowStockThreshold ?? null,
     quantity: '0.000',

@@ -1,3 +1,4 @@
+import { unitSymbol as unitText } from './units';
 import type {
   MaterialType,
   Process,
@@ -26,8 +27,7 @@ export const measureRateLabel = (measure: Pick<ProcessMeasure, 'unit' | 'blockSi
 /** Reading text of a measure key where no process definition is at hand: "thread_length" becomes "thread length". */
 const keyText = (key: string) => key.replace(/_/g, ' ');
 
-export const unitText = (unit: MaterialUnit) =>
-  unit === 'm2' ? 'm²' : unit === 'cm2' ? 'cm²' : unit === 'piece' ? 'pcs' : unit;
+export { unitSymbol as unitText } from './units';
 
 /** Materials the picker may offer for a machine's process: active ones whose type includes the process, plus the one already chosen. */
 export function materialsForProcess<

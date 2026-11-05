@@ -116,8 +116,8 @@ describe('price lookup', () => {
     const { user, dialog } = await open();
     await pick(user, /^Machine/, 'Laser 1');
     await user.type(within(dialog).getByRole('textbox', { name: 'Hours' }), '1,5');
-    await pick(user, /Material article/, 'A-0003 · Birch plywood (piece)');
-    await user.type(within(dialog).getByRole('textbox', { name: 'Quantity (piece)' }), '2');
+    await pick(user, /Material article/, 'A-0003 · Birch plywood (pcs)');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Quantity (pcs)' }), '2');
     const table = await within(dialog).findByRole('table', { name: 'Prices by pricing group' });
     const rows = within(table).getAllByRole('row');
     expect(rows).toHaveLength(3);
@@ -159,8 +159,8 @@ describe('price lookup', () => {
     }));
     const { user, dialog } = await open();
     await user.click(within(dialog).getByRole('tab', { name: 'Inventory item' }));
-    await pick(user, /Inventory article/, 'A-0003 · Birch plywood (piece)');
-    await user.type(within(dialog).getByRole('textbox', { name: 'Quantity (piece)' }), '3');
+    await pick(user, /Inventory article/, 'A-0003 · Birch plywood (pcs)');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Quantity (pcs)' }), '3');
     expect((await within(dialog).findAllByText('€12.00')).length).toBeGreaterThan(0);
     expect(within(dialog).getByText(/article price/)).toBeInTheDocument();
     await waitFor(() => expect(requests.length).toBeGreaterThan(0));

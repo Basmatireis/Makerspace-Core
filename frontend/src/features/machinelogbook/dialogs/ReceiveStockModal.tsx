@@ -39,7 +39,8 @@ import {
   SuggestionComboBox,
   type WithArticle,
 } from '../components/ArticleFields';
-import { formatQuantity, toDecimal, toMoney, unitLabel } from '../components/inventoryShared';
+import { formatQuantity, toDecimal, toMoney } from '../components/inventoryShared';
+import { articleUnitLabel, unitSymbol, unitsOfDimension } from '../units';
 import { DetectedTagPicker } from '../components/DetectedTagPicker';
 import { identifierKinds, spoolLabelPrefix } from '../components/spoolShared';
 import { allMaterialsQuery, materialTypesQuery, suggestionsQuery } from '../inventoryQueries';
@@ -70,7 +71,7 @@ type ArticleItem = { id: string; label: string; isNew?: boolean };
 const NEW_ITEM: ArticleItem = { id: '__new__', label: 'New article…', isNew: true };
 
 const articleLabel = (article: Material) =>
-  `${article.name} · ${formatQuantity(article.quantity, article.unit)} in stock`;
+  `${article.name} · ${formatQuantity(article.quantity, article.unit, article.countLabel)} in stock`;
 
 const defaultsFor = (kind: MaterialKind, article?: Material): Values => ({
   article: blankArticle(kind),
@@ -134,7 +135,11 @@ export function ReceiveStockModal({
     chosen?.kind ?? (values.mode === 'new' ? newType?.kind : undefined) ?? fixedKind ?? 'consumable';
   const filament = kind === 'filament';
   const canSpools = filament && can('filament_spools.manage');
-  const unit: MaterialUnit | undefined = chosen?.unit ?? newType?.unit;
+  const newUnit = values.article?.unit;
+  const unit: MaterialUnit | undefined =
+    chosen?.unit ??
+    (newType && newUnit && unitsOfDimension(newType.dimension).includes(newUnit) ? newUnit : newType?.unit);
+  const countLabel = chosen ? chosen.countLabel : values.article?.countLabel || null;
   const suggestions = useQuery({
     ...suggestionsQuery(
       chosen?.materialTypeId ?? (values.mode === 'new' ? values.article?.materialTypeId || undefined : undefined),
@@ -234,7 +239,7 @@ export function ReceiveStockModal({
     notify({
       kind: 'success',
       title: 'Stock received',
-      subtitle: `${result.material.name}: +${formatQuantity(total, result.material.unit)}${result.spools.length > 0 ? ` on ${result.spools.length === 1 ? spool?.displayId : `${result.spools.length} new spools`}` : ''}.`,
+      subtitle: `${result.material.name}: +${formatQuantity(total, result.material.unit, result.material.countLabel)}${result.spools.length > 0 ? ` on ${result.spools.length === 1 ? spool?.displayId : `${result.spools.length} new spools`}` : ''}.`,
       link: spool
         ? { label: `Open ${spool.displayId}`, to: machineLogbookPaths.spool(spool.id) }
         : { label: 'Open article', to: machineLogbookPaths.material(result.material.id) },
@@ -367,7 +372,7 @@ export function ReceiveStockModal({
                         lowContrast
                         hideCloseButton
                         title="This article already exists"
-                        subtitle={`${duplicate.name} is already in the inventory (${formatQuantity(duplicate.quantity, duplicate.unit)}).`}
+                        subtitle={`${duplicate.name} is already in the inventory (${formatQuantity(duplicate.quantity, duplicate.unit, duplicate.countLabel)}).`}
                         actionButtonLabel="Use it"
                         onActionButtonClick={() => selectArticle(duplicate)}
                       />
@@ -427,7 +432,7 @@ export function ReceiveStockModal({
                     render={({ field, fieldState }) => (
                       <DecimalField
                         id="receive-size"
-                        labelText={`Size of one package${unit ? ` in ${unitLabel(unit)}` : ''}`}
+                        labelText={`Size of one package${unit ? ` in ${chosen ? articleUnitLabel(unit, chosen.countLabel) : unitSymbol(unit)}` : ''}`}
                         value={field.value}
                         onChange={field.onChange}
                         invalid={fieldState.invalid}
@@ -438,7 +443,7 @@ export function ReceiveStockModal({
                 </div>
                 <p className="mj-secondary" aria-live="polite">
                   {count > 0 && size > 0
-                    ? `Total received: ${count} × ${formatQuantity(size, unit ?? 'g')} = ${formatQuantity(total, unit ?? 'g')}`
+                    ? `Total received: ${count} × ${formatQuantity(size, unit ?? 'g', countLabel)} = ${formatQuantity(total, unit ?? 'g', countLabel)}`
                     : 'Packages × size gives the total received.'}
                 </p>
               </Stack>
@@ -614,13 +619,18 @@ export function ReceiveStockModal({
                         />
                       </div>
                     )}
-                    {placement === 'new_spools' && single && values.idKind === 'nfc' && (
-                      <DetectedTagPicker
-                        id="receive-detected-tag"
-                        open={open}
-                        onPick={(tagUid) => setValue('idValue', tagUid, { shouldDirty: true })}
-                      />
-                    )}
+                    {placement === 'new_spools' &&
+                      single &&
+                      (values.idKind === 'nfc' || values.idKind === 'bambu_tray_uuid') && (
+                        <DetectedTagPicker
+                          id="receive-detected-tag"
+                          open={open}
+                          onPick={(identifier) => {
+                            setValue('idKind', identifier.kind, { shouldDirty: true });
+                            setValue('idValue', identifier.value, { shouldDirty: true });
+                          }}
+                        />
+                      )}
                   </Stack>
                 )}
               </fieldset>

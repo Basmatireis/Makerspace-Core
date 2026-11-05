@@ -358,6 +358,14 @@ WHERE i.kind='nfc' AND lower(i.value)=lower(sqlc.arg(tag_uid))
   AND i.created_at <= sqlc.arg(at)::timestamptz
   AND (i.retired_at IS NULL OR i.retired_at > sqlc.arg(at)::timestamptz);
 
+-- name: ListTrayUUIDSpoolsAt :many
+-- The Bambu tray_uuid both RFID chips of a spool store.
+SELECT i.spool_id
+FROM filament_spool_identifiers i
+WHERE i.kind='bambu_tray_uuid' AND lower(i.value)=lower(sqlc.arg(tray_uuid))
+  AND i.created_at <= sqlc.arg(at)::timestamptz
+  AND (i.retired_at IS NULL OR i.retired_at > sqlc.arg(at)::timestamptz);
+
 -- name: ListObservedRuns :many
 SELECT r.*, m.name AS machine_name
 FROM machine_runs r JOIN machines m ON m.id=r.machine_id
@@ -442,6 +450,12 @@ SELECT lower(i.value)::text AS tag_uid, s.id AS spool_id, s.display_id
 FROM filament_spool_identifiers i JOIN filament_spools s ON s.id=i.spool_id
 WHERE i.kind='nfc' AND i.retired_at IS NULL AND lower(i.value)=ANY(sqlc.arg(tag_uids)::text[]);
 
+-- name: ListActiveSpoolsByTrayUUIDs :many
+-- tray_uuids must be lower case; the match is case-insensitive like LockActiveSpoolByTrayUUID.
+SELECT lower(i.value)::text AS tray_uuid, s.id AS spool_id, s.display_id
+FROM filament_spool_identifiers i JOIN filament_spools s ON s.id=i.spool_id
+WHERE i.kind='bambu_tray_uuid' AND i.retired_at IS NULL AND lower(i.value)=ANY(sqlc.arg(tray_uuids)::text[]);
+
 -- name: GetAccountDisplayName :one
 SELECT btrim(p.first_name || ' ' || p.last_name)::text AS display_name
 FROM accounts a JOIN people p ON p.id=a.person_id WHERE a.id=sqlc.arg(id);
@@ -508,6 +522,16 @@ WHERE i.kind='nfc' AND lower(i.value)=lower(sqlc.arg(tag_uid)) AND i.retired_at 
   AND s.lifecycle='active' AND m.deleted_at IS NULL
 LIMIT 1;
 
+-- name: FindActiveSpoolByTrayUUID :one
+-- Like LockActiveSpoolByTrayUUID without the lock.
+SELECT s.id
+FROM filament_spool_identifiers i
+JOIN filament_spools s ON s.id=i.spool_id
+JOIN materials m ON m.id=s.material_id
+WHERE i.kind='bambu_tray_uuid' AND lower(i.value)=lower(sqlc.arg(tray_uuid)) AND i.retired_at IS NULL
+  AND s.lifecycle='active' AND m.deleted_at IS NULL
+LIMIT 1;
+
 -- name: LockOpenMountForSlot :one
 SELECT id, slot_id, spool_id, source, mounted_at FROM printer_spool_assignments
 WHERE slot_id=sqlc.arg(slot_id) AND unmounted_at IS NULL FOR UPDATE;
@@ -529,6 +553,15 @@ FROM filament_spool_identifiers i
 JOIN filament_spools s ON s.id=i.spool_id
 JOIN materials m ON m.id=s.material_id
 WHERE i.kind='nfc' AND lower(i.value)=lower(sqlc.arg(tag_uid)) AND i.retired_at IS NULL
+  AND s.lifecycle='active' AND m.deleted_at IS NULL
+FOR UPDATE OF s;
+
+-- name: LockActiveSpoolByTrayUUID :one
+SELECT s.id
+FROM filament_spool_identifiers i
+JOIN filament_spools s ON s.id=i.spool_id
+JOIN materials m ON m.id=s.material_id
+WHERE i.kind='bambu_tray_uuid' AND lower(i.value)=lower(sqlc.arg(tray_uuid)) AND i.retired_at IS NULL
   AND s.lifecycle='active' AND m.deleted_at IS NULL
 FOR UPDATE OF s;
 

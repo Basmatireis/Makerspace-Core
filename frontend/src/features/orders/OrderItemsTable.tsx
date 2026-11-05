@@ -22,6 +22,7 @@ import { machineLogbookPaths } from '../machinelogbook/shared/paths';
 import { formatMoney } from './formatting';
 import { activeItems } from './logic';
 import { TableCard } from './TableCard';
+import { unitDisplay, unitSymbol } from '../machinelogbook/units';
 
 type Props = {
   order: Order;
@@ -65,7 +66,7 @@ function ItemDetail({ item }: { item: OrderItem }) {
     );
   const usage =
     snapshot.usages
-      .map((entry) => `${formatQuantity(entry.quantity)} ${entry.unit} ${entry.materialName}`)
+      .map((entry) => `${formatQuantity(entry.quantity)} ${unitSymbol(entry.unit)} ${entry.materialName}`)
       .join(', ') || 'No material';
   return (
     <>
@@ -159,7 +160,9 @@ export function OrderItemsTable({
                 </Tag>
               </TableCell>
               <TableCell className="sales-num">
-                {item.kind === 'machine_job' ? '1 job' : `${formatQuantity(item.quantity, 6)} ${item.unit}`}
+                {item.kind === 'machine_job'
+                  ? '1 job'
+                  : `${formatQuantity(item.quantity, 6)} ${unitDisplay(item.unit)}`}
               </TableCell>
               <TableCell className="sales-num sales-hide-narrow">{formatMoney(item.unitPrice)}</TableCell>
               <TableCell className="sales-num">{formatMoney(item.amount)}</TableCell>

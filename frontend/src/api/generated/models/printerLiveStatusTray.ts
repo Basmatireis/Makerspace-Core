@@ -49,12 +49,19 @@ export interface PrinterLiveStatusTray {
   remainPercent: number | null;
   rfid: boolean;
   /**
-     * UID of the spool's RFID/NFC tag as the printer read it. Absent from connectors before 0.8.1.
+     * UID of the RFID/NFC chip as the printer read it. A Bambu spool carries two chips with different UIDs, so this is not the spool's identity; use trayUuid for that. Absent from connectors before 0.8.1.
      * @minLength 1
      * @maxLength 255
      * @nullable
      */
   tagUid?: string | null;
+  /**
+     * The spool's own identifier as the printer read it (Bambu tray_uuid). Both RFID chips of one Bambu spool report the same value. Absent from older connectors and for tags without one.
+     * @minLength 1
+     * @maxLength 255
+     * @nullable
+     */
+  trayUuid?: string | null;
   /**
      * Manufacturer's product code from the tag (Bambu tray_id_name, for example "A00-K0"). Absent from connectors before 0.15.0.
      * @maxLength 40

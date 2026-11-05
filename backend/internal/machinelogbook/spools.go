@@ -304,7 +304,7 @@ func (s *Service) LookupFilamentSpool(
 }
 
 func validIdentifierKind(kind IdentifierKind) bool {
-	return kind == IdentifierBarcode || kind == IdentifierQR || kind == IdentifierNFC
+	return kind == IdentifierBarcode || kind == IdentifierQR || kind == IdentifierNFC || kind == IdentifierBambuTrayUUID
 }
 
 func validateOptionalText(value *string, field string, max int) (*string, error) {

@@ -122,10 +122,7 @@ func bambuTrayExistBit(bits string, unitID, trayID string) (present, known bool)
 func bambuLiveTray(ref bambuTrayRef, existBits string) liveTray {
 	tray := ref.tray
 	materialType := boundedText(stringAt(tray, "tray_type"), 40)
-	rfid := false
-	if tag := firstScalar(tray, "tag_uid"); tag != "" && !isZeroIdentifier(tag) {
-		rfid = true
-	}
+	rfid := bambuSpoolTagOf(tray).present()
 	empty := materialType == nil && !rfid
 	if !ref.external {
 		if present, known := bambuTrayExistBit(existBits, ref.unitID, ref.trayID); known && !present &&
@@ -143,9 +140,8 @@ func bambuLiveTray(ref bambuTrayRef, existBits string) liveTray {
 		Empty:        empty,
 	}
 	if !empty {
-		if tag := boundedText(bambuTagUID(tray), 255); tag != nil {
-			result.TagUID = tag
-		}
+		result.TagUID = boundedText(bambuTagUID(tray), 255)
+		result.TrayUUID = boundedText(bambuTrayUUID(tray), 255)
 		result.ColorHex = bambuColorHex(stringAt(tray, "tray_color"))
 		result.ProductCode = boundedText(stringAt(tray, "tray_id_name"), 40)
 		result.FilamentProfileID = boundedText(stringAt(tray, "tray_info_idx"), 40)

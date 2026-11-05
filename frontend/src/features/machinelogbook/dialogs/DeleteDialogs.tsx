@@ -24,6 +24,7 @@ import { activeRuns, isRunLive } from '../shared/status';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import { useNow } from '../shared/useNow';
+import { unitDisplay } from '../units';
 
 type Can = ReturnType<typeof useCan>;
 
@@ -50,7 +51,7 @@ function reversalSummary(usages: MachineJobUsage[]) {
   return [...totals.values()]
     .map(
       (entry) =>
-        `${formatQuantity(entry.quantity)} ${entry.unit} back to ${entry.target === 'stock' ? 'stock' : entry.target}`,
+        `${formatQuantity(entry.quantity)} ${unitDisplay(entry.unit)} back to ${entry.target === 'stock' ? 'stock' : entry.target}`,
     )
     .join(', ');
 }

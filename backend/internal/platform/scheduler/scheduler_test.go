@@ -75,3 +75,34 @@ func TestAddRejectsDuplicatesAndInvalidJobs(t *testing.T) {
 		t.Fatal("lock keys collide")
 	}
 }
+
+func TestJobsNeverRunAtTheSameTime(t *testing.T) {
+	s := New(nil, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	var running, overlaps, runs atomic.Int32
+	for _, id := range []string{"test.a", "test.b", "test.c", "test.d", "test.e"} {
+		s.Add(Job{
+			ID: id, Interval: time.Hour, RunAtStart: true,
+			Run: func(context.Context) (Summary, error) {
+				if running.Add(1) > 1 {
+					overlaps.Add(1)
+				}
+				time.Sleep(5 * time.Millisecond)
+				running.Add(-1)
+				runs.Add(1)
+				return nil, nil
+			},
+		})
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { s.Run(ctx); close(done) }()
+	deadline := time.Now().Add(2 * time.Second)
+	for runs.Load() < 5 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	if runs.Load() != 5 || overlaps.Load() != 0 {
+		t.Fatalf("runs %d, overlapping runs %d", runs.Load(), overlaps.Load())
+	}
+}

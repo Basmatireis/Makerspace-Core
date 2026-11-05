@@ -141,7 +141,7 @@ func (s *Service) QuotePrice(ctx context.Context, p authorization.Principal, in 
 			// Run usages and sales from stock are priced alike, so the machine does not change the article's rate.
 			rule, source := articleRuleFor(rules, in.MaterialID, &materialTypeID, variantID, unit, machineUse)
 			if rule != nil {
-				rate := decimalFromNumeric(rule.Rate)
+				rate := ruleRateIn(rule, unit)
 				amount := quantity.Mul(rate)
 				item.MaterialRate, item.MaterialAmount = decimalPointer(rate), decimalPointer(amount.Round(2))
 				item.MaterialPriceSource = &source
@@ -204,8 +204,9 @@ func runtimeRuleFor(rules []machinelogbookdb.PricingRule, processID uuid.UUID) *
 
 // articleRuleFor picks the active rule of a group that prices an article, in a sale, a run usage and a quote alike:
 // the article's own stock_article rule, else the material rule of its variant, else the material rule of its type.
-// Variant and type rates apply to machine-use types only, and match by unit as well. Without an article id (a
-// purged article) only the type's rates apply.
+// Variant and type rates apply to machine-use types only. They are per the type's reference unit; ruleRateIn
+// expresses the picked rate in the unit of the article or usage. Without an article id (a purged article) only the
+// type's rates apply.
 func articleRuleFor(
 	rules []machinelogbookdb.PricingRule,
 	materialID, materialTypeID, variantID *uuid.UUID,
@@ -222,7 +223,7 @@ func articleRuleFor(
 			}
 		case PricingRuleMaterial:
 			if !machineUse || materialTypeID == nil || rule.MaterialTypeID == nil || *rule.MaterialTypeID != *materialTypeID ||
-				rule.MaterialUnit == nil || *rule.MaterialUnit != unit {
+				rule.MaterialUnit == nil || !sameDimension(*rule.MaterialUnit, unit) {
 				continue
 			}
 			switch {
@@ -244,6 +245,16 @@ func articleRuleFor(
 		return typeRule, PriceFromMaterialType
 	}
 	return nil, ""
+}
+
+// ruleRateIn is the rate of a rule picked by articleRuleFor per unit of the article or usage. Material rules convert
+// from the type's reference unit; stock_article rules already are per unit of their article.
+func ruleRateIn(rule *machinelogbookdb.PricingRule, unit string) decimal.Decimal {
+	rate := decimalFromNumeric(rule.Rate)
+	if PricingRuleKind(rule.Kind) == PricingRuleMaterial && rule.MaterialUnit != nil && sameDimension(*rule.MaterialUnit, unit) {
+		return convertRate(rate, *rule.MaterialUnit, unit)
+	}
+	return rate
 }
 
 func decimalPointer(value decimal.Decimal) *string {

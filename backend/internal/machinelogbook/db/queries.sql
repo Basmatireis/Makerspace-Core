@@ -319,9 +319,9 @@ RETURNING *;
 DELETE FROM organization_pricing_group_assignments WHERE organization_id = sqlc.arg(organization_id) AND version = sqlc.arg(expected_version) RETURNING organization_id;
 
 -- name: CreateMaterial :one
-INSERT INTO materials (id, display_id, name, material_type_id, color_name, color_hex, unit, low_stock_threshold, variant, variant_id, manufacturer, package_size, storage_location, notes)
+INSERT INTO materials (id, display_id, name, material_type_id, color_name, color_hex, unit, low_stock_threshold, variant, variant_id, manufacturer, package_size, count_label, storage_location, notes)
 VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(name), sqlc.arg(material_type_id), sqlc.narg(color_name), sqlc.narg(color_hex), sqlc.arg(unit), sqlc.narg(low_stock_threshold),
-    sqlc.narg(variant), sqlc.narg(variant_id), sqlc.narg(manufacturer), sqlc.narg(package_size), sqlc.narg(storage_location), sqlc.narg(notes)) RETURNING *;
+    sqlc.narg(variant), sqlc.narg(variant_id), sqlc.narg(manufacturer), sqlc.narg(package_size), sqlc.narg(count_label), sqlc.narg(storage_location), sqlc.narg(notes)) RETURNING *;
 
 -- name: CreateMaterialBalance :one
 INSERT INTO material_balances (material_id) VALUES (sqlc.arg(material_id)) RETURNING *;
@@ -411,7 +411,7 @@ SELECT COALESCE(sum(b.inventory_value), 0)::numeric FROM material_balances b JOI
 UPDATE materials SET name = sqlc.arg(name), material_type_id = sqlc.arg(material_type_id), color_name = sqlc.narg(color_name), color_hex = sqlc.narg(color_hex), unit = sqlc.arg(unit),
     active = sqlc.arg(active), low_stock_threshold = sqlc.narg(low_stock_threshold), variant = sqlc.narg(variant), variant_id = sqlc.narg(variant_id),
     manufacturer = sqlc.narg(manufacturer),
-    package_size = sqlc.narg(package_size), storage_location = sqlc.narg(storage_location), notes = sqlc.narg(notes),
+    package_size = sqlc.narg(package_size), count_label = sqlc.narg(count_label), storage_location = sqlc.narg(storage_location), notes = sqlc.narg(notes),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
@@ -421,6 +421,56 @@ UPDATE material_balances SET quantity = sqlc.arg(quantity), inventory_value = sq
     average_unit_cost = sqlc.arg(average_unit_cost), version = version + 1, updated_at = now()
 WHERE material_id = sqlc.arg(material_id) AND version = sqlc.arg(expected_version)
 RETURNING *;
+
+-- name: EnableInventoryUnitConversion :exec
+-- Lets this transaction rewrite the quantities and unit costs of ledger rows; the immutability trigger checks the setting.
+SELECT set_config('makerspace.inventory_unit_conversion', 'on', true);
+
+-- name: DisableInventoryUnitConversion :exec
+SELECT set_config('makerspace.inventory_unit_conversion', 'off', true);
+
+-- name: ConvertMaterialLedgerUnit :exec
+-- Expresses the ledger of an article (entries in the recycle bin included) in a new unit of its dimension. The inventory
+-- value of every entry stays.
+UPDATE inventory_transactions SET
+    quantity_delta = round(quantity_delta * material_unit_factor(sqlc.arg(old_unit)::text) / material_unit_factor(sqlc.arg(new_unit)::text), 6),
+    unit_acquisition_cost = round(unit_acquisition_cost * material_unit_factor(sqlc.arg(new_unit)::text) / material_unit_factor(sqlc.arg(old_unit)::text), 6)
+WHERE material_id = sqlc.arg(material_id);
+
+-- name: ConvertMaterialBalanceUnit :exec
+UPDATE material_balances SET
+    quantity = round(quantity * material_unit_factor(sqlc.arg(old_unit)::text) / material_unit_factor(sqlc.arg(new_unit)::text), 6),
+    average_unit_cost = round(average_unit_cost * material_unit_factor(sqlc.arg(new_unit)::text) / material_unit_factor(sqlc.arg(old_unit)::text), 6),
+    version = version + 1, updated_at = now()
+WHERE material_id = sqlc.arg(material_id);
+
+-- name: ConvertMaterialRunUsagesUnit :exec
+-- Usages count in the unit of their article; those of this article follow it. Usages that carry no unit yet count in old_unit.
+UPDATE machine_run_usages SET
+    quantity = round(quantity * material_unit_factor(sqlc.arg(old_unit)::text) / material_unit_factor(sqlc.arg(new_unit)::text), 6),
+    material_unit = sqlc.arg(new_unit)::text
+WHERE material_id = sqlc.arg(material_id) AND COALESCE(material_unit, sqlc.arg(old_unit)::text) = sqlc.arg(old_unit)::text;
+
+-- name: ConvertStockArticleRulesUnit :exec
+-- A stock_article rate is per unit of the article.
+UPDATE pricing_rules SET
+    rate = round(rate * material_unit_factor(sqlc.arg(new_unit)::text) / material_unit_factor(sqlc.arg(old_unit)::text), 6),
+    version = version + 1, updated_at = now()
+WHERE kind = 'stock_article' AND material_id = sqlc.arg(material_id);
+
+-- name: ConvertMaterialRulesUnit :execrows
+-- Material rules of a type (type and variant rates) are per its reference unit; a unit change keeps their price.
+UPDATE pricing_rules SET
+    rate = round(rate * material_unit_factor(sqlc.arg(new_unit)::text) / material_unit_factor(sqlc.arg(old_unit)::text), 6),
+    version = version + 1, updated_at = now()
+WHERE kind = 'material' AND material_type_id = sqlc.arg(material_type_id);
+
+-- name: ConvertExternalRunUsagesUnit :exec
+-- Usages of material the recipient brought, named only by type, count in the type's unit.
+UPDATE machine_run_usages SET
+    quantity = round(quantity * material_unit_factor(sqlc.arg(old_unit)::text) / material_unit_factor(sqlc.arg(new_unit)::text), 6),
+    material_unit = sqlc.arg(new_unit)::text
+WHERE material_id IS NULL AND material_type_id = sqlc.arg(material_type_id) AND material_unit = sqlc.arg(old_unit)::text;
 
 -- name: InsertInventoryTransaction :one
 INSERT INTO inventory_transactions (id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta,
@@ -741,11 +791,13 @@ SELECT job_id, run_count, started_at, ended_at, expected_end_at, running, runtim
 FROM machine_job_run_summaries WHERE job_id = sqlc.arg(job_id);
 
 -- name: InsertRunUsage :one
+-- The usage keeps the unit of its article at the time, so a later unit change of the article converts it explicitly.
 INSERT INTO machine_run_usages (id, run_id, material_id, spool_id, spool_display_id, ownership, external_material_name, quantity_basis, quantity, source_printer_event_id,
-    estimation_method, calculation_version, estimate_quality, report_revision, staff_corrected)
+    estimation_method, calculation_version, estimate_quality, report_revision, staff_corrected, material_unit)
 VALUES (sqlc.arg(id), sqlc.arg(run_id), sqlc.narg(material_id), sqlc.narg(spool_id), sqlc.narg(spool_display_id), sqlc.arg(ownership),
     sqlc.narg(external_material_name), sqlc.arg(quantity_basis), sqlc.arg(quantity), sqlc.narg(source_printer_event_id),
-    sqlc.narg(estimation_method), sqlc.narg(calculation_version), sqlc.narg(estimate_quality), sqlc.narg(report_revision), sqlc.arg(staff_corrected)) RETURNING *;
+    sqlc.narg(estimation_method), sqlc.narg(calculation_version), sqlc.narg(estimate_quality), sqlc.narg(report_revision), sqlc.arg(staff_corrected),
+    (SELECT m.unit FROM materials m WHERE m.id = sqlc.narg(material_id)::uuid)) RETURNING *;
 
 -- name: ListRunUsagesForRuns :many
 -- Material the recipient brought may carry only a type, a label, an article or none of them; a usage of a purged
@@ -757,7 +809,7 @@ SELECT u.id, u.material_id, u.quantity, u.active, u.created_at, u.updated_at, u.
        COALESCE(u.external_material_name, m.name, u.material_name, et.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'Own material' END)::text AS material_name_text,
        m.material_type_id, m.variant_id, m.variant AS variant_name,
        COALESCE(mt.name, et.name, CASE WHEN u.ownership = 'makerspace' THEN 'Deleted article' ELSE 'External' END)::text AS material_type_name,
-       COALESCE(m.unit, u.material_unit, et.unit, 'g')::text AS unit
+       COALESCE(u.material_unit, m.unit, et.unit, 'g')::text AS unit
 FROM machine_run_usages u
 LEFT JOIN materials m ON m.id = u.material_id
 LEFT JOIN material_types mt ON mt.id = m.material_type_id
@@ -1086,7 +1138,8 @@ LEFT JOIN machine_job_run_summaries s ON s.started_at >= day AND s.started_at < 
 GROUP BY day ORDER BY day;
 
 -- name: StatisticMaterialUsage :many
-SELECT mt.id::text AS key, mt.name AS label, COALESCE(-sum(t.quantity_delta), 0)::numeric AS value
+SELECT mt.id::text AS key, mt.name AS label,
+       COALESCE(-sum(t.quantity_delta * material_unit_factor(m.unit)) / material_unit_factor(mt.unit), 0)::numeric AS value
 FROM inventory_transactions t JOIN materials m ON m.id = t.material_id JOIN material_types mt ON mt.id = m.material_type_id
 WHERE (t.kind IN ('machine_run_consumption', 'manual_consumption') OR (t.kind = 'adjustment' AND t.adjustment_reason = 'job_corrected'))
   AND t.occurred_at >= sqlc.arg(from_time) AND t.occurred_at < sqlc.arg(to_time) AND t.deleted_at IS NULL
@@ -1524,10 +1577,11 @@ WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: MaterialTypeIsReferenced :one
--- True while a material or a pricing rule (active or not) uses the type. Pricing
--- snapshots only keep a nullable pointer and their own label text.
+-- True while a material, a pricing rule (active or not) or a run usage of material the recipient brought uses the type.
+-- Pricing snapshots only keep a nullable pointer and their own label text.
 SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.material_type_id = sqlc.arg(id)::uuid)
-    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_id = sqlc.arg(id)::uuid))::boolean AS referenced;
+    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_id = sqlc.arg(id)::uuid)
+    OR EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.material_type_id = sqlc.arg(id)::uuid))::boolean AS referenced;
 
 -- name: MaterialTypeHasMaterials :one
 -- True while a material (deleted ones included) uses the type.
@@ -1602,7 +1656,7 @@ WHERE id = sqlc.arg(id);
 
 -- name: ListWorkItemMaterialTotals :many
 -- Material of jobs (their runs that are not replaced) and of unassigned runs, summed per material type and unit.
-SELECT COALESCE(r.job_id, r.id)::uuid AS item_id, COALESCE(mt.name, 'External')::text AS material_type_name, COALESCE(m.unit, 'g')::text AS unit, sum(u.quantity)::numeric AS quantity
+SELECT COALESCE(r.job_id, r.id)::uuid AS item_id, COALESCE(mt.name, 'External')::text AS material_type_name, COALESCE(u.material_unit, m.unit, 'g')::text AS unit, sum(u.quantity)::numeric AS quantity
 FROM machine_run_usages u
 JOIN machine_runs r ON r.id = u.run_id
 LEFT JOIN materials m ON m.id = u.material_id
@@ -1764,10 +1818,10 @@ SELECT count(*)::bigint AS jobs,
        count(*) FILTER (WHERE outcome = 'successful')::bigint AS successful_jobs,
        count(*) FILTER (WHERE outcome <> 'unknown')::bigint AS finished_jobs,
        COALESCE(sum(runtime_seconds), 0)::bigint AS machine_seconds,
-       COALESCE((SELECT sum(u.quantity) FROM machine_run_usages u
+       COALESCE((SELECT sum(u.quantity * material_unit_factor(COALESCE(u.material_unit, mat.unit, 'g'))) FROM machine_run_usages u
                  JOIN machine_runs r ON r.id = u.run_id AND r.state IS DISTINCT FROM 'replaced'
                  LEFT JOIN materials mat ON mat.id = u.material_id
-                 WHERE r.job_id IN (SELECT id FROM own) AND u.active AND COALESCE(mat.unit, 'g') = 'g'), 0)::float8 AS material_grams
+                 WHERE r.job_id IN (SELECT id FROM own) AND u.active AND material_unit_dimension(COALESCE(u.material_unit, mat.unit, 'g')) = 'mass'), 0)::float8 AS material_grams
 FROM own;
 
 -- name: GetOwnFavouriteMachine :one
@@ -1855,9 +1909,11 @@ SELECT id FROM material_types WHERE upper(code) = upper(sqlc.arg(code)::text);
 
 -- name: ListMaterialPrices :many
 -- Sale prices of articles per active pricing group: the article's own stock_article rule, else the material rule of
--- its variant, else the material rule of its machine-use type.
+-- its variant, else the material rule of its machine-use type. Material rules are per the type's reference unit and are
+-- converted to the article's unit.
 SELECT m.id AS material_id, g.id AS pricing_group_id, g.name AS pricing_group_name,
-       COALESCE(sr.rate, vr.rate, tr.rate)::numeric AS rate,
+       COALESCE(sr.rate, round(vr.rate * material_unit_factor(m.unit) / material_unit_factor(vr.material_unit), 6),
+                round(tr.rate * material_unit_factor(m.unit) / material_unit_factor(tr.material_unit), 6))::numeric AS rate,
        (CASE WHEN sr.id IS NOT NULL THEN 'stock_article' WHEN vr.id IS NOT NULL THEN 'material_type_variant' ELSE 'material_type' END)::text AS source,
        COALESCE(sr.id, vr.id, tr.id)::uuid AS pricing_rule_id
 FROM materials m
@@ -1865,9 +1921,9 @@ JOIN material_types mt ON mt.id = m.material_type_id
 CROSS JOIN pricing_groups g
 LEFT JOIN pricing_rules sr ON sr.pricing_group_id = g.id AND sr.kind = 'stock_article' AND sr.active AND sr.material_id = m.id
 LEFT JOIN pricing_rules vr ON vr.pricing_group_id = g.id AND vr.kind = 'material' AND vr.active AND mt.machine_use
-    AND vr.material_type_id = m.material_type_id AND vr.material_unit = m.unit AND vr.material_type_variant_id = m.variant_id
+    AND vr.material_type_id = m.material_type_id AND vr.material_type_variant_id = m.variant_id
 LEFT JOIN pricing_rules tr ON tr.pricing_group_id = g.id AND tr.kind = 'material' AND tr.active AND mt.machine_use
-    AND tr.material_type_id = m.material_type_id AND tr.material_unit = m.unit AND tr.material_type_variant_id IS NULL
+    AND tr.material_type_id = m.material_type_id AND tr.material_type_variant_id IS NULL
 WHERE m.id = ANY((sqlc.arg(material_ids)::text[])::uuid[]) AND g.active AND (sr.id IS NOT NULL OR vr.id IS NOT NULL OR tr.id IS NOT NULL)
 ORDER BY m.id, g.is_default DESC, lower(g.name), g.id;
 
@@ -1969,7 +2025,9 @@ UPDATE machine_jobs SET hidden_from_signage = sqlc.arg(hidden), updated_at = now
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 
 -- name: SetRunUsageMaterialType :exec
-UPDATE machine_run_usages SET material_type_id = sqlc.narg(material_type_id) WHERE id = sqlc.arg(id);
+UPDATE machine_run_usages u SET material_type_id = sqlc.narg(material_type_id),
+    material_unit = COALESCE(u.material_unit, (SELECT t.unit FROM material_types t WHERE t.id = sqlc.narg(material_type_id)::uuid))
+WHERE u.id = sqlc.arg(id);
 
 -- name: MaterialTypeExists :one
 SELECT EXISTS (SELECT 1 FROM material_types WHERE id = sqlc.arg(id))::boolean;
@@ -2052,9 +2110,11 @@ FROM weeks w LEFT JOIN counts c ON c.week_start = w.week_start
 ORDER BY w.week_start;
 
 -- name: StatisticMaterialByMonth :many
+-- Quantities are summed in the reference unit of the material type.
 SELECT to_char(date_trunc('month', t.occurred_at AT TIME ZONE 'UTC'), 'YYYY-MM')::text AS month,
        mt.id AS material_type_id, mt.name AS material_type_name, mt.unit,
-       (-sum(t.quantity_delta))::numeric AS quantity, (-sum(t.inventory_value_delta))::numeric AS cost
+       round(-sum(t.quantity_delta * material_unit_factor(m.unit)) / material_unit_factor(mt.unit), 6)::numeric AS quantity,
+       (-sum(t.inventory_value_delta))::numeric AS cost
 FROM inventory_transactions t JOIN materials m ON m.id = t.material_id JOIN material_types mt ON mt.id = m.material_type_id
 WHERE (t.kind IN ('machine_run_consumption', 'manual_consumption') OR (t.kind = 'adjustment' AND t.adjustment_reason = 'job_corrected'))
   AND t.occurred_at >= sqlc.arg(from_time) AND t.occurred_at < sqlc.arg(to_time)
@@ -2081,7 +2141,8 @@ ORDER BY lower(mt.name), mt.id;
 -- Makerspace material of the period's jobs at the material rates of each job's active pricing snapshot, by the
 -- article's type. A usage takes the most specific entry of the snapshot that covers it, as job pricing does: the
 -- article's own rate, else its variant's, else its type's.
-SELECT mt.id::text AS key, mt.name AS label, round(sum(u.quantity * sr.rate), 2)::numeric AS value
+SELECT mt.id::text AS key, mt.name AS label,
+       round(sum(u.quantity * material_unit_factor(COALESCE(u.material_unit, m.unit)) / material_unit_factor(sr.unit) * sr.rate), 2)::numeric AS value
 FROM machine_jobs j
 JOIN machine_job_run_summaries s ON s.job_id = j.id
 JOIN machine_runs r ON r.job_id = j.id AND r.state IS DISTINCT FROM 'replaced' AND r.deleted_at IS NULL

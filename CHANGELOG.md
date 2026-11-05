@@ -4,12 +4,55 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ## [Unreleased]
 
+### Added
+
+- **Articles choose their own unit.** A material type's unit now sets its dimension: mass (g, kg), length (mm, cm, m), area (cm², m²), volume (ml, l) or count (pieces). Each article counts in any unit of that dimension, so strips in cm and boards in m can share one type and its rate. Rates of the type and its variants stay per the type's unit and are converted when an article in another unit is priced, quoted or counted in statistics. Piece articles can name their piece (Sheet, Pair, Roll); the name appears in stock, orders and invoices.
+- **Units can be changed later.** An article's unit and a type's unit can change within their dimension at any time; stock, ledger entries, package size, low-stock threshold, article rates and run usages, or the type's rates, are converted in the same step. Captured job prices and order items keep their unit.
+
+### Changed
+
+- Orders, invoices, statistics and run usages show unit symbols (cm², m², pcs) instead of the raw codes.
+
+### Upgrade notes
+
+- **Migration 00107 (article units).** Adds the units kg, mm, cm and l, `materials.count_label`, and the SQL helpers `material_unit_dimension` and `material_unit_factor`; drops the foreign key that pinned an article's unit to its type's unit and lets the pricing-rule foreign key follow a type's unit change. Existing run usages get their unit stored. Down refuses while new units, count labels or article units that differ from their type's unit exist.
+- **API.** `MaterialUnit` gains `kg`, `mm`, `cm`, `l`; new `MaterialDimension`; `MaterialType` and `Material` gain the required `dimension`; `Material`, `CreateMaterialRequest` and `UpdateMaterialRequest` gain `countLabel`. `unit` on article requests may now be any unit of the type's dimension (422 `material_unit_mismatch` otherwise). New audit action `material.unit_converted`. Configuration files carry an article's `unit` and `countLabel`; older files keep the stored ones.
+
+## [0.16.3] - 2026-11-05
+
+### Fixed
+
+- **Prints started on the H2D's screen from a USB stick report their consumption.** For such a print the H2D reports the project title (`H2D / H2S / H2C USB Drive Protector`) instead of the file name (`H2D_H2S_H2C_USB_Drive_Protector`), so the connector took the archive for one on internal storage and reported the consumption as unavailable. Print and file names are now compared by their letters and digits only.
+
+## [0.16.2] - 2026-11-05
+
+### Fixed
+
+- **An AMS backup refill on the H2D splits the consumption between both spools.** While the H2D prints the tail of a run-out AMS spool, it reports the hotend's source as external holder 255. The connector recorded that empty holder as a spool of its own, so the switch to the backup tray no longer counted as a refill and the whole quantity was booked on the backup spool. The connector now ignores an external holder without filament while the line's tray has run out. X1C refills were already split correctly.
+
+## [0.16.1] - 2026-11-05
+
+### Upgrade notes
+
+- **Migration 00106 (Bambu tray UUID identifier).** `filament_spool_identifiers.kind` accepts the new value `bambu_tray_uuid`; no data is rewritten. Down deletes the `bambu_tray_uuid` identifiers. Update the printer connector together with Core so it reports `trayUuid`.
+- **API.** The spool identifier kind enum (`FilamentSpoolIdentifier`, `NewFilamentSpoolIdentifier`, `AddFilamentSpoolIdentifierRequest`, the `kind` parameter of the spool lookup) gains `bambu_tray_uuid`. `PrinterLiveStatusTray` gains the optional `trayUuid`. `DetectedSpoolTag` gains `trayUuid` (nullable) and its `tagUid` becomes nullable: a tray may report only a tray UUID. A spool is resolved by `trayUuid` against `bambu_tray_uuid` first and, when there is none or no spool carries it, by `tagUid` against `nfc`; spools registered with a chip UID as `nfc` therefore keep matching. The detected tags list shows a spool seen in several trays once.
+
+### Added
+
+- **About page.** The About page describes the lab and the areas of the application and shows the release version (linked to its GitHub release; development builds say so), the Apache License 2.0 with its copyright holder, the source code, the third-party notices, the imprint and the privacy policy. The frontend image takes the version as the build argument `VERSION`.
+
+### Fixed
+
+- **A Bambu spool is recognised whichever of its two tags the AMS reads.** Each Bambu spool carries one RFID tag per flange with different chip UIDs but the same `tray_uuid`, and which one an AMS slot reads depends on the slot, so the same spool showed up under two serials and mounting by RFID missed it. The connector now reports the chip `tagUid` and the spool's `trayUuid`, Core identifies Bambu spools by the new identifier kind `bambu_tray_uuid`, and a slot that alternately reads both chips of one spool no longer starts a new consumption segment.
+
+## [0.16.0] - 2026-11-04
+
 ### Upgrade notes
 
 - **Migration 00104 (Lab Rules self-confirmation).** `laborordnung_requests` becomes `laborordnung_confirmations`: pending and superseded requests are deleted, completed ones stay with `method = 'paper'` and their document reference, signed date, archive note and checking supervisor (`required_version_id` → `version_id`, `completed_at` → `confirmed_at NOT NULL`; `status`, `previous_version_id`, `requested_at`, `superseded_at`, `created_at`, `updated_at` dropped; new `method` in `paper|app|kiosk|enrollment`, a check that only paper rows carry paper evidence, `UNIQUE (person_id, version_id)`). `laborordnung_versions` gains `announced_at` (the only column that may change on a published version); versions already in effect are marked announced, so deploying sends no notifications. `attendance_holds` is dropped, which also drops every held check-in. `laborordnung.requests.read` grants are renamed to `laborordnung.confirmations.read`; `laborordnung.confirm` grants are deleted. `lab_rules_confirmation_requested` notifications are deleted; the notification and mail outbox kinds gain `lab_rules_published`. Down restores the request table and holds without data (confirmations other than paper, `laborordnung.confirm` grants and holds are lost). Configuration files from earlier releases import `laborordnung.requests.read` as `laborordnung.confirmations.read` and skip `laborordnung.confirm`.
 - **API.** Removed: `POST /laborordnung/requests/me`, `GET /laborordnung/requests`, `POST /laborordnung/requests/{id}/confirm`, `GET /laborordnung/signatures`, `GET /attendance/holds`, `DELETE /attendance/holds/{holdId}`, the `202` hold answers of the terminal and supervised check-ins, `PublicPresenceList.waiting`, `LaborordnungStatus.requestId`, `VisitorEnrollmentResult.labRulesRequestId`, `VisitorAdmissionResult.requestId`, the people filter value `pending`, the merge categories `attendance_holds`/`lab_rules_requests` (now `lab_rules_confirmations`) and conflicts `attendance_hold_conflict`/`lab_rules_request_conflict`, the permissions `laborordnung.requests.read` and `laborordnung.confirm`, and the notification kind `lab_rules_confirmation_requested`. New: `POST /laborordnung/confirmations/me` (any signed-in person, body `{versionId}`, returns `LaborordnungStatus`; 409 `lab_rules_not_required`, `lab_rules_unavailable`, `lab_rules_version_outdated`; audited as `laborordnung.confirmation.created`), `GET /laborordnung/confirmations` (`laborordnung.confirmations.read`; `search`, `versionId`, `personId`, `method`, `sort` `person|version|method|confirmedAt`, `direction`, `page`, `pageSize`; self-scoped with only `people.read.self`), `GET /terminal/lab-rules` and `GET /terminal/lab-rules.pdf` (device-authenticated, current version only), `LaborordnungStatus.latestConfirmedAt`, the optional `confirmLabRulesVersionId` and `deferLabRules` on the terminal check-in bodies (`TerminalPasswordCheckInRequest`, `TerminalPinCheckInRequest`) with 409 `lab_rules_confirmation_required`, `lab_rules_confirmation_suggested` and `lab_rules_version_outdated`, `VisitorEnrollmentSubmission.labRulesAccepted` (replaces `requestConfirmation`) with 409 `lab_rules_changed`, and the notification kind `lab_rules_published`. A supervised check-in of a `blocking` person who has not confirmed answers 409 `lab_rules_confirmation_required`. `VisitorEnrollmentResult.admission` is always `admitted` and `attendance` always `checked_in`. New audit events `laborordnung.confirmation.created` and `laborordnung.version.announced`; new scheduler job `laborordnung.announce`.
 - **Migration 00105 (spool segments).** New table `machine_run_reported_usage_segments`; no data is rewritten. Update the printer connector together with Core so it reports segments.
-- **Migration 00106 (guided tour progress).** New table `account_guide_progress`; no data is rewritten. New endpoints `GET` and `DELETE /me/guides` and `PUT /me/guides/{guideId}` (any signed-in account, self-scoped, no audit), data category `guides.progress` (see `docs/guides.md`).
+- **Migration 00108 (guided tour progress).** New table `account_guide_progress`; no data is rewritten. New endpoints `GET` and `DELETE /me/guides` and `PUT /me/guides/{guideId}` (any signed-in account, self-scoped, no audit), data category `guides.progress` (see `docs/guides.md`).
 - **API.** New `DELETE /pricing-rules/{pricingRuleId}` (`pricing.manage`, body `VersionRequest`, 204; 404, 409 `stale_write`), audited as `pricing_rule.deleted`. `DELETE /material-types/{materialTypeId}` now deletes the type together with its variants and all its pricing rules; it answers 409 `material_type_in_use` only while a material (deleted ones included) uses the type, no longer because of pricing rules. The audit event `material_type.deleted` carries `countPricingRulesRemoved` and `countVariantsRemoved`. No migration.
 
 ### Added
@@ -760,6 +803,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.16.3]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.16.2...v0.16.3
+[0.16.2]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.16.1...v0.16.2
+[0.16.1]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.16.0...v0.16.1
+[0.16.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.12.1...v0.13.0

@@ -219,6 +219,9 @@ func (s *Service) insertItem(
 			return db.OrderItem{}, apperror.Invalid("Item amount exceeds supported precision")
 		}
 		params.Description, params.Unit = article.Name, article.Unit
+		if article.CountLabel != nil {
+			params.Unit = *article.CountLabel
+		}
 		params.Quantity = numeric(qty)
 		params.UnitPrice = numeric(price)
 		params.Amount = numeric(amount)

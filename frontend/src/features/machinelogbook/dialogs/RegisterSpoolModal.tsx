@@ -24,7 +24,7 @@ import { useLatestCallback } from '../../../app/useLatestCallback';
 import { ArticleFields, blankArticle, previewName, type ArticleValues } from '../components/ArticleFields';
 import { DetectedTagPicker } from '../components/DetectedTagPicker';
 import { formatGrams, toDecimal, toMoney } from '../components/inventoryShared';
-import { spoolLabelPrefix } from '../components/spoolShared';
+import { spoolLabelPrefix, trayIdentifier, trayIdentityDisplay, type TrayIdentifier } from '../components/spoolShared';
 import { useNewFilamentArticle } from '../components/useNewFilamentArticle';
 import { detectedGrams, detectedSlotText, suggestArticle } from '../detectedSpools';
 import { materialTypesQuery } from '../inventoryQueries';
@@ -49,6 +49,7 @@ type Values = {
   location: string;
   notes: string;
   nfcTag: string;
+  nfcKind: TrayIdentifier['kind'];
   mount: boolean;
 };
 
@@ -87,6 +88,9 @@ export function RegisterSpoolModal({
   const suggestion = detected ? suggestArticle(detected, choices, types.data ?? []) : null;
   const today = dateInAppTimeZone(new Date());
 
+  const detectedId = trayIdentifier(detected);
+  const detectedIdentity = trayIdentityDisplay(detected);
+
   const defaults = (): Values => {
     const initial = choices.find((item) => item.id === initialMaterialId) ?? suggestion?.article ?? undefined;
     const reported = detected ? detectedGrams(detected, Number(initial?.packageSize ?? 0)) : null;
@@ -109,7 +113,8 @@ export function RegisterSpoolModal({
       tare: '',
       location: initial?.storageLocation ?? '',
       notes: '',
-      nfcTag: detected?.tagUid ?? '',
+      nfcTag: detectedId?.value ?? '',
+      nfcKind: detectedId?.kind ?? 'nfc',
       mount: canMount,
     };
   };
@@ -144,7 +149,7 @@ export function RegisterSpoolModal({
         notes: data.notes.trim() || null,
         occurredAt: data.acquiredOn === today ? new Date().toISOString() : zonedDateTimeToISO(data.acquiredOn, '12:00'),
         expectedInventoryVersion: material.inventoryVersion,
-        identifiers: tag ? [{ kind: 'nfc', value: tag }] : undefined,
+        identifiers: tag ? [{ kind: data.nfcKind, value: tag }] : undefined,
       });
       // The spool exists from here on; a refused mount is reported but does not undo the registration.
       let mountError: unknown = null;
@@ -173,7 +178,7 @@ export function RegisterSpoolModal({
   const ready = materials.isSuccess && (!detected || types.isSuccess || types.isError);
   useEffect(() => {
     if (open && ready) resetForm();
-  }, [open, ready, initialMaterialId, detected?.tagUid, resetForm]);
+  }, [open, ready, initialMaterialId, detectedId?.value, resetForm]);
 
   const submit = handleSubmit(async (data) => {
     let result;
@@ -266,8 +271,10 @@ export function RegisterSpoolModal({
                     {detected.remainPercent != null ? ` · ${detected.remainPercent} % remaining` : ''}
                   </span>
                 </dd>
-                <dt>RFID tag</dt>
-                <dd className="mj-inline-mono">{detected.tagUid}</dd>
+                <dt>{detectedIdentity?.label ?? 'RFID'}</dt>
+                <dd className="mj-inline-mono" title={detectedIdentity?.value}>
+                  {detectedIdentity?.value}
+                </dd>
               </dl>
             )}
             {failure && (
@@ -487,7 +494,9 @@ export function RegisterSpoolModal({
             <div className="mj-form-row">
               <TextInput
                 id="register-nfc"
-                labelText="RFID tag UID (optional)"
+                labelText={
+                  values.nfcKind === 'bambu_tray_uuid' ? 'Bambu spool identifier (optional)' : 'RFID tag UID (optional)'
+                }
                 helperText={detected ? 'Read by the printer.' : 'Lets printers recognise the spool.'}
                 autoComplete="off"
                 maxLength={255}
@@ -525,7 +534,10 @@ export function RegisterSpoolModal({
               <DetectedTagPicker
                 id="register-detected-tag"
                 open={open}
-                onPick={(tagUid) => setValue('nfcTag', tagUid, { shouldDirty: true })}
+                onPick={(identifier) => {
+                  setValue('nfcTag', identifier.value, { shouldDirty: true });
+                  setValue('nfcKind', identifier.kind, { shouldDirty: true });
+                }}
               />
             )}
             <TextArea

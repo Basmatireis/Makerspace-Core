@@ -80,7 +80,10 @@ type liveTray struct {
 	RFID              bool    `json:"rfid"`
 	// TagUID is omitted for empty trays and unreadable tags, so snapshots of older connectors stay valid.
 	TagUID *string `json:"tagUid,omitempty"`
-	Empty  bool    `json:"empty"`
+	// TrayUUID is the spool's own identity: both RFID chips of a Bambu spool report the same one, while their
+	// chip UIDs differ. Omitted like TagUID.
+	TrayUUID *string `json:"trayUuid,omitempty"`
+	Empty    bool    `json:"empty"`
 }
 
 type liveUnit struct {

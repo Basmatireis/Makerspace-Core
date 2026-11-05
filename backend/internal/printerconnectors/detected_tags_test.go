@@ -139,7 +139,7 @@ func TestListDetectedSpoolTagsMapsSlotsAndSpools(t *testing.T) {
 		t.Fatalf("expected the mapped and the unmapped tray only, got %+v", found)
 	}
 	mapped := found[slotExternal]
-	if mapped.TagUID != tag || mapped.MachineName != h.machine.Name || mapped.UnitExternalID != unit ||
+	if mapped.TagUID == nil || *mapped.TagUID != tag || mapped.TrayUUID != nil || mapped.MachineName != h.machine.Name || mapped.UnitExternalID != unit ||
 		mapped.UnitLabel != "AMS 0" || mapped.SlotID == nil || mapped.SlotName == nil || *mapped.SlotName != "Slot Tag" ||
 		mapped.InputUnitName == nil || *mapped.InputUnitName != "Unit Tag" ||
 		mapped.MaterialType == nil || *mapped.MaterialType != "PLA" || mapped.RemainPercent == nil ||

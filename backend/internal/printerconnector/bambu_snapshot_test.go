@@ -349,7 +349,7 @@ func TestActiveTrayPrefersH2DExtruderRouting(t *testing.T) {
 		`{"gcode_state":"RUNNING","device":{"extruder":{"state":256,"info":[{"id":0,"snow":65535,"info":0},{"id":1,"snow":32768,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"128","tray":[{"id":"0","tag_uid":"RFID-HT"}]}]},"vir_slot":[{"id":"254"},{"id":"255"}]}`,
 	)
 	unit, tray, tag, ok := bambuActiveSlot(state)
-	if !ok || unit != "128" || tray != "0" || tag != "RFID-HT" {
+	if !ok || unit != "128" || tray != "0" || tag.TagUID != "RFID-HT" {
 		t.Fatalf("H2D extruder route = %q/%q tag=%q ok=%v", unit, tray, tag, ok)
 	}
 }
@@ -366,7 +366,7 @@ func TestH2DExtruderRoutingUsesAMSBindingWithRepeatedTrayNumbers(t *testing.T) {
 		t.Fatalf("extruder routes = %+v", routes)
 	}
 	unit, tray, tag, ok := bambuActiveExtruderSlot(state)
-	if !ok || unit != "128" || tray != "0" || tag != "LEFT" {
+	if !ok || unit != "128" || tray != "0" || tag.TagUID != "LEFT" {
 		t.Fatalf("active route = %q/%q tag=%q ok=%v", unit, tray, tag, ok)
 	}
 }
@@ -730,5 +730,32 @@ func TestBambuErrorCodesUseTheFormatBambuShows(t *testing.T) {
 		if got := bambuPrintErrorCode(tc.value); got != tc.want {
 			t.Errorf("bambuPrintErrorCode(%v) = %q, want %q", tc.value, got, tc.want)
 		}
+	}
+}
+
+func TestBambuTagUIDAndTrayUUIDAreSeparateIdentities(t *testing.T) {
+	// The two tags of one Bambu spool differ in tag_uid but share tray_uuid.
+	const spool = "6C8E4B1A2F3D4E5F6A7B8C9D0E1F2A3B"
+	left := map[string]any{"tag_uid": "95AF720500000100", "tray_uuid": spool}
+	right := map[string]any{"tag_uid": "02342A2900000100", "tray_uuid": " " + spool + " "}
+	if bambuTagUID(left) != "95AF720500000100" || bambuTagUID(right) != "02342A2900000100" {
+		t.Fatalf("tag UID must stay the chip UID: %q, %q", bambuTagUID(left), bambuTagUID(right))
+	}
+	if bambuTrayUUID(left) != spool || bambuTrayUUID(right) != spool {
+		t.Fatalf("both tags of one spool must yield its tray UUID: %q, %q", bambuTrayUUID(left), bambuTrayUUID(right))
+	}
+	zero := map[string]any{"tag_uid": "0000000000000000", "tray_uuid": "00000000000000000000000000000000"}
+	if bambuTagUID(zero) != "" || bambuTrayUUID(zero) != "" || bambuSpoolTagOf(zero).present() {
+		t.Fatalf("a holder without a readable tag must have no identity: %+v", bambuSpoolTagOf(zero))
+	}
+	if got := bambuTrayUUID(map[string]any{"tag_uid": "12424729"}); got != "" {
+		t.Fatalf("a tag without tray_uuid has no tray UUID, got %q", got)
+	}
+	if !bambuSpoolTagOf(left).sameSpool(bambuSpoolTagOf(right)) {
+		t.Fatal("two chips with one tray UUID are one spool")
+	}
+	other := map[string]any{"tag_uid": "95AF720500000100", "tray_uuid": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"}
+	if bambuSpoolTagOf(left).sameSpool(bambuSpoolTagOf(other)) {
+		t.Fatal("different tray UUIDs are different spools even with an equal chip UID")
 	}
 }

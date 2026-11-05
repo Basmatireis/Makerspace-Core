@@ -1,6 +1,7 @@
 // Package scheduler runs the API process's periodic jobs: one goroutine per
 // job, a database advisory lock per run so several API replicas never execute
-// the same job at once, and privacy-minimised logging (counts, never record
+// the same job at once, one run at a time within the process, and
+// privacy-minimised logging (counts, never record
 // data). Modules register jobs at startup; a job whose Enabled predicate says
 // no is skipped on that tick, which is how a disabled module or a switched-off
 // feature keeps its background work quiet without a restart.
@@ -13,6 +14,7 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -39,6 +41,10 @@ type Scheduler struct {
 	pool   *pgxpool.Pool
 	logger *slog.Logger
 	jobs   []Job
+	// runs lets one job run at a time. A run holds its lock connection and
+	// needs at least one more for its work; jobs started together would
+	// otherwise take every connection of the small pool and wait on each other.
+	runs sync.Mutex
 }
 
 // New creates an empty scheduler.
@@ -141,6 +147,8 @@ var errLocked = errors.New("scheduler: job locked by another replica")
 // run. The lock lives on its own connection so the job's own transactions are
 // unaffected; pg_try_advisory_xact_lock never blocks, so a busy replica skips.
 func (s *Scheduler) runLocked(ctx context.Context, job Job) (Summary, error) {
+	s.runs.Lock()
+	defer s.runs.Unlock()
 	if s.pool == nil {
 		return job.Run(ctx)
 	}

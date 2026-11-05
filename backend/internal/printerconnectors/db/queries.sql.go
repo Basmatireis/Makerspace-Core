@@ -702,6 +702,24 @@ func (q *Queries) FindActiveSpoolByNFCTag(ctx context.Context, tagUid string) (u
 	return id, err
 }
 
+const findActiveSpoolByTrayUUID = `-- name: FindActiveSpoolByTrayUUID :one
+SELECT s.id
+FROM filament_spool_identifiers i
+JOIN filament_spools s ON s.id=i.spool_id
+JOIN materials m ON m.id=s.material_id
+WHERE i.kind='bambu_tray_uuid' AND lower(i.value)=lower($1) AND i.retired_at IS NULL
+  AND s.lifecycle='active' AND m.deleted_at IS NULL
+LIMIT 1
+`
+
+// Like LockActiveSpoolByTrayUUID without the lock.
+func (q *Queries) FindActiveSpoolByTrayUUID(ctx context.Context, trayUuid string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, findActiveSpoolByTrayUUID, trayUuid)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getAccountDisplayName = `-- name: GetAccountDisplayName :one
 SELECT btrim(p.first_name || ' ' || p.last_name)::text AS display_name
 FROM accounts a JOIN people p ON p.id=a.person_id WHERE a.id=$1
@@ -1676,6 +1694,39 @@ func (q *Queries) ListActiveSpoolsByNFCTags(ctx context.Context, tagUids []strin
 	return items, nil
 }
 
+const listActiveSpoolsByTrayUUIDs = `-- name: ListActiveSpoolsByTrayUUIDs :many
+SELECT lower(i.value)::text AS tray_uuid, s.id AS spool_id, s.display_id
+FROM filament_spool_identifiers i JOIN filament_spools s ON s.id=i.spool_id
+WHERE i.kind='bambu_tray_uuid' AND i.retired_at IS NULL AND lower(i.value)=ANY($1::text[])
+`
+
+type ListActiveSpoolsByTrayUUIDsRow struct {
+	TrayUuid  string
+	SpoolID   uuid.UUID
+	DisplayID string
+}
+
+// tray_uuids must be lower case; the match is case-insensitive like LockActiveSpoolByTrayUUID.
+func (q *Queries) ListActiveSpoolsByTrayUUIDs(ctx context.Context, trayUuids []string) ([]ListActiveSpoolsByTrayUUIDsRow, error) {
+	rows, err := q.db.Query(ctx, listActiveSpoolsByTrayUUIDs, trayUuids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveSpoolsByTrayUUIDsRow{}
+	for rows.Next() {
+		var i ListActiveSpoolsByTrayUUIDsRow
+		if err := rows.Scan(&i.TrayUuid, &i.SpoolID, &i.DisplayID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConfiguredSlotsByExternalIDs = `-- name: ListConfiguredSlotsByExternalIDs :many
 SELECT u.machine_id, u.external_identifier AS input_unit_external_id, s.external_identifier AS slot_external_id,
        s.id AS slot_id, s.name AS slot_name, u.name AS input_unit_name
@@ -2380,6 +2431,40 @@ func (q *Queries) ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtPara
 	return items, nil
 }
 
+const listTrayUUIDSpoolsAt = `-- name: ListTrayUUIDSpoolsAt :many
+SELECT i.spool_id
+FROM filament_spool_identifiers i
+WHERE i.kind='bambu_tray_uuid' AND lower(i.value)=lower($1)
+  AND i.created_at <= $2::timestamptz
+  AND (i.retired_at IS NULL OR i.retired_at > $2::timestamptz)
+`
+
+type ListTrayUUIDSpoolsAtParams struct {
+	TrayUuid string
+	At       time.Time
+}
+
+// The Bambu tray_uuid both RFID chips of a spool store.
+func (q *Queries) ListTrayUUIDSpoolsAt(ctx context.Context, arg ListTrayUUIDSpoolsAtParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listTrayUUIDSpoolsAt, arg.TrayUuid, arg.At)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var spool_id uuid.UUID
+		if err := rows.Scan(&spool_id); err != nil {
+			return nil, err
+		}
+		items = append(items, spool_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockActiveSpoolByNFCTag = `-- name: LockActiveSpoolByNFCTag :one
 SELECT s.id
 FROM filament_spool_identifiers i
@@ -2392,6 +2477,23 @@ FOR UPDATE OF s
 
 func (q *Queries) LockActiveSpoolByNFCTag(ctx context.Context, tagUid string) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockActiveSpoolByNFCTag, tagUid)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const lockActiveSpoolByTrayUUID = `-- name: LockActiveSpoolByTrayUUID :one
+SELECT s.id
+FROM filament_spool_identifiers i
+JOIN filament_spools s ON s.id=i.spool_id
+JOIN materials m ON m.id=s.material_id
+WHERE i.kind='bambu_tray_uuid' AND lower(i.value)=lower($1) AND i.retired_at IS NULL
+  AND s.lifecycle='active' AND m.deleted_at IS NULL
+FOR UPDATE OF s
+`
+
+func (q *Queries) LockActiveSpoolByTrayUUID(ctx context.Context, trayUuid string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockActiveSpoolByTrayUUID, trayUuid)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err

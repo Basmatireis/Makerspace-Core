@@ -106,7 +106,7 @@ type gen struct {
 
 type reusable struct {
 	id    uuid.UUID
-	tag   string // NFC tag UID the spool carries
+	tag   string // Bambu tray UUID the spool is registered with
 	label string
 	slot  *slot
 }

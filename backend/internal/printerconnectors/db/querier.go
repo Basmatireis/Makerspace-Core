@@ -45,6 +45,8 @@ type Querier interface {
 	EndConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error
 	// Like LockActiveSpoolByNFCTag without the lock.
 	FindActiveSpoolByNFCTag(ctx context.Context, tagUid string) (uuid.UUID, error)
+	// Like LockActiveSpoolByTrayUUID without the lock.
+	FindActiveSpoolByTrayUUID(ctx context.Context, trayUuid string) (uuid.UUID, error)
 	GetAccountDisplayName(ctx context.Context, id uuid.UUID) (string, error)
 	GetActivePrinterLiveStatus(ctx context.Context, machineID uuid.UUID) (PrinterLiveStatus, error)
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (GetAssignmentRow, error)
@@ -75,6 +77,8 @@ type Querier interface {
 	ListActiveAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListActiveAssignmentsRow, error)
 	// tag_uids must be lower case; the match is case-insensitive like LockActiveSpoolByNFCTag.
 	ListActiveSpoolsByNFCTags(ctx context.Context, tagUids []string) ([]ListActiveSpoolsByNFCTagsRow, error)
+	// tray_uuids must be lower case; the match is case-insensitive like LockActiveSpoolByTrayUUID.
+	ListActiveSpoolsByTrayUUIDs(ctx context.Context, trayUuids []string) ([]ListActiveSpoolsByTrayUUIDsRow, error)
 	// Same matching rule as LockAvailableSlotByExternalIDs, without the lock.
 	ListConfiguredSlotsByExternalIDs(ctx context.Context, machineIds []uuid.UUID) ([]ListConfiguredSlotsByExternalIDsRow, error)
 	// Newest first, with the display names of the machine and of the resource while they exist.
@@ -92,7 +96,10 @@ type Querier interface {
 	ListPrinterErrorOccurrences(ctx context.Context, arg ListPrinterErrorOccurrencesParams) ([]ListPrinterErrorOccurrencesRow, error)
 	ListPrinterNotificationRules(ctx context.Context) ([]ListPrinterNotificationRulesRow, error)
 	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)
+	// The Bambu tray_uuid both RFID chips of a spool store.
+	ListTrayUUIDSpoolsAt(ctx context.Context, arg ListTrayUUIDSpoolsAtParams) ([]uuid.UUID, error)
 	LockActiveSpoolByNFCTag(ctx context.Context, tagUid string) (uuid.UUID, error)
+	LockActiveSpoolByTrayUUID(ctx context.Context, trayUuid string) (uuid.UUID, error)
 	LockAvailableSlotByExternalIDs(ctx context.Context, arg LockAvailableSlotByExternalIDsParams) (uuid.UUID, error)
 	LockEventSource(ctx context.Context, lockKey string) error
 	LockOpenMountForSlot(ctx context.Context, slotID uuid.UUID) (LockOpenMountForSlotRow, error)

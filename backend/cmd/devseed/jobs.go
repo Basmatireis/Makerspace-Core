@@ -375,19 +375,20 @@ func (s *seeder) reportLiveStatuses() {
 		check("enable assignment", err)
 		m.cfgVer = updated.ConfigurationVersion
 	}
-	registered := s.nfc()
+	registered := s.trayUUID()
 	for _, r := range s.reus {
 		if r.id == m.slots[0].cur && r.tag != "" {
 			registered = r.tag
 		}
 	}
-	tray := func(ext string, materialType, subBrand, colorHex string, remain int, tag string) map[string]any {
-		if tag == "" {
+	// A Bambu spool has two RFID chips with their own UIDs and one tray UUID; the UUID identifies the spool.
+	tray := func(ext string, materialType, subBrand, colorHex string, remain int, trayUUID string) map[string]any {
+		if trayUUID == "" {
 			return map[string]any{"externalId": ext, "materialType": nil, "subBrand": nil, "colorHex": nil,
-				"remainPercent": nil, "rfid": false, "tagUid": nil, "empty": true}
+				"remainPercent": nil, "rfid": false, "tagUid": nil, "trayUuid": nil, "empty": true}
 		}
 		return map[string]any{"externalId": ext, "materialType": materialType, "subBrand": subBrand, "colorHex": colorHex,
-			"remainPercent": remain, "rfid": true, "tagUid": tag, "empty": false}
+			"remainPercent": remain, "rfid": true, "tagUid": s.nfc(), "trayUuid": trayUUID, "empty": false}
 	}
 	snapshot, err := json.Marshal(map[string]any{
 		"state": "idle",
@@ -401,7 +402,7 @@ func (s *seeder) reportLiveStatuses() {
 			{"externalId": "ams0", "kind": "ams", "label": "AMS 1", "humidityPercent": 31, "temperatureC": 27.0,
 				"trays": []map[string]any{
 					tray("ams0.slot0", "PLA", "PLA Basic", "1A1A1A", 62, registered),
-					tray("ams0.slot1", "PETG", "PETG HF", "2E6BD8", 88, s.nfc()),
+					tray("ams0.slot1", "PETG", "PETG HF", "2E6BD8", 88, s.trayUUID()),
 					tray("ams0.slot2", "", "", "", 0, ""),
 					tray("ams0.slot3", "", "", "", 0, ""),
 				}},

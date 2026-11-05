@@ -34,6 +34,10 @@ func TestClassifyBambuPrintSource(t *testing.T) {
 		// Observed on an X1C: a print sent to its SD card over FTP reports only the file name.
 		{"x1c ftp file name", "ftp://T-Abstandhalter_Dielen.stl + T-Abstandh....gcode.3mf", "T-Abstandhalter_Dielen.stl + T-Abstandh...", bambuSourceExternal},
 		{"ftp file name of another print", "ftp://Other.gcode.3mf", internalName, bambuSourceInternal},
+		// Observed on an H2D: a print started on its screen from the USB stick
+		// reports the project title instead of the file name.
+		{"h2d project title", "file:///media/usb0/cache/H2D_H2S_H2C_USB_Drive_Protector.gcode.3mf",
+			"H2D / H2S / H2C USB Drive Protector", bambuSourceExternal},
 	}
 	for _, tc := range cases {
 		if got := classifyBambuPrintSource(tc.url, tc.subtask); got != tc.want {

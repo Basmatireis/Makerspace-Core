@@ -35,7 +35,7 @@ export function describeConnectorEvent(event: PrinterConnectorEvent): string {
     case 'slot_observation': {
       if (payload.empty === true) return `Slot ${slotName(payload)} is empty`;
       const material = text(payload, 'productName') ?? text(payload, 'trayType') ?? 'unknown material';
-      return `Slot ${slotName(payload)}: ${material}${isZeroIdentifier(text(payload, 'tagUid')) ? '' : ' (RFID)'}`;
+      return `Slot ${slotName(payload)}: ${material}${isZeroIdentifier(text(payload, 'tagUid')) && isZeroIdentifier(text(payload, 'trayUuid')) ? '' : ' (RFID)'}`;
     }
     case 'terminal_outcome':
       return `Print ended: ${text(payload, 'outcome') ?? 'unknown'}`;

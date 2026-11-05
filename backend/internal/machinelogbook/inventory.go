@@ -23,10 +23,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func validUnit(unit MaterialUnit) bool {
-	return unit == UnitGram || unit == UnitMeter || unit == UnitMilliliter || unit == UnitSquareMeter ||
-		unit == UnitSquareCentimeter || unit == UnitPiece
-}
 func stockState(quantity decimal.Decimal, threshold pgtype.Numeric) StockState {
 	if quantity.IsZero() {
 		return StockEmpty
@@ -64,6 +60,7 @@ func materialFromGet(row machinelogbookdb.GetMaterialRow) Material {
 		VariantID:          row.VariantID,
 		Manufacturer:       row.Manufacturer,
 		PackageSize:        nullableDecimal(row.PackageSize),
+		CountLabel:         row.CountLabel,
 		StorageLocation:    row.StorageLocation,
 		Notes:              row.Notes,
 		MaterialTypeID:     row.MaterialTypeID,
@@ -138,9 +135,9 @@ func (s *Service) loadMaterial(ctx context.Context, q *machinelogbookdb.Queries,
 	return items[0], nil
 }
 
-// MaterialInput is the editable part of an article. Unit is optional: the unit
-// always is the unit of the material type, and a different value is refused.
-// An empty Name is generated for filament and consumables.
+// MaterialInput is the editable part of an article. Unit is optional and may be any unit of the material type's
+// dimension (filament: grams): a new article defaults to the type's unit, an updated one keeps its unit. CountLabel
+// is only valid for piece articles. An empty Name is generated for filament and consumables.
 type MaterialInput struct {
 	Name                                          string
 	MaterialTypeID                                uuid.UUID
@@ -148,6 +145,7 @@ type MaterialInput struct {
 	ColorName, ColorHex                           *string
 	Variant, Manufacturer, StorageLocation, Notes *string
 	PackageSize                                   *string
+	CountLabel                                    *string
 	LowStockThreshold                             *string
 	FilamentDiameterMM                            *string
 	Active                                        bool
@@ -158,6 +156,7 @@ type validatedMaterial struct {
 	name                                          string
 	colorName, colorHex                           *string
 	variant, manufacturer, storageLocation, notes *string
+	countLabel                                    *string
 	threshold, packageSize                        pgtype.Numeric
 }
 
@@ -165,6 +164,7 @@ type validatedMaterial struct {
 const (
 	maxArticleNameLength     = 150
 	maxVariantLength         = 80
+	maxCountLabelLength      = 20
 	maxManufacturerLength    = 150
 	maxStorageLocationLength = 200
 	maxArticleNotesLength    = 2000
@@ -206,6 +206,12 @@ func validateMaterial(in MaterialInput) (validatedMaterial, error) {
 	}
 	if v.notes, err = validateOptionalText(in.Notes, "notes", maxArticleNotesLength); err != nil {
 		return v, err
+	}
+	if v.countLabel, err = validateOptionalText(in.CountLabel, "countLabel", maxCountLabelLength); err != nil {
+		return v, err
+	}
+	if v.countLabel != nil && utf8.RuneCountInString(*v.countLabel) > maxCountLabelLength {
+		return v, apperror.Invalid("countLabel must be at most 20 characters")
 	}
 	if v.threshold, err = pgNullableNumeric(in.LowStockThreshold, false); err != nil {
 		return v, err
@@ -303,16 +309,32 @@ func resolveDiameter(kind MaterialKind, requested, legacy *string) (pgtype.Numer
 	return numericFromDecimal(diameter), nil
 }
 
-// materialUnit is the unit of the type; an explicitly given other unit is refused.
-func materialUnit(materialType machinelogbookdb.MaterialType, requested *string) (string, error) {
-	if requested != nil && *requested != materialType.Unit {
+// articleUnit decides the unit of an article: the requested one, else fallback. It has to measure the dimension of
+// the material type, and filament articles are counted in grams.
+func articleUnit(materialType machinelogbookdb.MaterialType, requested *string, fallback string) (string, error) {
+	unit := fallback
+	if requested != nil {
+		unit = *requested
+	}
+	if !validUnit(MaterialUnit(unit)) {
+		return "", apperror.Invalid("invalid material unit")
+	}
+	if !sameDimension(unit, materialType.Unit) || (MaterialKind(materialType.Kind) == KindFilament && unit != string(UnitGram)) {
 		return "", apperror.New(
 			http.StatusUnprocessableEntity,
 			"material_unit_mismatch",
-			"The material unit must equal the unit of its material type",
+			"The material unit must measure the same dimension as its material type",
 		)
 	}
-	return materialType.Unit, nil
+	return unit, nil
+}
+
+// checkCountLabel allows a count label on piece articles only.
+func checkCountLabel(unit string, label *string) error {
+	if label != nil && unit != string(UnitPiece) {
+		return apperror.Invalid("countLabel is only valid for piece articles")
+	}
+	return nil
 }
 
 func (s *Service) GetMaterial(ctx context.Context, p authorization.Principal, id uuid.UUID) (Material, error) {
@@ -451,8 +473,11 @@ func (s *Service) createMaterialTx(
 	if err != nil {
 		return uuid.Nil, err
 	}
-	unit, err := materialUnit(materialType, in.Unit)
+	unit, err := articleUnit(materialType, in.Unit, materialType.Unit)
 	if err != nil {
+		return uuid.Nil, err
+	}
+	if err = checkCountLabel(unit, v.countLabel); err != nil {
 		return uuid.Nil, err
 	}
 	variantID, variantName, err := articleVariant(ctx, tx, p, materialType, v.variant, requestID)
@@ -492,6 +517,7 @@ func (s *Service) createMaterialTx(
 			VariantID:         variantID,
 			Manufacturer:      v.manufacturer,
 			PackageSize:       v.packageSize,
+			CountLabel:        v.countLabel,
 			StorageLocation:   v.storageLocation,
 			Notes:             v.notes,
 		},
@@ -520,7 +546,7 @@ func (s *Service) createMaterialTx(
 		requestID,
 		[]string{
 			"name", "materialTypeId", "colorName", "colorHex", "unit", "lowStockThreshold",
-			"variant", "manufacturer", "packageSize", "storageLocation", "notes",
+			"variant", "manufacturer", "packageSize", "countLabel", "storageLocation", "notes",
 		},
 	); err != nil {
 		return uuid.Nil, err
@@ -593,27 +619,19 @@ func (s *Service) UpdateMaterialTx(
 			)
 		}
 	}
-	unit, err := materialUnit(materialType, in.Unit)
+	unit, err := updatedArticleUnit(ctx, q, id, current, materialType, in.Unit)
 	if err != nil {
 		return Material{}, err
 	}
-	if current.Unit != unit && !decimalFromNumeric(current.Quantity).IsZero() {
-		return Material{}, apperror.Conflicting(
-			"material_unit_in_use",
-			"Material unit cannot change while stock exists",
-		)
+	// Staying within the dimension converts the article's quantities below; the threshold and package size follow
+	// unless the request changed them, in which case they already are in the new unit.
+	converted := unit != current.Unit && sameDimension(current.Unit, unit)
+	if converted {
+		v.threshold = followUnit(v.threshold, current.LowStockThreshold, current.Unit, unit)
+		v.packageSize = followUnit(v.packageSize, current.PackageSize, current.Unit, unit)
 	}
-	if current.Unit != unit {
-		spoolCount, spoolErr := q.CountMaterialSpools(ctx, id)
-		if spoolErr != nil {
-			return Material{}, spoolErr
-		}
-		if spoolCount > 0 {
-			return Material{}, apperror.Conflicting(
-				"material_unit_in_use",
-				"Material unit cannot change while filament spools exist",
-			)
-		}
+	if err = checkCountLabel(unit, v.countLabel); err != nil {
+		return Material{}, err
 	}
 	// The variant name is resolved in the article's (possibly new) type.
 	variantID, variantName, err := articleVariant(ctx, tx, p, materialType, v.variant, requestID)
@@ -651,6 +669,7 @@ func (s *Service) UpdateMaterialTx(
 			VariantID:         variantID,
 			Manufacturer:      v.manufacturer,
 			PackageSize:       v.packageSize,
+			CountLabel:        v.countLabel,
 			StorageLocation:   v.storageLocation,
 			Notes:             v.notes,
 			ID:                id,
@@ -662,6 +681,11 @@ func (s *Service) UpdateMaterialTx(
 	}
 	if err != nil {
 		return Material{}, materialWriteError(err)
+	}
+	if converted {
+		if err = convertArticleUnit(ctx, q, id, current.Unit, unit); err != nil {
+			return Material{}, err
+		}
 	}
 	if diameter.Valid {
 		if _, err = q.UpsertMaterialFilamentProperties(
@@ -683,12 +707,111 @@ func (s *Service) UpdateMaterialTx(
 		requestID,
 		[]string{
 			"name", "materialTypeId", "colorName", "colorHex", "unit", "active", "lowStockThreshold",
-			"variant", "manufacturer", "packageSize", "storageLocation", "notes",
+			"variant", "manufacturer", "packageSize", "countLabel", "storageLocation", "notes",
 		},
 	); err != nil {
 		return Material{}, err
 	}
+	if converted {
+		if err = writeAudit(
+			ctx, tx, p, "material.unit_converted", "material", id, requestID,
+			[]string{"unit", "quantity", "packageSize", "lowStockThreshold", "stockArticleRate", "runUsages"},
+		); err != nil {
+			return Material{}, err
+		}
+	}
 	return s.loadMaterial(ctx, q, id)
+}
+
+// updatedArticleUnit decides the unit an update leaves the article in. Without a requested unit the article keeps its
+// unit while that still measures the dimension of its type. An article that moves to a type of another dimension
+// takes the unit of that type, which is only possible while it holds no stock and no spools: nothing can be
+// converted between dimensions.
+func updatedArticleUnit(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	id uuid.UUID,
+	current machinelogbookdb.GetMaterialForUpdateRow,
+	materialType machinelogbookdb.MaterialType,
+	requested *string,
+) (string, error) {
+	fallback := current.Unit
+	if requested == nil && !sameDimension(current.Unit, materialType.Unit) {
+		fallback = materialType.Unit
+	}
+	unit, err := articleUnit(materialType, requested, fallback)
+	if err != nil {
+		return "", err
+	}
+	if sameDimension(current.Unit, unit) {
+		return unit, nil
+	}
+	if !decimalFromNumeric(current.Quantity).IsZero() {
+		return "", apperror.Conflicting("material_unit_in_use", "Material unit cannot change while stock exists")
+	}
+	spoolCount, err := q.CountMaterialSpools(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	if spoolCount > 0 {
+		return "", apperror.Conflicting(
+			"material_unit_in_use",
+			"Material unit cannot change while filament spools exist",
+		)
+	}
+	return unit, nil
+}
+
+// followUnit converts a stored quantity setting (threshold, package size) to the new unit when the request left it as
+// it was; a changed value is taken as given.
+func followUnit(requested, stored pgtype.Numeric, from, to string) pgtype.Numeric {
+	if !sameDimension(from, to) || !requested.Valid || !stored.Valid ||
+		!decimalFromNumeric(requested).Equal(decimalFromNumeric(stored)) {
+		return requested
+	}
+	return numericFromDecimal(convertQuantity(decimalFromNumeric(requested), from, to))
+}
+
+// convertArticleUnit expresses everything an article counts in its new unit: ledger quantities and unit costs
+// (values stay), the balance, the article's run usages and its stock_article rates. Historical pricing snapshots and
+// order items keep the unit they were captured in.
+func convertArticleUnit(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	id uuid.UUID,
+	oldUnit, newUnit string,
+) error {
+	if !sameDimension(oldUnit, newUnit) {
+		return nil
+	}
+	if err := q.EnableInventoryUnitConversion(ctx); err != nil {
+		return err
+	}
+	if err := q.ConvertMaterialLedgerUnit(
+		ctx,
+		machinelogbookdb.ConvertMaterialLedgerUnitParams{OldUnit: oldUnit, NewUnit: newUnit, MaterialID: id},
+	); err != nil {
+		return databaseError(err)
+	}
+	if err := q.DisableInventoryUnitConversion(ctx); err != nil {
+		return err
+	}
+	if err := q.ConvertMaterialBalanceUnit(
+		ctx,
+		machinelogbookdb.ConvertMaterialBalanceUnitParams{OldUnit: oldUnit, NewUnit: newUnit, MaterialID: id},
+	); err != nil {
+		return databaseError(err)
+	}
+	if err := q.ConvertMaterialRunUsagesUnit(
+		ctx,
+		machinelogbookdb.ConvertMaterialRunUsagesUnitParams{OldUnit: oldUnit, NewUnit: newUnit, MaterialID: &id},
+	); err != nil {
+		return databaseError(err)
+	}
+	return databaseError(q.ConvertStockArticleRulesUnit(
+		ctx,
+		machinelogbookdb.ConvertStockArticleRulesUnitParams{OldUnit: oldUnit, NewUnit: newUnit, MaterialID: &id},
+	))
 }
 
 func transactionFromRow(row machinelogbookdb.InventoryTransaction) InventoryTransaction {

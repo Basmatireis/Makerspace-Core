@@ -19,8 +19,10 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ColorHex } from './colorHex';
+import type { CountLabel } from './countLabel';
 import type { Decimal } from './decimal';
 import type { InventoryAttention } from './inventoryAttention';
+import type { MaterialDimension } from './materialDimension';
 import type { MaterialKind } from './materialKind';
 import type { MaterialPrice } from './materialPrice';
 import type { MaterialUnit } from './materialUnit';
@@ -74,8 +76,11 @@ export interface Material {
      */
   colorName?: string | null;
   colorHex?: ColorHex | null;
-  /** The unit of the material type. */
+  /** The unit the article is counted in: any unit of its material type's dimension (the type's unit by default). Quantities, package size, threshold and stock_article rates are in this unit. */
   unit: MaterialUnit;
+  /** The dimension of the material type and of the article's unit. */
+  dimension: MaterialDimension;
+  countLabel?: CountLabel | null;
   active: boolean;
   lowStockThreshold?: Decimal | null;
   quantity: Decimal;

@@ -17,6 +17,7 @@ import type {
   Process,
   Role,
 } from '../../../api/generated/models';
+import { dimensionOf } from '../../machinelogbook/units';
 import { DEMO_IDS, sampleDemoId } from './ids';
 import { refreshJob, runDuration } from './jobModel';
 import { actorOf, recalculateOrder, recordPayment } from './orderModel';
@@ -115,6 +116,7 @@ const materialType = (
   kind,
   machineUse: true,
   unit,
+  dimension: dimensionOf(unit),
   processIds,
   variants: variants.map((variant, index) => ({
     id: sampleDemoId(0xf00 + parseInt(id.slice(-3), 16) + index),
@@ -164,6 +166,7 @@ function material(
     colorName,
     colorHex,
     unit: type.unit,
+    dimension: type.dimension,
     active: true,
     lowStockThreshold: decimal(lowStock, 1),
     quantity: decimal(quantity, 3),

@@ -29,6 +29,18 @@ type Querier interface {
 	CancelManualRun(ctx context.Context, arg CancelManualRunParams) (MachineRun, error)
 	ClearDefaultPricingGroup(ctx context.Context, exceptID uuid.UUID) error
 	ClearMachineJobPriceAdjustment(ctx context.Context, arg ClearMachineJobPriceAdjustmentParams) (MachineJob, error)
+	// Usages of material the recipient brought, named only by type, count in the type's unit.
+	ConvertExternalRunUsagesUnit(ctx context.Context, arg ConvertExternalRunUsagesUnitParams) error
+	ConvertMaterialBalanceUnit(ctx context.Context, arg ConvertMaterialBalanceUnitParams) error
+	// Expresses the ledger of an article (entries in the recycle bin included) in a new unit of its dimension. The inventory
+	// value of every entry stays.
+	ConvertMaterialLedgerUnit(ctx context.Context, arg ConvertMaterialLedgerUnitParams) error
+	// Material rules of a type (type and variant rates) are per its reference unit; a unit change keeps their price.
+	ConvertMaterialRulesUnit(ctx context.Context, arg ConvertMaterialRulesUnitParams) (int64, error)
+	// Usages count in the unit of their article; those of this article follow it. Usages that carry no unit yet count in old_unit.
+	ConvertMaterialRunUsagesUnit(ctx context.Context, arg ConvertMaterialRunUsagesUnitParams) error
+	// A stock_article rate is per unit of the article.
+	ConvertStockArticleRulesUnit(ctx context.Context, arg ConvertStockArticleRulesUnitParams) error
 	CountActivePricingRulesOfMaterialType(ctx context.Context, id *uuid.UUID) (int64, error)
 	CountFilamentSpoolTransactions(ctx context.Context, spoolID *uuid.UUID) (int64, error)
 	CountFilamentSpools(ctx context.Context, arg CountFilamentSpoolsParams) (int64, error)
@@ -102,8 +114,11 @@ type Querier interface {
 	// A recorded run that outlives its deleted job becomes unassigned but remembers the job.
 	DetachRunForJobDeletion(ctx context.Context, id uuid.UUID) error
 	DetachRunFromJob(ctx context.Context, id uuid.UUID) (MachineRun, error)
+	DisableInventoryUnitConversion(ctx context.Context) error
 	// Lets this transaction hard-delete ledger rows; the immutability trigger checks the setting.
 	EnableInventoryPurge(ctx context.Context) error
+	// Lets this transaction rewrite the quantities and unit costs of ledger rows; the immutability trigger checks the setting.
+	EnableInventoryUnitConversion(ctx context.Context) error
 	FilamentSpoolIdentifierInUse(ctx context.Context, arg FilamentSpoolIdentifierInUseParams) (bool, error)
 	FilamentSpoolMounted(ctx context.Context, spoolID uuid.UUID) (bool, error)
 	FindFilamentSpoolByIdentifier(ctx context.Context, arg FindFilamentSpoolByIdentifierParams) (uuid.UUID, error)
@@ -170,6 +185,7 @@ type Querier interface {
 	InsertPricingSnapshotRule(ctx context.Context, arg InsertPricingSnapshotRuleParams) (MachineJobPricingSnapshotRule, error)
 	InsertProcessMeasure(ctx context.Context, arg InsertProcessMeasureParams) error
 	InsertRolePricingGroup(ctx context.Context, arg InsertRolePricingGroupParams) error
+	// The usage keeps the unit of its article at the time, so a later unit change of the article converts it explicitly.
 	InsertRunUsage(ctx context.Context, arg InsertRunUsageParams) (MachineRunUsage, error)
 	InsertSpoolInventoryTransaction(ctx context.Context, arg InsertSpoolInventoryTransactionParams) (InventoryTransaction, error)
 	InsertSpoolTransfer(ctx context.Context, arg InsertSpoolTransferParams) (InventoryTransaction, error)
@@ -211,7 +227,8 @@ type Querier interface {
 	ListMachineRunningRuns(ctx context.Context, now time.Time) ([]ListMachineRunningRunsRow, error)
 	ListMachines(ctx context.Context, arg ListMachinesParams) ([]ListMachinesRow, error)
 	// Sale prices of articles per active pricing group: the article's own stock_article rule, else the material rule of
-	// its variant, else the material rule of its machine-use type.
+	// its variant, else the material rule of its machine-use type. Material rules are per the type's reference unit and are
+	// converted to the article's unit.
 	ListMaterialPrices(ctx context.Context, materialIds []string) ([]ListMaterialPricesRow, error)
 	ListMaterialTypeProcessNames(ctx context.Context, materialTypeID uuid.UUID) ([]uuid.UUID, error)
 	ListMaterialTypeProcesses(ctx context.Context, materialTypeIds []uuid.UUID) ([]MaterialTypeProcess, error)
@@ -271,8 +288,8 @@ type Querier interface {
 	MaterialTypeExists(ctx context.Context, id uuid.UUID) (bool, error)
 	// True while a material (deleted ones included) uses the type.
 	MaterialTypeHasMaterials(ctx context.Context, id uuid.UUID) (bool, error)
-	// True while a material or a pricing rule (active or not) uses the type. Pricing
-	// snapshots only keep a nullable pointer and their own label text.
+	// True while a material, a pricing rule (active or not) or a run usage of material the recipient brought uses the type.
+	// Pricing snapshots only keep a nullable pointer and their own label text.
 	MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
 	// True while an article (deleted ones included) or an active pricing rule uses the variant.
 	MaterialTypeVariantIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
@@ -340,6 +357,7 @@ type Querier interface {
 	// Seconds runs occupied each machine that is not retired, in the period and during its scheduled open days, plus
 	// the open-day seconds of the period. Runs of jobs and unassigned recorded runs; a running run counts until now.
 	StatisticMachineUtilization(ctx context.Context, arg StatisticMachineUtilizationParams) ([]StatisticMachineUtilizationRow, error)
+	// Quantities are summed in the reference unit of the material type.
 	StatisticMaterialByMonth(ctx context.Context, arg StatisticMaterialByMonthParams) ([]StatisticMaterialByMonthRow, error)
 	// Makerspace material of the period's jobs at the material rates of each job's active pricing snapshot, by the
 	// article's type. A usage takes the most specific entry of the snapshot that covers it, as job pricing does: the

@@ -1,11 +1,22 @@
 import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { InlineNotification, Modal, MultiSelect, Select, SelectItem, Stack, TextInput, Toggle } from '@carbon/react';
+import {
+  InlineNotification,
+  Modal,
+  MultiSelect,
+  Select,
+  SelectItem,
+  SelectItemGroup,
+  Stack,
+  TextInput,
+  Toggle,
+} from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createMaterialType, updateMaterialType } from '../../../api/generated/inventory/inventory';
 import type { MaterialKind, MaterialType, MaterialUnit, Process } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
 import { typeNounLower } from '../components/inventoryShared';
+import { dimensionNames, dimensionOrder, unitNames, unitsOfDimension } from '../units';
 import { materialTypesQuery } from '../inventoryQueries';
 import { machineLogbookKeys, processesQuery } from '../queries';
 import { VariantRatesEditor } from './VariantRatesEditor';
@@ -28,16 +39,6 @@ const kindLabels: Record<MaterialKind, string> = {
   filament: 'Filament (kept on spools)',
   consumable: 'Consumable (used on machines)',
   part: 'Part (sold or used as is)',
-};
-
-const materialUnits: MaterialUnit[] = ['g', 'm', 'ml', 'cm2', 'm2', 'piece'];
-const unitNames: Record<MaterialUnit, string> = {
-  g: 'Grams (g)',
-  m: 'Metres (m)',
-  ml: 'Millilitres (ml)',
-  cm2: 'Square centimetres (cm²)',
-  m2: 'Square metres (m²)',
-  piece: 'Pieces (pcs)',
 };
 
 /**
@@ -93,6 +94,8 @@ export function MaterialTypeFormModal({
     watch,
   } = useForm<Values>({ defaultValues: defaults() });
   const kind = watch('kind');
+  // A type in use keeps its dimension; an unused one may take any unit.
+  const unitChoices = inUse && materialType ? [materialType.dimension] : dimensionOrder;
 
   const save = useMutation({
     mutationFn: (values: Values) =>
@@ -102,7 +105,7 @@ export function MaterialTypeFormModal({
             ...(values.code.trim() ? { code: values.code.trim().toUpperCase() } : {}),
             ...(values.kind !== materialType.kind ? { kind: values.kind } : {}),
             machineUse: values.kind === 'filament' || values.machineUse,
-            unit: inUse || values.kind === 'filament' ? materialType.unit : values.unit,
+            unit: values.kind === 'filament' ? 'g' : values.unit,
             ...(kind === 'consumable' && processesList.isSuccess ? { processIds: values.processIds } : {}),
             active: values.active,
             expectedVersion: materialType.version,
@@ -250,19 +253,27 @@ export function MaterialTypeFormModal({
           <Select
             id="material-type-unit"
             labelText="Unit"
-            disabled={inUse || kind === 'filament'}
+            disabled={kind === 'filament'}
             helperText={
               kind === 'filament'
                 ? 'Filament is measured in grams.'
                 : inUse
-                  ? 'The unit cannot change while articles or pricing rules use this type.'
-                  : 'Stock, consumption and the price of every article of this type use this unit.'
+                  ? 'Only units of the same kind can be chosen while articles or pricing rules use this type. Rates are converted.'
+                  : 'The reference unit: rates of this type are per this unit. Articles can use other units of the same kind.'
             }
             {...register('unit')}
           >
-            {(kind === 'filament' ? (['g'] as MaterialUnit[]) : materialUnits).map((item) => (
-              <SelectItem key={item} value={item} text={unitNames[item]} />
-            ))}
+            {kind === 'filament' ? (
+              <SelectItem value="g" text={unitNames.g} />
+            ) : (
+              unitChoices.map((dimension) => (
+                <SelectItemGroup key={dimension} label={dimensionNames[dimension]}>
+                  {unitsOfDimension(dimension).map((item) => (
+                    <SelectItem key={item} value={item} text={unitNames[item]} />
+                  ))}
+                </SelectItemGroup>
+              ))
+            )}
           </Select>
           {kind === 'consumable' && processesList.isSuccess && (
             <Controller

@@ -50,6 +50,7 @@ func reconcileBambuSlotObservation(
 		InputUnitExternalID string `json:"inputUnitExternalId"`
 		SlotExternalID      string `json:"slotExternalId"`
 		TagUID              string `json:"tagUid"`
+		TrayUUID            string `json:"trayUuid"`
 		Empty               bool   `json:"empty"`
 	}
 	if json.Unmarshal(payload, &value) != nil {
@@ -58,8 +59,10 @@ func reconcileBambuSlotObservation(
 	value.InputUnitExternalID = strings.TrimSpace(value.InputUnitExternalID)
 	value.SlotExternalID = strings.TrimSpace(value.SlotExternalID)
 	value.TagUID = strings.TrimSpace(value.TagUID)
-	if value.InputUnitExternalID == "" || value.SlotExternalID == "" || utf8.RuneCountInString(value.TagUID) > 255 ||
-		(value.Empty && value.TagUID != "") {
+	value.TrayUUID = strings.TrimSpace(value.TrayUUID)
+	if value.InputUnitExternalID == "" || value.SlotExternalID == "" ||
+		utf8.RuneCountInString(value.TagUID) > 255 || utf8.RuneCountInString(value.TrayUUID) > 255 ||
+		(value.Empty && (value.TagUID != "" || value.TrayUUID != "")) {
 		return nil
 	}
 
@@ -102,11 +105,11 @@ func reconcileBambuSlotObservation(
 			eventKind:   &eventKind,
 		})
 	}
-	if value.TagUID == "" {
+	if value.TagUID == "" && value.TrayUUID == "" {
 		return nil
 	}
 
-	spoolID, err := q.LockActiveSpoolByNFCTag(ctx, value.TagUID)
+	spoolID, err := lockActiveSpoolByTag(ctx, q, value.TrayUUID, value.TagUID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
 	}
@@ -186,6 +189,23 @@ func reconcileBambuSlotObservation(
 		kind:        ActivitySpoolAutoMounted,
 		resourceID:  &slotID,
 	})
+}
+
+// lockActiveSpoolByTag finds the active spool a printer tray carries and locks it. The tray UUID, which both RFID
+// chips of a Bambu spool report, is looked up as a bambu_tray_uuid identifier first. Only without a tray UUID, or when
+// no spool carries it, does the chip UID decide, as an nfc identifier: that keeps manually registered chips and tags
+// of other printers working. It returns pgx.ErrNoRows when no active spool matches.
+func lockActiveSpoolByTag(ctx context.Context, q *db.Queries, trayUUID, tagUID string) (uuid.UUID, error) {
+	if trayUUID != "" {
+		id, err := q.LockActiveSpoolByTrayUUID(ctx, trayUUID)
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return id, err
+		}
+	}
+	if tagUID == "" {
+		return uuid.Nil, pgx.ErrNoRows
+	}
+	return q.LockActiveSpoolByNFCTag(ctx, tagUID)
 }
 
 func formatRunDisplayID(sequence int64, observedAt time.Time) string {
@@ -596,7 +616,7 @@ func pgNumericOptional(value *decimal.Decimal) pgtype.Numeric {
 }
 
 // resolveReportedSpool uses only authoritative historical slot assignments and
-// exact historical NFC identifiers. A disagreement or ambiguity is unresolved.
+// exact historical tray UUID and NFC identifiers. A disagreement or ambiguity is unresolved.
 func resolveReportedSpool(
 	ctx context.Context,
 	q *db.Queries,
@@ -605,6 +625,7 @@ func resolveReportedSpool(
 	at time.Time,
 ) (*uuid.UUID, error) {
 	var slotSpool, tagSpool *uuid.UUID
+	matched := false
 	unit, unitOK := payloadString(values, "inputUnitExternalId")
 	slot, slotOK := payloadString(values, "slotExternalId")
 	if unitOK && slotOK && unit != "" && slot != "" && utf8.RuneCountInString(unit) <= 200 &&
@@ -620,7 +641,19 @@ func resolveReportedSpool(
 			slotSpool = &ids[0]
 		}
 	}
-	if tag, ok := payloadString(values, "tagUid"); ok && tag != "" && utf8.RuneCountInString(tag) <= 255 {
+	// The tray UUID is looked up first; the chip UID only decides when there is no tray UUID or no spool carries it.
+	trayUUID, _ := payloadString(values, "trayUuid")
+	if trayUUID != "" && utf8.RuneCountInString(trayUUID) <= 255 {
+		ids, err := q.ListTrayUUIDSpoolsAt(ctx, db.ListTrayUUIDSpoolsAtParams{TrayUuid: trayUUID, At: at})
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 1 {
+			tagSpool = &ids[0]
+		}
+		matched = len(ids) > 0
+	}
+	if tag, ok := payloadString(values, "tagUid"); ok && !matched && tag != "" && utf8.RuneCountInString(tag) <= 255 {
 		ids, err := q.ListNFCSpoolsAt(ctx, db.ListNFCSpoolsAtParams{TagUid: tag, At: at})
 		if err != nil {
 			return nil, err

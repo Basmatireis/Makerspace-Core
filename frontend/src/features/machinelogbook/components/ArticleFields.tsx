@@ -1,7 +1,16 @@
 /* eslint-disable react-refresh/only-export-components -- the shared article fields and their value helpers belong together */
 import { useRef, useState } from 'react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
-import { Button, ComboBox, Link as CarbonLink, Select, SelectItem, TextArea, TextInput } from '@carbon/react';
+import {
+  Button,
+  ComboBox,
+  InlineNotification,
+  Link as CarbonLink,
+  Select,
+  SelectItem,
+  TextArea,
+  TextInput,
+} from '@carbon/react';
 import { Link } from 'react-router-dom';
 import { useStableItems } from '../../../app/useStableItems';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -20,7 +29,8 @@ import { decimalNumber, decimalText, decimalValidator } from '../../../app/decim
 import { COLOR_HEX_PATTERN, reportedToMaterialHex } from '../colors';
 import { materialTypesQuery, suggestionsQuery } from '../inventoryQueries';
 import { machineLogbookKeys } from '../queries';
-import { generatedArticleName, toDecimal, typeNoun, typeNounLower, unitLabel } from './inventoryShared';
+import { generatedArticleName, toDecimal, typeNoun, typeNounLower } from './inventoryShared';
+import { dimensionOf, unitNames, unitSymbol, unitsOfDimension } from '../units';
 
 /** The descriptive fields of an article, shared by the Receive stock form and the article form. */
 export type ArticleValues = {
@@ -35,6 +45,10 @@ export type ArticleValues = {
   location: string;
   threshold: string;
   notes: string;
+  /** Empty follows the type's unit. */
+  unit: MaterialUnit | '';
+  /** Only for pieces; empty for none. */
+  countLabel: string;
 };
 /** Forms that embed the article fields keep them under `article`. */
 export type WithArticle = { article: ArticleValues };
@@ -51,6 +65,8 @@ export const blankArticle = (kind: MaterialKind, typeId = ''): ArticleValues => 
   location: '',
   threshold: '',
   notes: '',
+  unit: '',
+  countLabel: '',
 });
 
 /** Values of an existing article. A name that is just the generated one is left empty so it follows later changes. */
@@ -73,6 +89,8 @@ export function articleValuesOf(material: Material): ArticleValues {
     location: material.storageLocation ?? '',
     threshold: material.lowStockThreshold != null ? decimalText(material.lowStockThreshold) : '',
     notes: material.notes ?? '',
+    unit: material.unit,
+    countLabel: material.countLabel ?? '',
   };
 }
 
@@ -97,6 +115,8 @@ export function articleBody(values: ArticleValues, kind: MaterialKind): CreateMa
     colorHex: colour ? orNull(values.colorHex.toUpperCase()) : null,
     lowStockThreshold: optionalDecimal(values.threshold),
     filamentDiameterMm: kind === 'filament' ? optionalDecimal(values.diameter) : null,
+    ...(kind !== 'filament' && values.unit ? { unit: values.unit } : {}),
+    countLabel: kind !== 'filament' && values.unit === 'piece' ? orNull(values.countLabel) : null,
   };
 }
 
@@ -179,15 +199,13 @@ type Props = {
   kind?: MaterialKind;
   /** Prefix of element IDs, unique per dialog. */
   idPrefix: string;
-  /** The unit shown next to the package size; the type's unit once a type is chosen. */
+  /** The unit of the article being edited: a different choice shows the conversion notice. */
   unit?: MaterialUnit;
   /** An inactive type that must stay selectable (the article's current one). */
   keepTypeId?: string;
   /** A printer or file reported this colour (RRGGBB); offers a one-click "Use reported color". */
   reportedColorHex?: string | null;
   showNotes?: boolean;
-  /** Stock and unit of an existing article block a unit-changing type. */
-  hasStock?: boolean;
   /** Says where sale prices are set; prices are never edited with the article. */
   showPricingNote?: boolean;
 };
@@ -203,7 +221,6 @@ export function ArticleFields({
   keepTypeId,
   reportedColorHex,
   showNotes = false,
-  hasStock = false,
   showPricingNote = false,
 }: Props) {
   const {
@@ -228,7 +245,15 @@ export function ArticleFields({
   const noun = typeNoun(kind);
   const choices = fixedKind ? allTypes.filter((item) => item.kind === fixedKind) : allTypes;
   const suggestions = useQuery(suggestionsQuery(values.materialTypeId || undefined)).data;
-  const activeUnit = chosenType?.unit ?? unit;
+  // The article's own unit: any unit of the type's dimension, the type's unit unless chosen otherwise. Filament stays grams.
+  const unitChoices = chosenType && kind !== 'filament' ? unitsOfDimension(chosenType.dimension) : [];
+  const activeUnit: MaterialUnit | undefined =
+    chosenType && values.unit && unitChoices.includes(values.unit) ? values.unit : (chosenType?.unit ?? unit);
+  const unitChanged =
+    unit !== undefined &&
+    activeUnit !== undefined &&
+    activeUnit !== unit &&
+    dimensionOf(unit) === dimensionOf(activeUnit);
   const previewHex = COLOR_HEX_PATTERN.test(values.colorHex.trim().toUpperCase())
     ? values.colorHex.trim().toUpperCase()
     : null;
@@ -263,7 +288,7 @@ export function ArticleFields({
   const choiceItems = useStableItems<TypeItem>(
     choices.map((item) => ({
       id: item.id,
-      label: item.kind === 'part' ? item.name : `${item.name} (${unitLabel(item.unit)})`,
+      label: item.kind === 'part' ? item.name : `${item.name} (${unitSymbol(item.unit)})`,
     })),
   );
   const items: TypeItem[] =
@@ -322,6 +347,10 @@ export function ArticleFields({
                 return;
               }
               setTypeError(null);
+              if (selectedItem?.id !== field.value) {
+                setValue('article.unit', '');
+                setValue('article.countLabel', '');
+              }
               field.onChange(selectedItem?.id ?? '');
             }}
             invalid={fieldState.invalid || Boolean(typeError)}
@@ -452,6 +481,42 @@ export function ArticleFields({
           )}
         />
       )}
+      {unitChoices.length > 1 && (
+        <Select
+          id={`${idPrefix}-unit`}
+          labelText="Unit"
+          helperText={`Stock, package size and threshold of this article are counted in this unit. The ${typeNounLower(kind)} unit is ${unitSymbol(chosenType!.unit)}.`}
+          value={activeUnit}
+          onChange={(event) => {
+            setValue('article.unit', event.target.value as MaterialUnit, { shouldDirty: true });
+            if (event.target.value !== 'piece') setValue('article.countLabel', '');
+          }}
+        >
+          {unitChoices.map((item) => (
+            <SelectItem key={item} value={item} text={unitNames[item]} />
+          ))}
+        </Select>
+      )}
+      {activeUnit === 'piece' && kind !== 'filament' && (
+        <TextInput
+          id={`${idPrefix}-count-label`}
+          labelText="Count label (optional)"
+          helperText="What one piece is called, for example sheet, pair or roll. Shown instead of pcs."
+          maxLength={20}
+          invalid={Boolean(errors.article?.countLabel)}
+          invalidText={errors.article?.countLabel?.message}
+          {...register('article.countLabel', { maxLength: { value: 20, message: 'Use at most 20 characters.' } })}
+        />
+      )}
+      {unitChanged && (
+        <InlineNotification
+          kind="info"
+          lowContrast
+          hideCloseButton
+          title="Quantities are converted"
+          subtitle={`Stock, package size, low-stock threshold, the article rate and past usages are converted from ${unitSymbol(unit)} to ${unitSymbol(activeUnit)}.`}
+        />
+      )}
       <Controller
         control={control}
         name="article.packageSize"
@@ -459,7 +524,7 @@ export function ArticleFields({
         render={({ field, fieldState }) => (
           <DecimalField
             id={`${idPrefix}-package-size`}
-            labelText={`Package size${activeUnit ? ` in ${unitLabel(activeUnit)}` : ''} (optional)`}
+            labelText={`Package size${activeUnit ? ` in ${unitSymbol(activeUnit)}` : ''} (optional)`}
             helperText={
               kind === 'filament'
                 ? 'For example 1000 for a 1 kg roll. Prefills Receive stock.'
@@ -492,7 +557,7 @@ export function ArticleFields({
         render={({ field, fieldState }) => (
           <DecimalField
             id={`${idPrefix}-threshold`}
-            labelText={`Low-stock threshold${activeUnit ? ` in ${unitLabel(activeUnit)}` : ''} (optional)`}
+            labelText={`Low-stock threshold${activeUnit ? ` in ${unitSymbol(activeUnit)}` : ''} (optional)`}
             helperText="Stock at or below this quantity is flagged as low."
             value={field.value}
             onChange={field.onChange}
@@ -520,9 +585,6 @@ export function ArticleFields({
           maxLength={2000}
           {...register('article.notes')}
         />
-      )}
-      {hasStock && (
-        <p className="mj-secondary">The unit follows the {typeNounLower(kind)} and cannot change while stock exists.</p>
       )}
     </>
   );

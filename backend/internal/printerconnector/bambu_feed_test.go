@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -39,6 +40,15 @@ const h2dFeedDocument = `{"print":{"gcode_state":"RUNNING","task_id":"88","layer
 	`{"id":"0","info":"10001003","tray":[{"id":"0","tag_uid":"LEFTA","tray_type":"PLA"},` +
 	`{"id":"1","tag_uid":"LEFTB","tray_type":"PLA"}]},` +
 	`{"id":"128","info":"51002104","tray":[{"id":"0","tag_uid":"RIGHT","tray_type":"PETG"}]}]}}}`
+
+// h2dRunOutStatus is AMS 0 of h2dFeedDocument after tray 0 ran out, as an
+// AMS 2 Pro reports it: the tray is absent and has no material or tag, and the
+// hotend source is external holder 255 while the filament tail is printed.
+const h2dRunOutStatus = `{"print":{"layer_num":10,"ams":{"tray_exist_bits":"10002","ams":[` +
+	`{"id":"0","info":"10001003","tray":[{"id":"0","state":26},{"id":"1","tag_uid":"0000000000000000","tray_type":"PLA"}]},` +
+	`{"id":"128","info":"51002104","tray":[{"id":"0","tag_uid":"RIGHT","tray_type":"PETG"}]}]},` +
+	`"vir_slot":[{"id":"254","tray_type":"","tag_uid":"0000000000000000"},{"id":"255","tray_type":"","tag_uid":"0000000000000000"}],` +
+	`"device":{"extruder":{"info":[{"id":0,"snow":65280,"info":2},{"id":1,"snow":32768,"info":2}]}}}}`
 
 func TestBambuFeedTimeline(t *testing.T) {
 	t.Parallel()
@@ -158,6 +168,35 @@ func TestBambuFeedTimeline(t *testing.T) {
 			want: []line{
 				{extruder: 0, segments: []segment{{slot: "0", tag: "LEFTA"}, {slot: "1", tag: "LEFTB", layer: 25}}},
 				{extruder: 1, segments: []segment{{slot: "0", tag: "RIGHT"}}},
+			},
+		},
+		{
+			// Captured on an H2D with AMS 2 Pro and spools without RFID.
+			name:        "H2D backup refill after printing the run-out tail",
+			adapterKind: AdapterBambuH2D,
+			statuses: []string{
+				h2dFeedDocument,
+				h2dRunOutStatus,
+				`{"print":{"layer_num":39,"device":{"extruder":{"info":[{"id":0,"snow":65535,"info":2},{"id":1,"snow":32768,"info":2}]}}}}`,
+				`{"print":{"layer_num":39,"device":{"extruder":{"info":[{"id":0,"snow":1,"info":2},{"id":1,"snow":32768,"info":2}]}}}}`,
+			},
+			want: []line{
+				{extruder: 0, segments: []segment{{slot: "0", tag: "LEFTA"}, {slot: "1", layer: 39}}},
+				{extruder: 1, segments: []segment{{slot: "0", tag: "RIGHT"}}},
+			},
+		},
+		{
+			name:        "H2D external holder without filament is a source while the AMS slot is loaded",
+			adapterKind: AdapterBambuH2D,
+			statuses: []string{
+				h2dFeedDocument,
+				`{"print":{"layer_num":5,"vir_slot":[{"id":"255","tray_type":"","tag_uid":"0000000000000000"}],` +
+					`"device":{"extruder":{"info":[{"id":0,"snow":65280,"info":2},{"id":1,"snow":32768,"info":2}]}}}}`,
+			},
+			want: []line{
+				{extruder: 0, segments: []segment{{slot: "0", tag: "LEFTA"}}},
+				{extruder: 1, segments: []segment{{slot: "0", tag: "RIGHT"}}},
+				{extruder: 0, segments: []segment{{slot: "255"}}},
 			},
 		},
 		{
@@ -600,5 +639,32 @@ func assertSegmentsSum(t *testing.T, item map[string]any, segments []map[string]
 	}
 	if sum != total {
 		t.Fatalf("segments sum to %d µg, item reports %d µg", sum, total)
+	}
+}
+
+func TestBambuFeedKeepsOneSegmentWhenASlotReadsBothChipsOfASpool(t *testing.T) {
+	t.Parallel()
+	const spool = "6C8E4B1A2F3D4E5F6A7B8C9D0E1F2A3B"
+	status := func(layer int, chip string) string {
+		return fmt.Sprintf(`{"print":{"layer_num":%d,"ams":{"tray_now":"0","tray_exist_bits":"1","ams":[{"id":"0","tray":[`+
+			`{"id":"0","tag_uid":%q,"tray_uuid":%q,"tray_type":"PLA"}]}]}}}`, layer, chip, spool)
+	}
+	processor := newFeedTestProcessor(AdapterBambuX1C)
+	at := time.Date(2026, 11, 4, 9, 0, 0, 0, time.UTC)
+	applyFeedStatus(t, processor, `{"print":{"gcode_state":"RUNNING","task_id":"81","layer_num":1,"mc_percent":1,`+
+		`"ams_mapping2":[{"ams_id":0,"slot_id":0}],"ams":{"tray_now":"0","tray_exist_bits":"1","ams":[{"id":"0","tray":[`+
+		`{"id":"0","tag_uid":"CAD2E2DC00000100","tray_uuid":"`+spool+`","tray_type":"PLA"}]}]}}}`, at)
+	applyFeedStatus(t, processor, status(10, "7A99DCDC00000100"), at.Add(time.Minute))
+	applyFeedStatus(t, processor, status(20, "CAD2E2DC00000100"), at.Add(2*time.Minute))
+	facts := processor.state.RunFacts[processor.state.CurrentRunID]
+	if len(facts.FeedLines) != 1 || len(facts.FeedLines[0].Segments) != 1 {
+		t.Fatalf("the chips of one spool must not start a new segment: %+v", facts.FeedLines)
+	}
+	segment := facts.FeedLines[0].Segments[0]
+	if segment.TrayUUID != spool || segment.TagUID != "CAD2E2DC00000100" {
+		t.Fatalf("segment = %+v", segment)
+	}
+	if facts.TrayUUID != spool || len(facts.SpoolEvidence) != 1 || facts.SpoolEvidence[0].TrayUUID != spool {
+		t.Fatalf("facts = %+v", facts)
 	}
 }

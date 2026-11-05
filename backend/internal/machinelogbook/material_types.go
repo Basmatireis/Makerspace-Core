@@ -506,6 +506,30 @@ func (s *Service) UpdateMaterialTypeTx(
 	)
 }
 
+// convertMaterialTypeUnit expresses the material rates and the usages of material the recipient brought, named only by
+// type, in the new reference unit of the type. Articles keep their own units.
+func convertMaterialTypeUnit(
+	ctx context.Context,
+	q *machinelogbookdb.Queries,
+	typeID uuid.UUID,
+	oldUnit, newUnit string,
+) error {
+	if _, err := q.ConvertMaterialRulesUnit(
+		ctx,
+		machinelogbookdb.ConvertMaterialRulesUnitParams{
+			OldUnit: oldUnit, NewUnit: newUnit, MaterialTypeID: &typeID,
+		},
+	); err != nil {
+		return databaseError(err)
+	}
+	return databaseError(q.ConvertExternalRunUsagesUnit(
+		ctx,
+		machinelogbookdb.ConvertExternalRunUsagesUnitParams{
+			OldUnit: oldUnit, NewUnit: newUnit, MaterialTypeID: &typeID,
+		},
+	))
+}
+
 func (s *Service) updateMaterialTypeTx(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -584,7 +608,7 @@ func (s *Service) updateMaterialTypeTx(
 			)
 		}
 	}
-	if current.Unit != unit {
+	if current.Unit != unit && !sameDimension(current.Unit, unit) {
 		referenced, refErr := q.MaterialTypeIsReferenced(ctx, id)
 		if refErr != nil {
 			return MaterialType{}, refErr
@@ -592,8 +616,15 @@ func (s *Service) updateMaterialTypeTx(
 		if referenced {
 			return MaterialType{}, apperror.Conflicting(
 				"material_type_unit_in_use",
-				"The unit cannot change while materials or pricing rules use this material type",
+				"The unit can only change to one of the same dimension while materials or pricing rules use this material type",
 			)
+		}
+	}
+	// Same-dimension change: the prices stay, so the rates follow the unit (the pricing rules' foreign key carries the
+	// new unit along with the type).
+	if current.Unit != unit && sameDimension(current.Unit, unit) {
+		if err = convertMaterialTypeUnit(ctx, q, id, current.Unit, unit); err != nil {
+			return MaterialType{}, err
 		}
 	}
 	if _, err = q.UpdateMaterialType(

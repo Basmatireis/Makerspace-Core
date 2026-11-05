@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ColorHex } from './colorHex';
+import type { CountLabel } from './countLabel';
 import type { Decimal } from './decimal';
 import type { MaterialUnit } from './materialUnit';
 import type { UUIDv7 } from './uUIDv7';
@@ -45,7 +46,9 @@ export interface UpdateMaterialRequest {
      * @nullable
      */
   manufacturer?: string | null;
+  /** In the article's new unit when the request changes it; left as it was, it is converted along with the unit. */
   packageSize?: Decimal | null;
+  countLabel?: CountLabel | null;
   /**
      * @maxLength 200
      * @nullable
@@ -62,8 +65,9 @@ export interface UpdateMaterialRequest {
      */
   colorName?: string | null;
   colorHex?: ColorHex | null;
-  /** Optional. The unit always is the unit of the material type; a different value is refused with 422 material_unit_mismatch. */
+  /** Optional; omitted keeps the unit. Any unit of the material type's dimension. A different unit of that dimension converts, in the same transaction, the article's stock ledger and balance, package size and low-stock threshold (unless changed in this request), stock_article rates and run usages; pricing snapshots and order items keep their unit. Another dimension is refused with 422 material_unit_mismatch; filament is always g. */
   unit?: MaterialUnit;
+  /** In the article's new unit when the request changes it; left as it was, it is converted along with the unit. */
   lowStockThreshold?: Decimal | null;
   filamentDiameterMm?: Decimal | null;
   expectedVersion: Version;

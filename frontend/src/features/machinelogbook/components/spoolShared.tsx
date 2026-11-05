@@ -139,6 +139,7 @@ export const spoolLabelPrefix = (material: Pick<Material, 'materialTypeCode' | '
 
 export const identifierKinds: { id: FilamentSpoolIdentifierKind; label: string }[] = [
   { id: 'nfc', label: 'NFC tag' },
+  { id: 'bambu_tray_uuid', label: 'Bambu tray UUID' },
   { id: 'barcode', label: 'Barcode' },
   { id: 'qr', label: 'QR code' },
 ];
@@ -146,6 +147,36 @@ export const identifierLabel = (kind: FilamentSpoolIdentifierKind) =>
   identifierKinds.find((item) => item.id === kind)?.label ?? kind;
 /** Case-insensitive identity of an identifier, used to spot duplicates. */
 export const identifierKey = (kind: string, value: string) => `${kind}:${value.trim().toLowerCase()}`;
-/** The RFID (NFC) tag printers read, if the spool has one. */
+/** The identifier printers read from the spool, if it has one: the Bambu tray UUID, else the NFC chip UID. */
 export const nfcTagOf = (spool: Pick<FilamentSpool, 'identifiers'>) =>
-  spool.identifiers.find((item) => item.kind === 'nfc')?.value ?? null;
+  (
+    spool.identifiers.find((item) => item.kind === 'bambu_tray_uuid') ??
+    spool.identifiers.find((item) => item.kind === 'nfc')
+  )?.value ?? null;
+
+/** What a printer reports about a spool's RFID tags. */
+export type ReportedTag = { tagUid?: string | null; trayUuid?: string | null };
+export type TrayIdentifier = { kind: 'bambu_tray_uuid' | 'nfc'; value: string };
+
+/** The identifier to link a spool with: the tray UUID (shared by both chips of a Bambu spool) when reported, else the chip UID. */
+export function trayIdentifier(tag: ReportedTag | null | undefined): TrayIdentifier | null {
+  const uuid = tag?.trayUuid?.trim();
+  if (uuid) return { kind: 'bambu_tray_uuid', value: uuid };
+  const uid = tag?.tagUid?.trim();
+  return uid ? { kind: 'nfc', value: uid } : null;
+}
+
+/** Label and value for showing the spool identity a printer reports. */
+export function trayIdentityDisplay(tag: ReportedTag | null | undefined): { label: string; value: string } | null {
+  const identifier = trayIdentifier(tag);
+  if (!identifier) return null;
+  return { label: identifier.kind === 'bambu_tray_uuid' ? 'Bambu spool' : 'RFID', value: identifier.value };
+}
+
+/** Whether an identifier the printer reports equals one on the spool: the tray UUID against bambu_tray_uuid first, then the chip UID against nfc, case-insensitively. */
+export function spoolMatchesTag(spool: Pick<FilamentSpool, 'identifiers'>, tag: ReportedTag): boolean {
+  const has = (kind: string, value: string | null | undefined) =>
+    Boolean(value) &&
+    spool.identifiers.some((item) => item.kind === kind && item.value.toLowerCase() === value!.toLowerCase());
+  return has('bambu_tray_uuid', tag.trayUuid) || has('nfc', tag.tagUid);
+}

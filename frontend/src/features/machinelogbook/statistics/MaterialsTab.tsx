@@ -5,6 +5,7 @@ import type { Series } from './chartSpec';
 import { formatCompactMoney, formatEuro, formatSignedMoney, materialTypeRows, points, round2, sum } from './model';
 import { monthLabel, monthsOf, type DateRange } from './period';
 import { StatsTable } from './StatsTable';
+import { unitDisplay } from '../units';
 
 /** How many material types the monthly cost chart stacks on their own; the rest are summed as "Other". */
 const STACKED_TYPES = 4;
@@ -80,7 +81,7 @@ export function MaterialsTab({ stats, range }: { stats: MachineLogbookStatistics
               id: row.id,
               cells: [
                 row.name,
-                row.unit ? `${formatQuantity(row.quantity)} ${row.unit}` : '—',
+                row.unit ? `${formatQuantity(row.quantity)} ${unitDisplay(row.unit)}` : '—',
                 formatEuro(row.cost),
                 formatEuro(row.charged),
                 formatSignedMoney(row.charged - row.cost),

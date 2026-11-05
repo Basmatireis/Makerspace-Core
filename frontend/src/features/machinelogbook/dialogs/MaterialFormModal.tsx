@@ -39,7 +39,6 @@ export function MaterialFormModal({
   const client = useQueryClient();
   const notify = useNotify();
   const kind = material?.kind ?? requestedKind;
-  const hasStock = Boolean(material && Number(material.quantity) > 0);
   const defaults = (): Values => ({
     article: material ? articleValuesOf(material) : blankArticle(kind),
     active: material?.active ?? true,
@@ -116,7 +115,6 @@ export function MaterialFormModal({
                 reportedColorHex={reportedColorHex}
                 showNotes
                 showPricingNote
-                hasStock={hasStock}
               />
             )}
             {material && (

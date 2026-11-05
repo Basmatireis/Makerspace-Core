@@ -855,8 +855,12 @@ type inventoryArticleEntry struct {
 	Variant           *string `json:"variant"`
 	Manufacturer      *string `json:"manufacturer"`
 	// LegacySalePrice is read from files exported before sale prices became pricing rules and ignored.
-	LegacySalePrice    *string `json:"salePrice,omitempty"`
-	PackageSize        *string `json:"packageSize"`
+	LegacySalePrice *string `json:"salePrice,omitempty"`
+	PackageSize     *string `json:"packageSize"`
+	// Unit is the article's own unit and CountLabel the name of its piece; both are left out of files that predate
+	// flexible units, which then keep the unit and label the article has.
+	Unit               *string `json:"unit,omitempty"`
+	CountLabel         *string `json:"countLabel,omitempty"`
 	StorageLocation    *string `json:"storageLocation"`
 	Notes              *string `json:"notes"`
 	FilamentDiameterMm *string `json:"filamentDiameterMm"`
@@ -876,6 +880,7 @@ func inventoryArticlesSection() section {
 				item.MaterialType = strings.TrimSpace(item.MaterialType)
 				for _, text := range []**string{
 					&item.ColorName, &item.ColorHex, &item.Variant, &item.Manufacturer, &item.StorageLocation, &item.Notes,
+					&item.Unit, &item.CountLabel,
 				} {
 					*text = trimmed(*text)
 				}
@@ -925,6 +930,8 @@ func articleFromRow(row configtransferdb.ListMaterialsRow) inventoryArticleEntry
 		Variant:            row.Variant,
 		Manufacturer:       row.Manufacturer,
 		PackageSize:        numericText(row.PackageSize),
+		Unit:               ptr(row.Unit),
+		CountLabel:         row.CountLabel,
 		StorageLocation:    row.StorageLocation,
 		Notes:              row.Notes,
 		FilamentDiameterMm: numericText(row.FilamentDiameterMm),
@@ -935,11 +942,14 @@ func sameArticle(a, b inventoryArticleEntry) bool {
 	if a.Name != b.Name || nameKey(a.MaterialType) != nameKey(b.MaterialType) || a.Active != b.Active {
 		return false
 	}
+	if b.Unit != nil && (a.Unit == nil || *a.Unit != *b.Unit) {
+		return false
+	}
 	pairs := [][2]*string{
 		{a.LowStockThreshold, b.LowStockThreshold}, {a.ColorName, b.ColorName}, {a.ColorHex, b.ColorHex},
 		{a.Variant, b.Variant}, {a.Manufacturer, b.Manufacturer},
-		{a.PackageSize, b.PackageSize}, {a.StorageLocation, b.StorageLocation}, {a.Notes, b.Notes},
-		{a.FilamentDiameterMm, b.FilamentDiameterMm},
+		{a.PackageSize, b.PackageSize}, {a.CountLabel, b.CountLabel}, {a.StorageLocation, b.StorageLocation},
+		{a.Notes, b.Notes}, {a.FilamentDiameterMm, b.FilamentDiameterMm},
 	}
 	for _, pair := range pairs {
 		if !sameText(pair[0], pair[1]) {
@@ -977,6 +987,8 @@ func articleInput(item inventoryArticleEntry, typeID uuid.UUID) machinelogbook.M
 	return machinelogbook.MaterialInput{
 		Name:               item.Name,
 		MaterialTypeID:     typeID,
+		Unit:               item.Unit,
+		CountLabel:         item.CountLabel,
 		ColorName:          item.ColorName,
 		ColorHex:           item.ColorHex,
 		Variant:            item.Variant,

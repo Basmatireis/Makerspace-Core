@@ -461,7 +461,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 		t.Fatalf("detected tags = %+v", tags)
 	}
 	tag := tags.Items[0]
-	if tag.MachineId != machine.ID || tag.TagUid != "E2C92C29AABB" || tag.UnitExternalId != "0" ||
+	if tag.MachineId != machine.ID || tag.TagUid.MustGet() != "E2C92C29AABB" || !tag.TrayUuid.IsNull() || tag.UnitExternalId != "0" ||
 		tag.TrayExternalId != "0" || tag.SlotName.MustGet() != "Slot 1" || tag.InputUnitName.MustGet() != "AMS 2 Pro" ||
 		tag.MaterialType.MustGet() != "PETG" || tag.Spool.IsSpecified() && !tag.Spool.IsNull() {
 		t.Fatalf("detected tag = %+v", tag)

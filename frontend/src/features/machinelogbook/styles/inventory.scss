@@ -269,6 +269,10 @@
   @include type-style('body-compact-01');
 }
 
+.inv-detected__id {
+  overflow-wrap: anywhere;
+}
+
 .inv-detected__actions {
   justify-items: end;
 }

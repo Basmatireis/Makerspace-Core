@@ -26,4 +26,5 @@ export const LookupFilamentSpoolKind = {
   barcode: 'barcode',
   qr: 'qr',
   nfc: 'nfc',
+  bambu_tray_uuid: 'bambu_tray_uuid',
 } as const;

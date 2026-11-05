@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { DetectedSpoolTag } from '../../../api/generated/models';
 import { detectedSpoolTagsQuery } from '../queries';
 import { useCan } from '../shared/useCan';
+import { trayIdentifier, trayIdentityDisplay, type TrayIdentifier } from './spoolShared';
 
 type Option = { id: string; label: string; tag: DetectedSpoolTag; disabled: boolean };
 
@@ -16,7 +17,8 @@ function optionOf(tag: DetectedSpoolTag, spoolId: string | undefined): Option {
     .filter(Boolean)
     .join(' ');
   const owner = !tag.spool ? '' : tag.spool.id === spoolId ? ' (on this spool)' : ` (on ${tag.spool.displayId})`;
-  const parts = [tag.machineName, slotLabel(tag), material, tag.tagUid];
+  const identity = trayIdentityDisplay(tag);
+  const parts = [tag.machineName, slotLabel(tag), material, identity?.value];
   return {
     id: `${tag.machineId}:${tag.unitExternalId}:${tag.trayExternalId}`,
     label: `${parts.filter(Boolean).join(' · ')}${owner}`,
@@ -39,7 +41,8 @@ export function DetectedTagPicker({
   open?: boolean;
   /** The spool being edited, so its own tag is marked as such. */
   spoolId?: string;
-  onPick: (tagUid: string) => void;
+  /** The identifier to use for the picked tag: its tray UUID when reported, else its chip UID. */
+  onPick: (identifier: TrayIdentifier) => void;
 }) {
   const can = useCan();
   const allowed = can('machines.read') && can('inventory.read');
@@ -59,7 +62,8 @@ export function DetectedTagPicker({
       itemToString={(option: Option | null) => option?.label ?? ''}
       selectedItem={null}
       onChange={({ selectedItem }: { selectedItem?: Option | null }) => {
-        if (selectedItem && !selectedItem.disabled) onPick(selectedItem.tag.tagUid);
+        const identifier = selectedItem && !selectedItem.disabled ? trayIdentifier(selectedItem.tag) : null;
+        if (identifier) onPick(identifier);
       }}
     />
   );

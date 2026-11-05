@@ -20,16 +20,20 @@
  */
 
 /**
- * m2 stays for existing data; new square-measure material uses cm2.
+ * A unit of one dimension: mass (g, kg), length (mm, cm, m), area (cm2, m2), volume (ml, l) or count (piece). Units convert within their dimension only.
  */
 export type MaterialUnit = typeof MaterialUnit[keyof typeof MaterialUnit];
 
 
 export const MaterialUnit = {
   g: 'g',
+  kg: 'kg',
+  mm: 'mm',
+  cm: 'cm',
   m: 'm',
-  ml: 'ml',
-  m2: 'm2',
   cm2: 'cm2',
+  m2: 'm2',
+  ml: 'ml',
+  l: 'l',
   piece: 'piece',
 } as const;

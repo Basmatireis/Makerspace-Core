@@ -189,6 +189,8 @@ const (
 	IdentifierBarcode IdentifierKind = "barcode"
 	IdentifierQR      IdentifierKind = "qr"
 	IdentifierNFC     IdentifierKind = "nfc"
+	// IdentifierBambuTrayUUID is the tray_uuid both RFID chips of a Bambu spool store.
+	IdentifierBambuTrayUUID IdentifierKind = "bambu_tray_uuid"
 )
 
 // StockMode is how the stock of a new spool entered inventory.
@@ -275,15 +277,19 @@ const (
 	KindPart       MaterialKind = "part"
 )
 
-// MaterialUnit is the unit a material type is counted in.
+// MaterialUnit is a unit of a material type (its reference unit) or of an article (any unit of the type's dimension).
 type MaterialUnit string
 
 const (
 	UnitGram             MaterialUnit = "g"
+	UnitKilogram         MaterialUnit = "kg"
+	UnitMillimeter       MaterialUnit = "mm"
+	UnitCentimeter       MaterialUnit = "cm"
 	UnitMeter            MaterialUnit = "m"
-	UnitMilliliter       MaterialUnit = "ml"
-	UnitSquareMeter      MaterialUnit = "m2"
 	UnitSquareCentimeter MaterialUnit = "cm2"
+	UnitSquareMeter      MaterialUnit = "m2"
+	UnitMilliliter       MaterialUnit = "ml"
+	UnitLiter            MaterialUnit = "l"
 	UnitPiece            MaterialUnit = "piece"
 )
 

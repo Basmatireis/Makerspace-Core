@@ -27,11 +27,14 @@ type DetectedSpoolTag struct {
 	SlotID         *uuid.UUID
 	SlotName       *string
 	InputUnitName  *string
-	TagUID         string
-	MaterialType   *string
-	SubBrand       *string
-	ColorHex       *string
-	RemainPercent  *int
+	// TagUID is the chip UID the printer reads and TrayUUID the spool's own identifier, which both chips of a Bambu
+	// spool report. At least one is set.
+	TagUID        *string
+	TrayUUID      *string
+	MaterialType  *string
+	SubBrand      *string
+	ColorHex      *string
+	RemainPercent *int
 	// ProductCode is the manufacturer's product code of the filament as the printer reads it from the tag (Bambu's
 	// tray_id_name, such as "A00-K0"); FilamentProfileID is its slicer profile id (tray_info_idx, "GFA00").
 	ProductCode       *string
@@ -40,14 +43,14 @@ type DetectedSpoolTag struct {
 	Spool             *DetectedSpoolTagSpool
 }
 
-// DetectedSpoolTagSpool is the spool whose open fill already carries a detected tag.
+// DetectedSpoolTagSpool is the active spool that already carries a detected tag or tray UUID.
 type DetectedSpoolTagSpool struct {
 	ID        uuid.UUID
 	DisplayID string
 }
 
 // detectedSnapshot reads only the live status fields this feature needs. Snapshots of connectors that predate
-// tagUid simply have no tag and are skipped.
+// tagUid and trayUuid simply have no tag and are skipped.
 type detectedSnapshot struct {
 	Units []struct {
 		ExternalID string `json:"externalId"`
@@ -61,6 +64,7 @@ type detectedSnapshot struct {
 			ProductCode       *string `json:"productCode"`
 			FilamentProfileID *string `json:"filamentProfileId"`
 			TagUID            *string `json:"tagUid"`
+			TrayUUID          *string `json:"trayUuid"`
 			Empty             bool    `json:"empty"`
 		} `json:"trays"`
 	} `json:"units"`
@@ -95,11 +99,11 @@ func (s *Service) ListDetectedSpoolTags(
 		before := len(items)
 		for _, unit := range snapshot.Units {
 			for _, tray := range unit.Trays {
-				if tray.Empty || tray.TagUID == nil {
+				if tray.Empty {
 					continue
 				}
-				tag := strings.TrimSpace(*tray.TagUID)
-				if tag == "" || utf8.RuneCountInString(tag) > maximumDetectedTagLength {
+				tag, trayUUID := detectedIdentity(tray.TagUID), detectedIdentity(tray.TrayUUID)
+				if tag == nil && trayUUID == nil {
 					continue
 				}
 				items = append(items, DetectedSpoolTag{
@@ -109,6 +113,7 @@ func (s *Service) ListDetectedSpoolTags(
 					UnitLabel:         unit.Label,
 					TrayExternalID:    tray.ExternalID,
 					TagUID:            tag,
+					TrayUUID:          trayUUID,
 					MaterialType:      tray.MaterialType,
 					SubBrand:          tray.SubBrand,
 					ColorHex:          tray.ColorHex,
@@ -129,6 +134,7 @@ func (s *Service) ListDetectedSpoolTags(
 	if err = s.attachSlotsAndSpools(ctx, q, items, machineIDs); err != nil {
 		return nil, err
 	}
+	items = dropRepeatedSpools(items)
 	sort.SliceStable(items, func(i, j int) bool {
 		a, b := items[i], items[j]
 		if a.MachineName != b.MachineName {
@@ -145,6 +151,44 @@ func (s *Service) ListDetectedSpoolTags(
 	return items, nil
 }
 
+// detectedIdentity trims a reported tag identity and drops empty and oversized values.
+func detectedIdentity(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" || utf8.RuneCountInString(trimmed) > maximumDetectedTagLength {
+		return nil
+	}
+	return &trimmed
+}
+
+// dropRepeatedSpools keeps one tray per physical spool: the one observed last. A spool moved between printers can
+// appear in a stale snapshot of its previous printer. Only a tray UUID identifies a spool across its two chips; trays
+// without one are kept.
+func dropRepeatedSpools(items []DetectedSpoolTag) []DetectedSpoolTag {
+	newest := make(map[string]int, len(items))
+	for i, item := range items {
+		if item.TrayUUID == nil {
+			continue
+		}
+		key := strings.ToLower(*item.TrayUUID)
+		if j, ok := newest[key]; !ok || items[j].ObservedAt.Before(item.ObservedAt) {
+			newest[key] = i
+		}
+	}
+	result := items[:0]
+	for i, item := range items {
+		if item.TrayUUID != nil {
+			if newest[strings.ToLower(*item.TrayUUID)] != i {
+				continue
+			}
+		}
+		result = append(result, item)
+	}
+	return result
+}
+
 func (*Service) attachSlotsAndSpools(
 	ctx context.Context,
 	q *db.Queries,
@@ -159,9 +203,14 @@ func (*Service) attachSlotsAndSpools(
 	for _, slot := range slots {
 		slotByKey[slotKey{slot.MachineID, *slot.InputUnitExternalID, *slot.SlotExternalID}] = slot
 	}
-	tags := make([]string, 0, len(items))
+	tags, trayUUIDs := make([]string, 0, len(items)), make([]string, 0, len(items))
 	for _, item := range items {
-		tags = append(tags, strings.ToLower(item.TagUID))
+		if item.TagUID != nil {
+			tags = append(tags, strings.ToLower(*item.TagUID))
+		}
+		if item.TrayUUID != nil {
+			trayUUIDs = append(trayUUIDs, strings.ToLower(*item.TrayUUID))
+		}
 	}
 	spools, err := q.ListActiveSpoolsByNFCTags(ctx, tags)
 	if err != nil {
@@ -171,13 +220,30 @@ func (*Service) attachSlotsAndSpools(
 	for _, spool := range spools {
 		spoolByTag[spool.TagUid] = DetectedSpoolTagSpool{ID: spool.SpoolID, DisplayID: spool.DisplayID}
 	}
+	traySpools, err := q.ListActiveSpoolsByTrayUUIDs(ctx, trayUUIDs)
+	if err != nil {
+		return fmt.Errorf("list spools by tray uuid: %w", err)
+	}
+	spoolByTray := make(map[string]DetectedSpoolTagSpool, len(traySpools))
+	for _, spool := range traySpools {
+		spoolByTray[spool.TrayUuid] = DetectedSpoolTagSpool{ID: spool.SpoolID, DisplayID: spool.DisplayID}
+	}
 	for i := range items {
 		item := &items[i]
 		if slot, ok := slotByKey[slotKey{item.MachineID, item.UnitExternalID, item.TrayExternalID}]; ok {
 			item.SlotID, item.SlotName, item.InputUnitName = &slot.SlotID, &slot.SlotName, &slot.InputUnitName
 		}
-		if spool, ok := spoolByTag[strings.ToLower(item.TagUID)]; ok {
-			item.Spool = &spool
+		// The tray UUID decides first; the chip UID only when it names no spool, like when mounts are reconciled.
+		if item.TrayUUID != nil {
+			if spool, ok := spoolByTray[strings.ToLower(*item.TrayUUID)]; ok {
+				item.Spool = &spool
+				continue
+			}
+		}
+		if item.TagUID != nil {
+			if spool, ok := spoolByTag[strings.ToLower(*item.TagUID)]; ok {
+				item.Spool = &spool
+			}
 		}
 	}
 	return nil

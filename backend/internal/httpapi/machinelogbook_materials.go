@@ -430,6 +430,7 @@ func materialCreateInput(body openapi.CreateMaterialRequest) machinelogbook.Mate
 		StorageLocation:    nullableStringPointer(body.StorageLocation),
 		Notes:              nullableStringPointer(body.Notes),
 		PackageSize:        decimalNullable(body.PackageSize),
+		CountLabel:         nullableStringPointer(body.CountLabel),
 		LowStockThreshold:  decimalNullable(body.LowStockThreshold),
 		FilamentDiameterMM: decimalNullable(body.FilamentDiameterMm),
 	}
@@ -447,6 +448,7 @@ func materialUpdateInput(body openapi.UpdateMaterialRequest, diameter *string) m
 		StorageLocation:    nullableStringPointer(body.StorageLocation),
 		Notes:              nullableStringPointer(body.Notes),
 		PackageSize:        decimalNullable(body.PackageSize),
+		CountLabel:         nullableStringPointer(body.CountLabel),
 		LowStockThreshold:  decimalNullable(body.LowStockThreshold),
 		FilamentDiameterMM: diameter,
 		Active:             body.Active,

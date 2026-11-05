@@ -1,6 +1,6 @@
 # Guided tour progress
 
-The application offers guided tours ("guides") to new people. Which ones an account has completed or dismissed is stored per account so a tour is not offered again on another device. The feature lives in `backend/internal/guides` (HTTP tag _Guides_, migration 00106).
+The application offers guided tours ("guides") to new people. Which ones an account has completed or dismissed is stored per account so a tour is not offered again on another device. The feature lives in `backend/internal/guides` (HTTP tag _Guides_, migration 00108).
 
 ## Storage
 
