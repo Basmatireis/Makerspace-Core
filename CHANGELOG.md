@@ -2,6 +2,22 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- **Articles choose their own unit.** A material type's unit now sets its dimension: mass (g, kg), length (mm, cm, m), area (cm², m²), volume (ml, l) or count (pieces). Each article counts in any unit of that dimension, so strips in cm and boards in m can share one type and its rate. Rates of the type and its variants stay per the type's unit and are converted when an article in another unit is priced, quoted or counted in statistics. Piece articles can name their piece (Sheet, Pair, Roll); the name appears in stock, orders and invoices.
+- **Units can be changed later.** An article's unit and a type's unit can change within their dimension at any time; stock, ledger entries, package size, low-stock threshold, article rates and run usages, or the type's rates, are converted in the same step. Captured job prices and order items keep their unit.
+
+### Changed
+
+- Orders, invoices, statistics and run usages show unit symbols (cm², m², pcs) instead of the raw codes.
+
+### Upgrade notes
+
+- **Migration 00107 (article units).** Adds the units kg, mm, cm and l, `materials.count_label`, and the SQL helpers `material_unit_dimension` and `material_unit_factor`; drops the foreign key that pinned an article's unit to its type's unit and lets the pricing-rule foreign key follow a type's unit change. Existing run usages get their unit stored. Down refuses while new units, count labels or article units that differ from their type's unit exist.
+- **API.** `MaterialUnit` gains `kg`, `mm`, `cm`, `l`; new `MaterialDimension`; `MaterialType` and `Material` gain the required `dimension`; `Material`, `CreateMaterialRequest` and `UpdateMaterialRequest` gain `countLabel`. `unit` on article requests may now be any unit of the type's dimension (422 `material_unit_mismatch` otherwise). New audit action `material.unit_converted`. Configuration files carry an article's `unit` and `countLabel`; older files keep the stored ones.
+
 ## [0.16.3] - 2026-11-05
 
 ### Fixed
