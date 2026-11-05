@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { welcomeTourSeen } from './guide-progress';
 import { signInWithPassword } from './totp';
 
 const masterLogin = 'e2e-master@example.test';
@@ -31,10 +32,11 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
   page,
 }) => {
   test.setTimeout(120_000);
-  // Every fresh account is offered the guided tours on its first sign-in; the toast would cover dialog buttons.
-  await page.addLocatorHandler(page.getByRole('status').filter({ hasText: 'New here?' }), async (offer) => {
-    await offer.getByRole('button', { name: 'Not now' }).click();
-  });
+  // Every fresh account is offered the guided tours on its first sign-in; this slice is not about tours, so every
+  // account reads as having seen the offer and its toast never covers a dialog or the profile menu.
+  await page.route('**/api/v1/me/guides', (route) =>
+    route.request().method() === 'GET' ? route.fulfill({ json: welcomeTourSeen }) : route.continue(),
+  );
   let personPath = '';
   let phoneOnlyPersonPath = '';
   let rolePath = '';
