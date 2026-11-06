@@ -172,13 +172,18 @@ func (s *Server) GetCurrentUser(
 	if err != nil {
 		return nil, err
 	}
+	consentRequired, err := s.notifyRules.ConsentRequired(ctx, principal)
+	if err != nil {
+		return nil, err
+	}
 	return openapi.GetCurrentUser200JSONResponse{
 		Body: openapi.CurrentUser{
 			Account: accountDTO(account), Person: personResponse, Permissions: permissionIDs,
 			AuthenticationAssurance: openapi.AuthenticationAssurance(principal.Assurance),
 			Authentication:          authentication,
 			ManagedDevice:           device, DelegablePermissionGrants: delegable,
-			LaborordnungStatus: laborordnungStatusDTO(laborStatus),
+			LaborordnungStatus:          laborordnungStatusDTO(laborStatus),
+			NotificationConsentRequired: &consentRequired,
 			Session: openapi.SessionContext{
 				IdleExpiresAt:          authenticated.IdleExpiresAt,
 				AbsoluteExpiresAt:      authenticated.AbsoluteExpiresAt,

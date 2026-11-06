@@ -885,6 +885,54 @@ type MfaTotpCredential struct {
 	CreatedAt        time.Time
 }
 
+type NotificationCategory struct {
+	ID            uuid.UUID
+	Key           *string
+	Name          string
+	Description   string
+	Basis         string
+	TextVersion   int32
+	TextChangedAt time.Time
+	Position      int32
+	Version       int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type NotificationConsent struct {
+	PersonID    uuid.UUID
+	CategoryID  uuid.UUID
+	Granted     bool
+	TextVersion int32
+	AnsweredAt  time.Time
+	Place       string
+	DeviceID    *uuid.UUID
+}
+
+type NotificationFiring struct {
+	ID             uuid.UUID
+	RuleID         uuid.UUID
+	RuleName       string
+	TriggerType    string
+	Summary        string
+	ResolveToken   *string
+	ResolvedAt     pgtype.Timestamptz
+	ResolvedReason *string
+	Test           bool
+	CreatedAt      time.Time
+}
+
+type NotificationFiringRecipient struct {
+	ID             uuid.UUID
+	FiringID       uuid.UUID
+	PersonID       *uuid.UUID
+	Channel        string
+	Step           int32
+	Status         string
+	NotificationID *uuid.UUID
+	SentAt         time.Time
+}
+
 type NotificationMailOutbox struct {
 	ID             uuid.UUID
 	Kind           string
@@ -896,6 +944,51 @@ type NotificationMailOutbox struct {
 	Attempts       int32
 	NextAttemptAt  time.Time
 	CreatedAt      time.Time
+}
+
+type NotificationPendingAction struct {
+	ID         uuid.UUID
+	FiringID   uuid.UUID
+	DueAt      time.Time
+	Step       int32
+	Action     []byte
+	Item       []byte
+	Recipients []byte
+	Attempts   int32
+	CreatedAt  time.Time
+}
+
+type NotificationRule struct {
+	ID             uuid.UUID
+	OwnerAccountID *uuid.UUID
+	Name           string
+	Description    string
+	CategoryID     *uuid.UUID
+	Enabled        bool
+	Mandatory      bool
+	TriggerType    string
+	TriggerEvent   *string
+	Definition     []byte
+	SystemKey      *string
+	NextRunAt      pgtype.Timestamptz
+	LastFiredAt    pgtype.Timestamptz
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	Version        int64
+}
+
+type NotificationRulePreference struct {
+	AccountID uuid.UUID
+	RuleID    uuid.UUID
+	InApp     bool
+	Email     bool
+	UpdatedAt time.Time
+}
+
+type NotificationThrottle struct {
+	RuleID     uuid.UUID
+	SubjectKey string
+	LastAt     time.Time
 }
 
 type OidcFlow struct {
@@ -1224,6 +1317,12 @@ type Person struct {
 	ProfileImageFileID  *uuid.UUID
 	ProfileImageSource  *string
 	MemberSince         pgtype.Date
+}
+
+type PersonNotificationSetting struct {
+	PersonID              uuid.UUID
+	AskFeedbackAtCheckout bool
+	UpdatedAt             time.Time
 }
 
 type PersonRole struct {

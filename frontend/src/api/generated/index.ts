@@ -19,6 +19,7 @@ export * from './machine-runs/machine-runs';
 export * from './machines/machines';
 export * from './mail/mail';
 export * from './managed-devices/managed-devices';
+export * from './notification-rules/notification-rules';
 export * from './notifications/notifications';
 export * from './oidc/oidc';
 export * from './open-days/open-days';

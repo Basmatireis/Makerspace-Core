@@ -27,6 +27,7 @@ import (
 	mailservice "github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifications"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	oidcservice "github.com/Basmatireis/Makerspace-Core/backend/internal/oidc"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/orders"
@@ -106,6 +107,8 @@ type Server struct {
 	surveyLinkSubmits *ratelimit.Limiter
 	// calendarFeedReads bounds reads of the public calendar feeds per client address.
 	calendarFeedReads *ratelimit.Limiter
+	// notifyRules owns the notification categories, consents and rules.
+	notifyRules *notifyrules.Service
 	// noticeMail sends the queued e-mails of printer notifications.
 	noticeMail *inbox.MailDelivery
 }
@@ -255,6 +258,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		signage:           signageService,
 		surveys:           surveyService,
 		inbox:             inbox.NewService(pool),
+		notifyRules:       notifyrules.NewService(pool),
 		guides:            guides.NewService(pool),
 		configTransfer:    configTransferService,
 		trainings:         trainingsService,

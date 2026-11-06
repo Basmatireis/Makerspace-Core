@@ -51,6 +51,8 @@ tags:
   - name: Signage Player
   - name: Notifications
     description: "In-app notifications: the signed-in account's own inbox and manual messages to roles (docs/notifications.md)."
+  - name: NotificationRules
+    description: "Rule-based notification center: central and personal rules, categories, consents and each person's channel choices."
   - name: Guides
     description: "Which in-app guided tours the signed-in account has completed or dismissed."
   - name: Calendar Feed
@@ -4222,6 +4224,301 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notification-rules/catalog:
+    get:
+      tags: [NotificationRules]
+      operationId: getNotificationCatalog
+      summary: List the triggers, collections and fields rules can be built from
+      description: >-
+        Any staff session. Entries that need a permission the caller lacks (for example sales data needs `orders.read`)
+        are left out, for central rules and personal subscriptions alike. Database options (machines, roles,
+        trainings…) are resolved to their identifiers and names.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Catalog., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationCatalog"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notification-rules:
+    get:
+      tags: [NotificationRules]
+      operationId: listNotificationRules
+      summary: List the central notification rules
+      description: Requires `notification_rules.read`. Each rule carries its firing statistics of the last 30 days and a 14-day sparkline.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Central rules., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [NotificationRules]
+      operationId: createNotificationRule
+      summary: Create a central notification rule
+      description: >-
+        Requires `notification_rules.manage`. The definition is validated strictly (422 `validation_failed` with the
+        path of the offending property in `details.reason`); the author may only use triggers, collections and fields
+        the catalog shows them. Audited as `notification_rule.created` (changed fields only, never the texts).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/NotificationRuleInput"}}}}
+      responses:
+        "201": {description: Rule created., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationRule"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notification-rules/{ruleId}:
+    parameters:
+      - {name: ruleId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [NotificationRules]
+      operationId: getNotificationRule
+      summary: Get a central notification rule
+      description: Requires `notification_rules.read`. A personal subscription answers 404.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Rule., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationRule"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [NotificationRules]
+      operationId: updateNotificationRule
+      summary: Replace a central notification rule
+      description: >-
+        Requires `notification_rules.manage`. Replaces every field. A stale `expectedVersion` answers 409
+        `stale_write`. Audited as `notification_rule.updated` with the names of the changed fields.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateNotificationRuleRequest"}}}}
+      responses:
+        "200": {description: Rule updated., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationRule"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [NotificationRules]
+      operationId: deleteNotificationRule
+      summary: Delete a central notification rule
+      description: Requires `notification_rules.manage`. Deletes the rule with its delivery log. Audited as `notification_rule.deleted`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Rule deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notification-categories:
+    get:
+      tags: [NotificationRules]
+      operationId: listNotificationCategories
+      summary: List the notification categories
+      description: Requires `notification_rules.read`. People see the consent categories through `GET /me/notifications/settings`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Categories., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationCategoryList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [NotificationRules]
+      operationId: createNotificationCategory
+      summary: Create a notification category
+      description: Requires `notification_rules.manage`. The basis (`required` or `consent`) is fixed at creation. Audited as `notification_category.created`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateNotificationCategoryRequest"}}}}
+      responses:
+        "201": {description: Category created., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationCategory"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notification-categories/{categoryId}:
+    parameters:
+      - {name: categoryId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [NotificationRules]
+      operationId: updateNotificationCategory
+      summary: Replace a notification category
+      description: >-
+        Requires `notification_rules.manage`. `askAgain` bumps the text version of a consent category, so everyone is
+        asked for consent again. The service category answers 409 `notification_category_protected`; a stale
+        `expectedVersion` answers 409 `stale_write`. Audited as `notification_category.updated`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateNotificationCategoryRequest"}}}}
+      responses:
+        "200": {description: Category updated., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationCategory"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [NotificationRules]
+      operationId: deleteNotificationCategory
+      summary: Delete a notification category
+      description: >-
+        Requires `notification_rules.manage`. The service category answers 409 `notification_category_protected`; a
+        category that rules use answers 409 `notification_category_in_use`. Audited as `notification_category.deleted`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Category deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/notifications/settings:
+    get:
+      tags: [NotificationRules]
+      operationId: getOwnNotificationSettings
+      summary: Get the signed-in person's notification settings
+      description: >-
+        Any staff session. Lists the categories with the person's consent answers, whether any consent is still pending,
+        the feedback-at-check-out switch and the central rules that reach the person: those whose actions name them
+        directly, a role they hold, or a recipient such as "operator of the print" that can point to them.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Settings., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationSettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/notifications/consents:
+    put:
+      tags: [NotificationRules]
+      operationId: answerOwnNotificationConsents
+      summary: Answer notification consents
+      description: >-
+        Any staff session. Only consent categories can be answered (422 `category_needs_no_consent` otherwise). An answer
+        equal to the stored one at the current text changes nothing. Each change is audited as
+        `notification_consent.answered` without any text.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AnswerNotificationConsentsRequest"}}}}
+      responses:
+        "200": {description: Settings after the answers., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationSettings"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/notifications/rules/{ruleId}/preference:
+    parameters:
+      - {name: ruleId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [NotificationRules]
+      operationId: setOwnNotificationRulePreference
+      summary: Choose the channels for a central rule
+      description: >-
+        Any staff session. Both channels off mutes the rule, which a mandatory rule refuses with 422
+        `mandatory_notification`. A personal subscription or an unknown rule answers 404.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetNotificationRulePreferenceRequest"}}}}
+      responses:
+        "204": {description: Choice stored.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/notifications/feedback-at-checkout:
+    put:
+      tags: [NotificationRules]
+      operationId: setOwnFeedbackAtCheckout
+      summary: Choose whether the tablet may ask for feedback at check-out
+      description: Any staff session.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetFeedbackAtCheckoutRequest"}}}}
+      responses:
+        "204": {description: Choice stored.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/notification-subscriptions:
+    get:
+      tags: [NotificationRules]
+      operationId: listOwnNotificationSubscriptions
+      summary: List the signed-in account's personal notification rules
+      description: Any staff session. Personal rules only ever notify their owner.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Subscriptions., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [NotificationRules]
+      operationId: createOwnNotificationSubscription
+      summary: Create a personal notification rule
+      description: >-
+        Any staff session. Personal rules notify the owner in the app or by e-mail, have no category, escalation or
+        mandatory flag, and may only use triggers, collections and fields the owner may see. At most 30 per account
+        (409 `notification_rule_limit`).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/NotificationRuleInput"}}}}
+      responses:
+        "201": {description: Subscription created., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationRule"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/notification-subscriptions/{subscriptionId}:
+    parameters:
+      - {name: subscriptionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [NotificationRules]
+      operationId: getOwnNotificationSubscription
+      summary: Get a personal notification rule
+      description: Any staff session. Another account's rule and a central rule answer 404.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Subscription., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationRule"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [NotificationRules]
+      operationId: updateOwnNotificationSubscription
+      summary: Replace a personal notification rule
+      description: Any staff session. A stale `expectedVersion` answers 409 `stale_write`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateNotificationRuleRequest"}}}}
+      responses:
+        "200": {description: Subscription updated., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationRule"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [NotificationRules]
+      operationId: deleteOwnNotificationSubscription
+      summary: Delete a personal notification rule
+      description: Any staff session.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Subscription deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /me/dashboard:
@@ -11773,6 +12070,8 @@ components:
         - configuration.export
         - configuration.import
         - notifications.send
+        - notification_rules.read
+        - notification_rules.manage
         - privacy.read
         - privacy.settings.manage
         - privacy.policies.manage
@@ -11888,6 +12187,460 @@ components:
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
+
+    NotificationConditionOperator:
+      type: string
+      maxLength: 20
+      x-values: [is, not, any, none, gte, lte, gt, lt, eq, between, contains, notcontains, starts, empty, notempty, yes, no, includes, excludes]
+
+    NotificationCondition:
+      type: object
+      additionalProperties: false
+      required: [field, op]
+      properties:
+        field: {type: string, maxLength: 80, description: "Prefixed field key: e. (event), i. (loop item), s. (summary), r. (recipient), n. (now)."}
+        op: {$ref: "#/components/schemas/NotificationConditionOperator"}
+        value: {nullable: true, description: "A string, number, or list of strings, depending on the field type and operator."}
+        value2: {type: number, format: double, nullable: true, description: Upper bound of `between`.}
+        ref: {type: string, nullable: true, maxLength: 80, description: "Another number field of the same prefix to compare with instead of a value."}
+
+    NotificationConditionGroup:
+      type: object
+      additionalProperties: false
+      required: [mode, items]
+      properties:
+        mode: {type: string, maxLength: 40, description: "One of all, any."}
+        items: {type: array, minItems: 1, maxItems: 30, items: {$ref: "#/components/schemas/NotificationCondition"}}
+
+    NotificationConditionItem:
+      type: object
+      additionalProperties: false
+      description: A condition, or a `group` (one level of nesting) and nothing else.
+      properties:
+        field: {type: string, maxLength: 80}
+        op: {$ref: "#/components/schemas/NotificationConditionOperator"}
+        value: {nullable: true}
+        value2: {type: number, format: double, nullable: true}
+        ref: {type: string, nullable: true, maxLength: 80}
+        group: {$ref: "#/components/schemas/NotificationConditionGroup"}
+
+    NotificationConditionSet:
+      type: object
+      additionalProperties: false
+      required: [mode, items]
+      properties:
+        mode: {type: string, maxLength: 40, description: "One of all, any."}
+        items: {type: array, maxItems: 30, items: {$ref: "#/components/schemas/NotificationConditionItem"}}
+
+    NotificationRuleSchedule:
+      type: object
+      additionalProperties: false
+      required: [repeat]
+      properties:
+        repeat: {type: string, maxLength: 40, description: "One of daily, weekdays, weekly, monthly, before_open_day, after_open_day."}
+        weekdays: {type: array, maxItems: 7, items: {type: string, maxLength: 40, description: "One of mon, tue, wed, thu, fri, sat, sun."}}
+        time: {type: string, pattern: "^[0-2][0-9]:[0-5][0-9]$", description: "Local time of the makerspace."}
+        dayOfMonth: {type: integer, minimum: 1, maximum: 28}
+        hours: {type: integer, minimum: 0, maximum: 72, description: Hours before or after the open day.}
+
+    NotificationRuleTrigger:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type: {type: string, maxLength: 40, description: "One of event, schedule, manual."}
+        event: {type: string, maxLength: 60, description: Key of a catalog trigger.}
+        schedule: {$ref: "#/components/schemas/NotificationRuleSchedule"}
+
+    NotificationRuleLoop:
+      type: object
+      additionalProperties: false
+      required: [collection, mode, filter]
+      properties:
+        collection: {type: string, maxLength: 40}
+        mode: {type: string, maxLength: 40, description: "One of each, summary."}
+        filter: {$ref: "#/components/schemas/NotificationConditionSet"}
+
+    NotificationRuleDuration:
+      type: object
+      additionalProperties: false
+      required: [value, unit]
+      properties:
+        value: {type: integer, minimum: 1, maximum: 100000}
+        unit: {type: string, maxLength: 40, description: "One of minutes, hours, days."}
+
+    NotificationRuleButton:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: {type: string, maxLength: 40, description: "One of none, ok, acknowledge, link."}
+        label: {type: string, maxLength: 40}
+        link: {type: string, maxLength: 500, description: "`{link}`, an application path starting with a single `/`, or an https address."}
+
+    NotificationRuleInAppOptions:
+      type: object
+      additionalProperties: false
+      required: [appearance, level]
+      properties:
+        appearance: {type: string, maxLength: 40, description: "One of bell, toast, banner, dialog."}
+        level: {type: string, maxLength: 40, description: "One of info, success, warning, error."}
+        toastSeconds: {type: integer, enum: [0, 5, 10, 30], description: "Toasts only; 0 keeps the toast until it is closed."}
+        button: {$ref: "#/components/schemas/NotificationRuleButton"}
+        onlyButtonCloses: {type: boolean}
+        allowLater: {type: boolean}
+        onlineOnly: {type: boolean}
+        emailFallbackMinutes: {type: integer, minimum: 1, maximum: 1440, nullable: true}
+
+    NotificationRuleSignageTarget:
+      type: object
+      additionalProperties: false
+      required: [displayIds, durationMinutes, tone]
+      properties:
+        displayIds: {type: array, minItems: 1, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
+        durationMinutes: {type: integer, minimum: 1, maximum: 1440}
+        tone: {type: string, maxLength: 40, description: "One of info, warning, critical."}
+
+    NotificationRuleTabletTarget:
+      type: object
+      additionalProperties: false
+      required: [deviceIds, mode]
+      properties:
+        deviceIds: {type: array, minItems: 1, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
+        mode: {type: string, maxLength: 20, description: "banner, person_checkin, next_checkin or everyone_today."}
+        mustTap: {type: boolean}
+
+    NotificationRuleAction:
+      type: object
+      additionalProperties: false
+      required: [channel, recipients, title]
+      properties:
+        channel: {type: string, maxLength: 40, description: "One of in_app, email, signage, tablet."}
+        delayMinutes: {type: integer, minimum: 0, maximum: 10080}
+        recipients:
+          type: array
+          maxItems: 20
+          items: {type: string, maxLength: 80}
+          description: "Dynamic keys of the trigger, `item:<key>`, `role:<id>`, `person:<id>`, or exactly `me` in a personal rule. Empty for signage and tablet."
+        title: {type: string, maxLength: 120, description: "May hold `{placeholders}` of the trigger."}
+        body: {type: string, maxLength: 2000}
+        inApp: {$ref: "#/components/schemas/NotificationRuleInAppOptions"}
+        signage: {$ref: "#/components/schemas/NotificationRuleSignageTarget"}
+        tablet: {$ref: "#/components/schemas/NotificationRuleTabletTarget"}
+
+    NotificationRuleEscalationStep:
+      type: object
+      additionalProperties: false
+      required: [after, action]
+      properties:
+        after: {$ref: "#/components/schemas/NotificationRuleDuration"}
+        action: {$ref: "#/components/schemas/NotificationRuleAction"}
+
+    NotificationRuleEscalation:
+      type: object
+      additionalProperties: false
+      required: [stopWhen, steps]
+      properties:
+        stopWhen: {type: string, maxLength: 60}
+        steps: {type: array, minItems: 1, maxItems: 5, items: {$ref: "#/components/schemas/NotificationRuleEscalationStep"}}
+
+    NotificationRuleThrottle:
+      type: object
+      additionalProperties: false
+      required: [per, every]
+      properties:
+        per: {type: string, maxLength: 60, description: "`rule`, `person`, `item` (each-mode loops) or a throttle subject of the trigger."}
+        every: {$ref: "#/components/schemas/NotificationRuleDuration"}
+
+    NotificationRuleDefinition:
+      type: object
+      additionalProperties: false
+      required: [trigger, loop, conditions, actions, escalation, throttle]
+      properties:
+        trigger: {$ref: "#/components/schemas/NotificationRuleTrigger"}
+        loop:
+          allOf: [{$ref: "#/components/schemas/NotificationRuleLoop"}]
+          nullable: true
+        conditions: {$ref: "#/components/schemas/NotificationConditionSet"}
+        actions: {type: array, minItems: 1, maxItems: 10, items: {$ref: "#/components/schemas/NotificationRuleAction"}}
+        escalation:
+          allOf: [{$ref: "#/components/schemas/NotificationRuleEscalation"}]
+          nullable: true
+        throttle:
+          allOf: [{$ref: "#/components/schemas/NotificationRuleThrottle"}]
+          nullable: true
+
+    NotificationRuleStats:
+      type: object
+      additionalProperties: false
+      required: [fired30, lastFiredAt, sparkline]
+      properties:
+        fired30: {type: integer, format: int64, minimum: 0}
+        lastFiredAt: {type: string, format: date-time, nullable: true}
+        sparkline: {type: array, items: {type: integer, format: int64, minimum: 0}, description: "Firings per day of the last 14 days, oldest first."}
+
+    NotificationRule:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, categoryId, enabled, mandatory, systemKey, definition, stats, warnings, lastFiredAt, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        description: {type: string}
+        categoryId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null for personal rules.}
+        enabled: {type: boolean}
+        mandatory: {type: boolean, description: People cannot mute a mandatory rule completely.}
+        systemKey: {type: string, nullable: true, description: Set on the rules that replace the fixed notifications of earlier versions.}
+        definition: {$ref: "#/components/schemas/NotificationRuleDefinition"}
+        stats:
+          allOf: [{$ref: "#/components/schemas/NotificationRuleStats"}]
+          nullable: true
+          description: Only in the list of central rules.
+        warnings: {type: array, items: {type: string}, description: Placeholders without a value that stay visible; only on create and update.}
+        lastFiredAt: {type: string, format: date-time, nullable: true}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    NotificationRuleList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/NotificationRule"}}
+
+    NotificationRuleInput:
+      type: object
+      additionalProperties: false
+      required: [name, enabled, definition]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        description: {type: string, maxLength: 500}
+        categoryId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Required for central rules; ignored for personal ones.}
+        enabled: {type: boolean}
+        mandatory: {type: boolean, description: Central rules only.}
+        definition: {$ref: "#/components/schemas/NotificationRuleDefinition"}
+
+    UpdateNotificationRuleRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, name, enabled, definition]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 120}
+        description: {type: string, maxLength: 500}
+        categoryId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        enabled: {type: boolean}
+        mandatory: {type: boolean}
+        definition: {$ref: "#/components/schemas/NotificationRuleDefinition"}
+
+    NotificationCategory:
+      type: object
+      additionalProperties: false
+      required: [id, key, name, description, basis, textVersion, textChangedAt, position, ruleCount, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        key: {type: string, nullable: true, description: "`service` marks the fixed service category."}
+        name: {type: string}
+        description: {type: string}
+        basis: {type: string, maxLength: 40, description: "One of required, consent."}
+        textVersion: {type: integer, minimum: 1, description: Bumped by asking again.}
+        textChangedAt: {type: string, format: date-time}
+        position: {type: integer}
+        ruleCount: {type: integer, format: int64, minimum: 0}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    NotificationCategoryList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/NotificationCategory"}}
+
+    CreateNotificationCategoryRequest:
+      type: object
+      additionalProperties: false
+      required: [name, basis]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80}
+        description: {type: string, maxLength: 600}
+        basis: {type: string, maxLength: 40, description: "One of required, consent."}
+        position: {type: integer, minimum: 0, maximum: 1000}
+
+    UpdateNotificationCategoryRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, name]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 80}
+        description: {type: string, maxLength: 600}
+        position: {type: integer, minimum: 0, maximum: 1000}
+        askAgain: {type: boolean, description: Ask everyone for consent again (consent categories only).}
+
+    NotificationCatalogOption:
+      type: object
+      additionalProperties: false
+      required: [value, label]
+      properties:
+        value: {type: string}
+        label: {type: string}
+
+    NotificationCatalogChoice:
+      type: object
+      additionalProperties: false
+      required: [key, label]
+      properties:
+        key: {type: string}
+        label: {type: string}
+
+    NotificationCatalogPlaceholder:
+      type: object
+      additionalProperties: false
+      required: [key, label, example]
+      properties:
+        key: {type: string}
+        label: {type: string}
+        example: {type: string}
+
+    NotificationCatalogField:
+      type: object
+      additionalProperties: false
+      required: [key, label, type, options, unit]
+      properties:
+        key: {type: string, description: "Bare key; conditions prefix it with the part of the rule it belongs to."}
+        label: {type: string}
+        type: {type: string, maxLength: 40, description: "One of enum, ordered, number, text, bool, list."}
+        options: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogOption"}}
+        unit: {type: string, nullable: true}
+
+    NotificationCatalogTrigger:
+      type: object
+      additionalProperties: false
+      required: [key, area, label, help, subject, fields, recipients, placeholders, resolutions, throttleSubjects]
+      properties:
+        key: {type: string}
+        area: {type: string}
+        label: {type: string}
+        help: {type: string}
+        subject: {type: string, maxLength: 40, description: "`lab` or `self`. `self` events concern one person; a personal rule only fires for that person."}
+        fields: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogField"}}
+        recipients: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}}
+        placeholders: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogPlaceholder"}}
+        resolutions: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}}
+        throttleSubjects: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}}
+
+    NotificationCatalogCollection:
+      type: object
+      additionalProperties: false
+      required: [key, label, one, plural, placeholderPrefix, fields, summaryFields, recipients]
+      properties:
+        key: {type: string}
+        label: {type: string}
+        one: {type: string}
+        plural: {type: string}
+        placeholderPrefix: {type: string}
+        fields: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogField"}}
+        summaryFields: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogField"}, description: "Keys are `count`, `sum.<field>` and `max.<field>`; conditions prefix them with `s.`."}
+        recipients: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}}
+
+    NotificationCatalogOpenDayContext:
+      type: object
+      additionalProperties: false
+      required: [fields, placeholders, recipients]
+      properties:
+        fields: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogField"}}
+        placeholders: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogPlaceholder"}}
+        recipients: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}}
+
+    NotificationCatalog:
+      type: object
+      additionalProperties: false
+      required: [triggers, collections, recipientFields, nowFields, openDay, resolutions, repeats]
+      properties:
+        triggers: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogTrigger"}}
+        collections: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogCollection"}}
+        recipientFields: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogField"}, description: "Prefix `r.`; in a personal rule they describe the owner."}
+        nowFields: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogField"}, description: "Prefix `n.`."}
+        openDay: {allOf: [{$ref: "#/components/schemas/NotificationCatalogOpenDayContext"}], description: "What a schedule before or after each open day offers (prefix `e.`; personal rules add `mine`)."}
+        resolutions: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}, description: Escalation stop conditions every rule offers.}
+        repeats: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}}
+
+    NotificationConsentEntry:
+      type: object
+      additionalProperties: false
+      required: [categoryId, key, name, description, basis, textVersion, granted, answeredAt, current]
+      properties:
+        categoryId: {$ref: "#/components/schemas/UUIDv7"}
+        key: {type: string, nullable: true}
+        name: {type: string}
+        description: {type: string}
+        basis: {type: string, maxLength: 40, description: "One of required, consent."}
+        textVersion: {type: integer, minimum: 1}
+        granted: {type: boolean, nullable: true, description: Null until the person answered; always true for required categories.}
+        answeredAt: {type: string, format: date-time, nullable: true}
+        current: {type: boolean, description: The answer was given to the category's present text.}
+
+    NotificationReachingRule:
+      type: object
+      additionalProperties: false
+      required: [ruleId, name, description, categoryId, categoryName, mandatory, why, defaultChannels, effectiveChannels, blockedByConsent]
+      properties:
+        ruleId: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        description: {type: string}
+        categoryId: {$ref: "#/components/schemas/UUIDv7"}
+        categoryName: {type: string}
+        mandatory: {type: boolean}
+        why: {type: array, items: {type: string}}
+        defaultChannels: {type: array, items: {type: string, maxLength: 40, description: "One of in_app, email."}}
+        effectiveChannels: {type: array, items: {type: string, maxLength: 40, description: "One of in_app, email."}, description: "The person's own choice, or the defaults without one."}
+        blockedByConsent: {type: boolean, description: The rule's category needs a consent the person has not given.}
+
+    NotificationSettings:
+      type: object
+      additionalProperties: false
+      required: [consents, consentPending, askFeedbackAtCheckout, rules]
+      properties:
+        consents: {type: array, items: {$ref: "#/components/schemas/NotificationConsentEntry"}}
+        consentPending: {type: boolean}
+        askFeedbackAtCheckout: {type: boolean}
+        rules: {type: array, items: {$ref: "#/components/schemas/NotificationReachingRule"}}
+
+    AnswerNotificationConsentsRequest:
+      type: object
+      additionalProperties: false
+      required: [answers, place]
+      properties:
+        answers:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [categoryId, granted]
+            properties:
+              categoryId: {$ref: "#/components/schemas/UUIDv7"}
+              granted: {type: boolean}
+        place: {type: string, maxLength: 40, description: "`app` or `profile`: where the person answered. The tablet answers through its own endpoint."}
+
+    SetNotificationRulePreferenceRequest:
+      type: object
+      additionalProperties: false
+      required: [inApp, email]
+      properties:
+        inApp: {type: boolean}
+        email: {type: boolean}
+
+    SetFeedbackAtCheckoutRequest:
+      type: object
+      additionalProperties: false
+      required: [ask]
+      properties:
+        ask: {type: boolean}
 
     SentNotificationMessage:
       type: object
@@ -12391,6 +13144,9 @@ components:
           $ref: "#/components/schemas/LaborordnungStatus"
         session:
           $ref: "#/components/schemas/SessionContext"
+        notificationConsentRequired:
+          type: boolean
+          description: A notification consent category is unanswered (or its text changed), so the frontend shows the consent form after sign-in. Always present; optional in the schema so older clients keep compiling.
 
     PrivacyCategoryId:
       type: string

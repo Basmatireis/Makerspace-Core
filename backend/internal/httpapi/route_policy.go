@@ -21,12 +21,18 @@ const (
 	maxJSONRequestBodyBytes             = 64 << 10
 	maxPrinterConnectorEventsBodyBytes  = 512 << 10
 	maxVisitorEnrollmentSubmissionBytes = 12 << 20
+	// maxNotificationRuleBodyBytes fits the largest rule definition the database accepts (256 KiB) with its envelope.
+	maxNotificationRuleBodyBytes = 288 << 10
 )
 
 // requestBodyLimits overrides maxJSONRequestBodyBytes for the operations that accept larger
 // bodies. Binary uploads get one byte above the feature limit so the service can tell an
 // oversized upload from one that is exactly at the limit.
 var requestBodyLimits = map[string]int64{
+	routeKey(http.MethodPost, "/notification-rules"):                            maxNotificationRuleBodyBytes,
+	routeKey(http.MethodPut, "/notification-rules/{ruleId}"):                    maxNotificationRuleBodyBytes,
+	routeKey(http.MethodPost, "/me/notification-subscriptions"):                 maxNotificationRuleBodyBytes,
+	routeKey(http.MethodPut, "/me/notification-subscriptions/{subscriptionId}"): maxNotificationRuleBodyBytes,
 	routeKey(
 		http.MethodPost,
 		"/printer-connector/self/events",

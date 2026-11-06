@@ -133,6 +133,8 @@ const (
 	ConfigurationExport                Permission = Permission(openapi.ConfigurationExport)
 	ConfigurationImport                Permission = Permission(openapi.ConfigurationImport)
 	NotificationsSend                  Permission = Permission(openapi.NotificationsSend)
+	NotificationRulesRead              Permission = Permission(openapi.NotificationRulesRead)
+	NotificationRulesManage            Permission = Permission(openapi.NotificationRulesManage)
 	PrivacyRead                        Permission = Permission(openapi.PrivacyRead)
 	PrivacySettingsManage              Permission = Permission(openapi.PrivacySettingsManage)
 	PrivacyPoliciesManage              Permission = Permission(openapi.PrivacyPoliciesManage)
@@ -189,7 +191,7 @@ var registry = []Permission{
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride,
-	ConfigurationExport, ConfigurationImport, NotificationsSend,
+	ConfigurationExport, ConfigurationImport, NotificationsSend, NotificationRulesRead, NotificationRulesManage,
 	PrivacyRead, PrivacySettingsManage, PrivacyPoliciesManage, PrivacyRetentionExecute,
 	PrivacyRequestsManage, PrivacyRequestsExecute,
 }
@@ -321,6 +323,8 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	ConfigurationExport:                "Download configuration sections as a file; each section also needs its own read permission.",
 	ConfigurationImport:                "Preview and import configuration files; each section also needs its own read and manage permissions.",
 	NotificationsSend:                  "Send in-app messages to roles and see sent messages.",
+	NotificationRulesRead:              "See the central notification rules, the notification categories and what the rules sent.",
+	NotificationRulesManage:            "Create, change and delete central notification rules and categories; run rules and test them.",
 	PrivacyRead:                        "Read the privacy registry: data categories, their owners, status and the privacy settings.",
 	PrivacySettingsManage:              "Change the installation's privacy settings (controller, contact, automatic retention runs).",
 	PrivacyPoliciesManage:              "Create, approve, activate and retire retention policies and place or release holds.",

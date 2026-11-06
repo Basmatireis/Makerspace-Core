@@ -41,6 +41,9 @@ const (
 	InboxNotifications     privacy.CategoryID = "inbox.notifications"
 	GuideProgress          privacy.CategoryID = "guides.progress"
 	CalendarFeeds          privacy.CategoryID = "calendar.feeds"
+	NotificationConsents   privacy.CategoryID = "notifications.consents"
+	NotificationRules      privacy.CategoryID = "notifications.rules"
+	NotificationDeliveries privacy.CategoryID = "notifications.deliveries"
 	SignageAnnouncements   privacy.CategoryID = "signage.announcements"
 	DeviceCredentials      privacy.CategoryID = "devices.credentials" //nolint:gosec // a category identifier, not a credential
 	ActorReferences        privacy.CategoryID = "platform.actor_references"
@@ -400,6 +403,40 @@ func Definitions() []privacy.Definition {
 			Subject:        privacy.SubjectPerson,
 			RetentionNote: "The row is deleted with the person; a person can also revoke it at any time. The link's content " +
 				"is read from live open-day and event data and is never stored.",
+		},
+		{
+			ID: NotificationConsents, Owner: Platform, Name: "Notification consents",
+			Description:    "A person's answers to the notification categories that need consent, and whether the tablet may ask for feedback at check-out.",
+			Contains:       "The answer (yes or no) to each consent category, the version of its text, the time and place of the answer, and the feedback-at-check-out switch, per person",
+			ErasureOutcome: privacy.ErasureErased,
+			Fields:         []string{"notification_consents.*", "person_notification_settings.*"},
+			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt},
+			Actions:        []privacy.Action{privacy.ActionDelete},
+			Subject:        privacy.SubjectPerson,
+			RetentionNote: "Rows are deleted with the person. Withdrawn answers stay as proof of the withdrawal while the " +
+				"person exists.",
+		},
+		{
+			ID: NotificationRules, Owner: Platform, Name: "Personal notification rules",
+			Description:    "An account's own notification subscriptions and its channel choice for each central rule.",
+			Contains:       "The account's personal rules (name and conditions) and which channels it switched on or off per central rule",
+			ErasureOutcome: privacy.ErasureErased,
+			Fields:         []string{"notification_rules.owner_account_id", "notification_rule_preferences.*"},
+			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt},
+			Actions:        []privacy.Action{privacy.ActionDelete},
+			Subject:        privacy.SubjectAccount,
+			RetentionNote:  "Rows are deleted with the account; a person can also delete their rules and choices at any time.",
+		},
+		{
+			ID: NotificationDeliveries, Owner: Platform, Name: "Notification delivery log",
+			Description:    "Which rule fired, who it was delivered to over which channel, and what became of each delivery.",
+			Contains:       "Firing time, rule name, a short summary, and per recipient the channel and outcome",
+			ErasureOutcome: privacy.ErasureErased,
+			Fields:         []string{"notification_firings.*", "notification_firing_recipients.*", "notification_pending_actions.*"},
+			Triggers:       []privacy.Trigger{privacy.TriggerCreatedAt},
+			Actions:        []privacy.Action{privacy.ActionDelete},
+			Subject:        privacy.SubjectPerson,
+			Legacy:         &privacy.LegacyDefault{Trigger: privacy.TriggerCreatedAt, Period: 90 * day, Action: privacy.ActionDelete, Source: "notification delivery log (code)"},
 		},
 		{
 			ID: SignageAnnouncements, Owner: Signage, Name: "Signage announcements",

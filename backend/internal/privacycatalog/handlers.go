@@ -5,6 +5,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/oidc"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
@@ -26,6 +27,7 @@ func RegisterBuiltinHandlers(service *privacy.Service, runRecordings *runrecordi
 	service.Register(AuditEvents, privacy.AuditEventRetention())
 	service.Register(EventExternalSignups, events.SignupRetention())
 	service.Register(InboxNotifications, inbox.NotificationRetention())
+	service.Register(NotificationDeliveries, notifyrules.DeliveryRetention())
 	service.Register(SignageAnnouncements, signage.AnnouncementRetention())
 	service.Register(PrinterTelemetry, printerconnectors.TelemetryRetention())
 	service.Register(PrintArtifacts, printartifacts.ArtifactRetention())

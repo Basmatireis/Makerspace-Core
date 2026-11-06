@@ -38,4 +38,6 @@ export interface CurrentUser {
   delegablePermissionGrants: PermissionGrant[];
   laborordnungStatus: LaborordnungStatus;
   session: SessionContext;
+  /** A notification consent category is unanswered (or its text changed), so the frontend shows the consent form after sign-in. Always present; optional in the schema so older clients keep compiling. */
+  notificationConsentRequired?: boolean;
 }

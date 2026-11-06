@@ -104,6 +104,41 @@ func (q *Queries) CountMachineJobs(ctx context.Context, subjectPerson uuid.UUID)
 	return column_1, err
 }
 
+const countNotificationConsents = `-- name: CountNotificationConsents :one
+SELECT ((SELECT count(*) FROM notification_consents WHERE person_id = $1::uuid)
+    + (SELECT count(*) FROM person_notification_settings WHERE person_id = $1::uuid))::bigint
+`
+
+func (q *Queries) CountNotificationConsents(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countNotificationConsents, subjectPerson)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countNotificationDeliveries = `-- name: CountNotificationDeliveries :one
+SELECT count(*)::bigint FROM notification_firing_recipients WHERE person_id = $1::uuid
+`
+
+func (q *Queries) CountNotificationDeliveries(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countNotificationDeliveries, subjectPerson)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countNotificationRules = `-- name: CountNotificationRules :one
+SELECT ((SELECT count(*) FROM notification_rules WHERE owner_account_id = $1::uuid)
+    + (SELECT count(*) FROM notification_rule_preferences WHERE account_id = $1::uuid))::bigint
+`
+
+func (q *Queries) CountNotificationRules(ctx context.Context, subjectAccount uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countNotificationRules, subjectAccount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countNotifications = `-- name: CountNotifications :one
 SELECT count(*)::bigint FROM inbox_recipients WHERE account_id = $1::uuid
 `
@@ -485,6 +520,58 @@ WHERE j.customer_person_id = $1::uuid OR j.operator_person_id = $1::uuid
 
 func (q *Queries) ExportMachineJobs(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
 	row := q.db.QueryRow(ctx, exportMachineJobs, subjectPerson)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportNotificationConsents = `-- name: ExportNotificationConsents :one
+SELECT jsonb_build_object(
+    'consents', COALESCE((SELECT jsonb_agg(jsonb_build_object(
+        'category', c.name, 'granted', n.granted, 'textVersion', n.text_version, 'answeredAt', n.answered_at,
+        'place', n.place) ORDER BY c.position, c.id)
+        FROM notification_consents n JOIN notification_categories c ON c.id = n.category_id
+        WHERE n.person_id = $1::uuid), '[]'::jsonb),
+    'askFeedbackAtCheckout', (SELECT s.ask_feedback_at_checkout FROM person_notification_settings s
+        WHERE s.person_id = $1::uuid)
+)::jsonb AS document
+`
+
+func (q *Queries) ExportNotificationConsents(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportNotificationConsents, subjectPerson)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportNotificationDeliveries = `-- name: ExportNotificationDeliveries :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object('rule', f.rule_name, 'firedAt', f.created_at, 'channel', r.channel,
+    'status', r.status, 'sentAt', r.sent_at) ORDER BY r.sent_at, r.id), '[]'::jsonb)::jsonb AS document
+FROM notification_firing_recipients r JOIN notification_firings f ON f.id = r.firing_id
+WHERE r.person_id = $1::uuid
+`
+
+func (q *Queries) ExportNotificationDeliveries(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportNotificationDeliveries, subjectPerson)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportNotificationRules = `-- name: ExportNotificationRules :one
+SELECT jsonb_build_object(
+    'rules', COALESCE((SELECT jsonb_agg(jsonb_build_object('name', r.name, 'enabled', r.enabled,
+        'createdAt', r.created_at, 'definition', r.definition) ORDER BY r.created_at, r.id)
+        FROM notification_rules r WHERE r.owner_account_id = $1::uuid), '[]'::jsonb),
+    'channelChoices', COALESCE((SELECT jsonb_agg(jsonb_build_object('rule', r.name, 'inApp', p.in_app,
+        'email', p.email) ORDER BY r.name, r.id)
+        FROM notification_rule_preferences p JOIN notification_rules r ON r.id = p.rule_id
+        WHERE p.account_id = $1::uuid), '[]'::jsonb)
+)::jsonb AS document
+`
+
+func (q *Queries) ExportNotificationRules(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportNotificationRules, subjectAccount)
 	var document []byte
 	err := row.Scan(&document)
 	return document, err

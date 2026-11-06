@@ -24,6 +24,8 @@ const (
 	ruleInboxMoved    = "moved to the surviving account; duplicate deliveries dropped"
 	ruleGuideProgress = "deleted with the source account; the surviving account keeps its own progress"
 	ruleAuditRepoint  = "re-pointed to the surviving account (resource IDs of the merged person/account too)"
+	ruleNotifyPerson  = "deleted with the source person; the target keeps its own answers and the 90-day delivery log is not merged"
+	ruleNotifyAccount = "deleted with the source account; the surviving account keeps its own rules and channel choices"
 	ruleSurveyPreserv = "moved to the target; anonymous responses never carry a person"
 )
 
@@ -44,6 +46,9 @@ var MergeReferences = []MergeReference{
 	{"open_day_assignments", "person_id", "people", ruleDeduplicated},
 	{"orders", "customer_person_id", "people", ruleMoved},
 	{"organization_members", "person_id", "people", ruleDeduplicated},
+	{"notification_consents", "person_id", "people", ruleNotifyPerson},
+	{"notification_firing_recipients", "person_id", "people", ruleNotifyPerson},
+	{"person_notification_settings", "person_id", "people", ruleNotifyPerson},
 	{"person_roles", "person_id", "people", ruleUnionedRoles},
 	{"scim_users", "person_id", "people", ruleSCIM},
 	{"staffing_excusals", "person_id", "people", ruleDeduplicated},
@@ -82,6 +87,8 @@ var MergeReferences = []MergeReference{
 	{"mail_configuration", "updated_by_account_id", "accounts", ruleActor},
 	{"mfa_recovery_codes", "account_id", "accounts", ruleSecondFactor},
 	{"mfa_totp_credentials", "account_id", "accounts", ruleSecondFactor},
+	{"notification_rule_preferences", "account_id", "accounts", ruleNotifyAccount},
+	{"notification_rules", "owner_account_id", "accounts", ruleNotifyAccount},
 	{"oidc_flows", "account_id", "accounts", ruleTransient},
 	{"open_day_assignments", "created_by_account_id", "accounts", ruleActor},
 	{"order_adjustments", "actor_account_id", "accounts", ruleActor},

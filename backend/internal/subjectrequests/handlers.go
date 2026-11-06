@@ -293,6 +293,34 @@ func registerBuiltinHandlers(service *privacy.Service, fileService *files.Servic
 		},
 		outcome: privacy.OutcomeErased, note: "Deleted with the person; calendars using the link stop receiving data.",
 	})
+	register(privacycatalog.NotificationConsents, builtin{
+		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
+			return q.ExportNotificationConsents(ctx, s.PersonID)
+		},
+		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
+			return q.CountNotificationConsents(ctx, s.PersonID)
+		},
+		outcome: privacy.OutcomeErased, note: "Deleted with the person.",
+	})
+	register(privacycatalog.NotificationRules, builtin{
+		account: true,
+		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
+			return q.ExportNotificationRules(ctx, account(s))
+		},
+		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
+			return q.CountNotificationRules(ctx, account(s))
+		},
+		outcome: privacy.OutcomeErased, note: "Deleted with the account.",
+	})
+	register(privacycatalog.NotificationDeliveries, builtin{
+		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
+			return q.ExportNotificationDeliveries(ctx, s.PersonID)
+		},
+		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
+			return q.CountNotificationDeliveries(ctx, s.PersonID)
+		},
+		outcome: privacy.OutcomeErased, note: "Deleted with the person.",
+	})
 	register(privacycatalog.ActorReferences, builtin{
 		account: true,
 		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {

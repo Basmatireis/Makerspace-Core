@@ -140,6 +140,8 @@ export const PermissionId = {
   configurationexport: 'configuration.export',
   configurationimport: 'configuration.import',
   notificationssend: 'notifications.send',
+  notification_rulesread: 'notification_rules.read',
+  notification_rulesmanage: 'notification_rules.manage',
   privacyread: 'privacy.read',
   privacysettingsmanage: 'privacy.settings.manage',
   privacypoliciesmanage: 'privacy.policies.manage',
