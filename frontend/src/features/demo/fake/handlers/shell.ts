@@ -103,6 +103,7 @@ export function registerShell(router: DemoRouter<DemoStore>): void {
           title: 'Open Day',
           competencies: day.competencies,
           startsAt: day.startsAt,
+          timeslots: day.timeslots.map(({ startsAt, endsAt }) => ({ startsAt, endsAt })),
           endsAt: day.endsAt,
           status: day.status,
           updatedAt: day.updatedAt,

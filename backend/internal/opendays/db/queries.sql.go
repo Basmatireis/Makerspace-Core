@@ -28,6 +28,22 @@ func (q *Queries) AddRequirementRole(ctx context.Context, arg AddRequirementRole
 	return err
 }
 
+const addSeriesRole = `-- name: AddSeriesRole :exec
+INSERT INTO open_day_series_roles (series_id, kind, role_id)
+VALUES ($1, $2, $3)
+`
+
+type AddSeriesRoleParams struct {
+	SeriesID uuid.UUID
+	Kind     string
+	RoleID   uuid.UUID
+}
+
+func (q *Queries) AddSeriesRole(ctx context.Context, arg AddSeriesRoleParams) error {
+	_, err := q.db.Exec(ctx, addSeriesRole, arg.SeriesID, arg.Kind, arg.RoleID)
+	return err
+}
+
 const bumpPeriodVersion = `-- name: BumpPeriodVersion :one
 UPDATE open_day_periods SET version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2 RETURNING id, name, starts_on, ends_on, status, version, created_at, updated_at, sign_up_deadline
@@ -58,7 +74,7 @@ func (q *Queries) BumpPeriodVersion(ctx context.Context, arg BumpPeriodVersionPa
 const cancelOpenDay = `-- name: CancelOpenDay :one
 UPDATE open_days SET status = 'cancelled', version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2 AND status = 'scheduled'
-RETURNING id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at
+RETURNING id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at, series_id, detached_from_series_id
 `
 
 type CancelOpenDayParams struct {
@@ -79,8 +95,22 @@ func (q *Queries) CancelOpenDay(ctx context.Context, arg CancelOpenDayParams) (O
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SeriesID,
+		&i.DetachedFromSeriesID,
 	)
 	return i, err
+}
+
+const countExtraRoles = `-- name: CountExtraRoles :one
+SELECT count(*)::bigint FROM roles WHERE id = ANY($1::text[]::uuid[]) AND system_key IS NULL
+`
+
+// How many of the roles exist and are extra roles; membership and system roles cannot restrict a place.
+func (q *Queries) CountExtraRoles(ctx context.Context, ids []string) (int64, error) {
+	row := q.db.QueryRow(ctx, countExtraRoles, ids)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const countRequirementAssignments = `-- name: CountRequirementAssignments :one
@@ -92,6 +122,39 @@ func (q *Queries) CountRequirementAssignments(ctx context.Context, requirementID
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countSeriesDays = `-- name: CountSeriesDays :many
+SELECT series_id::uuid AS series_id, count(*)::bigint AS day_count
+FROM open_days
+WHERE period_id = $1 AND series_id IS NOT NULL AND status = 'scheduled'
+GROUP BY series_id
+`
+
+type CountSeriesDaysRow struct {
+	SeriesID uuid.UUID
+	DayCount int64
+}
+
+// Scheduled days that follow each series of the period.
+func (q *Queries) CountSeriesDays(ctx context.Context, periodID uuid.UUID) ([]CountSeriesDaysRow, error) {
+	rows, err := q.db.Query(ctx, countSeriesDays, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountSeriesDaysRow{}
+	for rows.Next() {
+		var i CountSeriesDaysRow
+		if err := rows.Scan(&i.SeriesID, &i.DayCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const createAcademicBreak = `-- name: CreateAcademicBreak :one
@@ -127,14 +190,18 @@ func (q *Queries) CreateAcademicBreak(ctx context.Context, arg CreateAcademicBre
 }
 
 const createAssignment = `-- name: CreateAssignment :one
-INSERT INTO open_day_assignments (id, open_day_id, requirement_id, person_id, created_by_account_id)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, open_day_id, requirement_id, person_id, created_by_account_id, created_at
+INSERT INTO open_day_assignments (id, open_day_id, timeslot_id, requirement_id, person_id, created_by_account_id)
+VALUES (
+    $1, $2, $3, $4, $5,
+    $6
+)
+RETURNING id, open_day_id, requirement_id, person_id, created_by_account_id, created_at, timeslot_id
 `
 
 type CreateAssignmentParams struct {
 	ID                 uuid.UUID
 	OpenDayID          uuid.UUID
+	TimeslotID         uuid.UUID
 	RequirementID      uuid.UUID
 	PersonID           uuid.UUID
 	CreatedByAccountID *uuid.UUID
@@ -144,6 +211,7 @@ func (q *Queries) CreateAssignment(ctx context.Context, arg CreateAssignmentPara
 	row := q.db.QueryRow(ctx, createAssignment,
 		arg.ID,
 		arg.OpenDayID,
+		arg.TimeslotID,
 		arg.RequirementID,
 		arg.PersonID,
 		arg.CreatedByAccountID,
@@ -156,14 +224,18 @@ func (q *Queries) CreateAssignment(ctx context.Context, arg CreateAssignmentPara
 		&i.PersonID,
 		&i.CreatedByAccountID,
 		&i.CreatedAt,
+		&i.TimeslotID,
 	)
 	return i, err
 }
 
 const createOpenDay = `-- name: CreateOpenDay :one
-INSERT INTO open_days (id, period_id, starts_at, ends_at, internal_note)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at
+INSERT INTO open_days (id, period_id, starts_at, ends_at, internal_note, series_id)
+VALUES (
+    $1, $2, $3, $4, $5,
+    $6
+)
+RETURNING id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at, series_id, detached_from_series_id
 `
 
 type CreateOpenDayParams struct {
@@ -172,6 +244,7 @@ type CreateOpenDayParams struct {
 	StartsAt     time.Time
 	EndsAt       time.Time
 	InternalNote *string
+	SeriesID     *uuid.UUID
 }
 
 func (q *Queries) CreateOpenDay(ctx context.Context, arg CreateOpenDayParams) (OpenDay, error) {
@@ -181,6 +254,7 @@ func (q *Queries) CreateOpenDay(ctx context.Context, arg CreateOpenDayParams) (O
 		arg.StartsAt,
 		arg.EndsAt,
 		arg.InternalNote,
+		arg.SeriesID,
 	)
 	var i OpenDay
 	err := row.Scan(
@@ -193,6 +267,8 @@ func (q *Queries) CreateOpenDay(ctx context.Context, arg CreateOpenDayParams) (O
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SeriesID,
+		&i.DetachedFromSeriesID,
 	)
 	return i, err
 }
@@ -234,13 +310,15 @@ func (q *Queries) CreatePeriod(ctx context.Context, arg CreatePeriodParams) (Ope
 }
 
 const createRequirement = `-- name: CreateRequirement :one
-INSERT INTO open_day_staff_requirements (id, open_day_id, kind, required_count)
-VALUES ($1, $2, $3, $4) RETURNING id, open_day_id, kind, required_count
+INSERT INTO open_day_staff_requirements (id, open_day_id, timeslot_id, kind, required_count)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, open_day_id, kind, required_count, timeslot_id
 `
 
 type CreateRequirementParams struct {
 	ID            uuid.UUID
 	OpenDayID     uuid.UUID
+	TimeslotID    uuid.UUID
 	Kind          string
 	RequiredCount int32
 }
@@ -249,6 +327,7 @@ func (q *Queries) CreateRequirement(ctx context.Context, arg CreateRequirementPa
 	row := q.db.QueryRow(ctx, createRequirement,
 		arg.ID,
 		arg.OpenDayID,
+		arg.TimeslotID,
 		arg.Kind,
 		arg.RequiredCount,
 	)
@@ -258,6 +337,112 @@ func (q *Queries) CreateRequirement(ctx context.Context, arg CreateRequirementPa
 		&i.OpenDayID,
 		&i.Kind,
 		&i.RequiredCount,
+		&i.TimeslotID,
+	)
+	return i, err
+}
+
+const createSeries = `-- name: CreateSeries :one
+INSERT INTO open_day_series (
+    id, period_id, weekday, from_date, until_date, supervisor_places, trainee_places, forced_dates
+)
+VALUES (
+    $1, $2, $3, $4, $5,
+    $6, $7, $8::text[]::date[]
+)
+RETURNING id, period_id, weekday, from_date, until_date, supervisor_places, trainee_places, forced_dates, version, created_at, updated_at
+`
+
+type CreateSeriesParams struct {
+	ID               uuid.UUID
+	PeriodID         uuid.UUID
+	Weekday          int32
+	FromDate         pgtype.Date
+	UntilDate        pgtype.Date
+	SupervisorPlaces int32
+	TraineePlaces    int32
+	ForcedDates      []string
+}
+
+func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (OpenDaySeries, error) {
+	row := q.db.QueryRow(ctx, createSeries,
+		arg.ID,
+		arg.PeriodID,
+		arg.Weekday,
+		arg.FromDate,
+		arg.UntilDate,
+		arg.SupervisorPlaces,
+		arg.TraineePlaces,
+		arg.ForcedDates,
+	)
+	var i OpenDaySeries
+	err := row.Scan(
+		&i.ID,
+		&i.PeriodID,
+		&i.Weekday,
+		&i.FromDate,
+		&i.UntilDate,
+		&i.SupervisorPlaces,
+		&i.TraineePlaces,
+		&i.ForcedDates,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createSeriesTimeslot = `-- name: CreateSeriesTimeslot :exec
+INSERT INTO open_day_series_timeslots (series_id, position, start_time, end_time)
+VALUES ($1, $2, $3, $4)
+`
+
+type CreateSeriesTimeslotParams struct {
+	SeriesID  uuid.UUID
+	Position  int32
+	StartTime pgtype.Time
+	EndTime   pgtype.Time
+}
+
+func (q *Queries) CreateSeriesTimeslot(ctx context.Context, arg CreateSeriesTimeslotParams) error {
+	_, err := q.db.Exec(ctx, createSeriesTimeslot,
+		arg.SeriesID,
+		arg.Position,
+		arg.StartTime,
+		arg.EndTime,
+	)
+	return err
+}
+
+const createTimeslot = `-- name: CreateTimeslot :one
+INSERT INTO open_day_timeslots (id, open_day_id, starts_at, ends_at, position)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, open_day_id, starts_at, ends_at, position
+`
+
+type CreateTimeslotParams struct {
+	ID        uuid.UUID
+	OpenDayID uuid.UUID
+	StartsAt  time.Time
+	EndsAt    time.Time
+	Position  int32
+}
+
+func (q *Queries) CreateTimeslot(ctx context.Context, arg CreateTimeslotParams) (OpenDayTimeslot, error) {
+	row := q.db.QueryRow(ctx, createTimeslot,
+		arg.ID,
+		arg.OpenDayID,
+		arg.StartsAt,
+		arg.EndsAt,
+		arg.Position,
+	)
+	var i OpenDayTimeslot
+	err := row.Scan(
+		&i.ID,
+		&i.OpenDayID,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.Position,
 	)
 	return i, err
 }
@@ -279,7 +464,7 @@ func (q *Queries) DeleteAcademicBreak(ctx context.Context, arg DeleteAcademicBre
 }
 
 const deleteAssignment = `-- name: DeleteAssignment :one
-DELETE FROM open_day_assignments WHERE id = $1 RETURNING id, open_day_id, requirement_id, person_id, created_by_account_id, created_at
+DELETE FROM open_day_assignments WHERE id = $1 RETURNING id, open_day_id, requirement_id, person_id, created_by_account_id, created_at, timeslot_id
 `
 
 func (q *Queries) DeleteAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssignment, error) {
@@ -292,6 +477,7 @@ func (q *Queries) DeleteAssignment(ctx context.Context, id uuid.UUID) (OpenDayAs
 		&i.PersonID,
 		&i.CreatedByAccountID,
 		&i.CreatedAt,
+		&i.TimeslotID,
 	)
 	return i, err
 }
@@ -339,6 +525,38 @@ func (q *Queries) DeleteRequirementRoles(ctx context.Context, requirementID uuid
 	return err
 }
 
+const deleteSeriesRoles = `-- name: DeleteSeriesRoles :exec
+DELETE FROM open_day_series_roles WHERE series_id = $1
+`
+
+func (q *Queries) DeleteSeriesRoles(ctx context.Context, seriesID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSeriesRoles, seriesID)
+	return err
+}
+
+const deleteSeriesTimeslots = `-- name: DeleteSeriesTimeslots :exec
+DELETE FROM open_day_series_timeslots WHERE series_id = $1
+`
+
+func (q *Queries) DeleteSeriesTimeslots(ctx context.Context, seriesID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSeriesTimeslots, seriesID)
+	return err
+}
+
+const deleteTimeslot = `-- name: DeleteTimeslot :exec
+DELETE FROM open_day_timeslots WHERE id = $1 AND open_day_id = $2
+`
+
+type DeleteTimeslotParams struct {
+	ID        uuid.UUID
+	OpenDayID uuid.UUID
+}
+
+func (q *Queries) DeleteTimeslot(ctx context.Context, arg DeleteTimeslotParams) error {
+	_, err := q.db.Exec(ctx, deleteTimeslot, arg.ID, arg.OpenDayID)
+	return err
+}
+
 const getAcademicBreakForUpdate = `-- name: GetAcademicBreakForUpdate :one
 SELECT id, name, starts_on, ends_on, version, created_at, updated_at FROM open_day_academic_breaks WHERE id = $1 FOR UPDATE
 `
@@ -359,7 +577,7 @@ func (q *Queries) GetAcademicBreakForUpdate(ctx context.Context, id uuid.UUID) (
 }
 
 const getAssignment = `-- name: GetAssignment :one
-SELECT id, open_day_id, requirement_id, person_id, created_by_account_id, created_at FROM open_day_assignments WHERE id = $1
+SELECT id, open_day_id, requirement_id, person_id, created_by_account_id, created_at, timeslot_id FROM open_day_assignments WHERE id = $1
 `
 
 func (q *Queries) GetAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssignment, error) {
@@ -372,6 +590,7 @@ func (q *Queries) GetAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssig
 		&i.PersonID,
 		&i.CreatedByAccountID,
 		&i.CreatedAt,
+		&i.TimeslotID,
 	)
 	return i, err
 }
@@ -393,15 +612,16 @@ func (q *Queries) GetAssignmentPersonName(ctx context.Context, id uuid.UUID) (Ge
 }
 
 const getNextOpenPlace = `-- name: GetNextOpenPlace :one
-SELECT d.id AS open_day_id, d.period_id, r.id AS requirement_id, d.starts_at, d.ends_at,
+SELECT d.id AS open_day_id, d.period_id, t.id AS timeslot_id, r.id AS requirement_id, t.starts_at, t.ends_at,
        (r.required_count - (SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = r.id))::bigint AS free_places
 FROM open_days d
 JOIN open_day_periods p ON p.id = d.period_id AND p.status IN ('staffing', 'published')
-JOIN open_day_staff_requirements r ON r.open_day_id = d.id AND r.kind = $1
+JOIN open_day_timeslots t ON t.open_day_id = d.id
+JOIN open_day_staff_requirements r ON r.timeslot_id = t.id AND r.kind = $1
 WHERE d.status = 'scheduled'
-  AND d.starts_at > $2 AND d.starts_at <= $3
+  AND t.starts_at > $2 AND t.starts_at <= $3
   AND NOT EXISTS (
-      SELECT 1 FROM open_day_assignments ma WHERE ma.open_day_id = d.id AND ma.person_id = $4
+      SELECT 1 FROM open_day_assignments ma WHERE ma.timeslot_id = t.id AND ma.person_id = $4
   )
   AND r.required_count > (SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = r.id)
   AND EXISTS (
@@ -416,7 +636,7 @@ WHERE d.status = 'scheduled'
           WHERE rr.requirement_id = r.id AND pr.person_id = $4
       )
   )
-ORDER BY d.starts_at, d.id
+ORDER BY t.starts_at, d.id
 LIMIT 1
 `
 
@@ -430,13 +650,14 @@ type GetNextOpenPlaceParams struct {
 type GetNextOpenPlaceRow struct {
 	OpenDayID     uuid.UUID
 	PeriodID      uuid.UUID
+	TimeslotID    uuid.UUID
 	RequirementID uuid.UUID
 	StartsAt      time.Time
 	EndsAt        time.Time
 	FreePlaces    int64
 }
 
-// The next open day starting within the window that the person is not on yet and that has a free place of the given
+// The next timeslot starting within the window that the person is not in yet and that has a free place of the given
 // kind they are eligible for.
 func (q *Queries) GetNextOpenPlace(ctx context.Context, arg GetNextOpenPlaceParams) (GetNextOpenPlaceRow, error) {
 	row := q.db.QueryRow(ctx, getNextOpenPlace,
@@ -449,6 +670,7 @@ func (q *Queries) GetNextOpenPlace(ctx context.Context, arg GetNextOpenPlacePara
 	err := row.Scan(
 		&i.OpenDayID,
 		&i.PeriodID,
+		&i.TimeslotID,
 		&i.RequirementID,
 		&i.StartsAt,
 		&i.EndsAt,
@@ -458,7 +680,7 @@ func (q *Queries) GetNextOpenPlace(ctx context.Context, arg GetNextOpenPlacePara
 }
 
 const getOpenDay = `-- name: GetOpenDay :one
-SELECT id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at FROM open_days WHERE id = $1
+SELECT id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at, series_id, detached_from_series_id FROM open_days WHERE id = $1
 `
 
 func (q *Queries) GetOpenDay(ctx context.Context, id uuid.UUID) (OpenDay, error) {
@@ -474,12 +696,14 @@ func (q *Queries) GetOpenDay(ctx context.Context, id uuid.UUID) (OpenDay, error)
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SeriesID,
+		&i.DetachedFromSeriesID,
 	)
 	return i, err
 }
 
 const getOpenDayForUpdate = `-- name: GetOpenDayForUpdate :one
-SELECT id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at FROM open_days WHERE id = $1 FOR UPDATE
+SELECT id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at, series_id, detached_from_series_id FROM open_days WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetOpenDayForUpdate(ctx context.Context, id uuid.UUID) (OpenDay, error) {
@@ -495,16 +719,19 @@ func (q *Queries) GetOpenDayForUpdate(ctx context.Context, id uuid.UUID) (OpenDa
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SeriesID,
+		&i.DetachedFromSeriesID,
 	)
 	return i, err
 }
 
 const getOwnOpenDayStatistics = `-- name: GetOwnOpenDayStatistics :one
-SELECT count(*)::bigint AS staffed,
-       COALESCE(sum(extract(epoch FROM d.ends_at - d.starts_at)), 0)::float8 AS scheduled_seconds
+SELECT count(DISTINCT a.open_day_id)::bigint AS staffed,
+       COALESCE(sum(extract(epoch FROM t.ends_at - t.starts_at)), 0)::float8 AS scheduled_seconds
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
-WHERE a.person_id = $1 AND d.ends_at <= $2
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+WHERE a.person_id = $1 AND t.ends_at <= $2
 `
 
 type GetOwnOpenDayStatisticsParams struct {
@@ -517,7 +744,8 @@ type GetOwnOpenDayStatisticsRow struct {
 	ScheduledSeconds float64
 }
 
-// Ended scheduled open days the person staffed, all time, with their scheduled duration in seconds.
+// Ended scheduled open days the person staffed, all time, with the scheduled duration of their ended timeslots in
+// seconds.
 func (q *Queries) GetOwnOpenDayStatistics(ctx context.Context, arg GetOwnOpenDayStatisticsParams) (GetOwnOpenDayStatisticsRow, error) {
 	row := q.db.QueryRow(ctx, getOwnOpenDayStatistics, arg.PersonID, arg.Now)
 	var i GetOwnOpenDayStatisticsRow
@@ -567,18 +795,18 @@ func (q *Queries) GetPeriodForUpdate(ctx context.Context, id uuid.UUID) (OpenDay
 	return i, err
 }
 
-const getPersonOpenDayAssignment = `-- name: GetPersonOpenDayAssignment :one
-SELECT id, open_day_id, requirement_id, person_id, created_by_account_id, created_at FROM open_day_assignments
-WHERE open_day_id = $1 AND person_id = $2
+const getPersonTimeslotAssignment = `-- name: GetPersonTimeslotAssignment :one
+SELECT id, open_day_id, requirement_id, person_id, created_by_account_id, created_at, timeslot_id FROM open_day_assignments
+WHERE timeslot_id = $1 AND person_id = $2
 `
 
-type GetPersonOpenDayAssignmentParams struct {
-	OpenDayID uuid.UUID
-	PersonID  uuid.UUID
+type GetPersonTimeslotAssignmentParams struct {
+	TimeslotID uuid.UUID
+	PersonID   uuid.UUID
 }
 
-func (q *Queries) GetPersonOpenDayAssignment(ctx context.Context, arg GetPersonOpenDayAssignmentParams) (OpenDayAssignment, error) {
-	row := q.db.QueryRow(ctx, getPersonOpenDayAssignment, arg.OpenDayID, arg.PersonID)
+func (q *Queries) GetPersonTimeslotAssignment(ctx context.Context, arg GetPersonTimeslotAssignmentParams) (OpenDayAssignment, error) {
+	row := q.db.QueryRow(ctx, getPersonTimeslotAssignment, arg.TimeslotID, arg.PersonID)
 	var i OpenDayAssignment
 	err := row.Scan(
 		&i.ID,
@@ -587,12 +815,13 @@ func (q *Queries) GetPersonOpenDayAssignment(ctx context.Context, arg GetPersonO
 		&i.PersonID,
 		&i.CreatedByAccountID,
 		&i.CreatedAt,
+		&i.TimeslotID,
 	)
 	return i, err
 }
 
 const getRequirement = `-- name: GetRequirement :one
-SELECT id, open_day_id, kind, required_count FROM open_day_staff_requirements WHERE id = $1
+SELECT id, open_day_id, kind, required_count, timeslot_id FROM open_day_staff_requirements WHERE id = $1
 `
 
 func (q *Queries) GetRequirement(ctx context.Context, id uuid.UUID) (OpenDayStaffRequirement, error) {
@@ -603,12 +832,13 @@ func (q *Queries) GetRequirement(ctx context.Context, id uuid.UUID) (OpenDayStaf
 		&i.OpenDayID,
 		&i.Kind,
 		&i.RequiredCount,
+		&i.TimeslotID,
 	)
 	return i, err
 }
 
 const getRequirementForUpdate = `-- name: GetRequirementForUpdate :one
-SELECT id, open_day_id, kind, required_count FROM open_day_staff_requirements WHERE id = $1 FOR UPDATE
+SELECT id, open_day_id, kind, required_count, timeslot_id FROM open_day_staff_requirements WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetRequirementForUpdate(ctx context.Context, id uuid.UUID) (OpenDayStaffRequirement, error) {
@@ -619,6 +849,47 @@ func (q *Queries) GetRequirementForUpdate(ctx context.Context, id uuid.UUID) (Op
 		&i.OpenDayID,
 		&i.Kind,
 		&i.RequiredCount,
+		&i.TimeslotID,
+	)
+	return i, err
+}
+
+const getSeriesForUpdate = `-- name: GetSeriesForUpdate :one
+SELECT id, period_id, weekday, from_date, until_date, supervisor_places, trainee_places, forced_dates, version, created_at, updated_at FROM open_day_series WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetSeriesForUpdate(ctx context.Context, id uuid.UUID) (OpenDaySeries, error) {
+	row := q.db.QueryRow(ctx, getSeriesForUpdate, id)
+	var i OpenDaySeries
+	err := row.Scan(
+		&i.ID,
+		&i.PeriodID,
+		&i.Weekday,
+		&i.FromDate,
+		&i.UntilDate,
+		&i.SupervisorPlaces,
+		&i.TraineePlaces,
+		&i.ForcedDates,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTimeslot = `-- name: GetTimeslot :one
+SELECT id, open_day_id, starts_at, ends_at, position FROM open_day_timeslots WHERE id = $1
+`
+
+func (q *Queries) GetTimeslot(ctx context.Context, id uuid.UUID) (OpenDayTimeslot, error) {
+	row := q.db.QueryRow(ctx, getTimeslot, id)
+	var i OpenDayTimeslot
+	err := row.Scan(
+		&i.ID,
+		&i.OpenDayID,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.Position,
 	)
 	return i, err
 }
@@ -695,17 +966,18 @@ func (q *Queries) ListAcademicBreaksInRange(ctx context.Context, arg ListAcademi
 	return items, nil
 }
 
-const listAssignments = `-- name: ListAssignments :many
-SELECT a.id, a.open_day_id, a.requirement_id, a.person_id, a.created_by_account_id, a.created_at,
+const listAssignmentsByDays = `-- name: ListAssignmentsByDays :many
+SELECT a.id, a.open_day_id, a.timeslot_id, a.requirement_id, a.person_id, a.created_by_account_id, a.created_at,
        p.first_name, p.last_name
 FROM open_day_assignments a JOIN people p ON p.id = a.person_id
-WHERE a.open_day_id = $1
+WHERE a.open_day_id = ANY($1::text[]::uuid[])
 ORDER BY a.created_at, a.id
 `
 
-type ListAssignmentsRow struct {
+type ListAssignmentsByDaysRow struct {
 	ID                 uuid.UUID
 	OpenDayID          uuid.UUID
+	TimeslotID         uuid.UUID
 	RequirementID      uuid.UUID
 	PersonID           uuid.UUID
 	CreatedByAccountID *uuid.UUID
@@ -714,18 +986,19 @@ type ListAssignmentsRow struct {
 	LastName           string
 }
 
-func (q *Queries) ListAssignments(ctx context.Context, openDayID uuid.UUID) ([]ListAssignmentsRow, error) {
-	rows, err := q.db.Query(ctx, listAssignments, openDayID)
+func (q *Queries) ListAssignmentsByDays(ctx context.Context, openDayIds []string) ([]ListAssignmentsByDaysRow, error) {
+	rows, err := q.db.Query(ctx, listAssignmentsByDays, openDayIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListAssignmentsRow{}
+	items := []ListAssignmentsByDaysRow{}
 	for rows.Next() {
-		var i ListAssignmentsRow
+		var i ListAssignmentsByDaysRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OpenDayID,
+			&i.TimeslotID,
 			&i.RequirementID,
 			&i.PersonID,
 			&i.CreatedByAccountID,
@@ -827,8 +1100,53 @@ func (q *Queries) ListEligiblePeople(ctx context.Context, arg ListEligiblePeople
 	return items, nil
 }
 
+const listEligibleRequirementsByDays = `-- name: ListEligibleRequirementsByDays :many
+SELECT r.id
+FROM open_day_staff_requirements r
+WHERE r.open_day_id = ANY($1::text[]::uuid[])
+  AND EXISTS (
+      SELECT 1 FROM person_roles mp JOIN roles m ON m.id = mp.role_id
+      WHERE mp.person_id = $2 AND m.system_key = r.kind
+  )
+  AND (
+      NOT EXISTS (SELECT 1 FROM open_day_staff_requirement_roles rr WHERE rr.requirement_id = r.id)
+      OR EXISTS (
+          SELECT 1 FROM open_day_staff_requirement_roles rr
+          JOIN person_roles pr ON pr.role_id = rr.role_id
+          WHERE rr.requirement_id = r.id AND pr.person_id = $2
+      )
+  )
+`
+
+type ListEligibleRequirementsByDaysParams struct {
+	OpenDayIds []string
+	PersonID   uuid.UUID
+}
+
+// The requirements of the days the person may take: the membership of the place's kind and, when the place names
+// extra roles, one of them.
+func (q *Queries) ListEligibleRequirementsByDays(ctx context.Context, arg ListEligibleRequirementsByDaysParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listEligibleRequirementsByDays, arg.OpenDayIds, arg.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOpenDaysByPeriod = `-- name: ListOpenDaysByPeriod :many
-SELECT id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at FROM open_days WHERE period_id = $1 ORDER BY starts_at, id
+SELECT id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at, series_id, detached_from_series_id FROM open_days WHERE period_id = $1 ORDER BY starts_at, id
 `
 
 func (q *Queries) ListOpenDaysByPeriod(ctx context.Context, periodID uuid.UUID) ([]OpenDay, error) {
@@ -850,6 +1168,8 @@ func (q *Queries) ListOpenDaysByPeriod(ctx context.Context, periodID uuid.UUID) 
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SeriesID,
+			&i.DetachedFromSeriesID,
 		); err != nil {
 			return nil, err
 		}
@@ -861,21 +1181,57 @@ func (q *Queries) ListOpenDaysByPeriod(ctx context.Context, periodID uuid.UUID) 
 	return items, nil
 }
 
+const listOverlappingScheduledDays = `-- name: ListOverlappingScheduledDays :many
+SELECT a.id AS first_id, b.id AS second_id
+FROM open_days a
+JOIN open_days b ON b.period_id = a.period_id AND a.id < b.id AND b.status = 'scheduled'
+    AND a.starts_at < b.ends_at AND b.starts_at < a.ends_at
+WHERE a.period_id = $1 AND a.status = 'scheduled'
+LIMIT 1
+`
+
+type ListOverlappingScheduledDaysRow struct {
+	FirstID  uuid.UUID
+	SecondID uuid.UUID
+}
+
+// Pairs of scheduled days of a period whose overall ranges overlap; the schedule must never contain one.
+func (q *Queries) ListOverlappingScheduledDays(ctx context.Context, periodID uuid.UUID) ([]ListOverlappingScheduledDaysRow, error) {
+	rows, err := q.db.Query(ctx, listOverlappingScheduledDays, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOverlappingScheduledDaysRow{}
+	for rows.Next() {
+		var i ListOverlappingScheduledDaysRow
+		if err := rows.Scan(&i.FirstID, &i.SecondID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOwnComingUpOpenDays = `-- name: ListOwnComingUpOpenDays :many
-SELECT a.id AS assignment_id, d.id AS open_day_id, d.period_id, p.name AS period_name, d.starts_at, d.ends_at,
-       COALESCE(sup.open_places, 0)::bigint AS open_supervisor_places
+SELECT a.id AS assignment_id, d.id AS open_day_id, a.timeslot_id, d.period_id, p.name AS period_name,
+       t.starts_at, t.ends_at, COALESCE(sup.open_places, 0)::bigint AS open_supervisor_places
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
 JOIN open_day_periods p ON p.id = d.period_id AND p.status IN ('staffing', 'published')
 LEFT JOIN LATERAL (
     SELECT GREATEST(0, sr.required_count - (
         SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = sr.id
     ))::bigint AS open_places
     FROM open_day_staff_requirements sr
-    WHERE sr.open_day_id = d.id AND sr.kind = 'supervisor'
+    WHERE sr.timeslot_id = t.id AND sr.kind = 'supervisor'
 ) sup ON true
-WHERE a.person_id = $1 AND d.ends_at > $2
-ORDER BY d.starts_at, d.id
+WHERE a.person_id = $1 AND t.ends_at > $2
+ORDER BY t.starts_at, d.id
 `
 
 type ListOwnComingUpOpenDaysParams struct {
@@ -886,6 +1242,7 @@ type ListOwnComingUpOpenDaysParams struct {
 type ListOwnComingUpOpenDaysRow struct {
 	AssignmentID         uuid.UUID
 	OpenDayID            uuid.UUID
+	TimeslotID           uuid.UUID
 	PeriodID             uuid.UUID
 	PeriodName           string
 	StartsAt             time.Time
@@ -893,7 +1250,8 @@ type ListOwnComingUpOpenDaysRow struct {
 	OpenSupervisorPlaces int64
 }
 
-// Upcoming (not yet ended) scheduled open days the person is on, with the supervisor places still open on each.
+// Upcoming (not yet ended) timeslots of scheduled open days the person is on, with the supervisor places still open
+// in each.
 func (q *Queries) ListOwnComingUpOpenDays(ctx context.Context, arg ListOwnComingUpOpenDaysParams) ([]ListOwnComingUpOpenDaysRow, error) {
 	rows, err := q.db.Query(ctx, listOwnComingUpOpenDays, arg.PersonID, arg.Now)
 	if err != nil {
@@ -906,11 +1264,53 @@ func (q *Queries) ListOwnComingUpOpenDays(ctx context.Context, arg ListOwnComing
 		if err := rows.Scan(
 			&i.AssignmentID,
 			&i.OpenDayID,
+			&i.TimeslotID,
 			&i.PeriodID,
 			&i.PeriodName,
 			&i.StartsAt,
 			&i.EndsAt,
 			&i.OpenSupervisorPlaces,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPeriodRequirementCounts = `-- name: ListPeriodRequirementCounts :many
+SELECT r.open_day_id, r.kind, r.required_count,
+       (SELECT count(*) FROM open_day_assignments a WHERE a.requirement_id = r.id)::bigint AS assigned_count
+FROM open_day_staff_requirements r
+JOIN open_days d ON d.id = r.open_day_id AND d.status = 'scheduled'
+WHERE d.period_id = $1
+`
+
+type ListPeriodRequirementCountsRow struct {
+	OpenDayID     uuid.UUID
+	Kind          string
+	RequiredCount int32
+	AssignedCount int64
+}
+
+// Places and assignments of the scheduled days of a period, for the period summary.
+func (q *Queries) ListPeriodRequirementCounts(ctx context.Context, periodID uuid.UUID) ([]ListPeriodRequirementCountsRow, error) {
+	rows, err := q.db.Query(ctx, listPeriodRequirementCounts, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPeriodRequirementCountsRow{}
+	for rows.Next() {
+		var i ListPeriodRequirementCountsRow
+		if err := rows.Scan(
+			&i.OpenDayID,
+			&i.Kind,
+			&i.RequiredCount,
+			&i.AssignedCount,
 		); err != nil {
 			return nil, err
 		}
@@ -956,8 +1356,40 @@ func (q *Queries) ListPeriods(ctx context.Context) ([]OpenDayPeriod, error) {
 	return items, nil
 }
 
+const listPersonDaysInPeriod = `-- name: ListPersonDaysInPeriod :many
+SELECT DISTINCT a.open_day_id
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
+WHERE d.period_id = $1 AND a.person_id = $2
+`
+
+type ListPersonDaysInPeriodParams struct {
+	PeriodID uuid.UUID
+	PersonID uuid.UUID
+}
+
+func (q *Queries) ListPersonDaysInPeriod(ctx context.Context, arg ListPersonDaysInPeriodParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPersonDaysInPeriod, arg.PeriodID, arg.PersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var open_day_id uuid.UUID
+		if err := rows.Scan(&open_day_id); err != nil {
+			return nil, err
+		}
+		items = append(items, open_day_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPublishedOpenDays = `-- name: ListPublishedOpenDays :many
-SELECT od.id, od.period_id, od.starts_at, od.ends_at, od.internal_note, od.status, od.version, od.created_at, od.updated_at FROM open_days od
+SELECT od.id, od.period_id, od.starts_at, od.ends_at, od.internal_note, od.status, od.version, od.created_at, od.updated_at, od.series_id, od.detached_from_series_id FROM open_days od
 JOIN open_day_periods odp ON odp.id = od.period_id
 WHERE odp.status = 'published'
 ORDER BY od.starts_at, od.id
@@ -982,6 +1414,8 @@ func (q *Queries) ListPublishedOpenDays(ctx context.Context) ([]OpenDay, error) 
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SeriesID,
+			&i.DetachedFromSeriesID,
 		); err != nil {
 			return nil, err
 		}
@@ -993,24 +1427,27 @@ func (q *Queries) ListPublishedOpenDays(ctx context.Context) ([]OpenDay, error) 
 	return items, nil
 }
 
-const listRequirementRoleIDs = `-- name: ListRequirementRoleIDs :many
-SELECT role_id FROM open_day_staff_requirement_roles
-WHERE requirement_id = $1 ORDER BY role_id
+const listRequirementRolesByDays = `-- name: ListRequirementRolesByDays :many
+SELECT rr.requirement_id, rr.role_id
+FROM open_day_staff_requirement_roles rr
+JOIN open_day_staff_requirements r ON r.id = rr.requirement_id
+WHERE r.open_day_id = ANY($1::text[]::uuid[])
+ORDER BY rr.requirement_id, rr.role_id
 `
 
-func (q *Queries) ListRequirementRoleIDs(ctx context.Context, requirementID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listRequirementRoleIDs, requirementID)
+func (q *Queries) ListRequirementRolesByDays(ctx context.Context, openDayIds []string) ([]OpenDayStaffRequirementRole, error) {
+	rows, err := q.db.Query(ctx, listRequirementRolesByDays, openDayIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []uuid.UUID{}
+	items := []OpenDayStaffRequirementRole{}
 	for rows.Next() {
-		var role_id uuid.UUID
-		if err := rows.Scan(&role_id); err != nil {
+		var i OpenDayStaffRequirementRole
+		if err := rows.Scan(&i.RequirementID, &i.RoleID); err != nil {
 			return nil, err
 		}
-		items = append(items, role_id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1018,24 +1455,167 @@ func (q *Queries) ListRequirementRoleIDs(ctx context.Context, requirementID uuid
 	return items, nil
 }
 
-const listRequirements = `-- name: ListRequirements :many
-SELECT id, open_day_id, kind, required_count FROM open_day_staff_requirements WHERE open_day_id = $1 ORDER BY kind
+const listRequirementsByDays = `-- name: ListRequirementsByDays :many
+SELECT r.id, r.open_day_id, r.kind, r.required_count, r.timeslot_id, (SELECT count(*) FROM open_day_assignments a WHERE a.requirement_id = r.id)::bigint AS assigned_count
+FROM open_day_staff_requirements r
+WHERE r.open_day_id = ANY($1::text[]::uuid[])
+ORDER BY r.timeslot_id, r.kind
 `
 
-func (q *Queries) ListRequirements(ctx context.Context, openDayID uuid.UUID) ([]OpenDayStaffRequirement, error) {
-	rows, err := q.db.Query(ctx, listRequirements, openDayID)
+type ListRequirementsByDaysRow struct {
+	ID            uuid.UUID
+	OpenDayID     uuid.UUID
+	Kind          string
+	RequiredCount int32
+	TimeslotID    uuid.UUID
+	AssignedCount int64
+}
+
+func (q *Queries) ListRequirementsByDays(ctx context.Context, openDayIds []string) ([]ListRequirementsByDaysRow, error) {
+	rows, err := q.db.Query(ctx, listRequirementsByDays, openDayIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []OpenDayStaffRequirement{}
+	items := []ListRequirementsByDaysRow{}
 	for rows.Next() {
-		var i OpenDayStaffRequirement
+		var i ListRequirementsByDaysRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.OpenDayID,
 			&i.Kind,
 			&i.RequiredCount,
+			&i.TimeslotID,
+			&i.AssignedCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSeriesByPeriod = `-- name: ListSeriesByPeriod :many
+SELECT id, period_id, weekday, from_date, until_date, supervisor_places, trainee_places, forced_dates, version, created_at, updated_at FROM open_day_series WHERE period_id = $1 ORDER BY weekday, from_date, id
+`
+
+func (q *Queries) ListSeriesByPeriod(ctx context.Context, periodID uuid.UUID) ([]OpenDaySeries, error) {
+	rows, err := q.db.Query(ctx, listSeriesByPeriod, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OpenDaySeries{}
+	for rows.Next() {
+		var i OpenDaySeries
+		if err := rows.Scan(
+			&i.ID,
+			&i.PeriodID,
+			&i.Weekday,
+			&i.FromDate,
+			&i.UntilDate,
+			&i.SupervisorPlaces,
+			&i.TraineePlaces,
+			&i.ForcedDates,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSeriesRoles = `-- name: ListSeriesRoles :many
+SELECT sr.series_id, sr.kind, sr.role_id
+FROM open_day_series_roles sr
+JOIN open_day_series s ON s.id = sr.series_id
+WHERE s.period_id = $1
+ORDER BY sr.series_id, sr.kind, sr.role_id
+`
+
+func (q *Queries) ListSeriesRoles(ctx context.Context, periodID uuid.UUID) ([]OpenDaySeriesRole, error) {
+	rows, err := q.db.Query(ctx, listSeriesRoles, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OpenDaySeriesRole{}
+	for rows.Next() {
+		var i OpenDaySeriesRole
+		if err := rows.Scan(&i.SeriesID, &i.Kind, &i.RoleID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSeriesTimeslots = `-- name: ListSeriesTimeslots :many
+SELECT st.series_id, st.position, st.start_time, st.end_time
+FROM open_day_series_timeslots st
+JOIN open_day_series s ON s.id = st.series_id
+WHERE s.period_id = $1
+ORDER BY st.series_id, st.position
+`
+
+func (q *Queries) ListSeriesTimeslots(ctx context.Context, periodID uuid.UUID) ([]OpenDaySeriesTimeslot, error) {
+	rows, err := q.db.Query(ctx, listSeriesTimeslots, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OpenDaySeriesTimeslot{}
+	for rows.Next() {
+		var i OpenDaySeriesTimeslot
+		if err := rows.Scan(
+			&i.SeriesID,
+			&i.Position,
+			&i.StartTime,
+			&i.EndTime,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTimeslotsByDays = `-- name: ListTimeslotsByDays :many
+SELECT id, open_day_id, starts_at, ends_at, position FROM open_day_timeslots
+WHERE open_day_id = ANY($1::text[]::uuid[])
+ORDER BY open_day_id, position
+`
+
+func (q *Queries) ListTimeslotsByDays(ctx context.Context, openDayIds []string) ([]OpenDayTimeslot, error) {
+	rows, err := q.db.Query(ctx, listTimeslotsByDays, openDayIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OpenDayTimeslot{}
+	for rows.Next() {
+		var i OpenDayTimeslot
+		if err := rows.Scan(
+			&i.ID,
+			&i.OpenDayID,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.Position,
 		); err != nil {
 			return nil, err
 		}
@@ -1048,22 +1628,24 @@ func (q *Queries) ListRequirements(ctx context.Context, openDayID uuid.UUID) ([]
 }
 
 const listUpcomingAssignmentsForPerson = `-- name: ListUpcomingAssignmentsForPerson :many
-SELECT a.id AS assignment_id, d.id AS open_day_id, d.period_id, p.name AS period_name,
-       d.starts_at, d.ends_at, r.kind
+SELECT a.id AS assignment_id, d.id AS open_day_id, a.timeslot_id, d.period_id, p.name AS period_name,
+       t.starts_at, t.ends_at, r.kind
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
 JOIN open_day_periods p ON p.id = d.period_id
 JOIN open_day_staff_requirements r ON r.id = a.requirement_id
 WHERE a.person_id = $1
   AND d.status = 'scheduled'
-  AND d.starts_at >= now()
+  AND t.starts_at >= now()
   AND p.status IN ('staffing', 'published')
-ORDER BY d.starts_at, d.id
+ORDER BY t.starts_at, d.id
 `
 
 type ListUpcomingAssignmentsForPersonRow struct {
 	AssignmentID uuid.UUID
 	OpenDayID    uuid.UUID
+	TimeslotID   uuid.UUID
 	PeriodID     uuid.UUID
 	PeriodName   string
 	StartsAt     time.Time
@@ -1071,6 +1653,7 @@ type ListUpcomingAssignmentsForPersonRow struct {
 	Kind         string
 }
 
+// One row per timeslot the person holds; the times are the timeslot's.
 func (q *Queries) ListUpcomingAssignmentsForPerson(ctx context.Context, personID uuid.UUID) ([]ListUpcomingAssignmentsForPersonRow, error) {
 	rows, err := q.db.Query(ctx, listUpcomingAssignmentsForPerson, personID)
 	if err != nil {
@@ -1083,6 +1666,7 @@ func (q *Queries) ListUpcomingAssignmentsForPerson(ctx context.Context, personID
 		if err := rows.Scan(
 			&i.AssignmentID,
 			&i.OpenDayID,
+			&i.TimeslotID,
 			&i.PeriodID,
 			&i.PeriodName,
 			&i.StartsAt,
@@ -1199,17 +1783,20 @@ func (q *Queries) UpdateAcademicBreak(ctx context.Context, arg UpdateAcademicBre
 const updateOpenDay = `-- name: UpdateOpenDay :one
 UPDATE open_days
 SET starts_at = $1, ends_at = $2, internal_note = $3,
+    series_id = $4, detached_from_series_id = $5,
     version = version + 1, updated_at = now()
-WHERE id = $4 AND version = $5 AND status = 'scheduled'
-RETURNING id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at
+WHERE id = $6 AND version = $7 AND status = 'scheduled'
+RETURNING id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at, series_id, detached_from_series_id
 `
 
 type UpdateOpenDayParams struct {
-	StartsAt        time.Time
-	EndsAt          time.Time
-	InternalNote    *string
-	ID              uuid.UUID
-	ExpectedVersion int64
+	StartsAt             time.Time
+	EndsAt               time.Time
+	InternalNote         *string
+	SeriesID             *uuid.UUID
+	DetachedFromSeriesID *uuid.UUID
+	ID                   uuid.UUID
+	ExpectedVersion      int64
 }
 
 func (q *Queries) UpdateOpenDay(ctx context.Context, arg UpdateOpenDayParams) (OpenDay, error) {
@@ -1217,6 +1804,8 @@ func (q *Queries) UpdateOpenDay(ctx context.Context, arg UpdateOpenDayParams) (O
 		arg.StartsAt,
 		arg.EndsAt,
 		arg.InternalNote,
+		arg.SeriesID,
+		arg.DetachedFromSeriesID,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -1231,6 +1820,8 @@ func (q *Queries) UpdateOpenDay(ctx context.Context, arg UpdateOpenDayParams) (O
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SeriesID,
+		&i.DetachedFromSeriesID,
 	)
 	return i, err
 }
@@ -1279,7 +1870,7 @@ func (q *Queries) UpdatePeriod(ctx context.Context, arg UpdatePeriodParams) (Ope
 
 const updateRequirement = `-- name: UpdateRequirement :one
 UPDATE open_day_staff_requirements SET required_count = $1
-WHERE id = $2 RETURNING id, open_day_id, kind, required_count
+WHERE id = $2 RETURNING id, open_day_id, kind, required_count, timeslot_id
 `
 
 type UpdateRequirementParams struct {
@@ -1295,6 +1886,85 @@ func (q *Queries) UpdateRequirement(ctx context.Context, arg UpdateRequirementPa
 		&i.OpenDayID,
 		&i.Kind,
 		&i.RequiredCount,
+		&i.TimeslotID,
+	)
+	return i, err
+}
+
+const updateSeries = `-- name: UpdateSeries :one
+UPDATE open_day_series
+SET until_date = $1, supervisor_places = $2,
+    trainee_places = $3, forced_dates = $4::text[]::date[],
+    version = version + 1, updated_at = now()
+WHERE id = $5 AND version = $6
+RETURNING id, period_id, weekday, from_date, until_date, supervisor_places, trainee_places, forced_dates, version, created_at, updated_at
+`
+
+type UpdateSeriesParams struct {
+	UntilDate        pgtype.Date
+	SupervisorPlaces int32
+	TraineePlaces    int32
+	ForcedDates      []string
+	ID               uuid.UUID
+	ExpectedVersion  int64
+}
+
+func (q *Queries) UpdateSeries(ctx context.Context, arg UpdateSeriesParams) (OpenDaySeries, error) {
+	row := q.db.QueryRow(ctx, updateSeries,
+		arg.UntilDate,
+		arg.SupervisorPlaces,
+		arg.TraineePlaces,
+		arg.ForcedDates,
+		arg.ID,
+		arg.ExpectedVersion,
+	)
+	var i OpenDaySeries
+	err := row.Scan(
+		&i.ID,
+		&i.PeriodID,
+		&i.Weekday,
+		&i.FromDate,
+		&i.UntilDate,
+		&i.SupervisorPlaces,
+		&i.TraineePlaces,
+		&i.ForcedDates,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateTimeslot = `-- name: UpdateTimeslot :one
+UPDATE open_day_timeslots
+SET starts_at = $1, ends_at = $2, position = $3
+WHERE id = $4 AND open_day_id = $5
+RETURNING id, open_day_id, starts_at, ends_at, position
+`
+
+type UpdateTimeslotParams struct {
+	StartsAt  time.Time
+	EndsAt    time.Time
+	Position  int32
+	ID        uuid.UUID
+	OpenDayID uuid.UUID
+}
+
+func (q *Queries) UpdateTimeslot(ctx context.Context, arg UpdateTimeslotParams) (OpenDayTimeslot, error) {
+	row := q.db.QueryRow(ctx, updateTimeslot,
+		arg.StartsAt,
+		arg.EndsAt,
+		arg.Position,
+		arg.ID,
+		arg.OpenDayID,
+	)
+	var i OpenDayTimeslot
+	err := row.Scan(
+		&i.ID,
+		&i.OpenDayID,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.Position,
 	)
 	return i, err
 }

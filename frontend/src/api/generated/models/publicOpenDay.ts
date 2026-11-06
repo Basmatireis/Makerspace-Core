@@ -20,6 +20,7 @@
  */
 import type { OpenDayCompetency } from './openDayCompetency';
 import type { OpenDayStatus } from './openDayStatus';
+import type { PublicOpenDayTimeslot } from './publicOpenDayTimeslot';
 import type { PublicOpenDayTitle } from './publicOpenDayTitle';
 import type { UUIDv7 } from './uUIDv7';
 
@@ -28,9 +29,12 @@ export interface PublicOpenDay {
   competencies: OpenDayCompetency[];
   id: UUIDv7;
   title: PublicOpenDayTitle;
-  /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
+  /** Start of the first timeslot. */
   startsAt: string;
+  /** End of the last timeslot. */
   endsAt: string;
+  /** The day's timeslots, times only. */
+  timeslots: PublicOpenDayTimeslot[];
   status: OpenDayStatus;
   updatedAt: string;
 }

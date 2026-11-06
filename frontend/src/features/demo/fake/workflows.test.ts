@@ -31,6 +31,7 @@ import { apiFetch, ApiError, setApiTransport } from '../../../api/http-client';
 import { demoTestUser } from '../demoTestUser';
 import { createDemoBackend } from './backend';
 import { DEMO_IDS } from './ids';
+import { dayRequirements, myAssignment } from '../../opendays/timeslots';
 
 const operationKey = '01990000-0000-7000-8000-00000000f001';
 
@@ -228,34 +229,34 @@ describe('open days', () => {
   it('joins and leaves an open day', async () => {
     start();
     const day = await getOpenDay(DEMO_IDS.openDay);
-    const supervisors = day.requirements.find((item) => item.kind === 'supervisor')!;
+    const supervisors = dayRequirements(day).find((item) => item.kind === 'supervisor')!;
     await joinOpenDay(day.id, { requirementId: supervisors.id });
     const joined = await getOpenDay(day.id);
-    expect(joined.myAssignment?.requirementId).toBe(supervisors.id);
-    expect(joined.requirements.find((item) => item.id === supervisors.id)?.assignedCount).toBe(
+    expect(myAssignment(joined)?.requirementId).toBe(supervisors.id);
+    expect(dayRequirements(joined).find((item) => item.id === supervisors.id)?.assignedCount).toBe(
       supervisors.assignedCount + 1,
     );
     expect((await listOpenDayPeriods()).items[0].myAssignmentCount).toBe(1);
     const dashboard = await getPersonalDashboard();
     expect(dashboard.comingUp?.map((item) => item.openDayId)).toEqual([day.id]);
     await expect(joinOpenDay(day.id, { requirementId: supervisors.id })).rejects.toMatchObject({ status: 409 });
-    await leaveOpenDay(day.id);
-    expect((await getOpenDay(day.id)).myAssignment).toBeNull();
+    await leaveOpenDay(day.id, { timeslotId: day.timeslots[0].id });
+    expect(myAssignment(await getOpenDay(day.id))).toBeNull();
   });
 
   it('assigns and removes another person', async () => {
     start();
     const day = await getOpenDay(DEMO_IDS.openDay);
-    const trainees = day.requirements.find((item) => item.kind === 'trainee')!;
+    const trainees = dayRequirements(day).find((item) => item.kind === 'trainee')!;
     const assignment = await assignOpenDayPerson(day.id, { requirementId: trainees.id, personId: DEMO_IDS.customer });
     expect(assignment.displayName).toBe('Robin Sample');
     const assigned = await getOpenDay(day.id);
-    expect(assigned.requirements.find((item) => item.id === trainees.id)?.assignedCount).toBe(2);
+    expect(dayRequirements(assigned).find((item) => item.id === trainees.id)?.assignedCount).toBe(2);
     // The trainee requirement is now full.
     await expect(
       assignOpenDayPerson(day.id, { requirementId: trainees.id, personId: demoTestUser().person.id }),
     ).rejects.toMatchObject({ status: 409 });
     await removeOpenDayAssignment(day.id, assignment.id);
-    expect((await getOpenDay(day.id)).requirements.find((item) => item.id === trainees.id)?.assignedCount).toBe(1);
+    expect(dayRequirements(await getOpenDay(day.id)).find((item) => item.id === trainees.id)?.assignedCount).toBe(1);
   });
 });

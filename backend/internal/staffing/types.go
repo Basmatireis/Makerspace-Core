@@ -136,11 +136,11 @@ type Semester struct {
 
 // Counts are a person's open days in one semester.
 type Counts struct {
-	// Staffed are ended open days, in any place.
+	// Staffed are ended timeslots or open days (as the rules count), in any place.
 	Staffed int
-	// Booked are upcoming open days, in any place.
+	// Booked are upcoming timeslots or open days, in any place.
 	Booked int
-	// StaffedAsTrainee are the ended open days staffed in a trainee place.
+	// StaffedAsTrainee are the ended timeslots or open days staffed in a trainee place.
 	StaffedAsTrainee int
 }
 

@@ -507,7 +507,7 @@ func TestInboxFreedSupervisorPlaceNotifiesUnassignedSupervisorsWithinTwoWeeks(t 
 	e.join(soon, soon.supervisorRequirement, leaver)
 	e.join(soon, soon.supervisorRequirement, assigned)
 	e.join(soon, soon.traineeRequirement, traineeLeaver)
-	if err := e.opendays.Leave(ctx, leaver, soon.id, nil); err != nil {
+	if err := e.opendays.Leave(ctx, leaver, soon.id, soon.timeslot, nil); err != nil {
 		t.Fatal(err)
 	}
 	e.expectCount(free, inbox.KindOpenDayPlaceFreed, 1, "unassigned supervisor")
@@ -521,7 +521,7 @@ func TestInboxFreedSupervisorPlaceNotifiesUnassignedSupervisorsWithinTwoWeeks(t 
 	}
 
 	// A trainee place never triggers.
-	if err := e.opendays.Leave(ctx, traineeLeaver, soon.id, nil); err != nil {
+	if err := e.opendays.Leave(ctx, traineeLeaver, soon.id, soon.timeslot, nil); err != nil {
 		t.Fatal(err)
 	}
 	e.expectCount(free, inbox.KindOpenDayPlaceFreed, 1, "unassigned supervisor after a trainee left")
@@ -529,7 +529,7 @@ func TestInboxFreedSupervisorPlaceNotifiesUnassignedSupervisorsWithinTwoWeeks(t 
 	// An open day more than 14 days away stays quiet; a supervisor removed by someone else notifies as well.
 	later := e.openDay(e.now.Add(20*24*time.Hour), 4*time.Hour, 2, 0, supervisorRole.ID)
 	e.join(later, later.supervisorRequirement, assigned)
-	if err := e.opendays.Leave(ctx, assigned, later.id, nil); err != nil {
+	if err := e.opendays.Leave(ctx, assigned, later.id, later.timeslot, nil); err != nil {
 		t.Fatal(err)
 	}
 	e.expectCount(free, inbox.KindOpenDayPlaceFreed, 1, "unassigned supervisor after a far-away open day")

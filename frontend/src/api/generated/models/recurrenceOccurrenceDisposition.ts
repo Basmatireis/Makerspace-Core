@@ -19,6 +19,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * `forced`: a holiday or break date created anyway. `conflict`: another open day overlaps.
+ */
 export type RecurrenceOccurrenceDisposition = typeof RecurrenceOccurrenceDisposition[keyof typeof RecurrenceOccurrenceDisposition];
 
 
@@ -26,5 +29,6 @@ export const RecurrenceOccurrenceDisposition = {
   create: 'create',
   publicHoliday: 'publicHoliday',
   academicBreak: 'academicBreak',
+  forced: 'forced',
   conflict: 'conflict',
 } as const;

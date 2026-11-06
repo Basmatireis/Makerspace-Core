@@ -86,34 +86,45 @@ RETURNING period_id, person_id, reason, created_at;
 DELETE FROM staffing_excusals WHERE period_id = sqlc.arg(period_id) AND person_id = sqlc.arg(person_id);
 
 -- name: ListStaffingCounts :many
--- Open days per person in one period: ended (staffed), upcoming (booked) and ended as trainee. Cancelled open days
--- do not count. A NULL period yields all zeros. person_id narrows the result to one person.
-SELECT a.person_id,
-    count(*) FILTER (WHERE d.period_id = sqlc.narg(period_id) AND d.ends_at <= sqlc.arg(now))::bigint AS staffed,
-    count(*) FILTER (WHERE d.period_id = sqlc.narg(period_id) AND d.ends_at > sqlc.arg(now))::bigint AS booked,
-    count(*) FILTER (
-        WHERE d.period_id = sqlc.narg(period_id) AND d.ends_at <= sqlc.arg(now) AND r.kind = 'trainee'
-    )::bigint AS staffed_as_trainee
-FROM open_day_assignments a
-JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
-JOIN open_day_staff_requirements r ON r.id = a.requirement_id
-WHERE sqlc.narg(only_person_id)::uuid IS NULL OR a.person_id = sqlc.narg(only_person_id)
-GROUP BY a.person_id;
+-- Staffing per person in one period: ended (staffed), upcoming (booked) and ended as trainee. count_by 'timeslot'
+-- counts every timeslot held; 'open_day' counts every day with at least one, which has ended when the person's last
+-- timeslot of it has and counts as trainee when they held a trainee place in it. Cancelled open days do not count.
+-- person_id narrows the result to one person.
+SELECT u.person_id,
+    sum(CASE WHEN u.unit_ends_at <= sqlc.arg(now)::timestamptz THEN 1 ELSE 0 END)::bigint AS staffed,
+    sum(CASE WHEN u.unit_ends_at > sqlc.arg(now)::timestamptz THEN 1 ELSE 0 END)::bigint AS booked,
+    sum(CASE WHEN u.unit_ends_at <= sqlc.arg(now)::timestamptz AND u.unit_as_trainee THEN 1 ELSE 0 END)::bigint
+        AS staffed_as_trainee
+FROM (
+    SELECT a.person_id,
+        CASE WHEN sqlc.arg(count_by)::text = 'open_day' THEN a.open_day_id ELSE a.timeslot_id END AS unit_id,
+        max(t.ends_at) AS unit_ends_at,
+        bool_or(r.kind = 'trainee') AS unit_as_trainee
+    FROM open_day_assignments a
+    JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled' AND d.period_id = sqlc.narg(period_id)
+    JOIN open_day_timeslots t ON t.id = a.timeslot_id
+    JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+    WHERE sqlc.narg(only_person_id)::uuid IS NULL OR a.person_id = sqlc.narg(only_person_id)
+    GROUP BY 1, 2
+) u
+GROUP BY u.person_id;
 
 -- name: ListLastStaffed :many
--- Start of the last ended open day each person staffed in any semester.
-SELECT DISTINCT ON (a.person_id) a.person_id, d.starts_at
+-- Start of the last ended timeslot each person staffed in any semester.
+SELECT DISTINCT ON (a.person_id) a.person_id, t.starts_at
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
-WHERE d.ends_at <= sqlc.arg(now)
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+WHERE t.ends_at <= sqlc.arg(now)
   AND (sqlc.narg(only_person_id)::uuid IS NULL OR a.person_id = sqlc.narg(only_person_id))
-ORDER BY a.person_id, d.starts_at DESC, d.id;
+ORDER BY a.person_id, t.starts_at DESC, d.id;
 
 -- name: ListNextAssignments :many
--- The next upcoming open day each person is assigned to, in any semester.
-SELECT DISTINCT ON (a.person_id) a.person_id, d.id AS open_day_id, d.starts_at, d.ends_at
+-- The next upcoming timeslot each person is assigned to, in any semester.
+SELECT DISTINCT ON (a.person_id) a.person_id, d.id AS open_day_id, t.starts_at, t.ends_at
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
-WHERE d.ends_at > sqlc.arg(now)
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+WHERE t.ends_at > sqlc.arg(now)
   AND (sqlc.narg(only_person_id)::uuid IS NULL OR a.person_id = sqlc.narg(only_person_id))
-ORDER BY a.person_id, d.starts_at, d.id;
+ORDER BY a.person_id, t.starts_at, d.id;

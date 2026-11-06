@@ -395,7 +395,7 @@ const deduplicateOpenDayAssignments = `-- name: DeduplicateOpenDayAssignments :e
 DELETE FROM open_day_assignments source
 USING open_day_assignments target
 WHERE source.person_id=$1 AND target.person_id=$2
-  AND source.open_day_id=target.open_day_id AND source.requirement_id=target.requirement_id
+  AND source.timeslot_id=target.timeslot_id AND source.requirement_id=target.requirement_id
 `
 
 type DeduplicateOpenDayAssignmentsParams struct {
@@ -683,9 +683,9 @@ func (q *Queries) ListConnectors(ctx context.Context) ([]ListConnectorsRow, erro
 }
 
 const listOpenDayReconciliationConflicts = `-- name: ListOpenDayReconciliationConflicts :many
-SELECT source.open_day_id
+SELECT DISTINCT source.open_day_id
 FROM open_day_assignments source
-JOIN open_day_assignments target ON target.open_day_id=source.open_day_id
+JOIN open_day_assignments target ON target.timeslot_id=source.timeslot_id
 WHERE source.person_id=$1 AND target.person_id=$2
   AND source.requirement_id<>target.requirement_id
 `
@@ -695,6 +695,7 @@ type ListOpenDayReconciliationConflictsParams struct {
 	TargetPersonID uuid.UUID
 }
 
+// Open days with a timeslot in which both people hold different places.
 func (q *Queries) ListOpenDayReconciliationConflicts(ctx context.Context, arg ListOpenDayReconciliationConflictsParams) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listOpenDayReconciliationConflicts, arg.SourcePersonID, arg.TargetPersonID)
 	if err != nil {

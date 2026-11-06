@@ -1,18 +1,24 @@
 import { CheckmarkFilled, InformationFilled, Misuse, WarningFilled } from '@carbon/icons-react';
-import type { OpenDay, OpenDayPeriodStatus } from '../../../api/generated/models';
+import type { OpenDay, OpenDayPeriodStatus, ScheduleCreate } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
 import { type OpenDayScheduleDefaults } from '../scheduleDefaults';
 import { type WorkingSlot } from '../scheduleState';
+import { dayRequirements, firstTimeslot } from '../timeslots';
+
+// The working copy edits an open day's first timeslot; further timeslots are kept as they are.
+function firstRequirements(day: OpenDay) {
+  return firstTimeslot(day)?.requirements ?? [];
+}
 
 export function toWorking(day: OpenDay): WorkingSlot {
   return {
     id: day.id,
     serverId: day.id,
     original: day,
-    startsAt: day.startsAt,
-    endsAt: day.endsAt,
+    startsAt: firstTimeslot(day)?.startsAt ?? day.startsAt,
+    endsAt: firstTimeslot(day)?.endsAt ?? day.endsAt,
     internalNote: day.internalNote,
-    requirements: day.requirements.map((item) => ({
+    requirements: firstRequirements(day).map((item) => ({
       kind: item.kind,
       requiredCount: item.requiredCount,
       eligibleRoleIds: item.eligibleRoleIds ?? [],
@@ -22,24 +28,39 @@ export function toWorking(day: OpenDay): WorkingSlot {
 
 export function toPreviewOpenDay(slot: WorkingSlot, periodId: string): OpenDay {
   const requirements = slot.requirements.map((requirement) => {
-    const original = slot.original?.requirements.find((item) => item.kind === requirement.kind);
+    const original = slot.original && firstRequirements(slot.original).find((item) => item.kind === requirement.kind);
     return original
       ? { ...original, requiredCount: requirement.requiredCount, eligibleRoleIds: requirement.eligibleRoleIds }
       : {
           id: `${slot.id}-${requirement.kind}`,
+          timeslotId: `${slot.id}-timeslot`,
           kind: requirement.kind,
           requiredCount: requirement.requiredCount,
           assignedCount: 0,
+          eligible: false,
+          canJoin: false,
           eligibleRoleIds: requirement.eligibleRoleIds,
         };
   });
+  const first = slot.original && firstTimeslot(slot.original);
+  const timeslots = [
+    {
+      id: first?.id ?? `${slot.id}-timeslot`,
+      position: 0,
+      startsAt: slot.startsAt,
+      endsAt: slot.endsAt,
+      requirements,
+      myAssignment: first?.myAssignment ?? null,
+    },
+    ...(slot.original?.timeslots.slice(1) ?? []),
+  ];
   if (slot.original)
     return {
       ...slot.original,
       startsAt: slot.startsAt,
-      endsAt: slot.endsAt,
+      endsAt: timeslots[timeslots.length - 1].endsAt,
       internalNote: slot.internalNote,
-      requirements,
+      timeslots,
     };
   return {
     id: slot.id,
@@ -48,7 +69,9 @@ export function toPreviewOpenDay(slot: WorkingSlot, periodId: string): OpenDay {
     endsAt: slot.endsAt,
     internalNote: slot.internalNote,
     status: 'scheduled',
-    requirements,
+    timeslots,
+    seriesId: null,
+    detachedFromSeriesId: null,
     competencies: [],
     version: 0,
     createdAt: slot.startsAt,
@@ -150,8 +173,11 @@ export function hasBulkEditChanges(state: BulkEditState) {
 }
 
 export function previewRequirementCount(day: OpenDay, kind: string) {
-  const item = day.requirements.find((requirement) => requirement.kind === kind);
-  return item ? `${item.assignedCount} / ${item.requiredCount}` : '0 / 0';
+  const items = dayRequirements(day).filter((requirement) => requirement.kind === kind);
+  if (!items.length) return '0 / 0';
+  const assigned = items.reduce((sum, item) => sum + item.assignedCount, 0);
+  const required = items.reduce((sum, item) => sum + item.requiredCount, 0);
+  return `${assigned} / ${required}`;
 }
 
 export function scheduleErrorMessage(error: unknown) {
@@ -177,7 +203,8 @@ export function createConfigurationError(configuration: OpenDayScheduleDefaults)
 
 export function workingRequirementCount(slot: WorkingSlot, kind: 'supervisor' | 'trainee') {
   const required = slot.requirements.find((item) => item.kind === kind)?.requiredCount ?? 0;
-  const assigned = slot.original?.requirements.find((item) => item.kind === kind)?.assignedCount ?? 0;
+  const assigned =
+    (slot.original && firstRequirements(slot.original).find((item) => item.kind === kind)?.assignedCount) ?? 0;
   return `${assigned} / ${required}`;
 }
 
@@ -206,7 +233,9 @@ export function removalConfirmation(slots: WorkingSlot[], periodStatus: OpenDayP
 
 export function workingSlotPresentation(slot: WorkingSlot) {
   if (slot.original?.status === 'cancelled') return { kind: 'cancelled' as const, label: 'Cancelled', Icon: Misuse };
-  const assigned = new Map(slot.original?.requirements.map((item) => [item.kind, item.assignedCount]) ?? []);
+  const assigned = new Map<string, number>(
+    (slot.original ? firstRequirements(slot.original) : []).map((item) => [item.kind, item.assignedCount]),
+  );
   const supervisor = slot.requirements.find((item) => item.kind === 'supervisor');
   const trainee = slot.requirements.find((item) => item.kind === 'trainee');
   if (supervisor && supervisor.requiredCount > (assigned.get('supervisor') ?? 0))
@@ -224,12 +253,28 @@ export function workingSlotPresentation(slot: WorkingSlot) {
   return { kind: 'staffed' as const, label: 'Fully staffed', Icon: CheckmarkFilled };
 }
 
-export function scheduleCreate(slot: WorkingSlot) {
+export function scheduleCreate(slot: WorkingSlot): ScheduleCreate {
+  const [first, ...rest] = slot.original?.timeslots ?? [];
   return {
-    startsAt: slot.startsAt,
-    endsAt: slot.endsAt,
     internalNote: slot.internalNote,
-    requirements: slot.requirements,
+    timeslots: [
+      {
+        ...(first ? { id: first.id } : {}),
+        startsAt: slot.startsAt,
+        endsAt: slot.endsAt,
+        requirements: slot.requirements,
+      },
+      ...rest.map((item) => ({
+        id: item.id,
+        startsAt: item.startsAt,
+        endsAt: item.endsAt,
+        requirements: item.requirements.map((requirement) => ({
+          kind: requirement.kind,
+          requiredCount: requirement.requiredCount,
+          eligibleRoleIds: requirement.eligibleRoleIds ?? [],
+        })),
+      })),
+    ],
   };
 }
 
@@ -237,12 +282,12 @@ export function changed(slot: WorkingSlot) {
   const original = slot.original;
   return (
     !original ||
-    slot.startsAt !== original.startsAt ||
-    slot.endsAt !== original.endsAt ||
+    slot.startsAt !== (firstTimeslot(original)?.startsAt ?? original.startsAt) ||
+    slot.endsAt !== (firstTimeslot(original)?.endsAt ?? original.endsAt) ||
     (slot.internalNote ?? null) !== (original.internalNote ?? null) ||
     JSON.stringify(slot.requirements) !==
       JSON.stringify(
-        original.requirements.map((item) => ({
+        firstRequirements(original).map((item) => ({
           kind: item.kind,
           requiredCount: item.requiredCount,
           eligibleRoleIds: item.eligibleRoleIds ?? [],

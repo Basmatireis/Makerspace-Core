@@ -18,22 +18,20 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { StaffingRequirementInput } from './staffingRequirementInput';
+import type { OpenDayTimeslotInput } from './openDayTimeslotInput';
 import type { Version } from './version';
 
 export interface CreateOpenDayRequest {
-  /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
-  startsAt: string;
-  endsAt: string;
   /**
      * @maxLength 2000
      * @nullable
      */
   internalNote?: string | null;
   /**
-     * @minItems 2
-     * @maxItems 2
+     * Ordered, non-overlapping timeslots; the open day's range runs from the first start to the last end.
+     * @minItems 1
+     * @maxItems 24
      */
-  requirements: StaffingRequirementInput[];
+  timeslots: OpenDayTimeslotInput[];
   expectedPeriodVersion: Version;
 }

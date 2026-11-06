@@ -30,7 +30,7 @@ func TestOpenDayPeriodBoundsContainTheWholeSlot(t *testing.T) {
 	schedule, err := service.CreateOpenDay(ctx, p, period.ID, period.Version, opendays.ScheduleInput{
 		StartsAt: start.Add(18 * time.Hour), EndsAt: start.Add(26 * time.Hour),
 		Requirements: []opendays.RequirementInput{
-			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{}},
 			{Kind: "trainee", RequiredCount: 0},
 		},
 	}, nil)
@@ -88,7 +88,7 @@ func TestOpenDayAssignmentReturnsNameBeyondEligibilityPage(t *testing.T) {
 	schedule, err := service.CreateOpenDay(ctx, p, period.ID, period.Version, opendays.ScheduleInput{
 		StartsAt: start.Add(12 * time.Hour), EndsAt: start.Add(14 * time.Hour),
 		Requirements: []opendays.RequirementInput{
-			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{}},
 			{Kind: "trainee", RequiredCount: 0},
 		},
 	}, nil)

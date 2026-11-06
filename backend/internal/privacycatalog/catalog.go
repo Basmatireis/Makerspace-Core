@@ -208,8 +208,8 @@ func Definitions() []privacy.Definition {
 		},
 		{
 			ID: OpenDayAssignments, Owner: OpenDays, Name: "Open day assignments",
-			Description:    "Who staffed which open day.",
-			Contains:       "Who staffed which open day",
+			Description:    "Who staffed which timeslot of which open day.",
+			Contains:       "Who staffed which timeslot of which open day",
 			ErasureOutcome: privacy.ErasureErased,
 			Fields:         []string{"open_day_assignments.person_id"},
 			Triggers:       []privacy.Trigger{privacy.TriggerCompletedAt},

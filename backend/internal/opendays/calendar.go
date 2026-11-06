@@ -429,9 +429,14 @@ type RecurrenceInput struct {
 	StartTime, EndTime                     string
 	EveryWeeks                             int
 	SkipPublicHolidays, SkipAcademicBreaks bool
+	// Timeslots replace StartTime and EndTime when set.
+	Timeslots []ClockRange
+	// ForcedDates are holiday or break dates that get an open day anyway.
+	ForcedDates []time.Time
 }
 type RecurrenceOccurrence struct {
 	Date, StartsAt, EndsAt time.Time
+	Timeslots              []PublicTimeslot
 	Disposition            Disposition
 	Reason                 string
 }
@@ -453,13 +458,17 @@ func (s *Service) PreviewRecurrence(
 		input.EndsOn.Before(input.StartsOn) {
 		return nil, apperror.Invalid("recurrence range is invalid")
 	}
-	startClock, err := time.Parse("15:04", input.StartTime)
-	if err != nil {
-		return nil, apperror.Invalid("startTime is invalid")
-	}
-	endClock, err := time.Parse("15:04", input.EndTime)
-	if err != nil {
-		return nil, apperror.Invalid("endTime is invalid")
+	if len(input.Timeslots) > 0 {
+		if err := validateTemplate(SeriesTemplate{Timeslots: input.Timeslots, ForcedDates: input.ForcedDates}); err != nil {
+			return nil, err
+		}
+	} else {
+		if _, err := time.Parse("15:04", input.StartTime); err != nil {
+			return nil, apperror.Invalid("startTime is invalid")
+		}
+		if _, err := time.Parse("15:04", input.EndTime); err != nil {
+			return nil, apperror.Invalid("endTime is invalid")
+		}
 	}
 	if !input.StartsOn.Equal(dateOnly(input.StartsOn)) || !dateWithin(input.StartsOn, period.StartsOn, period.EndsOn) ||
 		!dateWithin(input.EndsOn, period.StartsOn, period.EndsOn) {
@@ -485,38 +494,24 @@ func (s *Service) PreviewRecurrence(
 	for _, h := range holidays {
 		holidayDates[dateKey(h.Date)] = h.Name
 	}
+	forced := map[string]bool{}
+	for _, date := range input.ForcedDates {
+		forced[dateKey(date)] = true
+	}
 	date := dateOnly(input.StartsOn)
 	for int(date.Weekday()) != input.Weekday%7 {
 		date = date.AddDate(0, 0, 1)
 	}
 	items := []RecurrenceOccurrence{}
 	for !date.After(dateOnly(input.EndsOn)) {
-		start, err := s.resolveWallTime(
-			time.Date(date.Year(), date.Month(), date.Day(), startClock.Hour(), startClock.Minute(), 0, 0, time.UTC),
-		)
+		slots, err := s.occurrenceSlots(date, input)
 		if err != nil {
 			return nil, err
 		}
-		endDate := date
-		if !endClock.After(startClock) {
-			endDate = endDate.AddDate(0, 0, 1)
+		item := RecurrenceOccurrence{
+			Date: date, StartsAt: slots[0].StartsAt, EndsAt: slots[len(slots)-1].EndsAt, Timeslots: slots,
+			Disposition: DispositionCreate,
 		}
-		end, err := s.resolveWallTime(
-			time.Date(
-				endDate.Year(),
-				endDate.Month(),
-				endDate.Day(),
-				endClock.Hour(),
-				endClock.Minute(),
-				0,
-				0,
-				time.UTC,
-			),
-		)
-		if err != nil {
-			return nil, err
-		}
-		item := RecurrenceOccurrence{Date: date, StartsAt: start.UTC(), EndsAt: end.UTC(), Disposition: DispositionCreate}
 		if name, ok := holidayDates[dateKey(date)]; ok && input.SkipPublicHolidays {
 			item.Disposition = DispositionPublicHoliday
 			item.Reason = name
@@ -528,10 +523,13 @@ func (s *Service) PreviewRecurrence(
 				break
 			}
 		}
+		if item.Disposition != DispositionCreate && forced[dateKey(date)] {
+			item.Disposition = DispositionForced
+		}
 		for _, day := range days {
-			if DayStatus(day.Status) == DayScheduled && day.StartsAt.Equal(item.StartsAt) && day.EndsAt.Equal(item.EndsAt) {
+			if DayStatus(day.Status) == DayScheduled && day.StartsAt.Before(item.EndsAt) && item.StartsAt.Before(day.EndsAt) {
 				item.Disposition = DispositionConflict
-				item.Reason = "An Open Day already uses this time range"
+				item.Reason = "Another Open Day overlaps this time"
 				break
 			}
 		}
@@ -541,10 +539,45 @@ func (s *Service) PreviewRecurrence(
 	return items, nil
 }
 
+// occurrenceSlots resolves one recurrence date's timeslots; a single range whose end is not after its start ends on
+// the next day.
+func (s *Service) occurrenceSlots(date time.Time, input RecurrenceInput) ([]PublicTimeslot, error) {
+	if len(input.Timeslots) > 0 {
+		inputs, err := s.templateTimeslots(date, SeriesTemplate{Timeslots: input.Timeslots})
+		if err != nil {
+			return nil, err
+		}
+		slots := make([]PublicTimeslot, 0, len(inputs))
+		for _, slot := range inputs {
+			slots = append(slots, PublicTimeslot{StartsAt: slot.StartsAt, EndsAt: slot.EndsAt})
+		}
+		return slots, nil
+	}
+	start, err := s.wallClock(date, input.StartTime)
+	if err != nil {
+		return nil, err
+	}
+	endDate := date
+	if input.EndTime <= input.StartTime {
+		endDate = endDate.AddDate(0, 0, 1)
+	}
+	end, err := s.wallClock(endDate, input.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	return []PublicTimeslot{{StartsAt: start.UTC(), EndsAt: end.UTC()}}, nil
+}
+
+// PublicTimeslot is the time range of one timeslot, without any staffing.
+type PublicTimeslot struct {
+	StartsAt, EndsAt time.Time
+}
+
 type PublicOpenDay struct {
 	ID               uuid.UUID
 	Title            string
 	StartsAt, EndsAt time.Time
+	Timeslots        []PublicTimeslot
 	Status           DayStatus
 	UpdatedAt        time.Time
 	Version          int64
@@ -553,7 +586,8 @@ type PublicOpenDay struct {
 }
 
 func (s *Service) ListPublic(ctx context.Context) ([]PublicOpenDay, error) {
-	rows, err := opendaysdb.New(s.pool).ListPublishedOpenDays(ctx)
+	q := opendaysdb.New(s.pool)
+	rows, err := q.ListPublishedOpenDays(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -565,8 +599,20 @@ func (s *Service) ListPublic(ctx context.Context) ([]PublicOpenDay, error) {
 	if err != nil {
 		return nil, err
 	}
+	slotRows, err := q.ListTimeslotsByDays(ctx, idTexts(dayIDs))
+	if err != nil {
+		return nil, err
+	}
+	slots := map[uuid.UUID][]PublicTimeslot{}
+	for _, slot := range slotRows {
+		slots[slot.OpenDayID] = append(slots[slot.OpenDayID], PublicTimeslot{StartsAt: slot.StartsAt, EndsAt: slot.EndsAt})
+	}
 	items := make([]PublicOpenDay, 0, len(rows))
 	for _, row := range rows {
+		daySlots := slots[row.ID]
+		if daySlots == nil {
+			daySlots = []PublicTimeslot{}
+		}
 		items = append(
 			items,
 			PublicOpenDay{
@@ -574,6 +620,7 @@ func (s *Service) ListPublic(ctx context.Context) ([]PublicOpenDay, error) {
 				Title:        "Open Day",
 				StartsAt:     row.StartsAt,
 				EndsAt:       row.EndsAt,
+				Timeslots:    daySlots,
 				Status:       DayStatus(row.Status),
 				UpdatedAt:    row.UpdatedAt,
 				Version:      row.Version,
@@ -613,7 +660,7 @@ func (s *Service) PublicICS(ctx context.Context) ([]byte, error) {
 		// DTSTAMP is when the feed was generated: the description follows assignments and training records, which do
 		// not change the open day's version, LAST-MODIFIED or SEQUENCE.
 		event.Props.SetDateTime(ical.PropDateTimeStamp, generatedAt)
-		if description := competencyDescription(item.Competencies); description != "" {
+		if description := s.publicDescription(item); description != "" {
 			event.Props.SetText(ical.PropDescription, description)
 		}
 		event.Props.SetDateTime(ical.PropLastModified, item.UpdatedAt.UTC())
@@ -632,8 +679,24 @@ func (s *Service) PublicICS(ctx context.Context) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// competencyDescription is the ICS description: the planned competencies, labelled as planned because staffing can
-// still change.
+// publicDescription is the ICS description: the timeslots of a day with more than one, in makerspace time, and the
+// planned competencies, labelled as planned because staffing can still change.
+func (s *Service) publicDescription(item PublicOpenDay) string {
+	lines := []string{}
+	if len(item.Timeslots) > 1 {
+		ranges := make([]string, 0, len(item.Timeslots))
+		for _, slot := range item.Timeslots {
+			ranges = append(ranges, slot.StartsAt.In(s.location).Format("15:04")+"–"+slot.EndsAt.In(s.location).Format("15:04"))
+		}
+		lines = append(lines, "Timeslots: "+strings.Join(ranges, ", "))
+	}
+	if description := competencyDescription(item.Competencies); description != "" {
+		lines = append(lines, description)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// competencyDescription names the planned competencies, labelled as planned because staffing can still change.
 func competencyDescription(items []trainings.Competency) string {
 	if len(items) == 0 {
 		return ""

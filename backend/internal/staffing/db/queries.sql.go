@@ -221,12 +221,13 @@ func (q *Queries) ListExcusals(ctx context.Context, arg ListExcusalsParams) ([]L
 }
 
 const listLastStaffed = `-- name: ListLastStaffed :many
-SELECT DISTINCT ON (a.person_id) a.person_id, d.starts_at
+SELECT DISTINCT ON (a.person_id) a.person_id, t.starts_at
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
-WHERE d.ends_at <= $1
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+WHERE t.ends_at <= $1
   AND ($2::uuid IS NULL OR a.person_id = $2)
-ORDER BY a.person_id, d.starts_at DESC, d.id
+ORDER BY a.person_id, t.starts_at DESC, d.id
 `
 
 type ListLastStaffedParams struct {
@@ -239,7 +240,7 @@ type ListLastStaffedRow struct {
 	StartsAt time.Time
 }
 
-// Start of the last ended open day each person staffed in any semester.
+// Start of the last ended timeslot each person staffed in any semester.
 func (q *Queries) ListLastStaffed(ctx context.Context, arg ListLastStaffedParams) ([]ListLastStaffedRow, error) {
 	rows, err := q.db.Query(ctx, listLastStaffed, arg.Now, arg.OnlyPersonID)
 	if err != nil {
@@ -261,12 +262,13 @@ func (q *Queries) ListLastStaffed(ctx context.Context, arg ListLastStaffedParams
 }
 
 const listNextAssignments = `-- name: ListNextAssignments :many
-SELECT DISTINCT ON (a.person_id) a.person_id, d.id AS open_day_id, d.starts_at, d.ends_at
+SELECT DISTINCT ON (a.person_id) a.person_id, d.id AS open_day_id, t.starts_at, t.ends_at
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
-WHERE d.ends_at > $1
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+WHERE t.ends_at > $1
   AND ($2::uuid IS NULL OR a.person_id = $2)
-ORDER BY a.person_id, d.starts_at, d.id
+ORDER BY a.person_id, t.starts_at, d.id
 `
 
 type ListNextAssignmentsParams struct {
@@ -281,7 +283,7 @@ type ListNextAssignmentsRow struct {
 	EndsAt    time.Time
 }
 
-// The next upcoming open day each person is assigned to, in any semester.
+// The next upcoming timeslot each person is assigned to, in any semester.
 func (q *Queries) ListNextAssignments(ctx context.Context, arg ListNextAssignmentsParams) ([]ListNextAssignmentsRow, error) {
 	rows, err := q.db.Query(ctx, listNextAssignments, arg.Now, arg.OnlyPersonID)
 	if err != nil {
@@ -394,22 +396,30 @@ func (q *Queries) ListSemesterCandidates(ctx context.Context) ([]ListSemesterCan
 }
 
 const listStaffingCounts = `-- name: ListStaffingCounts :many
-SELECT a.person_id,
-    count(*) FILTER (WHERE d.period_id = $1 AND d.ends_at <= $2)::bigint AS staffed,
-    count(*) FILTER (WHERE d.period_id = $1 AND d.ends_at > $2)::bigint AS booked,
-    count(*) FILTER (
-        WHERE d.period_id = $1 AND d.ends_at <= $2 AND r.kind = 'trainee'
-    )::bigint AS staffed_as_trainee
-FROM open_day_assignments a
-JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
-JOIN open_day_staff_requirements r ON r.id = a.requirement_id
-WHERE $3::uuid IS NULL OR a.person_id = $3
-GROUP BY a.person_id
+SELECT u.person_id,
+    sum(CASE WHEN u.unit_ends_at <= $1::timestamptz THEN 1 ELSE 0 END)::bigint AS staffed,
+    sum(CASE WHEN u.unit_ends_at > $1::timestamptz THEN 1 ELSE 0 END)::bigint AS booked,
+    sum(CASE WHEN u.unit_ends_at <= $1::timestamptz AND u.unit_as_trainee THEN 1 ELSE 0 END)::bigint
+        AS staffed_as_trainee
+FROM (
+    SELECT a.person_id,
+        CASE WHEN $2::text = 'open_day' THEN a.open_day_id ELSE a.timeslot_id END AS unit_id,
+        max(t.ends_at) AS unit_ends_at,
+        bool_or(r.kind = 'trainee') AS unit_as_trainee
+    FROM open_day_assignments a
+    JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled' AND d.period_id = $3
+    JOIN open_day_timeslots t ON t.id = a.timeslot_id
+    JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+    WHERE $4::uuid IS NULL OR a.person_id = $4
+    GROUP BY 1, 2
+) u
+GROUP BY u.person_id
 `
 
 type ListStaffingCountsParams struct {
-	PeriodID     *uuid.UUID
 	Now          time.Time
+	CountBy      string
+	PeriodID     *uuid.UUID
 	OnlyPersonID *uuid.UUID
 }
 
@@ -420,10 +430,17 @@ type ListStaffingCountsRow struct {
 	StaffedAsTrainee int64
 }
 
-// Open days per person in one period: ended (staffed), upcoming (booked) and ended as trainee. Cancelled open days
-// do not count. A NULL period yields all zeros. person_id narrows the result to one person.
+// Staffing per person in one period: ended (staffed), upcoming (booked) and ended as trainee. count_by 'timeslot'
+// counts every timeslot held; 'open_day' counts every day with at least one, which has ended when the person's last
+// timeslot of it has and counts as trainee when they held a trainee place in it. Cancelled open days do not count.
+// person_id narrows the result to one person.
 func (q *Queries) ListStaffingCounts(ctx context.Context, arg ListStaffingCountsParams) ([]ListStaffingCountsRow, error) {
-	rows, err := q.db.Query(ctx, listStaffingCounts, arg.PeriodID, arg.Now, arg.OnlyPersonID)
+	rows, err := q.db.Query(ctx, listStaffingCounts,
+		arg.Now,
+		arg.CountBy,
+		arg.PeriodID,
+		arg.OnlyPersonID,
+	)
 	if err != nil {
 		return nil, err
 	}

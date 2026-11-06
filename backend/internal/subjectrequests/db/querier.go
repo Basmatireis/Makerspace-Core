@@ -46,6 +46,7 @@ type Querier interface {
 	ExportLabRulesConfirmations(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportMachineJobs(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportNotifications(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error)
+	// One entry per timeslot held: the timeslot's times, the open day's overall range and status, and the kind of place.
 	ExportOpenDayAssignments(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportOrganizationMemberships(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportPendingState(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error)

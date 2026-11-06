@@ -1,4 +1,5 @@
 import type { OpenDay, OpenDayAssignment } from '../../../../api/generated/models';
+import { dayRequirements } from '../../../opendays/timeslots';
 import { openDayView, refreshPeriod } from '../openDayModel';
 import { created, fail, noContent, notFound, ok, type DemoRouter } from '../router';
 import { nextId, personName, type DemoStore } from '../store';
@@ -8,13 +9,17 @@ function findDay(store: DemoStore, id: string): OpenDay | undefined {
 }
 
 function assign(store: DemoStore, day: OpenDay, requirementId: unknown, personId: string) {
-  const requirement = day.requirements.find((item) => item.id === requirementId);
+  const requirement = dayRequirements(day).find((item) => item.id === requirementId);
   if (!requirement) return fail(422, 'invalid_requirement', 'Choose a staffing requirement of this Open Day.');
   if (day.status !== 'scheduled') return fail(409, 'open_day_cancelled', 'This Open Day is cancelled.');
   const person = store.people.find((item) => item.id === personId);
   if (!person) return notFound('Person');
-  if (day.requirements.some((item) => item.assignments?.some((a) => a.personId === personId))) {
-    return fail(409, 'already_assigned', 'This person is already on this Open Day.');
+  if (
+    dayRequirements(day).some(
+      (item) => item.timeslotId === requirement.timeslotId && item.assignments?.some((a) => a.personId === personId),
+    )
+  ) {
+    return fail(409, 'already_in_timeslot', 'This person already has a place in this timeslot.');
   }
   if (requirement.assignedCount >= requirement.requiredCount) {
     return fail(409, 'requirement_full', 'All places for this requirement are taken.');
@@ -22,6 +27,7 @@ function assign(store: DemoStore, day: OpenDay, requirementId: unknown, personId
   const assignment: OpenDayAssignment = {
     id: nextId(store),
     openDayId: day.id,
+    timeslotId: requirement.timeslotId,
     requirementId: requirement.id,
     personId,
     displayName: personName(person),
@@ -35,7 +41,7 @@ function assign(store: DemoStore, day: OpenDay, requirementId: unknown, personId
 }
 
 function unassign(store: DemoStore, day: OpenDay, match: (assignment: OpenDayAssignment) => boolean) {
-  for (const requirement of day.requirements) {
+  for (const requirement of dayRequirements(day)) {
     const before = requirement.assignments ?? [];
     const after = before.filter((assignment) => !match(assignment));
     if (after.length !== before.length) {
@@ -95,10 +101,10 @@ export function registerOpenDays(router: DemoRouter<DemoStore>): void {
       return day ? ok(openDayView(store, day)) : notFound('Open Day');
     })
     .get('/open-day-staff-requirements/{requirementId}/eligible-people', ({ store, params, query }) => {
-      const day = store.openDays.find((item) => item.requirements.some((r) => r.id === params.requirementId));
+      const day = store.openDays.find((item) => dayRequirements(item).some((r) => r.id === params.requirementId));
       if (!day) return notFound('Requirement');
       const search = (query.get('search') ?? '').toLowerCase();
-      const taken = new Set(day.requirements.flatMap((r) => (r.assignments ?? []).map((a) => a.personId)));
+      const taken = new Set(dayRequirements(day).flatMap((r) => (r.assignments ?? []).map((a) => a.personId)));
       return ok({
         items: store.people
           .filter((person) => !taken.has(person.id) && personName(person).toLowerCase().includes(search))
@@ -117,9 +123,12 @@ export function registerOpenDays(router: DemoRouter<DemoStore>): void {
     .add(
       'DELETE',
       '/open-days/{openDayId}/assignments/me',
-      ({ store, params }) => {
+      ({ store, params, query }) => {
         const day = findDay(store, params.openDayId);
-        return day ? unassign(store, day, (a) => a.personId === store.user.person.id) : notFound('Open Day');
+        const timeslotId = query.get('timeslotId');
+        return day
+          ? unassign(store, day, (a) => a.personId === store.user.person.id && a.timeslotId === timeslotId)
+          : notFound('Open Day');
       },
       'open_days.signup',
     )

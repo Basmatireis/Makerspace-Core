@@ -38,6 +38,7 @@ func (s *Server) GetPersonalDashboard(
 			StartsAt:     item.StartsAt,
 			EndsAt:       item.EndsAt,
 			OpenDayId:    item.OpenDayID,
+			TimeslotId:   item.TimeslotID,
 			PeriodId:     item.PeriodID,
 			ShortStaffed: item.ShortStaffed,
 			EventId:      item.EventID,

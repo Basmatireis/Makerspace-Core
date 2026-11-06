@@ -36,8 +36,8 @@ type Querier interface {
 	GetMachineNotificationFacts(ctx context.Context, id uuid.UUID) (GetMachineNotificationFactsRow, error)
 	// The address is read only when the mail is sent; a deleted person or organization yields none.
 	GetNotificationMailAddress(ctx context.Context, arg GetNotificationMailAddressParams) (string, error)
-	GetOpenDayFacts(ctx context.Context, id uuid.UUID) (GetOpenDayFactsRow, error)
 	GetOpenDayPeriodFacts(ctx context.Context, id uuid.UUID) (GetOpenDayPeriodFactsRow, error)
+	GetOpenDayTimeslotFacts(ctx context.Context, id uuid.UUID) (GetOpenDayTimeslotFactsRow, error)
 	GetPrinterErrorCodeFacts(ctx context.Context, arg GetPrinterErrorCodeFactsParams) (GetPrinterErrorCodeFactsRow, error)
 	GetPrinterNotificationRule(ctx context.Context, event string) (PrinterNotificationRule, error)
 	GetRunNotificationFacts(ctx context.Context, id uuid.UUID) (GetRunNotificationFactsRow, error)
@@ -66,7 +66,7 @@ type Querier interface {
 	// Everyone holding the role, with or without an account.
 	ListPersonIDsByRole(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error)
 	ListSentMessages(ctx context.Context, arg ListSentMessagesParams) ([]ListSentMessagesRow, error)
-	// Active accounts of people with the supervisor membership who are not assigned to the open day.
+	// Active accounts of people with the supervisor membership who hold no place in the timeslot.
 	ListUnassignedSupervisorAccountIDs(ctx context.Context, arg ListUnassignedSupervisorAccountIDsParams) ([]uuid.UUID, error)
 	MailDeliveryEnabled(ctx context.Context) (bool, error)
 	MarkAllOwnNotificationsRead(ctx context.Context, arg MarkAllOwnNotificationsReadParams) (int64, error)

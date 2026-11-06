@@ -23,6 +23,7 @@ import type { UUIDv7 } from './uUIDv7';
 export interface OpenDayAssignment {
   id: UUIDv7;
   openDayId: UUIDv7;
+  timeslotId: UUIDv7;
   requirementId: UUIDv7;
   personId: UUIDv7;
   /** @maxLength 201 */

@@ -15,6 +15,7 @@ import { testQueryClient } from '../../test/render';
 import { server } from '../../test/server';
 import { ScheduleEditorPage } from './ScheduleEditorPage';
 import { longDate, timeRange } from './format';
+import { singleTimeslotDay, type OpenDayFixture } from './testData';
 
 const periodId = '0192f6f8-743e-7c77-a349-cd07c3e8a911';
 const breakId = '0192f6f8-743e-7c77-a349-cd07c3e8a951';
@@ -41,35 +42,39 @@ function academicBreak(overrides: Partial<AcademicBreak> = {}): AcademicBreak {
   };
 }
 
-function openDay(overrides: Partial<OpenDay> = {}): OpenDay {
-  return {
-    id: openDayId,
-    periodId,
-    startsAt: '2026-10-26T15:00:00Z',
-    endsAt: '2026-10-26T18:00:00Z',
-    internalNote: 'Keep this setup',
-    status: 'scheduled',
-    requirements: [
-      {
-        id: '0192f6f8-743e-7c77-a349-cd07c3e8a981',
-        kind: 'supervisor',
-        requiredCount: 2,
-        assignedCount: 1,
-        eligibleRoleIds: [supervisorRoleId],
-      },
-      {
-        id: '0192f6f8-743e-7c77-a349-cd07c3e8a982',
-        kind: 'trainee',
-        requiredCount: 1,
-        assignedCount: 0,
-        eligibleRoleIds: [traineeRoleId],
-      },
-    ],
-    version: 1,
-    createdAt: '2026-09-01T10:00:00Z',
-    updatedAt: '2026-09-01T10:00:00Z',
-    ...overrides,
-  };
+function openDay(overrides: OpenDayFixture = {}): OpenDay {
+  return singleTimeslotDay(
+    {
+      id: openDayId,
+      periodId,
+      startsAt: '2026-10-26T15:00:00Z',
+      endsAt: '2026-10-26T18:00:00Z',
+      internalNote: 'Keep this setup',
+      status: 'scheduled',
+      version: 1,
+      createdAt: '2026-09-01T10:00:00Z',
+      updatedAt: '2026-09-01T10:00:00Z',
+    },
+    {
+      requirements: [
+        {
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8a981',
+          kind: 'supervisor',
+          requiredCount: 2,
+          assignedCount: 1,
+          eligibleRoleIds: [supervisorRoleId],
+        },
+        {
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8a982',
+          kind: 'trainee',
+          requiredCount: 1,
+          assignedCount: 0,
+          eligibleRoleIds: [traineeRoleId],
+        },
+      ],
+      ...overrides,
+    },
+  );
 }
 
 type RenderOptions = {
@@ -342,7 +347,7 @@ describe('schedule editor calendar context', () => {
     const body = getSavedBody();
     expect(body?.updates).toEqual([]);
     expect(body?.creates).toHaveLength(1);
-    expect(body?.creates[0].requirements.find((item) => item.kind === 'supervisor')).toEqual({
+    expect(body?.creates[0].timeslots[0].requirements.find((item) => item.kind === 'supervisor')).toEqual({
       kind: 'supervisor',
       requiredCount: 4,
       eligibleRoleIds: [supervisorRoleId, traineeRoleId],
@@ -464,11 +469,12 @@ describe('schedule editor calendar context', () => {
     await waitFor(() => expect(getSavedBody()).toBeDefined());
     const updates = getSavedBody()?.updates ?? [];
     expect(updates).toHaveLength(2);
-    expect(updates.map((item) => item.startsAt.slice(0, 10))).toEqual(['2026-10-26', '2026-10-27']);
+    expect(updates.map((item) => item.timeslots[0].startsAt.slice(0, 10))).toEqual(['2026-10-26', '2026-10-27']);
     expect(updates.every((item) => item.internalNote === 'Shared setup')).toBe(true);
     expect(
       updates.every(
-        (item) => item.requirements.find((requirement) => requirement.kind === 'supervisor')?.requiredCount === 4,
+        (item) =>
+          item.timeslots[0].requirements.find((requirement) => requirement.kind === 'supervisor')?.requiredCount === 4,
       ),
     ).toBe(true);
   }, 30_000);
@@ -534,28 +540,26 @@ describe('schedule editor calendar context', () => {
     await waitFor(() => expect(getSavedBody()).toBeDefined());
     const updates = new Map((getSavedBody()?.updates ?? []).map((item) => [item.id, item]));
     expect(updates.get(first.id)).toMatchObject({
-      startsAt: first.startsAt,
-      endsAt: first.endsAt,
       internalNote: first.internalNote,
+      timeslots: [{ startsAt: first.startsAt, endsAt: first.endsAt }],
     });
     expect(updates.get(second.id)).toMatchObject({
-      startsAt: second.startsAt,
-      endsAt: second.endsAt,
       internalNote: second.internalNote,
+      timeslots: [{ startsAt: second.startsAt, endsAt: second.endsAt }],
     });
-    expect(updates.get(first.id)?.requirements.find((item) => item.kind === 'supervisor')).toMatchObject({
+    expect(updates.get(first.id)?.timeslots[0].requirements.find((item) => item.kind === 'supervisor')).toMatchObject({
       requiredCount: 2,
       eligibleRoleIds: [supervisorRoleId, traineeRoleId],
     });
-    expect(updates.get(second.id)?.requirements.find((item) => item.kind === 'supervisor')).toMatchObject({
+    expect(updates.get(second.id)?.timeslots[0].requirements.find((item) => item.kind === 'supervisor')).toMatchObject({
       requiredCount: 5,
       eligibleRoleIds: [supervisorRoleId, traineeRoleId],
     });
-    expect(updates.get(first.id)?.requirements.find((item) => item.kind === 'trainee')).toMatchObject({
+    expect(updates.get(first.id)?.timeslots[0].requirements.find((item) => item.kind === 'trainee')).toMatchObject({
       requiredCount: 1,
       eligibleRoleIds: [traineeRoleId],
     });
-    expect(updates.get(second.id)?.requirements.find((item) => item.kind === 'trainee')).toMatchObject({
+    expect(updates.get(second.id)?.timeslots[0].requirements.find((item) => item.kind === 'trainee')).toMatchObject({
       requiredCount: 3,
       eligibleRoleIds: [supervisorRoleId],
     });

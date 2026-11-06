@@ -3204,8 +3204,10 @@ paths:
     delete:
       tags: [Open Days]
       operationId: leaveOpenDay
-      summary: Remove the current Person's assignment
+      summary: Remove the current Person's assignment in one timeslot
       security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: timeslotId, in: query, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
       responses:
         "204": {description: Assignment removed.}
         "401": {$ref: "#/components/responses/Unauthorized"}
@@ -3274,6 +3276,21 @@ paths:
         "200": {description: Eligibility roles., content: {application/json: {schema: {$ref: "#/components/schemas/EligibilityRoleList"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}/series:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    get:
+      tags: [Open Days]
+      operationId: listOpenDaySeries
+      summary: List the weekly series of a period
+      description: Requires `open_days.manage`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Series of the period., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDaySeriesList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /open-day-periods/{periodId}/calendar-context:
@@ -13450,8 +13467,11 @@ components:
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time}
         openDayId: {$ref: "#/components/schemas/UUIDv7"}
+        timeslotId:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          description: Open days only; the timeslot the person holds. A day with several of their timeslots is listed once per timeslot.
         periodId: {$ref: "#/components/schemas/UUIDv7"}
-        shortStaffed: {type: boolean, description: "Open days only; true when supervisor places are open."}
+        shortStaffed: {type: boolean, description: "Open days only; true when supervisor places are open in the timeslot."}
         eventId: {$ref: "#/components/schemas/UUIDv7"}
         publicId: {type: string, description: "Event shifts of public events only."}
     PersonalStatistics:
@@ -15517,6 +15537,11 @@ components:
         startsOn: {type: string, format: date}
         endsOn: {type: string, format: date}
         signUpDeadline: {type: string, format: date, nullable: true, description: "Date by which supervisors must have signed up for their open-day minimum; null or omitted uses the period's end date. Must lie within startsOn..endsOn."}
+        copySeriesFromPeriodId:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          description: >-
+            Copies the weekly series of that period into the new one: each series runs from its weekday's first date
+            in the new period to its end and generates its open days, skipping public holidays and academic breaks.
 
     UpdateOpenDayPeriodRequest:
       type: object
@@ -15541,34 +15566,50 @@ components:
           uniqueItems: true
           items: {$ref: "#/components/schemas/UUIDv7"}
 
-    CreateOpenDayRequest:
+    OpenDayTimeslotInput:
       type: object
       additionalProperties: false
-      required: [startsAt, endsAt, requirements, expectedPeriodVersion]
+      required: [startsAt, endsAt, requirements]
       properties:
+        id:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          description: >-
+            An existing timeslot of the open day being updated; it keeps its assignments. Omitted for a new timeslot.
+            Timeslots of the day that an update leaves out are removed together with their assignments.
         startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
         endsAt: {type: string, format: date-time}
-        internalNote: {type: string, maxLength: 2000, nullable: true}
         requirements:
           type: array
           minItems: 2
           maxItems: 2
           items: {$ref: "#/components/schemas/StaffingRequirementInput"}
+
+    CreateOpenDayRequest:
+      type: object
+      additionalProperties: false
+      required: [timeslots, expectedPeriodVersion]
+      properties:
+        internalNote: {type: string, maxLength: 2000, nullable: true}
+        timeslots:
+          type: array
+          minItems: 1
+          maxItems: 24
+          description: Ordered, non-overlapping timeslots; the open day's range runs from the first start to the last end.
+          items: {$ref: "#/components/schemas/OpenDayTimeslotInput"}
         expectedPeriodVersion: {$ref: "#/components/schemas/Version"}
 
     UpdateOpenDayRequest:
       type: object
       additionalProperties: false
-      required: [startsAt, endsAt, requirements, expectedPeriodVersion, expectedVersion]
+      required: [timeslots, expectedPeriodVersion, expectedVersion]
       properties:
-        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
-        endsAt: {type: string, format: date-time}
         internalNote: {type: string, maxLength: 2000, nullable: true}
-        requirements:
+        timeslots:
           type: array
-          minItems: 2
-          maxItems: 2
-          items: {$ref: "#/components/schemas/StaffingRequirementInput"}
+          minItems: 1
+          maxItems: 24
+          description: Ordered, non-overlapping timeslots; the open day's range runs from the first start to the last end.
+          items: {$ref: "#/components/schemas/OpenDayTimeslotInput"}
         expectedPeriodVersion: {$ref: "#/components/schemas/Version"}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
@@ -15583,10 +15624,11 @@ components:
     OpenDayAssignment:
       type: object
       additionalProperties: false
-      required: [id, openDayId, requirementId, personId, displayName, isCurrentUser, createdAt]
+      required: [id, openDayId, timeslotId, requirementId, personId, displayName, isCurrentUser, createdAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         openDayId: {$ref: "#/components/schemas/UUIDv7"}
+        timeslotId: {$ref: "#/components/schemas/UUIDv7"}
         requirementId: {$ref: "#/components/schemas/UUIDv7"}
         personId: {$ref: "#/components/schemas/UUIDv7"}
         displayName: {type: string, maxLength: 201}
@@ -15596,15 +15638,24 @@ components:
     OpenDayStaffRequirement:
       type: object
       additionalProperties: false
-      required: [id, kind, requiredCount, assignedCount]
+      required: [id, timeslotId, kind, requiredCount, assignedCount, eligible, canJoin]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
+        timeslotId: {$ref: "#/components/schemas/UUIDv7"}
         kind: {$ref: "#/components/schemas/OpenDayRequirementKind"}
         requiredCount: {type: integer, minimum: 0, maximum: 100}
         assignedCount: {type: integer, minimum: 0}
+        eligible:
+          type: boolean
+          description: The caller's membership matches the place's kind and they hold one of its extra roles, if it names any.
+        canJoin:
+          type: boolean
+          description: >-
+            The caller may sign up for this place now: eligible, allowed to sign up, not yet in this timeslot, a place
+            is free, the timeslot has not ended and the schedule is open for staffing.
         eligibleRoleIds:
           type: array
-          description: Omitted unless the caller has open_days.manage.
+          description: Extra roles of which any one suffices. Omitted unless the caller has open_days.manage.
           items: {$ref: "#/components/schemas/UUIDv7"}
         assignments:
           type: array
@@ -15614,7 +15665,7 @@ components:
     OpenDay:
       type: object
       additionalProperties: false
-      required: [id, periodId, startsAt, endsAt, status, requirements, competencies, version, createdAt, updatedAt]
+      required: [id, periodId, startsAt, endsAt, status, timeslots, seriesId, detachedFromSeriesId, competencies, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         periodId: {$ref: "#/components/schemas/UUIDv7"}
@@ -15622,9 +15673,9 @@ components:
           type: array
           items: {$ref: "#/components/schemas/OpenDayCompetency"}
           description: >-
-            Planned competencies derived from the supervisors assigned to the day and their training records; trainee
-            places do not count. Empty for cancelled days.
-        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
+            Planned competencies derived from the supervisors assigned to any timeslot of the day and their training
+            records; trainee places do not count. Empty for cancelled days.
+        startsAt: {type: string, format: date-time, description: Start of the first timeslot.}
         endsAt: {type: string, format: date-time}
         internalNote:
           type: string
@@ -15632,13 +15683,36 @@ components:
           nullable: true
           description: Omitted unless the caller has open_days.manage.
         status: {$ref: "#/components/schemas/OpenDayStatus"}
+        timeslots:
+          type: array
+          minItems: 1
+          description: The day's timeslots in order; staffing places and assignments belong to a timeslot.
+          items: {$ref: "#/components/schemas/OpenDayTimeslot"}
+        seriesId:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          nullable: true
+          description: The weekly series the day follows; null for single days and days edited on their own.
+        detachedFromSeriesId:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          nullable: true
+          description: The series a day came from before it was edited on its own.
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    OpenDayTimeslot:
+      type: object
+      additionalProperties: false
+      required: [id, position, startsAt, endsAt, requirements, myAssignment]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        position: {type: integer, minimum: 0, maximum: 23}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
         requirements: {type: array, items: {$ref: "#/components/schemas/OpenDayStaffRequirement"}}
         myAssignment:
           allOf: [{$ref: "#/components/schemas/OpenDayAssignment"}]
           nullable: true
-        version: {$ref: "#/components/schemas/Version"}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
 
     OpenDaySchedule:
       type: object
@@ -15652,31 +15726,29 @@ components:
     ScheduleCreate:
       type: object
       additionalProperties: false
-      required: [startsAt, endsAt, requirements]
+      required: [timeslots]
       properties:
-        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
-        endsAt: {type: string, format: date-time}
         internalNote: {type: string, maxLength: 2000, nullable: true}
-        requirements:
+        timeslots:
           type: array
-          minItems: 2
-          maxItems: 2
-          items: {$ref: "#/components/schemas/StaffingRequirementInput"}
+          minItems: 1
+          maxItems: 24
+          description: Ordered, non-overlapping timeslots; the open day's range runs from the first start to the last end.
+          items: {$ref: "#/components/schemas/OpenDayTimeslotInput"}
 
     ScheduleUpdate:
       type: object
       additionalProperties: false
-      required: [id, startsAt, endsAt, requirements, expectedVersion]
+      required: [id, timeslots, expectedVersion]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
-        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
-        endsAt: {type: string, format: date-time}
         internalNote: {type: string, maxLength: 2000, nullable: true}
-        requirements:
+        timeslots:
           type: array
-          minItems: 2
-          maxItems: 2
-          items: {$ref: "#/components/schemas/StaffingRequirementInput"}
+          minItems: 1
+          maxItems: 24
+          description: Ordered, non-overlapping timeslots; the open day's range runs from the first start to the last end.
+          items: {$ref: "#/components/schemas/OpenDayTimeslotInput"}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     ScheduleRemoval:
@@ -15687,15 +15759,161 @@ components:
         id: {$ref: "#/components/schemas/UUIDv7"}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
+    SeriesTimeslotTemplate:
+      type: object
+      additionalProperties: false
+      required: [startTime, endTime]
+      properties:
+        startTime: {type: string, description: Local wall time., pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+        endTime: {type: string, description: Local wall time after startTime on the same day., pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+
+    ScheduleSeriesCreate:
+      type: object
+      additionalProperties: false
+      required: [weekday, fromDate, untilDate, timeslots, supervisorPlaces, traineePlaces, supervisorRoleIds, traineeRoleIds, forcedDates]
+      description: >-
+        A weekly series. Saving it creates an open day on every matching date from fromDate to untilDate, except public
+        holidays and academic breaks that are not forced and dates where another open day overlaps.
+      properties:
+        weekday: {type: integer, minimum: 1, maximum: 7, description: "ISO weekday; Monday is 1."}
+        fromDate: {type: string, format: date}
+        untilDate: {type: string, format: date}
+        timeslots:
+          type: array
+          minItems: 1
+          maxItems: 24
+          description: Ordered, non-overlapping timeslots in makerspace wall-clock time.
+          items: {$ref: "#/components/schemas/SeriesTimeslotTemplate"}
+        supervisorPlaces: {type: integer, minimum: 0, maximum: 100, description: Supervisor places per timeslot.}
+        traineePlaces: {type: integer, minimum: 0, maximum: 100, description: Trainee places per timeslot.}
+        supervisorRoleIds:
+          type: array
+          uniqueItems: true
+          maxItems: 50
+          description: Extra roles of which a supervisor needs any one; empty means membership alone decides.
+          items: {$ref: "#/components/schemas/UUIDv7"}
+        traineeRoleIds:
+          type: array
+          uniqueItems: true
+          maxItems: 50
+          items: {$ref: "#/components/schemas/UUIDv7"}
+        forcedDates:
+          type: array
+          uniqueItems: true
+          maxItems: 100
+          description: Public holiday or academic break dates of the series that get an open day anyway.
+          items: {type: string, format: date}
+
+    ScheduleSeriesUpdate:
+      type: object
+      additionalProperties: false
+      required: [id, expectedVersion, applyFrom, untilDate, timeslots, supervisorPlaces, traineePlaces, supervisorRoleIds, traineeRoleIds, forcedDates]
+      description: >-
+        Changes a series. The template applies to its scheduled, not yet started days from applyFrom (never before
+        today); timeslots keep their assignments by position. A later untilDate adds days, an earlier one removes the
+        days after it (deleted in draft periods, cancelled otherwise). Newly forced dates get an open day.
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        applyFrom: {type: string, format: date}
+        untilDate: {type: string, format: date}
+        timeslots:
+          type: array
+          minItems: 1
+          maxItems: 24
+          description: Ordered, non-overlapping timeslots in makerspace wall-clock time.
+          items: {$ref: "#/components/schemas/SeriesTimeslotTemplate"}
+        supervisorPlaces: {type: integer, minimum: 0, maximum: 100, description: Supervisor places per timeslot.}
+        traineePlaces: {type: integer, minimum: 0, maximum: 100, description: Trainee places per timeslot.}
+        supervisorRoleIds:
+          type: array
+          uniqueItems: true
+          maxItems: 50
+          description: Extra roles of which a supervisor needs any one; empty means membership alone decides.
+          items: {$ref: "#/components/schemas/UUIDv7"}
+        traineeRoleIds:
+          type: array
+          uniqueItems: true
+          maxItems: 50
+          items: {$ref: "#/components/schemas/UUIDv7"}
+        forcedDates:
+          type: array
+          uniqueItems: true
+          maxItems: 100
+          description: Public holiday or academic break dates of the series that get an open day anyway.
+          items: {type: string, format: date}
+
+    ScheduleSeriesRejoin:
+      type: object
+      additionalProperties: false
+      required: [openDayId, expectedVersion]
+      description: A day edited on its own follows its series again and takes the series' timeslots and places.
+      properties:
+        openDayId: {$ref: "#/components/schemas/UUIDv7"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
     SaveOpenDayScheduleRequest:
       type: object
       additionalProperties: false
       required: [expectedPeriodVersion, creates, updates, removals]
+      description: >-
+        One atomic delta of the schedule's working copy. A single-day update that changes timeslots or places takes
+        the day out of its series. Overlapping scheduled open days are rejected.
       properties:
         expectedPeriodVersion: {$ref: "#/components/schemas/Version"}
         creates: {type: array, maxItems: 366, items: {$ref: "#/components/schemas/ScheduleCreate"}}
         updates: {type: array, maxItems: 366, items: {$ref: "#/components/schemas/ScheduleUpdate"}}
         removals: {type: array, maxItems: 366, items: {$ref: "#/components/schemas/ScheduleRemoval"}}
+        seriesCreates: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/ScheduleSeriesCreate"}}
+        seriesUpdates: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/ScheduleSeriesUpdate"}}
+        seriesRejoins: {type: array, maxItems: 366, items: {$ref: "#/components/schemas/ScheduleSeriesRejoin"}}
+
+    OpenDaySeries:
+      type: object
+      additionalProperties: false
+      required: [id, periodId, weekday, fromDate, untilDate, timeslots, supervisorPlaces, traineePlaces, supervisorRoleIds, traineeRoleIds, forcedDates, dayCount, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
+        weekday: {type: integer, minimum: 1, maximum: 7, description: "ISO weekday; Monday is 1."}
+        fromDate: {type: string, format: date}
+        untilDate: {type: string, format: date}
+        timeslots:
+          type: array
+          minItems: 1
+          maxItems: 24
+          description: Ordered, non-overlapping timeslots in makerspace wall-clock time.
+          items: {$ref: "#/components/schemas/SeriesTimeslotTemplate"}
+        supervisorPlaces: {type: integer, minimum: 0, maximum: 100, description: Supervisor places per timeslot.}
+        traineePlaces: {type: integer, minimum: 0, maximum: 100, description: Trainee places per timeslot.}
+        supervisorRoleIds:
+          type: array
+          uniqueItems: true
+          maxItems: 50
+          description: Extra roles of which a supervisor needs any one; empty means membership alone decides.
+          items: {$ref: "#/components/schemas/UUIDv7"}
+        traineeRoleIds:
+          type: array
+          uniqueItems: true
+          maxItems: 50
+          items: {$ref: "#/components/schemas/UUIDv7"}
+        forcedDates:
+          type: array
+          uniqueItems: true
+          maxItems: 100
+          description: Public holiday or academic break dates of the series that get an open day anyway.
+          items: {type: string, format: date}
+        dayCount: {type: integer, minimum: 0, description: Scheduled days that still follow the series.}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    OpenDaySeriesList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/OpenDaySeries"}}
 
     RecurrencePreviewRequest:
       type: object
@@ -15710,6 +15928,18 @@ components:
         everyWeeks: {type: integer, minimum: 1, maximum: 52}
         skipPublicHolidays: {type: boolean}
         skipAcademicBreaks: {type: boolean}
+        timeslots:
+          type: array
+          minItems: 1
+          maxItems: 24
+          description: Timeslots of each occurrence; when present they replace startTime and endTime.
+          items: {$ref: "#/components/schemas/SeriesTimeslotTemplate"}
+        forcedDates:
+          type: array
+          uniqueItems: true
+          maxItems: 100
+          description: Skipped holiday or break dates that get an open day anyway; they come back as `forced`.
+          items: {type: string, format: date}
 
     RecurrenceOccurrence:
       type: object
@@ -15719,8 +15949,14 @@ components:
         date: {type: string, format: date}
         startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
         endsAt: {type: string, format: date-time}
-        disposition: {type: string, enum: [create, publicHoliday, academicBreak, conflict]}
+        disposition:
+          type: string
+          enum: [create, publicHoliday, academicBreak, forced, conflict]
+          description: "`forced`: a holiday or break date created anyway. `conflict`: another open day overlaps."
         reason: {type: string, maxLength: 200}
+        timeslots:
+          type: array
+          items: {$ref: "#/components/schemas/PublicOpenDayTimeslot"}
 
     RecurrencePreview:
       type: object
@@ -15841,7 +16077,7 @@ components:
     PublicOpenDay:
       type: object
       additionalProperties: false
-      required: [id, title, startsAt, endsAt, status, updatedAt, competencies]
+      required: [id, title, startsAt, endsAt, timeslots, status, updatedAt, competencies]
       properties:
         competencies:
           type: array
@@ -15849,10 +16085,22 @@ components:
           description: Planned support, derived from the assigned supervisors; empty when nobody qualified is assigned or the day is cancelled.
         id: {$ref: "#/components/schemas/UUIDv7"}
         title: {type: string, enum: [Open Day]}
-        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
-        endsAt: {type: string, format: date-time}
+        startsAt: {type: string, format: date-time, description: Start of the first timeslot.}
+        endsAt: {type: string, format: date-time, description: End of the last timeslot.}
+        timeslots:
+          type: array
+          description: The day's timeslots, times only.
+          items: {$ref: "#/components/schemas/PublicOpenDayTimeslot"}
         status: {$ref: "#/components/schemas/OpenDayStatus"}
         updatedAt: {type: string, format: date-time}
+
+    PublicOpenDayTimeslot:
+      type: object
+      additionalProperties: false
+      required: [startsAt, endsAt]
+      properties:
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
 
     PublicOpenDayList:
       type: object

@@ -49,5 +49,18 @@ const (
 	DispositionCreate        Disposition = "create"
 	DispositionPublicHoliday Disposition = "publicHoliday"
 	DispositionAcademicBreak Disposition = "academicBreak"
-	DispositionConflict      Disposition = "conflict"
+	// DispositionForced is a public holiday or academic break date that gets an open day on purpose.
+	DispositionForced   Disposition = "forced"
+	DispositionConflict Disposition = "conflict"
+)
+
+const (
+	// MaxTimeslotsPerDay bounds the timeslots of one open day and of a series template.
+	MaxTimeslotsPerDay = 24
+	// MaxRequiredCount bounds the places of one kind in one timeslot.
+	MaxRequiredCount = 100
+	// MaxForcedDates bounds the holiday and break dates a series forces.
+	MaxForcedDates = 100
+	// MaxRestrictionRoles bounds the extra roles a place may name.
+	MaxRestrictionRoles = 50
 )

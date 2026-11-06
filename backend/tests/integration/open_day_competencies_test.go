@@ -52,9 +52,13 @@ func (f *competencyFixture) day(start time.Time) uuid.UUID {
 	f.exec(`INSERT INTO open_days(id,period_id,starts_at,ends_at) VALUES($1,$2,$3,$4)`,
 		day, f.period, start, start.Add(4*time.Hour))
 	f.supervisors[day], f.trainees[day] = ids.New(), ids.New()
-	f.exec(`INSERT INTO open_day_staff_requirements(id,open_day_id,kind,required_count) VALUES($1,$2,'supervisor',3)`,
+	f.exec(`INSERT INTO open_day_timeslots(id,open_day_id,starts_at,ends_at,position) VALUES($1,$2,$3,$4,0)`,
+		ids.New(), day, start, start.Add(4*time.Hour))
+	f.exec(`INSERT INTO open_day_staff_requirements(id,open_day_id,timeslot_id,kind,required_count)
+		SELECT $1,$2,t.id,'supervisor',3 FROM open_day_timeslots t WHERE t.open_day_id=$2`,
 		f.supervisors[day], day)
-	f.exec(`INSERT INTO open_day_staff_requirements(id,open_day_id,kind,required_count) VALUES($1,$2,'trainee',2)`,
+	f.exec(`INSERT INTO open_day_staff_requirements(id,open_day_id,timeslot_id,kind,required_count)
+		SELECT $1,$2,t.id,'trainee',2 FROM open_day_timeslots t WHERE t.open_day_id=$2`,
 		f.trainees[day], day)
 	return day
 }
@@ -62,7 +66,8 @@ func (f *competencyFixture) day(start time.Time) uuid.UUID {
 func (f *competencyFixture) assign(day, requirement, person uuid.UUID) uuid.UUID {
 	f.t.Helper()
 	id := ids.New()
-	f.exec(`INSERT INTO open_day_assignments(id,open_day_id,requirement_id,person_id) VALUES($1,$2,$3,$4)`,
+	f.exec(`INSERT INTO open_day_assignments(id,open_day_id,timeslot_id,requirement_id,person_id)
+		SELECT $1,$2,r.timeslot_id,$3,$4 FROM open_day_staff_requirements r WHERE r.id=$3`,
 		id, day, requirement, person)
 	return id
 }

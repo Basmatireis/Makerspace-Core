@@ -119,6 +119,9 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 			key != "personId" &&
 			key != "periodId" &&
 			key != "openDayId" &&
+			key != "timeslotId" &&
+			key != "seriesId" &&
+			key != "detachedFromSeriesId" &&
 			key != "eventId" &&
 			key != "shiftId" &&
 			key != "connectorId" &&

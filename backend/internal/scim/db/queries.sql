@@ -183,9 +183,10 @@ JOIN scim_users target ON target.connector_id=source.connector_id
 WHERE source.account_id=sqlc.arg(source_account_id) AND target.account_id=sqlc.arg(target_account_id);
 
 -- name: ListOpenDayReconciliationConflicts :many
-SELECT source.open_day_id
+-- Open days with a timeslot in which both people hold different places.
+SELECT DISTINCT source.open_day_id
 FROM open_day_assignments source
-JOIN open_day_assignments target ON target.open_day_id=source.open_day_id
+JOIN open_day_assignments target ON target.timeslot_id=source.timeslot_id
 WHERE source.person_id=sqlc.arg(source_person_id) AND target.person_id=sqlc.arg(target_person_id)
   AND source.requirement_id<>target.requirement_id;
 
@@ -193,7 +194,7 @@ WHERE source.person_id=sqlc.arg(source_person_id) AND target.person_id=sqlc.arg(
 DELETE FROM open_day_assignments source
 USING open_day_assignments target
 WHERE source.person_id=sqlc.arg(source_person_id) AND target.person_id=sqlc.arg(target_person_id)
-  AND source.open_day_id=target.open_day_id AND source.requirement_id=target.requirement_id;
+  AND source.timeslot_id=target.timeslot_id AND source.requirement_id=target.requirement_id;
 
 -- name: MoveOpenDayAssignments :exec
 UPDATE open_day_assignments SET person_id=sqlc.arg(target_person_id) WHERE person_id=sqlc.arg(source_person_id);

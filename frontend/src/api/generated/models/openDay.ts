@@ -18,19 +18,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { OpenDayAssignment } from './openDayAssignment';
 import type { OpenDayCompetency } from './openDayCompetency';
-import type { OpenDayStaffRequirement } from './openDayStaffRequirement';
 import type { OpenDayStatus } from './openDayStatus';
+import type { OpenDayTimeslot } from './openDayTimeslot';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
 export interface OpenDay {
   id: UUIDv7;
   periodId: UUIDv7;
-  /** Planned competencies derived from the supervisors assigned to the day and their training records; trainee places do not count. Empty for cancelled days. */
+  /** Planned competencies derived from the supervisors assigned to any timeslot of the day and their training records; trainee places do not count. Empty for cancelled days. */
   competencies: OpenDayCompetency[];
-  /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
+  /** Start of the first timeslot. */
   startsAt: string;
   endsAt: string;
   /**
@@ -40,8 +39,15 @@ export interface OpenDay {
      */
   internalNote?: string | null;
   status: OpenDayStatus;
-  requirements: OpenDayStaffRequirement[];
-  myAssignment?: OpenDayAssignment | null;
+  /**
+     * The day's timeslots in order; staffing places and assignments belong to a timeslot.
+     * @minItems 1
+     */
+  timeslots: OpenDayTimeslot[];
+  /** The weekly series the day follows; null for single days and days edited on their own. */
+  seriesId: UUIDv7 | null;
+  /** The series a day came from before it was edited on its own. */
+  detachedFromSeriesId: UUIDv7 | null;
   version: Version;
   createdAt: string;
   updatedAt: string;

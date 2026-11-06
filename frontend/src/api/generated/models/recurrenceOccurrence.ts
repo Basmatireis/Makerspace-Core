@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PublicOpenDayTimeslot } from './publicOpenDayTimeslot';
 import type { RecurrenceOccurrenceDisposition } from './recurrenceOccurrenceDisposition';
 
 export interface RecurrenceOccurrence {
@@ -25,7 +26,9 @@ export interface RecurrenceOccurrence {
   /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
   startsAt: string;
   endsAt: string;
+  /** `forced`: a holiday or break date created anyway. `conflict`: another open day overlaps. */
   disposition: RecurrenceOccurrenceDisposition;
   /** @maxLength 200 */
   reason?: string;
+  timeslots?: PublicOpenDayTimeslot[];
 }

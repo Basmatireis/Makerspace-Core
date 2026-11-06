@@ -44,13 +44,14 @@ func (s *Server) CreateOpenDayPeriod(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.opendays.CreatePeriod(
+	item, err := s.opendays.CreatePeriodCopyingSeries(
 		ctx,
 		p,
 		r.Body.Name,
 		r.Body.StartsOn.Time,
 		r.Body.EndsOn.Time,
 		nullableDate(r.Body.SignUpDeadline),
+		r.Body.CopySeriesFromPeriodId,
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -278,7 +279,12 @@ func (s *Server) CreateOpenDay(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	input := openDayInput(r.Body.StartsAt, r.Body.EndsAt, r.Body.InternalNote, r.Body.Requirements, uuid.Nil, 0)
+	input := openDayInput(r.Body.InternalNote, r.Body.Timeslots, uuid.Nil, 0)
+	if len(r.Body.Timeslots) == 0 {
+		return nil, invalidRequest("timeslots are required")
+	}
+	startsAt := r.Body.Timeslots[0].StartsAt
+	endsAt := r.Body.Timeslots[len(r.Body.Timeslots)-1].EndsAt
 	schedule, err := s.opendays.CreateOpenDay(
 		ctx,
 		p,
@@ -291,7 +297,7 @@ func (s *Server) CreateOpenDay(
 		return nil, err
 	}
 	for i := len(schedule.Items) - 1; i >= 0; i-- {
-		if schedule.Items[i].StartsAt.Equal(r.Body.StartsAt) && schedule.Items[i].EndsAt.Equal(r.Body.EndsAt) {
+		if schedule.Items[i].StartsAt.Equal(startsAt) && schedule.Items[i].EndsAt.Equal(endsAt) {
 			return openapi.CreateOpenDay201JSONResponse(openDayDTO(schedule.Items[i])), nil
 		}
 	}
@@ -309,14 +315,7 @@ func (s *Server) UpdateOpenDay(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	input := openDayInput(
-		r.Body.StartsAt,
-		r.Body.EndsAt,
-		r.Body.InternalNote,
-		r.Body.Requirements,
-		r.OpenDayId,
-		r.Body.ExpectedVersion,
-	)
+	input := openDayInput(r.Body.InternalNote, r.Body.Timeslots, r.OpenDayId, r.Body.ExpectedVersion)
 	_, err = s.opendays.UpdateOpenDay(ctx, p, r.OpenDayId, r.Body.ExpectedPeriodVersion, input, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -398,19 +397,46 @@ func (s *Server) SaveOpenDaySchedule(
 		Removals:              make([]opendays.RemovalInput, 0, len(r.Body.Removals)),
 	}
 	for _, v := range r.Body.Creates {
-		delta.Creates = append(
-			delta.Creates,
-			openDayInput(v.StartsAt, v.EndsAt, v.InternalNote, v.Requirements, uuid.Nil, 0),
-		)
+		delta.Creates = append(delta.Creates, openDayInput(v.InternalNote, v.Timeslots, uuid.Nil, 0))
 	}
 	for _, v := range r.Body.Updates {
-		delta.Updates = append(
-			delta.Updates,
-			openDayInput(v.StartsAt, v.EndsAt, v.InternalNote, v.Requirements, v.Id, v.ExpectedVersion),
-		)
+		delta.Updates = append(delta.Updates, openDayInput(v.InternalNote, v.Timeslots, v.Id, v.ExpectedVersion))
 	}
 	for _, v := range r.Body.Removals {
 		delta.Removals = append(delta.Removals, opendays.RemovalInput{ID: v.Id, ExpectedVersion: v.ExpectedVersion})
+	}
+	if r.Body.SeriesCreates != nil {
+		for _, v := range *r.Body.SeriesCreates {
+			delta.SeriesCreates = append(delta.SeriesCreates, opendays.SeriesCreate{
+				Weekday:   v.Weekday,
+				FromDate:  v.FromDate.Time,
+				UntilDate: v.UntilDate.Time,
+				SeriesTemplate: seriesTemplate(
+					v.Timeslots, v.SupervisorPlaces, v.TraineePlaces, v.SupervisorRoleIds, v.TraineeRoleIds, v.ForcedDates,
+				),
+			})
+		}
+	}
+	if r.Body.SeriesUpdates != nil {
+		for _, v := range *r.Body.SeriesUpdates {
+			delta.SeriesUpdates = append(delta.SeriesUpdates, opendays.SeriesUpdate{
+				ID:              v.Id,
+				ExpectedVersion: v.ExpectedVersion,
+				ApplyFrom:       v.ApplyFrom.Time,
+				UntilDate:       v.UntilDate.Time,
+				SeriesTemplate: seriesTemplate(
+					v.Timeslots, v.SupervisorPlaces, v.TraineePlaces, v.SupervisorRoleIds, v.TraineeRoleIds, v.ForcedDates,
+				),
+			})
+		}
+	}
+	if r.Body.SeriesRejoins != nil {
+		for _, v := range *r.Body.SeriesRejoins {
+			delta.SeriesRejoins = append(
+				delta.SeriesRejoins,
+				opendays.SeriesRejoin{OpenDayID: v.OpenDayId, ExpectedVersion: v.ExpectedVersion},
+			)
+		}
 	}
 	schedule, err := s.opendays.SaveSchedule(ctx, p, r.PeriodId, delta, requestIDPointer(ctx))
 	if err != nil {
@@ -443,6 +469,8 @@ func (s *Server) PreviewOpenDayRecurrence(
 			EveryWeeks:         r.Body.EveryWeeks,
 			SkipPublicHolidays: r.Body.SkipPublicHolidays,
 			SkipAcademicBreaks: r.Body.SkipAcademicBreaks,
+			Timeslots:          clockRanges(r.Body.Timeslots),
+			ForcedDates:        optionalDates(r.Body.ForcedDates),
 		},
 	)
 	if err != nil {
@@ -456,6 +484,8 @@ func (s *Server) PreviewOpenDayRecurrence(
 			EndsAt:      v.EndsAt,
 			Disposition: openapi.RecurrenceOccurrenceDisposition(v.Disposition),
 		}
+		slots := publicTimeslotDTOs(v.Timeslots)
+		item.Timeslots = &slots
 		if v.Reason != "" {
 			reason := v.Reason
 			item.Reason = &reason
@@ -491,7 +521,7 @@ func (s *Server) LeaveOpenDay(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.opendays.Leave(ctx, p, r.OpenDayId, requestIDPointer(ctx)); err != nil {
+	if err := s.opendays.Leave(ctx, p, r.OpenDayId, r.Params.TimeslotId, requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
 	return openapi.LeaveOpenDay204Response{}, nil
@@ -726,6 +756,7 @@ func (s *Server) ListPublicOpenDays(
 				Title:        openapi.PublicOpenDayTitle(v.Title),
 				StartsAt:     v.StartsAt,
 				EndsAt:       v.EndsAt,
+				Timeslots:    publicTimeslotDTOs(v.Timeslots),
 				Status:       openapi.OpenDayStatus(v.Status),
 				UpdatedAt:    v.UpdatedAt,
 				Competencies: competencyDTOs(v.Competencies),
@@ -777,17 +808,18 @@ func openDayScheduleDTO(v opendays.Schedule) openapi.OpenDaySchedule {
 }
 func openDayDTO(v opendays.OpenDay) openapi.OpenDay {
 	result := openapi.OpenDay{
-		Id:           v.ID,
-		PeriodId:     v.PeriodID,
-		StartsAt:     v.StartsAt,
-		EndsAt:       v.EndsAt,
-		Status:       openapi.OpenDayStatus(v.Status),
-		Version:      v.Version,
-		CreatedAt:    v.CreatedAt,
-		UpdatedAt:    v.UpdatedAt,
-		Requirements: make([]openapi.OpenDayStaffRequirement, 0, len(v.Requirements)),
-		Competencies: competencyDTOs(v.Competencies),
-		MyAssignment: nullable.NewNullNullable[openapi.OpenDayAssignment](),
+		Id:                   v.ID,
+		PeriodId:             v.PeriodID,
+		StartsAt:             v.StartsAt,
+		EndsAt:               v.EndsAt,
+		Status:               openapi.OpenDayStatus(v.Status),
+		Version:              v.Version,
+		CreatedAt:            v.CreatedAt,
+		UpdatedAt:            v.UpdatedAt,
+		Timeslots:            make([]openapi.OpenDayTimeslot, 0, len(v.Timeslots)),
+		Competencies:         competencyDTOs(v.Competencies),
+		SeriesId:             nullableUUIDValue(v.SeriesID),
+		DetachedFromSeriesId: nullableUUIDValue(v.DetachedFromSeriesID),
 	}
 	if v.InternalNoteVisible {
 		result.InternalNote = nullable.NewNullNullable[string]()
@@ -795,35 +827,91 @@ func openDayDTO(v opendays.OpenDay) openapi.OpenDay {
 			result.InternalNote = nullable.NewNullableWithValue(*v.InternalNote)
 		}
 	}
-	if v.MyAssignment != nil {
-		result.MyAssignment = nullable.NewNullableWithValue(assignmentDTO(*v.MyAssignment))
-	}
-	for _, req := range v.Requirements {
-		item := openapi.OpenDayStaffRequirement{
-			Id:            req.ID,
-			Kind:          openapi.OpenDayRequirementKind(req.Kind),
-			RequiredCount: req.RequiredCount,
-			AssignedCount: req.AssignedCount,
+	for _, slot := range v.Timeslots {
+		item := openapi.OpenDayTimeslot{
+			Id:           slot.ID,
+			Position:     slot.Position,
+			StartsAt:     slot.StartsAt,
+			EndsAt:       slot.EndsAt,
+			Requirements: make([]openapi.OpenDayStaffRequirement, 0, len(slot.Requirements)),
+			MyAssignment: nullable.NewNullNullable[openapi.OpenDayAssignment](),
 		}
-		if req.EligibleRolesVisible {
-			roles := req.EligibleRoleIDs
-			item.EligibleRoleIds = &roles
+		if slot.MyAssignment != nil {
+			item.MyAssignment = nullable.NewNullableWithValue(assignmentDTO(*slot.MyAssignment))
 		}
-		if req.Assignments != nil {
-			values := make([]openapi.OpenDayAssignment, 0, len(*req.Assignments))
-			for _, a := range *req.Assignments {
-				values = append(values, assignmentDTO(a))
-			}
-			item.Assignments = &values
+		for _, req := range slot.Requirements {
+			item.Requirements = append(item.Requirements, requirementDTO(req))
 		}
-		result.Requirements = append(result.Requirements, item)
+		result.Timeslots = append(result.Timeslots, item)
 	}
 	return result
 }
+
+func requirementDTO(req opendays.Requirement) openapi.OpenDayStaffRequirement {
+	item := openapi.OpenDayStaffRequirement{
+		Id:            req.ID,
+		TimeslotId:    req.TimeslotID,
+		Kind:          openapi.OpenDayRequirementKind(req.Kind),
+		RequiredCount: req.RequiredCount,
+		AssignedCount: req.AssignedCount,
+		Eligible:      req.Eligible,
+		CanJoin:       req.CanJoin,
+	}
+	if req.EligibleRolesVisible {
+		roles := req.EligibleRoleIDs
+		item.EligibleRoleIds = &roles
+	}
+	if req.Assignments != nil {
+		values := make([]openapi.OpenDayAssignment, 0, len(*req.Assignments))
+		for _, a := range *req.Assignments {
+			values = append(values, assignmentDTO(a))
+		}
+		item.Assignments = &values
+	}
+	return item
+}
+
+func publicTimeslotDTOs(items []opendays.PublicTimeslot) []openapi.PublicOpenDayTimeslot {
+	out := make([]openapi.PublicOpenDayTimeslot, 0, len(items))
+	for _, item := range items {
+		out = append(out, openapi.PublicOpenDayTimeslot{StartsAt: item.StartsAt, EndsAt: item.EndsAt})
+	}
+	return out
+}
+
+func openDaySeriesDTO(v opendays.Series) openapi.OpenDaySeries {
+	slots := make([]openapi.SeriesTimeslotTemplate, 0, len(v.Timeslots))
+	for _, slot := range v.Timeslots {
+		slots = append(slots, openapi.SeriesTimeslotTemplate{StartTime: slot.Start, EndTime: slot.End})
+	}
+	forced := make([]openapi_types.Date, 0, len(v.ForcedDates))
+	for _, date := range v.ForcedDates {
+		forced = append(forced, apiDate(date))
+	}
+	return openapi.OpenDaySeries{
+		Id:                v.ID,
+		PeriodId:          v.PeriodID,
+		Weekday:           v.Weekday,
+		FromDate:          apiDate(v.FromDate),
+		UntilDate:         apiDate(v.UntilDate),
+		Timeslots:         slots,
+		SupervisorPlaces:  v.SupervisorPlaces,
+		TraineePlaces:     v.TraineePlaces,
+		SupervisorRoleIds: v.SupervisorRoleIDs,
+		TraineeRoleIds:    v.TraineeRoleIDs,
+		ForcedDates:       forced,
+		DayCount:          v.DayCount,
+		Version:           v.Version,
+		CreatedAt:         v.CreatedAt,
+		UpdatedAt:         v.UpdatedAt,
+	}
+}
+
 func assignmentDTO(v opendays.Assignment) openapi.OpenDayAssignment {
 	return openapi.OpenDayAssignment{
 		Id:            v.ID,
 		OpenDayId:     v.OpenDayID,
+		TimeslotId:    v.TimeslotID,
 		RequirementId: v.RequirementID,
 		PersonId:      v.PersonID,
 		DisplayName:   v.DisplayName,
@@ -854,29 +942,93 @@ func apiDate(v time.Time) openapi_types.Date {
 }
 
 func openDayInput(
-	start, end time.Time,
 	note nullable.Nullable[string],
-	requirements []openapi.StaffingRequirementInput,
+	timeslots []openapi.OpenDayTimeslotInput,
 	id uuid.UUID,
 	expected int64,
 ) opendays.ScheduleInput {
-	values := make([]opendays.RequirementInput, 0, len(requirements))
-	for _, r := range requirements {
-		values = append(
-			values,
-			opendays.RequirementInput{
-				Kind:            opendays.RequirementKind(r.Kind),
-				RequiredCount:   r.RequiredCount,
-				EligibleRoleIDs: r.EligibleRoleIds,
-			},
-		)
+	slots := make([]opendays.TimeslotInput, 0, len(timeslots))
+	for _, slot := range timeslots {
+		values := make([]opendays.RequirementInput, 0, len(slot.Requirements))
+		for _, r := range slot.Requirements {
+			values = append(
+				values,
+				opendays.RequirementInput{
+					Kind:            opendays.RequirementKind(r.Kind),
+					RequiredCount:   r.RequiredCount,
+					EligibleRoleIDs: r.EligibleRoleIds,
+				},
+			)
+		}
+		slots = append(slots, opendays.TimeslotInput{
+			ID: slot.Id, StartsAt: slot.StartsAt, EndsAt: slot.EndsAt, Requirements: values,
+		})
 	}
 	return opendays.ScheduleInput{
 		ID:              id,
 		ExpectedVersion: expected,
-		StartsAt:        start,
-		EndsAt:          end,
 		InternalNote:    nullableStringPointer(note),
-		Requirements:    values,
+		Timeslots:       slots,
 	}
+}
+
+func clockRanges(items *[]openapi.SeriesTimeslotTemplate) []opendays.ClockRange {
+	if items == nil {
+		return nil
+	}
+	out := make([]opendays.ClockRange, 0, len(*items))
+	for _, item := range *items {
+		out = append(out, opendays.ClockRange{Start: item.StartTime, End: item.EndTime})
+	}
+	return out
+}
+
+func optionalDates(items *[]openapi_types.Date) []time.Time {
+	if items == nil {
+		return nil
+	}
+	return dates(*items)
+}
+
+func dates(items []openapi_types.Date) []time.Time {
+	out := make([]time.Time, 0, len(items))
+	for _, item := range items {
+		out = append(out, item.Time)
+	}
+	return out
+}
+
+func seriesTemplate(
+	timeslots []openapi.SeriesTimeslotTemplate,
+	supervisorPlaces, traineePlaces int,
+	supervisorRoleIDs, traineeRoleIDs []openapi.UUIDv7,
+	forcedDates []openapi_types.Date,
+) opendays.SeriesTemplate {
+	return opendays.SeriesTemplate{
+		Timeslots:         clockRanges(&timeslots),
+		SupervisorPlaces:  supervisorPlaces,
+		TraineePlaces:     traineePlaces,
+		SupervisorRoleIDs: supervisorRoleIDs,
+		TraineeRoleIDs:    traineeRoleIDs,
+		ForcedDates:       dates(forcedDates),
+	}
+}
+
+func (s *Server) ListOpenDaySeries(
+	ctx context.Context,
+	r openapi.ListOpenDaySeriesRequestObject,
+) (openapi.ListOpenDaySeriesResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.opendays.ListSeries(ctx, p, r.PeriodId)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]openapi.OpenDaySeries, 0, len(items))
+	for _, item := range items {
+		out = append(out, openDaySeriesDTO(item))
+	}
+	return openapi.ListOpenDaySeries200JSONResponse{Items: out}, nil
 }

@@ -4,6 +4,7 @@ import type {
   OpenDayAssignment,
   PersonalDashboardStaffing,
 } from '../../../api/generated/models';
+import { dayRequirements } from '../../opendays/timeslots';
 import { can, type DemoStore } from './store';
 
 const ACTIVE = (day: OpenDay) => day.status === 'scheduled';
@@ -12,17 +13,17 @@ const mine = (store: DemoStore, assignment: OpenDayAssignment) => assignment.per
 /** Recomputes the counters of the period from its Open Days. */
 export function refreshPeriod(store: DemoStore): void {
   const days = store.openDays.filter(ACTIVE);
-  const staffed = (day: OpenDay) => day.requirements.every((item) => item.assignedCount >= item.requiredCount);
+  const staffed = (day: OpenDay) => dayRequirements(day).every((item) => item.assignedCount >= item.requiredCount);
   store.period.totalOpenDays = store.openDays.length;
   store.period.cancelledCount = store.openDays.length - days.length;
   store.period.fullyStaffedCount = days.filter(staffed).length;
   store.period.needsStaffCount = days.length - store.period.fullyStaffedCount;
   store.period.openSupervisorPositions = days.reduce((sum, day) => {
-    const supervisors = day.requirements.find((item) => item.kind === 'supervisor');
+    const supervisors = dayRequirements(day).find((item) => item.kind === 'supervisor');
     return sum + Math.max(0, (supervisors?.requiredCount ?? 0) - (supervisors?.assignedCount ?? 0));
   }, 0);
   store.period.myAssignmentCount = days.filter((day) =>
-    day.requirements.some((item) => item.assignments?.some((a) => mine(store, a))),
+    dayRequirements(day).some((item) => item.assignments?.some((a) => mine(store, a))),
   ).length;
 }
 
@@ -30,23 +31,34 @@ export function refreshPeriod(store: DemoStore): void {
 export function openDayView(store: DemoStore, day: OpenDay): OpenDay {
   const seesNames =
     can(store, 'open_days.read_assignments') || can(store, 'open_days.assign') || can(store, 'open_days.manage');
-  let myAssignment: OpenDayAssignment | null = null;
-  const requirements = day.requirements.map((requirement) => {
-    const assignments = (requirement.assignments ?? []).map((a) => ({ ...a, isCurrentUser: mine(store, a) }));
-    myAssignment ??= assignments.find((a) => a.isCurrentUser) ?? null;
+  const timeslots = day.timeslots.map((slot) => {
+    let myAssignment: OpenDayAssignment | null = null;
+    const requirements = slot.requirements.map((requirement) => {
+      const assignments = (requirement.assignments ?? []).map((a) => ({ ...a, isCurrentUser: mine(store, a) }));
+      myAssignment ??= assignments.find((a) => a.isCurrentUser) ?? null;
+      return {
+        ...requirement,
+        assignedCount: assignments.length,
+        eligible: requirement.kind === 'supervisor' ? can(store, 'open_days.signup') : false,
+        assignments: seesNames ? assignments : assignments.filter((a) => a.isCurrentUser),
+      };
+    });
     return {
-      ...requirement,
-      assignedCount: assignments.length,
-      assignments: seesNames ? assignments : assignments.filter((a) => a.isCurrentUser),
+      ...slot,
+      myAssignment,
+      requirements: requirements.map((requirement) => ({
+        ...requirement,
+        canJoin: requirement.eligible && !myAssignment && requirement.assignedCount < requirement.requiredCount,
+      })),
     };
   });
-  return { ...day, requirements, myAssignment };
+  return { ...day, timeslots };
 }
 
 export function comingUp(store: DemoStore): ComingUpItem[] {
   return store.openDays
     .filter(ACTIVE)
-    .filter((day) => day.requirements.some((item) => item.assignments?.some((a) => mine(store, a))))
+    .filter((day) => dayRequirements(day).some((item) => item.assignments?.some((a) => mine(store, a))))
     .map((day) => ({
       kind: 'open_day' as const,
       id: day.id,
@@ -54,6 +66,7 @@ export function comingUp(store: DemoStore): ComingUpItem[] {
       startsAt: day.startsAt,
       endsAt: day.endsAt,
       openDayId: day.id,
+      timeslotId: day.timeslots[0]?.id,
       periodId: day.periodId,
     }));
 }
@@ -64,13 +77,13 @@ export function staffingOf(store: DemoStore): PersonalDashboardStaffing {
   const booked = store.period.myAssignmentCount;
   const minimum = 2;
   const free = store.openDays.filter(ACTIVE).find((day) => {
-    const requirement = day.requirements.find((item) => item.kind === kind);
-    const taken = day.requirements.some((item) => item.assignments?.some((a) => mine(store, a)));
+    const requirement = dayRequirements(day).find((item) => item.kind === kind);
+    const taken = dayRequirements(day).some((item) => item.assignments?.some((a) => mine(store, a)));
     return requirement && !taken && requirement.assignedCount < requirement.requiredCount;
   });
-  const place = free?.requirements.find((item) => item.kind === kind);
+  const place = (free ? dayRequirements(free) : undefined)?.find((item) => item.kind === kind);
   const next = store.openDays.filter(ACTIVE)[0];
-  const nextSupervisors = next?.requirements.find((item) => item.kind === 'supervisor');
+  const nextSupervisors = (next ? dayRequirements(next) : undefined)?.find((item) => item.kind === 'supervisor');
   return {
     kind,
     semester: {

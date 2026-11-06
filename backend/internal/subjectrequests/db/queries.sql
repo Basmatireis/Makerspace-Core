@@ -238,8 +238,13 @@ SELECT ((SELECT count(*) FROM events e WHERE e.owner_person_id = sqlc.arg(subjec
     + (SELECT count(*) FROM event_tasks et WHERE et.assignee_person_id = sqlc.arg(subject_person)::uuid))::bigint AS total;
 
 -- name: ExportOpenDayAssignments :one
-SELECT COALESCE(jsonb_agg(jsonb_build_object('startsAt', d.starts_at, 'endsAt', d.ends_at, 'status', d.status, 'assignedAt', a.created_at) ORDER BY d.starts_at), '[]'::jsonb)::jsonb AS document
-FROM open_day_assignments a JOIN open_days d ON d.id = a.open_day_id WHERE a.person_id = sqlc.arg(subject_person)::uuid;
+-- One entry per timeslot held: the timeslot's times, the open day's overall range and status, and the kind of place.
+SELECT COALESCE(jsonb_agg(jsonb_build_object('startsAt', t.starts_at, 'endsAt', t.ends_at, 'openDayStartsAt', d.starts_at, 'openDayEndsAt', d.ends_at, 'status', d.status, 'place', r.kind, 'assignedAt', a.created_at) ORDER BY t.starts_at), '[]'::jsonb)::jsonb AS document
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+WHERE a.person_id = sqlc.arg(subject_person)::uuid;
 
 -- name: CountOpenDayAssignments :one
 SELECT count(*)::bigint FROM open_day_assignments WHERE person_id = sqlc.arg(subject_person)::uuid;

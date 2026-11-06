@@ -24,6 +24,7 @@ import { SemesterCalendar } from '../SemesterCalendar';
 import { OpenDayAgenda, type AgendaItem } from '../OpenDayAgenda';
 import { previewRequirementCount } from './scheduleHelpers';
 import { SelectedCalendarContext } from './SelectedCalendarContext';
+import { dayRequirements, myAssignment } from '../timeslots';
 
 export function OpenDayPreviewView({
   filter,
@@ -68,7 +69,7 @@ export function OpenDayPreviewView({
       <>
         <span>{previewRequirementCount(day, 'supervisor')} supervisors</span>
         <span>{previewRequirementCount(day, 'trainee')} trainees</span>
-        {day.myAssignment && <strong>Your assignment</strong>}
+        {myAssignment(day) && <strong>Your assignment</strong>}
       </>
     ),
   }));
@@ -79,8 +80,8 @@ export function OpenDayPreviewView({
     time: timeInTimeZone(day.startsAt, timeZone),
     supervisors: previewRequirementCount(day, 'supervisor'),
     trainees: previewRequirementCount(day, 'trainee'),
-    assignment: day.myAssignment
-      ? (day.requirements.find((item) => item.id === day.myAssignment?.requirementId)?.kind ?? 'Assigned')
+    assignment: myAssignment(day)
+      ? (dayRequirements(day).find((item) => item.id === myAssignment(day)?.requirementId)?.kind ?? 'Assigned')
       : '—',
   }));
   const headers = [

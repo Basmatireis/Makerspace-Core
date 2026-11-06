@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
 
 export interface CreateOpenDayPeriodRequest {
   /**
@@ -32,4 +33,6 @@ export interface CreateOpenDayPeriodRequest {
      * @nullable
      */
   signUpDeadline?: string | null;
+  /** Copies the weekly series of that period into the new one: each series runs from its weekday's first date in the new period to its end and generates its open days, skipping public holidays and academic breaks. */
+  copySeriesFromPeriodId?: UUIDv7;
 }

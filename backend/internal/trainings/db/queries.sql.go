@@ -434,7 +434,8 @@ type ListOpenDayCompetenciesRow struct {
 	SortName  string
 }
 
-// The active competency categories the supervisors assigned to scheduled open days are trained for. Trainee places,
+// The active competency categories the supervisors assigned to any timeslot of scheduled open days are trained for.
+// Trainee places,
 // inactive trainings and inactive categories do not count; trained and trainer count alike. IDs are passed as text so
 // the query also runs in pgx's simple protocol mode.
 func (q *Queries) ListOpenDayCompetencies(ctx context.Context, openDayIds []string) ([]ListOpenDayCompetenciesRow, error) {

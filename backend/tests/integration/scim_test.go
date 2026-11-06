@@ -436,7 +436,17 @@ func insertConflictingSCIMAssignments(
 	}
 	if _, err := pool.Exec(
 		ctx,
-		`INSERT INTO open_day_staff_requirements (id,open_day_id,kind,required_count) VALUES ($1,$3,'supervisor',1),($2,$3,'trainee',1)`,
+		`INSERT INTO open_day_timeslots (id,open_day_id,starts_at,ends_at,position)
+		SELECT uuidv7(),id,starts_at,ends_at,0 FROM open_days WHERE id=$1`,
+		openDayID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(
+		ctx,
+		`INSERT INTO open_day_staff_requirements (id,open_day_id,timeslot_id,kind,required_count)
+		SELECT v.id,$3,t.id,v.kind,1 FROM open_day_timeslots t, (VALUES ($1::uuid,'supervisor'),($2::uuid,'trainee')) v(id,kind)
+		WHERE t.open_day_id=$3`,
 		sourceRequirementID,
 		targetRequirementID,
 		openDayID,
@@ -445,7 +455,10 @@ func insertConflictingSCIMAssignments(
 	}
 	if _, err := pool.Exec(
 		ctx,
-		`INSERT INTO open_day_assignments (id,open_day_id,requirement_id,person_id) VALUES ($1,$3,$4,$6),($2,$3,$5,$7)`,
+		`INSERT INTO open_day_assignments (id,open_day_id,timeslot_id,requirement_id,person_id)
+		SELECT v.id,$3,r.timeslot_id,v.requirement,v.person
+		FROM (VALUES ($1::uuid,$4::uuid,$6::uuid),($2::uuid,$5::uuid,$7::uuid)) v(id,requirement,person)
+		JOIN open_day_staff_requirements r ON r.id=v.requirement`,
 		ids.New(),
 		ids.New(),
 		openDayID,

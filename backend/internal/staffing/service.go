@@ -284,10 +284,12 @@ func semesterOf(
 	}
 }
 
-// Counts returns the open-day counts of the semester per person; onlyPerson narrows it to one person. People
-// without any assignment are absent. A nil semester yields no counts.
+// Counts returns the open-day counts of the semester per person, counted per timeslot or per open day as the rules
+// say; onlyPerson narrows it to one person. People without any assignment are absent. A nil semester yields no
+// counts.
 func (s *Service) Counts(
 	ctx context.Context,
+	rules Rules,
 	semester *Semester,
 	now time.Time,
 	onlyPerson *uuid.UUID,
@@ -297,7 +299,7 @@ func (s *Service) Counts(
 		return result, nil
 	}
 	rows, err := staffingdb.New(s.pool).ListStaffingCounts(ctx, staffingdb.ListStaffingCountsParams{
-		PeriodID: &semester.ID, Now: now, OnlyPersonID: onlyPerson,
+		PeriodID: &semester.ID, Now: now, CountBy: string(rules.CountBy), OnlyPersonID: onlyPerson,
 	})
 	if err != nil {
 		return nil, err

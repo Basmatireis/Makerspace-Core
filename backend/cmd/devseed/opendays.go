@@ -13,8 +13,9 @@ import (
 )
 
 // openDaySchedule returns a staffing or published period that covers the
-// coming week, creating and publishing one when none exists, and tops it up
-// to six upcoming open days on Tuesday and Thursday afternoons.
+// coming week, creating and publishing one when none exists. It gives the
+// period a weekly Tuesday series with two timeslots and tops it up to three
+// single Thursdays with three timeslots each.
 func (s *seeder) openDaySchedule() opendays.Schedule {
 	local := s.now.In(s.loc)
 	today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.UTC)
@@ -51,29 +52,56 @@ func (s *seeder) openDaySchedule() opendays.Schedule {
 	}
 	sched, err := s.od.GetSchedule(s.ctx, s.actor, periodID)
 	check("schedule", err)
+	reqs := []opendays.RequirementInput{
+		{Kind: opendays.RequirementSupervisor, RequiredCount: 2},
+		{Kind: opendays.RequirementTrainee, RequiredCount: 1},
+	}
+	// One weekly series with two timeslots on Tuesdays, created once per period.
+	series, err := s.od.ListSeries(s.ctx, s.actor, periodID)
+	check("series", err)
+	if len(series) == 0 && today.AddDate(0, 0, 1).Before(sched.Period.EndsOn) {
+		sched, err = s.od.SaveSchedule(s.ctx, s.actor, periodID, opendays.ScheduleDelta{
+			ExpectedPeriodVersion: sched.Period.Version,
+			SeriesCreates: []opendays.SeriesCreate{{
+				Weekday:   2,
+				FromDate:  today.AddDate(0, 0, 1),
+				UntilDate: sched.Period.EndsOn,
+				SeriesTemplate: opendays.SeriesTemplate{
+					Timeslots:        []opendays.ClockRange{{Start: "16:00", End: "18:00"}, {Start: "18:00", End: "20:00"}},
+					SupervisorPlaces: 2,
+					TraineePlaces:    1,
+				},
+			}},
+		}, nil)
+		check("create series", err)
+		log.Printf("created a Tuesday open-day series")
+	}
 	upcoming := 0
 	usedDates := map[string]bool{}
 	for _, day := range sched.Items {
 		usedDates[day.StartsAt.In(s.loc).Format(time.DateOnly)] = true
-		if day.EndsAt.After(s.now) && day.Status == opendays.DayScheduled {
+		if day.EndsAt.After(s.now) && day.Status == opendays.DayScheduled && day.SeriesID == nil {
 			upcoming++
 		}
 	}
-	reqs := []opendays.RequirementInput{
-		{Kind: opendays.RequirementSupervisor, RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{s.roles["supervisor"]}},
-		{Kind: opendays.RequirementTrainee, RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{s.roles["trainee"]}},
-	}
-	for d := today.AddDate(0, 0, 1); upcoming < 6 && !d.After(sched.Period.EndsOn); d = d.AddDate(0, 0, 1) {
-		if wd := d.Weekday(); (wd != time.Tuesday && wd != time.Thursday) || usedDates[d.Format(time.DateOnly)] {
+	// Up to three single Thursdays with three timeslots each.
+	for d := today.AddDate(0, 0, 1); upcoming < 3 && !d.After(sched.Period.EndsOn); d = d.AddDate(0, 0, 1) {
+		if d.Weekday() != time.Thursday || usedDates[d.Format(time.DateOnly)] {
 			continue
 		}
-		start := time.Date(d.Year(), d.Month(), d.Day(), 16, 0, 0, 0, s.loc)
+		slots := make([]opendays.TimeslotInput, 0, 3)
+		for _, hour := range []int{14, 16, 18} {
+			start := time.Date(d.Year(), d.Month(), d.Day(), hour, 0, 0, 0, s.loc)
+			slots = append(slots, opendays.TimeslotInput{
+				StartsAt: start.UTC(), EndsAt: start.Add(2 * time.Hour).UTC(), Requirements: reqs,
+			})
+		}
 		sched, err = s.od.CreateOpenDay(
 			s.ctx,
 			s.actor,
 			periodID,
 			sched.Period.Version,
-			opendays.ScheduleInput{StartsAt: start.UTC(), EndsAt: start.Add(3 * time.Hour).UTC(), Requirements: reqs},
+			opendays.ScheduleInput{Timeslots: slots},
 			nil,
 		)
 		check("create open day", err)
@@ -89,13 +117,13 @@ func (s *seeder) assignOpenDays() {
 		if day.EndsAt.Before(s.now) || day.Status != opendays.DayScheduled {
 			continue
 		}
-		if n >= 6 {
+		if n >= 8 {
 			break
 		}
 		n++
 		for _, rq := range day.Requirements {
 			need := rq.RequiredCount - rq.AssignedCount
-			if rq.Kind == opendays.RequirementSupervisor && n == 6 {
+			if rq.Kind == opendays.RequirementSupervisor && n == 8 {
 				need-- // leave a gap
 			}
 			if rq.Kind == opendays.RequirementTrainee && n%2 == 0 {
@@ -112,7 +140,7 @@ func (s *seeder) assignOpenDays() {
 					continue
 				}
 				if _, err := s.od.Assign(s.ctx, s.actor, day.ID, rq.ID, e.PersonID, nil); err != nil {
-					continue // already on this day or ineligible
+					continue // already in this timeslot or ineligible
 				}
 				need--
 			}

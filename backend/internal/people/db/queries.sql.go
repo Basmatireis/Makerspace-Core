@@ -490,7 +490,7 @@ const deleteDuplicateMergeOpenDayAssignments = `-- name: DeleteDuplicateMergeOpe
 DELETE FROM open_day_assignments source
 USING open_day_assignments target
 WHERE source.person_id = $1 AND target.person_id = $2
-  AND source.open_day_id = target.open_day_id AND source.requirement_id = target.requirement_id
+  AND source.timeslot_id = target.timeslot_id AND source.requirement_id = target.requirement_id
 `
 
 type DeleteDuplicateMergeOpenDayAssignmentsParams struct {
@@ -685,8 +685,8 @@ func (q *Queries) DeleteSupersededMergeTrainingRecords(ctx context.Context, arg 
 
 const deleteUpcomingOpenDayAssignments = `-- name: DeleteUpcomingOpenDayAssignments :execrows
 DELETE FROM open_day_assignments a
-USING open_days d
-WHERE d.id = a.open_day_id AND a.person_id = $1 AND d.starts_at > $2
+USING open_day_timeslots t
+WHERE t.id = a.timeslot_id AND a.person_id = $1 AND t.starts_at > $2
 `
 
 type DeleteUpcomingOpenDayAssignmentsParams struct {
@@ -694,7 +694,7 @@ type DeleteUpcomingOpenDayAssignmentsParams struct {
 	Now      time.Time
 }
 
-// A person who becomes a visitor no longer staffs: their open days that have not started yet are freed.
+// A person who becomes a visitor no longer staffs: their timeslots that have not started yet are freed.
 func (q *Queries) DeleteUpcomingOpenDayAssignments(ctx context.Context, arg DeleteUpcomingOpenDayAssignmentsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteUpcomingOpenDayAssignments, arg.PersonID, arg.Now)
 	if err != nil {
@@ -1070,14 +1070,17 @@ func (q *Queries) ListMergeAccountMethods(ctx context.Context, accountIds []stri
 }
 
 const listMergeOpenDayConflicts = `-- name: ListMergeOpenDayConflicts :many
-SELECT open_day_id FROM open_day_assignments
-WHERE person_id = ANY(($1::text[])::uuid[])
-GROUP BY open_day_id
-HAVING count(DISTINCT requirement_id) > 1
+SELECT DISTINCT open_day_id FROM (
+    SELECT open_day_id FROM open_day_assignments
+    WHERE person_id = ANY(($1::text[])::uuid[])
+    GROUP BY open_day_id, timeslot_id
+    HAVING count(DISTINCT requirement_id) > 1
+) conflicts
 ORDER BY open_day_id
 `
 
-// Open Days on which the merged People hold different positions; one Person can hold only one.
+// Open Days with a timeslot in which the merged People hold different places; one Person can hold only one per
+// timeslot.
 func (q *Queries) ListMergeOpenDayConflicts(ctx context.Context, ids []string) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listMergeOpenDayConflicts, ids)
 	if err != nil {

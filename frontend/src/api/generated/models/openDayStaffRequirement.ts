@@ -24,6 +24,7 @@ import type { UUIDv7 } from './uUIDv7';
 
 export interface OpenDayStaffRequirement {
   id: UUIDv7;
+  timeslotId: UUIDv7;
   kind: OpenDayRequirementKind;
   /**
      * @minimum 0
@@ -32,7 +33,11 @@ export interface OpenDayStaffRequirement {
   requiredCount: number;
   /** @minimum 0 */
   assignedCount: number;
-  /** Omitted unless the caller has open_days.manage. */
+  /** The caller's membership matches the place's kind and they hold one of its extra roles, if it names any. */
+  eligible: boolean;
+  /** The caller may sign up for this place now: eligible, allowed to sign up, not yet in this timeslot, a place is free, the timeslot has not ended and the schedule is open for staffing. */
+  canJoin: boolean;
+  /** Extra roles of which any one suffices. Omitted unless the caller has open_days.manage. */
   eligibleRoleIds?: UUIDv7[];
   /** Omitted unless other assignment identities are authorized. */
   assignments?: OpenDayAssignment[];

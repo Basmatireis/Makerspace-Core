@@ -8,6 +8,7 @@ import { timeInTimeZone } from '../dateTime';
 import { registeredPeopleCount } from '../format';
 import { CalendarDayCell, type CalendarGridDay } from '../SemesterCalendarGrid';
 import { removalButtonLabel, workingSlotPresentation } from './scheduleHelpers';
+import { myAssignment } from '../timeslots';
 
 export function DropDate({
   day,
@@ -90,7 +91,7 @@ function DraggableSlot({
         timeLabel={`${timeInTimeZone(slot.startsAt, timeZone)}–${timeInTimeZone(slot.endsAt, timeZone)}`}
         statusLabel={presentation.label}
         statusIcon={presentation.Icon}
-        assignmentLabel={slot.original?.myAssignment ? 'Your assignment' : undefined}
+        assignmentLabel={slot.original && myAssignment(slot.original) ? 'Your assignment' : undefined}
         assignmentIcon={UserAvatarFilledAlt}
         registeredCount={slot.original ? registeredPeopleCount(slot.original) : 0}
         onActivate={onEdit}

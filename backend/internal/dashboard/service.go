@@ -61,6 +61,7 @@ type ComingUpItem struct {
 	Title            string
 	StartsAt, EndsAt time.Time
 	OpenDayID        *uuid.UUID
+	TimeslotID       *uuid.UUID
 	PeriodID         *uuid.UUID
 	ShortStaffed     *bool
 	EventID          *uuid.UUID
@@ -152,7 +153,8 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 			shortStaffed := day.OpenSupervisorPlaces > 0
 			result.ComingUp = append(result.ComingUp, ComingUpItem{
 				Kind: ItemOpenDay, ID: day.AssignmentID, Title: day.PeriodName,
-				StartsAt: day.StartsAt, EndsAt: day.EndsAt, OpenDayID: &day.OpenDayID, PeriodID: &day.PeriodID,
+				StartsAt: day.StartsAt, EndsAt: day.EndsAt, OpenDayID: &day.OpenDayID, TimeslotID: &day.TimeslotID,
+				PeriodID:             &day.PeriodID,
 				ShortStaffed:         &shortStaffed,
 				openSupervisorPlaces: day.OpenSupervisorPlaces,
 			})
@@ -254,7 +256,7 @@ func (s *Service) staffingSection(
 	if err != nil {
 		return nil, err
 	}
-	counts, err := s.staffing.Counts(ctx, semester, now, &principal.PersonID)
+	counts, err := s.staffing.Counts(ctx, rules, semester, now, &principal.PersonID)
 	if err != nil {
 		return nil, err
 	}

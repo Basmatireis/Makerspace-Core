@@ -189,11 +189,12 @@ func (e *staffingEnv) person(suffix string, roleIDs ...uuid.UUID) authorization.
 }
 
 type openDayFixture struct {
-	id, supervisorRequirement, traineeRequirement uuid.UUID
+	id, timeslot, supervisorRequirement, traineeRequirement uuid.UUID
 }
 
-// openDay creates a scheduled open day of the environment's period with the given staffing needs. Eligible roles
-// are attached to both requirements.
+// openDay creates a scheduled open day of the environment's period with one timeslot and the given staffing needs.
+// Eligible extra roles are attached to both requirements; membership roles are left out because membership already
+// decides the kind of place.
 func (e *staffingEnv) openDay(
 	startsAt time.Time,
 	length time.Duration,
@@ -201,18 +202,24 @@ func (e *staffingEnv) openDay(
 	eligible ...uuid.UUID,
 ) openDayFixture {
 	e.t.Helper()
-	fixture := openDayFixture{id: ids.New(), supervisorRequirement: ids.New(), traineeRequirement: ids.New()}
+	fixture := openDayFixture{id: ids.New(), timeslot: ids.New(), supervisorRequirement: ids.New(), traineeRequirement: ids.New()}
 	e.exec(
 		`INSERT INTO open_days(id,period_id,starts_at,ends_at) VALUES($1,$2,$3,$4)`,
 		fixture.id, e.period, startsAt, startsAt.Add(length),
 	)
 	e.exec(
-		`INSERT INTO open_day_staff_requirements(id,open_day_id,kind,required_count) VALUES($1,$2,'supervisor',$3),($4,$2,'trainee',$5)`,
-		fixture.supervisorRequirement, fixture.id, supervisors, fixture.traineeRequirement, trainees,
+		`INSERT INTO open_day_timeslots(id,open_day_id,starts_at,ends_at,position) VALUES($1,$2,$3,$4,0)`,
+		fixture.timeslot, fixture.id, startsAt, startsAt.Add(length),
+	)
+	e.exec(
+		`INSERT INTO open_day_staff_requirements(id,open_day_id,timeslot_id,kind,required_count)
+		VALUES($1,$2,$6,'supervisor',$3),($4,$2,$6,'trainee',$5)`,
+		fixture.supervisorRequirement, fixture.id, supervisors, fixture.traineeRequirement, trainees, fixture.timeslot,
 	)
 	for _, roleID := range eligible {
 		e.exec(
-			`INSERT INTO open_day_staff_requirement_roles(requirement_id,role_id) VALUES($1,$3),($2,$3)`,
+			`INSERT INTO open_day_staff_requirement_roles(requirement_id,role_id)
+			SELECT q.id, r.id FROM roles r, (VALUES ($1::uuid), ($2::uuid)) AS q(id) WHERE r.id=$3 AND r.system_key IS NULL`,
 			fixture.supervisorRequirement, fixture.traineeRequirement, roleID,
 		)
 	}
@@ -222,8 +229,8 @@ func (e *staffingEnv) openDay(
 func (e *staffingEnv) join(day openDayFixture, requirement uuid.UUID, p authorization.Principal) {
 	e.t.Helper()
 	e.exec(
-		`INSERT INTO open_day_assignments(id,open_day_id,requirement_id,person_id) VALUES($1,$2,$3,$4)`,
-		ids.New(), day.id, requirement, p.PersonID,
+		`INSERT INTO open_day_assignments(id,open_day_id,timeslot_id,requirement_id,person_id) VALUES($1,$2,$3,$4,$5)`,
+		ids.New(), day.id, day.timeslot, requirement, p.PersonID,
 	)
 }
 
@@ -354,11 +361,12 @@ func TestSupervisorDashboardShowsSemesterStandingPerPerson(t *testing.T) {
 	cancelled := e.openDay(e.now.AddDate(0, 0, 6), 4*hour, 1, 0)
 	e.exec(`UPDATE open_days SET status='cancelled' WHERE id=$1`, cancelled.id)
 	pastPeriod := e.newPeriod("Past", "published", e.now.AddDate(0, 0, -400), e.now.AddDate(0, 0, -300))
-	pastDay, pastRequirement := ids.New(), ids.New()
+	pastDay, pastSlot, pastRequirement := ids.New(), ids.New(), ids.New()
 	pastStart := e.now.AddDate(0, 0, -350)
 	e.exec(`INSERT INTO open_days(id,period_id,starts_at,ends_at) VALUES($1,$2,$3,$4)`, pastDay, pastPeriod, pastStart, pastStart.Add(4*hour))
-	e.exec(`INSERT INTO open_day_staff_requirements(id,open_day_id,kind,required_count) VALUES($1,$2,'supervisor',1)`, pastRequirement, pastDay)
-	e.exec(`INSERT INTO open_day_assignments(id,open_day_id,requirement_id,person_id) VALUES($1,$2,$3,$4)`, ids.New(), pastDay, pastRequirement, missing.PersonID)
+	e.exec(`INSERT INTO open_day_timeslots(id,open_day_id,starts_at,ends_at,position) VALUES($1,$2,$3,$4,0)`, pastSlot, pastDay, pastStart, pastStart.Add(4*hour))
+	e.exec(`INSERT INTO open_day_staff_requirements(id,open_day_id,timeslot_id,kind,required_count) VALUES($1,$2,$3,'supervisor',1)`, pastRequirement, pastDay, pastSlot)
+	e.exec(`INSERT INTO open_day_assignments(id,open_day_id,timeslot_id,requirement_id,person_id) VALUES($1,$2,$3,$4,$5)`, ids.New(), pastDay, pastSlot, pastRequirement, missing.PersonID)
 
 	e.join(ended1, ended1.supervisorRequirement, fulfilled)
 	e.join(upcoming, upcoming.supervisorRequirement, fulfilled)

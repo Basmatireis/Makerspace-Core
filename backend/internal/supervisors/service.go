@@ -88,7 +88,7 @@ func (s *Service) Get(
 	if err != nil {
 		return Dashboard{}, err
 	}
-	counts, err := s.staffing.Counts(ctx, semester, now, nil)
+	counts, err := s.staffing.Counts(ctx, rules, semester, now, nil)
 	if err != nil {
 		return Dashboard{}, err
 	}

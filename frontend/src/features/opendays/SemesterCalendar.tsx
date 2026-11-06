@@ -7,6 +7,7 @@ import { hasOpenSupervisorPosition } from './openDayFilters';
 import { CalendarEvent } from './CalendarEvent';
 import { CalendarLegend } from './CalendarLegend';
 import { CalendarDayCell, SemesterCalendarGrid } from './SemesterCalendarGrid';
+import { dayRequirements, myAssignment } from './timeslots';
 
 const maxTooltipNames = 3;
 
@@ -89,7 +90,7 @@ function CalendarSlot({
       timeLabel={timeRange(day, timeZone)}
       statusLabel={presentation.label}
       statusIcon={Icon}
-      assignmentLabel={day.myAssignment ? 'Your assignment' : undefined}
+      assignmentLabel={myAssignment(day) ? 'Your assignment' : undefined}
       assignmentIcon={UserAvatarFilledAlt}
       registeredCount={registeredPeopleCount(day)}
       onActivate={() => onOpenDay(day)}
@@ -117,7 +118,7 @@ function dateTooltipContent(date: string, days: OpenDay[], entries: CalendarEntr
         <div className="calendar-cell__tooltip-slot" key={day.id}>
           <strong>{timeRange(day, timeZone)}</strong>
           <span>{slotPresentation(day).label}</span>
-          {day.requirements.map((requirement) => {
+          {dayRequirements(day).map((requirement) => {
             const role = requirement.kind === 'supervisor' ? 'Supervisors' : 'Trainees';
             const vacancies = Math.max(0, requirement.requiredCount - requirement.assignedCount);
             const vacancyLabel = `${vacancies} ${vacancies === 1 ? 'position' : 'positions'} open`;

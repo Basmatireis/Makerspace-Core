@@ -13,9 +13,12 @@ import (
 )
 
 // ComingUpOpenDay is an upcoming open day the current person is on.
+// StartsAt and EndsAt are the times of the timeslot the person holds; a day with several of their timeslots yields
+// one entry per timeslot.
 type ComingUpOpenDay struct {
 	AssignmentID         uuid.UUID
 	OpenDayID            uuid.UUID
+	TimeslotID           uuid.UUID
 	PeriodID             uuid.UUID
 	PeriodName           string
 	StartsAt, EndsAt     time.Time
@@ -24,9 +27,9 @@ type ComingUpOpenDay struct {
 
 // OpenPlace is an open day with a free place the current person could take.
 type OpenPlace struct {
-	OpenDayID, PeriodID, RequirementID uuid.UUID
-	StartsAt, EndsAt                   time.Time
-	FreePlaces                         int
+	OpenDayID, PeriodID, TimeslotID, RequirementID uuid.UUID
+	StartsAt, EndsAt                               time.Time
+	FreePlaces                                     int
 }
 
 // OwnComingUp lists the current person's upcoming open days, never another person's.
@@ -48,8 +51,9 @@ func (s *Service) OwnComingUp(
 	items := make([]ComingUpOpenDay, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, ComingUpOpenDay{
-			AssignmentID: row.AssignmentID, OpenDayID: row.OpenDayID, PeriodID: row.PeriodID, PeriodName: row.PeriodName,
-			StartsAt: row.StartsAt, EndsAt: row.EndsAt, OpenSupervisorPlaces: int(row.OpenSupervisorPlaces),
+			AssignmentID: row.AssignmentID, OpenDayID: row.OpenDayID, TimeslotID: row.TimeslotID, PeriodID: row.PeriodID,
+			PeriodName: row.PeriodName,
+			StartsAt:   row.StartsAt, EndsAt: row.EndsAt, OpenSupervisorPlaces: int(row.OpenSupervisorPlaces),
 		})
 	}
 	return items, nil
@@ -77,12 +81,13 @@ func (s *Service) NextOpenPlace(
 		return nil, err
 	}
 	return &OpenPlace{
-		OpenDayID: row.OpenDayID, PeriodID: row.PeriodID, RequirementID: row.RequirementID,
+		OpenDayID: row.OpenDayID, PeriodID: row.PeriodID, TimeslotID: row.TimeslotID, RequirementID: row.RequirementID,
 		StartsAt: row.StartsAt, EndsAt: row.EndsAt, FreePlaces: int(row.FreePlaces),
 	}, nil
 }
 
-// OwnStatistics counts the ended open days the current person staffed, all time, with their scheduled duration.
+// OwnStatistics counts the ended open days the current person staffed, all time, with the scheduled duration of
+// their ended timeslots.
 func (s *Service) OwnStatistics(
 	ctx context.Context,
 	principal authorization.Principal,

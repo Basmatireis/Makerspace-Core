@@ -25,6 +25,7 @@ import { hasPermission, PermissionId } from '../auth/permissions';
 import { longDate, staffingLabel, statusTagType, timeRange } from './format';
 import { openDaySchedulePath } from './paths';
 import { openDayKeys, openDayQueryOptions, scheduleQueryOptions } from './queries';
+import { dayRequirements, myAssignment } from './timeslots';
 
 export function OpenDayDetailPage() {
   const { periodId = '', openDayId = '' } = useParams();
@@ -101,7 +102,7 @@ function OpenDayDetails({
     onSuccess: refresh,
   });
   const leaveMutation = useMutation({
-    mutationFn: () => leaveOpenDay(openDayId),
+    mutationFn: () => leaveOpenDay(openDayId, { timeslotId: myAssignment(dayQuery.data!)!.timeslotId }),
     onSuccess: async () => {
       setAssignmentRemoval(null);
       await refresh();
@@ -207,10 +208,11 @@ function OpenDayDetails({
           </p>
         )}
       </div>
-      {day.myAssignment && (
+      {myAssignment(day) && (
         <div className="assignment-banner">
           <strong>
-            You are assigned as {day.requirements.find((item) => item.id === day.myAssignment?.requirementId)?.kind}.
+            You are assigned as{' '}
+            {dayRequirements(day).find((item) => item.id === myAssignment(day)?.requirementId)?.kind}.
           </strong>
           {canSignup && assignmentOpen && (
             <Button
@@ -234,7 +236,7 @@ function OpenDayDetails({
         />
       )}
       <div className="requirements-grid" data-guide="open-days-positions">
-        {day.requirements.map((requirement) => {
+        {dayRequirements(day).map((requirement) => {
           const full = requirement.assignedCount >= requirement.requiredCount;
           return (
             <Tile className="requirement-card" key={requirement.id} aria-labelledby={`requirement-${requirement.id}`}>
@@ -274,7 +276,7 @@ function OpenDayDetails({
                     )}
                   </div>
                 ))}
-                {!full && !day.myAssignment && canSignup && assignmentOpen && (
+                {!full && !myAssignment(day) && canSignup && assignmentOpen && (
                   <Button
                     kind="ghost"
                     renderIcon={Add}

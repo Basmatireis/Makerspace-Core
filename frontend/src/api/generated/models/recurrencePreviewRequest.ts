@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SeriesTimeslotTemplate } from './seriesTimeslotTemplate';
 
 export interface RecurrencePreviewRequest {
   /**
@@ -42,4 +43,15 @@ export interface RecurrencePreviewRequest {
   everyWeeks: number;
   skipPublicHolidays: boolean;
   skipAcademicBreaks: boolean;
+  /**
+     * Timeslots of each occurrence; when present they replace startTime and endTime.
+     * @minItems 1
+     * @maxItems 24
+     */
+  timeslots?: SeriesTimeslotTemplate[];
+  /**
+     * Skipped holiday or break dates that get an open day anyway; they come back as `forced`.
+     * @maxItems 100
+     */
+  forcedDates?: string[];
 }

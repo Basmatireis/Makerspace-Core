@@ -41,6 +41,7 @@ type Querier interface {
 	GetReconciliationAccount(ctx context.Context, accountID uuid.UUID) (GetReconciliationAccountRow, error)
 	GetSCIMUser(ctx context.Context, arg GetSCIMUserParams) (GetSCIMUserRow, error)
 	ListConnectors(ctx context.Context) ([]ListConnectorsRow, error)
+	// Open days with a timeslot in which both people hold different places.
 	ListOpenDayReconciliationConflicts(ctx context.Context, arg ListOpenDayReconciliationConflictsParams) ([]uuid.UUID, error)
 	ListSCIMMappingConnectorConflicts(ctx context.Context, arg ListSCIMMappingConnectorConflictsParams) ([]uuid.UUID, error)
 	ListSCIMUsers(ctx context.Context, arg ListSCIMUsersParams) ([]ListSCIMUsersRow, error)

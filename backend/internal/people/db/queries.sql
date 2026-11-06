@@ -251,10 +251,10 @@ ORDER BY CASE r.system_key WHEN 'supervisor' THEN 0 WHEN 'trainee' THEN 1 ELSE 2
 LIMIT 1;
 
 -- name: DeleteUpcomingOpenDayAssignments :execrows
--- A person who becomes a visitor no longer staffs: their open days that have not started yet are freed.
+-- A person who becomes a visitor no longer staffs: their timeslots that have not started yet are freed.
 DELETE FROM open_day_assignments a
-USING open_days d
-WHERE d.id = a.open_day_id AND a.person_id = sqlc.arg(person_id) AND d.starts_at > sqlc.arg(now);
+USING open_day_timeslots t
+WHERE t.id = a.timeslot_id AND a.person_id = sqlc.arg(person_id) AND t.starts_at > sqlc.arg(now);
 
 -- name: NormalizePersonMembership :exec
 -- Keeps the highest membership (supervisor > trainee > visitor) after roles of several people were united.
@@ -311,11 +311,14 @@ WHERE a.id = ANY((sqlc.arg(account_ids)::text[])::uuid[])
 ORDER BY a.id;
 
 -- name: ListMergeOpenDayConflicts :many
--- Open Days on which the merged People hold different positions; one Person can hold only one.
-SELECT open_day_id FROM open_day_assignments
-WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[])
-GROUP BY open_day_id
-HAVING count(DISTINCT requirement_id) > 1
+-- Open Days with a timeslot in which the merged People hold different places; one Person can hold only one per
+-- timeslot.
+SELECT DISTINCT open_day_id FROM (
+    SELECT open_day_id FROM open_day_assignments
+    WHERE person_id = ANY((sqlc.arg(ids)::text[])::uuid[])
+    GROUP BY open_day_id, timeslot_id
+    HAVING count(DISTINCT requirement_id) > 1
+) conflicts
 ORDER BY open_day_id;
 
 -- name: CountEnabledMastersOutsideMerge :one
@@ -392,7 +395,7 @@ WHERE person_id = sqlc.arg(source_person_id);
 DELETE FROM open_day_assignments source
 USING open_day_assignments target
 WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.arg(target_person_id)
-  AND source.open_day_id = target.open_day_id AND source.requirement_id = target.requirement_id;
+  AND source.timeslot_id = target.timeslot_id AND source.requirement_id = target.requirement_id;
 
 -- name: MoveMergeOpenDayAssignments :execrows
 UPDATE open_day_assignments SET person_id = sqlc.arg(target_person_id) WHERE person_id = sqlc.arg(source_person_id);

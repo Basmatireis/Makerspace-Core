@@ -53,7 +53,7 @@ WHERE a.status = 'enabled' AND r.system_key IN ('supervisor', 'trainee')
 ORDER BY a.id;
 
 -- name: ListUnassignedSupervisorAccountIDs :many
--- Active accounts of people with the supervisor membership who are not assigned to the open day.
+-- Active accounts of people with the supervisor membership who hold no place in the timeslot.
 SELECT DISTINCT a.id
 FROM accounts a
 JOIN person_roles pr ON pr.person_id = a.person_id
@@ -63,7 +63,7 @@ WHERE a.status = 'enabled'
   AND a.person_id <> sqlc.arg(excluded_person_id)::uuid
   AND NOT EXISTS (
       SELECT 1 FROM open_day_assignments x
-      WHERE x.open_day_id = sqlc.arg(open_day_id)::uuid AND x.person_id = a.person_id
+      WHERE x.timeslot_id = sqlc.arg(timeslot_id)::uuid AND x.person_id = a.person_id
   )
 ORDER BY a.id;
 
@@ -79,10 +79,11 @@ WHERE a.id = sqlc.arg(account_id);
 -- name: GetOpenDayPeriodFacts :one
 SELECT id, name, status FROM open_day_periods WHERE id = sqlc.arg(id);
 
--- name: GetOpenDayFacts :one
-SELECT d.id, d.period_id, d.starts_at, d.status
-FROM open_days d
-WHERE d.id = sqlc.arg(id);
+-- name: GetOpenDayTimeslotFacts :one
+SELECT d.id AS open_day_id, d.period_id, t.starts_at, t.ends_at, d.status
+FROM open_day_timeslots t
+JOIN open_days d ON d.id = t.open_day_id
+WHERE t.id = sqlc.arg(id);
 
 -- name: GetRunNotificationFacts :one
 SELECT r.id, r.display_id, r.outcome, r.state, m.name AS machine_name,

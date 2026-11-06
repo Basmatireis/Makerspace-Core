@@ -28,6 +28,7 @@ import type {
   EligibilityRoleList,
   EligiblePersonList,
   JoinOpenDayRequest,
+  LeaveOpenDayParams,
   ListOpenDayEligiblePeopleParams,
   OpenDay,
   OpenDayAssignment,
@@ -35,6 +36,7 @@ import type {
   OpenDayPeriod,
   OpenDayPeriodList,
   OpenDaySchedule,
+  OpenDaySeriesList,
   RecurrencePreview,
   RecurrencePreviewRequest,
   SaveOpenDayScheduleRequest,
@@ -707,20 +709,29 @@ return apiFetch<OpenDayAssignment>(getJoinOpenDayUrl(openDayId),
 );}
 
 
-export const getLeaveOpenDayUrl = (openDayId: string,) => {
+export const getLeaveOpenDayUrl = (openDayId: string,
+    params: LeaveOpenDayParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/open-days/${openDayId}/assignments/me`
+  return stringifiedParams.length > 0 ? `/api/v1/open-days/${openDayId}/assignments/me?${stringifiedParams}` : `/api/v1/open-days/${openDayId}/assignments/me`
 }
 
 /**
- * @summary Remove the current Person's assignment
+ * @summary Remove the current Person's assignment in one timeslot
  */
-export const leaveOpenDay = async (openDayId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+export const leaveOpenDay = async (openDayId: string,
+    params: LeaveOpenDayParams, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
-  return apiFetch<void>(getLeaveOpenDayUrl(openDayId),
+  return apiFetch<void>(getLeaveOpenDayUrl(openDayId,params),
   {
     ...options,
     method: 'DELETE'
@@ -839,6 +850,30 @@ export const getListOpenDayEligibilityRolesUrl = () => {
 export const listOpenDayEligibilityRoles = async ( options?: Parameters<typeof apiFetch>[1]): Promise<EligibilityRoleList> => {
 
   return apiFetch<EligibilityRoleList>(getListOpenDayEligibilityRolesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getListOpenDaySeriesUrl = (periodId: string,) => {
+
+
+
+
+  return `/api/v1/open-day-periods/${periodId}/series`
+}
+
+/**
+ * Requires `open_days.manage`.
+ * @summary List the weekly series of a period
+ */
+export const listOpenDaySeries = async (periodId: string, options?: Parameters<typeof apiFetch>[1]): Promise<OpenDaySeriesList> => {
+
+  return apiFetch<OpenDaySeriesList>(getListOpenDaySeriesUrl(periodId),
   {
     ...options,
     method: 'GET'

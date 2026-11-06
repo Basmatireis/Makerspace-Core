@@ -73,7 +73,7 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 		return start, start.Add(3 * time.Hour)
 	}
 	requirements := []opendays.RequirementInput{
-		{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+		{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{}},
 		{Kind: "trainee", RequiredCount: 0},
 	}
 	var schedule opendays.Schedule
@@ -177,7 +177,8 @@ func TestSignageCalendarShowsRealOpenDaysAndEvents(t *testing.T) {
 		{`INSERT INTO trainings(id,name) VALUES($1,'Secret H2D training')`, []any{trainingID}},
 		{`INSERT INTO training_competencies(training_id,competency_id) VALUES($1,$2)`, []any{trainingID, categoryID}},
 		{`INSERT INTO training_records(person_id,training_id,status) VALUES($1,$2,'trainer')`, []any{owner, trainingID}},
-		{`INSERT INTO open_day_assignments(id,open_day_id,requirement_id,person_id) VALUES($1,$2,$3,$4)`,
+		{`INSERT INTO open_day_assignments(id,open_day_id,timeslot_id,requirement_id,person_id)
+			SELECT $1,$2,r.timeslot_id,$3,$4 FROM open_day_staff_requirements r WHERE r.id=$3`,
 			[]any{uuid.Must(uuid.NewV7()), earliestDay, supervisorPlace, owner}},
 	} {
 		if _, err := e.pool.Exec(ctx, statement.sql, statement.args...); err != nil {

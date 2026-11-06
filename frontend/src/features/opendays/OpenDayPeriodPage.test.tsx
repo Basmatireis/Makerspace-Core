@@ -14,6 +14,8 @@ import { currentUserFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { longDate, timeRange } from './format';
+import { dayRequirements } from './timeslots';
+import { singleTimeslotDay, withRequirements, type OpenDayFixture } from './testData';
 
 const periodId = '0192f6f8-743e-7c77-a349-cd07c3e8a911';
 const personId = '0192f6f8-743e-7c77-a349-cd07c3e8a901';
@@ -22,23 +24,27 @@ function requirement(id: string, kind: OpenDayRequirementKind, assignedCount: nu
   return { id, kind, assignedCount, requiredCount };
 }
 
-function openDay(id: string, startsOn: string, overrides: Partial<OpenDay> = {}): OpenDay {
-  return {
-    id,
-    periodId,
-    startsAt: `${startsOn}T06:00:00Z`,
-    endsAt: `${startsOn}T09:00:00Z`,
-    status: 'scheduled',
-    competencies: [],
-    requirements: [
-      requirement(`${id.slice(0, -1)}1`, 'supervisor', 2, 2),
-      requirement(`${id.slice(0, -1)}2`, 'trainee', 1, 1),
-    ],
-    version: 1,
-    createdAt: '2026-09-01T10:00:00Z',
-    updatedAt: '2026-09-01T10:00:00Z',
-    ...overrides,
-  };
+function openDay(id: string, startsOn: string, overrides: OpenDayFixture = {}): OpenDay {
+  return singleTimeslotDay(
+    {
+      id,
+      periodId,
+      startsAt: `${startsOn}T06:00:00Z`,
+      endsAt: `${startsOn}T09:00:00Z`,
+      status: 'scheduled',
+      competencies: [],
+      version: 1,
+      createdAt: '2026-09-01T10:00:00Z',
+      updatedAt: '2026-09-01T10:00:00Z',
+    },
+    {
+      requirements: [
+        requirement(`${id.slice(0, -1)}1`, 'supervisor', 2, 2),
+        requirement(`${id.slice(0, -1)}2`, 'trainee', 1, 1),
+      ],
+      ...overrides,
+    },
+  );
 }
 
 function period(status: OpenDayPeriodStatus = 'staffing') {
@@ -517,45 +523,42 @@ describe('Open Day table and calendar filters', () => {
     const visibleOpenDays = permissions.includes(PermissionId.open_daysread_assignments)
       ? openDays.map((day) =>
           day.id === supervisorVacancy.id
-            ? {
-                ...day,
-                requirements: [
-                  {
-                    ...day.requirements[0],
-                    assignedCount: 5,
-                    requiredCount: 6,
-                    assignments: [
-                      'Max Mustermann',
-                      'Linus Torvalds',
-                      'Margaret Hamilton',
-                      'Katherine Johnson',
-                      'Alan Turing',
-                    ].map((displayName, index) => ({
-                      id: `0192f6f8-743e-7c77-a349-cd07c3e8a96${index + 1}`,
+            ? withRequirements(day, [
+                {
+                  ...dayRequirements(day)[0],
+                  assignedCount: 5,
+                  requiredCount: 6,
+                  assignments: [
+                    'Max Mustermann',
+                    'Linus Torvalds',
+                    'Margaret Hamilton',
+                    'Katherine Johnson',
+                    'Alan Turing',
+                  ].map((displayName, index) => ({
+                    id: `0192f6f8-743e-7c77-a349-cd07c3e8a96${index + 1}`,
+                    openDayId: day.id,
+                    requirementId: dayRequirements(day)[0].id,
+                    personId: `0192f6f8-743e-7c77-a349-cd07c3e8a90${index + 2}`,
+                    displayName,
+                    isCurrentUser: false,
+                    createdAt: '2026-09-02T10:00:00Z',
+                  })),
+                },
+                {
+                  ...dayRequirements(day)[1],
+                  assignments: [
+                    {
+                      id: '0192f6f8-743e-7c77-a349-cd07c3e8a962',
                       openDayId: day.id,
-                      requirementId: day.requirements[0].id,
-                      personId: `0192f6f8-743e-7c77-a349-cd07c3e8a90${index + 2}`,
-                      displayName,
+                      requirementId: dayRequirements(day)[1].id,
+                      personId: '0192f6f8-743e-7c77-a349-cd07c3e8a903',
+                      displayName: 'Grace Hopper',
                       isCurrentUser: false,
                       createdAt: '2026-09-02T10:00:00Z',
-                    })),
-                  },
-                  {
-                    ...day.requirements[1],
-                    assignments: [
-                      {
-                        id: '0192f6f8-743e-7c77-a349-cd07c3e8a962',
-                        openDayId: day.id,
-                        requirementId: day.requirements[1].id,
-                        personId: '0192f6f8-743e-7c77-a349-cd07c3e8a903',
-                        displayName: 'Grace Hopper',
-                        isCurrentUser: false,
-                        createdAt: '2026-09-02T10:00:00Z',
-                      },
-                    ],
-                  },
-                ],
-              }
+                    },
+                  ],
+                },
+              ])
             : day,
         )
       : openDays;
@@ -833,7 +836,7 @@ describe('Open Day table and calendar filters', () => {
     expect(screen.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
 
     await user.click(within(registration).getByRole('button', { name: 'Join as supervisor' }));
-    await waitFor(() => expect(joinedRequirementId).toBe(supervisorVacancy.requirements[0].id));
+    await waitFor(() => expect(joinedRequirementId).toBe(dayRequirements(supervisorVacancy)[0].id));
     expect(container.querySelector('.open-day-period-page')).toBeInTheDocument();
   });
 

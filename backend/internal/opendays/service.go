@@ -40,26 +40,36 @@ type Period struct {
 }
 
 type Assignment struct {
-	ID, OpenDayID, RequirementID, PersonID uuid.UUID
-	DisplayName                            string
-	IsCurrentUser                          bool
-	CreatedAt                              time.Time
+	ID, OpenDayID, TimeslotID, RequirementID, PersonID uuid.UUID
+	DisplayName                                        string
+	IsCurrentUser                                      bool
+	CreatedAt                                          time.Time
 }
 
 type PersonAssignmentSummary struct {
-	AssignmentID, OpenDayID, PeriodID uuid.UUID
-	PeriodName                        string
-	StartsAt, EndsAt                  time.Time
-	Role                              RequirementKind
+	AssignmentID, OpenDayID, TimeslotID, PeriodID uuid.UUID
+	PeriodName                                    string
+	StartsAt, EndsAt                              time.Time
+	Role                                          RequirementKind
 }
 
 type Requirement struct {
-	ID                           uuid.UUID
+	ID, TimeslotID               uuid.UUID
 	Kind                         RequirementKind
 	RequiredCount, AssignedCount int
 	EligibleRoleIDs              []uuid.UUID
 	EligibleRolesVisible         bool
-	Assignments                  *[]Assignment
+	// Eligible says the caller's membership and extra roles fit the place; CanJoin that they may sign up for it now.
+	Eligible, CanJoin bool
+	Assignments       *[]Assignment
+}
+
+type Timeslot struct {
+	ID               uuid.UUID
+	Position         int
+	StartsAt, EndsAt time.Time
+	Requirements     []Requirement
+	MyAssignment     *Assignment
 }
 
 type OpenDay struct {
@@ -68,8 +78,14 @@ type OpenDay struct {
 	InternalNote        *string
 	InternalNoteVisible bool
 	Status              DayStatus
-	Requirements        []Requirement
-	MyAssignment        *Assignment
+	Timeslots           []Timeslot
+	SeriesID            *uuid.UUID
+	// DetachedFromSeriesID is the series a day came from before it was edited on its own.
+	DetachedFromSeriesID *uuid.UUID
+	// Requirements and MyAssignment flatten the timeslots for callers that look at the whole day: every timeslot's
+	// places in timeslot order, and the caller's earliest assignment.
+	Requirements []Requirement
+	MyAssignment *Assignment
 	// Competencies are the planned competencies derived from the assigned supervisors' training records.
 	Competencies         []trainings.Competency
 	Version              int64
@@ -82,12 +98,30 @@ type RequirementInput struct {
 	EligibleRoleIDs []uuid.UUID
 }
 
-type ScheduleInput struct {
-	ID               uuid.UUID
-	ExpectedVersion  int64
+// TimeslotInput is one timeslot of a day being saved. ID names an existing timeslot of the day that keeps its
+// assignments; nil creates a new one.
+type TimeslotInput struct {
+	ID               *uuid.UUID
 	StartsAt, EndsAt time.Time
-	InternalNote     *string
 	Requirements     []RequirementInput
+}
+
+type ScheduleInput struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+	InternalNote    *string
+	Timeslots       []TimeslotInput
+	// StartsAt, EndsAt and Requirements describe a day with one timeslot when Timeslots is empty; an update in
+	// that form keeps the day's only timeslot and its assignments.
+	StartsAt, EndsAt time.Time
+	Requirements     []RequirementInput
+}
+
+func (in ScheduleInput) timeslots() []TimeslotInput {
+	if len(in.Timeslots) > 0 {
+		return in.Timeslots
+	}
+	return []TimeslotInput{{StartsAt: in.StartsAt, EndsAt: in.EndsAt, Requirements: in.Requirements}}
 }
 
 type RemovalInput struct {
@@ -99,6 +133,9 @@ type ScheduleDelta struct {
 	ExpectedPeriodVersion int64
 	Creates, Updates      []ScheduleInput
 	Removals              []RemovalInput
+	SeriesCreates         []SeriesCreate
+	SeriesUpdates         []SeriesUpdate
+	SeriesRejoins         []SeriesRejoin
 }
 
 type Schedule struct {
@@ -119,10 +156,11 @@ type Service struct {
 // the caller's transaction.
 type InboxEmitter interface {
 	OpenDayPeriodOpen(ctx context.Context, tx pgx.Tx, periodID uuid.UUID) error
+	// OpenDayPlaceFreed is told about a supervisor place that became free in a timeslot.
 	OpenDayPlaceFreed(
 		ctx context.Context,
 		tx pgx.Tx,
-		openDayID, leavingPersonID uuid.UUID,
+		timeslotID, leavingPersonID uuid.UUID,
 		location *time.Location,
 	) error
 }
@@ -216,6 +254,20 @@ func (s *Service) CreatePeriod(
 	signUpDeadline *time.Time,
 	requestID *uuid.UUID,
 ) (Period, error) {
+	return s.CreatePeriodCopyingSeries(ctx, principal, name, startsOn, endsOn, signUpDeadline, nil, requestID)
+}
+
+// CreatePeriodCopyingSeries creates a draft period; with copySeriesFrom it also copies that period's weekly series
+// into it and generates their open days in the same transaction.
+func (s *Service) CreatePeriodCopyingSeries(
+	ctx context.Context,
+	principal authorization.Principal,
+	name string,
+	startsOn, endsOn time.Time,
+	signUpDeadline *time.Time,
+	copySeriesFrom *uuid.UUID,
+	requestID *uuid.UUID,
+) (Period, error) {
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Period{}, apperror.PermissionDenied
 	}
@@ -251,6 +303,11 @@ func (s *Service) CreatePeriod(
 		[]string{"name", "startsOn", "endsOn", "signUpDeadline"},
 	); err != nil {
 		return Period{}, err
+	}
+	if copySeriesFrom != nil {
+		if err := s.copySeries(ctx, tx, principal, *copySeriesFrom, row, requestID); err != nil {
+			return Period{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Period{}, err
@@ -478,26 +535,20 @@ func (s *Service) GetSchedule(
 		return Schedule{}, err
 	}
 	q := opendaysdb.New(s.pool)
+	periodRow, err := q.GetPeriod(ctx, periodID)
+	if err != nil {
+		return Schedule{}, err
+	}
 	rows, err := q.ListOpenDaysByPeriod(ctx, periodID)
 	if err != nil {
 		return Schedule{}, err
 	}
-	dayIDs := make([]uuid.UUID, 0, len(rows))
-	for _, row := range rows {
-		dayIDs = append(dayIDs, row.ID)
-	}
-	competencies, err := trainings.OpenDayCompetencies(ctx, s.pool, dayIDs)
+	items, err := s.loadDays(ctx, q, principal, periodRow, rows)
 	if err != nil {
 		return Schedule{}, err
 	}
-	items := make([]OpenDay, 0, len(rows))
-	for _, row := range rows {
-		day, err := s.dayFromRow(ctx, q, principal, row)
-		if err != nil {
-			return Schedule{}, err
-		}
-		day.Competencies = competenciesOrEmpty(competencies[row.ID])
-		items = append(items, day)
+	if err := s.attachCompetencies(ctx, items); err != nil {
+		return Schedule{}, err
 	}
 	return Schedule{Period: period, Items: items, TimeZone: s.location.String()}, nil
 }
@@ -521,16 +572,29 @@ func (s *Service) GetOpenDay(ctx context.Context, principal authorization.Princi
 	if PeriodStatus(p.Status) == PeriodDraft && !principal.Has(authorization.OpenDaysManage) {
 		return OpenDay{}, apperror.NotFound
 	}
-	day, err := s.dayFromRow(ctx, q, principal, row)
+	items, err := s.loadDays(ctx, q, principal, p, []opendaysdb.OpenDay{row})
 	if err != nil {
 		return OpenDay{}, err
 	}
-	competencies, err := trainings.OpenDayCompetencies(ctx, s.pool, []uuid.UUID{row.ID})
-	if err != nil {
+	if err := s.attachCompetencies(ctx, items); err != nil {
 		return OpenDay{}, err
 	}
-	day.Competencies = competenciesOrEmpty(competencies[row.ID])
-	return day, nil
+	return items[0], nil
+}
+
+func (s *Service) attachCompetencies(ctx context.Context, items []OpenDay) error {
+	dayIDs := make([]uuid.UUID, 0, len(items))
+	for _, item := range items {
+		dayIDs = append(dayIDs, item.ID)
+	}
+	competencies, err := trainings.OpenDayCompetencies(ctx, s.pool, dayIDs)
+	if err != nil {
+		return err
+	}
+	for i := range items {
+		items[i].Competencies = competenciesOrEmpty(competencies[items[i].ID])
+	}
+	return nil
 }
 
 func competenciesOrEmpty(items []trainings.Competency) []trainings.Competency {
@@ -622,224 +686,6 @@ func (s *Service) CancelOpenDay(
 	return s.RemoveOpenDay(ctx, principal, id, expectedPeriod, expectedDay, requestID)
 }
 
-func (s *Service) SaveSchedule(
-	ctx context.Context,
-	principal authorization.Principal,
-	periodID uuid.UUID,
-	delta ScheduleDelta,
-	requestID *uuid.UUID,
-) (Schedule, error) {
-	if !principal.Has(authorization.OpenDaysManage) {
-		return Schedule{}, apperror.PermissionDenied
-	}
-	if delta.ExpectedPeriodVersion < 1 {
-		return Schedule{}, apperror.Invalid("expectedPeriodVersion must be positive")
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Schedule{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	q := opendaysdb.New(tx)
-	period, err := q.GetPeriodForUpdate(ctx, periodID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Schedule{}, apperror.NotFound
-	}
-	if err != nil {
-		return Schedule{}, err
-	}
-	if period.Version != delta.ExpectedPeriodVersion {
-		return Schedule{}, apperror.StaleWrite
-	}
-	if PeriodStatus(period.Status) == PeriodArchived {
-		return Schedule{}, apperror.Conflicting("period_archived", "Archived Open Day periods are read-only")
-	}
-	existing, err := q.ListOpenDaysByPeriod(ctx, periodID)
-	if err != nil {
-		return Schedule{}, err
-	}
-	byID := make(map[uuid.UUID]opendaysdb.OpenDay, len(existing))
-	for _, day := range existing {
-		byID[day.ID] = day
-	}
-	targets := map[uuid.UUID]bool{}
-	removing := map[uuid.UUID]bool{}
-	for _, rm := range delta.Removals {
-		if rm.ID == uuid.Nil || targets[rm.ID] {
-			return Schedule{}, apperror.Invalid("schedule operations must target each Open Day at most once")
-		}
-		targets[rm.ID] = true
-		day, ok := byID[rm.ID]
-		if !ok {
-			return Schedule{}, apperror.NotFound
-		}
-		if day.Version != rm.ExpectedVersion {
-			return Schedule{}, apperror.StaleWrite
-		}
-		removing[rm.ID] = true
-	}
-	updates := map[uuid.UUID]ScheduleInput{}
-	for _, input := range delta.Updates {
-		if input.ID == uuid.Nil || targets[input.ID] {
-			return Schedule{}, apperror.Invalid("schedule operations must target each Open Day at most once")
-		}
-		targets[input.ID] = true
-		day, ok := byID[input.ID]
-		if !ok {
-			return Schedule{}, apperror.NotFound
-		}
-		if day.Version != input.ExpectedVersion {
-			return Schedule{}, apperror.StaleWrite
-		}
-		if DayStatus(day.Status) != DayScheduled {
-			return Schedule{}, apperror.Conflicting("open_day_cancelled", "Cancelled Open Days cannot be edited")
-		}
-		updates[input.ID] = input
-	}
-	seen := map[string]uuid.UUID{}
-	for _, day := range existing {
-		if DayStatus(day.Status) != DayScheduled || removing[day.ID] {
-			continue
-		}
-		start, end := day.StartsAt, day.EndsAt
-		if update, ok := updates[day.ID]; ok {
-			start, end = update.StartsAt, update.EndsAt
-		}
-		if err := s.validateSlot(period, start, end); err != nil {
-			return Schedule{}, err
-		}
-		key := slotKey(start, end)
-		if other, ok := seen[key]; ok && other != day.ID {
-			return Schedule{}, apperror.Conflicting(
-				"duplicate_open_day",
-				"An Open Day already uses this exact time range",
-			)
-		}
-		seen[key] = day.ID
-	}
-	for _, input := range delta.Creates {
-		if err := s.validateInput(period, input); err != nil {
-			return Schedule{}, err
-		}
-		key := slotKey(input.StartsAt, input.EndsAt)
-		if _, ok := seen[key]; ok {
-			return Schedule{}, apperror.Conflicting(
-				"duplicate_open_day",
-				"An Open Day already uses this exact time range",
-			)
-		}
-		seen[key] = uuid.Nil
-	}
-	for _, input := range delta.Updates {
-		if err := s.validateInput(period, input); err != nil {
-			return Schedule{}, err
-		}
-	}
-	for _, rm := range delta.Removals {
-		day := byID[rm.ID]
-		if PeriodStatus(period.Status) == PeriodDraft {
-			if _, err := q.DeleteOpenDay(
-				ctx,
-				opendaysdb.DeleteOpenDayParams{ID: rm.ID, ExpectedVersion: rm.ExpectedVersion},
-			); err != nil {
-				return Schedule{}, databaseError(err)
-			}
-		} else {
-			if _, err := q.CancelOpenDay(
-				ctx,
-				opendaysdb.CancelOpenDayParams{ID: rm.ID, ExpectedVersion: rm.ExpectedVersion},
-			); err != nil {
-				return Schedule{}, databaseError(err)
-			}
-		}
-		action := "open_day.cancelled"
-		if PeriodStatus(period.Status) == PeriodDraft {
-			action = "open_day.deleted"
-		}
-		if err := writeAudit(ctx, tx, principal, action, "open_day", day.ID, requestID, nil); err != nil {
-			return Schedule{}, err
-		}
-	}
-	for _, input := range delta.Updates {
-		row, err := q.UpdateOpenDay(
-			ctx,
-			opendaysdb.UpdateOpenDayParams{
-				StartsAt:        input.StartsAt.UTC(),
-				EndsAt:          input.EndsAt.UTC(),
-				InternalNote:    cleanNote(input.InternalNote),
-				ID:              input.ID,
-				ExpectedVersion: input.ExpectedVersion,
-			},
-		)
-		if err != nil {
-			return Schedule{}, databaseError(err)
-		}
-		if err := replaceRequirements(ctx, q, row.ID, input.Requirements); err != nil {
-			return Schedule{}, err
-		}
-		if err := writeAudit(
-			ctx,
-			tx,
-			principal,
-			"open_day.updated",
-			"open_day",
-			row.ID,
-			requestID,
-			[]string{"startsAt", "endsAt", "internalNote", "requirements"},
-		); err != nil {
-			return Schedule{}, err
-		}
-	}
-	for _, input := range delta.Creates {
-		id := ids.New()
-		row, err := q.CreateOpenDay(
-			ctx,
-			opendaysdb.CreateOpenDayParams{
-				ID:           id,
-				PeriodID:     periodID,
-				StartsAt:     input.StartsAt.UTC(),
-				EndsAt:       input.EndsAt.UTC(),
-				InternalNote: cleanNote(input.InternalNote),
-			},
-		)
-		if err != nil {
-			return Schedule{}, databaseError(err)
-		}
-		if err := createRequirements(ctx, q, row.ID, input.Requirements); err != nil {
-			return Schedule{}, err
-		}
-		if err := writeAudit(
-			ctx,
-			tx,
-			principal,
-			"open_day.created",
-			"open_day",
-			row.ID,
-			requestID,
-			[]string{"startsAt", "endsAt", "internalNote", "requirements"},
-		); err != nil {
-			return Schedule{}, err
-		}
-	}
-	if len(delta.Creates)+len(delta.Updates)+len(delta.Removals) > 0 {
-		if _, err := q.BumpPeriodVersion(
-			ctx,
-			opendaysdb.BumpPeriodVersionParams{ID: periodID, ExpectedVersion: period.Version},
-		); errors.Is(
-			err,
-			pgx.ErrNoRows,
-		) {
-			return Schedule{}, apperror.StaleWrite
-		} else if err != nil {
-			return Schedule{}, err
-		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return Schedule{}, databaseError(err)
-	}
-	return s.GetSchedule(ctx, principal, periodID)
-}
-
 func (s *Service) periodFromRow(
 	ctx context.Context,
 	q *opendaysdb.Queries,
@@ -851,242 +697,193 @@ func (s *Service) periodFromRow(
 	if err != nil {
 		return Period{}, err
 	}
+	counts, err := q.ListPeriodRequirementCounts(ctx, row.ID)
+	if err != nil {
+		return Period{}, err
+	}
+	mine, err := q.ListPersonDaysInPeriod(
+		ctx,
+		opendaysdb.ListPersonDaysInPeriodParams{PeriodID: row.ID, PersonID: principal.PersonID},
+	)
+	if err != nil {
+		return Period{}, err
+	}
+	short := map[uuid.UUID]bool{}
+	for _, count := range counts {
+		if count.AssignedCount < int64(count.RequiredCount) {
+			short[count.OpenDayID] = true
+			if RequirementKind(count.Kind) == RequirementSupervisor {
+				result.OpenSupervisorPositions += int(int64(count.RequiredCount) - count.AssignedCount)
+			}
+		}
+	}
 	for _, day := range days {
 		if DayStatus(day.Status) == DayCancelled {
 			result.CancelledCount++
 			continue
 		}
 		result.TotalOpenDays++
-		reqs, err := q.ListRequirements(ctx, day.ID)
-		if err != nil {
-			return Period{}, err
-		}
-		full := true
-		for _, req := range reqs {
-			count, err := q.CountRequirementAssignments(ctx, req.ID)
-			if err != nil {
-				return Period{}, err
-			}
-			if RequirementKind(req.Kind) == RequirementSupervisor && count < int64(req.RequiredCount) {
-				result.OpenSupervisorPositions += int(int64(req.RequiredCount) - count)
-			}
-			if count < int64(req.RequiredCount) {
-				full = false
-			}
-		}
-		if full {
-			result.FullyStaffedCount++
-		} else {
+		if short[day.ID] {
 			result.NeedsStaffCount++
-		}
-		if _, err := q.GetPersonOpenDayAssignment(
-			ctx,
-			opendaysdb.GetPersonOpenDayAssignmentParams{OpenDayID: day.ID, PersonID: principal.PersonID},
-		); err == nil {
-			result.MyAssignmentCount++
-		} else if !errors.Is(err, pgx.ErrNoRows) {
-			return Period{}, err
+		} else {
+			result.FullyStaffedCount++
 		}
 	}
+	// Days the caller holds at least one timeslot of.
+	result.MyAssignmentCount = len(mine)
 	return result, nil
 }
 
-func (s *Service) dayFromRow(
+// loadDays assembles the days with their timeslots, places and assignments as the principal may see them. Every
+// day must belong to period.
+func (s *Service) loadDays(
 	ctx context.Context,
 	q *opendaysdb.Queries,
 	principal authorization.Principal,
-	row opendaysdb.OpenDay,
-) (OpenDay, error) {
-	result := OpenDay{
-		ID:           row.ID,
-		PeriodID:     row.PeriodID,
-		StartsAt:     row.StartsAt,
-		EndsAt:       row.EndsAt,
-		Status:       DayStatus(row.Status),
-		Version:      row.Version,
-		CreatedAt:    row.CreatedAt,
-		UpdatedAt:    row.UpdatedAt,
-		Requirements: []Requirement{},
+	period opendaysdb.OpenDayPeriod,
+	rows []opendaysdb.OpenDay,
+) ([]OpenDay, error) {
+	dayIDs := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		dayIDs = append(dayIDs, row.ID)
 	}
-	if principal.Has(authorization.OpenDaysManage) {
-		result.InternalNote = row.InternalNote
-		result.InternalNoteVisible = true
-	}
-	reqs, err := q.ListRequirements(ctx, row.ID)
+	timeslots, err := q.ListTimeslotsByDays(ctx, idTexts(dayIDs))
 	if err != nil {
-		return OpenDay{}, err
+		return nil, err
 	}
-	assignments, err := q.ListAssignments(ctx, row.ID)
+	requirements, err := q.ListRequirementsByDays(ctx, idTexts(dayIDs))
 	if err != nil {
-		return OpenDay{}, err
+		return nil, err
 	}
-	byReq := map[uuid.UUID][]Assignment{}
+	assignments, err := q.ListAssignmentsByDays(ctx, idTexts(dayIDs))
+	if err != nil {
+		return nil, err
+	}
+	manage := principal.Has(authorization.OpenDaysManage)
+	rolesByRequirement := map[uuid.UUID][]uuid.UUID{}
+	if manage {
+		roleRows, err := q.ListRequirementRolesByDays(ctx, idTexts(dayIDs))
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range roleRows {
+			rolesByRequirement[row.RequirementID] = append(rolesByRequirement[row.RequirementID], row.RoleID)
+		}
+	}
+	eligible := map[uuid.UUID]bool{}
+	if principal.PersonID != uuid.Nil {
+		eligibleIDs, err := q.ListEligibleRequirementsByDays(
+			ctx,
+			opendaysdb.ListEligibleRequirementsByDaysParams{OpenDayIds: idTexts(dayIDs), PersonID: principal.PersonID},
+		)
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range eligibleIDs {
+			eligible[id] = true
+		}
+	}
+	byRequirement := map[uuid.UUID][]Assignment{}
+	mine := map[uuid.UUID]*Assignment{}
 	for _, a := range assignments {
 		item := Assignment{
 			ID:            a.ID,
 			OpenDayID:     a.OpenDayID,
+			TimeslotID:    a.TimeslotID,
 			RequirementID: a.RequirementID,
 			PersonID:      a.PersonID,
 			DisplayName:   strings.TrimSpace(a.FirstName + " " + a.LastName),
 			IsCurrentUser: a.PersonID == principal.PersonID,
 			CreatedAt:     a.CreatedAt,
 		}
-		byReq[a.RequirementID] = append(byReq[a.RequirementID], item)
+		byRequirement[a.RequirementID] = append(byRequirement[a.RequirementID], item)
 		if item.IsCurrentUser {
-			copy := item
-			result.MyAssignment = &copy
+			own := item
+			mine[a.TimeslotID] = &own
 		}
 	}
-	for _, req := range reqs {
-		var roles []uuid.UUID
-		rolesVisible := false
-		if principal.Has(authorization.OpenDaysManage) {
-			rolesVisible = true
-			roles, err = q.ListRequirementRoleIDs(ctx, req.ID)
-			if err != nil {
-				return OpenDay{}, err
+	requirementsBySlot := map[uuid.UUID][]opendaysdb.ListRequirementsByDaysRow{}
+	for _, row := range requirements {
+		requirementsBySlot[row.TimeslotID] = append(requirementsBySlot[row.TimeslotID], row)
+	}
+	slotsByDay := map[uuid.UUID][]opendaysdb.OpenDayTimeslot{}
+	for _, row := range timeslots {
+		slotsByDay[row.OpenDayID] = append(slotsByDay[row.OpenDayID], row)
+	}
+	open := assignmentsOpen(period)
+	now := time.Now()
+	result := make([]OpenDay, 0, len(rows))
+	for _, row := range rows {
+		day := OpenDay{
+			ID:                   row.ID,
+			PeriodID:             row.PeriodID,
+			StartsAt:             row.StartsAt,
+			EndsAt:               row.EndsAt,
+			Status:               DayStatus(row.Status),
+			SeriesID:             row.SeriesID,
+			DetachedFromSeriesID: row.DetachedFromSeriesID,
+			Version:              row.Version,
+			CreatedAt:            row.CreatedAt,
+			UpdatedAt:            row.UpdatedAt,
+			Timeslots:            []Timeslot{},
+			Requirements:         []Requirement{},
+		}
+		if manage {
+			day.InternalNote = row.InternalNote
+			day.InternalNoteVisible = true
+		}
+		for _, slot := range slotsByDay[row.ID] {
+			item := Timeslot{
+				ID:           slot.ID,
+				Position:     int(slot.Position),
+				StartsAt:     slot.StartsAt,
+				EndsAt:       slot.EndsAt,
+				Requirements: []Requirement{},
+				MyAssignment: mine[slot.ID],
 			}
+			joinable := open && day.Status == DayScheduled && slot.EndsAt.After(now) &&
+				principal.Has(authorization.OpenDaysSignup) && item.MyAssignment == nil
+			for _, req := range requirementsBySlot[slot.ID] {
+				requirement := Requirement{
+					ID:            req.ID,
+					TimeslotID:    req.TimeslotID,
+					Kind:          RequirementKind(req.Kind),
+					RequiredCount: int(req.RequiredCount),
+					AssignedCount: int(req.AssignedCount),
+					Eligible:      eligible[req.ID],
+				}
+				requirement.CanJoin = joinable && requirement.Eligible && req.AssignedCount < int64(req.RequiredCount)
+				if manage {
+					requirement.EligibleRolesVisible = true
+					requirement.EligibleRoleIDs = rolesByRequirement[req.ID]
+					if requirement.EligibleRoleIDs == nil {
+						requirement.EligibleRoleIDs = []uuid.UUID{}
+					}
+				}
+				if principal.Has(authorization.OpenDaysReadAssignments) {
+					values := byRequirement[req.ID]
+					if values == nil {
+						values = []Assignment{}
+					}
+					requirement.Assignments = &values
+				}
+				item.Requirements = append(item.Requirements, requirement)
+			}
+			sort.Slice(item.Requirements, func(i, j int) bool { return item.Requirements[i].Kind < item.Requirements[j].Kind })
+			day.Requirements = append(day.Requirements, item.Requirements...)
+			if day.MyAssignment == nil && item.MyAssignment != nil {
+				day.MyAssignment = item.MyAssignment
+			}
+			day.Timeslots = append(day.Timeslots, item)
 		}
-		item := Requirement{
-			ID:                   req.ID,
-			Kind:                 RequirementKind(req.Kind),
-			RequiredCount:        int(req.RequiredCount),
-			AssignedCount:        len(byReq[req.ID]),
-			EligibleRoleIDs:      roles,
-			EligibleRolesVisible: rolesVisible,
-		}
-		if principal.Has(authorization.OpenDaysReadAssignments) {
-			values := byReq[req.ID]
-			item.Assignments = &values
-		}
-		result.Requirements = append(result.Requirements, item)
+		result = append(result, day)
 	}
-	sort.Slice(
-		result.Requirements,
-		func(i, j int) bool { return result.Requirements[i].Kind < result.Requirements[j].Kind },
-	)
 	return result, nil
 }
 
-func createRequirements(
-	ctx context.Context,
-	q *opendaysdb.Queries,
-	openDayID uuid.UUID,
-	inputs []RequirementInput,
-) error {
-	for _, input := range inputs {
-		id := ids.New()
-		if _, err := q.CreateRequirement(
-			ctx,
-			opendaysdb.CreateRequirementParams{
-				ID:            id,
-				OpenDayID:     openDayID,
-				Kind:          string(input.Kind),
-				RequiredCount: int32(input.RequiredCount),
-			},
-		); err != nil {
-			return databaseError(err)
-		}
-		for _, roleID := range uniqueIDs(input.EligibleRoleIDs) {
-			if err := q.AddRequirementRole(
-				ctx,
-				opendaysdb.AddRequirementRoleParams{RequirementID: id, RoleID: roleID},
-			); err != nil {
-				return databaseError(err)
-			}
-		}
-	}
-	return nil
-}
-
-func replaceRequirements(
-	ctx context.Context,
-	q *opendaysdb.Queries,
-	openDayID uuid.UUID,
-	inputs []RequirementInput,
-) error {
-	rows, err := q.ListRequirements(ctx, openDayID)
-	if err != nil {
-		return err
-	}
-	byKind := map[string]opendaysdb.OpenDayStaffRequirement{}
-	for _, r := range rows {
-		byKind[r.Kind] = r
-	}
-	for _, input := range inputs {
-		r, ok := byKind[string(input.Kind)]
-		if !ok {
-			return apperror.Invalid("both supervisor and trainee requirements are required")
-		}
-		count, err := q.CountRequirementAssignments(ctx, r.ID)
-		if err != nil {
-			return err
-		}
-		if int64(input.RequiredCount) < count {
-			return apperror.Conflicting(
-				"requirement_below_assignments",
-				"Required staff count cannot be below current assignments",
-			)
-		}
-		if _, err := q.UpdateRequirement(
-			ctx,
-			opendaysdb.UpdateRequirementParams{RequiredCount: int32(input.RequiredCount), ID: r.ID},
-		); err != nil {
-			return err
-		}
-		if err := q.DeleteRequirementRoles(ctx, r.ID); err != nil {
-			return err
-		}
-		for _, roleID := range uniqueIDs(input.EligibleRoleIDs) {
-			if err := q.AddRequirementRole(
-				ctx,
-				opendaysdb.AddRequirementRoleParams{RequirementID: r.ID, RoleID: roleID},
-			); err != nil {
-				return databaseError(err)
-			}
-		}
-	}
-	return nil
-}
-
-func (s *Service) validateInput(period opendaysdb.OpenDayPeriod, input ScheduleInput) error {
-	if err := s.validateSlot(period, input.StartsAt, input.EndsAt); err != nil {
-		return err
-	}
-	if len(input.Requirements) != 2 {
-		return apperror.Invalid("exactly supervisor and trainee requirements are required")
-	}
-	seen := map[RequirementKind]bool{}
-	for _, r := range input.Requirements {
-		if r.Kind != RequirementSupervisor && r.Kind != RequirementTrainee {
-			return apperror.Invalid("requirement kind is invalid")
-		}
-		if seen[r.Kind] {
-			return apperror.Invalid("requirement kinds must be unique")
-		}
-		seen[r.Kind] = true
-		if r.RequiredCount < 0 || r.RequiredCount > 100 {
-			return apperror.Invalid("requiredCount must be between 0 and 100")
-		}
-	}
-	return nil
-}
-
-func (s *Service) validateSlot(period opendaysdb.OpenDayPeriod, start, end time.Time) error {
-	if start.IsZero() || end.IsZero() || !end.After(start) {
-		return apperror.Invalid("endsAt must be after startsAt")
-	}
-	if err := s.validateSlotInstant(start); err != nil {
-		return err
-	}
-	if err := s.validateSlotInstant(end); err != nil {
-		return err
-	}
-	if !dateWithin(start.In(s.location), period.StartsOn.Time, period.EndsOn.Time) ||
-		!dateWithin(end.Add(-time.Nanosecond).In(s.location), period.StartsOn.Time, period.EndsOn.Time) {
-		return apperror.Invalid("Open Day must be within the period in the makerspace timezone")
-	}
-	return nil
+func assignmentsOpen(period opendaysdb.OpenDayPeriod) bool {
+	status := PeriodStatus(period.Status)
+	return status == PeriodStaffing || status == PeriodPublished
 }
 
 func validatePeriod(name string, start, end time.Time, signUpDeadline *time.Time) (string, error) {
@@ -1142,9 +939,6 @@ func dateWithin(value, start, end time.Time) bool {
 	e := time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, time.UTC)
 	return !v.Before(s) && !v.After(e)
 }
-func slotKey(start, end time.Time) string {
-	return start.UTC().Format(time.RFC3339Nano) + "/" + end.UTC().Format(time.RFC3339Nano)
-}
 func cleanNote(v *string) *string {
 	if v == nil {
 		return nil
@@ -1155,6 +949,16 @@ func cleanNote(v *string) *string {
 	}
 	return &text
 }
+
+// idTexts passes IDs as text so the queries also run in pgx's simple protocol mode.
+func idTexts(values []uuid.UUID) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, value.String())
+	}
+	return out
+}
+
 func uniqueIDs(ids []uuid.UUID) []uuid.UUID {
 	seen := map[uuid.UUID]bool{}
 	out := make([]uuid.UUID, 0, len(ids))

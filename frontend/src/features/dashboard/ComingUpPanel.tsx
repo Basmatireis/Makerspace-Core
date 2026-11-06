@@ -29,7 +29,7 @@ export function ComingUpPanel({ items, now, canLeave, canFindOpenDays }: Props) 
   const client = useQueryClient();
   const [leaving, setLeaving] = useState<ComingUpItem | null>(null);
   const leave = useMutation({
-    mutationFn: (openDayId: string) => leaveOpenDay(openDayId),
+    mutationFn: (item: ComingUpItem) => leaveOpenDay(item.openDayId!, { timeslotId: item.timeslotId! }),
     onSuccess: async () => {
       setLeaving(null);
       await client.invalidateQueries({ queryKey: dashboardKeys.personal() });
@@ -105,7 +105,7 @@ export function ComingUpPanel({ items, now, canLeave, canFindOpenDays }: Props) 
           setLeaving(null);
         }}
         onRequestSubmit={() => {
-          if (leaving?.openDayId) leave.mutate(leaving.openDayId);
+          if (leaving?.openDayId && leaving.timeslotId) leave.mutate(leaving);
         }}
       >
         {leaving && (

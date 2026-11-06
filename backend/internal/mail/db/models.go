@@ -922,15 +922,17 @@ type OidcProvider struct {
 }
 
 type OpenDay struct {
-	ID           uuid.UUID
-	PeriodID     uuid.UUID
-	StartsAt     time.Time
-	EndsAt       time.Time
-	InternalNote *string
-	Status       string
-	Version      int64
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                   uuid.UUID
+	PeriodID             uuid.UUID
+	StartsAt             time.Time
+	EndsAt               time.Time
+	InternalNote         *string
+	Status               string
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	SeriesID             *uuid.UUID
+	DetachedFromSeriesID *uuid.UUID
 }
 
 type OpenDayAcademicBreak struct {
@@ -950,6 +952,7 @@ type OpenDayAssignment struct {
 	PersonID           uuid.UUID
 	CreatedByAccountID *uuid.UUID
 	CreatedAt          time.Time
+	TimeslotID         uuid.UUID
 }
 
 type OpenDayPeriod struct {
@@ -964,16 +967,52 @@ type OpenDayPeriod struct {
 	SignUpDeadline pgtype.Date
 }
 
+type OpenDaySeries struct {
+	ID               uuid.UUID
+	PeriodID         uuid.UUID
+	Weekday          int32
+	FromDate         pgtype.Date
+	UntilDate        pgtype.Date
+	SupervisorPlaces int32
+	TraineePlaces    int32
+	ForcedDates      []pgtype.Date
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type OpenDaySeriesRole struct {
+	SeriesID uuid.UUID
+	Kind     string
+	RoleID   uuid.UUID
+}
+
+type OpenDaySeriesTimeslot struct {
+	SeriesID  uuid.UUID
+	Position  int32
+	StartTime pgtype.Time
+	EndTime   pgtype.Time
+}
+
 type OpenDayStaffRequirement struct {
 	ID            uuid.UUID
 	OpenDayID     uuid.UUID
 	Kind          string
 	RequiredCount int32
+	TimeslotID    uuid.UUID
 }
 
 type OpenDayStaffRequirementRole struct {
 	RequirementID uuid.UUID
 	RoleID        uuid.UUID
+}
+
+type OpenDayTimeslot struct {
+	ID        uuid.UUID
+	OpenDayID uuid.UUID
+	StartsAt  time.Time
+	EndsAt    time.Time
+	Position  int32
 }
 
 type Order struct {

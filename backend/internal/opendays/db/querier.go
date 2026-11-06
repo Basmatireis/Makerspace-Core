@@ -12,48 +12,76 @@ import (
 
 type Querier interface {
 	AddRequirementRole(ctx context.Context, arg AddRequirementRoleParams) error
+	AddSeriesRole(ctx context.Context, arg AddSeriesRoleParams) error
 	BumpPeriodVersion(ctx context.Context, arg BumpPeriodVersionParams) (OpenDayPeriod, error)
 	CancelOpenDay(ctx context.Context, arg CancelOpenDayParams) (OpenDay, error)
+	// How many of the roles exist and are extra roles; membership and system roles cannot restrict a place.
+	CountExtraRoles(ctx context.Context, ids []string) (int64, error)
 	CountRequirementAssignments(ctx context.Context, requirementID uuid.UUID) (int64, error)
+	// Scheduled days that follow each series of the period.
+	CountSeriesDays(ctx context.Context, periodID uuid.UUID) ([]CountSeriesDaysRow, error)
 	CreateAcademicBreak(ctx context.Context, arg CreateAcademicBreakParams) (OpenDayAcademicBreak, error)
 	CreateAssignment(ctx context.Context, arg CreateAssignmentParams) (OpenDayAssignment, error)
 	CreateOpenDay(ctx context.Context, arg CreateOpenDayParams) (OpenDay, error)
 	CreatePeriod(ctx context.Context, arg CreatePeriodParams) (OpenDayPeriod, error)
 	CreateRequirement(ctx context.Context, arg CreateRequirementParams) (OpenDayStaffRequirement, error)
+	CreateSeries(ctx context.Context, arg CreateSeriesParams) (OpenDaySeries, error)
+	CreateSeriesTimeslot(ctx context.Context, arg CreateSeriesTimeslotParams) error
+	CreateTimeslot(ctx context.Context, arg CreateTimeslotParams) (OpenDayTimeslot, error)
 	DeleteAcademicBreak(ctx context.Context, arg DeleteAcademicBreakParams) (uuid.UUID, error)
 	DeleteAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssignment, error)
 	DeleteOpenDay(ctx context.Context, arg DeleteOpenDayParams) (uuid.UUID, error)
 	DeletePeriod(ctx context.Context, arg DeletePeriodParams) (uuid.UUID, error)
 	DeleteRequirementRoles(ctx context.Context, requirementID uuid.UUID) error
+	DeleteSeriesRoles(ctx context.Context, seriesID uuid.UUID) error
+	DeleteSeriesTimeslots(ctx context.Context, seriesID uuid.UUID) error
+	DeleteTimeslot(ctx context.Context, arg DeleteTimeslotParams) error
 	GetAcademicBreakForUpdate(ctx context.Context, id uuid.UUID) (OpenDayAcademicBreak, error)
 	GetAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssignment, error)
 	GetAssignmentPersonName(ctx context.Context, id uuid.UUID) (GetAssignmentPersonNameRow, error)
-	// The next open day starting within the window that the person is not on yet and that has a free place of the given
+	// The next timeslot starting within the window that the person is not in yet and that has a free place of the given
 	// kind they are eligible for.
 	GetNextOpenPlace(ctx context.Context, arg GetNextOpenPlaceParams) (GetNextOpenPlaceRow, error)
 	GetOpenDay(ctx context.Context, id uuid.UUID) (OpenDay, error)
 	GetOpenDayForUpdate(ctx context.Context, id uuid.UUID) (OpenDay, error)
-	// Ended scheduled open days the person staffed, all time, with their scheduled duration in seconds.
+	// Ended scheduled open days the person staffed, all time, with the scheduled duration of their ended timeslots in
+	// seconds.
 	GetOwnOpenDayStatistics(ctx context.Context, arg GetOwnOpenDayStatisticsParams) (GetOwnOpenDayStatisticsRow, error)
 	GetPeriod(ctx context.Context, id uuid.UUID) (OpenDayPeriod, error)
 	GetPeriodForUpdate(ctx context.Context, id uuid.UUID) (OpenDayPeriod, error)
-	GetPersonOpenDayAssignment(ctx context.Context, arg GetPersonOpenDayAssignmentParams) (OpenDayAssignment, error)
+	GetPersonTimeslotAssignment(ctx context.Context, arg GetPersonTimeslotAssignmentParams) (OpenDayAssignment, error)
 	GetRequirement(ctx context.Context, id uuid.UUID) (OpenDayStaffRequirement, error)
 	GetRequirementForUpdate(ctx context.Context, id uuid.UUID) (OpenDayStaffRequirement, error)
+	GetSeriesForUpdate(ctx context.Context, id uuid.UUID) (OpenDaySeries, error)
+	GetTimeslot(ctx context.Context, id uuid.UUID) (OpenDayTimeslot, error)
 	ListAcademicBreaks(ctx context.Context) ([]OpenDayAcademicBreak, error)
 	ListAcademicBreaksInRange(ctx context.Context, arg ListAcademicBreaksInRangeParams) ([]OpenDayAcademicBreak, error)
-	ListAssignments(ctx context.Context, openDayID uuid.UUID) ([]ListAssignmentsRow, error)
+	ListAssignmentsByDays(ctx context.Context, openDayIds []string) ([]ListAssignmentsByDaysRow, error)
 	// Membership decides the kind of place; only extra roles can restrict a place further.
 	ListEligibilityRoles(ctx context.Context) ([]ListEligibilityRolesRow, error)
 	// The same eligibility as PersonEligibleForRequirement.
 	ListEligiblePeople(ctx context.Context, arg ListEligiblePeopleParams) ([]ListEligiblePeopleRow, error)
+	// The requirements of the days the person may take: the membership of the place's kind and, when the place names
+	// extra roles, one of them.
+	ListEligibleRequirementsByDays(ctx context.Context, arg ListEligibleRequirementsByDaysParams) ([]uuid.UUID, error)
 	ListOpenDaysByPeriod(ctx context.Context, periodID uuid.UUID) ([]OpenDay, error)
-	// Upcoming (not yet ended) scheduled open days the person is on, with the supervisor places still open on each.
+	// Pairs of scheduled days of a period whose overall ranges overlap; the schedule must never contain one.
+	ListOverlappingScheduledDays(ctx context.Context, periodID uuid.UUID) ([]ListOverlappingScheduledDaysRow, error)
+	// Upcoming (not yet ended) timeslots of scheduled open days the person is on, with the supervisor places still open
+	// in each.
 	ListOwnComingUpOpenDays(ctx context.Context, arg ListOwnComingUpOpenDaysParams) ([]ListOwnComingUpOpenDaysRow, error)
+	// Places and assignments of the scheduled days of a period, for the period summary.
+	ListPeriodRequirementCounts(ctx context.Context, periodID uuid.UUID) ([]ListPeriodRequirementCountsRow, error)
 	ListPeriods(ctx context.Context) ([]OpenDayPeriod, error)
+	ListPersonDaysInPeriod(ctx context.Context, arg ListPersonDaysInPeriodParams) ([]uuid.UUID, error)
 	ListPublishedOpenDays(ctx context.Context) ([]OpenDay, error)
-	ListRequirementRoleIDs(ctx context.Context, requirementID uuid.UUID) ([]uuid.UUID, error)
-	ListRequirements(ctx context.Context, openDayID uuid.UUID) ([]OpenDayStaffRequirement, error)
+	ListRequirementRolesByDays(ctx context.Context, openDayIds []string) ([]OpenDayStaffRequirementRole, error)
+	ListRequirementsByDays(ctx context.Context, openDayIds []string) ([]ListRequirementsByDaysRow, error)
+	ListSeriesByPeriod(ctx context.Context, periodID uuid.UUID) ([]OpenDaySeries, error)
+	ListSeriesRoles(ctx context.Context, periodID uuid.UUID) ([]OpenDaySeriesRole, error)
+	ListSeriesTimeslots(ctx context.Context, periodID uuid.UUID) ([]OpenDaySeriesTimeslot, error)
+	ListTimeslotsByDays(ctx context.Context, openDayIds []string) ([]OpenDayTimeslot, error)
+	// One row per timeslot the person holds; the times are the timeslot's.
 	ListUpcomingAssignmentsForPerson(ctx context.Context, personID uuid.UUID) ([]ListUpcomingAssignmentsForPersonRow, error)
 	// A place of a kind needs the membership of that kind; its role list, when not empty, also asks for one of those
 	// extra roles.
@@ -63,6 +91,8 @@ type Querier interface {
 	UpdateOpenDay(ctx context.Context, arg UpdateOpenDayParams) (OpenDay, error)
 	UpdatePeriod(ctx context.Context, arg UpdatePeriodParams) (OpenDayPeriod, error)
 	UpdateRequirement(ctx context.Context, arg UpdateRequirementParams) (OpenDayStaffRequirement, error)
+	UpdateSeries(ctx context.Context, arg UpdateSeriesParams) (OpenDaySeries, error)
+	UpdateTimeslot(ctx context.Context, arg UpdateTimeslotParams) (OpenDayTimeslot, error)
 }
 
 var _ Querier = (*Queries)(nil)

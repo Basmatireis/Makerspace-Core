@@ -9003,11 +9003,13 @@ WITH runs AS (
     WHERE r.deleted_at IS NULL AND r.state IS DISTINCT FROM 'replaced' AND (r.job_id IS NULL OR j.deleted_at IS NULL)
       AND COALESCE(r.started_at, r.first_observed_at) < $3::timestamptz
 ), days AS (
-    SELECT GREATEST(o.starts_at, $1::timestamptz) AS s,
-           LEAST(o.ends_at, $3::timestamptz, $2::timestamptz) AS e
-    FROM open_days o JOIN open_day_periods p ON p.id = o.period_id
+    SELECT GREATEST(t.starts_at, $1::timestamptz) AS s,
+           LEAST(t.ends_at, $3::timestamptz, $2::timestamptz) AS e
+    FROM open_day_timeslots t
+    JOIN open_days o ON o.id = t.open_day_id
+    JOIN open_day_periods p ON p.id = o.period_id
     WHERE o.status = 'scheduled' AND p.status <> 'draft'
-      AND o.starts_at < $3::timestamptz AND o.ends_at > $1::timestamptz
+      AND t.starts_at < $3::timestamptz AND t.ends_at > $1::timestamptz
 )
 SELECT m.id AS machine_id,
        COALESCE((SELECT sum(EXTRACT(EPOCH FROM (r.e - r.s))) FROM runs r WHERE r.machine_id = m.id AND r.e > r.s), 0)::numeric AS busy_seconds,
@@ -9033,8 +9035,8 @@ type StatisticMachineUtilizationRow struct {
 	OpenDaySeconds     pgtype.Numeric
 }
 
-// Seconds runs occupied each machine that is not retired, in the period and during its scheduled open days, plus
-// the open-day seconds of the period. Runs of jobs and unassigned recorded runs; a running run counts until now.
+// Seconds runs occupied each machine that is not retired, in the period and during the timeslots of scheduled open
+// days, plus the open-day seconds of the period. Gaps between timeslots are not open-day time. Runs of jobs and unassigned recorded runs; a running run counts until now.
 func (q *Queries) StatisticMachineUtilization(ctx context.Context, arg StatisticMachineUtilizationParams) ([]StatisticMachineUtilizationRow, error) {
 	rows, err := q.db.Query(ctx, statisticMachineUtilization, arg.FromTime, arg.Now, arg.ToTime)
 	if err != nil {

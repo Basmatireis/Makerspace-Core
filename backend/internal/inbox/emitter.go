@@ -124,21 +124,21 @@ func (e *Emitter) OpenDayPeriodOpen(ctx context.Context, tx pgx.Tx, periodID uui
 	}, recipients)
 }
 
-// OpenDayPlaceFreed tells the supervisors who are not on a scheduled open day that a supervisor
-// place on it was freed by leavingPersonID. Only open days starting within the warning window of the
-// staffing rules qualify, the same window the dashboard hint for a free place uses; trainee places
+// OpenDayPlaceFreed tells the supervisors who hold no place in a timeslot of a scheduled open day
+// that a supervisor place in it was freed by leavingPersonID. Only timeslots starting within the
+// warning window of the staffing rules qualify, the same window the dashboard hint for a free place uses; trainee places
 // never trigger a notification, so callers pass only supervisor places.
 // The date is shown in location.
 func (e *Emitter) OpenDayPlaceFreed(
 	ctx context.Context,
 	tx pgx.Tx,
-	openDayID, leavingPersonID uuid.UUID,
+	timeslotID, leavingPersonID uuid.UUID,
 	location *time.Location,
 ) error {
 	queries := inboxdb.New(tx)
-	day, err := queries.GetOpenDayFacts(ctx, openDayID)
+	day, err := queries.GetOpenDayTimeslotFacts(ctx, timeslotID)
 	if err != nil {
-		return fmt.Errorf("load open day: %w", err)
+		return fmt.Errorf("load open day timeslot: %w", err)
 	}
 	windowDays, err := queries.GetStaffingWarningWindowDays(ctx)
 	if err != nil {
@@ -150,7 +150,7 @@ func (e *Emitter) OpenDayPlaceFreed(
 		return nil
 	}
 	recipients, err := queries.ListUnassignedSupervisorAccountIDs(ctx, inboxdb.ListUnassignedSupervisorAccountIDsParams{
-		OpenDayID: openDayID, ExcludedPersonID: leavingPersonID,
+		TimeslotID: timeslotID, ExcludedPersonID: leavingPersonID,
 	})
 	if err != nil {
 		return fmt.Errorf("resolve unassigned supervisors: %w", err)
@@ -159,9 +159,12 @@ func (e *Emitter) OpenDayPlaceFreed(
 		kind:  KindOpenDayPlaceFreed,
 		title: "Supervisor place freed",
 		body: fmt.Sprintf(
-			"A supervisor place on the open day of %s is free.", day.StartsAt.In(location).Format("Mon 2 Jan 2006, 15:04"),
+			"A supervisor place on the open day of %s, %s–%s, is free.",
+			day.StartsAt.In(location).Format("Mon 2 Jan 2006"),
+			day.StartsAt.In(location).Format("15:04"),
+			day.EndsAt.In(location).Format("15:04"),
 		),
-		link: fmt.Sprintf("/open-days/%s/days/%s", day.PeriodID, openDayID),
+		link: fmt.Sprintf("/open-days/%s/days/%s", day.PeriodID, day.OpenDayID),
 	}, recipients)
 }
 

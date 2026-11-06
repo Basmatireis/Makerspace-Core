@@ -2193,8 +2193,8 @@ FROM machine_jobs j JOIN machine_job_run_summaries s ON s.job_id = j.id
 WHERE s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time);
 
 -- name: StatisticMachineUtilization :many
--- Seconds runs occupied each machine that is not retired, in the period and during its scheduled open days, plus
--- the open-day seconds of the period. Runs of jobs and unassigned recorded runs; a running run counts until now.
+-- Seconds runs occupied each machine that is not retired, in the period and during the timeslots of scheduled open
+-- days, plus the open-day seconds of the period. Gaps between timeslots are not open-day time. Runs of jobs and unassigned recorded runs; a running run counts until now.
 WITH runs AS (
     SELECT r.machine_id,
            GREATEST(COALESCE(r.started_at, r.first_observed_at), sqlc.arg(from_time)::timestamptz) AS s,
@@ -2205,11 +2205,13 @@ WITH runs AS (
     WHERE r.deleted_at IS NULL AND r.state IS DISTINCT FROM 'replaced' AND (r.job_id IS NULL OR j.deleted_at IS NULL)
       AND COALESCE(r.started_at, r.first_observed_at) < sqlc.arg(to_time)::timestamptz
 ), days AS (
-    SELECT GREATEST(o.starts_at, sqlc.arg(from_time)::timestamptz) AS s,
-           LEAST(o.ends_at, sqlc.arg(to_time)::timestamptz, sqlc.arg(now)::timestamptz) AS e
-    FROM open_days o JOIN open_day_periods p ON p.id = o.period_id
+    SELECT GREATEST(t.starts_at, sqlc.arg(from_time)::timestamptz) AS s,
+           LEAST(t.ends_at, sqlc.arg(to_time)::timestamptz, sqlc.arg(now)::timestamptz) AS e
+    FROM open_day_timeslots t
+    JOIN open_days o ON o.id = t.open_day_id
+    JOIN open_day_periods p ON p.id = o.period_id
     WHERE o.status = 'scheduled' AND p.status <> 'draft'
-      AND o.starts_at < sqlc.arg(to_time)::timestamptz AND o.ends_at > sqlc.arg(from_time)::timestamptz
+      AND t.starts_at < sqlc.arg(to_time)::timestamptz AND t.ends_at > sqlc.arg(from_time)::timestamptz
 )
 SELECT m.id AS machine_id,
        COALESCE((SELECT sum(EXTRACT(EPOCH FROM (r.e - r.s))) FROM runs r WHERE r.machine_id = m.id AND r.e > r.s), 0)::numeric AS busy_seconds,

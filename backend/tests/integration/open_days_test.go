@@ -51,7 +51,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 		EndsAt:       endsAt,
 		InternalNote: &note,
 		Requirements: []opendays.RequirementInput{
-			{Kind: "supervisor", RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+			{Kind: "supervisor", RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{}},
 			{Kind: "trainee", RequiredCount: 0, EligibleRoleIDs: []uuid.UUID{}},
 		},
 	}
@@ -80,7 +80,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 		opendays.ScheduleDelta{ExpectedPeriodVersion: 2, Creates: []opendays.ScheduleInput{input, input}},
 		nil,
 	)
-	expectAppCode(t, err, "duplicate_open_day")
+	expectAppCode(t, err, "open_day_overlap")
 	assertCount(t, pool, `SELECT count(*) FROM open_days WHERE period_id = $1`, 1, period.ID)
 	var version int64
 	if err := pool.QueryRow(
@@ -188,7 +188,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 		}
 	}
 	_, err = service.Join(ctx, manager, day.ID, day.Requirements[0].ID, nil)
-	expectAppCode(t, err, "requirement_full")
+	expectAppCode(t, err, "already_in_timeslot")
 
 	public, err := service.ListPublic(ctx)
 	if err != nil {
@@ -310,7 +310,7 @@ func TestOpenDaysConcurrentFinalSlotAssignment(t *testing.T) {
 		StartsAt: time.Date(2026, 4, 8, 14, 0, 0, 0, time.UTC),
 		EndsAt:   time.Date(2026, 4, 8, 17, 0, 0, 0, time.UTC),
 		Requirements: []opendays.RequirementInput{
-			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{}},
 			{Kind: "trainee", RequiredCount: 0},
 		},
 	}, nil)
@@ -380,14 +380,13 @@ func TestOpenDayPeriodSummaryCountsIndividualSupervisorVacancies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	roleID := uuid.MustParse(masterRoleID)
 	create := func(day int) opendays.ScheduleInput {
 		return opendays.ScheduleInput{
 			StartsAt: time.Date(2026, 5, day, 14, 0, 0, 0, time.UTC),
 			EndsAt:   time.Date(2026, 5, day, 17, 0, 0, 0, time.UTC),
 			Requirements: []opendays.RequirementInput{
-				{Kind: "supervisor", RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{roleID}},
-				{Kind: "trainee", RequiredCount: 3, EligibleRoleIDs: []uuid.UUID{roleID}},
+				{Kind: "supervisor", RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{}},
+				{Kind: "trainee", RequiredCount: 3, EligibleRoleIDs: []uuid.UUID{}},
 			},
 		}
 	}
@@ -550,7 +549,7 @@ func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *tes
 		StartsAt: time.Date(2026, time.October, 14, 14, 0, 0, 0, time.UTC),
 		EndsAt:   time.Date(2026, time.October, 14, 17, 0, 0, 0, time.UTC),
 		Requirements: []opendays.RequirementInput{
-			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{}},
 			{Kind: "trainee", RequiredCount: 0},
 		},
 	}, nil)

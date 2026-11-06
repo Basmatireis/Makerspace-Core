@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { OpenDay, OpenDayRequirementKind } from '../../api/generated/models';
 import { filterOpenDays } from './openDayFilters';
+import { singleTimeslotDay, type OpenDayFixture } from './testData';
 
 const periodId = '0192f6f8-743e-7c77-a349-cd07c3e8a911';
 const personId = '0192f6f8-743e-7c77-a349-cd07c3e8a901';
@@ -9,23 +10,27 @@ function requirement(id: string, kind: OpenDayRequirementKind, assignedCount: nu
   return { id, kind, assignedCount, requiredCount };
 }
 
-function openDay(id: string, overrides: Partial<OpenDay> = {}): OpenDay {
-  return {
-    id,
-    periodId,
-    startsAt: '2026-10-01T08:00:00Z',
-    endsAt: '2026-10-01T11:00:00Z',
-    status: 'scheduled',
-    competencies: [],
-    requirements: [
-      requirement(`${id.slice(0, -1)}1`, 'supervisor', 2, 2),
-      requirement(`${id.slice(0, -1)}2`, 'trainee', 1, 1),
-    ],
-    version: 1,
-    createdAt: '2026-09-01T10:00:00Z',
-    updatedAt: '2026-09-01T10:00:00Z',
-    ...overrides,
-  };
+function openDay(id: string, overrides: OpenDayFixture = {}): OpenDay {
+  return singleTimeslotDay(
+    {
+      id,
+      periodId,
+      startsAt: '2026-10-01T08:00:00Z',
+      endsAt: '2026-10-01T11:00:00Z',
+      status: 'scheduled',
+      competencies: [],
+      version: 1,
+      createdAt: '2026-09-01T10:00:00Z',
+      updatedAt: '2026-09-01T10:00:00Z',
+    },
+    {
+      requirements: [
+        requirement(`${id.slice(0, -1)}1`, 'supervisor', 2, 2),
+        requirement(`${id.slice(0, -1)}2`, 'trainee', 1, 1),
+      ],
+      ...overrides,
+    },
+  );
 }
 
 const supervisorVacancy = openDay('0192f6f8-743e-7c77-a349-cd07c3e8a921', {

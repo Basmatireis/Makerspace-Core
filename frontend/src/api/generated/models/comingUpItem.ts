@@ -28,8 +28,10 @@ export interface ComingUpItem {
   startsAt: string;
   endsAt: string;
   openDayId?: UUIDv7;
+  /** Open days only; the timeslot the person holds. A day with several of their timeslots is listed once per timeslot. */
+  timeslotId?: UUIDv7;
   periodId?: UUIDv7;
-  /** Open days only; true when supervisor places are open. */
+  /** Open days only; true when supervisor places are open in the timeslot. */
   shortStaffed?: boolean;
   eventId?: UUIDv7;
   /** Event shifts of public events only. */

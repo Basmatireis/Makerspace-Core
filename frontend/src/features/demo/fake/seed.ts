@@ -303,11 +303,13 @@ function openDaySeed(store: DemoStore): OpenDay[] {
   ];
   const offsets = [3, 10, 17, 24];
   return DEMO_IDS.openDays.map((id, index) => {
+    const timeslotId = sampleDemoId(0x980 + index);
     const requirements: OpenDayStaffRequirement[] = (['supervisor', 'trainee'] as const).map((kind, k) => {
       const requirementId = sampleDemoId(0x900 + index * 2 + k);
       const people = assignments[index][kind].map((personIndex, a) => ({
         id: sampleDemoId(0xa00 + index * 10 + k * 5 + a),
         openDayId: id,
+        timeslotId,
         requirementId,
         personId: others[personIndex].id,
         displayName: `${others[personIndex].firstName} ${others[personIndex].lastName}`,
@@ -316,10 +318,13 @@ function openDaySeed(store: DemoStore): OpenDay[] {
       }));
       return {
         id: requirementId,
+        timeslotId,
         kind,
         requiredCount: kind === 'supervisor' ? 3 : 2,
         assignedCount: people.length,
-        eligibleRoleIds: [kind === 'supervisor' ? ID.supervisorRole : ID.traineeRole],
+        eligible: false,
+        canJoin: false,
+        eligibleRoleIds: [],
         assignments: people,
       };
     });
@@ -334,8 +339,18 @@ function openDaySeed(store: DemoStore): OpenDay[] {
       endsAt: daysFromNow(store, offsets[index], 20),
       internalNote: null,
       status: 'scheduled',
-      requirements,
-      myAssignment: null,
+      timeslots: [
+        {
+          id: timeslotId,
+          position: 0,
+          startsAt: daysFromNow(store, offsets[index], 16),
+          endsAt: daysFromNow(store, offsets[index], 20),
+          requirements,
+          myAssignment: null,
+        },
+      ],
+      seriesId: null,
+      detachedFromSeriesId: null,
       version: 1,
       createdAt: T,
       updatedAt: T,

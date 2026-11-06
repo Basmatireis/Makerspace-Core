@@ -20,9 +20,15 @@
  */
 import type { ScheduleCreate } from './scheduleCreate';
 import type { ScheduleRemoval } from './scheduleRemoval';
+import type { ScheduleSeriesCreate } from './scheduleSeriesCreate';
+import type { ScheduleSeriesRejoin } from './scheduleSeriesRejoin';
+import type { ScheduleSeriesUpdate } from './scheduleSeriesUpdate';
 import type { ScheduleUpdate } from './scheduleUpdate';
 import type { Version } from './version';
 
+/**
+ * One atomic delta of the schedule's working copy. A single-day update that changes timeslots or places takes the day out of its series. Overlapping scheduled open days are rejected.
+ */
 export interface SaveOpenDayScheduleRequest {
   expectedPeriodVersion: Version;
   /** @maxItems 366 */
@@ -31,4 +37,10 @@ export interface SaveOpenDayScheduleRequest {
   updates: ScheduleUpdate[];
   /** @maxItems 366 */
   removals: ScheduleRemoval[];
+  /** @maxItems 20 */
+  seriesCreates?: ScheduleSeriesCreate[];
+  /** @maxItems 20 */
+  seriesUpdates?: ScheduleSeriesUpdate[];
+  /** @maxItems 366 */
+  seriesRejoins?: ScheduleSeriesRejoin[];
 }

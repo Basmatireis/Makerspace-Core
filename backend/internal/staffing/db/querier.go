@@ -25,16 +25,18 @@ type Querier interface {
 	GetStaffingRulesForUpdate(ctx context.Context) (StaffingRule, error)
 	InsertStaffingRuleException(ctx context.Context, arg InsertStaffingRuleExceptionParams) error
 	ListExcusals(ctx context.Context, arg ListExcusalsParams) ([]ListExcusalsRow, error)
-	// Start of the last ended open day each person staffed in any semester.
+	// Start of the last ended timeslot each person staffed in any semester.
 	ListLastStaffed(ctx context.Context, arg ListLastStaffedParams) ([]ListLastStaffedRow, error)
-	// The next upcoming open day each person is assigned to, in any semester.
+	// The next upcoming timeslot each person is assigned to, in any semester.
 	ListNextAssignments(ctx context.Context, arg ListNextAssignmentsParams) ([]ListNextAssignmentsRow, error)
 	// The exceptions of each person's extra roles; only_person_id narrows it to one person.
 	ListPersonExceptions(ctx context.Context, onlyPersonID *uuid.UUID) ([]ListPersonExceptionsRow, error)
 	// Periods a semester can be resolved from: neither draft nor archived.
 	ListSemesterCandidates(ctx context.Context) ([]ListSemesterCandidatesRow, error)
-	// Open days per person in one period: ended (staffed), upcoming (booked) and ended as trainee. Cancelled open days
-	// do not count. A NULL period yields all zeros. person_id narrows the result to one person.
+	// Staffing per person in one period: ended (staffed), upcoming (booked) and ended as trainee. count_by 'timeslot'
+	// counts every timeslot held; 'open_day' counts every day with at least one, which has ended when the person's last
+	// timeslot of it has and counts as trainee when they held a trainee place in it. Cancelled open days do not count.
+	// person_id narrows the result to one person.
 	ListStaffingCounts(ctx context.Context, arg ListStaffingCountsParams) ([]ListStaffingCountsRow, error)
 	ListStaffingRuleExceptions(ctx context.Context) ([]ListStaffingRuleExceptionsRow, error)
 	UpdateStaffingRules(ctx context.Context, arg UpdateStaffingRulesParams) (StaffingRule, error)

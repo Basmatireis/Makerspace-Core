@@ -91,6 +91,14 @@ func (s *Service) assign(
 			"Assignments are open only for scheduled Open Days in staffing or published periods",
 		)
 	}
+	if _, err := q.GetPersonTimeslotAssignment(
+		ctx,
+		opendaysdb.GetPersonTimeslotAssignmentParams{TimeslotID: req.TimeslotID, PersonID: personID},
+	); err == nil {
+		return Assignment{}, apperror.Conflicting("already_in_timeslot", "The person already has a place in this timeslot")
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return Assignment{}, err
+	}
 	eligible, err := q.PersonEligibleForRequirement(
 		ctx,
 		opendaysdb.PersonEligibleForRequirementParams{PersonID: personID, RequirementID: requirementID},
@@ -118,6 +126,7 @@ func (s *Service) assign(
 		opendaysdb.CreateAssignmentParams{
 			ID:                 id,
 			OpenDayID:          openDayID,
+			TimeslotID:         req.TimeslotID,
 			RequirementID:      requirementID,
 			PersonID:           personID,
 			CreatedByAccountID: &actor,
@@ -130,7 +139,7 @@ func (s *Service) assign(
 		"requirementId",
 		"personId",
 	}, map[string]any{
-		"personId": personID.String(), "openDayId": openDayID.String(),
+		"personId": personID.String(), "openDayId": openDayID.String(), "timeslotId": req.TimeslotID.String(),
 	}); err != nil {
 		return Assignment{}, err
 	}
@@ -145,6 +154,7 @@ func (s *Service) assign(
 	return Assignment{
 		ID:            row.ID,
 		OpenDayID:     row.OpenDayID,
+		TimeslotID:    row.TimeslotID,
 		RequirementID: row.RequirementID,
 		PersonID:      row.PersonID,
 		DisplayName:   name,
@@ -153,21 +163,22 @@ func (s *Service) assign(
 	}, nil
 }
 
+// Leave removes the caller's own assignment in one timeslot of the open day.
 func (s *Service) Leave(
 	ctx context.Context,
 	p authorization.Principal,
-	openDayID uuid.UUID,
+	openDayID, timeslotID uuid.UUID,
 	requestID *uuid.UUID,
 ) error {
 	if !p.Has(authorization.OpenDaysSignup) {
 		return apperror.PermissionDenied
 	}
 	q := opendaysdb.New(s.pool)
-	assignment, err := q.GetPersonOpenDayAssignment(
+	assignment, err := q.GetPersonTimeslotAssignment(
 		ctx,
-		opendaysdb.GetPersonOpenDayAssignmentParams{OpenDayID: openDayID, PersonID: p.PersonID},
+		opendaysdb.GetPersonTimeslotAssignmentParams{TimeslotID: timeslotID, PersonID: p.PersonID},
 	)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && assignment.OpenDayID != openDayID) {
 		return apperror.NotFound
 	}
 	if err != nil {
@@ -235,6 +246,7 @@ func (s *Service) removeAssignment(
 	}
 	if err := writeAuditWithMetadata(ctx, tx, p, action, "open_day_assignment", assignmentID, requestID, nil, map[string]any{
 		"personId": assignment.PersonID.String(), "openDayId": openDayID.String(),
+		"timeslotId": assignment.TimeslotID.String(),
 	}); err != nil {
 		return err
 	}
@@ -244,7 +256,7 @@ func (s *Service) removeAssignment(
 		return err
 	}
 	if RequirementKind(requirement.Kind) == RequirementSupervisor {
-		if err := s.inbox.OpenDayPlaceFreed(ctx, tx, openDayID, assignment.PersonID, s.location); err != nil {
+		if err := s.inbox.OpenDayPlaceFreed(ctx, tx, assignment.TimeslotID, assignment.PersonID, s.location); err != nil {
 			return err
 		}
 	}

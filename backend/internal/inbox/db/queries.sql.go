@@ -332,31 +332,6 @@ func (q *Queries) GetNotificationMailAddress(ctx context.Context, arg GetNotific
 	return address, err
 }
 
-const getOpenDayFacts = `-- name: GetOpenDayFacts :one
-SELECT d.id, d.period_id, d.starts_at, d.status
-FROM open_days d
-WHERE d.id = $1
-`
-
-type GetOpenDayFactsRow struct {
-	ID       uuid.UUID
-	PeriodID uuid.UUID
-	StartsAt time.Time
-	Status   string
-}
-
-func (q *Queries) GetOpenDayFacts(ctx context.Context, id uuid.UUID) (GetOpenDayFactsRow, error) {
-	row := q.db.QueryRow(ctx, getOpenDayFacts, id)
-	var i GetOpenDayFactsRow
-	err := row.Scan(
-		&i.ID,
-		&i.PeriodID,
-		&i.StartsAt,
-		&i.Status,
-	)
-	return i, err
-}
-
 const getOpenDayPeriodFacts = `-- name: GetOpenDayPeriodFacts :one
 SELECT id, name, status FROM open_day_periods WHERE id = $1
 `
@@ -371,6 +346,34 @@ func (q *Queries) GetOpenDayPeriodFacts(ctx context.Context, id uuid.UUID) (GetO
 	row := q.db.QueryRow(ctx, getOpenDayPeriodFacts, id)
 	var i GetOpenDayPeriodFactsRow
 	err := row.Scan(&i.ID, &i.Name, &i.Status)
+	return i, err
+}
+
+const getOpenDayTimeslotFacts = `-- name: GetOpenDayTimeslotFacts :one
+SELECT d.id AS open_day_id, d.period_id, t.starts_at, t.ends_at, d.status
+FROM open_day_timeslots t
+JOIN open_days d ON d.id = t.open_day_id
+WHERE t.id = $1
+`
+
+type GetOpenDayTimeslotFactsRow struct {
+	OpenDayID uuid.UUID
+	PeriodID  uuid.UUID
+	StartsAt  time.Time
+	EndsAt    time.Time
+	Status    string
+}
+
+func (q *Queries) GetOpenDayTimeslotFacts(ctx context.Context, id uuid.UUID) (GetOpenDayTimeslotFactsRow, error) {
+	row := q.db.QueryRow(ctx, getOpenDayTimeslotFacts, id)
+	var i GetOpenDayTimeslotFactsRow
+	err := row.Scan(
+		&i.OpenDayID,
+		&i.PeriodID,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.Status,
+	)
 	return i, err
 }
 
@@ -1057,19 +1060,19 @@ WHERE a.status = 'enabled'
   AND a.person_id <> $1::uuid
   AND NOT EXISTS (
       SELECT 1 FROM open_day_assignments x
-      WHERE x.open_day_id = $2::uuid AND x.person_id = a.person_id
+      WHERE x.timeslot_id = $2::uuid AND x.person_id = a.person_id
   )
 ORDER BY a.id
 `
 
 type ListUnassignedSupervisorAccountIDsParams struct {
 	ExcludedPersonID uuid.UUID
-	OpenDayID        uuid.UUID
+	TimeslotID       uuid.UUID
 }
 
-// Active accounts of people with the supervisor membership who are not assigned to the open day.
+// Active accounts of people with the supervisor membership who hold no place in the timeslot.
 func (q *Queries) ListUnassignedSupervisorAccountIDs(ctx context.Context, arg ListUnassignedSupervisorAccountIDsParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listUnassignedSupervisorAccountIDs, arg.ExcludedPersonID, arg.OpenDayID)
+	rows, err := q.db.Query(ctx, listUnassignedSupervisorAccountIDs, arg.ExcludedPersonID, arg.TimeslotID)
 	if err != nil {
 		return nil, err
 	}

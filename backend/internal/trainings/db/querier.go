@@ -30,7 +30,8 @@ type Querier interface {
 	InsertTrainingProcess(ctx context.Context, arg InsertTrainingProcessParams) error
 	InsertTrainingRecord(ctx context.Context, arg InsertTrainingRecordParams) error
 	ListCompetencyCategories(ctx context.Context) ([]ListCompetencyCategoriesRow, error)
-	// The active competency categories the supervisors assigned to scheduled open days are trained for. Trainee places,
+	// The active competency categories the supervisors assigned to any timeslot of scheduled open days are trained for.
+	// Trainee places,
 	// inactive trainings and inactive categories do not count; trained and trainer count alike. IDs are passed as text so
 	// the query also runs in pgx's simple protocol mode.
 	ListOpenDayCompetencies(ctx context.Context, openDayIds []string) ([]ListOpenDayCompetenciesRow, error)

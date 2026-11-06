@@ -1,5 +1,6 @@
 import type { OpenDay, OpenDayPeriod } from '../../api/generated/models';
 import { APP_LOCALE, formatLongDate, formatTime } from '../../app/dateTime';
+import { dayRequirements } from './timeslots';
 
 function periodDate(value: string) {
   const date = new Date(`${value}T12:00:00Z`);
@@ -31,17 +32,17 @@ export function timeRange(day: Pick<OpenDay, 'startsAt' | 'endsAt'>, _timeZone: 
 }
 
 export function isFullyStaffed(day: OpenDay) {
-  return day.requirements.every((item) => item.assignedCount >= item.requiredCount);
+  return dayRequirements(day).every((item) => item.assignedCount >= item.requiredCount);
 }
 
-export function registeredPeopleCount(day: Pick<OpenDay, 'requirements'>) {
-  return day.requirements.reduce((total, requirement) => total + requirement.assignedCount, 0);
+export function registeredPeopleCount(day: Pick<OpenDay, 'timeslots'>) {
+  return dayRequirements(day).reduce((total, requirement) => total + requirement.assignedCount, 0);
 }
 
 export function staffingLabel(day: OpenDay) {
   if (day.status === 'cancelled') return 'Cancelled';
   if (isFullyStaffed(day)) return 'Fully staffed';
-  const missing = day.requirements
+  const missing = dayRequirements(day)
     .filter((item) => item.assignedCount < item.requiredCount)
     .map((item) => (item.kind === 'supervisor' ? 'supervisor' : 'trainee'));
   return `Needs ${missing.join(' and ')}`;

@@ -354,8 +354,8 @@ type Querier interface {
 	StatisticMachineJobCounts(ctx context.Context, arg StatisticMachineJobCountsParams) ([]StatisticMachineJobCountsRow, error)
 	StatisticMachineRuntime(ctx context.Context, arg StatisticMachineRuntimeParams) ([]StatisticMachineRuntimeRow, error)
 	StatisticMachineSummaries(ctx context.Context, arg StatisticMachineSummariesParams) ([]StatisticMachineSummariesRow, error)
-	// Seconds runs occupied each machine that is not retired, in the period and during its scheduled open days, plus
-	// the open-day seconds of the period. Runs of jobs and unassigned recorded runs; a running run counts until now.
+	// Seconds runs occupied each machine that is not retired, in the period and during the timeslots of scheduled open
+	// days, plus the open-day seconds of the period. Gaps between timeslots are not open-day time. Runs of jobs and unassigned recorded runs; a running run counts until now.
 	StatisticMachineUtilization(ctx context.Context, arg StatisticMachineUtilizationParams) ([]StatisticMachineUtilizationRow, error)
 	// Quantities are summed in the reference unit of the material type.
 	StatisticMaterialByMonth(ctx context.Context, arg StatisticMaterialByMonthParams) ([]StatisticMaterialByMonthRow, error)
