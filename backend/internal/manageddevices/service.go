@@ -39,7 +39,9 @@ type Device struct {
 	AllowedApplicationModes          []ApplicationMode
 	CheckInAssurance                 authorization.Assurance
 	CheckOutAssurance                authorization.Assurance
-	CheckoutMode                     CheckoutMode
+	AllowTapCheckout                 bool
+	OfferSurveysAtCheckout           bool
+	KioskResetSeconds                int32
 	Capabilities                     []string
 	Version                          int64
 	CreatedAt, UpdatedAt             time.Time
@@ -73,7 +75,9 @@ type DeviceContext struct {
 	KioskEnabled                        bool
 	AllowedApplicationModes             []ApplicationMode
 	CheckInAssurance, CheckOutAssurance authorization.Assurance
-	CheckoutMode                        CheckoutMode
+	AllowTapCheckout                    bool
+	OfferSurveysAtCheckout              bool
+	KioskResetSeconds                   int32
 }
 
 type DeviceSettings struct {
@@ -82,8 +86,13 @@ type DeviceSettings struct {
 	AllowedApplicationModes []ApplicationMode
 	CheckInAssurance        authorization.Assurance
 	CheckOutAssurance       authorization.Assurance
-	CheckoutMode            CheckoutMode
-	Capabilities            []string
+	// AllowTapCheckout adds check-out by tapping a name in the presence list. Checking out with PIN or password is
+	// always possible on a kiosk.
+	AllowTapCheckout       bool
+	OfferSurveysAtCheckout bool
+	// KioskResetSeconds is zero for "default" (60); otherwise 15..600.
+	KioskResetSeconds int32
+	Capabilities      []string
 }
 
 type SessionPolicy struct {
@@ -162,7 +171,9 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (*DeviceContext,
 		AllowedApplicationModes: optional.ConvertSlice[ApplicationMode](row.AllowedAppModes),
 		CheckInAssurance:        authorization.Assurance(row.CheckInAssurance),
 		CheckOutAssurance:       authorization.Assurance(row.CheckOutAssurance),
-		CheckoutMode:            CheckoutMode(row.CheckoutMode),
+		AllowTapCheckout:        row.AllowTapCheckout,
+		OfferSurveysAtCheckout:  row.OfferSurveysAtCheckout,
+		KioskResetSeconds:       row.KioskResetSeconds,
 	}, nil
 }
 
@@ -348,8 +359,8 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 	if settings.CheckOutAssurance == "" {
 		settings.CheckOutAssurance = authorization.AssuranceLow
 	}
-	if settings.CheckoutMode == "" {
-		settings.CheckoutMode = CheckoutVerified
+	if settings.KioskResetSeconds == 0 {
+		settings.KioskResetSeconds = DefaultKioskResetSeconds
 	}
 	validAssurance := func(v authorization.Assurance) bool {
 		return v == authorization.AssuranceLow || v == authorization.AssuranceNormal || v == authorization.AssuranceStrong ||
@@ -358,8 +369,8 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 	if !validAssurance(settings.CheckInAssurance) || !validAssurance(settings.CheckOutAssurance) {
 		return settings, apperror.InvalidField("attendance assurance is invalid")
 	}
-	if settings.CheckoutMode != CheckoutVerified && settings.CheckoutMode != CheckoutPublicTap {
-		return settings, apperror.InvalidField("checkoutMode is invalid")
+	if settings.KioskResetSeconds < MinKioskResetSeconds || settings.KioskResetSeconds > MaxKioskResetSeconds {
+		return settings, apperror.InvalidField("kioskResetSeconds must be between 15 and 600")
 	}
 	if err := validateCapabilities(settings.Capabilities); err != nil {
 		return settings, err

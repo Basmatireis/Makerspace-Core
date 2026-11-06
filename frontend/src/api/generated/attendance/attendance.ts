@@ -25,7 +25,10 @@ import type {
   GetAttendanceStatisticsParams,
   ListVisitsParams,
   PublicPresenceList,
+  PublicSurvey,
+  SubmitSurveyResponse,
   SupervisedCheckInRequest,
+  TerminalConsentRequest,
   TerminalContext,
   TerminalLabRules,
   TerminalPasswordCheckInRequest,
@@ -272,6 +275,179 @@ return apiFetch<Visit>(getTerminalPinCheckOutUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(attendancePinRequest)
+  }
+);}
+
+
+export const getTerminalAnswerConsentsUrl = () => {
+
+
+
+
+  return `/api/v1/terminal/consents`
+}
+
+/**
+ * Only for the person of an open visit that was checked in at this tablet, within 10 minutes of the check-in.
+ * The answers are stored with place `kiosk` and this tablet; every other case answers 404.
+ * @summary Store the consent answers a person gave on the tablet right after checking in
+ */
+export const terminalAnswerConsents = async (terminalConsentRequest: TerminalConsentRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getTerminalAnswerConsentsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(terminalConsentRequest)
+  }
+);}
+
+
+export const getTerminalSurveyOfferAnswerNowUrl = (token: string,) => {
+
+
+
+
+  return `/api/v1/terminal/survey-offers/${token}/answer-now`
+}
+
+/**
+ * @summary Read the offered survey to answer it on the tablet
+ */
+export const terminalSurveyOfferAnswerNow = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<PublicSurvey> => {
+
+  return apiFetch<PublicSurvey>(getTerminalSurveyOfferAnswerNowUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getTerminalSurveyOfferSubmitUrl = (token: string,) => {
+
+
+
+
+  return `/api/v1/terminal/survey-offers/${token}/responses`
+}
+
+/**
+ * Anonymous surveys store the response exactly like an anonymous invitation redemption (no person, no visit). Identified surveys link the response to the person. The offer is consumed and the post-visit invitation of that visit is cancelled.
+ * @summary Submit the answers to the offered survey
+ */
+export const terminalSurveyOfferSubmit = async (token: string,
+    submitSurveyResponse: SubmitSurveyResponse, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getTerminalSurveyOfferSubmitUrl(token),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(submitSurveyResponse)
+  }
+);}
+
+
+export const getTerminalSurveyOfferSendEmailUrl = (token: string,) => {
+
+
+
+
+  return `/api/v1/terminal/survey-offers/${token}/send-email`
+}
+
+/**
+ * Bypasses the trigger delay and works even when the person's Surveys & feedback consent is off (it is an explicit one-off request; the consent stays as it is). 422 `no_email` when the person has no e-mail address.
+ * @summary Send the survey invitation by e-mail right away
+ */
+export const terminalSurveyOfferSendEmail = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getTerminalSurveyOfferSendEmailUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getTerminalSurveyOfferDeclineUrl = (token: string,) => {
+
+
+
+
+  return `/api/v1/terminal/survey-offers/${token}/decline`
+}
+
+/**
+ * Consumes the offer and cancels the post-visit invitation of that visit. The survey's cooldown for this person started with the offer.
+ * @summary Decline the offered survey ("No thanks")
+ */
+export const terminalSurveyOfferDecline = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getTerminalSurveyOfferDeclineUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getTerminalSurveyOfferNeverUrl = (token: string,) => {
+
+
+
+
+  return `/api/v1/terminal/survey-offers/${token}/never`
+}
+
+/**
+ * Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit.
+ * @summary Decline and switch off feedback questions at check-out for this person
+ */
+export const terminalSurveyOfferNever = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getTerminalSurveyOfferNeverUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 

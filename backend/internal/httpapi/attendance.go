@@ -44,9 +44,8 @@ func (s *Server) GetTerminalContext(
 		return n.ForDevice(ctx, device.ID)
 	})
 	return openapi.GetTerminalContext200JSONResponse{Notices: notices, DeviceId: value.DeviceID, DeviceName: value.DeviceName,
-		CheckoutMode: openapi.CheckoutMode(
-			value.CheckoutMode,
-		), CheckInAssurance: openapi.AuthenticationAssurance(value.CheckInAssurance),
+		AllowTapCheckout: value.AllowTapCheckout, OfferSurveysAtCheckout: value.OfferSurveysAtCheckout,
+		KioskResetSeconds: int(value.KioskResetSeconds), CheckInAssurance: openapi.AuthenticationAssurance(value.CheckInAssurance),
 		CheckOutAssurance: openapi.AuthenticationAssurance(value.CheckOutAssurance), AuthenticationMethods: methods,
 		Capabilities: capabilities, StaffDestination: openapi.TerminalContextStaffDestination("login")}, nil
 }
@@ -78,6 +77,7 @@ func (s *Server) checkInDTO(ctx context.Context, deviceID uuid.UUID, value atten
 	visit.Notices = s.kioskNotices(ctx, func(n *notifyrules.Notices) ([]notifyrules.KioskNotice, error) {
 		return n.TakeForCheckIn(ctx, deviceID, value.PersonID)
 	})
+	s.consentForCheckIn(ctx, value.PersonID, &visit)
 	return visit
 }
 
@@ -396,5 +396,6 @@ func visitDTO(value attendance.Visit) openapi.Visit {
 		),
 		CorrectionReason: nullablePointer[string](value.CorrectionReason, func(v string) string { return v }),
 		Version:          value.Version,
+		SurveyOffer:      surveyOfferDTO(value.SurveyOffer),
 	}
 }

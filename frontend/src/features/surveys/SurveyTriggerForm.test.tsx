@@ -29,6 +29,7 @@ function surveyFixture(overrides: Partial<Survey> = {}): Survey {
       enabled: true,
       delaySeconds: 1800,
       cooldownDays: 30,
+      askAtTablet: false,
       version: 3,
     },
     responseCount: 0,

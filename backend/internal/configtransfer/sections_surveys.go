@@ -29,6 +29,7 @@ type surveyQuestionEntry struct {
 type surveyTriggerEntry struct {
 	DelaySeconds int32 `json:"delaySeconds"`
 	CooldownDays int32 `json:"cooldownDays"`
+	AskAtTablet  bool  `json:"askAtTablet,omitempty"`
 }
 
 type surveyEntry struct {
@@ -153,7 +154,7 @@ func loadSurveys(ctx context.Context, q *configtransferdb.Queries) ([]storedSurv
 		stored := storedSurvey{row: row, entry: entry}
 		if trigger, ok := triggerBySurvey[row.ID]; ok {
 			stored.trigger = &trigger
-			stored.entry.Trigger = &surveyTriggerEntry{DelaySeconds: trigger.DelaySeconds, CooldownDays: trigger.CooldownDays}
+			stored.entry.Trigger = &surveyTriggerEntry{DelaySeconds: trigger.DelaySeconds, CooldownDays: trigger.CooldownDays, AskAtTablet: trigger.AskAtTablet}
 		}
 		result = append(result, stored)
 	}
@@ -232,7 +233,7 @@ func applySurveys(r *run, items *[]surveyEntry) (func() error, error) {
 					return err
 				}
 				_, err = r.svc.Surveys.UpdateTriggerTx(
-					r.ctx, tx, r.p, id, false, item.Trigger.DelaySeconds, item.Trigger.CooldownDays, 0, r.requestID,
+					r.ctx, tx, r.p, id, false, item.Trigger.DelaySeconds, item.Trigger.CooldownDays, &item.Trigger.AskAtTablet, 0, r.requestID,
 				)
 				return err
 			})
@@ -293,8 +294,8 @@ func (r *run) updateSurvey(current storedSurvey, item surveyEntry) error {
 			enabled, expected = current.trigger.Enabled, current.trigger.Version
 		}
 		_, err := r.svc.Surveys.UpdateTriggerTx(
-			r.ctx, tx, r.p, current.row.ID, enabled, item.Trigger.DelaySeconds, item.Trigger.CooldownDays, expected,
-			r.requestID,
+			r.ctx, tx, r.p, current.row.ID, enabled, item.Trigger.DelaySeconds, item.Trigger.CooldownDays, &item.Trigger.AskAtTablet,
+			expected, r.requestID,
 		)
 		return err
 	})

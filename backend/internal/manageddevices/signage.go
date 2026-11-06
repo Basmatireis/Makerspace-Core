@@ -66,7 +66,7 @@ func CreateSignagePlayerDeviceTx(
 		AllowedAppModes: []string{
 			string(ModeSignagePlayer),
 		}, CheckInAssurance: string(authorization.AssuranceLow), CheckOutAssurance: string(authorization.AssuranceLow),
-		CheckoutMode: string(CheckoutVerified),
+		KioskResetSeconds: DefaultKioskResetSeconds,
 	})
 	if err != nil {
 		return uuid.Nil, databaseError(err)

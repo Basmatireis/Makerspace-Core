@@ -165,7 +165,7 @@ func Definitions() []privacy.Definition {
 			Description:    "Delivery identity of post-visit survey invitations: recipient address and the link to person and visit.",
 			Contains:       "Recipient e-mail, link to the person and the visit, invitation token",
 			ErasureOutcome: privacy.ErasureErased,
-			Fields:         []string{"survey_invitations.recipient_email", "survey_invitations.person_id", "survey_invitations.visit_id", "survey_invitations.token_digest"},
+			Fields:         []string{"survey_invitations.recipient_email", "survey_invitations.person_id", "survey_invitations.visit_id", "survey_invitations.token_digest", "survey_ask_cooldowns.person_id"},
 			Triggers:       []privacy.Trigger{privacy.TriggerExpiredAt},
 			Actions:        []privacy.Action{privacy.ActionUnlink, privacy.ActionDelete},
 			Subject:        privacy.SubjectPerson,

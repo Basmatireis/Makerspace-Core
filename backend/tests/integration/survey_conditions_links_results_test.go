@@ -225,7 +225,7 @@ func TestDeletingASurveyWithoutResponsesRemovesEverythingAndIsAudited(t *testing
 	person := seedAccount(t, e.pool, "survey-invitee", false)
 	survey := e.published(conditionalSurveyInput("Disposable", false))
 	e.link(survey, surveys.LinkInput{Active: true})
-	if _, err := e.svc.UpdateTrigger(ctx, e.master, survey.ID, true, 60, 1, 0, nil); err != nil {
+	if _, err := e.svc.UpdateTrigger(ctx, e.master, survey.ID, true, 60, 1, nil, 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	var versionID uuid.UUID
@@ -267,7 +267,7 @@ func TestReopenedSurveyAcceptsAnswersButKeepsTriggerAndCancelledInvitationsOff(t
 	person := seedAccount(t, e.pool, "survey-reopen", false)
 	survey := e.published(conditionalSurveyInput("Reopen", false))
 	link := e.link(survey, surveys.LinkInput{Active: true})
-	trigger, err := e.svc.UpdateTrigger(ctx, e.master, survey.ID, true, 60, 1, 0, nil)
+	trigger, err := e.svc.UpdateTrigger(ctx, e.master, survey.ID, true, 60, 1, nil, 0, nil)
 	if err != nil || !trigger.Enabled {
 		t.Fatalf("trigger: %+v, %v", trigger, err)
 	}

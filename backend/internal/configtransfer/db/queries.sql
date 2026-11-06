@@ -191,7 +191,7 @@ WHERE q.survey_version_id = ANY(sqlc.arg(version_ids)::uuid[])
 ORDER BY o.question_id, o.position;
 
 -- name: ListSurveyTriggers :many
-SELECT survey_id, enabled, delay_seconds, cooldown_days, version
+SELECT survey_id, enabled, delay_seconds, cooldown_days, ask_at_tablet, version
 FROM survey_triggers
 WHERE kind = 'visit_checked_out'
 ORDER BY survey_id;

@@ -11277,6 +11277,84 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/consents:
+    post:
+      tags: [Attendance]
+      operationId: terminalAnswerConsents
+      summary: Store the consent answers a person gave on the tablet right after checking in
+      description: |
+        Only for the person of an open visit that was checked in at this tablet, within 10 minutes of the check-in.
+        The answers are stored with place `kiosk` and this tablet; every other case answers 404.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalConsentRequest"}}}}
+      responses:
+        "204": {description: Answers stored.}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/survey-offers/{token}/answer-now:
+    parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
+    post:
+      tags: [Attendance]
+      operationId: terminalSurveyOfferAnswerNow
+      summary: Read the offered survey to answer it on the tablet
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "200": {description: The survey; the offer stays valid until the responses are submitted., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/PublicSurvey"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/survey-offers/{token}/responses:
+    parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
+    post:
+      tags: [Attendance]
+      operationId: terminalSurveyOfferSubmit
+      summary: Submit the answers to the offered survey
+      description: Anonymous surveys store the response exactly like an anonymous invitation redemption (no person, no visit). Identified surveys link the response to the person. The offer is consumed and the post-visit invitation of that visit is cancelled.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubmitSurveyResponse"}}}}
+      responses:
+        "204": {description: Response stored.}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "410": {description: The survey is no longer published., content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/survey-offers/{token}/send-email:
+    parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
+    post:
+      tags: [Attendance]
+      operationId: terminalSurveyOfferSendEmail
+      summary: Send the survey invitation by e-mail right away
+      description: Bypasses the trigger delay and works even when the person's Surveys & feedback consent is off (it is an explicit one-off request; the consent stays as it is). 422 `no_email` when the person has no e-mail address.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "204": {description: Invitation queued for immediate delivery; the offer is consumed.}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/survey-offers/{token}/decline:
+    parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
+    post:
+      tags: [Attendance]
+      operationId: terminalSurveyOfferDecline
+      summary: Decline the offered survey ("No thanks")
+      description: Consumes the offer and cancels the post-visit invitation of that visit. The survey's cooldown for this person started with the offer.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "204": {description: Offer declined.}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/survey-offers/{token}/never:
+    parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
+    post:
+      tags: [Attendance]
+      operationId: terminalSurveyOfferNever
+      summary: Decline and switch off feedback questions at check-out for this person
+      description: Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "204": {description: Offer declined and the question switched off.}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/presence/{visitId}/check-out:
     parameters: [{name: visitId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
     post:
@@ -16143,7 +16221,7 @@ components:
     ManagedDevice:
       type: object
       additionalProperties: false
-      required: [id, name, deviceTypeId, deviceTypeName, status, expiresAt, revokedAt, lastSeenAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, checkoutMode, capabilities, version, createdAt, updatedAt]
+      required: [id, name, deviceTypeId, deviceTypeName, status, expiresAt, revokedAt, lastSeenAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -16165,7 +16243,9 @@ components:
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
         checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
         checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkoutMode: {$ref: "#/components/schemas/CheckoutMode"}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         capabilities:
           type: array
           uniqueItems: true
@@ -16186,7 +16266,7 @@ components:
     CreateManagedDeviceRequest:
       type: object
       additionalProperties: false
-      required: [name, deviceTypeId, expiresAt, credentialDelivery, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, checkoutMode, capabilities]
+      required: [name, deviceTypeId, expiresAt, credentialDelivery, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
@@ -16204,12 +16284,14 @@ components:
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
         checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
         checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkoutMode: {$ref: "#/components/schemas/CheckoutMode"}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
     UpdateManagedDeviceRequest:
       type: object
       additionalProperties: false
-      required: [name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, checkoutMode, capabilities, expectedVersion]
+      required: [name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities, expectedVersion]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
@@ -16227,7 +16309,9 @@ components:
           items: {$ref: "#/components/schemas/DeviceApplicationMode"}
         checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
         checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        checkoutMode: {$ref: "#/components/schemas/CheckoutMode"}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
     RotateManagedDeviceTokenRequest:
       type: object
@@ -22038,9 +22122,6 @@ components:
     PostSessionDestination:
       type: string
       enum: [login, visitor_terminal]
-    CheckoutMode:
-      type: string
-      enum: [verified, public_tap]
     DeviceCapability:
       type: string
       enum: [nfc, camera, qr, barcode, scale, label_printer, file_upload]
@@ -22097,11 +22178,13 @@ components:
     TerminalContext:
       type: object
       additionalProperties: false
-      required: [deviceId, deviceName, checkoutMode, checkInAssurance, checkOutAssurance, authenticationMethods, capabilities, staffDestination]
+      required: [deviceId, deviceName, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, checkInAssurance, checkOutAssurance, authenticationMethods, capabilities, staffDestination]
       properties:
         deviceId: {$ref: "#/components/schemas/UUIDv7"}
         deviceName: {type: string}
-        checkoutMode: {$ref: "#/components/schemas/CheckoutMode"}
+        allowTapCheckout: {type: boolean, description: "Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible."}
+        offerSurveysAtCheckout: {type: boolean, description: "Offer the check-out survey on this tablet after a person checked out with PIN or password."}
+        kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
         checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
         authenticationMethods: {type: array, uniqueItems: true, items: {type: string, enum: [password, pin, oidc, nfc]}}
@@ -22204,6 +22287,54 @@ components:
           maxItems: 20
           items: {$ref: "#/components/schemas/KioskNotice"}
           description: Only the answer of a tablet check-in carries notices; they are for that person at that tablet and are returned once.
+        consentRequired:
+          type: boolean
+          description: Only the answer of a tablet check-in carries it. True when the person still has to answer consent categories; `consentCategories` lists them and the tablet posts the answers to `/terminal/consents`.
+        consentCategories:
+          type: array
+          maxItems: 50
+          items: {$ref: "#/components/schemas/TerminalConsentCategory"}
+        surveyOffer:
+          allOf: [{$ref: "#/components/schemas/TerminalSurveyOffer"}]
+          description: Only the answer of a tablet check-out with PIN or password carries an offer, and only when the tablet offers surveys, a published survey asks at the tablet, the person did not switch the question off and the survey's cooldown allows it.
+    TerminalConsentCategory:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, basis]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 80}
+        description: {type: string, maxLength: 600}
+        basis: {type: string, enum: [consent]}
+    TerminalConsentRequest:
+      type: object
+      additionalProperties: false
+      required: [visitId, answers]
+      properties:
+        visitId: {$ref: "#/components/schemas/UUIDv7"}
+        answers:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [categoryId, granted]
+            properties:
+              categoryId: {$ref: "#/components/schemas/UUIDv7"}
+              granted: {type: boolean}
+    TerminalSurveyOffer:
+      type: object
+      additionalProperties: false
+      required: [offerToken, surveyName, questionCount, anonymous, canAnswerNow, canSendByEmail, expiresAt]
+      properties:
+        offerToken: {type: string, minLength: 43, maxLength: 43, description: "Opaque, single use, valid for 15 minutes, only usable on the tablet that received it."}
+        surveyName: {type: string}
+        questionCount: {type: integer, minimum: 0}
+        anonymous: {type: boolean}
+        canAnswerNow: {type: boolean}
+        canSendByEmail: {type: boolean, description: "The person has an e-mail address. Sending works without their Surveys & feedback consent: it is a one-off request."}
+        expiresAt: {type: string, format: date-time}
     VisitList:
       type: object
       additionalProperties: false
@@ -22340,13 +22471,14 @@ components:
     SurveyTrigger:
       type: object
       additionalProperties: false
-      required: [id, kind, enabled, delaySeconds, cooldownDays, version]
+      required: [id, kind, enabled, delaySeconds, cooldownDays, askAtTablet, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         kind: {type: string, enum: [visit_checked_out]}
         enabled: {type: boolean}
         delaySeconds: {type: integer, minimum: 0, maximum: 604800}
         cooldownDays: {type: integer, minimum: 0, maximum: 3650}
+        askAtTablet: {type: boolean, description: "Also offer the survey on the entrance tablet after a check-out with PIN or password (tablets with the offer switched on only)."}
         version: {$ref: "#/components/schemas/Version"}
     SurveyTriggerInput:
       type: object
@@ -22356,6 +22488,7 @@ components:
         enabled: {type: boolean}
         delaySeconds: {type: integer, minimum: 0, maximum: 604800}
         cooldownDays: {type: integer, minimum: 0, maximum: 3650}
+        askAtTablet: {type: boolean, description: "Omitted keeps the stored value (false for a new trigger)."}
         expectedVersion: {type: integer, format: int64, minimum: 0}
     Survey:
       type: object

@@ -12,11 +12,13 @@ import (
 )
 
 type Querier interface {
+	CancelSurveyInvitationForVisitVersion(ctx context.Context, arg CancelSurveyInvitationForVisitVersionParams) (int64, error)
 	CancelSurveyInvitationsForSurvey(ctx context.Context, surveyID uuid.UUID) (int64, error)
 	CancelSurveyInvitationsForVisit(ctx context.Context, visitID *uuid.UUID) (int64, error)
 	ClaimDueSurveyInvitations(ctx context.Context, pageLimit int32) ([]ClaimDueSurveyInvitationsRow, error)
 	CloseSurvey(ctx context.Context, arg CloseSurveyParams) (Survey, error)
 	ConsumeSurveyInvitation(ctx context.Context, id uuid.UUID) (int64, error)
+	ConsumeSurveyOffer(ctx context.Context, id uuid.UUID) (int64, error)
 	CountFilteredSurveyResponses(ctx context.Context, arg CountFilteredSurveyResponsesParams) (int64, error)
 	CountSurveyShareLinkResponses(ctx context.Context, shareLinkID *uuid.UUID) (int64, error)
 	CountSurveyTextAnswers(ctx context.Context, arg CountSurveyTextAnswersParams) (int64, error)
@@ -24,6 +26,7 @@ type Querier interface {
 	CreateSurvey(ctx context.Context, arg CreateSurveyParams) (Survey, error)
 	CreateSurveyAnswer(ctx context.Context, arg CreateSurveyAnswerParams) error
 	CreateSurveyInvitation(ctx context.Context, arg CreateSurveyInvitationParams) (SurveyInvitation, error)
+	CreateSurveyOffer(ctx context.Context, arg CreateSurveyOfferParams) error
 	CreateSurveyOption(ctx context.Context, arg CreateSurveyOptionParams) (SurveyQuestionOption, error)
 	CreateSurveyQuestion(ctx context.Context, arg CreateSurveyQuestionParams) (SurveyQuestion, error)
 	CreateSurveyResponse(ctx context.Context, arg CreateSurveyResponseParams) (SurveyResponse, error)
@@ -31,23 +34,34 @@ type Querier interface {
 	CreateSurveyTrigger(ctx context.Context, arg CreateSurveyTriggerParams) (SurveyTrigger, error)
 	CreateSurveyVersion(ctx context.Context, arg CreateSurveyVersionParams) (SurveyVersion, error)
 	DeleteExpiredSurveyInvitationPII(ctx context.Context, beforeTime time.Time) (int64, error)
+	DeleteExpiredSurveyOffers(ctx context.Context) error
+	DeleteStaleSurveyAsks(ctx context.Context) error
 	DeleteSurvey(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteSurveyQuestions(ctx context.Context, surveyVersionID uuid.UUID) error
 	DeleteSurveyShareLink(ctx context.Context, arg DeleteSurveyShareLinkParams) (int64, error)
 	// Removes invitation rows whose delivery identity was already cleared and whose expiry lies before the cutoff.
 	DeleteUnlinkedExpiredInvitations(ctx context.Context, beforeTime time.Time) (int64, error)
+	DisableAskFeedbackAtCheckout(ctx context.Context, personID uuid.UUID) error
 	DisableSurveyTriggers(ctx context.Context, surveyID uuid.UUID) error
 	GetLatestSurveyVersionForUpdate(ctx context.Context, surveyID uuid.UUID) (SurveyVersion, error)
+	GetPersonAskFeedback(ctx context.Context, personID uuid.UUID) (bool, error)
 	GetPublicSurveyInvitation(ctx context.Context, tokenDigest []byte) (GetPublicSurveyInvitationRow, error)
 	GetPublicSurveyInvitationForUpdate(ctx context.Context, tokenDigest []byte) (GetPublicSurveyInvitationForUpdateRow, error)
 	GetSurvey(ctx context.Context, id uuid.UUID) (GetSurveyRow, error)
 	GetSurveyForUpdate(ctx context.Context, id uuid.UUID) (Survey, error)
 	GetSurveyInvitationCounts(ctx context.Context, surveyID uuid.UUID) (GetSurveyInvitationCountsRow, error)
+	// An offer that is still usable on this tablet; every other case reads as not found.
+	GetSurveyOffer(ctx context.Context, arg GetSurveyOfferParams) (GetSurveyOfferRow, error)
+	GetSurveyOfferForUpdate(ctx context.Context, arg GetSurveyOfferForUpdateParams) (GetSurveyOfferForUpdateRow, error)
 	GetSurveyResponseOverview(ctx context.Context, surveyID uuid.UUID) (GetSurveyResponseOverviewRow, error)
 	GetSurveyShareLink(ctx context.Context, arg GetSurveyShareLinkParams) (GetSurveyShareLinkRow, error)
 	GetSurveyShareLinkByDigest(ctx context.Context, tokenDigest []byte) (GetSurveyShareLinkByDigestRow, error)
 	GetSurveyTrigger(ctx context.Context, surveyID uuid.UUID) (SurveyTrigger, error)
+	GetVisitPersonForOffer(ctx context.Context, visitID uuid.UUID) (GetVisitPersonForOfferRow, error)
 	ListEligiblePostVisitTriggers(ctx context.Context, personID uuid.UUID) ([]ListEligiblePostVisitTriggersRow, error)
+	// Published surveys whose check-out trigger asks at the tablet and whose cooldown allows asking this person. The
+	// invitations of the visit being checked out do not count: they were created a moment ago.
+	ListOfferableSurveys(ctx context.Context, arg ListOfferableSurveysParams) ([]ListOfferableSurveysRow, error)
 	// Choice, rating and yes/no answers grouped by value; free text is listed separately and paged.
 	ListSurveyAnswerAggregates(ctx context.Context, arg ListSurveyAnswerAggregatesParams) ([]ListSurveyAnswerAggregatesRow, error)
 	ListSurveyAnswersForExport(ctx context.Context, arg ListSurveyAnswersForExportParams) ([]ListSurveyAnswersForExportRow, error)
@@ -68,14 +82,18 @@ type Querier interface {
 	MarkSurveyInvitationFailed(ctx context.Context, arg MarkSurveyInvitationFailedParams) error
 	MarkSurveyInvitationSent(ctx context.Context, id uuid.UUID) error
 	MarkSurveyVersionPublished(ctx context.Context, id uuid.UUID) error
+	// Keeps the automatic e-mail from racing the tablet's offer.
+	PostponeSurveyInvitationForVisit(ctx context.Context, arg PostponeSurveyInvitationForVisitParams) (int64, error)
 	PublishSurvey(ctx context.Context, arg PublishSurveyParams) (Survey, error)
 	ReopenSurvey(ctx context.Context, arg ReopenSurveyParams) (Survey, error)
+	SendSurveyInvitationNow(ctx context.Context, arg SendSurveyInvitationNowParams) (int64, error)
 	SurveyHasResponses(ctx context.Context, surveyID uuid.UUID) (bool, error)
 	// Whether the survey may still be edited (draft, or no responses yet) is decided by the service under the row lock.
 	UpdateSurveyDefinition(ctx context.Context, arg UpdateSurveyDefinitionParams) (Survey, error)
 	UpdateSurveyShareLink(ctx context.Context, arg UpdateSurveyShareLinkParams) (SurveyShareLink, error)
 	UpdateSurveyTrigger(ctx context.Context, arg UpdateSurveyTriggerParams) (SurveyTrigger, error)
 	UpdateSurveyVersionDefinition(ctx context.Context, arg UpdateSurveyVersionDefinitionParams) error
+	UpsertSurveyAsk(ctx context.Context, arg UpsertSurveyAskParams) error
 }
 
 var _ Querier = (*Queries)(nil)

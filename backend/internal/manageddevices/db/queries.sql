@@ -34,16 +34,19 @@ SELECT * FROM managed_devices WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: CreateManagedDevice :one
 INSERT INTO managed_devices (id, name, device_type_id, token_digest, expires_at, session_policy_id,
-  terminal_enabled, allowed_app_modes, check_in_assurance, check_out_assurance, checkout_mode)
+  terminal_enabled, allowed_app_modes, check_in_assurance, check_out_assurance, allow_tap_checkout,
+  offer_surveys_at_checkout, kiosk_reset_seconds)
 VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(device_type_id), sqlc.arg(token_digest), sqlc.narg(expires_at),
   sqlc.narg(session_policy_id), sqlc.arg(terminal_enabled), sqlc.arg(allowed_app_modes), sqlc.arg(check_in_assurance),
-  sqlc.arg(check_out_assurance), sqlc.arg(checkout_mode)) RETURNING *;
+  sqlc.arg(check_out_assurance), sqlc.arg(allow_tap_checkout), sqlc.arg(offer_surveys_at_checkout),
+  sqlc.arg(kiosk_reset_seconds)) RETURNING *;
 
 -- name: UpdateManagedDevice :one
 UPDATE managed_devices SET name = sqlc.arg(name), device_type_id = sqlc.arg(device_type_id),
   expires_at = sqlc.narg(expires_at), session_policy_id = sqlc.narg(session_policy_id),
   terminal_enabled = sqlc.arg(terminal_enabled), allowed_app_modes = sqlc.arg(allowed_app_modes), check_in_assurance = sqlc.arg(check_in_assurance),
-  check_out_assurance = sqlc.arg(check_out_assurance), checkout_mode = sqlc.arg(checkout_mode),
+  check_out_assurance = sqlc.arg(check_out_assurance), allow_tap_checkout = sqlc.arg(allow_tap_checkout),
+  offer_surveys_at_checkout = sqlc.arg(offer_surveys_at_checkout), kiosk_reset_seconds = sqlc.arg(kiosk_reset_seconds),
   version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) RETURNING *;
 
@@ -62,7 +65,8 @@ DELETE FROM managed_devices WHERE id = sqlc.arg(id) AND version = sqlc.arg(expec
 
 -- name: GetValidManagedDeviceByDigest :one
 SELECT md.id, md.name, md.device_type_id, dt.name AS device_type_name, md.expires_at,
-       md.session_policy_id, md.terminal_enabled, md.allowed_app_modes, md.check_in_assurance, md.check_out_assurance, md.checkout_mode
+       md.session_policy_id, md.terminal_enabled, md.allowed_app_modes, md.check_in_assurance, md.check_out_assurance,
+       md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds
 FROM managed_devices md JOIN device_types dt ON dt.id = md.device_type_id
 WHERE md.token_digest = sqlc.arg(token_digest) AND md.revoked_at IS NULL
   AND (md.expires_at IS NULL OR md.expires_at > now());

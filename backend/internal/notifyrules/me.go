@@ -317,3 +317,17 @@ func reachReasons(
 	}
 	return reasons
 }
+
+// PendingConsents lists the consent categories a person has not answered at the category's current text. The entrance
+// tablet shows them right after a check-in.
+func (s *Service) PendingConsents(ctx context.Context, personID uuid.UUID) ([]Category, error) {
+	rows, err := notifyrulesdb.New(s.pool).ListPendingConsentCategories(ctx, personID)
+	if err != nil {
+		return nil, fmt.Errorf("list pending consents: %w", err)
+	}
+	items := make([]Category, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, categoryFromRow(notifyrulesdb.GetCategoryRow(row)))
+	}
+	return items, nil
+}

@@ -227,7 +227,7 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		nil,
 		manageddevices.DeviceSettings{
 			SessionPolicyID: &policyID, KioskEnabled: true, AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
-			CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified", Capabilities: []string{"nfc"},
+			CheckInAssurance: "low", CheckOutAssurance: "low", KioskResetSeconds: 60, Capabilities: []string{"nfc"},
 		},
 		nil,
 	)
@@ -245,7 +245,7 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 			AllowedApplicationModes: []manageddevices.ApplicationMode{"staff_ui"},
 			CheckInAssurance:        "low",
 			CheckOutAssurance:       "low",
-			CheckoutMode:            "verified",
+			KioskResetSeconds:       60,
 		},
 		nil,
 	)

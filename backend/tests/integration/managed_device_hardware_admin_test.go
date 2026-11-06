@@ -31,7 +31,7 @@ func TestAdministratorReadsConfiguredReportedAndEffectiveDeviceCapabilities(t *t
 		manageddevices.DeviceSettings{
 			SessionPolicyID: &policyID, KioskEnabled: true,
 			AllowedApplicationModes: []manageddevices.ApplicationMode{"visitor_terminal"},
-			CheckInAssurance:        "low", CheckOutAssurance: "low", CheckoutMode: "verified",
+			CheckInAssurance:        "low", CheckOutAssurance: "low", KioskResetSeconds: 60,
 			Capabilities: []string{"nfc", "camera", "file_upload"},
 		},
 		nil,

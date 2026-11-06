@@ -206,7 +206,8 @@ func (s *Server) CreateManagedDevice(
 			CheckInAssurance: authorization.Assurance(
 				r.Body.CheckInAssurance,
 			), CheckOutAssurance: authorization.Assurance(r.Body.CheckOutAssurance),
-			CheckoutMode: manageddevices.CheckoutMode(r.Body.CheckoutMode), Capabilities: capabilities,
+			AllowTapCheckout: r.Body.AllowTapCheckout, OfferSurveysAtCheckout: r.Body.OfferSurveysAtCheckout,
+			KioskResetSeconds: int32(r.Body.KioskResetSeconds), Capabilities: capabilities,
 		},
 		requestIDPointer(ctx),
 	)
@@ -248,7 +249,8 @@ func (s *Server) UpdateManagedDevice(
 			CheckInAssurance: authorization.Assurance(
 				r.Body.CheckInAssurance,
 			), CheckOutAssurance: authorization.Assurance(r.Body.CheckOutAssurance),
-			CheckoutMode: manageddevices.CheckoutMode(r.Body.CheckoutMode), Capabilities: capabilities,
+			AllowTapCheckout: r.Body.AllowTapCheckout, OfferSurveysAtCheckout: r.Body.OfferSurveysAtCheckout,
+			KioskResetSeconds: int32(r.Body.KioskResetSeconds), Capabilities: capabilities,
 		},
 		r.Body.ExpectedVersion,
 		requestIDPointer(ctx),
@@ -430,13 +432,13 @@ func managedDeviceDTO(v manageddevices.Device) openapi.ManagedDevice {
 		AllowedApplicationModes: applicationModes(v.AllowedApplicationModes),
 		CheckInAssurance:        openapi.AuthenticationAssurance(v.CheckInAssurance),
 		CheckOutAssurance:       openapi.AuthenticationAssurance(v.CheckOutAssurance),
-		CheckoutMode: openapi.CheckoutMode(
-			v.CheckoutMode,
-		),
-		Capabilities: capabilities,
-		Version:      v.Version,
-		CreatedAt:    v.CreatedAt,
-		UpdatedAt:    v.UpdatedAt,
+		AllowTapCheckout:        v.AllowTapCheckout,
+		OfferSurveysAtCheckout:  v.OfferSurveysAtCheckout,
+		KioskResetSeconds:       int(v.KioskResetSeconds),
+		Capabilities:            capabilities,
+		Version:                 v.Version,
+		CreatedAt:               v.CreatedAt,
+		UpdatedAt:               v.UpdatedAt,
 	}
 }
 

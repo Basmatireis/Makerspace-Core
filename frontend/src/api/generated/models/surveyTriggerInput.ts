@@ -31,6 +31,8 @@ export interface SurveyTriggerInput {
      * @maximum 3650
      */
   cooldownDays: number;
+  /** Omitted keeps the stored value (false for a new trigger). */
+  askAtTablet?: boolean;
   /** @minimum 0 */
   expectedVersion: number;
 }

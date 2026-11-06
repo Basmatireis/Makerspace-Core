@@ -99,24 +99,28 @@ func (q *Queries) CreateDeviceType(ctx context.Context, arg CreateDeviceTypePara
 
 const createManagedDevice = `-- name: CreateManagedDevice :one
 INSERT INTO managed_devices (id, name, device_type_id, token_digest, expires_at, session_policy_id,
-  terminal_enabled, allowed_app_modes, check_in_assurance, check_out_assurance, checkout_mode)
+  terminal_enabled, allowed_app_modes, check_in_assurance, check_out_assurance, allow_tap_checkout,
+  offer_surveys_at_checkout, kiosk_reset_seconds)
 VALUES ($1, $2, $3, $4, $5,
   $6, $7, $8, $9,
-  $10, $11) RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, checkout_mode, allowed_app_modes
+  $10, $11, $12,
+  $13) RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds
 `
 
 type CreateManagedDeviceParams struct {
-	ID                uuid.UUID
-	Name              string
-	DeviceTypeID      uuid.UUID
-	TokenDigest       []byte
-	ExpiresAt         pgtype.Timestamptz
-	SessionPolicyID   *uuid.UUID
-	TerminalEnabled   bool
-	AllowedAppModes   []string
-	CheckInAssurance  string
-	CheckOutAssurance string
-	CheckoutMode      string
+	ID                     uuid.UUID
+	Name                   string
+	DeviceTypeID           uuid.UUID
+	TokenDigest            []byte
+	ExpiresAt              pgtype.Timestamptz
+	SessionPolicyID        *uuid.UUID
+	TerminalEnabled        bool
+	AllowedAppModes        []string
+	CheckInAssurance       string
+	CheckOutAssurance      string
+	AllowTapCheckout       bool
+	OfferSurveysAtCheckout bool
+	KioskResetSeconds      int32
 }
 
 func (q *Queries) CreateManagedDevice(ctx context.Context, arg CreateManagedDeviceParams) (ManagedDevice, error) {
@@ -131,7 +135,9 @@ func (q *Queries) CreateManagedDevice(ctx context.Context, arg CreateManagedDevi
 		arg.AllowedAppModes,
 		arg.CheckInAssurance,
 		arg.CheckOutAssurance,
-		arg.CheckoutMode,
+		arg.AllowTapCheckout,
+		arg.OfferSurveysAtCheckout,
+		arg.KioskResetSeconds,
 	)
 	var i ManagedDevice
 	err := row.Scan(
@@ -149,8 +155,10 @@ func (q *Queries) CreateManagedDevice(ctx context.Context, arg CreateManagedDevi
 		&i.TerminalEnabled,
 		&i.CheckInAssurance,
 		&i.CheckOutAssurance,
-		&i.CheckoutMode,
 		&i.AllowedAppModes,
+		&i.AllowTapCheckout,
+		&i.OfferSurveysAtCheckout,
+		&i.KioskResetSeconds,
 	)
 	return i, err
 }
@@ -320,29 +328,31 @@ func (q *Queries) GetDeviceTypeForMutation(ctx context.Context, id uuid.UUID) (D
 }
 
 const getManagedDevice = `-- name: GetManagedDevice :one
-SELECT md.id, md.name, md.device_type_id, md.token_digest, md.expires_at, md.revoked_at, md.last_seen_at, md.version, md.created_at, md.updated_at, md.session_policy_id, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance, md.checkout_mode, md.allowed_app_modes, dt.name AS device_type_name
+SELECT md.id, md.name, md.device_type_id, md.token_digest, md.expires_at, md.revoked_at, md.last_seen_at, md.version, md.created_at, md.updated_at, md.session_policy_id, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance, md.allowed_app_modes, md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, dt.name AS device_type_name
 FROM managed_devices md JOIN device_types dt ON dt.id = md.device_type_id
 WHERE md.id = $1
 `
 
 type GetManagedDeviceRow struct {
-	ID                uuid.UUID
-	Name              string
-	DeviceTypeID      uuid.UUID
-	TokenDigest       []byte
-	ExpiresAt         pgtype.Timestamptz
-	RevokedAt         pgtype.Timestamptz
-	LastSeenAt        pgtype.Timestamptz
-	Version           int64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	SessionPolicyID   *uuid.UUID
-	TerminalEnabled   bool
-	CheckInAssurance  string
-	CheckOutAssurance string
-	CheckoutMode      string
-	AllowedAppModes   []string
-	DeviceTypeName    string
+	ID                     uuid.UUID
+	Name                   string
+	DeviceTypeID           uuid.UUID
+	TokenDigest            []byte
+	ExpiresAt              pgtype.Timestamptz
+	RevokedAt              pgtype.Timestamptz
+	LastSeenAt             pgtype.Timestamptz
+	Version                int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	SessionPolicyID        *uuid.UUID
+	TerminalEnabled        bool
+	CheckInAssurance       string
+	CheckOutAssurance      string
+	AllowedAppModes        []string
+	AllowTapCheckout       bool
+	OfferSurveysAtCheckout bool
+	KioskResetSeconds      int32
+	DeviceTypeName         string
 }
 
 func (q *Queries) GetManagedDevice(ctx context.Context, id uuid.UUID) (GetManagedDeviceRow, error) {
@@ -363,15 +373,17 @@ func (q *Queries) GetManagedDevice(ctx context.Context, id uuid.UUID) (GetManage
 		&i.TerminalEnabled,
 		&i.CheckInAssurance,
 		&i.CheckOutAssurance,
-		&i.CheckoutMode,
 		&i.AllowedAppModes,
+		&i.AllowTapCheckout,
+		&i.OfferSurveysAtCheckout,
+		&i.KioskResetSeconds,
 		&i.DeviceTypeName,
 	)
 	return i, err
 }
 
 const getManagedDeviceForMutation = `-- name: GetManagedDeviceForMutation :one
-SELECT id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, checkout_mode, allowed_app_modes FROM managed_devices WHERE id = $1 FOR UPDATE
+SELECT id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds FROM managed_devices WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetManagedDeviceForMutation(ctx context.Context, id uuid.UUID) (ManagedDevice, error) {
@@ -392,8 +404,10 @@ func (q *Queries) GetManagedDeviceForMutation(ctx context.Context, id uuid.UUID)
 		&i.TerminalEnabled,
 		&i.CheckInAssurance,
 		&i.CheckOutAssurance,
-		&i.CheckoutMode,
 		&i.AllowedAppModes,
+		&i.AllowTapCheckout,
+		&i.OfferSurveysAtCheckout,
+		&i.KioskResetSeconds,
 	)
 	return i, err
 }
@@ -440,24 +454,27 @@ func (q *Queries) GetSessionPolicy(ctx context.Context, id uuid.UUID) (SessionPo
 
 const getValidManagedDeviceByDigest = `-- name: GetValidManagedDeviceByDigest :one
 SELECT md.id, md.name, md.device_type_id, dt.name AS device_type_name, md.expires_at,
-       md.session_policy_id, md.terminal_enabled, md.allowed_app_modes, md.check_in_assurance, md.check_out_assurance, md.checkout_mode
+       md.session_policy_id, md.terminal_enabled, md.allowed_app_modes, md.check_in_assurance, md.check_out_assurance,
+       md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds
 FROM managed_devices md JOIN device_types dt ON dt.id = md.device_type_id
 WHERE md.token_digest = $1 AND md.revoked_at IS NULL
   AND (md.expires_at IS NULL OR md.expires_at > now())
 `
 
 type GetValidManagedDeviceByDigestRow struct {
-	ID                uuid.UUID
-	Name              string
-	DeviceTypeID      uuid.UUID
-	DeviceTypeName    string
-	ExpiresAt         pgtype.Timestamptz
-	SessionPolicyID   *uuid.UUID
-	TerminalEnabled   bool
-	AllowedAppModes   []string
-	CheckInAssurance  string
-	CheckOutAssurance string
-	CheckoutMode      string
+	ID                     uuid.UUID
+	Name                   string
+	DeviceTypeID           uuid.UUID
+	DeviceTypeName         string
+	ExpiresAt              pgtype.Timestamptz
+	SessionPolicyID        *uuid.UUID
+	TerminalEnabled        bool
+	AllowedAppModes        []string
+	CheckInAssurance       string
+	CheckOutAssurance      string
+	AllowTapCheckout       bool
+	OfferSurveysAtCheckout bool
+	KioskResetSeconds      int32
 }
 
 func (q *Queries) GetValidManagedDeviceByDigest(ctx context.Context, tokenDigest []byte) (GetValidManagedDeviceByDigestRow, error) {
@@ -474,7 +491,9 @@ func (q *Queries) GetValidManagedDeviceByDigest(ctx context.Context, tokenDigest
 		&i.AllowedAppModes,
 		&i.CheckInAssurance,
 		&i.CheckOutAssurance,
-		&i.CheckoutMode,
+		&i.AllowTapCheckout,
+		&i.OfferSurveysAtCheckout,
+		&i.KioskResetSeconds,
 	)
 	return i, err
 }
@@ -537,29 +556,31 @@ func (q *Queries) ListDeviceTypes(ctx context.Context) ([]DeviceType, error) {
 }
 
 const listManagedDevices = `-- name: ListManagedDevices :many
-SELECT md.id, md.name, md.device_type_id, md.token_digest, md.expires_at, md.revoked_at, md.last_seen_at, md.version, md.created_at, md.updated_at, md.session_policy_id, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance, md.checkout_mode, md.allowed_app_modes, dt.name AS device_type_name
+SELECT md.id, md.name, md.device_type_id, md.token_digest, md.expires_at, md.revoked_at, md.last_seen_at, md.version, md.created_at, md.updated_at, md.session_policy_id, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance, md.allowed_app_modes, md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, dt.name AS device_type_name
 FROM managed_devices md JOIN device_types dt ON dt.id = md.device_type_id
 ORDER BY lower(md.name), md.id
 `
 
 type ListManagedDevicesRow struct {
-	ID                uuid.UUID
-	Name              string
-	DeviceTypeID      uuid.UUID
-	TokenDigest       []byte
-	ExpiresAt         pgtype.Timestamptz
-	RevokedAt         pgtype.Timestamptz
-	LastSeenAt        pgtype.Timestamptz
-	Version           int64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	SessionPolicyID   *uuid.UUID
-	TerminalEnabled   bool
-	CheckInAssurance  string
-	CheckOutAssurance string
-	CheckoutMode      string
-	AllowedAppModes   []string
-	DeviceTypeName    string
+	ID                     uuid.UUID
+	Name                   string
+	DeviceTypeID           uuid.UUID
+	TokenDigest            []byte
+	ExpiresAt              pgtype.Timestamptz
+	RevokedAt              pgtype.Timestamptz
+	LastSeenAt             pgtype.Timestamptz
+	Version                int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	SessionPolicyID        *uuid.UUID
+	TerminalEnabled        bool
+	CheckInAssurance       string
+	CheckOutAssurance      string
+	AllowedAppModes        []string
+	AllowTapCheckout       bool
+	OfferSurveysAtCheckout bool
+	KioskResetSeconds      int32
+	DeviceTypeName         string
 }
 
 func (q *Queries) ListManagedDevices(ctx context.Context) ([]ListManagedDevicesRow, error) {
@@ -586,8 +607,10 @@ func (q *Queries) ListManagedDevices(ctx context.Context) ([]ListManagedDevicesR
 			&i.TerminalEnabled,
 			&i.CheckInAssurance,
 			&i.CheckOutAssurance,
-			&i.CheckoutMode,
 			&i.AllowedAppModes,
+			&i.AllowTapCheckout,
+			&i.OfferSurveysAtCheckout,
+			&i.KioskResetSeconds,
 			&i.DeviceTypeName,
 		); err != nil {
 			return nil, err
@@ -663,7 +686,7 @@ func (q *Queries) ListSessionPolicies(ctx context.Context) ([]SessionPolicy, err
 
 const revokeManagedDevice = `-- name: RevokeManagedDevice :one
 UPDATE managed_devices SET revoked_at = now(), version = version + 1, updated_at = now()
-WHERE id = $1 AND version = $2 AND revoked_at IS NULL RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, checkout_mode, allowed_app_modes
+WHERE id = $1 AND version = $2 AND revoked_at IS NULL RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds
 `
 
 type RevokeManagedDeviceParams struct {
@@ -689,8 +712,10 @@ func (q *Queries) RevokeManagedDevice(ctx context.Context, arg RevokeManagedDevi
 		&i.TerminalEnabled,
 		&i.CheckInAssurance,
 		&i.CheckOutAssurance,
-		&i.CheckoutMode,
 		&i.AllowedAppModes,
+		&i.AllowTapCheckout,
+		&i.OfferSurveysAtCheckout,
+		&i.KioskResetSeconds,
 	)
 	return i, err
 }
@@ -720,7 +745,7 @@ func (q *Queries) RevokeSessionsForPolicy(ctx context.Context, sessionPolicyID *
 const rotateManagedDeviceToken = `-- name: RotateManagedDeviceToken :one
 UPDATE managed_devices SET token_digest = $1, expires_at = $2,
   version = version + 1, updated_at = now()
-WHERE id = $3 AND version = $4 AND revoked_at IS NULL RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, checkout_mode, allowed_app_modes
+WHERE id = $3 AND version = $4 AND revoked_at IS NULL RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds
 `
 
 type RotateManagedDeviceTokenParams struct {
@@ -753,8 +778,10 @@ func (q *Queries) RotateManagedDeviceToken(ctx context.Context, arg RotateManage
 		&i.TerminalEnabled,
 		&i.CheckInAssurance,
 		&i.CheckOutAssurance,
-		&i.CheckoutMode,
 		&i.AllowedAppModes,
+		&i.AllowTapCheckout,
+		&i.OfferSurveysAtCheckout,
+		&i.KioskResetSeconds,
 	)
 	return i, err
 }
@@ -823,23 +850,26 @@ const updateManagedDevice = `-- name: UpdateManagedDevice :one
 UPDATE managed_devices SET name = $1, device_type_id = $2,
   expires_at = $3, session_policy_id = $4,
   terminal_enabled = $5, allowed_app_modes = $6, check_in_assurance = $7,
-  check_out_assurance = $8, checkout_mode = $9,
+  check_out_assurance = $8, allow_tap_checkout = $9,
+  offer_surveys_at_checkout = $10, kiosk_reset_seconds = $11,
   version = version + 1, updated_at = now()
-WHERE id = $10 AND version = $11 RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, checkout_mode, allowed_app_modes
+WHERE id = $12 AND version = $13 RETURNING id, name, device_type_id, token_digest, expires_at, revoked_at, last_seen_at, version, created_at, updated_at, session_policy_id, terminal_enabled, check_in_assurance, check_out_assurance, allowed_app_modes, allow_tap_checkout, offer_surveys_at_checkout, kiosk_reset_seconds
 `
 
 type UpdateManagedDeviceParams struct {
-	Name              string
-	DeviceTypeID      uuid.UUID
-	ExpiresAt         pgtype.Timestamptz
-	SessionPolicyID   *uuid.UUID
-	TerminalEnabled   bool
-	AllowedAppModes   []string
-	CheckInAssurance  string
-	CheckOutAssurance string
-	CheckoutMode      string
-	ID                uuid.UUID
-	ExpectedVersion   int64
+	Name                   string
+	DeviceTypeID           uuid.UUID
+	ExpiresAt              pgtype.Timestamptz
+	SessionPolicyID        *uuid.UUID
+	TerminalEnabled        bool
+	AllowedAppModes        []string
+	CheckInAssurance       string
+	CheckOutAssurance      string
+	AllowTapCheckout       bool
+	OfferSurveysAtCheckout bool
+	KioskResetSeconds      int32
+	ID                     uuid.UUID
+	ExpectedVersion        int64
 }
 
 func (q *Queries) UpdateManagedDevice(ctx context.Context, arg UpdateManagedDeviceParams) (ManagedDevice, error) {
@@ -852,7 +882,9 @@ func (q *Queries) UpdateManagedDevice(ctx context.Context, arg UpdateManagedDevi
 		arg.AllowedAppModes,
 		arg.CheckInAssurance,
 		arg.CheckOutAssurance,
-		arg.CheckoutMode,
+		arg.AllowTapCheckout,
+		arg.OfferSurveysAtCheckout,
+		arg.KioskResetSeconds,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -872,8 +904,10 @@ func (q *Queries) UpdateManagedDevice(ctx context.Context, arg UpdateManagedDevi
 		&i.TerminalEnabled,
 		&i.CheckInAssurance,
 		&i.CheckOutAssurance,
-		&i.CheckoutMode,
 		&i.AllowedAppModes,
+		&i.AllowTapCheckout,
+		&i.OfferSurveysAtCheckout,
+		&i.KioskResetSeconds,
 	)
 	return i, err
 }

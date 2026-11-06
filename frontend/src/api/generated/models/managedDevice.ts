@@ -19,7 +19,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AuthenticationAssurance } from './authenticationAssurance';
-import type { CheckoutMode } from './checkoutMode';
 import type { DeviceApplicationMode } from './deviceApplicationMode';
 import type { DeviceCapability } from './deviceCapability';
 import type { ManagedDeviceStatus } from './managedDeviceStatus';
@@ -55,7 +54,16 @@ export interface ManagedDevice {
   allowedApplicationModes: DeviceApplicationMode[];
   checkInAssurance: AuthenticationAssurance;
   checkOutAssurance: AuthenticationAssurance;
-  checkoutMode: CheckoutMode;
+  /** Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible. */
+  allowTapCheckout: boolean;
+  /** Offer the check-out survey on this tablet after a person checked out with PIN or password. */
+  offerSurveysAtCheckout: boolean;
+  /**
+     * Seconds of inactivity after which the tablet returns to its start screen.
+     * @minimum 15
+     * @maximum 600
+     */
+  kioskResetSeconds: number;
   capabilities: DeviceCapability[];
   version: Version;
   createdAt: string;

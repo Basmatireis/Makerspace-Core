@@ -11,13 +11,15 @@ const visitId = '0192f6f8-743e-7c77-a349-cd07c3e8a941';
 
 const personId = '0192f6f8-743e-7c77-a349-cd07c3e8a942';
 
-function mockKiosk(checkoutMode: 'public_tap' | 'authenticated', presence: object) {
+function mockKiosk(mode: 'public_tap' | 'authenticated', presence: object) {
   server.use(
     http.get('*/api/v1/terminal/context', () =>
       HttpResponse.json({
         deviceId: '0192f6f8-743e-7c77-a349-cd07c3e8a940',
         deviceName: 'Entrance',
-        checkoutMode,
+        allowTapCheckout: mode === 'public_tap',
+        offerSurveysAtCheckout: false,
+        kioskResetSeconds: 60,
         checkInAssurance: 'low',
         checkOutAssurance: 'low',
         authenticationMethods: ['password', 'pin'],

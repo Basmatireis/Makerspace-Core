@@ -133,13 +133,14 @@ WHERE si.survey_version_id = sv.id AND sv.survey_id = sqlc.arg(survey_id)
 SELECT * FROM survey_triggers WHERE survey_id = sqlc.arg(survey_id) AND kind = 'visit_checked_out';
 
 -- name: CreateSurveyTrigger :one
-INSERT INTO survey_triggers (id, survey_id, kind, enabled, delay_seconds, cooldown_days)
+INSERT INTO survey_triggers (id, survey_id, kind, enabled, delay_seconds, cooldown_days, ask_at_tablet)
 VALUES (sqlc.arg(id), sqlc.arg(survey_id), 'visit_checked_out', sqlc.arg(enabled),
-  sqlc.arg(delay_seconds), sqlc.arg(cooldown_days)) RETURNING *;
+  sqlc.arg(delay_seconds), sqlc.arg(cooldown_days), sqlc.arg(ask_at_tablet)) RETURNING *;
 
 -- name: UpdateSurveyTrigger :one
 UPDATE survey_triggers SET enabled = sqlc.arg(enabled), delay_seconds = sqlc.arg(delay_seconds),
-  cooldown_days = sqlc.arg(cooldown_days), version = version + 1, updated_at = now()
+  cooldown_days = sqlc.arg(cooldown_days), ask_at_tablet = COALESCE(sqlc.narg(ask_at_tablet), ask_at_tablet), version = version + 1,
+  updated_at = now()
 WHERE survey_id = sqlc.arg(survey_id) AND kind = 'visit_checked_out'
   AND version = sqlc.arg(expected_version) RETURNING *;
 
@@ -157,6 +158,19 @@ WHERE st.kind = 'visit_checked_out' AND st.enabled
     SELECT 1 FROM survey_invitations si JOIN survey_versions previous ON previous.id = si.survey_version_id
     WHERE previous.survey_id = s.id AND si.person_id = sqlc.arg(person_id)
       AND si.created_at > now() - make_interval(days => st.cooldown_days)
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM survey_ask_cooldowns a
+    WHERE a.survey_id = s.id AND a.person_id = sqlc.arg(person_id)
+      AND a.asked_at > now() - make_interval(days => st.cooldown_days)
+  )
+  -- The automatic invitation is e-mail the person must have agreed to (Surveys & feedback).
+  AND NOT EXISTS (
+    SELECT 1 FROM notification_categories c
+    WHERE c.key = 'surveys' AND c.basis = 'consent'
+      AND NOT EXISTS (
+        SELECT 1 FROM notification_consents n
+        WHERE n.person_id = sqlc.arg(person_id) AND n.category_id = c.id AND n.granted AND n.text_version = c.text_version)
   );
 
 -- name: CreateSurveyInvitation :one
@@ -383,3 +397,96 @@ ORDER BY a.response_id, a.question_id, a.position;
 -- Removes invitation rows whose delivery identity was already cleared and whose expiry lies before the cutoff.
 DELETE FROM survey_invitations
 WHERE person_id IS NULL AND recipient_email IS NULL AND expires_at < sqlc.arg(before_time);
+
+-- name: ListOfferableSurveys :many
+-- Published surveys whose check-out trigger asks at the tablet and whose cooldown allows asking this person. The
+-- invitations of the visit being checked out do not count: they were created a moment ago.
+SELECT st.id AS trigger_id, s.id AS survey_id, s.name AS survey_name, s.anonymous, sv.id AS survey_version_id,
+  (SELECT count(*) FROM survey_questions q WHERE q.survey_version_id = sv.id)::int AS question_count
+FROM survey_triggers st
+JOIN surveys s ON s.id = st.survey_id AND s.status = 'published'
+JOIN LATERAL (
+  SELECT id FROM survey_versions WHERE survey_id = s.id AND published_at IS NOT NULL
+  ORDER BY revision DESC LIMIT 1
+) sv ON true
+WHERE st.kind = 'visit_checked_out' AND st.enabled AND st.ask_at_tablet
+  AND NOT EXISTS (
+    SELECT 1 FROM survey_invitations si JOIN survey_versions previous ON previous.id = si.survey_version_id
+    WHERE previous.survey_id = s.id AND si.person_id = sqlc.arg(person_id)
+      AND si.visit_id IS DISTINCT FROM sqlc.arg(visit_id)
+      AND si.created_at > now() - make_interval(days => st.cooldown_days)
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM survey_ask_cooldowns a
+    WHERE a.survey_id = s.id AND a.person_id = sqlc.arg(person_id)
+      AND a.asked_at > now() - make_interval(days => st.cooldown_days)
+  )
+ORDER BY s.created_at, s.id;
+
+-- name: GetPersonAskFeedback :one
+SELECT ask_feedback_at_checkout FROM person_notification_settings WHERE person_id = sqlc.arg(person_id);
+
+-- name: DisableAskFeedbackAtCheckout :exec
+INSERT INTO person_notification_settings (person_id, ask_feedback_at_checkout, updated_at)
+VALUES (sqlc.arg(person_id), false, now())
+ON CONFLICT (person_id) DO UPDATE SET ask_feedback_at_checkout = false, updated_at = now();
+
+-- name: UpsertSurveyAsk :exec
+INSERT INTO survey_ask_cooldowns (person_id, survey_id, asked_at)
+VALUES (sqlc.arg(person_id), sqlc.arg(survey_id), now())
+ON CONFLICT (person_id, survey_id) DO UPDATE SET asked_at = EXCLUDED.asked_at;
+
+-- name: DeleteStaleSurveyAsks :exec
+DELETE FROM survey_ask_cooldowns WHERE asked_at < now() - interval '3651 days';
+
+-- name: DeleteExpiredSurveyOffers :exec
+DELETE FROM survey_offers WHERE expires_at < now() - interval '1 day';
+
+-- name: CreateSurveyOffer :exec
+INSERT INTO survey_offers (id, token_digest, visit_id, device_id, survey_id, survey_version_id, expires_at)
+VALUES (sqlc.arg(id), sqlc.arg(token_digest), sqlc.arg(visit_id), sqlc.arg(device_id), sqlc.arg(survey_id),
+  sqlc.arg(survey_version_id), sqlc.arg(expires_at));
+
+-- name: GetSurveyOffer :one
+-- An offer that is still usable on this tablet; every other case reads as not found.
+SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status,
+  sv.title, sv.introduction
+FROM survey_offers o
+JOIN surveys s ON s.id = o.survey_id
+JOIN survey_versions sv ON sv.id = o.survey_version_id
+WHERE o.token_digest = sqlc.arg(token_digest) AND o.device_id = sqlc.arg(device_id)
+  AND o.consumed_at IS NULL AND o.expires_at > now();
+
+-- name: GetSurveyOfferForUpdate :one
+SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status
+FROM survey_offers o
+JOIN surveys s ON s.id = o.survey_id
+WHERE o.token_digest = sqlc.arg(token_digest) AND o.device_id = sqlc.arg(device_id)
+  AND o.consumed_at IS NULL AND o.expires_at > now()
+FOR UPDATE OF o;
+
+-- name: ConsumeSurveyOffer :execrows
+UPDATE survey_offers SET consumed_at = now(), visit_id = NULL
+WHERE id = sqlc.arg(id) AND consumed_at IS NULL;
+
+-- name: GetVisitPersonForOffer :one
+SELECT p.id, p.email FROM visits v JOIN people p ON p.id = v.person_id WHERE v.id = sqlc.arg(visit_id);
+
+-- name: CancelSurveyInvitationForVisitVersion :execrows
+UPDATE survey_invitations SET status = 'cancelled', person_id = NULL, visit_id = NULL,
+  recipient_email = NULL, delivery_claimed_at = NULL
+WHERE visit_id = sqlc.arg(visit_id) AND survey_version_id = sqlc.arg(survey_version_id)
+  AND status IN ('pending', 'delivering', 'sent', 'failed');
+
+-- name: PostponeSurveyInvitationForVisit :execrows
+-- Keeps the automatic e-mail from racing the tablet's offer.
+UPDATE survey_invitations SET due_at = sqlc.arg(not_before)::timestamptz,
+  expires_at = sqlc.arg(not_before)::timestamptz + interval '14 days'
+WHERE visit_id = sqlc.arg(visit_id) AND survey_version_id = sqlc.arg(survey_version_id)
+  AND status = 'pending' AND due_at < sqlc.arg(not_before)::timestamptz;
+
+-- name: SendSurveyInvitationNow :execrows
+UPDATE survey_invitations SET due_at = now(), expires_at = now() + interval '14 days',
+  recipient_email = sqlc.arg(recipient_email), status = 'pending', delivery_attempts = 0
+WHERE visit_id = sqlc.arg(visit_id) AND survey_version_id = sqlc.arg(survey_version_id)
+  AND status IN ('pending', 'failed');

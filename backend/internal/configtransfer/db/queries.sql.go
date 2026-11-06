@@ -1247,7 +1247,7 @@ func (q *Queries) ListSurveyQuestions(ctx context.Context, versionIds []uuid.UUI
 }
 
 const listSurveyTriggers = `-- name: ListSurveyTriggers :many
-SELECT survey_id, enabled, delay_seconds, cooldown_days, version
+SELECT survey_id, enabled, delay_seconds, cooldown_days, ask_at_tablet, version
 FROM survey_triggers
 WHERE kind = 'visit_checked_out'
 ORDER BY survey_id
@@ -1258,6 +1258,7 @@ type ListSurveyTriggersRow struct {
 	Enabled      bool
 	DelaySeconds int32
 	CooldownDays int32
+	AskAtTablet  bool
 	Version      int64
 }
 
@@ -1275,6 +1276,7 @@ func (q *Queries) ListSurveyTriggers(ctx context.Context) ([]ListSurveyTriggersR
 			&i.Enabled,
 			&i.DelaySeconds,
 			&i.CooldownDays,
+			&i.AskAtTablet,
 			&i.Version,
 		); err != nil {
 			return nil, err

@@ -36,5 +36,7 @@ export interface SurveyTrigger {
      * @maximum 3650
      */
   cooldownDays: number;
+  /** Also offer the survey on the entrance tablet after a check-out with PIN or password (tablets with the offer switched on only). */
+  askAtTablet: boolean;
   version: Version;
 }

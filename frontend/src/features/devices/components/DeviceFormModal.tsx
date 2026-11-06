@@ -18,7 +18,6 @@ import { useState } from 'react';
 import { createManagedDevice } from '../../../api/generated/managed-devices/managed-devices';
 import type {
   AuthenticationAssurance,
-  CheckoutMode,
   DeviceApplicationMode,
   DeviceCapability,
   ManagedDevice,
@@ -54,7 +53,9 @@ export function CreateDeviceModal({
     allowedApplicationModes: ['staff_ui'],
     checkInAssurance: 'low',
     checkOutAssurance: 'low',
-    checkoutMode: 'verified',
+    allowTapCheckout: false,
+    offerSurveysAtCheckout: false,
+    kioskResetSeconds: 60,
     capabilities: [],
   });
   const [pending, setPending] = useState(false);
@@ -179,7 +180,9 @@ export function DeviceFormModal({
     allowedApplicationModes: device.allowedApplicationModes,
     checkInAssurance: device.checkInAssurance,
     checkOutAssurance: device.checkOutAssurance,
-    checkoutMode: device.checkoutMode,
+    allowTapCheckout: device.allowTapCheckout,
+    offerSurveysAtCheckout: device.offerSurveysAtCheckout,
+    kioskResetSeconds: device.kioskResetSeconds,
     capabilities: device.capabilities,
   });
   return (
@@ -357,15 +360,12 @@ function DevicePolicyFields({
               <SelectItem key={item} value={item} text={item} />
             ))}
           </Select>
-          <Select
-            id={`${id}-checkout-mode`}
-            labelText="Checkout mode"
-            value={value.checkoutMode}
-            onChange={(event) => onChange({ ...value, checkoutMode: event.target.value as CheckoutMode })}
-          >
-            <SelectItem value="verified" text="Verified credential" />
-            <SelectItem value="public_tap" text="Public tap from Currently Here" />
-          </Select>
+          <Checkbox
+            id={`${id}-allow-tap-checkout`}
+            labelText="Also allow checking out by tapping a name in Currently here"
+            checked={value.allowTapCheckout}
+            onChange={(_, { checked }) => onChange({ ...value, allowTapCheckout: checked })}
+          />
           <fieldset>
             <legend>Device capabilities</legend>
             <Stack gap={2}>

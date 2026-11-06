@@ -36,7 +36,7 @@ function mockKiosk(rules = { id: versionId, humanRevision: '2026-09', effectiveA
       HttpResponse.json({
         deviceId: '0192f6f8-743e-7c77-a349-cd07c3e8a940',
         deviceName: 'Entrance',
-        checkoutMode: 'public_tap',
+        allowTapCheckout: true, offerSurveysAtCheckout: false, kioskResetSeconds: 60,
         checkInAssurance: 'low',
         checkOutAssurance: 'low',
         authenticationMethods: ['pin'],

@@ -2688,6 +2688,64 @@ func (q *Queries) ListOwnRules(ctx context.Context, ownerAccountID *uuid.UUID) (
 	return items, nil
 }
 
+const listPendingConsentCategories = `-- name: ListPendingConsentCategories :many
+SELECT c.id, c.key, c.name, c.description, c.basis, c.text_version, c.text_changed_at, c.position, c.version, c.created_at, c.updated_at, 0::bigint AS rule_count FROM notification_categories c
+WHERE c.basis = 'consent'
+  AND NOT EXISTS (
+      SELECT 1 FROM notification_consents n
+      WHERE n.person_id = $1 AND n.category_id = c.id AND n.text_version = c.text_version)
+ORDER BY c.position, c.id
+`
+
+type ListPendingConsentCategoriesRow struct {
+	ID            uuid.UUID
+	Key           *string
+	Name          string
+	Description   string
+	Basis         string
+	TextVersion   int32
+	TextChangedAt time.Time
+	Position      int32
+	Version       int64
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	RuleCount     int64
+}
+
+// The consent categories the person has not answered at the category's current text.
+func (q *Queries) ListPendingConsentCategories(ctx context.Context, personID uuid.UUID) ([]ListPendingConsentCategoriesRow, error) {
+	rows, err := q.db.Query(ctx, listPendingConsentCategories, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPendingConsentCategoriesRow{}
+	for rows.Next() {
+		var i ListPendingConsentCategoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Key,
+			&i.Name,
+			&i.Description,
+			&i.Basis,
+			&i.TextVersion,
+			&i.TextChangedAt,
+			&i.Position,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.RuleCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPeopleAwaitingLabRules = `-- name: ListPeopleAwaitingLabRules :many
 SELECT DISTINCT a.person_id
 FROM accounts a

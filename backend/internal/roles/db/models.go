@@ -793,22 +793,24 @@ type MailConfiguration struct {
 }
 
 type ManagedDevice struct {
-	ID                uuid.UUID
-	Name              string
-	DeviceTypeID      uuid.UUID
-	TokenDigest       []byte
-	ExpiresAt         pgtype.Timestamptz
-	RevokedAt         pgtype.Timestamptz
-	LastSeenAt        pgtype.Timestamptz
-	Version           int64
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	SessionPolicyID   *uuid.UUID
-	TerminalEnabled   bool
-	CheckInAssurance  string
-	CheckOutAssurance string
-	CheckoutMode      string
-	AllowedAppModes   []string
+	ID                     uuid.UUID
+	Name                   string
+	DeviceTypeID           uuid.UUID
+	TokenDigest            []byte
+	ExpiresAt              pgtype.Timestamptz
+	RevokedAt              pgtype.Timestamptz
+	LastSeenAt             pgtype.Timestamptz
+	Version                int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	SessionPolicyID        *uuid.UUID
+	TerminalEnabled        bool
+	CheckInAssurance       string
+	CheckOutAssurance      string
+	AllowedAppModes        []string
+	AllowTapCheckout       bool
+	OfferSurveysAtCheckout bool
+	KioskResetSeconds      int32
 }
 
 type ManagedDeviceCapability struct {
@@ -2221,6 +2223,12 @@ type SurveyAnswer struct {
 	Position     int32
 }
 
+type SurveyAskCooldown struct {
+	PersonID uuid.UUID
+	SurveyID uuid.UUID
+	AskedAt  time.Time
+}
+
 type SurveyInvitation struct {
 	ID                  uuid.UUID
 	SurveyVersionID     uuid.UUID
@@ -2237,6 +2245,18 @@ type SurveyInvitation struct {
 	DeliveryClaimedAt   pgtype.Timestamptz
 	DeliveryFailureCode *string
 	CreatedAt           time.Time
+}
+
+type SurveyOffer struct {
+	ID              uuid.UUID
+	TokenDigest     []byte
+	VisitID         *uuid.UUID
+	DeviceID        uuid.UUID
+	SurveyID        uuid.UUID
+	SurveyVersionID uuid.UUID
+	ExpiresAt       time.Time
+	ConsumedAt      pgtype.Timestamptz
+	CreatedAt       time.Time
 }
 
 type SurveyQuestion struct {
@@ -2294,6 +2314,7 @@ type SurveyTrigger struct {
 	Version      int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+	AskAtTablet  bool
 }
 
 type SurveyVersion struct {

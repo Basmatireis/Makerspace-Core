@@ -19,10 +19,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type CheckoutMode = typeof CheckoutMode[keyof typeof CheckoutMode];
+export type TerminalConsentCategoryBasis = typeof TerminalConsentCategoryBasis[keyof typeof TerminalConsentCategoryBasis];
 
 
-export const CheckoutMode = {
-  verified: 'verified',
-  public_tap: 'public_tap',
+export const TerminalConsentCategoryBasis = {
+  consent: 'consent',
 } as const;

@@ -212,6 +212,7 @@ func (s *Server) UpdateSurveyTrigger(
 		request.Body.Enabled,
 		int32(request.Body.DelaySeconds),
 		int32(request.Body.CooldownDays),
+		request.Body.AskAtTablet,
 		request.Body.ExpectedVersion,
 		requestIDPointer(ctx),
 	)
@@ -402,7 +403,7 @@ func surveyQuestionsDTO(values []surveys.Question) []openapi.SurveyQuestion {
 
 func surveyTriggerDTO(value surveys.Trigger) openapi.SurveyTrigger {
 	return openapi.SurveyTrigger{Id: value.ID, Kind: openapi.SurveyTriggerKind(value.Kind), Enabled: value.Enabled,
-		DelaySeconds: int(value.DelaySeconds), CooldownDays: int(value.CooldownDays), Version: value.Version}
+		DelaySeconds: int(value.DelaySeconds), CooldownDays: int(value.CooldownDays), AskAtTablet: value.AskAtTablet, Version: value.Version}
 }
 
 func publicSurveyDTO(value surveys.PublicSurvey) openapi.PublicSurvey {

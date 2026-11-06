@@ -1,6 +1,5 @@
 import type {
   AuthenticationAssurance,
-  CheckoutMode,
   DeviceApplicationMode,
   DeviceCapability,
   ManagedDevice,
@@ -19,7 +18,9 @@ export type DeviceConfiguration = {
   allowedApplicationModes: DeviceApplicationMode[];
   checkInAssurance: AuthenticationAssurance;
   checkOutAssurance: AuthenticationAssurance;
-  checkoutMode: CheckoutMode;
+  allowTapCheckout: boolean;
+  offerSurveysAtCheckout: boolean;
+  kioskResetSeconds: number;
   capabilities: DeviceCapability[];
 };
 
@@ -47,11 +48,6 @@ export const assuranceLabels: Record<AuthenticationAssurance, string> = {
   normal: 'Normal',
   strong: 'Strong',
   strong_mfa: 'Strong with MFA',
-};
-
-export const checkoutModeLabels: Record<CheckoutMode, string> = {
-  verified: 'Verified credential',
-  public_tap: 'Public tap from Currently Here',
 };
 
 export const devicePaths = {

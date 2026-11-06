@@ -272,7 +272,7 @@ func (e *env) seed() {
 			{Kind: surveys.QuestionSingleChoice, Prompt: "Again?", Options: []surveys.OptionInput{{Label: "Yes"}, {Label: "No"}}},
 		},
 	}, nil))
-	must(e.s.Surveys.UpdateTrigger(ctx, p, survey.ID, false, 600, 10, 0, nil))
+	must(e.s.Surveys.UpdateTrigger(ctx, p, survey.ID, false, 600, 10, nil, 0, nil))
 	must(e.s.Mail.UpdateConfiguration(ctx, p, mail.ConfigurationInput{
 		Enabled: true, Host: "smtp.example.test", Port: 587, TLSMode: mail.TLSStartTLS, Username: "mailer",
 		Password: smtpPassword, FromAddress: "lab@example.test", FromName: "Transfer Lab",

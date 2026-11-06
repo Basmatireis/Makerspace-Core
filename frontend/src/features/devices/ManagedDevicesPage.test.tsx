@@ -33,7 +33,7 @@ const device = {
   allowedApplicationModes: ['staff_ui' as const],
   checkInAssurance: 'low' as const,
   checkOutAssurance: 'low' as const,
-  checkoutMode: 'verified' as const,
+  allowTapCheckout: false, offerSurveysAtCheckout: false, kioskResetSeconds: 60 as const,
   capabilities: [],
   version: 1,
   createdAt: '2026-01-01T00:00:00Z',
@@ -192,7 +192,7 @@ describe('Managed devices administration', () => {
         allowedApplicationModes: ['staff_ui'],
         checkInAssurance: 'low',
         checkOutAssurance: 'low',
-        checkoutMode: 'verified',
+        allowTapCheckout: false, offerSurveysAtCheckout: false, kioskResetSeconds: 60,
         capabilities: [],
       }),
     );

@@ -98,6 +98,7 @@ type Trigger struct {
 	Kind                       TriggerKind
 	Enabled                    bool
 	DelaySeconds, CooldownDays int32
+	AskAtTablet                bool
 	Version                    int64
 }
 type Survey struct {
@@ -576,6 +577,7 @@ func (s *Service) UpdateTrigger(
 	surveyID uuid.UUID,
 	enabled bool,
 	delay, cooldown int32,
+	askAtTablet *bool,
 	expected int64,
 	requestID *uuid.UUID,
 ) (Trigger, error) {
@@ -584,7 +586,7 @@ func (s *Service) UpdateTrigger(
 	}
 	var result Trigger
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) (err error) {
-		result, err = s.UpdateTriggerTx(ctx, tx, p, surveyID, enabled, delay, cooldown, expected, requestID)
+		result, err = s.UpdateTriggerTx(ctx, tx, p, surveyID, enabled, delay, cooldown, askAtTablet, expected, requestID)
 		return err
 	})
 	return result, err
@@ -598,6 +600,7 @@ func (s *Service) UpdateTriggerTx(
 	surveyID uuid.UUID,
 	enabled bool,
 	delay, cooldown int32,
+	askAtTablet *bool,
 	expected int64,
 	requestID *uuid.UUID,
 ) (Trigger, error) {
@@ -631,6 +634,7 @@ func (s *Service) UpdateTriggerTx(
 				Enabled:      enabled,
 				DelaySeconds: delay,
 				CooldownDays: cooldown,
+				AskAtTablet:  askAtTablet != nil && *askAtTablet,
 			},
 		)
 	} else {
@@ -641,6 +645,7 @@ func (s *Service) UpdateTriggerTx(
 				Enabled:         enabled,
 				DelaySeconds:    delay,
 				CooldownDays:    cooldown,
+				AskAtTablet:     askAtTablet,
 				ExpectedVersion: expected,
 			},
 		)
@@ -944,6 +949,7 @@ func triggerFromRow(row surveysdb.SurveyTrigger) Trigger {
 		Enabled:      row.Enabled,
 		DelaySeconds: row.DelaySeconds,
 		CooldownDays: row.CooldownDays,
+		AskAtTablet:  row.AskAtTablet,
 		Version:      row.Version,
 	}
 }

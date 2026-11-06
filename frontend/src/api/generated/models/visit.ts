@@ -19,6 +19,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { KioskNotice } from './kioskNotice';
+import type { TerminalConsentCategory } from './terminalConsentCategory';
+import type { TerminalSurveyOffer } from './terminalSurveyOffer';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 import type { VisitAdmissionDecision } from './visitAdmissionDecision';
@@ -47,4 +49,10 @@ export interface Visit {
      * @maxItems 20
      */
   notices?: KioskNotice[];
+  /** Only the answer of a tablet check-in carries it. True when the person still has to answer consent categories; `consentCategories` lists them and the tablet posts the answers to `/terminal/consents`. */
+  consentRequired?: boolean;
+  /** @maxItems 50 */
+  consentCategories?: TerminalConsentCategory[];
+  /** Only the answer of a tablet check-out with PIN or password carries an offer, and only when the tablet offers surveys, a published survey asks at the tablet, the person did not switch the question off and the survey's cooldown allows it. */
+  surveyOffer?: TerminalSurveyOffer;
 }

@@ -819,7 +819,9 @@ func TestSignagePlayerModeCannotBeCreatedThroughGenericManagedDeviceEndpoints(t 
 			"allowedApplicationModes": modes,
 			"checkInAssurance":        "low",
 			"checkOutAssurance":       "low",
-			"checkoutMode":            "verified",
+			"allowTapCheckout":        false,
+			"offerSurveysAtCheckout":  false,
+			"kioskResetSeconds":       60,
 			"capabilities":            []string{},
 		})
 	}
@@ -841,7 +843,9 @@ func TestSignagePlayerModeCannotBeCreatedThroughGenericManagedDeviceEndpoints(t 
 			"allowedApplicationModes": modes,
 			"checkInAssurance":        "low",
 			"checkOutAssurance":       "low",
-			"checkoutMode":            "verified",
+			"allowTapCheckout":        false,
+			"offerSurveysAtCheckout":  false,
+			"kioskResetSeconds":       60,
 			"capabilities":            []string{},
 		})
 	}

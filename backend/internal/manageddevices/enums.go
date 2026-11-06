@@ -11,12 +11,11 @@ const (
 	ModeSignagePlayer ApplicationMode = "signage_player"
 )
 
-// CheckoutMode is how a visitor kiosk checks visitors out.
-type CheckoutMode string
-
+// Kiosk reset bounds in seconds: how long a tablet may sit idle before it returns to its start screen.
 const (
-	CheckoutVerified  CheckoutMode = "verified"
-	CheckoutPublicTap CheckoutMode = "public_tap"
+	MinKioskResetSeconds     int32 = 15
+	MaxKioskResetSeconds     int32 = 600
+	DefaultKioskResetSeconds int32 = 60
 )
 
 // Destination is where a session policy sends the browser after a session ends.

@@ -26,6 +26,7 @@ const (
 	ruleAuditRepoint  = "re-pointed to the surviving account (resource IDs of the merged person/account too)"
 	ruleNotifyPerson  = "deleted with the source person; the target keeps its own answers and the 90-day delivery log is not merged"
 	ruleNotifyAccount = "deleted with the source account; the surviving account keeps its own rules and channel choices"
+	ruleAskCooldown   = "deleted with the source person; the target keeps its own ask times"
 	ruleSurveyPreserv = "moved to the target; anonymous responses never carry a person"
 )
 
@@ -41,6 +42,7 @@ var MergeReferences = []MergeReference{
 	{"external_invoice_request_details", "contact_person_id", "people", ruleMoved},
 	{"external_invoice_request_details", "recipient_person_id", "people", ruleMoved},
 	{"laborordnung_confirmations", "person_id", "people", ruleDeduplicated},
+	{"kiosk_rule_notices", "person_id", "people", ruleNotifyPerson},
 	{"machine_jobs", "customer_person_id", "people", ruleMoved},
 	{"machine_jobs", "operator_person_id", "people", ruleMoved},
 	{"open_day_assignments", "person_id", "people", ruleDeduplicated},
@@ -52,6 +54,7 @@ var MergeReferences = []MergeReference{
 	{"person_roles", "person_id", "people", ruleUnionedRoles},
 	{"scim_users", "person_id", "people", ruleSCIM},
 	{"staffing_excusals", "person_id", "people", ruleDeduplicated},
+	{"survey_ask_cooldowns", "person_id", "people", ruleAskCooldown},
 	{"survey_invitations", "person_id", "people", ruleMoved},
 	{"survey_responses", "identified_person_id", "people", ruleSurveyPreserv},
 	{"training_records", "person_id", "people", ruleDeduplicated},

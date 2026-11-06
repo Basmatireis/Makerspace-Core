@@ -81,7 +81,7 @@ export function VisitorKioskPage() {
 
   const context = kiosk.data;
   const contextNotices = context.notices ?? [];
-  const publicTap = context.checkoutMode === 'public_tap';
+  const publicTap = context.allowTapCheckout;
   const home = () => {
     publicCheckout.reset();
     setScreen({ kind: 'home' });

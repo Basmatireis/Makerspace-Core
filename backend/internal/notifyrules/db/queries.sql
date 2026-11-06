@@ -883,3 +883,12 @@ DELETE FROM signage_rule_notices WHERE ends_at < sqlc.arg(cutoff);
 
 -- name: DeleteKioskRuleNoticesBefore :execrows
 DELETE FROM kiosk_rule_notices WHERE expires_at < sqlc.arg(cutoff);
+
+-- name: ListPendingConsentCategories :many
+-- The consent categories the person has not answered at the category's current text.
+SELECT c.*, 0::bigint AS rule_count FROM notification_categories c
+WHERE c.basis = 'consent'
+  AND NOT EXISTS (
+      SELECT 1 FROM notification_consents n
+      WHERE n.person_id = sqlc.arg(person_id) AND n.category_id = c.id AND n.text_version = c.text_version)
+ORDER BY c.position, c.id;

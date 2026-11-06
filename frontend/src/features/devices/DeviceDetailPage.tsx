@@ -32,7 +32,6 @@ import { DeviceStatusTag } from './components/DeviceStatusTag';
 import {
   assuranceLabels,
   capabilityLabels,
-  checkoutModeLabels,
   keys,
   modeLabels,
   type Confirmation,
@@ -220,7 +219,7 @@ export function DeviceDetailPage() {
                   <>
                     <DetailRow label="Check-in assurance" value={assuranceLabels[device.checkInAssurance]} />
                     <DetailRow label="Check-out assurance" value={assuranceLabels[device.checkOutAssurance]} />
-                    <DetailRow label="Checkout mode" value={checkoutModeLabels[device.checkoutMode]} />
+                    <DetailRow label="Tap check-out" value={device.allowTapCheckout ? 'Allowed' : 'Off'} />
                   </>
                 )}
               </StructuredListBody>

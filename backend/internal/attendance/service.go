@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 
 	attendancedb "github.com/Basmatireis/Makerspace-Core/backend/internal/attendance/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -43,6 +44,8 @@ type LabRules interface {
 type PostVisitSurveyTrigger interface {
 	CreatePostVisitInvitations(context.Context, pgx.Tx, uuid.UUID, uuid.UUID) error
 	CancelPostVisitInvitations(context.Context, pgx.Tx, uuid.UUID) error
+	// OfferAtCheckOut may offer a survey on the tablet after a self check-out; it returns nil when nothing is offered.
+	OfferAtCheckOut(ctx context.Context, tx pgx.Tx, personID, visitID, deviceID uuid.UUID) (*surveys.Offer, error)
 }
 
 type Service struct {
@@ -118,7 +121,9 @@ var (
 type KioskContext struct {
 	DeviceID                            uuid.UUID
 	DeviceName                          string
-	CheckoutMode                        manageddevices.CheckoutMode
+	AllowTapCheckout                    bool
+	OfferSurveysAtCheckout              bool
+	KioskResetSeconds                   int32
 	CheckInAssurance, CheckOutAssurance authorization.Assurance
 	AuthenticationMethods, Capabilities []string
 }
@@ -140,6 +145,8 @@ type Visit struct {
 	AdmissionDecision AdmissionDecision
 	CorrectionReason  *string
 	Version           int64
+	// SurveyOffer is only set on the answer of a tablet self check-out that offers a survey.
+	SurveyOffer *surveys.Offer
 }
 
 type Statistics struct {
@@ -195,7 +202,8 @@ func (s *Service) KioskContext(ctx context.Context, device manageddevices.Device
 		return KioskContext{}, err
 	}
 	methods := []string{"password", "pin"}
-	return KioskContext{DeviceID: row.ID, DeviceName: row.Name, CheckoutMode: manageddevices.CheckoutMode(row.CheckoutMode),
+	return KioskContext{DeviceID: row.ID, DeviceName: row.Name, AllowTapCheckout: row.AllowTapCheckout,
+		OfferSurveysAtCheckout: row.OfferSurveysAtCheckout, KioskResetSeconds: row.KioskResetSeconds,
 		CheckInAssurance: authorization.Assurance(row.CheckInAssurance), CheckOutAssurance: authorization.Assurance(row.CheckOutAssurance),
 		AuthenticationMethods: methods, Capabilities: capabilities}, nil
 }
@@ -444,6 +452,12 @@ func (s *Service) verifiedCheckOut(
 			return Visit{}, err
 		}
 	}
+	var offer *surveys.Offer
+	if s.surveys != nil && kiosk.OfferSurveysAtCheckout {
+		if offer, err = s.surveys.OfferAtCheckOut(ctx, tx, row.PersonID, row.ID, device.ID); err != nil {
+			return Visit{}, err
+		}
+	}
 	if err = audit.Write(
 		ctx,
 		tx,
@@ -463,7 +477,9 @@ func (s *Service) verifiedCheckOut(
 	if err = tx.Commit(ctx); err != nil {
 		return Visit{}, err
 	}
-	return visitFromCheckout(row), nil
+	visit := visitFromCheckout(row)
+	visit.SurveyOffer = offer
+	return visit, nil
 }
 
 func (s *Service) PublicCheckOut(
@@ -476,7 +492,7 @@ func (s *Service) PublicCheckOut(
 	if err != nil {
 		return Visit{}, err
 	}
-	if manageddevices.CheckoutMode(kiosk.CheckoutMode) != manageddevices.CheckoutPublicTap {
+	if !kiosk.AllowTapCheckout {
 		return Visit{}, apperror.PermissionDenied
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -878,3 +894,31 @@ func numericString(value pgtype.Numeric) string {
 	return d.Shift(value.Exp).String()
 }
 func databaseError(err error) error { return err }
+
+// consentWindow is how long after a tablet check-in the tablet may still store the person's consent answers.
+const consentWindow = 10 * time.Minute
+
+// ConsentTarget resolves who may answer consent categories on this tablet: the person of an open visit that was
+// checked in at this tablet within the last ten minutes. Everything else is not found.
+func (s *Service) ConsentTarget(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	visitID uuid.UUID,
+) (personID, accountID uuid.UUID, err error) {
+	if _, err = s.kiosk(ctx, device); err != nil {
+		return uuid.Nil, uuid.Nil, err
+	}
+	row, err := attendancedb.New(s.pool).GetOpenVisitCheckedInAtDevice(
+		ctx, attendancedb.GetOpenVisitCheckedInAtDeviceParams{ID: visitID, DeviceID: &device.ID},
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, uuid.Nil, apperror.NotFound
+	}
+	if err != nil {
+		return uuid.Nil, uuid.Nil, err
+	}
+	if row.CheckedInByAccountID == nil || time.Since(row.CheckedInAt) > consentWindow {
+		return uuid.Nil, uuid.Nil, apperror.NotFound
+	}
+	return row.PersonID, *row.CheckedInByAccountID, nil
+}

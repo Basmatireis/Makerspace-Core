@@ -48,7 +48,7 @@ describe('Session policies', () => {
             allowedApplicationModes: ['staff_ui'],
             checkInAssurance: 'low',
             checkOutAssurance: 'low',
-            checkoutMode: 'verified',
+            allowTapCheckout: false, offerSurveysAtCheckout: false, kioskResetSeconds: 60,
             capabilities: [],
             version: 1,
             createdAt: '2026-01-01T00:00:00Z',

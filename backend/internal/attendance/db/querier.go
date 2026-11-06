@@ -17,6 +17,8 @@ type Querier interface {
 	CheckOutVisit(ctx context.Context, arg CheckOutVisitParams) (CheckOutVisitRow, error)
 	CreateVisit(ctx context.Context, arg CreateVisitParams) (CreateVisitRow, error)
 	GetOpenVisitByID(ctx context.Context, id uuid.UUID) (GetOpenVisitByIDRow, error)
+	// The open visit a tablet may collect consent answers for: checked in at that tablet.
+	GetOpenVisitCheckedInAtDevice(ctx context.Context, arg GetOpenVisitCheckedInAtDeviceParams) (GetOpenVisitCheckedInAtDeviceRow, error)
 	GetOpenVisitForPerson(ctx context.Context, personID uuid.UUID) (GetOpenVisitForPersonRow, error)
 	GetPersonDisplay(ctx context.Context, id uuid.UUID) (GetPersonDisplayRow, error)
 	GetTerminalDevice(ctx context.Context, id uuid.UUID) (GetTerminalDeviceRow, error)

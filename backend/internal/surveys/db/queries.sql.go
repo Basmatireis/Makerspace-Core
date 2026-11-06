@@ -13,6 +13,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cancelSurveyInvitationForVisitVersion = `-- name: CancelSurveyInvitationForVisitVersion :execrows
+UPDATE survey_invitations SET status = 'cancelled', person_id = NULL, visit_id = NULL,
+  recipient_email = NULL, delivery_claimed_at = NULL
+WHERE visit_id = $1 AND survey_version_id = $2
+  AND status IN ('pending', 'delivering', 'sent', 'failed')
+`
+
+type CancelSurveyInvitationForVisitVersionParams struct {
+	VisitID         *uuid.UUID
+	SurveyVersionID uuid.UUID
+}
+
+func (q *Queries) CancelSurveyInvitationForVisitVersion(ctx context.Context, arg CancelSurveyInvitationForVisitVersionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelSurveyInvitationForVisitVersion, arg.VisitID, arg.SurveyVersionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const cancelSurveyInvitationsForSurvey = `-- name: CancelSurveyInvitationsForSurvey :execrows
 UPDATE survey_invitations si SET status = 'cancelled', person_id = NULL, visit_id = NULL,
   recipient_email = NULL, delivery_claimed_at = NULL
@@ -154,6 +174,19 @@ WHERE id = $1 AND status IN ('pending', 'sent', 'failed') AND expires_at > now()
 
 func (q *Queries) ConsumeSurveyInvitation(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, consumeSurveyInvitation, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const consumeSurveyOffer = `-- name: ConsumeSurveyOffer :execrows
+UPDATE survey_offers SET consumed_at = now(), visit_id = NULL
+WHERE id = $1 AND consumed_at IS NULL
+`
+
+func (q *Queries) ConsumeSurveyOffer(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, consumeSurveyOffer, id)
 	if err != nil {
 		return 0, err
 	}
@@ -368,6 +401,35 @@ func (q *Queries) CreateSurveyInvitation(ctx context.Context, arg CreateSurveyIn
 	return i, err
 }
 
+const createSurveyOffer = `-- name: CreateSurveyOffer :exec
+INSERT INTO survey_offers (id, token_digest, visit_id, device_id, survey_id, survey_version_id, expires_at)
+VALUES ($1, $2, $3, $4, $5,
+  $6, $7)
+`
+
+type CreateSurveyOfferParams struct {
+	ID              uuid.UUID
+	TokenDigest     []byte
+	VisitID         *uuid.UUID
+	DeviceID        uuid.UUID
+	SurveyID        uuid.UUID
+	SurveyVersionID uuid.UUID
+	ExpiresAt       time.Time
+}
+
+func (q *Queries) CreateSurveyOffer(ctx context.Context, arg CreateSurveyOfferParams) error {
+	_, err := q.db.Exec(ctx, createSurveyOffer,
+		arg.ID,
+		arg.TokenDigest,
+		arg.VisitID,
+		arg.DeviceID,
+		arg.SurveyID,
+		arg.SurveyVersionID,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
 const createSurveyOption = `-- name: CreateSurveyOption :one
 INSERT INTO survey_question_options (id, question_id, label, position)
 VALUES ($1, $2, $3, $4) RETURNING id, question_id, label, position
@@ -534,9 +596,9 @@ func (q *Queries) CreateSurveyShareLink(ctx context.Context, arg CreateSurveySha
 }
 
 const createSurveyTrigger = `-- name: CreateSurveyTrigger :one
-INSERT INTO survey_triggers (id, survey_id, kind, enabled, delay_seconds, cooldown_days)
+INSERT INTO survey_triggers (id, survey_id, kind, enabled, delay_seconds, cooldown_days, ask_at_tablet)
 VALUES ($1, $2, 'visit_checked_out', $3,
-  $4, $5) RETURNING id, survey_id, kind, enabled, delay_seconds, cooldown_days, version, created_at, updated_at
+  $4, $5, $6) RETURNING id, survey_id, kind, enabled, delay_seconds, cooldown_days, version, created_at, updated_at, ask_at_tablet
 `
 
 type CreateSurveyTriggerParams struct {
@@ -545,6 +607,7 @@ type CreateSurveyTriggerParams struct {
 	Enabled      bool
 	DelaySeconds int32
 	CooldownDays int32
+	AskAtTablet  bool
 }
 
 func (q *Queries) CreateSurveyTrigger(ctx context.Context, arg CreateSurveyTriggerParams) (SurveyTrigger, error) {
@@ -554,6 +617,7 @@ func (q *Queries) CreateSurveyTrigger(ctx context.Context, arg CreateSurveyTrigg
 		arg.Enabled,
 		arg.DelaySeconds,
 		arg.CooldownDays,
+		arg.AskAtTablet,
 	)
 	var i SurveyTrigger
 	err := row.Scan(
@@ -566,6 +630,7 @@ func (q *Queries) CreateSurveyTrigger(ctx context.Context, arg CreateSurveyTrigg
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AskAtTablet,
 	)
 	return i, err
 }
@@ -626,6 +691,24 @@ func (q *Queries) DeleteExpiredSurveyInvitationPII(ctx context.Context, beforeTi
 	return result.RowsAffected(), nil
 }
 
+const deleteExpiredSurveyOffers = `-- name: DeleteExpiredSurveyOffers :exec
+DELETE FROM survey_offers WHERE expires_at < now() - interval '1 day'
+`
+
+func (q *Queries) DeleteExpiredSurveyOffers(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteExpiredSurveyOffers)
+	return err
+}
+
+const deleteStaleSurveyAsks = `-- name: DeleteStaleSurveyAsks :exec
+DELETE FROM survey_ask_cooldowns WHERE asked_at < now() - interval '3651 days'
+`
+
+func (q *Queries) DeleteStaleSurveyAsks(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteStaleSurveyAsks)
+	return err
+}
+
 const deleteSurvey = `-- name: DeleteSurvey :execrows
 DELETE FROM surveys WHERE id = $1
 `
@@ -678,6 +761,17 @@ func (q *Queries) DeleteUnlinkedExpiredInvitations(ctx context.Context, beforeTi
 	return result.RowsAffected(), nil
 }
 
+const disableAskFeedbackAtCheckout = `-- name: DisableAskFeedbackAtCheckout :exec
+INSERT INTO person_notification_settings (person_id, ask_feedback_at_checkout, updated_at)
+VALUES ($1, false, now())
+ON CONFLICT (person_id) DO UPDATE SET ask_feedback_at_checkout = false, updated_at = now()
+`
+
+func (q *Queries) DisableAskFeedbackAtCheckout(ctx context.Context, personID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, disableAskFeedbackAtCheckout, personID)
+	return err
+}
+
 const disableSurveyTriggers = `-- name: DisableSurveyTriggers :exec
 UPDATE survey_triggers SET enabled = false, version = version + 1, updated_at = now()
 WHERE survey_id = $1 AND enabled
@@ -706,6 +800,17 @@ func (q *Queries) GetLatestSurveyVersionForUpdate(ctx context.Context, surveyID 
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getPersonAskFeedback = `-- name: GetPersonAskFeedback :one
+SELECT ask_feedback_at_checkout FROM person_notification_settings WHERE person_id = $1
+`
+
+func (q *Queries) GetPersonAskFeedback(ctx context.Context, personID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, getPersonAskFeedback, personID)
+	var ask_feedback_at_checkout bool
+	err := row.Scan(&ask_feedback_at_checkout)
+	return ask_feedback_at_checkout, err
 }
 
 const getPublicSurveyInvitation = `-- name: GetPublicSurveyInvitation :one
@@ -873,6 +978,90 @@ func (q *Queries) GetSurveyInvitationCounts(ctx context.Context, surveyID uuid.U
 	return i, err
 }
 
+const getSurveyOffer = `-- name: GetSurveyOffer :one
+SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status,
+  sv.title, sv.introduction
+FROM survey_offers o
+JOIN surveys s ON s.id = o.survey_id
+JOIN survey_versions sv ON sv.id = o.survey_version_id
+WHERE o.token_digest = $1 AND o.device_id = $2
+  AND o.consumed_at IS NULL AND o.expires_at > now()
+`
+
+type GetSurveyOfferParams struct {
+	TokenDigest []byte
+	DeviceID    uuid.UUID
+}
+
+type GetSurveyOfferRow struct {
+	ID              uuid.UUID
+	VisitID         *uuid.UUID
+	SurveyID        uuid.UUID
+	SurveyVersionID uuid.UUID
+	ExpiresAt       time.Time
+	Anonymous       bool
+	SurveyStatus    string
+	Title           string
+	Introduction    *string
+}
+
+// An offer that is still usable on this tablet; every other case reads as not found.
+func (q *Queries) GetSurveyOffer(ctx context.Context, arg GetSurveyOfferParams) (GetSurveyOfferRow, error) {
+	row := q.db.QueryRow(ctx, getSurveyOffer, arg.TokenDigest, arg.DeviceID)
+	var i GetSurveyOfferRow
+	err := row.Scan(
+		&i.ID,
+		&i.VisitID,
+		&i.SurveyID,
+		&i.SurveyVersionID,
+		&i.ExpiresAt,
+		&i.Anonymous,
+		&i.SurveyStatus,
+		&i.Title,
+		&i.Introduction,
+	)
+	return i, err
+}
+
+const getSurveyOfferForUpdate = `-- name: GetSurveyOfferForUpdate :one
+SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status
+FROM survey_offers o
+JOIN surveys s ON s.id = o.survey_id
+WHERE o.token_digest = $1 AND o.device_id = $2
+  AND o.consumed_at IS NULL AND o.expires_at > now()
+FOR UPDATE OF o
+`
+
+type GetSurveyOfferForUpdateParams struct {
+	TokenDigest []byte
+	DeviceID    uuid.UUID
+}
+
+type GetSurveyOfferForUpdateRow struct {
+	ID              uuid.UUID
+	VisitID         *uuid.UUID
+	SurveyID        uuid.UUID
+	SurveyVersionID uuid.UUID
+	ExpiresAt       time.Time
+	Anonymous       bool
+	SurveyStatus    string
+}
+
+func (q *Queries) GetSurveyOfferForUpdate(ctx context.Context, arg GetSurveyOfferForUpdateParams) (GetSurveyOfferForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getSurveyOfferForUpdate, arg.TokenDigest, arg.DeviceID)
+	var i GetSurveyOfferForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.VisitID,
+		&i.SurveyID,
+		&i.SurveyVersionID,
+		&i.ExpiresAt,
+		&i.Anonymous,
+		&i.SurveyStatus,
+	)
+	return i, err
+}
+
 const getSurveyResponseOverview = `-- name: GetSurveyResponseOverview :one
 SELECT count(*) AS total,
   count(*) FILTER (WHERE r.source = 'invitation') AS by_invitation,
@@ -990,7 +1179,7 @@ func (q *Queries) GetSurveyShareLinkByDigest(ctx context.Context, tokenDigest []
 }
 
 const getSurveyTrigger = `-- name: GetSurveyTrigger :one
-SELECT id, survey_id, kind, enabled, delay_seconds, cooldown_days, version, created_at, updated_at FROM survey_triggers WHERE survey_id = $1 AND kind = 'visit_checked_out'
+SELECT id, survey_id, kind, enabled, delay_seconds, cooldown_days, version, created_at, updated_at, ask_at_tablet FROM survey_triggers WHERE survey_id = $1 AND kind = 'visit_checked_out'
 `
 
 func (q *Queries) GetSurveyTrigger(ctx context.Context, surveyID uuid.UUID) (SurveyTrigger, error) {
@@ -1006,7 +1195,24 @@ func (q *Queries) GetSurveyTrigger(ctx context.Context, surveyID uuid.UUID) (Sur
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AskAtTablet,
 	)
+	return i, err
+}
+
+const getVisitPersonForOffer = `-- name: GetVisitPersonForOffer :one
+SELECT p.id, p.email FROM visits v JOIN people p ON p.id = v.person_id WHERE v.id = $1
+`
+
+type GetVisitPersonForOfferRow struct {
+	ID    uuid.UUID
+	Email *string
+}
+
+func (q *Queries) GetVisitPersonForOffer(ctx context.Context, visitID uuid.UUID) (GetVisitPersonForOfferRow, error) {
+	row := q.db.QueryRow(ctx, getVisitPersonForOffer, visitID)
+	var i GetVisitPersonForOfferRow
+	err := row.Scan(&i.ID, &i.Email)
 	return i, err
 }
 
@@ -1024,6 +1230,19 @@ WHERE st.kind = 'visit_checked_out' AND st.enabled
     SELECT 1 FROM survey_invitations si JOIN survey_versions previous ON previous.id = si.survey_version_id
     WHERE previous.survey_id = s.id AND si.person_id = $1
       AND si.created_at > now() - make_interval(days => st.cooldown_days)
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM survey_ask_cooldowns a
+    WHERE a.survey_id = s.id AND a.person_id = $1
+      AND a.asked_at > now() - make_interval(days => st.cooldown_days)
+  )
+  -- The automatic invitation is e-mail the person must have agreed to (Surveys & feedback).
+  AND NOT EXISTS (
+    SELECT 1 FROM notification_categories c
+    WHERE c.key = 'surveys' AND c.basis = 'consent'
+      AND NOT EXISTS (
+        SELECT 1 FROM notification_consents n
+        WHERE n.person_id = $1 AND n.category_id = c.id AND n.granted AND n.text_version = c.text_version)
   )
 `
 
@@ -1050,6 +1269,73 @@ func (q *Queries) ListEligiblePostVisitTriggers(ctx context.Context, personID uu
 			&i.DelaySeconds,
 			&i.CooldownDays,
 			&i.Email,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOfferableSurveys = `-- name: ListOfferableSurveys :many
+SELECT st.id AS trigger_id, s.id AS survey_id, s.name AS survey_name, s.anonymous, sv.id AS survey_version_id,
+  (SELECT count(*) FROM survey_questions q WHERE q.survey_version_id = sv.id)::int AS question_count
+FROM survey_triggers st
+JOIN surveys s ON s.id = st.survey_id AND s.status = 'published'
+JOIN LATERAL (
+  SELECT id FROM survey_versions WHERE survey_id = s.id AND published_at IS NOT NULL
+  ORDER BY revision DESC LIMIT 1
+) sv ON true
+WHERE st.kind = 'visit_checked_out' AND st.enabled AND st.ask_at_tablet
+  AND NOT EXISTS (
+    SELECT 1 FROM survey_invitations si JOIN survey_versions previous ON previous.id = si.survey_version_id
+    WHERE previous.survey_id = s.id AND si.person_id = $1
+      AND si.visit_id IS DISTINCT FROM $2
+      AND si.created_at > now() - make_interval(days => st.cooldown_days)
+  )
+  AND NOT EXISTS (
+    SELECT 1 FROM survey_ask_cooldowns a
+    WHERE a.survey_id = s.id AND a.person_id = $1
+      AND a.asked_at > now() - make_interval(days => st.cooldown_days)
+  )
+ORDER BY s.created_at, s.id
+`
+
+type ListOfferableSurveysParams struct {
+	PersonID *uuid.UUID
+	VisitID  *uuid.UUID
+}
+
+type ListOfferableSurveysRow struct {
+	TriggerID       uuid.UUID
+	SurveyID        uuid.UUID
+	SurveyName      string
+	Anonymous       bool
+	SurveyVersionID uuid.UUID
+	QuestionCount   int32
+}
+
+// Published surveys whose check-out trigger asks at the tablet and whose cooldown allows asking this person. The
+// invitations of the visit being checked out do not count: they were created a moment ago.
+func (q *Queries) ListOfferableSurveys(ctx context.Context, arg ListOfferableSurveysParams) ([]ListOfferableSurveysRow, error) {
+	rows, err := q.db.Query(ctx, listOfferableSurveys, arg.PersonID, arg.VisitID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOfferableSurveysRow{}
+	for rows.Next() {
+		var i ListOfferableSurveysRow
+		if err := rows.Scan(
+			&i.TriggerID,
+			&i.SurveyID,
+			&i.SurveyName,
+			&i.Anonymous,
+			&i.SurveyVersionID,
+			&i.QuestionCount,
 		); err != nil {
 			return nil, err
 		}
@@ -1637,6 +1923,28 @@ func (q *Queries) MarkSurveyVersionPublished(ctx context.Context, id uuid.UUID) 
 	return err
 }
 
+const postponeSurveyInvitationForVisit = `-- name: PostponeSurveyInvitationForVisit :execrows
+UPDATE survey_invitations SET due_at = $1::timestamptz,
+  expires_at = $1::timestamptz + interval '14 days'
+WHERE visit_id = $2 AND survey_version_id = $3
+  AND status = 'pending' AND due_at < $1::timestamptz
+`
+
+type PostponeSurveyInvitationForVisitParams struct {
+	NotBefore       time.Time
+	VisitID         *uuid.UUID
+	SurveyVersionID uuid.UUID
+}
+
+// Keeps the automatic e-mail from racing the tablet's offer.
+func (q *Queries) PostponeSurveyInvitationForVisit(ctx context.Context, arg PostponeSurveyInvitationForVisitParams) (int64, error) {
+	result, err := q.db.Exec(ctx, postponeSurveyInvitationForVisit, arg.NotBefore, arg.VisitID, arg.SurveyVersionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const publishSurvey = `-- name: PublishSurvey :one
 UPDATE surveys SET status = 'published', version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2 AND status = 'draft' RETURNING id, name, description, status, anonymous, version, created_at, updated_at
@@ -1687,6 +1995,27 @@ func (q *Queries) ReopenSurvey(ctx context.Context, arg ReopenSurveyParams) (Sur
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const sendSurveyInvitationNow = `-- name: SendSurveyInvitationNow :execrows
+UPDATE survey_invitations SET due_at = now(), expires_at = now() + interval '14 days',
+  recipient_email = $1, status = 'pending', delivery_attempts = 0
+WHERE visit_id = $2 AND survey_version_id = $3
+  AND status IN ('pending', 'failed')
+`
+
+type SendSurveyInvitationNowParams struct {
+	RecipientEmail  *string
+	VisitID         *uuid.UUID
+	SurveyVersionID uuid.UUID
+}
+
+func (q *Queries) SendSurveyInvitationNow(ctx context.Context, arg SendSurveyInvitationNowParams) (int64, error) {
+	result, err := q.db.Exec(ctx, sendSurveyInvitationNow, arg.RecipientEmail, arg.VisitID, arg.SurveyVersionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const surveyHasResponses = `-- name: SurveyHasResponses :one
@@ -1781,15 +2110,17 @@ func (q *Queries) UpdateSurveyShareLink(ctx context.Context, arg UpdateSurveySha
 
 const updateSurveyTrigger = `-- name: UpdateSurveyTrigger :one
 UPDATE survey_triggers SET enabled = $1, delay_seconds = $2,
-  cooldown_days = $3, version = version + 1, updated_at = now()
-WHERE survey_id = $4 AND kind = 'visit_checked_out'
-  AND version = $5 RETURNING id, survey_id, kind, enabled, delay_seconds, cooldown_days, version, created_at, updated_at
+  cooldown_days = $3, ask_at_tablet = COALESCE($4, ask_at_tablet), version = version + 1,
+  updated_at = now()
+WHERE survey_id = $5 AND kind = 'visit_checked_out'
+  AND version = $6 RETURNING id, survey_id, kind, enabled, delay_seconds, cooldown_days, version, created_at, updated_at, ask_at_tablet
 `
 
 type UpdateSurveyTriggerParams struct {
 	Enabled         bool
 	DelaySeconds    int32
 	CooldownDays    int32
+	AskAtTablet     *bool
 	SurveyID        uuid.UUID
 	ExpectedVersion int64
 }
@@ -1799,6 +2130,7 @@ func (q *Queries) UpdateSurveyTrigger(ctx context.Context, arg UpdateSurveyTrigg
 		arg.Enabled,
 		arg.DelaySeconds,
 		arg.CooldownDays,
+		arg.AskAtTablet,
 		arg.SurveyID,
 		arg.ExpectedVersion,
 	)
@@ -1813,6 +2145,7 @@ func (q *Queries) UpdateSurveyTrigger(ctx context.Context, arg UpdateSurveyTrigg
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AskAtTablet,
 	)
 	return i, err
 }
@@ -1830,5 +2163,21 @@ type UpdateSurveyVersionDefinitionParams struct {
 
 func (q *Queries) UpdateSurveyVersionDefinition(ctx context.Context, arg UpdateSurveyVersionDefinitionParams) error {
 	_, err := q.db.Exec(ctx, updateSurveyVersionDefinition, arg.Title, arg.Introduction, arg.ID)
+	return err
+}
+
+const upsertSurveyAsk = `-- name: UpsertSurveyAsk :exec
+INSERT INTO survey_ask_cooldowns (person_id, survey_id, asked_at)
+VALUES ($1, $2, now())
+ON CONFLICT (person_id, survey_id) DO UPDATE SET asked_at = EXCLUDED.asked_at
+`
+
+type UpsertSurveyAskParams struct {
+	PersonID uuid.UUID
+	SurveyID uuid.UUID
+}
+
+func (q *Queries) UpsertSurveyAsk(ctx context.Context, arg UpsertSurveyAskParams) error {
+	_, err := q.db.Exec(ctx, upsertSurveyAsk, arg.PersonID, arg.SurveyID)
 	return err
 }

@@ -352,6 +352,36 @@ func (q *Queries) GetOpenVisitByID(ctx context.Context, id uuid.UUID) (GetOpenVi
 	return i, err
 }
 
+const getOpenVisitCheckedInAtDevice = `-- name: GetOpenVisitCheckedInAtDevice :one
+SELECT id, person_id, checked_in_at, checked_in_by_account_id FROM visits
+WHERE id = $1 AND status = 'checked_in' AND check_in_device_id = $2
+`
+
+type GetOpenVisitCheckedInAtDeviceParams struct {
+	ID       uuid.UUID
+	DeviceID *uuid.UUID
+}
+
+type GetOpenVisitCheckedInAtDeviceRow struct {
+	ID                   uuid.UUID
+	PersonID             uuid.UUID
+	CheckedInAt          time.Time
+	CheckedInByAccountID *uuid.UUID
+}
+
+// The open visit a tablet may collect consent answers for: checked in at that tablet.
+func (q *Queries) GetOpenVisitCheckedInAtDevice(ctx context.Context, arg GetOpenVisitCheckedInAtDeviceParams) (GetOpenVisitCheckedInAtDeviceRow, error) {
+	row := q.db.QueryRow(ctx, getOpenVisitCheckedInAtDevice, arg.ID, arg.DeviceID)
+	var i GetOpenVisitCheckedInAtDeviceRow
+	err := row.Scan(
+		&i.ID,
+		&i.PersonID,
+		&i.CheckedInAt,
+		&i.CheckedInByAccountID,
+	)
+	return i, err
+}
+
 const getOpenVisitForPerson = `-- name: GetOpenVisitForPerson :one
 SELECT v.id, v.person_id, v.checked_in_at, v.checked_out_at, v.check_in_device_id, v.check_out_device_id, v.status, v.check_in_method, v.check_out_method, v.check_in_assurance, v.check_out_assurance, v.admission_decision, v.laborordnung_version_id, v.checked_in_by_account_id, v.checked_out_by_account_id, v.correction_reason, v.version, v.created_at, v.updated_at, p.first_name, p.last_name
 FROM visits v JOIN people p ON p.id = v.person_id
@@ -437,21 +467,23 @@ func (q *Queries) GetPersonDisplay(ctx context.Context, id uuid.UUID) (GetPerson
 
 const getTerminalDevice = `-- name: GetTerminalDevice :one
 SELECT md.id, md.name, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance,
-       md.checkout_mode, md.revoked_at, md.expires_at
+       md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, md.revoked_at, md.expires_at
 FROM managed_devices md
 WHERE md.id = $1 AND md.terminal_enabled AND md.revoked_at IS NULL
   AND (md.expires_at IS NULL OR md.expires_at > now())
 `
 
 type GetTerminalDeviceRow struct {
-	ID                uuid.UUID
-	Name              string
-	TerminalEnabled   bool
-	CheckInAssurance  string
-	CheckOutAssurance string
-	CheckoutMode      string
-	RevokedAt         pgtype.Timestamptz
-	ExpiresAt         pgtype.Timestamptz
+	ID                     uuid.UUID
+	Name                   string
+	TerminalEnabled        bool
+	CheckInAssurance       string
+	CheckOutAssurance      string
+	AllowTapCheckout       bool
+	OfferSurveysAtCheckout bool
+	KioskResetSeconds      int32
+	RevokedAt              pgtype.Timestamptz
+	ExpiresAt              pgtype.Timestamptz
 }
 
 func (q *Queries) GetTerminalDevice(ctx context.Context, id uuid.UUID) (GetTerminalDeviceRow, error) {
@@ -463,7 +495,9 @@ func (q *Queries) GetTerminalDevice(ctx context.Context, id uuid.UUID) (GetTermi
 		&i.TerminalEnabled,
 		&i.CheckInAssurance,
 		&i.CheckOutAssurance,
-		&i.CheckoutMode,
+		&i.AllowTapCheckout,
+		&i.OfferSurveysAtCheckout,
+		&i.KioskResetSeconds,
 		&i.RevokedAt,
 		&i.ExpiresAt,
 	)

@@ -1,6 +1,6 @@
 -- name: GetTerminalDevice :one
 SELECT md.id, md.name, md.terminal_enabled, md.check_in_assurance, md.check_out_assurance,
-       md.checkout_mode, md.revoked_at, md.expires_at
+       md.allow_tap_checkout, md.offer_surveys_at_checkout, md.kiosk_reset_seconds, md.revoked_at, md.expires_at
 FROM managed_devices md
 WHERE md.id = sqlc.arg(id) AND md.terminal_enabled AND md.revoked_at IS NULL
   AND (md.expires_at IS NULL OR md.expires_at > now());
@@ -161,3 +161,8 @@ ON CONFLICT (day) DO UPDATE SET
   completed_visit_seconds = attendance_daily_statistics.completed_visit_seconds + EXCLUDED.completed_visit_seconds,
   peak_occupancy = GREATEST(attendance_daily_statistics.peak_occupancy, EXCLUDED.peak_occupancy),
   updated_at = now();
+
+-- name: GetOpenVisitCheckedInAtDevice :one
+-- The open visit a tablet may collect consent answers for: checked in at that tablet.
+SELECT id, person_id, checked_in_at, checked_in_by_account_id FROM visits
+WHERE id = sqlc.arg(id) AND status = 'checked_in' AND check_in_device_id = sqlc.arg(device_id);

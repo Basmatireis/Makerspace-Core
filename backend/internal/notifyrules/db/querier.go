@@ -144,6 +144,8 @@ type Querier interface {
 	// Everyone signed up for the open days, with the kind of place they hold.
 	ListOpenDayTeams(ctx context.Context, openDayIds []string) ([]ListOpenDayTeamsRow, error)
 	ListOwnRules(ctx context.Context, ownerAccountID *uuid.UUID) ([]NotificationRule, error)
+	// The consent categories the person has not answered at the category's current text.
+	ListPendingConsentCategories(ctx context.Context, personID uuid.UUID) ([]ListPendingConsentCategoriesRow, error)
 	// People with an active account whose roles ask for the Lab Rules (warning or blocking) and who have not confirmed
 	// the version.
 	ListPeopleAwaitingLabRules(ctx context.Context, versionID uuid.UUID) ([]uuid.UUID, error)
