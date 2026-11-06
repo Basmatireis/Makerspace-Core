@@ -52,9 +52,12 @@ export function PanelFrame({ label, open, placeholder, onClose, children }: Pane
     if (!sheetOpen) return undefined;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    // Lets the sheet leave the content stacking context so it also covers the side navigation (see index.scss).
+    document.body.classList.add('panel-sheet-open');
     ref.current?.focus({ preventScroll: true });
     return () => {
       document.body.style.overflow = previous;
+      document.body.classList.remove('panel-sheet-open');
     };
   }, [sheetOpen]);
 
