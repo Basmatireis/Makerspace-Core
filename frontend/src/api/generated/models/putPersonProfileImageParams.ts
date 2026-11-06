@@ -21,5 +21,5 @@
 import type { Version } from './version';
 
 export type PutPersonProfileImageParams = {
-expectedVersion: Version;
+  expectedVersion: Version;
 };

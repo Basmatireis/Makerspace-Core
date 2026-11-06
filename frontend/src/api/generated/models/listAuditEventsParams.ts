@@ -24,33 +24,29 @@ import type { LimitParameter } from './limitParameter';
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListAuditEventsParams = {
-/**
- * Maximum records to return.
- * @minimum 1
- * @maximum 100
- */
-limit?: LimitParameter;
-/**
- * Opaque cursor returned by the previous page.
- * @maxLength 500
- */
-cursor?: CursorParameter;
-/**
- * @maxLength 128
- */
-action?: string;
-/**
- * @maxLength 64
- */
-resourceType?: string;
-resourceId?: UUIDv7;
-actorAccountId?: UUIDv7;
-actorType?: AuditActorType;
-/**
- * Case-insensitive search over the current display name of user actors.
- * @maxLength 100
- */
-actorSearch?: string;
-occurredFrom?: string;
-occurredTo?: string;
+  /**
+   * Maximum records to return.
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: LimitParameter;
+  /**
+   * Opaque cursor returned by the previous page.
+   * @maxLength 500
+   */
+  cursor?: CursorParameter;
+  /** @maxLength 128 */
+  action?: string;
+  /** @maxLength 64 */
+  resourceType?: string;
+  resourceId?: UUIDv7;
+  actorAccountId?: UUIDv7;
+  actorType?: AuditActorType;
+  /**
+   * Case-insensitive search over the current display name of user actors.
+   * @maxLength 100
+   */
+  actorSearch?: string;
+  occurredFrom?: string;
+  occurredTo?: string;
 };

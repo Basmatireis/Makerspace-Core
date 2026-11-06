@@ -21,17 +21,17 @@
 import type { CashMovementKind } from './cashMovementKind';
 
 export type ListCashMovementsParams = {
-/**
- * @minimum 1
- * @maximum 2147483647
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
-kind?: CashMovementKind;
-from?: string;
-to?: string;
+  /**
+   * @minimum 1
+   * @maximum 2147483647
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
+  kind?: CashMovementKind;
+  from?: string;
+  to?: string;
 };

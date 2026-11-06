@@ -23,21 +23,19 @@ import type { StockState } from './stockState';
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListMaterialsParams = {
-/**
- * Case-insensitive substring match on display ID, material name, material type and its code, variant, manufacturer, colour name, storage location and notes.
- * @maxLength 200
- */
-search?: string;
-materialTypeId?: UUIDv7;
-kind?: MaterialKind;
-stockState?: StockState;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
+  /**
+   * Case-insensitive substring match on display ID, material name, material type and its code, variant, manufacturer, colour name, storage location and notes.
+   * @maxLength 200
+   */
+  search?: string;
+  materialTypeId?: UUIDv7;
+  kind?: MaterialKind;
+  stockState?: StockState;
+  /** @minimum 1 */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
 };

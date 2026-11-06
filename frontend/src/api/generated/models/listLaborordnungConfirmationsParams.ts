@@ -24,31 +24,21 @@ import type { ListLaborordnungConfirmationsSort } from './listLaborordnungConfir
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListLaborordnungConfirmationsParams = {
-/**
- * @maxLength 200
- */
-search?: string;
-/**
- * Only confirmations of this Lab Rules version.
- */
-versionId?: UUIDv7;
-/**
- * Only confirmations of this person.
- */
-personId?: UUIDv7;
-/**
- * Only confirmations made this way.
- */
-method?: LaborordnungConfirmationMethod;
-sort?: ListLaborordnungConfirmationsSort;
-direction?: ListLaborordnungConfirmationsDirection;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
+  /** @maxLength 200 */
+  search?: string;
+  /** Only confirmations of this Lab Rules version. */
+  versionId?: UUIDv7;
+  /** Only confirmations of this person. */
+  personId?: UUIDv7;
+  /** Only confirmations made this way. */
+  method?: LaborordnungConfirmationMethod;
+  sort?: ListLaborordnungConfirmationsSort;
+  direction?: ListLaborordnungConfirmationsDirection;
+  /** @minimum 1 */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
 };
