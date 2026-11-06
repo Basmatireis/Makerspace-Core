@@ -118,7 +118,7 @@ describe('Staffing people', () => {
     const user = userEvent.setup();
     serve(members, read);
     const view = renderRoute(<App />, '/people/staffing');
-    await user.click(await screen.findByRole('button', { name: 'Show Member 03' }));
+    await user.click(await screen.findByRole('button', { name: /Member 03/ }));
     expect(await screen.findByRole('heading', { name: 'Member 03' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Actions for Member 03' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Assign to an open day' })).not.toBeInTheDocument();
@@ -126,7 +126,7 @@ describe('Staffing people', () => {
 
     serve(members, [...read, PermissionId.peoplerolesassign, PermissionId.open_daysmanage]);
     renderRoute(<App />, '/people/staffing');
-    await user.click(await screen.findByRole('button', { name: 'Show Member 03' }));
+    await user.click(await screen.findByRole('button', { name: /Member 03/ }));
     await user.click(await screen.findByRole('button', { name: 'Actions for Member 03' }));
     expect(screen.getByText('Make supervisor')).toBeInTheDocument();
     expect(screen.queryByText('Make trainee')).not.toBeInTheDocument();
@@ -145,7 +145,7 @@ describe('Staffing people', () => {
       }),
     );
     renderRoute(<App />, '/people/staffing');
-    await user.click(await screen.findByRole('button', { name: 'Show Member 03' }));
+    await user.click(await screen.findByRole('button', { name: /Member 03/ }));
     await user.click(await screen.findByRole('button', { name: 'Actions for Member 03' }));
     await user.click(screen.getByText('Make supervisor'));
     await user.click(await screen.findByRole('button', { name: 'Make supervisor' }));

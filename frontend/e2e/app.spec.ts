@@ -798,14 +798,10 @@ test('renders the Staffing people table with tiles, filters and a person panel',
   await page.keyboard.press('Escape');
 
   // A row opens the person in the fixed panel.
-  await table.getByRole('button', { name: 'Show Alan Turing' }).click();
+  await table.getByRole('button', { name: /Alan Turing/ }).click();
   const panel = page.locator('aside[aria-label="Person details"]');
   await expect(panel.getByRole('heading', { name: 'Alan Turing' })).toBeVisible();
-  // Known product finding (reported): the row button's aria-label omits its visible text (StaffingTable.tsx).
-  const scan = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-    .exclude('.st-row-button')
-    .analyze();
+  const scan = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(scan.violations).toEqual([]);
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1062,7 +1058,7 @@ test('renders Open Day periods as an accessible table with a panel and without o
   await expect(table.getByRole('checkbox')).toHaveCount(0);
   await expectNoHorizontalPageOverflow(page);
 
-  await table.getByRole('button', { name: 'Show Winter Semester 2026/27' }).click();
+  await table.getByRole('button', { name: /Winter Semester 2026\/27/ }).click();
   const panel = page.locator('aside[aria-label="Period details"]');
   await expect(panel.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
   await expect(panel.getByRole('link', { name: 'Open schedule' })).toHaveAttribute(

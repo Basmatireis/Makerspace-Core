@@ -16,18 +16,8 @@ import {
 const staffing = ['open_days.read', 'open_days.signup'];
 const manager = ['open_days.read', 'open_days.manage', 'open_days.assign', 'open_days.read_assignments'];
 
-/**
- * Product findings reported separately (see the test report) and left out of the scan until they are fixed:
- * the period table's row button and the calendar blocks have an aria-label that omits their visible text, and the
- * muted placeholder dash and the empty person count do not reach 4.5:1 on the selected row or the calendar cell.
- */
-const KNOWN_FINDINGS = ['.od-row-button', '.od-none', '.od-blk'];
-
 async function expectAccessible(page: Page) {
-  let scan = new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']);
-  // One exclude per selector: an array would mean a path through frames.
-  for (const selector of KNOWN_FINDINGS) scan = scan.exclude(selector);
-  const results = await scan.analyze();
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   expect(
     results.violations.map((violation) => ({
       rule: violation.id,
@@ -99,8 +89,7 @@ test.describe('people who sign up', () => {
   });
 
   test('join and leave a timeslot from the panel', async ({ page }) => {
-    // Leaving needs the names of the place (open_days.read_assignments), see the product finding in the report.
-    const world = newWorld({ permissions: [...staffing, 'open_days.read_assignments'], membership: 'trainee' });
+    const world = newWorld({ permissions: staffing, membership: 'trainee' });
     await open(page, world);
     await dayRow(page, FRIDAY_2).click();
     const panel = panelOf(page);
@@ -111,7 +100,7 @@ test.describe('people who sign up', () => {
     });
     await expect(panel.getByText("You're in as trainee.")).toBeVisible();
     await expect(dayRow(page, FRIDAY_2).getByText(/You're in · Trainee/)).toBeVisible();
-    await expect(panel.getByText('Ada Lovelace (you)')).toBeVisible();
+    await expect(panel.getByText('You', { exact: true })).toBeVisible();
 
     await panel.getByRole('button', { name: 'Leave', exact: true }).click();
     await expect.poll(() => sent(world, 'DELETE', `/open-days/${ids.dayA}/assignments/me`).length).toBe(1);
@@ -177,7 +166,7 @@ test.describe('the Leitung', () => {
     await expect(sections.getByRole('tab', { name: 'Breaks' })).toBeVisible();
     const table = page.getByRole('table', { name: 'Periods' });
     await expect(table.getByRole('row')).toHaveCount(2);
-    await table.getByRole('button', { name: 'Show Winter Semester 2026/27' }).click();
+    await table.getByRole('button', { name: /Winter Semester 2026\/27/ }).click();
     const panel = page.locator('aside[aria-label="Period details"]');
     await expect(panel.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
     await expectAccessible(page);
@@ -538,12 +527,12 @@ for (const width of [320, 390, 768, 1280, 1440]) {
 
     await page.getByRole('tab', { name: 'Calendar' }).click();
     await expect(page.getByRole('group', { name: 'Period calendar' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Friday 2 October, 16:00–19:00/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Friday 2 October/ })).toBeVisible();
     await expectNoSidewaysScroll(page);
     await expectAccessible(page);
     await capture(page, testInfo, `open-days-calendar-${width}.png`);
 
-    await page.getByRole('button', { name: /Friday 2 October, 16:00–19:00/ }).click();
+    await page.getByRole('button', { name: /Friday 2 October/ }).click();
     await expect(panelOf(page).getByRole('heading', { name: /Friday 2 October/ })).toBeVisible();
     await expectNoSidewaysScroll(page);
     await expectAccessible(page);

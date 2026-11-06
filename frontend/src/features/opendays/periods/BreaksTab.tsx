@@ -229,7 +229,6 @@ export function BreaksTab() {
           rows={rows}
           columns={columns}
           getId={(item) => item.id}
-          getName={(item) => item.name}
           selectedId={selectedId}
           onSelect={(id) => {
             setSelectedId(id);

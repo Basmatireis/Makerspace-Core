@@ -153,12 +153,7 @@ export function StaffingTable({
             return (
               <TableRow key={row.personId} isSelected={selected} onClick={() => onSelect(row.personId)}>
                 <TableCell>
-                  <button
-                    type="button"
-                    className="st-row-button"
-                    aria-pressed={selected}
-                    aria-label={`Show ${row.name}`}
-                  >
+                  <button type="button" className="st-row-button" aria-pressed={selected}>
                     <span className="st-name">
                       <span>{row.name}</span>
                       {row.extraRoles.length > 0 && <small>{row.extraRoles.join(', ')}</small>}

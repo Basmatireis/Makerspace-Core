@@ -57,7 +57,7 @@
   @include type-style('body-compact-01');
 }
 .od-none {
-  color: theme.$text-placeholder;
+  color: theme.$text-secondary;
 }
 .od-hint {
   margin: 0;
@@ -927,9 +927,6 @@
   color: theme.$text-secondary;
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
-}
-.od-pp.is-empty {
-  opacity: 0.6;
 }
 .od-segs {
   display: flex;

@@ -164,7 +164,6 @@ export function PeriodsTab({ initialId, canSignUp }: { initialId: string | null;
           rows={rows}
           columns={columns}
           getId={(period) => period.id}
-          getName={(period) => period.name}
           selectedId={selectedId}
           onSelect={(id) => {
             setSelectedId(id);
