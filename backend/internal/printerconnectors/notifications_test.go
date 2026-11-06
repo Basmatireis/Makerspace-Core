@@ -86,7 +86,7 @@ func TestIngestPrinterErrorNotifiesTheOperatorAndTheChosenRoleOnce(t *testing.T)
 	reader := h.principalWith("reader", authorization.PrinterConnectorsRead)
 	h.cleanupNotifications(supervisor.AccountID, reader.AccountID, h.principal.AccountID)
 	var roleID uuid.UUID
-	if err := h.pool.QueryRow(ctx, `SELECT role_id FROM person_roles WHERE person_id = $1`, supervisor.PersonID).Scan(&roleID); err != nil {
+	if err := h.pool.QueryRow(ctx, `SELECT pr.role_id FROM person_roles pr JOIN roles r ON r.id = pr.role_id WHERE pr.person_id = $1 AND r.system_key IS NULL`, supervisor.PersonID).Scan(&roleID); err != nil {
 		t.Fatal(err)
 	}
 	// The chosen role is told from "serious" on; the test resets the singleton afterwards.
