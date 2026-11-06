@@ -46,6 +46,8 @@ type Service struct {
 type NotificationEmitter interface {
 	machinelogbook.NotificationEmitter
 	PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, family, code string, severity *string) error
+	// PrinterErrorCleared tells that the printer no longer reports the error, which ends its escalation.
+	PrinterErrorCleared(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, code string) error
 	FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, change notifyrules.FilamentChange) error
 }
 

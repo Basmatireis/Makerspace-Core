@@ -144,6 +144,11 @@ func (s *Service) assign(
 	}); err != nil {
 		return Assignment{}, err
 	}
+	if req.Kind == "supervisor" {
+		if err := s.inbox.PlaceTaken(ctx, tx, req.TimeslotID); err != nil {
+			return Assignment{}, err
+		}
+	}
 	if personID != p.PersonID {
 		slot, err := q.GetTimeslot(ctx, req.TimeslotID)
 		if err != nil {

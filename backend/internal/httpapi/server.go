@@ -148,6 +148,10 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	if err != nil {
 		return nil, fmt.Errorf("initialize Open Days: %w", err)
 	}
+	notifyDispatcher.WithHolidays(func(day time.Time) (bool, error) {
+		holidays, err := openDaysService.PublicHolidaysBetween(day, day)
+		return len(holidays) > 0, err
+	})
 	calendarFeedService, err := calendarfeed.NewService(pool, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize calendar feed: %w", err)
@@ -262,7 +266,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		signage:           signageService,
 		surveys:           surveyService,
 		inbox:             inbox.NewService(pool),
-		notifyRules:       notifyrules.NewService(pool),
+		notifyRules:       notifyrules.NewService(pool).WithDispatcher(notifyDispatcher, location),
 		notifyDispatcher:  notifyDispatcher,
 		guides:            guides.NewService(pool),
 		configTransfer:    configTransferService,

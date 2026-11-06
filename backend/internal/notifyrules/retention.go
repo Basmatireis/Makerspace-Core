@@ -15,6 +15,12 @@ func DeliveryRetention() privacy.RetentionHandler {
 		if action != privacy.ActionDelete {
 			return 0, privacy.ErrActionUnsupported
 		}
-		return notifyrulesdb.New(tx).DeleteFiringsCreatedBefore(ctx, cutoff)
+		queries := notifyrulesdb.New(tx)
+		firings, err := queries.DeleteFiringsCreatedBefore(ctx, cutoff)
+		if err != nil {
+			return 0, err
+		}
+		runs, err := queries.DeleteRuleRunsBefore(ctx, cutoff)
+		return firings + runs, err
 	})
 }

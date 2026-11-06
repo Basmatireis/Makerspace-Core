@@ -164,6 +164,8 @@ type NotificationEmitter interface {
 		timeslotID, leavingPersonID uuid.UUID,
 		location *time.Location,
 	) error
+	// PlaceTaken is told that somebody took a supervisor place of a timeslot, which ends the escalation of its freed place.
+	PlaceTaken(ctx context.Context, tx pgx.Tx, timeslotID uuid.UUID) error
 	// OpenDayPersonNotice tells one person what changed about their own place on an open day.
 	OpenDayPersonNotice(
 		ctx context.Context,

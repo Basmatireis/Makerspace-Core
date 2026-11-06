@@ -235,16 +235,7 @@ func changedRuleFields(
 
 // CurrentSemester resolves the semester for the instant, or nil when no period can serve as one.
 func (s *Service) CurrentSemester(ctx context.Context, rules Rules, now time.Time) (*Semester, error) {
-	rows, err := staffingdb.New(s.pool).ListSemesterCandidates(ctx)
-	if err != nil {
-		return nil, err
-	}
-	candidates := make([]Semester, 0, len(rows))
-	for _, row := range rows {
-		candidates = append(candidates, semesterOf(rules, row.ID, row.Name, row.Status, row.StartsOn, row.EndsOn,
-			row.SignUpDeadline))
-	}
-	return ResolveSemester(candidates, DateOf(now, s.location)), nil
+	return NewReader(s.pool, s.location).CurrentSemester(ctx, rules, now)
 }
 
 // SemesterForPeriod returns the period as a semester. Draft periods are visible only when includeDrafts is set;
@@ -294,22 +285,7 @@ func (s *Service) Counts(
 	now time.Time,
 	onlyPerson *uuid.UUID,
 ) (map[uuid.UUID]Counts, error) {
-	result := map[uuid.UUID]Counts{}
-	if semester == nil {
-		return result, nil
-	}
-	rows, err := staffingdb.New(s.pool).ListStaffingCounts(ctx, staffingdb.ListStaffingCountsParams{
-		PeriodID: &semester.ID, Now: now, CountBy: string(rules.CountBy), OnlyPersonID: onlyPerson,
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		result[row.PersonID] = Counts{
-			Staffed: int(row.Staffed), Booked: int(row.Booked), StaffedAsTrainee: int(row.StaffedAsTrainee),
-		}
-	}
-	return result, nil
+	return NewReader(s.pool, s.location).Counts(ctx, rules, semester, now, onlyPerson)
 }
 
 // Minimums loads the exceptions and the excusals of the semester so each person's minimum can be resolved;
@@ -320,32 +296,7 @@ func (s *Service) Minimums(
 	semester *Semester,
 	onlyPerson *uuid.UUID,
 ) (Minimums, error) {
-	queries := staffingdb.New(s.pool)
-	rows, err := queries.ListPersonExceptions(ctx, onlyPerson)
-	if err != nil {
-		return Minimums{}, err
-	}
-	result := Minimums{rules: rules, exceptions: map[uuid.UUID][]Exception{}, excusals: map[uuid.UUID]Excusal{}}
-	for _, row := range rows {
-		result.exceptions[row.PersonID] = append(result.exceptions[row.PersonID], Exception{
-			RoleID: row.RoleID, RoleName: row.RoleName, Minimum: int(row.Minimum),
-		})
-	}
-	if semester == nil {
-		return result, nil
-	}
-	excusals, err := queries.ListExcusals(ctx, staffingdb.ListExcusalsParams{
-		PeriodID: semester.ID, OnlyPersonID: onlyPerson,
-	})
-	if err != nil {
-		return Minimums{}, err
-	}
-	for _, row := range excusals {
-		result.excusals[row.PersonID] = Excusal{
-			PeriodID: row.PeriodID, PersonID: row.PersonID, Reason: row.Reason, CreatedAt: row.CreatedAt,
-		}
-	}
-	return result, nil
+	return NewReader(s.pool, s.location).Minimums(ctx, rules, semester, onlyPerson)
 }
 
 // LastStaffed returns when each person last staffed an ended open day, in any semester.

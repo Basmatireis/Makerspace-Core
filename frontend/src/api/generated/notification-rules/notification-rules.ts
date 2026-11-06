@@ -21,12 +21,17 @@
 import type {
   AnswerNotificationConsentsRequest,
   CreateNotificationCategoryRequest,
+  ListNotificationActivityParams,
+  NotificationActivityPage,
   NotificationCatalog,
   NotificationCategory,
   NotificationCategoryList,
   NotificationRule,
+  NotificationRuleDryRun,
+  NotificationRuleDryRunRequest,
   NotificationRuleInput,
   NotificationRuleList,
+  NotificationRuleRunResult,
   NotificationSettings,
   SetFeedbackAtCheckoutRequest,
   SetNotificationRulePreferenceRequest,
@@ -120,6 +125,123 @@ return apiFetch<NotificationRule>(getCreateNotificationRuleUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(notificationRuleInput)
+  }
+);}
+
+
+export const getDryRunNotificationRuleUrl = () => {
+
+
+
+
+  return `/api/v1/notification-rules/dry-run`
+}
+
+/**
+ * Evaluates the draft against the data of the moment without writing anything: the items of its loop with their values and whether they match, the summary, the people whose conditions pass, the estimated notifications in 30 days and how the first actions read. A central draft (`personal` false) needs `notification_rules.manage`; a personal draft needs only a staff session and the same visibility checks as a subscription. An invalid draft answers 422 like a save would.
+ * @summary Preview what a rule draft would do right now
+ */
+export const dryRunNotificationRule = async (notificationRuleDryRunRequest: NotificationRuleDryRunRequest, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationRuleDryRun> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<NotificationRuleDryRun>(getDryRunNotificationRuleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(notificationRuleDryRunRequest)
+  }
+);}
+
+
+export const getListNotificationActivityUrl = (params?: ListNotificationActivityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/notification-rules/activity?${stringifiedParams}` : `/api/v1/notification-rules/activity`
+}
+
+/**
+ * Requires `notification_rules.read`. Newest first, with the delivery log of each firing. People appear by name only, never by address.
+ * @summary List the firings of the notification rules
+ */
+export const listNotificationActivity = async (params?: ListNotificationActivityParams, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationActivityPage> => {
+
+  return apiFetch<NotificationActivityPage>(getListNotificationActivityUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getRunNotificationRuleUrl = (ruleId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/notification-rules/${ruleId}/run`
+}
+
+/**
+ * Requires `notification_rules.manage`. Runs an enabled central schedule or manual rule once, as its schedule would; a rule before or after open days acts on the next open day. Event rules answer 409. Audited as `notification_rule.run`.
+ * @summary Run a schedule or manual rule now
+ */
+export const runNotificationRule = async (ruleId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationRuleRunResult> => {
+
+  return apiFetch<NotificationRuleRunResult>(getRunNotificationRuleUrl(ruleId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getTestNotificationRuleUrl = (ruleId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/notification-rules/${ruleId}/test`
+}
+
+/**
+ * Sends the in-app and e-mail actions of the rule's first step to the caller only, with the texts filled from the first matching item or the trigger's examples, and logs the firing as a test. A central rule needs `notification_rules.manage`; a personal subscription must be the caller's own.
+ * @summary Send a rule's first actions to yourself
+ */
+export const testNotificationRule = async (ruleId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationRuleRunResult> => {
+
+  return apiFetch<NotificationRuleRunResult>(getTestNotificationRuleUrl(ruleId),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 

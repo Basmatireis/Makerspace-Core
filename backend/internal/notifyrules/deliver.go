@@ -85,7 +85,7 @@ type recipientRow struct {
 // written only for people with an enabled account; people without one can only receive e-mail.
 func (d *Dispatcher) deliver(
 	ctx context.Context,
-	q *notifyrulesdb.Queries,
+	q *store,
 	runtime *ruleRuntime,
 	in deliveryInput,
 	now time.Time,
@@ -202,6 +202,13 @@ func (d *Dispatcher) deliver(
 		}
 	}
 
+	if runtime.Stats != nil {
+		if runtime.Stats.Sent == nil {
+			runtime.Stats.Sent = map[Channel]int{}
+		}
+		runtime.Stats.Sent[ChannelInApp] += len(inAppPeople)
+		runtime.Stats.Sent[ChannelEmail] += len(mailPeople)
+	}
 	sentStatus := statusSent
 	if in.Fallback {
 		sentStatus = statusFallback
@@ -282,7 +289,7 @@ func (d *Dispatcher) deliver(
 // none: their owner changes or deletes the rule itself.
 func (d *Dispatcher) preferences(
 	ctx context.Context,
-	q *notifyrulesdb.Queries,
+	q *store,
 	runtime *ruleRuntime,
 	targets map[uuid.UUID]*target,
 ) (map[uuid.UUID]*Preference, error) {
@@ -321,7 +328,7 @@ func (d *Dispatcher) preferences(
 // scheduleFallback queues the e-mail that follows an in-app notification when nobody read it in time.
 func (d *Dispatcher) scheduleFallback(
 	ctx context.Context,
-	q *notifyrulesdb.Queries,
+	q *store,
 	in deliveryInput,
 	people []uuid.UUID,
 	notificationID uuid.UUID,

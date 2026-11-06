@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	notifyrulesdb "github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules/db"
@@ -49,7 +50,7 @@ func (d *Dispatcher) runOnePending(ctx context.Context) (bool, error) {
 	var attempts int32
 	found := false
 	err := database.InTx(ctx, d.pool, func(tx pgx.Tx) error {
-		q := notifyrulesdb.New(tx)
+		q := newStore(tx)
 		row, err := q.ClaimDuePendingAction(ctx, now)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -64,7 +65,7 @@ func (d *Dispatcher) runOnePending(ctx context.Context) (bool, error) {
 		return found, err
 	}
 	slog.WarnContext(ctx, "waiting notification failed", "pending_id", claimed, "attempt", attempts+1, "error", err)
-	q := notifyrulesdb.New(d.pool)
+	q := newStore(d.pool)
 	if attempts+1 >= pendingMaxAttempts {
 		if err = q.DeletePendingAction(ctx, claimed); err != nil {
 			return true, fmt.Errorf("drop waiting notification: %w", err)
@@ -94,7 +95,7 @@ func stopsOnReading(stopWhen string) bool {
 // rule's conditions are evaluated again, with the event's stored field values and the present moment.
 func (d *Dispatcher) processPending(
 	ctx context.Context,
-	q *notifyrulesdb.Queries,
+	q *store,
 	row notifyrulesdb.ClaimDuePendingActionRow,
 	now time.Time,
 ) error {
@@ -136,6 +137,25 @@ func (d *Dispatcher) processPending(
 			return drop()
 		}
 	}
+	if row.Step > 0 && def.Escalation != nil && def.Escalation.StopWhen == ResolutionItemNoLongerMatches &&
+		item.ItemKey != "" && def.Loop != nil {
+		still, err := d.itemStillMatches(ctx, q, def, item, now)
+		if err != nil {
+			return err
+		}
+		if !still {
+			reason := ResolutionItemNoLongerMatches
+			if err = q.ResolveFiring(ctx, notifyrulesdb.ResolveFiringParams{
+				ResolvedAt: pgtype.Timestamptz{Time: now, Valid: true}, Reason: &reason, ID: row.FiringID,
+			}); err != nil {
+				return fmt.Errorf("resolve firing: %w", err)
+			}
+			if _, err = q.DeletePendingEscalations(ctx, []string{row.FiringID.String()}); err != nil {
+				return fmt.Errorf("drop escalation steps: %w", err)
+			}
+			return drop()
+		}
+	}
 	var action Action
 	if err = json.Unmarshal(row.Action, &action); err != nil {
 		return drop()
@@ -164,7 +184,13 @@ func (d *Dispatcher) processPending(
 		row.RuleID, row.RuleName, row.CategoryID, row.CategoryBasis, row.CategoryTextVersion, row.Mandatory, personal, def,
 	)
 	if !item.Fallback {
-		evaluated, err := d.evaluate(ctx, q, def, decodeFields(item.Fields), now, people)
+		values := Context(item.Values)
+		if len(values) == 0 {
+			values = eventValues(decodeFields(item.Fields))
+		} else {
+			values = Context(decodeFields(item.Values))
+		}
+		evaluated, err := d.evaluate(ctx, q, def, values, now, people)
 		if err != nil {
 			return err
 		}
@@ -194,4 +220,34 @@ func intersectPeople(people, allowed []uuid.UUID) []uuid.UUID {
 		}
 	}
 	return result
+}
+
+// itemStillMatches reloads the loop item an escalation is about and checks the loop's filter and the rule's
+// conditions against it again.
+func (d *Dispatcher) itemStillMatches(
+	ctx context.Context,
+	q *store,
+	def Definition,
+	item pendingItem,
+	now time.Time,
+) (bool, error) {
+	collection, ok := LookupCollection(def.Loop.Collection)
+	if !ok {
+		return false, nil
+	}
+	items, err := d.loadCollection(ctx, q, collection, now)
+	if err != nil {
+		return false, err
+	}
+	index := slices.IndexFunc(items, func(candidate Item) bool { return candidate.Key == item.ItemKey })
+	if index < 0 {
+		return false, nil
+	}
+	values := mergeContext(Context(decodeFields(item.Values)), ItemContext(items[index].Fields))
+	needed, _ := conditionKeys(def)
+	if values, err = d.withNow(ctx, q, values, needed, now); err != nil {
+		return false, err
+	}
+	lookup := FieldLookupFor(def)
+	return def.Loop.Filter.Evaluate(values, lookup) && def.Conditions.Evaluate(values, lookup), nil
 }

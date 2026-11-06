@@ -189,6 +189,13 @@ func NewApplicationWithRelay(
 		},
 	})
 	jobs.Add(scheduler.Job{
+		ID: "notifyrules.schedule", Interval: notifyrules.ScheduleInterval, RunAtStart: true,
+		Run: func(ctx context.Context) (scheduler.Summary, error) {
+			handled, err := server.notifyDispatcher.RunSchedules(ctx, notifyrules.ScheduleBatch)
+			return scheduler.Summary{"handled": handled}, err
+		},
+	})
+	jobs.Add(scheduler.Job{
 		ID: "privacy.retention", Interval: privacy.ScheduledInterval, RunAtStart: true,
 		Enabled: func(ctx context.Context) (bool, time.Duration, error) {
 			enabled, interval, err := server.privacy.AutomaticRunsEnabled(ctx)

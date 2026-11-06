@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -17,14 +18,23 @@ type Querier interface {
 	// Takes the oldest due action together with what the delivery needs to know about its firing and rule. The row stays
 	// locked until the caller's transaction ends.
 	ClaimDuePendingAction(ctx context.Context, now time.Time) (ClaimDuePendingActionRow, error)
+	// Takes one enabled schedule rule that is due, or has no next run yet, and keeps it locked until the transaction ends.
+	ClaimDueScheduleRule(ctx context.Context, now pgtype.Timestamptz) (ClaimDueScheduleRuleRow, error)
+	// Zero rows mean the run was handled before.
+	ClaimRuleRun(ctx context.Context, arg ClaimRuleRunParams) (int64, error)
 	// Starts the throttle window for a subject unless an earlier one still runs. Zero rows mean the firing is throttled.
 	ClaimThrottle(ctx context.Context, arg ClaimThrottleParams) (int64, error)
+	CountActivity(ctx context.Context, ruleID *uuid.UUID) (int64, error)
 	CountCategories(ctx context.Context) (int64, error)
 	CountCentralRules(ctx context.Context) (int64, error)
 	CountCheckedInPeople(ctx context.Context) (int64, error)
+	CountFinishedJobRunsSince(ctx context.Context, since pgtype.Timestamptz) (int64, error)
+	CountLabRulesPublishedSince(ctx context.Context, since pgtype.Timestamptz) (int64, error)
 	CountOwnRules(ctx context.Context, ownerAccountID *uuid.UUID) (int64, error)
 	// Consent categories the person has not answered at the category's current text.
 	CountPendingConsents(ctx context.Context, personID uuid.UUID) (int64, error)
+	CountPrinterErrorsSince(ctx context.Context, since time.Time) (int64, error)
+	CountScheduledOpenDaysBetween(ctx context.Context, arg CountScheduledOpenDaysBetweenParams) (int64, error)
 	DeferPendingAction(ctx context.Context, arg DeferPendingActionParams) error
 	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) (int64, error)
 	// Retention of the delivery log; recipients and pending actions cascade.
@@ -34,10 +44,12 @@ type Querier interface {
 	// Escalation steps and e-mail fallbacks wait for a reaction; delayed first actions do not.
 	DeletePendingEscalations(ctx context.Context, firingIds []string) (int64, error)
 	DeleteRule(ctx context.Context, arg DeleteRuleParams) (int64, error)
+	DeleteRuleRunsBefore(ctx context.Context, cutoff time.Time) (int64, error)
 	// Whether anybody opened an in-app notification of the firing.
 	FiringWasRead(ctx context.Context, firingID uuid.UUID) (bool, error)
 	GetCategory(ctx context.Context, id uuid.UUID) (GetCategoryRow, error)
 	GetCategoryForUpdate(ctx context.Context, id uuid.UUID) (NotificationCategory, error)
+	GetCurrentLabRulesVersion(ctx context.Context, now pgtype.Timestamptz) (uuid.UUID, error)
 	GetLabRulesRevision(ctx context.Context, id uuid.UUID) (string, error)
 	// The machine and the operator of the run that is printing on it right now, if any.
 	GetMachineEventFacts(ctx context.Context, id uuid.UUID) (GetMachineEventFactsRow, error)
@@ -46,6 +58,8 @@ type Querier interface {
 	GetPersonSettings(ctx context.Context, personID uuid.UUID) (PersonNotificationSetting, error)
 	GetPrinterErrorMeaning(ctx context.Context, arg GetPrinterErrorMeaningParams) (string, error)
 	GetRule(ctx context.Context, id uuid.UUID) (NotificationRule, error)
+	// Scheduling, rule runs and the collections rules loop over.
+	GetRuleForRun(ctx context.Context, id uuid.UUID) (GetRuleForRunRow, error)
 	GetRuleForUpdate(ctx context.Context, id uuid.UUID) (NotificationRule, error)
 	// Facts for the events the application itself raises (system notifications).
 	GetRunEventFacts(ctx context.Context, id uuid.UUID) (GetRunEventFactsRow, error)
@@ -60,6 +74,8 @@ type Querier interface {
 	InsertRuleMail(ctx context.Context, arg InsertRuleMailParams) error
 	InsertRuleNotification(ctx context.Context, arg InsertRuleNotificationParams) error
 	InsertRuleNotificationRecipients(ctx context.Context, arg InsertRuleNotificationRecipientsParams) error
+	ListActivity(ctx context.Context, arg ListActivityParams) ([]ListActivityRow, error)
+	ListActivityRecipients(ctx context.Context, firingIds []string) ([]ListActivityRecipientsRow, error)
 	ListAllCheckedInPeople(ctx context.Context) ([]uuid.UUID, error)
 	ListCategories(ctx context.Context) ([]ListCategoriesRow, error)
 	ListCentralRules(ctx context.Context, since time.Time) ([]ListCentralRulesRow, error)
@@ -84,10 +100,14 @@ type Querier interface {
 	ListMaterialTypeOptions(ctx context.Context) ([]ListMaterialTypeOptionsRow, error)
 	ListMembershipsOfPeople(ctx context.Context, personIds []string) ([]ListMembershipsOfPeopleRow, error)
 	ListOpenDayTeam(ctx context.Context, openDayID uuid.UUID) ([]uuid.UUID, error)
+	// Everyone signed up for the open days, with the kind of place they hold.
+	ListOpenDayTeams(ctx context.Context, openDayIds []string) ([]ListOpenDayTeamsRow, error)
 	ListOwnRules(ctx context.Context, ownerAccountID *uuid.UUID) ([]NotificationRule, error)
 	// People with an active account whose roles ask for the Lab Rules (warning or blocking) and who have not confirmed
 	// the version.
 	ListPeopleAwaitingLabRules(ctx context.Context, versionID uuid.UUID) ([]uuid.UUID, error)
+	ListPeopleAwaitingVersion(ctx context.Context, versionID uuid.UUID) ([]uuid.UUID, error)
+	ListPeopleNames(ctx context.Context, personIds []string) ([]ListPeopleNamesRow, error)
 	ListPeopleSignedUpBetween(ctx context.Context, arg ListPeopleSignedUpBetweenParams) ([]uuid.UUID, error)
 	ListPeopleWhoHaveNotRead(ctx context.Context, notificationID uuid.UUID) ([]uuid.UUID, error)
 	ListPeopleWithEnabledAccount(ctx context.Context, personIds []string) ([]uuid.UUID, error)
@@ -96,22 +116,37 @@ type Querier interface {
 	ListPreferencesOfAccount(ctx context.Context, accountID uuid.UUID) ([]NotificationRulePreference, error)
 	ListPreferencesOfRule(ctx context.Context, arg ListPreferencesOfRuleParams) ([]ListPreferencesOfRuleRow, error)
 	ListPrinterOptions(ctx context.Context) ([]ListPrinterOptionsRow, error)
+	ListProcessNames(ctx context.Context) ([]ListProcessNamesRow, error)
 	ListProcessOptions(ctx context.Context) ([]ListProcessOptionsRow, error)
 	ListRoleIDsOfPeople(ctx context.Context, personIds []string) ([]ListRoleIDsOfPeopleRow, error)
 	ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, error)
 	// People with an active account who staff open days (supervisor or trainee membership).
 	ListStaffingPeople(ctx context.Context) ([]uuid.UUID, error)
+	ListTrainersOfTrainings(ctx context.Context) ([]ListTrainersOfTrainingsRow, error)
 	ListTrainingOptions(ctx context.Context) ([]ListTrainingOptionsRow, error)
 	// People with an active account and the supervisor membership who hold no place in the timeslot.
 	ListUnassignedSupervisorPeople(ctx context.Context, arg ListUnassignedSupervisorPeopleParams) ([]uuid.UUID, error)
+	// Finalized orders with an outstanding amount that no active external invoice request covers, per customer.
+	ListUnpaidOfPeople(ctx context.Context, personIds []string) ([]ListUnpaidOfPeopleRow, error)
+	LoadArticleItems(ctx context.Context, maxItems int32) ([]LoadArticleItemsRow, error)
+	LoadJobItems(ctx context.Context, maxItems int32) ([]LoadJobItemsRow, error)
+	LoadMachineItems(ctx context.Context, arg LoadMachineItemsParams) ([]LoadMachineItemsRow, error)
+	// Open days starting within the window, of one period or of every period.
+	LoadOpenDayItems(ctx context.Context, arg LoadOpenDayItemsParams) ([]LoadOpenDayItemsRow, error)
+	LoadOrderItems(ctx context.Context, maxItems int32) ([]LoadOrderItemsRow, error)
+	LoadPeopleItems(ctx context.Context, maxItems int32) ([]LoadPeopleItemsRow, error)
+	LoadSpoolItems(ctx context.Context, maxItems int32) ([]LoadSpoolItemsRow, error)
+	LoadTrainingItems(ctx context.Context, maxItems int32) ([]LoadTrainingItemsRow, error)
 	MailDeliveryEnabled(ctx context.Context) (bool, error)
 	// The notifications that announced new Lab Rules, written by the "lab_rules_published" rule (or, before the rules
 	// existed, as their own kind), are read once the person confirmed.
 	MarkLabRulesNoticesRead(ctx context.Context, personID uuid.UUID) (int64, error)
 	MarkRuleFired(ctx context.Context, arg MarkRuleFiredParams) error
+	OnAcademicBreak(ctx context.Context, day pgtype.Date) (bool, error)
 	OpenDayRunning(ctx context.Context, now time.Time) (bool, error)
 	ResolveFiring(ctx context.Context, arg ResolveFiringParams) error
 	ResolveOpenFirings(ctx context.Context, arg ResolveOpenFiringsParams) ([]uuid.UUID, error)
+	SetNextRun(ctx context.Context, arg SetNextRunParams) error
 	// Asking again bumps the text version: answers to an older text stop counting.
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (int64, error)
 	// A changed definition clears next_run_at so the scheduler computes it afresh.

@@ -62,10 +62,13 @@ mutation and calls `Resolve(ctx, tx, token, reason)` when the thing the event wa
 - `Emit` loads the enabled event rules (central and personal) of the trigger. Every rule runs in its own savepoint: a
   definition that cannot be read or a failing statement is logged with the rule's identifier and skipped, so rules
   never fail the mutation. Only errors that break the transaction are returned.
-- Conditions use the event's `e.` fields, `n.weekday`/`n.hour` (makerspace time zone), `n.present` and
-  `n.openDayRunning`, and per recipient the `r.` facts `systemRole`, `roles`, `checkedIn`, `lastVisit` and
-  `signedUpNext14`. Other recipient facts are not loadable yet; a rule that asks for one reaches nobody instead of
-  everybody. Conditions on fields the context lacks are ignored.
+- Conditions use the event's `e.` fields, the loop's `i.`/`s.` values, `n.weekday`/`n.hour` (makerspace time zone),
+  `n.present`, `n.openDayRunning` and `n.holiday` (academic breaks plus the public holidays of the Open Days calendar),
+  and per recipient the `r.` facts `systemRole`, `roles`, `checkedIn`, `lastVisit`, `signedUpNext14`, `openDays`,
+  `minimum`, `belowMinimum` and `unpaid`. The open-day facts come from `staffing.Reader`, the same code the staffing
+  pages use (current semester, counting rule, role exceptions, excusals); `unpaid` is the outstanding amount of the
+  person's finalized orders that no active wiRef request covers. A rule that asks for a fact that cannot be loaded
+  reaches nobody instead of everybody. Conditions on fields the context lacks are ignored.
 - Personal rules are subscriptions: they fire for the owner while the owner still holds the trigger's permission, and
   events about one person (`self` recipient) reach only that person's own rules.
 - A rule fires (one `notification_firings` row, one throttle window) when its conditions hold and at least one recipient
@@ -81,6 +84,52 @@ mutation and calls `Resolve(ctx, tx, token, reason)` when the thing the event wa
   `notification_pending_actions`; the scheduler job `notifyrules.pending` delivers them every minute. Escalation steps
   and fallbacks of a resolved firing, or of a firing whose in-app notification was read, are dropped. Until delivery
   tracking exists, reading counts as opened, seen and acknowledged.
+
+## Schedules, For each and summaries
+
+Schedule and manual rules use the same engine as event rules (`fire.go`, `schedule.go`, `collections.go`).
+
+- **Schedules.** `daily`, `weekdays`, `weekly` and `monthly` fire at a clock time in the makerspace time zone.
+  `NextRun` returns the next moment: a time that does not exist (the hour lost when clocks go forward) fires when the
+  clocks jump, a time that exists twice fires once, so no day fires twice or not at all. The service stores
+  `next_run_at` on create and update; the scheduler job `notifyrules.schedule` (every minute and at start) claims due
+  rules with `FOR UPDATE SKIP LOCKED` in one transaction per rule, runs them, and stores the next run. A run that is
+  more than two hours late is skipped, not fired. A rule without `next_run_at` only gets one, it never fires at once.
+  A rule that fails is retried every five minutes and cannot hold back the others.
+- **Before/after each open day.** The rule looks at the scheduled open days around now (cancelled ones never fire):
+  it fires for a day when `start - hours` (before) or `end + hours` (after) has passed, at most six hours ago and
+  after the rule was last saved. The handled open day is recorded in `notification_rule_runs(rule_id, run_key)` in
+  the same transaction as the firing, so a restart or a second scheduler pass never fires a day twice. The rule polls
+  every five minutes for open days created meanwhile. Its context is `e.supervisors/free/trainees/weekday` (and
+  `e.mine` in personal rules), the placeholders `{day} {time} {supervisors} {trainees} {free}` and the recipient
+  `day_team`.
+- **For each (loop, mode each).** The collection (`people`, `open_days` of the current semester, `machines`, `spools`,
+  `orders`, `jobs`, `articles`, `trainings`) is loaded by one SQL query per collection (at most 5000 items); the loop
+  filter selects items on `i.` (plus `e.` and `n.`), then the rule's conditions are evaluated per item. Each matching
+  item fires on its own: placeholders such as `{person.unpaid}`, recipients `item:<key>` (the person, the order's
+  customer, the training's trainers...), throttle per `item`, a resolve token per item. Order customers that are
+  organizations and job recipients are reached by e-mail only.
+- **Summary.** The filtered items become `s.count`, `s.sum.<money field>` and `s.max.<days or hours field>`; the
+  conditions are evaluated on those once and the rule fires once with `{count}`, `{list}` (up to 15 names),
+  `{sum.x}` and `{max.x}`.
+- **Escalation per item.** Steps are resolved per item. With `stopWhen = item_no_longer_matches` the pending job
+  reloads the item before every step and drops the remaining steps when the filter or conditions no longer hold.
+  Other stop conditions resolve through tokens: a printer error cleared by its connector
+  (`printer_error:<machine>:<code>`) and a supervisor place taken again (`open_day_place:<timeslot>`) call
+  `Resolve` from the same transaction.
+- **Not loadable, so not offered.** There is no "filament ran empty" trigger yet, so no spool token exists for it.
+- **Retention.** `notification_rule_runs` is deleted with the delivery log (90 days).
+
+### Run now, test, dry run and activity
+
+| Endpoint | Permission | What it does |
+| --- | --- | --- |
+| `POST /notification-rules/{ruleId}/run` | `notification_rules.manage` | Runs an enabled central schedule or manual rule once (a rule before/after open days acts on the next open day). Returns people reached per channel, items examined and notifications produced. Audited as `notification_rule.run`. |
+| `POST /notification-rules/{ruleId}/test` | `manage` for central rules; own personal rules | Sends the first-step in-app and e-mail actions to the caller only, filled from the first matching item or the trigger's examples, and logs a firing with `test = true` (not counted in the statistics). Audited as `notification_rule.tested`. |
+| `POST /notification-rules/dry-run` | `manage` for central drafts; any staff session for personal drafts | Validates the draft like a save, then evaluates it without writing: items with display values and match flag (20 examples, matches first), totals, the summary and its verdict, up to 20 recipients with the result of their `r.` conditions, and a preview per in-app/e-mail action. `estimate30` is the runs of the next 30 days times today's matches for schedules, the real occurrences of the last 30 days times today's matches for events whose source is recorded (`printer_error`, `run_finished`, `lab_rules_published`), and `null` with `estimateNote` for manual rules and events nothing records. Conditions on the event itself are not applied to the count. |
+| `GET /notification-rules/activity` | `notification_rules.read` | Firings newest first (`ruleId`, `page`, `pageSize` up to 100) with channels, people reached, a result tag (`delivered`, `escalated`, `throttled`, `skipped`, `test`, `resolved`) and the delivery log per recipient: name (never an address), channel, step, status, sent and read times. |
+
+`GET /notification-rules` already carries `stats.fired30`, `lastFiredAt` and the 14-day `sparkline` of every rule.
 
 ## Frontend
 

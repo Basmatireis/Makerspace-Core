@@ -25,13 +25,26 @@ import (
 // notification_rules.read or .manage. Personal subscriptions, a person's own consents and channel choices need
 // only a staff session and are scoped to the principal by every query.
 type Service struct {
-	pool *pgxpool.Pool
-	now  func() time.Time
+	pool     *pgxpool.Pool
+	now      func() time.Time
+	location *time.Location
+	// dispatcher runs, tests and previews rules.
+	dispatcher *Dispatcher
 }
 
 // NewService builds the service.
 func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, now: func() time.Time { return time.Now().UTC() }}
+	return &Service{pool: pool, now: func() time.Time { return time.Now().UTC() }, location: time.UTC}
+}
+
+// WithDispatcher gives the service the engine that runs, tests and previews rules, and the makerspace's time zone
+// that schedules are read in.
+func (s *Service) WithDispatcher(dispatcher *Dispatcher, location *time.Location) *Service {
+	s.dispatcher = dispatcher
+	if location != nil {
+		s.location = location
+	}
+	return s
 }
 
 func auditEvent(p authorization.Principal, action, resource string, id uuid.UUID, requestID *uuid.UUID, fields []string) audit.Event {

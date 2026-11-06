@@ -102,6 +102,78 @@ func (q *Queries) ClaimDuePendingAction(ctx context.Context, now time.Time) (Cla
 	return i, err
 }
 
+const claimDueScheduleRule = `-- name: ClaimDueScheduleRule :one
+SELECT r.id, r.name, r.enabled, r.owner_account_id, a.person_id AS owner_person_id, r.category_id, r.mandatory,
+       r.trigger_type, r.definition, r.updated_at, r.next_run_at,
+       c.basis AS category_basis, c.text_version AS category_text_version
+FROM notification_rules r
+LEFT JOIN notification_categories c ON c.id = r.category_id
+LEFT JOIN accounts a ON a.id = r.owner_account_id
+WHERE r.enabled AND r.trigger_type = 'schedule' AND (r.next_run_at IS NULL OR r.next_run_at <= $1)
+ORDER BY r.next_run_at NULLS FIRST, r.id
+LIMIT 1
+FOR UPDATE OF r SKIP LOCKED
+`
+
+type ClaimDueScheduleRuleRow struct {
+	ID                  uuid.UUID
+	Name                string
+	Enabled             bool
+	OwnerAccountID      *uuid.UUID
+	OwnerPersonID       *uuid.UUID
+	CategoryID          *uuid.UUID
+	Mandatory           bool
+	TriggerType         string
+	Definition          []byte
+	UpdatedAt           time.Time
+	NextRunAt           pgtype.Timestamptz
+	CategoryBasis       *string
+	CategoryTextVersion *int32
+}
+
+// Takes one enabled schedule rule that is due, or has no next run yet, and keeps it locked until the transaction ends.
+func (q *Queries) ClaimDueScheduleRule(ctx context.Context, now pgtype.Timestamptz) (ClaimDueScheduleRuleRow, error) {
+	row := q.db.QueryRow(ctx, claimDueScheduleRule, now)
+	var i ClaimDueScheduleRuleRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Enabled,
+		&i.OwnerAccountID,
+		&i.OwnerPersonID,
+		&i.CategoryID,
+		&i.Mandatory,
+		&i.TriggerType,
+		&i.Definition,
+		&i.UpdatedAt,
+		&i.NextRunAt,
+		&i.CategoryBasis,
+		&i.CategoryTextVersion,
+	)
+	return i, err
+}
+
+const claimRuleRun = `-- name: ClaimRuleRun :execrows
+INSERT INTO notification_rule_runs (rule_id, run_key, ran_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (rule_id, run_key) DO NOTHING
+`
+
+type ClaimRuleRunParams struct {
+	RuleID uuid.UUID
+	RunKey string
+	Now    time.Time
+}
+
+// Zero rows mean the run was handled before.
+func (q *Queries) ClaimRuleRun(ctx context.Context, arg ClaimRuleRunParams) (int64, error) {
+	result, err := q.db.Exec(ctx, claimRuleRun, arg.RuleID, arg.RunKey, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const claimThrottle = `-- name: ClaimThrottle :execrows
 INSERT INTO notification_throttle (rule_id, subject_key, last_at)
 VALUES ($1, $2, $3)
@@ -128,6 +200,17 @@ func (q *Queries) ClaimThrottle(ctx context.Context, arg ClaimThrottleParams) (i
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const countActivity = `-- name: CountActivity :one
+SELECT count(*)::bigint FROM notification_firings f WHERE ($1::uuid IS NULL OR f.rule_id = $1)
+`
+
+func (q *Queries) CountActivity(ctx context.Context, ruleID *uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countActivity, ruleID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const countCategories = `-- name: CountCategories :one
@@ -163,6 +246,29 @@ func (q *Queries) CountCheckedInPeople(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countFinishedJobRunsSince = `-- name: CountFinishedJobRunsSince :one
+SELECT count(*)::bigint FROM machine_runs
+WHERE job_id IS NOT NULL AND deleted_at IS NULL AND ended_at >= $1
+`
+
+func (q *Queries) CountFinishedJobRunsSince(ctx context.Context, since pgtype.Timestamptz) (int64, error) {
+	row := q.db.QueryRow(ctx, countFinishedJobRunsSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countLabRulesPublishedSince = `-- name: CountLabRulesPublishedSince :one
+SELECT count(*)::bigint FROM laborordnung_versions WHERE status = 'published' AND effective_at >= $1
+`
+
+func (q *Queries) CountLabRulesPublishedSince(ctx context.Context, since pgtype.Timestamptz) (int64, error) {
+	row := q.db.QueryRow(ctx, countLabRulesPublishedSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countOwnRules = `-- name: CountOwnRules :one
 SELECT count(*) FROM notification_rules WHERE owner_account_id = $1
 `
@@ -185,6 +291,33 @@ WHERE c.basis = 'consent'
 // Consent categories the person has not answered at the category's current text.
 func (q *Queries) CountPendingConsents(ctx context.Context, personID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countPendingConsents, personID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countPrinterErrorsSince = `-- name: CountPrinterErrorsSince :one
+SELECT count(*)::bigint FROM printer_error_occurrences WHERE first_observed_at >= $1
+`
+
+func (q *Queries) CountPrinterErrorsSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countPrinterErrorsSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countScheduledOpenDaysBetween = `-- name: CountScheduledOpenDaysBetween :one
+SELECT count(*)::bigint FROM open_days WHERE status = 'scheduled' AND starts_at >= $1 AND starts_at < $2
+`
+
+type CountScheduledOpenDaysBetweenParams struct {
+	FromTime time.Time
+	ToTime   time.Time
+}
+
+func (q *Queries) CountScheduledOpenDaysBetween(ctx context.Context, arg CountScheduledOpenDaysBetweenParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countScheduledOpenDaysBetween, arg.FromTime, arg.ToTime)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -283,6 +416,18 @@ func (q *Queries) DeleteRule(ctx context.Context, arg DeleteRuleParams) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const deleteRuleRunsBefore = `-- name: DeleteRuleRunsBefore :execrows
+DELETE FROM notification_rule_runs WHERE ran_at < $1
+`
+
+func (q *Queries) DeleteRuleRunsBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteRuleRunsBefore, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const firingWasRead = `-- name: FiringWasRead :one
 SELECT EXISTS (
     SELECT 1 FROM notification_firing_recipients fr
@@ -361,6 +506,19 @@ func (q *Queries) GetCategoryForUpdate(ctx context.Context, id uuid.UUID) (Notif
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getCurrentLabRulesVersion = `-- name: GetCurrentLabRulesVersion :one
+SELECT id FROM laborordnung_versions
+WHERE status = 'published' AND effective_at <= $1
+ORDER BY effective_at DESC, id DESC LIMIT 1
+`
+
+func (q *Queries) GetCurrentLabRulesVersion(ctx context.Context, now pgtype.Timestamptz) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getCurrentLabRulesVersion, now)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getLabRulesRevision = `-- name: GetLabRulesRevision :one
@@ -517,6 +675,55 @@ func (q *Queries) GetRule(ctx context.Context, id uuid.UUID) (NotificationRule, 
 	return i, err
 }
 
+const getRuleForRun = `-- name: GetRuleForRun :one
+
+SELECT r.id, r.name, r.enabled, r.owner_account_id, a.person_id AS owner_person_id, r.category_id, r.mandatory,
+       r.trigger_type, r.definition, r.updated_at, r.next_run_at,
+       c.basis AS category_basis, c.text_version AS category_text_version
+FROM notification_rules r
+LEFT JOIN notification_categories c ON c.id = r.category_id
+LEFT JOIN accounts a ON a.id = r.owner_account_id
+WHERE r.id = $1
+`
+
+type GetRuleForRunRow struct {
+	ID                  uuid.UUID
+	Name                string
+	Enabled             bool
+	OwnerAccountID      *uuid.UUID
+	OwnerPersonID       *uuid.UUID
+	CategoryID          *uuid.UUID
+	Mandatory           bool
+	TriggerType         string
+	Definition          []byte
+	UpdatedAt           time.Time
+	NextRunAt           pgtype.Timestamptz
+	CategoryBasis       *string
+	CategoryTextVersion *int32
+}
+
+// Scheduling, rule runs and the collections rules loop over.
+func (q *Queries) GetRuleForRun(ctx context.Context, id uuid.UUID) (GetRuleForRunRow, error) {
+	row := q.db.QueryRow(ctx, getRuleForRun, id)
+	var i GetRuleForRunRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Enabled,
+		&i.OwnerAccountID,
+		&i.OwnerPersonID,
+		&i.CategoryID,
+		&i.Mandatory,
+		&i.TriggerType,
+		&i.Definition,
+		&i.UpdatedAt,
+		&i.NextRunAt,
+		&i.CategoryBasis,
+		&i.CategoryTextVersion,
+	)
+	return i, err
+}
+
 const getRuleForUpdate = `-- name: GetRuleForUpdate :one
 SELECT id, owner_account_id, name, description, category_id, enabled, mandatory, trigger_type, trigger_event, definition, system_key, next_run_at, last_fired_at, created_at, updated_at, version FROM notification_rules WHERE id = $1 FOR UPDATE
 `
@@ -650,9 +857,9 @@ func (q *Queries) InsertCategory(ctx context.Context, arg InsertCategoryParams) 
 }
 
 const insertFiring = `-- name: InsertFiring :exec
-INSERT INTO notification_firings (id, rule_id, rule_name, trigger_type, summary, resolve_token, created_at)
+INSERT INTO notification_firings (id, rule_id, rule_name, trigger_type, summary, resolve_token, test, created_at)
 VALUES ($1, $2, $3, $4, $5,
-        $6, $7)
+        $6, $7::boolean, $8)
 `
 
 type InsertFiringParams struct {
@@ -662,6 +869,7 @@ type InsertFiringParams struct {
 	TriggerType  string
 	Summary      string
 	ResolveToken *string
+	Test         bool
 	CreatedAt    time.Time
 }
 
@@ -673,6 +881,7 @@ func (q *Queries) InsertFiring(ctx context.Context, arg InsertFiringParams) erro
 		arg.TriggerType,
 		arg.Summary,
 		arg.ResolveToken,
+		arg.Test,
 		arg.CreatedAt,
 	)
 	return err
@@ -851,6 +1060,127 @@ type InsertRuleNotificationRecipientsParams struct {
 func (q *Queries) InsertRuleNotificationRecipients(ctx context.Context, arg InsertRuleNotificationRecipientsParams) error {
 	_, err := q.db.Exec(ctx, insertRuleNotificationRecipients, arg.NotificationID, arg.AccountIds)
 	return err
+}
+
+const listActivity = `-- name: ListActivity :many
+SELECT f.id, f.rule_id, f.rule_name, f.trigger_type, f.summary, f.test, f.resolved_at, f.resolved_reason, f.created_at,
+       (SELECT count(*) FROM notification_firing_recipients r WHERE r.firing_id = f.id AND r.status IN ('sent', 'fallback'))::bigint AS reached,
+       (SELECT count(*) FROM notification_firing_recipients r WHERE r.firing_id = f.id AND r.status = 'throttled')::bigint AS throttled,
+       (SELECT count(*) FROM notification_firing_recipients r WHERE r.firing_id = f.id AND r.step > 0)::bigint AS escalated,
+       (SELECT count(*) FROM notification_firing_recipients r WHERE r.firing_id = f.id)::bigint AS total
+FROM notification_firings f
+WHERE ($1::uuid IS NULL OR f.rule_id = $1)
+ORDER BY f.created_at DESC, f.id DESC
+LIMIT $3 OFFSET $2
+`
+
+type ListActivityParams struct {
+	RuleID     *uuid.UUID
+	PageOffset int32
+	PageLimit  int32
+}
+
+type ListActivityRow struct {
+	ID             uuid.UUID
+	RuleID         uuid.UUID
+	RuleName       string
+	TriggerType    string
+	Summary        string
+	Test           bool
+	ResolvedAt     pgtype.Timestamptz
+	ResolvedReason *string
+	CreatedAt      time.Time
+	Reached        int64
+	Throttled      int64
+	Escalated      int64
+	Total          int64
+}
+
+func (q *Queries) ListActivity(ctx context.Context, arg ListActivityParams) ([]ListActivityRow, error) {
+	rows, err := q.db.Query(ctx, listActivity, arg.RuleID, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActivityRow{}
+	for rows.Next() {
+		var i ListActivityRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RuleID,
+			&i.RuleName,
+			&i.TriggerType,
+			&i.Summary,
+			&i.Test,
+			&i.ResolvedAt,
+			&i.ResolvedReason,
+			&i.CreatedAt,
+			&i.Reached,
+			&i.Throttled,
+			&i.Escalated,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActivityRecipients = `-- name: ListActivityRecipients :many
+SELECT r.firing_id, r.person_id, p.first_name, p.last_name, r.channel, r.step, r.status, r.sent_at,
+       COALESCE((SELECT extract(epoch FROM min(ir.read_at)) FROM inbox_recipients ir
+                 WHERE ir.notification_id = r.notification_id
+                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS read_epoch
+FROM notification_firing_recipients r
+LEFT JOIN people p ON p.id = r.person_id
+WHERE r.firing_id = ANY($1::text[]::uuid[])
+ORDER BY r.firing_id, r.step, lower(p.last_name), lower(p.first_name), r.channel
+`
+
+type ListActivityRecipientsRow struct {
+	FiringID  uuid.UUID
+	PersonID  *uuid.UUID
+	FirstName *string
+	LastName  *string
+	Channel   string
+	Step      int32
+	Status    string
+	SentAt    time.Time
+	ReadEpoch float64
+}
+
+func (q *Queries) ListActivityRecipients(ctx context.Context, firingIds []string) ([]ListActivityRecipientsRow, error) {
+	rows, err := q.db.Query(ctx, listActivityRecipients, firingIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActivityRecipientsRow{}
+	for rows.Next() {
+		var i ListActivityRecipientsRow
+		if err := rows.Scan(
+			&i.FiringID,
+			&i.PersonID,
+			&i.FirstName,
+			&i.LastName,
+			&i.Channel,
+			&i.Step,
+			&i.Status,
+			&i.SentAt,
+			&i.ReadEpoch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAllCheckedInPeople = `-- name: ListAllCheckedInPeople :many
@@ -1563,6 +1893,40 @@ func (q *Queries) ListOpenDayTeam(ctx context.Context, openDayID uuid.UUID) ([]u
 	return items, nil
 }
 
+const listOpenDayTeams = `-- name: ListOpenDayTeams :many
+SELECT DISTINCT a.open_day_id, a.person_id, r.kind
+FROM open_day_assignments a
+JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+WHERE a.open_day_id = ANY($1::text[]::uuid[])
+`
+
+type ListOpenDayTeamsRow struct {
+	OpenDayID uuid.UUID
+	PersonID  uuid.UUID
+	Kind      string
+}
+
+// Everyone signed up for the open days, with the kind of place they hold.
+func (q *Queries) ListOpenDayTeams(ctx context.Context, openDayIds []string) ([]ListOpenDayTeamsRow, error) {
+	rows, err := q.db.Query(ctx, listOpenDayTeams, openDayIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOpenDayTeamsRow{}
+	for rows.Next() {
+		var i ListOpenDayTeamsRow
+		if err := rows.Scan(&i.OpenDayID, &i.PersonID, &i.Kind); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOwnRules = `-- name: ListOwnRules :many
 SELECT id, owner_account_id, name, description, category_id, enabled, mandatory, trigger_type, trigger_event, definition, system_key, next_run_at, last_fired_at, created_at, updated_at, version FROM notification_rules WHERE owner_account_id = $1 ORDER BY lower(name), id
 `
@@ -1634,6 +1998,69 @@ func (q *Queries) ListPeopleAwaitingLabRules(ctx context.Context, versionID uuid
 			return nil, err
 		}
 		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPeopleAwaitingVersion = `-- name: ListPeopleAwaitingVersion :many
+SELECT DISTINCT a.person_id
+FROM accounts a
+WHERE a.status = 'enabled'
+  AND EXISTS (
+      SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
+      WHERE pr.person_id = a.person_id AND r.laborordnung_mode IN ('warning', 'blocking')
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM laborordnung_confirmations c WHERE c.person_id = a.person_id AND c.version_id = $1
+  )
+`
+
+func (q *Queries) ListPeopleAwaitingVersion(ctx context.Context, versionID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPeopleAwaitingVersion, versionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPeopleNames = `-- name: ListPeopleNames :many
+SELECT id, first_name, last_name FROM people WHERE id = ANY($1::text[]::uuid[])
+`
+
+type ListPeopleNamesRow struct {
+	ID        uuid.UUID
+	FirstName string
+	LastName  string
+}
+
+func (q *Queries) ListPeopleNames(ctx context.Context, personIds []string) ([]ListPeopleNamesRow, error) {
+	rows, err := q.db.Query(ctx, listPeopleNames, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPeopleNamesRow{}
+	for rows.Next() {
+		var i ListPeopleNamesRow
+		if err := rows.Scan(&i.ID, &i.FirstName, &i.LastName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1873,6 +2300,35 @@ func (q *Queries) ListPrinterOptions(ctx context.Context) ([]ListPrinterOptionsR
 	return items, nil
 }
 
+const listProcessNames = `-- name: ListProcessNames :many
+SELECT id, name FROM processes
+`
+
+type ListProcessNamesRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+func (q *Queries) ListProcessNames(ctx context.Context) ([]ListProcessNamesRow, error) {
+	rows, err := q.db.Query(ctx, listProcessNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProcessNamesRow{}
+	for rows.Next() {
+		var i ListProcessNamesRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProcessOptions = `-- name: ListProcessOptions :many
 SELECT id, name FROM processes ORDER BY lower(name), id
 `
@@ -1990,6 +2446,35 @@ func (q *Queries) ListStaffingPeople(ctx context.Context) ([]uuid.UUID, error) {
 	return items, nil
 }
 
+const listTrainersOfTrainings = `-- name: ListTrainersOfTrainings :many
+SELECT training_id, person_id FROM training_records WHERE status = 'trainer'
+`
+
+type ListTrainersOfTrainingsRow struct {
+	TrainingID uuid.UUID
+	PersonID   uuid.UUID
+}
+
+func (q *Queries) ListTrainersOfTrainings(ctx context.Context) ([]ListTrainersOfTrainingsRow, error) {
+	rows, err := q.db.Query(ctx, listTrainersOfTrainings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTrainersOfTrainingsRow{}
+	for rows.Next() {
+		var i ListTrainersOfTrainingsRow
+		if err := rows.Scan(&i.TrainingID, &i.PersonID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTrainingOptions = `-- name: ListTrainingOptions :many
 SELECT id, name FROM trainings ORDER BY lower(name), id
 `
@@ -2060,6 +2545,522 @@ func (q *Queries) ListUnassignedSupervisorPeople(ctx context.Context, arg ListUn
 	return items, nil
 }
 
+const listUnpaidOfPeople = `-- name: ListUnpaidOfPeople :many
+SELECT x.customer_person_id AS person_id, count(*)::bigint AS orders, sum(x.outstanding)::float8 AS amount,
+       min(x.since)::timestamptz AS oldest
+FROM (
+    SELECT o.customer_person_id, COALESCE(o.finalized_at, o.created_at) AS since,
+           o.total_amount - COALESCE((SELECT sum(a.amount) FROM order_adjustments a WHERE a.order_id = o.id), 0)
+             - COALESCE((SELECT sum(pa.amount) FROM payment_allocations pa WHERE pa.order_id = o.id), 0) AS outstanding
+    FROM orders o
+    WHERE o.status = 'finalized' AND o.customer_person_id = ANY($1::text[]::uuid[])
+      AND NOT EXISTS (SELECT 1 FROM external_invoice_requests r WHERE r.order_id = o.id AND r.state <> 'cancelled')
+) x
+WHERE x.outstanding > 0
+GROUP BY x.customer_person_id
+`
+
+type ListUnpaidOfPeopleRow struct {
+	PersonID *uuid.UUID
+	Orders   int64
+	Amount   float64
+	Oldest   time.Time
+}
+
+// Finalized orders with an outstanding amount that no active external invoice request covers, per customer.
+func (q *Queries) ListUnpaidOfPeople(ctx context.Context, personIds []string) ([]ListUnpaidOfPeopleRow, error) {
+	rows, err := q.db.Query(ctx, listUnpaidOfPeople, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnpaidOfPeopleRow{}
+	for rows.Next() {
+		var i ListUnpaidOfPeopleRow
+		if err := rows.Scan(
+			&i.PersonID,
+			&i.Orders,
+			&i.Amount,
+			&i.Oldest,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const loadArticleItems = `-- name: LoadArticleItems :many
+SELECT m.id, m.name, m.material_type_id, t.name AS material_type_name, COALESCE(b.quantity, 0)::float8 AS stock,
+       COALESCE(m.low_stock_threshold, 0)::float8 AS minimum, COALESCE(m.storage_location, '')::text AS location
+FROM materials m
+JOIN material_types t ON t.id = m.material_type_id
+LEFT JOIN material_balances b ON b.material_id = m.id
+WHERE m.active AND m.deleted_at IS NULL AND t.kind <> 'filament'
+ORDER BY lower(m.name), m.id
+LIMIT $1
+`
+
+type LoadArticleItemsRow struct {
+	ID               uuid.UUID
+	Name             string
+	MaterialTypeID   uuid.UUID
+	MaterialTypeName string
+	Stock            float64
+	Minimum          float64
+	Location         string
+}
+
+func (q *Queries) LoadArticleItems(ctx context.Context, maxItems int32) ([]LoadArticleItemsRow, error) {
+	rows, err := q.db.Query(ctx, loadArticleItems, maxItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoadArticleItemsRow{}
+	for rows.Next() {
+		var i LoadArticleItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.MaterialTypeID,
+			&i.MaterialTypeName,
+			&i.Stock,
+			&i.Minimum,
+			&i.Location,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const loadJobItems = `-- name: LoadJobItems :many
+SELECT j.id, j.display_id, COALESCE(j.title, '')::text AS title, j.machine_id, j.pricing_status, j.operator_person_id,
+       j.customer_person_id, j.customer_organization_id, j.outcome_override,
+       COALESCE(s.run_count, 0)::bigint AS run_count, COALESCE(s.running, false)::boolean AS running,
+       COALESCE(s.derived_outcome, '')::text AS derived_outcome,
+       GREATEST(j.created_at, COALESCE(s.ended_at::timestamptz, j.created_at))::timestamptz AS since,
+       EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = j.id)::boolean AS on_order,
+       ma.name AS machine_name
+FROM machine_jobs j
+JOIN machines ma ON ma.id = j.machine_id
+LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
+WHERE j.deleted_at IS NULL
+ORDER BY j.created_at DESC, j.id DESC
+LIMIT $1
+`
+
+type LoadJobItemsRow struct {
+	ID                     uuid.UUID
+	DisplayID              string
+	Title                  string
+	MachineID              uuid.UUID
+	PricingStatus          string
+	OperatorPersonID       *uuid.UUID
+	CustomerPersonID       *uuid.UUID
+	CustomerOrganizationID *uuid.UUID
+	OutcomeOverride        *string
+	RunCount               int64
+	Running                bool
+	DerivedOutcome         string
+	Since                  time.Time
+	OnOrder                bool
+	MachineName            string
+}
+
+func (q *Queries) LoadJobItems(ctx context.Context, maxItems int32) ([]LoadJobItemsRow, error) {
+	rows, err := q.db.Query(ctx, loadJobItems, maxItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoadJobItemsRow{}
+	for rows.Next() {
+		var i LoadJobItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayID,
+			&i.Title,
+			&i.MachineID,
+			&i.PricingStatus,
+			&i.OperatorPersonID,
+			&i.CustomerPersonID,
+			&i.CustomerOrganizationID,
+			&i.OutcomeOverride,
+			&i.RunCount,
+			&i.Running,
+			&i.DerivedOutcome,
+			&i.Since,
+			&i.OnOrder,
+			&i.MachineName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const loadMachineItems = `-- name: LoadMachineItems :many
+SELECT m.id, m.name, m.status, m.process_id,
+       (SELECT count(*) FROM machine_runs r
+        WHERE r.machine_id = m.id AND r.deleted_at IS NULL AND r.started_at >= $1)::bigint AS runs_today,
+       (SELECT count(*) FROM printer_error_occurrences e
+        WHERE e.machine_id = m.id AND e.first_observed_at >= $2)::bigint AS errors_week,
+       EXISTS (SELECT 1 FROM printer_connector_assignments a JOIN printer_connectors c ON c.id = a.connector_id
+               WHERE a.machine_id = m.id AND c.lifecycle = 'active'
+                 AND c.last_heartbeat_at > $3)::boolean AS online
+FROM machines m
+ORDER BY lower(m.name), m.id
+LIMIT $4
+`
+
+type LoadMachineItemsParams struct {
+	DayStart    pgtype.Timestamptz
+	WeekStart   time.Time
+	OnlineSince pgtype.Timestamptz
+	MaxItems    int32
+}
+
+type LoadMachineItemsRow struct {
+	ID         uuid.UUID
+	Name       string
+	Status     string
+	ProcessID  uuid.UUID
+	RunsToday  int64
+	ErrorsWeek int64
+	Online     bool
+}
+
+func (q *Queries) LoadMachineItems(ctx context.Context, arg LoadMachineItemsParams) ([]LoadMachineItemsRow, error) {
+	rows, err := q.db.Query(ctx, loadMachineItems,
+		arg.DayStart,
+		arg.WeekStart,
+		arg.OnlineSince,
+		arg.MaxItems,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoadMachineItemsRow{}
+	for rows.Next() {
+		var i LoadMachineItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Status,
+			&i.ProcessID,
+			&i.RunsToday,
+			&i.ErrorsWeek,
+			&i.Online,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const loadOpenDayItems = `-- name: LoadOpenDayItems :many
+SELECT d.id, d.period_id, d.starts_at, d.ends_at, d.status,
+       (SELECT count(*) FROM open_day_timeslots t WHERE t.open_day_id = d.id)::bigint AS timeslots,
+       (SELECT count(DISTINCT a.person_id) FROM open_day_assignments a
+        JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+        WHERE a.open_day_id = d.id AND r.kind = 'supervisor')::bigint AS supervisors,
+       (SELECT count(DISTINCT a.person_id) FROM open_day_assignments a
+        JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+        WHERE a.open_day_id = d.id AND r.kind = 'trainee')::bigint AS trainees,
+       (SELECT COALESCE(sum(GREATEST(0, r.required_count
+                - (SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = r.id))), 0)
+        FROM open_day_staff_requirements r JOIN open_day_timeslots t ON t.id = r.timeslot_id
+        WHERE t.open_day_id = d.id AND r.kind = 'supervisor')::bigint AS free
+FROM open_days d
+WHERE ($1::uuid IS NULL OR d.period_id = $1)
+  AND d.starts_at >= $2 AND d.starts_at < $3
+ORDER BY d.starts_at, d.id
+LIMIT $4
+`
+
+type LoadOpenDayItemsParams struct {
+	PeriodID *uuid.UUID
+	FromTime time.Time
+	ToTime   time.Time
+	MaxItems int32
+}
+
+type LoadOpenDayItemsRow struct {
+	ID          uuid.UUID
+	PeriodID    uuid.UUID
+	StartsAt    time.Time
+	EndsAt      time.Time
+	Status      string
+	Timeslots   int64
+	Supervisors int64
+	Trainees    int64
+	Free        int64
+}
+
+// Open days starting within the window, of one period or of every period.
+func (q *Queries) LoadOpenDayItems(ctx context.Context, arg LoadOpenDayItemsParams) ([]LoadOpenDayItemsRow, error) {
+	rows, err := q.db.Query(ctx, loadOpenDayItems,
+		arg.PeriodID,
+		arg.FromTime,
+		arg.ToTime,
+		arg.MaxItems,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoadOpenDayItemsRow{}
+	for rows.Next() {
+		var i LoadOpenDayItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PeriodID,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.Status,
+			&i.Timeslots,
+			&i.Supervisors,
+			&i.Trainees,
+			&i.Free,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const loadOrderItems = `-- name: LoadOrderItems :many
+SELECT x.id, x.reference, x.customer_kind, x.customer_person_id, x.customer_organization_id, x.creator_person_id, x.status,
+       x.amount::float8 AS amount, x.outstanding::float8 AS outstanding, x.since::timestamptz AS since, x.invoice::boolean AS invoice
+FROM (
+    SELECT o.id, o.reference, o.customer_kind, o.customer_person_id, o.customer_organization_id,
+           (SELECT a.person_id FROM accounts a WHERE a.id = o.created_by_account_id) AS creator_person_id,
+           o.status, o.created_at,
+           o.total_amount - COALESCE((SELECT sum(a.amount) FROM order_adjustments a WHERE a.order_id = o.id), 0) AS amount,
+           o.total_amount - COALESCE((SELECT sum(a.amount) FROM order_adjustments a WHERE a.order_id = o.id), 0)
+             - COALESCE((SELECT sum(pa.amount) FROM payment_allocations pa WHERE pa.order_id = o.id), 0) AS outstanding,
+           COALESCE(o.finalized_at, o.created_at) AS since,
+           EXISTS (SELECT 1 FROM external_invoice_requests r WHERE r.order_id = o.id AND r.state <> 'cancelled') AS invoice
+    FROM orders o
+) x
+ORDER BY x.created_at DESC, x.id DESC
+LIMIT $1
+`
+
+type LoadOrderItemsRow struct {
+	ID                     uuid.UUID
+	Reference              string
+	CustomerKind           string
+	CustomerPersonID       *uuid.UUID
+	CustomerOrganizationID *uuid.UUID
+	CreatorPersonID        uuid.UUID
+	Status                 string
+	Amount                 float64
+	Outstanding            float64
+	Since                  time.Time
+	Invoice                bool
+}
+
+func (q *Queries) LoadOrderItems(ctx context.Context, maxItems int32) ([]LoadOrderItemsRow, error) {
+	rows, err := q.db.Query(ctx, loadOrderItems, maxItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoadOrderItemsRow{}
+	for rows.Next() {
+		var i LoadOrderItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Reference,
+			&i.CustomerKind,
+			&i.CustomerPersonID,
+			&i.CustomerOrganizationID,
+			&i.CreatorPersonID,
+			&i.Status,
+			&i.Amount,
+			&i.Outstanding,
+			&i.Since,
+			&i.Invoice,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const loadPeopleItems = `-- name: LoadPeopleItems :many
+SELECT p.id, p.first_name, p.last_name,
+       EXISTS (SELECT 1 FROM accounts a WHERE a.person_id = p.id AND a.status = 'enabled')::boolean AS has_account,
+       (SELECT count(*) FROM machine_runs r JOIN machine_jobs j ON j.id = r.job_id
+        WHERE j.operator_person_id = p.id AND j.deleted_at IS NULL AND r.deleted_at IS NULL
+          AND r.started_at IS NOT NULL AND r.ended_at IS NULL)::bigint AS running
+FROM people p
+ORDER BY lower(p.last_name), lower(p.first_name), p.id
+LIMIT $1
+`
+
+type LoadPeopleItemsRow struct {
+	ID         uuid.UUID
+	FirstName  string
+	LastName   string
+	HasAccount bool
+	Running    int64
+}
+
+func (q *Queries) LoadPeopleItems(ctx context.Context, maxItems int32) ([]LoadPeopleItemsRow, error) {
+	rows, err := q.db.Query(ctx, loadPeopleItems, maxItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoadPeopleItemsRow{}
+	for rows.Next() {
+		var i LoadPeopleItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.FirstName,
+			&i.LastName,
+			&i.HasAccount,
+			&i.Running,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const loadSpoolItems = `-- name: LoadSpoolItems :many
+SELECT s.id, s.display_id, mt.id AS material_type_id, mt.name AS material_type_name, COALESCE(m.color_name, '')::text AS color_name,
+       filament_spool_remaining(s.id)::float8 AS remaining,
+       EXISTS (SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id = s.id AND a.unmounted_at IS NULL)::boolean AS loaded,
+       COALESCE((SELECT max(GREATEST(a.mounted_at, COALESCE(a.unmounted_at, a.mounted_at)))
+                 FROM printer_spool_assignments a WHERE a.spool_id = s.id), s.created_at)::timestamptz AS last_use
+FROM filament_spools s
+JOIN materials m ON m.id = s.material_id
+JOIN material_types mt ON mt.id = m.material_type_id
+WHERE s.lifecycle = 'active'
+ORDER BY s.display_id, s.id
+LIMIT $1
+`
+
+type LoadSpoolItemsRow struct {
+	ID               uuid.UUID
+	DisplayID        string
+	MaterialTypeID   uuid.UUID
+	MaterialTypeName string
+	ColorName        string
+	Remaining        float64
+	Loaded           bool
+	LastUse          time.Time
+}
+
+func (q *Queries) LoadSpoolItems(ctx context.Context, maxItems int32) ([]LoadSpoolItemsRow, error) {
+	rows, err := q.db.Query(ctx, loadSpoolItems, maxItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoadSpoolItemsRow{}
+	for rows.Next() {
+		var i LoadSpoolItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayID,
+			&i.MaterialTypeID,
+			&i.MaterialTypeName,
+			&i.ColorName,
+			&i.Remaining,
+			&i.Loaded,
+			&i.LastUse,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const loadTrainingItems = `-- name: LoadTrainingItems :many
+SELECT r.person_id, r.training_id, p.first_name, p.last_name, t.name AS training_name, r.status, r.completed_on
+FROM training_records r
+JOIN people p ON p.id = r.person_id
+JOIN trainings t ON t.id = r.training_id
+ORDER BY lower(p.last_name), lower(p.first_name), lower(t.name), r.person_id
+LIMIT $1
+`
+
+type LoadTrainingItemsRow struct {
+	PersonID     uuid.UUID
+	TrainingID   uuid.UUID
+	FirstName    string
+	LastName     string
+	TrainingName string
+	Status       string
+	CompletedOn  pgtype.Date
+}
+
+func (q *Queries) LoadTrainingItems(ctx context.Context, maxItems int32) ([]LoadTrainingItemsRow, error) {
+	rows, err := q.db.Query(ctx, loadTrainingItems, maxItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoadTrainingItemsRow{}
+	for rows.Next() {
+		var i LoadTrainingItemsRow
+		if err := rows.Scan(
+			&i.PersonID,
+			&i.TrainingID,
+			&i.FirstName,
+			&i.LastName,
+			&i.TrainingName,
+			&i.Status,
+			&i.CompletedOn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const mailDeliveryEnabled = `-- name: MailDeliveryEnabled :one
 SELECT COALESCE((SELECT enabled FROM mail_configuration LIMIT 1), false)::boolean
 `
@@ -2103,6 +3104,19 @@ type MarkRuleFiredParams struct {
 func (q *Queries) MarkRuleFired(ctx context.Context, arg MarkRuleFiredParams) error {
 	_, err := q.db.Exec(ctx, markRuleFired, arg.FiredAt, arg.ID)
 	return err
+}
+
+const onAcademicBreak = `-- name: OnAcademicBreak :one
+SELECT EXISTS (
+    SELECT 1 FROM open_day_academic_breaks WHERE starts_on <= $1::date AND ends_on >= $1::date
+)::boolean
+`
+
+func (q *Queries) OnAcademicBreak(ctx context.Context, day pgtype.Date) (bool, error) {
+	row := q.db.QueryRow(ctx, onAcademicBreak, day)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const openDayRunning = `-- name: OpenDayRunning :one
@@ -2164,6 +3178,20 @@ func (q *Queries) ResolveOpenFirings(ctx context.Context, arg ResolveOpenFirings
 		return nil, err
 	}
 	return items, nil
+}
+
+const setNextRun = `-- name: SetNextRun :exec
+UPDATE notification_rules SET next_run_at = $1 WHERE id = $2
+`
+
+type SetNextRunParams struct {
+	NextRunAt pgtype.Timestamptz
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetNextRun(ctx context.Context, arg SetNextRunParams) error {
+	_, err := q.db.Exec(ctx, setNextRun, arg.NextRunAt, arg.ID)
+	return err
 }
 
 const updateCategory = `-- name: UpdateCategory :execrows

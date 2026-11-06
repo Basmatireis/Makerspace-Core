@@ -499,3 +499,13 @@ func (e *SystemEvents) OpenDayPersonNotice(
 func clockRange(start, end time.Time, location *time.Location) string {
 	return start.In(location).Format("15:04") + "–" + end.In(location).Format("15:04")
 }
+
+// PrinterErrorCleared ends the waiting escalations of the firings for the error: the printer no longer reports it.
+func (e *SystemEvents) PrinterErrorCleared(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, code string) error {
+	return e.dispatcher.Resolve(ctx, tx, "printer_error:"+machineID.String()+":"+code, "error_cleared")
+}
+
+// PlaceTaken ends the waiting escalations of the firings for the timeslot's freed place.
+func (e *SystemEvents) PlaceTaken(ctx context.Context, tx pgx.Tx, timeslotID uuid.UUID) error {
+	return e.dispatcher.Resolve(ctx, tx, "open_day_place:"+timeslotID.String(), "place_taken")
+}

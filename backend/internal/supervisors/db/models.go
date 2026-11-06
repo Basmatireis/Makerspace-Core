@@ -989,6 +989,12 @@ type NotificationRulePreference struct {
 	UpdatedAt time.Time
 }
 
+type NotificationRuleRun struct {
+	RuleID uuid.UUID
+	RunKey string
+	RanAt  time.Time
+}
+
 type NotificationThrottle struct {
 	RuleID     uuid.UUID
 	SubjectKey string

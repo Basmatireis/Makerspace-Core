@@ -277,6 +277,9 @@ func (s *Service) createRule(
 		}); err != nil {
 			return err
 		}
+		if err := s.refreshNextRun(ctx, queries, id, input); err != nil {
+			return err
+		}
 		return audit.Write(ctx, tx, auditEvent(p, "notification_rule.created", "notification_rule", id, requestID,
 			[]string{"name", "description", "categoryId", "enabled", "mandatory", "definition"}))
 	})
@@ -369,6 +372,9 @@ func (s *Service) updateRule(
 			Mandatory: input.Mandatory, TriggerType: triggerType, TriggerEvent: event, Definition: string(data),
 			ID: id, ExpectedVersion: expected,
 		}); err != nil {
+			return err
+		}
+		if err := s.refreshNextRun(ctx, queries, id, input); err != nil {
 			return err
 		}
 		return audit.Write(ctx, tx, auditEvent(p, "notification_rule.updated", "notification_rule", id, requestID, changed))

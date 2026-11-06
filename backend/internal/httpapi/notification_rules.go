@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
@@ -613,4 +614,224 @@ func notificationCatalogDTO(view notifyrules.CatalogView) openapi.NotificationCa
 		},
 		Resolutions: catalogChoicesDTO(view.Resolutions), Repeats: catalogChoicesDTO(view.Repeats),
 	}
+}
+
+// activityJSON and the types below carry the log, run and preview results to the transport types, which have the same
+// JSON shape.
+type runResultJSON struct {
+	Sent struct {
+		InApp int `json:"inApp"`
+		Email int `json:"email"`
+	} `json:"sent"`
+	ItemsExamined int `json:"itemsExamined"`
+	Matched       int `json:"matched"`
+}
+
+func runResultDTO(result notifyrules.RunResult) (openapi.NotificationRuleRunResult, error) {
+	var payload runResultJSON
+	payload.Sent.InApp, payload.Sent.Email = result.SentInApp, result.SentEmail
+	payload.ItemsExamined, payload.Matched = result.Examined, result.Fired
+	return convertJSON[openapi.NotificationRuleRunResult](payload)
+}
+
+func (s *Server) RunNotificationRule(
+	ctx context.Context,
+	r openapi.RunNotificationRuleRequestObject,
+) (openapi.RunNotificationRuleResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.notifyRules.RunRule(ctx, p, r.RuleId, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := runResultDTO(result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.RunNotificationRule200JSONResponse(dto), nil
+}
+
+func (s *Server) TestNotificationRule(
+	ctx context.Context,
+	r openapi.TestNotificationRuleRequestObject,
+) (openapi.TestNotificationRuleResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.notifyRules.TestRule(ctx, p, r.RuleId, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := runResultDTO(result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.TestNotificationRule200JSONResponse(dto), nil
+}
+
+type dryRunItemJSON struct {
+	Name    string            `json:"name"`
+	Values  map[string]string `json:"values"`
+	Matched bool              `json:"matched"`
+}
+
+type dryRunSummaryJSON struct {
+	Values map[string]string `json:"values"`
+	Pass   bool              `json:"pass"`
+}
+
+type dryRunRecipientJSON struct {
+	Name   string `json:"name"`
+	Passed bool   `json:"passed"`
+}
+
+type dryRunPreviewJSON struct {
+	Channel        string   `json:"channel"`
+	Recipients     []string `json:"recipients"`
+	RecipientCount int      `json:"recipientCount"`
+	Title          string   `json:"title"`
+	Body           string   `json:"body"`
+}
+
+type dryRunJSON struct {
+	Estimate30   *int64                `json:"estimate30"`
+	EstimateNote string                `json:"estimateNote"`
+	Items        []dryRunItemJSON      `json:"items"`
+	TotalItems   int                   `json:"totalItems"`
+	MatchedItems int                   `json:"matchedItems"`
+	Summary      *dryRunSummaryJSON    `json:"summary"`
+	Recipients   []dryRunRecipientJSON `json:"recipients"`
+	Previews     []dryRunPreviewJSON   `json:"previews"`
+}
+
+func dryRunDTO(result notifyrules.DryRunResult) (openapi.NotificationRuleDryRun, error) {
+	payload := dryRunJSON{
+		Estimate30: result.Estimate30, EstimateNote: result.EstimateNote, TotalItems: result.TotalItems,
+		MatchedItems: result.MatchedItems, Items: []dryRunItemJSON{}, Recipients: []dryRunRecipientJSON{},
+		Previews: []dryRunPreviewJSON{},
+	}
+	for _, item := range result.Items {
+		payload.Items = append(payload.Items, dryRunItemJSON{Name: item.Name, Values: item.Values, Matched: item.Matched})
+	}
+	if result.Summary != nil {
+		payload.Summary = &dryRunSummaryJSON{Values: result.Summary.Values, Pass: result.Summary.Pass}
+	}
+	for _, recipient := range result.Recipients {
+		payload.Recipients = append(payload.Recipients, dryRunRecipientJSON{Name: recipient.Name, Passed: recipient.Passed})
+	}
+	for _, preview := range result.Previews {
+		payload.Previews = append(payload.Previews, dryRunPreviewJSON{
+			Channel: string(preview.Channel), Recipients: append([]string{}, preview.Recipients...),
+			RecipientCount: preview.RecipientCount, Title: preview.Title, Body: preview.Body,
+		})
+	}
+	return convertJSON[openapi.NotificationRuleDryRun](payload)
+}
+
+func (s *Server) DryRunNotificationRule(
+	ctx context.Context,
+	r openapi.DryRunNotificationRuleRequestObject,
+) (openapi.DryRunNotificationRuleResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	input, err := createRuleInput(&r.Body.Rule)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.notifyRules.DryRun(ctx, p, input, r.Body.Personal)
+	if err != nil {
+		return nil, err
+	}
+	dto, err := dryRunDTO(result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.DryRunNotificationRule200JSONResponse(dto), nil
+}
+
+type activityRecipientJSON struct {
+	Name    string     `json:"name"`
+	Channel string     `json:"channel"`
+	Step    int        `json:"step"`
+	Status  string     `json:"status"`
+	SentAt  time.Time  `json:"sentAt"`
+	ReadAt  *time.Time `json:"readAt"`
+}
+
+type activityFiringJSON struct {
+	ID             uuid.UUID               `json:"id"`
+	RuleID         uuid.UUID               `json:"ruleId"`
+	RuleName       string                  `json:"ruleName"`
+	Trigger        string                  `json:"trigger"`
+	Summary        string                  `json:"summary"`
+	Channels       []string                `json:"channels"`
+	Reached        int64                   `json:"reached"`
+	Result         string                  `json:"result"`
+	ResolvedReason *string                 `json:"resolvedReason"`
+	CreatedAt      time.Time               `json:"createdAt"`
+	Recipients     []activityRecipientJSON `json:"recipients"`
+}
+
+type activityPageJSON struct {
+	Items    []activityFiringJSON `json:"items"`
+	Total    int64                `json:"total"`
+	Page     int                  `json:"page"`
+	PageSize int                  `json:"pageSize"`
+}
+
+func (s *Server) ListNotificationActivity(
+	ctx context.Context,
+	r openapi.ListNotificationActivityRequestObject,
+) (openapi.ListNotificationActivityResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	page, pageSize := 1, 0
+	if r.Params.Page != nil {
+		page = *r.Params.Page
+	}
+	if r.Params.PageSize != nil {
+		pageSize = *r.Params.PageSize
+	}
+	var rule *uuid.UUID
+	if r.Params.RuleId != nil {
+		id := uuid.UUID(*r.Params.RuleId)
+		rule = &id
+	}
+	result, err := s.notifyRules.Activity(ctx, p, rule, page, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	payload := activityPageJSON{Total: result.Total, Page: result.Page, PageSize: result.PageSize, Items: []activityFiringJSON{}}
+	for _, firing := range result.Items {
+		item := activityFiringJSON{
+			ID: firing.ID, RuleID: firing.RuleID, RuleName: firing.RuleName, Trigger: firing.Trigger,
+			Summary: firing.Summary, Channels: []string{}, Reached: firing.Reached, Result: firing.Result,
+			ResolvedReason: firing.ResolvedReason, CreatedAt: firing.CreatedAt, Recipients: []activityRecipientJSON{},
+		}
+		for _, channel := range firing.Channels {
+			item.Channels = append(item.Channels, string(channel))
+		}
+		for _, recipient := range firing.Recipients {
+			item.Recipients = append(item.Recipients, activityRecipientJSON{
+				Name: recipient.Name, Channel: string(recipient.Channel), Step: recipient.Step,
+				Status: recipient.Status, SentAt: recipient.SentAt, ReadAt: recipient.ReadAt,
+			})
+		}
+		payload.Items = append(payload.Items, item)
+	}
+	dto, err := convertJSON[openapi.NotificationActivityPage](payload)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ListNotificationActivity200JSONResponse(dto), nil
 }

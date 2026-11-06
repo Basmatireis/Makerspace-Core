@@ -459,7 +459,7 @@ func applyPrinterError(
 		return nil
 	}
 	if value.Transition == "cleared" {
-		return q.ResolvePrinterErrorOccurrence(
+		if err := q.ResolvePrinterErrorOccurrence(
 			ctx,
 			db.ResolvePrinterErrorOccurrenceParams{
 				AssignmentID: &assignmentID,
@@ -467,7 +467,10 @@ func applyPrinterError(
 				OriginalCode: value.Code,
 				ObservedAt:   observedAt.UTC(),
 			},
-		)
+		); err != nil || emitter == nil {
+			return err
+		}
+		return emitter.PrinterErrorCleared(ctx, tx, machineID, value.Code)
 	}
 	severity := printererrors.Severity(value.SourceFamily, value.Code)
 	first, err := q.UpsertPrinterErrorOccurrence(

@@ -187,9 +187,9 @@ ON CONFLICT (rule_id, subject_key) DO UPDATE SET last_at = EXCLUDED.last_at
 WHERE notification_throttle.last_at <= sqlc.arg(window_start);
 
 -- name: InsertFiring :exec
-INSERT INTO notification_firings (id, rule_id, rule_name, trigger_type, summary, resolve_token, created_at)
+INSERT INTO notification_firings (id, rule_id, rule_name, trigger_type, summary, resolve_token, test, created_at)
 VALUES (sqlc.arg(id), sqlc.arg(rule_id), sqlc.arg(rule_name), sqlc.arg(trigger_type), sqlc.arg(summary),
-        sqlc.narg(resolve_token), sqlc.arg(created_at));
+        sqlc.narg(resolve_token), sqlc.arg(test)::boolean, sqlc.arg(created_at));
 
 -- name: MarkRuleFired :exec
 UPDATE notification_rules SET last_fired_at = sqlc.arg(fired_at) WHERE id = sqlc.arg(id);
@@ -454,3 +454,235 @@ WHERE n.id = r.notification_id
   AND (n.kind = 'lab_rules_published'
        OR n.rule_id IN (SELECT id FROM notification_rules WHERE system_key = 'lab_rules_published'))
   AND a.id = r.account_id AND a.person_id = sqlc.arg(person_id) AND r.read_at IS NULL;
+
+-- Scheduling, rule runs and the collections rules loop over.
+
+-- name: GetRuleForRun :one
+SELECT r.id, r.name, r.enabled, r.owner_account_id, a.person_id AS owner_person_id, r.category_id, r.mandatory,
+       r.trigger_type, r.definition, r.updated_at, r.next_run_at,
+       c.basis AS category_basis, c.text_version AS category_text_version
+FROM notification_rules r
+LEFT JOIN notification_categories c ON c.id = r.category_id
+LEFT JOIN accounts a ON a.id = r.owner_account_id
+WHERE r.id = sqlc.arg(id);
+
+-- name: ClaimDueScheduleRule :one
+-- Takes one enabled schedule rule that is due, or has no next run yet, and keeps it locked until the transaction ends.
+SELECT r.id, r.name, r.enabled, r.owner_account_id, a.person_id AS owner_person_id, r.category_id, r.mandatory,
+       r.trigger_type, r.definition, r.updated_at, r.next_run_at,
+       c.basis AS category_basis, c.text_version AS category_text_version
+FROM notification_rules r
+LEFT JOIN notification_categories c ON c.id = r.category_id
+LEFT JOIN accounts a ON a.id = r.owner_account_id
+WHERE r.enabled AND r.trigger_type = 'schedule' AND (r.next_run_at IS NULL OR r.next_run_at <= sqlc.arg(now))
+ORDER BY r.next_run_at NULLS FIRST, r.id
+LIMIT 1
+FOR UPDATE OF r SKIP LOCKED;
+
+-- name: SetNextRun :exec
+UPDATE notification_rules SET next_run_at = sqlc.narg(next_run_at) WHERE id = sqlc.arg(id);
+
+-- name: ClaimRuleRun :execrows
+-- Zero rows mean the run was handled before.
+INSERT INTO notification_rule_runs (rule_id, run_key, ran_at)
+VALUES (sqlc.arg(rule_id), sqlc.arg(run_key), sqlc.arg(now))
+ON CONFLICT (rule_id, run_key) DO NOTHING;
+
+-- name: DeleteRuleRunsBefore :execrows
+DELETE FROM notification_rule_runs WHERE ran_at < sqlc.arg(cutoff);
+
+-- name: OnAcademicBreak :one
+SELECT EXISTS (
+    SELECT 1 FROM open_day_academic_breaks WHERE starts_on <= sqlc.arg(day)::date AND ends_on >= sqlc.arg(day)::date
+)::boolean;
+
+-- name: GetCurrentLabRulesVersion :one
+SELECT id FROM laborordnung_versions
+WHERE status = 'published' AND effective_at <= sqlc.arg(now)
+ORDER BY effective_at DESC, id DESC LIMIT 1;
+
+-- name: ListPeopleNames :many
+SELECT id, first_name, last_name FROM people WHERE id = ANY(sqlc.arg(person_ids)::text[]::uuid[]);
+
+-- name: LoadPeopleItems :many
+SELECT p.id, p.first_name, p.last_name,
+       EXISTS (SELECT 1 FROM accounts a WHERE a.person_id = p.id AND a.status = 'enabled')::boolean AS has_account,
+       (SELECT count(*) FROM machine_runs r JOIN machine_jobs j ON j.id = r.job_id
+        WHERE j.operator_person_id = p.id AND j.deleted_at IS NULL AND r.deleted_at IS NULL
+          AND r.started_at IS NOT NULL AND r.ended_at IS NULL)::bigint AS running
+FROM people p
+ORDER BY lower(p.last_name), lower(p.first_name), p.id
+LIMIT sqlc.arg(max_items);
+
+-- name: ListUnpaidOfPeople :many
+-- Finalized orders with an outstanding amount that no active external invoice request covers, per customer.
+SELECT x.customer_person_id AS person_id, count(*)::bigint AS orders, sum(x.outstanding)::float8 AS amount,
+       min(x.since)::timestamptz AS oldest
+FROM (
+    SELECT o.customer_person_id, COALESCE(o.finalized_at, o.created_at) AS since,
+           o.total_amount - COALESCE((SELECT sum(a.amount) FROM order_adjustments a WHERE a.order_id = o.id), 0)
+             - COALESCE((SELECT sum(pa.amount) FROM payment_allocations pa WHERE pa.order_id = o.id), 0) AS outstanding
+    FROM orders o
+    WHERE o.status = 'finalized' AND o.customer_person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[])
+      AND NOT EXISTS (SELECT 1 FROM external_invoice_requests r WHERE r.order_id = o.id AND r.state <> 'cancelled')
+) x
+WHERE x.outstanding > 0
+GROUP BY x.customer_person_id;
+
+-- name: ListPeopleAwaitingVersion :many
+SELECT DISTINCT a.person_id
+FROM accounts a
+WHERE a.status = 'enabled'
+  AND EXISTS (
+      SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
+      WHERE pr.person_id = a.person_id AND r.laborordnung_mode IN ('warning', 'blocking')
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM laborordnung_confirmations c WHERE c.person_id = a.person_id AND c.version_id = sqlc.arg(version_id)
+  );
+
+-- name: LoadOpenDayItems :many
+-- Open days starting within the window, of one period or of every period.
+SELECT d.id, d.period_id, d.starts_at, d.ends_at, d.status,
+       (SELECT count(*) FROM open_day_timeslots t WHERE t.open_day_id = d.id)::bigint AS timeslots,
+       (SELECT count(DISTINCT a.person_id) FROM open_day_assignments a
+        JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+        WHERE a.open_day_id = d.id AND r.kind = 'supervisor')::bigint AS supervisors,
+       (SELECT count(DISTINCT a.person_id) FROM open_day_assignments a
+        JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+        WHERE a.open_day_id = d.id AND r.kind = 'trainee')::bigint AS trainees,
+       (SELECT COALESCE(sum(GREATEST(0, r.required_count
+                - (SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = r.id))), 0)
+        FROM open_day_staff_requirements r JOIN open_day_timeslots t ON t.id = r.timeslot_id
+        WHERE t.open_day_id = d.id AND r.kind = 'supervisor')::bigint AS free
+FROM open_days d
+WHERE (sqlc.narg(period_id)::uuid IS NULL OR d.period_id = sqlc.narg(period_id))
+  AND d.starts_at >= sqlc.arg(from_time) AND d.starts_at < sqlc.arg(to_time)
+ORDER BY d.starts_at, d.id
+LIMIT sqlc.arg(max_items);
+
+-- name: ListOpenDayTeams :many
+-- Everyone signed up for the open days, with the kind of place they hold.
+SELECT DISTINCT a.open_day_id, a.person_id, r.kind
+FROM open_day_assignments a
+JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+WHERE a.open_day_id = ANY(sqlc.arg(open_day_ids)::text[]::uuid[]);
+
+-- name: LoadMachineItems :many
+SELECT m.id, m.name, m.status, m.process_id,
+       (SELECT count(*) FROM machine_runs r
+        WHERE r.machine_id = m.id AND r.deleted_at IS NULL AND r.started_at >= sqlc.arg(day_start))::bigint AS runs_today,
+       (SELECT count(*) FROM printer_error_occurrences e
+        WHERE e.machine_id = m.id AND e.first_observed_at >= sqlc.arg(week_start))::bigint AS errors_week,
+       EXISTS (SELECT 1 FROM printer_connector_assignments a JOIN printer_connectors c ON c.id = a.connector_id
+               WHERE a.machine_id = m.id AND c.lifecycle = 'active'
+                 AND c.last_heartbeat_at > sqlc.arg(online_since))::boolean AS online
+FROM machines m
+ORDER BY lower(m.name), m.id
+LIMIT sqlc.arg(max_items);
+
+-- name: ListProcessNames :many
+SELECT id, name FROM processes;
+
+-- name: LoadSpoolItems :many
+SELECT s.id, s.display_id, mt.id AS material_type_id, mt.name AS material_type_name, COALESCE(m.color_name, '')::text AS color_name,
+       filament_spool_remaining(s.id)::float8 AS remaining,
+       EXISTS (SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id = s.id AND a.unmounted_at IS NULL)::boolean AS loaded,
+       COALESCE((SELECT max(GREATEST(a.mounted_at, COALESCE(a.unmounted_at, a.mounted_at)))
+                 FROM printer_spool_assignments a WHERE a.spool_id = s.id), s.created_at)::timestamptz AS last_use
+FROM filament_spools s
+JOIN materials m ON m.id = s.material_id
+JOIN material_types mt ON mt.id = m.material_type_id
+WHERE s.lifecycle = 'active'
+ORDER BY s.display_id, s.id
+LIMIT sqlc.arg(max_items);
+
+-- name: LoadOrderItems :many
+SELECT x.id, x.reference, x.customer_kind, x.customer_person_id, x.customer_organization_id, x.creator_person_id, x.status,
+       x.amount::float8 AS amount, x.outstanding::float8 AS outstanding, x.since::timestamptz AS since, x.invoice::boolean AS invoice
+FROM (
+    SELECT o.id, o.reference, o.customer_kind, o.customer_person_id, o.customer_organization_id,
+           (SELECT a.person_id FROM accounts a WHERE a.id = o.created_by_account_id) AS creator_person_id,
+           o.status, o.created_at,
+           o.total_amount - COALESCE((SELECT sum(a.amount) FROM order_adjustments a WHERE a.order_id = o.id), 0) AS amount,
+           o.total_amount - COALESCE((SELECT sum(a.amount) FROM order_adjustments a WHERE a.order_id = o.id), 0)
+             - COALESCE((SELECT sum(pa.amount) FROM payment_allocations pa WHERE pa.order_id = o.id), 0) AS outstanding,
+           COALESCE(o.finalized_at, o.created_at) AS since,
+           EXISTS (SELECT 1 FROM external_invoice_requests r WHERE r.order_id = o.id AND r.state <> 'cancelled') AS invoice
+    FROM orders o
+) x
+ORDER BY x.created_at DESC, x.id DESC
+LIMIT sqlc.arg(max_items);
+
+-- name: LoadJobItems :many
+SELECT j.id, j.display_id, COALESCE(j.title, '')::text AS title, j.machine_id, j.pricing_status, j.operator_person_id,
+       j.customer_person_id, j.customer_organization_id, j.outcome_override,
+       COALESCE(s.run_count, 0)::bigint AS run_count, COALESCE(s.running, false)::boolean AS running,
+       COALESCE(s.derived_outcome, '')::text AS derived_outcome,
+       GREATEST(j.created_at, COALESCE(s.ended_at::timestamptz, j.created_at))::timestamptz AS since,
+       EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = j.id)::boolean AS on_order,
+       ma.name AS machine_name
+FROM machine_jobs j
+JOIN machines ma ON ma.id = j.machine_id
+LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
+WHERE j.deleted_at IS NULL
+ORDER BY j.created_at DESC, j.id DESC
+LIMIT sqlc.arg(max_items);
+
+-- name: LoadArticleItems :many
+SELECT m.id, m.name, m.material_type_id, t.name AS material_type_name, COALESCE(b.quantity, 0)::float8 AS stock,
+       COALESCE(m.low_stock_threshold, 0)::float8 AS minimum, COALESCE(m.storage_location, '')::text AS location
+FROM materials m
+JOIN material_types t ON t.id = m.material_type_id
+LEFT JOIN material_balances b ON b.material_id = m.id
+WHERE m.active AND m.deleted_at IS NULL AND t.kind <> 'filament'
+ORDER BY lower(m.name), m.id
+LIMIT sqlc.arg(max_items);
+
+-- name: LoadTrainingItems :many
+SELECT r.person_id, r.training_id, p.first_name, p.last_name, t.name AS training_name, r.status, r.completed_on
+FROM training_records r
+JOIN people p ON p.id = r.person_id
+JOIN trainings t ON t.id = r.training_id
+ORDER BY lower(p.last_name), lower(p.first_name), lower(t.name), r.person_id
+LIMIT sqlc.arg(max_items);
+
+-- name: ListTrainersOfTrainings :many
+SELECT training_id, person_id FROM training_records WHERE status = 'trainer';
+
+-- name: CountPrinterErrorsSince :one
+SELECT count(*)::bigint FROM printer_error_occurrences WHERE first_observed_at >= sqlc.arg(since);
+
+-- name: CountFinishedJobRunsSince :one
+SELECT count(*)::bigint FROM machine_runs
+WHERE job_id IS NOT NULL AND deleted_at IS NULL AND ended_at >= sqlc.arg(since);
+
+-- name: CountLabRulesPublishedSince :one
+SELECT count(*)::bigint FROM laborordnung_versions WHERE status = 'published' AND effective_at >= sqlc.arg(since);
+
+-- name: CountScheduledOpenDaysBetween :one
+SELECT count(*)::bigint FROM open_days WHERE status = 'scheduled' AND starts_at >= sqlc.arg(from_time) AND starts_at < sqlc.arg(to_time);
+
+-- name: ListActivity :many
+SELECT f.id, f.rule_id, f.rule_name, f.trigger_type, f.summary, f.test, f.resolved_at, f.resolved_reason, f.created_at,
+       (SELECT count(*) FROM notification_firing_recipients r WHERE r.firing_id = f.id AND r.status IN ('sent', 'fallback'))::bigint AS reached,
+       (SELECT count(*) FROM notification_firing_recipients r WHERE r.firing_id = f.id AND r.status = 'throttled')::bigint AS throttled,
+       (SELECT count(*) FROM notification_firing_recipients r WHERE r.firing_id = f.id AND r.step > 0)::bigint AS escalated,
+       (SELECT count(*) FROM notification_firing_recipients r WHERE r.firing_id = f.id)::bigint AS total
+FROM notification_firings f
+WHERE (sqlc.narg(rule_id)::uuid IS NULL OR f.rule_id = sqlc.narg(rule_id))
+ORDER BY f.created_at DESC, f.id DESC
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: CountActivity :one
+SELECT count(*)::bigint FROM notification_firings f WHERE (sqlc.narg(rule_id)::uuid IS NULL OR f.rule_id = sqlc.narg(rule_id));
+
+-- name: ListActivityRecipients :many
+SELECT r.firing_id, r.person_id, p.first_name, p.last_name, r.channel, r.step, r.status, r.sent_at,
+       COALESCE((SELECT extract(epoch FROM min(ir.read_at)) FROM inbox_recipients ir
+                 WHERE ir.notification_id = r.notification_id
+                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS read_epoch
+FROM notification_firing_recipients r
+LEFT JOIN people p ON p.id = r.person_id
+WHERE r.firing_id = ANY(sqlc.arg(firing_ids)::text[]::uuid[])
+ORDER BY r.firing_id, r.step, lower(p.last_name), lower(p.first_name), r.channel;
