@@ -1,6 +1,7 @@
-import type { OpenDay, OpenDayAssignment } from '../../../../api/generated/models';
+import type { OpenDay, OpenDayAssignment, SaveOpenDayScheduleRequest } from '../../../../api/generated/models';
 import { dayRequirements } from '../../../opendays/timeslots';
 import { openDayView, refreshPeriod } from '../openDayModel';
+import { saveSchedule, seriesView } from '../scheduleModel';
 import { created, fail, noContent, notFound, ok, type DemoRouter } from '../router';
 import { nextId, personName, type DemoStore } from '../store';
 
@@ -54,6 +55,13 @@ function unassign(store: DemoStore, day: OpenDay, match: (assignment: OpenDayAss
   return notFound('Assignment');
 }
 
+/** The schedule of the demo period as the signed-in person sees it. */
+const schedule = (store: DemoStore) => ({
+  period: store.period,
+  items: store.openDays.map((day) => openDayView(store, day)),
+  timeZone: 'Europe/Vienna',
+});
+
 export function registerOpenDays(router: DemoRouter<DemoStore>): void {
   router
     .get('/open-day-periods', ({ store }) => ok({ items: [store.period] }))
@@ -61,13 +69,7 @@ export function registerOpenDays(router: DemoRouter<DemoStore>): void {
       params.periodId === store.period.id ? ok(store.period) : notFound('Period'),
     )
     .get('/open-day-periods/{periodId}/open-days', ({ store, params }) =>
-      params.periodId === store.period.id
-        ? ok({
-            period: store.period,
-            items: store.openDays.map((day) => openDayView(store, day)),
-            timeZone: 'Europe/Vienna',
-          })
-        : notFound('Period'),
+      params.periodId === store.period.id ? ok(schedule(store)) : notFound('Period'),
     )
     .get('/open-day-periods/{periodId}/calendar-context', () =>
       ok({
@@ -79,22 +81,12 @@ export function registerOpenDays(router: DemoRouter<DemoStore>): void {
         academicBreaks: [],
       }),
     )
+    .get('/open-day-periods/{periodId}/series', ({ store, params }) =>
+      params.periodId === store.period.id ? ok({ items: seriesView(store) }) : notFound('Period'),
+    )
     .get('/open-day-academic-breaks', () => ok({ items: [] }))
     .get('/open-day-eligibility-roles', ({ store }) =>
       ok({ items: store.roles.filter((role) => !role.systemKey).map(({ id, name }) => ({ id, name })) }),
-    )
-    .get('/staffing-rules', ({ store }) =>
-      ok({
-        supervisorMinimum: 2,
-        traineeMinimum: 2,
-        traineeReadyAfter: 3,
-        warningWindowDays: 14,
-        countBy: 'timeslot',
-        defaultDeadline: 'period_end',
-        exceptions: [],
-        version: 1,
-        updatedAt: store.now.toISOString(),
-      }),
     )
     .get('/open-days/{openDayId}', ({ store, params }) => {
       const day = findDay(store, params.openDayId);
@@ -111,6 +103,15 @@ export function registerOpenDays(router: DemoRouter<DemoStore>): void {
           .map((person) => ({ personId: person.id, displayName: personName(person) })),
       });
     })
+    .add(
+      'PUT',
+      '/open-day-periods/{periodId}/schedule',
+      ({ store, params, body }) => {
+        const failure = saveSchedule(store, params.periodId, body as unknown as SaveOpenDayScheduleRequest);
+        return failure ?? ok(schedule(store));
+      },
+      'open_days.manage',
+    )
     .add(
       'PUT',
       '/open-days/{openDayId}/assignments/me',

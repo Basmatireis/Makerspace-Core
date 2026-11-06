@@ -526,6 +526,18 @@ export function createStore(user: CurrentUser, now: Date = new Date()): DemoStor
       updatedAt: T,
     },
     openDays: [],
+    series: [],
+    staffingRules: {
+      supervisorMinimum: 2,
+      traineeMinimum: 2,
+      traineeReadyAfter: 3,
+      warningWindowDays: 14,
+      countBy: 'timeslot',
+      defaultDeadline: 'period_end',
+      exceptions: [],
+      version: 1,
+      updatedAt: T,
+    },
     // The welcome tour counts as handled, so demo mode does not offer it again.
     guideProgress: [{ guideId: 'welcome', status: 'dismissed', updatedAt: T }],
   };

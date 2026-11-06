@@ -629,7 +629,7 @@ interface DemoGuide {
 const tours: DemoGuide[] = [
   { id: 'workshop-tour', title: 'Workshop tour', shots: [0, 4, 8] },
   { id: 'sales-tour', title: 'Sales & payments tour', shots: [0, 3, 6] },
-  { id: 'open-days-tour', title: 'Open days tour', shots: [0, 4, 7] },
+  { id: 'open-days-tour', title: 'Open days tour', shots: [0, 4, 7, 12] },
 ];
 
 const workflows: DemoGuide[] = [
@@ -721,7 +721,6 @@ const workflows: DemoGuide[] = [
     actions: {
       'Take a place': click('[data-guide="open-days-join"]'),
       'Plans changed?': click('[data-guide="open-days-leave"]'),
-      Confirm: click('.cds--modal.is-visible .cds--btn--danger'),
     },
   },
   {
@@ -895,9 +894,6 @@ test.describe('narrow screens', () => {
         },
         'Plans changed?': async (current) => {
           await current.locator('[data-guide="open-days-leave"]').first().click();
-        },
-        Confirm: async (current) => {
-          await current.locator('.cds--modal.is-visible .cds--btn--danger').first().click();
         },
       },
       atLastStep: async () => {
