@@ -85,7 +85,45 @@ describe('survey trigger form', () => {
     await user.click(screen.getByRole('button', { name: 'Save trigger' }));
 
     await waitFor(() =>
-      expect(body).toEqual({ enabled: true, delaySeconds: 5400, cooldownDays: 14, expectedVersion: 3 }),
+      expect(body).toEqual({
+        enabled: true,
+        askAtTablet: false,
+        delaySeconds: 5400,
+        cooldownDays: 14,
+        expectedVersion: 3,
+      }),
+    );
+  });
+
+  it('sends askAtTablet when the tablet checkbox is ticked and notes who gets automatic e-mails', async () => {
+    let body: unknown;
+    mockPage(surveyFixture());
+    server.use(
+      http.put('*/api/v1/surveys/:id/trigger', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ ...surveyFixture().trigger, askAtTablet: true, version: 4 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/settings/surveys/${surveyId}?tab=delivery`);
+
+    expect(
+      await screen.findByText('Automatic e-mail invitations reach only people who allowed Surveys & feedback.'),
+    ).toBeInTheDocument();
+    const box = await screen.findByRole('checkbox', { name: 'Ask at the tablet when someone checks out' });
+    expect(box).not.toBeChecked();
+    expect(screen.getByText(/The tablet shows “Got a minute\?” after a self check-out/)).toBeInTheDocument();
+    await user.click(box);
+    await user.click(screen.getByRole('button', { name: 'Save trigger' }));
+
+    await waitFor(() =>
+      expect(body).toEqual({
+        enabled: true,
+        askAtTablet: true,
+        delaySeconds: 1800,
+        cooldownDays: 30,
+        expectedVersion: 3,
+      }),
     );
   });
 
@@ -129,7 +167,13 @@ describe('survey trigger form', () => {
     await user.click(screen.getByRole('button', { name: 'Save trigger' }));
 
     await waitFor(() =>
-      expect(body).toEqual({ enabled: false, delaySeconds: 1800, cooldownDays: 7, expectedVersion: 0 }),
+      expect(body).toEqual({
+        enabled: false,
+        askAtTablet: false,
+        delaySeconds: 1800,
+        cooldownDays: 7,
+        expectedVersion: 0,
+      }),
     );
   });
 

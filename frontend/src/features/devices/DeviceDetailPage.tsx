@@ -31,6 +31,8 @@ import { DeviceFormModal, OneTimeToken } from './components/DeviceFormModal';
 import { DeviceStatusTag } from './components/DeviceStatusTag';
 import {
   assuranceLabels,
+  deviceUseOf,
+  deviceUseOptions,
   capabilityLabels,
   keys,
   modeLabels,
@@ -194,6 +196,13 @@ export function DeviceDetailPage() {
             <StructuredListWrapper isCondensed>
               <StructuredListBody>
                 <DetailRow
+                  label="Used as"
+                  value={
+                    deviceUseOptions.find((option) => option.value === deviceUseOf(device))?.label ??
+                    'Custom combination'
+                  }
+                />
+                <DetailRow
                   label="Allowed application modes"
                   value={device.allowedApplicationModes.map((mode) => modeLabels[mode]).join(', ')}
                 />
@@ -220,6 +229,8 @@ export function DeviceDetailPage() {
                     <DetailRow label="Check-in assurance" value={assuranceLabels[device.checkInAssurance]} />
                     <DetailRow label="Check-out assurance" value={assuranceLabels[device.checkOutAssurance]} />
                     <DetailRow label="Tap check-out" value={device.allowTapCheckout ? 'Allowed' : 'Off'} />
+                    <DetailRow label="Surveys at check-out" value={device.offerSurveysAtCheckout ? 'Offered' : 'Off'} />
+                    <DetailRow label="Back to the start screen after" value={`${device.kioskResetSeconds} s`} />
                   </>
                 )}
               </StructuredListBody>

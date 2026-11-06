@@ -11,3 +11,8 @@
   flex-wrap: wrap;
   gap: $spacing-02;
 }
+
+.device-summary {
+  list-style: disc;
+  padding-inline-start: $spacing-06;
+}

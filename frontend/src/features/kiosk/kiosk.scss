@@ -413,3 +413,108 @@ body:has(.tablet) {
     gap: $spacing-05;
   }
 }
+
+// Consent after the first check-in, and the check-out survey offer: big touch targets, one thing per screen.
+.tablet-consent,
+.tablet-offer,
+.tablet-question {
+  display: grid;
+  gap: $spacing-06;
+  max-inline-size: 48rem;
+  padding-block-start: $spacing-07;
+}
+
+.tablet-consent__title,
+.tablet-offer__title {
+  @include type-style('heading-07');
+}
+
+.tablet-consent__lead,
+.tablet-offer__lead {
+  @include type-style('heading-03');
+  color: $text-secondary;
+}
+
+.tablet-consent__list {
+  display: grid;
+  gap: $spacing-03;
+}
+
+.tablet-consent__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: $spacing-06;
+  padding: $spacing-05;
+  background: $layer-01;
+}
+
+.tablet-consent__name {
+  @include type-style('heading-03');
+}
+
+.tablet-consent__description {
+  @include type-style('body-02');
+  color: $text-secondary;
+}
+
+.tablet-offer__seen {
+  @include type-style('body-compact-02');
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+  color: $text-secondary;
+}
+
+// Three equal buttons.
+.tablet-offer__choices {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: $spacing-04;
+
+  .cds--btn {
+    max-inline-size: none;
+    inline-size: 100%;
+    justify-content: center;
+  }
+}
+
+.tablet-question__prompt {
+  @include type-style('heading-06');
+}
+
+.tablet-question__optional {
+  @include type-style('helper-text-02');
+  color: $text-helper;
+}
+
+.tablet-question__stars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+.tablet-question__star.cds--btn {
+  inline-size: 5rem;
+  block-size: 5rem;
+  padding: 0;
+  justify-content: center;
+
+  svg {
+    inline-size: 3rem;
+    block-size: 3rem;
+  }
+}
+
+.tablet-question__choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: $spacing-04;
+
+  .cds--btn {
+    max-inline-size: none;
+    inline-size: 100%;
+    justify-content: center;
+  }
+}

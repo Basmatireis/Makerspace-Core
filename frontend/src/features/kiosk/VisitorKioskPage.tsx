@@ -5,10 +5,11 @@ import {
   listTerminalPresence,
   terminalPublicCheckOut,
 } from '../../api/generated/attendance/attendance';
-import type { KioskNotice, Visit } from '../../api/generated/models';
+import type { KioskNotice, TerminalConsentCategory, TerminalSurveyOffer, Visit } from '../../api/generated/models';
 import { BrandMark } from '../../app/BrandMark';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useBranding } from '../branding/branding';
+import { ConsentScreen } from './components/ConsentScreen';
 import { CheckOutScreen } from './components/CheckOutScreen';
 import type { Credentials, LabRulesNeed } from './components/checkIn';
 import { CredentialsScreen } from './components/CredentialsScreen';
@@ -16,23 +17,28 @@ import { LabRulesScreen } from './components/LabRulesScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { PresencePanel } from './components/PresencePanel';
 import { ResultScreen } from './components/ResultScreen';
+import { SurveyOfferScreen } from './components/SurveyOfferScreen';
 import './kiosk.scss';
 
 const presenceKey = ['kiosk', 'presence'] as const;
+
+type ResultState = {
+  kind: 'result';
+  mode: 'check-in' | 'check-out';
+  displayName: string;
+  at: string;
+  /** Notices for this person's check-in. */
+  notices: KioskNotice[];
+};
 
 type Screen =
   | { kind: 'home' }
   | { kind: 'check-in' }
   | { kind: 'check-out'; preselected: string | null }
   | { kind: 'lab-rules'; credentials: Credentials; need: LabRulesNeed }
-  | {
-      kind: 'result';
-      mode: 'check-in' | 'check-out';
-      displayName: string;
-      at: string;
-      /** Notices for this person's check-in. */
-      notices: KioskNotice[];
-    };
+  | { kind: 'consent'; visitId: string; categories: TerminalConsentCategory[]; result: ResultState }
+  | { kind: 'survey-offer'; offer: TerminalSurveyOffer; result: ResultState }
+  | ResultState;
 
 export function VisitorKioskPage() {
   const kiosk = useQuery({
@@ -96,7 +102,15 @@ export function VisitorKioskPage() {
     const at = mode === 'check-in' ? result.checkedInAt : (result.checkedOutAt ?? new Date().toISOString());
     const forEveryone = contextNotices.filter((notice) => notice.mode === 'everyone_today');
     const notices = mode === 'check-in' ? [...(result.notices ?? []), ...forEveryone] : [];
-    setScreen({ kind: 'result', mode, displayName: result.displayName, at, notices });
+    const next: ResultState = { kind: 'result', mode, displayName: result.displayName, at, notices };
+    if (mode === 'check-in' && result.consentRequired && result.consentCategories?.length) {
+      // Asked once, before the welcome: the person cannot skip it, but every answer may be "No".
+      setScreen({ kind: 'consent', visitId: result.id, categories: result.consentCategories, result: next });
+    } else if (mode === 'check-out' && result.surveyOffer) {
+      setScreen({ kind: 'survey-offer', offer: result.surveyOffer, result: next });
+    } else {
+      setScreen(next);
+    }
   }
 
   return (
@@ -162,6 +176,25 @@ export function VisitorKioskPage() {
             need={screen.need}
             onSuccess={(result) => credentialsDone('check-in', result)}
             onCancel={home}
+          />
+        )}
+        {screen.kind === 'consent' && (
+          <ConsentScreen
+            visitId={screen.visitId}
+            displayName={screen.result.displayName}
+            categories={screen.categories}
+            resetSeconds={context.kioskResetSeconds}
+            onDone={() => setScreen(screen.result)}
+            onIdle={home}
+          />
+        )}
+        {screen.kind === 'survey-offer' && (
+          <SurveyOfferScreen
+            offer={screen.offer}
+            displayName={screen.result.displayName}
+            resetSeconds={context.kioskResetSeconds}
+            onDeclined={() => setScreen(screen.result)}
+            onHome={home}
           />
         )}
         {screen.kind === 'result' && (

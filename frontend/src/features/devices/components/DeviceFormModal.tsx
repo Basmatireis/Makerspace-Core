@@ -7,6 +7,9 @@ import {
   ModalBody,
   ModalFooter,
   ModalHeader,
+  NumberInput,
+  RadioButton,
+  RadioButtonGroup,
   Select,
   SelectItem,
   Stack,
@@ -18,7 +21,6 @@ import { useState } from 'react';
 import { createManagedDevice } from '../../../api/generated/managed-devices/managed-devices';
 import type {
   AuthenticationAssurance,
-  DeviceApplicationMode,
   DeviceCapability,
   ManagedDevice,
   ManagedDeviceCredentialDelivery,
@@ -27,7 +29,19 @@ import type {
   SessionPolicy,
 } from '../../../api/generated/models';
 import { instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../../app/dateTime';
-import { DeviceConfiguration } from './deviceShared';
+import {
+  applyDeviceUse,
+  assuranceLabels,
+  configurationProblem,
+  describeDeviceUse,
+  deviceUseOf,
+  deviceUseOptions,
+  isKioskResetValid,
+  kioskResetRange,
+  kioskShowOptions,
+  type DeviceConfiguration,
+  type DeviceUse,
+} from './deviceShared';
 import { ExpirationFields } from './ExpirationModal';
 import { MutationError } from './ConfirmationModal';
 
@@ -85,9 +99,7 @@ export function CreateDeviceModal({
   const invalid =
     !name.trim() ||
     !deviceTypeId ||
-    configuration.allowedApplicationModes.length === 0 ||
-    (configuration.terminalEnabled &&
-      (!configuration.sessionPolicyId || !configuration.allowedApplicationModes.includes('visitor_terminal'))) ||
+    configurationProblem(configuration) !== null ||
     (!noExpiration && !isZonedDateTimeValue(expiration)) ||
     pending;
   return (
@@ -235,10 +247,7 @@ export function DeviceFormModal({
           disabled={
             pending ||
             !name.trim() ||
-            configuration.allowedApplicationModes.length === 0 ||
-            (configuration.terminalEnabled &&
-              (!configuration.sessionPolicyId ||
-                !configuration.allowedApplicationModes.includes('visitor_terminal'))) ||
+            configurationProblem(configuration) !== null ||
             (device.status !== 'expired' && !noExpiration && !isZonedDateTimeValue(expiration))
           }
           onClick={() =>
@@ -262,6 +271,33 @@ export function DeviceFormModal({
   );
 }
 
+function AssuranceSelect({
+  id,
+  labelText,
+  value,
+  onChange,
+}: {
+  id: string;
+  labelText: string;
+  value: AuthenticationAssurance;
+  onChange: (value: AuthenticationAssurance) => void;
+}) {
+  const reachable = kioskShowOptions.some((option) => option.value === value);
+  return (
+    <Select
+      id={id}
+      labelText={labelText}
+      value={value}
+      onChange={(event) => onChange(event.target.value as AuthenticationAssurance)}
+    >
+      {!reachable && <SelectItem value={value} text={`${assuranceLabels[value]} (the kiosk cannot ask for this)`} />}
+      {kioskShowOptions.map((option) => (
+        <SelectItem key={option.value} value={option.value} text={option.label} />
+      ))}
+    </Select>
+  );
+}
+
 function DevicePolicyFields({
   id,
   policies,
@@ -282,14 +318,35 @@ function DevicePolicyFields({
     'label_printer',
     'file_upload',
   ];
-  const applicationModes: DeviceApplicationMode[] = ['visitor_terminal', 'staff_ui'];
+  const use = deviceUseOf(value);
+  const help = deviceUseOptions.find((option) => option.value === use)?.help;
+  const resetValid = isKioskResetValid(value.kioskResetSeconds);
   return (
-    <Stack gap={4}>
+    <Stack gap={5}>
+      <RadioButtonGroup
+        legendText="Used as"
+        name={`${id}-used-as`}
+        orientation="vertical"
+        valueSelected={use === 'other' ? '' : use}
+        onChange={(next) => onChange(applyDeviceUse(value, next as DeviceUse))}
+      >
+        {deviceUseOptions.map((option) => (
+          <RadioButton
+            key={option.value}
+            id={`${id}-used-as-${option.value}`}
+            labelText={option.label}
+            value={option.value}
+          />
+        ))}
+      </RadioButtonGroup>
+      <p className="cds--form__helper-text">
+        {help ?? 'A combination this form does not offer. Choose one of the uses above to replace it.'}
+      </p>
       <Select
         id={`${id}-session-policy`}
         labelText="Session policy"
         invalid={value.terminalEnabled && !value.sessionPolicyId}
-        invalidText="Public kiosks require an explicit session policy."
+        invalidText="A kiosk needs an explicit session policy."
         value={value.sessionPolicyId ?? ''}
         onChange={(event) => onChange({ ...value, sessionPolicyId: event.target.value || null })}
       >
@@ -298,97 +355,82 @@ function DevicePolicyFields({
           <SelectItem key={policy.id} value={policy.id} text={policy.name} />
         ))}
       </Select>
-      <fieldset>
-        <legend>Allowed application modes</legend>
-        <Stack gap={2}>
-          {applicationModes.map((mode) => (
+      {value.terminalEnabled && (
+        <fieldset>
+          <legend>Kiosk</legend>
+          <Stack gap={5}>
+            <AssuranceSelect
+              id={`${id}-check-in-assurance`}
+              labelText="To check in, people show"
+              value={value.checkInAssurance}
+              onChange={(checkInAssurance) => onChange({ ...value, checkInAssurance })}
+            />
+            <AssuranceSelect
+              id={`${id}-check-out-assurance`}
+              labelText="To check out, people show"
+              value={value.checkOutAssurance}
+              onChange={(checkOutAssurance) => onChange({ ...value, checkOutAssurance })}
+            />
             <Checkbox
-              key={mode}
-              id={`${id}-mode-${mode}`}
-              labelText={mode === 'visitor_terminal' ? 'Visitor kiosk' : 'Staff UI'}
-              checked={value.allowedApplicationModes.includes(mode)}
+              id={`${id}-allow-tap-checkout`}
+              labelText="Also check out by tapping a name in the presence list"
+              helperText="No sign-in. Handy when someone forgot, but anyone can tap anyone."
+              checked={value.allowTapCheckout}
+              onChange={(_, { checked }) => onChange({ ...value, allowTapCheckout: checked })}
+            />
+            <Checkbox
+              id={`${id}-offer-surveys`}
+              labelText="Offer surveys at check-out"
+              helperText="Only after a check-out with what people show above, never after a tap in the list: then the tablet can't know who is standing in front of it. Which survey is offered is set on the survey."
+              checked={value.offerSurveysAtCheckout}
+              onChange={(_, { checked }) => onChange({ ...value, offerSurveysAtCheckout: checked })}
+            />
+            <NumberInput
+              id={`${id}-kiosk-reset`}
+              label="Back to the start screen after (seconds without a touch)"
+              helperText="Also drops half-answered surveys and consent questions."
+              min={kioskResetRange.min}
+              max={kioskResetRange.max}
+              allowEmpty
+              value={Number.isNaN(value.kioskResetSeconds) ? '' : value.kioskResetSeconds}
+              invalid={!resetValid}
+              invalidText={`Enter ${kioskResetRange.min} to ${kioskResetRange.max} seconds.`}
+              onChange={(_event, state) =>
+                onChange({ ...value, kioskResetSeconds: state.value === '' ? Number.NaN : Number(state.value) })
+              }
+            />
+          </Stack>
+        </fieldset>
+      )}
+      <fieldset>
+        <legend>Device capabilities</legend>
+        <Stack gap={2}>
+          {capabilityOptions.map((capability) => (
+            <Checkbox
+              key={capability}
+              id={`${id}-capability-${capability}`}
+              labelText={capability.replace('_', ' ')}
+              checked={value.capabilities.includes(capability)}
               onChange={(_, data) =>
                 onChange({
                   ...value,
-                  allowedApplicationModes: data.checked
-                    ? [...value.allowedApplicationModes, mode]
-                    : value.allowedApplicationModes.filter((item) => item !== mode),
+                  capabilities: data.checked
+                    ? [...value.capabilities, capability]
+                    : value.capabilities.filter((item) => item !== capability),
                 })
               }
             />
           ))}
         </Stack>
       </fieldset>
-      <Checkbox
-        id={`${id}-kiosk-enabled`}
-        labelText="Enable public visitor kiosk"
-        checked={value.terminalEnabled}
-        onChange={(_, data) =>
-          onChange({
-            ...value,
-            terminalEnabled: data.checked,
-            allowedApplicationModes:
-              data.checked && !value.allowedApplicationModes.includes('visitor_terminal')
-                ? [...value.allowedApplicationModes, 'visitor_terminal']
-                : value.allowedApplicationModes,
-          })
-        }
-      />
-      {value.terminalEnabled && (
-        <>
-          <Select
-            id={`${id}-check-in-assurance`}
-            labelText="Check-in assurance"
-            value={value.checkInAssurance}
-            onChange={(event) =>
-              onChange({ ...value, checkInAssurance: event.target.value as AuthenticationAssurance })
-            }
-          >
-            {['low', 'normal', 'strong', 'strong_mfa'].map((item) => (
-              <SelectItem key={item} value={item} text={item} />
-            ))}
-          </Select>
-          <Select
-            id={`${id}-check-out-assurance`}
-            labelText="Checkout assurance"
-            value={value.checkOutAssurance}
-            onChange={(event) =>
-              onChange({ ...value, checkOutAssurance: event.target.value as AuthenticationAssurance })
-            }
-          >
-            {['low', 'normal', 'strong', 'strong_mfa'].map((item) => (
-              <SelectItem key={item} value={item} text={item} />
-            ))}
-          </Select>
-          <Checkbox
-            id={`${id}-allow-tap-checkout`}
-            labelText="Also allow checking out by tapping a name in Currently here"
-            checked={value.allowTapCheckout}
-            onChange={(_, { checked }) => onChange({ ...value, allowTapCheckout: checked })}
-          />
-          <fieldset>
-            <legend>Device capabilities</legend>
-            <Stack gap={2}>
-              {capabilityOptions.map((capability) => (
-                <Checkbox
-                  key={capability}
-                  id={`${id}-capability-${capability}`}
-                  labelText={capability.replace('_', ' ')}
-                  checked={value.capabilities.includes(capability)}
-                  onChange={(_, data) =>
-                    onChange({
-                      ...value,
-                      capabilities: data.checked
-                        ? [...value.capabilities, capability]
-                        : value.capabilities.filter((item) => item !== capability),
-                    })
-                  }
-                />
-              ))}
-            </Stack>
-          </fieldset>
-        </>
-      )}
+      <div>
+        <h4>On this device</h4>
+        <ul className="device-summary">
+          {describeDeviceUse(value).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      </div>
     </Stack>
   );
 }

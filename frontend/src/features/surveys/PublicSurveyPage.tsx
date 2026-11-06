@@ -12,6 +12,7 @@ import type { SurveyAnswerInput, SurveyQuestion } from '../../api/generated/mode
 import { ApiError } from '../../api/http-client';
 import { FullPageLoading } from '../../app/PageState';
 import { isAnswered, visibleQuestionIds, type AnswerValue } from './surveyModel';
+import { toAnswerInputs } from './surveyAnswers';
 import './surveys.scss';
 
 type Kind = 'invitation' | 'link';
@@ -89,20 +90,7 @@ function PublicSurvey({ kind }: { kind: Kind }) {
   const answered = shown.filter((question) => isAnswered(values[question.id])).length;
 
   const onSubmit = (formValues: Values) => {
-    // Answers to hidden questions are rejected by the server, so only visible questions are sent.
-    const visibleNow = visibleQuestionIds(questions, formValues);
-    const answers: SurveyAnswerInput[] = [];
-    for (const question of questions) {
-      const value = formValues[question.id];
-      if (!visibleNow.has(question.id) || !isAnswered(value)) continue;
-      const answer: SurveyAnswerInput = { questionId: question.id, optionIds: [] };
-      if (question.kind === 'single_choice') answer.optionIds = [String(value)];
-      else if (question.kind === 'multiple_choice') answer.optionIds = value as string[];
-      else if (question.kind === 'free_text') answer.textValue = String(value);
-      else if (question.kind === 'rating') answer.numericValue = Number(value);
-      else answer.booleanValue = value === 'true';
-      answers.push(answer);
-    }
+    const answers = toAnswerInputs(questions, formValues);
     submit.mutate(answers);
   };
 

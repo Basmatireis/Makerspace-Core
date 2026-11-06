@@ -1,4 +1,4 @@
-import { Button, Form, InlineNotification, NumberInput, Stack, Toggle } from '@carbon/react';
+import { Button, Checkbox, Form, InlineNotification, NumberInput, Stack, Toggle } from '@carbon/react';
 import { useMutation } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { updateSurveyTrigger } from '../../api/generated/surveys/surveys';
@@ -10,6 +10,7 @@ const defaultCooldownDays = 30;
 
 type TriggerValues = {
   enabled: boolean;
+  askAtTablet: boolean;
   delayMinutes: number | string;
   cooldownDays: number | string;
 };
@@ -31,6 +32,7 @@ export function SurveyTriggerForm({ survey, onSaved }: { survey: Survey; onSaved
   const form = useForm<TriggerValues>({
     defaultValues: {
       enabled: trigger?.enabled ?? false,
+      askAtTablet: trigger?.askAtTablet ?? false,
       delayMinutes: Number(((trigger?.delaySeconds ?? defaultDelaySeconds) / 60).toFixed(2)),
       cooldownDays: trigger?.cooldownDays ?? defaultCooldownDays,
     },
@@ -40,6 +42,7 @@ export function SurveyTriggerForm({ survey, onSaved }: { survey: Survey; onSaved
     mutationFn: (values: TriggerValues) =>
       updateSurveyTrigger(survey.id, {
         enabled: values.enabled,
+        askAtTablet: values.askAtTablet,
         delaySeconds: Math.round(Number(values.delayMinutes) * 60),
         cooldownDays: Number(values.cooldownDays),
         expectedVersion: trigger?.version ?? 0,
@@ -70,6 +73,19 @@ export function SurveyTriggerForm({ survey, onSaved }: { survey: Survey; onSaved
           )}
         />
         {!published && <p className="cds--form__helper-text">Publish the survey to enable the trigger.</p>}
+        <Controller
+          name="askAtTablet"
+          control={control}
+          render={({ field }) => (
+            <Checkbox
+              id={`trigger-tablet-${survey.id}`}
+              labelText="Ask at the tablet when someone checks out"
+              helperText="The tablet shows “Got a minute?” after a self check-out on devices that offer surveys. People can answer right there, get it by e-mail or say no; the cooldown applies either way."
+              checked={field.value}
+              onChange={(_event, data) => field.onChange(data.checked)}
+            />
+          )}
+        />
         <Controller
           name="delayMinutes"
           control={control}

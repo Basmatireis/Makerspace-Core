@@ -20,6 +20,9 @@ export function SurveyDeliveryTab({
     >
       <Stack gap={5}>
         <p>{describeTrigger(survey.trigger)}</p>
+        <p className="cds--form__helper-text">
+          Automatic e-mail invitations reach only people who allowed Surveys &amp; feedback.
+        </p>
         {canManage && survey.status !== 'closed' && (
           <SurveyTriggerForm key={survey.trigger?.version ?? 0} survey={survey} onSaved={onSaved} />
         )}
