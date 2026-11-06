@@ -372,7 +372,8 @@ describe('protected application routing', () => {
     queryClient.setQueryData(['private', 'sentinel'], { retained: true });
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Open profile menu for Ada Lovelace' }));
+    // Carbon names icon buttons through a tooltip that mounts a moment after the page.
+    await user.click(await screen.findByRole('button', { name: 'Open profile menu for Ada Lovelace' }));
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
 
     expect(await screen.findByText('Sign out failed')).toBeInTheDocument();
@@ -424,7 +425,7 @@ describe('role protection UX', () => {
     expect(screen.getAllByText('Master').length).toBeGreaterThan(0);
     expect(screen.getByLabelText('Protected system role')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /delete role/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Actions for Master/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /Actions for Master/ })).toBeInTheDocument();
   });
 
   describe('Machines & Jobs routes', () => {

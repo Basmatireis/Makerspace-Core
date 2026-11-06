@@ -45,7 +45,21 @@ export function SemesterTile({
             {trainee ? 'open days as trainee' : 'open days signed up'} · {staffing.staffed} staffed, {staffing.booked}{' '}
             booked
           </p>
-          {trainee && <p className="db-tile__meta">Your semester minimum: {plural(staffing.minimum, 'open day')}.</p>}
+          {trainee && status !== 'excused' && (
+            <p className="db-tile__meta">Your semester minimum: {plural(staffing.minimum, 'open day')}.</p>
+          )}
+          {staffing.minimumSource === 'exception' && status !== 'excused' && (
+            <p className="db-tile__meta">Your minimum is lower because of an extra role you hold.</p>
+          )}
+          {status === 'excused' && (
+            <p className="db-status db-status--ok">
+              <CheckmarkFilled size={16} aria-hidden />
+              You are excused this semester: no open-day minimum applies to you.
+            </p>
+          )}
+          {status === 'no_minimum' && (
+            <p className="db-tile__meta">There is no open-day minimum for you this semester.</p>
+          )}
           {status === 'ready' && (
             <p className="db-status db-status--ok">
               <CheckmarkFilled size={16} aria-hidden />

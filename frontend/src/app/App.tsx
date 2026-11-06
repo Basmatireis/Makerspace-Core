@@ -62,7 +62,6 @@ import {
   RolesPage,
   RecycleBinPage,
   RunDetailPage,
-  OpenDayRequirementsPage,
   TrainingsSettingsPage,
   SettingsPage,
   SingleSignOnPage,
@@ -463,14 +462,7 @@ export function App() {
               path="settings/managed-devices"
               element={<Navigate to="/settings/devices-sessions?tab=managed-devices" replace />}
             />
-            <Route
-              path="settings/open-days"
-              element={
-                <PermissionRoute allOf={['open_days.manage']}>
-                  <OpenDayRequirementsPage />
-                </PermissionRoute>
-              }
-            />
+            <Route path="settings/open-days" element={<Navigate to="/people/staffing?tab=rules" replace />} />
             <Route
               path="settings/trainings"
               element={

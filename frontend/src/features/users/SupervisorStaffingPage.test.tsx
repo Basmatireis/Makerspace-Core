@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { PermissionId } from '../../api/generated/models';
@@ -8,375 +8,201 @@ import { currentUserFixture, otherPersonId } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
-function supervisorDashboard() {
+const rules = {
+  supervisorMinimum: 2,
+  traineeMinimum: 2,
+  traineeReadyAfter: 3,
+  warningWindowDays: 14,
+  countBy: 'timeslot',
+  defaultDeadline: 'period_end',
+  exceptions: [],
+  version: 7,
+  updatedAt: '2026-10-01T00:00:00Z',
+};
+
+function member(index: number, overrides: Record<string, unknown> = {}) {
   return {
-    semester: {
-      periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
-      name: 'Autumn',
-      startsOn: '2026-10-01',
-      endsOn: '2027-01-31',
-    },
-    rules: {
-      supervisorMinimum: 2,
-      traineeMinimum: 2,
-      traineeReadyAfter: 3,
-      warningWindowDays: 14,
-      countBy: 'timeslot',
-      defaultDeadline: 'period_end',
-      exceptions: [],
-      version: 1,
-      updatedAt: '2026-10-01T00:00:00Z',
-    },
-    supervisors: [
-      {
-        personId: otherPersonId,
-        personVersion: 1,
-        name: 'Grace Hopper',
-        membership: 'supervisor',
-        extraRoles: [],
-        hasProfileImage: false,
-        laborordnungState: 'outdated',
-        staffed: 1,
-        booked: 0,
-        staffedAsTrainee: 0,
-        minimum: 2,
-        minimumSource: 'membership',
-        minimumExceptionRole: null,
-        excused: false,
-        excusalReason: null,
-        status: 'missing',
-        missing: 1,
-        lastOpenDayAt: null,
-        nextAssignment: null,
-        memberSince: '2026-01-01T00:00:00Z',
-      },
-    ],
-    totals: {
-      supervisors: 1,
-      profileImagesComplete: 0,
-      laborordnungCurrent: 0,
-      laborordnungOutdated: 1,
-    },
-  };
-}
-
-describe('Members inside Directory', () => {
-  it('keeps the privacy-minimized overview available without directory access', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([PermissionId.supervisor_dashboardread])),
-      ),
-      http.get('*/api/v1/supervisor-dashboard', () => HttpResponse.json(supervisorDashboard())),
-    );
-
-    renderRoute(<App />, '/people/staffing');
-
-    expect(await screen.findByRole('heading', { name: 'Supervisor staffing' })).toBeInTheDocument();
-    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Grace Hopper' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'People' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Supervisors' })).not.toBeInTheDocument();
-    const breadcrumbs = within(screen.getByLabelText('Breadcrumb'));
-    expect(breadcrumbs.getByText('Directory')).toBeInTheDocument();
-    expect(breadcrumbs.getByText('Members')).toBeInTheDocument();
-    expect(breadcrumbs.queryByText('Supervisor staffing')).not.toBeInTheDocument();
-  });
-
-  it('adds contextual links only when their original permissions are present', async () => {
-    const user = userEvent.setup();
-    server.use(
-      http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(
-          currentUserFixture([
-            PermissionId.supervisor_dashboardread,
-            PermissionId.peoplereadall,
-            PermissionId.open_daysread,
-          ]),
-        ),
-      ),
-      http.get('*/api/v1/supervisor-dashboard', () => HttpResponse.json(supervisorDashboard())),
-    );
-
-    renderRoute(<App />, '/people/staffing');
-
-    expect(await screen.findByRole('link', { name: 'Grace Hopper' })).toHaveAttribute(
-      'href',
-      `/people/${otherPersonId}`,
-    );
-    const directoryButton = screen.getByRole('button', { name: 'People' });
-    expect(screen.queryByRole('heading', { name: 'Designated supervisors' })).not.toBeInTheDocument();
-    const table = screen.getByRole('table');
-    expect(table.closest('.people-table-container')).toHaveClass('supervisor-staffing-table');
-    const toolbar = screen.getByLabelText('Members table toolbar');
-    expect(toolbar).toContainElement(directoryButton);
-    expect(directoryButton).toBe(toolbar.querySelector('.cds--toolbar-content')?.lastElementChild);
-    const toolbarControls = toolbar.querySelector('.cds--toolbar-content')?.children;
-    expect(toolbarControls?.item(0)).toContainElement(screen.getByRole('searchbox', { name: 'Search members' }));
-    expect(toolbarControls?.item(1)).toContainElement(screen.getByRole('button', { name: 'Filters' }));
-    expect(toolbarControls?.item(2)).toBe(directoryButton);
-    expect(document.querySelector('.supervisor-staffing-table > .cds--pagination')).toBeInTheDocument();
-    expect(within(table).getByText('Outdated')).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Member$/ })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Open days this semester$/ })).toBeInTheDocument();
-    const memberCells = within(screen.getByRole('row', { name: /Grace Hopper/ })).getAllByRole('cell');
-    expect(memberCells[3]).toHaveTextContent('1 of 2');
-    expect(memberCells[4]).toHaveTextContent('1 missing');
-    expect(screen.queryByRole('heading', { name: 'Summary' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Member readiness')).not.toBeInTheDocument();
-
-    const filterButton = screen.getByRole('button', { name: 'Filters' });
-    expect(filterButton).toHaveAttribute('aria-expanded', 'false');
-    await user.click(filterButton);
-    const filters = screen.getByRole('group', { name: 'Members filters' });
-    expect(filterButton).toHaveAttribute('aria-expanded', 'true');
-    const profilePictureFilter = within(filters).getByRole('group', { name: 'Profile picture' });
-    expect(within(filters).getByRole('group', { name: 'Lab Rules' })).toBeInTheDocument();
-    await user.click(within(profilePictureFilter).getByRole('checkbox', { name: 'Complete' }));
-    await user.click(within(filters).getByRole('button', { name: 'Apply filters' }));
-    await waitFor(() => {
-      expect(screen.queryByRole('link', { name: 'Grace Hopper' })).not.toBeInTheDocument();
-    });
-    expect(await screen.findByRole('heading', { name: 'No members found' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Filters (1 applied)' }));
-    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
-    expect(screen.getByRole('link', { name: 'Grace Hopper' })).toBeInTheDocument();
-
-    const search = screen.getByRole('searchbox', { name: 'Search members' });
-    await user.type(search, 'Nobody');
-    expect(screen.queryByRole('link', { name: 'Grace Hopper' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'No members found' })).toBeInTheDocument();
-  });
-
-  it('redirects the legacy Supervisor URL into the Directory area', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () =>
-        HttpResponse.json(currentUserFixture([PermissionId.supervisor_dashboardread])),
-      ),
-      http.get('*/api/v1/supervisor-dashboard', () => HttpResponse.json(supervisorDashboard())),
-    );
-
-    renderRoute(<App />, '/supervisors');
-
-    expect(await screen.findByRole('heading', { name: 'Supervisor staffing' })).toBeInTheDocument();
-    const breadcrumbs = screen.getByLabelText('Breadcrumb');
-    expect(within(breadcrumbs).getByText('Directory')).toBeInTheDocument();
-    expect(within(breadcrumbs).getByText('Members')).toBeInTheDocument();
-  });
-});
-
-function row(index: number, overrides: Record<string, unknown> = {}) {
-  const id = `0192f6f8-743e-7c77-a349-cd07c3e9${String(index).padStart(4, '0')}`;
-  return {
-    ...supervisorDashboard().supervisors[0],
-    personId: id,
+    personId: index === 1 ? otherPersonId : `0192f6f8-743e-7c77-a349-cd07c3e9${String(index).padStart(4, '0')}`,
+    personVersion: 3,
     name: `Member ${String(index).padStart(2, '0')}`,
+    membership: 'supervisor',
+    extraRoles: [],
     hasProfileImage: true,
     laborordnungState: 'current',
     staffed: 2,
     booked: 0,
+    staffedAsTrainee: 0,
+    minimum: 2,
+    minimumSource: 'membership',
+    minimumExceptionRole: null,
+    excused: false,
+    excusalReason: null,
     status: 'fulfilled',
     missing: 0,
+    lastOpenDayAt: null,
+    nextAssignment: null,
+    memberSince: '2026-01-01',
     ...overrides,
   };
 }
 
-function serveDashboard(
-  supervisors: ReturnType<typeof row>[],
-  permissions: PermissionId[] = [PermissionId.supervisor_dashboardread],
-) {
+function serve(rows: ReturnType<typeof member>[], permissions: PermissionId[]) {
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
     http.get('*/api/v1/supervisor-dashboard', () =>
       HttpResponse.json({
-        ...supervisorDashboard(),
-        supervisors,
-        totals: {
-          supervisors: supervisors.length,
-          profileImagesComplete: 0,
-          laborordnungCurrent: 0,
-          laborordnungOutdated: 0,
+        semester: {
+          periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
+          name: 'Autumn',
+          startsOn: '2026-10-01',
+          endsOn: '2027-01-31',
+          signUpBy: '2026-12-15',
         },
+        rules,
+        supervisors: rows,
+        totals: { supervisors: rows.length, profileImagesComplete: 0, laborordnungCurrent: 0, laborordnungOutdated: 0 },
       }),
     ),
+    http.get('*/api/v1/staffing-rules', () => HttpResponse.json(rules)),
   );
 }
 
+const members = [
+  member(1, { status: 'missing', missing: 1, staffed: 1 }),
+  member(2, { laborordnungState: 'outdated' }),
+  member(3, { membership: 'trainee', status: 'ready', staffedAsTrainee: 3 }),
+];
 const bodyRows = () => screen.getAllByRole('row').slice(1);
-const pageSizeSelect = () => screen.getByRole('combobox', { name: /Items per page/ });
-const pageSelect = () => screen.getByRole('combobox', { name: /Page number|Page of/ });
+const read = [PermissionId.supervisor_dashboardread];
 
-describe('per-person open-day target', () => {
-  it('shows each person against their own minimum, not the general one', async () => {
-    serveDashboard([
-      row(1, { status: 'missing', missing: 3, staffed: 1, minimum: 4 }),
-      row(2, { status: 'fulfilled', staffed: 1, minimum: 1 }),
-    ]);
-    renderRoute(<App />, '/people/staffing');
-
-    expect(await screen.findByText('Member 01')).toBeInTheDocument();
-    expect(screen.getByText('Member 01: signed up for 1 of 4 open days')).toBeInTheDocument();
-    expect(screen.getByText('Member 02: signed up for 1 of 1 open days')).toBeInTheDocument();
-  });
-});
-
-describe('staffing key figures', () => {
-  const members = [
-    row(1, { status: 'missing', missing: 1, staffed: 1 }),
-    row(2, { laborordnungState: 'outdated' }),
-    row(3, { membership: 'trainee', status: 'ready', staffedAsTrainee: 3 }),
-    row(4, { hasProfileImage: false }),
-    row(5),
-  ];
-
-  it('count the semester and filter the table; the active one is outlined and clears on a second click', async () => {
+describe('Staffing people', () => {
+  it('lists people, filters them with the glance tiles and counts the filters in the toolbar', async () => {
     const user = userEvent.setup();
-    serveDashboard(members);
+    serve(members, read);
     renderRoute(<App />, '/people/staffing');
 
-    expect(await screen.findByText('Member 05')).toBeInTheDocument();
-    expect(bodyRows()).toHaveLength(5);
-    // Sorted by what needs action: below minimum first, then ready for promotion.
+    expect(await screen.findByRole('heading', { name: 'Staffing' })).toBeInTheDocument();
+    expect(await screen.findByText('Member 03')).toBeInTheDocument();
+    // People who need action come first.
     expect(within(bodyRows()[0]).getByText('Member 01')).toBeInTheDocument();
     expect(within(bodyRows()[1]).getByText('Member 03')).toBeInTheDocument();
 
-    const keyFigures = within(screen.getByLabelText('Key figures'));
-    const below = keyFigures.getByText('Below minimum').closest('[aria-pressed]') as HTMLElement;
-    expect(below).toHaveAttribute('aria-pressed', 'false');
+    const tiles = within(screen.getByLabelText('At a glance'));
+    const below = tiles.getByRole('button', { name: /^Below minimum/ });
     await user.click(below);
     expect(below).toHaveAttribute('aria-pressed', 'true');
-    expect(below).toHaveClass('staffing-metric--active');
     expect(bodyRows()).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Filters (1 applied)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Filters/ })).toHaveTextContent('1');
 
-    // Another tile replaces the filter; the table adopts the new rows without crashing.
-    await user.click(keyFigures.getByText('Lab rules not signed'));
+    await user.click(tiles.getByRole('button', { name: /Lab rules not confirmed/ }));
     expect(within(bodyRows()[0]).getByText('Member 02')).toBeInTheDocument();
-    expect(bodyRows()).toHaveLength(1);
-    await user.click(keyFigures.getByText('Ready for supervisor'));
-    expect(within(bodyRows()[0]).getByText('Member 03')).toBeInTheDocument();
-    await user.click(keyFigures.getByText('No profile picture'));
-    expect(within(bodyRows()[0]).getByText('Member 04')).toBeInTheDocument();
-
-    await user.click(keyFigures.getByText('No profile picture'));
-    expect(screen.getByLabelText('Key figures').querySelector('.staffing-metric--active')).toBeNull();
-    expect(bodyRows()).toHaveLength(5);
+    await user.click(tiles.getByRole('button', { name: /Lab rules not confirmed/ }));
+    expect(bodyRows()).toHaveLength(3);
   });
 
-  it('paginate like other tables (default 25) and go back to page 1 when the filter or search changes', async () => {
+  it('sorts a column and searches', async () => {
     const user = userEvent.setup();
-    serveDashboard(
-      Array.from({ length: 30 }, (_, index) =>
-        row(index + 1, index % 2 === 0 ? { status: 'missing', missing: 1, staffed: 1 } : {}),
-      ),
+    serve(members, read);
+    renderRoute(<App />, '/people/staffing');
+    await screen.findByText('Member 03');
+
+    await user.click(screen.getByRole('button', { name: /^Name/ }));
+    await user.click(screen.getByRole('button', { name: /^Name/ }));
+    expect(within(bodyRows()[0]).getByText('Member 03')).toBeInTheDocument();
+    await user.type(screen.getByRole('searchbox', { name: 'Search people' }), 'Member 02');
+    expect(bodyRows()).toHaveLength(1);
+  });
+
+  it('shows membership and excuse actions only to people who may use them', async () => {
+    const user = userEvent.setup();
+    serve(members, read);
+    const view = renderRoute(<App />, '/people/staffing');
+    await user.click(await screen.findByRole('button', { name: 'Show Member 03' }));
+    expect(await screen.findByRole('heading', { name: 'Member 03' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Actions for Member 03' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Assign to an open day' })).not.toBeInTheDocument();
+    view.unmount();
+
+    serve(members, [...read, PermissionId.peoplerolesassign, PermissionId.open_daysmanage]);
+    renderRoute(<App />, '/people/staffing');
+    await user.click(await screen.findByRole('button', { name: 'Show Member 03' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions for Member 03' }));
+    expect(screen.getByText('Make supervisor')).toBeInTheDocument();
+    expect(screen.queryByText('Make trainee')).not.toBeInTheDocument();
+    expect(screen.getByText('Make visitor')).toBeInTheDocument();
+    expect(screen.getByText('Excuse for this semester')).toBeInTheDocument();
+  });
+
+  it('changes the membership after a confirmation with the person version', async () => {
+    const user = userEvent.setup();
+    let body: unknown;
+    serve(members, [...read, PermissionId.peoplerolesassign]);
+    server.use(
+      http.put('*/api/v1/people/:personId/membership', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({});
+      }),
     );
     renderRoute(<App />, '/people/staffing');
-
-    await screen.findByText('Member 05');
-    expect(bodyRows()).toHaveLength(25);
-    expect(pageSizeSelect()).toHaveValue('25');
-    expect(
-      within(pageSizeSelect())
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['10', '25', '50', '100']);
-
-    await user.selectOptions(pageSizeSelect(), '10');
-    expect(bodyRows()).toHaveLength(10);
-    await user.click(screen.getByRole('button', { name: /Next page/ }));
-    expect(pageSelect()).toHaveValue('2');
-
-    await user.click(within(screen.getByLabelText('Key figures')).getByText('Below minimum'));
-    expect(bodyRows()).toHaveLength(10);
-    expect(pageSelect()).toHaveValue('1');
-    await user.click(within(screen.getByLabelText('Key figures')).getByText('Below minimum'));
-
-    await user.click(screen.getByRole('button', { name: /Next page/ }));
-    expect(pageSelect()).toHaveValue('2');
-    await user.type(screen.getByRole('searchbox', { name: 'Search members' }), 'Member 0');
-    expect(pageSelect()).toHaveValue('1');
+    await user.click(await screen.findByRole('button', { name: 'Show Member 03' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions for Member 03' }));
+    await user.click(screen.getByText('Make supervisor'));
+    await user.click(await screen.findByRole('button', { name: 'Make supervisor' }));
+    await waitFor(() => expect(body).toEqual({ membership: 'supervisor', expectedVersion: 3 }));
   });
 });
 
-describe('making a trainee a supervisor', () => {
-  const trainee = row(1, {
-    membership: 'trainee',
-    personVersion: 7,
-    staffedAsTrainee: 3,
-    status: 'ready',
-    name: 'Tina Trainee',
-  });
-  const optionText = { selector: '.cds--overflow-menu-options__option-content' };
+describe('Staffing rules', () => {
+  const edit = [...read, PermissionId.open_daysmanage];
 
-  async function openMenu(user: ReturnType<typeof userEvent.setup>) {
-    const tooltip = await screen.findByText('Actions for Tina Trainee', { selector: '.cds--tooltip-content' });
-    await user.click(tooltip.closest('.cds--popover-container')!.querySelector('button') as HTMLElement);
+  async function openRules(permissions: PermissionId[]) {
+    serve(members, permissions);
+    server.use(http.get('*/api/v1/open-day-eligibility-roles', () => HttpResponse.json({ items: [] })));
+    renderRoute(<App />, '/people/staffing?tab=rules');
+    return screen.findByLabelText(/Open days per semester/, { selector: '#staffing-supervisorMinimum' });
   }
 
-  it('confirms first, then promotes with the person version', async () => {
-    const user = userEvent.setup();
-    let promoted: { id: string; body: unknown } | undefined;
-    serveDashboard([trainee], [PermissionId.supervisor_dashboardread, PermissionId.peoplerolesassign]);
-    server.use(
-      http.get(`*/api/v1/people/${trainee.personId}`, () => {
-        throw new Error('The promotion must not read the person first');
-      }),
-      http.put('*/api/v1/people/:id/membership', async ({ params, request }) => {
-        promoted = { id: String(params.id), body: await request.json() };
-        return HttpResponse.json({ id: trainee.personId, version: 8 });
-      }),
-    );
-    renderRoute(<App />, '/people/staffing');
-
-    await openMenu(user);
-    await user.click(await screen.findByText('Make supervisor', optionText));
-    const dialog = await screen.findByRole('dialog', { name: 'Make Tina Trainee a supervisor?' });
-    expect(promoted).toBeUndefined();
-    expect(within(dialog).getByText(/has staffed 3 open days as trainee/)).toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Make supervisor' }));
-
-    await waitFor(() =>
-      expect(promoted).toEqual({ id: trainee.personId, body: { membership: 'supervisor', expectedVersion: 7 } }),
-    );
-    expect(await screen.findByText('Tina Trainee is now a supervisor')).toBeInTheDocument();
+  it('is read-only without open_days.manage', async () => {
+    const field = await openRules(read);
+    expect(field).toHaveAttribute('readonly');
+    expect(screen.queryByRole('button', { name: 'Save rules' })).not.toBeInTheDocument();
   });
 
-  it('shows the server message when the promotion is refused', async () => {
+  it('enables Discard and Save only while the draft differs and saves with the loaded version', async () => {
     const user = userEvent.setup();
-    serveDashboard([trainee], [PermissionId.supervisor_dashboardread, PermissionId.peoplerolesassign]);
+    let body: Record<string, unknown> | undefined;
+    const field = await openRules(edit);
     server.use(
-      http.put('*/api/v1/people/:id/membership', () =>
-        HttpResponse.json({ code: 'not_a_trainee', message: 'The person is not a trainee.' }, { status: 409 }),
+      http.put('*/api/v1/staffing-rules', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ ...rules, supervisorMinimum: 4, version: 8 });
+      }),
+    );
+    const save = screen.getByRole('button', { name: 'Save rules' });
+    expect(save).toBeDisabled();
+    fireEvent.change(field, { target: { value: '4' } });
+    expect(save).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(save).toBeDisabled();
+    fireEvent.change(field, { target: { value: '4' } });
+    await user.click(save);
+    await waitFor(() => expect(body).toMatchObject({ supervisorMinimum: 4, expectedVersion: 7 }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save rules' })).toBeDisabled());
+  });
+
+  it('refuses invalid numbers and explains a version conflict', async () => {
+    const user = userEvent.setup();
+    const field = await openRules(edit);
+    server.use(
+      http.put('*/api/v1/staffing-rules', () =>
+        HttpResponse.json({ code: 'version_conflict', message: 'Stale.' }, { status: 409 }),
       ),
     );
-    renderRoute(<App />, '/people/staffing');
-
-    await openMenu(user);
-    await user.click(await screen.findByText('Make supervisor', optionText));
-    const dialog = await screen.findByRole('dialog', { name: 'Make Tina Trainee a supervisor?' });
-    await user.click(within(dialog).getByRole('button', { name: 'Make supervisor' }));
-    expect(await within(dialog).findByText('The person is not a trainee.')).toBeInTheDocument();
-  });
-
-  it('is disabled with an explanation without the permission to assign roles', async () => {
-    const user = userEvent.setup();
-    serveDashboard([trainee]);
-    renderRoute(<App />, '/people/staffing');
-
-    expect(await screen.findByText(/You need permission to assign roles/)).toBeInTheDocument();
-    await openMenu(user);
-    expect((await screen.findByText('Make supervisor', optionText)).closest('button')).toBeDisabled();
-  });
-
-  it('offers no menu for supervisors', async () => {
-    serveDashboard(
-      [row(2, { name: 'Sam Supervisor' })],
-      [PermissionId.supervisor_dashboardread, PermissionId.peoplerolesassign],
-    );
-    renderRoute(<App />, '/people/staffing');
-
-    expect(await screen.findByText('Sam Supervisor')).toBeInTheDocument();
-    expect(
-      screen.queryByText('Actions for Sam Supervisor', { selector: '.cds--tooltip-content' }),
-    ).not.toBeInTheDocument();
+    fireEvent.change(field, { target: { value: '99' } });
+    expect(screen.getByRole('button', { name: 'Save rules' })).toBeDisabled();
+    fireEvent.change(field, { target: { value: '5' } });
+    await user.click(screen.getByRole('button', { name: 'Save rules' }));
+    expect(await screen.findByText('The rules changed meanwhile')).toBeInTheDocument();
   });
 });

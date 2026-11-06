@@ -299,7 +299,7 @@ export function DayPanel({
             title={`You're in${multi ? ` for ${mine.map((slot) => timeRange(slot.startsAt, slot.endsAt)).join(' and ')}` : ` as ${myRequirement(mine[0])?.kind ?? 'staff'}`}.`}
           />
           <div>
-            <Button kind="ghost" size="sm" as={Link} to="/profile#calendar">
+            <Button kind="ghost" size="sm" as={Link} to="/profile?calendar=subscription">
               Add to calendar
             </Button>
           </div>

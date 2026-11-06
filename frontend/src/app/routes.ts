@@ -252,11 +252,6 @@ export const TrainingsSettingsPage = lazy(() =>
     default: TrainingsSettingsPage,
   })),
 );
-export const OpenDayRequirementsPage = lazy(() =>
-  import('../features/opendays/OpenDayRequirementsPage').then(({ OpenDayRequirementsPage }) => ({
-    default: OpenDayRequirementsPage,
-  })),
-);
 
 export const PrivacyPage = lazy(() =>
   import('../features/privacy/PrivacyPage').then(({ PrivacyPage }) => ({ default: PrivacyPage })),

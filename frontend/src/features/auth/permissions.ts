@@ -88,7 +88,6 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   'configuration.export',
   'configuration.import',
   'printer_connectors.read',
-  'open_days.manage',
   'trainings.manage',
   'privacy.read',
   'privacy.settings.manage',
