@@ -1,12 +1,9 @@
 import {
   Button,
   Checkbox,
-  ComposedModal,
-  Form,
+  FormGroup,
   InlineNotification,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
+  Modal,
   NumberInput,
   RadioButton,
   RadioButtonGroup,
@@ -32,6 +29,7 @@ import { instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueTo
 import {
   applyDeviceUse,
   assuranceLabels,
+  capabilityLabels,
   configurationProblem,
   describeDeviceUse,
   deviceUseOf,
@@ -103,65 +101,62 @@ export function CreateDeviceModal({
     (!noExpiration && !isZonedDateTimeValue(expiration)) ||
     pending;
   return (
-    <ComposedModal open onClose={onClose}>
-      <ModalHeader title="Create device" />
-      <Form
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!invalid) void submit();
-        }}
-      >
-        <ModalBody hasForm>
-          <Stack gap={5}>
-            {error && <MutationError title="Device not created" error={error} />}
-            <TextInput
-              id="new-device-name"
-              labelText="Device name"
-              required
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-            <Select
-              id="new-device-type"
-              labelText="Device type"
-              required
-              value={deviceTypeId}
-              onChange={(event) => setDeviceTypeId(event.target.value)}
-            >
-              <SelectItem value="" text="Choose a type" />
-              {types.map((type) => (
-                <SelectItem key={type.id} value={type.id} text={type.name} />
-              ))}
-            </Select>
-            <ExpirationFields
-              noExpiration={noExpiration}
-              expiration={expiration}
-              setNoExpiration={setNoExpiration}
-              setExpiration={setExpiration}
-              id="create"
-            />
-            <DevicePolicyFields id="create" policies={policies} value={configuration} onChange={setConfiguration} />
-            <Select
-              id="new-device-delivery"
-              labelText="Credential delivery"
-              value={credentialDelivery}
-              onChange={(event) => setCredentialDelivery(event.target.value as ManagedDeviceCredentialDelivery)}
-            >
-              <SelectItem value="nativeToken" text="Native token (show once)" />
-              <SelectItem value="bindBrowser" text="Bind this browser securely" />
-            </Select>
-          </Stack>
-        </ModalBody>
-        <ModalFooter>
-          <Button kind="secondary" type="button" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={invalid}>
-            Create device
-          </Button>
-        </ModalFooter>
-      </Form>
-    </ComposedModal>
+    <Modal
+      open
+      size="md"
+      hasScrollingContent
+      aria-label="Create device"
+      modalLabel="Managed devices"
+      modalHeading="Create device"
+      primaryButtonText="Create device"
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={invalid}
+      onRequestClose={onClose}
+      onSecondarySubmit={onClose}
+      onRequestSubmit={() => {
+        if (!invalid) void submit();
+      }}
+    >
+      <Stack gap={5}>
+        {error && <MutationError title="Device not created" error={error} />}
+        <TextInput
+          id="new-device-name"
+          labelText="Device name"
+          required
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+        />
+        <Select
+          id="new-device-type"
+          labelText="Device type"
+          required
+          value={deviceTypeId}
+          onChange={(event) => setDeviceTypeId(event.target.value)}
+        >
+          <SelectItem value="" text="Choose a type" />
+          {types.map((type) => (
+            <SelectItem key={type.id} value={type.id} text={type.name} />
+          ))}
+        </Select>
+        <ExpirationFields
+          noExpiration={noExpiration}
+          expiration={expiration}
+          setNoExpiration={setNoExpiration}
+          setExpiration={setExpiration}
+          id="create"
+        />
+        <DevicePolicyFields id="create" policies={policies} value={configuration} onChange={setConfiguration} />
+        <Select
+          id="new-device-delivery"
+          labelText="Credential delivery"
+          value={credentialDelivery}
+          onChange={(event) => setCredentialDelivery(event.target.value as ManagedDeviceCredentialDelivery)}
+        >
+          <SelectItem value="nativeToken" text="Native token (show once)" />
+          <SelectItem value="bindBrowser" text="Bind this browser securely" />
+        </Select>
+      </Stack>
+    </Modal>
   );
 }
 
@@ -197,77 +192,71 @@ export function DeviceFormModal({
     kioskResetSeconds: device.kioskResetSeconds,
     capabilities: device.capabilities,
   });
+  const invalid =
+    !name.trim() ||
+    configurationProblem(configuration) !== null ||
+    (device.status !== 'expired' && !noExpiration && !isZonedDateTimeValue(expiration));
   return (
-    <ComposedModal open onClose={onClose}>
-      <ModalHeader title="Edit managed device" />
-      <ModalBody>
-        <Stack gap={5}>
-          {error && <MutationError title="Device not updated" error={error} />}
-          <TextInput
-            id="edit-device-name"
-            labelText="Device name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-          <Select
-            id="edit-device-type"
-            labelText="Device type"
-            value={deviceTypeId}
-            onChange={(event) => setDeviceTypeId(event.target.value)}
-          >
-            {types.map((type) => (
-              <SelectItem key={type.id} value={type.id} text={type.name} />
-            ))}
-          </Select>
-          {device.status === 'expired' ? (
-            <InlineNotification
-              kind="info"
-              lowContrast
-              hideCloseButton
-              title="Token expired"
-              subtitle="Rotate the token to choose a new expiration. Name and type can still be edited."
-            />
-          ) : (
-            <ExpirationFields
-              noExpiration={noExpiration}
-              expiration={expiration}
-              setNoExpiration={setNoExpiration}
-              setExpiration={setExpiration}
-              id="edit"
-            />
-          )}
-          <DevicePolicyFields id="edit" policies={policies} value={configuration} onChange={setConfiguration} />
-        </Stack>
-      </ModalBody>
-      <ModalFooter>
-        <Button kind="secondary" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          disabled={
-            pending ||
-            !name.trim() ||
-            configurationProblem(configuration) !== null ||
-            (device.status !== 'expired' && !noExpiration && !isZonedDateTimeValue(expiration))
-          }
-          onClick={() =>
-            onSubmit({
-              name: name.trim(),
-              deviceTypeId,
-              expiresAt:
-                device.status === 'expired'
-                  ? device.expiresAt
-                  : noExpiration
-                    ? null
-                    : zonedDateTimeValueToISO(expiration),
-              ...configuration,
-            })
-          }
+    <Modal
+      open
+      size="md"
+      hasScrollingContent
+      aria-label="Edit managed device"
+      modalLabel="Managed devices"
+      modalHeading="Edit managed device"
+      primaryButtonText="Save"
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={pending || invalid}
+      onRequestClose={onClose}
+      onSecondarySubmit={onClose}
+      onRequestSubmit={() =>
+        onSubmit({
+          name: name.trim(),
+          deviceTypeId,
+          expiresAt:
+            device.status === 'expired' ? device.expiresAt : noExpiration ? null : zonedDateTimeValueToISO(expiration),
+          ...configuration,
+        })
+      }
+    >
+      <Stack gap={5}>
+        {error && <MutationError title="Device not updated" error={error} />}
+        <TextInput
+          id="edit-device-name"
+          labelText="Device name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+        />
+        <Select
+          id="edit-device-type"
+          labelText="Device type"
+          value={deviceTypeId}
+          onChange={(event) => setDeviceTypeId(event.target.value)}
         >
-          Save
-        </Button>
-      </ModalFooter>
-    </ComposedModal>
+          {types.map((type) => (
+            <SelectItem key={type.id} value={type.id} text={type.name} />
+          ))}
+        </Select>
+        {device.status === 'expired' ? (
+          <InlineNotification
+            kind="info"
+            lowContrast
+            hideCloseButton
+            title="Token expired"
+            subtitle="Rotate the token to choose a new expiration. Name and type can still be edited."
+          />
+        ) : (
+          <ExpirationFields
+            noExpiration={noExpiration}
+            expiration={expiration}
+            setNoExpiration={setNoExpiration}
+            setExpiration={setExpiration}
+            id="edit"
+          />
+        )}
+        <DevicePolicyFields id="edit" policies={policies} value={configuration} onChange={setConfiguration} />
+      </Stack>
+    </Modal>
   );
 }
 
@@ -325,6 +314,7 @@ function DevicePolicyFields({
     <Stack gap={5}>
       <RadioButtonGroup
         legendText="Used as"
+        helperText={help ?? 'A combination this form does not offer. Choose one of the uses above to replace it.'}
         name={`${id}-used-as`}
         orientation="vertical"
         valueSelected={use === 'other' ? '' : use}
@@ -339,9 +329,6 @@ function DevicePolicyFields({
           />
         ))}
       </RadioButtonGroup>
-      <p className="cds--form__helper-text">
-        {help ?? 'A combination this form does not offer. Choose one of the uses above to replace it.'}
-      </p>
       <Select
         id={`${id}-session-policy`}
         labelText="Session policy"
@@ -356,8 +343,7 @@ function DevicePolicyFields({
         ))}
       </Select>
       {value.terminalEnabled && (
-        <fieldset>
-          <legend>Kiosk</legend>
+        <FormGroup legendText="Kiosk">
           <Stack gap={5}>
             <AssuranceSelect
               id={`${id}-check-in-assurance`}
@@ -400,16 +386,16 @@ function DevicePolicyFields({
               }
             />
           </Stack>
-        </fieldset>
+        </FormGroup>
       )}
-      <fieldset>
-        <legend>Device capabilities</legend>
-        <Stack gap={2}>
+      <FormGroup legendText="Device capabilities">
+        <Stack gap={3}>
           {capabilityOptions.map((capability) => (
             <Checkbox
               key={capability}
               id={`${id}-capability-${capability}`}
-              labelText={capability.replace('_', ' ')}
+              labelText={capabilityLabels[capability]}
+              helperText={capability === 'file_upload' ? 'No hardware needed' : undefined}
               checked={value.capabilities.includes(capability)}
               onChange={(_, data) =>
                 onChange({
@@ -422,15 +408,17 @@ function DevicePolicyFields({
             />
           ))}
         </Stack>
-      </fieldset>
-      <div>
-        <h4>On this device</h4>
-        <ul className="device-summary">
+      </FormGroup>
+      <section className="device-summary" aria-labelledby={`${id}-summary-title`}>
+        <p id={`${id}-summary-title`} className="cds--label">
+          On this device
+        </p>
+        <ul>
           {describeDeviceUse(value).map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
-      </div>
+      </section>
     </Stack>
   );
 }

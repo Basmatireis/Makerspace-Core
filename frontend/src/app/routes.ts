@@ -160,11 +160,6 @@ export const LocalServicesPage = lazy(() =>
 export const LaborordnungPage = lazy(() =>
   import('../features/laborordnung/LaborordnungPage').then(({ LaborordnungPage }) => ({ default: LaborordnungPage })),
 );
-export const VisitorEnrollmentSettingsPage = lazy(() =>
-  import('../features/visitor/VisitorEnrollmentSettingsPage').then(({ VisitorEnrollmentSettingsPage }) => ({
-    default: VisitorEnrollmentSettingsPage,
-  })),
-);
 export const InvoicingSettingsPage = lazy(() =>
   import('../features/invoicing/InvoicingSettingsPage').then(({ InvoicingSettingsPage }) => ({
     default: InvoicingSettingsPage,

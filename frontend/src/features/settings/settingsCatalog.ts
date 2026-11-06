@@ -12,7 +12,6 @@ import {
   QuestionAnswering,
   Receipt,
   Security,
-  UserMultiple,
   VideoChat,
 } from '@carbon/icons-react';
 import type { ComponentType } from 'react';
@@ -29,7 +28,6 @@ export type SettingsPageId =
   | 'open-days'
   | 'trainings'
   | 'laborordnung'
-  | 'visitor-enrollment'
   | 'surveys'
   | 'mail'
   | 'notification-center'
@@ -104,10 +102,14 @@ export const settingsItems: readonly SettingsItem[] = [
     id: 'devices-sessions',
     group: 'access',
     title: 'Devices & sessions',
-    description: 'Session limits and trusted kiosks.',
+    description: 'Session limits, trusted kiosks and visitor sign-up.',
     path: '/settings/devices-sessions',
     icon: Devices,
-    permissions: [PermissionId.session_policiesmanage, PermissionId.managed_devicesread],
+    permissions: [
+      PermissionId.session_policiesmanage,
+      PermissionId.managed_devicesread,
+      PermissionId.visitor_enrollmentmanage,
+    ],
   },
   {
     id: 'open-days',
@@ -139,15 +141,6 @@ export const settingsItems: readonly SettingsItem[] = [
       PermissionId.laborordnungmanage,
       PermissionId.laborordnungconfirmationsread,
     ],
-  },
-  {
-    id: 'visitor-enrollment',
-    group: 'lab',
-    title: 'Visitor enrollment',
-    description: 'Approved kiosks, the initial role and authentication methods.',
-    path: '/settings/visitor-enrollment',
-    icon: UserMultiple,
-    permissions: [PermissionId.visitor_enrollmentmanage],
   },
   {
     id: 'surveys',

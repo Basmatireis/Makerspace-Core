@@ -7,10 +7,11 @@ import {
   updateVisitorEnrollmentConfiguration,
 } from '../../api/generated/visitor-enrollment/visitor-enrollment';
 import type { VisitorAuthenticationMethod } from '../../api/generated/models';
-import { SettingsLoading, SettingsPageLayout } from '../settings/SettingsPageLayout';
+import { SettingsLoading, SettingsSection } from '../settings/SettingsPageLayout';
 import { ErrorState } from '../../app/PageState';
 
-export function VisitorEnrollmentSettingsPage() {
+/** Settings › Devices & sessions › Visitor sign-up: how visitors enrol themselves at approved kiosks. */
+export function VisitorSignUpPanel() {
   const client = useQueryClient();
   const configuration = useQuery({
     queryKey: ['visitor-enrollment', 'configuration'],
@@ -43,7 +44,10 @@ export function VisitorEnrollmentSettingsPage() {
     checked ? [...new Set([...values, value])] : values.filter((item) => item !== value);
 
   return (
-    <SettingsPageLayout page="visitor-enrollment">
+    <SettingsSection
+      title="Visitor sign-up"
+      description="Approved kiosks, the initial role and the authentication methods visitors can choose."
+    >
       {(configuration.isPending || deviceTypes.isPending) && (
         <SettingsLoading label="Loading visitor enrollment configuration" />
       )}
@@ -134,6 +138,6 @@ export function VisitorEnrollmentSettingsPage() {
           </Stack>
         </Tile>
       )}
-    </SettingsPageLayout>
+    </SettingsSection>
   );
 }

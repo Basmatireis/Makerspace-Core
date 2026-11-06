@@ -1,9 +1,9 @@
-import { Button, InlineNotification, Tag, Tile, ToastNotification } from '@carbon/react';
-import { Notification } from '@carbon/icons-react';
+import { Button, Tag, Tile } from '@carbon/react';
+import { Close, Notification } from '@carbon/icons-react';
 import type { ReactNode } from 'react';
 import type { NotificationCatalog } from '../../../api/generated/models';
 import { collectionOf, delayOptions, placeholderChoices, type Action, type Definition } from '../ruleModel';
-import { channelIcons } from './channelIcons';
+import { channelIcons, levelIcons, levelOf } from './channelIcons';
 import { DryRunTile, EstimateTile, RecipientTile } from './DryRunPanels';
 import { recipientsLine, type DryRunState } from './useDryRun';
 import { durationText, fillPlaceholders, splitPlaceholders, summaryText, type NameLookup } from '../ruleText';
@@ -33,74 +33,116 @@ function Message({ text, examples }: { text: string; examples: Map<string, strin
   );
 }
 
-const noticeKind = (level: string | undefined) =>
-  level === 'success' || level === 'warning' || level === 'error' ? level : 'info';
-
 function buttonLabel(action: Action): string {
   const button = action.inApp?.button;
   if (!button || button.kind === 'none') return '';
   return button.label || (button.kind === 'acknowledge' ? 'Acknowledge' : button.kind === 'ok' ? 'OK' : 'Open');
 }
 
+/** One line under the miniature app that says how long the notification stays. */
+function inAppNote(action: Action, hasButton: boolean): string {
+  const options = action.inApp;
+  const mustPress = Boolean(options?.onlyButtonCloses) && hasButton;
+  switch (options?.appearance ?? 'toast') {
+    case 'banner':
+      return mustPress ? 'Stays on every page until the button is pressed.' : 'Stays on every page until it is closed.';
+    case 'dialog':
+      return mustPress ? 'Comes back on every page load until the button is pressed.' : 'Closes with the button.';
+    case 'bell':
+      return 'Only the badge on the bell goes up.';
+    default: {
+      const seconds = options?.toastSeconds ?? 10;
+      return seconds > 0 ? `Disappears after ${seconds} s.` : 'Stays until it is closed.';
+    }
+  }
+}
+
+/**
+ * The notification inside a miniature of the app, drawn where it really appears. It is a picture, so it uses plain
+ * layout and theme tokens instead of live Carbon controls.
+ */
 function InAppMock({ action, examples }: { action: Action; examples: Map<string, string> }) {
   const options = action.inApp;
-  const kind = noticeKind(options?.level);
+  const level = levelOf(options?.level);
+  const LevelIcon = levelIcons[level];
   const title = fillPlaceholders(action.title || '(no title yet)', examples);
   const body = action.body ? fillPlaceholders(action.body, examples) : undefined;
   const label = buttonLabel(action);
-  const closable = !(options?.onlyButtonCloses && label) && options?.appearance !== 'dialog';
   const appearance = options?.appearance ?? 'toast';
-  if (appearance === 'toast') {
+  const closable = !(options?.onlyButtonCloses && label) && appearance !== 'dialog';
+  const close = closable && <Close size={12} className="nc-app__close" aria-hidden />;
+  const caption = <p className="nc-preview__note">{inAppNote(action, Boolean(label))}</p>;
+  if (appearance === 'bell') {
     return (
-      <ToastNotification
-        kind={kind}
-        lowContrast
-        hideCloseButton={!closable}
-        title={title}
-        subtitle={body}
-        caption={label || undefined}
-        timeout={0}
-      />
-    );
-  }
-  if (appearance === 'banner') {
-    return (
-      <InlineNotification kind={kind} lowContrast hideCloseButton={!closable} title={title} subtitle={body}>
-        {label && (
-          <Button size="sm" kind="tertiary">
-            {label}
-          </Button>
-        )}
-      </InlineNotification>
-    );
-  }
-  if (appearance === 'dialog') {
-    return (
-      <Tile className={`nc-mock-dialog nc-mock-dialog--${kind}`}>
-        <h4>{title}</h4>
-        {body && <p>{body}</p>}
-        <div className="nc-mock-dialog__footer">
-          {options?.allowLater && (
-            <Button size="sm" kind="secondary">
-              Remind me later
-            </Button>
-          )}
-          <Button size="sm" kind="primary">
-            {label || 'OK'}
-          </Button>
+      <div className={`nc-k--${level}`}>
+        <p className="nc-preview__note">In the bell list, the badge count goes up:</p>
+        <div className="nc-bell-item">
+          <LevelIcon size={16} className="nc-k__icon" aria-hidden />
+          <div>
+            <strong>{title}</strong>
+            {body && <p>{body}</p>}
+            <div className="nc-bell-item__foot">
+              <span>Just now</span>
+              {label && <span className="nc-bell-item__button">{label}</span>}
+            </div>
+          </div>
         </div>
-      </Tile>
+      </div>
     );
   }
-  return (
-    <Tile className="nc-mock-bell">
-      <Notification size={16} />
-      <div>
+  const banner = (
+    <div className="nc-app__banner">
+      <LevelIcon size={16} className="nc-k__icon" aria-hidden />
+      <div className="nc-app__text">
         <strong>{title}</strong>
-        {body && <p>{body}</p>}
-        <span className="nc-mock-bell__meta">Just now{label ? ` · ${label}` : ''}</span>
+        {body && <span> {body}</span>}
       </div>
-    </Tile>
+      {label && <span className="nc-app__button">{label}</span>}
+      {close}
+    </div>
+  );
+  return (
+    <div className={`nc-k--${level}`}>
+      <div className="nc-app">
+        <div className="nc-app__bar">
+          <span className="nc-app__badge" />
+        </div>
+        {appearance === 'banner' && banner}
+        <div className="nc-app__page">
+          <i style={{ inlineSize: '40%' }} />
+          <i />
+          <i style={{ inlineSize: '85%' }} />
+          <i style={{ inlineSize: '70%' }} />
+        </div>
+        {appearance === 'toast' && (
+          <div className="nc-app__toast">
+            <LevelIcon size={16} className="nc-k__icon" aria-hidden />
+            <div className="nc-app__text">
+              <strong>{title}</strong>
+              {body && <span>{body}</span>}
+              {label && <span className="nc-app__link">{label}</span>}
+            </div>
+            {close}
+          </div>
+        )}
+        {appearance === 'dialog' && (
+          <div className="nc-app__overlay">
+            <div className="nc-app__dialog">
+              <div className="nc-app__dialog-head">
+                <LevelIcon size={16} className="nc-k__icon" aria-hidden />
+                <strong>{title}</strong>
+              </div>
+              {body && <div className="nc-app__dialog-body">{body}</div>}
+              <div className="nc-app__dialog-foot">
+                {options?.allowLater && <span className="nc-app__dialog-secondary">Remind me later</span>}
+                <span className="nc-app__dialog-primary">{label || 'OK'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      {caption}
+    </div>
   );
 }
 
@@ -147,20 +189,22 @@ function Mock({ action, examples }: { action: Action; examples: Map<string, stri
   );
 }
 
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
 function Caption({ action, prefix, reach }: { action: Action; prefix: string; reach?: string }): ReactNode {
   const Icon = channelIcons[action.channel] ?? Notification;
   const target =
     action.channel === 'signage'
-      ? `${action.signage?.displayIds.length ?? 0} display(s) · ${action.signage?.durationMinutes ?? 0} min`
+      ? `${plural(action.signage?.displayIds.length ?? 0, 'display', 'displays')} · ${action.signage?.durationMinutes ?? 0} min`
       : action.channel === 'tablet'
-        ? `${action.tablet?.deviceIds.length ?? 0} tablet(s)`
-        : `${action.recipients.length} recipient(s)`;
+        ? plural(action.tablet?.deviceIds.length ?? 0, 'tablet', 'tablets')
+        : plural(action.recipients.length, 'recipient', 'recipients');
   return (
     <div className="nc-preview__caption">
       <Icon size={16} />
       <strong>{prefix}</strong>
       <span>{target}</span>
-      {reach && <span className="nc-preview__reach">{reach}</span>}
+      {reach && <span className="nc-preview__reach">· {reach}</span>}
     </div>
   );
 }

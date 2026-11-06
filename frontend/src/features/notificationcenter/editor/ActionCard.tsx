@@ -3,8 +3,6 @@ import {
   IconButton,
   MultiSelect,
   NumberInput,
-  RadioButton,
-  RadioButtonGroup,
   RadioTile,
   Select,
   SelectItem,
@@ -32,7 +30,7 @@ import {
   type Definition,
 } from '../ruleModel';
 import type { NameLookup } from '../ruleText';
-import { channelIcons } from './channelIcons';
+import { appearanceIcons, channelIcons, levelIcons } from './channelIcons';
 import { MessageFields } from './MessageFields';
 import { RecipientPicker } from './RecipientPicker';
 
@@ -76,29 +74,42 @@ function InAppOptions({
         onChange={(value) => set({ appearance: String(value) })}
         className="nc-appearance"
       >
-        {appearances.map((appearance) => (
-          <RadioTile key={appearance.value} id={`${id}-appearance-${appearance.value}`} value={appearance.value}>
-            <strong>{appearance.label}</strong>
-            <span className="nc-appearance__help">{appearance.help}</span>
-          </RadioTile>
-        ))}
+        {appearances.map((appearance) => {
+          const AppearanceIcon = appearanceIcons[appearance.value];
+          return (
+            <RadioTile key={appearance.value} id={`${id}-appearance-${appearance.value}`} value={appearance.value}>
+              <span className="nc-appearance__title">
+                <AppearanceIcon size={20} aria-hidden />
+                <strong>{appearance.label}</strong>
+              </span>
+              <span className="nc-appearance__help">{appearance.help}</span>
+            </RadioTile>
+          );
+        })}
       </TileGroup>
-      <RadioButtonGroup
-        legendText="Level"
-        name={`${id}-level`}
-        orientation="horizontal"
-        valueSelected={options.level}
-        onChange={(value) => set({ level: String(value) })}
-      >
-        {levels.map((level) => (
-          <RadioButton
-            key={level.value}
-            id={`${id}-level-${level.value}`}
-            labelText={level.label}
-            value={level.value}
-          />
-        ))}
-      </RadioButtonGroup>
+      <fieldset className="nc-levels">
+        <legend className="cds--label">Level</legend>
+        <div className="nc-levels__chips">
+          {levels.map((level) => {
+            const LevelIcon = levelIcons[level.value];
+            return (
+              <label key={level.value} className={`nc-level nc-k--${level.value}`}>
+                <input
+                  type="radio"
+                  className="cds--visually-hidden"
+                  name={`${id}-level`}
+                  id={`${id}-level-${level.value}`}
+                  value={level.value}
+                  checked={options.level === level.value}
+                  onChange={() => set({ level: level.value })}
+                />
+                <LevelIcon size={16} aria-hidden />
+                {level.label}
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
       {options.appearance === 'toast' && (
         <Select
           id={`${id}-toast`}

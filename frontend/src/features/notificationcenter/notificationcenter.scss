@@ -193,7 +193,6 @@
   gap: $spacing-03;
 }
 
-.nc-appearance,
 .nc-start {
   .cds--tile-group {
     display: grid;
@@ -202,11 +201,103 @@
   }
 }
 
+// Appearance: four compact radio tiles in one row (two columns on narrow screens).
+.nc-appearance > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: $spacing-03;
+
+  @media (max-width: 48rem) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cds--tile {
+    min-block-size: 0;
+    padding: $spacing-04 $spacing-05;
+  }
+}
+
+.nc-appearance__title {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  margin-block-end: $spacing-02;
+}
+
 .nc-appearance__help {
   @include type-style('helper-text-01');
 
   display: block;
   color: theme.$text-secondary;
+}
+
+// Level colours shared by the picker chips and the preview; the tokens follow the light and dark theme.
+.nc-k--info {
+  --nc-k: #{theme.$support-info};
+  --nc-kb: var(--cds-notification-background-info, #edf5ff);
+}
+
+.nc-k--success {
+  --nc-k: #{theme.$support-success};
+  --nc-kb: var(--cds-notification-background-success, #defbe6);
+}
+
+.nc-k--warning {
+  --nc-k: #{theme.$support-warning};
+  --nc-kb: var(--cds-notification-background-warning, #fcf4d6);
+}
+
+.nc-k--error {
+  --nc-k: #{theme.$support-error};
+  --nc-kb: var(--cds-notification-background-error, #fff1f1);
+}
+
+.nc-k__icon {
+  flex: none;
+  color: var(--nc-k);
+}
+
+// Level: four selectable chips; the radio input is visually hidden and the label is the chip.
+.nc-levels {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.nc-levels__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+.nc-level {
+  @include type-style('body-compact-01');
+
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+  min-block-size: 2rem;
+  padding: 0 $spacing-05;
+  border: 1px solid theme.$border-strong-01;
+  border-radius: 1rem;
+  color: theme.$text-primary;
+  cursor: pointer;
+
+  &:hover {
+    background: theme.$layer-hover-01;
+  }
+
+  &:has(input:checked) {
+    border-color: var(--nc-k);
+    background: var(--nc-kb);
+    box-shadow: inset 0 0 0 1px var(--nc-k);
+    font-weight: 600;
+  }
+
+  &:has(input:focus-visible) {
+    outline: 2px solid theme.$focus;
+    outline-offset: 1px;
+  }
 }
 
 .nc-conds {
@@ -322,41 +413,6 @@
 }
 
 // Mock-ups of what a message looks like on each surface.
-.nc-mock-bell {
-  display: flex;
-  gap: $spacing-04;
-}
-
-.nc-mock-dialog {
-  border-block-start: 4px solid theme.$support-info;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 30%);
-
-  &--warning {
-    border-block-start-color: theme.$support-warning;
-  }
-
-  &--error {
-    border-block-start-color: theme.$support-error;
-  }
-
-  &--success {
-    border-block-start-color: theme.$support-success;
-  }
-}
-
-.nc-mock-dialog__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: $spacing-03;
-  margin-block-start: $spacing-05;
-}
-
-.nc-mock-bell__meta {
-  @include type-style('helper-text-01');
-
-  color: theme.$text-secondary;
-}
-
 .nc-mock-signage {
   display: flex;
   flex-direction: column;
@@ -373,6 +429,193 @@
   &--critical {
     background: theme.$support-error;
   }
+}
+
+.nc-preview__note {
+  @include type-style('helper-text-01');
+
+  margin-block: $spacing-03 0;
+  color: theme.$text-secondary;
+}
+
+.nc-bell-item {
+  display: flex;
+  gap: $spacing-04;
+  margin-block-start: $spacing-03;
+  padding: $spacing-04 $spacing-05;
+  background: theme.$layer-02;
+  border-inline-start: 3px solid var(--nc-k);
+
+  p {
+    @include type-style('body-compact-01');
+
+    color: theme.$text-secondary;
+  }
+}
+
+.nc-bell-item__foot {
+  @include type-style('helper-text-01');
+
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-04;
+  margin-block-start: $spacing-03;
+  color: theme.$text-secondary;
+}
+
+.nc-bell-item__button {
+  padding: 0 $spacing-03;
+  border: 1px solid theme.$border-strong-01;
+  color: theme.$text-primary;
+}
+
+// A miniature of the app: dark top bar with the bell badge, grey page lines, and the notification where it appears.
+.nc-app {
+  @include type-style('label-01');
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  aspect-ratio: 16 / 10;
+  max-inline-size: 100%;
+  overflow: hidden;
+  background: theme.$background;
+  border: 1px solid theme.$border-subtle-01;
+  color: theme.$text-primary;
+}
+
+.nc-app__bar {
+  position: relative;
+  flex: none;
+  block-size: 1.125rem;
+  background: #161616;
+}
+
+.nc-app__badge {
+  position: absolute;
+  inset-block-start: 5px;
+  inset-inline-end: $spacing-04;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: #da1e28;
+}
+
+.nc-app__page {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  padding: $spacing-04;
+
+  i {
+    display: block;
+    inline-size: 100%;
+    block-size: 8px;
+    background: theme.$border-subtle-01;
+  }
+}
+
+.nc-app__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: $spacing-01;
+  min-inline-size: 0;
+
+  span {
+    color: theme.$text-secondary;
+  }
+}
+
+.nc-app__toast {
+  position: absolute;
+  inset-block-start: 1.625rem;
+  inset-inline-end: $spacing-03;
+  inline-size: 62%;
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-03;
+  padding: $spacing-03 $spacing-03 $spacing-03 $spacing-04;
+  background: theme.$layer-02;
+  border-inline-start: 3px solid var(--nc-k);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+}
+
+.nc-app .nc-app__link {
+  color: theme.$link-primary;
+}
+
+.nc-app__banner {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: $spacing-03;
+  padding: $spacing-03 $spacing-03 $spacing-03 $spacing-04;
+  background: var(--nc-kb);
+  border-inline-start: 3px solid var(--nc-k);
+
+  .nc-app__text {
+    display: block;
+  }
+}
+
+.nc-app__button {
+  padding: 0 $spacing-03;
+  border: 1px solid theme.$text-primary;
+  white-space: nowrap;
+}
+
+.nc-app__close {
+  flex: none;
+  color: theme.$icon-primary;
+}
+
+.nc-app__overlay {
+  position: absolute;
+  inset: 1.125rem 0 0;
+  display: grid;
+  place-items: center;
+  padding: $spacing-03;
+  background: theme.$overlay;
+}
+
+.nc-app__dialog {
+  display: flex;
+  flex-direction: column;
+  inline-size: 78%;
+  background: theme.$layer-02;
+  border-block-start: 3px solid var(--nc-k);
+}
+
+.nc-app__dialog-head {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  padding: $spacing-04 $spacing-04 $spacing-02;
+}
+
+.nc-app__dialog-body {
+  padding: 0 $spacing-04 $spacing-04;
+  color: theme.$text-secondary;
+}
+
+.nc-app__dialog-foot {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+
+  span {
+    padding: $spacing-03 $spacing-04 $spacing-04;
+    color: theme.$text-on-color;
+  }
+}
+
+.nc-app__dialog-secondary {
+  background: theme.$background-inverse;
+}
+
+.nc-app__dialog-primary {
+  background: theme.$background-brand;
 }
 
 .nc-preview__reach {

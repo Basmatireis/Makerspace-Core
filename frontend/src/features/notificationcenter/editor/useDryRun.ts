@@ -42,7 +42,7 @@ export function recipientsLine(dry: NotificationRuleDryRun | undefined, actions:
   const slot = previewable.findIndex(({ position }) => position === index);
   const preview = slot >= 0 ? dry.previews[slot] : undefined;
   if (!preview) return '';
-  if (preview.recipientCount === 0) return '→ Nobody right now';
+  if (preview.recipientCount === 0) return 'nobody would get it right now';
   const extra = preview.recipientCount - preview.recipients.length;
-  return `→ ${preview.recipients.join(', ')}${extra > 0 ? ` +${extra}` : ''}`;
+  return `${preview.recipients.join(', ')}${extra > 0 ? ` +${extra}` : ''} would get it`;
 }

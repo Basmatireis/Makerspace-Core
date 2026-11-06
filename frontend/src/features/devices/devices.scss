@@ -12,7 +12,17 @@
   gap: $spacing-02;
 }
 
+// "On this device": a small read-only summary under the form controls, set in Carbon's label and body-compact type.
 .device-summary {
-  list-style: disc;
-  padding-inline-start: $spacing-06;
+  padding: $spacing-04 $spacing-05;
+  background: var(--cds-layer-01);
+  border-inline-start: 3px solid var(--cds-border-strong-01);
+
+  ul {
+    margin-block-start: $spacing-02;
+    list-style: disc;
+    padding-inline-start: $spacing-05;
+    font-size: var(--cds-body-compact-01-font-size, 0.875rem);
+    line-height: 1.28572;
+  }
 }

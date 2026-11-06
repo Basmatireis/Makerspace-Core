@@ -34,10 +34,10 @@ export const modeLabels: Record<DeviceApplicationMode, string> = {
 };
 
 export const capabilityLabels: Record<DeviceCapability, string> = {
-  nfc: 'NFC',
+  nfc: 'NFC reader',
   camera: 'Camera',
-  qr: 'QR',
-  barcode: 'Barcode',
+  qr: 'QR scanner',
+  barcode: 'Barcode scanner',
   scale: 'Scale',
   label_printer: 'Label printer',
   file_upload: 'File upload',

@@ -15,12 +15,15 @@ const ManagedDevicesPanel = lazy(() =>
 const DeviceTypesTab = lazy(() =>
   import('../devices/DeviceTypesPage').then(({ DeviceTypesTab }) => ({ default: DeviceTypesTab })),
 );
+const VisitorSignUpPanel = lazy(() =>
+  import('../visitor/VisitorSignUpPanel').then(({ VisitorSignUpPanel }) => ({ default: VisitorSignUpPanel })),
+);
 const DeviceDetailPage = lazy(() =>
   import('../devices/DeviceDetailPage').then(({ DeviceDetailPage }) => ({ default: DeviceDetailPage })),
 );
 
 /**
- * Session limits, trusted devices and their types. The device detail page is routed here, below the settings path,
+ * Session limits, trusted devices, their types and visitor sign-up. The device detail page is routed here, below the settings path,
  * so that the application's entry route table does not grow.
  */
 export function DevicesSessionsPage() {
@@ -45,6 +48,9 @@ function DevicesSessionsTabs() {
       ? [{ key: 'session-policies', label: 'Session policies', panel: <SessionPoliciesPanel /> }]
       : []),
     ...(canReadDevices ? [{ key: 'device-types', label: 'Device types', panel: <DeviceTypesTab /> }] : []),
+    ...(hasPermission(currentUser, PermissionId.visitor_enrollmentmanage)
+      ? [{ key: 'visitor-sign-up', label: 'Visitor sign-up', panel: <VisitorSignUpPanel /> }]
+      : []),
   ];
   return (
     <SettingsPageLayout page="devices-sessions" width="wide">

@@ -85,7 +85,6 @@ import {
   UserDetailPage,
   UsersPage,
   VisitorEnrollmentPage,
-  VisitorEnrollmentSettingsPage,
   VisitorKioskPage,
   MessagesPage,
   PeopleMergePage,
@@ -454,7 +453,9 @@ export function App() {
             <Route
               path="settings/devices-sessions/*"
               element={
-                <PermissionRoute anyOf={['session_policies.manage', 'managed_devices.read']}>
+                <PermissionRoute
+                  anyOf={['session_policies.manage', 'managed_devices.read', 'visitor_enrollment.manage']}
+                >
                   <DevicesSessionsPage />
                 </PermissionRoute>
               }
@@ -533,11 +534,7 @@ export function App() {
             />
             <Route
               path="settings/visitor-enrollment"
-              element={
-                <PermissionRoute allOf={['visitor_enrollment.manage']}>
-                  <VisitorEnrollmentSettingsPage />
-                </PermissionRoute>
-              }
+              element={<Navigate to="/settings/devices-sessions?tab=visitor-sign-up" replace />}
             />
             <Route
               path="settings/mail"
