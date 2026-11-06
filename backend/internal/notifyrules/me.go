@@ -262,6 +262,7 @@ func (s *Service) reachingRules(
 			RuleID: row.ID, Name: row.Name, Description: row.Description, CategoryID: *row.CategoryID,
 			CategoryName: row.CategoryName, Mandatory: row.Mandatory, Why: why, DefaultChannels: channels,
 			EffectiveChannels: effective, BlockedByConsent: !granted[*row.CategoryID],
+			TriggerSummary: TriggerSummary(definition),
 		})
 	}
 	return result, nil

@@ -442,6 +442,9 @@ DELETE FROM survey_ask_cooldowns WHERE asked_at < now() - interval '3651 days';
 -- name: DeleteExpiredSurveyOffers :exec
 DELETE FROM survey_offers WHERE expires_at < now() - interval '1 day';
 
+-- name: DeleteSurveyOffersExpiredBefore :execrows
+DELETE FROM survey_offers WHERE expires_at < sqlc.arg(cutoff);
+
 -- name: CreateSurveyOffer :exec
 INSERT INTO survey_offers (id, token_digest, visit_id, device_id, survey_id, survey_version_id, expires_at)
 VALUES (sqlc.arg(id), sqlc.arg(token_digest), sqlc.arg(visit_id), sqlc.arg(device_id), sqlc.arg(survey_id),

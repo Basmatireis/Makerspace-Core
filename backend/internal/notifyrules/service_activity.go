@@ -62,7 +62,8 @@ func (s *Service) activity(ctx context.Context, q *store, rule *uuid.UUID, page,
 		channel := Channel(row.Channel)
 		byFiring[row.FiringID] = append(byFiring[row.FiringID], ActivityRecipient{
 			Name: name, Channel: channel, Step: int(row.Step), Status: row.Status, SentAt: row.SentAt,
-			ReadAt: epochPointer(row.ReadEpoch),
+			ReadAt: epochPointer(row.ReadEpoch), DeliveredAt: epochPointer(row.DeliveredEpoch),
+			SeenAt: epochPointer(row.SeenEpoch), AcknowledgedAt: epochPointer(row.AcknowledgedEpoch),
 		})
 		if (row.Status == statusSent || row.Status == statusFallback) && !containsChannel(channels[row.FiringID], channel) {
 			channels[row.FiringID] = append(channels[row.FiringID], channel)

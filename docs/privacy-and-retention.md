@@ -57,6 +57,8 @@ The table lists every built-in category. Legacy defaults are the behaviour that 
 | `printing.telemetry` | Printer telemetry | `machines` | none | created, 30 days, delete (lazy prune of connector activity) |
 | `runrecordings.timelapses` | Run timelapses | `machines` | none | created, 90 days, delete (timelapse setting) |
 | `inbox.notifications` | In-app notifications | `platform` | account | created, 90 days, delete (lazy sweep on read) |
+| `notifications.consents` | Notification consents | `platform` | person | ended (withdrawn), 3 years, delete (scheduler) |
+| `surveys.offers` | Tablet survey offers | `attendance` | none | expired, 1 day, delete (scheduler) |
 | `guides.progress` | Guided tour progress | `platform` | account | none |
 | `signage.announcements` | Signage announcements | `signage` | none | ended, 30 days, delete (lazy sweep on read) |
 | `devices.credentials` | Device and service credentials | `platform` | none | none |
@@ -171,6 +173,8 @@ Every category below has a retention handler that applies its action inside the 
 | `audit.events` | 365 days (`8760h`) | `AUDIT_RETENTION`, `--audit-before` |
 | `events.external_signups` | 180 days after completion or cancellation; contact snapshot and management-token digest are erased | `EVENT_SIGNUP_RETENTION` |
 | `inbox.notifications` | 90 days | Scheduler (formerly lazy sweep on read) |
+| `notifications.consents` | Three years after a granted consent was withdrawn (`notification_consents.withdrawn_at`); declines that were never granted stay while the person exists | Scheduler |
+| `surveys.offers` | One day after the offer expired (the next offer also removes them) | Scheduler |
 | `signage.announcements` | 30 days after the end | Scheduler (formerly lazy sweep on read) |
 | `printing.telemetry` | 30 days; connector activity and unreferenced printer events | Scheduler (formerly lazy prune) |
 | `printing.artifacts` | New handler: 3MF files and previews not used by a running run are removed; runs and jobs keep their records with the link cleared | No legacy period |

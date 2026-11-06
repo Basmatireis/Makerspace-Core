@@ -299,6 +299,7 @@ var recipientFields = []Field{
 	{Key: "roles", Label: "Roles", Type: FieldList, OptionsFrom: SourceRoles},
 	{Key: "checkedIn", Label: "Checked in right now", Type: FieldBool},
 	{Key: "lastVisit", Label: "Days since last visit", Type: FieldNumber, Unit: "days"},
+	{Key: "appOpen", Label: "Has the app open", Type: FieldBool},
 }
 
 var nowFields = []Field{
@@ -307,6 +308,7 @@ var nowFields = []Field{
 	{Key: "holiday", Label: "Today is a holiday or break", Type: FieldBool},
 	{Key: "openDayRunning", Label: "An open day is running", Type: FieldBool},
 	{Key: "present", Label: "People checked in", Type: FieldNumber},
+	{Key: "supervisorsOnline", Label: "Supervisors with the app open", Type: FieldNumber},
 }
 
 var openDayFields = []Field{

@@ -721,6 +721,18 @@ func (q *Queries) DeleteSurvey(ctx context.Context, id uuid.UUID) (int64, error)
 	return result.RowsAffected(), nil
 }
 
+const deleteSurveyOffersExpiredBefore = `-- name: DeleteSurveyOffersExpiredBefore :execrows
+DELETE FROM survey_offers WHERE expires_at < $1
+`
+
+func (q *Queries) DeleteSurveyOffersExpiredBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSurveyOffersExpiredBefore, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteSurveyQuestions = `-- name: DeleteSurveyQuestions :exec
 DELETE FROM survey_questions WHERE survey_version_id = $1
 `

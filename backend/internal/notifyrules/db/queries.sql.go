@@ -422,6 +422,22 @@ func (q *Queries) CountScheduledOpenDaysBetween(ctx context.Context, arg CountSc
 	return column_1, err
 }
 
+const countSupervisorsOnline = `-- name: CountSupervisorsOnline :one
+SELECT count(DISTINCT a.person_id)::bigint FROM account_presence ap
+JOIN accounts a ON a.id = ap.account_id
+JOIN person_roles pr ON pr.person_id = a.person_id
+JOIN roles r ON r.id = pr.role_id AND r.system_key = 'supervisor'
+WHERE ap.last_visible_at > $1
+`
+
+// Supervisors (system role) with an account that had the application open in a visible tab since the given moment.
+func (q *Queries) CountSupervisorsOnline(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countSupervisorsOnline, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countSurveyResponsesSince = `-- name: CountSurveyResponsesSince :one
 SELECT count(*)::bigint FROM survey_responses WHERE submitted_on >= $1::date
 `
@@ -480,6 +496,18 @@ type DeleteCategoryParams struct {
 
 func (q *Queries) DeleteCategory(ctx context.Context, arg DeleteCategoryParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteCategory, arg.ID, arg.ExpectedVersion)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteConsentsWithdrawnBefore = `-- name: DeleteConsentsWithdrawnBefore :execrows
+DELETE FROM notification_consents WHERE NOT granted AND withdrawn_at IS NOT NULL AND withdrawn_at < $1
+`
+
+func (q *Queries) DeleteConsentsWithdrawnBefore(ctx context.Context, cutoff pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteConsentsWithdrawnBefore, cutoff)
 	if err != nil {
 		return 0, err
 	}
@@ -1722,7 +1750,16 @@ const listActivityRecipients = `-- name: ListActivityRecipients :many
 SELECT r.firing_id, r.person_id, p.first_name, p.last_name, r.channel, r.step, r.status, r.sent_at,
        COALESCE((SELECT extract(epoch FROM min(ir.read_at)) FROM inbox_recipients ir
                  WHERE ir.notification_id = r.notification_id
-                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS read_epoch
+                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS read_epoch,
+       COALESCE((SELECT extract(epoch FROM min(ir.delivered_at)) FROM inbox_recipients ir
+                 WHERE ir.notification_id = r.notification_id
+                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS delivered_epoch,
+       COALESCE((SELECT extract(epoch FROM min(ir.seen_at)) FROM inbox_recipients ir
+                 WHERE ir.notification_id = r.notification_id
+                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS seen_epoch,
+       COALESCE((SELECT extract(epoch FROM min(ir.acknowledged_at)) FROM inbox_recipients ir
+                 WHERE ir.notification_id = r.notification_id
+                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS acknowledged_epoch
 FROM notification_firing_recipients r
 LEFT JOIN people p ON p.id = r.person_id
 WHERE r.firing_id = ANY($1::text[]::uuid[])
@@ -1730,15 +1767,18 @@ ORDER BY r.firing_id, r.step, lower(p.last_name), lower(p.first_name), r.channel
 `
 
 type ListActivityRecipientsRow struct {
-	FiringID  uuid.UUID
-	PersonID  *uuid.UUID
-	FirstName *string
-	LastName  *string
-	Channel   string
-	Step      int32
-	Status    string
-	SentAt    time.Time
-	ReadEpoch float64
+	FiringID          uuid.UUID
+	PersonID          *uuid.UUID
+	FirstName         *string
+	LastName          *string
+	Channel           string
+	Step              int32
+	Status            string
+	SentAt            time.Time
+	ReadEpoch         float64
+	DeliveredEpoch    float64
+	SeenEpoch         float64
+	AcknowledgedEpoch float64
 }
 
 func (q *Queries) ListActivityRecipients(ctx context.Context, firingIds []string) ([]ListActivityRecipientsRow, error) {
@@ -1760,6 +1800,9 @@ func (q *Queries) ListActivityRecipients(ctx context.Context, firingIds []string
 			&i.Status,
 			&i.SentAt,
 			&i.ReadEpoch,
+			&i.DeliveredEpoch,
+			&i.SeenEpoch,
+			&i.AcknowledgedEpoch,
 		); err != nil {
 			return nil, err
 		}
@@ -1777,6 +1820,37 @@ SELECT DISTINCT person_id FROM visits WHERE status = 'checked_in' ORDER BY perso
 
 func (q *Queries) ListAllCheckedInPeople(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listAllCheckedInPeople)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAppOpenPeople = `-- name: ListAppOpenPeople :many
+SELECT DISTINCT a.person_id FROM account_presence ap JOIN accounts a ON a.id = ap.account_id
+WHERE a.person_id = ANY($1::text[]::uuid[]) AND ap.last_visible_at > $2
+`
+
+type ListAppOpenPeopleParams struct {
+	PersonIds []string
+	Since     time.Time
+}
+
+// People with at least one account that had the application open in a visible tab since the given moment.
+func (q *Queries) ListAppOpenPeople(ctx context.Context, arg ListAppOpenPeopleParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listAppOpenPeople, arg.PersonIds, arg.Since)
 	if err != nil {
 		return nil, err
 	}
@@ -1943,7 +2017,7 @@ func (q *Queries) ListCheckedInPeople(ctx context.Context, personIds []string) (
 }
 
 const listConsentsOfPerson = `-- name: ListConsentsOfPerson :many
-SELECT person_id, category_id, granted, text_version, answered_at, place, device_id FROM notification_consents WHERE person_id = $1
+SELECT person_id, category_id, granted, text_version, answered_at, place, device_id, withdrawn_at FROM notification_consents WHERE person_id = $1
 `
 
 func (q *Queries) ListConsentsOfPerson(ctx context.Context, personID uuid.UUID) ([]NotificationConsent, error) {
@@ -1963,6 +2037,7 @@ func (q *Queries) ListConsentsOfPerson(ctx context.Context, personID uuid.UUID) 
 			&i.AnsweredAt,
 			&i.Place,
 			&i.DeviceID,
+			&i.WithdrawnAt,
 		); err != nil {
 			return nil, err
 		}
@@ -4142,7 +4217,12 @@ INSERT INTO notification_consents (person_id, category_id, granted, text_version
 VALUES ($1, $2, $3, $4, $5,
         $6, $7)
 ON CONFLICT (person_id, category_id) DO UPDATE
-SET granted = EXCLUDED.granted, text_version = EXCLUDED.text_version, answered_at = EXCLUDED.answered_at,
+SET withdrawn_at = CASE
+        WHEN EXCLUDED.granted THEN NULL
+        WHEN notification_consents.granted THEN EXCLUDED.answered_at
+        ELSE notification_consents.withdrawn_at
+    END,
+    granted = EXCLUDED.granted, text_version = EXCLUDED.text_version, answered_at = EXCLUDED.answered_at,
     place = EXCLUDED.place, device_id = EXCLUDED.device_id
 `
 

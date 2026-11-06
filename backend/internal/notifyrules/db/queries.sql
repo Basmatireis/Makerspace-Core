@@ -39,8 +39,16 @@ INSERT INTO notification_consents (person_id, category_id, granted, text_version
 VALUES (sqlc.arg(person_id), sqlc.arg(category_id), sqlc.arg(granted), sqlc.arg(text_version), sqlc.arg(answered_at),
         sqlc.arg(place), sqlc.narg(device_id))
 ON CONFLICT (person_id, category_id) DO UPDATE
-SET granted = EXCLUDED.granted, text_version = EXCLUDED.text_version, answered_at = EXCLUDED.answered_at,
+SET withdrawn_at = CASE
+        WHEN EXCLUDED.granted THEN NULL
+        WHEN notification_consents.granted THEN EXCLUDED.answered_at
+        ELSE notification_consents.withdrawn_at
+    END,
+    granted = EXCLUDED.granted, text_version = EXCLUDED.text_version, answered_at = EXCLUDED.answered_at,
     place = EXCLUDED.place, device_id = EXCLUDED.device_id;
+
+-- name: DeleteConsentsWithdrawnBefore :execrows
+DELETE FROM notification_consents WHERE NOT granted AND withdrawn_at IS NOT NULL AND withdrawn_at < sqlc.arg(cutoff);
 
 -- name: CountPendingConsents :one
 -- Consent categories the person has not answered at the category's current text.
@@ -286,6 +294,19 @@ SELECT person_id, role_id FROM person_roles WHERE person_id = ANY(sqlc.arg(perso
 -- name: ListCheckedInPeople :many
 SELECT DISTINCT person_id FROM visits
 WHERE status = 'checked_in' AND person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]);
+
+-- name: ListAppOpenPeople :many
+-- People with at least one account that had the application open in a visible tab since the given moment.
+SELECT DISTINCT a.person_id FROM account_presence ap JOIN accounts a ON a.id = ap.account_id
+WHERE a.person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]) AND ap.last_visible_at > sqlc.arg(since);
+
+-- name: CountSupervisorsOnline :one
+-- Supervisors (system role) with an account that had the application open in a visible tab since the given moment.
+SELECT count(DISTINCT a.person_id)::bigint FROM account_presence ap
+JOIN accounts a ON a.id = ap.account_id
+JOIN person_roles pr ON pr.person_id = a.person_id
+JOIN roles r ON r.id = pr.role_id AND r.system_key = 'supervisor'
+WHERE ap.last_visible_at > sqlc.arg(since);
 
 -- name: ListLastVisits :many
 SELECT person_id, max(checked_in_at)::timestamptz AS last_visit FROM visits
@@ -698,7 +719,16 @@ SELECT count(*)::bigint FROM notification_firings f WHERE (sqlc.narg(rule_id)::u
 SELECT r.firing_id, r.person_id, p.first_name, p.last_name, r.channel, r.step, r.status, r.sent_at,
        COALESCE((SELECT extract(epoch FROM min(ir.read_at)) FROM inbox_recipients ir
                  WHERE ir.notification_id = r.notification_id
-                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS read_epoch
+                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS read_epoch,
+       COALESCE((SELECT extract(epoch FROM min(ir.delivered_at)) FROM inbox_recipients ir
+                 WHERE ir.notification_id = r.notification_id
+                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS delivered_epoch,
+       COALESCE((SELECT extract(epoch FROM min(ir.seen_at)) FROM inbox_recipients ir
+                 WHERE ir.notification_id = r.notification_id
+                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS seen_epoch,
+       COALESCE((SELECT extract(epoch FROM min(ir.acknowledged_at)) FROM inbox_recipients ir
+                 WHERE ir.notification_id = r.notification_id
+                   AND ir.account_id IN (SELECT a.id FROM accounts a WHERE a.person_id = r.person_id)), 0)::float8 AS acknowledged_epoch
 FROM notification_firing_recipients r
 LEFT JOIN people p ON p.id = r.person_id
 WHERE r.firing_id = ANY(sqlc.arg(firing_ids)::text[]::uuid[])

@@ -359,6 +359,7 @@ func notificationSettingsDTO(settings notifyrules.Settings) openapi.Notification
 			RuleId: rule.RuleID, Name: rule.Name, Description: rule.Description, CategoryId: rule.CategoryID,
 			CategoryName: rule.CategoryName, Mandatory: rule.Mandatory, Why: append([]string{}, rule.Why...),
 			DefaultChannels: defaults, EffectiveChannels: effective, BlockedByConsent: rule.BlockedByConsent,
+			TriggerSummary: rule.TriggerSummary,
 		})
 	}
 	return openapi.NotificationSettings{
@@ -672,6 +673,25 @@ func (s *Server) TestNotificationRule(
 	return openapi.TestNotificationRule200JSONResponse(dto), nil
 }
 
+func (s *Server) TestOwnNotificationSubscription(
+	ctx context.Context,
+	r openapi.TestOwnNotificationSubscriptionRequestObject,
+) (openapi.TestOwnNotificationSubscriptionResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.notifyRules.TestSubscription(ctx, p, r.SubscriptionId, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := runResultDTO(result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.TestOwnNotificationSubscription200JSONResponse(dto), nil
+}
+
 type dryRunItemJSON struct {
 	Name    string            `json:"name"`
 	Values  map[string]string `json:"values"`
@@ -764,6 +784,10 @@ type activityRecipientJSON struct {
 	Status  string     `json:"status"`
 	SentAt  time.Time  `json:"sentAt"`
 	ReadAt  *time.Time `json:"readAt"`
+
+	DeliveredAt    *time.Time `json:"deliveredAt"`
+	SeenAt         *time.Time `json:"seenAt"`
+	AcknowledgedAt *time.Time `json:"acknowledgedAt"`
 }
 
 type activityFiringJSON struct {
@@ -825,6 +849,7 @@ func (s *Server) ListNotificationActivity(
 			item.Recipients = append(item.Recipients, activityRecipientJSON{
 				Name: recipient.Name, Channel: string(recipient.Channel), Step: recipient.Step,
 				Status: recipient.Status, SentAt: recipient.SentAt, ReadAt: recipient.ReadAt,
+				DeliveredAt: recipient.DeliveredAt, SeenAt: recipient.SeenAt, AcknowledgedAt: recipient.AcknowledgedAt,
 			})
 		}
 		payload.Items = append(payload.Items, item)

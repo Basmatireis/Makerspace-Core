@@ -133,6 +133,8 @@ type ReachingRule struct {
 	EffectiveChannels []Channel
 	// BlockedByConsent says the rule's category needs a consent the person has not given.
 	BlockedByConsent bool
+	// TriggerSummary is the rule's "When" line as the rules list shows it.
+	TriggerSummary string
 }
 
 // Settings is everything the "My notifications" screen shows.

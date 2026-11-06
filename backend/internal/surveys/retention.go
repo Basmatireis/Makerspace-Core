@@ -30,3 +30,13 @@ func InvitationRetention() privacy.RetentionHandler {
 		}
 	})
 }
+
+// OfferRetention hard-deletes tablet survey offers that expired before the cutoff, used or not.
+func OfferRetention() privacy.RetentionHandler {
+	return privacy.HandlerFunc(func(ctx context.Context, tx pgx.Tx, action privacy.Action, cutoff time.Time, _ int32) (int64, error) {
+		if action != privacy.ActionDelete {
+			return 0, privacy.ErrActionUnsupported
+		}
+		return surveysdb.New(tx).DeleteSurveyOffersExpiredBefore(ctx, cutoff)
+	})
+}

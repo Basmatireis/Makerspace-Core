@@ -44,11 +44,14 @@ type Querier interface {
 	CountPrivacyRequestsSince(ctx context.Context, since time.Time) (int64, error)
 	CountReceiptPaymentsSince(ctx context.Context, since time.Time) (int64, error)
 	CountScheduledOpenDaysBetween(ctx context.Context, arg CountScheduledOpenDaysBetweenParams) (int64, error)
+	// Supervisors (system role) with an account that had the application open in a visible tab since the given moment.
+	CountSupervisorsOnline(ctx context.Context, since time.Time) (int64, error)
 	CountSurveyResponsesSince(ctx context.Context, since pgtype.Date) (int64, error)
 	CountTrainingRecordsSince(ctx context.Context, since time.Time) (int64, error)
 	CountVisitsSince(ctx context.Context, since time.Time) (int64, error)
 	DeferPendingAction(ctx context.Context, arg DeferPendingActionParams) error
 	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) (int64, error)
+	DeleteConsentsWithdrawnBefore(ctx context.Context, cutoff pgtype.Timestamptz) (int64, error)
 	// Retention of the delivery log; recipients and pending actions cascade.
 	DeleteFiringsCreatedBefore(ctx context.Context, cutoff time.Time) (int64, error)
 	DeleteKioskRuleNoticesBefore(ctx context.Context, cutoff time.Time) (int64, error)
@@ -112,6 +115,8 @@ type Querier interface {
 	ListActivity(ctx context.Context, arg ListActivityParams) ([]ListActivityRow, error)
 	ListActivityRecipients(ctx context.Context, firingIds []string) ([]ListActivityRecipientsRow, error)
 	ListAllCheckedInPeople(ctx context.Context) ([]uuid.UUID, error)
+	// People with at least one account that had the application open in a visible tab since the given moment.
+	ListAppOpenPeople(ctx context.Context, arg ListAppOpenPeopleParams) ([]uuid.UUID, error)
 	ListCategories(ctx context.Context) ([]ListCategoriesRow, error)
 	ListCentralRules(ctx context.Context, since time.Time) ([]ListCentralRulesRow, error)
 	ListCheckedInPeople(ctx context.Context, personIds []string) ([]uuid.UUID, error)

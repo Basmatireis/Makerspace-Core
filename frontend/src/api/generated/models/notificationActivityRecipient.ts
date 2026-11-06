@@ -33,4 +33,19 @@ export interface NotificationActivityRecipient {
   sentAt: string;
   /** @nullable */
   readAt: string | null;
+  /**
+     * In-app only: when the poll first handed the notification to the person's account.
+     * @nullable
+     */
+  deliveredAt: string | null;
+  /**
+     * In-app only: when the notification was first shown on screen.
+     * @nullable
+     */
+  seenAt: string | null;
+  /**
+     * In-app only: when the person confirmed it with its button.
+     * @nullable
+     */
+  acknowledgedAt: string | null;
 }

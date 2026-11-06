@@ -945,6 +945,7 @@ type NotificationConsent struct {
 	AnsweredAt  time.Time
 	Place       string
 	DeviceID    *uuid.UUID
+	WithdrawnAt pgtype.Timestamptz
 }
 
 type NotificationFiring struct {

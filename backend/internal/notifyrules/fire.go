@@ -589,6 +589,13 @@ func (d *Dispatcher) nowContext(
 		}
 		values[PrefixNow+".present"] = float64(count)
 	}
+	if needed["supervisorsOnline"] {
+		count, err := q.CountSupervisorsOnline(ctx, now.Add(-onlineWindow))
+		if err != nil {
+			return nil, fmt.Errorf("count supervisors online: %w", err)
+		}
+		values[PrefixNow+".supervisorsOnline"] = float64(count)
+	}
 	if needed["openDayRunning"] {
 		running, err := q.OpenDayRunning(ctx, now)
 		if err != nil {
@@ -665,6 +672,14 @@ func (d *Dispatcher) recipientFacts(
 			}
 			for _, person := range people {
 				set(person, key, slices.Contains(present, person))
+			}
+		case "appOpen":
+			open, err := q.ListAppOpenPeople(ctx, notifyrulesdb.ListAppOpenPeopleParams{PersonIds: personIDs, Since: now.Add(-onlineWindow)})
+			if err != nil {
+				return nil, false, fmt.Errorf("load app presence: %w", err)
+			}
+			for _, person := range people {
+				set(person, key, slices.Contains(open, person))
 			}
 		case "lastVisit":
 			rows, err := q.ListLastVisits(ctx, personIDs)

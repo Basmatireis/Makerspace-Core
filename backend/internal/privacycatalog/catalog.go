@@ -42,6 +42,7 @@ const (
 	GuideProgress          privacy.CategoryID = "guides.progress"
 	CalendarFeeds          privacy.CategoryID = "calendar.feeds"
 	NotificationConsents   privacy.CategoryID = "notifications.consents"
+	SurveyOffers           privacy.CategoryID = "surveys.offers"
 	NotificationRules      privacy.CategoryID = "notifications.rules"
 	NotificationDeliveries privacy.CategoryID = "notifications.deliveries"
 	SignageAnnouncements   privacy.CategoryID = "signage.announcements"
@@ -170,6 +171,17 @@ func Definitions() []privacy.Definition {
 			Actions:        []privacy.Action{privacy.ActionUnlink, privacy.ActionDelete},
 			Subject:        privacy.SubjectPerson,
 			Legacy:         &privacy.LegacyDefault{Trigger: privacy.TriggerExpiredAt, Period: 7 * day, Action: privacy.ActionUnlink, Source: "admin cleanup (code)"},
+		},
+		{
+			ID: SurveyOffers, Owner: Attendance, Name: "Tablet survey offers",
+			Description:   "A survey the tablet offered after a check-out: only the digest of its single-use token, the tablet and the survey, valid for a few minutes.",
+			Contains:      "The digest of the offer's token, the tablet, the survey and the expiry time; the link to the visit is cleared when the offer is used",
+			Fields:        []string{"survey_offers.token_digest", "survey_offers.visit_id"},
+			Triggers:      []privacy.Trigger{privacy.TriggerExpiredAt},
+			Actions:       []privacy.Action{privacy.ActionDelete},
+			Subject:       privacy.SubjectNone,
+			Legacy:        &privacy.LegacyDefault{Trigger: privacy.TriggerExpiredAt, Period: day, Action: privacy.ActionDelete, Source: "tablet survey offers (code)", Automatic: true},
+			RetentionNote: "Offers are deleted one day after they expire; an offer also disappears with its visit.",
 		},
 		{
 			ID: SurveyResponses, Owner: Attendance, Name: "Survey responses",
@@ -410,11 +422,13 @@ func Definitions() []privacy.Definition {
 			Contains:       "The answer (yes or no) to each consent category, the version of its text, the time and place of the answer, and the feedback-at-check-out switch, per person",
 			ErasureOutcome: privacy.ErasureErased,
 			Fields:         []string{"notification_consents.*", "person_notification_settings.*"},
-			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt},
+			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt, privacy.TriggerEndedAt},
 			Actions:        []privacy.Action{privacy.ActionDelete},
 			Subject:        privacy.SubjectPerson,
-			RetentionNote: "Rows are deleted with the person. Withdrawn answers stay as proof of the withdrawal while the " +
-				"person exists.",
+			Legacy:         &privacy.LegacyDefault{Trigger: privacy.TriggerEndedAt, Period: 3 * 365 * day, Action: privacy.ActionDelete, Source: "withdrawn consents (code)", Automatic: true},
+			RetentionNote: "Rows are deleted with the person. A consent that was withdrawn stays as proof of the withdrawal " +
+				"and is deleted three years after the withdrawal (the trigger \"ended\" is the time of the withdrawal); " +
+				"a decline that was never granted has no end and stays while the person exists.",
 		},
 		{
 			ID: NotificationRules, Owner: Platform, Name: "Personal notification rules",
@@ -432,7 +446,7 @@ func Definitions() []privacy.Definition {
 			Description:    "Which rule fired, who it was delivered to over which channel, and what became of each delivery.",
 			Contains:       "Firing time, rule name, a short summary, and per recipient the channel and outcome",
 			ErasureOutcome: privacy.ErasureErased,
-			Fields:         []string{"notification_firings.*", "notification_firing_recipients.*", "notification_pending_actions.*"},
+			Fields:         []string{"notification_firings.*", "notification_firing_recipients.*", "notification_pending_actions.*", "kiosk_rule_notices.*", "signage_rule_notices.*"},
 			Triggers:       []privacy.Trigger{privacy.TriggerCreatedAt},
 			Actions:        []privacy.Action{privacy.ActionDelete},
 			Subject:        privacy.SubjectPerson,

@@ -28,6 +28,11 @@ export interface NotificationReachingRule {
   categoryName: string;
   mandatory: boolean;
   why: string[];
+  /**
+     * The rule's When line as the rules list shows it, for example a trigger label, a schedule or 'When someone presses Run now', plus ' · For each <one>' for loops.
+     * @maxLength 300
+     */
+  triggerSummary: string;
   /** @items.maxLength 40 */
   defaultChannels: string[];
   /**

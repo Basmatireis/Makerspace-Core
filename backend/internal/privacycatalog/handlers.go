@@ -27,6 +27,8 @@ func RegisterBuiltinHandlers(service *privacy.Service, runRecordings *runrecordi
 	service.Register(AuditEvents, privacy.AuditEventRetention())
 	service.Register(EventExternalSignups, events.SignupRetention())
 	service.Register(InboxNotifications, inbox.NotificationRetention())
+	service.Register(NotificationConsents, notifyrules.ConsentRetention())
+	service.Register(SurveyOffers, surveys.OfferRetention())
 	service.Register(NotificationDeliveries, notifyrules.DeliveryRetention())
 	service.Register(SignageAnnouncements, signage.AnnouncementRetention())
 	service.Register(PrinterTelemetry, printerconnectors.TelemetryRetention())

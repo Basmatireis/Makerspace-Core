@@ -791,3 +791,27 @@ return apiFetch<void>(getDeleteOwnNotificationSubscriptionUrl(subscriptionId),
 );}
 
 
+export const getTestOwnNotificationSubscriptionUrl = (subscriptionId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/me/notification-subscriptions/${subscriptionId}/test`
+}
+
+/**
+ * Any staff session. Sends the in-app and e-mail actions of the subscription's first step to its owner only, with the texts filled from the first matching item or the trigger's examples, and logs the firing as a test. Another account's rule and a central rule answer 404.
+ * @summary Send a personal notification rule's first actions to yourself
+ */
+export const testOwnNotificationSubscription = async (subscriptionId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<NotificationRuleRunResult> => {
+
+  return apiFetch<NotificationRuleRunResult>(getTestOwnNotificationSubscriptionUrl(subscriptionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+

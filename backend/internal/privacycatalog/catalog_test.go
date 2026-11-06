@@ -32,7 +32,7 @@ var personalDataColumns = []string{
 	"event_tasks.assignee_person_id", "event_shift_assignments.first_name_snapshot",
 	"event_shift_assignments.email_snapshot", "event_shift_assignments.phone_snapshot",
 	"event_shift_assignments.management_token_digest", "training_records.notes",
-	"survey_invitations.recipient_email", "survey_invitations.token_digest", "survey_responses.identified_person_id",
+	"survey_invitations.recipient_email", "survey_offers.token_digest", "survey_invitations.token_digest", "survey_responses.identified_person_id",
 	"survey_answers.text_value", "inbox_notifications.body", "inbox_recipients.account_id",
 	"notification_mail_outbox.person_id", "calendar_feeds.token_digest",
 	"orders.customer_person_id", "order_customer_snapshots.display_name", "order_items.description",

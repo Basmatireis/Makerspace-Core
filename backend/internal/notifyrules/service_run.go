@@ -148,6 +148,16 @@ func (d *Dispatcher) sampleRun(
 // TestRule sends the first-step actions of a rule to the caller only, marked as a test. A central rule needs
 // notification_rules.manage; a personal subscription must be the caller's own.
 func (s *Service) TestRule(ctx context.Context, p authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (RunResult, error) {
+	return s.testRule(ctx, p, id, requestID, false)
+}
+
+// TestSubscription is TestRule for the caller's own personal subscription: a central rule or another account's rule
+// answers not found, and no permission is needed.
+func (s *Service) TestSubscription(ctx context.Context, p authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (RunResult, error) {
+	return s.testRule(ctx, p, id, requestID, true)
+}
+
+func (s *Service) testRule(ctx context.Context, p authorization.Principal, id uuid.UUID, requestID *uuid.UUID, ownOnly bool) (RunResult, error) {
 	if s.dispatcher == nil {
 		return RunResult{}, errNoDispatcher
 	}
@@ -163,6 +173,8 @@ func (s *Service) TestRule(ctx context.Context, p authorization.Principal, id uu
 			if *rule.OwnerAccountID != p.AccountID {
 				return apperror.NotFound
 			}
+		} else if ownOnly {
+			return apperror.NotFound
 		} else if !p.Has(authorization.NotificationRulesManage) {
 			return apperror.PermissionDenied
 		}
@@ -502,6 +514,11 @@ type ActivityRecipient struct {
 	Status  string
 	SentAt  time.Time
 	ReadAt  *time.Time
+	// DeliveredAt, SeenAt and AcknowledgedAt are the earliest times the in-app copy reached, was shown to and was
+	// acknowledged by the person's account; nil for other channels or while it has not happened.
+	DeliveredAt    *time.Time
+	SeenAt         *time.Time
+	AcknowledgedAt *time.Time
 }
 
 // ActivityFiring is one time a rule fired, with its delivery log.

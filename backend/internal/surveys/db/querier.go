@@ -37,6 +37,7 @@ type Querier interface {
 	DeleteExpiredSurveyOffers(ctx context.Context) error
 	DeleteStaleSurveyAsks(ctx context.Context) error
 	DeleteSurvey(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteSurveyOffersExpiredBefore(ctx context.Context, cutoff time.Time) (int64, error)
 	DeleteSurveyQuestions(ctx context.Context, surveyVersionID uuid.UUID) error
 	DeleteSurveyShareLink(ctx context.Context, arg DeleteSurveyShareLinkParams) (int64, error)
 	// Removes invitation rows whose delivery identity was already cleared and whose expiry lies before the cutoff.

@@ -9,6 +9,17 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// ConsentRetention hard-deletes consents that were withdrawn before the cutoff. A decline that was never preceded by
+// a granted answer has no withdrawal time and stays while the person exists.
+func ConsentRetention() privacy.RetentionHandler {
+	return privacy.HandlerFunc(func(ctx context.Context, tx pgx.Tx, action privacy.Action, cutoff time.Time, _ int32) (int64, error) {
+		if action != privacy.ActionDelete {
+			return 0, privacy.ErrActionUnsupported
+		}
+		return notifyrulesdb.New(tx).DeleteConsentsWithdrawnBefore(ctx, pgtypeTime(cutoff))
+	})
+}
+
 // DeliveryRetention hard-deletes firings created before the cutoff; their recipients and pending actions cascade.
 func DeliveryRetention() privacy.RetentionHandler {
 	return privacy.HandlerFunc(func(ctx context.Context, tx pgx.Tx, action privacy.Action, cutoff time.Time, _ int32) (int64, error) {

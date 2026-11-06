@@ -255,7 +255,8 @@ func (q *Queries) CountStaffingExcusals(ctx context.Context, subjectPerson uuid.
 }
 
 const countSurveyInvitations = `-- name: CountSurveyInvitations :one
-SELECT count(*)::bigint FROM survey_invitations WHERE person_id = $1::uuid
+SELECT ((SELECT count(*) FROM survey_invitations WHERE person_id = $1::uuid)
+    + (SELECT count(*) FROM survey_ask_cooldowns WHERE person_id = $1::uuid))::bigint
 `
 
 func (q *Queries) CountSurveyInvitations(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
@@ -714,10 +715,18 @@ func (q *Queries) ExportStaffingExcusals(ctx context.Context, subjectPerson uuid
 }
 
 const exportSurveyInvitations = `-- name: ExportSurveyInvitations :one
-SELECT COALESCE(jsonb_agg(jsonb_build_object(
-    'survey', sv.title, 'recipientEmail', i.recipient_email, 'status', i.status, 'dueAt', i.due_at, 'expiresAt', i.expires_at,
-    'sentAt', i.sent_at, 'redeemedAt', i.redeemed_at, 'createdAt', i.created_at) ORDER BY i.created_at), '[]'::jsonb)::jsonb AS document
-FROM survey_invitations i JOIN survey_versions sv ON sv.id = i.survey_version_id WHERE i.person_id = $1::uuid
+SELECT jsonb_build_object(
+    'invitations', COALESCE((SELECT jsonb_agg(jsonb_build_object(
+        'survey', sv.title, 'recipientEmail', i.recipient_email, 'status', i.status, 'dueAt', i.due_at, 'expiresAt', i.expires_at,
+        'sentAt', i.sent_at, 'redeemedAt', i.redeemed_at, 'createdAt', i.created_at) ORDER BY i.created_at)
+        FROM survey_invitations i JOIN survey_versions sv ON sv.id = i.survey_version_id
+        WHERE i.person_id = $1::uuid), '[]'::jsonb),
+    -- Only the day the tablet last asked about a survey; it starts the cooldown and holds no answer.
+    'askCooldowns', COALESCE((SELECT jsonb_agg(jsonb_build_object(
+        'survey', (SELECT sv.title FROM survey_versions sv WHERE sv.survey_id = a.survey_id ORDER BY sv.revision DESC LIMIT 1),
+        'askedOn', to_char(a.asked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD')) ORDER BY a.asked_at, a.survey_id)
+        FROM survey_ask_cooldowns a WHERE a.person_id = $1::uuid), '[]'::jsonb)
+)::jsonb AS document
 `
 
 func (q *Queries) ExportSurveyInvitations(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
