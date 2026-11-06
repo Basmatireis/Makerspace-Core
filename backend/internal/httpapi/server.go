@@ -109,6 +109,8 @@ type Server struct {
 	calendarFeedReads *ratelimit.Limiter
 	// notifyRules owns the notification categories, consents and rules.
 	notifyRules *notifyrules.Service
+	// notifyDispatcher delivers rule-based notifications for events and the ones that waited.
+	notifyDispatcher *notifyrules.Dispatcher
 	// noticeMail sends the queued e-mails of printer notifications.
 	noticeMail *inbox.MailDelivery
 }
@@ -259,6 +261,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		surveys:           surveyService,
 		inbox:             inbox.NewService(pool),
 		notifyRules:       notifyrules.NewService(pool),
+		notifyDispatcher:  notifyrules.NewDispatcher(pool, location),
 		guides:            guides.NewService(pool),
 		configTransfer:    configTransferService,
 		trainings:         trainingsService,

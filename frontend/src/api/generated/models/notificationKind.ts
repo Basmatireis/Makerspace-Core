@@ -35,4 +35,5 @@ export const NotificationKind = {
   NotificationKindRunFinished: 'run_finished',
   NotificationKindPrinterError: 'printer_error',
   NotificationKindFilamentChange: 'filament_change',
+  rule: 'rule',
 } as const;

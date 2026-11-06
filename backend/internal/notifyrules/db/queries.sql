@@ -168,3 +168,174 @@ SELECT id FROM managed_devices WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
 -- name: DeleteFiringsCreatedBefore :execrows
 -- Retention of the delivery log; recipients and pending actions cascade.
 DELETE FROM notification_firings WHERE created_at < sqlc.arg(cutoff);
+
+-- name: ListEnabledEventRules :many
+-- Enabled central and personal rules that fire on one event. Personal rules have no category and carry their owner.
+SELECT r.id, r.name, r.owner_account_id, a.person_id AS owner_person_id, r.category_id, r.mandatory, r.definition,
+       c.basis AS category_basis, c.text_version AS category_text_version
+FROM notification_rules r
+LEFT JOIN notification_categories c ON c.id = r.category_id
+LEFT JOIN accounts a ON a.id = r.owner_account_id
+WHERE r.enabled AND r.trigger_type = 'event' AND r.trigger_event = sqlc.arg(trigger_event)
+ORDER BY r.created_at, r.id;
+
+-- name: ClaimThrottle :execrows
+-- Starts the throttle window for a subject unless an earlier one still runs. Zero rows mean the firing is throttled.
+INSERT INTO notification_throttle (rule_id, subject_key, last_at)
+VALUES (sqlc.arg(rule_id), sqlc.arg(subject_key), sqlc.arg(now))
+ON CONFLICT (rule_id, subject_key) DO UPDATE SET last_at = EXCLUDED.last_at
+WHERE notification_throttle.last_at <= sqlc.arg(window_start);
+
+-- name: InsertFiring :exec
+INSERT INTO notification_firings (id, rule_id, rule_name, trigger_type, summary, resolve_token, created_at)
+VALUES (sqlc.arg(id), sqlc.arg(rule_id), sqlc.arg(rule_name), sqlc.arg(trigger_type), sqlc.arg(summary),
+        sqlc.narg(resolve_token), sqlc.arg(created_at));
+
+-- name: MarkRuleFired :exec
+UPDATE notification_rules SET last_fired_at = sqlc.arg(fired_at) WHERE id = sqlc.arg(id);
+
+-- name: InsertFiringRecipient :exec
+INSERT INTO notification_firing_recipients (id, firing_id, person_id, channel, step, status, notification_id, sent_at)
+VALUES (sqlc.arg(id), sqlc.arg(firing_id), sqlc.narg(person_id), sqlc.arg(channel), sqlc.arg(step), sqlc.arg(status),
+        sqlc.narg(notification_id), sqlc.arg(sent_at));
+
+-- name: InsertPendingAction :exec
+INSERT INTO notification_pending_actions (id, firing_id, due_at, step, action, item, recipients)
+VALUES (sqlc.arg(id), sqlc.arg(firing_id), sqlc.arg(due_at), sqlc.arg(step), sqlc.arg(action)::text::jsonb,
+        sqlc.narg(item)::text::jsonb, sqlc.arg(recipients)::text::jsonb);
+
+-- name: ResolveOpenFirings :many
+UPDATE notification_firings SET resolved_at = sqlc.arg(resolved_at), resolved_reason = sqlc.arg(reason)
+WHERE resolve_token = sqlc.arg(token) AND resolved_at IS NULL
+RETURNING id;
+
+-- name: DeletePendingEscalations :execrows
+-- Escalation steps and e-mail fallbacks wait for a reaction; delayed first actions do not.
+DELETE FROM notification_pending_actions
+WHERE firing_id = ANY(sqlc.arg(firing_ids)::text[]::uuid[]) AND (step > 0 OR item->>'fallback' = 'true');
+
+-- name: ListPersonIDsByRoles :many
+SELECT DISTINCT person_id FROM person_roles WHERE role_id = ANY(sqlc.arg(role_ids)::text[]::uuid[]) ORDER BY person_id;
+
+-- name: ListDeliveryTargets :many
+-- One row per person and enabled account; people without an enabled account come with a NULL account.
+SELECT p.id AS person_id, a.id AS account_id, (btrim(coalesce(p.email, '')) <> '')::boolean AS has_email
+FROM people p
+LEFT JOIN accounts a ON a.person_id = p.id AND a.status = 'enabled'
+WHERE p.id = ANY(sqlc.arg(person_ids)::text[]::uuid[])
+ORDER BY p.id, a.id;
+
+-- name: ListGrantedConsentPeople :many
+SELECT person_id FROM notification_consents
+WHERE category_id = sqlc.arg(category_id) AND granted AND text_version = sqlc.arg(text_version)
+  AND person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]);
+
+-- name: ListPreferencesOfRule :many
+SELECT account_id, in_app, email FROM notification_rule_preferences
+WHERE rule_id = sqlc.arg(rule_id) AND account_id = ANY(sqlc.arg(account_ids)::text[]::uuid[]);
+
+-- name: AccountHasPermission :one
+-- Whether an enabled account holds a permission through a role; master holds every registered permission.
+SELECT EXISTS (
+    SELECT 1
+    FROM accounts a
+    JOIN person_roles pr ON pr.person_id = a.person_id
+    JOIN roles r ON r.id = pr.role_id
+    WHERE a.id = sqlc.arg(account_id) AND a.status = 'enabled'
+      AND (r.system_key = 'master' OR EXISTS (
+          SELECT 1 FROM role_permission_grants g WHERE g.role_id = r.id AND g.permission_id = sqlc.arg(permission_id)::text))
+)::boolean;
+
+-- name: MailDeliveryEnabled :one
+SELECT COALESCE((SELECT enabled FROM mail_configuration LIMIT 1), false)::boolean;
+
+-- name: InsertRuleNotification :exec
+INSERT INTO inbox_notifications (id, kind, title, body, link, created_at, expires_at, rule_id, firing_id, category_id)
+VALUES (sqlc.arg(id), 'rule', sqlc.arg(title), sqlc.arg(body), sqlc.narg(link), sqlc.arg(created_at),
+        sqlc.arg(expires_at), sqlc.narg(rule_id), sqlc.arg(firing_id), sqlc.narg(category_id));
+
+-- name: InsertRuleNotificationRecipients :exec
+INSERT INTO inbox_recipients (notification_id, account_id)
+SELECT sqlc.arg(notification_id)::uuid, account_id FROM unnest(sqlc.arg(account_ids)::text[]::uuid[]) AS account_id
+ON CONFLICT DO NOTHING;
+
+-- name: InsertRuleMail :exec
+INSERT INTO notification_mail_outbox (id, kind, person_id, subject, body, link, firing_id)
+VALUES (sqlc.arg(id), 'rule', sqlc.arg(person_id), sqlc.arg(subject), sqlc.arg(body), sqlc.narg(link), sqlc.arg(firing_id));
+
+-- name: ListMembershipsOfPeople :many
+SELECT DISTINCT ON (pr.person_id) pr.person_id, r.system_key::text AS membership
+FROM person_roles pr
+JOIN roles r ON r.id = pr.role_id
+WHERE pr.person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]) AND r.system_key IN ('supervisor', 'trainee', 'visitor')
+ORDER BY pr.person_id, CASE r.system_key WHEN 'supervisor' THEN 0 WHEN 'trainee' THEN 1 ELSE 2 END;
+
+-- name: ListRoleIDsOfPeople :many
+SELECT person_id, role_id FROM person_roles WHERE person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]);
+
+-- name: ListCheckedInPeople :many
+SELECT DISTINCT person_id FROM visits
+WHERE status = 'checked_in' AND person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]);
+
+-- name: ListLastVisits :many
+SELECT person_id, max(checked_in_at)::timestamptz AS last_visit FROM visits
+WHERE status <> 'voided' AND person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[])
+GROUP BY person_id;
+
+-- name: ListPeopleSignedUpBetween :many
+SELECT DISTINCT a.person_id
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+WHERE t.starts_at >= sqlc.arg(from_time) AND t.starts_at < sqlc.arg(to_time)
+  AND a.person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]);
+
+-- name: CountCheckedInPeople :one
+SELECT count(*) FROM visits WHERE status = 'checked_in';
+
+-- name: OpenDayRunning :one
+SELECT EXISTS (
+    SELECT 1 FROM open_days WHERE status = 'scheduled' AND starts_at <= sqlc.arg(now) AND ends_at > sqlc.arg(now)
+)::boolean;
+
+-- name: ClaimDuePendingAction :one
+-- Takes the oldest due action together with what the delivery needs to know about its firing and rule. The row stays
+-- locked until the caller's transaction ends.
+SELECT p.id, p.firing_id, p.step, p.action, p.item, p.recipients, p.attempts,
+       f.rule_id, f.resolved_at AS firing_resolved_at, f.test AS firing_test,
+       r.enabled AS rule_enabled, r.name AS rule_name, r.mandatory, r.category_id, r.definition, r.owner_account_id,
+       c.basis AS category_basis, c.text_version AS category_text_version
+FROM notification_pending_actions p
+JOIN notification_firings f ON f.id = p.firing_id
+JOIN notification_rules r ON r.id = f.rule_id
+LEFT JOIN notification_categories c ON c.id = r.category_id
+WHERE p.due_at <= sqlc.arg(now)
+ORDER BY p.due_at, p.id
+LIMIT 1
+FOR UPDATE OF p SKIP LOCKED;
+
+-- name: DeletePendingAction :exec
+DELETE FROM notification_pending_actions WHERE id = sqlc.arg(id);
+
+-- name: DeletePendingActionsOfFiring :exec
+DELETE FROM notification_pending_actions WHERE firing_id = sqlc.arg(firing_id) AND step > 0;
+
+-- name: ResolveFiring :exec
+UPDATE notification_firings SET resolved_at = sqlc.arg(resolved_at), resolved_reason = sqlc.arg(reason)
+WHERE id = sqlc.arg(id) AND resolved_at IS NULL;
+
+-- name: DeferPendingAction :exec
+UPDATE notification_pending_actions SET attempts = attempts + 1, due_at = sqlc.arg(due_at) WHERE id = sqlc.arg(id);
+
+-- name: FiringWasRead :one
+-- Whether anybody opened an in-app notification of the firing.
+SELECT EXISTS (
+    SELECT 1 FROM notification_firing_recipients fr
+    JOIN inbox_recipients ir ON ir.notification_id = fr.notification_id
+    WHERE fr.firing_id = sqlc.arg(firing_id) AND ir.read_at IS NOT NULL
+)::boolean;
+
+-- name: ListPeopleWhoHaveNotRead :many
+SELECT DISTINCT a.person_id FROM inbox_recipients ir
+JOIN accounts a ON a.id = ir.account_id
+WHERE ir.notification_id = sqlc.arg(notification_id) AND ir.read_at IS NULL;

@@ -53,6 +53,35 @@ When an event fires, the emitter resolves the people the rule names (operator, t
 
 **E-mail delivery.** The emitter writes the e-mail into `notification_mail_outbox` in the transaction of the event, naming the person or organization but never an address. The scheduler job `inbox.mail_delivery` (every minute and at start) reads the address when it sends, uses the branded layout with a button to the notification's link, and deletes the row once sent. A recipient without an address, a deleted person or organization, switched-off mail delivery, five failed attempts or an age of a day drop the mail. Neither addresses nor message bodies are logged. Manual runs have no end event (their end time is set in advance), so only cancelling one notifies.
 
+## Rule dispatch
+
+Feature code reports what happened with `notifyrules.Dispatcher.Emit(ctx, tx, event)` inside the transaction of the
+mutation and calls `Resolve(ctx, tx, token, reason)` when the thing the event was about is over. Both are in
+`internal/notifyrules` (`dispatch.go`, `deliver.go`, `pending.go`).
+
+- `Emit` loads the enabled event rules (central and personal) of the trigger. Every rule runs in its own savepoint: a
+  definition that cannot be read or a failing statement is logged with the rule's identifier and skipped, so rules
+  never fail the mutation. Only errors that break the transaction are returned.
+- Conditions use the event's `e.` fields, `n.weekday`/`n.hour` (makerspace time zone), `n.present` and
+  `n.openDayRunning`, and per recipient the `r.` facts `systemRole`, `roles`, `checkedIn`, `lastVisit` and
+  `signedUpNext14`. Other recipient facts are not loadable yet; a rule that asks for one reaches nobody instead of
+  everybody. Conditions on fields the context lacks are ignored.
+- Personal rules are subscriptions: they fire for the owner while the owner still holds the trigger's permission, and
+  events about one person (`self` recipient) reach only that person's own rules.
+- A rule fires (one `notification_firings` row, one throttle window) when its conditions hold and at least one recipient
+  passes the `r.` conditions. A throttle per subject or per rule suppresses the whole firing; a throttle per person
+  logs `throttled` rows.
+- Per recipient the log records `sent`, `skipped_consent` (the category needs consent at its current text version),
+  `skipped_muted` (the person's channel choice, ignored for mandatory rules whose channels would all be off),
+  `skipped_condition` or `throttled`. A channel a person switched on that the rule does not use is added.
+- In-app delivery writes one `inbox_notifications` row of kind `rule` (with rule, firing and category) for all
+  reachable people; people without an enabled account only receive e-mail. E-mail is queued in
+  `notification_mail_outbox` (kind `rule`) while mail delivery is switched on and sent by the existing mail job.
+- Delayed actions, e-mail fallbacks (`emailFallbackMinutes`) and escalation steps are stored in
+  `notification_pending_actions`; the scheduler job `notifyrules.pending` delivers them every minute. Escalation steps
+  and fallbacks of a resolved firing, or of a firing whose in-app notification was read, are dropped. Until delivery
+  tracking exists, reading counts as opened, seen and acknowledged.
+
 ## Frontend
 
 - The bell is an `IconButton` with a `badgeCount` in the header next to the profile action (Carbon's `HeaderGlobalAction` has no badge). The panel is a Carbon `HeaderPanel` whose content (`NotificationList`) is lazy-loaded and fetched the first time it is opened. Clicking a notification marks it read and follows its link; each item can be dismissed and "Mark all as read" clears the badge. Nothing is stored in the browser.

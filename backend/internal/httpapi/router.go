@@ -26,6 +26,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -178,6 +179,13 @@ func NewApplicationWithRelay(
 		Run: func(ctx context.Context) (scheduler.Summary, error) {
 			sent, err := server.noticeMail.Deliver(ctx, inbox.MailDeliveryBatch)
 			return scheduler.Summary{"sent": sent}, err
+		},
+	})
+	jobs.Add(scheduler.Job{
+		ID: "notifyrules.pending", Interval: notifyrules.PendingInterval, RunAtStart: true,
+		Run: func(ctx context.Context) (scheduler.Summary, error) {
+			handled, err := server.notifyDispatcher.RunPending(ctx, notifyrules.PendingBatch)
+			return scheduler.Summary{"handled": handled}, err
 		},
 	})
 	jobs.Add(scheduler.Job{

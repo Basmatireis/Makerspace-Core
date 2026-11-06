@@ -12,26 +12,52 @@ import (
 )
 
 type Querier interface {
+	// Whether an enabled account holds a permission through a role; master holds every registered permission.
+	AccountHasPermission(ctx context.Context, arg AccountHasPermissionParams) (bool, error)
+	// Takes the oldest due action together with what the delivery needs to know about its firing and rule. The row stays
+	// locked until the caller's transaction ends.
+	ClaimDuePendingAction(ctx context.Context, now time.Time) (ClaimDuePendingActionRow, error)
+	// Starts the throttle window for a subject unless an earlier one still runs. Zero rows mean the firing is throttled.
+	ClaimThrottle(ctx context.Context, arg ClaimThrottleParams) (int64, error)
 	CountCategories(ctx context.Context) (int64, error)
 	CountCentralRules(ctx context.Context) (int64, error)
+	CountCheckedInPeople(ctx context.Context) (int64, error)
 	CountOwnRules(ctx context.Context, ownerAccountID *uuid.UUID) (int64, error)
 	// Consent categories the person has not answered at the category's current text.
 	CountPendingConsents(ctx context.Context, personID uuid.UUID) (int64, error)
+	DeferPendingAction(ctx context.Context, arg DeferPendingActionParams) error
 	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) (int64, error)
 	// Retention of the delivery log; recipients and pending actions cascade.
 	DeleteFiringsCreatedBefore(ctx context.Context, cutoff time.Time) (int64, error)
+	DeletePendingAction(ctx context.Context, id uuid.UUID) error
+	DeletePendingActionsOfFiring(ctx context.Context, firingID uuid.UUID) error
+	// Escalation steps and e-mail fallbacks wait for a reaction; delayed first actions do not.
+	DeletePendingEscalations(ctx context.Context, firingIds []string) (int64, error)
 	DeleteRule(ctx context.Context, arg DeleteRuleParams) (int64, error)
+	// Whether anybody opened an in-app notification of the firing.
+	FiringWasRead(ctx context.Context, firingID uuid.UUID) (bool, error)
 	GetCategory(ctx context.Context, id uuid.UUID) (GetCategoryRow, error)
 	GetCategoryForUpdate(ctx context.Context, id uuid.UUID) (NotificationCategory, error)
 	GetPersonSettings(ctx context.Context, personID uuid.UUID) (PersonNotificationSetting, error)
 	GetRule(ctx context.Context, id uuid.UUID) (NotificationRule, error)
 	GetRuleForUpdate(ctx context.Context, id uuid.UUID) (NotificationRule, error)
 	InsertCategory(ctx context.Context, arg InsertCategoryParams) error
+	InsertFiring(ctx context.Context, arg InsertFiringParams) error
+	InsertFiringRecipient(ctx context.Context, arg InsertFiringRecipientParams) error
+	InsertPendingAction(ctx context.Context, arg InsertPendingActionParams) error
 	InsertRule(ctx context.Context, arg InsertRuleParams) error
+	InsertRuleMail(ctx context.Context, arg InsertRuleMailParams) error
+	InsertRuleNotification(ctx context.Context, arg InsertRuleNotificationParams) error
+	InsertRuleNotificationRecipients(ctx context.Context, arg InsertRuleNotificationRecipientsParams) error
 	ListCategories(ctx context.Context) ([]ListCategoriesRow, error)
 	ListCentralRules(ctx context.Context, since time.Time) ([]ListCentralRulesRow, error)
+	ListCheckedInPeople(ctx context.Context, personIds []string) ([]uuid.UUID, error)
 	ListConsentsOfPerson(ctx context.Context, personID uuid.UUID) ([]NotificationConsent, error)
+	// One row per person and enabled account; people without an enabled account come with a NULL account.
+	ListDeliveryTargets(ctx context.Context, personIds []string) ([]ListDeliveryTargetsRow, error)
 	ListEnabledCentralRules(ctx context.Context) ([]ListEnabledCentralRulesRow, error)
+	// Enabled central and personal rules that fire on one event. Personal rules have no category and carry their owner.
+	ListEnabledEventRules(ctx context.Context, triggerEvent *string) ([]ListEnabledEventRulesRow, error)
 	ListExistingDeviceIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListExistingDisplayIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListExistingPersonIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
@@ -39,15 +65,28 @@ type Querier interface {
 	ListFilamentTypeOptions(ctx context.Context) ([]ListFilamentTypeOptionsRow, error)
 	// Firings per rule and day since a point in time, for the sparklines of the rule list.
 	ListFiringDays(ctx context.Context, since time.Time) ([]ListFiringDaysRow, error)
+	ListGrantedConsentPeople(ctx context.Context, arg ListGrantedConsentPeopleParams) ([]uuid.UUID, error)
 	ListHeldRoles(ctx context.Context, personID uuid.UUID) ([]ListHeldRolesRow, error)
+	ListLastVisits(ctx context.Context, personIds []string) ([]ListLastVisitsRow, error)
 	ListMachineOptions(ctx context.Context) ([]ListMachineOptionsRow, error)
 	ListMaterialTypeOptions(ctx context.Context) ([]ListMaterialTypeOptionsRow, error)
+	ListMembershipsOfPeople(ctx context.Context, personIds []string) ([]ListMembershipsOfPeopleRow, error)
 	ListOwnRules(ctx context.Context, ownerAccountID *uuid.UUID) ([]NotificationRule, error)
+	ListPeopleSignedUpBetween(ctx context.Context, arg ListPeopleSignedUpBetweenParams) ([]uuid.UUID, error)
+	ListPeopleWhoHaveNotRead(ctx context.Context, notificationID uuid.UUID) ([]uuid.UUID, error)
+	ListPersonIDsByRoles(ctx context.Context, roleIds []string) ([]uuid.UUID, error)
 	ListPreferencesOfAccount(ctx context.Context, accountID uuid.UUID) ([]NotificationRulePreference, error)
+	ListPreferencesOfRule(ctx context.Context, arg ListPreferencesOfRuleParams) ([]ListPreferencesOfRuleRow, error)
 	ListPrinterOptions(ctx context.Context) ([]ListPrinterOptionsRow, error)
 	ListProcessOptions(ctx context.Context) ([]ListProcessOptionsRow, error)
+	ListRoleIDsOfPeople(ctx context.Context, personIds []string) ([]ListRoleIDsOfPeopleRow, error)
 	ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, error)
 	ListTrainingOptions(ctx context.Context) ([]ListTrainingOptionsRow, error)
+	MailDeliveryEnabled(ctx context.Context) (bool, error)
+	MarkRuleFired(ctx context.Context, arg MarkRuleFiredParams) error
+	OpenDayRunning(ctx context.Context, now time.Time) (bool, error)
+	ResolveFiring(ctx context.Context, arg ResolveFiringParams) error
+	ResolveOpenFirings(ctx context.Context, arg ResolveOpenFiringsParams) ([]uuid.UUID, error)
 	// Asking again bumps the text version: answers to an older text stop counting.
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (int64, error)
 	// A changed definition clears next_run_at so the scheduler computes it afresh.

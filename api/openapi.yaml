@@ -12081,7 +12081,7 @@ components:
 
     NotificationKind:
       type: string
-      enum: [message, lab_rules_published, open_day_period_open, open_day_place_freed, open_day_timeslot_changed, open_day_timeslot_removed, open_day_cancelled, open_day_assigned_by_other, open_day_unassigned_by_other, run_finished, printer_error, filament_change]
+      enum: [message, lab_rules_published, open_day_period_open, open_day_place_freed, open_day_timeslot_changed, open_day_timeslot_removed, open_day_cancelled, open_day_assigned_by_other, open_day_unassigned_by_other, run_finished, printer_error, filament_change, rule]
       x-enum-varnames: [NotificationKindMessage, NotificationKindLabRulesPublished, NotificationKindOpenDayPeriodOpen, NotificationKindOpenDayPlaceFreed, NotificationKindOpenDayTimeslotChanged, NotificationKindOpenDayTimeslotRemoved, NotificationKindOpenDayCancelled, NotificationKindOpenDayAssignedByOther, NotificationKindOpenDayUnassignedByOther, NotificationKindRunFinished, NotificationKindPrinterError, NotificationKindFilamentChange]
 
     Notification:

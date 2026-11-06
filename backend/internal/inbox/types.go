@@ -23,6 +23,8 @@ const (
 	KindRunFinished              Kind = "run_finished"
 	KindPrinterError             Kind = "printer_error"
 	KindFilamentChange           Kind = "filament_change"
+	// KindRule marks the notifications the notification rules write.
+	KindRule Kind = "rule"
 )
 
 // LabRulesConfirmLink is the page that shows the current Lab Rules and asks for the confirmation; Lab Rules

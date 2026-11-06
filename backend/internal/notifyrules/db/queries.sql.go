@@ -13,6 +13,123 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const accountHasPermission = `-- name: AccountHasPermission :one
+SELECT EXISTS (
+    SELECT 1
+    FROM accounts a
+    JOIN person_roles pr ON pr.person_id = a.person_id
+    JOIN roles r ON r.id = pr.role_id
+    WHERE a.id = $1 AND a.status = 'enabled'
+      AND (r.system_key = 'master' OR EXISTS (
+          SELECT 1 FROM role_permission_grants g WHERE g.role_id = r.id AND g.permission_id = $2::text))
+)::boolean
+`
+
+type AccountHasPermissionParams struct {
+	AccountID    uuid.UUID
+	PermissionID string
+}
+
+// Whether an enabled account holds a permission through a role; master holds every registered permission.
+func (q *Queries) AccountHasPermission(ctx context.Context, arg AccountHasPermissionParams) (bool, error) {
+	row := q.db.QueryRow(ctx, accountHasPermission, arg.AccountID, arg.PermissionID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const claimDuePendingAction = `-- name: ClaimDuePendingAction :one
+SELECT p.id, p.firing_id, p.step, p.action, p.item, p.recipients, p.attempts,
+       f.rule_id, f.resolved_at AS firing_resolved_at, f.test AS firing_test,
+       r.enabled AS rule_enabled, r.name AS rule_name, r.mandatory, r.category_id, r.definition, r.owner_account_id,
+       c.basis AS category_basis, c.text_version AS category_text_version
+FROM notification_pending_actions p
+JOIN notification_firings f ON f.id = p.firing_id
+JOIN notification_rules r ON r.id = f.rule_id
+LEFT JOIN notification_categories c ON c.id = r.category_id
+WHERE p.due_at <= $1
+ORDER BY p.due_at, p.id
+LIMIT 1
+FOR UPDATE OF p SKIP LOCKED
+`
+
+type ClaimDuePendingActionRow struct {
+	ID                  uuid.UUID
+	FiringID            uuid.UUID
+	Step                int32
+	Action              []byte
+	Item                []byte
+	Recipients          []byte
+	Attempts            int32
+	RuleID              uuid.UUID
+	FiringResolvedAt    pgtype.Timestamptz
+	FiringTest          bool
+	RuleEnabled         bool
+	RuleName            string
+	Mandatory           bool
+	CategoryID          *uuid.UUID
+	Definition          []byte
+	OwnerAccountID      *uuid.UUID
+	CategoryBasis       *string
+	CategoryTextVersion *int32
+}
+
+// Takes the oldest due action together with what the delivery needs to know about its firing and rule. The row stays
+// locked until the caller's transaction ends.
+func (q *Queries) ClaimDuePendingAction(ctx context.Context, now time.Time) (ClaimDuePendingActionRow, error) {
+	row := q.db.QueryRow(ctx, claimDuePendingAction, now)
+	var i ClaimDuePendingActionRow
+	err := row.Scan(
+		&i.ID,
+		&i.FiringID,
+		&i.Step,
+		&i.Action,
+		&i.Item,
+		&i.Recipients,
+		&i.Attempts,
+		&i.RuleID,
+		&i.FiringResolvedAt,
+		&i.FiringTest,
+		&i.RuleEnabled,
+		&i.RuleName,
+		&i.Mandatory,
+		&i.CategoryID,
+		&i.Definition,
+		&i.OwnerAccountID,
+		&i.CategoryBasis,
+		&i.CategoryTextVersion,
+	)
+	return i, err
+}
+
+const claimThrottle = `-- name: ClaimThrottle :execrows
+INSERT INTO notification_throttle (rule_id, subject_key, last_at)
+VALUES ($1, $2, $3)
+ON CONFLICT (rule_id, subject_key) DO UPDATE SET last_at = EXCLUDED.last_at
+WHERE notification_throttle.last_at <= $4
+`
+
+type ClaimThrottleParams struct {
+	RuleID      uuid.UUID
+	SubjectKey  string
+	Now         time.Time
+	WindowStart time.Time
+}
+
+// Starts the throttle window for a subject unless an earlier one still runs. Zero rows mean the firing is throttled.
+func (q *Queries) ClaimThrottle(ctx context.Context, arg ClaimThrottleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, claimThrottle,
+		arg.RuleID,
+		arg.SubjectKey,
+		arg.Now,
+		arg.WindowStart,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countCategories = `-- name: CountCategories :one
 SELECT count(*) FROM notification_categories
 `
@@ -30,6 +147,17 @@ SELECT count(*) FROM notification_rules WHERE owner_account_id IS NULL
 
 func (q *Queries) CountCentralRules(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, countCentralRules)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countCheckedInPeople = `-- name: CountCheckedInPeople :one
+SELECT count(*) FROM visits WHERE status = 'checked_in'
+`
+
+func (q *Queries) CountCheckedInPeople(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countCheckedInPeople)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -62,6 +190,20 @@ func (q *Queries) CountPendingConsents(ctx context.Context, personID uuid.UUID) 
 	return column_1, err
 }
 
+const deferPendingAction = `-- name: DeferPendingAction :exec
+UPDATE notification_pending_actions SET attempts = attempts + 1, due_at = $1 WHERE id = $2
+`
+
+type DeferPendingActionParams struct {
+	DueAt time.Time
+	ID    uuid.UUID
+}
+
+func (q *Queries) DeferPendingAction(ctx context.Context, arg DeferPendingActionParams) error {
+	_, err := q.db.Exec(ctx, deferPendingAction, arg.DueAt, arg.ID)
+	return err
+}
+
 const deleteCategory = `-- name: DeleteCategory :execrows
 DELETE FROM notification_categories WHERE id = $1 AND version = $2
 `
@@ -92,6 +234,38 @@ func (q *Queries) DeleteFiringsCreatedBefore(ctx context.Context, cutoff time.Ti
 	return result.RowsAffected(), nil
 }
 
+const deletePendingAction = `-- name: DeletePendingAction :exec
+DELETE FROM notification_pending_actions WHERE id = $1
+`
+
+func (q *Queries) DeletePendingAction(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePendingAction, id)
+	return err
+}
+
+const deletePendingActionsOfFiring = `-- name: DeletePendingActionsOfFiring :exec
+DELETE FROM notification_pending_actions WHERE firing_id = $1 AND step > 0
+`
+
+func (q *Queries) DeletePendingActionsOfFiring(ctx context.Context, firingID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePendingActionsOfFiring, firingID)
+	return err
+}
+
+const deletePendingEscalations = `-- name: DeletePendingEscalations :execrows
+DELETE FROM notification_pending_actions
+WHERE firing_id = ANY($1::text[]::uuid[]) AND (step > 0 OR item->>'fallback' = 'true')
+`
+
+// Escalation steps and e-mail fallbacks wait for a reaction; delayed first actions do not.
+func (q *Queries) DeletePendingEscalations(ctx context.Context, firingIds []string) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePendingEscalations, firingIds)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteRule = `-- name: DeleteRule :execrows
 DELETE FROM notification_rules WHERE id = $1 AND version = $2
 `
@@ -107,6 +281,22 @@ func (q *Queries) DeleteRule(ctx context.Context, arg DeleteRuleParams) (int64, 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const firingWasRead = `-- name: FiringWasRead :one
+SELECT EXISTS (
+    SELECT 1 FROM notification_firing_recipients fr
+    JOIN inbox_recipients ir ON ir.notification_id = fr.notification_id
+    WHERE fr.firing_id = $1 AND ir.read_at IS NOT NULL
+)::boolean
+`
+
+// Whether anybody opened an in-app notification of the firing.
+func (q *Queries) FiringWasRead(ctx context.Context, firingID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, firingWasRead, firingID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const getCategory = `-- name: GetCategory :one
@@ -264,6 +454,95 @@ func (q *Queries) InsertCategory(ctx context.Context, arg InsertCategoryParams) 
 	return err
 }
 
+const insertFiring = `-- name: InsertFiring :exec
+INSERT INTO notification_firings (id, rule_id, rule_name, trigger_type, summary, resolve_token, created_at)
+VALUES ($1, $2, $3, $4, $5,
+        $6, $7)
+`
+
+type InsertFiringParams struct {
+	ID           uuid.UUID
+	RuleID       uuid.UUID
+	RuleName     string
+	TriggerType  string
+	Summary      string
+	ResolveToken *string
+	CreatedAt    time.Time
+}
+
+func (q *Queries) InsertFiring(ctx context.Context, arg InsertFiringParams) error {
+	_, err := q.db.Exec(ctx, insertFiring,
+		arg.ID,
+		arg.RuleID,
+		arg.RuleName,
+		arg.TriggerType,
+		arg.Summary,
+		arg.ResolveToken,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const insertFiringRecipient = `-- name: InsertFiringRecipient :exec
+INSERT INTO notification_firing_recipients (id, firing_id, person_id, channel, step, status, notification_id, sent_at)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8)
+`
+
+type InsertFiringRecipientParams struct {
+	ID             uuid.UUID
+	FiringID       uuid.UUID
+	PersonID       *uuid.UUID
+	Channel        string
+	Step           int32
+	Status         string
+	NotificationID *uuid.UUID
+	SentAt         time.Time
+}
+
+func (q *Queries) InsertFiringRecipient(ctx context.Context, arg InsertFiringRecipientParams) error {
+	_, err := q.db.Exec(ctx, insertFiringRecipient,
+		arg.ID,
+		arg.FiringID,
+		arg.PersonID,
+		arg.Channel,
+		arg.Step,
+		arg.Status,
+		arg.NotificationID,
+		arg.SentAt,
+	)
+	return err
+}
+
+const insertPendingAction = `-- name: InsertPendingAction :exec
+INSERT INTO notification_pending_actions (id, firing_id, due_at, step, action, item, recipients)
+VALUES ($1, $2, $3, $4, $5::text::jsonb,
+        $6::text::jsonb, $7::text::jsonb)
+`
+
+type InsertPendingActionParams struct {
+	ID         uuid.UUID
+	FiringID   uuid.UUID
+	DueAt      time.Time
+	Step       int32
+	Action     string
+	Item       *string
+	Recipients string
+}
+
+func (q *Queries) InsertPendingAction(ctx context.Context, arg InsertPendingActionParams) error {
+	_, err := q.db.Exec(ctx, insertPendingAction,
+		arg.ID,
+		arg.FiringID,
+		arg.DueAt,
+		arg.Step,
+		arg.Action,
+		arg.Item,
+		arg.Recipients,
+	)
+	return err
+}
+
 const insertRule = `-- name: InsertRule :exec
 INSERT INTO notification_rules (
     id, owner_account_id, name, description, category_id, enabled, mandatory, trigger_type, trigger_event, definition
@@ -299,6 +578,81 @@ func (q *Queries) InsertRule(ctx context.Context, arg InsertRuleParams) error {
 		arg.TriggerEvent,
 		arg.Definition,
 	)
+	return err
+}
+
+const insertRuleMail = `-- name: InsertRuleMail :exec
+INSERT INTO notification_mail_outbox (id, kind, person_id, subject, body, link, firing_id)
+VALUES ($1, 'rule', $2, $3, $4, $5, $6)
+`
+
+type InsertRuleMailParams struct {
+	ID       uuid.UUID
+	PersonID *uuid.UUID
+	Subject  string
+	Body     string
+	Link     *string
+	FiringID *uuid.UUID
+}
+
+func (q *Queries) InsertRuleMail(ctx context.Context, arg InsertRuleMailParams) error {
+	_, err := q.db.Exec(ctx, insertRuleMail,
+		arg.ID,
+		arg.PersonID,
+		arg.Subject,
+		arg.Body,
+		arg.Link,
+		arg.FiringID,
+	)
+	return err
+}
+
+const insertRuleNotification = `-- name: InsertRuleNotification :exec
+INSERT INTO inbox_notifications (id, kind, title, body, link, created_at, expires_at, rule_id, firing_id, category_id)
+VALUES ($1, 'rule', $2, $3, $4, $5,
+        $6, $7, $8, $9)
+`
+
+type InsertRuleNotificationParams struct {
+	ID         uuid.UUID
+	Title      string
+	Body       string
+	Link       *string
+	CreatedAt  time.Time
+	ExpiresAt  time.Time
+	RuleID     *uuid.UUID
+	FiringID   *uuid.UUID
+	CategoryID *uuid.UUID
+}
+
+func (q *Queries) InsertRuleNotification(ctx context.Context, arg InsertRuleNotificationParams) error {
+	_, err := q.db.Exec(ctx, insertRuleNotification,
+		arg.ID,
+		arg.Title,
+		arg.Body,
+		arg.Link,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.RuleID,
+		arg.FiringID,
+		arg.CategoryID,
+	)
+	return err
+}
+
+const insertRuleNotificationRecipients = `-- name: InsertRuleNotificationRecipients :exec
+INSERT INTO inbox_recipients (notification_id, account_id)
+SELECT $1::uuid, account_id FROM unnest($2::text[]::uuid[]) AS account_id
+ON CONFLICT DO NOTHING
+`
+
+type InsertRuleNotificationRecipientsParams struct {
+	NotificationID uuid.UUID
+	AccountIds     []string
+}
+
+func (q *Queries) InsertRuleNotificationRecipients(ctx context.Context, arg InsertRuleNotificationRecipientsParams) error {
+	_, err := q.db.Exec(ctx, insertRuleNotificationRecipients, arg.NotificationID, arg.AccountIds)
 	return err
 }
 
@@ -424,6 +778,31 @@ func (q *Queries) ListCentralRules(ctx context.Context, since time.Time) ([]List
 	return items, nil
 }
 
+const listCheckedInPeople = `-- name: ListCheckedInPeople :many
+SELECT DISTINCT person_id FROM visits
+WHERE status = 'checked_in' AND person_id = ANY($1::text[]::uuid[])
+`
+
+func (q *Queries) ListCheckedInPeople(ctx context.Context, personIds []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listCheckedInPeople, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listConsentsOfPerson = `-- name: ListConsentsOfPerson :many
 SELECT person_id, category_id, granted, text_version, answered_at, place, device_id FROM notification_consents WHERE person_id = $1
 `
@@ -446,6 +825,41 @@ func (q *Queries) ListConsentsOfPerson(ctx context.Context, personID uuid.UUID) 
 			&i.Place,
 			&i.DeviceID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDeliveryTargets = `-- name: ListDeliveryTargets :many
+SELECT p.id AS person_id, a.id AS account_id, (btrim(coalesce(p.email, '')) <> '')::boolean AS has_email
+FROM people p
+LEFT JOIN accounts a ON a.person_id = p.id AND a.status = 'enabled'
+WHERE p.id = ANY($1::text[]::uuid[])
+ORDER BY p.id, a.id
+`
+
+type ListDeliveryTargetsRow struct {
+	PersonID  uuid.UUID
+	AccountID *uuid.UUID
+	HasEmail  bool
+}
+
+// One row per person and enabled account; people without an enabled account come with a NULL account.
+func (q *Queries) ListDeliveryTargets(ctx context.Context, personIds []string) ([]ListDeliveryTargetsRow, error) {
+	rows, err := q.db.Query(ctx, listDeliveryTargets, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDeliveryTargetsRow{}
+	for rows.Next() {
+		var i ListDeliveryTargetsRow
+		if err := rows.Scan(&i.PersonID, &i.AccountID, &i.HasEmail); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -494,6 +908,59 @@ func (q *Queries) ListEnabledCentralRules(ctx context.Context) ([]ListEnabledCen
 			&i.Mandatory,
 			&i.Definition,
 			&i.CategoryName,
+			&i.CategoryBasis,
+			&i.CategoryTextVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnabledEventRules = `-- name: ListEnabledEventRules :many
+SELECT r.id, r.name, r.owner_account_id, a.person_id AS owner_person_id, r.category_id, r.mandatory, r.definition,
+       c.basis AS category_basis, c.text_version AS category_text_version
+FROM notification_rules r
+LEFT JOIN notification_categories c ON c.id = r.category_id
+LEFT JOIN accounts a ON a.id = r.owner_account_id
+WHERE r.enabled AND r.trigger_type = 'event' AND r.trigger_event = $1
+ORDER BY r.created_at, r.id
+`
+
+type ListEnabledEventRulesRow struct {
+	ID                  uuid.UUID
+	Name                string
+	OwnerAccountID      *uuid.UUID
+	OwnerPersonID       *uuid.UUID
+	CategoryID          *uuid.UUID
+	Mandatory           bool
+	Definition          []byte
+	CategoryBasis       *string
+	CategoryTextVersion *int32
+}
+
+// Enabled central and personal rules that fire on one event. Personal rules have no category and carry their owner.
+func (q *Queries) ListEnabledEventRules(ctx context.Context, triggerEvent *string) ([]ListEnabledEventRulesRow, error) {
+	rows, err := q.db.Query(ctx, listEnabledEventRules, triggerEvent)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEnabledEventRulesRow{}
+	for rows.Next() {
+		var i ListEnabledEventRulesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OwnerAccountID,
+			&i.OwnerPersonID,
+			&i.CategoryID,
+			&i.Mandatory,
+			&i.Definition,
 			&i.CategoryBasis,
 			&i.CategoryTextVersion,
 		); err != nil {
@@ -666,6 +1133,38 @@ func (q *Queries) ListFiringDays(ctx context.Context, since time.Time) ([]ListFi
 	return items, nil
 }
 
+const listGrantedConsentPeople = `-- name: ListGrantedConsentPeople :many
+SELECT person_id FROM notification_consents
+WHERE category_id = $1 AND granted AND text_version = $2
+  AND person_id = ANY($3::text[]::uuid[])
+`
+
+type ListGrantedConsentPeopleParams struct {
+	CategoryID  uuid.UUID
+	TextVersion int32
+	PersonIds   []string
+}
+
+func (q *Queries) ListGrantedConsentPeople(ctx context.Context, arg ListGrantedConsentPeopleParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listGrantedConsentPeople, arg.CategoryID, arg.TextVersion, arg.PersonIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listHeldRoles = `-- name: ListHeldRoles :many
 SELECT r.id, r.name, r.system_key FROM person_roles pr JOIN roles r ON r.id = pr.role_id
 WHERE pr.person_id = $1
@@ -687,6 +1186,37 @@ func (q *Queries) ListHeldRoles(ctx context.Context, personID uuid.UUID) ([]List
 	for rows.Next() {
 		var i ListHeldRolesRow
 		if err := rows.Scan(&i.ID, &i.Name, &i.SystemKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLastVisits = `-- name: ListLastVisits :many
+SELECT person_id, max(checked_in_at)::timestamptz AS last_visit FROM visits
+WHERE status <> 'voided' AND person_id = ANY($1::text[]::uuid[])
+GROUP BY person_id
+`
+
+type ListLastVisitsRow struct {
+	PersonID  uuid.UUID
+	LastVisit time.Time
+}
+
+func (q *Queries) ListLastVisits(ctx context.Context, personIds []string) ([]ListLastVisitsRow, error) {
+	rows, err := q.db.Query(ctx, listLastVisits, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLastVisitsRow{}
+	for rows.Next() {
+		var i ListLastVisitsRow
+		if err := rows.Scan(&i.PersonID, &i.LastVisit); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -755,6 +1285,39 @@ func (q *Queries) ListMaterialTypeOptions(ctx context.Context) ([]ListMaterialTy
 	return items, nil
 }
 
+const listMembershipsOfPeople = `-- name: ListMembershipsOfPeople :many
+SELECT DISTINCT ON (pr.person_id) pr.person_id, r.system_key::text AS membership
+FROM person_roles pr
+JOIN roles r ON r.id = pr.role_id
+WHERE pr.person_id = ANY($1::text[]::uuid[]) AND r.system_key IN ('supervisor', 'trainee', 'visitor')
+ORDER BY pr.person_id, CASE r.system_key WHEN 'supervisor' THEN 0 WHEN 'trainee' THEN 1 ELSE 2 END
+`
+
+type ListMembershipsOfPeopleRow struct {
+	PersonID   uuid.UUID
+	Membership string
+}
+
+func (q *Queries) ListMembershipsOfPeople(ctx context.Context, personIds []string) ([]ListMembershipsOfPeopleRow, error) {
+	rows, err := q.db.Query(ctx, listMembershipsOfPeople, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMembershipsOfPeopleRow{}
+	for rows.Next() {
+		var i ListMembershipsOfPeopleRow
+		if err := rows.Scan(&i.PersonID, &i.Membership); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOwnRules = `-- name: ListOwnRules :many
 SELECT id, owner_account_id, name, description, category_id, enabled, mandatory, trigger_type, trigger_event, definition, system_key, next_run_at, last_fired_at, created_at, updated_at, version FROM notification_rules WHERE owner_account_id = $1 ORDER BY lower(name), id
 `
@@ -796,6 +1359,91 @@ func (q *Queries) ListOwnRules(ctx context.Context, ownerAccountID *uuid.UUID) (
 	return items, nil
 }
 
+const listPeopleSignedUpBetween = `-- name: ListPeopleSignedUpBetween :many
+SELECT DISTINCT a.person_id
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+WHERE t.starts_at >= $1 AND t.starts_at < $2
+  AND a.person_id = ANY($3::text[]::uuid[])
+`
+
+type ListPeopleSignedUpBetweenParams struct {
+	FromTime  time.Time
+	ToTime    time.Time
+	PersonIds []string
+}
+
+func (q *Queries) ListPeopleSignedUpBetween(ctx context.Context, arg ListPeopleSignedUpBetweenParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPeopleSignedUpBetween, arg.FromTime, arg.ToTime, arg.PersonIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPeopleWhoHaveNotRead = `-- name: ListPeopleWhoHaveNotRead :many
+SELECT DISTINCT a.person_id FROM inbox_recipients ir
+JOIN accounts a ON a.id = ir.account_id
+WHERE ir.notification_id = $1 AND ir.read_at IS NULL
+`
+
+func (q *Queries) ListPeopleWhoHaveNotRead(ctx context.Context, notificationID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPeopleWhoHaveNotRead, notificationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPersonIDsByRoles = `-- name: ListPersonIDsByRoles :many
+SELECT DISTINCT person_id FROM person_roles WHERE role_id = ANY($1::text[]::uuid[]) ORDER BY person_id
+`
+
+func (q *Queries) ListPersonIDsByRoles(ctx context.Context, roleIds []string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPersonIDsByRoles, roleIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPreferencesOfAccount = `-- name: ListPreferencesOfAccount :many
 SELECT account_id, rule_id, in_app, email, updated_at FROM notification_rule_preferences WHERE account_id = $1
 `
@@ -816,6 +1464,42 @@ func (q *Queries) ListPreferencesOfAccount(ctx context.Context, accountID uuid.U
 			&i.Email,
 			&i.UpdatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPreferencesOfRule = `-- name: ListPreferencesOfRule :many
+SELECT account_id, in_app, email FROM notification_rule_preferences
+WHERE rule_id = $1 AND account_id = ANY($2::text[]::uuid[])
+`
+
+type ListPreferencesOfRuleParams struct {
+	RuleID     uuid.UUID
+	AccountIds []string
+}
+
+type ListPreferencesOfRuleRow struct {
+	AccountID uuid.UUID
+	InApp     bool
+	Email     bool
+}
+
+func (q *Queries) ListPreferencesOfRule(ctx context.Context, arg ListPreferencesOfRuleParams) ([]ListPreferencesOfRuleRow, error) {
+	rows, err := q.db.Query(ctx, listPreferencesOfRule, arg.RuleID, arg.AccountIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPreferencesOfRuleRow{}
+	for rows.Next() {
+		var i ListPreferencesOfRuleRow
+		if err := rows.Scan(&i.AccountID, &i.InApp, &i.Email); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -886,6 +1570,35 @@ func (q *Queries) ListProcessOptions(ctx context.Context) ([]ListProcessOptionsR
 	return items, nil
 }
 
+const listRoleIDsOfPeople = `-- name: ListRoleIDsOfPeople :many
+SELECT person_id, role_id FROM person_roles WHERE person_id = ANY($1::text[]::uuid[])
+`
+
+type ListRoleIDsOfPeopleRow struct {
+	PersonID uuid.UUID
+	RoleID   uuid.UUID
+}
+
+func (q *Queries) ListRoleIDsOfPeople(ctx context.Context, personIds []string) ([]ListRoleIDsOfPeopleRow, error) {
+	rows, err := q.db.Query(ctx, listRoleIDsOfPeople, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRoleIDsOfPeopleRow{}
+	for rows.Next() {
+		var i ListRoleIDsOfPeopleRow
+		if err := rows.Scan(&i.PersonID, &i.RoleID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRoleOptions = `-- name: ListRoleOptions :many
 SELECT id, name FROM roles ORDER BY lower(name), id
 `
@@ -937,6 +1650,92 @@ func (q *Queries) ListTrainingOptions(ctx context.Context) ([]ListTrainingOption
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const mailDeliveryEnabled = `-- name: MailDeliveryEnabled :one
+SELECT COALESCE((SELECT enabled FROM mail_configuration LIMIT 1), false)::boolean
+`
+
+func (q *Queries) MailDeliveryEnabled(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, mailDeliveryEnabled)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const markRuleFired = `-- name: MarkRuleFired :exec
+UPDATE notification_rules SET last_fired_at = $1 WHERE id = $2
+`
+
+type MarkRuleFiredParams struct {
+	FiredAt pgtype.Timestamptz
+	ID      uuid.UUID
+}
+
+func (q *Queries) MarkRuleFired(ctx context.Context, arg MarkRuleFiredParams) error {
+	_, err := q.db.Exec(ctx, markRuleFired, arg.FiredAt, arg.ID)
+	return err
+}
+
+const openDayRunning = `-- name: OpenDayRunning :one
+SELECT EXISTS (
+    SELECT 1 FROM open_days WHERE status = 'scheduled' AND starts_at <= $1 AND ends_at > $1
+)::boolean
+`
+
+func (q *Queries) OpenDayRunning(ctx context.Context, now time.Time) (bool, error) {
+	row := q.db.QueryRow(ctx, openDayRunning, now)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const resolveFiring = `-- name: ResolveFiring :exec
+UPDATE notification_firings SET resolved_at = $1, resolved_reason = $2
+WHERE id = $3 AND resolved_at IS NULL
+`
+
+type ResolveFiringParams struct {
+	ResolvedAt pgtype.Timestamptz
+	Reason     *string
+	ID         uuid.UUID
+}
+
+func (q *Queries) ResolveFiring(ctx context.Context, arg ResolveFiringParams) error {
+	_, err := q.db.Exec(ctx, resolveFiring, arg.ResolvedAt, arg.Reason, arg.ID)
+	return err
+}
+
+const resolveOpenFirings = `-- name: ResolveOpenFirings :many
+UPDATE notification_firings SET resolved_at = $1, resolved_reason = $2
+WHERE resolve_token = $3 AND resolved_at IS NULL
+RETURNING id
+`
+
+type ResolveOpenFiringsParams struct {
+	ResolvedAt pgtype.Timestamptz
+	Reason     *string
+	Token      *string
+}
+
+func (q *Queries) ResolveOpenFirings(ctx context.Context, arg ResolveOpenFiringsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, resolveOpenFirings, arg.ResolvedAt, arg.Reason, arg.Token)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

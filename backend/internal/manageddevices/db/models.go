@@ -449,6 +449,9 @@ type InboxNotification struct {
 	CreatedByAccountID *uuid.UUID
 	CreatedAt          time.Time
 	ExpiresAt          time.Time
+	RuleID             *uuid.UUID
+	FiringID           *uuid.UUID
+	CategoryID         *uuid.UUID
 }
 
 type InboxNotificationRole struct {
@@ -944,6 +947,7 @@ type NotificationMailOutbox struct {
 	Attempts       int32
 	NextAttemptAt  time.Time
 	CreatedAt      time.Time
+	FiringID       *uuid.UUID
 }
 
 type NotificationPendingAction struct {

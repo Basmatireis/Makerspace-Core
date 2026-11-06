@@ -569,7 +569,7 @@ VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8
 )
-RETURNING id, kind, title, body, link, created_by_account_id, created_at, expires_at
+RETURNING id, kind, title, body, link, created_by_account_id, created_at, expires_at, rule_id, firing_id, category_id
 `
 
 type InsertNotificationParams struct {
@@ -604,6 +604,9 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 		&i.CreatedByAccountID,
 		&i.CreatedAt,
 		&i.ExpiresAt,
+		&i.RuleID,
+		&i.FiringID,
+		&i.CategoryID,
 	)
 	return i, err
 }
