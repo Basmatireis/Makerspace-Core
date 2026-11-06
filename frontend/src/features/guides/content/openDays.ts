@@ -119,8 +119,8 @@ export const openDaysGuides: GuideDefinition[] = [
       {
         id: 'view',
         title: 'List or calendar',
-        body: 'Switch between the list and the calendar. The calendar shows each day with its times and how many places are taken.',
-        target: '.od-switch',
+        body: 'This button switches between the list and the calendar. The calendar shows each day with its times and how many places are taken.',
+        target: '[data-guide="open-days-view"]',
         placement: 'bottom',
       },
       {

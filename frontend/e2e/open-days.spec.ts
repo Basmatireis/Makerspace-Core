@@ -525,12 +525,21 @@ for (const width of [320, 390, 768, 1280, 1440]) {
     await expectAccessible(page);
     await capture(page, testInfo, `open-days-list-${width}.png`);
 
-    await page.getByRole('tab', { name: 'Calendar' }).click();
+    await page.getByRole('button', { name: 'Show calendar' }).click();
     await expect(page.getByRole('group', { name: 'Period calendar' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Friday 2 October/ })).toBeVisible();
     await expectNoSidewaysScroll(page);
     await expectAccessible(page);
     await capture(page, testInfo, `open-days-calendar-${width}.png`);
+
+    // In select mode the checkbox sits in the block's second line and never covers the time.
+    await page.getByRole('button', { name: 'Select' }).click();
+    const block = page.getByRole('button', { name: /Friday 2 October/ });
+    const time = await block.locator('.od-blk__t').boundingBox();
+    const box = await block.locator('.od-check .cds--checkbox-label').boundingBox();
+    expect(time && box && box.y >= time.y + time.height - 1).toBe(true);
+    await capture(page, testInfo, `open-days-calendar-select-${width}.png`);
+    await page.getByRole('button', { name: 'Done' }).click();
 
     await page.getByRole('button', { name: /Friday 2 October/ }).click();
     await expect(panelOf(page).getByRole('heading', { name: /Friday 2 October/ })).toBeVisible();

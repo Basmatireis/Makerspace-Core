@@ -2,22 +2,21 @@
 @use '@carbon/styles/scss/type' as *;
 @use '@carbon/styles/scss/theme' as theme;
 @use '@carbon/styles/scss/components/contained-list';
-@use '@carbon/styles/scss/components/content-switcher';
 
 // Layout glue for the Open Days pages. Every control is a Carbon component; this file only places them and colours the
 // viewer-relative states (urgent, open, mine, full ...) with theme tokens, so both color schemes work.
 
 .state-mine {
   --od-st: #{theme.$support-success};
-  --od-bg: #{theme.$highlight};
+  --od-bg: color-mix(in srgb, #{theme.$support-success} 18%, #{theme.$layer-01});
 }
 .state-urgent {
   --od-st: #{theme.$support-error};
-  --od-bg: #{theme.$layer-01};
+  --od-bg: color-mix(in srgb, #{theme.$support-error} 14%, #{theme.$layer-01});
 }
 .state-short {
   --od-st: #{theme.$support-error};
-  --od-bg: #{theme.$layer-01};
+  --od-bg: color-mix(in srgb, #{theme.$support-error} 14%, #{theme.$layer-01});
 }
 .state-open,
 .state-neutral {
@@ -346,9 +345,6 @@
 }
 
 // Toolbar and filters
-.od-toolbar .od-switch {
-  inline-size: auto;
-}
 .od-row-button {
   all: unset;
   cursor: pointer;
@@ -566,6 +562,13 @@
   position: absolute;
   inset-inline-start: 0.5rem;
   inset-block-start: 0.75rem;
+}
+.od-check--sm {
+  position: static;
+}
+.od-check--sm .cds--checkbox-label {
+  min-block-size: 1rem;
+  padding-inline-start: 1rem;
 }
 .od-list.is-selecting .od-row:not(.od-row--head) {
   padding-inline-start: 2.75rem;
@@ -941,7 +944,7 @@
   box-shadow: inset 0 0 0 1px var(--od-st);
 }
 .od-segs i.state-mine {
-  background: theme.$interactive;
+  background: theme.$support-success;
   box-shadow: none;
 }
 .od-segs i.state-urgent,
@@ -951,6 +954,19 @@
 }
 
 @media (max-width: 41.98rem) {
+  .od-toolbar .cds--table-toolbar,
+  .od-toolbar .cds--toolbar-content {
+    block-size: auto;
+  }
+  .od-toolbar .cds--toolbar-content {
+    flex-wrap: wrap;
+  }
+  .od-toolbar .cds--toolbar-content > .cds--search {
+    flex: 1 1 100%;
+  }
+  .od-toolbar .cds--toolbar-content > .cds--btn:not(.cds--btn--icon-only) {
+    flex: 1 1 auto;
+  }
   .od-cal {
     grid-template-columns: 1.75rem repeat(7, minmax(0, 1fr));
   }
@@ -979,7 +995,10 @@
     font-size: 0.6875rem;
     letter-spacing: -0.02em;
   }
-  .od-blk__row:has(.od-pp) {
+  .od-blk__row:has(.od-pp):not(:has(.od-check)) {
+    display: none;
+  }
+  .od-blk__row .od-pp {
     display: none;
   }
   .od-form__2 {
