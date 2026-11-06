@@ -19,11 +19,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { NotificationKind } from './notificationKind';
+import type { NotificationLevel } from './notificationLevel';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface Notification {
   id: UUIDv7;
   kind: NotificationKind;
+  level: NotificationLevel;
   /** @maxLength 120 */
   title: string;
   /**

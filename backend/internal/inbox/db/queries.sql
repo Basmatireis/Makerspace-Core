@@ -53,7 +53,7 @@ JOIN people p ON p.id = a.person_id
 WHERE a.id = sqlc.arg(account_id);
 
 -- name: ListOwnNotifications :many
-SELECT n.id, n.kind, n.title, n.body, n.link, n.created_at, rc.read_at
+SELECT n.id, n.kind, n.level, n.title, n.body, n.link, n.created_at, rc.read_at
 FROM inbox_recipients rc
 JOIN inbox_notifications n ON n.id = rc.notification_id
 WHERE rc.account_id = sqlc.arg(account_id) AND n.expires_at > sqlc.arg(now)
@@ -177,3 +177,57 @@ UPDATE notification_mail_outbox SET next_attempt_at = sqlc.arg(next_attempt_at) 
 
 -- name: DeleteNotificationMailsCreatedBefore :execrows
 DELETE FROM notification_mail_outbox WHERE created_at < sqlc.arg(before_time);
+
+-- name: UpsertAccountPresence :exec
+-- Only the latest moment the account had the application open in a visible tab is kept.
+INSERT INTO account_presence (account_id, last_visible_at) VALUES (sqlc.arg(account_id), sqlc.arg(now))
+ON CONFLICT (account_id) DO UPDATE SET last_visible_at = EXCLUDED.last_visible_at;
+
+-- name: ClaimUndeliveredNotifications :many
+-- Marks everything not yet delivered to the account as delivered and returns the notifications that need to appear
+-- on screen: banners and dialogs always, toasts only while they are recent (an account that was away for days does not
+-- get a burst of old pop-ups). Bell-only notifications are marked delivered and not returned.
+WITH claimed AS (
+    UPDATE inbox_recipients rc
+    SET delivered_at = sqlc.arg(now)
+    FROM inbox_notifications cn
+    WHERE cn.id = rc.notification_id AND rc.account_id = sqlc.arg(account_id) AND rc.delivered_at IS NULL
+      AND cn.expires_at > sqlc.arg(now)
+    RETURNING rc.notification_id
+)
+SELECT n.*
+FROM claimed c
+JOIN inbox_notifications n ON n.id = c.notification_id
+WHERE n.appearance IN ('banner', 'dialog') OR (n.appearance = 'toast' AND n.created_at > sqlc.arg(toast_since))
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT sqlc.arg(max_rows);
+
+-- name: ListPinnedNotifications :many
+-- Banners and dialogs that stay on screen until the account closes, acknowledges or postpones them.
+SELECT n.*
+FROM inbox_recipients rc
+JOIN inbox_notifications n ON n.id = rc.notification_id
+WHERE rc.account_id = sqlc.arg(account_id) AND n.appearance IN ('banner', 'dialog') AND n.expires_at > sqlc.arg(now)
+  AND rc.read_at IS NULL AND rc.acknowledged_at IS NULL
+  AND (rc.snoozed_until IS NULL OR rc.snoozed_until <= sqlc.arg(now))
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT sqlc.arg(max_rows);
+
+-- name: MarkOwnNotificationSeen :execrows
+UPDATE inbox_recipients
+SET seen_at = COALESCE(seen_at, sqlc.arg(now)), delivered_at = COALESCE(delivered_at, sqlc.arg(now))
+WHERE notification_id = sqlc.arg(notification_id) AND account_id = sqlc.arg(account_id);
+
+-- name: AcknowledgeOwnNotification :execrows
+-- Acknowledging also reads and sees the notification, and ends a postponement.
+UPDATE inbox_recipients
+SET acknowledged_at = COALESCE(acknowledged_at, sqlc.arg(now)), read_at = COALESCE(read_at, sqlc.arg(now)),
+    seen_at = COALESCE(seen_at, sqlc.arg(now)), delivered_at = COALESCE(delivered_at, sqlc.arg(now)),
+    snoozed_until = NULL
+WHERE notification_id = sqlc.arg(notification_id) AND account_id = sqlc.arg(account_id);
+
+-- name: PostponeOwnNotification :execrows
+UPDATE inbox_recipients
+SET snoozed_until = sqlc.arg(until), seen_at = COALESCE(seen_at, sqlc.arg(now)),
+    delivered_at = COALESCE(delivered_at, sqlc.arg(now))
+WHERE notification_id = sqlc.arg(notification_id) AND account_id = sqlc.arg(account_id);

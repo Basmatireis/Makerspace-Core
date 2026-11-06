@@ -86,7 +86,7 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, p
 	items := make([]Notification, 0, len(rows))
 	for _, row := range rows {
 		item := Notification{
-			ID: row.ID, Kind: Kind(row.Kind), Title: row.Title, Body: row.Body, Link: row.Link, CreatedAt: row.CreatedAt,
+			ID: row.ID, Kind: Kind(row.Kind), Level: Level(row.Level), Title: row.Title, Body: row.Body, Link: row.Link, CreatedAt: row.CreatedAt,
 		}
 		if row.ReadAt.Valid {
 			readAt := row.ReadAt.Time.UTC()
@@ -107,6 +107,111 @@ func (s *Service) UnreadCount(ctx context.Context, principal authorization.Princ
 		return 0, fmt.Errorf("count unread notifications: %w", err)
 	}
 	return count, nil
+}
+
+// Poll answers the periodic poll of the account's open, visible screen: it records that the account is online,
+// hands over the notifications that were not shown yet (marking them delivered) and the banners and dialogs that
+// must stay on screen, and counts the unread ones.
+func (s *Service) Poll(ctx context.Context, principal authorization.Principal) (Poll, error) {
+	now := s.now()
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Poll{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := inboxdb.New(tx)
+	if err := queries.UpsertAccountPresence(ctx, inboxdb.UpsertAccountPresenceParams{
+		AccountID: principal.AccountID, Now: now,
+	}); err != nil {
+		return Poll{}, fmt.Errorf("record presence: %w", err)
+	}
+	fresh, err := queries.ClaimUndeliveredNotifications(ctx, inboxdb.ClaimUndeliveredNotificationsParams{
+		Now: pgtype.Timestamptz{Time: now, Valid: true}, AccountID: principal.AccountID,
+		ToastSince: now.Add(-toastFreshness), MaxRows: maxFresh,
+	})
+	if err != nil {
+		return Poll{}, fmt.Errorf("claim undelivered notifications: %w", err)
+	}
+	pinned, err := queries.ListPinnedNotifications(ctx, inboxdb.ListPinnedNotificationsParams{
+		AccountID: principal.AccountID, Now: now, MaxRows: maxPinned,
+	})
+	if err != nil {
+		return Poll{}, fmt.Errorf("list pinned notifications: %w", err)
+	}
+	unread, err := queries.CountOwnUnreadNotifications(ctx, inboxdb.CountOwnUnreadNotificationsParams{
+		AccountID: principal.AccountID, Now: now,
+	})
+	if err != nil {
+		return Poll{}, fmt.Errorf("count unread notifications: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Poll{}, err
+	}
+	return Poll{UnreadCount: unread, Fresh: alerts(fresh), Pinned: alerts(pinned)}, nil
+}
+
+// alerts converts rows (newest first) into alerts, oldest first, so they appear in the order they happened.
+func alerts(rows []inboxdb.InboxNotification) []Alert {
+	result := make([]Alert, 0, len(rows))
+	for i := len(rows) - 1; i >= 0; i-- {
+		row := rows[i]
+		alert := Alert{
+			ID: row.ID, Appearance: Appearance(row.Appearance), Level: Level(row.Level), Title: row.Title, Body: row.Body,
+			Link: row.Link, OnlyButtonCloses: row.OnlyButtonCloses, AllowLater: row.AllowLater, CreatedAt: row.CreatedAt,
+			Button: AlertButton{Kind: row.ButtonKind, Label: row.ButtonLabel, Link: row.ButtonLink},
+		}
+		if row.ToastSeconds != nil {
+			seconds := int(*row.ToastSeconds)
+			alert.ToastSeconds = &seconds
+		}
+		result = append(result, alert)
+	}
+	return result
+}
+
+// MarkSeen records that a notification of the principal was on screen. Another account's notification is reported
+// as not found, exactly like a missing one.
+func (s *Service) MarkSeen(ctx context.Context, principal authorization.Principal, id uuid.UUID) error {
+	affected, err := inboxdb.New(s.pool).MarkOwnNotificationSeen(ctx, inboxdb.MarkOwnNotificationSeenParams{
+		Now: pgtype.Timestamptz{Time: s.now(), Valid: true}, NotificationID: id, AccountID: principal.AccountID,
+	})
+	if err != nil {
+		return fmt.Errorf("mark notification seen: %w", err)
+	}
+	if affected == 0 {
+		return apperror.NotFound
+	}
+	return nil
+}
+
+// Acknowledge records that the principal acknowledged a notification; it counts as read and seen too.
+func (s *Service) Acknowledge(ctx context.Context, principal authorization.Principal, id uuid.UUID) error {
+	affected, err := inboxdb.New(s.pool).AcknowledgeOwnNotification(ctx, inboxdb.AcknowledgeOwnNotificationParams{
+		Now: pgtype.Timestamptz{Time: s.now(), Valid: true}, NotificationID: id, AccountID: principal.AccountID,
+	})
+	if err != nil {
+		return fmt.Errorf("acknowledge notification: %w", err)
+	}
+	if affected == 0 {
+		return apperror.NotFound
+	}
+	return nil
+}
+
+// Postpone hides a banner or dialog of the principal for PostponeFor; it stays unread.
+func (s *Service) Postpone(ctx context.Context, principal authorization.Principal, id uuid.UUID) error {
+	now := s.now()
+	affected, err := inboxdb.New(s.pool).PostponeOwnNotification(ctx, inboxdb.PostponeOwnNotificationParams{
+		Now: pgtype.Timestamptz{Time: now, Valid: true}, Until: pgtype.Timestamptz{Time: now.Add(PostponeFor), Valid: true},
+		NotificationID: id, AccountID: principal.AccountID,
+	})
+	if err != nil {
+		return fmt.Errorf("postpone notification: %w", err)
+	}
+	if affected == 0 {
+		return apperror.NotFound
+	}
+	return nil
 }
 
 // MarkRead marks one of the principal's notifications as read. Another account's notification is

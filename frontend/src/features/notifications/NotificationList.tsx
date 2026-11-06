@@ -1,3 +1,4 @@
+import './styles.scss';
 import {
   Button,
   ContainedList,
@@ -7,7 +8,7 @@ import {
   SkeletonText,
   Tag,
 } from '@carbon/react';
-import { Close } from '@carbon/icons-react';
+import { CheckmarkFilled, Close, ErrorFilled, InformationFilled, WarningAltFilled } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Notification } from '../../api/generated/models';
 import { dismissNotification, markAllNotificationsRead } from '../../api/generated/notifications/notifications';
@@ -15,6 +16,13 @@ import { useNow } from '../../app/useNow';
 import { useOpenNotification } from './openNotification';
 import { notificationKeys, notificationListQuery, PANEL_PAGE_SIZE } from './queries';
 import { relativeTime } from './relativeTime';
+
+const LEVEL_ICONS = {
+  info: { Icon: InformationFilled, label: 'Information' },
+  success: { Icon: CheckmarkFilled, label: 'Success' },
+  warning: { Icon: WarningAltFilled, label: 'Warning' },
+  error: { Icon: ErrorFilled, label: 'Error' },
+} as const;
 
 type Props = {
   /** The panel is open; the list is only fetched (and refreshed on each opening) while it is. */
@@ -94,8 +102,9 @@ export function NotificationList({ active, onNavigate }: Props) {
                 </IconButton>
               }
             >
-              <div className="notification-item">
+              <div className={`notification-item notification-item--${item.level}`}>
                 <span className="notification-item__heading">
+                  <LevelIcon level={item.level} />
                   {!item.readAt && (
                     <Tag size="sm" type="blue">
                       New
@@ -116,5 +125,12 @@ export function NotificationList({ active, onNavigate }: Props) {
         </p>
       )}
     </div>
+  );
+}
+
+function LevelIcon({ level }: { level: Notification['level'] }) {
+  const { Icon, label } = LEVEL_ICONS[level];
+  return (
+    <Icon size={16} className={`notification-item__level notification-item__level--${level}`} aria-label={label} />
   );
 }

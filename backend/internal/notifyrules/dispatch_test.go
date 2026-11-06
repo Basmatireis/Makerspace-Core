@@ -127,10 +127,10 @@ func TestNowContextUsesTheMakerspaceTimeZone(t *testing.T) {
 	}
 }
 
-func TestStopsOnReading(t *testing.T) {
+func TestStopsOnRecipient(t *testing.T) {
 	for stop, want := range map[string]bool{"opened": true, "acknowledged": true, "seen": true, "error_cleared": false} {
-		if stopsOnReading(stop) != want {
-			t.Errorf("stopsOnReading(%q) = %v", stop, !want)
+		if stopsOnRecipient(stop) != want {
+			t.Errorf("stopsOnRecipient(%q) = %v", stop, !want)
 		}
 	}
 }

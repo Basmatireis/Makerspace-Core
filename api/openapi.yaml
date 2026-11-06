@@ -3959,8 +3959,12 @@ paths:
     get:
       tags: [Notifications]
       operationId: getNotificationUnreadCount
-      summary: Count the signed-in account's unread notifications
-      description: Cheap endpoint the application header polls.
+      summary: Count the signed-in account's unread notifications and hand over what is new on screen
+      description: >-
+        The endpoint the application header polls every minute while the tab is visible. Besides the count it records
+        that the account is online (only the latest moment is kept) and returns the notifications that were not shown
+        to the account yet (`fresh`), marking them as delivered, and the banners and dialogs that stay on screen until
+        the account closes, acknowledges or postpones them (`pinned`; this includes the new ones).
       security: [{sessionCookie: []}]
       responses:
         "200": {description: Unread count., content: {application/json: {schema: {$ref: "#/components/schemas/NotificationUnreadCount"}}}}
@@ -4056,6 +4060,48 @@ paths:
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
         "204": {description: The notification is read.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notifications/{notificationId}/seen:
+    parameters: [{$ref: "#/components/parameters/NotificationId"}]
+    post:
+      tags: [Notifications]
+      operationId: markNotificationSeen
+      summary: Report that a notification was on screen
+      description: Idempotent; the first time is kept. Seeing a notification can stop an escalation.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: The notification is marked as seen.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notifications/{notificationId}/acknowledge:
+    parameters: [{$ref: "#/components/parameters/NotificationId"}]
+    post:
+      tags: [Notifications]
+      operationId: acknowledgeNotification
+      summary: Acknowledge one of the signed-in account's notifications
+      description: Idempotent. Acknowledging also marks the notification as read and seen.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: The notification is acknowledged.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /notifications/{notificationId}/later:
+    parameters: [{$ref: "#/components/parameters/NotificationId"}]
+    post:
+      tags: [Notifications]
+      operationId: postponeNotification
+      summary: Postpone a banner or dialog for one hour
+      description: The notification stays unread and comes back in `pinned` after an hour.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: The notification is postponed.}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -12137,10 +12183,11 @@ components:
     Notification:
       type: object
       additionalProperties: false
-      required: [id, kind, title, body, link, createdAt, readAt]
+      required: [id, kind, level, title, body, link, createdAt, readAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         kind: {$ref: "#/components/schemas/NotificationKind"}
+        level: {$ref: "#/components/schemas/NotificationLevel"}
         title: {type: string, maxLength: 120}
         body: {type: string, maxLength: 2000, description: Plain text.}
         link: {type: string, maxLength: 500, nullable: true, description: "Either an application-relative path starting with a single `/` or an absolute `https://` URL of another site."}
@@ -12204,12 +12251,58 @@ components:
         url: {type: string, description: "The complete subscription link (the public base URL followed by `/api/v1/calendar/{token}.ics`); a path when no public base URL is configured. Shown only in this response."}
         createdAt: {type: string, format: date-time}
 
+    NotificationLevel:
+      type: string
+      enum: [info, success, warning, error]
+      x-enum-varnames: [NotificationLevelInfo, NotificationLevelSuccess, NotificationLevelWarning, NotificationLevelError]
+
+    NotificationAlert:
+      type: object
+      additionalProperties: false
+      required: [id, appearance, level, title, body, link, button, toastSeconds, onlyButtonCloses, allowLater, createdAt]
+      description: A notification that shows itself on screen as a pop-up, a banner or a dialog.
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        appearance:
+          type: string
+          enum: [toast, banner, dialog]
+          x-enum-varnames: [NotificationAlertAppearanceToast, NotificationAlertAppearanceBanner, NotificationAlertAppearanceDialog]
+        level: {$ref: "#/components/schemas/NotificationLevel"}
+        title: {type: string, maxLength: 120}
+        body: {type: string, maxLength: 2000, description: Plain text.}
+        link: {type: string, maxLength: 500, nullable: true, description: "Either an application-relative path starting with a single `/` or an absolute `https://` URL of another site."}
+        button:
+          type: object
+          additionalProperties: false
+          required: [kind, label, link]
+          properties:
+            kind:
+              type: string
+              enum: [none, ok, acknowledge, link]
+              x-enum-varnames: [NotificationAlertButtonKindNone, NotificationAlertButtonKindOk, NotificationAlertButtonKindAcknowledge, NotificationAlertButtonKindLink]
+            label: {type: string, maxLength: 40, nullable: true, description: The button's text; the application supplies a default for null.}
+            link: {type: string, maxLength: 500, nullable: true, description: Where a link button leads; same form as `link`.}
+        toastSeconds: {type: integer, minimum: 0, maximum: 3600, nullable: true, description: "Seconds a toast stays; 0 keeps it until it is closed; null is the default."}
+        onlyButtonCloses: {type: boolean, description: Only the button closes it; no close icon and no Escape.}
+        allowLater: {type: boolean, description: Offers "Remind me later".}
+        createdAt: {type: string, format: date-time}
+
     NotificationUnreadCount:
       type: object
       additionalProperties: false
-      required: [unreadCount]
+      required: [unreadCount, fresh, pinned]
       properties:
         unreadCount: {type: integer, format: int64, minimum: 0}
+        fresh:
+          type: array
+          maxItems: 20
+          items: {$ref: "#/components/schemas/NotificationAlert"}
+          description: Notifications that were not shown to the account yet, oldest first. Each is returned once.
+        pinned:
+          type: array
+          maxItems: 10
+          items: {$ref: "#/components/schemas/NotificationAlert"}
+          description: Unread banners and dialogs that are not postponed, oldest first; they reappear after a reload.
 
     SendNotificationMessageRequest:
       type: object
@@ -12542,7 +12635,7 @@ components:
         name: {type: string}
         channel: {type: string, enum: [in_app, email, signage, tablet]}
         step: {type: integer, minimum: 0, description: "0 is the rule's first actions, 1.. are escalation steps."}
-        status: {type: string, enum: [sent, skipped_consent, skipped_muted, skipped_condition, throttled, fallback]}
+        status: {type: string, enum: [sent, skipped_consent, skipped_muted, skipped_condition, throttled, fallback, skipped_offline]}
         sentAt: {type: string, format: date-time}
         readAt: {type: string, format: date-time, nullable: true}
 

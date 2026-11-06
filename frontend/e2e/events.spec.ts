@@ -372,7 +372,7 @@ async function mockApi(page: Page, options: Mock = {}) {
     const method = request.method();
     // The header bell polls the unread count on every page.
     if (path === '/api/v1/notifications/unread-count') {
-      await json(route, { unreadCount: 0 });
+      await json(route, { unreadCount: 0, fresh: [], pinned: [] });
       return;
     }
     if (path === '/api/v1/auth/activity' && method === 'POST')

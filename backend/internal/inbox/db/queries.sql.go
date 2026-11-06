@@ -13,6 +13,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acknowledgeOwnNotification = `-- name: AcknowledgeOwnNotification :execrows
+UPDATE inbox_recipients
+SET acknowledged_at = COALESCE(acknowledged_at, $1), read_at = COALESCE(read_at, $1),
+    seen_at = COALESCE(seen_at, $1), delivered_at = COALESCE(delivered_at, $1),
+    snoozed_until = NULL
+WHERE notification_id = $2 AND account_id = $3
+`
+
+type AcknowledgeOwnNotificationParams struct {
+	Now            pgtype.Timestamptz
+	NotificationID uuid.UUID
+	AccountID      uuid.UUID
+}
+
+// Acknowledging also reads and sees the notification, and ends a postponement.
+func (q *Queries) AcknowledgeOwnNotification(ctx context.Context, arg AcknowledgeOwnNotificationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, acknowledgeOwnNotification, arg.Now, arg.NotificationID, arg.AccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const claimDueNotificationMails = `-- name: ClaimDueNotificationMails :many
 UPDATE notification_mail_outbox o
 SET attempts = o.attempts + 1, next_attempt_at = $1
@@ -63,6 +86,78 @@ func (q *Queries) ClaimDueNotificationMails(ctx context.Context, arg ClaimDueNot
 			&i.Body,
 			&i.Link,
 			&i.Attempts,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const claimUndeliveredNotifications = `-- name: ClaimUndeliveredNotifications :many
+WITH claimed AS (
+    UPDATE inbox_recipients rc
+    SET delivered_at = $3
+    FROM inbox_notifications cn
+    WHERE cn.id = rc.notification_id AND rc.account_id = $4 AND rc.delivered_at IS NULL
+      AND cn.expires_at > $3
+    RETURNING rc.notification_id
+)
+SELECT n.id, n.kind, n.title, n.body, n.link, n.created_by_account_id, n.created_at, n.expires_at, n.rule_id, n.firing_id, n.category_id, n.appearance, n.level, n.toast_seconds, n.button_kind, n.button_label, n.button_link, n.only_button_closes, n.allow_later
+FROM claimed c
+JOIN inbox_notifications n ON n.id = c.notification_id
+WHERE n.appearance IN ('banner', 'dialog') OR (n.appearance = 'toast' AND n.created_at > $1)
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT $2
+`
+
+type ClaimUndeliveredNotificationsParams struct {
+	ToastSince time.Time
+	MaxRows    int32
+	Now        pgtype.Timestamptz
+	AccountID  uuid.UUID
+}
+
+// Marks everything not yet delivered to the account as delivered and returns the notifications that need to appear
+// on screen: banners and dialogs always, toasts only while they are recent (an account that was away for days does not
+// get a burst of old pop-ups). Bell-only notifications are marked delivered and not returned.
+func (q *Queries) ClaimUndeliveredNotifications(ctx context.Context, arg ClaimUndeliveredNotificationsParams) ([]InboxNotification, error) {
+	rows, err := q.db.Query(ctx, claimUndeliveredNotifications,
+		arg.ToastSince,
+		arg.MaxRows,
+		arg.Now,
+		arg.AccountID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []InboxNotification{}
+	for rows.Next() {
+		var i InboxNotification
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Title,
+			&i.Body,
+			&i.Link,
+			&i.CreatedByAccountID,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.RuleID,
+			&i.FiringID,
+			&i.CategoryID,
+			&i.Appearance,
+			&i.Level,
+			&i.ToastSeconds,
+			&i.ButtonKind,
+			&i.ButtonLabel,
+			&i.ButtonLink,
+			&i.OnlyButtonCloses,
+			&i.AllowLater,
 		); err != nil {
 			return nil, err
 		}
@@ -358,7 +453,7 @@ VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8
 )
-RETURNING id, kind, title, body, link, created_by_account_id, created_at, expires_at, rule_id, firing_id, category_id
+RETURNING id, kind, title, body, link, created_by_account_id, created_at, expires_at, rule_id, firing_id, category_id, appearance, level, toast_seconds, button_kind, button_label, button_link, only_button_closes, allow_later
 `
 
 type InsertNotificationParams struct {
@@ -396,6 +491,14 @@ func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotification
 		&i.RuleID,
 		&i.FiringID,
 		&i.CategoryID,
+		&i.Appearance,
+		&i.Level,
+		&i.ToastSeconds,
+		&i.ButtonKind,
+		&i.ButtonLabel,
+		&i.ButtonLink,
+		&i.OnlyButtonCloses,
+		&i.AllowLater,
 	)
 	return i, err
 }
@@ -565,7 +668,7 @@ func (q *Queries) ListNotificationRoles(ctx context.Context, notificationIds []s
 }
 
 const listOwnNotifications = `-- name: ListOwnNotifications :many
-SELECT n.id, n.kind, n.title, n.body, n.link, n.created_at, rc.read_at
+SELECT n.id, n.kind, n.level, n.title, n.body, n.link, n.created_at, rc.read_at
 FROM inbox_recipients rc
 JOIN inbox_notifications n ON n.id = rc.notification_id
 WHERE rc.account_id = $1 AND n.expires_at > $2
@@ -583,6 +686,7 @@ type ListOwnNotificationsParams struct {
 type ListOwnNotificationsRow struct {
 	ID        uuid.UUID
 	Kind      string
+	Level     string
 	Title     string
 	Body      string
 	Link      *string
@@ -607,11 +711,70 @@ func (q *Queries) ListOwnNotifications(ctx context.Context, arg ListOwnNotificat
 		if err := rows.Scan(
 			&i.ID,
 			&i.Kind,
+			&i.Level,
 			&i.Title,
 			&i.Body,
 			&i.Link,
 			&i.CreatedAt,
 			&i.ReadAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPinnedNotifications = `-- name: ListPinnedNotifications :many
+SELECT n.id, n.kind, n.title, n.body, n.link, n.created_by_account_id, n.created_at, n.expires_at, n.rule_id, n.firing_id, n.category_id, n.appearance, n.level, n.toast_seconds, n.button_kind, n.button_label, n.button_link, n.only_button_closes, n.allow_later
+FROM inbox_recipients rc
+JOIN inbox_notifications n ON n.id = rc.notification_id
+WHERE rc.account_id = $1 AND n.appearance IN ('banner', 'dialog') AND n.expires_at > $2
+  AND rc.read_at IS NULL AND rc.acknowledged_at IS NULL
+  AND (rc.snoozed_until IS NULL OR rc.snoozed_until <= $2)
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT $3
+`
+
+type ListPinnedNotificationsParams struct {
+	AccountID uuid.UUID
+	Now       time.Time
+	MaxRows   int32
+}
+
+// Banners and dialogs that stay on screen until the account closes, acknowledges or postpones them.
+func (q *Queries) ListPinnedNotifications(ctx context.Context, arg ListPinnedNotificationsParams) ([]InboxNotification, error) {
+	rows, err := q.db.Query(ctx, listPinnedNotifications, arg.AccountID, arg.Now, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []InboxNotification{}
+	for rows.Next() {
+		var i InboxNotification
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Title,
+			&i.Body,
+			&i.Link,
+			&i.CreatedByAccountID,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.RuleID,
+			&i.FiringID,
+			&i.CategoryID,
+			&i.Appearance,
+			&i.Level,
+			&i.ToastSeconds,
+			&i.ButtonKind,
+			&i.ButtonLabel,
+			&i.ButtonLink,
+			&i.OnlyButtonCloses,
+			&i.AllowLater,
 		); err != nil {
 			return nil, err
 		}
@@ -737,6 +900,53 @@ func (q *Queries) MarkOwnNotificationRead(ctx context.Context, arg MarkOwnNotifi
 	return result.RowsAffected(), nil
 }
 
+const markOwnNotificationSeen = `-- name: MarkOwnNotificationSeen :execrows
+UPDATE inbox_recipients
+SET seen_at = COALESCE(seen_at, $1), delivered_at = COALESCE(delivered_at, $1)
+WHERE notification_id = $2 AND account_id = $3
+`
+
+type MarkOwnNotificationSeenParams struct {
+	Now            pgtype.Timestamptz
+	NotificationID uuid.UUID
+	AccountID      uuid.UUID
+}
+
+func (q *Queries) MarkOwnNotificationSeen(ctx context.Context, arg MarkOwnNotificationSeenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markOwnNotificationSeen, arg.Now, arg.NotificationID, arg.AccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const postponeOwnNotification = `-- name: PostponeOwnNotification :execrows
+UPDATE inbox_recipients
+SET snoozed_until = $1, seen_at = COALESCE(seen_at, $2),
+    delivered_at = COALESCE(delivered_at, $2)
+WHERE notification_id = $3 AND account_id = $4
+`
+
+type PostponeOwnNotificationParams struct {
+	Until          pgtype.Timestamptz
+	Now            pgtype.Timestamptz
+	NotificationID uuid.UUID
+	AccountID      uuid.UUID
+}
+
+func (q *Queries) PostponeOwnNotification(ctx context.Context, arg PostponeOwnNotificationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, postponeOwnNotification,
+		arg.Until,
+		arg.Now,
+		arg.NotificationID,
+		arg.AccountID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateSentMessage = `-- name: UpdateSentMessage :exec
 UPDATE inbox_notifications
 SET title = $1, body = $2, link = $3
@@ -757,5 +967,21 @@ func (q *Queries) UpdateSentMessage(ctx context.Context, arg UpdateSentMessagePa
 		arg.Link,
 		arg.ID,
 	)
+	return err
+}
+
+const upsertAccountPresence = `-- name: UpsertAccountPresence :exec
+INSERT INTO account_presence (account_id, last_visible_at) VALUES ($1, $2)
+ON CONFLICT (account_id) DO UPDATE SET last_visible_at = EXCLUDED.last_visible_at
+`
+
+type UpsertAccountPresenceParams struct {
+	AccountID uuid.UUID
+	Now       time.Time
+}
+
+// Only the latest moment the account had the application open in a visible tab is kept.
+func (q *Queries) UpsertAccountPresence(ctx context.Context, arg UpsertAccountPresenceParams) error {
+	_, err := q.db.Exec(ctx, upsertAccountPresence, arg.AccountID, arg.Now)
 	return err
 }

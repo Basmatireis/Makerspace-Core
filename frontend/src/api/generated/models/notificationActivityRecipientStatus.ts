@@ -29,4 +29,5 @@ export const NotificationActivityRecipientStatus = {
   skipped_condition: 'skipped_condition',
   throttled: 'throttled',
   fallback: 'fallback',
+  skipped_offline: 'skipped_offline',
 } as const;

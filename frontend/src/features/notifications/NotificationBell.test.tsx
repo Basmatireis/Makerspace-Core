@@ -17,6 +17,7 @@ function notification(overrides: Partial<Notification> = {}): Notification {
   return {
     id: first,
     kind: 'run_finished',
+    level: 'info',
     title: 'Run R-2026-000012 finished',
     body: 'Run R-2026-000012 on Printer 1 finished.',
     link: '/workshop/jobs/runs/run-1',
@@ -29,7 +30,9 @@ function notification(overrides: Partial<Notification> = {}): Notification {
 function mockInbox(items: Notification[], unread = items.filter((item) => !item.readAt).length) {
   const calls: string[] = [];
   server.use(
-    http.get('*/api/v1/notifications/unread-count', () => HttpResponse.json({ unreadCount: unread })),
+    http.get('*/api/v1/notifications/unread-count', () =>
+      HttpResponse.json({ unreadCount: unread, fresh: [], pinned: [] }),
+    ),
     http.get('*/api/v1/notifications', () =>
       HttpResponse.json({ items, page: 1, pageSize: 20, total: items.length, unreadCount: unread }),
     ),
@@ -145,66 +148,6 @@ describe('Notification bell', () => {
     await user.click(await screen.findByText('Inside the app'));
     await waitFor(() => expect(view.router.state.location.pathname).toBe('/open-days'));
     expect(open).toHaveBeenCalledTimes(1);
-  });
-
-  describe('toasts for new notifications', () => {
-    it('shows a toast only when the unread count rises after the first load, and its action follows the link', async () => {
-      const user = userEvent.setup();
-      const open = vi.spyOn(window, 'open').mockReturnValue(null);
-      const long = 'x'.repeat(300);
-      let unread = 1;
-      const read: string[] = [];
-      server.use(
-        http.get('*/api/v1/notifications/unread-count', () => HttpResponse.json({ unreadCount: unread })),
-        http.get('*/api/v1/notifications', () =>
-          HttpResponse.json({
-            items:
-              unread === 1
-                ? [notification({ id: second, title: 'Old one', body: 'Already there.', link: null })]
-                : [
-                    notification({ title: 'Fresh news', body: long, link: 'https://example.org/news' }),
-                    notification({ id: second, title: 'Old one', body: 'Already there.', link: null }),
-                  ],
-            page: 1,
-            pageSize: 20,
-            total: 2,
-            unreadCount: unread,
-          }),
-        ),
-        http.post('*/api/v1/notifications/:id/read', ({ params }) => {
-          read.push(String(params.id));
-          return new HttpResponse(null, { status: 204 });
-        }),
-      );
-      const view = renderRoute(<Harness />);
-      await screen.findByRole('button', { name: 'Open notifications, 1 unread' });
-      expect(screen.queryByText('Fresh news')).not.toBeInTheDocument();
-      expect(screen.queryByText('Old one')).not.toBeInTheDocument();
-
-      unread = 2;
-      await view.queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] });
-      expect(await screen.findByText('Fresh news')).toBeInTheDocument();
-      expect(screen.queryByText('Old one')).not.toBeInTheDocument();
-      const subtitle = screen.getByText(/^x+…$/);
-      expect(subtitle.textContent?.length).toBeLessThan(200);
-
-      await user.click(screen.getByRole('button', { name: 'Open' }));
-      expect(open).toHaveBeenCalledWith('https://example.org/news', '_blank', 'noopener,noreferrer');
-      await waitFor(() => expect(read).toEqual([first]));
-      await waitFor(() => expect(screen.queryByText('Fresh news')).not.toBeInTheDocument());
-    });
-
-    it('stays quiet when the count falls or stays the same', async () => {
-      let unread = 2;
-      mockInbox([notification()], 2);
-      server.use(http.get('*/api/v1/notifications/unread-count', () => HttpResponse.json({ unreadCount: unread })));
-      const view = renderRoute(<Harness />);
-      await screen.findByRole('button', { name: 'Open notifications, 2 unread' });
-      unread = 1;
-      await view.queryClient.invalidateQueries({ queryKey: ['notifications', 'unread'] });
-      await screen.findByRole('button', { name: 'Open notifications, 1 unread' });
-      expect(screen.queryByText('Run R-2026-000012 finished')).not.toBeInTheDocument();
-    });
   });
 });
 

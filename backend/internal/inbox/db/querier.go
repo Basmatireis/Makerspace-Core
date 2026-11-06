@@ -12,9 +12,15 @@ import (
 )
 
 type Querier interface {
+	// Acknowledging also reads and sees the notification, and ends a postponement.
+	AcknowledgeOwnNotification(ctx context.Context, arg AcknowledgeOwnNotificationParams) (int64, error)
 	// Takes due mails for one delivery pass: the attempt is counted and the next one pushed out before anything is sent,
 	// so a pass that dies half way never sends a mail twice in quick succession.
 	ClaimDueNotificationMails(ctx context.Context, arg ClaimDueNotificationMailsParams) ([]ClaimDueNotificationMailsRow, error)
+	// Marks everything not yet delivered to the account as delivered and returns the notifications that need to appear
+	// on screen: banners and dialogs always, toasts only while they are recent (an account that was away for days does not
+	// get a burst of old pop-ups). Bell-only notifications are marked delivered and not returned.
+	ClaimUndeliveredNotifications(ctx context.Context, arg ClaimUndeliveredNotificationsParams) ([]InboxNotification, error)
 	CountOwnNotifications(ctx context.Context, arg CountOwnNotificationsParams) (int64, error)
 	CountOwnUnreadNotifications(ctx context.Context, arg CountOwnUnreadNotificationsParams) (int64, error)
 	CountRolesByIDs(ctx context.Context, roleIds []string) (int64, error)
@@ -45,12 +51,18 @@ type Querier interface {
 	ListEnabledAccountIDsWithPermission(ctx context.Context, arg ListEnabledAccountIDsWithPermissionParams) ([]uuid.UUID, error)
 	ListNotificationRoles(ctx context.Context, notificationIds []string) ([]ListNotificationRolesRow, error)
 	ListOwnNotifications(ctx context.Context, arg ListOwnNotificationsParams) ([]ListOwnNotificationsRow, error)
+	// Banners and dialogs that stay on screen until the account closes, acknowledges or postpones them.
+	ListPinnedNotifications(ctx context.Context, arg ListPinnedNotificationsParams) ([]InboxNotification, error)
 	ListSentMessages(ctx context.Context, arg ListSentMessagesParams) ([]ListSentMessagesRow, error)
 	MailDeliveryEnabled(ctx context.Context) (bool, error)
 	MarkAllOwnNotificationsRead(ctx context.Context, arg MarkAllOwnNotificationsReadParams) (int64, error)
 	// Idempotent: an already read notification keeps its first read time but still counts as found.
 	MarkOwnNotificationRead(ctx context.Context, arg MarkOwnNotificationReadParams) (int64, error)
+	MarkOwnNotificationSeen(ctx context.Context, arg MarkOwnNotificationSeenParams) (int64, error)
+	PostponeOwnNotification(ctx context.Context, arg PostponeOwnNotificationParams) (int64, error)
 	UpdateSentMessage(ctx context.Context, arg UpdateSentMessageParams) error
+	// Only the latest moment the account had the application open in a visible tab is kept.
+	UpsertAccountPresence(ctx context.Context, arg UpsertAccountPresenceParams) error
 }
 
 var _ Querier = (*Queries)(nil)

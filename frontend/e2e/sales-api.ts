@@ -635,7 +635,7 @@ export async function installSalesApi(page: Page, world: SalesWorld = createSale
 
     if (path === '/api/v1/auth/me') return ok(route, currentUser(world.permissions));
     if (path === '/api/v1/auth/activity') return ok(route, currentUser(world.permissions).session);
-    if (path === '/api/v1/notifications/unread-count') return ok(route, { unreadCount: 0 });
+    if (path === '/api/v1/notifications/unread-count') return ok(route, { unreadCount: 0, fresh: [], pinned: [] });
     if (path === '/api/v1/laborordnung/status/me') return ok(route, currentUser(world.permissions).laborordnungStatus);
     if (path === '/api/v1/me/guides') return ok(route, welcomeTourSeen);
     if (path === '/api/v1/public/config') return ok(route, defaultPublicBrandingConfiguration());

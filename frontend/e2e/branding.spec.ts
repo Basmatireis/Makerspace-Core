@@ -130,7 +130,7 @@ test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal
     const path = url.pathname;
     // The header bell polls the unread count on every page.
     if (path === '/api/v1/notifications/unread-count') {
-      await json(route, { unreadCount: 0 });
+      await json(route, { unreadCount: 0, fresh: [], pinned: [] });
       return;
     }
     if (path === '/api/v1/auth/activity' && request.method() === 'POST')

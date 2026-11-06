@@ -250,9 +250,19 @@ SELECT EXISTS (
 SELECT COALESCE((SELECT enabled FROM mail_configuration LIMIT 1), false)::boolean;
 
 -- name: InsertRuleNotification :exec
-INSERT INTO inbox_notifications (id, kind, title, body, link, created_at, expires_at, rule_id, firing_id, category_id)
+INSERT INTO inbox_notifications (
+    id, kind, title, body, link, created_at, expires_at, rule_id, firing_id, category_id,
+    appearance, level, toast_seconds, button_kind, button_label, button_link, only_button_closes, allow_later
+)
 VALUES (sqlc.arg(id), 'rule', sqlc.arg(title), sqlc.arg(body), sqlc.narg(link), sqlc.arg(created_at),
-        sqlc.arg(expires_at), sqlc.narg(rule_id), sqlc.arg(firing_id), sqlc.narg(category_id));
+        sqlc.arg(expires_at), sqlc.narg(rule_id), sqlc.arg(firing_id), sqlc.narg(category_id),
+        sqlc.arg(appearance), sqlc.arg(level), sqlc.narg(toast_seconds), sqlc.arg(button_kind),
+        sqlc.narg(button_label), sqlc.narg(button_link), sqlc.arg(only_button_closes), sqlc.arg(allow_later));
+
+-- name: ListOnlineAccounts :many
+-- Accounts that had the application open in a visible tab since the given moment.
+SELECT account_id FROM account_presence
+WHERE account_id = ANY(sqlc.arg(account_ids)::text[]::uuid[]) AND last_visible_at > sqlc.arg(since);
 
 -- name: InsertRuleNotificationRecipients :exec
 INSERT INTO inbox_recipients (notification_id, account_id)
@@ -327,18 +337,25 @@ WHERE id = sqlc.arg(id) AND resolved_at IS NULL;
 -- name: DeferPendingAction :exec
 UPDATE notification_pending_actions SET attempts = attempts + 1, due_at = sqlc.arg(due_at) WHERE id = sqlc.arg(id);
 
--- name: FiringWasRead :one
--- Whether anybody opened an in-app notification of the firing.
+-- name: FiringStopReached :one
+-- Whether a recipient of an in-app notification of the firing did what stops the escalation: opened it, saw it (opening
+-- also counts) or acknowledged it.
 SELECT EXISTS (
     SELECT 1 FROM notification_firing_recipients fr
     JOIN inbox_recipients ir ON ir.notification_id = fr.notification_id
-    WHERE fr.firing_id = sqlc.arg(firing_id) AND ir.read_at IS NOT NULL
+    WHERE fr.firing_id = sqlc.arg(firing_id) AND CASE sqlc.arg(stop_when)::text
+        WHEN 'opened' THEN ir.read_at IS NOT NULL
+        WHEN 'seen' THEN ir.seen_at IS NOT NULL OR ir.read_at IS NOT NULL
+        WHEN 'acknowledged' THEN ir.acknowledged_at IS NOT NULL
+        ELSE false
+    END
 )::boolean;
 
--- name: ListPeopleWhoHaveNotRead :many
+-- name: ListPeopleNotDelivered :many
+-- People whose account has neither received the notification on screen nor read it.
 SELECT DISTINCT a.person_id FROM inbox_recipients ir
 JOIN accounts a ON a.id = ir.account_id
-WHERE ir.notification_id = sqlc.arg(notification_id) AND ir.read_at IS NULL;
+WHERE ir.notification_id = sqlc.arg(notification_id) AND ir.delivered_at IS NULL AND ir.read_at IS NULL;
 
 -- Facts for the events the application itself raises (system notifications).
 
@@ -686,3 +703,136 @@ FROM notification_firing_recipients r
 LEFT JOIN people p ON p.id = r.person_id
 WHERE r.firing_id = ANY(sqlc.arg(firing_ids)::text[]::uuid[])
 ORDER BY r.firing_id, r.step, lower(p.last_name), lower(p.first_name), r.channel;
+
+-- name: GetVisitEventFacts :one
+-- The facts of a visit for the check-in and check-out triggers. first_visit is true when the person has no earlier
+-- visit that still counts.
+SELECT v.person_id, v.checked_in_at, v.checked_out_at, v.check_in_method, v.check_out_method, v.admission_decision,
+       p.first_name, p.last_name,
+       din.name AS check_in_device, dout.name AS check_out_device,
+       NOT EXISTS (
+           SELECT 1 FROM visits earlier
+           WHERE earlier.person_id = v.person_id AND earlier.id <> v.id AND earlier.status <> 'voided'
+             AND earlier.checked_in_at < v.checked_in_at
+       ) AS first_visit
+FROM visits v
+JOIN people p ON p.id = v.person_id
+LEFT JOIN managed_devices din ON din.id = v.check_in_device_id
+LEFT JOIN managed_devices dout ON dout.id = v.check_out_device_id
+WHERE v.id = sqlc.arg(id);
+
+-- name: ListSupervisorsOnDuty :many
+-- Supervisors who are checked in right now.
+SELECT DISTINCT v.person_id
+FROM visits v
+JOIN person_roles pr ON pr.person_id = v.person_id
+JOIN roles r ON r.id = pr.role_id AND r.system_key = 'supervisor'
+WHERE v.status = 'checked_in'
+ORDER BY v.person_id;
+
+-- name: GetTrainingName :one
+SELECT name FROM trainings WHERE id = sqlc.arg(id);
+
+-- name: ListTrainersOfTraining :many
+SELECT person_id FROM training_records WHERE training_id = sqlc.arg(training_id) AND status = 'trainer' ORDER BY person_id;
+
+-- name: GetOrderEventFacts :one
+SELECT o.reference, o.total_amount::float8 AS total, o.customer_person_id, o.customer_organization_id,
+       creator.person_id AS creator_person_id,
+       COALESCE(CASE WHEN o.customer_person_id IS NOT NULL THEN customer.first_name || ' ' || customer.last_name
+                     ELSE org.name END, '')::text AS customer_name
+FROM orders o
+LEFT JOIN accounts creator ON creator.id = o.created_by_account_id
+LEFT JOIN people customer ON customer.id = o.customer_person_id
+LEFT JOIN organizations org ON org.id = o.customer_organization_id
+WHERE o.id = sqlc.arg(id);
+
+-- name: GetPaymentEventFacts :one
+SELECT pay.method, pay.amount::float8 AS amount, booker.person_id AS booker_person_id
+FROM payments pay
+LEFT JOIN accounts booker ON booker.id = pay.actor_account_id
+WHERE pay.id = sqlc.arg(id);
+
+-- name: GetCashCountEventFacts :one
+SELECT c.reference, c.counted_amount::float8 AS counted, c.expected_amount::float8 AS expected,
+       c.difference::float8 AS difference, c.recorded_by_person_id
+FROM cash_counts c
+WHERE c.id = sqlc.arg(id);
+
+-- name: GetInvoiceRequestEventFacts :one
+SELECT r.reference, r.state, r.order_id, r.order_reference, creator.person_id AS creator_person_id
+FROM external_invoice_requests r
+LEFT JOIN orders o ON o.id = r.order_id
+LEFT JOIN accounts creator ON creator.id = o.created_by_account_id
+WHERE r.id = sqlc.arg(id);
+
+-- name: GetJobEventFacts :one
+SELECT j.display_id, j.title, j.machine_id, m.name AS machine_name, j.customer_person_id,
+       j.customer_organization_id, j.operator_person_id
+FROM machine_jobs j
+JOIN machines m ON m.id = j.machine_id
+WHERE j.id = sqlc.arg(id);
+
+-- name: GetSurveyResponseEventFacts :one
+-- Only the survey itself: a response is never tied to a person here, whether the survey is anonymous or not.
+SELECT s.name AS survey_name, s.anonymous
+FROM survey_responses r
+JOIN survey_versions v ON v.id = r.survey_version_id
+JOIN surveys s ON s.id = v.survey_id
+WHERE r.id = sqlc.arg(id);
+
+-- name: GetFirstRatingOfResponse :one
+SELECT a.numeric_value::int AS rating
+FROM survey_answers a
+JOIN survey_questions q ON q.id = a.question_id
+WHERE a.response_id = sqlc.arg(response_id) AND q.kind = 'rating' AND a.numeric_value IS NOT NULL
+ORDER BY q.position
+LIMIT 1;
+
+-- name: GetRoleEventFacts :one
+-- privileged: the master role, or a role that grants any *.manage permission.
+SELECT r.name,
+       (COALESCE(r.system_key = 'master', false) OR EXISTS (
+           SELECT 1 FROM role_permission_grants rp WHERE rp.role_id = r.id AND rp.permission_id LIKE '%.manage'
+       ))::boolean AS privileged
+FROM roles r
+WHERE r.id = sqlc.arg(id);
+
+-- name: GetPrivacyRequestEventFacts :one
+SELECT kind, reference, due_at, subject_person_id FROM privacy_subject_requests WHERE id = sqlc.arg(id);
+
+-- name: CountVisitsSince :one
+SELECT count(*)::bigint FROM visits WHERE status <> 'voided' AND checked_in_at >= sqlc.arg(since)::timestamptz;
+
+-- name: CountCheckOutsSince :one
+SELECT count(*)::bigint FROM visits WHERE status = 'checked_out' AND checked_out_at >= sqlc.arg(since)::timestamptz;
+
+-- name: CountAccountsCreatedSince :one
+SELECT count(*)::bigint FROM accounts WHERE created_at >= sqlc.arg(since)::timestamptz;
+
+-- name: CountTrainingRecordsSince :one
+SELECT count(*)::bigint FROM training_records WHERE created_at >= sqlc.arg(since)::timestamptz;
+
+-- name: CountFinalizedOrdersSince :one
+SELECT count(*)::bigint FROM orders WHERE finalized_at >= sqlc.arg(since)::timestamptz;
+
+-- name: CountReceiptPaymentsSince :one
+SELECT count(*)::bigint FROM payments WHERE entry_kind = 'receipt' AND recorded_at >= sqlc.arg(since)::timestamptz;
+
+-- name: CountCashCountDifferencesSince :one
+SELECT count(*)::bigint FROM cash_counts WHERE difference <> 0 AND created_at >= sqlc.arg(since)::timestamptz;
+
+-- name: CountInvoiceRequestEventsSince :one
+SELECT count(*)::bigint FROM external_invoice_request_events WHERE recorded_at >= sqlc.arg(since)::timestamptz;
+
+-- name: CountJobsCreatedSince :one
+SELECT count(*)::bigint FROM machine_jobs WHERE deleted_at IS NULL AND created_at >= sqlc.arg(since)::timestamptz;
+
+-- name: CountSurveyResponsesSince :one
+SELECT count(*)::bigint FROM survey_responses WHERE submitted_on >= sqlc.arg(since)::date;
+
+-- name: CountPrivacyRequestsSince :one
+SELECT count(*)::bigint FROM privacy_subject_requests WHERE created_at >= sqlc.arg(since)::timestamptz;
+
+-- name: CountOpenDaySignupsSince :one
+SELECT count(*)::bigint FROM open_day_assignments WHERE created_at >= sqlc.arg(since)::timestamptz;

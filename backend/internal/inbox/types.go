@@ -45,10 +45,35 @@ const (
 	maxPageSize     = 100
 )
 
+// Level is the severity a notification is styled with.
+type Level string
+
+// Appearance is how a notification shows up on screen.
+type Appearance string
+
+const (
+	AppearanceBell   Appearance = "bell"
+	AppearanceToast  Appearance = "toast"
+	AppearanceBanner Appearance = "banner"
+	AppearanceDialog Appearance = "dialog"
+)
+
+const (
+	// PostponeFor is how long "Remind me later" hides a banner or dialog.
+	PostponeFor = time.Hour
+	// OnlineWindow is how recently an account must have polled with a visible tab to count as online.
+	OnlineWindow = 2 * time.Minute
+	// toastFreshness is how old a toast may be and still pop up; older ones only wait in the bell list.
+	toastFreshness = time.Hour
+	maxFresh       = 20
+	maxPinned      = 10
+)
+
 // Notification is one account's copy of a notification.
 type Notification struct {
 	ID        uuid.UUID
 	Kind      Kind
+	Level     Level
 	Title     string
 	Body      string
 	Link      *string
@@ -107,4 +132,35 @@ type SentPage struct {
 	Page     int
 	PageSize int
 	Total    int64
+}
+
+// AlertButton is the button of a notification that shows itself on screen.
+type AlertButton struct {
+	Kind  string
+	Label *string
+	Link  *string
+}
+
+// Alert is a notification that shows itself on screen as a toast, a banner or a dialog.
+type Alert struct {
+	ID               uuid.UUID
+	Appearance       Appearance
+	Level            Level
+	Title            string
+	Body             string
+	Link             *string
+	Button           AlertButton
+	ToastSeconds     *int
+	OnlyButtonCloses bool
+	AllowLater       bool
+	CreatedAt        time.Time
+}
+
+// Poll is the answer to the periodic poll of the signed-in account's screen.
+type Poll struct {
+	UnreadCount int64
+	// Fresh are the notifications that were not shown to the account yet.
+	Fresh []Alert
+	// Pinned are the banners and dialogs that stay until the account closes, acknowledges or postpones them.
+	Pinned []Alert
 }

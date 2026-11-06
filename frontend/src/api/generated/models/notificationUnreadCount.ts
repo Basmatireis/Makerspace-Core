@@ -18,8 +18,19 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { NotificationAlert } from './notificationAlert';
 
 export interface NotificationUnreadCount {
   /** @minimum 0 */
   unreadCount: number;
+  /**
+     * Notifications that were not shown to the account yet, oldest first. Each is returned once.
+     * @maxItems 20
+     */
+  fresh: NotificationAlert[];
+  /**
+     * Unread banners and dialogs that are not postponed, oldest first; they reappear after a reload.
+     * @maxItems 10
+     */
+  pinned: NotificationAlert[];
 }

@@ -71,8 +71,8 @@ export const getGetNotificationUnreadCountUrl = () => {
 }
 
 /**
- * Cheap endpoint the application header polls.
- * @summary Count the signed-in account's unread notifications
+ * The endpoint the application header polls every minute while the tab is visible. Besides the count it records that the account is online (only the latest moment is kept) and returns the notifications that were not shown to the account yet (`fresh`), marking them as delivered, and the banners and dialogs that stay on screen until the account closes, acknowledges or postpones them (`pinned`; this includes the new ones).
+ * @summary Count the signed-in account's unread notifications and hand over what is new on screen
  */
 export const getNotificationUnreadCount = async ( options?: Parameters<typeof apiFetch>[1]): Promise<NotificationUnreadCount> => {
 
@@ -255,6 +255,78 @@ export const getMarkNotificationReadUrl = (notificationId: string,) => {
 export const markNotificationRead = async (notificationId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
   return apiFetch<void>(getMarkNotificationReadUrl(notificationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getMarkNotificationSeenUrl = (notificationId: string,) => {
+
+
+
+
+  return `/api/v1/notifications/${notificationId}/seen`
+}
+
+/**
+ * Idempotent; the first time is kept. Seeing a notification can stop an escalation.
+ * @summary Report that a notification was on screen
+ */
+export const markNotificationSeen = async (notificationId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getMarkNotificationSeenUrl(notificationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getAcknowledgeNotificationUrl = (notificationId: string,) => {
+
+
+
+
+  return `/api/v1/notifications/${notificationId}/acknowledge`
+}
+
+/**
+ * Idempotent. Acknowledging also marks the notification as read and seen.
+ * @summary Acknowledge one of the signed-in account's notifications
+ */
+export const acknowledgeNotification = async (notificationId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getAcknowledgeNotificationUrl(notificationId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+export const getPostponeNotificationUrl = (notificationId: string,) => {
+
+
+
+
+  return `/api/v1/notifications/${notificationId}/later`
+}
+
+/**
+ * The notification stays unread and comes back in `pinned` after an hour.
+ * @summary Postpone a banner or dialog for one hour
+ */
+export const postponeNotification = async (notificationId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getPostponeNotificationUrl(notificationId),
   {
     ...options,
     method: 'POST'

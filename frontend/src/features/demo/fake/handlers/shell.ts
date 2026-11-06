@@ -94,7 +94,7 @@ export function registerShell(router: DemoRouter<DemoStore>): void {
     .add('POST', '/auth/activity', ({ user }) => ok(user.session))
     .get('/laborordnung/status/me', ({ user }) => ok({ ...user.laborordnungStatus, actionRequired: false }))
     .get('/notifications/unread-count', () => ok({ unreadCount: 0 }))
-    .get('/notifications', ({ query }) => ok(paged([], query, { unreadCount: 0 })))
+    .get('/notifications', ({ query }) => ok(paged([], query, { unreadCount: 0, fresh: [], pinned: [] })))
     .get('/me/dashboard', ({ store }) => ok(dashboard(store)))
     .get('/public/open-days', ({ store }) =>
       ok({

@@ -24,3 +24,55 @@
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
+
+// Banners and dialogs that rule notifications raise on screen.
+.notification-banners .cds--actionable-notification {
+  inline-size: 100%;
+  max-inline-size: 100%;
+}
+
+.notification-dialog__body {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+// A dialog that only its button may close has no close icon.
+.notification-dialog--locked .cds--modal-close-button {
+  display: none;
+}
+
+// The level of a notification in the bell list: an icon and a left border (information keeps the plain look).
+.notification-item--success {
+  border-inline-start: 3px solid theme.$support-success;
+  padding-inline-start: spacing.$spacing-03;
+}
+
+.notification-item--warning {
+  border-inline-start: 3px solid theme.$support-warning;
+  padding-inline-start: spacing.$spacing-03;
+}
+
+.notification-item--error {
+  border-inline-start: 3px solid theme.$support-error;
+  padding-inline-start: spacing.$spacing-03;
+}
+
+.notification-item__level {
+  flex: none;
+}
+
+.notification-item__level--info {
+  fill: theme.$support-info;
+}
+
+.notification-item__level--success {
+  fill: theme.$support-success;
+}
+
+.notification-item__level--warning {
+  fill: theme.$support-warning;
+}
+
+.notification-item__level--error {
+  fill: theme.$support-error;
+}

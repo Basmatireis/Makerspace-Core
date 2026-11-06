@@ -3,6 +3,7 @@ package notifyrules
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -10,6 +11,13 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
 )
+
+// statusSkippedOffline marks a person whose in-app notification was left out because it is for online accounts only
+// and the person had none.
+// onlineWindow is how recently an account must have polled with a visible tab to count as online.
+const onlineWindow = 2 * time.Minute
+
+const statusSkippedOffline = "skipped_offline"
 
 // deliveryInput is one action ready to go out: its texts are filled and its recipients are resolved.
 type deliveryInput struct {
@@ -143,6 +151,26 @@ func (d *Dispatcher) deliver(
 		return mailEnabled, nil
 	}
 
+	// An online-only notification reaches only accounts that had the application open in a visible tab just now.
+	online := map[uuid.UUID]bool{}
+	onlineOnly := channel == ChannelInApp && !in.Fallback && in.Action.InApp != nil && in.Action.InApp.OnlineOnly
+	if onlineOnly {
+		var accounts []uuid.UUID
+		for _, reach := range targets {
+			accounts = append(accounts, reach.accounts...)
+		}
+		found, err := q.ListOnlineAccounts(ctx, notifyrulesdb.ListOnlineAccountsParams{
+			AccountIds: uuidStrings(accounts), Since: now.Add(-onlineWindow),
+		})
+		if err != nil {
+			return fmt.Errorf("load online accounts: %w", err)
+		}
+		for _, account := range found {
+			online[account] = true
+		}
+	}
+	inAppAccounts := map[uuid.UUID][]uuid.UUID{}
+
 	var rows []recipientRow
 	var inAppPeople, mailPeople []uuid.UUID
 	for _, person := range people {
@@ -184,8 +212,17 @@ func (d *Dispatcher) deliver(
 		for _, c := range channels {
 			switch c {
 			case ChannelInApp:
-				if len(reach.accounts) > 0 {
+				accounts := reach.accounts
+				if onlineOnly && len(accounts) > 0 {
+					accounts = slices.DeleteFunc(slices.Clone(accounts), func(account uuid.UUID) bool { return !online[account] })
+					if len(accounts) == 0 {
+						rows = append(rows, recipientRow{person: person, channel: ChannelInApp, status: statusSkippedOffline})
+						continue
+					}
+				}
+				if len(accounts) > 0 {
 					inAppPeople = append(inAppPeople, person)
+					inAppAccounts[person] = accounts
 				}
 			case ChannelEmail:
 				if !reach.hasEmail {
@@ -218,13 +255,15 @@ func (d *Dispatcher) deliver(
 		id := ids.New()
 		var accounts []uuid.UUID
 		for _, person := range inAppPeople {
-			accounts = append(accounts, targets[person].accounts...)
+			accounts = append(accounts, inAppAccounts[person]...)
 		}
-		if err = q.InsertRuleNotification(ctx, notifyrulesdb.InsertRuleNotificationParams{
+		params := notifyrulesdb.InsertRuleNotificationParams{
 			ID: id, Title: in.Action.Title, Body: in.Action.Body, Link: optionalText(in.Link), CreatedAt: now,
 			ExpiresAt: now.Add(notificationRetention), RuleID: &runtime.ID, FiringID: &in.FiringID,
 			CategoryID: runtime.CategoryID,
-		}); err != nil {
+		}
+		appearanceParams(&params, in.Action.InApp, in.Link)
+		if err = q.InsertRuleNotification(ctx, params); err != nil {
 			return fmt.Errorf("insert rule notification: %w", err)
 		}
 		if err = q.InsertRuleNotificationRecipients(ctx, notifyrulesdb.InsertRuleNotificationRecipientsParams{
@@ -283,6 +322,34 @@ func (d *Dispatcher) deliver(
 		}
 	}
 	return nil
+}
+
+// appearanceParams copies how the action wants its in-app notification to look; without options it keeps the
+// database defaults of a plain pop-up. A link button without a usable link falls back to no button.
+func appearanceParams(params *notifyrulesdb.InsertRuleNotificationParams, options *InAppOptions, link string) {
+	params.Appearance, params.Level, params.ButtonKind = string(AppearanceToast), string(LevelInfo), string(ButtonNone)
+	if options == nil {
+		return
+	}
+	params.Appearance, params.Level = string(options.Appearance), string(options.Level)
+	if options.Appearance == AppearanceToast {
+		seconds := int32(options.ToastSeconds) //nolint:gosec // validated to 0, 5, 10 or 30
+		params.ToastSeconds = &seconds
+	}
+	params.OnlyButtonCloses, params.AllowLater = options.OnlyButtonCloses, options.AllowLater
+	button := options.Button
+	if button == nil || button.Kind == ButtonNone {
+		return
+	}
+	params.ButtonKind = string(button.Kind)
+	params.ButtonLabel = optionalText(Clip(strings.TrimSpace(button.Label), MaxButtonLabelLength))
+	if button.Kind == ButtonLink {
+		if link == "" {
+			params.ButtonKind, params.ButtonLabel = string(ButtonNone), nil
+			return
+		}
+		params.ButtonLink = &link
+	}
 }
 
 // preferences loads the channel choices of the people's accounts for a central rule, by person. Personal rules have

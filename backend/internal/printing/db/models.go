@@ -30,6 +30,11 @@ type AccountGuideProgress struct {
 	UpdatedAt time.Time
 }
 
+type AccountPresence struct {
+	AccountID     uuid.UUID
+	LastVisibleAt time.Time
+}
+
 type AttendanceDailyStatistic struct {
 	Day                   pgtype.Date
 	VisitorCount          int64
@@ -452,6 +457,14 @@ type InboxNotification struct {
 	RuleID             *uuid.UUID
 	FiringID           *uuid.UUID
 	CategoryID         *uuid.UUID
+	Appearance         string
+	Level              string
+	ToastSeconds       *int32
+	ButtonKind         string
+	ButtonLabel        *string
+	ButtonLink         *string
+	OnlyButtonCloses   bool
+	AllowLater         bool
 }
 
 type InboxNotificationRole struct {
@@ -463,6 +476,10 @@ type InboxRecipient struct {
 	NotificationID uuid.UUID
 	AccountID      uuid.UUID
 	ReadAt         pgtype.Timestamptz
+	DeliveredAt    pgtype.Timestamptz
+	SeenAt         pgtype.Timestamptz
+	AcknowledgedAt pgtype.Timestamptz
+	SnoozedUntil   pgtype.Timestamptz
 }
 
 type InventoryTransaction struct {

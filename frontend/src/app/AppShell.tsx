@@ -21,6 +21,7 @@ import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
 import { DemoBanner } from '../features/demo/DemoBanner';
 import { GuideProvider } from '../features/guides/GuideProvider';
 import { NotificationAction, NotificationPanel } from '../features/notifications/NotificationBell';
+import { NotificationAlertHost } from '../features/notifications/NotificationAlertHost';
 import { PersonAvatar } from '../features/users/PersonAvatar';
 import { BrandMark } from './BrandMark';
 import { setColorScheme, useColorScheme } from './colorScheme';
@@ -262,6 +263,7 @@ export function AppShell() {
             className={`app-main${sideNavExpanded && !isNarrow && !consentRequired ? ' app-main--nav-expanded' : ''}`}
           >
             <DemoBanner />
+            <NotificationAlertHost />
             {currentUser.authentication.mfaRequired &&
               currentUser.authentication.mfaEnrolled &&
               currentUser.authentication.assurance !== 'strong_mfa' && (

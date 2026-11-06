@@ -323,7 +323,7 @@ async function installApi(page: Page, state: ApiState) {
     // The header bell polls the unread count on every page.
 
     if (path === '/api/v1/notifications/unread-count') {
-      await json(route, { unreadCount: 0 });
+      await json(route, { unreadCount: 0, fresh: [], pinned: [] });
 
       return;
     }

@@ -199,7 +199,7 @@ test('keeps other identities and management fields private while staff sign up',
     const path = new URL(request.url()).pathname;
     // The header bell polls the unread count on every page.
     if (path === '/api/v1/notifications/unread-count') {
-      await json(route, { unreadCount: 0 });
+      await json(route, { unreadCount: 0, fresh: [], pinned: [] });
       return;
     }
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
@@ -269,7 +269,7 @@ test('creates and atomically saves a manager schedule working copy', async ({ pa
     const path = new URL(request.url()).pathname;
     // The header bell polls the unread count on every page.
     if (path === '/api/v1/notifications/unread-count') {
-      await json(route, { unreadCount: 0 });
+      await json(route, { unreadCount: 0, fresh: [], pinned: [] });
       return;
     }
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
@@ -452,7 +452,7 @@ test('manages inclusive academic-break context on a focused screen', async ({ pa
     const path = new URL(request.url()).pathname;
     // The header bell polls the unread count on every page.
     if (path === '/api/v1/notifications/unread-count') {
-      await json(route, { unreadCount: 0 });
+      await json(route, { unreadCount: 0, fresh: [], pinned: [] });
       return;
     }
     if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
@@ -545,7 +545,7 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
     const path = new URL(route.request().url()).pathname;
     // The header bell polls the unread count on every page.
     if (path === '/api/v1/notifications/unread-count') {
-      await json(route, { unreadCount: 0 });
+      await json(route, { unreadCount: 0, fresh: [], pinned: [] });
       return;
     }
     if (path.endsWith('/auth/activity') && route.request().method() === 'POST')
@@ -608,7 +608,7 @@ async function mockResponsivePeriod(page: Page) {
     const method = route.request().method();
     // The header bell polls the unread count on every page.
     if (path === '/api/v1/notifications/unread-count') {
-      await json(route, { unreadCount: 0 });
+      await json(route, { unreadCount: 0, fresh: [], pinned: [] });
       return;
     }
     if (path.endsWith('/auth/activity'))

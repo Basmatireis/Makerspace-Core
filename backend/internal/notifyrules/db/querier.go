@@ -24,17 +24,29 @@ type Querier interface {
 	ClaimRuleRun(ctx context.Context, arg ClaimRuleRunParams) (int64, error)
 	// Starts the throttle window for a subject unless an earlier one still runs. Zero rows mean the firing is throttled.
 	ClaimThrottle(ctx context.Context, arg ClaimThrottleParams) (int64, error)
+	CountAccountsCreatedSince(ctx context.Context, since time.Time) (int64, error)
 	CountActivity(ctx context.Context, ruleID *uuid.UUID) (int64, error)
+	CountCashCountDifferencesSince(ctx context.Context, since time.Time) (int64, error)
 	CountCategories(ctx context.Context) (int64, error)
 	CountCentralRules(ctx context.Context) (int64, error)
+	CountCheckOutsSince(ctx context.Context, since time.Time) (int64, error)
 	CountCheckedInPeople(ctx context.Context) (int64, error)
+	CountFinalizedOrdersSince(ctx context.Context, since time.Time) (int64, error)
 	CountFinishedJobRunsSince(ctx context.Context, since pgtype.Timestamptz) (int64, error)
+	CountInvoiceRequestEventsSince(ctx context.Context, since time.Time) (int64, error)
+	CountJobsCreatedSince(ctx context.Context, since time.Time) (int64, error)
 	CountLabRulesPublishedSince(ctx context.Context, since pgtype.Timestamptz) (int64, error)
+	CountOpenDaySignupsSince(ctx context.Context, since time.Time) (int64, error)
 	CountOwnRules(ctx context.Context, ownerAccountID *uuid.UUID) (int64, error)
 	// Consent categories the person has not answered at the category's current text.
 	CountPendingConsents(ctx context.Context, personID uuid.UUID) (int64, error)
 	CountPrinterErrorsSince(ctx context.Context, since time.Time) (int64, error)
+	CountPrivacyRequestsSince(ctx context.Context, since time.Time) (int64, error)
+	CountReceiptPaymentsSince(ctx context.Context, since time.Time) (int64, error)
 	CountScheduledOpenDaysBetween(ctx context.Context, arg CountScheduledOpenDaysBetweenParams) (int64, error)
+	CountSurveyResponsesSince(ctx context.Context, since pgtype.Date) (int64, error)
+	CountTrainingRecordsSince(ctx context.Context, since time.Time) (int64, error)
+	CountVisitsSince(ctx context.Context, since time.Time) (int64, error)
 	DeferPendingAction(ctx context.Context, arg DeferPendingActionParams) error
 	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) (int64, error)
 	// Retention of the delivery log; recipients and pending actions cascade.
@@ -45,18 +57,28 @@ type Querier interface {
 	DeletePendingEscalations(ctx context.Context, firingIds []string) (int64, error)
 	DeleteRule(ctx context.Context, arg DeleteRuleParams) (int64, error)
 	DeleteRuleRunsBefore(ctx context.Context, cutoff time.Time) (int64, error)
-	// Whether anybody opened an in-app notification of the firing.
-	FiringWasRead(ctx context.Context, firingID uuid.UUID) (bool, error)
+	// Whether a recipient of an in-app notification of the firing did what stops the escalation: opened it, saw it (opening
+	// also counts) or acknowledged it.
+	FiringStopReached(ctx context.Context, arg FiringStopReachedParams) (bool, error)
+	GetCashCountEventFacts(ctx context.Context, id uuid.UUID) (GetCashCountEventFactsRow, error)
 	GetCategory(ctx context.Context, id uuid.UUID) (GetCategoryRow, error)
 	GetCategoryForUpdate(ctx context.Context, id uuid.UUID) (NotificationCategory, error)
 	GetCurrentLabRulesVersion(ctx context.Context, now pgtype.Timestamptz) (uuid.UUID, error)
+	GetFirstRatingOfResponse(ctx context.Context, responseID uuid.UUID) (int32, error)
+	GetInvoiceRequestEventFacts(ctx context.Context, id uuid.UUID) (GetInvoiceRequestEventFactsRow, error)
+	GetJobEventFacts(ctx context.Context, id uuid.UUID) (GetJobEventFactsRow, error)
 	GetLabRulesRevision(ctx context.Context, id uuid.UUID) (string, error)
 	// The machine and the operator of the run that is printing on it right now, if any.
 	GetMachineEventFacts(ctx context.Context, id uuid.UUID) (GetMachineEventFactsRow, error)
 	GetOpenDayPeriodEventFacts(ctx context.Context, id uuid.UUID) (GetOpenDayPeriodEventFactsRow, error)
 	GetOpenDayTimeslotEventFacts(ctx context.Context, id uuid.UUID) (GetOpenDayTimeslotEventFactsRow, error)
+	GetOrderEventFacts(ctx context.Context, id uuid.UUID) (GetOrderEventFactsRow, error)
+	GetPaymentEventFacts(ctx context.Context, id uuid.UUID) (GetPaymentEventFactsRow, error)
 	GetPersonSettings(ctx context.Context, personID uuid.UUID) (PersonNotificationSetting, error)
 	GetPrinterErrorMeaning(ctx context.Context, arg GetPrinterErrorMeaningParams) (string, error)
+	GetPrivacyRequestEventFacts(ctx context.Context, id uuid.UUID) (GetPrivacyRequestEventFactsRow, error)
+	// privileged: the master role, or a role that grants any *.manage permission.
+	GetRoleEventFacts(ctx context.Context, id uuid.UUID) (GetRoleEventFactsRow, error)
 	GetRule(ctx context.Context, id uuid.UUID) (NotificationRule, error)
 	// Scheduling, rule runs and the collections rules loop over.
 	GetRuleForRun(ctx context.Context, id uuid.UUID) (GetRuleForRunRow, error)
@@ -66,6 +88,12 @@ type Querier interface {
 	// How a spool is named to people: its label and its article.
 	GetSpoolEventFacts(ctx context.Context, id uuid.UUID) (GetSpoolEventFactsRow, error)
 	GetStaffingWarningDays(ctx context.Context) (int32, error)
+	// Only the survey itself: a response is never tied to a person here, whether the survey is anonymous or not.
+	GetSurveyResponseEventFacts(ctx context.Context, id uuid.UUID) (GetSurveyResponseEventFactsRow, error)
+	GetTrainingName(ctx context.Context, id uuid.UUID) (string, error)
+	// The facts of a visit for the check-in and check-out triggers. first_visit is true when the person has no earlier
+	// visit that still counts.
+	GetVisitEventFacts(ctx context.Context, id uuid.UUID) (GetVisitEventFactsRow, error)
 	InsertCategory(ctx context.Context, arg InsertCategoryParams) error
 	InsertFiring(ctx context.Context, arg InsertFiringParams) error
 	InsertFiringRecipient(ctx context.Context, arg InsertFiringRecipientParams) error
@@ -99,6 +127,8 @@ type Querier interface {
 	ListMachineOptions(ctx context.Context) ([]ListMachineOptionsRow, error)
 	ListMaterialTypeOptions(ctx context.Context) ([]ListMaterialTypeOptionsRow, error)
 	ListMembershipsOfPeople(ctx context.Context, personIds []string) ([]ListMembershipsOfPeopleRow, error)
+	// Accounts that had the application open in a visible tab since the given moment.
+	ListOnlineAccounts(ctx context.Context, arg ListOnlineAccountsParams) ([]uuid.UUID, error)
 	ListOpenDayTeam(ctx context.Context, openDayID uuid.UUID) ([]uuid.UUID, error)
 	// Everyone signed up for the open days, with the kind of place they hold.
 	ListOpenDayTeams(ctx context.Context, openDayIds []string) ([]ListOpenDayTeamsRow, error)
@@ -108,8 +138,9 @@ type Querier interface {
 	ListPeopleAwaitingLabRules(ctx context.Context, versionID uuid.UUID) ([]uuid.UUID, error)
 	ListPeopleAwaitingVersion(ctx context.Context, versionID uuid.UUID) ([]uuid.UUID, error)
 	ListPeopleNames(ctx context.Context, personIds []string) ([]ListPeopleNamesRow, error)
+	// People whose account has neither received the notification on screen nor read it.
+	ListPeopleNotDelivered(ctx context.Context, notificationID uuid.UUID) ([]uuid.UUID, error)
 	ListPeopleSignedUpBetween(ctx context.Context, arg ListPeopleSignedUpBetweenParams) ([]uuid.UUID, error)
-	ListPeopleWhoHaveNotRead(ctx context.Context, notificationID uuid.UUID) ([]uuid.UUID, error)
 	ListPeopleWithEnabledAccount(ctx context.Context, personIds []string) ([]uuid.UUID, error)
 	ListPersonIDsByRoles(ctx context.Context, roleIds []string) ([]uuid.UUID, error)
 	ListPersonIDsOfAccounts(ctx context.Context, accountIds []string) ([]uuid.UUID, error)
@@ -122,6 +153,9 @@ type Querier interface {
 	ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, error)
 	// People with an active account who staff open days (supervisor or trainee membership).
 	ListStaffingPeople(ctx context.Context) ([]uuid.UUID, error)
+	// Supervisors who are checked in right now.
+	ListSupervisorsOnDuty(ctx context.Context) ([]uuid.UUID, error)
+	ListTrainersOfTraining(ctx context.Context, trainingID uuid.UUID) ([]uuid.UUID, error)
 	ListTrainersOfTrainings(ctx context.Context) ([]ListTrainersOfTrainingsRow, error)
 	ListTrainingOptions(ctx context.Context) ([]ListTrainingOptionsRow, error)
 	// People with an active account and the supervisor membership who hold no place in the timeslot.

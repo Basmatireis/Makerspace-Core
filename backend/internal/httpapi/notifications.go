@@ -39,6 +39,7 @@ func (s *Server) ListNotifications(
 		items = append(items, openapi.Notification{
 			Id:        item.ID,
 			Kind:      openapi.NotificationKind(item.Kind),
+			Level:     openapi.NotificationLevel(item.Level),
 			Title:     item.Title,
 			Body:      item.Body,
 			Link:      optionalNullable(item.Link),
@@ -60,11 +61,78 @@ func (s *Server) GetNotificationUnreadCount(
 	if err != nil {
 		return nil, err
 	}
-	count, err := s.inbox.UnreadCount(ctx, p)
+	poll, err := s.inbox.Poll(ctx, p)
 	if err != nil {
 		return nil, err
 	}
-	return openapi.GetNotificationUnreadCount200JSONResponse(openapi.NotificationUnreadCount{UnreadCount: count}), nil
+	return openapi.GetNotificationUnreadCount200JSONResponse(openapi.NotificationUnreadCount{
+		UnreadCount: poll.UnreadCount, Fresh: alertDTOs(poll.Fresh), Pinned: alertDTOs(poll.Pinned),
+	}), nil
+}
+
+func alertDTOs(alerts []inbox.Alert) []openapi.NotificationAlert {
+	result := make([]openapi.NotificationAlert, 0, len(alerts))
+	for _, alert := range alerts {
+		dto := openapi.NotificationAlert{
+			Id:               alert.ID,
+			Appearance:       openapi.NotificationAlertAppearance(alert.Appearance),
+			Level:            openapi.NotificationLevel(alert.Level),
+			Title:            alert.Title,
+			Body:             alert.Body,
+			Link:             optionalNullable(alert.Link),
+			OnlyButtonCloses: alert.OnlyButtonCloses,
+			AllowLater:       alert.AllowLater,
+			CreatedAt:        alert.CreatedAt,
+			ToastSeconds:     optionalNullable(alert.ToastSeconds),
+		}
+		dto.Button.Kind = openapi.NotificationAlertButtonKind(alert.Button.Kind)
+		dto.Button.Label = optionalNullable(alert.Button.Label)
+		dto.Button.Link = optionalNullable(alert.Button.Link)
+		result = append(result, dto)
+	}
+	return result
+}
+
+func (s *Server) MarkNotificationSeen(
+	ctx context.Context,
+	r openapi.MarkNotificationSeenRequestObject,
+) (openapi.MarkNotificationSeenResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.inbox.MarkSeen(ctx, p, r.NotificationId); err != nil {
+		return nil, err
+	}
+	return openapi.MarkNotificationSeen204Response{}, nil
+}
+
+func (s *Server) AcknowledgeNotification(
+	ctx context.Context,
+	r openapi.AcknowledgeNotificationRequestObject,
+) (openapi.AcknowledgeNotificationResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.inbox.Acknowledge(ctx, p, r.NotificationId); err != nil {
+		return nil, err
+	}
+	return openapi.AcknowledgeNotification204Response{}, nil
+}
+
+func (s *Server) PostponeNotification(
+	ctx context.Context,
+	r openapi.PostponeNotificationRequestObject,
+) (openapi.PostponeNotificationResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.inbox.Postpone(ctx, p, r.NotificationId); err != nil {
+		return nil, err
+	}
+	return openapi.PostponeNotification204Response{}, nil
 }
 
 func (s *Server) MarkAllNotificationsRead(

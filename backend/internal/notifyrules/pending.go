@@ -80,9 +80,9 @@ func (d *Dispatcher) runOnePending(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-// stopsOnReading says whether the escalation's stop condition is something the in-app notification's recipients do.
-// Until delivery tracking exists, reading a notification counts as opening, seeing and acknowledging it.
-func stopsOnReading(stopWhen string) bool {
+// stopsOnRecipient says whether the escalation's stop condition is something the in-app notification's recipients do:
+// open it, see it (opening counts) or acknowledge it. The delivery tracking of the inbox tells whether one did.
+func stopsOnRecipient(stopWhen string) bool {
 	switch stopWhen {
 	case ResolutionOpened, ResolutionAcknowledged, ResolutionSeen:
 		return true
@@ -91,7 +91,7 @@ func stopsOnReading(stopWhen string) bool {
 }
 
 // processPending delivers one claimed waiting notification and removes it. Escalation steps and fallbacks of a
-// resolved or already read firing are dropped without sending; delayed first actions are delivered either way. The
+// resolved firing (or one whose stop condition a recipient reached) are dropped without sending; delayed first actions are delivered either way. The
 // rule's conditions are evaluated again, with the event's stored field values and the present moment.
 func (d *Dispatcher) processPending(
 	ctx context.Context,
@@ -119,12 +119,14 @@ func (d *Dispatcher) processPending(
 	if waits && row.FiringResolvedAt.Valid {
 		return drop()
 	}
-	if row.Step > 0 && def.Escalation != nil && stopsOnReading(def.Escalation.StopWhen) {
-		read, err := q.FiringWasRead(ctx, row.FiringID)
+	if row.Step > 0 && def.Escalation != nil && stopsOnRecipient(def.Escalation.StopWhen) {
+		reached, err := q.FiringStopReached(ctx, notifyrulesdb.FiringStopReachedParams{
+			FiringID: row.FiringID, StopWhen: def.Escalation.StopWhen,
+		})
 		if err != nil {
-			return fmt.Errorf("check whether the notification was read: %w", err)
+			return fmt.Errorf("check whether the notification was opened, seen or acknowledged: %w", err)
 		}
-		if read {
+		if reached {
 			reason := def.Escalation.StopWhen
 			if err = q.ResolveFiring(ctx, notifyrulesdb.ResolveFiringParams{
 				ResolvedAt: pgtype.Timestamptz{Time: now, Valid: true}, Reason: &reason, ID: row.FiringID,
@@ -171,12 +173,12 @@ func (d *Dispatcher) processPending(
 		}
 	}
 	if item.Fallback && item.NotificationID != nil {
-		// Only people who still did not read the notification get the mail.
-		unread, err := q.ListPeopleWhoHaveNotRead(ctx, *item.NotificationID)
+		// Only people whose screen never got the notification (and who did not read it) get the mail.
+		undelivered, err := q.ListPeopleNotDelivered(ctx, *item.NotificationID)
 		if err != nil {
-			return fmt.Errorf("find unread notifications: %w", err)
+			return fmt.Errorf("find undelivered notifications: %w", err)
 		}
-		people = intersectPeople(people, unread)
+		people = intersectPeople(people, undelivered)
 	}
 
 	personal := row.OwnerAccountID != nil

@@ -202,12 +202,34 @@ func (q *Queries) ClaimThrottle(ctx context.Context, arg ClaimThrottleParams) (i
 	return result.RowsAffected(), nil
 }
 
+const countAccountsCreatedSince = `-- name: CountAccountsCreatedSince :one
+SELECT count(*)::bigint FROM accounts WHERE created_at >= $1::timestamptz
+`
+
+func (q *Queries) CountAccountsCreatedSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountsCreatedSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countActivity = `-- name: CountActivity :one
 SELECT count(*)::bigint FROM notification_firings f WHERE ($1::uuid IS NULL OR f.rule_id = $1)
 `
 
 func (q *Queries) CountActivity(ctx context.Context, ruleID *uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countActivity, ruleID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countCashCountDifferencesSince = `-- name: CountCashCountDifferencesSince :one
+SELECT count(*)::bigint FROM cash_counts WHERE difference <> 0 AND created_at >= $1::timestamptz
+`
+
+func (q *Queries) CountCashCountDifferencesSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countCashCountDifferencesSince, since)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -235,6 +257,17 @@ func (q *Queries) CountCentralRules(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countCheckOutsSince = `-- name: CountCheckOutsSince :one
+SELECT count(*)::bigint FROM visits WHERE status = 'checked_out' AND checked_out_at >= $1::timestamptz
+`
+
+func (q *Queries) CountCheckOutsSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countCheckOutsSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countCheckedInPeople = `-- name: CountCheckedInPeople :one
 SELECT count(*) FROM visits WHERE status = 'checked_in'
 `
@@ -244,6 +277,17 @@ func (q *Queries) CountCheckedInPeople(ctx context.Context) (int64, error) {
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countFinalizedOrdersSince = `-- name: CountFinalizedOrdersSince :one
+SELECT count(*)::bigint FROM orders WHERE finalized_at >= $1::timestamptz
+`
+
+func (q *Queries) CountFinalizedOrdersSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countFinalizedOrdersSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const countFinishedJobRunsSince = `-- name: CountFinishedJobRunsSince :one
@@ -258,12 +302,45 @@ func (q *Queries) CountFinishedJobRunsSince(ctx context.Context, since pgtype.Ti
 	return column_1, err
 }
 
+const countInvoiceRequestEventsSince = `-- name: CountInvoiceRequestEventsSince :one
+SELECT count(*)::bigint FROM external_invoice_request_events WHERE recorded_at >= $1::timestamptz
+`
+
+func (q *Queries) CountInvoiceRequestEventsSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countInvoiceRequestEventsSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countJobsCreatedSince = `-- name: CountJobsCreatedSince :one
+SELECT count(*)::bigint FROM machine_jobs WHERE deleted_at IS NULL AND created_at >= $1::timestamptz
+`
+
+func (q *Queries) CountJobsCreatedSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countJobsCreatedSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countLabRulesPublishedSince = `-- name: CountLabRulesPublishedSince :one
 SELECT count(*)::bigint FROM laborordnung_versions WHERE status = 'published' AND effective_at >= $1
 `
 
 func (q *Queries) CountLabRulesPublishedSince(ctx context.Context, since pgtype.Timestamptz) (int64, error) {
 	row := q.db.QueryRow(ctx, countLabRulesPublishedSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countOpenDaySignupsSince = `-- name: CountOpenDaySignupsSince :one
+SELECT count(*)::bigint FROM open_day_assignments WHERE created_at >= $1::timestamptz
+`
+
+func (q *Queries) CountOpenDaySignupsSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenDaySignupsSince, since)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -307,6 +384,28 @@ func (q *Queries) CountPrinterErrorsSince(ctx context.Context, since time.Time) 
 	return column_1, err
 }
 
+const countPrivacyRequestsSince = `-- name: CountPrivacyRequestsSince :one
+SELECT count(*)::bigint FROM privacy_subject_requests WHERE created_at >= $1::timestamptz
+`
+
+func (q *Queries) CountPrivacyRequestsSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countPrivacyRequestsSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countReceiptPaymentsSince = `-- name: CountReceiptPaymentsSince :one
+SELECT count(*)::bigint FROM payments WHERE entry_kind = 'receipt' AND recorded_at >= $1::timestamptz
+`
+
+func (q *Queries) CountReceiptPaymentsSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countReceiptPaymentsSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countScheduledOpenDaysBetween = `-- name: CountScheduledOpenDaysBetween :one
 SELECT count(*)::bigint FROM open_days WHERE status = 'scheduled' AND starts_at >= $1 AND starts_at < $2
 `
@@ -318,6 +417,39 @@ type CountScheduledOpenDaysBetweenParams struct {
 
 func (q *Queries) CountScheduledOpenDaysBetween(ctx context.Context, arg CountScheduledOpenDaysBetweenParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countScheduledOpenDaysBetween, arg.FromTime, arg.ToTime)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countSurveyResponsesSince = `-- name: CountSurveyResponsesSince :one
+SELECT count(*)::bigint FROM survey_responses WHERE submitted_on >= $1::date
+`
+
+func (q *Queries) CountSurveyResponsesSince(ctx context.Context, since pgtype.Date) (int64, error) {
+	row := q.db.QueryRow(ctx, countSurveyResponsesSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countTrainingRecordsSince = `-- name: CountTrainingRecordsSince :one
+SELECT count(*)::bigint FROM training_records WHERE created_at >= $1::timestamptz
+`
+
+func (q *Queries) CountTrainingRecordsSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countTrainingRecordsSince, since)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countVisitsSince = `-- name: CountVisitsSince :one
+SELECT count(*)::bigint FROM visits WHERE status <> 'voided' AND checked_in_at >= $1::timestamptz
+`
+
+func (q *Queries) CountVisitsSince(ctx context.Context, since time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countVisitsSince, since)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -428,20 +560,59 @@ func (q *Queries) DeleteRuleRunsBefore(ctx context.Context, cutoff time.Time) (i
 	return result.RowsAffected(), nil
 }
 
-const firingWasRead = `-- name: FiringWasRead :one
+const firingStopReached = `-- name: FiringStopReached :one
 SELECT EXISTS (
     SELECT 1 FROM notification_firing_recipients fr
     JOIN inbox_recipients ir ON ir.notification_id = fr.notification_id
-    WHERE fr.firing_id = $1 AND ir.read_at IS NOT NULL
+    WHERE fr.firing_id = $1 AND CASE $2::text
+        WHEN 'opened' THEN ir.read_at IS NOT NULL
+        WHEN 'seen' THEN ir.seen_at IS NOT NULL OR ir.read_at IS NOT NULL
+        WHEN 'acknowledged' THEN ir.acknowledged_at IS NOT NULL
+        ELSE false
+    END
 )::boolean
 `
 
-// Whether anybody opened an in-app notification of the firing.
-func (q *Queries) FiringWasRead(ctx context.Context, firingID uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, firingWasRead, firingID)
+type FiringStopReachedParams struct {
+	FiringID uuid.UUID
+	StopWhen string
+}
+
+// Whether a recipient of an in-app notification of the firing did what stops the escalation: opened it, saw it (opening
+// also counts) or acknowledged it.
+func (q *Queries) FiringStopReached(ctx context.Context, arg FiringStopReachedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, firingStopReached, arg.FiringID, arg.StopWhen)
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const getCashCountEventFacts = `-- name: GetCashCountEventFacts :one
+SELECT c.reference, c.counted_amount::float8 AS counted, c.expected_amount::float8 AS expected,
+       c.difference::float8 AS difference, c.recorded_by_person_id
+FROM cash_counts c
+WHERE c.id = $1
+`
+
+type GetCashCountEventFactsRow struct {
+	Reference          string
+	Counted            float64
+	Expected           float64
+	Difference         float64
+	RecordedByPersonID *uuid.UUID
+}
+
+func (q *Queries) GetCashCountEventFacts(ctx context.Context, id uuid.UUID) (GetCashCountEventFactsRow, error) {
+	row := q.db.QueryRow(ctx, getCashCountEventFacts, id)
+	var i GetCashCountEventFactsRow
+	err := row.Scan(
+		&i.Reference,
+		&i.Counted,
+		&i.Expected,
+		&i.Difference,
+		&i.RecordedByPersonID,
+	)
+	return i, err
 }
 
 const getCategory = `-- name: GetCategory :one
@@ -519,6 +690,84 @@ func (q *Queries) GetCurrentLabRulesVersion(ctx context.Context, now pgtype.Time
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const getFirstRatingOfResponse = `-- name: GetFirstRatingOfResponse :one
+SELECT a.numeric_value::int AS rating
+FROM survey_answers a
+JOIN survey_questions q ON q.id = a.question_id
+WHERE a.response_id = $1 AND q.kind = 'rating' AND a.numeric_value IS NOT NULL
+ORDER BY q.position
+LIMIT 1
+`
+
+func (q *Queries) GetFirstRatingOfResponse(ctx context.Context, responseID uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, getFirstRatingOfResponse, responseID)
+	var rating int32
+	err := row.Scan(&rating)
+	return rating, err
+}
+
+const getInvoiceRequestEventFacts = `-- name: GetInvoiceRequestEventFacts :one
+SELECT r.reference, r.state, r.order_id, r.order_reference, creator.person_id AS creator_person_id
+FROM external_invoice_requests r
+LEFT JOIN orders o ON o.id = r.order_id
+LEFT JOIN accounts creator ON creator.id = o.created_by_account_id
+WHERE r.id = $1
+`
+
+type GetInvoiceRequestEventFactsRow struct {
+	Reference       string
+	State           string
+	OrderID         *uuid.UUID
+	OrderReference  string
+	CreatorPersonID *uuid.UUID
+}
+
+func (q *Queries) GetInvoiceRequestEventFacts(ctx context.Context, id uuid.UUID) (GetInvoiceRequestEventFactsRow, error) {
+	row := q.db.QueryRow(ctx, getInvoiceRequestEventFacts, id)
+	var i GetInvoiceRequestEventFactsRow
+	err := row.Scan(
+		&i.Reference,
+		&i.State,
+		&i.OrderID,
+		&i.OrderReference,
+		&i.CreatorPersonID,
+	)
+	return i, err
+}
+
+const getJobEventFacts = `-- name: GetJobEventFacts :one
+SELECT j.display_id, j.title, j.machine_id, m.name AS machine_name, j.customer_person_id,
+       j.customer_organization_id, j.operator_person_id
+FROM machine_jobs j
+JOIN machines m ON m.id = j.machine_id
+WHERE j.id = $1
+`
+
+type GetJobEventFactsRow struct {
+	DisplayID              string
+	Title                  *string
+	MachineID              uuid.UUID
+	MachineName            string
+	CustomerPersonID       *uuid.UUID
+	CustomerOrganizationID *uuid.UUID
+	OperatorPersonID       *uuid.UUID
+}
+
+func (q *Queries) GetJobEventFacts(ctx context.Context, id uuid.UUID) (GetJobEventFactsRow, error) {
+	row := q.db.QueryRow(ctx, getJobEventFacts, id)
+	var i GetJobEventFactsRow
+	err := row.Scan(
+		&i.DisplayID,
+		&i.Title,
+		&i.MachineID,
+		&i.MachineName,
+		&i.CustomerPersonID,
+		&i.CustomerOrganizationID,
+		&i.OperatorPersonID,
+	)
+	return i, err
 }
 
 const getLabRulesRevision = `-- name: GetLabRulesRevision :one
@@ -620,6 +869,61 @@ func (q *Queries) GetOpenDayTimeslotEventFacts(ctx context.Context, id uuid.UUID
 	return i, err
 }
 
+const getOrderEventFacts = `-- name: GetOrderEventFacts :one
+SELECT o.reference, o.total_amount::float8 AS total, o.customer_person_id, o.customer_organization_id,
+       creator.person_id AS creator_person_id,
+       COALESCE(CASE WHEN o.customer_person_id IS NOT NULL THEN customer.first_name || ' ' || customer.last_name
+                     ELSE org.name END, '')::text AS customer_name
+FROM orders o
+LEFT JOIN accounts creator ON creator.id = o.created_by_account_id
+LEFT JOIN people customer ON customer.id = o.customer_person_id
+LEFT JOIN organizations org ON org.id = o.customer_organization_id
+WHERE o.id = $1
+`
+
+type GetOrderEventFactsRow struct {
+	Reference              string
+	Total                  float64
+	CustomerPersonID       *uuid.UUID
+	CustomerOrganizationID *uuid.UUID
+	CreatorPersonID        *uuid.UUID
+	CustomerName           string
+}
+
+func (q *Queries) GetOrderEventFacts(ctx context.Context, id uuid.UUID) (GetOrderEventFactsRow, error) {
+	row := q.db.QueryRow(ctx, getOrderEventFacts, id)
+	var i GetOrderEventFactsRow
+	err := row.Scan(
+		&i.Reference,
+		&i.Total,
+		&i.CustomerPersonID,
+		&i.CustomerOrganizationID,
+		&i.CreatorPersonID,
+		&i.CustomerName,
+	)
+	return i, err
+}
+
+const getPaymentEventFacts = `-- name: GetPaymentEventFacts :one
+SELECT pay.method, pay.amount::float8 AS amount, booker.person_id AS booker_person_id
+FROM payments pay
+LEFT JOIN accounts booker ON booker.id = pay.actor_account_id
+WHERE pay.id = $1
+`
+
+type GetPaymentEventFactsRow struct {
+	Method         string
+	Amount         float64
+	BookerPersonID *uuid.UUID
+}
+
+func (q *Queries) GetPaymentEventFacts(ctx context.Context, id uuid.UUID) (GetPaymentEventFactsRow, error) {
+	row := q.db.QueryRow(ctx, getPaymentEventFacts, id)
+	var i GetPaymentEventFactsRow
+	err := row.Scan(&i.Method, &i.Amount, &i.BookerPersonID)
+	return i, err
+}
+
 const getPersonSettings = `-- name: GetPersonSettings :one
 SELECT person_id, ask_feedback_at_checkout, updated_at FROM person_notification_settings WHERE person_id = $1
 `
@@ -645,6 +949,51 @@ func (q *Queries) GetPrinterErrorMeaning(ctx context.Context, arg GetPrinterErro
 	var title string
 	err := row.Scan(&title)
 	return title, err
+}
+
+const getPrivacyRequestEventFacts = `-- name: GetPrivacyRequestEventFacts :one
+SELECT kind, reference, due_at, subject_person_id FROM privacy_subject_requests WHERE id = $1
+`
+
+type GetPrivacyRequestEventFactsRow struct {
+	Kind            string
+	Reference       string
+	DueAt           time.Time
+	SubjectPersonID *uuid.UUID
+}
+
+func (q *Queries) GetPrivacyRequestEventFacts(ctx context.Context, id uuid.UUID) (GetPrivacyRequestEventFactsRow, error) {
+	row := q.db.QueryRow(ctx, getPrivacyRequestEventFacts, id)
+	var i GetPrivacyRequestEventFactsRow
+	err := row.Scan(
+		&i.Kind,
+		&i.Reference,
+		&i.DueAt,
+		&i.SubjectPersonID,
+	)
+	return i, err
+}
+
+const getRoleEventFacts = `-- name: GetRoleEventFacts :one
+SELECT r.name,
+       (COALESCE(r.system_key = 'master', false) OR EXISTS (
+           SELECT 1 FROM role_permission_grants rp WHERE rp.role_id = r.id AND rp.permission_id LIKE '%.manage'
+       ))::boolean AS privileged
+FROM roles r
+WHERE r.id = $1
+`
+
+type GetRoleEventFactsRow struct {
+	Name       string
+	Privileged bool
+}
+
+// privileged: the master role, or a role that grants any *.manage permission.
+func (q *Queries) GetRoleEventFacts(ctx context.Context, id uuid.UUID) (GetRoleEventFactsRow, error) {
+	row := q.db.QueryRow(ctx, getRoleEventFacts, id)
+	var i GetRoleEventFactsRow
+	err := row.Scan(&i.Name, &i.Privileged)
+	return i, err
 }
 
 const getRule = `-- name: GetRule :one
@@ -832,6 +1181,89 @@ func (q *Queries) GetStaffingWarningDays(ctx context.Context) (int32, error) {
 	return warning_window_days, err
 }
 
+const getSurveyResponseEventFacts = `-- name: GetSurveyResponseEventFacts :one
+SELECT s.name AS survey_name, s.anonymous
+FROM survey_responses r
+JOIN survey_versions v ON v.id = r.survey_version_id
+JOIN surveys s ON s.id = v.survey_id
+WHERE r.id = $1
+`
+
+type GetSurveyResponseEventFactsRow struct {
+	SurveyName string
+	Anonymous  bool
+}
+
+// Only the survey itself: a response is never tied to a person here, whether the survey is anonymous or not.
+func (q *Queries) GetSurveyResponseEventFacts(ctx context.Context, id uuid.UUID) (GetSurveyResponseEventFactsRow, error) {
+	row := q.db.QueryRow(ctx, getSurveyResponseEventFacts, id)
+	var i GetSurveyResponseEventFactsRow
+	err := row.Scan(&i.SurveyName, &i.Anonymous)
+	return i, err
+}
+
+const getTrainingName = `-- name: GetTrainingName :one
+SELECT name FROM trainings WHERE id = $1
+`
+
+func (q *Queries) GetTrainingName(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getTrainingName, id)
+	var name string
+	err := row.Scan(&name)
+	return name, err
+}
+
+const getVisitEventFacts = `-- name: GetVisitEventFacts :one
+SELECT v.person_id, v.checked_in_at, v.checked_out_at, v.check_in_method, v.check_out_method, v.admission_decision,
+       p.first_name, p.last_name,
+       din.name AS check_in_device, dout.name AS check_out_device,
+       NOT EXISTS (
+           SELECT 1 FROM visits earlier
+           WHERE earlier.person_id = v.person_id AND earlier.id <> v.id AND earlier.status <> 'voided'
+             AND earlier.checked_in_at < v.checked_in_at
+       ) AS first_visit
+FROM visits v
+JOIN people p ON p.id = v.person_id
+LEFT JOIN managed_devices din ON din.id = v.check_in_device_id
+LEFT JOIN managed_devices dout ON dout.id = v.check_out_device_id
+WHERE v.id = $1
+`
+
+type GetVisitEventFactsRow struct {
+	PersonID          uuid.UUID
+	CheckedInAt       time.Time
+	CheckedOutAt      pgtype.Timestamptz
+	CheckInMethod     string
+	CheckOutMethod    *string
+	AdmissionDecision string
+	FirstName         string
+	LastName          string
+	CheckInDevice     *string
+	CheckOutDevice    *string
+	FirstVisit        bool
+}
+
+// The facts of a visit for the check-in and check-out triggers. first_visit is true when the person has no earlier
+// visit that still counts.
+func (q *Queries) GetVisitEventFacts(ctx context.Context, id uuid.UUID) (GetVisitEventFactsRow, error) {
+	row := q.db.QueryRow(ctx, getVisitEventFacts, id)
+	var i GetVisitEventFactsRow
+	err := row.Scan(
+		&i.PersonID,
+		&i.CheckedInAt,
+		&i.CheckedOutAt,
+		&i.CheckInMethod,
+		&i.CheckOutMethod,
+		&i.AdmissionDecision,
+		&i.FirstName,
+		&i.LastName,
+		&i.CheckInDevice,
+		&i.CheckOutDevice,
+		&i.FirstVisit,
+	)
+	return i, err
+}
+
 const insertCategory = `-- name: InsertCategory :exec
 INSERT INTO notification_categories (id, name, description, basis, position)
 VALUES ($1, $2, $3, $4, $5)
@@ -1014,21 +1446,34 @@ func (q *Queries) InsertRuleMail(ctx context.Context, arg InsertRuleMailParams) 
 }
 
 const insertRuleNotification = `-- name: InsertRuleNotification :exec
-INSERT INTO inbox_notifications (id, kind, title, body, link, created_at, expires_at, rule_id, firing_id, category_id)
+INSERT INTO inbox_notifications (
+    id, kind, title, body, link, created_at, expires_at, rule_id, firing_id, category_id,
+    appearance, level, toast_seconds, button_kind, button_label, button_link, only_button_closes, allow_later
+)
 VALUES ($1, 'rule', $2, $3, $4, $5,
-        $6, $7, $8, $9)
+        $6, $7, $8, $9,
+        $10, $11, $12, $13,
+        $14, $15, $16, $17)
 `
 
 type InsertRuleNotificationParams struct {
-	ID         uuid.UUID
-	Title      string
-	Body       string
-	Link       *string
-	CreatedAt  time.Time
-	ExpiresAt  time.Time
-	RuleID     *uuid.UUID
-	FiringID   *uuid.UUID
-	CategoryID *uuid.UUID
+	ID               uuid.UUID
+	Title            string
+	Body             string
+	Link             *string
+	CreatedAt        time.Time
+	ExpiresAt        time.Time
+	RuleID           *uuid.UUID
+	FiringID         *uuid.UUID
+	CategoryID       *uuid.UUID
+	Appearance       string
+	Level            string
+	ToastSeconds     *int32
+	ButtonKind       string
+	ButtonLabel      *string
+	ButtonLink       *string
+	OnlyButtonCloses bool
+	AllowLater       bool
 }
 
 func (q *Queries) InsertRuleNotification(ctx context.Context, arg InsertRuleNotificationParams) error {
@@ -1042,6 +1487,14 @@ func (q *Queries) InsertRuleNotification(ctx context.Context, arg InsertRuleNoti
 		arg.RuleID,
 		arg.FiringID,
 		arg.CategoryID,
+		arg.Appearance,
+		arg.Level,
+		arg.ToastSeconds,
+		arg.ButtonKind,
+		arg.ButtonLabel,
+		arg.ButtonLink,
+		arg.OnlyButtonCloses,
+		arg.AllowLater,
 	)
 	return err
 }
@@ -1869,6 +2322,37 @@ func (q *Queries) ListMembershipsOfPeople(ctx context.Context, personIds []strin
 	return items, nil
 }
 
+const listOnlineAccounts = `-- name: ListOnlineAccounts :many
+SELECT account_id FROM account_presence
+WHERE account_id = ANY($1::text[]::uuid[]) AND last_visible_at > $2
+`
+
+type ListOnlineAccountsParams struct {
+	AccountIds []string
+	Since      time.Time
+}
+
+// Accounts that had the application open in a visible tab since the given moment.
+func (q *Queries) ListOnlineAccounts(ctx context.Context, arg ListOnlineAccountsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listOnlineAccounts, arg.AccountIds, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var account_id uuid.UUID
+		if err := rows.Scan(&account_id); err != nil {
+			return nil, err
+		}
+		items = append(items, account_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOpenDayTeam = `-- name: ListOpenDayTeam :many
 SELECT DISTINCT person_id FROM open_day_assignments WHERE open_day_id = $1 ORDER BY person_id
 `
@@ -2068,23 +2552,15 @@ func (q *Queries) ListPeopleNames(ctx context.Context, personIds []string) ([]Li
 	return items, nil
 }
 
-const listPeopleSignedUpBetween = `-- name: ListPeopleSignedUpBetween :many
-SELECT DISTINCT a.person_id
-FROM open_day_assignments a
-JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
-JOIN open_day_timeslots t ON t.id = a.timeslot_id
-WHERE t.starts_at >= $1 AND t.starts_at < $2
-  AND a.person_id = ANY($3::text[]::uuid[])
+const listPeopleNotDelivered = `-- name: ListPeopleNotDelivered :many
+SELECT DISTINCT a.person_id FROM inbox_recipients ir
+JOIN accounts a ON a.id = ir.account_id
+WHERE ir.notification_id = $1 AND ir.delivered_at IS NULL AND ir.read_at IS NULL
 `
 
-type ListPeopleSignedUpBetweenParams struct {
-	FromTime  time.Time
-	ToTime    time.Time
-	PersonIds []string
-}
-
-func (q *Queries) ListPeopleSignedUpBetween(ctx context.Context, arg ListPeopleSignedUpBetweenParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listPeopleSignedUpBetween, arg.FromTime, arg.ToTime, arg.PersonIds)
+// People whose account has neither received the notification on screen nor read it.
+func (q *Queries) ListPeopleNotDelivered(ctx context.Context, notificationID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPeopleNotDelivered, notificationID)
 	if err != nil {
 		return nil, err
 	}
@@ -2103,14 +2579,23 @@ func (q *Queries) ListPeopleSignedUpBetween(ctx context.Context, arg ListPeopleS
 	return items, nil
 }
 
-const listPeopleWhoHaveNotRead = `-- name: ListPeopleWhoHaveNotRead :many
-SELECT DISTINCT a.person_id FROM inbox_recipients ir
-JOIN accounts a ON a.id = ir.account_id
-WHERE ir.notification_id = $1 AND ir.read_at IS NULL
+const listPeopleSignedUpBetween = `-- name: ListPeopleSignedUpBetween :many
+SELECT DISTINCT a.person_id
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+WHERE t.starts_at >= $1 AND t.starts_at < $2
+  AND a.person_id = ANY($3::text[]::uuid[])
 `
 
-func (q *Queries) ListPeopleWhoHaveNotRead(ctx context.Context, notificationID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listPeopleWhoHaveNotRead, notificationID)
+type ListPeopleSignedUpBetweenParams struct {
+	FromTime  time.Time
+	ToTime    time.Time
+	PersonIds []string
+}
+
+func (q *Queries) ListPeopleSignedUpBetween(ctx context.Context, arg ListPeopleSignedUpBetweenParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listPeopleSignedUpBetween, arg.FromTime, arg.ToTime, arg.PersonIds)
 	if err != nil {
 		return nil, err
 	}
@@ -2428,6 +2913,60 @@ ORDER BY a.person_id
 // People with an active account who staff open days (supervisor or trainee membership).
 func (q *Queries) ListStaffingPeople(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listStaffingPeople)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSupervisorsOnDuty = `-- name: ListSupervisorsOnDuty :many
+SELECT DISTINCT v.person_id
+FROM visits v
+JOIN person_roles pr ON pr.person_id = v.person_id
+JOIN roles r ON r.id = pr.role_id AND r.system_key = 'supervisor'
+WHERE v.status = 'checked_in'
+ORDER BY v.person_id
+`
+
+// Supervisors who are checked in right now.
+func (q *Queries) ListSupervisorsOnDuty(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listSupervisorsOnDuty)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var person_id uuid.UUID
+		if err := rows.Scan(&person_id); err != nil {
+			return nil, err
+		}
+		items = append(items, person_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTrainersOfTraining = `-- name: ListTrainersOfTraining :many
+SELECT person_id FROM training_records WHERE training_id = $1 AND status = 'trainer' ORDER BY person_id
+`
+
+func (q *Queries) ListTrainersOfTraining(ctx context.Context, trainingID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listTrainersOfTraining, trainingID)
 	if err != nil {
 		return nil, err
 	}

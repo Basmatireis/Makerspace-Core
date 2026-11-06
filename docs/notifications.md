@@ -14,7 +14,7 @@ Notifications are short messages shown in the bell of the application header. Th
 | Operation                         | Permission           | Notes                                                                                |
 | --------------------------------- | -------------------- | ------------------------------------------------------------------------------------ |
 | `GET /notifications`              | staff session        | Own notifications, newest first, `page`/`pageSize`, plus `unreadCount`.              |
-| `GET /notifications/unread-count` | staff session        | Polled by the header every 60 s (paused while the tab is hidden).                    |
+| `GET /notifications/unread-count` | staff session        | Polled by the header every 60 s (paused while the tab is hidden). Records that the account is online and returns `fresh` (not yet shown) and `pinned` (banners and dialogs that stay) notifications. |
 | `POST /notifications/{id}/read`   | staff session        | Idempotent. Another account's id answers 404.                                        |
 | `POST /notifications/read-all`    | staff session        | Own notifications only.                                                              |
 | `DELETE /notifications/{id}`      | staff session        | Dismiss: deletes the own copy. Another account's id answers 404.                     |
@@ -52,6 +52,34 @@ A recorded run that has no job when the machine reports its end does not notify 
 **Organizations.** An event can name organizations per recipient key (`Event.Organizations`); an e-mail action reaches them through their contact e-mail, with no conditions, preferences or consent (the job's recipient may be an organization).
 
 **E-mail delivery.** The dispatcher writes the e-mail into `notification_mail_outbox` in the transaction of the event, naming the person or organization but never an address. The scheduler job `inbox.mail_delivery` (every minute and at start) reads the address when it sends, uses the branded layout with a button to the notification's link, and deletes the row once sent. A recipient without an address, a deleted person or organization, switched-off mail delivery, five failed attempts or an age of a day drop the mail. Neither addresses nor message bodies are logged. Manual runs have no end event (their end time is set in advance), so only cancelling one notifies.
+
+## Event triggers
+
+Every trigger of the catalog (`notifyrules/catalog.go`, `catalog_triggers.go`) has a real source: the feature raises it through `SystemEvents` inside the transaction of its mutation, through a one-method interface it declares itself and receives with `WithNotifications` (or its existing notifier). Features built without the notifier raise nothing, so tests that do not care stay unchanged. A trigger needs its permission to be seen in a central or personal rule, so the editor of a central rule must hold it too.
+
+| Trigger | Raised by | Recipients | Fields | Permission |
+| --- | --- | --- | --- | --- |
+| `check_in` | `attendance`: password, PIN, supervised and enrolment check-in | `self`, `on_duty` | system role, Lab Rules at check-in, first visit, method, terminal | `attendance.read` |
+| `check_out` | `attendance`: credentials, public tap and supervised check-out | `self`, `on_duty` | system role, hours stayed, method | `attendance.read` |
+| `account_created` | `accounts.Create` | `self` | system role | `accounts.read` |
+| `training_recorded` | `trainings.SetRecord` when the status becomes trained or trainer | `self`, `trainers` | training, status | `training_records.read.all` |
+| `order_created` | `orders` finalize (an order leaves draft) | `customer`, `creator` | amount, customer type | `orders.read` |
+| `payment_recorded` | `orders` cash and card receipts and the payment a wiRef invoice settles | `booker`, `customer` | method, amount | `payments.read` |
+| `cash_count_difference` | `orders.RecordCashCount` when the difference is not zero | `counter` | difference | `cash_movements.read` |
+| `wiref_invoice_status` | `orders` invoice request actions that change the state | `creator` | new status | `external_invoice_requests.read` |
+| `job_created` | `machinelogbook`: manual jobs and jobs created from a run | `operator`, `recipient` | machine, recipient type | `machine_jobs.read` |
+| `survey_answered` | `surveys` invitation and share-link submissions | none (roles and people) | survey, rating of the first rating question, anonymous | `surveys.read` |
+| `role_changed` | `people.ChangeRole` (also a switched system role) | `self` | change, role, privileged | `roles.read` |
+| `privacy_request_created` | `subjectrequests.Create` | none (roles and people) | request type | `privacy.requests.manage` |
+| `open_day_signup` | `opendays` sign-up and assignment | `self`, `day_team` | place type, days until, weekday, signed up by themselves | `open_days.read` |
+
+Definitions that need a word. **On duty** are the supervisors (system role) who have an open visit at that moment; the arriving or leaving person is not in the list. **Privileged** is the master role or a role that grants any permission ending in `.manage`. **First visit** means no earlier visit that still counts. **Lab Rules at check-in** is "not confirmed" when the visit was admitted with a warning and "confirmed" otherwise, including roles without Lab Rules.
+
+**Privacy.** `survey_answered` carries the survey name and the rating only: no respondent, no free text, no person recipient, for anonymous and identified surveys alike. Placeholders hold names only where staff see the same names in the application (visits, orders, people, privacy requests) and never addresses, tokens or request bodies.
+
+**Not offered.** There is no trigger for jobs that need attention (the flag is derived when a job is read, no transition exists to hook), for repeated failed sign-ins (the authentication code keeps its throttles in separate transactions and has no notifier; a notification per failure would also let anybody trigger mail to the account owner), for a run that starts (runs begin in several connector ingest paths, none of them a single start event) or for an automatic check-out (visits are not closed automatically).
+
+The dry run counts the real occurrences of the last 30 days for every trigger except `role_changed`, whose past is not recorded as events.
 
 ## Rule dispatch
 
@@ -136,4 +164,5 @@ Schedule and manual rules use the same engine as event rules (`fire.go`, `schedu
 - The bell is an `IconButton` with a `badgeCount` in the header next to the profile action (Carbon's `HeaderGlobalAction` has no badge). The panel is a Carbon `HeaderPanel` whose content (`NotificationList`) is lazy-loaded and fetched the first time it is opened. Clicking a notification marks it read and follows its link; each item can be dismissed and "Mark all as read" clears the badge. Nothing is stored in the browser.
 - **Directory › Messages** (`/notifications/messages`, `notifications.send`) lists sent messages and opens the "New message" dialog. Choosing roles needs `roles.read` as well, because the role list is the ordinary role catalog; without it the dialog says so. Each sent message can be edited (title, text, link; roles stay) or retracted from every recipient.
 - A link that starts with `https://` opens in a new tab (`noopener,noreferrer`); an application path is followed in the app.
-- While the tab is open, the 60 s unread-count poll notices new notifications and shows each one as a Carbon toast at the top; clicking the toast marks it read and follows its link. Nothing is shown for notifications that were already there when the page loaded.
+- While the tab is open and visible, the 60 s poll (`GET /notifications/unread-count`) returns the notifications the account was not shown yet (`fresh`) and marks them delivered. A rule's in-app options decide how each looks: bell only, a pop-up (Carbon toast at the top, closing after the chosen seconds or when closed), a banner (inline notification below the header) or a dialog (Carbon modal; red for errors), each with a level (information, success, warning, error) and an optional OK, Acknowledge or link button. Banners and dialogs stay until they are closed, acknowledged or postponed with "Remind me later" (one hour, `POST /notifications/{id}/later`) and come back after a reload (`pinned`); when only the button may close them, there is no close icon and Escape does nothing. Closing marks the notification read, Acknowledge calls `POST /notifications/{id}/acknowledge` (acknowledged and read), and anything on screen while the tab is visible is reported with `POST /notifications/{id}/seen`. The bell list shows the level as an icon and a left border.
+- Delivery tracking per recipient (`inbox_recipients`: `delivered_at`, `seen_at`, `acknowledged_at`, `snoozed_until`) drives the rule engine: an e-mail fallback goes only to accounts that never got the notification on screen and did not read it; an escalation's stop condition `opened` looks at `read_at`, `seen` at `seen_at` (opening counts), `acknowledged` at `acknowledged_at` of any recipient of the firing. "Only online" notifications reach only accounts whose latest visible poll (`account_presence`, one timestamp per account, no history) is less than two minutes old; the others are logged as `skipped_offline`. Notifications that existed before the delivery tracking count as delivered.
