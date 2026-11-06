@@ -300,6 +300,36 @@
   }
 }
 
+.nc-level svg {
+  fill: var(--nc-k);
+}
+
+// The status icons draw their glyph as a hidden inner path; show it on the coloured disc like Carbon notifications.
+.nc-level svg [data-icon-path='inner-path'] {
+  fill: theme.$icon-on-color;
+  opacity: 1;
+}
+
+.nc-k--warning svg [data-icon-path='inner-path'] {
+  fill: theme.$icon-primary;
+}
+
+.nc-fallback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+
+  > .cds--form-item {
+    flex: 0 0 auto;
+    inline-size: auto;
+  }
+}
+
+.nc-fallback__minutes {
+  inline-size: 8rem;
+}
+
 .nc-conds {
   display: flex;
   flex-direction: column;

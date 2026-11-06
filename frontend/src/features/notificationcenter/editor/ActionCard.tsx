@@ -185,23 +185,25 @@ function InAppOptions({
         checked={Boolean(options.onlineOnly)}
         onChange={(_event, { checked }) => set({ onlineOnly: checked })}
       />
-      <div className="nc-row nc-row--inline">
+      <div className="nc-fallback">
         <Checkbox
           id={`${id}-fallback`}
           labelText="If it has not reached someone after"
           checked={options.emailFallbackMinutes != null}
           onChange={(_event, { checked }) => set({ emailFallbackMinutes: checked ? 5 : null })}
         />
-        <NumberInput
-          id={`${id}-fallback-minutes`}
-          label="Minutes before the e-mail"
-          hideLabel
-          min={1}
-          max={1440}
-          disabled={options.emailFallbackMinutes == null}
-          value={options.emailFallbackMinutes ?? 5}
-          onChange={(_event, state) => set({ emailFallbackMinutes: Number(state.value) || 5 })}
-        />
+        <div className="nc-fallback__minutes">
+          <NumberInput
+            id={`${id}-fallback-minutes`}
+            label="Minutes before the e-mail"
+            hideLabel
+            min={1}
+            max={1440}
+            disabled={options.emailFallbackMinutes == null}
+            value={options.emailFallbackMinutes ?? 5}
+            onChange={(_event, state) => set({ emailFallbackMinutes: Number(state.value) || 5 })}
+          />
+        </div>
         <span>min, send it by e-mail instead</span>
       </div>
     </div>
