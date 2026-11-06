@@ -21,7 +21,7 @@ import { saveBlob } from '../configtransfer/helpers';
 import { plural, shortDate } from '../dashboard/format';
 import { ExcuseDialog, MembershipDialog } from './StaffingDialogs';
 import { StaffingPanel, type PanelCan } from './StaffingPanel';
-import { StaffingPanelFrame } from './StaffingPanelFrame';
+import { PanelFrame } from '../../app/components/PanelFrame';
 import { StaffingRulesTab } from './StaffingRulesTab';
 import { StaffingTable } from './StaffingTable';
 import {
@@ -224,7 +224,7 @@ function PeopleTab({ canManage, periods }: { canManage: boolean; periods: OpenDa
             }
           />
         </div>
-        <StaffingPanelFrame
+        <PanelFrame
           label="Person details"
           open={selected !== null}
           placeholder="Pick a person to see their open days."
@@ -245,7 +245,7 @@ function PeopleTab({ canManage, periods }: { canManage: boolean; periods: OpenDa
               onNotify={setNotice}
             />
           )}
-        </StaffingPanelFrame>
+        </PanelFrame>
       </div>
       <MembershipDialog
         member={selected}

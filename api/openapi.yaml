@@ -13425,13 +13425,17 @@ components:
     SupervisorRow:
       type: object
       additionalProperties: false
-      required: [personId, personVersion, name, membership, extraRoles, hasProfileImage, laborordnungState, staffed, booked, staffedAsTrainee, minimum, minimumSource, minimumExceptionRole, excused, excusalReason, status, missing, lastOpenDayAt, nextAssignment, memberSince]
+      required: [personId, personVersion, name, membership, extraRoles, competencies, hasProfileImage, laborordnungState, staffed, booked, staffedAsTrainee, minimum, minimumSource, minimumExceptionRole, excused, excusalReason, status, missing, lastOpenDayAt, nextAssignment, memberSince]
       properties:
         personId: {$ref: "#/components/schemas/UUIDv7"}
         personVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string}
         membership: {$ref: "#/components/schemas/StaffingKind"}
         extraRoles: {type: array, items: {type: string}, description: "Names of the person's roles besides the system roles."}
+        competencies:
+          type: array
+          items: {$ref: "#/components/schemas/OpenDayCompetency"}
+          description: Active competency categories the person's training records cover (trained or trainer), in category order.
         hasProfileImage: {type: boolean}
         laborordnungState: {type: string, enum: [not_required, no_published_version, current, outdated]}
         staffed: {type: integer, minimum: 0, description: "Open days of the semester that ended, in any place."}

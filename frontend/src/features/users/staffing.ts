@@ -2,7 +2,7 @@ import type { StaffingStatus, SupervisorRow } from '../../api/generated/models';
 import { formatDate, formatTime } from '../../app/dateTime';
 
 /** The people table's filter categories; each maps to a list of chosen option ids. */
-export type FilterKey = 'membership' | 'status' | 'extra' | 'signedUp' | 'labRules';
+export type FilterKey = 'membership' | 'status' | 'extra' | 'training' | 'signedUp' | 'labRules';
 export type StaffingFilterValues = Partial<Record<FilterKey, string[]>>;
 
 export type FilterOption = { id: string; label: string };
@@ -23,6 +23,7 @@ export const MEMBERSHIP_OPTIONS: FilterOption[] = [
 ];
 
 export const NO_EXTRA_ROLE = '__none__';
+export const NO_TRAINING = '__none__';
 
 const SIGNED_UP_OPTIONS: FilterOption[] = [
   { id: 'yes', label: 'Signed up for an upcoming open day' },
@@ -55,6 +56,7 @@ export const statusLabel = (status: StaffingStatus) =>
 /** The filter definitions for the loaded rows; the extra-role options are the roles people actually hold. */
 export function filterDefs(rows: SupervisorRow[]): FilterDef[] {
   const extraRoles = [...new Set(rows.flatMap((row) => row.extraRoles))].sort((a, b) => a.localeCompare(b));
+  const competencies = new Map(rows.flatMap((row) => row.competencies).map((item) => [item.id, item.label]));
   return [
     { key: 'membership', label: 'System role', options: MEMBERSHIP_OPTIONS },
     { key: 'status', label: 'Status', options: STATUS_OPTIONS },
@@ -64,6 +66,14 @@ export function filterDefs(rows: SupervisorRow[]): FilterDef[] {
       options: [
         ...extraRoles.map((role) => ({ id: role, label: role })),
         { id: NO_EXTRA_ROLE, label: 'No extra role' },
+      ],
+    },
+    {
+      key: 'training',
+      label: 'Training',
+      options: [
+        ...[...competencies].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label)),
+        { id: NO_TRAINING, label: 'No training' },
       ],
     },
     { key: 'signedUp', label: 'Signed up', options: SIGNED_UP_OPTIONS },
@@ -77,7 +87,14 @@ export function activeFilterCount(filters: StaffingFilterValues): number {
 
 /** The text the search matches: what the table shows for the person. */
 export function rowSearchText(row: SupervisorRow): string {
-  return [row.name, membershipLabel(row.membership), ...row.extraRoles, statusLabel(row.status), labRulesLabel(row)]
+  return [
+    row.name,
+    membershipLabel(row.membership),
+    ...row.extraRoles,
+    ...row.competencies.map((item) => item.label),
+    statusLabel(row.status),
+    labRulesLabel(row),
+  ]
     .join(' ')
     .toLocaleLowerCase();
 }
@@ -95,6 +112,9 @@ export function filterRows(rows: SupervisorRow[], search: string, filters: Staff
       chosen('status', (value) => row.status === value) &&
       chosen('extra', (value) =>
         value === NO_EXTRA_ROLE ? row.extraRoles.length === 0 : row.extraRoles.includes(value),
+      ) &&
+      chosen('training', (value) =>
+        value === NO_TRAINING ? row.competencies.length === 0 : row.competencies.some((item) => item.id === value),
       ) &&
       chosen('signedUp', (value) => (value === 'yes') === (row.nextAssignment !== null)) &&
       chosen('labRules', (value) => labRulesGroup(row) === value),

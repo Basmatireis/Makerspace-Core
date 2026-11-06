@@ -27,6 +27,7 @@ function member(index: number, overrides: Record<string, unknown> = {}) {
     name: `Member ${String(index).padStart(2, '0')}`,
     membership: 'supervisor',
     extraRoles: [],
+    competencies: [],
     hasProfileImage: true,
     laborordnungState: 'current',
     staffed: 2,

@@ -2,6 +2,37 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- **Membership roles.** Every person is a Supervisor, Trainee or Visitor (system roles with fixed names; their permissions stay editable). New people start as Visitor whichever way they are created. The Leitung changes the membership on the staffing page; becoming a Visitor frees the person's upcoming open days.
+- **Staffing rules.** One place (People › Staffing › Rules) for the minimum per semester of supervisors and trainees, the trainee ready-after count, the warning window (default 14 days), whether timeslots or open days count, the default sign-up deadline and exceptions per extra role. The Leitung can excuse a person from the minimum of a semester with a reason that only dashboard readers see.
+- **Timeslots and weekly series.** An open day has one or more timeslots, each with its own supervisor and trainee places, and places can be restricted to extra roles. Weekly series create the days of a period, can be edited from a date on, and a day edited on its own leaves its series and can rejoin it. Overlapping open days are refused. A new period can copy the series of an earlier one.
+- **Rebuilt Open Days and Staffing pages.** Periods, breaks and the schedule (Upcoming, Short-staffed, Open for me, Mine, Past; list or calendar) with a fixed detail panel, a working copy with a save bar, and a Filters button with a red count. Staffing has a sortable, filterable People table with CSV export, a person panel (assign, remove, confirm Lab Rules, change membership, excuse) and the Rules tab.
+- **Training filter.** The staffing table filters and searches by the competency categories of a person's training records; `GET /supervisor-dashboard` rows carry them as `competencies`.
+- **Personal calendar subscription.** A secret link (profile menu › Calendar subscription) shows a person's open-day timeslots and event shifts in any calendar application; see `docs/calendar-feed.md`.
+- **Notices for schedule changes.** People are notified (in the app and by e-mail while mail delivery is on) when a timeslot they hold changes, is removed or the open day is cancelled, and when somebody else assigns or removes them.
+
+### Changed
+
+- The semester tile and the dashboard's open-place hint follow the staffing rules (minimum, excusal, counting, warning window). The public JSON and ICS list one entry per open day with its timeslots in the description.
+- The Filters button and the fixed detail panel of Open Days and Staffing are shared components.
+
+### Removed
+
+- Settings › Lab operations › Open days & staffing, and the staffing level and open-days minimum fields of the role editor.
+
+### Upgrade notes
+
+- **Migration 00109 (membership roles and staffing rules).** Creates `staffing_rules`, `staffing_rule_exceptions` and `staffing_excusals`; marks or creates the Supervisor, Trainee and Visitor roles (a role already using such a name becomes "<name> (custom)"), gives each person the membership their former staffing-level roles implied, turns role minimum overrides of the remaining extra roles into exceptions, and adds the triggers that guarantee one membership per person. Drops `open_day_requirements`, `roles.staffing_level`, `roles.min_open_days_per_semester` and the visitor enrollment `initial_role_id`. Review the roles list after upgrading.
+- **Migration 00110 (timeslots and series).** New `open_day_timeslots`, `open_day_series` (with timeslot and role tables); requirements and assignments reference a timeslot, and every existing day becomes one timeslot.
+- **Migration 00111 (calendar feeds).** New `calendar_feeds` (digest only) and the new notification kinds; data category `calendar.feeds`.
+- **Breaking API changes.** Roles lose `staffingLevel` and `minOpenDaysPerSemester`; visitor enrollment loses `initialRoleId`. `POST /people/{personId}/promote-to-supervisor` is replaced by `PUT /people/{personId}/membership` (removing a membership role directly answers 422 `membership_required`). `/open-day-requirements` is replaced by `/staffing-rules`. Open-day requirements and assignments belong to a timeslot (`timeslotId`), and `DELETE /open-days/{openDayId}/assignments/me` needs the `timeslotId` query parameter. The schedule save carries timeslots and series operations. `GET /supervisor-dashboard` rows are reshaped (membership, extra roles, minimum and its source, excusal, next assignment, competencies).
+- **New endpoints.** `GET`/`PUT /staffing-rules`, `PUT`/`DELETE /open-day-periods/{periodId}/excusals/{personId}`, `GET /open-day-periods/{periodId}/series`, `PUT /people/{personId}/membership`, `GET`/`POST`/`DELETE /me/calendar-feed` and the public `GET /calendar/{token}.ics`. New audit actions include `person.membership_changed` and `calendar_feed.*`.
+- **Configuration files.** The `openDayRequirements` section is replaced by `staffingRules` (older files' section is ignored; role `staffingLevel` and minimums are ignored on import).
+- Documentation: `docs/open-days.md`, `docs/staffing-and-dashboard.md`, `docs/authorization.md`.
+
 ## [0.18.1] - 2026-11-06
 
 ### Added

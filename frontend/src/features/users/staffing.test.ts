@@ -17,6 +17,7 @@ const row = (overrides: Partial<SupervisorRow>): SupervisorRow => ({
   name: 'Ada Lovelace',
   membership: 'supervisor',
   extraRoles: [],
+  competencies: [],
   hasProfileImage: true,
   laborordnungState: 'current',
   staffed: 1,
@@ -41,6 +42,7 @@ const grace = row({
   name: 'Grace Hopper',
   membership: 'trainee',
   extraRoles: ['Laser'],
+  competencies: [{ id: 'c-laser', label: 'Laser cutting' }],
   laborordnungState: 'outdated',
   status: 'ready',
   nextAssignment: { openDayId: 'd1', startsAt: '2026-11-10T09:00:00Z', endsAt: '2026-11-10T13:00:00Z' },
@@ -69,6 +71,14 @@ describe('filterRows', () => {
     expect(names(filterRows(rows, '', { extra: ['__none__'] }))).toEqual(['Ada Lovelace', 'Alan Turing']);
     expect(names(filterRows(rows, '', { signedUp: ['yes'] }))).toEqual(['Grace Hopper']);
     expect(names(filterRows(rows, '', { labRules: ['confirmed'], signedUp: ['no'] }))).toEqual(['Ada Lovelace']);
+  });
+
+  it('filters by training category and offers the categories people hold', () => {
+    const training = filterDefs(rows).find((def) => def.key === 'training');
+    expect(training?.options.map((option) => option.label)).toEqual(['Laser cutting', 'No training']);
+    expect(names(filterRows(rows, '', { training: ['c-laser'] }))).toEqual(['Grace Hopper']);
+    expect(names(filterRows(rows, '', { training: ['__none__'] }))).toEqual(['Ada Lovelace', 'Alan Turing']);
+    expect(names(filterRows(rows, 'laser cutting', {}))).toEqual(['Grace Hopper']);
   });
 
   it('offers the extra roles people hold as filter options', () => {

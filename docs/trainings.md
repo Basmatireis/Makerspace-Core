@@ -27,7 +27,7 @@ Schema: migration 00071.
 | `training_records.update`      | Set another person's status; also reads everybody's records, because the editor needs them.        |
 | `training_records.update.self` | Set the own status; also reads the own records with internal notes, because the editor needs them. |
 
-The derived open-day competencies need no extra permission: they are visible wherever the open day is.
+The derived open-day competencies need no extra permission: they are visible wherever the open day is. The same categories per person (`competencies` in every row of `GET /supervisor-dashboard`, `trainings.PersonCompetencies`) are readable with `supervisor_dashboard.read` and drive the Training filter of People › Staffing; inactive trainings and categories do not count.
 
 ## Open-day competencies
 

@@ -17,7 +17,7 @@ import {
 import { Download } from '@carbon/icons-react';
 import type { StaffingStatus, SupervisorRow } from '../../api/generated/models';
 import { EmptyState } from '../../app/PageState';
-import { StaffingFilters } from './StaffingFilters';
+import { TableFilters } from '../../app/components/TableFilters';
 import {
   activeFilterCount,
   labRulesGroup,
@@ -115,7 +115,7 @@ export function StaffingTable({
             onChange={(_event, value) => onSearch(value ?? '')}
             onClear={() => onSearch('')}
           />
-          <StaffingFilters defs={filterDefs} values={filters} onChange={onFilters} />
+          <TableFilters label="Staffing filters" defs={filterDefs} values={filters} onChange={onFilters} />
           <Button
             kind="ghost"
             size="lg"

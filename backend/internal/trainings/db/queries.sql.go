@@ -464,6 +464,53 @@ func (q *Queries) ListOpenDayCompetencies(ctx context.Context, openDayIds []stri
 	return items, nil
 }
 
+const listPersonCompetencies = `-- name: ListPersonCompetencies :many
+SELECT DISTINCT tr.person_id, c.id, c.name, c.sort_order, lower(c.name) AS sort_name
+FROM training_records tr
+JOIN trainings t ON t.id = tr.training_id AND t.active
+JOIN training_competencies tc ON tc.training_id = t.id
+JOIN competency_categories c ON c.id = tc.competency_id AND c.active
+WHERE tr.person_id = ANY($1::text[]::uuid[])
+ORDER BY tr.person_id, c.sort_order, sort_name, c.id
+`
+
+type ListPersonCompetenciesRow struct {
+	PersonID  uuid.UUID
+	ID        uuid.UUID
+	Name      string
+	SortOrder int32
+	SortName  string
+}
+
+// The active competency categories each of the given people is trained for or may train in. Inactive trainings and
+// inactive categories do not count; trained and trainer count alike, as for open days. IDs are passed as text so the
+// query also runs in pgx's simple protocol mode.
+func (q *Queries) ListPersonCompetencies(ctx context.Context, personIds []string) ([]ListPersonCompetenciesRow, error) {
+	rows, err := q.db.Query(ctx, listPersonCompetencies, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPersonCompetenciesRow{}
+	for rows.Next() {
+		var i ListPersonCompetenciesRow
+		if err := rows.Scan(
+			&i.PersonID,
+			&i.ID,
+			&i.Name,
+			&i.SortOrder,
+			&i.SortName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPersonTrainingRecords = `-- name: ListPersonTrainingRecords :many
 SELECT t.id AS training_id, t.name AS training_name, t.active AS training_active,
        r.status, r.completed_on, r.notes, r.version, r.updated_at

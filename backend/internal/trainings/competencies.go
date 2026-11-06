@@ -38,3 +38,28 @@ func OpenDayCompetencies(
 	}
 	return result, nil
 }
+
+// PersonCompetencies lists, per person, the active competency categories their training records cover, in category
+// order. People without any get no entry. It is the person-side twin of OpenDayCompetencies; the caller authorizes.
+func PersonCompetencies(
+	ctx context.Context,
+	db trainingsdb.DBTX,
+	personIDs []uuid.UUID,
+) (map[uuid.UUID][]Competency, error) {
+	result := make(map[uuid.UUID][]Competency)
+	if len(personIDs) == 0 {
+		return result, nil
+	}
+	textIDs := make([]string, 0, len(personIDs))
+	for _, id := range personIDs {
+		textIDs = append(textIDs, id.String())
+	}
+	rows, err := trainingsdb.New(db).ListPersonCompetencies(ctx, textIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.PersonID] = append(result[row.PersonID], Competency{ID: row.ID, Label: row.Name})
+	}
+	return result, nil
+}

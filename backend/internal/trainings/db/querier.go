@@ -35,6 +35,10 @@ type Querier interface {
 	// inactive trainings and inactive categories do not count; trained and trainer count alike. IDs are passed as text so
 	// the query also runs in pgx's simple protocol mode.
 	ListOpenDayCompetencies(ctx context.Context, openDayIds []string) ([]ListOpenDayCompetenciesRow, error)
+	// The active competency categories each of the given people is trained for or may train in. Inactive trainings and
+	// inactive categories do not count; trained and trainer count alike, as for open days. IDs are passed as text so the
+	// query also runs in pgx's simple protocol mode.
+	ListPersonCompetencies(ctx context.Context, personIds []string) ([]ListPersonCompetenciesRow, error)
 	// Every active training plus inactive ones the person holds a record of; no record means not trained.
 	ListPersonTrainingRecords(ctx context.Context, personID uuid.UUID) ([]ListPersonTrainingRecordsRow, error)
 	ListTrainingCompetencies(ctx context.Context, trainingIds []uuid.UUID) ([]TrainingCompetency, error)

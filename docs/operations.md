@@ -172,7 +172,7 @@ SCIM supports discovery plus User create, get, list/filter, replace, patch, and 
 
 ## Controlled visitor kiosks
 
-An administrator with `visitor_enrollment.manage` selects the approved managed-device types, one delegable initial Role, and allowed password/PIN methods under **Settings → Lab operations → Visitor enrollment**. The public `/visitor-enrollment` page remains unavailable until the backend validates the native managed-device header or HttpOnly browser device cookie. The frontend never submits a Role ID.
+An administrator with `visitor_enrollment.manage` selects the approved managed-device types and allowed password/PIN methods (a newly enrolled visitor becomes a Visitor, whose permissions are edited like any role's) under **Settings → Lab operations → Visitor enrollment**. The public `/visitor-enrollment` page remains unavailable until the backend validates the native managed-device header or HttpOnly browser device cookie. The frontend never submits a Role ID.
 
 Each kiosk enrollment context is short-lived, device-bound, CSRF-protected, and one-use. Final submission requires a real profile image, at least one configured authentication method, and, when the visitor role asks for the Lab Rules, the visitor's acceptance of the pinned version, which records their confirmation. Visitor Accounts are active immediately; password-only visitors still cannot sign in until they complete their invitation, while a configured PIN is usable immediately. Authentication does not admit a visitor: the managed-device-only admission action returns admitted, warning, or blocked and records nothing. A blocking Role remains blocked until the person confirms the current version themselves.
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import { PANEL_DOCK_QUERY, useMediaQuery } from './useMedia';
+import { PANEL_DOCK_QUERY, useMediaQuery } from './useMediaQuery';
+import './blocks.scss';
 
 const HEADER_OFFSET = 64;
 const GAP = 16;
@@ -37,8 +38,9 @@ export type PanelFrameProps = {
 };
 
 /**
- * The fixed detail panel of the Open Days pages. From 92 rem it sits beside the content and follows the page scroll;
- * below that it is a bottom sheet over a scrim, so the list and calendar keep their width.
+ * The fixed detail panel of the list-and-panel pages (Open Days, Staffing). From 92 rem it sits beside the content and
+ * follows the page scroll; below that it is a bottom sheet over a scrim, so the list keeps its width and scroll
+ * position. The page lays out the two columns; this frame only places the panel.
  */
 export function PanelFrame({ label, open, placeholder, onClose, children }: PanelFrameProps) {
   const docked = useMediaQuery(PANEL_DOCK_QUERY);
@@ -58,23 +60,24 @@ export function PanelFrame({ label, open, placeholder, onClose, children }: Pane
 
   if (docked)
     return (
-      <aside ref={ref} className="od-panel-frame od-panel-frame--docked" aria-label={label}>
-        {open ? children : <div className="od-panel-empty">{placeholder}</div>}
+      <aside ref={ref} className="panel-frame panel-frame--docked" aria-label={label}>
+        {open ? children : <div className="panel-frame__empty">{placeholder}</div>}
       </aside>
     );
   if (!open) return null;
   return (
     <>
-      <div className="od-scrim" onClick={onClose} aria-hidden="true" />
+      <div className="panel-frame__scrim" onClick={onClose} aria-hidden="true" />
       <aside
         ref={ref}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={label}
-        className="od-panel-frame od-panel-frame--sheet"
+        className="panel-frame panel-frame--sheet"
         onKeyDown={(event) => {
-          if (event.key === 'Escape') {
+          // Dialogs opened from the sheet are portalled but bubble through React; only the sheet's own keys count.
+          if (event.key === 'Escape' && ref.current?.contains(event.target as Node)) {
             event.stopPropagation();
             onClose();
           }

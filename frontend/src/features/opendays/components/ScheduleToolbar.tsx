@@ -1,7 +1,7 @@
 import { Button, ContentSwitcher, Switch, TableToolbar, TableToolbarContent, TableToolbarSearch } from '@carbon/react';
 import { Add, Checkmark } from '@carbon/icons-react';
 import type { FilterDef, FilterValues } from '../model/filters';
-import { OpenDayFilters } from './OpenDayFilters';
+import { TableFilters } from '../../../app/components/TableFilters';
 
 export type ScheduleView = 'list' | 'calendar';
 
@@ -47,7 +47,7 @@ export function ScheduleToolbar({
           defaultValue={search}
           onChange={(_event: unknown, value?: string) => onSearch(value ?? '')}
         />
-        <OpenDayFilters defs={filterDefs} values={filters} onChange={onFilters} />
+        <TableFilters defs={filterDefs} values={filters} onChange={onFilters} />
         <ContentSwitcher
           size="lg"
           className="od-switch"
@@ -75,7 +75,7 @@ export function ScheduleToolbar({
           </Button>
         )}
         {canManage && (
-          <Button kind="primary" size="lg" renderIcon={Add} onClick={onAdd}>
+          <Button kind="primary" size="lg" renderIcon={Add} onClick={onAdd} data-guide="open-days-add">
             Add open days
           </Button>
         )}

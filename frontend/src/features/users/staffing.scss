@@ -76,40 +76,7 @@
   }
 }
 
-.st-panel-frame--docked {
-  position: sticky;
-  inset-block-start: 4rem;
-  min-inline-size: 0;
-  background: theme.$layer-01;
-}
-
-.st-panel-empty {
-  padding: $spacing-07 $spacing-05;
-  color: theme.$text-secondary;
-  border-inline-start: 3px solid theme.$border-subtle;
-  @include type-style('body-compact-01');
-}
-
-.st-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 8000;
-  background: theme.$overlay;
-}
-
-.st-panel-frame--sheet {
-  position: fixed;
-  inset-inline: 0;
-  inset-block-end: 0;
-  z-index: 8001;
-  max-block-size: 85vh;
-  overflow-y: auto;
-  background: theme.$layer-01;
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
-  outline: none;
-}
-
-.st-panel-frame .detail-panel {
+.panel-frame .detail-panel {
   border-inline-start-width: 3px;
 }
 
@@ -151,51 +118,6 @@
   gap: $spacing-02;
   min-inline-size: 7rem;
   font-variant-numeric: tabular-nums;
-}
-
-.st-filters {
-  position: relative;
-  display: flex;
-}
-
-.st-filters__button.is-active {
-  background: theme.$layer-selected-01;
-}
-
-.st-filters__count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-inline-size: 1.25rem;
-  block-size: 1.25rem;
-  margin-inline-start: $spacing-03;
-  padding-inline: $spacing-02;
-  border-radius: 0.625rem;
-  background: theme.$support-error;
-  color: theme.$text-on-color;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.st-filters__panel {
-  display: grid;
-  gap: $spacing-05;
-  padding: $spacing-05;
-  inline-size: max-content;
-  max-inline-size: min(48rem, calc(100vw - 2rem));
-  background: theme.$layer-02;
-}
-
-.st-filters__columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: $spacing-05;
-}
-
-.st-filters__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: $spacing-03;
 }
 
 @media (max-width: 41.98rem) {

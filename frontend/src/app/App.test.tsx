@@ -1,12 +1,19 @@
 import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { PermissionId } from '../api/generated/models';
 import { server } from '../test/server';
 import { currentUserFixture } from '../test/fixtures';
 import { renderRoute } from '../test/render';
 import { App } from './App';
+
+// Vitest injects the Sass of every lazily loaded page as a <style> element that outlives the test. Carbon's popover
+// rules hide tooltip content with display:none, and jsdom then drops it from the accessible name of the shell's icon
+// buttons, so their names would depend on which pages an earlier test of this file happened to load.
+afterEach(() => {
+  document.head.querySelectorAll('style[data-vite-dev-id]').forEach((style) => style.remove());
+});
 
 describe('protected application routing', () => {
   it('shows the signed-in person name and profile image in the account control', async () => {
