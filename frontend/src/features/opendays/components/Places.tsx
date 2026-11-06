@@ -22,7 +22,7 @@ const kindLabel = (kind: string) => (kind === 'supervisor' ? 'Supervisors' : 'Tr
 
 /**
  * The places of one requirement as avatars: filled = taken, dashed = free, blue = free and yours to take, red dashed =
- * a supervisor place that is still needed, blue filled = you.
+ * a supervisor place that is still needed, green filled = you.
  */
 export function PlaceDots({
   day,
@@ -49,9 +49,17 @@ export function PlaceDots({
           {initialsOf(assignment.displayName)}
         </i>
       ))
-    : Array.from({ length: requirement.assignedCount }, (_, index) => (
-        <i key={`taken-${index}`} className="od-av od-av--anon" />
-      ));
+    : Array.from({ length: requirement.assignedCount }, (_, index) => {
+        // Without the names the own place still shows: it is the first taken dot.
+        const mine = index === 0 && slot.myAssignment?.requirementId === requirement.id;
+        return (
+          <i
+            key={`taken-${index}`}
+            className={`od-av od-av--anon${mine ? ' is-me' : ''}`}
+            title={mine ? 'You' : undefined}
+          />
+        );
+      });
   const empty = Array.from({ length: free(requirement) }, (_, index) => (
     <i
       key={`free-${index}`}

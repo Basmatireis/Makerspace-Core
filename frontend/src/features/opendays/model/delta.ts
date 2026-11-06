@@ -83,7 +83,23 @@ export function buildDelta(input: {
     seriesCreates: edits.seriesCreates.map(({ values }) => seriesBody(values)),
     seriesUpdates: Object.entries(edits.seriesEdits).flatMap(([id, values]) => {
       const saved = seriesById.get(id);
-      return saved ? [{ ...seriesBody(values), id, expectedVersion: saved.version, applyFrom: values.applyFrom }] : [];
+      if (!saved) return [];
+      // An update keeps the series' weekday and start, so the contract has no fields for them.
+      const template = seriesBody(values);
+      return [
+        {
+          id,
+          expectedVersion: saved.version,
+          applyFrom: values.applyFrom,
+          untilDate: template.untilDate,
+          timeslots: template.timeslots,
+          supervisorPlaces: template.supervisorPlaces,
+          traineePlaces: template.traineePlaces,
+          supervisorRoleIds: template.supervisorRoleIds,
+          traineeRoleIds: template.traineeRoleIds,
+          forcedDates: template.forcedDates,
+        },
+      ];
     }),
     seriesRejoins: edits.rejoins.flatMap((id) => {
       const day = dayById.get(id);

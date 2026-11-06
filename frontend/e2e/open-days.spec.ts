@@ -43,6 +43,18 @@ const FRIDAY_9 = /Friday 9 October, 16:00–20:00/;
 const addDialog = (page: Page) =>
   page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Add open days' }) });
 
+/** The docked panel's content stays inside the panel column; nothing sticks out to the right. */
+async function expectPanelFits(page: Page, label: string) {
+  const overflow = await page
+    .locator(`aside[aria-label="${label}"]`)
+    .evaluate(
+      (panel) =>
+        Math.max(...[panel, ...panel.querySelectorAll('*')].map((el) => el.getBoundingClientRect().right)) -
+        panel.getBoundingClientRect().right,
+    );
+  expect(overflow).toBeLessThanOrEqual(1);
+}
+
 async function open(page: Page, world: World, path = `/open-days/${ids.period}`) {
   await installOpenDaysApi(page, world);
   await page.goto(path);
@@ -182,6 +194,9 @@ test.describe('the Leitung', () => {
     await expect(page.getByRole('table', { name: 'Periods' })).toHaveCount(0);
     await expectAccessible(page);
     await capture(page, testInfo, 'open-days-academic-breaks.png');
+    await page.getByRole('button', { name: 'Add break' }).first().click();
+    await expect(page.getByRole('heading', { name: 'New break' })).toBeVisible();
+    await expectPanelFits(page, 'Break details');
     expectNoUnexpectedRequests(world);
   });
 
@@ -190,6 +205,7 @@ test.describe('the Leitung', () => {
     await open(page, world, '/open-days');
     await page.getByRole('button', { name: 'New period' }).click();
     const form = page.locator('aside[aria-label="Period details"]');
+    await expectPanelFits(page, 'Period details');
     await form.getByLabel('Name', { exact: true }).fill('Winter semester');
     await form.getByLabel('Starts on', { exact: true }).fill('02.11.2026');
     await form.getByLabel('Ends on', { exact: true }).fill('29.01.2027');

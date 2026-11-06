@@ -12,11 +12,11 @@
 }
 .state-urgent {
   --od-st: #{theme.$support-error};
-  --od-bg: color-mix(in srgb, #{theme.$support-error} 14%, #{theme.$layer-01});
+  --od-bg: color-mix(in srgb, #{theme.$support-error} 30%, #{theme.$layer-01});
 }
 .state-short {
   --od-st: #{theme.$support-error};
-  --od-bg: color-mix(in srgb, #{theme.$support-error} 14%, #{theme.$layer-01});
+  --od-bg: color-mix(in srgb, #{theme.$support-error} 8%, #{theme.$layer-01});
 }
 .state-open,
 .state-neutral {
@@ -278,12 +278,22 @@
 // Forms
 .od-form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: $spacing-05;
+  min-inline-size: 0;
 }
 .od-form__2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: $spacing-05;
+}
+// Carbon gives a single date picker a fixed width; in the narrow panel it fills its column instead.
+.od-form .cds--date-picker,
+.od-form .cds--date-picker-container,
+.od-form .cds--date-picker-input__wrapper,
+.od-form .cds--date-picker-input__wrapper > span,
+.od-form .cds--date-picker.cds--date-picker--single .cds--date-picker__input {
+  inline-size: 100%;
 }
 .od-fs {
   border: 0;
@@ -600,12 +610,12 @@
   font-style: normal;
   font-weight: 600;
 }
-.od-av.is-me {
-  background: theme.$interactive;
-  color: theme.$text-on-color;
-}
 .od-av--anon {
   background: theme.$border-strong-01;
+}
+.od-av.is-me {
+  background: theme.$support-success;
+  color: theme.$text-on-color;
 }
 .od-av--free {
   background: transparent;
@@ -784,6 +794,9 @@
   background: var(--od-bg);
   border-inline-start: 3px solid var(--od-st);
 }
+.od-legend i.state-urgent {
+  box-shadow: inset 0 0 0 1px var(--od-st);
+}
 .od-legend i.is-break {
   background: repeating-linear-gradient(135deg, theme.$layer-accent-01 0 2px, transparent 2px 5px);
   border: 0;
@@ -875,7 +888,7 @@
   text-align: start;
   cursor: pointer;
 }
-.od-blk.state-short {
+.od-blk.state-urgent {
   box-shadow:
     inset 3px 0 0 var(--od-st),
     inset 0 0 0 1px var(--od-st);
