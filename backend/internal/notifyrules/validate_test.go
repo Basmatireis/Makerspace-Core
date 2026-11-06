@@ -2,6 +2,7 @@ package notifyrules
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -77,9 +78,7 @@ func reason(t *testing.T, err error) string {
 }
 
 func asApp(err error, target **apperror.Error) bool {
-	app, ok := err.(*apperror.Error)
-	*target = app
-	return ok
+	return errors.As(err, target)
 }
 
 func TestValidDefinitionRoundTripsAndNormalizes(t *testing.T) {

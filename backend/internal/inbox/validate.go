@@ -103,15 +103,6 @@ func looksLikeHost(link string) bool {
 	return true
 }
 
-// clip shortens text to at most limit characters for generated notifications, marking the cut.
-func clip(value string, limit int) string {
-	if utf8.RuneCountInString(value) <= limit {
-		return value
-	}
-	runes := []rune(value)
-	return strings.TrimSpace(string(runes[:limit-1])) + "…"
-}
-
 // uuidTexts converts identifiers for the text-array parameters of the queries (pgx cannot encode a
 // slice of uuid.UUID directly).
 func uuidTexts(values []uuid.UUID) []string {

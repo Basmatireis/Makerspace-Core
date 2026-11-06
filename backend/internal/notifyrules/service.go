@@ -96,8 +96,6 @@ func categoryFromRow(row notifyrulesdb.GetCategoryRow) Category {
 	}
 }
 
-func isService(c Category) bool { return c.Key != nil && *c.Key == ServiceCategoryKey }
-
 func categoryProtected() error {
 	return apperror.Conflicting(
 		"notification_category_protected", "The service category is fixed and can be neither changed nor deleted.",

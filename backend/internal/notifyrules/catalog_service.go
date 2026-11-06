@@ -37,7 +37,7 @@ func (s *Service) Catalog(ctx context.Context, p authorization.Principal) (Catal
 			default:
 				view.Options = make([]OptionView, 0, len(field.Options))
 				for _, option := range field.Options {
-					view.Options = append(view.Options, OptionView{Value: option.Value, Label: option.Label})
+					view.Options = append(view.Options, OptionView(option))
 				}
 			}
 			views = append(views, view)

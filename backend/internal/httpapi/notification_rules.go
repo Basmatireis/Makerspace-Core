@@ -828,7 +828,7 @@ func (s *Server) ListNotificationActivity(
 	}
 	var rule *uuid.UUID
 	if r.Params.RuleId != nil {
-		id := uuid.UUID(*r.Params.RuleId)
+		id := *r.Params.RuleId
 		rule = &id
 	}
 	result, err := s.notifyRules.Activity(ctx, p, rule, page, pageSize)
