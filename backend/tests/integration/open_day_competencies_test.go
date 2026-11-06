@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -177,7 +177,7 @@ func TestOpenDayCompetenciesFollowAssignmentsAndRecords(t *testing.T) {
 
 	// The open-day service exposes the same result internally and publicly.
 	f.record(alice, h2d, "trained")
-	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{})
+	service, err := opendays.NewService(pool, notifyrules.NewSystemEvents(nil), config.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}

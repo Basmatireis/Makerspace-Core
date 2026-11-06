@@ -43,7 +43,8 @@ func TestCancelManualRunNotifiesTheOperatorUnlessTheyCancelledIt(t *testing.T) {
 		var count int
 		if err := f.pool.QueryRow(
 			ctx, `SELECT count(*) FROM inbox_recipients r JOIN inbox_notifications n ON n.id = r.notification_id
-				WHERE r.account_id = $1 AND n.kind = 'run_finished'`, account,
+				JOIN notification_rules ru ON ru.id = n.rule_id
+				WHERE r.account_id = $1 AND ru.system_key = 'run_finished'`, account,
 		).Scan(&count); err != nil {
 			t.Fatal(err)
 		}

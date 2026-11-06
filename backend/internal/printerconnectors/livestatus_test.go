@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -30,7 +30,7 @@ func (h *ingestHarness) liveReport(observedAt time.Time, state string) LiveStatu
 }
 
 func TestLiveStatusRequiresMachinesRead(t *testing.T) {
-	service, err := NewService(nil, inbox.NewEmitter(), nil, nil)
+	service, err := NewService(nil, notifyrules.NewSystemEvents(nil), nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

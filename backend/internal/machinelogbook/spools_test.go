@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
@@ -45,7 +45,7 @@ func newSpoolFixture(t *testing.T) *spoolFixture {
 		suffix:  strings.ReplaceAll(person.String(), "-", "")[:12],
 	}
 	f.code = strings.ToUpper("T" + f.suffix[1:])
-	f.s = NewService(pool, inbox.NewEmitter(), WithClock(func() time.Time { return f.now }))
+	f.s = NewService(pool, notifyrules.NewSystemEvents(nil), WithClock(func() time.Time { return f.now }))
 	f.p = authorization.Principal{AccountID: account, PersonID: person, Master: true}
 	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Spool', 'Tester', $2)`, person, "spools-"+f.suffix+"@example.test"); err != nil {
 		t.Fatal(err)

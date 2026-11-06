@@ -1,14 +1,19 @@
+import { InlineNotification } from '@carbon/react';
 import { ErrorCatalogTable, ErrorCodeSyncCard } from './ErrorCatalogTab';
-import { PrinterNotificationsCard } from './PrinterNotificationsTab';
 
-/** Machines › Printers: the error catalog next to the code list fetch and the printer notification rules. */
+/** Machines › Printers: the error catalog next to the code list fetch. */
 export function PrintersTab() {
   return (
     <div className="mj-two-col mj-two-col--catalog">
       <ErrorCatalogTable />
       <div className="mj-stack">
         <ErrorCodeSyncCard />
-        <PrinterNotificationsCard />
+        <InlineNotification
+          kind="info"
+          lowContrast
+          hideCloseButton
+          subtitle="Printer notifications are rules now: Settings › Notification center."
+        />
       </div>
     </div>
   );

@@ -23,26 +23,27 @@ func TestPrinterEventRulesTellEveryoneOnceAndQueueTheirMail(t *testing.T) {
 	supervisor := h.principalWith("rulesupervisor", authorization.MachinesRead)
 	bystander := h.principalWith("rulebystander", authorization.MachinesRead)
 	h.cleanupNotifications(supervisor.AccountID, bystander.AccountID, h.principal.AccountID)
+	// The membership roles every person holds would reach the bystander too, so pick the test's own role.
 	var roleID string
-	if err := h.pool.QueryRow(ctx, `SELECT role_id::text FROM person_roles WHERE person_id = $1`, supervisor.PersonID).Scan(&roleID); err != nil {
+	if err := h.pool.QueryRow(
+		ctx,
+		`SELECT pr.role_id::text FROM person_roles pr JOIN roles r ON r.id = pr.role_id WHERE pr.person_id = $1 AND r.system_key IS NULL`,
+		supervisor.PersonID,
+	).Scan(&roleID); err != nil {
 		t.Fatal(err)
 	}
 	// Operator and recipient are the same person here; the role holder is someone else.
-	if _, err := h.pool.Exec(
-		ctx,
-		`UPDATE printer_notification_rules SET notify_operator = true, notify_recipient = true, role_id = $1, email = true, min_severity = NULL
-		 WHERE event = 'printer_error'`,
-		roleID,
-	); err != nil {
+	original := ""
+	if err := h.pool.QueryRow(ctx, `SELECT definition::text FROM notification_rules WHERE system_key = 'printer_error'`).Scan(&original); err != nil {
 		t.Fatal(err)
 	}
+	h.configureRule("printer_error", []string{"operator", "recipient", "role:" + roleID}, "", true)
 	if _, err := h.pool.Exec(ctx, `UPDATE mail_configuration SET enabled = true`); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
 		background := context.Background()
 		_, _ = h.pool.Exec(background, `UPDATE mail_configuration SET enabled = false`)
-		_, _ = h.pool.Exec(background, `UPDATE printer_notification_rules SET notify_recipient = false, role_id = NULL, email = false, min_severity = 'serious' WHERE event = 'printer_error'`)
 		_, _ = h.pool.Exec(background, `DELETE FROM notification_mail_outbox`)
 	})
 	runID := h.runWithOperator(t0)
@@ -60,7 +61,7 @@ func TestPrinterEventRulesTellEveryoneOnceAndQueueTheirMail(t *testing.T) {
 	var queued int
 	if err := h.pool.QueryRow(
 		ctx,
-		`SELECT count(*) FROM notification_mail_outbox WHERE kind = 'printer_error' AND person_id IN ($1, $2)`,
+		`SELECT count(*) FROM notification_mail_outbox WHERE kind = 'rule' AND person_id IN ($1, $2)`,
 		h.principal.PersonID,
 		supervisor.PersonID,
 	).Scan(&queued); err != nil || queued != 2 {
@@ -84,9 +85,7 @@ func TestPrinterEventRulesTellEveryoneOnceAndQueueTheirMail(t *testing.T) {
 	}
 
 	// Without e-mail the rule only writes in-app notifications.
-	if _, err = h.pool.Exec(ctx, `UPDATE printer_notification_rules SET email = false WHERE event = 'printer_error'`); err != nil {
-		t.Fatal(err)
-	}
+	h.setRule("printer_error", original, []string{"operator", "recipient", "role:" + roleID}, "", false)
 	h.accepted(runID, EventPrinterError, t0.Add(2*time.Minute), `{"transition":"appeared","sourceFamily":"print","code":"07FF8005"}`)
 	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM notification_mail_outbox`).Scan(&queued); err != nil || queued != 0 {
 		t.Fatalf("mails queued without e-mail = %d, %v", queued, err)

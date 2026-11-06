@@ -12,8 +12,8 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/google/uuid"
@@ -111,7 +111,7 @@ func TestInventoryRecycleBinOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
+	logbook := machinelogbook.NewService(pool, notifyrules.NewSystemEvents(nil))
 	diameter := "1.75"
 	materialType, err := logbook.CreateMaterialType(ctx, master, "Delete PLA", "filament", "g", nil, nil)
 	if err != nil {

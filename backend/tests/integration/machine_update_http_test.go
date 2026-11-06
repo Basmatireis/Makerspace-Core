@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
@@ -184,7 +184,7 @@ func TestMachineUpdateAndDeletionOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
-	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
+	logbook := machinelogbook.NewService(pool, notifyrules.NewSystemEvents(nil))
 	process, err := logbook.CreateProcess(ctx, master, "Delete printer", machinelogbook.IntegrationFDMPrinter, nil, nil)
 	if err != nil {
 		t.Fatal(err)

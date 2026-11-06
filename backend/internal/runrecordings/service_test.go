@@ -15,8 +15,8 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
@@ -46,7 +46,7 @@ func newHarness(t *testing.T) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{pool: pool, root: root, logbook: machinelogbook.NewService(pool, inbox.NewEmitter())}
+	h := &harness{pool: pool, root: root, logbook: machinelogbook.NewService(pool, notifyrules.NewSystemEvents(nil))}
 	h.service = NewService(pool, files.NewService(pool, store), h.logbook, 1<<20)
 	personID, accountID := ids.New(), ids.New()
 	suffix := strings.ReplaceAll(personID.String(), "-", "")[:12]

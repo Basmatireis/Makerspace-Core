@@ -31,23 +31,11 @@ type Querier interface {
 	// Recipient rows and role rows go with it (ON DELETE CASCADE).
 	DeleteSentMessage(ctx context.Context, arg DeleteSentMessageParams) (int64, error)
 	GetAccountPersonName(ctx context.Context, accountID uuid.UUID) (GetAccountPersonNameRow, error)
-	GetLabRulesVersionRevision(ctx context.Context, id uuid.UUID) (string, error)
-	// The machine and the operator of the run that is printing on it right now, if any.
-	GetMachineNotificationFacts(ctx context.Context, id uuid.UUID) (GetMachineNotificationFactsRow, error)
 	// The address is read only when the mail is sent; a deleted person or organization yields none.
 	GetNotificationMailAddress(ctx context.Context, arg GetNotificationMailAddressParams) (string, error)
-	GetOpenDayPeriodFacts(ctx context.Context, id uuid.UUID) (GetOpenDayPeriodFactsRow, error)
-	GetOpenDayTimeslotFacts(ctx context.Context, id uuid.UUID) (GetOpenDayTimeslotFactsRow, error)
-	GetPrinterErrorCodeFacts(ctx context.Context, arg GetPrinterErrorCodeFactsParams) (GetPrinterErrorCodeFactsRow, error)
-	GetPrinterNotificationRule(ctx context.Context, event string) (PrinterNotificationRule, error)
-	GetRunNotificationFacts(ctx context.Context, id uuid.UUID) (GetRunNotificationFactsRow, error)
 	GetSentMessage(ctx context.Context, id uuid.UUID) (GetSentMessageRow, error)
 	GetSentMessageForUpdate(ctx context.Context, arg GetSentMessageForUpdateParams) (GetSentMessageForUpdateRow, error)
-	// How a spool is named to people: its label and its article.
-	GetSpoolNotificationFacts(ctx context.Context, id uuid.UUID) (GetSpoolNotificationFactsRow, error)
-	GetStaffingWarningWindowDays(ctx context.Context) (int32, error)
 	InsertNotification(ctx context.Context, arg InsertNotificationParams) (InboxNotification, error)
-	InsertNotificationMail(ctx context.Context, arg InsertNotificationMailParams) error
 	InsertNotificationRoles(ctx context.Context, arg InsertNotificationRolesParams) error
 	InsertRecipients(ctx context.Context, arg InsertRecipientsParams) (int64, error)
 	// Active accounts of people who currently hold at least one of the roles.
@@ -55,22 +43,11 @@ type Querier interface {
 	ListEnabledAccountIDsOfPerson(ctx context.Context, personID uuid.UUID) ([]uuid.UUID, error)
 	// Active accounts holding a permission through a role; master holds every registered permission.
 	ListEnabledAccountIDsWithPermission(ctx context.Context, arg ListEnabledAccountIDsWithPermissionParams) ([]uuid.UUID, error)
-	// Active accounts of people whose roles ask for the Lab Rules (warning or blocking) and who have not confirmed the
-	// version.
-	ListEnabledAccountsAwaitingLabRules(ctx context.Context, versionID uuid.UUID) ([]ListEnabledAccountsAwaitingLabRulesRow, error)
-	ListEnabledAccountsOfPeople(ctx context.Context, personIds []string) ([]ListEnabledAccountsOfPeopleRow, error)
-	// Active accounts of people who staff open days (supervisor or trainee membership).
-	ListEnabledStaffingAccountIDs(ctx context.Context) ([]uuid.UUID, error)
 	ListNotificationRoles(ctx context.Context, notificationIds []string) ([]ListNotificationRolesRow, error)
 	ListOwnNotifications(ctx context.Context, arg ListOwnNotificationsParams) ([]ListOwnNotificationsRow, error)
-	// Everyone holding the role, with or without an account.
-	ListPersonIDsByRole(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error)
 	ListSentMessages(ctx context.Context, arg ListSentMessagesParams) ([]ListSentMessagesRow, error)
-	// Active accounts of people with the supervisor membership who hold no place in the timeslot.
-	ListUnassignedSupervisorAccountIDs(ctx context.Context, arg ListUnassignedSupervisorAccountIDsParams) ([]uuid.UUID, error)
 	MailDeliveryEnabled(ctx context.Context) (bool, error)
 	MarkAllOwnNotificationsRead(ctx context.Context, arg MarkAllOwnNotificationsReadParams) (int64, error)
-	MarkLabRulesPublishedRead(ctx context.Context, personID uuid.UUID) (int64, error)
 	// Idempotent: an already read notification keeps its first read time but still counts as found.
 	MarkOwnNotificationRead(ctx context.Context, arg MarkOwnNotificationReadParams) (int64, error)
 	UpdateSentMessage(ctx context.Context, arg UpdateSentMessageParams) error

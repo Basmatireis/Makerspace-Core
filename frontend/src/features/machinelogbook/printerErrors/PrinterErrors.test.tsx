@@ -9,8 +9,6 @@ import {
   type PrinterErrorCodeSync,
   type PrinterErrorOccurrence,
   type PrinterLiveStatusError,
-  type PrinterNotificationRule,
-  type PrinterNotificationSettings,
 } from '../../../api/generated/models';
 import { renderRoute } from '../../../test/render';
 import { server } from '../../../test/server';
@@ -154,25 +152,6 @@ describe('Printer errors on the printer panel', () => {
 });
 
 describe('Machines › Printers', () => {
-  const roleId = '0192f6f8-743e-7c77-a349-cd07c3e8f001';
-  const rule = (
-    event: PrinterNotificationRule['event'],
-    overrides: Partial<PrinterNotificationRule> = {},
-  ): PrinterNotificationRule => ({
-    event,
-    notifyOperator: true,
-    notifyRecipient: false,
-    roleId: null,
-    roleName: null,
-    email: false,
-    minSeverity: null,
-    ...overrides,
-  });
-  const settings: PrinterNotificationSettings = {
-    events: [rule('printer_error', { minSeverity: 'serious' }), rule('run_finished'), rule('filament_change')],
-    version: 3,
-    updatedAt: '2026-10-30T09:00:00Z',
-  };
   const code = (overrides: Partial<PrinterErrorCode> = {}): PrinterErrorCode => ({
     id: '0192f6f8-743e-7c77-a349-cd07c3e8e101',
     sourceFamily: 'print',
@@ -204,7 +183,6 @@ describe('Machines › Printers', () => {
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
       http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
       http.get('*/api/v1/processes', () => HttpResponse.json({ items: [] })),
-      http.get('*/api/v1/printer-notification-settings', () => HttpResponse.json(settings)),
     );
   const renderTab = (tab: string) =>
     renderRoute(
@@ -215,60 +193,15 @@ describe('Machines › Printers', () => {
     );
   const catalogTable = () => screen.getByRole('table', { name: 'Printer error catalog' });
 
-  it('saves only the changed notification rules with the version it loaded', async () => {
-    auth.permissions = [PermissionId.machinesmanage, PermissionId.rolesread];
-    serveBase();
-    let body: unknown;
-    server.use(
-      http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([]))),
-      http.get('*/api/v1/roles', () =>
-        HttpResponse.json({
-          items: [{ id: roleId, name: 'Printer wardens', description: '', system: false, permissions: [] }],
-          nextCursor: null,
-        }),
-      ),
-      http.put('*/api/v1/printer-notification-settings', async ({ request }) => {
-        body = await request.json();
-        return HttpResponse.json({ ...settings, version: 4 });
-      }),
-    );
-    const user = userEvent.setup();
-    renderTab('printers');
-    const errors = await screen.findByRole('group', { name: 'Printer error' });
-    const save = screen.getByRole('button', { name: 'Save' });
-    expect(save).toBeDisabled();
-    await user.click(within(errors).getByRole('combobox', { name: 'And everyone with the role' }));
-    await user.click(await screen.findByText('Printer wardens'));
-    await user.selectOptions(within(errors).getByRole('combobox', { name: 'From severity' }), 'common');
-    await user.click(within(errors).getByText('Also by e-mail'));
-    const finished = screen.getByRole('group', { name: 'Run finished' });
-    expect(within(finished).queryByRole('combobox', { name: 'From severity' })).not.toBeInTheDocument();
-    await user.click(save);
-    await waitFor(() =>
-      expect(body).toEqual({
-        events: [
-          {
-            event: 'printer_error',
-            notifyOperator: true,
-            notifyRecipient: false,
-            roleId,
-            email: true,
-            minSeverity: 'common',
-          },
-        ],
-        expectedVersion: 3,
-      }),
-    );
-  });
-
-  it('shows the rules and the catalog read-only without machines.manage', async () => {
+  it('points to the notification rules and shows the catalog read-only without machines.manage', async () => {
     auth.permissions = [PermissionId.machinesread];
     serveBase();
     server.use(http.get('*/api/v1/printer-error-codes', () => HttpResponse.json(codeList([code()]))));
     renderTab('printers');
-    const errors = await screen.findByRole('group', { name: 'Printer error' });
-    expect(within(errors).getByRole('checkbox', { name: 'Operator of the print' })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    expect(
+      await screen.findByText('Printer notifications are rules now: Settings › Notification center.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Printer error' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add code' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Fetch now' })).not.toBeInTheDocument();
   });

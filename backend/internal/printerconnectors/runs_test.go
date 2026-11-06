@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -39,10 +39,10 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	t.Helper()
 	pool := printerConnectorIntegrationPool(t)
 	ctx := t.Context()
-	h := &ingestHarness{t: t, pool: pool, logbook: machinelogbook.NewService(pool, inbox.NewEmitter())}
+	h := &ingestHarness{t: t, pool: pool, logbook: machinelogbook.NewService(pool, notifyrules.NewSystemEvents(nil))}
 	printingService := printing.NewService(pool)
 	var err error
-	h.service, err = NewService(pool, inbox.NewEmitter(), printingService, nil)
+	h.service, err = NewService(pool, notifyrules.NewSystemEvents(nil), printingService, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -942,7 +942,8 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 	if err = h.pool.QueryRow(
 		ctx,
 		`SELECT count(*) FROM inbox_recipients r JOIN inbox_notifications n ON n.id = r.notification_id
-		 WHERE r.account_id = $1 AND n.kind = 'run_finished' AND n.link = $2`,
+		 JOIN notification_rules ru ON ru.id = n.rule_id
+		 WHERE r.account_id = $1 AND ru.system_key = 'run_finished' AND n.link = $2`,
 		h.principal.AccountID, "/workshop/jobs/runs/"+runID.String(),
 	).Scan(&finished); err != nil || finished != 1 {
 		t.Fatalf("run_finished notifications for the operator = %d, %v", finished, err)

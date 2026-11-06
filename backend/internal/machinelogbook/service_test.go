@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -19,7 +19,7 @@ import (
 )
 
 func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
-	s := NewService(nil, inbox.NewEmitter())
+	s := NewService(nil, notifyrules.NewSystemEvents(nil))
 	ctx := t.Context()
 	p := authorization.Principal{}
 	id := ids.New()
@@ -224,7 +224,7 @@ func integrationPool(t *testing.T) *pgxpool.Pool {
 func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	pool := integrationPool(t)
 	ctx := t.Context()
-	s := NewService(pool, inbox.NewEmitter())
+	s := NewService(pool, notifyrules.NewSystemEvents(nil))
 	personID := ids.New()
 	accountID := ids.New()
 	requestID := ids.New()

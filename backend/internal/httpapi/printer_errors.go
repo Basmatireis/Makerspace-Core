@@ -72,22 +72,6 @@ func (s *Server) SyncPrinterErrorCodes(
 	return openapi.SyncPrinterErrorCodes200JSONResponse(printerErrorCodeSyncDTO(status)), nil
 }
 
-func printerNotificationSettingsDTO(item printerconnectors.NotificationSettings) openapi.PrinterNotificationSettings {
-	events := make([]openapi.PrinterNotificationRule, 0, len(item.Events))
-	for _, rule := range item.Events {
-		events = append(events, openapi.PrinterNotificationRule{
-			Event:           openapi.PrinterNotificationEvent(rule.Event),
-			NotifyOperator:  rule.NotifyOperator,
-			NotifyRecipient: rule.NotifyRecipient,
-			RoleId:          nullableUUIDValue(rule.RoleID),
-			RoleName:        nullableString(rule.RoleName),
-			Email:           rule.Email,
-			MinSeverity:     nullableEnum[openapi.PrinterErrorSeverity](rule.MinSeverity),
-		})
-	}
-	return openapi.PrinterNotificationSettings{Events: events, Version: item.Version, UpdatedAt: item.UpdatedAt}
-}
-
 func (s *Server) ListPrinterErrors(
 	ctx context.Context,
 	r openapi.ListPrinterErrorsRequestObject,
@@ -187,53 +171,6 @@ func (s *Server) DeletePrinterErrorCode(
 		return nil, err
 	}
 	return openapi.DeletePrinterErrorCode204Response{}, nil
-}
-
-func (s *Server) GetPrinterNotificationSettings(
-	ctx context.Context,
-	_ openapi.GetPrinterNotificationSettingsRequestObject,
-) (openapi.GetPrinterNotificationSettingsResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	item, err := s.printerConnectors.NotificationSettings(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-	return openapi.GetPrinterNotificationSettings200JSONResponse(printerNotificationSettingsDTO(item)), nil
-}
-
-func (s *Server) UpdatePrinterNotificationSettings(
-	ctx context.Context,
-	r openapi.UpdatePrinterNotificationSettingsRequestObject,
-) (openapi.UpdatePrinterNotificationSettingsResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	rules := make([]printerconnectors.NotificationRule, 0, len(r.Body.Events))
-	for _, rule := range r.Body.Events {
-		rules = append(rules, printerconnectors.NotificationRule{
-			Event:           printerconnectors.NotificationEvent(rule.Event),
-			NotifyOperator:  rule.NotifyOperator,
-			NotifyRecipient: rule.NotifyRecipient,
-			RoleID:          nullableUUID(rule.RoleId),
-			Email:           rule.Email,
-			MinSeverity:     nullableStringPointer(rule.MinSeverity),
-		})
-	}
-	item, err := s.printerConnectors.UpdateNotificationSettings(ctx, p, printerconnectors.NotificationSettingsInput{
-		Events:          rules,
-		ExpectedVersion: r.Body.ExpectedVersion,
-	}, requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	return openapi.UpdatePrinterNotificationSettings200JSONResponse(printerNotificationSettingsDTO(item)), nil
 }
 
 // describeLiveErrors adds the level, the catalog's meaning and a link to the errors of a live status snapshot.

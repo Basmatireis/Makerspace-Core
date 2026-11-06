@@ -7,6 +7,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -107,8 +108,8 @@ func TestOpenDayScheduleSaveTellsAffectedPeopleOncePerDayAndNeverTheActor(t *tes
 		strings.Count(item.Body, "was ") != 2 {
 		t.Fatalf("notification = %+v", item)
 	}
-	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox
-		WHERE kind='open_day_timeslot_changed' AND person_id=$1`, 1, e.alice.PersonID)
+	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox m JOIN notification_firings f ON f.id = m.firing_id JOIN notification_rules r ON r.id = f.rule_id
+		WHERE r.system_key='open_day_timeslot_changed' AND m.person_id=$1`, 1, e.alice.PersonID)
 
 	// A save that changes nothing about the times stays quiet.
 	periodVersion, dayVersion = e.versions(day.id)
@@ -254,7 +255,7 @@ func TestOpenDayAssignmentsByOthersNotifyButOwnActionsDoNot(t *testing.T) {
 	if item.Link == nil || *item.Link != "/open-days/"+e.period.String()+"/days/"+day.id.String() {
 		t.Fatalf("link = %v", item.Link)
 	}
-	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox WHERE kind='open_day_assigned_by_other'`, 1)
+	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox m JOIN notification_firings f ON f.id = m.firing_id JOIN notification_rules r ON r.id = f.rule_id WHERE r.system_key='open_day_assigned_by_other'`, 1)
 	// A person without an enabled account is skipped without failing the assignment.
 	e.disable(e.carol)
 	if _, err := e.opendays.Assign(ctx, e.manager, day.id, day.supervisorRequirement, e.carol.PersonID, nil); err != nil {
@@ -304,7 +305,7 @@ func TestMembershipChangeToVisitorTellsThePersonOncePerFreedOpenDay(t *testing.T
 	e.holdSlot(other, other.timeslot, other.supervisorRequirement, e.alice)
 	e.holdSlot(other, other.timeslot, other.supervisorRequirement, e.bob)
 
-	service := people.NewService(e.pool, nil).WithMembershipNotices(inbox.NewEmitter(), time.UTC)
+	service := people.NewService(e.pool, nil).WithMembershipNotices(notifyrules.NewSystemEvents(nil), time.UTC)
 	var version int64
 	if err := e.pool.QueryRow(ctx, `SELECT version FROM people WHERE id=$1`, e.alice.PersonID).Scan(&version); err != nil {
 		t.Fatal(err)
@@ -315,6 +316,6 @@ func TestMembershipChangeToVisitorTellsThePersonOncePerFreedOpenDay(t *testing.T
 	assertCount(t, e.pool, `SELECT count(*) FROM open_day_assignments WHERE person_id=$1`, 0, e.alice.PersonID)
 	e.expectCount(e.alice, inbox.KindOpenDayUnassignedByOther, 2, "alice, one per freed open day")
 	e.expectCount(e.bob, inbox.KindOpenDayUnassignedByOther, 0, "bob, whose places stay")
-	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox
-		WHERE kind='open_day_unassigned_by_other' AND person_id=$1`, 2, e.alice.PersonID)
+	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox m JOIN notification_firings f ON f.id = m.firing_id JOIN notification_rules r ON r.id = f.rule_id
+		WHERE r.system_key='open_day_unassigned_by_other' AND m.person_id=$1`, 2, e.alice.PersonID)
 }

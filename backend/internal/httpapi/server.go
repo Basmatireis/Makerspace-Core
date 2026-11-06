@@ -136,8 +136,14 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	if err != nil {
 		return nil, fmt.Errorf("initialize authentication: %w", err)
 	}
-	// One emitter writes the system notifications of every service inside the caller's transaction.
-	notificationEmitter := inbox.NewEmitter()
+	location, err := time.LoadLocation(cfg.MakerspaceTimeZone)
+	if err != nil {
+		return nil, fmt.Errorf("load makerspace time zone: %w", err)
+	}
+	// One event source raises the system events of every service inside the caller's transaction; the central
+	// notification rules decide who is told what.
+	notifyDispatcher := notifyrules.NewDispatcher(pool, location)
+	notificationEmitter := notifyrules.NewSystemEvents(notifyDispatcher)
 	openDaysService, err := opendays.NewService(pool, notificationEmitter, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Open Days: %w", err)
@@ -185,10 +191,6 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		return nil, fmt.Errorf("initialize signage: %w", err)
 	}
 	surveyService := surveys.NewService(pool, cfg, notifier)
-	location, err := time.LoadLocation(cfg.MakerspaceTimeZone)
-	if err != nil {
-		return nil, fmt.Errorf("load makerspace time zone: %w", err)
-	}
 	invoicingService := invoicing.NewService(pool, notifier, brandingService)
 	ordersService := orders.NewService(pool, machineLogbook).
 		WithInvoiceDelivery(invoicingService).
@@ -261,7 +263,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		surveys:           surveyService,
 		inbox:             inbox.NewService(pool),
 		notifyRules:       notifyrules.NewService(pool),
-		notifyDispatcher:  notifyrules.NewDispatcher(pool, location),
+		notifyDispatcher:  notifyDispatcher,
 		guides:            guides.NewService(pool),
 		configTransfer:    configTransferService,
 		trainings:         trainingsService,

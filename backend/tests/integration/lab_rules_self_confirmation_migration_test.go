@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 )
 
@@ -87,7 +87,7 @@ func TestLabRulesSelfConfirmationMigrationKeepsPaperHistory(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM laborordnung_versions WHERE id=$1 AND announced_at IS NULL`, 1, upcoming)
 
 	// The version in effect at migration time is not announced again.
-	labRules := laborordnung.NewService(pool, inbox.NewEmitter(), nil)
+	labRules := laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), nil)
 	if announced, err := labRules.Announce(ctx); err != nil || announced {
 		t.Fatalf("announce after migration = %v, %v", announced, err)
 	}

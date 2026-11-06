@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -19,7 +19,7 @@ import (
 )
 
 func TestAdministrationRequiresRegisteredPermissions(t *testing.T) {
-	service, err := NewService(nil, inbox.NewEmitter(), printing.NewService(nil), nil)
+	service, err := NewService(nil, notifyrules.NewSystemEvents(nil), printing.NewService(nil), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,9 +82,9 @@ func printerConnectorIntegrationPool(t *testing.T) *pgxpool.Pool {
 func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	pool := printerConnectorIntegrationPool(t)
 	ctx := t.Context()
-	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
+	logbook := machinelogbook.NewService(pool, notifyrules.NewSystemEvents(nil))
 	printingService := printing.NewService(pool)
-	service, err := NewService(pool, inbox.NewEmitter(), printingService, nil)
+	service, err := NewService(pool, notifyrules.NewSystemEvents(nil), printingService, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

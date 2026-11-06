@@ -48,6 +48,12 @@ type Event struct {
 	Placeholders map[string]string
 	// Recipients maps the trigger's recipient keys to the people they stand for right now.
 	Recipients map[string][]uuid.UUID
+	// Organizations maps recipient keys to organizations that are reached by e-mail only (an order's or a job's
+	// customer that is an organization). They have no account and take part in no condition or preference.
+	Organizations map[string][]uuid.UUID
+	// ExcludedPeople are never notified by this event, whatever a rule's recipients say; the person who caused the
+	// event themselves is left out this way.
+	ExcludedPeople []uuid.UUID
 	// Subjects maps a throttle subject key to its value (a machine's identifier, an error code).
 	Subjects map[string]string
 	// ResolveToken identifies the thing the event is about; Resolve with the same token stops the firing's waiting
@@ -220,6 +226,7 @@ func (d *Dispatcher) emitRule(
 		action Action
 		link   string
 		people []uuid.UUID
+		orgs   []uuid.UUID
 	}
 	var plan []staged
 	var everyone []uuid.UUID
@@ -228,11 +235,19 @@ func (d *Dispatcher) emitRule(
 			return nil
 		}
 		people, err := d.resolvePeople(ctx, q, action.Recipients, ev, owner)
-		if err != nil || len(people) == 0 {
+		if err != nil {
 			return err
 		}
+		people = removePeople(people, ev.ExcludedPeople)
+		var orgs []uuid.UUID
+		if action.Channel == ChannelEmail {
+			orgs = resolveOrganizations(action.Recipients, ev)
+		}
+		if len(people) == 0 && len(orgs) == 0 {
+			return nil
+		}
 		filled, link := fillAction(action, ev, rule.Name)
-		plan = append(plan, staged{step: step, delay: delay, action: filled, link: link, people: people})
+		plan = append(plan, staged{step: step, delay: delay, action: filled, link: link, people: people, orgs: orgs})
 		everyone = append(everyone, people...)
 		return nil
 	}
@@ -294,11 +309,11 @@ func (d *Dispatcher) emitRule(
 	for _, item := range plan {
 		if item.delay > 0 || item.step > 0 {
 			err = d.schedule(ctx, q, firingID, item.step, now.Add(item.delay), item.action, item.people, pendingItem{
-				Fields: ev.Fields, Link: item.link,
+				Fields: ev.Fields, Link: item.link, Organizations: item.orgs,
 			})
 		} else {
 			err = d.deliver(ctx, q, runtime, deliveryInput{
-				FiringID: firingID, Action: item.action, Link: item.link, People: item.people,
+				FiringID: firingID, Action: item.action, Link: item.link, People: item.people, Organizations: item.orgs,
 			}, now)
 		}
 		if err != nil {
@@ -561,6 +576,31 @@ func (d *Dispatcher) resolvePeople(
 	return dedupePeople(lists...), nil
 }
 
+// resolveOrganizations lists the organizations the event's own recipient keys stand for.
+func resolveOrganizations(keys []string, ev Event) []uuid.UUID {
+	var lists [][]uuid.UUID
+	for _, key := range keys {
+		if organizations, ok := ev.Organizations[key]; ok {
+			lists = append(lists, organizations)
+		}
+	}
+	return dedupePeople(lists...)
+}
+
+// removePeople drops the excluded people from a list.
+func removePeople(people, excluded []uuid.UUID) []uuid.UUID {
+	if len(excluded) == 0 {
+		return people
+	}
+	kept := make([]uuid.UUID, 0, len(people))
+	for _, person := range people {
+		if !slices.Contains(excluded, person) {
+			kept = append(kept, person)
+		}
+	}
+	return kept
+}
+
 // dedupePeople joins lists of people without duplicates, keeping the order of first appearance.
 func dedupePeople(lists ...[]uuid.UUID) []uuid.UUID {
 	seen := map[uuid.UUID]struct{}{}
@@ -641,6 +681,7 @@ func firingSummary(action Action, ruleName string) string {
 type pendingItem struct {
 	Fields         map[string]any `json:"fields,omitempty"`
 	Link           string         `json:"link,omitempty"`
+	Organizations  []uuid.UUID    `json:"organizations,omitempty"`
 	Fallback       bool           `json:"fallback,omitempty"`
 	NotificationID *uuid.UUID     `json:"notificationId,omitempty"`
 }

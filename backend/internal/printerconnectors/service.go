@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/localupdater"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
@@ -35,23 +35,23 @@ type Service struct {
 	printing *printing.Service
 	logbook  *machinelogbook.Service
 	keyring  *security.Keyring
-	emitter  InboxEmitter
+	emitter  NotificationEmitter
 	// errorCodeSourceURL is where code meanings are fetched from; empty turns the sync off.
 	errorCodeSourceURL string
 	errorCodeClient    *http.Client
 }
 
-// InboxEmitter is the part of the in-app notification emitter this package uses, on top of what the
+// NotificationEmitter is the part of the notification event source this package uses, on top of what the
 // machine logbook needs. It writes inside the caller's transaction.
-type InboxEmitter interface {
-	machinelogbook.InboxEmitter
+type NotificationEmitter interface {
+	machinelogbook.NotificationEmitter
 	PrinterError(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, family, code string, severity *string) error
-	FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, change inbox.FilamentChange) error
+	FilamentChange(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, change notifyrules.FilamentChange) error
 }
 
 func NewService(
 	pool *pgxpool.Pool,
-	emitter InboxEmitter,
+	emitter NotificationEmitter,
 	printingService *printing.Service,
 	encryptionKeys [][]byte,
 ) (*Service, error) {

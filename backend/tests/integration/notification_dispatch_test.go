@@ -464,3 +464,28 @@ func TestDispatchContainsBrokenRules(t *testing.T) {
 		t.Fatal("one broken rule stopped the others")
 	}
 }
+
+func TestDispatchLeavesOutExcludedPeopleAndMailsOrganizationsOnly(t *testing.T) {
+	e := newDispatchEnv(t)
+	operator, actor := e.person("operator"), e.person("actor")
+	organization := uuid.Must(uuid.NewV7())
+	e.exec(`INSERT INTO organizations (id, name, kind, contact_email) VALUES ($1, 'Dispatch Org', 'other', 'org-dispatch@example.test')`, organization)
+	e.exec(`UPDATE mail_configuration SET enabled=true`)
+	rule := e.newRule(e.service, nil, inAppAction("operator", "recipient"), emailAction("operator", "recipient"))
+
+	event := printerError("serious", operator.PersonID, actor.PersonID)
+	event.Recipients["recipient"] = []uuid.UUID{actor.PersonID}
+	event.Organizations = map[string][]uuid.UUID{"recipient": {organization}}
+	event.ExcludedPeople = []uuid.UUID{actor.PersonID}
+	e.emit(event)
+
+	if e.notifications(operator, rule.ID) != 1 || e.mails(operator, rule.ID) != 1 {
+		t.Fatalf("operator: %d notifications, %d mails", e.notifications(operator, rule.ID), e.mails(operator, rule.ID))
+	}
+	if e.notifications(actor, rule.ID) != 0 || e.mails(actor, rule.ID) != 0 {
+		t.Fatal("an excluded person was notified")
+	}
+	// The organization gets the e-mail only, with no in-app notification and no account.
+	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox m JOIN notification_firings f ON f.id = m.firing_id
+		WHERE f.rule_id=$1 AND m.organization_id=$2`, 1, rule.ID, organization)
+}

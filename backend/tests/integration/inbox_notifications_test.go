@@ -8,6 +8,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
@@ -28,16 +29,36 @@ func newInboxEnv(t *testing.T) *inboxEnv {
 	return &inboxEnv{staffingEnv: env, inbox: inbox.NewService(env.pool)}
 }
 
-// list returns the principal's notifications of one kind.
+// kinds returns the principal's notifications of one kind. The system notifications are written by the seeded
+// central rules; their kind names the rule's system key, so "lab_rules_published" finds what that rule sent.
 func (e *inboxEnv) kinds(p authorization.Principal, kind inbox.Kind) []inbox.Notification {
 	e.t.Helper()
 	page, err := e.inbox.List(testContext(e.t), p, 1, 100)
 	if err != nil {
 		e.t.Fatal(err)
 	}
+	fromRule := map[uuid.UUID]bool{}
+	if kind != inbox.KindMessage {
+		rows, err := e.pool.Query(
+			testContext(e.t),
+			`SELECT n.id FROM inbox_notifications n JOIN notification_rules r ON r.id = n.rule_id WHERE r.system_key = $1`,
+			string(kind),
+		)
+		if err != nil {
+			e.t.Fatal(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var id uuid.UUID
+			if err := rows.Scan(&id); err != nil {
+				e.t.Fatal(err)
+			}
+			fromRule[id] = true
+		}
+	}
 	var found []inbox.Notification
 	for _, item := range page.Items {
-		if item.Kind == kind {
+		if (kind == inbox.KindMessage && item.Kind == kind) || (kind != inbox.KindMessage && fromRule[item.ID]) {
 			found = append(found, item)
 		}
 	}
@@ -393,7 +414,7 @@ func TestLabRulesAnnouncementReachesPeopleWhoMustConfirmOnce(t *testing.T) {
 	disabled := e.person("disabled", blocking.ID)
 	e.disable(disabled)
 	plain := e.person("plain", e.role("Staff", nil).ID)
-	labRules := laborordnung.NewService(e.pool, inbox.NewEmitter(), nil)
+	labRules := laborordnung.NewService(e.pool, notifyrules.NewSystemEvents(nil), nil)
 
 	// A version that was already in effect when it was published counts as announced at migration time.
 	old := insertPublishedLabRulesVersionAt(t, e.pool, e.master.AccountID, "2025.1", time.Now().Add(-time.Hour))
@@ -425,8 +446,8 @@ func TestLabRulesAnnouncementReachesPeopleWhoMustConfirmOnce(t *testing.T) {
 		t.Fatalf("notification = %+v", item)
 	}
 	assertCount(t, e.pool, `
-		SELECT count(*) FROM notification_mail_outbox
-		WHERE kind='lab_rules_published' AND link='/lab-rules/confirm' AND person_id IN ($1,$2)`,
+		SELECT count(*) FROM notification_mail_outbox m JOIN notification_firings f ON f.id = m.firing_id JOIN notification_rules r ON r.id = f.rule_id
+		WHERE r.system_key='lab_rules_published' AND m.link='/lab-rules/confirm' AND m.person_id IN ($1,$2)`,
 		2, member.PersonID, guest.PersonID)
 	assertCount(t, e.pool, `SELECT count(*) FROM notification_mail_outbox`, 2)
 	assertCount(t, e.pool, `
@@ -452,7 +473,7 @@ func TestLabRulesAnnouncementQueuesNoMailWhileMailIsOff(t *testing.T) {
 	e := newInboxEnv(t)
 	member := e.person("member", e.labRulesRole("Members", "blocking").ID)
 	insertPublishedLabRulesVersion(t, e.pool, e.master.AccountID, "2026.3")
-	if announced, err := laborordnung.NewService(e.pool, inbox.NewEmitter(), nil).Announce(testContext(t)); err != nil ||
+	if announced, err := laborordnung.NewService(e.pool, notifyrules.NewSystemEvents(nil), nil).Announce(testContext(t)); err != nil ||
 		!announced {
 		t.Fatalf("announce = %v, %v", announced, err)
 	}
@@ -555,7 +576,7 @@ func TestInboxDismissingTheLastCopyDeletesASystemNotificationButKeepsMessages(t 
 	second := e.person("second", members.ID)
 	version := insertPublishedLabRulesVersion(t, e.pool, e.master.AccountID, "2026.4")
 	e.emit(func(tx pgx.Tx) error {
-		return inbox.NewEmitter().LabRulesPublished(ctx, tx, version)
+		return notifyrules.NewSystemEvents(nil).LabRulesPublished(ctx, tx, version)
 	})
 	// Both copies must go before the notification does.
 	for _, p := range []authorization.Principal{first, second} {

@@ -10,9 +10,9 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/attendance"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
@@ -119,7 +119,7 @@ func newCheckInFixture(t *testing.T, mode string) checkInFixture {
 		deviceID, deviceTypeID, bytes.Repeat([]byte{7}, 32)); err != nil {
 		t.Fatal(err)
 	}
-	labRules := laborordnung.NewService(pool, inbox.NewEmitter(), nil)
+	labRules := laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), nil)
 	verifier := fixedIdentityVerifier{identity: auth.VerifiedIdentity{
 		AccountID: visitor.accountID,
 		PersonID:  visitor.personID,

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -25,7 +25,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 		PersonID:  managerAccount.personID,
 		Master:    true,
 	}
-	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{
+	service, err := opendays.NewService(pool, notifyrules.NewSystemEvents(nil), config.Config{
 		MakerspaceTimeZone: "Europe/Vienna", HolidayCountry: "AT",
 		HolidaySubdivision: "AT-6", HolidayLanguage: "de",
 	})
@@ -290,7 +290,7 @@ func TestOpenDaysConcurrentFinalSlotAssignment(t *testing.T) {
 		PersonID:  managerAccount.personID,
 		Master:    true,
 	}
-	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{})
+	service, err := opendays.NewService(pool, notifyrules.NewSystemEvents(nil), config.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +364,7 @@ func TestOpenDayPeriodSummaryCountsIndividualSupervisorVacancies(t *testing.T) {
 		PersonID:  managerAccount.personID,
 		Master:    true,
 	}
-	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{})
+	service, err := opendays.NewService(pool, notifyrules.NewSystemEvents(nil), config.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,7 +465,7 @@ func TestOpenDaysVisibilityAndValidation(t *testing.T) {
 	account := seedAccount(t, pool, "open-days-visibility", true)
 	manager := authorization.Principal{AccountID: account.accountID, PersonID: account.personID, Master: true}
 	reader := authorization.Principal{AccountID: account.accountID, PersonID: account.personID}
-	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{})
+	service, err := opendays.NewService(pool, notifyrules.NewSystemEvents(nil), config.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -501,7 +501,7 @@ func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *tes
 	account := seedAccount(t, pool, "open-days-period-delete", true)
 	manager := authorization.Principal{AccountID: account.accountID, PersonID: account.personID, Master: true}
 	reader := authorization.Principal{AccountID: account.accountID, PersonID: account.personID}
-	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{MakerspaceTimeZone: "Europe/Vienna"})
+	service, err := opendays.NewService(pool, notifyrules.NewSystemEvents(nil), config.Config{MakerspaceTimeZone: "Europe/Vienna"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -590,7 +590,7 @@ func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduli
 	ctx := testContext(t)
 	account := seedAccount(t, pool, "open-days-calendar-context", true)
 	manager := authorization.Principal{AccountID: account.accountID, PersonID: account.personID, Master: true}
-	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{
+	service, err := opendays.NewService(pool, notifyrules.NewSystemEvents(nil), config.Config{
 		MakerspaceTimeZone: "Europe/Vienna",
 		HolidayCountry:     "AT",
 		HolidaySubdivision: "AT-6",

@@ -38,9 +38,20 @@ type Querier interface {
 	FiringWasRead(ctx context.Context, firingID uuid.UUID) (bool, error)
 	GetCategory(ctx context.Context, id uuid.UUID) (GetCategoryRow, error)
 	GetCategoryForUpdate(ctx context.Context, id uuid.UUID) (NotificationCategory, error)
+	GetLabRulesRevision(ctx context.Context, id uuid.UUID) (string, error)
+	// The machine and the operator of the run that is printing on it right now, if any.
+	GetMachineEventFacts(ctx context.Context, id uuid.UUID) (GetMachineEventFactsRow, error)
+	GetOpenDayPeriodEventFacts(ctx context.Context, id uuid.UUID) (GetOpenDayPeriodEventFactsRow, error)
+	GetOpenDayTimeslotEventFacts(ctx context.Context, id uuid.UUID) (GetOpenDayTimeslotEventFactsRow, error)
 	GetPersonSettings(ctx context.Context, personID uuid.UUID) (PersonNotificationSetting, error)
+	GetPrinterErrorMeaning(ctx context.Context, arg GetPrinterErrorMeaningParams) (string, error)
 	GetRule(ctx context.Context, id uuid.UUID) (NotificationRule, error)
 	GetRuleForUpdate(ctx context.Context, id uuid.UUID) (NotificationRule, error)
+	// Facts for the events the application itself raises (system notifications).
+	GetRunEventFacts(ctx context.Context, id uuid.UUID) (GetRunEventFactsRow, error)
+	// How a spool is named to people: its label and its article.
+	GetSpoolEventFacts(ctx context.Context, id uuid.UUID) (GetSpoolEventFactsRow, error)
+	GetStaffingWarningDays(ctx context.Context) (int32, error)
 	InsertCategory(ctx context.Context, arg InsertCategoryParams) error
 	InsertFiring(ctx context.Context, arg InsertFiringParams) error
 	InsertFiringRecipient(ctx context.Context, arg InsertFiringRecipientParams) error
@@ -49,6 +60,7 @@ type Querier interface {
 	InsertRuleMail(ctx context.Context, arg InsertRuleMailParams) error
 	InsertRuleNotification(ctx context.Context, arg InsertRuleNotificationParams) error
 	InsertRuleNotificationRecipients(ctx context.Context, arg InsertRuleNotificationRecipientsParams) error
+	ListAllCheckedInPeople(ctx context.Context) ([]uuid.UUID, error)
 	ListCategories(ctx context.Context) ([]ListCategoriesRow, error)
 	ListCentralRules(ctx context.Context, since time.Time) ([]ListCentralRulesRow, error)
 	ListCheckedInPeople(ctx context.Context, personIds []string) ([]uuid.UUID, error)
@@ -71,18 +83,31 @@ type Querier interface {
 	ListMachineOptions(ctx context.Context) ([]ListMachineOptionsRow, error)
 	ListMaterialTypeOptions(ctx context.Context) ([]ListMaterialTypeOptionsRow, error)
 	ListMembershipsOfPeople(ctx context.Context, personIds []string) ([]ListMembershipsOfPeopleRow, error)
+	ListOpenDayTeam(ctx context.Context, openDayID uuid.UUID) ([]uuid.UUID, error)
 	ListOwnRules(ctx context.Context, ownerAccountID *uuid.UUID) ([]NotificationRule, error)
+	// People with an active account whose roles ask for the Lab Rules (warning or blocking) and who have not confirmed
+	// the version.
+	ListPeopleAwaitingLabRules(ctx context.Context, versionID uuid.UUID) ([]uuid.UUID, error)
 	ListPeopleSignedUpBetween(ctx context.Context, arg ListPeopleSignedUpBetweenParams) ([]uuid.UUID, error)
 	ListPeopleWhoHaveNotRead(ctx context.Context, notificationID uuid.UUID) ([]uuid.UUID, error)
+	ListPeopleWithEnabledAccount(ctx context.Context, personIds []string) ([]uuid.UUID, error)
 	ListPersonIDsByRoles(ctx context.Context, roleIds []string) ([]uuid.UUID, error)
+	ListPersonIDsOfAccounts(ctx context.Context, accountIds []string) ([]uuid.UUID, error)
 	ListPreferencesOfAccount(ctx context.Context, accountID uuid.UUID) ([]NotificationRulePreference, error)
 	ListPreferencesOfRule(ctx context.Context, arg ListPreferencesOfRuleParams) ([]ListPreferencesOfRuleRow, error)
 	ListPrinterOptions(ctx context.Context) ([]ListPrinterOptionsRow, error)
 	ListProcessOptions(ctx context.Context) ([]ListProcessOptionsRow, error)
 	ListRoleIDsOfPeople(ctx context.Context, personIds []string) ([]ListRoleIDsOfPeopleRow, error)
 	ListRoleOptions(ctx context.Context) ([]ListRoleOptionsRow, error)
+	// People with an active account who staff open days (supervisor or trainee membership).
+	ListStaffingPeople(ctx context.Context) ([]uuid.UUID, error)
 	ListTrainingOptions(ctx context.Context) ([]ListTrainingOptionsRow, error)
+	// People with an active account and the supervisor membership who hold no place in the timeslot.
+	ListUnassignedSupervisorPeople(ctx context.Context, arg ListUnassignedSupervisorPeopleParams) ([]uuid.UUID, error)
 	MailDeliveryEnabled(ctx context.Context) (bool, error)
+	// The notifications that announced new Lab Rules, written by the "lab_rules_published" rule (or, before the rules
+	// existed, as their own kind), are read once the person confirmed.
+	MarkLabRulesNoticesRead(ctx context.Context, personID uuid.UUID) (int64, error)
 	MarkRuleFired(ctx context.Context, arg MarkRuleFiredParams) error
 	OpenDayRunning(ctx context.Context, now time.Time) (bool, error)
 	ResolveFiring(ctx context.Context, arg ResolveFiringParams) error

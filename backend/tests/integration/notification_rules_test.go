@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -46,6 +47,49 @@ func (e *rulesEnv) grant(permissions ...authorization.Permission) uuid.UUID {
 	e.t.Helper()
 	e.counter++
 	return e.role(fmt.Sprintf("Grant %d", e.counter), nil, permissions...).ID
+}
+
+// customRules leaves out the system rules the migrations seeded, which every database has.
+func customRules(rules []notifyrules.Rule) []notifyrules.Rule {
+	var custom []notifyrules.Rule
+	for _, rule := range rules {
+		if rule.SystemKey == nil {
+			custom = append(custom, rule)
+		}
+	}
+	return custom
+}
+
+// settings returns the rules that reach a person without the seeded system rules, which reach everybody in some role.
+func (e *rulesEnv) settings(ctx context.Context, p authorization.Principal) (notifyrules.Settings, error) {
+	settings, err := e.rules.Settings(ctx, p)
+	settings.Rules = e.withoutSystemRules(settings.Rules)
+	return settings, err
+}
+
+// withoutSystemRules leaves out the seeded system rules from the rules that reach a person.
+func (e *rulesEnv) withoutSystemRules(reaching []notifyrules.ReachingRule) []notifyrules.ReachingRule {
+	e.t.Helper()
+	rows, err := e.pool.Query(testContext(e.t), `SELECT id FROM notification_rules WHERE system_key IS NOT NULL`)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer rows.Close()
+	system := map[uuid.UUID]bool{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			e.t.Fatal(err)
+		}
+		system[id] = true
+	}
+	var kept []notifyrules.ReachingRule
+	for _, rule := range reaching {
+		if !system[rule.RuleID] {
+			kept = append(kept, rule)
+		}
+	}
+	return kept
 }
 
 func (e *rulesEnv) reader() authorization.Principal {
@@ -104,6 +148,7 @@ func TestNotificationRulesCentralAccessFollowsPermissions(t *testing.T) {
 		t.Fatalf("created rule = %+v", created)
 	}
 	list, err := e.rules.ListRules(ctx, reader)
+	list = customRules(list)
 	if err != nil || len(list) != 1 || list[0].Stats == nil || len(list[0].Stats.Sparkline) != 14 {
 		t.Fatalf("reader list = %+v, %v", list, err)
 	}
@@ -242,7 +287,7 @@ func TestPersonalSubscriptionsAreIsolatedAndLimitedToWhatTheOwnerMaySee(t *testi
 	if err := e.rules.DeleteRule(ctx, manager, own.ID, own.Version, nil); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("manager deleted a personal rule: %v", err)
 	}
-	if central, err := e.rules.ListRules(ctx, manager); err != nil || len(central) != 0 {
+	if central, err := e.rules.ListRules(ctx, manager); err != nil || len(customRules(central)) != 0 {
 		t.Fatalf("central list = %v, %v", central, err)
 	}
 	// ...and a central rule is no subscription.
@@ -375,7 +420,7 @@ func TestConsentsPendingFlagAskAgainAndAudit(t *testing.T) {
 	if err != nil || !required {
 		t.Fatalf("a new person has unanswered consents: %v, %v", required, err)
 	}
-	settings, err := e.rules.Settings(ctx, alice)
+	settings, err := e.settings(ctx, alice)
 	if err != nil || !settings.ConsentPending || !settings.AskFeedbackAtCheckout || len(settings.Consents) != 3 {
 		t.Fatalf("settings = %+v, %v", settings, err)
 	}
@@ -445,7 +490,7 @@ func TestConsentsPendingFlagAskAgainAndAudit(t *testing.T) {
 	if required, _ := e.rules.ConsentRequired(ctx, alice); !required {
 		t.Fatal("asking again did not make the consent pending")
 	}
-	settings, _ = e.rules.Settings(ctx, alice)
+	settings, _ = e.settings(ctx, alice)
 	for _, entry := range settings.Consents {
 		if entry.Category.ID == e.news && (entry.Current || entry.Granted == nil || !*entry.Granted) {
 			t.Errorf("old answer should be kept but not current: %+v", entry)
@@ -568,7 +613,7 @@ func TestRulePreferencesAndTheRulesThatReachAPerson(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	settings, err := e.rules.Settings(ctx, member)
+	settings, err := e.settings(ctx, member)
 	if err != nil || len(settings.Rules) != 1 {
 		t.Fatalf("the member is reached by %d rules, %v", len(settings.Rules), err)
 	}
@@ -577,7 +622,7 @@ func TestRulePreferencesAndTheRulesThatReachAPerson(t *testing.T) {
 		!strings.Contains(reach.Why[0], "Print crew") || reach.BlockedByConsent {
 		t.Fatalf("reaching rule = %+v", reach)
 	}
-	if outsiderSettings, _ := e.rules.Settings(ctx, outsider); len(outsiderSettings.Rules) != 0 {
+	if outsiderSettings, _ := e.settings(ctx, outsider); len(outsiderSettings.Rules) != 0 {
 		t.Fatalf("the outsider is reached by %v", outsiderSettings.Rules)
 	}
 
@@ -588,7 +633,7 @@ func TestRulePreferencesAndTheRulesThatReachAPerson(t *testing.T) {
 	if err := e.rules.SetRulePreference(ctx, member, mandatory.ID, notifyrules.Preference{Email: true}); err != nil {
 		t.Fatal(err)
 	}
-	settings, _ = e.rules.Settings(ctx, member)
+	settings, _ = e.settings(ctx, member)
 	if got := settings.Rules[0].EffectiveChannels; len(got) != 1 || got[0] != notifyrules.ChannelEmail {
 		t.Fatalf("effective channels = %v", got)
 	}
@@ -606,23 +651,23 @@ func TestRulePreferencesAndTheRulesThatReachAPerson(t *testing.T) {
 	if err := e.rules.SetRulePreference(ctx, member, uuid.New(), notifyrules.Preference{InApp: true}); !apperror.IsCode(err, "not_found") {
 		t.Fatalf("choice for an unknown rule: %v", err)
 	}
-	if outsiderSettings, _ := e.rules.Settings(ctx, outsider); len(outsiderSettings.Rules) != 0 {
+	if outsiderSettings, _ := e.settings(ctx, outsider); len(outsiderSettings.Rules) != 0 {
 		t.Fatal("another account's choice leaked")
 	}
 
 	if err := e.rules.SetAskFeedbackAtCheckout(ctx, member, false); err != nil {
 		t.Fatal(err)
 	}
-	if settings, _ = e.rules.Settings(ctx, member); settings.AskFeedbackAtCheckout {
+	if settings, _ = e.settings(ctx, member); settings.AskFeedbackAtCheckout {
 		t.Fatal("feedback switch not stored")
 	}
-	if settings, _ = e.rules.Settings(ctx, outsider); !settings.AskFeedbackAtCheckout {
+	if settings, _ = e.settings(ctx, outsider); !settings.AskFeedbackAtCheckout {
 		t.Fatal("feedback switch leaked to another person")
 	}
 
 	// Consent categories gate their rules until the person says yes.
 	staffing := e.person("pref-staffer", e.membershipRole("supervisor").ID)
-	settings, _ = e.rules.Settings(ctx, staffing)
+	settings, _ = e.settings(ctx, staffing)
 	if len(settings.Rules) != 1 || settings.Rules[0].RuleID != optionalRule.ID || !settings.Rules[0].BlockedByConsent {
 		t.Fatalf("staffing rules = %+v", settings.Rules)
 	}
@@ -636,7 +681,7 @@ func TestRulePreferencesAndTheRulesThatReachAPerson(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	settings, _ = e.rules.Settings(ctx, staffing)
+	settings, _ = e.settings(ctx, staffing)
 	if settings.Rules[0].BlockedByConsent {
 		t.Fatal("rule still blocked after consent")
 	}

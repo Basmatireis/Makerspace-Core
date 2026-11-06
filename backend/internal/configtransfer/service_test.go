@@ -18,12 +18,12 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/invoicing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -71,13 +71,13 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	labRules := laborordnung.NewService(pool, inbox.NewEmitter(), fileService)
+	labRules := laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), fileService)
 	privacyService := privacy.NewService(pool, must(privacycatalog.Catalog()))
 	services := Services{
 		Files:           fileService,
 		ManagedDevices:  manageddevices.NewService(pool),
 		Roles:           roles.NewService(pool),
-		MachineLogbook:  machinelogbook.NewService(pool, inbox.NewEmitter()),
+		MachineLogbook:  machinelogbook.NewService(pool, notifyrules.NewSystemEvents(nil)),
 		Printing:        printing.NewService(pool),
 		Staffing:        staffingService,
 		Visitor:         visitor.NewService(pool, cfg, fileService, labRules, nil),

@@ -8,7 +8,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -150,7 +150,7 @@ func (s *Service) assign(
 			return Assignment{}, err
 		}
 		if err := s.notifyAssignmentChange(
-			ctx, tx, inbox.KindOpenDayAssignedByOther, personID, period.ID, openDayID, slot,
+			ctx, tx, notifyrules.OpenDayAssignedByOther, personID, period.ID, openDayID, slot,
 		); err != nil {
 			return Assignment{}, err
 		}
@@ -268,7 +268,7 @@ func (s *Service) removeAssignment(
 			return err
 		}
 		if err := s.notifyAssignmentChange(
-			ctx, tx, inbox.KindOpenDayUnassignedByOther, assignment.PersonID, period.ID, openDayID, slot,
+			ctx, tx, notifyrules.OpenDayUnassignedByOther, assignment.PersonID, period.ID, openDayID, slot,
 		); err != nil {
 			return err
 		}
@@ -279,7 +279,7 @@ func (s *Service) removeAssignment(
 		return err
 	}
 	if RequirementKind(requirement.Kind) == RequirementSupervisor {
-		if err := s.inbox.OpenDayPlaceFreed(ctx, tx, assignment.TimeslotID, assignment.PersonID, s.location); err != nil {
+		if err := s.inbox.PlaceFreed(ctx, tx, assignment.TimeslotID, assignment.PersonID, s.location); err != nil {
 			return err
 		}
 	}

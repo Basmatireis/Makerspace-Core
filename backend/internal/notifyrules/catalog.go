@@ -330,8 +330,9 @@ var openDayRecipients = []Choice{{"day_team", "Everyone signed up for that open 
 // staffing, so the person is the only recipient and the only subject of a personal rule.
 func openDayChange(key, label, help string, extra ...Placeholder) Trigger {
 	placeholders := append([]Placeholder{
-		{"day", "Date of the open day", "Tue 11 Nov"},
-		{"time", "Time of the timeslot", "16:00–20:00"},
+		{"day", "Date of the open day", "Tue 11 Nov 2026"},
+		{"time", "Times of your timeslots (a moved one says what it was)", "16:00–20:00"},
+		{"slots", "\"timeslot\" or \"timeslots\"", "timeslot"},
 	}, extra...)
 	return Trigger{
 		Key: key, Area: "Open Days", Label: label, Help: help, Subject: SubjectSelf,
@@ -365,10 +366,13 @@ var triggers = []Trigger{
 		Placeholders: []Placeholder{
 			{"machine", "Machine", "Bambu Lab H2D"},
 			{"code", "Error code", "0300-0100-0003-0001"},
-			{"level", "Level", "Serious"},
+			{"level", "Level", "serious"},
 			{"meaning", "What the code means", "The nozzle temperature is abnormal"},
 			{"run", "Run being printed", "R-2026-000418"},
 			{"job", "Job being printed", "Gear housing"},
+			{"levelNote", "Level in brackets, empty without a level", " (serious)"},
+			{"meaningNote", "Colon and meaning, empty when the code is unknown", ": The nozzle temperature is abnormal"},
+			{"runNote", "\" during run …\", empty when nothing is printing", " during run R-2026-000418"},
 		},
 		Resolutions:      []Choice{{"error_cleared", "The error is cleared"}},
 		ThrottleSubjects: triggerSubjects("machine", "machine", "code", "error code"),
@@ -395,6 +399,7 @@ var triggers = []Trigger{
 			{"machine", "Machine", "Bambu Lab X1C #1"},
 			{"ending", "How it ended", "finished"},
 			{"duration", "Duration", "5 h 40 min"},
+			{"jobNote", "\" of \"job title\"\", empty without a title", " of \"Lamp shade\""},
 		},
 		ThrottleSubjects: triggerSubjects("machine", "machine"),
 	},
@@ -410,13 +415,16 @@ var triggers = []Trigger{
 			)},
 			{Key: "machine", Label: "Machine", Type: FieldEnum, OptionsFrom: SourcePrinters},
 		},
-		Recipients: triggerSubjects("operator", "Operator of the print", "present", "Everyone checked in right now"),
+		Recipients: triggerSubjects(
+			"operator", "Operator of the print", "recipient", "Job's recipient", "present", "Everyone checked in right now",
+		),
 		Placeholders: []Placeholder{
 			{"machine", "Machine", "Bambu Lab H2D"},
 			{"slot", "Slot", "AMS A · 1"},
 			{"spool", "Spool", "S-2026-000112 (PETG, Black)"},
 			{"material", "Material read by the printer", "PETG, Black"},
 			{"run", "Run being printed", "R-2026-000418"},
+			{"materialNote", "Material in brackets, empty when unknown", " (PETG, Black)"},
 		},
 		ThrottleSubjects: triggerSubjects("machine", "machine"),
 	},
@@ -447,11 +455,13 @@ var triggers = []Trigger{
 	openDayChange(
 		"open_day_timeslot_changed", "A timeslot you staff changes its times",
 		"Fires for each person signed up for a timeslot whose times moved.",
-		Placeholder{"was", "The earlier times", "15:00–19:00"},
+		Placeholder{"changed", "\"has changed\" or \"have changed\"", "has changed"},
 	),
 	openDayChange(
 		"open_day_timeslot_removed", "A timeslot you staff is removed",
 		"Fires for each person signed up for a timeslot that was removed from an open day.",
+		Placeholder{"wasWere", "\"was\" or \"were\"", "was"},
+		Placeholder{"them", "\"it\" or \"them\"", "it"},
 	),
 	openDayChange(
 		"open_day_assigned_by_other", "Someone signs you up for an open day",

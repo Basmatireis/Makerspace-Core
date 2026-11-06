@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacycatalog"
@@ -53,7 +53,7 @@ func newRetentionEngine(
 	}
 	service := privacy.NewService(pool, privacyCatalog)
 	fileService := files.NewService(pool, store)
-	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
+	logbook := machinelogbook.NewService(pool, notifyrules.NewSystemEvents(nil))
 	recordings := runrecordings.NewService(pool, fileService, logbook, cfg.PrinterTimelapseMaxBytes)
 	privacycatalog.RegisterBuiltinHandlers(service, recordings, privacy.LegacyPeriods{
 		AuditRetention:       &auditRetention,

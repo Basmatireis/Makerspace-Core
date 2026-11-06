@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -42,17 +42,17 @@ func snapshotHeldSlots(ctx context.Context, q *opendaysdb.Queries, periodID uuid
 type dayNotice struct {
 	person  uuid.UUID
 	openDay uuid.UUID
-	kind    inbox.Kind
-	slots   []inbox.OpenDaySlot
+	kind    notifyrules.OpenDayChangeKind
+	slots   []notifyrules.OpenDaySlot
 }
 
 // noticePriority ranks the kinds for a person whose day changed in several ways in one save: the most serious
 // change is the one they hear about.
-func noticePriority(kind inbox.Kind) int {
+func noticePriority(kind notifyrules.OpenDayChangeKind) int {
 	switch kind {
-	case inbox.KindOpenDayCancelled:
+	case notifyrules.OpenDayCancelled:
 		return 3
-	case inbox.KindOpenDayTimeslotRemoved:
+	case notifyrules.OpenDayTimeslotRemoved:
 		return 2
 	}
 	return 1
@@ -73,17 +73,17 @@ func diffHeldSlots(
 		if !old.scheduled || !old.endsAt.After(now) || old.person == actor {
 			continue
 		}
-		var kind inbox.Kind
-		slot := inbox.OpenDaySlot{StartsAt: old.startsAt, EndsAt: old.endsAt}
+		var kind notifyrules.OpenDayChangeKind
+		slot := notifyrules.OpenDaySlot{StartsAt: old.startsAt, EndsAt: old.endsAt}
 		current, kept := after[id]
 		switch {
 		case removedDays[old.openDay]:
-			kind = inbox.KindOpenDayCancelled
+			kind = notifyrules.OpenDayCancelled
 		case !kept:
-			kind = inbox.KindOpenDayTimeslotRemoved
+			kind = notifyrules.OpenDayTimeslotRemoved
 		case !current.startsAt.Equal(old.startsAt) || !current.endsAt.Equal(old.endsAt):
-			kind = inbox.KindOpenDayTimeslotChanged
-			slot = inbox.OpenDaySlot{
+			kind = notifyrules.OpenDayTimeslotChanged
+			slot = notifyrules.OpenDaySlot{
 				StartsAt: current.startsAt, EndsAt: current.endsAt, WasStartsAt: old.startsAt, WasEndsAt: old.endsAt,
 			}
 		default:
@@ -92,7 +92,7 @@ func diffHeldSlots(
 		k := key{person: old.person, openDay: old.openDay}
 		entry, ok := grouped[k]
 		if !ok || noticePriority(kind) > noticePriority(entry.kind) {
-			grouped[k] = &dayNotice{person: old.person, openDay: old.openDay, kind: kind, slots: []inbox.OpenDaySlot{slot}}
+			grouped[k] = &dayNotice{person: old.person, openDay: old.openDay, kind: kind, slots: []notifyrules.OpenDaySlot{slot}}
 			continue
 		}
 		if kind == entry.kind {
@@ -121,7 +121,7 @@ func (w *scheduleWriter) notifyScheduleChanges(ctx context.Context, before map[u
 		return err
 	}
 	for _, notice := range diffHeldSlots(before, after, w.removedDays, w.principal.PersonID, w.now) {
-		target := inbox.OpenDayNotice{PeriodID: w.period.ID, OpenDayID: notice.openDay, Slots: notice.slots}
+		target := notifyrules.OpenDayNotice{PeriodID: w.period.ID, OpenDayID: notice.openDay, Slots: notice.slots}
 		if w.deletedDays[notice.openDay] {
 			target.OpenDayID = uuid.Nil
 		}
@@ -136,14 +136,14 @@ func (w *scheduleWriter) notifyScheduleChanges(ctx context.Context, before map[u
 func (s *Service) notifyAssignmentChange(
 	ctx context.Context,
 	tx pgx.Tx,
-	kind inbox.Kind,
+	kind notifyrules.OpenDayChangeKind,
 	personID uuid.UUID,
 	periodID, openDayID uuid.UUID,
 	slot opendaysdb.OpenDayTimeslot,
 ) error {
-	return s.inbox.OpenDayPersonNotice(ctx, tx, kind, personID, inbox.OpenDayNotice{
+	return s.inbox.OpenDayPersonNotice(ctx, tx, kind, personID, notifyrules.OpenDayNotice{
 		PeriodID:  periodID,
 		OpenDayID: openDayID,
-		Slots:     []inbox.OpenDaySlot{{StartsAt: slot.StartsAt, EndsAt: slot.EndsAt}},
+		Slots:     []notifyrules.OpenDaySlot{{StartsAt: slot.StartsAt, EndsAt: slot.EndsAt}},
 	}, s.location)
 }

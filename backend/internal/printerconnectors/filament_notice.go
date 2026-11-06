@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -97,7 +97,7 @@ func trayMaterial(trayType, productName, color string) string {
 func notifyFilamentChange(
 	ctx context.Context,
 	tx pgx.Tx,
-	emitter InboxEmitter,
+	emitter NotificationEmitter,
 	machineID uuid.UUID,
 	slot *observedSlot,
 ) error {
@@ -105,31 +105,31 @@ func notifyFilamentChange(
 		return nil
 	}
 	q := db.New(tx)
-	change := inbox.FilamentChange{Slot: slot.name, Material: slot.material}
+	change := notifyrules.FilamentChange{Slot: slot.name, Material: slot.material}
 	switch {
 	case slot.tagUID != "" || slot.trayUUID != "":
 		known, err := findActiveSpoolByTag(ctx, q, slot.trayUUID, slot.tagUID)
 		if errors.Is(err, pgx.ErrNoRows) {
-			change.Kind = inbox.FilamentUnknownTag
+			change.Kind = notifyrules.FilamentUnknownTag
 		} else if err != nil {
 			return err
 		} else {
 			if slot.before != nil && *slot.before == known {
 				return nil
 			}
-			change.Kind, change.SpoolID = inbox.FilamentLoaded, &known
+			change.Kind, change.SpoolID = notifyrules.FilamentLoaded, &known
 		}
 	case slot.empty && slot.material != "":
 		if slot.before != nil {
 			// A manual mount stays in Core; the printer only cannot read the tag of what is in the tray.
 			return nil
 		}
-		change.Kind = inbox.FilamentNoTag
+		change.Kind = notifyrules.FilamentNoTag
 	case slot.empty:
 		if slot.before == nil {
 			return nil
 		}
-		change.Kind, change.SpoolID = inbox.FilamentUnloaded, slot.before
+		change.Kind, change.SpoolID = notifyrules.FilamentUnloaded, slot.before
 	default:
 		return nil
 	}

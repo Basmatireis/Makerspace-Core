@@ -9,19 +9,23 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
 )
 
-// notifications returns the titles and bodies of one account's notifications of a kind, oldest first.
-func (h *ingestHarness) notifications(accountID uuid.UUID, kind string) (titles, bodies, links []string) {
+// notifications returns the titles and bodies of one account's notifications written by the seeded system rule whose
+// key matches the pattern, oldest first.
+func (h *ingestHarness) notifications(accountID uuid.UUID, systemKey string) (titles, bodies, links []string) {
 	h.t.Helper()
 	rows, err := h.pool.Query(
 		h.t.Context(),
-		`SELECT n.title, n.body, n.link FROM inbox_recipients r JOIN inbox_notifications n ON n.id = r.notification_id
-		 WHERE r.account_id = $1 AND n.kind = $2 ORDER BY n.created_at, n.id`,
-		accountID, kind,
+		`SELECT n.title, n.body, n.link FROM inbox_recipients r
+		 JOIN inbox_notifications n ON n.id = r.notification_id
+		 JOIN notification_rules ru ON ru.id = n.rule_id
+		 WHERE r.account_id = $1 AND ru.system_key LIKE $2 ORDER BY n.created_at, n.id`,
+		accountID, systemKey,
 	)
 	if err != nil {
 		h.t.Fatal(err)
@@ -51,6 +55,50 @@ func (h *ingestHarness) cleanupNotifications(accountIDs ...uuid.UUID) {
 			)
 		}
 	})
+}
+
+// configureRule changes who the seeded system rule tells and restores the rule when the test ends: the recipients of
+// every action, the minimum level of a printer error (empty for none) and whether an e-mail follows the notification.
+func (h *ingestHarness) configureRule(systemKey string, recipients []string, minLevel string, email bool) {
+	h.t.Helper()
+	ctx := h.t.Context()
+	var original string
+	if err := h.pool.QueryRow(ctx, `SELECT definition::text FROM notification_rules WHERE system_key = $1`, systemKey).Scan(&original); err != nil {
+		h.t.Fatal(err)
+	}
+	h.t.Cleanup(func() {
+		_, _ = h.pool.Exec(context.Background(), `UPDATE notification_rules SET definition = $2::jsonb WHERE system_key = $1`, systemKey, original)
+	})
+	h.setRule(systemKey, original, recipients, minLevel, email)
+}
+
+func (h *ingestHarness) setRule(systemKey, original string, recipients []string, minLevel string, email bool) {
+	h.t.Helper()
+	def, err := notifyrules.ParseDefinition([]byte(original))
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	def.Conditions.Items = nil
+	if minLevel != "" {
+		def.Conditions.Items = []notifyrules.ConditionItem{{Condition: &notifyrules.Condition{
+			Field: "e.level", Op: notifyrules.OpGte, Value: minLevel,
+		}}}
+	}
+	actions := []notifyrules.Action{def.Actions[0]}
+	actions[0].Recipients = recipients
+	if email {
+		mail := actions[0]
+		mail.Channel, mail.InApp = notifyrules.ChannelEmail, nil
+		actions = append(actions, mail)
+	}
+	def.Actions = actions
+	encoded, err := json.Marshal(def)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	if _, err = h.pool.Exec(h.t.Context(), `UPDATE notification_rules SET definition = $2::jsonb WHERE system_key = $1`, systemKey, string(encoded)); err != nil {
+		h.t.Fatal(err)
+	}
 }
 
 // runWithOperator starts a recorded run and makes the harness principal the operator of its job.
@@ -86,16 +134,11 @@ func TestIngestPrinterErrorNotifiesTheOperatorAndTheChosenRoleOnce(t *testing.T)
 	reader := h.principalWith("reader", authorization.PrinterConnectorsRead)
 	h.cleanupNotifications(supervisor.AccountID, reader.AccountID, h.principal.AccountID)
 	var roleID uuid.UUID
-	if err := h.pool.QueryRow(ctx, `SELECT role_id FROM person_roles WHERE person_id = $1`, supervisor.PersonID).Scan(&roleID); err != nil {
+	if err := h.pool.QueryRow(ctx, `SELECT pr.role_id FROM person_roles pr JOIN roles r ON r.id = pr.role_id WHERE pr.person_id = $1 AND r.system_key IS NULL`, supervisor.PersonID).Scan(&roleID); err != nil {
 		t.Fatal(err)
 	}
-	// The chosen role is told from "serious" on; the test resets the singleton afterwards.
-	if _, err := h.pool.Exec(ctx, `UPDATE printer_notification_rules SET role_id = $1, min_severity = 'serious' WHERE event = 'printer_error'`, roleID); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_rules SET role_id = NULL, min_severity = 'serious' WHERE event = 'printer_error'`)
-	})
+	// The operator and the chosen role are told from "serious" on; the rule is restored afterwards.
+	h.configureRule("printer_error", []string{"operator", "role:" + roleID.String()}, "serious", false)
 	if _, err := h.pool.Exec(ctx, `INSERT INTO printer_error_codes (id, source_family, code, title) VALUES ($1, 'hms', '0300-0D00-0002-0001', 'Filament ran out')
 		ON CONFLICT (source_family, code) DO UPDATE SET title = EXCLUDED.title`, ids.New()); err != nil {
 		t.Fatal(err)
@@ -206,46 +249,6 @@ func TestPrinterErrorsAreListedDescribedAndCleared(t *testing.T) {
 		t.Fatalf("clear audit events = %d, %v", audited, err)
 	}
 
-	fatal := "fatal"
-	errorRule := NotificationRule{Event: NotifyPrinterError, NotifyOperator: true, MinSeverity: &fatal}
-	settings, err := h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{Events: []NotificationRule{errorRule}, ExpectedVersion: 1}, nil)
-	if err != nil || len(settings.Events) != 3 || settings.Events[0].MinSeverity == nil || *settings.Events[0].MinSeverity != "fatal" ||
-		settings.Events[0].RoleID != nil || settings.Version != 2 {
-		t.Fatalf("settings = %+v, %v", settings, err)
-	}
-	t.Cleanup(func() {
-		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_rules SET role_id = NULL, min_severity = 'serious', notify_operator = true, notify_recipient = false, email = false`)
-		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_rules SET min_severity = NULL WHERE event <> 'printer_error'`)
-		_, _ = h.pool.Exec(context.Background(), `UPDATE printer_notification_settings SET version = 1`)
-	})
-	if _, err = h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{Events: []NotificationRule{errorRule}, ExpectedVersion: 1}, nil); !apperror.IsCode(err, "stale_write") {
-		t.Fatalf("stale settings write: %v", err)
-	}
-	unknown := ids.New()
-	if _, err = h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{
-		Events: []NotificationRule{{Event: NotifyRunFinished, RoleID: &unknown}}, ExpectedVersion: 2,
-	}, nil); !apperror.IsCode(err, "validation_failed") {
-		t.Fatalf("unknown role: %v", err)
-	}
-	// A minimum severity only filters printer errors, and every event appears at most once.
-	for name, events := range map[string][]NotificationRule{
-		"severity on run_finished": {{Event: NotifyRunFinished, MinSeverity: &fatal}},
-		"repeated event":           {{Event: NotifyFilamentChange}, {Event: NotifyFilamentChange}},
-		"unknown event":            {{Event: "door_opened"}},
-		"empty":                    {},
-	} {
-		if _, err = h.service.UpdateNotificationSettings(ctx, h.principal, NotificationSettingsInput{Events: events, ExpectedVersion: 2}, nil); !apperror.IsCode(err, "validation_failed") {
-			t.Fatalf("%s: %v", name, err)
-		}
-	}
-	if _, err = h.service.UpdateNotificationSettings(ctx, authorization.Principal{AccountID: h.principal.AccountID}, NotificationSettingsInput{
-		Events: []NotificationRule{errorRule}, ExpectedVersion: 2,
-	}, nil); !apperror.IsCode(err, "permission_denied") {
-		t.Fatalf("update without machines.manage: %v", err)
-	}
-	if _, err = h.service.NotificationSettings(ctx, authorization.Principal{AccountID: h.principal.AccountID}); !apperror.IsCode(err, "permission_denied") {
-		t.Fatalf("read without machines.read: %v", err)
-	}
 	if err = h.service.DeleteErrorCode(ctx, h.principal, "hms", "0300-0D00-0001-0001", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +303,7 @@ func TestIngestSlotObservationsTellTheOperatorAboutFilamentChanges(t *testing.T)
 	h.runWithOperator(t0)
 	// A connector that is still catching up after a start does not announce old changes.
 	observe(t0.Add(time.Minute), false, `"tagUid":"FFFFFFFF","trayType":"PLA"`)
-	if titles, _, _ := h.notifications(h.principal.AccountID, "filament_change"); len(titles) != 0 {
+	if titles, _, _ := h.notifications(h.principal.AccountID, "filament_%"); len(titles) != 0 {
 		t.Fatalf("notifications before any live change = %q", titles)
 	}
 
@@ -315,7 +318,7 @@ func TestIngestSlotObservationsTellTheOperatorAboutFilamentChanges(t *testing.T)
 	}
 	observe(t0.Add(6*time.Minute), true, `"empty":true,"trayType":"PETG","productName":"PETG Basic"`)
 
-	titles, bodies, links := h.notifications(h.principal.AccountID, "filament_change")
+	titles, bodies, links := h.notifications(h.principal.AccountID, "filament_%")
 	want := []string{
 		"Spool removed from " + h.machine.Name,
 		"New material on " + h.machine.Name,

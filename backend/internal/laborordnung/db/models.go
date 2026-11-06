@@ -1619,21 +1619,6 @@ type PrinterLiveStatus struct {
 	Snapshot             []byte
 }
 
-type PrinterNotificationRule struct {
-	Event           string
-	NotifyOperator  bool
-	NotifyRecipient bool
-	RoleID          *uuid.UUID
-	Email           bool
-	MinSeverity     *string
-}
-
-type PrinterNotificationSetting struct {
-	Singleton bool
-	Version   int64
-	UpdatedAt time.Time
-}
-
 type PrinterProfile struct {
 	MachineID         uuid.UUID
 	Enabled           bool

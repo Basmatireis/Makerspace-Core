@@ -27,7 +27,6 @@ import {
   listMachineRuns,
 } from '../../api/generated/machine-runs/machine-runs';
 import {
-  getPrinterNotificationSettings,
   getPrinterProfile,
   listDetectedSpoolTags,
   listPrinterErrorCodes,
@@ -72,7 +71,6 @@ export const machineLogbookKeys = {
     (params
       ? [...machineLogbookKeys.all, 'printer-error-codes', params]
       : [...machineLogbookKeys.all, 'printer-error-codes']) as readonly unknown[],
-  printerNotificationSettings: () => [...machineLogbookKeys.all, 'printer-notification-settings'] as const,
   artifact: (id: string) => [...machineLogbookKeys.all, 'artifact', id] as const,
   pricing: () => [...machineLogbookKeys.all, 'pricing'] as const,
   recycleBin: () => [...machineLogbookKeys.all, 'recycle-bin'] as const,
@@ -158,11 +156,6 @@ export const printerErrorCodesQuery = (params: ListPrinterErrorCodesParams = {})
   queryOptions({
     queryKey: machineLogbookKeys.printerErrorCodes(params),
     queryFn: ({ signal }) => listPrinterErrorCodes(params, { signal }),
-  });
-export const printerNotificationSettingsQuery = () =>
-  queryOptions({
-    queryKey: machineLogbookKeys.printerNotificationSettings(),
-    queryFn: ({ signal }) => getPrinterNotificationSettings({ signal }),
   });
 export const artifactQuery = (id: string) =>
   queryOptions({

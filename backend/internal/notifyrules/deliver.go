@@ -18,6 +18,8 @@ type deliveryInput struct {
 	Action   Action
 	Link     string
 	People   []uuid.UUID
+	// Organizations are reached by the e-mail of an email action only.
+	Organizations []uuid.UUID
 	// Fallback marks the e-mail that follows an in-app notification nobody read: it goes only to people who did not
 	// read it, and it skips the checks the notification already passed.
 	Fallback bool
@@ -93,7 +95,8 @@ func (d *Dispatcher) deliver(
 		return nil
 	}
 	people := dedupePeople(in.People)
-	if len(people) == 0 {
+	organizations := dedupePeople(in.Organizations)
+	if len(people) == 0 && (len(organizations) == 0 || channel != ChannelEmail) {
 		return nil
 	}
 	targetRows, err := q.ListDeliveryTargets(ctx, uuidStrings(people))
@@ -240,6 +243,24 @@ func (d *Dispatcher) deliver(
 			return fmt.Errorf("queue rule mail: %w", err)
 		}
 		rows = append(rows, recipientRow{person: person, channel: ChannelEmail, status: sentStatus})
+	}
+	if len(organizations) > 0 {
+		on, err := mailOn()
+		if err != nil {
+			return err
+		}
+		for _, organization := range organizations {
+			if !on {
+				break
+			}
+			organization := organization
+			if err = q.InsertRuleMail(ctx, notifyrulesdb.InsertRuleMailParams{
+				ID: ids.New(), OrganizationID: &organization, Subject: Clip(in.Action.Title, MaxTitleLength),
+				Body: Clip(in.Action.Body, MaxBodyLength), Link: mailLink, FiringID: &in.FiringID,
+			}); err != nil {
+				return fmt.Errorf("queue rule mail: %w", err)
+			}
+		}
 	}
 	for _, row := range rows {
 		person := row.person

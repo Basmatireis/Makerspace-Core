@@ -26,7 +26,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	peopledb "github.com/Basmatireis/Makerspace-Core/backend/internal/people/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
@@ -109,9 +109,9 @@ type MembershipNotifier interface {
 	OpenDayPersonNotice(
 		ctx context.Context,
 		tx pgx.Tx,
-		kind inbox.Kind,
+		kind notifyrules.OpenDayChangeKind,
 		personID uuid.UUID,
-		notice inbox.OpenDayNotice,
+		notice notifyrules.OpenDayNotice,
 		location *time.Location,
 	) error
 }
@@ -1080,7 +1080,7 @@ func (s *Service) notifyFreedOpenDays(
 	if s.inbox == nil {
 		return nil
 	}
-	days := map[uuid.UUID]*inbox.OpenDayNotice{}
+	days := map[uuid.UUID]*notifyrules.OpenDayNotice{}
 	order := []uuid.UUID{}
 	for _, row := range freed {
 		if !row.Scheduled {
@@ -1088,17 +1088,17 @@ func (s *Service) notifyFreedOpenDays(
 		}
 		notice, ok := days[row.OpenDayID]
 		if !ok {
-			notice = &inbox.OpenDayNotice{PeriodID: row.PeriodID, OpenDayID: row.OpenDayID}
+			notice = &notifyrules.OpenDayNotice{PeriodID: row.PeriodID, OpenDayID: row.OpenDayID}
 			days[row.OpenDayID] = notice
 			order = append(order, row.OpenDayID)
 		}
-		notice.Slots = append(notice.Slots, inbox.OpenDaySlot{StartsAt: row.StartsAt, EndsAt: row.EndsAt})
+		notice.Slots = append(notice.Slots, notifyrules.OpenDaySlot{StartsAt: row.StartsAt, EndsAt: row.EndsAt})
 	}
 	for _, dayID := range order {
 		notice := days[dayID]
 		sort.Slice(notice.Slots, func(i, j int) bool { return notice.Slots[i].StartsAt.Before(notice.Slots[j].StartsAt) })
 		if err := s.inbox.OpenDayPersonNotice(
-			ctx, tx, inbox.KindOpenDayUnassignedByOther, personID, *notice, s.location,
+			ctx, tx, notifyrules.OpenDayUnassignedByOther, personID, *notice, s.location,
 		); err != nil {
 			return err
 		}

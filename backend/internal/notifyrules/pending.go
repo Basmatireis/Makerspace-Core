@@ -175,7 +175,7 @@ func (d *Dispatcher) processPending(
 	}
 	if err = d.deliver(ctx, q, runtime, deliveryInput{
 		FiringID: row.FiringID, Step: int(row.Step), Action: action, Link: item.Link, People: people,
-		Fallback: item.Fallback,
+		Organizations: item.Organizations, Fallback: item.Fallback,
 	}, now); err != nil {
 		return err
 	}

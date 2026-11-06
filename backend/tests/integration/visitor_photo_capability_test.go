@@ -7,9 +7,9 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
@@ -56,7 +56,7 @@ func TestVisitorEnrollmentPhotoFollowsDeviceCapabilities(t *testing.T) {
 	}
 	fileService := files.NewService(pool, localStore)
 	service := visitor.NewService(
-		pool, cfg, fileService, laborordnung.NewService(pool, inbox.NewEmitter(), fileService), newNotificationRecorder(),
+		pool, cfg, fileService, laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), fileService), newNotificationRecorder(),
 	)
 	if _, err := service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{
 		Enabled: true, DeviceTypeIDs: []uuid.UUID{deviceType.ID},

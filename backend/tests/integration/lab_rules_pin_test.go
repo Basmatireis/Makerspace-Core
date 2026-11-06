@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
@@ -67,7 +67,7 @@ func TestLabRulesStatusIsReadOnlyAndSelfConfirmationIsIdempotent(t *testing.T) {
 	}
 	assertCount(t, pool, `SELECT count(*) FROM laborordnung_confirmations WHERE person_id=$1`, 0, personID)
 
-	service := laborordnung.NewService(pool, inbox.NewEmitter(), nil)
+	service := laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), nil)
 	status, err := service.Evaluate(ctx, personID)
 	if err != nil {
 		t.Fatal(err)
@@ -143,7 +143,7 @@ func TestLabRulesStatusIsReadOnlyAndSelfConfirmationIsIdempotent(t *testing.T) {
 func TestLabRulesSelfConfirmationRefusesWhenNotRequiredOrUnavailable(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
-	service := laborordnung.NewService(pool, inbox.NewEmitter(), nil)
+	service := laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), nil)
 	person := seedAccount(t, pool, "unrequired-member", false)
 	principal := authorization.Principal{AccountID: person.accountID, PersonID: person.personID}
 	if _, err := service.ConfirmOwn(ctx, principal, ids.New(), nil); !apperror.IsCode(err, "lab_rules_not_required") {

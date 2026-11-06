@@ -12,8 +12,8 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
@@ -44,7 +44,7 @@ func newUploadHarness(t *testing.T) *uploadHarness {
 		t.Fatal(err)
 	}
 	fileService := files.NewService(pool, store)
-	logbook := machinelogbook.NewService(pool, inbox.NewEmitter())
+	logbook := machinelogbook.NewService(pool, notifyrules.NewSystemEvents(nil))
 	h := &uploadHarness{pool: pool, logbook: logbook, recordings: runrecordings.NewService(pool, fileService, logbook, 1<<20)}
 	h.service = NewService(pool, fileService, logbook, h.recordings)
 	personID, accountID := ids.New(), ids.New()

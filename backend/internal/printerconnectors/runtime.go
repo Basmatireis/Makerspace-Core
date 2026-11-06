@@ -434,7 +434,7 @@ func isBambuLANAdapter(kind AdapterKind) bool {
 func applyPrinterError(
 	ctx context.Context,
 	tx pgx.Tx,
-	emitter InboxEmitter,
+	emitter NotificationEmitter,
 	machineID, assignmentID uuid.UUID,
 	runID *uuid.UUID,
 	payload json.RawMessage,

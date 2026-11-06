@@ -7,8 +7,8 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
@@ -71,7 +71,7 @@ func TestLabRulesConfirmationListFiltersSortsPagesAndRequiresPermission(t *testi
 		t.Fatal("a kiosk confirmation with a document reference must be rejected")
 	}
 
-	service := laborordnung.NewService(pool, inbox.NewEmitter(), nil)
+	service := laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), nil)
 	reader := authorization.Principal{
 		AccountID: accountID, PersonID: masterPersonID, Assurance: authorization.AssuranceNormal,
 		AuthenticatedAt: time.Now().UTC(), Master: true,

@@ -57,17 +57,17 @@ type Status struct {
 type Service struct {
 	pool  *pgxpool.Pool
 	files *files.Service
-	inbox InboxEmitter
+	inbox NotificationEmitter
 }
 
-// InboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
+// NotificationEmitter is the part of the notification event source this package uses. It writes inside
 // the caller's transaction.
-type InboxEmitter interface {
+type NotificationEmitter interface {
 	LabRulesPublished(ctx context.Context, tx pgx.Tx, versionID uuid.UUID) error
 	LabRulesConfirmed(ctx context.Context, tx pgx.Tx, personID uuid.UUID) error
 }
 
-func NewService(pool *pgxpool.Pool, emitter InboxEmitter, fileService *files.Service) *Service {
+func NewService(pool *pgxpool.Pool, emitter NotificationEmitter, fileService *files.Service) *Service {
 	return &Service{pool: pool, files: fileService, inbox: emitter}
 }
 

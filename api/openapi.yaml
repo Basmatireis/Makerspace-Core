@@ -8466,36 +8466,6 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /printer-notification-settings:
-    get:
-      tags: [Printing]
-      operationId: getPrinterNotificationSettings
-      summary: Who is told about printer events
-      description: Needs machines.read. One rule per event (printer_error, run_finished, filament_change).
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Settings., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterNotificationSettings"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    put:
-      tags: [Printing]
-      operationId: updatePrinterNotificationSettings
-      summary: Change who is told about printer events
-      description: >-
-        Needs machines.manage. Replaces the rules of the listed events (each at most once); events not listed keep their
-        rule. minSeverity is only allowed for printer_error (422 validation_failed otherwise); an unknown role answers
-        422. Audited as `printer_notification_settings.updated` with the changed event names.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdatePrinterNotificationSettingsRequest"}}}}
-      responses:
-        "200": {description: Settings., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterNotificationSettings"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /printers/detected-spool-tags:
     get:
       tags: [Printing]
@@ -19179,53 +19149,6 @@ components:
         title: {type: string, minLength: 1, maxLength: 160}
         description: {type: string, maxLength: 2000}
         link: {type: string, maxLength: 500, nullable: true}
-
-    PrinterNotificationEvent:
-      type: string
-      description: "printer_error: the printer reports an error for the first time; run_finished: a recorded run ended or a running manual run was cancelled; filament_change: material in a printer slot changed while a run prints."
-      enum: [printer_error, run_finished, filament_change]
-
-    PrinterNotificationRule:
-      type: object
-      additionalProperties: false
-      required: [event, notifyOperator, notifyRecipient, roleId, roleName, email, minSeverity]
-      properties:
-        event: {$ref: "#/components/schemas/PrinterNotificationEvent"}
-        notifyOperator: {type: boolean, description: The operator of the run's job.}
-        notifyRecipient: {type: boolean, description: "The job's recipient (a person, or the contact e-mail of an organization)."}
-        roleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Everyone holding this role in addition; null for nobody.}
-        roleName: {type: string, nullable: true}
-        email: {type: boolean, description: "Also send an e-mail to every chosen person with an address. People without a staff account only ever get the e-mail."}
-        minSeverity: {allOf: [{$ref: "#/components/schemas/PrinterErrorSeverity"}], nullable: true, description: "printer_error only: errors below this level are not announced (print errors and codes without a level always are); null announces every level. Always null for the other events."}
-
-    PrinterNotificationRuleInput:
-      type: object
-      additionalProperties: false
-      required: [event, notifyOperator, notifyRecipient, roleId, email]
-      properties:
-        event: {$ref: "#/components/schemas/PrinterNotificationEvent"}
-        notifyOperator: {type: boolean}
-        notifyRecipient: {type: boolean}
-        roleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        email: {type: boolean}
-        minSeverity: {allOf: [{$ref: "#/components/schemas/PrinterErrorSeverity"}], nullable: true, description: Only for printer_error.}
-
-    PrinterNotificationSettings:
-      type: object
-      additionalProperties: false
-      required: [events, version, updatedAt]
-      properties:
-        events: {type: array, items: {$ref: "#/components/schemas/PrinterNotificationRule"}, description: "One rule per event, in the order printer_error, run_finished, filament_change."}
-        version: {$ref: "#/components/schemas/Version"}
-        updatedAt: {type: string, format: date-time}
-
-    UpdatePrinterNotificationSettingsRequest:
-      type: object
-      additionalProperties: false
-      required: [events, expectedVersion]
-      properties:
-        events: {type: array, minItems: 1, maxItems: 3, items: {$ref: "#/components/schemas/PrinterNotificationRuleInput"}}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
 
     PrinterLiveStatusSnapshot:
       type: object

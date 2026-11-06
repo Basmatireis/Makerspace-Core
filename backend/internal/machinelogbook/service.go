@@ -22,14 +22,14 @@ import (
 type Service struct {
 	pool  *pgxpool.Pool
 	now   func() time.Time
-	inbox InboxEmitter
+	inbox NotificationEmitter
 	// timeZone is the IANA name of the makerspace's time zone; statistics by hour of the week use it.
 	timeZone string
 }
 
-// InboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
+// NotificationEmitter is the part of the notification event source this package uses. It writes inside
 // the caller's transaction.
-type InboxEmitter interface {
+type NotificationEmitter interface {
 	RunFinished(ctx context.Context, tx pgx.Tx, runID uuid.UUID, excludedAccountIDs ...uuid.UUID) error
 }
 
@@ -49,7 +49,7 @@ func WithTimeZone(name string) Option {
 	}
 }
 
-func NewService(pool *pgxpool.Pool, emitter InboxEmitter, options ...Option) *Service {
+func NewService(pool *pgxpool.Pool, emitter NotificationEmitter, options ...Option) *Service {
 	s := &Service{pool: pool, now: func() time.Time { return time.Now().UTC() }, inbox: emitter, timeZone: "UTC"}
 	for _, option := range options {
 		option(s)

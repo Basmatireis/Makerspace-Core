@@ -24,28 +24,13 @@ test('goes to the machine page from a row on narrow screens', async ({ page }) =
   await expect(page).toHaveURL(`${base}/machines/${ids.bambu}`);
 });
 
-test('saves the printer notification rules that changed', async ({ page, world }) => {
+test('points to the notification rules next to the error catalog', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`${base}/machines?tab=printers`);
   await expect(
     page.getByRole('table', { name: 'Printer error catalog' }).getByText('AMS filament stuck'),
   ).toBeVisible();
-  const finished = page.getByRole('group', { name: 'Run finished' });
-  await finished.getByText('Also by e-mail').click();
-  await page.getByRole('button', { name: 'Save' }).click();
-  await expect.poll(() => world.sent('PUT', '/api/v1/printer-notification-settings')).toHaveLength(1);
-  expect(world.bodyOf('PUT', '/api/v1/printer-notification-settings')).toEqual({
-    events: [
-      {
-        event: 'run_finished',
-        notifyOperator: true,
-        notifyRecipient: true,
-        roleId: null,
-        email: true,
-      },
-    ],
-    expectedVersion: 1,
-  });
+  await expect(page.getByText('Printer notifications are rules now: Settings › Notification center.')).toBeVisible();
   await expectNoAccessibilityViolations(page);
 });
 

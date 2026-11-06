@@ -32,13 +32,11 @@ import type {
   PrinterErrorOccurrenceList,
   PrinterInputUnit,
   PrinterLiveStatus,
-  PrinterNotificationSettings,
   PrinterProfile,
   PrinterSetupRequest,
   PrinterSlot,
   UUIDv7,
   UpdatePrinterInputUnitRequest,
-  UpdatePrinterNotificationSettingsRequest,
   UpdatePrinterSlotRequest
 } from '../models';
 
@@ -291,68 +289,6 @@ export const deletePrinterErrorCode = async (sourceFamily: 'print' | 'hms',
     method: 'DELETE'
 
 
-  }
-);}
-
-
-export const getGetPrinterNotificationSettingsUrl = () => {
-
-
-
-
-  return `/api/v1/printer-notification-settings`
-}
-
-/**
- * Needs machines.read. One rule per event (printer_error, run_finished, filament_change).
- * @summary Who is told about printer events
- */
-export const getPrinterNotificationSettings = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PrinterNotificationSettings> => {
-
-  return apiFetch<PrinterNotificationSettings>(getGetPrinterNotificationSettingsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getUpdatePrinterNotificationSettingsUrl = () => {
-
-
-
-
-  return `/api/v1/printer-notification-settings`
-}
-
-/**
- * Needs machines.manage. Replaces the rules of the listed events (each at most once); events not listed keep their rule. minSeverity is only allowed for printer_error (422 validation_failed otherwise); an unknown role answers 422. Audited as `printer_notification_settings.updated` with the changed event names.
- * @summary Change who is told about printer events
- */
-export const updatePrinterNotificationSettings = async (updatePrinterNotificationSettingsRequest: UpdatePrinterNotificationSettingsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PrinterNotificationSettings> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<PrinterNotificationSettings>(getUpdatePrinterNotificationSettingsUrl(),
-  {
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(updatePrinterNotificationSettingsRequest)
   }
 );}
 

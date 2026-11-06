@@ -12,7 +12,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -150,15 +150,15 @@ type Service struct {
 	cfg      config.Config
 	location *time.Location
 	holidays HolidayProvider
-	inbox    InboxEmitter
+	inbox    NotificationEmitter
 }
 
-// InboxEmitter is the part of the in-app notification emitter this package uses. It writes inside
+// NotificationEmitter is the part of the notification event source this package uses. It writes inside
 // the caller's transaction.
-type InboxEmitter interface {
-	OpenDayPeriodOpen(ctx context.Context, tx pgx.Tx, periodID uuid.UUID) error
+type NotificationEmitter interface {
+	PeriodOpens(ctx context.Context, tx pgx.Tx, periodID uuid.UUID) error
 	// OpenDayPlaceFreed is told about a supervisor place that became free in a timeslot.
-	OpenDayPlaceFreed(
+	PlaceFreed(
 		ctx context.Context,
 		tx pgx.Tx,
 		timeslotID, leavingPersonID uuid.UUID,
@@ -168,14 +168,14 @@ type InboxEmitter interface {
 	OpenDayPersonNotice(
 		ctx context.Context,
 		tx pgx.Tx,
-		kind inbox.Kind,
+		kind notifyrules.OpenDayChangeKind,
 		personID uuid.UUID,
-		notice inbox.OpenDayNotice,
+		notice notifyrules.OpenDayNotice,
 		location *time.Location,
 	) error
 }
 
-func NewService(pool *pgxpool.Pool, emitter InboxEmitter, cfg config.Config) (*Service, error) {
+func NewService(pool *pgxpool.Pool, emitter NotificationEmitter, cfg config.Config) (*Service, error) {
 	timeZone := cfg.MakerspaceTimeZone
 	if timeZone == "" {
 		timeZone = "Europe/Vienna"
@@ -525,7 +525,7 @@ func (s *Service) TransitionPeriod(
 	// Sign-up opens the first time a draft is moved to staffing; reopening a published period was
 	// open before.
 	if PeriodStatus(current.Status) == PeriodDraft && target == PeriodStaffing {
-		if err := s.inbox.OpenDayPeriodOpen(ctx, tx, id); err != nil {
+		if err := s.inbox.PeriodOpens(ctx, tx, id); err != nil {
 			return Period{}, err
 		}
 	}

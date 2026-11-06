@@ -14,8 +14,8 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/camerarelay"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
@@ -118,9 +118,9 @@ func (g *connectorEnv) bambuWithConnector(name, kind, ip, code string) (machineI
 	ctx := testContext(g.t)
 	admin := g.fixture.admin
 	requestID := ids.New()
-	logbook := machinelogbook.NewService(g.pool, inbox.NewEmitter())
+	logbook := machinelogbook.NewService(g.pool, notifyrules.NewSystemEvents(nil))
 	printingService := printing.NewService(g.pool)
-	connectors, err := printerconnectors.NewService(g.pool, inbox.NewEmitter(), printingService, nil)
+	connectors, err := printerconnectors.NewService(g.pool, notifyrules.NewSystemEvents(nil), printingService, nil)
 	if err != nil {
 		g.t.Fatal(err)
 	}

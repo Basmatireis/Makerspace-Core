@@ -63,7 +63,6 @@ type Querier interface {
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	GetOpenMountSpoolForSlot(ctx context.Context, slotID uuid.UUID) (uuid.UUID, error)
 	GetPrinterErrorCodeSync(ctx context.Context) (GetPrinterErrorCodeSyncRow, error)
-	GetPrinterNotificationSettings(ctx context.Context) (GetPrinterNotificationSettingsRow, error)
 	// The slot a connector names, with the names people know it by; any status, so a change in a slot that
 	// is unavailable right now is still reported.
 	GetSlotByExternalIDs(ctx context.Context, arg GetSlotByExternalIDsParams) (GetSlotByExternalIDsRow, error)
@@ -94,7 +93,6 @@ type Querier interface {
 	ListPrinterErrorCodesByCodes(ctx context.Context, codes []string) ([]PrinterErrorCode, error)
 	// Open errors first (newest first), then errors resolved within the window, newest first.
 	ListPrinterErrorOccurrences(ctx context.Context, arg ListPrinterErrorOccurrencesParams) ([]ListPrinterErrorOccurrencesRow, error)
-	ListPrinterNotificationRules(ctx context.Context) ([]ListPrinterNotificationRulesRow, error)
 	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)
 	// The Bambu tray_uuid both RFID chips of a spool store.
 	ListTrayUUIDSpoolsAt(ctx context.Context, arg ListTrayUUIDSpoolsAtParams) ([]uuid.UUID, error)
@@ -104,8 +102,6 @@ type Querier interface {
 	LockEventSource(ctx context.Context, lockKey string) error
 	LockOpenMountForSlot(ctx context.Context, slotID uuid.UUID) (LockOpenMountForSlotRow, error)
 	LockOpenMountForSpool(ctx context.Context, spoolID uuid.UUID) (LockOpenMountForSpoolRow, error)
-	// Bumps the version when it still matches; the rules change in the same transaction.
-	LockPrinterNotificationSettings(ctx context.Context, expectedVersion int64) (LockPrinterNotificationSettingsRow, error)
 	MachineExists(ctx context.Context, id uuid.UUID) (bool, error)
 	NextPrintSequence(ctx context.Context) (int64, error)
 	// Keeps the newest keep_count entries of the connector that are not older than cutoff.
@@ -142,7 +138,6 @@ type Querier interface {
 	// inserted is true when this is the first observation of a still open occurrence.
 	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) (bool, error)
 	UpsertPrinterLiveStatus(ctx context.Context, arg UpsertPrinterLiveStatusParams) error
-	UpsertPrinterNotificationRule(ctx context.Context, arg UpsertPrinterNotificationRuleParams) error
 }
 
 var _ Querier = (*Queries)(nil)

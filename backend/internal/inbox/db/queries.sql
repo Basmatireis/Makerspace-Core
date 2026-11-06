@@ -43,30 +43,6 @@ WHERE a.status = 'enabled'
   )
 ORDER BY a.id;
 
--- name: ListEnabledStaffingAccountIDs :many
--- Active accounts of people who staff open days (supervisor or trainee membership).
-SELECT DISTINCT a.id
-FROM accounts a
-JOIN person_roles pr ON pr.person_id = a.person_id
-JOIN roles r ON r.id = pr.role_id
-WHERE a.status = 'enabled' AND r.system_key IN ('supervisor', 'trainee')
-ORDER BY a.id;
-
--- name: ListUnassignedSupervisorAccountIDs :many
--- Active accounts of people with the supervisor membership who hold no place in the timeslot.
-SELECT DISTINCT a.id
-FROM accounts a
-JOIN person_roles pr ON pr.person_id = a.person_id
-JOIN roles r ON r.id = pr.role_id
-WHERE a.status = 'enabled'
-  AND r.system_key = 'supervisor'
-  AND a.person_id <> sqlc.arg(excluded_person_id)::uuid
-  AND NOT EXISTS (
-      SELECT 1 FROM open_day_assignments x
-      WHERE x.timeslot_id = sqlc.arg(timeslot_id)::uuid AND x.person_id = a.person_id
-  )
-ORDER BY a.id;
-
 -- name: ListEnabledAccountIDsOfPerson :many
 SELECT id FROM accounts WHERE person_id = sqlc.arg(person_id) AND status = 'enabled' ORDER BY id;
 
@@ -75,23 +51,6 @@ SELECT p.first_name, p.last_name
 FROM accounts a
 JOIN people p ON p.id = a.person_id
 WHERE a.id = sqlc.arg(account_id);
-
--- name: GetOpenDayPeriodFacts :one
-SELECT id, name, status FROM open_day_periods WHERE id = sqlc.arg(id);
-
--- name: GetOpenDayTimeslotFacts :one
-SELECT d.id AS open_day_id, d.period_id, t.starts_at, t.ends_at, d.status
-FROM open_day_timeslots t
-JOIN open_days d ON d.id = t.open_day_id
-WHERE t.id = sqlc.arg(id);
-
--- name: GetRunNotificationFacts :one
-SELECT r.id, r.display_id, r.outcome, r.state, m.name AS machine_name,
-       j.id AS job_id, j.title AS job_title, j.operator_person_id, j.customer_person_id, j.customer_organization_id
-FROM machine_runs r
-JOIN machines m ON m.id = r.machine_id
-LEFT JOIN machine_jobs j ON j.id = r.job_id
-WHERE r.id = sqlc.arg(id);
 
 -- name: ListOwnNotifications :many
 SELECT n.id, n.kind, n.title, n.body, n.link, n.created_at, rc.read_at
@@ -185,54 +144,11 @@ WHERE n.id = sqlc.arg(id) AND n.kind = 'message';
 -- Recipient rows and role rows go with it (ON DELETE CASCADE).
 DELETE FROM inbox_notifications WHERE id = sqlc.arg(id) AND kind = 'message' AND expires_at > sqlc.arg(now);
 
--- name: GetMachineNotificationFacts :one
--- The machine and the operator of the run that is printing on it right now, if any.
-SELECT m.id, m.name AS machine_name, r.id AS run_id, r.display_id AS run_display_id, j.operator_person_id,
-       j.customer_person_id, j.customer_organization_id
-FROM machines m
-LEFT JOIN machine_runs r ON r.id = (
-    SELECT x.id
-    FROM machine_runs x
-    WHERE x.machine_id = m.id AND x.deleted_at IS NULL AND x.source = 'recorded' AND x.state = 'running'
-    ORDER BY x.started_at DESC NULLS LAST, x.created_at DESC
-    LIMIT 1
-)
-LEFT JOIN machine_jobs j ON j.id = r.job_id
-WHERE m.id = sqlc.arg(id);
-
--- name: GetSpoolNotificationFacts :one
--- How a spool is named to people: its label and its article.
-SELECT s.display_id, mat.name AS material_name, mat.color_name
-FROM filament_spools s
-LEFT JOIN materials mat ON mat.id = s.material_id
-WHERE s.id = sqlc.arg(id);
-
--- name: GetPrinterNotificationRule :one
-SELECT event, notify_operator, notify_recipient, role_id, email, min_severity
-FROM printer_notification_rules WHERE event = sqlc.arg(event);
-
--- name: GetPrinterErrorCodeFacts :one
-SELECT title, description, link FROM printer_error_codes
-WHERE source_family = sqlc.arg(source_family) AND code = sqlc.arg(code);
-
 -- name: DeleteNotificationsCreatedBefore :execrows
 DELETE FROM inbox_notifications WHERE created_at < sqlc.arg(before_time);
 
--- name: ListPersonIDsByRole :many
--- Everyone holding the role, with or without an account.
-SELECT DISTINCT person_id FROM person_roles WHERE role_id = sqlc.arg(role_id) ORDER BY person_id;
-
--- name: ListEnabledAccountsOfPeople :many
-SELECT id, person_id FROM accounts
-WHERE person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]) AND status = 'enabled'
-ORDER BY id;
-
 -- name: MailDeliveryEnabled :one
 SELECT COALESCE((SELECT enabled FROM mail_configuration LIMIT 1), false)::boolean;
-
--- name: InsertNotificationMail :exec
-INSERT INTO notification_mail_outbox (id, kind, person_id, organization_id, subject, body, link)
-VALUES (sqlc.arg(id), sqlc.arg(kind), sqlc.narg(person_id), sqlc.narg(organization_id), sqlc.arg(subject), sqlc.arg(body), sqlc.narg(link));
 
 -- name: ClaimDueNotificationMails :many
 -- Takes due mails for one delivery pass: the attempt is counted and the next one pushed out before anything is sent,
@@ -261,32 +177,3 @@ UPDATE notification_mail_outbox SET next_attempt_at = sqlc.arg(next_attempt_at) 
 
 -- name: DeleteNotificationMailsCreatedBefore :execrows
 DELETE FROM notification_mail_outbox WHERE created_at < sqlc.arg(before_time);
-
--- name: ListEnabledAccountsAwaitingLabRules :many
--- Active accounts of people whose roles ask for the Lab Rules (warning or blocking) and who have not confirmed the
--- version.
-SELECT a.id, a.person_id
-FROM accounts a
-WHERE a.status = 'enabled'
-  AND EXISTS (
-      SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
-      WHERE pr.person_id = a.person_id AND r.laborordnung_mode IN ('warning', 'blocking')
-  )
-  AND NOT EXISTS (
-      SELECT 1 FROM laborordnung_confirmations c
-      WHERE c.person_id = a.person_id AND c.version_id = sqlc.arg(version_id)
-  )
-ORDER BY a.person_id, a.id;
-
--- name: GetLabRulesVersionRevision :one
-SELECT human_revision FROM laborordnung_versions WHERE id = sqlc.arg(id);
-
--- name: MarkLabRulesPublishedRead :execrows
-UPDATE inbox_recipients r
-SET read_at = now()
-FROM inbox_notifications n, accounts a
-WHERE n.id = r.notification_id AND n.kind = 'lab_rules_published'
-  AND a.id = r.account_id AND a.person_id = sqlc.arg(person_id) AND r.read_at IS NULL;
-
--- name: GetStaffingWarningWindowDays :one
-SELECT warning_window_days FROM staffing_rules WHERE singleton = true;

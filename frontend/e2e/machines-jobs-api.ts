@@ -1643,15 +1643,6 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
 // Machines › Printers (error catalog, code list fetch, notification rules) and the printer error history.
 // ---------------------------------------------------------------------------
 
-type PrinterRuleMock = {
-  event: 'printer_error' | 'run_finished' | 'filament_change';
-  notifyOperator: boolean;
-  notifyRecipient: boolean;
-  roleId: string | null;
-  roleName: string | null;
-  email: boolean;
-  minSeverity: string | null;
-};
 type PrinterCodeMock = {
   id: string;
   sourceFamily: 'hms' | 'print';
@@ -1663,7 +1654,6 @@ type PrinterCodeMock = {
   updatedAt: string;
 };
 type PrinterMockState = {
-  notifications: { events: PrinterRuleMock[]; version: number; updatedAt: string };
   codes: PrinterCodeMock[];
 };
 
@@ -1673,15 +1663,6 @@ function printerMockState(world: object): PrinterMockState {
   const existing = printerMockStates.get(world);
   if (existing) return existing;
   const at = '2026-11-01T03:00:00Z';
-  const rule = (event: PrinterRuleMock['event']): PrinterRuleMock => ({
-    event,
-    notifyOperator: true,
-    notifyRecipient: event === 'run_finished',
-    roleId: null,
-    roleName: null,
-    email: false,
-    minSeverity: event === 'printer_error' ? 'serious' : null,
-  });
   const entry = (
     n: number,
     sourceFamily: PrinterCodeMock['sourceFamily'],
@@ -1691,11 +1672,6 @@ function printerMockState(world: object): PrinterMockState {
     source: PrinterCodeMock['source'],
   ): PrinterCodeMock => ({ id: id(n), sourceFamily, code, title, description, link: null, source, updatedAt: at });
   const state: PrinterMockState = {
-    notifications: {
-      events: [rule('printer_error'), rule('run_finished'), rule('filament_change')],
-      version: 1,
-      updatedAt: at,
-    },
     codes: [
       entry(901, 'hms', '0300-0D00-0001-0001', 'Heatbed temperature abnormal', 'Check the heatbed cable.', 'bambu'),
       entry(902, 'hms', '0700-2000-0002-0001', 'AMS filament stuck', 'Clear the filament path.', 'bambu'),
@@ -1715,19 +1691,6 @@ function printerMock(
   body: Record<string, unknown> | undefined,
 ): { body: unknown; status?: number } | undefined {
   const state = printerMockState(world);
-  if (path === '/api/v1/printer-notification-settings' && method === 'GET') return { body: state.notifications };
-  if (path === '/api/v1/printer-notification-settings' && method === 'PUT') {
-    const events = (body?.events ?? []) as Partial<PrinterRuleMock>[];
-    state.notifications = {
-      events: state.notifications.events.map((rule) => {
-        const change = events.find((item) => item.event === rule.event);
-        return change ? { ...rule, ...change, minSeverity: change.minSeverity ?? null, roleName: null } : rule;
-      }),
-      version: state.notifications.version + 1,
-      updatedAt: new Date().toISOString(),
-    };
-    return { body: state.notifications };
-  }
   const sync = {
     enabled: true,
     lastAttemptAt: '2026-11-01T03:00:00Z',

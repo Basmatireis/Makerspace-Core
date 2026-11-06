@@ -260,8 +260,8 @@ SELECT sqlc.arg(notification_id)::uuid, account_id FROM unnest(sqlc.arg(account_
 ON CONFLICT DO NOTHING;
 
 -- name: InsertRuleMail :exec
-INSERT INTO notification_mail_outbox (id, kind, person_id, subject, body, link, firing_id)
-VALUES (sqlc.arg(id), 'rule', sqlc.arg(person_id), sqlc.arg(subject), sqlc.arg(body), sqlc.narg(link), sqlc.arg(firing_id));
+INSERT INTO notification_mail_outbox (id, kind, person_id, organization_id, subject, body, link, firing_id)
+VALUES (sqlc.arg(id), 'rule', sqlc.narg(person_id), sqlc.narg(organization_id), sqlc.arg(subject), sqlc.arg(body), sqlc.narg(link), sqlc.arg(firing_id));
 
 -- name: ListMembershipsOfPeople :many
 SELECT DISTINCT ON (pr.person_id) pr.person_id, r.system_key::text AS membership
@@ -339,3 +339,118 @@ SELECT EXISTS (
 SELECT DISTINCT a.person_id FROM inbox_recipients ir
 JOIN accounts a ON a.id = ir.account_id
 WHERE ir.notification_id = sqlc.arg(notification_id) AND ir.read_at IS NULL;
+
+-- Facts for the events the application itself raises (system notifications).
+
+-- name: GetRunEventFacts :one
+SELECT r.id, r.display_id, r.outcome, r.state, r.started_at, r.ended_at, m.id AS machine_id, m.name AS machine_name,
+       j.id AS job_id, j.title AS job_title, j.operator_person_id, j.customer_person_id, j.customer_organization_id
+FROM machine_runs r
+JOIN machines m ON m.id = r.machine_id
+LEFT JOIN machine_jobs j ON j.id = r.job_id
+WHERE r.id = sqlc.arg(id);
+
+-- name: GetMachineEventFacts :one
+-- The machine and the operator of the run that is printing on it right now, if any.
+SELECT m.id, m.name AS machine_name, r.id AS run_id, r.display_id AS run_display_id, j.title AS job_title,
+       j.operator_person_id, j.customer_person_id, j.customer_organization_id
+FROM machines m
+LEFT JOIN machine_runs r ON r.id = (
+    SELECT x.id
+    FROM machine_runs x
+    WHERE x.machine_id = m.id AND x.deleted_at IS NULL AND x.source = 'recorded' AND x.state = 'running'
+    ORDER BY x.started_at DESC NULLS LAST, x.created_at DESC
+    LIMIT 1
+)
+LEFT JOIN machine_jobs j ON j.id = r.job_id
+WHERE m.id = sqlc.arg(id);
+
+-- name: GetSpoolEventFacts :one
+-- How a spool is named to people: its label and its article.
+SELECT s.display_id, mat.name AS material_name, mat.color_name
+FROM filament_spools s
+LEFT JOIN materials mat ON mat.id = s.material_id
+WHERE s.id = sqlc.arg(id);
+
+-- name: GetPrinterErrorMeaning :one
+SELECT title FROM printer_error_codes WHERE source_family = sqlc.arg(source_family) AND code = sqlc.arg(code);
+
+-- name: ListAllCheckedInPeople :many
+SELECT DISTINCT person_id FROM visits WHERE status = 'checked_in' ORDER BY person_id;
+
+-- name: ListPersonIDsOfAccounts :many
+SELECT DISTINCT person_id FROM accounts WHERE id = ANY(sqlc.arg(account_ids)::text[]::uuid[]);
+
+-- name: ListPeopleWithEnabledAccount :many
+SELECT DISTINCT person_id FROM accounts
+WHERE person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]) AND status = 'enabled'
+ORDER BY person_id;
+
+-- name: ListStaffingPeople :many
+-- People with an active account who staff open days (supervisor or trainee membership).
+SELECT DISTINCT a.person_id
+FROM accounts a
+JOIN person_roles pr ON pr.person_id = a.person_id
+JOIN roles r ON r.id = pr.role_id
+WHERE a.status = 'enabled' AND r.system_key IN ('supervisor', 'trainee')
+ORDER BY a.person_id;
+
+-- name: ListUnassignedSupervisorPeople :many
+-- People with an active account and the supervisor membership who hold no place in the timeslot.
+SELECT DISTINCT a.person_id
+FROM accounts a
+JOIN person_roles pr ON pr.person_id = a.person_id
+JOIN roles r ON r.id = pr.role_id
+WHERE a.status = 'enabled'
+  AND r.system_key = 'supervisor'
+  AND a.person_id <> sqlc.arg(excluded_person_id)::uuid
+  AND NOT EXISTS (
+      SELECT 1 FROM open_day_assignments x
+      WHERE x.timeslot_id = sqlc.arg(timeslot_id)::uuid AND x.person_id = a.person_id
+  )
+ORDER BY a.person_id;
+
+-- name: ListOpenDayTeam :many
+SELECT DISTINCT person_id FROM open_day_assignments WHERE open_day_id = sqlc.arg(open_day_id) ORDER BY person_id;
+
+-- name: GetOpenDayPeriodEventFacts :one
+SELECT id, name, sign_up_deadline FROM open_day_periods WHERE id = sqlc.arg(id);
+
+-- name: GetOpenDayTimeslotEventFacts :one
+SELECT d.id AS open_day_id, d.period_id, t.starts_at, t.ends_at, d.status
+FROM open_day_timeslots t
+JOIN open_days d ON d.id = t.open_day_id
+WHERE t.id = sqlc.arg(id);
+
+-- name: GetStaffingWarningDays :one
+SELECT warning_window_days FROM staffing_rules WHERE singleton = true;
+
+-- name: ListPeopleAwaitingLabRules :many
+-- People with an active account whose roles ask for the Lab Rules (warning or blocking) and who have not confirmed
+-- the version.
+SELECT DISTINCT a.person_id
+FROM accounts a
+WHERE a.status = 'enabled'
+  AND EXISTS (
+      SELECT 1 FROM person_roles pr JOIN roles r ON r.id = pr.role_id
+      WHERE pr.person_id = a.person_id AND r.laborordnung_mode IN ('warning', 'blocking')
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM laborordnung_confirmations c
+      WHERE c.person_id = a.person_id AND c.version_id = sqlc.arg(version_id)
+  )
+ORDER BY a.person_id;
+
+-- name: GetLabRulesRevision :one
+SELECT human_revision FROM laborordnung_versions WHERE id = sqlc.arg(id);
+
+-- name: MarkLabRulesNoticesRead :execrows
+-- The notifications that announced new Lab Rules, written by the "lab_rules_published" rule (or, before the rules
+-- existed, as their own kind), are read once the person confirmed.
+UPDATE inbox_recipients r
+SET read_at = now()
+FROM inbox_notifications n, accounts a
+WHERE n.id = r.notification_id
+  AND (n.kind = 'lab_rules_published'
+       OR n.rule_id IN (SELECT id FROM notification_rules WHERE system_key = 'lab_rules_published'))
+  AND a.id = r.account_id AND a.person_id = sqlc.arg(person_id) AND r.read_at IS NULL;

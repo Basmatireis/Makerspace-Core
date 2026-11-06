@@ -308,27 +308,6 @@ UPDATE printer_error_code_sync SET last_attempt_at = sqlc.arg(at), last_error = 
 -- name: DeletePrinterErrorCode :execrows
 DELETE FROM printer_error_codes WHERE source_family = sqlc.arg(source_family) AND code = sqlc.arg(code);
 
--- name: GetPrinterNotificationSettings :one
-SELECT version, updated_at FROM printer_notification_settings WHERE singleton;
-
--- name: LockPrinterNotificationSettings :one
--- Bumps the version when it still matches; the rules change in the same transaction.
-UPDATE printer_notification_settings SET version = version + 1, updated_at = now()
-WHERE singleton AND version = sqlc.arg(expected_version)
-RETURNING version, updated_at;
-
--- name: ListPrinterNotificationRules :many
-SELECT n.event, n.notify_operator, n.notify_recipient, n.role_id, r.name AS role_name, n.email, n.min_severity
-FROM printer_notification_rules n
-LEFT JOIN roles r ON r.id = n.role_id
-ORDER BY CASE n.event WHEN 'printer_error' THEN 0 WHEN 'run_finished' THEN 1 ELSE 2 END;
-
--- name: UpsertPrinterNotificationRule :exec
-INSERT INTO printer_notification_rules (event, notify_operator, notify_recipient, role_id, email, min_severity)
-VALUES (sqlc.arg(event), sqlc.arg(notify_operator), sqlc.arg(notify_recipient), sqlc.narg(role_id), sqlc.arg(email), sqlc.narg(min_severity))
-ON CONFLICT (event) DO UPDATE SET notify_operator = EXCLUDED.notify_operator, notify_recipient = EXCLUDED.notify_recipient,
-    role_id = EXCLUDED.role_id, email = EXCLUDED.email, min_severity = EXCLUDED.min_severity;
-
 -- name: MachineExists :one
 SELECT EXISTS(SELECT 1 FROM machines WHERE id = sqlc.arg(id))::boolean;
 
