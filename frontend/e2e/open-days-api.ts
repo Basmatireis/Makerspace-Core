@@ -168,7 +168,7 @@ export function periodOf(status: 'draft' | 'staffing' | 'published', days: Day[]
 
 export type Membership = 'supervisor' | 'trainee' | 'visitor';
 
-export function currentUser(permissions: string[], membership: Membership = 'supervisor') {
+export function currentUser(permissions: string[], membership: Membership = 'supervisor', withImage = false) {
   const roleIds = { supervisor: '51', trainee: '52', visitor: '53' };
   const roles = [
     { id: `0192f6f8-743e-7c77-a349-cd07c3e8b0${roleIds[membership]}`, name: membership, systemKey: membership },
@@ -204,6 +204,15 @@ export function currentUser(permissions: string[], membership: Membership = 'sup
       phone: null,
       roles,
       account,
+      ...(withImage
+        ? {
+            profileImage: {
+              fileId: '0192f6f8-743e-7c77-a349-cd07c3e8b0f1',
+              source: 'self_upload',
+              downloadUrl: `/api/v1/people/${ids.person}/profile-image`,
+            },
+          }
+        : {}),
       createdAt: timestamp,
       updatedAt: timestamp,
       version: 1,
@@ -263,6 +272,8 @@ export type World = {
   feed: { active: boolean; createdAt: string | null; lastUsedAt: string | null };
   requests: Recorded[];
   unexpected: string[];
+  /** Whether the signed-in person has a profile image. */
+  profileImage?: boolean;
   /** The body a schedule save answered with, for follow-up assertions. */
   onSchedule?: (body: Record<string, unknown>, world: World) => void;
 };
@@ -356,7 +367,15 @@ export async function installOpenDaysApi(page: Page, world: World) {
     }
     if (path === '/auth/oidc/providers') return json(route, { items: [] });
     if (path === '/public/config') return json(route, defaultPublicBrandingConfiguration());
-    if (path === '/auth/me') return json(route, currentUser(world.permissions, world.membership));
+    if (path === '/auth/me') return json(route, currentUser(world.permissions, world.membership, world.profileImage));
+    if (path === `/people/${ids.person}/profile-image` && world.profileImage) {
+      // A 1×1 GIF is enough for the browser to load the image.
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/gif',
+        body: Buffer.from('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', 'base64'),
+      });
+    }
     if (path === '/me/guides') return json(route, welcomeTourSeen);
     if (path === '/me/dashboard') {
       return json(route, { person: { firstName: 'Ada', memberSince: '2025-09-01' }, comingUp: [] });

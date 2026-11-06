@@ -113,6 +113,8 @@ test.describe('people who sign up', () => {
     await expect(panel.getByText("You're in as trainee.")).toBeVisible();
     await expect(dayRow(page, FRIDAY_2).getByText(/You're in · Trainee/)).toBeVisible();
     await expect(panel.getByText('You', { exact: true })).toBeVisible();
+    // Names are hidden from a trainee, yet the own place shows: green, and with the profile image when there is one.
+    await expect(dayRow(page, FRIDAY_2).locator('.od-av.is-me')).toHaveCount(1);
 
     await panel.getByRole('button', { name: 'Leave', exact: true }).click();
     await expect.poll(() => sent(world, 'DELETE', `/open-days/${ids.dayA}/assignments/me`).length).toBe(1);
@@ -122,7 +124,7 @@ test.describe('people who sign up', () => {
   });
 
   test('join a single timeslot of a day from the list', async ({ page }) => {
-    const world = newWorld({ permissions: staffing, membership: 'supervisor' });
+    const world = newWorld({ permissions: staffing, membership: 'supervisor', profileImage: true });
     await open(page, world);
     const slots = page.getByRole('listitem', { name: /^Timeslot / });
     await expect(slots).toHaveCount(2);
@@ -135,6 +137,9 @@ test.describe('people who sign up', () => {
       requirementId: `${ids.dayB}-s1-sup`,
     });
     await expect(panelOf(page).getByText("You're in for 18:00–20:00.")).toBeVisible();
+    const ownDot = slots.filter({ hasText: '18:00–20:00' }).locator('.od-av.is-me img');
+    await expect(ownDot).toHaveAttribute('src', `/api/v1/people/${ids.person}/profile-image`);
+    await expect.poll(() => ownDot.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
     await expect(slots.filter({ hasText: '16:00–18:00' }).getByRole('button', { name: 'Join' })).toBeVisible();
     // Open for me and Mine follow the sign-up.
     await page.getByRole('tab', { name: /^Mine/ }).click();
