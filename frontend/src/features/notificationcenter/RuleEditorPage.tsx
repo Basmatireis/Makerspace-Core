@@ -7,8 +7,11 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import type { NotificationCatalog, NotificationCategory, NotificationRule } from '../../api/generated/models';
 import {
   createNotificationRule,
+  createOwnNotificationSubscription,
   deleteNotificationRule,
+  deleteOwnNotificationSubscription,
   updateNotificationRule,
+  updateOwnNotificationSubscription,
 } from '../../api/generated/notification-rules/notification-rules';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { ErrorState } from '../../app/PageState';
@@ -45,6 +48,9 @@ import {
 import './notificationcenter.scss';
 
 const listPath = '/settings/notifications';
+/** Where the personal editor returns to and where its subscriptions live. */
+export const personalListPath = '/profile/notifications';
+export const personalSubscriptionPath = `${personalListPath}/subscriptions`;
 const kinds: readonly RuleKind[] = ['event', 'schedule', 'loop', 'manual'];
 
 function categoryHint(category: NotificationCategory | undefined): string {
@@ -54,15 +60,20 @@ function categoryHint(category: NotificationCategory | undefined): string {
     : 'Reaches everyone, without consent. Only for messages people need to use the makerspace.';
 }
 
-type EditorProps = {
+export type EditorProps = {
   catalog: NotificationCatalog;
   categories: NotificationCategory[];
   rule?: NotificationRule;
   initial: RuleDraft;
   canManage: boolean;
+  /** Edits a subscription of the signed-in person instead of a central rule. */
+  personal?: boolean;
 };
 
-function RuleEditor({ catalog, categories, rule, initial, canManage }: EditorProps) {
+export function RuleEditor({ catalog, categories, rule, initial, canManage, personal = false }: EditorProps) {
+  const back = personal ? personalListPath : listPath;
+  const newPath = personal ? `${personalSubscriptionPath}/new` : `${listPath}/rules/new`;
+  const noun = personal ? 'Subscription' : 'Rule';
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const form = useForm<RuleDraft>({ defaultValues: initial });
@@ -84,20 +95,27 @@ function RuleEditor({ catalog, categories, rule, initial, canManage }: EditorPro
 
   const save = useMutation({
     mutationFn: (values: RuleDraft) =>
-      rule
-        ? updateNotificationRule(rule.id, { expectedVersion: rule.version, ...toInput(values) })
-        : createNotificationRule(toInput(values)),
+      personal
+        ? rule
+          ? updateOwnNotificationSubscription(rule.id, { expectedVersion: rule.version, ...toInput(values) })
+          : createOwnNotificationSubscription(toInput(values))
+        : rule
+          ? updateNotificationRule(rule.id, { expectedVersion: rule.version, ...toInput(values) })
+          : createNotificationRule(toInput(values)),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: notificationCenterKeys.all });
-      guard.bypassAfterSubmit(() => navigate(listPath));
+      guard.bypassAfterSubmit(() => navigate(back));
     },
   });
   const remove = useMutation({
-    mutationFn: () => deleteNotificationRule(rule!.id, { expectedVersion: rule!.version }),
+    mutationFn: () =>
+      personal
+        ? deleteOwnNotificationSubscription(rule!.id, { expectedVersion: rule!.version })
+        : deleteNotificationRule(rule!.id, { expectedVersion: rule!.version }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: notificationCenterKeys.all });
       setConfirmDelete(false);
-      guard.bypassAfterSubmit(() => navigate(listPath));
+      guard.bypassAfterSubmit(() => navigate(back));
     },
   });
 
@@ -106,10 +124,10 @@ function RuleEditor({ catalog, categories, rule, initial, canManage }: EditorPro
     recipe(next);
     form.setValue('definition', options?.prune ? pruneDefinition(catalog, next) : next, { shouldDirty: true });
   };
-  const stepProps: StepProps = { catalog, definition: draft.definition, lookup, edit };
+  const stepProps: StepProps = { catalog, definition: draft.definition, lookup, edit, personal };
 
   const submit = form.handleSubmit((values) => {
-    const found = validateDraft(catalog, values);
+    const found = validateDraft(catalog, values, personal);
     setProblems(found);
     if (found.length) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -117,21 +135,27 @@ function RuleEditor({ catalog, categories, rule, initial, canManage }: EditorPro
     }
     save.mutate(values);
   });
-  const problem = save.isError ? saveProblem(save.error, 'Rule') : null;
+  const problem = save.isError ? saveProblem(save.error, noun) : null;
   const nameProblem = problem?.reason.startsWith('name') ? problem.reason : undefined;
 
   const group = settingsGroup(settingsItem('notification-center').group);
+  const breadcrumbs = personal
+    ? [
+        { label: 'Your account', to: '/profile' },
+        { label: 'My notifications', to: personalListPath },
+      ]
+    : [
+        { label: 'Settings', to: '/settings' },
+        { label: group.title, to: `/settings#${group.id}` },
+        { label: 'Notification center', to: listPath },
+      ];
   const unsaved = form.formState.isDirty && canManage;
 
   return (
     <PageShell
-      title={rule ? rule.name : 'New rule'}
+      title={rule ? rule.name : `New ${noun.toLowerCase()}`}
       width="wide"
-      breadcrumbs={[
-        { label: 'Settings', to: '/settings' },
-        { label: group.title, to: `/settings#${group.id}` },
-        { label: 'Notification center', to: listPath },
-      ]}
+      breadcrumbs={breadcrumbs}
       actions={
         <div className="nc-header-actions">
           {unsaved && (
@@ -142,11 +166,9 @@ function RuleEditor({ catalog, categories, rule, initial, canManage }: EditorPro
           {rule && (
             <IconButton
               kind="ghost"
-              label="Duplicate rule"
+              label={`Duplicate ${noun.toLowerCase()}`}
               align="bottom"
-              onClick={() =>
-                guard.requestDiscard(() => navigate(`${listPath}/rules/new`, { state: { template: rule } }))
-              }
+              onClick={() => guard.requestDiscard(() => navigate(newPath, { state: { template: rule } }))}
             >
               <Copy />
             </IconButton>
@@ -155,14 +177,14 @@ function RuleEditor({ catalog, categories, rule, initial, canManage }: EditorPro
             <IconButton
               ref={deleteButton}
               kind="ghost"
-              label="Delete rule"
+              label={`Delete ${noun.toLowerCase()}`}
               align="bottom"
               onClick={() => setConfirmDelete(true)}
             >
               <TrashCan />
             </IconButton>
           )}
-          <Button kind="secondary" size="md" onClick={() => guard.requestDiscard(() => navigate(listPath))}>
+          <Button kind="secondary" size="md" onClick={() => guard.requestDiscard(() => navigate(back))}>
             {canManage ? 'Cancel' : 'Back'}
           </Button>
           {canManage && (
@@ -205,7 +227,7 @@ function RuleEditor({ catalog, categories, rule, initial, canManage }: EditorPro
         </InlineNotification>
       )}
       <fieldset className="nc-fieldset" disabled={!canManage}>
-        <legend className="cds--visually-hidden">Rule</legend>
+        <legend className="cds--visually-hidden">{noun}</legend>
         <div className="nc-head">
           <TextInput
             id="nc-name"
@@ -215,25 +237,34 @@ function RuleEditor({ catalog, categories, rule, initial, canManage }: EditorPro
             invalidText={nameProblem}
             {...form.register('name')}
           />
-          <TextInput id="nc-description" labelText="Description" maxLength={500} {...form.register('description')} />
-          <Select
-            id="nc-category"
-            labelText="Category"
-            helperText={categoryHint(category)}
-            {...form.register('categoryId')}
-          >
-            <SelectItem value="" text="Choose a category" />
-            {categories.map((candidate) => (
-              <SelectItem
-                key={candidate.id}
-                value={candidate.id}
-                text={`${candidate.name}${candidate.basis === 'consent' ? ' · needs consent' : ''}`}
+          {!personal && (
+            <>
+              <TextInput
+                id="nc-description"
+                labelText="Description"
+                maxLength={500}
+                {...form.register('description')}
               />
-            ))}
-          </Select>
+              <Select
+                id="nc-category"
+                labelText="Category"
+                helperText={categoryHint(category)}
+                {...form.register('categoryId')}
+              >
+                <SelectItem value="" text="Choose a category" />
+                {categories.map((candidate) => (
+                  <SelectItem
+                    key={candidate.id}
+                    value={candidate.id}
+                    text={`${candidate.name}${candidate.basis === 'consent' ? ' · needs consent' : ''}`}
+                  />
+                ))}
+              </Select>
+            </>
+          )}
           <Toggle
             id="nc-enabled"
-            labelText="Rule"
+            labelText={noun}
             labelA="Off"
             labelB="On"
             toggled={draft.enabled}
@@ -246,11 +277,11 @@ function RuleEditor({ catalog, categories, rule, initial, canManage }: EditorPro
             <LoopStep {...stepProps} />
             <ConditionsStep {...stepProps} />
             <ThenStep {...stepProps} />
-            <EscalationStep {...stepProps} />
+            {!personal && <EscalationStep {...stepProps} />}
             <LimitsStep
               {...stepProps}
               mandatory={draft.mandatory}
-              onMandatory={(next) => form.setValue('mandatory', next, { shouldDirty: true })}
+              onMandatory={personal ? undefined : (next) => form.setValue('mandatory', next, { shouldDirty: true })}
             />
           </div>
           <PreviewColumn catalog={catalog} definition={draft.definition} lookup={lookup} />
@@ -261,14 +292,18 @@ function RuleEditor({ catalog, categories, rule, initial, canManage }: EditorPro
         open={confirmDelete}
         title={`Delete “${rule?.name ?? ''}”?`}
         fate="permanent"
-        confirmLabel="Delete rule"
+        confirmLabel={`Delete ${noun.toLowerCase()}`}
         pending={remove.isPending}
-        error={remove.isError ? saveProblem(remove.error, 'Rule').message : undefined}
+        error={remove.isError ? saveProblem(remove.error, noun).message : undefined}
         launcherButtonRef={deleteButton}
         onClose={() => setConfirmDelete(false)}
         onConfirm={() => remove.mutate()}
       >
-        <p>Nobody gets these messages any more, and people&apos;s mutes for this rule are removed.</p>
+        <p>
+          {personal
+            ? "You won't get these messages any more."
+            : "Nobody gets these messages any more, and people's mutes for this rule are removed."}
+        </p>
       </DestructiveActionDialog>
     </PageShell>
   );

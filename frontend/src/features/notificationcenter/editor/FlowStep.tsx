@@ -9,6 +9,8 @@ export type StepProps = {
   catalog: NotificationCatalog;
   definition: Definition;
   lookup: NameLookup;
+  /** A personal subscription: only in-app and e-mail, always to the owner, no escalation and no manual trigger. */
+  personal?: boolean;
   edit: (recipe: (draft: Definition) => void, options?: { prune?: boolean }) => void;
 };
 

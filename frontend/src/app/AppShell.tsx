@@ -33,6 +33,8 @@ import { useBranding } from '../features/branding/branding';
 const LabRulesConfirmModal = lazy(() => import('../features/laborordnung/confirm/LabRulesConfirmModal'));
 // The first-sign-in tour offer asks the server about progress, so it loads (and fetches) after the shell is up.
 const GuideOffer = lazy(() => import('../features/guides/GuideOffer'));
+// The notification consent question replaces the application until it is answered, so it loads only for those people.
+const ConsentGate = lazy(() => import('../features/mynotifications/ConsentGate'));
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 
@@ -67,6 +69,9 @@ export function AppShell() {
   const labRules = currentUser.laborordnungStatus;
   const showLabRulesModal =
     labRules.actionRequired && labRules.currentVersion !== null && (labRules.mode === 'blocking' || !labRulesDeferred);
+
+  // Right after sign-in the consent question takes the place of the application: no navigation, no dialogs.
+  const consentRequired = currentUser.notificationConsentRequired === true;
 
   const displayName = `${currentUser.person.firstName} ${currentUser.person.lastName}`;
 
@@ -111,12 +116,14 @@ export function AppShell() {
                   document.getElementById('main-content')?.focus();
                 }}
               />
-              <HeaderMenuButton
-                aria-label={sideNavExpanded ? 'Close navigation' : 'Open navigation'}
-                isActive={sideNavExpanded}
-                isCollapsible
-                onClick={() => setSideNavExpanded((expanded) => !expanded)}
-              />
+              {!consentRequired && (
+                <HeaderMenuButton
+                  aria-label={sideNavExpanded ? 'Close navigation' : 'Open navigation'}
+                  isActive={sideNavExpanded}
+                  isCollapsible
+                  onClick={() => setSideNavExpanded((expanded) => !expanded)}
+                />
+              )}
               <HeaderName as={Link} to="/dashboard" prefix="" className="app-header__brand">
                 <BrandMark kind="compact" className="app-header__logo" />
                 <span className="app-header__wordmark">
@@ -126,22 +133,26 @@ export function AppShell() {
               </HeaderName>
               <HeaderGlobalBar>
                 <span className="header-account__name">{displayName}</span>
-                <HeaderGlobalAction
-                  aria-label="Help"
-                  tooltipAlignment="end"
-                  data-guide="header-help"
-                  onClick={() => navigate('/help')}
-                >
-                  <Help size={20} />
-                </HeaderGlobalAction>
-                <NotificationAction
-                  expanded={notificationPanelOpen}
-                  actionRef={notificationActionRef}
-                  onToggle={() => {
-                    setProfilePanelOpen(false);
-                    setNotificationPanelOpen((open) => !open);
-                  }}
-                />
+                {!consentRequired && (
+                  <>
+                    <HeaderGlobalAction
+                      aria-label="Help"
+                      tooltipAlignment="end"
+                      data-guide="header-help"
+                      onClick={() => navigate('/help')}
+                    >
+                      <Help size={20} />
+                    </HeaderGlobalAction>
+                    <NotificationAction
+                      expanded={notificationPanelOpen}
+                      actionRef={notificationActionRef}
+                      onToggle={() => {
+                        setProfilePanelOpen(false);
+                        setNotificationPanelOpen((open) => !open);
+                      }}
+                    />
+                  </>
+                )}
                 <HeaderGlobalAction
                   aria-label={`${profilePanelOpen ? 'Close' : 'Open'} profile menu for ${displayName}`}
                   data-guide="header-profile"
@@ -193,9 +204,16 @@ export function AppShell() {
                   <Tag type={currentUser.account.status === 'enabled' ? 'green' : 'gray'}>
                     {currentUser.account.status === 'enabled' ? 'Active' : 'Inactive'}
                   </Tag>
-                  <Button kind="ghost" size="sm" onClick={() => navigate('/profile')}>
-                    View profile
-                  </Button>
+                  {!consentRequired && (
+                    <>
+                      <Button kind="ghost" size="sm" onClick={() => navigate('/profile')}>
+                        View profile
+                      </Button>
+                      <Button kind="ghost" size="sm" onClick={() => navigate('/profile/notifications')}>
+                        My notifications
+                      </Button>
+                    </>
+                  )}
                   <Button kind="ghost" size="sm" onClick={() => setColorScheme(dark ? 'light' : 'dark')}>
                     {dark ? 'Use light theme' : 'Use dark theme'}
                   </Button>
@@ -223,23 +241,25 @@ export function AppShell() {
                   )}
                 </Stack>
               </HeaderPanel>
-              <SideNav
-                aria-label="Primary navigation"
-                data-guide="shell-nav"
-                expanded={sideNavExpanded}
-                isFixedNav
-                isPersistent={false}
-                onOverlayClick={() => setSideNavExpanded(false)}
-              >
-                <AppNavigation currentUser={currentUser} legal={branding.legal} onNavigate={handleNavigation} />
-              </SideNav>
+              {!consentRequired && (
+                <SideNav
+                  aria-label="Primary navigation"
+                  data-guide="shell-nav"
+                  expanded={sideNavExpanded}
+                  isFixedNav
+                  isPersistent={false}
+                  onOverlayClick={() => setSideNavExpanded(false)}
+                >
+                  <AppNavigation currentUser={currentUser} legal={branding.legal} onNavigate={handleNavigation} />
+                </SideNav>
+              )}
             </Header>
           </Theme>
 
           <main
             id="main-content"
             tabIndex={-1}
-            className={`app-main${sideNavExpanded && !isNarrow ? ' app-main--nav-expanded' : ''}`}
+            className={`app-main${sideNavExpanded && !isNarrow && !consentRequired ? ' app-main--nav-expanded' : ''}`}
           >
             <DemoBanner />
             {currentUser.authentication.mfaRequired &&
@@ -261,10 +281,10 @@ export function AppShell() {
                 </section>
               )}
             <Suspense fallback={<FullPageLoading label="Loading page" />}>
-              <Outlet />
+              {consentRequired ? <ConsentGate /> : <Outlet />}
             </Suspense>
           </main>
-          {showLabRulesModal ? (
+          {consentRequired ? null : showLabRulesModal ? (
             <Suspense fallback={null}>
               <LabRulesConfirmModal status={labRules} onLater={() => setLabRulesDeferred(true)} />
             </Suspense>

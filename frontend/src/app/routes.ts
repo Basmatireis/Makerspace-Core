@@ -278,3 +278,13 @@ export const NotificationCenterPage = lazy(() =>
     default: NotificationCenterPage,
   })),
 );
+export const MyNotificationsPage = lazy(() =>
+  import('../features/mynotifications/MyNotificationsPage').then(({ MyNotificationsPage }) => ({
+    default: MyNotificationsPage,
+  })),
+);
+export const SubscriptionPage = lazy(() =>
+  import('../features/mynotifications/SubscriptionPage').then(({ SubscriptionPage }) => ({
+    default: SubscriptionPage,
+  })),
+);

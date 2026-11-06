@@ -140,6 +140,8 @@ export function fieldGroups(
   catalog: NotificationCatalog,
   definition: Definition,
   where: 'if' | 'filter',
+  /** A personal subscription's recipient is its owner, so the recipient facts are "You". */
+  personal = false,
 ): FieldGroup[] {
   const ctx = contextOf(catalog, definition);
   if (where === 'filter') {
@@ -157,7 +159,11 @@ export function fieldGroups(
   if (ctx.collection && ctx.summaryMode) {
     groups.push({ id: 'summary', label: 'Summary', fields: prefixed('s.', ctx.collection.summaryFields) });
   }
-  groups.push({ id: 'recipient', label: 'Each recipient', fields: prefixed('r.', catalog.recipientFields) });
+  groups.push({
+    id: 'recipient',
+    label: personal ? 'You' : 'Each recipient',
+    fields: prefixed('r.', catalog.recipientFields),
+  });
   groups.push({ id: 'now', label: 'Now', fields: prefixed('n.', catalog.nowFields) });
   return groups;
 }
@@ -382,7 +388,7 @@ export function pruneDefinition(catalog: NotificationCatalog, definition: Defini
   const fixRecipients = (action: Action) => ({
     ...action,
     recipients: action.recipients.filter(
-      (key) => key.startsWith('role:') || key.startsWith('person:') || dynamic.has(key),
+      (key) => key === 'me' || key.startsWith('role:') || key.startsWith('person:') || dynamic.has(key),
     ),
   });
   next.actions = next.actions.map(fixRecipients);
@@ -403,8 +409,11 @@ export function pruneDefinition(catalog: NotificationCatalog, definition: Defini
 
 /* ---------- actions and drafts ---------- */
 
-export function newAction(channel: Channel): Action {
-  const base = { recipients: [], title: '', body: '', delayMinutes: 0 };
+/** Channels a personal subscription may use; signage and tablets address displays, not a person. */
+export const personalChannels: readonly Channel[] = ['in_app', 'email'];
+
+export function newAction(channel: Channel, personal = false): Action {
+  const base = { recipients: personal ? ['me'] : [], title: '', body: '', delayMinutes: 0 };
   switch (channel) {
     case 'in_app':
       return {
@@ -471,15 +480,16 @@ export function toInput(draft: RuleDraft): NotificationRuleInput {
 }
 
 /** Problems found before sending; the server validates again and has the last word. */
-export function validateDraft(catalog: NotificationCatalog, draft: RuleDraft): string[] {
+export function validateDraft(catalog: NotificationCatalog, draft: RuleDraft, personal = false): string[] {
   const problems: string[] = [];
   const { definition } = draft;
   const ctx = contextOf(catalog, definition);
-  if (!draft.name.trim()) problems.push('Give the rule a name.');
-  if (!draft.categoryId) problems.push('Choose a category.');
+  if (!draft.name.trim()) problems.push(personal ? 'Give the subscription a name.' : 'Give the rule a name.');
+  if (!personal && !draft.categoryId) problems.push('Choose a category.');
   if (!definition.actions.length) problems.push('Add at least one action under Then.');
   const check = (action: Action, where: string) => {
-    if ((action.channel === 'in_app' || action.channel === 'email') && !action.recipients.length) {
+    // A subscription always notifies its owner, so there is nothing to choose.
+    if (!personal && (action.channel === 'in_app' || action.channel === 'email') && !action.recipients.length) {
       problems.push(`${where}: add a recipient.`);
     }
     if (action.channel === 'signage' && !action.signage?.displayIds.length)
@@ -497,6 +507,7 @@ export function validateDraft(catalog: NotificationCatalog, draft: RuleDraft): s
     problems.push('Pick at least one weekday.');
   }
   if (
+    !personal &&
     ctx.collection &&
     ctx.eachMode &&
     definition.actions.some(

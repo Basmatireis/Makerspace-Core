@@ -16,8 +16,9 @@ import { ConditionList } from './ConditionList';
 import { FlowStep, type StepProps } from './FlowStep';
 
 const triggerTypes = ['event', 'schedule', 'manual'] as const;
+const triggerTexts = { event: 'Something happens', schedule: 'On a schedule', manual: 'By hand' } as const;
 
-export function WhenStep({ catalog, definition, edit }: StepProps) {
+export function WhenStep({ catalog, definition, edit, personal }: StepProps) {
   const trigger = definition.trigger;
   const schedule = trigger.schedule ?? { repeat: 'daily' };
   const openDay = schedule.repeat === 'before_open_day' || schedule.repeat === 'after_open_day';
@@ -46,9 +47,11 @@ export function WhenStep({ catalog, definition, edit }: StepProps) {
         );
       }}
     >
-      <Switch name="event" text="Something happens" />
-      <Switch name="schedule" text="On a schedule" />
-      <Switch name="manual" text="By hand" />
+      {triggerTypes
+        .filter((type) => !personal || type !== 'manual')
+        .map((type) => (
+          <Switch key={type} name={type} text={triggerTexts[type]} />
+        ))}
     </ContentSwitcher>
   );
 
@@ -273,9 +276,9 @@ export function LoopStep({ catalog, definition, edit }: StepProps) {
   );
 }
 
-export function ConditionsStep({ catalog, definition, edit }: StepProps) {
+export function ConditionsStep({ catalog, definition, edit, personal }: StepProps) {
   const ctx = contextOf(catalog, definition);
-  const groups = fieldGroups(catalog, definition, 'if');
+  const groups = fieldGroups(catalog, definition, 'if', personal);
   const lead = ctx.eachMode
     ? `Continue for a ${ctx.collection!.one} only if`
     : ctx.summaryMode

@@ -5,6 +5,7 @@ import {
   channels,
   durationUnits,
   newAction,
+  personalChannels,
   resolutionChoices,
   throttleChoices,
   type Channel,
@@ -12,21 +13,31 @@ import {
 import { ActionCard } from './ActionCard';
 import { FlowStep, type StepProps } from './FlowStep';
 
-function AddButtons({ onAdd, prefix = '' }: { onAdd: (channel: Channel) => void; prefix?: string }) {
+function AddButtons({
+  onAdd,
+  prefix = '',
+  personal = false,
+}: {
+  onAdd: (channel: Channel) => void;
+  prefix?: string;
+  personal?: boolean;
+}) {
   return (
     <div className="nc-actions-row">
-      {channels.map((channel) => (
-        <Button key={channel.id} kind="ghost" size="sm" renderIcon={Add} onClick={() => onAdd(channel.id)}>
-          {prefix}
-          {channel.short}
-        </Button>
-      ))}
+      {channels
+        .filter((channel) => !personal || personalChannels.includes(channel.id))
+        .map((channel) => (
+          <Button key={channel.id} kind="ghost" size="sm" renderIcon={Add} onClick={() => onAdd(channel.id)}>
+            {prefix}
+            {channel.short}
+          </Button>
+        ))}
     </div>
   );
 }
 
 export function ThenStep(props: StepProps) {
-  const { catalog, definition, lookup, edit } = props;
+  const { catalog, definition, lookup, edit, personal } = props;
   const ctx = contextOf(catalog, definition);
   const acknowledgeStops = definition.escalation?.stopWhen === 'acknowledged';
   return (
@@ -42,6 +53,7 @@ export function ThenStep(props: StepProps) {
             definition={definition}
             lookup={lookup}
             showDelay
+            personal={personal}
             acknowledgeStops={acknowledgeStops}
             onChange={(next) =>
               edit((draft) => {
@@ -57,9 +69,10 @@ export function ThenStep(props: StepProps) {
         ))}
       </div>
       <AddButtons
+        personal={personal}
         onAdd={(channel) =>
           edit((draft) => {
-            draft.actions.push(newAction(channel));
+            draft.actions.push(newAction(channel, personal));
           })
         }
       />
@@ -205,7 +218,8 @@ export function LimitsStep({
   onMandatory,
 }: StepProps & {
   mandatory: boolean;
-  onMandatory: (next: boolean) => void;
+  /** Absent for a personal subscription: only central rules can be made unmutable. */
+  onMandatory?: (next: boolean) => void;
 }) {
   const throttle = definition.throttle;
   const subjects = throttleChoices(catalog, definition);
@@ -270,13 +284,15 @@ export function LimitsStep({
             ))}
           </Select>
         </div>
-        <Checkbox
-          id="nc-mandatory"
-          labelText="People can't mute this rule"
-          helperText="Use it for safety and duty messages. Everyone else can turn the rule off for themselves."
-          checked={mandatory}
-          onChange={(_event, { checked }) => onMandatory(checked)}
-        />
+        {onMandatory && (
+          <Checkbox
+            id="nc-mandatory"
+            labelText="People can't mute this rule"
+            helperText="Use it for safety and duty messages. Everyone else can turn the rule off for themselves."
+            checked={mandatory}
+            onChange={(_event, { checked }) => onMandatory(checked)}
+          />
+        )}
       </div>
     </FlowStep>
   );

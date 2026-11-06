@@ -8,6 +8,7 @@ import {
   RadioTile,
   Select,
   SelectItem,
+  Tag,
   TextInput,
   Tile,
   TileGroup,
@@ -43,6 +44,8 @@ type Props = {
   lookup: NameLookup;
   /** Escalation steps are timed by their step, so they have no delay of their own. */
   showDelay: boolean;
+  /** A subscription's recipient is always its owner. */
+  personal?: boolean;
   acknowledgeStops: boolean;
   onChange: (next: Action) => void;
   onRemove: () => void;
@@ -279,7 +282,7 @@ function TabletTargets({ id, action, onChange }: Pick<Props, 'id' | 'action' | '
 
 /** One action of the rule: a channel, who gets it, how it looks and what it says. */
 export function ActionCard(props: Props) {
-  const { id, action, catalog, definition, lookup, showDelay, acknowledgeStops, onChange, onRemove } = props;
+  const { id, action, catalog, definition, lookup, showDelay, personal, acknowledgeStops, onChange, onRemove } = props;
   const Icon = channelIcons[action.channel] ?? Notification;
   const people = action.channel === 'in_app' || action.channel === 'email';
   return (
@@ -314,7 +317,17 @@ export function ActionCard(props: Props) {
         </IconButton>
       </div>
       <div className="nc-action__body">
-        {people && (
+        {people && personal && (
+          <div className="nc-recipients">
+            <span className="cds--label">To</span>
+            <div className="nc-recipients__tags">
+              <Tag type="gray" size="md">
+                You
+              </Tag>
+            </div>
+          </div>
+        )}
+        {people && !personal && (
           <RecipientPicker
             id={id}
             catalog={catalog}

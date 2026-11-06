@@ -1,0 +1,209 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/type' as *;
+
+// Application-specific layout for My notifications and the consent question; every control is a Carbon component.
+.mn-intro {
+  margin-block-end: $spacing-06;
+  color: theme.$text-secondary;
+  max-inline-size: 52rem;
+}
+
+.mn-page {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-09;
+}
+
+.mn-section-head {
+  margin-block-end: $spacing-05;
+
+  h2 {
+    @include type-style('heading-03');
+  }
+
+  p {
+    @include type-style('body-compact-01');
+
+    margin-block-start: $spacing-02;
+    color: theme.$text-secondary;
+    max-inline-size: 48rem;
+  }
+}
+
+.mn-section-head--action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: $spacing-05;
+}
+
+.mn-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: $spacing-05;
+}
+
+.mn-card {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  min-inline-size: 0;
+
+  h3 {
+    @include type-style('heading-compact-01');
+  }
+}
+
+.mn-card--starter {
+  border: 1px dashed theme.$border-strong-01;
+}
+
+.mn-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-04;
+}
+
+.mn-card__state {
+  @include type-style('helper-text-01');
+
+  color: theme.$text-secondary;
+}
+
+.mn-card__text {
+  @include type-style('body-compact-01');
+
+  color: theme.$text-secondary;
+}
+
+.mn-card__footer {
+  display: flex;
+  gap: $spacing-03;
+  margin-block-start: auto;
+  padding-block-start: $spacing-03;
+}
+
+.mn-locked {
+  @include type-style('label-01');
+
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  color: theme.$text-secondary;
+  white-space: nowrap;
+}
+
+.mn-sub {
+  @include type-style('helper-text-01');
+
+  color: theme.$text-secondary;
+}
+
+.mn-rule-name {
+  @include type-style('body-compact-01');
+}
+
+.mn-dim {
+  opacity: 0.6;
+}
+
+.mn-why {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+
+  li {
+    @include type-style('body-compact-01');
+  }
+}
+
+.mn-channel {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+}
+
+.mn-channel__switch {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.mn-channel__state {
+  @include type-style('label-01');
+
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  color: theme.$text-secondary;
+}
+
+// The consent question: a centred card in place of the application.
+.mn-gate {
+  display: flex;
+  justify-content: center;
+  padding: $spacing-07 $spacing-05;
+}
+
+.mn-gate__card {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  inline-size: 100%;
+  max-inline-size: 40rem;
+  padding: $spacing-07;
+
+  h1 {
+    @include type-style('productive-heading-05');
+
+    outline: none;
+  }
+}
+
+.mn-gate__eyebrow {
+  @include type-style('label-01');
+
+  color: theme.$text-secondary;
+  text-transform: uppercase;
+}
+
+.mn-gate__lead {
+  color: theme.$text-secondary;
+}
+
+.mn-gate__required {
+  display: flex;
+  gap: $spacing-04;
+  padding: $spacing-05;
+  background: theme.$layer-02;
+
+  p {
+    @include type-style('body-compact-01');
+
+    color: theme.$text-secondary;
+  }
+}
+
+.mn-gate__options {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+.mn-gate__option p {
+  @include type-style('body-compact-01');
+
+  margin-block-start: $spacing-02;
+  color: theme.$text-secondary;
+}
+
+.mn-gate__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-05;
+}

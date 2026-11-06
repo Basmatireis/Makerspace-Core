@@ -57,6 +57,8 @@ import {
   ProfilePage,
   PublicEventPage,
   NotificationCenterPage,
+  MyNotificationsPage,
+  SubscriptionPage,
   PublicSurveyPage,
   ReceiptPage,
   ResetPasswordPage,
@@ -175,6 +177,9 @@ export function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="profile/notifications" element={<MyNotificationsPage />} />
+            <Route path="profile/notifications/subscriptions/new" element={<SubscriptionPage />} />
+            <Route path="profile/notifications/subscriptions/:subscriptionId" element={<SubscriptionPage />} />
             <Route
               path="attendance"
               element={
