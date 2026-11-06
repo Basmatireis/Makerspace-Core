@@ -77,3 +77,48 @@ func TestSummaryFieldsAggregateMoneyAndDurations(t *testing.T) {
 		t.Error("plain numbers must not be aggregated")
 	}
 }
+
+func TestEveryTriggerAcceptsARuleThatUsesItsRecipientsPlaceholdersAndFields(t *testing.T) {
+	for _, trigger := range Triggers() {
+		recipient := "role:" + knownRole.String()
+		if len(trigger.Recipients) > 0 {
+			recipient = trigger.Recipients[0].Key
+		}
+		title := ""
+		for _, placeholder := range trigger.Placeholders {
+			title += "{" + placeholder.Key + "} "
+		}
+		def := Definition{
+			Trigger:    TriggerDef{Type: TriggerEvent, Event: trigger.Key},
+			Conditions: ConditionSet{Mode: ModeAll},
+			Actions: []Action{{
+				Channel: ChannelInApp, Recipients: []string{recipient}, Title: strings.TrimSpace(title) + " x", Body: "text",
+			}},
+		}
+		for _, field := range trigger.Fields {
+			if field.Type == FieldNumber {
+				def.Conditions.Items = append(def.Conditions.Items, ConditionItem{
+					Condition: &Condition{Field: PrefixEvent + "." + field.Key, Op: OpGte, Value: float64(0)},
+				})
+			}
+		}
+		if len(trigger.ThrottleSubjects) > 0 {
+			def.Throttle = &Throttle{Per: trigger.ThrottleSubjects[0].Key, Every: Duration{Value: 10, Unit: "minutes"}}
+		}
+		if _, err := def.Validate(central()); err != nil {
+			t.Errorf("trigger %s: a rule using its recipients, placeholders, numbers and throttle does not validate: %v", trigger.Key, err)
+		}
+	}
+}
+
+func TestNewTriggersNeverOfferPeopleOfAnonymousFeedback(t *testing.T) {
+	survey, ok := LookupTrigger("survey_answered")
+	if !ok || len(survey.Recipients) != 0 {
+		t.Fatalf("survey_answered must offer no person recipients: %+v", survey.Recipients)
+	}
+	for _, placeholder := range survey.Placeholders {
+		if placeholder.Key == "person" || placeholder.Key == "comment" {
+			t.Errorf("survey_answered offers the placeholder %s", placeholder.Key)
+		}
+	}
+}

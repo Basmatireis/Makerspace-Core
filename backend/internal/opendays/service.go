@@ -175,6 +175,15 @@ type NotificationEmitter interface {
 		notice notifyrules.OpenDayNotice,
 		location *time.Location,
 	) error
+	// OpenDaySignup is told that a person took a supervisor or trainee place in a timeslot.
+	OpenDaySignup(
+		ctx context.Context,
+		tx pgx.Tx,
+		timeslotID, personID uuid.UUID,
+		placeType string,
+		bySelf bool,
+		location *time.Location,
+	) error
 }
 
 func NewService(pool *pgxpool.Pool, emitter NotificationEmitter, cfg config.Config) (*Service, error) {

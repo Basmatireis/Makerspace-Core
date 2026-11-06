@@ -148,6 +148,11 @@ func (s *Service) finalize(
 	); err != nil {
 		return o, err
 	}
+	if s.notices != nil {
+		if err = s.notices.OrderCreated(ctx, tx, o.ID); err != nil {
+			return o, err
+		}
+	}
 	return q.GetOrder(ctx, o.ID)
 }
 

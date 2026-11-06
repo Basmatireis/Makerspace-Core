@@ -3,6 +3,7 @@ package notifyrules
 import (
 	"context"
 	"errors"
+	"github.com/jackc/pgx/v5/pgtype"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -451,6 +452,30 @@ func (s *Service) estimate(ctx context.Context, q *store, def Definition, matche
 		occurrences, err = q.CountFinishedJobRunsSince(ctx, pgtypeTime(since))
 	case "lab_rules_published":
 		occurrences, err = q.CountLabRulesPublishedSince(ctx, pgtypeTime(since))
+	case "check_in":
+		occurrences, err = q.CountVisitsSince(ctx, since)
+	case "check_out":
+		occurrences, err = q.CountCheckOutsSince(ctx, since)
+	case "account_created":
+		occurrences, err = q.CountAccountsCreatedSince(ctx, since)
+	case "training_recorded":
+		occurrences, err = q.CountTrainingRecordsSince(ctx, since)
+	case "order_created":
+		occurrences, err = q.CountFinalizedOrdersSince(ctx, since)
+	case "payment_recorded":
+		occurrences, err = q.CountReceiptPaymentsSince(ctx, since)
+	case "cash_count_difference":
+		occurrences, err = q.CountCashCountDifferencesSince(ctx, since)
+	case "wiref_invoice_status":
+		occurrences, err = q.CountInvoiceRequestEventsSince(ctx, since)
+	case "job_created":
+		occurrences, err = q.CountJobsCreatedSince(ctx, since)
+	case "survey_answered":
+		occurrences, err = q.CountSurveyResponsesSince(ctx, pgtype.Date{Time: since, Valid: true})
+	case "privacy_request_created":
+		occurrences, err = q.CountPrivacyRequestsSince(ctx, since)
+	case "open_day_signup":
+		occurrences, err = q.CountOpenDaySignupsSince(ctx, since)
 	default:
 		return nil, "This kind of event is not recorded, so its past cannot be counted."
 	}

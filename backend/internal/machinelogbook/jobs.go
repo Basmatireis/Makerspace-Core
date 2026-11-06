@@ -223,6 +223,9 @@ func (s *Service) CreateManualJobInTransaction(
 	); err != nil {
 		return MachineJob{}, err
 	}
+	if err = s.notifyJobCreated(ctx, tx, job.ID); err != nil {
+		return MachineJob{}, err
+	}
 	return s.jobFromRow(ctx, q, job)
 }
 

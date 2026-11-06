@@ -621,7 +621,7 @@ func (s *Service) settleByInvoice(
 	if err = s.allocate(ctx, q, p, payment, o, open, op); err != nil {
 		return err
 	}
-	return writeAudit(
+	if err = writeAudit(
 		ctx,
 		tx,
 		p,
@@ -632,7 +632,10 @@ func (s *Service) settleByInvoice(
 		"amount",
 		"method",
 		"allocations",
-	)
+	); err != nil {
+		return err
+	}
+	return s.notifyPayment(ctx, tx, payment.ID, o.ID)
 }
 
 // reverseInvoiceSettlement undoes the external payments that an invoice request settled, once wiRef confirmed
@@ -973,6 +976,11 @@ func (s *Service) RequestCommand(
 	}
 	if err = q.TransitionRequest(ctx, db.TransitionRequestParams{ID: id, State: string(next)}); err != nil {
 		return ExternalInvoiceRequest{}, err
+	}
+	if s.notices != nil && string(next) != r.State {
+		if err = s.notices.InvoiceRequestStatus(ctx, tx, id); err != nil {
+			return ExternalInvoiceRequest{}, err
+		}
 	}
 	if order != nil {
 		if err = s.syncAlreadyPaid(ctx, q, order.ID); err != nil {

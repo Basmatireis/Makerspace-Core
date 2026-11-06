@@ -104,7 +104,11 @@ func (s *Service) Submit(ctx context.Context, token string, answers []AnswerInpu
 	if !invitation.Anonymous {
 		personID = invitation.PersonID
 	}
-	if err = storeResponse(ctx, q, invitation.SurveyVersionID, SourceInvitation, nil, personID, answers); err != nil {
+	responseID, err := storeResponse(ctx, q, invitation.SurveyVersionID, SourceInvitation, nil, personID, answers)
+	if err != nil {
+		return err
+	}
+	if err = s.notifyAnswered(ctx, tx, responseID); err != nil {
 		return err
 	}
 	count, err := q.ConsumeSurveyInvitation(ctx, invitation.InvitationID)
@@ -125,14 +129,14 @@ func storeResponse(
 	source ResponseSource,
 	linkID, personID *uuid.UUID,
 	answers []AnswerInput,
-) error {
+) (uuid.UUID, error) {
 	questions, err := loadQuestions(ctx, q, versionID)
 	if err != nil {
-		return err
+		return uuid.Nil, err
 	}
 	planned, err := planAnswers(questions, answers)
 	if err != nil {
-		return err
+		return uuid.Nil, err
 	}
 	// Responses keep only the calendar day (Vienna), not the time, to limit timing correlation.
 	location, locationErr := time.LoadLocation("Europe/Vienna")
@@ -151,14 +155,22 @@ func storeResponse(
 			ShareLinkID:        linkID,
 		},
 	); err != nil {
-		return err
+		return uuid.Nil, err
 	}
 	for _, item := range planned {
 		if err = storeAnswer(ctx, q, responseID, item.Question, item.Answer); err != nil {
-			return err
+			return uuid.Nil, err
 		}
 	}
-	return nil
+	return responseID, nil
+}
+
+// notifyAnswered raises the survey trigger for a stored response.
+func (s *Service) notifyAnswered(ctx context.Context, tx pgx.Tx, responseID uuid.UUID) error {
+	if s.notices == nil {
+		return nil
+	}
+	return s.notices.SurveyAnswered(ctx, tx, responseID)
 }
 
 // storeAnswer writes an answer that planAnswers already validated.

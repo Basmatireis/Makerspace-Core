@@ -32,11 +32,14 @@ func (s *Service) CheckInAtEnrollment(ctx context.Context, tx pgx.Tx, input Enro
 	if err != nil {
 		return databaseError(err)
 	}
-	return audit.Write(ctx, tx, audit.Event{
+	if err = audit.Write(ctx, tx, audit.Event{
 		ActorAccountID: &accountID,
 		Action:         "visit.checked_in",
 		ResourceType:   "visit",
 		ResourceID:     &row.ID,
 		RequestID:      input.RequestID,
-	})
+	}); err != nil {
+		return err
+	}
+	return s.notifyCheckIn(ctx, tx, row.ID)
 }

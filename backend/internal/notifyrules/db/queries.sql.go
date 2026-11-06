@@ -499,6 +499,18 @@ func (q *Queries) DeleteFiringsCreatedBefore(ctx context.Context, cutoff time.Ti
 	return result.RowsAffected(), nil
 }
 
+const deleteKioskRuleNoticesBefore = `-- name: DeleteKioskRuleNoticesBefore :execrows
+DELETE FROM kiosk_rule_notices WHERE expires_at < $1
+`
+
+func (q *Queries) DeleteKioskRuleNoticesBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteKioskRuleNoticesBefore, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deletePendingAction = `-- name: DeletePendingAction :exec
 DELETE FROM notification_pending_actions WHERE id = $1
 `
@@ -558,6 +570,48 @@ func (q *Queries) DeleteRuleRunsBefore(ctx context.Context, cutoff time.Time) (i
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteSignageRuleNoticesBefore = `-- name: DeleteSignageRuleNoticesBefore :execrows
+DELETE FROM signage_rule_notices WHERE ends_at < $1
+`
+
+func (q *Queries) DeleteSignageRuleNoticesBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteSignageRuleNoticesBefore, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const endSignageRuleNoticesOfFirings = `-- name: EndSignageRuleNoticesOfFirings :exec
+UPDATE signage_rule_notices SET ends_at = $1
+WHERE firing_id = ANY($2::text[]::uuid[]) AND ends_at > $1 AND starts_at < $1
+`
+
+type EndSignageRuleNoticesOfFiringsParams struct {
+	Now       time.Time
+	FiringIds []string
+}
+
+func (q *Queries) EndSignageRuleNoticesOfFirings(ctx context.Context, arg EndSignageRuleNoticesOfFiringsParams) error {
+	_, err := q.db.Exec(ctx, endSignageRuleNoticesOfFirings, arg.Now, arg.FiringIds)
+	return err
+}
+
+const expireKioskRuleNoticesOfFirings = `-- name: ExpireKioskRuleNoticesOfFirings :exec
+UPDATE kiosk_rule_notices SET expires_at = $1
+WHERE firing_id = ANY($2::text[]::uuid[]) AND expires_at > $1 AND created_at < $1
+`
+
+type ExpireKioskRuleNoticesOfFiringsParams struct {
+	Now       time.Time
+	FiringIds []string
+}
+
+func (q *Queries) ExpireKioskRuleNoticesOfFirings(ctx context.Context, arg ExpireKioskRuleNoticesOfFiringsParams) error {
+	_, err := q.db.Exec(ctx, expireKioskRuleNoticesOfFirings, arg.Now, arg.FiringIds)
+	return err
 }
 
 const firingStopReached = `-- name: FiringStopReached :one
@@ -1350,6 +1404,50 @@ func (q *Queries) InsertFiringRecipient(ctx context.Context, arg InsertFiringRec
 	return err
 }
 
+const insertKioskRuleNotice = `-- name: InsertKioskRuleNotice :execrows
+INSERT INTO kiosk_rule_notices (id, group_id, firing_id, device_id, mode, person_id, title, body, level, must_tap,
+                                created_at, expires_at)
+SELECT $1, $2, $3, d.id, $4, $5,
+       $6, $7, $8, $9, $10, $11
+FROM managed_devices d WHERE d.id = $12 AND d.revoked_at IS NULL
+`
+
+type InsertKioskRuleNoticeParams struct {
+	ID        uuid.UUID
+	GroupID   uuid.UUID
+	FiringID  *uuid.UUID
+	Mode      string
+	PersonID  *uuid.UUID
+	Title     string
+	Body      string
+	Level     string
+	MustTap   bool
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	DeviceID  uuid.UUID
+}
+
+func (q *Queries) InsertKioskRuleNotice(ctx context.Context, arg InsertKioskRuleNoticeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertKioskRuleNotice,
+		arg.ID,
+		arg.GroupID,
+		arg.FiringID,
+		arg.Mode,
+		arg.PersonID,
+		arg.Title,
+		arg.Body,
+		arg.Level,
+		arg.MustTap,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.DeviceID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const insertPendingAction = `-- name: InsertPendingAction :exec
 INSERT INTO notification_pending_actions (id, firing_id, due_at, step, action, item, recipients)
 VALUES ($1, $2, $3, $4, $5::text::jsonb,
@@ -1513,6 +1611,43 @@ type InsertRuleNotificationRecipientsParams struct {
 func (q *Queries) InsertRuleNotificationRecipients(ctx context.Context, arg InsertRuleNotificationRecipientsParams) error {
 	_, err := q.db.Exec(ctx, insertRuleNotificationRecipients, arg.NotificationID, arg.AccountIds)
 	return err
+}
+
+const insertSignageRuleNotice = `-- name: InsertSignageRuleNotice :execrows
+
+INSERT INTO signage_rule_notices (id, firing_id, display_id, title, body, tone, starts_at, ends_at)
+SELECT $1, $2, d.id, $3, $4, $5, $6,
+       $7
+FROM signage_displays d WHERE d.id = $8
+`
+
+type InsertSignageRuleNoticeParams struct {
+	ID        uuid.UUID
+	FiringID  *uuid.UUID
+	Title     string
+	Body      string
+	Tone      string
+	StartsAt  time.Time
+	EndsAt    time.Time
+	DisplayID uuid.UUID
+}
+
+// Notices on signage displays and entrance tablets ---------------------------------------------------------------------
+func (q *Queries) InsertSignageRuleNotice(ctx context.Context, arg InsertSignageRuleNoticeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, insertSignageRuleNotice,
+		arg.ID,
+		arg.FiringID,
+		arg.Title,
+		arg.Body,
+		arg.Tone,
+		arg.StartsAt,
+		arg.EndsAt,
+		arg.DisplayID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const listActivity = `-- name: ListActivity :many
@@ -2190,6 +2325,107 @@ func (q *Queries) ListHeldRoles(ctx context.Context, personID uuid.UUID) ([]List
 	for rows.Next() {
 		var i ListHeldRolesRow
 		if err := rows.Scan(&i.ID, &i.Name, &i.SystemKey); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKioskDeviceNotices = `-- name: ListKioskDeviceNotices :many
+SELECT id, mode, title, body, level, must_tap FROM kiosk_rule_notices
+WHERE device_id = $1 AND mode IN ('banner', 'everyone_today') AND expires_at > $2
+ORDER BY created_at, id
+`
+
+type ListKioskDeviceNoticesParams struct {
+	DeviceID uuid.UUID
+	Now      time.Time
+}
+
+type ListKioskDeviceNoticesRow struct {
+	ID      uuid.UUID
+	Mode    string
+	Title   string
+	Body    string
+	Level   string
+	MustTap bool
+}
+
+// What the tablet itself shows: start-screen banners and the notices for everybody who checks in today.
+func (q *Queries) ListKioskDeviceNotices(ctx context.Context, arg ListKioskDeviceNoticesParams) ([]ListKioskDeviceNoticesRow, error) {
+	rows, err := q.db.Query(ctx, listKioskDeviceNotices, arg.DeviceID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListKioskDeviceNoticesRow{}
+	for rows.Next() {
+		var i ListKioskDeviceNoticesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Mode,
+			&i.Title,
+			&i.Body,
+			&i.Level,
+			&i.MustTap,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKioskPersonNotices = `-- name: ListKioskPersonNotices :many
+SELECT id, group_id, mode, title, body, level, must_tap FROM kiosk_rule_notices
+WHERE device_id = $1 AND person_id = $2 AND shown_at IS NULL
+  AND mode IN ('person_checkin', 'next_checkin') AND expires_at > $3
+ORDER BY created_at, id
+FOR UPDATE
+`
+
+type ListKioskPersonNoticesParams struct {
+	DeviceID uuid.UUID
+	PersonID *uuid.UUID
+	Now      time.Time
+}
+
+type ListKioskPersonNoticesRow struct {
+	ID      uuid.UUID
+	GroupID uuid.UUID
+	Mode    string
+	Title   string
+	Body    string
+	Level   string
+	MustTap bool
+}
+
+// Unshown notices for one person at one tablet. Rows are locked so that two simultaneous check-ins show a notice once.
+func (q *Queries) ListKioskPersonNotices(ctx context.Context, arg ListKioskPersonNoticesParams) ([]ListKioskPersonNoticesRow, error) {
+	rows, err := q.db.Query(ctx, listKioskPersonNotices, arg.DeviceID, arg.PersonID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListKioskPersonNoticesRow{}
+	for rows.Next() {
+		var i ListKioskPersonNoticesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.GroupID,
+			&i.Mode,
+			&i.Title,
+			&i.Body,
+			&i.Level,
+			&i.MustTap,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3609,6 +3845,22 @@ func (q *Queries) MailDeliveryEnabled(ctx context.Context) (bool, error) {
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const markKioskNoticesShown = `-- name: MarkKioskNoticesShown :exec
+UPDATE kiosk_rule_notices SET shown_at = $1
+WHERE person_id = $2 AND group_id = ANY($3::text[]::uuid[]) AND shown_at IS NULL
+`
+
+type MarkKioskNoticesShownParams struct {
+	Now      pgtype.Timestamptz
+	PersonID *uuid.UUID
+	GroupIds []string
+}
+
+func (q *Queries) MarkKioskNoticesShown(ctx context.Context, arg MarkKioskNoticesShownParams) error {
+	_, err := q.db.Exec(ctx, markKioskNoticesShown, arg.Now, arg.PersonID, arg.GroupIds)
+	return err
 }
 
 const markLabRulesNoticesRead = `-- name: MarkLabRulesNoticesRead :execrows

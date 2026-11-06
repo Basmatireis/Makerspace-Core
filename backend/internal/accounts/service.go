@@ -70,6 +70,19 @@ type Service struct {
 	pool     *pgxpool.Pool
 	config   config.Config
 	notifier NotificationService
+	notices  NotificationEmitter
+}
+
+// NotificationEmitter is the part of the notification event source this package uses. It writes inside the caller's
+// transaction, so the notification commits with the account.
+type NotificationEmitter interface {
+	AccountCreated(ctx context.Context, tx pgx.Tx, personID uuid.UUID) error
+}
+
+// WithNotifications makes creating an account raise the notification trigger. Without it nothing is raised.
+func (s *Service) WithNotifications(notices NotificationEmitter) *Service {
+	s.notices = notices
+	return s
 }
 
 // NewService returns the accounts service. notifier may be nil when no mail delivery is
@@ -259,6 +272,11 @@ func (s *Service) Create(
 	account, err := loadAccount(ctx, queries, accountID)
 	if err != nil {
 		return Account{}, err
+	}
+	if s.notices != nil {
+		if err := s.notices.AccountCreated(ctx, tx, personID); err != nil {
+			return Account{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Account{}, err

@@ -407,6 +407,10 @@ func (s *Service) SubmitByLink(ctx context.Context, token string, answers []Answ
 			return err
 		}
 		linkID := row.LinkID
-		return storeResponse(ctx, q, row.SurveyVersionID, SourceLink, &linkID, nil, answers)
+		responseID, err := storeResponse(ctx, q, row.SurveyVersionID, SourceLink, &linkID, nil, answers)
+		if err != nil {
+			return err
+		}
+		return s.notifyAnswered(ctx, tx, responseID)
 	})
 }

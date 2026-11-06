@@ -30,7 +30,20 @@ const (
 
 // Service owns trainings, competency categories and training records.
 type Service struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	notices NotificationEmitter
+}
+
+// NotificationEmitter is the part of the notification event source this package uses. It writes inside the caller's
+// transaction, so the notification commits with the record.
+type NotificationEmitter interface {
+	TrainingRecorded(ctx context.Context, tx pgx.Tx, personID, trainingID uuid.UUID, status string) error
+}
+
+// WithNotifications makes recording a training raise the notification trigger. Without it nothing is raised.
+func (s *Service) WithNotifications(notices NotificationEmitter) *Service {
+	s.notices = notices
+	return s
 }
 
 func NewService(pool *pgxpool.Pool) *Service {

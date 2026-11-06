@@ -345,7 +345,7 @@ func openDayChange(key, label, help string, extra ...Placeholder) Trigger {
 	}
 }
 
-var triggers = []Trigger{
+var coreTriggers = []Trigger{
 	{
 		Key: "printer_error", Area: "Workshop", Label: "A printer reports an error",
 		Help: "Fires when a connector reports a new printer error. Repeats of an error that is still open stay quiet; " +

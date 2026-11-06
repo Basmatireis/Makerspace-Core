@@ -101,6 +101,9 @@ func (s *Service) CreateJobFromRun(
 	); err != nil {
 		return MachineJob{}, err
 	}
+	if err = s.notifyJobCreated(ctx, tx, job.ID); err != nil {
+		return MachineJob{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MachineJob{}, err
 	}

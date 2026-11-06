@@ -155,7 +155,7 @@ func (s *Service) receipt(
 	if err = s.syncAlreadyPaid(ctx, q, o.ID); err != nil {
 		return payment, err
 	}
-	return payment, writeAudit(
+	if err = writeAudit(
 		ctx,
 		tx,
 		p,
@@ -166,7 +166,17 @@ func (s *Service) receipt(
 		"amount",
 		"method",
 		"allocations",
-	)
+	); err != nil {
+		return payment, err
+	}
+	return payment, s.notifyPayment(ctx, tx, payment.ID, o.ID)
+}
+
+func (s *Service) notifyPayment(ctx context.Context, tx pgx.Tx, paymentID, orderID uuid.UUID) error {
+	if s.notices == nil {
+		return nil
+	}
+	return s.notices.PaymentRecorded(ctx, tx, paymentID, orderID)
 }
 
 func (s *Service) reverseReceipt(

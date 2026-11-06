@@ -31,6 +31,8 @@ type Service struct {
 // the caller's transaction.
 type NotificationEmitter interface {
 	RunFinished(ctx context.Context, tx pgx.Tx, runID uuid.UUID, excludedAccountIDs ...uuid.UUID) error
+	// JobCreated is told about a job that was just created by hand or from an existing run.
+	JobCreated(ctx context.Context, tx pgx.Tx, jobID uuid.UUID) error
 }
 
 // Option customizes a Service.
@@ -699,4 +701,12 @@ func formatDisplayID(sequence int64, now time.Time) string {
 
 func formatRunDisplayID(sequence int64, at time.Time) string {
 	return fmt.Sprintf("R-%04d-%06d", at.UTC().Year(), sequence)
+}
+
+// notifyJobCreated raises the job notification trigger; a service built without a notifier raises nothing.
+func (s *Service) notifyJobCreated(ctx context.Context, tx pgx.Tx, jobID uuid.UUID) error {
+	if s.inbox == nil {
+		return nil
+	}
+	return s.inbox.JobCreated(ctx, tx, jobID)
 }

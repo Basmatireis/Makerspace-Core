@@ -114,6 +114,8 @@ type MembershipNotifier interface {
 		notice notifyrules.OpenDayNotice,
 		location *time.Location,
 	) error
+	// RoleChanged tells a person that a role was added to or removed from them by the account actorAccountID.
+	RoleChanged(ctx context.Context, tx pgx.Tx, personID, roleID uuid.UUID, assigned bool, actorAccountID uuid.UUID) error
 }
 
 // NewService returns the people service. fileService may be nil when profile images are not
@@ -842,6 +844,9 @@ func (s *Service) ChangeRole(
 			if err != nil {
 				return Person{}, err
 			}
+			if err := s.notifyRoleChange(ctx, tx, personID, roleID, true, principal.AccountID); err != nil {
+				return Person{}, err
+			}
 			return result, tx.Commit(ctx)
 		}
 	}
@@ -926,6 +931,9 @@ func (s *Service) ChangeRole(
 		principal.Has(authorization.PeopleReadMatriculation),
 	)
 	if err != nil {
+		return Person{}, err
+	}
+	if err := s.notifyRoleChange(ctx, tx, personID, roleID, assign, principal.AccountID); err != nil {
 		return Person{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -1432,4 +1440,18 @@ func invalidRequest(reason string) *apperror.Error {
 	err := apperror.New(http.StatusBadRequest, "invalid_request", "Request is invalid")
 	err.Details["reason"] = reason
 	return err
+}
+
+// notifyRoleChange raises the role notification trigger; without a notifier nothing is raised.
+func (s *Service) notifyRoleChange(
+	ctx context.Context,
+	tx pgx.Tx,
+	personID, roleID uuid.UUID,
+	assigned bool,
+	actorAccountID uuid.UUID,
+) error {
+	if s.inbox == nil {
+		return nil
+	}
+	return s.inbox.RoleChanged(ctx, tx, personID, roleID, assigned, actorAccountID)
 }

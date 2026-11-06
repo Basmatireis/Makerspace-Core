@@ -50,6 +50,34 @@ type Service struct {
 	auth     CredentialVerifier
 	labRules LabRules
 	surveys  PostVisitSurveyTrigger
+	notices  NotificationEmitter
+}
+
+// NotificationEmitter is the part of the notification event source this package uses. It writes inside the caller's
+// transaction, so the notification commits with the visit.
+type NotificationEmitter interface {
+	CheckIn(ctx context.Context, tx pgx.Tx, visitID uuid.UUID) error
+	CheckOut(ctx context.Context, tx pgx.Tx, visitID uuid.UUID) error
+}
+
+// WithNotifications makes check-ins and check-outs raise the notification triggers. Without it nothing is raised.
+func (s *Service) WithNotifications(notices NotificationEmitter) *Service {
+	s.notices = notices
+	return s
+}
+
+func (s *Service) notifyCheckIn(ctx context.Context, tx pgx.Tx, visitID uuid.UUID) error {
+	if s.notices == nil {
+		return nil
+	}
+	return s.notices.CheckIn(ctx, tx, visitID)
+}
+
+func (s *Service) notifyCheckOut(ctx context.Context, tx pgx.Tx, visitID uuid.UUID) error {
+	if s.notices == nil {
+		return nil
+	}
+	return s.notices.CheckOut(ctx, tx, visitID)
 }
 
 func NewService(
@@ -344,6 +372,9 @@ func (s *Service) checkIn(
 	); err != nil {
 		return Visit{}, err
 	}
+	if err = s.notifyCheckIn(ctx, tx, row.ID); err != nil {
+		return Visit{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Visit{}, err
 	}
@@ -426,6 +457,9 @@ func (s *Service) verifiedCheckOut(
 	); err != nil {
 		return Visit{}, err
 	}
+	if err = s.notifyCheckOut(ctx, tx, row.ID); err != nil {
+		return Visit{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Visit{}, err
 	}
@@ -474,6 +508,9 @@ func (s *Service) PublicCheckOut(
 		tx,
 		audit.Event{Action: "visit.public_checkout", ResourceType: "visit", ResourceID: &row.ID, RequestID: requestID},
 	); err != nil {
+		return Visit{}, err
+	}
+	if err = s.notifyCheckOut(ctx, tx, row.ID); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -556,6 +593,9 @@ func (s *Service) SupervisedCheckIn(
 	); err != nil {
 		return Visit{}, err
 	}
+	if err = s.notifyCheckIn(ctx, tx, row.ID); err != nil {
+		return Visit{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Visit{}, err
 	}
@@ -611,6 +651,9 @@ func (s *Service) SupervisedCheckOut(
 			RequestID:      requestID,
 		},
 	); err != nil {
+		return Visit{}, err
+	}
+	if err = s.notifyCheckOut(ctx, tx, row.ID); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

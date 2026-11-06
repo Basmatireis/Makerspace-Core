@@ -34,6 +34,23 @@ type Service struct {
 	delivering sync.Map
 	// location is the makerspace time zone: the cash journal and the cashbook work in its whole days.
 	location *time.Location
+	notices  NotificationEmitter
+}
+
+// NotificationEmitter is the part of the notification event source this package uses. It writes inside the caller's
+// transaction, so a notification exists exactly when the order, payment, count or invoice change committed.
+type NotificationEmitter interface {
+	OrderCreated(ctx context.Context, tx pgx.Tx, orderID uuid.UUID) error
+	PaymentRecorded(ctx context.Context, tx pgx.Tx, paymentID, orderID uuid.UUID) error
+	CashCountDifference(ctx context.Context, tx pgx.Tx, countID uuid.UUID) error
+	InvoiceRequestStatus(ctx context.Context, tx pgx.Tx, requestID uuid.UUID) error
+}
+
+// WithNotifications makes orders, payments, cash counts and invoice requests raise their notification triggers.
+// Without it nothing is raised.
+func (s *Service) WithNotifications(notices NotificationEmitter) *Service {
+	s.notices = notices
+	return s
 }
 
 func NewService(pool *pgxpool.Pool, jobs *machinelogbook.Service) *Service {

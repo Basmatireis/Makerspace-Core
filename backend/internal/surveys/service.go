@@ -37,6 +37,20 @@ type Service struct {
 	notifier Notifier
 	// linkSubmits bounds submissions per share link; it is bounded in memory and evicts the least recently used key.
 	linkSubmits *ratelimit.Limiter
+	notices     NotificationEmitter
+}
+
+// NotificationEmitter is the part of the notification event source this package uses. It writes inside the caller's
+// transaction, so the notification commits with the response. It receives the response's identifier only; the event it
+// raises never carries the respondent.
+type NotificationEmitter interface {
+	SurveyAnswered(ctx context.Context, tx pgx.Tx, responseID uuid.UUID) error
+}
+
+// WithNotifications makes each stored response raise the survey notification trigger. Without it nothing is raised.
+func (s *Service) WithNotifications(notices NotificationEmitter) *Service {
+	s.notices = notices
+	return s
 }
 
 func NewService(pool *pgxpool.Pool, cfg config.Config, notifier Notifier) *Service {

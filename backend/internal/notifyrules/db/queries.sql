@@ -836,3 +836,50 @@ SELECT count(*)::bigint FROM privacy_subject_requests WHERE created_at >= sqlc.a
 
 -- name: CountOpenDaySignupsSince :one
 SELECT count(*)::bigint FROM open_day_assignments WHERE created_at >= sqlc.arg(since)::timestamptz;
+
+-- Notices on signage displays and entrance tablets ---------------------------------------------------------------------
+
+-- name: InsertSignageRuleNotice :execrows
+INSERT INTO signage_rule_notices (id, firing_id, display_id, title, body, tone, starts_at, ends_at)
+SELECT sqlc.arg(id), sqlc.narg(firing_id), d.id, sqlc.arg(title), sqlc.arg(body), sqlc.arg(tone), sqlc.arg(starts_at),
+       sqlc.arg(ends_at)
+FROM signage_displays d WHERE d.id = sqlc.arg(display_id);
+
+-- name: InsertKioskRuleNotice :execrows
+INSERT INTO kiosk_rule_notices (id, group_id, firing_id, device_id, mode, person_id, title, body, level, must_tap,
+                                created_at, expires_at)
+SELECT sqlc.arg(id), sqlc.arg(group_id), sqlc.narg(firing_id), d.id, sqlc.arg(mode), sqlc.narg(person_id),
+       sqlc.arg(title), sqlc.arg(body), sqlc.arg(level), sqlc.arg(must_tap), sqlc.arg(created_at), sqlc.arg(expires_at)
+FROM managed_devices d WHERE d.id = sqlc.arg(device_id) AND d.revoked_at IS NULL;
+
+-- name: EndSignageRuleNoticesOfFirings :exec
+UPDATE signage_rule_notices SET ends_at = sqlc.arg(now)
+WHERE firing_id = ANY(sqlc.arg(firing_ids)::text[]::uuid[]) AND ends_at > sqlc.arg(now) AND starts_at < sqlc.arg(now);
+
+-- name: ExpireKioskRuleNoticesOfFirings :exec
+UPDATE kiosk_rule_notices SET expires_at = sqlc.arg(now)
+WHERE firing_id = ANY(sqlc.arg(firing_ids)::text[]::uuid[]) AND expires_at > sqlc.arg(now) AND created_at < sqlc.arg(now);
+
+-- name: ListKioskDeviceNotices :many
+-- What the tablet itself shows: start-screen banners and the notices for everybody who checks in today.
+SELECT id, mode, title, body, level, must_tap FROM kiosk_rule_notices
+WHERE device_id = sqlc.arg(device_id) AND mode IN ('banner', 'everyone_today') AND expires_at > sqlc.arg(now)
+ORDER BY created_at, id;
+
+-- name: ListKioskPersonNotices :many
+-- Unshown notices for one person at one tablet. Rows are locked so that two simultaneous check-ins show a notice once.
+SELECT id, group_id, mode, title, body, level, must_tap FROM kiosk_rule_notices
+WHERE device_id = sqlc.arg(device_id) AND person_id = sqlc.arg(person_id) AND shown_at IS NULL
+  AND mode IN ('person_checkin', 'next_checkin') AND expires_at > sqlc.arg(now)
+ORDER BY created_at, id
+FOR UPDATE;
+
+-- name: MarkKioskNoticesShown :exec
+UPDATE kiosk_rule_notices SET shown_at = sqlc.arg(now)
+WHERE person_id = sqlc.arg(person_id) AND group_id = ANY(sqlc.arg(group_ids)::text[]::uuid[]) AND shown_at IS NULL;
+
+-- name: DeleteSignageRuleNoticesBefore :execrows
+DELETE FROM signage_rule_notices WHERE ends_at < sqlc.arg(cutoff);
+
+-- name: DeleteKioskRuleNoticesBefore :execrows
+DELETE FROM kiosk_rule_notices WHERE expires_at < sqlc.arg(cutoff);

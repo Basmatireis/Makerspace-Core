@@ -169,6 +169,11 @@ func (s *Service) SetRecord(
 				return err
 			}
 		}
+		if s.notices != nil && input.Status != StatusNotTrained && (!exists || previous != input.Status) {
+			if err := s.notices.TrainingRecorded(ctx, tx, personID, trainingID, string(input.Status)); err != nil {
+				return err
+			}
+		}
 		result, err = recordOf(ctx, q, personID, trainingID, training)
 		return err
 	})

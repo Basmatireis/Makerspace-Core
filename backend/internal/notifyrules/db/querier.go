@@ -51,12 +51,16 @@ type Querier interface {
 	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) (int64, error)
 	// Retention of the delivery log; recipients and pending actions cascade.
 	DeleteFiringsCreatedBefore(ctx context.Context, cutoff time.Time) (int64, error)
+	DeleteKioskRuleNoticesBefore(ctx context.Context, cutoff time.Time) (int64, error)
 	DeletePendingAction(ctx context.Context, id uuid.UUID) error
 	DeletePendingActionsOfFiring(ctx context.Context, firingID uuid.UUID) error
 	// Escalation steps and e-mail fallbacks wait for a reaction; delayed first actions do not.
 	DeletePendingEscalations(ctx context.Context, firingIds []string) (int64, error)
 	DeleteRule(ctx context.Context, arg DeleteRuleParams) (int64, error)
 	DeleteRuleRunsBefore(ctx context.Context, cutoff time.Time) (int64, error)
+	DeleteSignageRuleNoticesBefore(ctx context.Context, cutoff time.Time) (int64, error)
+	EndSignageRuleNoticesOfFirings(ctx context.Context, arg EndSignageRuleNoticesOfFiringsParams) error
+	ExpireKioskRuleNoticesOfFirings(ctx context.Context, arg ExpireKioskRuleNoticesOfFiringsParams) error
 	// Whether a recipient of an in-app notification of the firing did what stops the escalation: opened it, saw it (opening
 	// also counts) or acknowledged it.
 	FiringStopReached(ctx context.Context, arg FiringStopReachedParams) (bool, error)
@@ -97,11 +101,14 @@ type Querier interface {
 	InsertCategory(ctx context.Context, arg InsertCategoryParams) error
 	InsertFiring(ctx context.Context, arg InsertFiringParams) error
 	InsertFiringRecipient(ctx context.Context, arg InsertFiringRecipientParams) error
+	InsertKioskRuleNotice(ctx context.Context, arg InsertKioskRuleNoticeParams) (int64, error)
 	InsertPendingAction(ctx context.Context, arg InsertPendingActionParams) error
 	InsertRule(ctx context.Context, arg InsertRuleParams) error
 	InsertRuleMail(ctx context.Context, arg InsertRuleMailParams) error
 	InsertRuleNotification(ctx context.Context, arg InsertRuleNotificationParams) error
 	InsertRuleNotificationRecipients(ctx context.Context, arg InsertRuleNotificationRecipientsParams) error
+	// Notices on signage displays and entrance tablets ---------------------------------------------------------------------
+	InsertSignageRuleNotice(ctx context.Context, arg InsertSignageRuleNoticeParams) (int64, error)
 	ListActivity(ctx context.Context, arg ListActivityParams) ([]ListActivityRow, error)
 	ListActivityRecipients(ctx context.Context, firingIds []string) ([]ListActivityRecipientsRow, error)
 	ListAllCheckedInPeople(ctx context.Context) ([]uuid.UUID, error)
@@ -123,6 +130,10 @@ type Querier interface {
 	ListFiringDays(ctx context.Context, since time.Time) ([]ListFiringDaysRow, error)
 	ListGrantedConsentPeople(ctx context.Context, arg ListGrantedConsentPeopleParams) ([]uuid.UUID, error)
 	ListHeldRoles(ctx context.Context, personID uuid.UUID) ([]ListHeldRolesRow, error)
+	// What the tablet itself shows: start-screen banners and the notices for everybody who checks in today.
+	ListKioskDeviceNotices(ctx context.Context, arg ListKioskDeviceNoticesParams) ([]ListKioskDeviceNoticesRow, error)
+	// Unshown notices for one person at one tablet. Rows are locked so that two simultaneous check-ins show a notice once.
+	ListKioskPersonNotices(ctx context.Context, arg ListKioskPersonNoticesParams) ([]ListKioskPersonNoticesRow, error)
 	ListLastVisits(ctx context.Context, personIds []string) ([]ListLastVisitsRow, error)
 	ListMachineOptions(ctx context.Context) ([]ListMachineOptionsRow, error)
 	ListMaterialTypeOptions(ctx context.Context) ([]ListMaterialTypeOptionsRow, error)
@@ -172,6 +183,7 @@ type Querier interface {
 	LoadSpoolItems(ctx context.Context, maxItems int32) ([]LoadSpoolItemsRow, error)
 	LoadTrainingItems(ctx context.Context, maxItems int32) ([]LoadTrainingItemsRow, error)
 	MailDeliveryEnabled(ctx context.Context) (bool, error)
+	MarkKioskNoticesShown(ctx context.Context, arg MarkKioskNoticesShownParams) error
 	// The notifications that announced new Lab Rules, written by the "lab_rules_published" rule (or, before the rules
 	// existed, as their own kind), are read once the person confirmed.
 	MarkLabRulesNoticesRead(ctx context.Context, personID uuid.UUID) (int64, error)

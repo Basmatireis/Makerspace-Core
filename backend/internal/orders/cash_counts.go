@@ -319,6 +319,11 @@ func (s *Service) RecordCashCount(
 		if err = s.bookCountCorrection(ctx, tx, q, p, count, difference, person, requestID); err != nil {
 			return CashCount{}, err
 		}
+		if s.notices != nil {
+			if err = s.notices.CashCountDifference(ctx, tx, count.ID); err != nil {
+				return CashCount{}, err
+			}
+		}
 	}
 	result, err := s.loadCashCount(ctx, q, count.ID)
 	if err != nil {

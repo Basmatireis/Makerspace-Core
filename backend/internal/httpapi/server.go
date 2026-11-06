@@ -194,17 +194,19 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	if err != nil {
 		return nil, fmt.Errorf("initialize signage: %w", err)
 	}
-	surveyService := surveys.NewService(pool, cfg, notifier)
+	surveyService := surveys.NewService(pool, cfg, notifier).WithNotifications(notificationEmitter)
 	invoicingService := invoicing.NewService(pool, notifier, brandingService)
 	ordersService := orders.NewService(pool, machineLogbook).
 		WithInvoiceDelivery(invoicingService).
-		WithLocation(location)
+		WithLocation(location).
+		WithNotifications(notificationEmitter)
 	rolesService := roles.NewService(pool)
 	managedDevicesService := manageddevices.NewService(pool)
 	visitorService := visitor.NewService(pool, cfg, fileService, labRulesService, notifier)
-	trainingsService := trainings.NewService(pool)
+	trainingsService := trainings.NewService(pool).WithNotifications(notificationEmitter)
 	peopleService := people.NewService(pool, fileService).WithMembershipNotices(notificationEmitter, location)
-	subjectRequestService := subjectrequests.NewService(pool, privacyService, peopleService, fileService)
+	subjectRequestService := subjectrequests.NewService(pool, privacyService, peopleService, fileService).
+		WithNotifications(notificationEmitter)
 	configTransferService := configtransfer.NewService(pool, configtransfer.Services{
 		Files:           fileService,
 		ManagedDevices:  managedDevicesService,
@@ -222,7 +224,8 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		Privacy:         privacyService,
 		SubjectRequests: subjectRequestService,
 	})
-	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService)
+	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService).
+		WithNotifications(notificationEmitter)
 	visitorService.SetAttendance(attendanceService)
 	runRecordingsService := runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg))
 	auditRetention, eventSignupRetention := cfg.AuditRetention, cfg.EventSignupRetention
@@ -239,7 +242,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		auth:              authService,
 		people:            peopleService,
 		subjectRequests:   subjectRequestService,
-		accounts:          accounts.NewService(pool, cfg, notifier),
+		accounts:          accounts.NewService(pool, cfg, notifier).WithNotifications(notificationEmitter),
 		permissions:       authorization.NewService(),
 		roles:             rolesService,
 		audit:             audit.NewService(pool),

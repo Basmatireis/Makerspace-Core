@@ -149,6 +149,9 @@ func (s *Service) assign(
 			return Assignment{}, err
 		}
 	}
+	if err := s.inbox.OpenDaySignup(ctx, tx, req.TimeslotID, personID, req.Kind, personID == p.PersonID, s.location); err != nil {
+		return Assignment{}, err
+	}
 	if personID != p.PersonID {
 		slot, err := q.GetTimeslot(ctx, req.TimeslotID)
 		if err != nil {

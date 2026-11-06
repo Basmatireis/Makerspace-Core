@@ -126,6 +126,19 @@ type Service struct {
 	people  *people.Service
 	files   *files.Service
 	now     func() time.Time
+	notices NotificationEmitter
+}
+
+// NotificationEmitter is the part of the notification event source this package uses. It writes inside the caller's
+// transaction, so the notification commits with the request.
+type NotificationEmitter interface {
+	PrivacyRequestCreated(ctx context.Context, tx pgx.Tx, requestID uuid.UUID) error
+}
+
+// WithNotifications makes a recorded request raise the notification trigger. Without it nothing is raised.
+func (s *Service) WithNotifications(notices NotificationEmitter) *Service {
+	s.notices = notices
+	return s
 }
 
 // NewService wires the orchestration to the privacy registry, the people
@@ -349,6 +362,11 @@ func (s *Service) Create(ctx context.Context, p authorization.Principal, input I
 	}
 	if err := s.auditRequest(ctx, tx, &actor, "privacy.subject_request_created", id, requestID, nil); err != nil {
 		return Request{}, err
+	}
+	if s.notices != nil {
+		if err := s.notices.PrivacyRequestCreated(ctx, tx, id); err != nil {
+			return Request{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Request{}, err
