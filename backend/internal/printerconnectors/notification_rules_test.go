@@ -24,7 +24,7 @@ func TestPrinterEventRulesTellEveryoneOnceAndQueueTheirMail(t *testing.T) {
 	bystander := h.principalWith("rulebystander", authorization.MachinesRead)
 	h.cleanupNotifications(supervisor.AccountID, bystander.AccountID, h.principal.AccountID)
 	var roleID string
-	if err := h.pool.QueryRow(ctx, `SELECT role_id::text FROM person_roles WHERE person_id = $1`, supervisor.PersonID).Scan(&roleID); err != nil {
+	if err := h.pool.QueryRow(ctx, `SELECT pr.role_id::text FROM person_roles pr JOIN roles r ON r.id = pr.role_id WHERE pr.person_id = $1 AND r.system_key IS NULL`, supervisor.PersonID).Scan(&roleID); err != nil {
 		t.Fatal(err)
 	}
 	// Operator and recipient are the same person here; the role holder is someone else.

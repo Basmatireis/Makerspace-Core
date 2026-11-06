@@ -430,8 +430,12 @@ func TestRoundTripIntoAFreshInstanceReproducesEverySection(t *testing.T) {
 		if !report.Applied {
 			t.Fatal("report is not applied")
 		}
-		if got := item(t, report, SectionRoles, "Supervisor"); got.Action != ActionCreate {
+		// Membership roles exist on every instance, so the import updates them instead of creating them.
+		if got := item(t, report, SectionRoles, "Supervisor"); got.Action != ActionUpdate {
 			t.Fatalf("Supervisor = %+v", got)
+		}
+		if got := item(t, report, SectionRoles, "Board"); got.Action != ActionCreate {
+			t.Fatalf("Board = %+v", got)
 		}
 		got := sectionsOf(t, target.export(target.master))
 		for _, key := range Sections() {
@@ -477,14 +481,24 @@ func TestRoundTripIntoAFreshInstanceReproducesEverySection(t *testing.T) {
 		if got := item(t, report, SectionBranding, brandingItem); got.Action != ActionSkip {
 			t.Fatalf("insert must leave settings untouched: %+v", got)
 		}
+		// The membership roles already exist, so insert leaves them as the target has them.
+		if got := item(t, report, SectionRoles, "Supervisor"); got.Action != ActionSkip {
+			t.Fatalf("insert must leave the membership role untouched: %+v", got)
+		}
+		if got := roleByName(t, target, "Supervisor"); got.Description != nil && *got.Description == "Runs open days" {
+			t.Fatalf("insert changed the membership role: %+v", got.Description)
+		}
 		got := sectionsOf(t, target.export(target.master))
 		for _, key := range []SectionKey{
-			SectionDeviceTypes, SectionSessionPolicies, SectionRoles, SectionProcesses, SectionMaterialTypes,
+			SectionDeviceTypes, SectionSessionPolicies, SectionProcesses, SectionMaterialTypes,
 			SectionMachines, SectionInventoryArticles, SectionPricing, SectionLabRules, SectionSurveys,
 		} {
 			if canonical(t, got[key]) != canonical(t, want[key]) {
 				t.Errorf("section %s differs after insert:\n got %s\nwant %s", key, got[key], want[key])
 			}
+		}
+		if item(t, report, SectionRoles, "Board").Action != ActionCreate || roleByName(t, target, "Board").Name != "Board" {
+			t.Fatal("insert did not create the custom role")
 		}
 	})
 }
@@ -694,10 +708,10 @@ func importAuthorization(t *testing.T, data []byte) {
 		err, "permission_denied") {
 		t.Fatalf("without roles.manage: %v", err)
 	}
-	// A role editor may only grant what it holds: the imported Supervisor role carries permissions it lacks.
+	// A role editor may only grant what it holds: the imported Board role carries a permission it lacks.
 	editor := e.staff(authorization.ConfigurationImport, authorization.RolesRead, authorization.RolesManage)
 	report := must(preview(editor))
-	if got := item(t, report, SectionRoles, "Supervisor"); got.Action != ActionConflict || got.Code != "permission_denied" {
+	if got := item(t, report, SectionRoles, "Board"); got.Action != ActionConflict || got.Code != "permission_denied" {
 		t.Fatalf("privilege subset = %+v", got)
 	}
 	if _, err := e.svc.Apply(e.ctx, editor, ModeInsert, keys, report.Fingerprint, bytes.NewReader(data), nil); !apperror.IsCode(
@@ -708,7 +722,7 @@ func importAuthorization(t *testing.T, data []byte) {
 	full := e.staff(authorization.ConfigurationImport, authorization.RolesRead, authorization.RolesManage,
 		authorization.OpenDaysRead, authorization.OpenDaysManage, authorization.AttendanceAssist)
 	report = must(preview(full))
-	if got := item(t, report, SectionRoles, "Supervisor"); got.Action != ActionCreate {
+	if got := item(t, report, SectionRoles, "Board"); got.Action != ActionCreate {
 		t.Fatalf("full editor = %+v", got)
 	}
 
