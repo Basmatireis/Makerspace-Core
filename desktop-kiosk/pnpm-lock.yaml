@@ -10,10 +10,10 @@ importers:
     dependencies:
       '@carbon/react':
         specifier: 1.119.0
-        version: 1.119.0(react-dom@19.3.1(react@19.3.1))(react-is@18.3.1)(react@19.3.1)(sass@1.106.1)
+        version: 1.119.0(react-dom@19.3.1(react@19.3.1))(react-is@18.3.1)(react@19.3.1)(sass@1.107.1)
       '@carbon/styles':
         specifier: 1.118.0
-        version: 1.118.0(sass@1.106.1)
+        version: 1.118.0(sass@1.107.1)
       '@ibm/plex':
         specifier: 6.4.1
         version: 6.4.1
@@ -38,16 +38,16 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@vitejs/plugin-react':
         specifier: 6.1.2
-        version: 6.1.2(vite@8.3.5(@types/node@26.6.5)(sass@1.106.1))
+        version: 6.1.2(vite@8.3.5(@types/node@26.6.5)(sass@1.107.1))
       sass:
-        specifier: 1.106.1
-        version: 1.106.1
+        specifier: 1.107.1
+        version: 1.107.1
       typescript:
         specifier: 7.0.2
         version: 7.0.2
       vite:
         specifier: 8.3.5
-        version: 8.3.5(@types/node@26.6.5)(sass@1.106.1)
+        version: 8.3.5(@types/node@26.6.5)(sass@1.107.1)
 
 packages:
 
@@ -813,8 +813,8 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  sass@1.106.1:
-    resolution: {integrity: sha512-kD+Gi66vycZcbJt+42NC4z4PXNMcCajVrJPhqoKKXy5cOBMmJQt052CxIBcRjwYXeImHYOpu/ydWWGZQIenl7A==}
+  sass@1.107.1:
+    resolution: {integrity: sha512-aJ1/LvxOOb04YhmiBjzZn3jVwdHKol+OVhoMV6fFl02fF9T3i+5Mg9l/CnzqtM+NX5Jn5o3lAbs/ZJivTCLHfQ==}
     engines: {node: '>=20.19.0'}
     hasBin: true
 
@@ -936,14 +936,14 @@ snapshots:
     dependencies:
       '@ibm/telemetry-js': 1.12.0
 
-  '@carbon/react@1.119.0(react-dom@19.3.1(react@19.3.1))(react-is@18.3.1)(react@19.3.1)(sass@1.106.1)':
+  '@carbon/react@1.119.0(react-dom@19.3.1(react@19.3.1))(react-is@18.3.1)(react@19.3.1)(sass@1.107.1)':
     dependencies:
       '@babel/runtime': 8.0.7
       '@carbon/feature-flags': 1.11.0
       '@carbon/icons-react': 11.91.0(react@19.3.1)
       '@carbon/layout': 11.62.0
       '@carbon/motion': 11.55.0
-      '@carbon/styles': 1.118.0(sass@1.106.1)
+      '@carbon/styles': 1.118.0(sass@1.107.1)
       '@carbon/utilities': 0.28.0
       '@floating-ui/react': 0.27.20(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@ibm/telemetry-js': 1.12.0
@@ -961,9 +961,9 @@ snapshots:
       react-is: 18.3.1
       tabbable: 6.5.0
     optionalDependencies:
-      sass: 1.106.1
+      sass: 1.107.1
 
-  '@carbon/styles@1.118.0(sass@1.106.1)':
+  '@carbon/styles@1.118.0(sass@1.107.1)':
     dependencies:
       '@carbon/colors': 11.61.0
       '@carbon/feature-flags': 1.11.0
@@ -983,7 +983,7 @@ snapshots:
       '@ibm/plex-serif': 2.0.0
       '@ibm/telemetry-js': 1.12.0
     optionalDependencies:
-      sass: 1.106.1
+      sass: 1.107.1
 
   '@carbon/themes@11.84.0':
     dependencies:
@@ -1301,10 +1301,10 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@vitejs/plugin-react@6.1.2(vite@8.3.5(@types/node@26.6.5)(sass@1.106.1))':
+  '@vitejs/plugin-react@6.1.2(vite@8.3.5(@types/node@26.6.5)(sass@1.107.1))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 8.3.5(@types/node@26.6.5)(sass@1.106.1)
+      vite: 8.3.5(@types/node@26.6.5)(sass@1.107.1)
 
   chokidar@5.0.0:
     dependencies:
@@ -1509,7 +1509,7 @@ snapshots:
       '@rolldown/binding-win32-arm64-msvc': 1.2.15
       '@rolldown/binding-win32-x64-msvc': 1.2.15
 
-  sass@1.106.1:
+  sass@1.107.1:
     dependencies:
       chokidar: 5.0.0
       immutable: 5.1.9
@@ -1568,7 +1568,7 @@ snapshots:
 
   undici-types@8.9.0: {}
 
-  vite@8.3.5(@types/node@26.6.5)(sass@1.106.1):
+  vite@8.3.5(@types/node@26.6.5)(sass@1.107.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -1578,4 +1578,4 @@ snapshots:
     optionalDependencies:
       '@types/node': 26.6.5
       fsevents: 2.3.3
-      sass: 1.106.1
+      sass: 1.107.1
