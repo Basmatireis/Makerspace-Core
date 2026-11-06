@@ -56,6 +56,7 @@ import {
   PricingPage,
   ProfilePage,
   PublicEventPage,
+  NotificationCenterPage,
   PublicSurveyPage,
   ReceiptPage,
   ResetPasswordPage,
@@ -484,6 +485,14 @@ export function App() {
               element={
                 <PermissionRoute anyOf={['surveys.read', 'surveys.manage']}>
                   <SurveyAdminPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="settings/notifications/*"
+              element={
+                <PermissionRoute anyOf={['notification_rules.read']}>
+                  <NotificationCenterPage />
                 </PermissionRoute>
               }
             />

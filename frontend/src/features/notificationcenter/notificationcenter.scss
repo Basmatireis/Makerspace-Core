@@ -1,0 +1,376 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/type' as *;
+
+// Application-specific layout for the notification center; every control is a Carbon component.
+.nc-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.nc-intro {
+  margin-block-end: $spacing-05;
+  color: theme.$text-secondary;
+  max-inline-size: 52rem;
+}
+
+.nc-note {
+  @include type-style('helper-text-01');
+
+  margin-block-start: $spacing-03;
+  color: theme.$text-secondary;
+}
+
+.nc-fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.nc-head {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: $spacing-05;
+  align-items: start;
+  margin-block: $spacing-05;
+}
+
+.nc-problems {
+  padding-inline-start: $spacing-05;
+  list-style: disc;
+}
+
+// Two columns: the vertical flow of steps and a preview that stays in view while scrolling.
+.nc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-06;
+  align-items: start;
+
+  @media (min-width: 1056px) {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
+  }
+}
+
+.nc-flow {
+  display: flex;
+  flex-direction: column;
+}
+
+.nc-preview {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+
+  @media (min-width: 1056px) {
+    position: sticky;
+    inset-block-start: $spacing-09;
+    max-block-size: calc(100vh - #{$spacing-11});
+    overflow-y: auto;
+  }
+}
+
+.nc-preview__heading {
+  @include type-style('heading-compact-01');
+
+  margin-block-end: $spacing-03;
+}
+
+.nc-preview__item {
+  margin-block-end: $spacing-05;
+}
+
+.nc-preview__caption {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  margin-block-end: $spacing-02;
+  color: theme.$text-secondary;
+}
+
+.nc-plain {
+  @include type-style('body-02');
+}
+
+.nc-placeholder {
+  background: theme.$layer-accent;
+  color: theme.$text-primary;
+  padding-inline: $spacing-01;
+}
+
+// The rail with a node per step joins the tiles into one flow.
+.nc-step {
+  display: grid;
+  grid-template-columns: $spacing-07 minmax(0, 1fr);
+  gap: $spacing-04;
+  padding-block-end: $spacing-05;
+}
+
+.nc-step__rail {
+  position: relative;
+  display: flex;
+  justify-content: center;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset-block: $spacing-07 (-$spacing-05);
+    inline-size: 1px;
+    background: theme.$border-subtle;
+  }
+}
+
+.nc-step:last-child .nc-step__rail::after {
+  display: none;
+}
+
+.nc-step__node {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: $spacing-06;
+  block-size: $spacing-06;
+  border-radius: 50%;
+  background: theme.$background-brand;
+  color: theme.$text-on-color;
+}
+
+.nc-step--off .nc-step__node {
+  background: theme.$layer-accent;
+  color: theme.$text-secondary;
+}
+
+.nc-step__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $spacing-04;
+  margin-block-end: $spacing-04;
+
+  h3 {
+    @include type-style('heading-03');
+  }
+}
+
+.nc-step__eyebrow {
+  @include type-style('label-01');
+
+  color: theme.$text-secondary;
+  text-transform: uppercase;
+}
+
+.nc-schedule,
+.nc-loop,
+.nc-opts,
+.nc-message,
+.nc-inapp,
+.nc-action__body,
+.nc-recipients {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+.nc-loop {
+  align-items: flex-start;
+}
+
+.nc-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: $spacing-05;
+  align-items: end;
+}
+
+.nc-row--inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.nc-appearance,
+.nc-start {
+  .cds--tile-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: $spacing-03;
+  }
+}
+
+.nc-appearance__help {
+  @include type-style('helper-text-01');
+
+  display: block;
+  color: theme.$text-secondary;
+}
+
+.nc-conds {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.nc-conds__join {
+  @include type-style('label-01');
+
+  display: block;
+  margin-block: $spacing-02;
+  color: theme.$text-secondary;
+  text-transform: uppercase;
+}
+
+.nc-modeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.nc-cond {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.2fr) minmax(8rem, 0.8fr) minmax(10rem, 1.4fr) auto;
+  gap: $spacing-03;
+  align-items: start;
+
+  @media (max-width: 671px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.nc-cond__number {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.nc-cond__unit {
+  color: theme.$text-secondary;
+}
+
+.nc-group {
+  padding: $spacing-04;
+  border-inline-start: 2px solid theme.$border-strong;
+  background: theme.$layer-accent;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+}
+
+.nc-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+  margin-block-start: $spacing-03;
+}
+
+.nc-actions {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+}
+
+.nc-action {
+  background: theme.$layer-02;
+}
+
+.nc-action__head {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  margin-block-end: $spacing-05;
+}
+
+.nc-action__name {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+  margin-inline-end: auto;
+  font-weight: 600;
+}
+
+.nc-escstep__when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+  margin-block-end: $spacing-03;
+}
+
+.nc-recipients__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+.nc-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: $spacing-03;
+}
+
+.nc-channels,
+.nc-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: $spacing-03;
+}
+
+// Mock-ups of what a message looks like on each surface.
+.nc-mock-bell {
+  display: flex;
+  gap: $spacing-04;
+}
+
+.nc-mock-dialog {
+  border-block-start: 4px solid theme.$support-info;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 30%);
+
+  &--warning {
+    border-block-start-color: theme.$support-warning;
+  }
+
+  &--error {
+    border-block-start-color: theme.$support-error;
+  }
+
+  &--success {
+    border-block-start-color: theme.$support-success;
+  }
+}
+
+.nc-mock-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-03;
+  margin-block-start: $spacing-05;
+}
+
+.nc-mock-bell__meta {
+  @include type-style('helper-text-01');
+
+  color: theme.$text-secondary;
+}
+
+.nc-mock-signage {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+  padding: $spacing-04;
+  background: theme.$support-info;
+  color: theme.$text-on-color;
+
+  &--warning {
+    background: theme.$support-warning;
+    color: theme.$text-primary;
+  }
+
+  &--critical {
+    background: theme.$support-error;
+  }
+}

@@ -7,6 +7,7 @@ import {
   Group,
   IbmCloudKeyProtect,
   Migrate,
+  Notification,
   PaintBrush,
   QuestionAnswering,
   Receipt,
@@ -31,6 +32,7 @@ export type SettingsPageId =
   | 'visitor-enrollment'
   | 'surveys'
   | 'mail'
+  | 'notification-center'
   | 'branding-legal'
   | 'invoicing'
   | 'local-services'
@@ -164,6 +166,15 @@ export const settingsItems: readonly SettingsItem[] = [
     path: '/settings/mail',
     icon: Email,
     permissions: [PermissionId.mailmanage],
+  },
+  {
+    id: 'notification-center',
+    group: 'communication',
+    title: 'Notification center',
+    description: 'Rules that decide who is told what, when and how, and the message categories people consent to.',
+    path: '/settings/notifications',
+    icon: Notification,
+    permissions: [PermissionId.notification_rulesread],
   },
   {
     id: 'branding-legal',

@@ -273,3 +273,8 @@ export const SubjectRequestPage = lazy(() =>
     default: SubjectRequestPage,
   })),
 );
+export const NotificationCenterPage = lazy(() =>
+  import('../features/notificationcenter/NotificationCenterPage').then(({ NotificationCenterPage }) => ({
+    default: NotificationCenterPage,
+  })),
+);

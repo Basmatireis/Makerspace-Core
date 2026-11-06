@@ -83,6 +83,7 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   'scim.manage',
   'oidc.manage',
   'mail.manage',
+  'notification_rules.read',
   'branding.manage',
   'invoicing.settings.manage',
   'configuration.export',
