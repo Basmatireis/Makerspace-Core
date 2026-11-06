@@ -217,12 +217,15 @@ const CSV_COLUMNS: Array<{ header: string; value: (row: SupervisorRow) => string
 /** Spreadsheet programs run cells that start with these characters as formulas. */
 function csvCell(value: string): string {
   const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return /[",\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+  return /[";,\r\n]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }
 
-/** The rows as CSV with exactly the columns the table shows; a byte order mark keeps umlauts intact in Excel. */
+/**
+ * The rows as CSV with exactly the columns the table shows. Semicolons separate the cells because Excel with German
+ * or Austrian settings splits only on them, and a byte order mark keeps umlauts intact.
+ */
 export function staffingCsv(rows: SupervisorRow[]): string {
-  const lines = [CSV_COLUMNS.map((column) => csvCell(column.header)).join(',')];
-  for (const row of rows) lines.push(CSV_COLUMNS.map((column) => csvCell(column.value(row))).join(','));
+  const lines = [CSV_COLUMNS.map((column) => csvCell(column.header)).join(';')];
+  for (const row of rows) lines.push(CSV_COLUMNS.map((column) => csvCell(column.value(row))).join(';'));
   return `${'\uFEFF'}${lines.join('\r\n')}\r\n`;
 }

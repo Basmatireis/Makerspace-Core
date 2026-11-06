@@ -131,9 +131,9 @@ describe('sortRows', () => {
 describe('staffingCsv', () => {
   it('exports exactly the table columns of the given rows', () => {
     const lines = staffingCsv([grace]).replace('\uFEFF', '').trim().split('\r\n');
-    expect(lines[0]).toBe('Name,System role,Extra roles,This semester,Status,Next open day,Lab rules');
+    expect(lines[0]).toBe('Name;System role;Extra roles;This semester;Status;Next open day;Lab rules');
     expect(lines[1]).toMatch(
-      /^Grace Hopper,Trainee,Laser,1 of 2,Ready for supervisor,10\.11\.2026 \d\d:\d\d,Not confirmed$/,
+      /^Grace Hopper;Trainee;Laser;1 of 2;Ready for supervisor;10\.11\.2026 \d\d:\d\d;Not confirmed$/,
     );
     expect(lines).toHaveLength(2);
   });
@@ -141,5 +141,6 @@ describe('staffingCsv', () => {
   it('quotes cells and defuses spreadsheet formulas', () => {
     const csv = staffingCsv([row({ name: '=HYPERLINK("x"), Eve' })]);
     expect(csv).toContain(`"'=HYPERLINK(""x""), Eve"`);
+    expect(staffingCsv([row({ name: 'Eve; Mallory' })])).toContain('"Eve; Mallory";');
   });
 });
