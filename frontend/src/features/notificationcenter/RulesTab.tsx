@@ -14,7 +14,12 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { NotificationCatalog, NotificationCategory, NotificationRule } from '../../api/generated/models';
+import type {
+  NotificationCatalog,
+  NotificationCategory,
+  NotificationRule,
+  NotificationRuleStats,
+} from '../../api/generated/models';
 import { updateNotificationRule } from '../../api/generated/notification-rules/notification-rules';
 import { SectionSwitcher } from '../../app/SectionSwitcher';
 import { formatDateTime } from '../../app/dateTime';
@@ -130,6 +135,32 @@ function ThenCell({
   );
 }
 
+/** The last two weeks as small bars (a picture of the data, not a control) and the count of the last 30 days. */
+function FiredCell({ stats }: { stats: NotificationRuleStats | null }) {
+  if (!stats) return <span className="mj-secondary">—</span>;
+  const days = stats.sparkline.slice(-14);
+  const peak = Math.max(1, ...days);
+  const total = days.reduce((sum, count) => sum + count, 0);
+  return (
+    <div className="mj-cell-stack">
+      <svg
+        className="nc-spark"
+        viewBox={`0 0 ${days.length * 6} 24`}
+        width={days.length * 6}
+        height={24}
+        role="img"
+        aria-label={`${total} ${total === 1 ? 'time' : 'times'} in the last 14 days`}
+      >
+        {days.map((count, index) => {
+          const height = count === 0 ? 1 : Math.max(3, Math.round((count / peak) * 24));
+          return <rect key={index} x={index * 6} y={24 - height} width={4} height={height} />;
+        })}
+      </svg>
+      <span className="mj-secondary">{stats.fired30} in 30 d</span>
+    </div>
+  );
+}
+
 export function RulesTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -237,6 +268,14 @@ export function RulesTab() {
                 </Tag>
               );
             },
+          },
+          {
+            key: 'activity',
+            header: 'Last 14 days',
+            narrow: true,
+            sortValue: (rule) => rule.stats?.fired30 ?? 0,
+            firstDirection: 'DESC',
+            render: (rule) => <FiredCell stats={rule.stats} />,
           },
           {
             key: 'lastFired',

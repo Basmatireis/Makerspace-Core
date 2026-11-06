@@ -2,14 +2,18 @@ import { Button, InlineNotification, Tag, Tile, ToastNotification } from '@carbo
 import { Notification } from '@carbon/icons-react';
 import type { ReactNode } from 'react';
 import type { NotificationCatalog } from '../../../api/generated/models';
-import { delayOptions, placeholderChoices, type Action, type Definition } from '../ruleModel';
+import { collectionOf, delayOptions, placeholderChoices, type Action, type Definition } from '../ruleModel';
 import { channelIcons } from './channelIcons';
+import { DryRunTile, EstimateTile, RecipientTile } from './DryRunPanels';
+import { recipientsLine, type DryRunState } from './useDryRun';
 import { durationText, fillPlaceholders, splitPlaceholders, summaryText, type NameLookup } from '../ruleText';
 
 type PreviewProps = {
   catalog: NotificationCatalog;
   definition: Definition;
   lookup: NameLookup;
+  dry: DryRunState;
+  personal: boolean;
 };
 
 /** Message text with `{placeholders}` highlighted; the example value is shown where the catalog has one. */
@@ -143,7 +147,7 @@ function Mock({ action, examples }: { action: Action; examples: Map<string, stri
   );
 }
 
-function Caption({ action, prefix }: { action: Action; prefix: string }): ReactNode {
+function Caption({ action, prefix, reach }: { action: Action; prefix: string; reach?: string }): ReactNode {
   const Icon = channelIcons[action.channel] ?? Notification;
   const target =
     action.channel === 'signage'
@@ -156,13 +160,16 @@ function Caption({ action, prefix }: { action: Action; prefix: string }): ReactN
       <Icon size={16} />
       <strong>{prefix}</strong>
       <span>{target}</span>
+      {reach && <span className="nc-preview__reach">{reach}</span>}
     </div>
   );
 }
 
-export function PreviewColumn({ catalog, definition, lookup }: PreviewProps) {
+export function PreviewColumn({ catalog, definition, lookup, dry, personal }: PreviewProps) {
   const examples = new Map(placeholderChoices(catalog, definition).map((p) => [p.key, p.example] as const));
   const steps = definition.escalation?.steps ?? [];
+  const everyAction = [...definition.actions, ...steps.map((step) => step.action)];
+  const collection = collectionOf(catalog, definition);
   return (
     <aside className="nc-preview" aria-label="Preview">
       <Tile>
@@ -171,6 +178,8 @@ export function PreviewColumn({ catalog, definition, lookup }: PreviewProps) {
           {summaryText(catalog, definition, lookup)}
         </p>
       </Tile>
+      {dry.data && <RecipientTile dry={dry.data} personal={personal} />}
+      {dry.data && collection && dry.data.totalItems > 0 && <DryRunTile dry={dry.data} collection={collection} />}
       <Tile>
         <h3 className="nc-preview__heading">Example</h3>
         {definition.actions.length === 0 && <p className="nc-note">Add an action to see what people get.</p>}
@@ -178,6 +187,7 @@ export function PreviewColumn({ catalog, definition, lookup }: PreviewProps) {
           <div key={`a${index}`} className="nc-preview__item">
             <Caption
               action={action}
+              reach={recipientsLine(dry.data, everyAction, index)}
               prefix={`${action.delayMinutes ? `${delayOptions.find((o) => o.value === action.delayMinutes)?.label ?? ''} · ` : ''}${action.channel === 'in_app' ? 'In-app' : action.channel === 'tablet' ? 'Tablet' : action.channel === 'email' ? 'E-mail' : 'Signage'}`}
             />
             <Mock action={action} examples={examples} />
@@ -185,11 +195,16 @@ export function PreviewColumn({ catalog, definition, lookup }: PreviewProps) {
         ))}
         {steps.map((step, index) => (
           <div key={`s${index}`} className="nc-preview__item">
-            <Caption action={step.action} prefix={`After ${durationText(step.after.value, step.after.unit)}`} />
+            <Caption
+              action={step.action}
+              reach={recipientsLine(dry.data, everyAction, definition.actions.length + index)}
+              prefix={`After ${durationText(step.after.value, step.after.unit)}`}
+            />
             <Mock action={step.action} examples={examples} />
           </div>
         ))}
       </Tile>
+      <EstimateTile dry={dry} />
     </aside>
   );
 }

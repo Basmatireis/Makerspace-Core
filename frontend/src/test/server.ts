@@ -15,6 +15,19 @@ export const server = setupServer(
   http.get('*/api/v1/me/guides', () =>
     HttpResponse.json({ items: [{ guideId: 'welcome', status: 'dismissed', updatedAt: '2026-01-01T00:00:00Z' }] }),
   ),
+  // The rule editor asks for a dry run of every draft; by default there is nothing to show.
+  http.post('*/api/v1/notification-rules/dry-run', () =>
+    HttpResponse.json({
+      estimate30: null,
+      estimateNote: '',
+      items: [],
+      totalItems: 0,
+      matchedItems: 0,
+      summary: null,
+      recipients: [],
+      previews: [],
+    }),
+  ),
   http.get('*/api/v1/session-policies', () => HttpResponse.json({ items: [] })),
   http.get('*/api/v1/managed-device-types', () => HttpResponse.json({ items: [] })),
   http.get('*/api/v1/permissions', () => HttpResponse.json({ items: [] })),

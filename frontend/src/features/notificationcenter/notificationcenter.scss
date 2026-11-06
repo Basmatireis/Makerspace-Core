@@ -374,3 +374,75 @@
     background: theme.$support-error;
   }
 }
+
+.nc-preview__reach {
+  color: theme.$text-secondary;
+}
+
+.nc-note--first {
+  margin-block-start: 0;
+}
+
+.nc-note--warn {
+  color: theme.$text-error;
+}
+
+.nc-updating {
+  margin-block-start: $spacing-03;
+}
+
+.nc-estimate {
+  display: flex;
+  align-items: baseline;
+  gap: $spacing-04;
+}
+
+.nc-estimate__big {
+  @include type-style('productive-heading-05');
+}
+
+.nc-match {
+  fill: theme.$support-success;
+}
+
+.nc-miss {
+  color: theme.$text-secondary;
+}
+
+.nc-dry--no td {
+  color: theme.$text-secondary;
+}
+
+// Mini bars of the last 14 days: a picture of data, drawn with the theme's icon colour.
+.nc-spark {
+  display: block;
+  fill: theme.$icon-secondary;
+}
+
+.nc-activity__filter {
+  max-inline-size: 20rem;
+  margin-block-end: $spacing-05;
+}
+
+.nc-activity__detail {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  padding-block: $spacing-04;
+}
+
+.nc-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+
+  li {
+    display: flex;
+    gap: $spacing-04;
+  }
+}
+
+.nc-timeline__time {
+  flex: 0 0 9rem;
+  color: theme.$text-secondary;
+}

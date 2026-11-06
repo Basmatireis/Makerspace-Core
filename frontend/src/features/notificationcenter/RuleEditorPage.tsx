@@ -1,5 +1,15 @@
-import { Button, IconButton, InlineNotification, Select, SelectItem, Tag, TextInput, Toggle } from '@carbon/react';
-import { Copy, TrashCan } from '@carbon/icons-react';
+import {
+  Button,
+  IconButton,
+  InlineNotification,
+  Modal,
+  Select,
+  SelectItem,
+  Tag,
+  TextInput,
+  Toggle,
+} from '@carbon/react';
+import { Copy, Play, SendAlt, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -10,10 +20,13 @@ import {
   createOwnNotificationSubscription,
   deleteNotificationRule,
   deleteOwnNotificationSubscription,
+  runNotificationRule,
+  testNotificationRule,
   updateNotificationRule,
   updateOwnNotificationSubscription,
 } from '../../api/generated/notification-rules/notification-rules';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
+import { useNotify } from '../../app/toasts';
 import { ErrorState } from '../../app/PageState';
 import { PageShell } from '../../app/PageShell';
 import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
@@ -26,6 +39,7 @@ import { ConditionsStep, LoopStep, WhenStep } from './editor/WhenSteps';
 import { EscalationStep, LimitsStep, ThenStep } from './editor/OutcomeSteps';
 import type { StepProps } from './editor/FlowStep';
 import { PreviewColumn } from './editor/PreviewColumn';
+import { useDryRun } from './editor/useDryRun';
 import {
   catalogQuery,
   categoriesQuery,
@@ -37,6 +51,7 @@ import {
 import {
   blankDefinition,
   clone,
+  collectionOf,
   draftFromRule,
   pruneDefinition,
   toInput,
@@ -80,6 +95,9 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
   const draft = form.watch();
   const [problems, setProblems] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmRun, setConfirmRun] = useState(false);
+  const notify = useNotify();
+  const dry = useDryRun(draft, personal);
   const deleteButton = useRef<HTMLButtonElement>(null);
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty && canManage });
   const personIds = [
@@ -102,10 +120,47 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
         : rule
           ? updateNotificationRule(rule.id, { expectedVersion: rule.version, ...toInput(values) })
           : createNotificationRule(toInput(values)),
-    onSuccess: async () => {
+    onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: notificationCenterKeys.all });
-      guard.bypassAfterSubmit(() => navigate(back));
+      // A rule saved with warnings stays open, so they are read before the list takes over.
+      const stay = saved.warnings?.length
+        ? `${personal ? personalSubscriptionPath : `${listPath}/rules`}/${saved.id}`
+        : back;
+      guard.bypassAfterSubmit(() => navigate(stay));
     },
+  });
+  const afterSend = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: notificationCenterKeys.activity() }),
+      queryClient.invalidateQueries({ queryKey: notificationCenterKeys.rules() }),
+    ]);
+  const run = useMutation({
+    mutationFn: () => runNotificationRule(rule!.id),
+    onSuccess: async (result) => {
+      const sent = result.sent.inApp + result.sent.email;
+      notify({
+        kind: sent ? 'success' : 'info',
+        title: sent ? `Sent ${sent} ${sent === 1 ? 'message' : 'messages'}` : 'Nothing sent',
+        subtitle: `${result.sent.inApp} in-app, ${result.sent.email} e-mail. Looked at ${result.itemsExamined}, ${result.matched} matched.`,
+      });
+      await afterSend();
+    },
+    onError: (error) => notify({ kind: 'error', title: 'Run failed', subtitle: saveProblem(error, 'Rule').message }),
+  });
+  const test = useMutation({
+    mutationFn: () => testNotificationRule(rule!.id),
+    onSuccess: async (result) => {
+      const sent = result.sent.inApp + result.sent.email;
+      notify({
+        kind: sent ? 'success' : 'info',
+        title: sent ? 'Test sent to you' : 'Nothing to send you',
+        subtitle: sent
+          ? `${result.sent.inApp} in-app, ${result.sent.email} e-mail. It shows up under Activity as a test.`
+          : 'None of the actions reaches you in the app or by e-mail.',
+      });
+      await afterSend();
+    },
+    onError: (error) => notify({ kind: 'error', title: 'Test failed', subtitle: saveProblem(error, 'Rule').message }),
   });
   const remove = useMutation({
     mutationFn: () =>
@@ -150,6 +205,19 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
         { label: 'Notification center', to: listPath },
       ];
   const unsaved = form.formState.isDirty && canManage;
+  const savedTrigger = rule?.definition.trigger.type;
+  const canRun = Boolean(rule) && !personal && canManage && (savedTrigger === 'manual' || savedTrigger === 'schedule');
+  const canTest = Boolean(rule) && !personal && canManage;
+  const unsavedReason = 'Save your changes first: this works on the saved rule.';
+  const savedCollection = rule ? collectionOf(catalog, rule.definition) : undefined;
+  const loopMode = rule?.definition.loop?.mode;
+  const runWhat = !savedCollection
+    ? 'It sends the messages once, right now.'
+    : loopMode === 'each'
+      ? dry.data
+        ? `It looks at all ${dry.data.totalItems} ${savedCollection.plural} and sends a message to each one that matches (${dry.data.matchedItems} right now).`
+        : `It looks at all ${savedCollection.plural} and sends a message to each one that matches.`
+      : `It counts the matching ${savedCollection.plural} and sends one summary if the conditions hold.`;
 
   return (
     <PageShell
@@ -184,6 +252,32 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
               <TrashCan />
             </IconButton>
           )}
+          {canTest && (
+            <span title={unsaved ? unsavedReason : undefined}>
+              <Button
+                kind="tertiary"
+                size="md"
+                renderIcon={SendAlt}
+                disabled={unsaved || test.isPending}
+                onClick={() => test.mutate()}
+              >
+                Send a test to me
+              </Button>
+            </span>
+          )}
+          {canRun && (
+            <span title={unsaved ? unsavedReason : undefined}>
+              <Button
+                kind="tertiary"
+                size="md"
+                renderIcon={Play}
+                disabled={unsaved || run.isPending}
+                onClick={() => setConfirmRun(true)}
+              >
+                Run now
+              </Button>
+            </span>
+          )}
           <Button kind="secondary" size="md" onClick={() => guard.requestDiscard(() => navigate(back))}>
             {canManage ? 'Cancel' : 'Back'}
           </Button>
@@ -209,6 +303,15 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
           <ul className="nc-problems">
             {problems.map((entry) => (
               <li key={entry}>{entry}</li>
+            ))}
+          </ul>
+        </InlineNotification>
+      )}
+      {rule && rule.warnings.length > 0 && (
+        <InlineNotification kind="warning" lowContrast hideCloseButton title="Check this rule">
+          <ul className="nc-problems">
+            {rule.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
             ))}
           </ul>
         </InlineNotification>
@@ -284,10 +387,33 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
               onMandatory={personal ? undefined : (next) => form.setValue('mandatory', next, { shouldDirty: true })}
             />
           </div>
-          <PreviewColumn catalog={catalog} definition={draft.definition} lookup={lookup} />
+          <PreviewColumn
+            catalog={catalog}
+            definition={draft.definition}
+            lookup={lookup}
+            dry={dry}
+            personal={personal}
+          />
         </div>
       </fieldset>
       <UnsavedChangesDialog guard={guard} />
+      {canRun && confirmRun && (
+        <Modal
+          open
+          size="sm"
+          modalHeading={`Run “${rule?.name ?? ''}” now?`}
+          modalLabel="Run now"
+          primaryButtonText="Run now"
+          secondaryButtonText="Cancel"
+          onRequestClose={() => setConfirmRun(false)}
+          onRequestSubmit={() => {
+            setConfirmRun(false);
+            run.mutate();
+          }}
+        >
+          <p>{runWhat} The run shows up under Activity.</p>
+        </Modal>
+      )}
       <DestructiveActionDialog
         open={confirmDelete}
         title={`Delete “${rule?.name ?? ''}”?`}
