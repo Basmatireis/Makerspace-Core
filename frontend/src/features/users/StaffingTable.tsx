@@ -48,6 +48,8 @@ const STATUS_TAG: Record<StaffingStatus, { label: (row: SupervisorRow) => string
     fulfilled: { label: () => 'Minimum reached', type: 'green' },
     missing: { label: (row) => `${row.missing} missing`, type: 'red' },
     ready: { label: () => 'Ready for supervisor', type: 'purple' },
+    excused: { label: () => 'Excused', type: 'green' },
+    no_minimum: { label: () => 'No minimum', type: 'green' },
   };
 
 type Props = {
@@ -136,7 +138,7 @@ export function StaffingTable({
                 if (!row) return null;
                 const signedUp = row.staffed + row.booked;
                 const tag = STATUS_TAG[row.status];
-                const trainee = row.kind === 'trainee';
+                const trainee = row.membership === 'trainee';
                 return (
                   <TableRow {...getRowProps({ row: tableRow })} key={tableRow.id}>
                     <TableCell>

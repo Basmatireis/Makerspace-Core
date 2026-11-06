@@ -173,17 +173,19 @@ func jobStatisticsDTO(jobs *machinelogbook.OwnJobStatistics) *openapi.PersonalJo
 
 func staffingDTO(section *dashboard.Staffing) *openapi.PersonalDashboardStaffing {
 	response := &openapi.PersonalDashboardStaffing{
-		Kind:             openapi.StaffingLevel(section.Kind),
-		Semester:         semesterDTO(section.Semester),
-		Minimum:          section.Minimum,
-		TraineeThreshold: section.TraineeThreshold,
-		Staffed:          section.Counts.Staffed,
-		Booked:           section.Counts.Booked,
-		StaffedAsTrainee: section.Counts.StaffedAsTrainee,
-		Status:           openapi.StaffingStatus(section.Standing.Status),
-		Missing:          section.Standing.Missing,
-		NextOpenPlace:    nullable.NewNullNullable[openapi.OpenPlace](),
-		NextOpenDay:      nullable.NewNullNullable[openapi.NextOpenDayStaffing](),
+		Kind:              openapi.StaffingKind(section.Kind),
+		Semester:          semesterDTO(section.Semester),
+		Minimum:           section.Minimum.Value,
+		MinimumSource:     openapi.StaffingMinimumSource(section.Minimum.Source),
+		TraineeThreshold:  section.TraineeThreshold,
+		WarningWindowDays: section.WarningWindowDays,
+		Staffed:           section.Counts.Staffed,
+		Booked:            section.Counts.Booked,
+		StaffedAsTrainee:  section.Counts.StaffedAsTrainee,
+		Status:            openapi.StaffingStatus(section.Standing.Status),
+		Missing:           section.Standing.Missing,
+		NextOpenPlace:     nullable.NewNullNullable[openapi.OpenPlace](),
+		NextOpenDay:       nullable.NewNullNullable[openapi.NextOpenDayStaffing](),
 	}
 	if place := section.NextOpenPlace; place != nil {
 		response.NextOpenPlace = nullable.NewNullableWithValue(openapi.OpenPlace{

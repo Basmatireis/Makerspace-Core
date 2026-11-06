@@ -21,19 +21,26 @@
 import type { NextOpenDayStaffing } from './nextOpenDayStaffing';
 import type { OpenPlace } from './openPlace';
 import type { Semester } from './semester';
-import type { StaffingLevel } from './staffingLevel';
+import type { StaffingKind } from './staffingKind';
+import type { StaffingMinimumSource } from './staffingMinimumSource';
 import type { StaffingStatus } from './staffingStatus';
 
 export interface PersonalDashboardStaffing {
-  kind: StaffingLevel;
+  kind: StaffingKind;
   semester: Semester | null;
   /**
-     * The person's own minimum: the lowest role override, else the general minimum.
+     * The person's own minimum for the semester.
      * @minimum 0
      */
   minimum: number;
+  minimumSource: StaffingMinimumSource;
   /** @minimum 1 */
   traineeThreshold: number;
+  /**
+     * @minimum 1
+     * @maximum 60
+     */
+  warningWindowDays: number;
   /** @minimum 0 */
   staffed: number;
   /** @minimum 0 */
@@ -44,8 +51,8 @@ export interface PersonalDashboardStaffing {
   /** @minimum 0 */
   missing: number;
   /**
-     * The next open day within 14 days that the person has not joined and that has a free place of their kind
-     * they are eligible for.
+     * The next open day within the warning window of the staffing rules that the person has not joined and
+     * that has a free place of their kind they are eligible for.
      */
   nextOpenPlace: OpenPlace | null;
   /** The person's next booked open day with its supervisor staffing; only supervisor places count. */

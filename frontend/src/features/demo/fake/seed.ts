@@ -58,16 +58,14 @@ const OTHER_PEOPLE: DemoPerson[] = [
   { id: sampleDemoId(0x706), firstName: 'Noa', lastName: 'Fiction' },
 ];
 
-const role = (id: string, name: string, staffingLevel: Role['staffingLevel']): Role => ({
+const role = (id: string, name: string, systemKey: Role['systemKey']): Role => ({
   id,
   name,
   description: null,
-  systemKey: null,
+  systemKey,
   permissionGrants: [],
   profileImageRequired: false,
   laborordnungMode: 'not_required',
-  staffingLevel,
-  minOpenDaysPerSemester: null,
   createdAt: T,
   updatedAt: T,
   version: 1,

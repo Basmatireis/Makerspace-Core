@@ -402,7 +402,6 @@ describe('role protection UX', () => {
               })),
               profileImageRequired: false,
               laborordnungMode: 'not_required',
-              staffingLevel: null,
               createdAt: '2026-01-01T00:00:00Z',
               updatedAt: '2026-01-01T00:00:00Z',
               version: 2,

@@ -257,7 +257,8 @@ export const getUpdateRoleUrl = (roleId: string,) => {
 }
 
 /**
- * Requires `roles.manage`. The master role cannot be renamed or edited.
+ * Requires `roles.manage`. The master role cannot be renamed or edited. The membership roles (Supervisor,
+ * Trainee, Visitor) keep their names (`409 membership_role_protected`) but their other fields stay editable.
  * @summary Update role metadata
  */
 export const updateRole = async (roleId: string,
@@ -296,7 +297,8 @@ export const getDeleteRoleUrl = (roleId: string,) => {
 }
 
 /**
- * Requires `roles.manage`. Deletion removes the role's assignments and permission rows; the master role cannot be deleted.
+ * Requires `roles.manage`. Deletion removes the role's assignments and permission rows; the master role
+ * (`409 system_role_protected`) and the membership roles (`409 membership_role_protected`) cannot be deleted.
  * @summary Delete a configurable role
  */
 export const deleteRole = async (roleId: string,

@@ -52,7 +52,7 @@ func (e *staffingEnv) shift(
 func TestPersonalDashboardIsScopedToTheSessionPerson(t *testing.T) {
 	e := newStaffingEnv(t)
 	ctx := testContext(t)
-	supervisorRole := e.role("Supervisors", level(roles.StaffingSupervisor), authorization.OpenDaysRead, authorization.OpenDaysSignup)
+	supervisorRole := e.role("Supervisors", level(roles.MembershipSupervisor), authorization.OpenDaysRead, authorization.OpenDaysSignup)
 	alice := e.person("alice", supervisorRole.ID)
 	bob := e.person("bob", supervisorRole.ID)
 	day := e.openDay(e.now.AddDate(0, 0, 3), 4*time.Hour, 3, 0, supervisorRole.ID)
@@ -81,10 +81,10 @@ func TestPersonalDashboardIsScopedToTheSessionPerson(t *testing.T) {
 func TestPersonalDashboardOmitsSectionsThePrincipalMayNotSee(t *testing.T) {
 	e := newStaffingEnv(t)
 	ctx := testContext(t)
-	supervisorRole := e.role("Supervisors", level(roles.StaffingSupervisor), authorization.OpenDaysRead)
+	supervisorRole := e.role("Supervisors", level(roles.MembershipSupervisor), authorization.OpenDaysRead)
 	guestRole := e.role("Guests", nil)
 	guest := e.person("guest", guestRole.ID)
-	staffWithoutOpenDays := e.person("staff-no-open-days", e.role("Staff without open days", level(roles.StaffingTrainee)).ID)
+	staffWithoutOpenDays := e.person("staff-no-open-days", e.role("Staff without open days", level(roles.MembershipTrainee)).ID)
 	day := e.openDay(e.now.AddDate(0, 0, 3), 4*time.Hour, 1, 0, supervisorRole.ID)
 	supervisor := e.person("supervisor", supervisorRole.ID)
 	e.join(day, day.supervisorRequirement, supervisor)
@@ -124,8 +124,8 @@ func TestPersonalDashboardOmitsSectionsThePrincipalMayNotSee(t *testing.T) {
 func TestPersonalDashboardStaffingNumbersAndNextOpenPlace(t *testing.T) {
 	e := newStaffingEnv(t)
 	ctx := testContext(t)
-	supervisorRole := e.role("Supervisors", level(roles.StaffingSupervisor), authorization.OpenDaysRead, authorization.OpenDaysSignup)
-	traineeRole := e.role("Trainees", level(roles.StaffingTrainee), authorization.OpenDaysRead, authorization.OpenDaysSignup)
+	supervisorRole := e.role("Supervisors", level(roles.MembershipSupervisor), authorization.OpenDaysRead, authorization.OpenDaysSignup)
+	traineeRole := e.role("Trainees", level(roles.MembershipTrainee), authorization.OpenDaysRead, authorization.OpenDaysSignup)
 	other := e.role("Other", nil)
 	supervisor := e.person("supervisor", supervisorRole.ID)
 	trainee := e.person("trainee", traineeRole.ID)
@@ -149,8 +149,8 @@ func TestPersonalDashboardStaffingNumbersAndNextOpenPlace(t *testing.T) {
 		t.Fatal(err)
 	}
 	section := supervisorView.Staffing
-	if section == nil || section.Kind != roles.StaffingSupervisor || section.Semester == nil || section.Semester.ID != e.period ||
-		section.Minimum != 2 || section.TraineeThreshold != 3 || section.Standing.Status != staffing.StatusMissing ||
+	if section == nil || section.Kind != roles.MembershipSupervisor || section.Semester == nil || section.Semester.ID != e.period ||
+		section.Minimum.Value != 2 || section.TraineeThreshold != 3 || section.Standing.Status != staffing.StatusMissing ||
 		section.Standing.Missing != 2 {
 		t.Fatalf("supervisor staffing = %+v", section)
 	}
@@ -164,7 +164,7 @@ func TestPersonalDashboardStaffingNumbersAndNextOpenPlace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if traineeView.Staffing == nil || traineeView.Staffing.Kind != roles.StaffingTrainee ||
+	if traineeView.Staffing == nil || traineeView.Staffing.Kind != roles.MembershipTrainee ||
 		traineeView.Staffing.NextOpenPlace == nil || traineeView.Staffing.NextOpenPlace.OpenDayID != fullSupervisors.id ||
 		traineeView.Staffing.NextOpenPlace.RequirementID != fullSupervisors.traineeRequirement ||
 		traineeView.Staffing.NextOpenPlace.FreePlaces != 2 {
@@ -189,7 +189,7 @@ func TestPersonalDashboardStaffingNumbersAndNextOpenPlace(t *testing.T) {
 func TestPersonalDashboardComingUpMergesOpenDaysAndShiftsChronologically(t *testing.T) {
 	e := newStaffingEnv(t)
 	ctx := testContext(t)
-	supervisorRole := e.role("Supervisors", level(roles.StaffingSupervisor), authorization.OpenDaysRead)
+	supervisorRole := e.role("Supervisors", level(roles.MembershipSupervisor), authorization.OpenDaysRead)
 	person := e.person("busy", supervisorRole.ID)
 	hour := time.Hour
 
@@ -237,7 +237,7 @@ func TestPersonalDashboardComingUpMergesOpenDaysAndShiftsChronologically(t *test
 func TestPersonalDashboardStatisticsUseScheduledDurationsOfEndedAssignments(t *testing.T) {
 	e := newStaffingEnv(t)
 	ctx := testContext(t)
-	supervisorRole := e.role("Supervisors", level(roles.StaffingSupervisor), authorization.OpenDaysRead)
+	supervisorRole := e.role("Supervisors", level(roles.MembershipSupervisor), authorization.OpenDaysRead)
 	person := e.person("statistics", supervisorRole.ID)
 	hour := time.Hour
 
@@ -270,7 +270,7 @@ func TestPersonalDashboardFinanceSectionsFollowPermissions(t *testing.T) {
 	ctx := testContext(t)
 	treasurer := e.person("treasurer", e.role("Order readers", nil, authorization.OrdersRead).ID)
 	operator := e.person("operator", e.role("Job readers", nil, authorization.MachineJobsRead).ID)
-	member := e.person("member", e.role("Members", level(roles.StaffingSupervisor), authorization.MachineJobsRead).ID)
+	member := e.person("member", e.role("Members", level(roles.MembershipSupervisor), authorization.MachineJobsRead).ID)
 	guest := e.person("finance-guest", e.role("Finance guests", nil).ID)
 
 	view, err := e.dashboard.Get(ctx, treasurer)

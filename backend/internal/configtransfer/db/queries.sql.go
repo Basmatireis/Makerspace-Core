@@ -113,34 +113,6 @@ func (q *Queries) GetMailConfiguration(ctx context.Context) (GetMailConfiguratio
 	return i, err
 }
 
-const getOpenDayRequirements = `-- name: GetOpenDayRequirements :one
-SELECT o.min_open_days_per_semester, o.trainee_open_days_for_promotion, o.supervisor_role_id,
-    r.name AS supervisor_role_name, o.version
-FROM open_day_requirements o
-LEFT JOIN roles r ON r.id = o.supervisor_role_id
-`
-
-type GetOpenDayRequirementsRow struct {
-	MinOpenDaysPerSemester      int32
-	TraineeOpenDaysForPromotion int32
-	SupervisorRoleID            *uuid.UUID
-	SupervisorRoleName          *string
-	Version                     int64
-}
-
-func (q *Queries) GetOpenDayRequirements(ctx context.Context) (GetOpenDayRequirementsRow, error) {
-	row := q.db.QueryRow(ctx, getOpenDayRequirements)
-	var i GetOpenDayRequirementsRow
-	err := row.Scan(
-		&i.MinOpenDaysPerSemester,
-		&i.TraineeOpenDaysForPromotion,
-		&i.SupervisorRoleID,
-		&i.SupervisorRoleName,
-		&i.Version,
-	)
-	return i, err
-}
-
 const getPrivacySettingsForTransfer = `-- name: GetPrivacySettingsForTransfer :one
 
 SELECT controller_name, controller_address, data_protection_contact, automatic_runs_enabled, run_interval_minutes, version
@@ -171,30 +143,52 @@ func (q *Queries) GetPrivacySettingsForTransfer(ctx context.Context) (GetPrivacy
 	return i, err
 }
 
+const getStaffingRules = `-- name: GetStaffingRules :one
+SELECT supervisor_minimum, trainee_minimum, trainee_ready_after, warning_window_days, count_by, default_deadline,
+    version
+FROM staffing_rules
+`
+
+type GetStaffingRulesRow struct {
+	SupervisorMinimum int32
+	TraineeMinimum    int32
+	TraineeReadyAfter int32
+	WarningWindowDays int32
+	CountBy           string
+	DefaultDeadline   string
+	Version           int64
+}
+
+func (q *Queries) GetStaffingRules(ctx context.Context) (GetStaffingRulesRow, error) {
+	row := q.db.QueryRow(ctx, getStaffingRules)
+	var i GetStaffingRulesRow
+	err := row.Scan(
+		&i.SupervisorMinimum,
+		&i.TraineeMinimum,
+		&i.TraineeReadyAfter,
+		&i.WarningWindowDays,
+		&i.CountBy,
+		&i.DefaultDeadline,
+		&i.Version,
+	)
+	return i, err
+}
+
 const getVisitorEnrollmentConfiguration = `-- name: GetVisitorEnrollmentConfiguration :one
-SELECT c.enabled, c.initial_role_id, r.name AS initial_role_name, c.allowed_methods, c.version
+SELECT c.enabled, c.allowed_methods, c.version
 FROM visitor_enrollment_configuration c
-LEFT JOIN roles r ON r.id = c.initial_role_id
 `
 
 type GetVisitorEnrollmentConfigurationRow struct {
-	Enabled         bool
-	InitialRoleID   *uuid.UUID
-	InitialRoleName *string
-	AllowedMethods  []string
-	Version         int64
+	Enabled        bool
+	AllowedMethods []string
+	Version        int64
 }
 
 func (q *Queries) GetVisitorEnrollmentConfiguration(ctx context.Context) (GetVisitorEnrollmentConfigurationRow, error) {
 	row := q.db.QueryRow(ctx, getVisitorEnrollmentConfiguration)
 	var i GetVisitorEnrollmentConfigurationRow
-	err := row.Scan(
-		&i.Enabled,
-		&i.InitialRoleID,
-		&i.InitialRoleName,
-		&i.AllowedMethods,
-		&i.Version,
-	)
+	err := row.Scan(&i.Enabled, &i.AllowedMethods, &i.Version)
 	return i, err
 }
 
@@ -1052,22 +1046,19 @@ func (q *Queries) ListRolePricingGroups(ctx context.Context) ([]ListRolePricingG
 }
 
 const listRoles = `-- name: ListRoles :many
-SELECT id, name, description, system_key, profile_image_required, laborordnung_mode, staffing_level,
-    min_open_days_per_semester, version
+SELECT id, name, description, system_key, profile_image_required, laborordnung_mode, version
 FROM roles
 ORDER BY lower(name), id
 `
 
 type ListRolesRow struct {
-	ID                     uuid.UUID
-	Name                   string
-	Description            *string
-	SystemKey              *string
-	ProfileImageRequired   bool
-	LaborordnungMode       string
-	StaffingLevel          *string
-	MinOpenDaysPerSemester *int32
-	Version                int64
+	ID                   uuid.UUID
+	Name                 string
+	Description          *string
+	SystemKey            *string
+	ProfileImageRequired bool
+	LaborordnungMode     string
+	Version              int64
 }
 
 func (q *Queries) ListRoles(ctx context.Context) ([]ListRolesRow, error) {
@@ -1086,8 +1077,6 @@ func (q *Queries) ListRoles(ctx context.Context) ([]ListRolesRow, error) {
 			&i.SystemKey,
 			&i.ProfileImageRequired,
 			&i.LaborordnungMode,
-			&i.StaffingLevel,
-			&i.MinOpenDaysPerSemester,
 			&i.Version,
 		); err != nil {
 			return nil, err
@@ -1134,6 +1123,38 @@ func (q *Queries) ListSessionPolicies(ctx context.Context) ([]ListSessionPolicie
 			&i.IsDefault,
 			&i.Version,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStaffingRuleExceptions = `-- name: ListStaffingRuleExceptions :many
+SELECT r.name AS role_name, e.minimum
+FROM staffing_rule_exceptions e
+JOIN roles r ON r.id = e.role_id
+ORDER BY lower(r.name), r.id
+`
+
+type ListStaffingRuleExceptionsRow struct {
+	RoleName string
+	Minimum  int32
+}
+
+func (q *Queries) ListStaffingRuleExceptions(ctx context.Context) ([]ListStaffingRuleExceptionsRow, error) {
+	rows, err := q.db.Query(ctx, listStaffingRuleExceptions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListStaffingRuleExceptionsRow{}
+	for rows.Next() {
+		var i ListStaffingRuleExceptionsRow
+		if err := rows.Scan(&i.RoleName, &i.Minimum); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1479,7 +1500,7 @@ func (q *Queries) MachineInUse(ctx context.Context, id uuid.UUID) (bool, error) 
 const roleInUse = `-- name: RoleInUse :one
 SELECT (
     EXISTS (SELECT 1 FROM person_roles pr WHERE pr.role_id = $1)
-    OR EXISTS (SELECT 1 FROM visitor_enrollment_configuration vc WHERE vc.initial_role_id = $1)
+    OR EXISTS (SELECT 1 FROM staffing_rule_exceptions se WHERE se.role_id = $1)
     OR EXISTS (SELECT 1 FROM event_shift_requirement_roles er WHERE er.role_id = $1)
     OR EXISTS (SELECT 1 FROM open_day_staff_requirement_roles orr WHERE orr.role_id = $1)
 )::boolean AS in_use

@@ -19,20 +19,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
-import type { Version } from './version';
 
-export interface UpdateOpenDayRequirementsRequest {
+export interface StaffingExceptionInput {
+  roleId: UUIDv7;
   /**
      * @minimum 0
      * @maximum 20
      */
-  minOpenDaysPerSemester: number;
-  /**
-     * @minimum 1
-     * @maximum 20
-     */
-  traineeOpenDaysForPromotion: number;
-  /** Must reference a role with the supervisor staffing level. */
-  supervisorRoleId: UUIDv7 | null;
-  expectedVersion: Version;
+  minimum: number;
 }

@@ -16,22 +16,38 @@ function supervisorDashboard() {
       startsOn: '2026-10-01',
       endsOn: '2027-01-31',
     },
-    requirements: { minOpenDaysPerSemester: 2, traineeOpenDaysForPromotion: 3, supervisorRoleConfigured: true },
+    rules: {
+      supervisorMinimum: 2,
+      traineeMinimum: 2,
+      traineeReadyAfter: 3,
+      warningWindowDays: 14,
+      countBy: 'timeslot',
+      defaultDeadline: 'period_end',
+      exceptions: [],
+      version: 1,
+      updatedAt: '2026-10-01T00:00:00Z',
+    },
     supervisors: [
       {
         personId: otherPersonId,
         personVersion: 1,
         name: 'Grace Hopper',
-        kind: 'supervisor',
+        membership: 'supervisor',
+        extraRoles: [],
         hasProfileImage: false,
         laborordnungState: 'outdated',
         staffed: 1,
         booked: 0,
         staffedAsTrainee: 0,
         minimum: 2,
+        minimumSource: 'membership',
+        minimumExceptionRole: null,
+        excused: false,
+        excusalReason: null,
         status: 'missing',
         missing: 1,
         lastOpenDayAt: null,
+        nextAssignment: null,
         memberSince: '2026-01-01T00:00:00Z',
       },
     ],
@@ -167,14 +183,12 @@ function row(index: number, overrides: Record<string, unknown> = {}) {
 function serveDashboard(
   supervisors: ReturnType<typeof row>[],
   permissions: PermissionId[] = [PermissionId.supervisor_dashboardread],
-  supervisorRoleConfigured = true,
 ) {
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
     http.get('*/api/v1/supervisor-dashboard', () =>
       HttpResponse.json({
         ...supervisorDashboard(),
-        requirements: { minOpenDaysPerSemester: 2, traineeOpenDaysForPromotion: 3, supervisorRoleConfigured },
         supervisors,
         totals: {
           supervisors: supervisors.length,
@@ -209,7 +223,7 @@ describe('staffing key figures', () => {
   const members = [
     row(1, { status: 'missing', missing: 1, staffed: 1 }),
     row(2, { laborordnungState: 'outdated' }),
-    row(3, { kind: 'trainee', status: 'ready', staffedAsTrainee: 3 }),
+    row(3, { membership: 'trainee', status: 'ready', staffedAsTrainee: 3 }),
     row(4, { hasProfileImage: false }),
     row(5),
   ];
@@ -285,7 +299,7 @@ describe('staffing key figures', () => {
 
 describe('making a trainee a supervisor', () => {
   const trainee = row(1, {
-    kind: 'trainee',
+    membership: 'trainee',
     personVersion: 7,
     staffedAsTrainee: 3,
     status: 'ready',
@@ -306,7 +320,7 @@ describe('making a trainee a supervisor', () => {
       http.get(`*/api/v1/people/${trainee.personId}`, () => {
         throw new Error('The promotion must not read the person first');
       }),
-      http.post('*/api/v1/people/:id/promote-to-supervisor', async ({ params, request }) => {
+      http.put('*/api/v1/people/:id/membership', async ({ params, request }) => {
         promoted = { id: String(params.id), body: await request.json() };
         return HttpResponse.json({ id: trainee.personId, version: 8 });
       }),
@@ -320,7 +334,9 @@ describe('making a trainee a supervisor', () => {
     expect(within(dialog).getByText(/has staffed 3 open days as trainee/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Make supervisor' }));
 
-    await waitFor(() => expect(promoted).toEqual({ id: trainee.personId, body: { expectedVersion: 7 } }));
+    await waitFor(() =>
+      expect(promoted).toEqual({ id: trainee.personId, body: { membership: 'supervisor', expectedVersion: 7 } }),
+    );
     expect(await screen.findByText('Tina Trainee is now a supervisor')).toBeInTheDocument();
   });
 
@@ -328,7 +344,7 @@ describe('making a trainee a supervisor', () => {
     const user = userEvent.setup();
     serveDashboard([trainee], [PermissionId.supervisor_dashboardread, PermissionId.peoplerolesassign]);
     server.use(
-      http.post('*/api/v1/people/:id/promote-to-supervisor', () =>
+      http.put('*/api/v1/people/:id/membership', () =>
         HttpResponse.json({ code: 'not_a_trainee', message: 'The person is not a trainee.' }, { status: 409 }),
       ),
     );
@@ -339,16 +355,6 @@ describe('making a trainee a supervisor', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Make Tina Trainee a supervisor?' });
     await user.click(within(dialog).getByRole('button', { name: 'Make supervisor' }));
     expect(await within(dialog).findByText('The person is not a trainee.')).toBeInTheDocument();
-  });
-
-  it('is disabled with an explanation when no supervisor role is configured', async () => {
-    const user = userEvent.setup();
-    serveDashboard([trainee], [PermissionId.supervisor_dashboardread, PermissionId.peoplerolesassign], false);
-    renderRoute(<App />, '/people/staffing');
-
-    expect(await screen.findByText(/No supervisor role is configured/)).toBeInTheDocument();
-    await openMenu(user);
-    expect((await screen.findByText('Make supervisor', optionText)).closest('button')).toBeDisabled();
   });
 
   it('is disabled with an explanation without the permission to assign roles', async () => {

@@ -189,6 +189,15 @@ func registerBuiltinHandlers(service *privacy.Service, fileService *files.Servic
 		},
 		outcome: privacy.OutcomeErased,
 	})
+	register(privacycatalog.StaffingExcusals, builtin{
+		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
+			return q.ExportStaffingExcusals(ctx, s.PersonID)
+		},
+		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
+			return q.CountStaffingExcusals(ctx, s.PersonID)
+		},
+		outcome: privacy.OutcomeErased,
+	})
 	register(privacycatalog.TrainingRecords, builtin{
 		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
 			return q.ExportTrainingRecords(ctx, s.PersonID)

@@ -104,6 +104,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 		INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, accountlessPersonID, masterRoleID); err != nil {
 		t.Fatal(err)
 	}
+	makeMasterHoldersSupervisors(t, pool)
 	eligible, err := service.EligiblePeople(ctx, manager, day.Requirements[0].ID, "Accountless")
 	if err != nil || len(eligible) != 1 || eligible[0].PersonID != accountlessPersonID {
 		t.Fatalf("accountless eligible people = %#v, %v", eligible, err)
@@ -328,6 +329,7 @@ func TestOpenDaysConcurrentFinalSlotAssignment(t *testing.T) {
 	}
 	day := schedule.Items[0]
 	requirementID := day.Requirements[0].ID
+	makeMasterHoldersSupervisors(t, pool)
 	results := make(chan error, 2)
 	for _, personID := range []uuid.UUID{first.personID, second.personID} {
 		go func() {
@@ -406,6 +408,7 @@ func TestOpenDayPeriodSummaryCountsIndividualSupervisorVacancies(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
+	makeMasterHoldersSupervisors(t, pool)
 	supervisorRequirement := func(day opendays.OpenDay) uuid.UUID {
 		for _, requirement := range day.Requirements {
 			if requirement.Kind == "supervisor" {
@@ -558,6 +561,7 @@ func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
+	makeMasterHoldersSupervisors(t, pool)
 	if _, err := service.Join(
 		ctx,
 		manager,

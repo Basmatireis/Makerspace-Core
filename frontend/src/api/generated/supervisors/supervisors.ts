@@ -19,25 +19,170 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
-  SupervisorDashboard
+  GetSupervisorDashboardParams,
+  SetStaffingExcusalRequest,
+  StaffingExcusal,
+  StaffingRules,
+  SupervisorDashboard,
+  UpdateStaffingRulesRequest
 } from '../models';
 
 import { apiFetch } from '../../http-client';
 
-export const getGetSupervisorDashboardUrl = () => {
+export const getGetStaffingRulesUrl = () => {
 
 
 
 
-  return `/api/v1/supervisor-dashboard`
+  return `/api/v1/staffing-rules`
 }
 
 /**
- * @summary Aggregate designated supervisors, compliance, profile images, and open-period assignment counts
+ * Requires `supervisor_dashboard.read` or `open_days.manage`.
+ * @summary Read the staffing rules
  */
-export const getSupervisorDashboard = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SupervisorDashboard> => {
+export const getStaffingRules = async ( options?: Parameters<typeof apiFetch>[1]): Promise<StaffingRules> => {
 
-  return apiFetch<SupervisorDashboard>(getGetSupervisorDashboardUrl(),
+  return apiFetch<StaffingRules>(getGetStaffingRulesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateStaffingRulesUrl = () => {
+
+
+
+
+  return `/api/v1/staffing-rules`
+}
+
+/**
+ * Requires `open_days.manage`. Exceptions name extra roles only; the system roles cannot have one
+ * (`422 validation_failed`). Writes the audit event `staffing_rules.updated`.
+ * @summary Replace the staffing rules and their exceptions
+ */
+export const updateStaffingRules = async (updateStaffingRulesRequest: UpdateStaffingRulesRequest, options?: Parameters<typeof apiFetch>[1]): Promise<StaffingRules> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<StaffingRules>(getUpdateStaffingRulesUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateStaffingRulesRequest)
+  }
+);}
+
+
+export const getSetStaffingExcusalUrl = (periodId: string,
+    personId: string,) => {
+
+
+
+
+  return `/api/v1/open-day-periods/${periodId}/excusals/${personId}`
+}
+
+/**
+ * Requires `open_days.manage`. Replaces the reason of an existing excusal. The reason is visible with
+ * `supervisor_dashboard.read` only and never written to the audit event `staffing_excusal.saved`.
+ * @summary Excuse a person from the minimum of a period
+ */
+export const setStaffingExcusal = async (periodId: string,
+    personId: string,
+    setStaffingExcusalRequest: SetStaffingExcusalRequest, options?: Parameters<typeof apiFetch>[1]): Promise<StaffingExcusal> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<StaffingExcusal>(getSetStaffingExcusalUrl(periodId,personId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(setStaffingExcusalRequest)
+  }
+);}
+
+
+export const getRemoveStaffingExcusalUrl = (periodId: string,
+    personId: string,) => {
+
+
+
+
+  return `/api/v1/open-day-periods/${periodId}/excusals/${personId}`
+}
+
+/**
+ * Requires `open_days.manage`. Writes the audit event `staffing_excusal.removed`.
+ * @summary Withdraw a person's excusal for a period
+ */
+export const removeStaffingExcusal = async (periodId: string,
+    personId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getRemoveStaffingExcusalUrl(periodId,personId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+export const getGetSupervisorDashboardUrl = (params?: GetSupervisorDashboardParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/supervisor-dashboard?${stringifiedParams}` : `/api/v1/supervisor-dashboard`
+}
+
+/**
+ * Requires `supervisor_dashboard.read`. `periodId` picks the semester (draft periods only with
+ * `open_days.manage`, otherwise `404`); without it the current semester applies.
+ * @summary Evaluate every supervisor and trainee against the staffing rules of a semester
+ */
+export const getSupervisorDashboard = async (params?: GetSupervisorDashboardParams, options?: Parameters<typeof apiFetch>[1]): Promise<SupervisorDashboard> => {
+
+  return apiFetch<SupervisorDashboard>(getGetSupervisorDashboardUrl(params),
   {
     ...options,
     method: 'GET'

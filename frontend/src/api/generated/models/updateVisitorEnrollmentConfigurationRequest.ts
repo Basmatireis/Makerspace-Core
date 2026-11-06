@@ -24,7 +24,6 @@ import type { VisitorAuthenticationMethod } from './visitorAuthenticationMethod'
 
 export interface UpdateVisitorEnrollmentConfigurationRequest {
   enabled: boolean;
-  initialRoleId: UUIDv7 | null;
   deviceTypeIds: UUIDv7[];
   allowedMethods: VisitorAuthenticationMethod[];
   expectedVersion: Version;

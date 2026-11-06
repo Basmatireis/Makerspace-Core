@@ -21,7 +21,6 @@
 import type { PermissionGrant } from './permissionGrant';
 import type { RoleLaborordnungMode } from './roleLaborordnungMode';
 import type { RoleSystemKey } from './roleSystemKey';
-import type { StaffingLevel } from './staffingLevel';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
@@ -37,21 +36,16 @@ export interface Role {
      * @nullable
      */
   description: string | null;
-  /** @nullable */
+  /**
+     * `master` is immutable. The membership roles `supervisor`, `trainee` and `visitor` cannot be renamed or
+     * deleted; every person holds exactly one of them.
+     * @nullable
+     */
   systemKey: RoleSystemKey;
   /** For master, this is the current complete application permission set. */
   permissionGrants: PermissionGrant[];
   profileImageRequired: boolean;
   laborordnungMode: RoleLaborordnungMode;
-  /** How people holding this role staff open days; null when the role does not staff. */
-  staffingLevel: StaffingLevel | null;
-  /**
-     * Open days per semester people holding this role must staff; null uses the general minimum of the open-day requirements. Only roles with a staffing level can set it.
-     * @minimum 0
-     * @maximum 20
-     * @nullable
-     */
-  minOpenDaysPerSemester: number | null;
   createdAt: string;
   updatedAt: string;
   version: Version;

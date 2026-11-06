@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  ChangeMembershipRequest,
   CreatePersonRequest,
   ListPeopleParams,
   PeopleMergePreview,
@@ -464,23 +465,23 @@ export const getPersonMakerspaceStatus = async (personId: string, options?: Para
 );}
 
 
-export const getPromotePersonToSupervisorUrl = (personId: string,) => {
+export const getChangePersonMembershipUrl = (personId: string,) => {
 
 
 
 
-  return `/api/v1/people/${personId}/promote-to-supervisor`
+  return `/api/v1/people/${personId}/membership`
 }
 
 /**
- * Requires `people.roles.assign`. In one transaction removes the person's roles with the trainee staffing level
- * and assigns the configured supervisor role, under the same privilege-subset and last-master rules as role
- * assignment. `409 promotion_role_not_configured` when the requirements settings name no supervisor role;
- * `409 not_a_trainee` when the person is not a trainee.
- * @summary Make a trainee a supervisor
+ * Requires `people.roles.assign`. In one transaction replaces the person's membership role (Supervisor,
+ * Trainee or Visitor) under the same privilege-subset rules as role assignment, checked for the new and the
+ * old membership role. Becoming a visitor also removes the person's open-day assignments that have not
+ * started yet. Writes the audit event `person.membership_changed`.
+ * @summary Change a person's membership
  */
-export const promotePersonToSupervisor = async (personId: string,
-    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Person> => {
+export const changePersonMembership = async (personId: string,
+    changeMembershipRequest: ChangeMembershipRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Person> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
     if (!h) return {};
@@ -496,12 +497,12 @@ export const promotePersonToSupervisor = async (personId: string,
     }
     return headers;
   };
-return apiFetch<Person>(getPromotePersonToSupervisorUrl(personId),
+return apiFetch<Person>(getChangePersonMembershipUrl(personId),
   {
     ...options,
-    method: 'POST',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(versionRequest)
+    body: JSON.stringify(changeMembershipRequest)
   }
 );}
 
@@ -518,7 +519,9 @@ export const getAssignPersonRoleUrl = (personId: string,
 /**
  * Requires `people.roles.assign`. Non-master actors may assign only roles
  * whose permission set is a subset of their own effective permissions. Only
- * a master actor may assign the master role.
+ * a master actor may assign the master role. Assigning a membership role
+ * (Supervisor, Trainee, Visitor) changes the person's membership like
+ * `PUT /people/{personId}/membership`.
  * @summary Assign a role to a person
  */
 export const assignPersonRole = async (personId: string,
@@ -560,6 +563,7 @@ export const getRemovePersonRoleUrl = (personId: string,
 
 /**
  * Requires `people.roles.assign`; master removal also enforces master-only and last-enabled-master rules.
+ * A membership role cannot be removed on its own (`422 membership_required`); change the membership instead.
  * @summary Remove a role from a person
  */
 export const removePersonRole = async (personId: string,

@@ -1,44 +1,89 @@
--- name: GetOpenDayRequirements :one
-SELECT * FROM open_day_requirements WHERE singleton = true;
+-- name: GetStaffingRules :one
+SELECT * FROM staffing_rules WHERE singleton = true;
 
--- name: GetOpenDayRequirementsForUpdate :one
-SELECT * FROM open_day_requirements WHERE singleton = true FOR UPDATE;
+-- name: GetStaffingRulesForUpdate :one
+SELECT * FROM staffing_rules WHERE singleton = true FOR UPDATE;
 
--- name: UpdateOpenDayRequirements :one
-UPDATE open_day_requirements SET
-    min_open_days_per_semester = sqlc.arg(min_open_days_per_semester),
-    trainee_open_days_for_promotion = sqlc.arg(trainee_open_days_for_promotion),
-    supervisor_role_id = sqlc.narg(supervisor_role_id),
+-- name: UpdateStaffingRules :one
+UPDATE staffing_rules SET
+    supervisor_minimum = sqlc.arg(supervisor_minimum),
+    trainee_minimum = sqlc.arg(trainee_minimum),
+    trainee_ready_after = sqlc.arg(trainee_ready_after),
+    warning_window_days = sqlc.arg(warning_window_days),
+    count_by = sqlc.arg(count_by),
+    default_deadline = sqlc.arg(default_deadline),
     version = version + 1,
     updated_by_account_id = sqlc.narg(updated_by_account_id),
     updated_at = now()
 WHERE singleton = true AND version = sqlc.arg(expected_version)
 RETURNING *;
 
--- name: GetRoleStaffingLevelForShare :one
--- Locks the role so its staffing level cannot change while the requirements settings reference it.
-SELECT staffing_level FROM roles WHERE id = sqlc.arg(id) FOR SHARE;
+-- name: ListStaffingRuleExceptions :many
+SELECT e.role_id, r.name AS role_name, e.minimum
+FROM staffing_rule_exceptions e
+JOIN roles r ON r.id = e.role_id
+ORDER BY lower(r.name), r.id;
+
+-- name: DeleteStaffingRuleExceptions :exec
+DELETE FROM staffing_rule_exceptions;
+
+-- name: InsertStaffingRuleException :exec
+INSERT INTO staffing_rule_exceptions (role_id, minimum) VALUES (sqlc.arg(role_id), sqlc.arg(minimum));
+
+-- name: GetRoleSystemKeyForShare :one
+-- Locks the role so it cannot be deleted while the rules gain an exception for it.
+SELECT system_key FROM roles WHERE id = sqlc.arg(id) FOR SHARE;
 
 -- name: ListSemesterCandidates :many
 -- Periods a semester can be resolved from: neither draft nor archived.
-SELECT id, name, starts_on, ends_on, sign_up_deadline
+SELECT id, name, status, starts_on, ends_on, sign_up_deadline
 FROM open_day_periods
 WHERE status IN ('staffing', 'published')
 ORDER BY starts_on, id;
 
--- name: ListPersonStaffingLevels :many
-SELECT DISTINCT r.staffing_level::text AS staffing_level
-FROM person_roles pr
-JOIN roles r ON r.id = pr.role_id
-WHERE pr.person_id = sqlc.arg(person_id) AND r.staffing_level IS NOT NULL;
+-- name: GetSemesterPeriod :one
+SELECT id, name, status, starts_on, ends_on, sign_up_deadline FROM open_day_periods WHERE id = sqlc.arg(id);
 
--- name: ListStaffingMinimumOverrides :many
--- The open-day minimum overrides of the roles with a staffing level, one row per person and overriding role.
-SELECT pr.person_id, r.min_open_days_per_semester::integer AS minimum
+-- name: GetPeriodForShare :one
+-- Locks the period so it cannot be deleted while an excusal for it is written.
+SELECT id FROM open_day_periods WHERE id = sqlc.arg(id) FOR SHARE;
+
+-- name: GetPersonForShare :one
+-- Locks the person so they cannot be deleted while an excusal for them is written.
+SELECT id FROM people WHERE id = sqlc.arg(id) FOR SHARE;
+
+-- name: GetPersonMembership :one
+SELECT r.system_key::text AS membership
 FROM person_roles pr
 JOIN roles r ON r.id = pr.role_id
-WHERE r.staffing_level IS NOT NULL AND r.min_open_days_per_semester IS NOT NULL
-  AND (sqlc.narg(only_person_id)::uuid IS NULL OR pr.person_id = sqlc.narg(only_person_id));
+WHERE pr.person_id = sqlc.arg(person_id) AND r.system_key IN ('supervisor', 'trainee', 'visitor')
+ORDER BY CASE r.system_key WHEN 'supervisor' THEN 0 WHEN 'trainee' THEN 1 ELSE 2 END
+LIMIT 1;
+
+-- name: ListPersonExceptions :many
+-- The exceptions of each person's extra roles; only_person_id narrows it to one person.
+SELECT pr.person_id, e.role_id, r.name AS role_name, e.minimum
+FROM person_roles pr
+JOIN staffing_rule_exceptions e ON e.role_id = pr.role_id
+JOIN roles r ON r.id = e.role_id
+WHERE sqlc.narg(only_person_id)::uuid IS NULL OR pr.person_id = sqlc.narg(only_person_id)
+ORDER BY pr.person_id, e.minimum, lower(r.name), r.id;
+
+-- name: ListExcusals :many
+SELECT period_id, person_id, reason, created_at
+FROM staffing_excusals
+WHERE period_id = sqlc.arg(period_id)
+  AND (sqlc.narg(only_person_id)::uuid IS NULL OR person_id = sqlc.narg(only_person_id));
+
+-- name: UpsertExcusal :one
+INSERT INTO staffing_excusals (period_id, person_id, reason, created_by_account_id)
+VALUES (sqlc.arg(period_id), sqlc.arg(person_id), sqlc.arg(reason), sqlc.narg(created_by_account_id))
+ON CONFLICT (period_id, person_id) DO UPDATE
+SET reason = EXCLUDED.reason, created_by_account_id = EXCLUDED.created_by_account_id, created_at = now()
+RETURNING period_id, person_id, reason, created_at;
+
+-- name: DeleteExcusal :execrows
+DELETE FROM staffing_excusals WHERE period_id = sqlc.arg(period_id) AND person_id = sqlc.arg(person_id);
 
 -- name: ListStaffingCounts :many
 -- Open days per person in one period: ended (staffed), upcoming (booked) and ended as trainee. Cancelled open days
@@ -63,3 +108,12 @@ JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
 WHERE d.ends_at <= sqlc.arg(now)
   AND (sqlc.narg(only_person_id)::uuid IS NULL OR a.person_id = sqlc.narg(only_person_id))
 ORDER BY a.person_id, d.starts_at DESC, d.id;
+
+-- name: ListNextAssignments :many
+-- The next upcoming open day each person is assigned to, in any semester.
+SELECT DISTINCT ON (a.person_id) a.person_id, d.id AS open_day_id, d.starts_at, d.ends_at
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
+WHERE d.ends_at > sqlc.arg(now)
+  AND (sqlc.narg(only_person_id)::uuid IS NULL OR a.person_id = sqlc.narg(only_person_id))
+ORDER BY a.person_id, d.starts_at, d.id;

@@ -424,6 +424,27 @@ func (q *Queries) CreatePerson(ctx context.Context, arg CreatePersonParams) (Per
 	return i, err
 }
 
+const deleteDuplicateMergeExcusals = `-- name: DeleteDuplicateMergeExcusals :execrows
+DELETE FROM staffing_excusals source
+USING staffing_excusals target
+WHERE source.person_id = $1 AND target.person_id = $2
+  AND source.period_id = target.period_id
+`
+
+type DeleteDuplicateMergeExcusalsParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// The target's own excusal for a period wins over a merged one.
+func (q *Queries) DeleteDuplicateMergeExcusals(ctx context.Context, arg DeleteDuplicateMergeExcusalsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDuplicateMergeExcusals, arg.SourcePersonID, arg.TargetPersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteDuplicateMergeInboxRecipients = `-- name: DeleteDuplicateMergeInboxRecipients :execrows
 DELETE FROM inbox_recipients source
 USING inbox_recipients target
@@ -662,6 +683,26 @@ func (q *Queries) DeleteSupersededMergeTrainingRecords(ctx context.Context, arg 
 	return result.RowsAffected(), nil
 }
 
+const deleteUpcomingOpenDayAssignments = `-- name: DeleteUpcomingOpenDayAssignments :execrows
+DELETE FROM open_day_assignments a
+USING open_days d
+WHERE d.id = a.open_day_id AND a.person_id = $1 AND d.starts_at > $2
+`
+
+type DeleteUpcomingOpenDayAssignmentsParams struct {
+	PersonID uuid.UUID
+	Now      time.Time
+}
+
+// A person who becomes a visitor no longer staffs: their open days that have not started yet are freed.
+func (q *Queries) DeleteUpcomingOpenDayAssignments(ctx context.Context, arg DeleteUpcomingOpenDayAssignmentsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUpcomingOpenDayAssignments, arg.PersonID, arg.Now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const enablePeopleMergeMode = `-- name: EnablePeopleMergeMode :exec
 SELECT set_config('makerspace.people_merge', 'on', true)
 `
@@ -694,7 +735,7 @@ func (q *Queries) GetAccountByPersonForMutation(ctx context.Context, personID uu
 }
 
 const getMasterRole = `-- name: GetMasterRole :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester FROM roles WHERE system_key = 'master'
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode FROM roles WHERE system_key = 'master'
 `
 
 func (q *Queries) GetMasterRole(ctx context.Context) (Role, error) {
@@ -710,8 +751,27 @@ func (q *Queries) GetMasterRole(ctx context.Context) (Role, error) {
 		&i.UpdatedAt,
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
-		&i.StaffingLevel,
-		&i.MinOpenDaysPerSemester,
+	)
+	return i, err
+}
+
+const getMembershipRole = `-- name: GetMembershipRole :one
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode FROM roles WHERE system_key = $1
+`
+
+func (q *Queries) GetMembershipRole(ctx context.Context, systemKey *string) (Role, error) {
+	row := q.db.QueryRow(ctx, getMembershipRole, systemKey)
+	var i Role
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.SystemKey,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
 	)
 	return i, err
 }
@@ -791,6 +851,31 @@ func (q *Queries) GetPersonForUpdate(ctx context.Context, id uuid.UUID) (Person,
 	return i, err
 }
 
+const getPersonMembershipRole = `-- name: GetPersonMembershipRole :one
+SELECT r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode FROM roles r
+JOIN person_roles pr ON pr.role_id = r.id
+WHERE pr.person_id = $1 AND r.system_key IN ('supervisor', 'trainee', 'visitor')
+ORDER BY CASE r.system_key WHEN 'supervisor' THEN 0 WHEN 'trainee' THEN 1 ELSE 2 END
+LIMIT 1
+`
+
+func (q *Queries) GetPersonMembershipRole(ctx context.Context, personID uuid.UUID) (Role, error) {
+	row := q.db.QueryRow(ctx, getPersonMembershipRole, personID)
+	var i Role
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.SystemKey,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+	)
+	return i, err
+}
+
 const getProfileImage = `-- name: GetProfileImage :one
 SELECT profile_image_file_id, profile_image_source
 FROM people
@@ -809,20 +894,8 @@ func (q *Queries) GetProfileImage(ctx context.Context, id uuid.UUID) (GetProfile
 	return i, err
 }
 
-const getPromotionSupervisorRole = `-- name: GetPromotionSupervisorRole :one
-SELECT supervisor_role_id FROM open_day_requirements WHERE singleton = true
-`
-
-// Not locked on purpose: the role itself is locked by the assignment check, which re-validates its staffing level.
-func (q *Queries) GetPromotionSupervisorRole(ctx context.Context) (*uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, getPromotionSupervisorRole)
-	var supervisor_role_id *uuid.UUID
-	err := row.Scan(&supervisor_role_id)
-	return supervisor_role_id, err
-}
-
 const getRoleForAssignment = `-- name: GetRoleForAssignment :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester FROM roles WHERE id = $1 FOR SHARE
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode FROM roles WHERE id = $1 FOR SHARE
 `
 
 func (q *Queries) GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role, error) {
@@ -838,8 +911,6 @@ func (q *Queries) GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role,
 		&i.UpdatedAt,
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
-		&i.StaffingLevel,
-		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }
@@ -1214,7 +1285,7 @@ func (q *Queries) ListPeopleForMerge(ctx context.Context, ids []string) ([]Perso
 }
 
 const listPersonRoles = `-- name: ListPersonRoles :many
-SELECT r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.staffing_level, r.min_open_days_per_semester FROM roles r
+SELECT r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode FROM roles r
 JOIN person_roles pr ON pr.role_id = r.id
 WHERE pr.person_id = $1
 ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id
@@ -1239,8 +1310,6 @@ func (q *Queries) ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Ro
 			&i.UpdatedAt,
 			&i.ProfileImageRequired,
 			&i.LaborordnungMode,
-			&i.StaffingLevel,
-			&i.MinOpenDaysPerSemester,
 		); err != nil {
 			return nil, err
 		}
@@ -1253,25 +1322,23 @@ func (q *Queries) ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Ro
 }
 
 const listPersonRolesByPeople = `-- name: ListPersonRolesByPeople :many
-SELECT pr.person_id, r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.staffing_level, r.min_open_days_per_semester FROM roles r
+SELECT pr.person_id, r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode FROM roles r
 JOIN person_roles pr ON pr.role_id = r.id
 WHERE pr.person_id = ANY(($1::text[])::uuid[])
 ORDER BY pr.person_id, r.system_key DESC NULLS LAST, lower(r.name), r.id
 `
 
 type ListPersonRolesByPeopleRow struct {
-	PersonID               uuid.UUID
-	ID                     uuid.UUID
-	Name                   string
-	Description            *string
-	SystemKey              *string
-	Version                int64
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
-	ProfileImageRequired   bool
-	LaborordnungMode       string
-	StaffingLevel          *string
-	MinOpenDaysPerSemester *int32
+	PersonID             uuid.UUID
+	ID                   uuid.UUID
+	Name                 string
+	Description          *string
+	SystemKey            *string
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	ProfileImageRequired bool
+	LaborordnungMode     string
 }
 
 func (q *Queries) ListPersonRolesByPeople(ctx context.Context, personIds []string) ([]ListPersonRolesByPeopleRow, error) {
@@ -1294,42 +1361,7 @@ func (q *Queries) ListPersonRolesByPeople(ctx context.Context, personIds []strin
 			&i.UpdatedAt,
 			&i.ProfileImageRequired,
 			&i.LaborordnungMode,
-			&i.StaffingLevel,
-			&i.MinOpenDaysPerSemester,
 		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listPersonStaffingRoles = `-- name: ListPersonStaffingRoles :many
-SELECT r.id, r.staffing_level::text AS staffing_level
-FROM roles r
-JOIN person_roles pr ON pr.role_id = r.id
-WHERE pr.person_id = $1 AND r.staffing_level IS NOT NULL
-ORDER BY r.id
-`
-
-type ListPersonStaffingRolesRow struct {
-	ID            uuid.UUID
-	StaffingLevel string
-}
-
-func (q *Queries) ListPersonStaffingRoles(ctx context.Context, personID uuid.UUID) ([]ListPersonStaffingRolesRow, error) {
-	rows, err := q.db.Query(ctx, listPersonStaffingRoles, personID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListPersonStaffingRolesRow{}
-	for rows.Next() {
-		var i ListPersonStaffingRolesRow
-		if err := rows.Scan(&i.ID, &i.StaffingLevel); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1468,6 +1500,23 @@ func (q *Queries) MoveMergeAuthIdentities(ctx context.Context, arg MoveMergeAuth
 	return result.RowsAffected(), nil
 }
 
+const moveMergeExcusals = `-- name: MoveMergeExcusals :execrows
+UPDATE staffing_excusals SET person_id = $1 WHERE person_id = $2
+`
+
+type MoveMergeExcusalsParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+func (q *Queries) MoveMergeExcusals(ctx context.Context, arg MoveMergeExcusalsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveMergeExcusals, arg.TargetPersonID, arg.SourcePersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const moveMergeInboxRecipients = `-- name: MoveMergeInboxRecipients :execrows
 UPDATE inbox_recipients SET account_id = $1 WHERE account_id = $2
 `
@@ -1596,6 +1645,16 @@ func (q *Queries) MoveMergeTrainingRecords(ctx context.Context, arg MoveMergeTra
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const normalizePersonMembership = `-- name: NormalizePersonMembership :exec
+SELECT normalize_person_membership($1::uuid)
+`
+
+// Keeps the highest membership (supervisor > trainee > visitor) after roles of several people were united.
+func (q *Queries) NormalizePersonMembership(ctx context.Context, personID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, normalizePersonMembership, personID)
+	return err
 }
 
 const personHasAccount = `-- name: PersonHasAccount :one
@@ -1796,7 +1855,7 @@ WITH c01 AS (
     UPDATE signage_publications SET published_by_account_id = $1::uuid
     WHERE published_by_account_id = $2::uuid RETURNING 1
 ), c39 AS (
-    UPDATE open_day_requirements SET updated_by_account_id = $1::uuid
+    UPDATE staffing_rules SET updated_by_account_id = $1::uuid
     WHERE updated_by_account_id = $2::uuid RETURNING 1
 ), c40 AS (
     UPDATE wiref_delivery_settings SET updated_by_account_id = $1::uuid
@@ -1852,6 +1911,9 @@ WITH c01 AS (
 ), c58 AS (
     UPDATE filament_spools SET retired_by = $1::uuid
     WHERE retired_by = $2::uuid RETURNING 1
+), c59 AS (
+    UPDATE staffing_excusals SET created_by_account_id = $1::uuid
+    WHERE created_by_account_id = $2::uuid RETURNING 1
 )
 SELECT (
     (SELECT count(*) FROM c01) + (SELECT count(*) FROM c02) + (SELECT count(*) FROM c03) + (SELECT count(*) FROM c04)
@@ -1868,7 +1930,7 @@ SELECT (
     + (SELECT count(*) FROM c45) + (SELECT count(*) FROM c46) + (SELECT count(*) FROM c47) + (SELECT count(*) FROM c48)
     + (SELECT count(*) FROM c49) + (SELECT count(*) FROM c50) + (SELECT count(*) FROM c51) + (SELECT count(*) FROM c52)
     + (SELECT count(*) FROM c53) + (SELECT count(*) FROM c54) + (SELECT count(*) FROM c55) + (SELECT count(*) FROM c56)
-    + (SELECT count(*) FROM c57) + (SELECT count(*) FROM c58)
+    + (SELECT count(*) FROM c57) + (SELECT count(*) FROM c58) + (SELECT count(*) FROM c59)
 )::bigint AS moved
 `
 

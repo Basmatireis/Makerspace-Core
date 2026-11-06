@@ -164,7 +164,7 @@ func TestLabRulesConfirmationListFiltersSortsPagesAndRequiresPermission(t *testi
 			grants = append(grants, authorization.PermissionGrant{PermissionID: permission, Scope: authorization.GrantEverywhere})
 		}
 		role, err := roles.NewService(pool).CreateWithBehaviors(
-			ctx, reader, "Readers "+ids.New().String()[24:], nil, grants, false, laborordnung.ModeNotRequired, nil, nil, nil,
+			ctx, reader, "Readers "+ids.New().String()[24:], nil, grants, false, laborordnung.ModeNotRequired, nil,
 		)
 		if err != nil {
 			t.Fatal(err)

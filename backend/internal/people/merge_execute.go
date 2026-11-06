@@ -275,7 +275,7 @@ func resolveMergedFields(state mergeState, sources map[MergeField]uuid.UUID) (me
 	if !fields.memberSince.Equal(target.MemberSince.Time) {
 		fields.changed = append(fields.changed, "memberSince")
 	}
-	if len(state.resultingRoles()) != len(state.roles[state.target]) {
+	if !sameRoleSet(state.resultingRoles(), state.roles[state.target]) {
 		fields.changed = append(fields.changed, "roles")
 	}
 	if state.survivor != nil {
@@ -413,6 +413,20 @@ func moveMergePerson(
 	}); err != nil {
 		return err
 	}
+	if err := queries.NormalizePersonMembership(ctx, target); err != nil {
+		return err
+	}
+	// Excusals are not a merge category of their own: the target's excusal for a period wins.
+	if _, err := queries.DeleteDuplicateMergeExcusals(ctx, peopledb.DeleteDuplicateMergeExcusalsParams{
+		SourcePersonID: source, TargetPersonID: target,
+	}); err != nil {
+		return err
+	}
+	if _, err := queries.MoveMergeExcusals(ctx, peopledb.MoveMergeExcusalsParams{
+		SourcePersonID: source, TargetPersonID: target,
+	}); err != nil {
+		return err
+	}
 	type dedupeMove struct {
 		category MergeCategory
 		dedupe   func() (int64, error)
@@ -511,4 +525,20 @@ func camelCategory(category MergeCategory) string {
 		result = append(result, character)
 	}
 	return string(result)
+}
+
+func sameRoleSet(a, b []RoleSummary) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	ids := make(map[uuid.UUID]struct{}, len(a))
+	for _, role := range a {
+		ids[role.ID] = struct{}{}
+	}
+	for _, role := range b {
+		if _, ok := ids[role.ID]; !ok {
+			return false
+		}
+	}
+	return true
 }

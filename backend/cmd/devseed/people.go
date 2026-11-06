@@ -13,9 +13,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -64,8 +62,8 @@ func (s *seeder) setupActor(email string) {
 	log.Printf("acting as %s %s", fn, ln)
 }
 
-// ensureRoles reuses the supervisor, trainee and Visitor roles by name and
-// creates the ones that are missing.
+// ensureRoles loads the membership roles (Supervisor, Trainee, Visitor) and gives the supervisor and trainee
+// memberships the permissions the demo needs while they have none.
 func (s *seeder) ensureRoles() {
 	rows, err := s.pool.Query(s.ctx, "SELECT id, name FROM roles")
 	check("roles", err)
@@ -85,11 +83,10 @@ func (s *seeder) ensureRoles() {
 		return out
 	}
 	for _, r := range []struct {
-		name, desc string
-		grants     []authorization.PermissionGrant
-		level      *roles.StaffingLevel
+		name   string
+		grants []authorization.PermissionGrant
 	}{
-		{"supervisor", "Runs the workshop during open hours (created by devseed)", grants(
+		{"supervisor", grants(
 			authorization.SupervisorDashboardRead, authorization.OpenDaysRead, authorization.OpenDaysSignup,
 			authorization.EventsRead, authorization.EventsSignup, authorization.EventsReadAssignments,
 			authorization.MachinesRead,
@@ -97,44 +94,28 @@ func (s *seeder) ensureRoles() {
 			authorization.MachineJobsCreate,
 			authorization.MachineJobsEdit,
 			authorization.InventoryRead, authorization.FilamentSpoolsManage, authorization.PrinterSlotsAssign,
-			authorization.OrganizationsRead, authorization.PricingRead), ptr(roles.StaffingSupervisor)},
-		{"trainee", "Supervisor in training (created by devseed)", grants(
+			authorization.OrganizationsRead, authorization.PricingRead)},
+		{"trainee", grants(
 			authorization.OpenDaysRead,
 			authorization.OpenDaysSignup,
 			authorization.EventsRead,
 			authorization.EventsSignup,
 			authorization.MachinesRead,
 			authorization.MachineJobsRead,
-			authorization.InventoryRead), ptr(roles.StaffingTrainee)},
-		{"Visitor", "External visitor without permissions (created by devseed)", nil, nil},
+			authorization.InventoryRead)},
 	} {
-		if _, ok := s.roles[strings.ToLower(r.name)]; ok {
+		id, ok := s.roles[r.name]
+		if !ok {
+			log.Fatalf("membership role %s is missing; run the migrations", r.name)
+		}
+		role, err := s.rolesSvc.Get(s.ctx, s.actor, id)
+		check("role "+r.name, err)
+		if len(role.PermissionGrants) > 0 {
 			continue
 		}
-		role, err := s.rolesSvc.CreateWithBehaviors(
-			s.ctx,
-			s.actor,
-			r.name,
-			ptr(r.desc),
-			r.grants,
-			false,
-			laborordnung.ModeNotRequired,
-			r.level,
-			nil,
-			nil,
-		)
-		check("role "+r.name, err)
-		s.roles[strings.ToLower(r.name)] = role.ID
-		log.Printf("created role %s", r.name)
-	}
-	// Promotions need a configured supervisor role; keep an existing choice.
-	if id, ok := s.roles["supervisor"]; ok {
-		_, err := s.pool.Exec(
-			s.ctx,
-			"UPDATE open_day_requirements SET supervisor_role_id = $1 WHERE supervisor_role_id IS NULL",
-			id,
-		)
-		check("promotion role", err)
+		_, err = s.rolesSvc.ReplacePermissions(s.ctx, s.actor, id, role.Version, r.grants, nil)
+		check("role permissions "+r.name, err)
+		log.Printf("granted permissions to the %s membership", r.name)
 	}
 }
 

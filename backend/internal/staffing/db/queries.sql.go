@@ -13,18 +13,126 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getOpenDayRequirements = `-- name: GetOpenDayRequirements :one
-SELECT singleton, min_open_days_per_semester, trainee_open_days_for_promotion, supervisor_role_id, version, updated_by_account_id, updated_at FROM open_day_requirements WHERE singleton = true
+const deleteExcusal = `-- name: DeleteExcusal :execrows
+DELETE FROM staffing_excusals WHERE period_id = $1 AND person_id = $2
 `
 
-func (q *Queries) GetOpenDayRequirements(ctx context.Context) (OpenDayRequirement, error) {
-	row := q.db.QueryRow(ctx, getOpenDayRequirements)
-	var i OpenDayRequirement
+type DeleteExcusalParams struct {
+	PeriodID uuid.UUID
+	PersonID uuid.UUID
+}
+
+func (q *Queries) DeleteExcusal(ctx context.Context, arg DeleteExcusalParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExcusal, arg.PeriodID, arg.PersonID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteStaffingRuleExceptions = `-- name: DeleteStaffingRuleExceptions :exec
+DELETE FROM staffing_rule_exceptions
+`
+
+func (q *Queries) DeleteStaffingRuleExceptions(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteStaffingRuleExceptions)
+	return err
+}
+
+const getPeriodForShare = `-- name: GetPeriodForShare :one
+SELECT id FROM open_day_periods WHERE id = $1 FOR SHARE
+`
+
+// Locks the period so it cannot be deleted while an excusal for it is written.
+func (q *Queries) GetPeriodForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getPeriodForShare, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const getPersonForShare = `-- name: GetPersonForShare :one
+SELECT id FROM people WHERE id = $1 FOR SHARE
+`
+
+// Locks the person so they cannot be deleted while an excusal for them is written.
+func (q *Queries) GetPersonForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getPersonForShare, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const getPersonMembership = `-- name: GetPersonMembership :one
+SELECT r.system_key::text AS membership
+FROM person_roles pr
+JOIN roles r ON r.id = pr.role_id
+WHERE pr.person_id = $1 AND r.system_key IN ('supervisor', 'trainee', 'visitor')
+ORDER BY CASE r.system_key WHEN 'supervisor' THEN 0 WHEN 'trainee' THEN 1 ELSE 2 END
+LIMIT 1
+`
+
+func (q *Queries) GetPersonMembership(ctx context.Context, personID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getPersonMembership, personID)
+	var membership string
+	err := row.Scan(&membership)
+	return membership, err
+}
+
+const getRoleSystemKeyForShare = `-- name: GetRoleSystemKeyForShare :one
+SELECT system_key FROM roles WHERE id = $1 FOR SHARE
+`
+
+// Locks the role so it cannot be deleted while the rules gain an exception for it.
+func (q *Queries) GetRoleSystemKeyForShare(ctx context.Context, id uuid.UUID) (*string, error) {
+	row := q.db.QueryRow(ctx, getRoleSystemKeyForShare, id)
+	var system_key *string
+	err := row.Scan(&system_key)
+	return system_key, err
+}
+
+const getSemesterPeriod = `-- name: GetSemesterPeriod :one
+SELECT id, name, status, starts_on, ends_on, sign_up_deadline FROM open_day_periods WHERE id = $1
+`
+
+type GetSemesterPeriodRow struct {
+	ID             uuid.UUID
+	Name           string
+	Status         string
+	StartsOn       pgtype.Date
+	EndsOn         pgtype.Date
+	SignUpDeadline pgtype.Date
+}
+
+func (q *Queries) GetSemesterPeriod(ctx context.Context, id uuid.UUID) (GetSemesterPeriodRow, error) {
+	row := q.db.QueryRow(ctx, getSemesterPeriod, id)
+	var i GetSemesterPeriodRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Status,
+		&i.StartsOn,
+		&i.EndsOn,
+		&i.SignUpDeadline,
+	)
+	return i, err
+}
+
+const getStaffingRules = `-- name: GetStaffingRules :one
+SELECT singleton, supervisor_minimum, trainee_minimum, trainee_ready_after, warning_window_days, count_by, default_deadline, version, updated_by_account_id, updated_at FROM staffing_rules WHERE singleton = true
+`
+
+func (q *Queries) GetStaffingRules(ctx context.Context) (StaffingRule, error) {
+	row := q.db.QueryRow(ctx, getStaffingRules)
+	var i StaffingRule
 	err := row.Scan(
 		&i.Singleton,
-		&i.MinOpenDaysPerSemester,
-		&i.TraineeOpenDaysForPromotion,
-		&i.SupervisorRoleID,
+		&i.SupervisorMinimum,
+		&i.TraineeMinimum,
+		&i.TraineeReadyAfter,
+		&i.WarningWindowDays,
+		&i.CountBy,
+		&i.DefaultDeadline,
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
@@ -32,18 +140,21 @@ func (q *Queries) GetOpenDayRequirements(ctx context.Context) (OpenDayRequiremen
 	return i, err
 }
 
-const getOpenDayRequirementsForUpdate = `-- name: GetOpenDayRequirementsForUpdate :one
-SELECT singleton, min_open_days_per_semester, trainee_open_days_for_promotion, supervisor_role_id, version, updated_by_account_id, updated_at FROM open_day_requirements WHERE singleton = true FOR UPDATE
+const getStaffingRulesForUpdate = `-- name: GetStaffingRulesForUpdate :one
+SELECT singleton, supervisor_minimum, trainee_minimum, trainee_ready_after, warning_window_days, count_by, default_deadline, version, updated_by_account_id, updated_at FROM staffing_rules WHERE singleton = true FOR UPDATE
 `
 
-func (q *Queries) GetOpenDayRequirementsForUpdate(ctx context.Context) (OpenDayRequirement, error) {
-	row := q.db.QueryRow(ctx, getOpenDayRequirementsForUpdate)
-	var i OpenDayRequirement
+func (q *Queries) GetStaffingRulesForUpdate(ctx context.Context) (StaffingRule, error) {
+	row := q.db.QueryRow(ctx, getStaffingRulesForUpdate)
+	var i StaffingRule
 	err := row.Scan(
 		&i.Singleton,
-		&i.MinOpenDaysPerSemester,
-		&i.TraineeOpenDaysForPromotion,
-		&i.SupervisorRoleID,
+		&i.SupervisorMinimum,
+		&i.TraineeMinimum,
+		&i.TraineeReadyAfter,
+		&i.WarningWindowDays,
+		&i.CountBy,
+		&i.DefaultDeadline,
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
@@ -51,16 +162,62 @@ func (q *Queries) GetOpenDayRequirementsForUpdate(ctx context.Context) (OpenDayR
 	return i, err
 }
 
-const getRoleStaffingLevelForShare = `-- name: GetRoleStaffingLevelForShare :one
-SELECT staffing_level FROM roles WHERE id = $1 FOR SHARE
+const insertStaffingRuleException = `-- name: InsertStaffingRuleException :exec
+INSERT INTO staffing_rule_exceptions (role_id, minimum) VALUES ($1, $2)
 `
 
-// Locks the role so its staffing level cannot change while the requirements settings reference it.
-func (q *Queries) GetRoleStaffingLevelForShare(ctx context.Context, id uuid.UUID) (*string, error) {
-	row := q.db.QueryRow(ctx, getRoleStaffingLevelForShare, id)
-	var staffing_level *string
-	err := row.Scan(&staffing_level)
-	return staffing_level, err
+type InsertStaffingRuleExceptionParams struct {
+	RoleID  uuid.UUID
+	Minimum int32
+}
+
+func (q *Queries) InsertStaffingRuleException(ctx context.Context, arg InsertStaffingRuleExceptionParams) error {
+	_, err := q.db.Exec(ctx, insertStaffingRuleException, arg.RoleID, arg.Minimum)
+	return err
+}
+
+const listExcusals = `-- name: ListExcusals :many
+SELECT period_id, person_id, reason, created_at
+FROM staffing_excusals
+WHERE period_id = $1
+  AND ($2::uuid IS NULL OR person_id = $2)
+`
+
+type ListExcusalsParams struct {
+	PeriodID     uuid.UUID
+	OnlyPersonID *uuid.UUID
+}
+
+type ListExcusalsRow struct {
+	PeriodID  uuid.UUID
+	PersonID  uuid.UUID
+	Reason    string
+	CreatedAt time.Time
+}
+
+func (q *Queries) ListExcusals(ctx context.Context, arg ListExcusalsParams) ([]ListExcusalsRow, error) {
+	rows, err := q.db.Query(ctx, listExcusals, arg.PeriodID, arg.OnlyPersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExcusalsRow{}
+	for rows.Next() {
+		var i ListExcusalsRow
+		if err := rows.Scan(
+			&i.PeriodID,
+			&i.PersonID,
+			&i.Reason,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listLastStaffed = `-- name: ListLastStaffed :many
@@ -103,26 +260,88 @@ func (q *Queries) ListLastStaffed(ctx context.Context, arg ListLastStaffedParams
 	return items, nil
 }
 
-const listPersonStaffingLevels = `-- name: ListPersonStaffingLevels :many
-SELECT DISTINCT r.staffing_level::text AS staffing_level
-FROM person_roles pr
-JOIN roles r ON r.id = pr.role_id
-WHERE pr.person_id = $1 AND r.staffing_level IS NOT NULL
+const listNextAssignments = `-- name: ListNextAssignments :many
+SELECT DISTINCT ON (a.person_id) a.person_id, d.id AS open_day_id, d.starts_at, d.ends_at
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
+WHERE d.ends_at > $1
+  AND ($2::uuid IS NULL OR a.person_id = $2)
+ORDER BY a.person_id, d.starts_at, d.id
 `
 
-func (q *Queries) ListPersonStaffingLevels(ctx context.Context, personID uuid.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, listPersonStaffingLevels, personID)
+type ListNextAssignmentsParams struct {
+	Now          time.Time
+	OnlyPersonID *uuid.UUID
+}
+
+type ListNextAssignmentsRow struct {
+	PersonID  uuid.UUID
+	OpenDayID uuid.UUID
+	StartsAt  time.Time
+	EndsAt    time.Time
+}
+
+// The next upcoming open day each person is assigned to, in any semester.
+func (q *Queries) ListNextAssignments(ctx context.Context, arg ListNextAssignmentsParams) ([]ListNextAssignmentsRow, error) {
+	rows, err := q.db.Query(ctx, listNextAssignments, arg.Now, arg.OnlyPersonID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []ListNextAssignmentsRow{}
 	for rows.Next() {
-		var staffing_level string
-		if err := rows.Scan(&staffing_level); err != nil {
+		var i ListNextAssignmentsRow
+		if err := rows.Scan(
+			&i.PersonID,
+			&i.OpenDayID,
+			&i.StartsAt,
+			&i.EndsAt,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, staffing_level)
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPersonExceptions = `-- name: ListPersonExceptions :many
+SELECT pr.person_id, e.role_id, r.name AS role_name, e.minimum
+FROM person_roles pr
+JOIN staffing_rule_exceptions e ON e.role_id = pr.role_id
+JOIN roles r ON r.id = e.role_id
+WHERE $1::uuid IS NULL OR pr.person_id = $1
+ORDER BY pr.person_id, e.minimum, lower(r.name), r.id
+`
+
+type ListPersonExceptionsRow struct {
+	PersonID uuid.UUID
+	RoleID   uuid.UUID
+	RoleName string
+	Minimum  int32
+}
+
+// The exceptions of each person's extra roles; only_person_id narrows it to one person.
+func (q *Queries) ListPersonExceptions(ctx context.Context, onlyPersonID *uuid.UUID) ([]ListPersonExceptionsRow, error) {
+	rows, err := q.db.Query(ctx, listPersonExceptions, onlyPersonID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPersonExceptionsRow{}
+	for rows.Next() {
+		var i ListPersonExceptionsRow
+		if err := rows.Scan(
+			&i.PersonID,
+			&i.RoleID,
+			&i.RoleName,
+			&i.Minimum,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -131,7 +350,7 @@ func (q *Queries) ListPersonStaffingLevels(ctx context.Context, personID uuid.UU
 }
 
 const listSemesterCandidates = `-- name: ListSemesterCandidates :many
-SELECT id, name, starts_on, ends_on, sign_up_deadline
+SELECT id, name, status, starts_on, ends_on, sign_up_deadline
 FROM open_day_periods
 WHERE status IN ('staffing', 'published')
 ORDER BY starts_on, id
@@ -140,6 +359,7 @@ ORDER BY starts_on, id
 type ListSemesterCandidatesRow struct {
 	ID             uuid.UUID
 	Name           string
+	Status         string
 	StartsOn       pgtype.Date
 	EndsOn         pgtype.Date
 	SignUpDeadline pgtype.Date
@@ -158,6 +378,7 @@ func (q *Queries) ListSemesterCandidates(ctx context.Context) ([]ListSemesterCan
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
+			&i.Status,
 			&i.StartsOn,
 			&i.EndsOn,
 			&i.SignUpDeadline,
@@ -226,30 +447,29 @@ func (q *Queries) ListStaffingCounts(ctx context.Context, arg ListStaffingCounts
 	return items, nil
 }
 
-const listStaffingMinimumOverrides = `-- name: ListStaffingMinimumOverrides :many
-SELECT pr.person_id, r.min_open_days_per_semester::integer AS minimum
-FROM person_roles pr
-JOIN roles r ON r.id = pr.role_id
-WHERE r.staffing_level IS NOT NULL AND r.min_open_days_per_semester IS NOT NULL
-  AND ($1::uuid IS NULL OR pr.person_id = $1)
+const listStaffingRuleExceptions = `-- name: ListStaffingRuleExceptions :many
+SELECT e.role_id, r.name AS role_name, e.minimum
+FROM staffing_rule_exceptions e
+JOIN roles r ON r.id = e.role_id
+ORDER BY lower(r.name), r.id
 `
 
-type ListStaffingMinimumOverridesRow struct {
-	PersonID uuid.UUID
+type ListStaffingRuleExceptionsRow struct {
+	RoleID   uuid.UUID
+	RoleName string
 	Minimum  int32
 }
 
-// The open-day minimum overrides of the roles with a staffing level, one row per person and overriding role.
-func (q *Queries) ListStaffingMinimumOverrides(ctx context.Context, onlyPersonID *uuid.UUID) ([]ListStaffingMinimumOverridesRow, error) {
-	rows, err := q.db.Query(ctx, listStaffingMinimumOverrides, onlyPersonID)
+func (q *Queries) ListStaffingRuleExceptions(ctx context.Context) ([]ListStaffingRuleExceptionsRow, error) {
+	rows, err := q.db.Query(ctx, listStaffingRuleExceptions)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListStaffingMinimumOverridesRow{}
+	items := []ListStaffingRuleExceptionsRow{}
 	for rows.Next() {
-		var i ListStaffingMinimumOverridesRow
-		if err := rows.Scan(&i.PersonID, &i.Minimum); err != nil {
+		var i ListStaffingRuleExceptionsRow
+		if err := rows.Scan(&i.RoleID, &i.RoleName, &i.Minimum); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -260,43 +480,94 @@ func (q *Queries) ListStaffingMinimumOverrides(ctx context.Context, onlyPersonID
 	return items, nil
 }
 
-const updateOpenDayRequirements = `-- name: UpdateOpenDayRequirements :one
-UPDATE open_day_requirements SET
-    min_open_days_per_semester = $1,
-    trainee_open_days_for_promotion = $2,
-    supervisor_role_id = $3,
+const updateStaffingRules = `-- name: UpdateStaffingRules :one
+UPDATE staffing_rules SET
+    supervisor_minimum = $1,
+    trainee_minimum = $2,
+    trainee_ready_after = $3,
+    warning_window_days = $4,
+    count_by = $5,
+    default_deadline = $6,
     version = version + 1,
-    updated_by_account_id = $4,
+    updated_by_account_id = $7,
     updated_at = now()
-WHERE singleton = true AND version = $5
-RETURNING singleton, min_open_days_per_semester, trainee_open_days_for_promotion, supervisor_role_id, version, updated_by_account_id, updated_at
+WHERE singleton = true AND version = $8
+RETURNING singleton, supervisor_minimum, trainee_minimum, trainee_ready_after, warning_window_days, count_by, default_deadline, version, updated_by_account_id, updated_at
 `
 
-type UpdateOpenDayRequirementsParams struct {
-	MinOpenDaysPerSemester      int32
-	TraineeOpenDaysForPromotion int32
-	SupervisorRoleID            *uuid.UUID
-	UpdatedByAccountID          *uuid.UUID
-	ExpectedVersion             int64
+type UpdateStaffingRulesParams struct {
+	SupervisorMinimum  int32
+	TraineeMinimum     int32
+	TraineeReadyAfter  int32
+	WarningWindowDays  int32
+	CountBy            string
+	DefaultDeadline    string
+	UpdatedByAccountID *uuid.UUID
+	ExpectedVersion    int64
 }
 
-func (q *Queries) UpdateOpenDayRequirements(ctx context.Context, arg UpdateOpenDayRequirementsParams) (OpenDayRequirement, error) {
-	row := q.db.QueryRow(ctx, updateOpenDayRequirements,
-		arg.MinOpenDaysPerSemester,
-		arg.TraineeOpenDaysForPromotion,
-		arg.SupervisorRoleID,
+func (q *Queries) UpdateStaffingRules(ctx context.Context, arg UpdateStaffingRulesParams) (StaffingRule, error) {
+	row := q.db.QueryRow(ctx, updateStaffingRules,
+		arg.SupervisorMinimum,
+		arg.TraineeMinimum,
+		arg.TraineeReadyAfter,
+		arg.WarningWindowDays,
+		arg.CountBy,
+		arg.DefaultDeadline,
 		arg.UpdatedByAccountID,
 		arg.ExpectedVersion,
 	)
-	var i OpenDayRequirement
+	var i StaffingRule
 	err := row.Scan(
 		&i.Singleton,
-		&i.MinOpenDaysPerSemester,
-		&i.TraineeOpenDaysForPromotion,
-		&i.SupervisorRoleID,
+		&i.SupervisorMinimum,
+		&i.TraineeMinimum,
+		&i.TraineeReadyAfter,
+		&i.WarningWindowDays,
+		&i.CountBy,
+		&i.DefaultDeadline,
 		&i.Version,
 		&i.UpdatedByAccountID,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertExcusal = `-- name: UpsertExcusal :one
+INSERT INTO staffing_excusals (period_id, person_id, reason, created_by_account_id)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (period_id, person_id) DO UPDATE
+SET reason = EXCLUDED.reason, created_by_account_id = EXCLUDED.created_by_account_id, created_at = now()
+RETURNING period_id, person_id, reason, created_at
+`
+
+type UpsertExcusalParams struct {
+	PeriodID           uuid.UUID
+	PersonID           uuid.UUID
+	Reason             string
+	CreatedByAccountID *uuid.UUID
+}
+
+type UpsertExcusalRow struct {
+	PeriodID  uuid.UUID
+	PersonID  uuid.UUID
+	Reason    string
+	CreatedAt time.Time
+}
+
+func (q *Queries) UpsertExcusal(ctx context.Context, arg UpsertExcusalParams) (UpsertExcusalRow, error) {
+	row := q.db.QueryRow(ctx, upsertExcusal,
+		arg.PeriodID,
+		arg.PersonID,
+		arg.Reason,
+		arg.CreatedByAccountID,
+	)
+	var i UpsertExcusalRow
+	err := row.Scan(
+		&i.PeriodID,
+		&i.PersonID,
+		&i.Reason,
+		&i.CreatedAt,
 	)
 	return i, err
 }

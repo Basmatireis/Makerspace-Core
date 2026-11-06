@@ -18,7 +18,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { StaffingLevel } from './staffingLevel';
+import type { StaffingKind } from './staffingKind';
+import type { StaffingMinimumSource } from './staffingMinimumSource';
+import type { StaffingNextAssignment } from './staffingNextAssignment';
 import type { StaffingStatus } from './staffingStatus';
 import type { SupervisorRowLaborordnungState } from './supervisorRowLaborordnungState';
 import type { UUIDv7 } from './uUIDv7';
@@ -28,7 +30,9 @@ export interface SupervisorRow {
   personId: UUIDv7;
   personVersion: Version;
   name: string;
-  kind: StaffingLevel;
+  membership: StaffingKind;
+  /** Names of the person's roles besides the system roles. */
+  extraRoles: string[];
   hasProfileImage: boolean;
   laborordnungState: SupervisorRowLaborordnungState;
   /**
@@ -47,11 +51,20 @@ export interface SupervisorRow {
      */
   staffedAsTrainee: number;
   /**
-     * The person's open-day minimum: the lowest override among their staffing roles, else the general minimum.
+     * The person's resolved open-day minimum for the semester.
      * @minimum 0
      * @maximum 20
      */
   minimum: number;
+  minimumSource: StaffingMinimumSource;
+  /**
+     * The extra role whose exception sets the minimum.
+     * @nullable
+     */
+  minimumExceptionRole: string | null;
+  excused: boolean;
+  /** @nullable */
+  excusalReason: string | null;
   status: StaffingStatus;
   /**
      * Open days still missing to reach the minimum.
@@ -63,5 +76,7 @@ export interface SupervisorRow {
      * @nullable
      */
   lastOpenDayAt: string | null;
+  /** The next open day the person is assigned to, in any semester. */
+  nextAssignment: StaffingNextAssignment | null;
   memberSince: string;
 }

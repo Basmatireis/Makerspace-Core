@@ -19,9 +19,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// OpenPlaceWindow is how far ahead the dashboard looks for an open place to point the person at.
-const OpenPlaceWindow = 14 * 24 * time.Hour
-
 // ItemKind tells open-day duties and event shifts apart in the coming-up list.
 type ItemKind string
 
@@ -44,14 +41,16 @@ type NextOpenDay struct {
 }
 
 type Staffing struct {
-	Kind             roles.StaffingLevel
+	Kind             roles.Membership
 	Semester         *staffing.Semester
-	Minimum          int
+	Minimum          staffing.Minimum
 	TraineeThreshold int
-	Counts           staffing.Counts
-	Standing         staffing.Standing
-	NextOpenPlace    *opendays.OpenPlace
-	NextOpenDay      *NextOpenDay
+	// WarningWindowDays is how far ahead NextOpenPlace looks.
+	WarningWindowDays int
+	Counts            staffing.Counts
+	Standing          staffing.Standing
+	NextOpenPlace     *opendays.OpenPlace
+	NextOpenDay       *NextOpenDay
 }
 
 // ComingUpItem is one upcoming commitment. OpenDayID, PeriodID and ShortStaffed are set for open days, EventID and
@@ -136,10 +135,11 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 		return Dashboard{}, err
 	}
 	result := Dashboard{Person: Person{FirstName: person.FirstName, MemberSince: person.MemberSince.Time}}
-	kind, err := s.staffing.PersonKind(ctx, principal.PersonID)
+	membership, err := s.staffing.PersonMembership(ctx, principal.PersonID)
 	if err != nil {
 		return Dashboard{}, err
 	}
+	kind := staffing.KindOf(membership)
 	canReadOpenDays := principal.Has(authorization.OpenDaysRead)
 
 	result.ComingUp = []ComingUpItem{}
@@ -242,15 +242,15 @@ func (s *Service) finance(ctx context.Context, principal authorization.Principal
 func (s *Service) staffingSection(
 	ctx context.Context,
 	principal authorization.Principal,
-	kind roles.StaffingLevel,
+	kind roles.Membership,
 	now time.Time,
 	comingUp []ComingUpItem,
 ) (*Staffing, error) {
-	semester, err := s.staffing.CurrentSemester(ctx, now)
+	rules, err := s.staffing.Settings(ctx)
 	if err != nil {
 		return nil, err
 	}
-	requirements, err := s.staffing.Settings(ctx)
+	semester, err := s.staffing.CurrentSemester(ctx, rules, now)
 	if err != nil {
 		return nil, err
 	}
@@ -258,24 +258,25 @@ func (s *Service) staffingSection(
 	if err != nil {
 		return nil, err
 	}
-	minimums, err := s.staffing.Minimums(ctx, requirements.MinOpenDaysPerSemester, &principal.PersonID)
+	minimums, err := s.staffing.Minimums(ctx, rules, semester, &principal.PersonID)
 	if err != nil {
 		return nil, err
 	}
-	minimum := minimums.For(principal.PersonID)
+	minimum := minimums.For(principal.PersonID, kind)
 	personCounts := counts[principal.PersonID]
-	place, err := s.opendays.NextOpenPlace(ctx, principal, opendays.RequirementKind(kind), now, OpenPlaceWindow)
+	place, err := s.opendays.NextOpenPlace(ctx, principal, opendays.RequirementKind(kind), now, rules.WarningWindow())
 	if err != nil {
 		return nil, err
 	}
 	section := &Staffing{
-		Kind:             kind,
-		Semester:         semester,
-		Minimum:          minimum,
-		TraineeThreshold: requirements.TraineeOpenDaysForPromotion,
-		Counts:           personCounts,
-		Standing:         staffing.StatusFor(kind, personCounts, requirements, minimum),
-		NextOpenPlace:    place,
+		Kind:              kind,
+		Semester:          semester,
+		Minimum:           minimum,
+		TraineeThreshold:  rules.TraineeReadyAfter,
+		WarningWindowDays: rules.WarningWindowDays,
+		Counts:            personCounts,
+		Standing:          staffing.StatusFor(kind, personCounts, rules, minimum),
+		NextOpenPlace:     place,
 	}
 	for _, item := range comingUp {
 		if item.Kind == ItemOpenDay {

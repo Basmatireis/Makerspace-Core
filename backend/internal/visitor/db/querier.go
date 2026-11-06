@@ -13,7 +13,6 @@ import (
 
 type Querier interface {
 	AddAllowedDeviceType(ctx context.Context, deviceTypeID uuid.UUID) error
-	AssignVisitorRole(ctx context.Context, arg AssignVisitorRoleParams) error
 	ClearAllowedDeviceTypes(ctx context.Context) error
 	ConsumeEnrollmentContext(ctx context.Context, id uuid.UUID) (int64, error)
 	CreateEnrollmentContext(ctx context.Context, arg CreateEnrollmentContextParams) (VisitorEnrollmentContext, error)
@@ -25,13 +24,14 @@ type Querier interface {
 	CreateVisitorPerson(ctx context.Context, arg CreateVisitorPersonParams) (Person, error)
 	DeleteExpiredEnrollmentContexts(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeviceTypeExists(ctx context.Context, id uuid.UUID) (bool, error)
-	GetAssignableRole(ctx context.Context, id uuid.UUID) (Role, error)
 	GetConfiguration(ctx context.Context) (VisitorEnrollmentConfiguration, error)
 	GetConfigurationForUpdate(ctx context.Context) (VisitorEnrollmentConfiguration, error)
 	GetEnrollmentContext(ctx context.Context, tokenDigest []byte) (VisitorEnrollmentContext, error)
 	GetEnrollmentContextForUpdate(ctx context.Context, id uuid.UUID) (VisitorEnrollmentContext, error)
 	GetPinnedLabRulesVersion(ctx context.Context, contextID uuid.UUID) (LaborordnungVersion, error)
 	GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsRow, error)
+	// Every new person holds the Visitor membership role (assigned by a trigger on people).
+	GetVisitorRole(ctx context.Context) (Role, error)
 	IsDeviceTypeAllowed(ctx context.Context, managedDeviceID uuid.UUID) (*bool, error)
 	ListAllowedDeviceTypes(ctx context.Context) ([]uuid.UUID, error)
 	SetChallengeDelivery(ctx context.Context, arg SetChallengeDeliveryParams) error

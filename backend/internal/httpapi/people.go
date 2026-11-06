@@ -8,6 +8,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -73,10 +74,10 @@ func (s *Server) AssignPersonRole(
 	return openapi.AssignPersonRole200JSONResponse(response), nil
 }
 
-func (s *Server) PromotePersonToSupervisor(
+func (s *Server) ChangePersonMembership(
 	ctx context.Context,
-	request openapi.PromotePersonToSupervisorRequestObject,
-) (openapi.PromotePersonToSupervisorResponseObject, error) {
+	request openapi.ChangePersonMembershipRequestObject,
+) (openapi.ChangePersonMembershipResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -84,10 +85,11 @@ func (s *Server) PromotePersonToSupervisor(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	person, err := s.people.PromoteToSupervisor(
+	person, err := s.people.ChangeMembership(
 		ctx,
 		principal,
 		request.PersonId,
+		roles.Membership(request.Body.Membership),
 		request.Body.ExpectedVersion,
 		requestIDPointer(ctx),
 	)
@@ -98,7 +100,7 @@ func (s *Server) PromotePersonToSupervisor(
 	if err != nil {
 		return nil, err
 	}
-	return openapi.PromotePersonToSupervisor200JSONResponse(response), nil
+	return openapi.ChangePersonMembership200JSONResponse(response), nil
 }
 
 func (s *Server) ListPeople(

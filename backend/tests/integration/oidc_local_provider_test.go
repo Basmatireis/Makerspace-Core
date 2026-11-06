@@ -224,7 +224,7 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 			assertCount(
 				t,
 				pool,
-				`SELECT count(*) FROM person_roles pr JOIN accounts a ON a.person_id=pr.person_id WHERE a.id=$1`,
+				`SELECT count(*) FROM person_roles pr JOIN accounts a ON a.person_id=pr.person_id JOIN roles r ON r.id=pr.role_id WHERE a.id=$1 AND (r.system_key IS NULL OR r.system_key='master')`,
 				0,
 				accountID,
 			)

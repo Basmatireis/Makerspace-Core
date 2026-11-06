@@ -11,7 +11,6 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
-	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
 )
 
@@ -41,17 +40,12 @@ func (s *Server) UpdateVisitorEnrollmentConfiguration(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	var roleID *uuid.UUID
-	if request.Body.InitialRoleId.IsSpecified() && !request.Body.InitialRoleId.IsNull() {
-		value := request.Body.InitialRoleId.GetOrEmpty()
-		roleID = &value
-	}
 	methods := make([]visitor.AuthMethod, len(request.Body.AllowedMethods))
 	for index, method := range request.Body.AllowedMethods {
 		methods[index] = visitor.AuthMethod(method)
 	}
 	value, err := s.visitor.UpdateConfiguration(ctx, principal, visitor.ConfigurationInput{
-		Enabled: request.Body.Enabled, InitialRoleID: roleID, DeviceTypeIDs: request.Body.DeviceTypeIds,
+		Enabled: request.Body.Enabled, DeviceTypeIDs: request.Body.DeviceTypeIds,
 		AllowedMethods: methods, ExpectedVersion: request.Body.ExpectedVersion,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -197,11 +191,7 @@ func visitorConfigurationDTO(value visitor.Configuration) openapi.VisitorEnrollm
 		methods[index] = openapi.VisitorAuthenticationMethod(method)
 	}
 	return openapi.VisitorEnrollmentConfiguration{
-		Enabled: value.Enabled, InitialRoleId: nullablePointer(
-			value.InitialRoleID,
-			func(id uuid.UUID) openapi.UUIDv7 { return id },
-		),
-		DeviceTypeIds: value.DeviceTypeIDs, AllowedMethods: methods, Version: value.Version, UpdatedAt: value.UpdatedAt,
+		Enabled: value.Enabled, DeviceTypeIds: value.DeviceTypeIDs, AllowedMethods: methods, Version: value.Version, UpdatedAt: value.UpdatedAt,
 	}
 }
 

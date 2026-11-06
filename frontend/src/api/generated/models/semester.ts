@@ -21,14 +21,14 @@
 import type { UUIDv7 } from './uUIDv7';
 
 /**
- * The open-day period serving as the semester: the non-draft, non-archived period containing today, else the
- * next upcoming one, else the most recent past one.
+ * The open-day period serving as the semester: the requested period, else the non-draft, non-archived period
+ * containing today, else the next upcoming one, else the most recent past one.
  */
 export interface Semester {
   periodId: UUIDv7;
   name: string;
   startsOn: string;
   endsOn: string;
-  /** The sign-up deadline of the period, else its end date. */
+  /** The sign-up deadline of the period, else the default deadline of the staffing rules. */
   signUpBy: string;
 }

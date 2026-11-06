@@ -111,29 +111,73 @@ func (e *staffingEnv) newPeriod(name, status string, start, end time.Time) uuid.
 	return id
 }
 
-// role creates a role as master with the given staffing level and permissions.
-func (e *staffingEnv) role(name string, level *roles.StaffingLevel, permissions ...authorization.Permission) roles.Role {
+// role creates an extra role as master with the given permissions. With a membership it returns that membership
+// role instead, after adding the permissions to it.
+func (e *staffingEnv) role(name string, membership *roles.Membership, permissions ...authorization.Permission) roles.Role {
 	e.t.Helper()
+	ctx := testContext(e.t)
 	grants := make([]authorization.PermissionGrant, 0, len(permissions))
 	for _, permission := range permissions {
 		grants = append(grants, authorization.PermissionGrant{PermissionID: permission, Scope: authorization.GrantEverywhere})
 	}
-	role, err := e.roles.CreateWithBehaviors(
-		testContext(e.t), e.master, name, nil, grants, false, laborordnung.ModeNotRequired, level, nil, nil,
-	)
+	if membership != nil {
+		role := e.membershipRole(*membership)
+		have := map[authorization.Permission]bool{}
+		for _, grant := range role.PermissionGrants {
+			have[grant.PermissionID] = true
+		}
+		merged := append([]authorization.PermissionGrant(nil), role.PermissionGrants...)
+		for _, grant := range grants {
+			if !have[grant.PermissionID] {
+				merged = append(merged, grant)
+			}
+		}
+		if len(merged) == len(role.PermissionGrants) {
+			return role
+		}
+		for index := range merged {
+			merged[index].ID = uuid.Nil
+		}
+		updated, err := e.roles.ReplacePermissions(ctx, e.master, role.ID, role.Version, merged, nil)
+		if err != nil {
+			e.t.Fatal(err)
+		}
+		return updated
+	}
+	role, err := e.roles.CreateWithBehaviors(ctx, e.master, name, nil, grants, false, laborordnung.ModeNotRequired, nil)
 	if err != nil {
 		e.t.Fatal(err)
 	}
 	return role
 }
 
-// person creates a person with an account holding the given roles and returns the loaded principal.
+// membershipRole loads the membership system role.
+func (e *staffingEnv) membershipRole(membership roles.Membership) roles.Role {
+	e.t.Helper()
+	var id uuid.UUID
+	if err := e.pool.QueryRow(testContext(e.t), `SELECT id FROM roles WHERE system_key=$1`, string(membership)).Scan(&id); err != nil {
+		e.t.Fatal(err)
+	}
+	role, err := e.roles.Get(testContext(e.t), e.master, id)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	return role
+}
+
+// person creates a person with an account holding the given roles and returns the loaded principal. A membership
+// role replaces the Visitor membership every new person starts with.
 func (e *staffingEnv) person(suffix string, roleIDs ...uuid.UUID) authorization.Principal {
 	e.t.Helper()
 	e.counter++
 	account := seedAccount(e.t, e.pool, fmt.Sprintf("%s-%d", suffix, e.counter), false)
 	for _, roleID := range roleIDs {
-		e.exec(`INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, account.personID, roleID)
+		e.exec(`WITH replaced AS (
+			DELETE FROM person_roles pr USING roles r, roles added
+			WHERE pr.person_id=$1 AND r.id=pr.role_id AND added.id=$2 AND r.id<>added.id
+			  AND r.system_key IN ('supervisor','trainee','visitor') AND added.system_key IN ('supervisor','trainee','visitor')
+		)
+		INSERT INTO person_roles(person_id,role_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, account.personID, roleID)
 	}
 	principal, err := authorization.LoadPermissionsFrom(
 		testContext(e.t), e.pool, authorization.Principal{AccountID: account.accountID, PersonID: account.personID},
@@ -183,49 +227,246 @@ func (e *staffingEnv) join(day openDayFixture, requirement uuid.UUID, p authoriz
 	)
 }
 
-func level(value roles.StaffingLevel) *roles.StaffingLevel { return &value }
+func level(value roles.Membership) *roles.Membership { return &value }
 
-func TestRoleStaffingLevelRoundTripAndValidation(t *testing.T) {
+func defaultRulesInput(version int64) staffing.UpdateInput {
+	return staffing.UpdateInput{
+		ExpectedVersion: version, SupervisorMinimum: 2, TraineeMinimum: 2, TraineeReadyAfter: 3, WarningWindowDays: 14,
+		CountBy: staffing.CountByTimeslot, DefaultDeadline: staffing.DeadlinePeriodEnd,
+	}
+}
+
+func TestStaffingRulesPermissionsVersionExceptionsAndValidation(t *testing.T) {
 	e := newStaffingEnv(t)
 	ctx := testContext(t)
-	role := e.role("Level round trip", level(roles.StaffingTrainee))
-	if role.StaffingLevel == nil || *role.StaffingLevel != roles.StaffingTrainee {
-		t.Fatalf("created staffing level = %v, want trainee", role.StaffingLevel)
+	board := e.role("Board", nil)
+	reader := e.person("rules-reader", e.role("Reader", nil, authorization.SupervisorDashboardRead).ID)
+	manager := e.person("rules-manager", e.role("Manager", nil, authorization.OpenDaysManage).ID)
+	openDaysReader := e.person("rules-open-days", e.role("Open days", nil, authorization.OpenDaysRead).ID)
+
+	if _, err := e.staffing.Rules(ctx, openDaysReader); err == nil {
+		t.Fatal("open_days.read alone read the staffing rules")
 	}
-	name := "Renamed"
-	renamed, err := e.roles.UpdateWithBehaviors(ctx, e.master, role.ID, role.Version, &name, false, nil, nil, nil, false, nil, false, nil, nil)
+	current, err := e.staffing.Rules(ctx, reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if renamed.StaffingLevel == nil || *renamed.StaffingLevel != roles.StaffingTrainee {
-		t.Fatalf("an update that omits the level changed it to %v", renamed.StaffingLevel)
+	if current.SupervisorMinimum != 2 || current.TraineeMinimum != 2 || current.TraineeReadyAfter != 3 ||
+		current.WarningWindowDays != 14 || current.CountBy != staffing.CountByTimeslot ||
+		current.DefaultDeadline != staffing.DeadlinePeriodEnd || len(current.Exceptions) != 0 || current.Version != 1 {
+		t.Fatalf("default rules = %+v", current)
 	}
-	promoted, err := e.roles.UpdateWithBehaviors(
-		ctx, e.master, role.ID, renamed.Version, nil, false, nil, nil, nil, true, level(roles.StaffingSupervisor), false, nil, nil,
-	)
+	if _, err := e.staffing.Rules(ctx, manager); err != nil {
+		t.Fatalf("open_days.manage cannot read the rules: %v", err)
+	}
+
+	input := defaultRulesInput(current.Version)
+	input.SupervisorMinimum, input.TraineeMinimum, input.WarningWindowDays = 3, 1, 21
+	input.DefaultDeadline = staffing.DeadlineTwoWeeksBeforeEnd
+	input.Exceptions = []staffing.ExceptionInput{{RoleID: board.ID, Minimum: 0}}
+	_, err = e.staffing.UpdateRules(ctx, reader, input, nil)
+	expectAppCode(t, err, "permission_denied")
+	assertCount(t, e.pool, `SELECT count(*) FROM audit_events WHERE action='staffing_rules.updated'`, 0)
+
+	updated, err := e.staffing.UpdateRules(ctx, manager, input, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if promoted.StaffingLevel == nil || *promoted.StaffingLevel != roles.StaffingSupervisor {
-		t.Fatalf("updated staffing level = %v, want supervisor", promoted.StaffingLevel)
+	if updated.Version != 2 || updated.SupervisorMinimum != 3 || updated.TraineeMinimum != 1 ||
+		len(updated.Exceptions) != 1 || updated.Exceptions[0].RoleName != "Board" || updated.Exceptions[0].Minimum != 0 {
+		t.Fatalf("updated rules = %+v", updated)
 	}
-	_, err = e.roles.UpdateWithBehaviors(
-		ctx, e.master, role.ID, promoted.Version, nil, false, nil, nil, nil, true, level("lead"), false, nil, nil,
-	)
+	assertCount(t, e.pool, `SELECT count(*) FROM audit_events WHERE action='staffing_rules.updated'
+		AND changed_fields @> ARRAY['supervisorMinimum','exceptions']`, 1)
+
+	_, err = e.staffing.UpdateRules(ctx, manager, input, nil)
+	expectAppCode(t, err, "stale_write")
+
+	supervisorRole := e.membershipRole(roles.MembershipSupervisor)
+	invalid := []func(*staffing.UpdateInput){
+		func(in *staffing.UpdateInput) { in.SupervisorMinimum = -1 },
+		func(in *staffing.UpdateInput) { in.TraineeMinimum = 21 },
+		func(in *staffing.UpdateInput) { in.TraineeReadyAfter = 0 },
+		func(in *staffing.UpdateInput) { in.WarningWindowDays = 61 },
+		func(in *staffing.UpdateInput) { in.CountBy = "week" },
+		func(in *staffing.UpdateInput) { in.DefaultDeadline = "never" },
+		func(in *staffing.UpdateInput) {
+			in.Exceptions = []staffing.ExceptionInput{{RoleID: board.ID, Minimum: 21}}
+		},
+		func(in *staffing.UpdateInput) {
+			in.Exceptions = []staffing.ExceptionInput{{RoleID: board.ID, Minimum: 1}, {RoleID: board.ID, Minimum: 2}}
+		},
+		func(in *staffing.UpdateInput) { in.Exceptions = []staffing.ExceptionInput{{RoleID: supervisorRole.ID}} },
+		func(in *staffing.UpdateInput) { in.Exceptions = []staffing.ExceptionInput{{RoleID: ids.New()}} },
+	}
+	for index, mutate := range invalid {
+		bad := defaultRulesInput(2)
+		mutate(&bad)
+		_, err = e.staffing.UpdateRules(ctx, manager, bad, nil)
+		expectAppCode(t, err, "validation_failed")
+		if err == nil {
+			t.Fatalf("invalid input %d was accepted", index)
+		}
+	}
+	if _, err := e.pool.Exec(ctx, `INSERT INTO staffing_rule_exceptions(role_id,minimum) VALUES($1,1)`, supervisorRole.ID); err == nil {
+		t.Fatal("the database accepted an exception for a membership role")
+	}
+	assertCount(t, e.pool, `SELECT count(*) FROM staffing_rules WHERE version=2 AND supervisor_minimum=3`, 1)
+}
+
+func TestSupervisorDashboardShowsSemesterStandingPerPerson(t *testing.T) {
+	e := newStaffingEnv(t)
+	ctx := testContext(t)
+	supervisorRole := e.role("", level(roles.MembershipSupervisor), authorization.OpenDaysRead)
+	traineeRole := e.role("", level(roles.MembershipTrainee), authorization.OpenDaysRead)
+	board := e.role("Board", nil)
+	viewer := e.person("dashboard-viewer", e.role("Viewer", nil, authorization.SupervisorDashboardRead).ID)
+	leitung := e.person("dashboard-leitung",
+		e.role("Leitung", nil, authorization.SupervisorDashboardRead, authorization.OpenDaysManage).ID)
+	if _, err := e.supervise.Get(ctx, e.person("dashboard-denied"), nil); err == nil {
+		t.Fatal("dashboard was readable without supervisor_dashboard.read")
+	}
+
+	fulfilled := e.person("fulfilled", supervisorRole.ID)
+	missing := e.person("missing", supervisorRole.ID)
+	ready := e.person("ready", traineeRole.ID)
+	exempt := e.person("exempt", supervisorRole.ID, board.ID)
+	excused := e.person("excused", supervisorRole.ID)
+	visitor := e.person("visitor")
+	rules, err := e.staffing.Rules(ctx, e.master)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withException := defaultRulesInput(rules.Version)
+	withException.Exceptions = []staffing.ExceptionInput{{RoleID: board.ID, Minimum: 0}}
+	if _, err := e.staffing.UpdateRules(ctx, e.master, withException, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.staffing.SetExcusal(ctx, e.master, e.period, excused.PersonID, "  Semester abroad  ", nil); err != nil {
+		t.Fatal(err)
+	}
+
+	hour := time.Hour
+	ended1 := e.openDay(e.now.AddDate(0, 0, -20), 4*hour, 1, 1)
+	ended2 := e.openDay(e.now.AddDate(0, 0, -10), 4*hour, 1, 1)
+	ended3 := e.openDay(e.now.AddDate(0, 0, -5), 4*hour, 1, 1)
+	upcoming := e.openDay(e.now.AddDate(0, 0, 5), 4*hour, 2, 1)
+	cancelled := e.openDay(e.now.AddDate(0, 0, 6), 4*hour, 1, 0)
+	e.exec(`UPDATE open_days SET status='cancelled' WHERE id=$1`, cancelled.id)
+	pastPeriod := e.newPeriod("Past", "published", e.now.AddDate(0, 0, -400), e.now.AddDate(0, 0, -300))
+	pastDay, pastRequirement := ids.New(), ids.New()
+	pastStart := e.now.AddDate(0, 0, -350)
+	e.exec(`INSERT INTO open_days(id,period_id,starts_at,ends_at) VALUES($1,$2,$3,$4)`, pastDay, pastPeriod, pastStart, pastStart.Add(4*hour))
+	e.exec(`INSERT INTO open_day_staff_requirements(id,open_day_id,kind,required_count) VALUES($1,$2,'supervisor',1)`, pastRequirement, pastDay)
+	e.exec(`INSERT INTO open_day_assignments(id,open_day_id,requirement_id,person_id) VALUES($1,$2,$3,$4)`, ids.New(), pastDay, pastRequirement, missing.PersonID)
+
+	e.join(ended1, ended1.supervisorRequirement, fulfilled)
+	e.join(upcoming, upcoming.supervisorRequirement, fulfilled)
+	e.join(ended1, ended1.traineeRequirement, ready)
+	e.join(ended2, ended2.traineeRequirement, ready)
+	e.join(ended3, ended3.traineeRequirement, ready)
+	e.join(cancelled, cancelled.supervisorRequirement, missing)
+
+	result, err := e.supervise.Get(ctx, viewer, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Semester == nil || result.Semester.ID != e.period || result.Rules.SupervisorMinimum != 2 {
+		t.Fatalf("semester = %+v, rules = %+v", result.Semester, result.Rules)
+	}
+	byPerson := map[uuid.UUID]supervisors.Row{}
+	for _, row := range result.Supervisors {
+		byPerson[row.PersonID] = row
+	}
+	if len(byPerson) != 5 {
+		t.Fatalf("listed %d people, want the five supervisors and trainees", len(byPerson))
+	}
+	if _, listed := byPerson[visitor.PersonID]; listed {
+		t.Fatal("a visitor is listed")
+	}
+	if row := byPerson[fulfilled.PersonID]; row.Membership != roles.MembershipSupervisor || row.Counts.Staffed != 1 ||
+		row.Counts.Booked != 1 || row.Standing.Status != staffing.StatusFulfilled || row.LastOpenDayAt == nil ||
+		row.NextAssignment == nil || row.NextAssignment.OpenDayID != upcoming.id || row.Minimum.Source != staffing.SourceMembership {
+		t.Fatalf("fulfilled row = %+v", row)
+	}
+	if row := byPerson[missing.PersonID]; row.Standing.Status != staffing.StatusMissing || row.Standing.Missing != 2 ||
+		row.LastOpenDayAt == nil || !row.LastOpenDayAt.Equal(pastStart.Truncate(time.Microsecond)) || row.NextAssignment != nil {
+		t.Fatalf("missing row = %+v", row)
+	}
+	if row := byPerson[ready.PersonID]; row.Membership != roles.MembershipTrainee || row.Counts.StaffedAsTrainee != 3 ||
+		row.Standing.Status != staffing.StatusReady {
+		t.Fatalf("ready row = %+v", row)
+	}
+	if row := byPerson[exempt.PersonID]; row.Minimum.Value != 0 || row.Minimum.Source != staffing.SourceException ||
+		row.Minimum.ExceptionRole == nil || *row.Minimum.ExceptionRole != "Board" ||
+		row.Standing.Status != staffing.StatusNoMinimum || len(row.ExtraRoles) != 1 || row.ExtraRoles[0] != "Board" {
+		t.Fatalf("exempt row = %+v", row)
+	}
+	if row := byPerson[excused.PersonID]; row.Excusal == nil || row.Excusal.Reason != "Semester abroad" ||
+		row.Minimum.Source != staffing.SourceExcused || row.Standing.Status != staffing.StatusExcused {
+		t.Fatalf("excused row = %+v", row)
+	}
+
+	// The excusal belongs to its period: the past semester evaluates the person normally.
+	past, err := e.supervise.Get(ctx, viewer, &pastPeriod)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range past.Supervisors {
+		if row.PersonID == excused.PersonID && row.Excusal != nil {
+			t.Fatal("an excusal leaked into another period")
+		}
+		if row.PersonID == missing.PersonID && row.Counts.Staffed != 1 {
+			t.Fatalf("past period counts = %+v", row.Counts)
+		}
+	}
+	draft := e.newPeriod("Draft", "draft", e.now.AddDate(0, 0, 100), e.now.AddDate(0, 0, 200))
+	_, err = e.supervise.Get(ctx, viewer, &draft)
+	expectAppCode(t, err, "not_found")
+	if _, err := e.supervise.Get(ctx, leitung, &draft); err != nil {
+		t.Fatalf("open_days.manage cannot evaluate a draft period: %v", err)
+	}
+}
+
+func TestStaffingExcusalsNeedOpenDaysManageAndAreAuditedWithoutReason(t *testing.T) {
+	e := newStaffingEnv(t)
+	ctx := testContext(t)
+	supervisor := e.person("excusal-subject", e.role("", level(roles.MembershipSupervisor)).ID)
+	reader := e.person("excusal-reader", e.role("Reader", nil, authorization.SupervisorDashboardRead).ID)
+	manager := e.person("excusal-manager", e.role("Manager", nil, authorization.OpenDaysManage).ID)
+
+	_, err := e.staffing.SetExcusal(ctx, reader, e.period, supervisor.PersonID, "private reason", nil)
+	expectAppCode(t, err, "permission_denied")
+	_, err = e.staffing.SetExcusal(ctx, manager, e.period, supervisor.PersonID, strings.Repeat("x", 501), nil)
 	expectAppCode(t, err, "validation_failed")
-	cleared, err := e.roles.UpdateWithBehaviors(
-		ctx, e.master, role.ID, promoted.Version, nil, false, nil, nil, nil, true, nil, false, nil, nil,
-	)
-	if err != nil {
+	_, err = e.staffing.SetExcusal(ctx, manager, ids.New(), supervisor.PersonID, "", nil)
+	expectAppCode(t, err, "not_found")
+	_, err = e.staffing.SetExcusal(ctx, manager, e.period, ids.New(), "", nil)
+	expectAppCode(t, err, "not_found")
+
+	if _, err := e.staffing.SetExcusal(ctx, manager, e.period, supervisor.PersonID, "private reason", nil); err != nil {
 		t.Fatal(err)
 	}
-	if cleared.StaffingLevel != nil {
-		t.Fatalf("explicit null kept staffing level %v", *cleared.StaffingLevel)
+	if _, err := e.staffing.SetExcusal(ctx, manager, e.period, supervisor.PersonID, "changed reason", nil); err != nil {
+		t.Fatal(err)
 	}
-	_, err = e.roles.CreateWithBehaviors(
-		ctx, e.master, "Bad level", nil, nil, false, laborordnung.ModeNotRequired, level("lead"), nil, nil,
-	)
-	expectAppCode(t, err, "validation_failed")
+	assertCount(t, e.pool, `SELECT count(*) FROM staffing_excusals WHERE person_id=$1 AND reason='changed reason'`, 1, supervisor.PersonID)
+	assertCount(t, e.pool, `SELECT count(*) FROM audit_events WHERE action='staffing_excusal.saved' AND resource_id=$1`, 2, supervisor.PersonID)
+	assertCount(t, e.pool, `SELECT count(*) FROM audit_events WHERE metadata::text LIKE '%reason%'`, 0)
+
+	expectAppCode(t, e.staffing.RemoveExcusal(ctx, reader, e.period, supervisor.PersonID, nil), "permission_denied")
+	if err := e.staffing.RemoveExcusal(ctx, manager, e.period, supervisor.PersonID, nil); err != nil {
+		t.Fatal(err)
+	}
+	expectAppCode(t, e.staffing.RemoveExcusal(ctx, manager, e.period, supervisor.PersonID, nil), "not_found")
+	assertCount(t, e.pool, `SELECT count(*) FROM audit_events WHERE action='staffing_excusal.removed'`, 1)
+
+	// Excusals go with their period and their person.
+	if _, err := e.staffing.SetExcusal(ctx, manager, e.period, supervisor.PersonID, "", nil); err != nil {
+		t.Fatal(err)
+	}
+	e.exec(`DELETE FROM open_day_periods WHERE id=$1`, e.period)
+	assertCount(t, e.pool, `SELECT count(*) FROM staffing_excusals`, 0)
 }
 
 func TestStaffingLevelMigrationBackfillsFromSupervisorDashboardAndRestoresIt(t *testing.T) {
@@ -269,243 +510,6 @@ func TestStaffingLevelMigrationBackfillsFromSupervisorDashboardAndRestoresIt(t *
 	assertCount(t, pool, `SELECT count(*) FROM information_schema.tables WHERE table_schema=current_schema() AND table_name='open_day_requirements'`, 0)
 	applyMigrationFiles(t, pool, target)
 	assertCount(t, pool, `SELECT count(*) FROM roles WHERE id=$1 AND staffing_level='supervisor'`, 1, flagged)
-}
-
-func TestOpenDayRequirementsPermissionsVersionAndValidation(t *testing.T) {
-	e := newStaffingEnv(t)
-	ctx := testContext(t)
-	supervisorRole := e.role("Supervisors", level(roles.StaffingSupervisor))
-	traineeRole := e.role("Trainees", level(roles.StaffingTrainee))
-	plainRole := e.role("Plain", nil)
-	reader := e.person("req-reader", e.role("Reader", nil, authorization.OpenDaysRead).ID)
-	manager := e.person("req-manager", e.role("Manager", nil, authorization.OpenDaysRead, authorization.OpenDaysManage).ID)
-	nobody := e.person("req-nobody")
-
-	if _, err := e.staffing.Requirements(ctx, nobody); err == nil {
-		t.Fatal("a principal without open_days.read read the requirements")
-	}
-	current, err := e.staffing.Requirements(ctx, reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if current.MinOpenDaysPerSemester != 2 || current.TraineeOpenDaysForPromotion != 3 ||
-		current.SupervisorRoleID != nil || current.Version != 1 {
-		t.Fatalf("default requirements = %+v", current)
-	}
-
-	input := staffing.UpdateInput{
-		ExpectedVersion: current.Version, MinOpenDaysPerSemester: 3, TraineeOpenDaysForPromotion: 4,
-		SupervisorRoleID: &supervisorRole.ID,
-	}
-	_, err = e.staffing.UpdateRequirements(ctx, reader, input, nil)
-	expectAppCode(t, err, "permission_denied")
-	assertCount(t, e.pool, `SELECT count(*) FROM audit_events WHERE action='open_day_requirements.updated'`, 0)
-
-	updated, err := e.staffing.UpdateRequirements(ctx, manager, input, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updated.Version != 2 || updated.MinOpenDaysPerSemester != 3 || updated.TraineeOpenDaysForPromotion != 4 ||
-		updated.SupervisorRoleID == nil || *updated.SupervisorRoleID != supervisorRole.ID {
-		t.Fatalf("updated requirements = %+v", updated)
-	}
-	assertCount(t, e.pool, `SELECT count(*) FROM audit_events WHERE action='open_day_requirements.updated'`, 1)
-
-	_, err = e.staffing.UpdateRequirements(ctx, manager, input, nil)
-	expectAppCode(t, err, "stale_write")
-
-	invalid := []staffing.UpdateInput{
-		{ExpectedVersion: 2, MinOpenDaysPerSemester: -1, TraineeOpenDaysForPromotion: 3},
-		{ExpectedVersion: 2, MinOpenDaysPerSemester: 21, TraineeOpenDaysForPromotion: 3},
-		{ExpectedVersion: 2, MinOpenDaysPerSemester: 2, TraineeOpenDaysForPromotion: 0},
-		{ExpectedVersion: 2, MinOpenDaysPerSemester: 2, TraineeOpenDaysForPromotion: 21},
-		{ExpectedVersion: 2, MinOpenDaysPerSemester: 2, TraineeOpenDaysForPromotion: 3, SupervisorRoleID: &traineeRole.ID},
-		{ExpectedVersion: 2, MinOpenDaysPerSemester: 2, TraineeOpenDaysForPromotion: 3, SupervisorRoleID: &plainRole.ID},
-		{ExpectedVersion: 2, MinOpenDaysPerSemester: 2, TraineeOpenDaysForPromotion: 3, SupervisorRoleID: ptr(ids.New())},
-	}
-	for index, bad := range invalid {
-		_, err = e.staffing.UpdateRequirements(ctx, manager, bad, nil)
-		if err == nil {
-			t.Fatalf("invalid input %d was accepted", index)
-		}
-		expectAppCode(t, err, "validation_failed")
-	}
-	assertCount(t, e.pool, `SELECT count(*) FROM open_day_requirements WHERE version=2 AND supervisor_role_id=$1`, 1, supervisorRole.ID)
-
-	// A role that stops being a supervisor role can no longer be the promotion role.
-	if _, err = e.roles.UpdateWithBehaviors(
-		ctx, e.master, supervisorRole.ID, supervisorRole.Version, nil, false, nil, nil, nil, true, level(roles.StaffingTrainee), false, nil, nil,
-	); err != nil {
-		t.Fatal(err)
-	}
-	assertCount(t, e.pool, `SELECT count(*) FROM open_day_requirements WHERE supervisor_role_id IS NULL`, 1)
-	cleared, err := e.staffing.Requirements(ctx, reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cleared.SupervisorRoleID != nil {
-		t.Fatal("the requirements still point at a role that is no longer a supervisor role")
-	}
-}
-
-func TestSupervisorDashboardShowsSemesterStandingPerPerson(t *testing.T) {
-	e := newStaffingEnv(t)
-	ctx := testContext(t)
-	supervisorRole := e.role("Supervisors", level(roles.StaffingSupervisor), authorization.OpenDaysRead)
-	traineeRole := e.role("Trainees", level(roles.StaffingTrainee), authorization.OpenDaysRead)
-	viewer := e.person("dashboard-viewer", e.role("Viewer", nil, authorization.SupervisorDashboardRead).ID)
-	if _, err := e.supervise.Get(ctx, e.person("dashboard-denied")); err == nil {
-		t.Fatal("dashboard was readable without supervisor_dashboard.read")
-	}
-
-	fulfilled := e.person("fulfilled", supervisorRole.ID)
-	missing := e.person("missing", supervisorRole.ID)
-	ready := e.person("ready", traineeRole.ID)
-	bystander := e.person("bystander")
-	hour := time.Hour
-	ended1 := e.openDay(e.now.AddDate(0, 0, -20), 4*hour, 1, 1)
-	ended2 := e.openDay(e.now.AddDate(0, 0, -10), 4*hour, 1, 1)
-	ended3 := e.openDay(e.now.AddDate(0, 0, -5), 4*hour, 1, 1)
-	upcoming := e.openDay(e.now.AddDate(0, 0, 5), 4*hour, 2, 1)
-	cancelled := e.openDay(e.now.AddDate(0, 0, 6), 4*hour, 1, 0)
-	e.exec(`UPDATE open_days SET status='cancelled' WHERE id=$1`, cancelled.id)
-	// A past semester must not leak into the current numbers, but counts for "last open day".
-	pastPeriod := e.newPeriod("Past", "published", e.now.AddDate(0, 0, -400), e.now.AddDate(0, 0, -300))
-	pastDay, pastRequirement := ids.New(), ids.New()
-	pastStart := e.now.AddDate(0, 0, -350)
-	e.exec(`INSERT INTO open_days(id,period_id,starts_at,ends_at) VALUES($1,$2,$3,$4)`, pastDay, pastPeriod, pastStart, pastStart.Add(4*hour))
-	e.exec(`INSERT INTO open_day_staff_requirements(id,open_day_id,kind,required_count) VALUES($1,$2,'supervisor',1)`, pastRequirement, pastDay)
-	e.exec(`INSERT INTO open_day_assignments(id,open_day_id,requirement_id,person_id) VALUES($1,$2,$3,$4)`, ids.New(), pastDay, pastRequirement, missing.PersonID)
-
-	// fulfilled: one ended + one booked (signing up is enough); ready: three ended as trainee;
-	// missing: only the cancelled day, which must not count.
-	e.join(ended1, ended1.supervisorRequirement, fulfilled)
-	e.join(upcoming, upcoming.supervisorRequirement, fulfilled)
-	e.join(ended1, ended1.traineeRequirement, ready)
-	e.join(ended2, ended2.traineeRequirement, ready)
-	e.join(ended3, ended3.traineeRequirement, ready)
-	e.join(cancelled, cancelled.supervisorRequirement, missing)
-	e.join(upcoming, upcoming.traineeRequirement, bystander)
-
-	result, err := e.supervise.Get(ctx, viewer)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Semester == nil || result.Semester.ID != e.period {
-		t.Fatalf("semester = %+v, want the current period", result.Semester)
-	}
-	if result.Requirements.MinOpenDaysPerSemester != 2 || result.Requirements.SupervisorRoleID != nil {
-		t.Fatalf("requirements = %+v", result.Requirements)
-	}
-	byPerson := map[uuid.UUID]supervisors.Row{}
-	for _, row := range result.Supervisors {
-		byPerson[row.PersonID] = row
-	}
-	if len(byPerson) != 3 {
-		t.Fatalf("listed %d people, want the three with a staffing level", len(byPerson))
-	}
-	if row := byPerson[fulfilled.PersonID]; row.Kind != roles.StaffingSupervisor || row.Counts.Staffed != 1 ||
-		row.Counts.Booked != 1 || row.Standing.Status != staffing.StatusFulfilled || row.LastOpenDayAt == nil {
-		t.Fatalf("fulfilled row = %+v", row)
-	}
-	var fulfilledVersion int64
-	if err := e.pool.QueryRow(ctx, `SELECT version FROM people WHERE id=$1`, fulfilled.PersonID).Scan(&fulfilledVersion); err != nil {
-		t.Fatal(err)
-	}
-	if byPerson[fulfilled.PersonID].PersonVersion != fulfilledVersion {
-		t.Fatalf("person version = %d, want %d", byPerson[fulfilled.PersonID].PersonVersion, fulfilledVersion)
-	}
-	if row := byPerson[missing.PersonID]; row.Counts.Staffed != 0 || row.Counts.Booked != 0 ||
-		row.Standing.Status != staffing.StatusMissing || row.Standing.Missing != 2 ||
-		row.LastOpenDayAt == nil || !row.LastOpenDayAt.Equal(pastStart.Truncate(time.Microsecond)) {
-		t.Fatalf("missing row = %+v", row)
-	}
-	if row := byPerson[ready.PersonID]; row.Kind != roles.StaffingTrainee || row.Counts.Staffed != 3 ||
-		row.Counts.StaffedAsTrainee != 3 || row.Standing.Status != staffing.StatusReady {
-		t.Fatalf("ready row = %+v", row)
-	}
-	if result.Totals.Supervisors != 3 {
-		t.Fatalf("totals = %+v", result.Totals)
-	}
-}
-
-func TestSupervisorKindWinsAndPromotionRequiresATrainee(t *testing.T) {
-	e := newStaffingEnv(t)
-	ctx := testContext(t)
-	supervisorRole := e.role("Supervisors", level(roles.StaffingSupervisor), authorization.OpenDaysRead)
-	traineeRole := e.role("Trainees", level(roles.StaffingTrainee), authorization.OpenDaysRead)
-	both := e.person("both-levels", traineeRole.ID, supervisorRole.ID)
-	kind, err := e.staffing.PersonKind(ctx, both.PersonID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if kind == nil || *kind != roles.StaffingSupervisor {
-		t.Fatalf("kind = %v, want supervisor", kind)
-	}
-	none, err := e.staffing.PersonKind(ctx, e.person("no-level").PersonID)
-	if err != nil || none != nil {
-		t.Fatalf("kind of a person without staffing roles = %v (%v), want nil", none, err)
-	}
-}
-
-func TestPromotionReplacesTraineeRolesWithTheConfiguredSupervisorRole(t *testing.T) {
-	e := newStaffingEnv(t)
-	ctx := testContext(t)
-	supervisorRole := e.role("Supervisors", level(roles.StaffingSupervisor), authorization.OpenDaysRead)
-	traineeRole := e.role("Trainees", level(roles.StaffingTrainee), authorization.OpenDaysRead)
-	extraRole := e.role("Extra", nil, authorization.OpenDaysSignup)
-	assigner := e.person("assigner", e.role("Assigner", nil, authorization.PeopleRolesAssign, authorization.OpenDaysRead, authorization.OpenDaysSignup).ID)
-	denied := e.person("promotion-denied")
-	trainee := e.person("trainee", traineeRole.ID, extraRole.ID)
-	supervisor := e.person("supervisor", supervisorRole.ID)
-	plain := e.person("plain-member", extraRole.ID)
-
-	// Not configured yet.
-	_, err := e.people.PromoteToSupervisor(ctx, assigner, trainee.PersonID, 1, nil)
-	expectAppCode(t, err, "promotion_role_not_configured")
-	assertCount(t, e.pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, trainee.PersonID, traineeRole.ID)
-
-	requirements, err := e.staffing.Requirements(ctx, e.master)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = e.staffing.UpdateRequirements(ctx, e.master, staffing.UpdateInput{
-		ExpectedVersion: requirements.Version, MinOpenDaysPerSemester: 2, TraineeOpenDaysForPromotion: 3,
-		SupervisorRoleID: &supervisorRole.ID,
-	}, nil); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = e.people.PromoteToSupervisor(ctx, denied, trainee.PersonID, 1, nil)
-	expectAppCode(t, err, "permission_denied")
-	_, err = e.people.PromoteToSupervisor(ctx, assigner, supervisor.PersonID, 1, nil)
-	expectAppCode(t, err, "not_a_trainee")
-	_, err = e.people.PromoteToSupervisor(ctx, assigner, plain.PersonID, 1, nil)
-	expectAppCode(t, err, "not_a_trainee")
-	_, err = e.people.PromoteToSupervisor(ctx, assigner, trainee.PersonID, 7, nil)
-	expectAppCode(t, err, "stale_write")
-	assertCount(t, e.pool, `SELECT count(*) FROM audit_events WHERE action='person.promoted_to_supervisor'`, 0)
-
-	// Privilege subset: the supervisor role carries open_days.read, which this actor lacks.
-	limited := e.person("limited-assigner", e.role("Limited assigner", nil, authorization.PeopleRolesAssign).ID)
-	_, err = e.people.PromoteToSupervisor(ctx, limited, trainee.PersonID, 1, nil)
-	expectAppCode(t, err, "permission_denied")
-	assertCount(t, e.pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, trainee.PersonID, traineeRole.ID)
-
-	promoted, err := e.people.PromoteToSupervisor(ctx, assigner, trainee.PersonID, 1, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if promoted.Version != 2 {
-		t.Fatalf("promoted version = %d, want 2", promoted.Version)
-	}
-	assertCount(t, e.pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 0, trainee.PersonID, traineeRole.ID)
-	assertCount(t, e.pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, trainee.PersonID, supervisorRole.ID)
-	assertCount(t, e.pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, trainee.PersonID, extraRole.ID)
-	assertCount(t, e.pool, `SELECT count(*) FROM audit_events WHERE action='person.promoted_to_supervisor' AND resource_id=$1`, 1, trainee.PersonID)
-	// Promoting again fails: the person is a supervisor now.
-	_, err = e.people.PromoteToSupervisor(ctx, assigner, trainee.PersonID, 2, nil)
-	expectAppCode(t, err, "not_a_trainee")
 }
 
 func allMigrationFiles(t *testing.T) []string {

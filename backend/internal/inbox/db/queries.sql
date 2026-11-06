@@ -44,22 +44,22 @@ WHERE a.status = 'enabled'
 ORDER BY a.id;
 
 -- name: ListEnabledStaffingAccountIDs :many
--- Active accounts of people with any open day staffing level (supervisor or trainee).
+-- Active accounts of people who staff open days (supervisor or trainee membership).
 SELECT DISTINCT a.id
 FROM accounts a
 JOIN person_roles pr ON pr.person_id = a.person_id
 JOIN roles r ON r.id = pr.role_id
-WHERE a.status = 'enabled' AND r.staffing_level IS NOT NULL
+WHERE a.status = 'enabled' AND r.system_key IN ('supervisor', 'trainee')
 ORDER BY a.id;
 
 -- name: ListUnassignedSupervisorAccountIDs :many
--- Active accounts of people with the supervisor staffing level who are not assigned to the open day.
+-- Active accounts of people with the supervisor membership who are not assigned to the open day.
 SELECT DISTINCT a.id
 FROM accounts a
 JOIN person_roles pr ON pr.person_id = a.person_id
 JOIN roles r ON r.id = pr.role_id
 WHERE a.status = 'enabled'
-  AND r.staffing_level = 'supervisor'
+  AND r.system_key = 'supervisor'
   AND a.person_id <> sqlc.arg(excluded_person_id)::uuid
   AND NOT EXISTS (
       SELECT 1 FROM open_day_assignments x
@@ -286,3 +286,6 @@ SET read_at = now()
 FROM inbox_notifications n, accounts a
 WHERE n.id = r.notification_id AND n.kind = 'lab_rules_published'
   AND a.id = r.account_id AND a.person_id = sqlc.arg(person_id) AND r.read_at IS NULL;
+
+-- name: GetStaffingWarningWindowDays :one
+SELECT warning_window_days FROM staffing_rules WHERE singleton = true;

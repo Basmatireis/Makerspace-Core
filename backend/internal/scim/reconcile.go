@@ -106,6 +106,21 @@ func (s *Service) Reconcile(
 	); err != nil {
 		return report, err
 	}
+	if err := queries.NormalizeReconciledPersonMembership(ctx, target.PersonID); err != nil {
+		return report, err
+	}
+	if err := queries.DeleteDuplicateReconciledExcusals(
+		ctx,
+		scimdb.DeleteDuplicateReconciledExcusalsParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID},
+	); err != nil {
+		return report, err
+	}
+	if err := queries.TransferExcusals(
+		ctx,
+		scimdb.TransferExcusalsParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID},
+	); err != nil {
+		return report, err
+	}
 	if err := queries.BumpReconciledPersonVersion(ctx, target.PersonID); err != nil {
 		return report, err
 	}

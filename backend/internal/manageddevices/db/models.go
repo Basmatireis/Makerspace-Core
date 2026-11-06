@@ -964,16 +964,6 @@ type OpenDayPeriod struct {
 	SignUpDeadline pgtype.Date
 }
 
-type OpenDayRequirement struct {
-	Singleton                   bool
-	MinOpenDaysPerSemester      int32
-	TraineeOpenDaysForPromotion int32
-	SupervisorRoleID            *uuid.UUID
-	Version                     int64
-	UpdatedByAccountID          *uuid.UUID
-	UpdatedAt                   time.Time
-}
-
 type OpenDayStaffRequirement struct {
 	ID            uuid.UUID
 	OpenDayID     uuid.UUID
@@ -1680,17 +1670,15 @@ type ProcessMeasure struct {
 }
 
 type Role struct {
-	ID                     uuid.UUID
-	Name                   string
-	Description            *string
-	SystemKey              *string
-	Version                int64
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
-	ProfileImageRequired   bool
-	LaborordnungMode       string
-	StaffingLevel          *string
-	MinOpenDaysPerSemester *int32
+	ID                   uuid.UUID
+	Name                 string
+	Description          *string
+	SystemKey            *string
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	ProfileImageRequired bool
+	LaborordnungMode     string
 }
 
 type RolePermissionGrant struct {
@@ -2001,6 +1989,32 @@ type SignageScene struct {
 	FontAssetID       *uuid.UUID
 }
 
+type StaffingExcusal struct {
+	PeriodID           uuid.UUID
+	PersonID           uuid.UUID
+	Reason             string
+	CreatedByAccountID *uuid.UUID
+	CreatedAt          time.Time
+}
+
+type StaffingRule struct {
+	Singleton          bool
+	SupervisorMinimum  int32
+	TraineeMinimum     int32
+	TraineeReadyAfter  int32
+	WarningWindowDays  int32
+	CountBy            string
+	DefaultDeadline    string
+	Version            int64
+	UpdatedByAccountID *uuid.UUID
+	UpdatedAt          time.Time
+}
+
+type StaffingRuleException struct {
+	RoleID  uuid.UUID
+	Minimum int32
+}
+
 type Survey struct {
 	ID          uuid.UUID
 	Name        string
@@ -2166,7 +2180,6 @@ type Visit struct {
 type VisitorEnrollmentConfiguration struct {
 	Singleton          bool
 	Enabled            bool
-	InitialRoleID      *uuid.UUID
 	AllowedMethods     []string
 	Version            int64
 	UpdatedByAccountID *uuid.UUID

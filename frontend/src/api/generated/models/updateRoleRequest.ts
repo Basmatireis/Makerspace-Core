@@ -18,7 +18,6 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { StaffingLevel } from './staffingLevel';
 import type { UpdateRoleRequestLaborordnungMode } from './updateRoleRequestLaborordnungMode';
 import type { Version } from './version';
 
@@ -28,15 +27,6 @@ import type { Version } from './version';
 export interface UpdateRoleRequest {
   profileImageRequired?: boolean;
   laborordnungMode?: UpdateRoleRequestLaborordnungMode;
-  /** Omitted keeps the level; null clears it (which also clears `minOpenDaysPerSemester`). */
-  staffingLevel?: StaffingLevel | null;
-  /**
-     * Omitted keeps the override; null clears it. Rejected (422) when the role has no staffing level afterwards.
-     * @minimum 0
-     * @maximum 20
-     * @nullable
-     */
-  minOpenDaysPerSemester?: number | null;
   expectedVersion: Version;
   /**
      * @minLength 1

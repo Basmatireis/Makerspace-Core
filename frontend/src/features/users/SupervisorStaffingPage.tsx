@@ -56,7 +56,7 @@ export function SupervisorStaffingPage() {
   const canManageRequirements = hasPermission(currentUser, PermissionId.open_daysmanage);
   const query = useQuery({
     queryKey: ['supervisor-dashboard'],
-    queryFn: ({ signal }) => getSupervisorDashboard({ signal }),
+    queryFn: ({ signal }) => getSupervisorDashboard(undefined, { signal }),
   });
 
   if (query.isPending) return <FullPageLoading label="Loading supervisor staffing" />;
@@ -70,7 +70,7 @@ export function SupervisorStaffingPage() {
     );
   }
 
-  const { semester, requirements, supervisors } = query.data;
+  const { semester, rules, supervisors } = query.data;
   const applyFilters = (values: FilterValues) => {
     setFilters(values);
     setPage(1);
@@ -84,13 +84,11 @@ export function SupervisorStaffingPage() {
   const unsigned = supervisors.filter((row) => row.laborordnungState === 'outdated').length;
   const ready = supervisors.filter((row) => row.status === 'ready').length;
   const noPhoto = supervisors.filter((row) => !row.hasProfileImage).length;
-  const hasTrainees = supervisors.some((row) => row.kind === 'trainee');
+  const hasTrainees = supervisors.some((row) => row.membership === 'trainee');
 
   let promoteBlockedReason: string | null = null;
   if (!canAssignRoles) {
     promoteBlockedReason = 'You need permission to assign roles to make a trainee a supervisor.';
-  } else if (!requirements.supervisorRoleConfigured) {
-    promoteBlockedReason = 'No supervisor role is configured. Choose one in the open day requirements first.';
   }
 
   return (
@@ -156,7 +154,7 @@ export function SupervisorStaffingPage() {
           <Metric
             label="Ready for supervisor"
             value={ready}
-            detail={`Trainees with ${requirements.traineeOpenDaysForPromotion}+ open days`}
+            detail={`Trainees with ${rules.traineeReadyAfter}+ open days`}
             {...tile('status', 'ready')}
           />
           <Metric
@@ -169,7 +167,7 @@ export function SupervisorStaffingPage() {
 
         <StaffingTable
           rows={visible}
-          traineeThreshold={requirements.traineeOpenDaysForPromotion}
+          traineeThreshold={rules.traineeReadyAfter}
           search={search}
           filters={filters}
           page={page}
@@ -194,7 +192,7 @@ export function SupervisorStaffingPage() {
       </section>
       <PromoteDialog
         member={promoting}
-        threshold={requirements.traineeOpenDaysForPromotion}
+        threshold={rules.traineeReadyAfter}
         onClose={() => setPromoting(null)}
         onPromoted={setPromoted}
       />

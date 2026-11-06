@@ -11,21 +11,34 @@ import (
 )
 
 type Querier interface {
-	GetOpenDayRequirements(ctx context.Context) (OpenDayRequirement, error)
-	GetOpenDayRequirementsForUpdate(ctx context.Context) (OpenDayRequirement, error)
-	// Locks the role so its staffing level cannot change while the requirements settings reference it.
-	GetRoleStaffingLevelForShare(ctx context.Context, id uuid.UUID) (*string, error)
+	DeleteExcusal(ctx context.Context, arg DeleteExcusalParams) (int64, error)
+	DeleteStaffingRuleExceptions(ctx context.Context) error
+	// Locks the period so it cannot be deleted while an excusal for it is written.
+	GetPeriodForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Locks the person so they cannot be deleted while an excusal for them is written.
+	GetPersonForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	GetPersonMembership(ctx context.Context, personID uuid.UUID) (string, error)
+	// Locks the role so it cannot be deleted while the rules gain an exception for it.
+	GetRoleSystemKeyForShare(ctx context.Context, id uuid.UUID) (*string, error)
+	GetSemesterPeriod(ctx context.Context, id uuid.UUID) (GetSemesterPeriodRow, error)
+	GetStaffingRules(ctx context.Context) (StaffingRule, error)
+	GetStaffingRulesForUpdate(ctx context.Context) (StaffingRule, error)
+	InsertStaffingRuleException(ctx context.Context, arg InsertStaffingRuleExceptionParams) error
+	ListExcusals(ctx context.Context, arg ListExcusalsParams) ([]ListExcusalsRow, error)
 	// Start of the last ended open day each person staffed in any semester.
 	ListLastStaffed(ctx context.Context, arg ListLastStaffedParams) ([]ListLastStaffedRow, error)
-	ListPersonStaffingLevels(ctx context.Context, personID uuid.UUID) ([]string, error)
+	// The next upcoming open day each person is assigned to, in any semester.
+	ListNextAssignments(ctx context.Context, arg ListNextAssignmentsParams) ([]ListNextAssignmentsRow, error)
+	// The exceptions of each person's extra roles; only_person_id narrows it to one person.
+	ListPersonExceptions(ctx context.Context, onlyPersonID *uuid.UUID) ([]ListPersonExceptionsRow, error)
 	// Periods a semester can be resolved from: neither draft nor archived.
 	ListSemesterCandidates(ctx context.Context) ([]ListSemesterCandidatesRow, error)
 	// Open days per person in one period: ended (staffed), upcoming (booked) and ended as trainee. Cancelled open days
 	// do not count. A NULL period yields all zeros. person_id narrows the result to one person.
 	ListStaffingCounts(ctx context.Context, arg ListStaffingCountsParams) ([]ListStaffingCountsRow, error)
-	// The open-day minimum overrides of the roles with a staffing level, one row per person and overriding role.
-	ListStaffingMinimumOverrides(ctx context.Context, onlyPersonID *uuid.UUID) ([]ListStaffingMinimumOverridesRow, error)
-	UpdateOpenDayRequirements(ctx context.Context, arg UpdateOpenDayRequirementsParams) (OpenDayRequirement, error)
+	ListStaffingRuleExceptions(ctx context.Context) ([]ListStaffingRuleExceptionsRow, error)
+	UpdateStaffingRules(ctx context.Context, arg UpdateStaffingRulesParams) (StaffingRule, error)
+	UpsertExcusal(ctx context.Context, arg UpsertExcusalParams) (UpsertExcusalRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -18,7 +18,7 @@ const (
 	ruleSessions      = "revoked for every merged account; deleted with the source account"
 	ruleSCIM          = "a SCIM-managed source blocks the merge; the target's mapping stays"
 	ruleAttached      = "the first source account becomes the target's account when the target has none"
-	ruleUnionedRoles  = "roles united on the target"
+	ruleUnionedRoles  = "roles united on the target; only the highest membership stays"
 	ruleKeptIdentity  = "the chosen login email's identity moves to the surviving account; others are deleted"
 	ruleInboxMoved    = "moved to the surviving account; duplicate deliveries dropped"
 	ruleGuideProgress = "deleted with the source account; the surviving account keeps its own progress"
@@ -44,6 +44,7 @@ var MergeReferences = []MergeReference{
 	{"organization_members", "person_id", "people", ruleDeduplicated},
 	{"person_roles", "person_id", "people", ruleUnionedRoles},
 	{"scim_users", "person_id", "people", ruleSCIM},
+	{"staffing_excusals", "person_id", "people", ruleDeduplicated},
 	{"survey_invitations", "person_id", "people", ruleMoved},
 	{"survey_responses", "identified_person_id", "people", ruleSurveyPreserv},
 	{"training_records", "person_id", "people", ruleDeduplicated},
@@ -81,7 +82,6 @@ var MergeReferences = []MergeReference{
 	{"mfa_totp_credentials", "account_id", "accounts", ruleSecondFactor},
 	{"oidc_flows", "account_id", "accounts", ruleTransient},
 	{"open_day_assignments", "created_by_account_id", "accounts", ruleActor},
-	{"open_day_requirements", "updated_by_account_id", "accounts", ruleActor},
 	{"order_adjustments", "actor_account_id", "accounts", ruleActor},
 	{"order_items", "created_by_account_id", "accounts", ruleActor},
 	{"order_items", "removed_by_account_id", "accounts", ruleActor},
@@ -124,6 +124,8 @@ var MergeReferences = []MergeReference{
 	{"signage_announcements", "created_by_account_id", "accounts", ruleActor},
 	{"signage_assets", "created_by_account_id", "accounts", ruleActor},
 	{"signage_publications", "published_by_account_id", "accounts", ruleActor},
+	{"staffing_excusals", "created_by_account_id", "accounts", ruleActor},
+	{"staffing_rules", "updated_by_account_id", "accounts", ruleActor},
 	{"training_records", "recorded_by_account_id", "accounts", ruleActor},
 	{"visitor_enrollment_configuration", "updated_by_account_id", "accounts", ruleActor},
 	{"visits", "checked_in_by_account_id", "accounts", ruleActor},

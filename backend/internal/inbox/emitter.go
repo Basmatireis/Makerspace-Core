@@ -14,10 +14,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// placeFreedHorizon is how far ahead a freed supervisor place is worth a notification. It matches the
-// dashboard hint for a free place (docs/staffing-and-dashboard.md).
-const placeFreedHorizon = 14 * 24 * time.Hour
-
 // Emitter writes system notifications inside the transaction of the mutation that caused them, so a
 // notification exists exactly when its trigger committed. It holds no state; the features that emit
 // declare the narrow interface they need and receive an *Emitter. Recipients are resolved at emit
@@ -129,8 +125,9 @@ func (e *Emitter) OpenDayPeriodOpen(ctx context.Context, tx pgx.Tx, periodID uui
 }
 
 // OpenDayPlaceFreed tells the supervisors who are not on a scheduled open day that a supervisor
-// place on it was freed by leavingPersonID. Only open days starting within the next 14 days
-// qualify; trainee places never trigger a notification, so callers pass only supervisor places.
+// place on it was freed by leavingPersonID. Only open days starting within the warning window of the
+// staffing rules qualify, the same window the dashboard hint for a free place uses; trainee places
+// never trigger a notification, so callers pass only supervisor places.
 // The date is shown in location.
 func (e *Emitter) OpenDayPlaceFreed(
 	ctx context.Context,
@@ -143,8 +140,13 @@ func (e *Emitter) OpenDayPlaceFreed(
 	if err != nil {
 		return fmt.Errorf("load open day: %w", err)
 	}
+	windowDays, err := queries.GetStaffingWarningWindowDays(ctx)
+	if err != nil {
+		return fmt.Errorf("load staffing warning window: %w", err)
+	}
+	horizon := time.Duration(windowDays) * 24 * time.Hour
 	now := e.now()
-	if day.Status != "scheduled" || !day.StartsAt.After(now) || day.StartsAt.After(now.Add(placeFreedHorizon)) {
+	if day.Status != "scheduled" || !day.StartsAt.After(now) || day.StartsAt.After(now.Add(horizon)) {
 		return nil
 	}
 	recipients, err := queries.ListUnassignedSupervisorAccountIDs(ctx, inboxdb.ListUnassignedSupervisorAccountIDsParams{

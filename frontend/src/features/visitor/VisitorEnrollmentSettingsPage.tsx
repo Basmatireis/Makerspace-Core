@@ -1,8 +1,7 @@
-import { Button, Checkbox, InlineNotification, Select, SelectItem, Stack, Tile } from '@carbon/react';
+import { Button, Checkbox, InlineNotification, Stack, Tile } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { listManagedDeviceTypes } from '../../api/generated/managed-devices/managed-devices';
-import { listRoles } from '../../api/generated/roles/roles';
 import {
   getVisitorEnrollmentConfiguration,
   updateVisitorEnrollmentConfiguration,
@@ -17,22 +16,16 @@ export function VisitorEnrollmentSettingsPage() {
     queryKey: ['visitor-enrollment', 'configuration'],
     queryFn: ({ signal }) => getVisitorEnrollmentConfiguration({ signal }),
   });
-  const roles = useQuery({
-    queryKey: ['roles', 'visitor-configuration'],
-    queryFn: ({ signal }) => listRoles({ limit: 100 }, { signal }),
-  });
   const deviceTypes = useQuery({
     queryKey: ['managed-device-types'],
     queryFn: ({ signal }) => listManagedDeviceTypes({ signal }),
   });
   const [enabled, setEnabled] = useState(false);
-  const [roleId, setRoleId] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [methods, setMethods] = useState<VisitorAuthenticationMethod[]>([]);
   useEffect(() => {
     if (!configuration.data) return;
     setEnabled(configuration.data.enabled);
-    setRoleId(configuration.data.initialRoleId ?? '');
     setSelectedTypes(configuration.data.deviceTypeIds);
     setMethods(configuration.data.allowedMethods);
   }, [configuration.data]);
@@ -40,7 +33,6 @@ export function VisitorEnrollmentSettingsPage() {
     mutationFn: () =>
       updateVisitorEnrollmentConfiguration({
         enabled,
-        initialRoleId: roleId || null,
         deviceTypeIds: selectedTypes,
         allowedMethods: methods,
         expectedVersion: configuration.data!.version,
@@ -52,21 +44,20 @@ export function VisitorEnrollmentSettingsPage() {
 
   return (
     <SettingsPageLayout page="visitor-enrollment">
-      {(configuration.isPending || roles.isPending || deviceTypes.isPending) && (
+      {(configuration.isPending || deviceTypes.isPending) && (
         <SettingsLoading label="Loading visitor enrollment configuration" />
       )}
-      {(configuration.isError || roles.isError || deviceTypes.isError) && (
+      {(configuration.isError || deviceTypes.isError) && (
         <ErrorState
           title="Unable to load visitor enrollment settings"
           message="Check the connection and your permissions, then try again."
           onRetry={() => {
             void configuration.refetch();
-            void roles.refetch();
             void deviceTypes.refetch();
           }}
         />
       )}
-      {configuration.data && roles.data && deviceTypes.data && (
+      {configuration.data && deviceTypes.data && (
         <Tile>
           <Stack gap={5}>
             {mutation.isError && (
@@ -75,7 +66,7 @@ export function VisitorEnrollmentSettingsPage() {
                 lowContrast
                 hideCloseButton
                 title="Configuration not saved"
-                subtitle="The Role must be assignable by you and the configuration version must be current."
+                subtitle="You must be allowed to assign the Visitor role and the configuration version must be current."
               />
             )}
             {mutation.isSuccess && (
@@ -93,18 +84,7 @@ export function VisitorEnrollmentSettingsPage() {
               checked={enabled}
               onChange={(_, data) => setEnabled(data.checked)}
             />
-            <Select
-              id="visitor-role"
-              labelText="Initial visitor Role"
-              helperText="The kiosk never chooses or submits a Role."
-              value={roleId}
-              onChange={(event) => setRoleId(event.target.value)}
-            >
-              <SelectItem value="" text="Choose a Role" />
-              {roles.data.items.map((role) => (
-                <SelectItem key={role.id} value={role.id} text={role.name} />
-              ))}
-            </Select>
+            <p>Enrolled visitors get the Visitor membership role.</p>
             <fieldset>
               <legend>Approved Device Types</legend>
               <Stack gap={3}>
@@ -145,9 +125,7 @@ export function VisitorEnrollmentSettingsPage() {
             />
             <div>
               <Button
-                disabled={
-                  mutation.isPending || (enabled && (!roleId || selectedTypes.length === 0 || methods.length === 0))
-                }
+                disabled={mutation.isPending || (enabled && (selectedTypes.length === 0 || methods.length === 0))}
                 onClick={() => mutation.mutate()}
               >
                 {mutation.isPending ? 'Saving…' : 'Save configuration'}

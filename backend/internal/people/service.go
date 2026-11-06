@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -793,6 +794,27 @@ func (s *Service) ChangeRole(
 	if err != nil {
 		return Person{}, err
 	}
+	if membership, ok := roles.MembershipOf(optional.Convert[authorization.SystemKey](role.SystemKey)); ok {
+		// A membership role is never removed on its own; assigning one switches the membership.
+		if !assign {
+			present, err := queries.IsPersonRoleAssigned(
+				ctx,
+				peopledb.IsPersonRoleAssignedParams{PersonID: personID, RoleID: roleID},
+			)
+			if err != nil {
+				return Person{}, err
+			}
+			if present {
+				return Person{}, membershipRequired()
+			}
+		} else {
+			result, err := s.switchMembership(ctx, tx, principal, current, role, membership, requestID)
+			if err != nil {
+				return Person{}, err
+			}
+			return result, tx.Commit(ctx)
+		}
+	}
 	present, err := queries.IsPersonRoleAssigned(
 		ctx,
 		peopledb.IsPersonRoleAssignedParams{PersonID: personID, RoleID: roleID},
@@ -882,17 +904,22 @@ func (s *Service) ChangeRole(
 	return result, nil
 }
 
-// PromoteToSupervisor replaces a trainee's trainee roles with the configured supervisor role in one transaction.
-// Every role added or removed passes the same privilege-subset check as an ordinary role assignment.
-func (s *Service) PromoteToSupervisor(
+// ChangeMembership replaces the person's membership role in one transaction. Both the new and the old membership
+// role pass the same privilege-subset check as an ordinary role assignment. A person who becomes a visitor no longer
+// staffs, so their open days that have not started yet are freed in the same transaction.
+func (s *Service) ChangeMembership(
 	ctx context.Context,
 	principal authorization.Principal,
 	personID uuid.UUID,
+	membership roles.Membership,
 	expectedVersion int64,
 	requestID *uuid.UUID,
 ) (Person, error) {
 	if !principal.Has(authorization.PeopleRolesAssign) {
 		return Person{}, apperror.PermissionDenied
+	}
+	if !membership.Valid() {
+		return Person{}, apperror.InvalidField("membership must be supervisor, trainee or visitor")
 	}
 	if expectedVersion < 1 {
 		return Person{}, apperror.InvalidField("expectedVersion must be positive")
@@ -913,48 +940,61 @@ func (s *Service) PromoteToSupervisor(
 	if current.Version != expectedVersion {
 		return Person{}, apperror.StaleWrite
 	}
-	supervisorRoleID, err := queries.GetPromotionSupervisorRole(ctx)
+	target, err := queries.GetMembershipRole(ctx, ptr(string(membership.SystemKey())))
 	if err != nil {
 		return Person{}, err
 	}
-	notConfigured := apperror.Conflicting(
-		"promotion_role_not_configured",
-		"No supervisor role is configured for promotions",
-	)
-	if supervisorRoleID == nil {
-		return Person{}, notConfigured
-	}
-	held, err := queries.ListPersonStaffingRoles(ctx, personID)
+	role, err := authorizeRoleAssignment(ctx, queries, principal, target.ID)
 	if err != nil {
 		return Person{}, err
 	}
-	var traineeRoleIDs []uuid.UUID
-	for _, role := range held {
-		switch roles.StaffingLevel(role.StaffingLevel) {
-		case roles.StaffingSupervisor:
-			return Person{}, apperror.Conflicting("not_a_trainee", "The person is not a trainee")
-		case roles.StaffingTrainee:
-			traineeRoleIDs = append(traineeRoleIDs, role.ID)
-		}
-	}
-	if len(traineeRoleIDs) == 0 {
-		return Person{}, apperror.Conflicting("not_a_trainee", "The person is not a trainee")
-	}
-	supervisorRole, err := authorizeRoleAssignment(ctx, queries, principal, *supervisorRoleID)
+	result, err := s.switchMembership(ctx, tx, principal, current, role, membership, requestID)
 	if err != nil {
 		return Person{}, err
 	}
-	if supervisorRole.StaffingLevel == nil || roles.StaffingLevel(*supervisorRole.StaffingLevel) != roles.StaffingSupervisor {
-		return Person{}, notConfigured
+	return result, tx.Commit(ctx)
+}
+
+// switchMembership replaces the membership role of a person whose row is locked and whose new role passed the
+// assignment check. An unchanged membership changes nothing.
+func (s *Service) switchMembership(
+	ctx context.Context,
+	tx pgx.Tx,
+	principal authorization.Principal,
+	current peopledb.Person,
+	role peopledb.Role,
+	membership roles.Membership,
+	requestID *uuid.UUID,
+) (Person, error) {
+	queries := peopledb.New(tx)
+	personID := current.ID
+	previous, err := queries.GetPersonMembershipRole(ctx, personID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return Person{}, err
 	}
-	for _, roleID := range traineeRoleIDs {
-		if _, err := authorizeRoleAssignment(ctx, queries, principal, roleID); err != nil {
+	includeDetails := principal.CanReadPerson(personID)
+	includeMatriculation := principal.Has(authorization.PeopleReadMatriculation)
+	if err == nil && previous.ID == role.ID {
+		return loadPerson(ctx, queries, current, includeDetails, includeMatriculation)
+	}
+	from := ""
+	if err == nil {
+		if _, err := authorizeRoleAssignment(ctx, queries, principal, previous.ID); err != nil {
 			return Person{}, err
+		}
+		if _, err := queries.RemovePersonRole(
+			ctx,
+			peopledb.RemovePersonRoleParams{PersonID: personID, RoleID: previous.ID},
+		); err != nil {
+			return Person{}, err
+		}
+		if previous.SystemKey != nil {
+			from = *previous.SystemKey
 		}
 	}
 	row, err := queries.BumpPersonVersion(
 		ctx,
-		peopledb.BumpPersonVersionParams{ID: personID, ExpectedVersion: expectedVersion},
+		peopledb.BumpPersonVersionParams{ID: personID, ExpectedVersion: current.Version},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Person{}, apperror.StaleWrite
@@ -962,55 +1002,47 @@ func (s *Service) PromoteToSupervisor(
 	if err != nil {
 		return Person{}, err
 	}
-	for _, roleID := range traineeRoleIDs {
-		if _, err := queries.RemovePersonRole(
-			ctx,
-			peopledb.RemovePersonRoleParams{PersonID: personID, RoleID: roleID},
-		); err != nil {
-			return Person{}, err
-		}
-	}
 	if _, err := queries.AssignPersonRole(
 		ctx,
-		peopledb.AssignPersonRoleParams{
-			PersonID:            personID,
-			RoleID:              *supervisorRoleID,
-			AssignedByAccountID: &principal.AccountID,
-		},
+		peopledb.AssignPersonRoleParams{PersonID: personID, RoleID: role.ID, AssignedByAccountID: &principal.AccountID},
 	); err != nil {
 		return Person{}, err
+	}
+	metadata := map[string]any{"fromMembership": from, "toMembership": string(membership)}
+	if membership == roles.MembershipVisitor {
+		freed, err := queries.DeleteUpcomingOpenDayAssignments(
+			ctx,
+			peopledb.DeleteUpcomingOpenDayAssignmentsParams{PersonID: personID, Now: time.Now().UTC()},
+		)
+		if err != nil {
+			return Person{}, err
+		}
+		metadata["countRemovedOpenDayAssignments"] = strconv.FormatInt(freed, 10)
 	}
 	actor := principal.AccountID
-	if err := audit.Write(
-		ctx,
-		tx,
-		audit.Event{
-			ActorAccountID: &actor,
-			Action:         "person.promoted_to_supervisor",
-			ResourceType:   "person",
-			ResourceID:     &personID,
-			RequestID:      requestID,
-			ChangedFields:  []string{"roles"},
-			Metadata:       map[string]any{"roleId": supervisorRoleID.String()},
-		},
-	); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{
+		ActorAccountID: &actor,
+		Action:         "person.membership_changed",
+		ResourceType:   "person",
+		ResourceID:     &personID,
+		RequestID:      requestID,
+		ChangedFields:  []string{"membership"},
+		Metadata:       metadata,
+	}); err != nil {
 		return Person{}, err
 	}
-	result, err := loadPerson(
-		ctx,
-		queries,
-		row,
-		principal.CanReadPerson(personID),
-		principal.Has(authorization.PeopleReadMatriculation),
-	)
-	if err != nil {
-		return Person{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return Person{}, err
-	}
-	return result, nil
+	return loadPerson(ctx, queries, row, includeDetails, includeMatriculation)
 }
+
+func membershipRequired() *apperror.Error {
+	return apperror.New(
+		http.StatusUnprocessableEntity,
+		"membership_required",
+		"Every person keeps one membership; change the membership instead of removing it",
+	)
+}
+
+func ptr[T any](value T) *T { return &value }
 
 // ValidateProvisionedRoleTransfer applies ordinary assignment and delegation
 // rules to the source Person within the caller's reconciliation transaction.
@@ -1033,6 +1065,11 @@ func ValidateProvisionedRoleTransfer(
 				"master_role_transfer",
 				"SCIM reconciliation cannot transfer the master role",
 			)
+		}
+		// Every person holds a membership and the target keeps the highest one, so the source's Visitor membership
+		// never adds anything to the target.
+		if role.SystemKey != nil && authorization.SystemKey(*role.SystemKey) == authorization.SystemKeyVisitor {
+			continue
 		}
 		if _, err := authorizeRoleAssignment(ctx, queries, principal, role.ID); err != nil {
 			return err

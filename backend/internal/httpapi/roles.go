@@ -114,7 +114,6 @@ func (s *Server) CreateRole(
 	if request.Body.LaborordnungMode != nil {
 		laborordnungMode = laborordnung.Mode(*request.Body.LaborordnungMode)
 	}
-	staffingLevel := optional.Convert[roles.StaffingLevel](nullableStringPointer(request.Body.StaffingLevel))
 	role, err := s.roles.CreateWithBehaviors(
 		ctx,
 		principal,
@@ -123,8 +122,6 @@ func (s *Server) CreateRole(
 		grants,
 		profileImageRequired,
 		laborordnungMode,
-		staffingLevel,
-		nullableIntPointer(request.Body.MinOpenDaysPerSemester),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -196,10 +193,6 @@ func (s *Server) UpdateRole(
 		nullableStringPointer(request.Body.Description),
 		request.Body.ProfileImageRequired,
 		optional.Convert[laborordnung.Mode](request.Body.LaborordnungMode),
-		request.Body.StaffingLevel.IsSpecified(),
-		optional.Convert[roles.StaffingLevel](nullableStringPointer(request.Body.StaffingLevel)),
-		request.Body.MinOpenDaysPerSemester.IsSpecified(),
-		nullableIntPointer(request.Body.MinOpenDaysPerSemester),
 		requestIDPointer(ctx),
 	)
 	if err != nil {
@@ -254,12 +247,7 @@ func roleDTO(role roles.Role) openapi.Role {
 		Id: role.ID, Name: role.Name, PermissionGrants: grants, Version: role.Version,
 		ProfileImageRequired: role.ProfileImageRequired,
 		LaborordnungMode:     openapi.RoleLaborordnungMode(role.LaborordnungMode),
-		StaffingLevel: nullablePointer[roles.StaffingLevel](
-			role.StaffingLevel,
-			func(value roles.StaffingLevel) openapi.StaffingLevel { return openapi.StaffingLevel(value) },
-		),
-		MinOpenDaysPerSemester: nullablePointer[int](role.MinOpenDaysPerSemester, func(value int) int { return value }),
-		CreatedAt:              role.CreatedAt, UpdatedAt: role.UpdatedAt,
+		CreatedAt:            role.CreatedAt, UpdatedAt: role.UpdatedAt,
 		Description: nullablePointer[string](role.Description, func(value string) string { return value }),
 	}
 	if role.SystemKey == nil {
@@ -279,12 +267,4 @@ func rolePageDTO(page roles.Page) openapi.RolePage {
 		Items:      items,
 		NextCursor: nullablePointer[string](page.NextCursor, func(value string) string { return value }),
 	}
-}
-
-func nullableIntPointer(value nullable.Nullable[int]) *int {
-	if !value.IsSpecified() || value.IsNull() {
-		return nil
-	}
-	result := value.GetOrEmpty()
-	return &result
 }

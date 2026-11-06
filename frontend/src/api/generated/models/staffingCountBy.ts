@@ -18,22 +18,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
-import type { Version } from './version';
 
-export interface OpenDayRequirements {
-  /**
-     * @minimum 0
-     * @maximum 20
-     */
-  minOpenDaysPerSemester: number;
-  /**
-     * @minimum 1
-     * @maximum 20
-     */
-  traineeOpenDaysForPromotion: number;
-  /** The supervisor-level role promotions assign; null while not configured. */
-  supervisorRoleId: UUIDv7 | null;
-  version: Version;
-  updatedAt: string;
-}
+/**
+ * What counts toward the minimum, every staffed timeslot or every open day with a staffed timeslot.
+ */
+export type StaffingCountBy = typeof StaffingCountBy[keyof typeof StaffingCountBy];
+
+
+export const StaffingCountBy = {
+  timeslot: 'timeslot',
+  open_day: 'open_day',
+} as const;

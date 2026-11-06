@@ -14,19 +14,23 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Row is one person with a staffing level and their standing in the current semester.
+// Row is one supervisor or trainee and their standing in the semester.
 type Row struct {
 	PersonID          uuid.UUID
 	PersonVersion     int64
 	Name              string
-	Kind              roles.StaffingLevel
+	Membership        roles.Membership
+	ExtraRoles        []string
 	HasProfileImage   bool
 	LaborordnungState string
 	Counts            staffing.Counts
-	Minimum           int
-	Standing          staffing.Standing
-	LastOpenDayAt     *time.Time
-	MemberSince       time.Time
+	Minimum           staffing.Minimum
+	// Excusal is the person's excusal for the semester; its reason is shown to supervisor_dashboard.read only.
+	Excusal        *staffing.Excusal
+	Standing       staffing.Standing
+	LastOpenDayAt  *time.Time
+	NextAssignment *staffing.NextAssignment
+	MemberSince    time.Time
 }
 
 type Totals struct {
@@ -37,10 +41,10 @@ type Totals struct {
 }
 
 type Dashboard struct {
-	Semester     *staffing.Semester
-	Requirements staffing.Requirements
-	Supervisors  []Row
-	Totals       Totals
+	Semester    *staffing.Semester
+	Rules       staffing.Rules
+	Supervisors []Row
+	Totals      Totals
 }
 
 type Service struct {
@@ -52,20 +56,31 @@ func NewService(pool *pgxpool.Pool, staffingService *staffing.Service) *Service 
 	return &Service{pool: pool, staffing: staffingService}
 }
 
-func (s *Service) Get(ctx context.Context, principal authorization.Principal) (Dashboard, error) {
+// Get evaluates every supervisor and trainee against the semester of periodID, or the current semester when nil.
+// Draft periods are visible to open_days.manage only.
+func (s *Service) Get(
+	ctx context.Context,
+	principal authorization.Principal,
+	periodID *uuid.UUID,
+) (Dashboard, error) {
 	if !principal.Has(authorization.SupervisorDashboardRead) {
 		return Dashboard{}, apperror.PermissionDenied
 	}
 	now := time.Now().UTC()
-	semester, err := s.staffing.CurrentSemester(ctx, now)
+	rules, err := s.staffing.Settings(ctx)
 	if err != nil {
 		return Dashboard{}, err
 	}
-	requirements, err := s.staffing.Settings(ctx)
+	var semester *staffing.Semester
+	if periodID != nil {
+		semester, err = s.staffing.SemesterForPeriod(ctx, rules, *periodID, principal.Has(authorization.OpenDaysManage))
+	} else {
+		semester, err = s.staffing.CurrentSemester(ctx, rules, now)
+	}
 	if err != nil {
 		return Dashboard{}, err
 	}
-	minimums, err := s.staffing.Minimums(ctx, requirements.MinOpenDaysPerSemester, nil)
+	minimums, err := s.staffing.Minimums(ctx, rules, semester, nil)
 	if err != nil {
 		return Dashboard{}, err
 	}
@@ -81,29 +96,34 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 	if err != nil {
 		return Dashboard{}, err
 	}
-	dashboard := Dashboard{
-		Semester:     semester,
-		Requirements: requirements,
-		Supervisors:  make([]Row, 0, len(people)),
+	next, err := s.staffing.NextAssignments(ctx, now, nil)
+	if err != nil {
+		return Dashboard{}, err
 	}
+	dashboard := Dashboard{Semester: semester, Rules: rules, Supervisors: make([]Row, 0, len(people))}
 	for _, person := range people {
-		kind := roles.StaffingLevel(person.Kind)
+		membership := roles.Membership(person.Membership)
 		personCounts := counts[person.PersonID]
-		minimum := minimums.For(person.PersonID)
+		minimum := minimums.For(person.PersonID, membership)
 		row := Row{
 			PersonID:          person.PersonID,
 			PersonVersion:     person.PersonVersion,
 			Name:              strings.TrimSpace(person.FirstName + " " + person.LastName),
-			Kind:              kind,
+			Membership:        membership,
+			ExtraRoles:        person.ExtraRoles,
 			HasProfileImage:   person.HasProfileImage,
 			LaborordnungState: person.LaborordnungState,
 			Counts:            personCounts,
 			Minimum:           minimum,
-			Standing:          staffing.StatusFor(kind, personCounts, requirements, minimum),
+			Excusal:           minimums.Excusal(person.PersonID),
+			Standing:          staffing.StatusFor(membership, personCounts, rules, minimum),
 			MemberSince:       person.MemberSince.Time,
 		}
 		if last, ok := lastStaffed[person.PersonID]; ok {
 			row.LastOpenDayAt = &last
+		}
+		if assignment, ok := next[person.PersonID]; ok {
+			row.NextAssignment = &assignment
 		}
 		dashboard.Supervisors = append(dashboard.Supervisors, row)
 		dashboard.Totals.Supervisors++

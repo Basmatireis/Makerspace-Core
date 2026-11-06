@@ -18,8 +18,7 @@ FROM session_policies
 ORDER BY lower(name), id;
 
 -- name: ListRoles :many
-SELECT id, name, description, system_key, profile_image_required, laborordnung_mode, staffing_level,
-    min_open_days_per_semester, version
+SELECT id, name, description, system_key, profile_image_required, laborordnung_mode, version
 FROM roles
 ORDER BY lower(name), id;
 
@@ -34,7 +33,7 @@ ORDER BY g.role_id, g.permission_id, g.scope, g.minimum_assurance, g.id, lower(d
 -- A role in use is kept by an overwrite: deleting it would silently take it away from people or requirements.
 SELECT (
     EXISTS (SELECT 1 FROM person_roles pr WHERE pr.role_id = sqlc.arg(id))
-    OR EXISTS (SELECT 1 FROM visitor_enrollment_configuration vc WHERE vc.initial_role_id = sqlc.arg(id))
+    OR EXISTS (SELECT 1 FROM staffing_rule_exceptions se WHERE se.role_id = sqlc.arg(id))
     OR EXISTS (SELECT 1 FROM event_shift_requirement_roles er WHERE er.role_id = sqlc.arg(id))
     OR EXISTS (SELECT 1 FROM open_day_staff_requirement_roles orr WHERE orr.role_id = sqlc.arg(id))
 )::boolean AS in_use;
@@ -124,16 +123,20 @@ JOIN roles r ON r.id = rpg.role_id
 JOIN pricing_groups g ON g.id = rpg.pricing_group_id
 ORDER BY rpg.priority DESC, r.id;
 
--- name: GetOpenDayRequirements :one
-SELECT o.min_open_days_per_semester, o.trainee_open_days_for_promotion, o.supervisor_role_id,
-    r.name AS supervisor_role_name, o.version
-FROM open_day_requirements o
-LEFT JOIN roles r ON r.id = o.supervisor_role_id;
+-- name: GetStaffingRules :one
+SELECT supervisor_minimum, trainee_minimum, trainee_ready_after, warning_window_days, count_by, default_deadline,
+    version
+FROM staffing_rules;
+
+-- name: ListStaffingRuleExceptions :many
+SELECT r.name AS role_name, e.minimum
+FROM staffing_rule_exceptions e
+JOIN roles r ON r.id = e.role_id
+ORDER BY lower(r.name), r.id;
 
 -- name: GetVisitorEnrollmentConfiguration :one
-SELECT c.enabled, c.initial_role_id, r.name AS initial_role_name, c.allowed_methods, c.version
-FROM visitor_enrollment_configuration c
-LEFT JOIN roles r ON r.id = c.initial_role_id;
+SELECT c.enabled, c.allowed_methods, c.version
+FROM visitor_enrollment_configuration c;
 
 -- name: ListVisitorEnrollmentDeviceTypes :many
 SELECT dt.id, dt.name

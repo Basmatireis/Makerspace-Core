@@ -33,7 +33,7 @@ export const ConfigurationSection = {
   ConfigurationSectionMachines: 'machines',
   ConfigurationSectionInventoryArticles: 'inventoryArticles',
   ConfigurationSectionPricing: 'pricing',
-  ConfigurationSectionOpenDayRequirements: 'openDayRequirements',
+  ConfigurationSectionStaffingRules: 'staffingRules',
   ConfigurationSectionVisitorEnrollment: 'visitorEnrollment',
   ConfigurationSectionBranding: 'branding',
   ConfigurationSectionLabRules: 'labRules',

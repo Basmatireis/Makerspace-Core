@@ -11,7 +11,6 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/google/uuid"
@@ -37,11 +36,10 @@ func TestVisitorEnrollmentPhotoFollowsDeviceCapabilities(t *testing.T) {
 		AccountID: masterAccountID, PersonID: masterPersonID, Master: true,
 		Assurance: authorization.AssuranceNormal, AuthenticatedAt: time.Now().UTC(),
 	}
-	roleID := ids.New()
+	// Enrolled visitors hold the Visitor membership role; its behaviours decide Lab Rules and photo.
 	if _, err := pool.Exec(
 		ctx,
-		`INSERT INTO roles (id,name,laborordnung_mode,profile_image_required) VALUES ($1,'Visitor','blocking',true)`,
-		roleID,
+		`UPDATE roles SET laborordnung_mode='blocking', profile_image_required=true WHERE system_key='visitor'`,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +59,7 @@ func TestVisitorEnrollmentPhotoFollowsDeviceCapabilities(t *testing.T) {
 		pool, cfg, fileService, laborordnung.NewService(pool, inbox.NewEmitter(), fileService), newNotificationRecorder(),
 	)
 	if _, err := service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{
-		Enabled: true, InitialRoleID: &roleID, DeviceTypeIDs: []uuid.UUID{deviceType.ID},
+		Enabled: true, DeviceTypeIDs: []uuid.UUID{deviceType.ID},
 		AllowedMethods: []visitor.AuthMethod{"pin"}, ExpectedVersion: 1,
 	}, nil); err != nil {
 		t.Fatal(err)

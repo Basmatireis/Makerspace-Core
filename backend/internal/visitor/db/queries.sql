@@ -6,7 +6,7 @@ SELECT * FROM visitor_enrollment_configuration WHERE singleton=true FOR UPDATE;
 
 -- name: UpdateConfiguration :one
 UPDATE visitor_enrollment_configuration
-SET enabled=sqlc.arg(enabled), initial_role_id=sqlc.narg(initial_role_id),
+SET enabled=sqlc.arg(enabled),
     allowed_methods=sqlc.arg(allowed_methods), version=version+1,
     updated_by_account_id=sqlc.arg(updated_by_account_id), updated_at=now()
 WHERE singleton=true AND version=sqlc.arg(expected_version)
@@ -24,8 +24,9 @@ INSERT INTO visitor_enrollment_device_types (device_type_id) VALUES (sqlc.arg(de
 -- name: DeviceTypeExists :one
 SELECT EXISTS (SELECT 1 FROM device_types WHERE id=sqlc.arg(id));
 
--- name: GetAssignableRole :one
-SELECT * FROM roles WHERE id=sqlc.arg(id);
+-- name: GetVisitorRole :one
+-- Every new person holds the Visitor membership role (assigned by a trigger on people).
+SELECT * FROM roles WHERE system_key='visitor';
 
 -- name: GetRolePermissionGrants :many
 SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, g.reauth_within_minutes, gdt.device_type_id
@@ -35,7 +36,7 @@ WHERE g.role_id=sqlc.arg(role_id)
 ORDER BY g.id, gdt.device_type_id;
 
 -- name: IsDeviceTypeAllowed :one
-SELECT c.enabled AND c.initial_role_id IS NOT NULL
+SELECT c.enabled
        AND md.revoked_at IS NULL AND (md.expires_at IS NULL OR md.expires_at > now())
        AND EXISTS (SELECT 1 FROM visitor_enrollment_device_types t WHERE t.device_type_id=md.device_type_id)
 FROM visitor_enrollment_configuration c
@@ -53,7 +54,7 @@ SELECT ec.* FROM visitor_enrollment_contexts ec
 JOIN managed_devices md ON md.id=ec.managed_device_id
 JOIN visitor_enrollment_configuration c ON c.singleton=true
 WHERE ec.token_digest=sqlc.arg(token_digest) AND ec.used_at IS NULL AND ec.expires_at > now()
-  AND c.enabled AND c.initial_role_id IS NOT NULL
+  AND c.enabled
   AND md.revoked_at IS NULL AND (md.expires_at IS NULL OR md.expires_at > now())
   AND EXISTS (SELECT 1 FROM visitor_enrollment_device_types t WHERE t.device_type_id=md.device_type_id);
 
@@ -62,7 +63,7 @@ SELECT ec.* FROM visitor_enrollment_contexts ec
 JOIN managed_devices md ON md.id=ec.managed_device_id
 JOIN visitor_enrollment_configuration c ON c.singleton=true
 WHERE ec.id=sqlc.arg(id) AND ec.used_at IS NULL AND ec.expires_at > now()
-  AND c.enabled AND c.initial_role_id IS NOT NULL
+  AND c.enabled
   AND md.revoked_at IS NULL AND (md.expires_at IS NULL OR md.expires_at > now())
   AND EXISTS (SELECT 1 FROM visitor_enrollment_device_types t WHERE t.device_type_id=md.device_type_id)
 FOR UPDATE OF ec;
@@ -97,9 +98,6 @@ RETURNING *;
 
 -- name: CreateVisitorPINCredential :exec
 INSERT INTO pin_credentials (auth_identity_id, pin_hash) VALUES (sqlc.arg(auth_identity_id), sqlc.arg(pin_hash));
-
--- name: AssignVisitorRole :exec
-INSERT INTO person_roles (person_id, role_id) VALUES (sqlc.arg(person_id), sqlc.arg(role_id));
 
 -- name: CreateVisitorInvitation :one
 INSERT INTO auth_challenges (id, kind, account_id, auth_identity_id, code_digest, delivery_address, expires_at)

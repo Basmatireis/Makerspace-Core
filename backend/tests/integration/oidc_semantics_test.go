@@ -450,7 +450,8 @@ func TestDisabledOIDCProviderKeepsSessionsButCannotAuthenticateOrRecover(t *test
 func TestOIDCLinkAllDoesNotProvideAnAdministrativeSubjectAssignment(t *testing.T) {
 	f := newOIDCSemanticsFixture(t, false)
 	role := ids.New()
-	if _, err := f.pool.Exec(f.ctx, `DELETE FROM person_roles WHERE person_id=$1`, f.principal.PersonID); err != nil {
+	if _, err := f.pool.Exec(f.ctx, `DELETE FROM person_roles pr USING roles r WHERE pr.person_id=$1 AND r.id=pr.role_id
+		AND (r.system_key IS NULL OR r.system_key='master')`, f.principal.PersonID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(

@@ -20,7 +20,7 @@
  */
 
 /**
- * Present only for a protected system role.
+ * Present only for a system role (master or a membership role).
  * @nullable
  */
 export type RoleSummarySystemKey = typeof RoleSummarySystemKey[keyof typeof RoleSummarySystemKey] | null;
@@ -28,4 +28,7 @@ export type RoleSummarySystemKey = typeof RoleSummarySystemKey[keyof typeof Role
 
 export const RoleSummarySystemKey = {
   master: 'master',
+  supervisor: 'supervisor',
+  trainee: 'trainee',
+  visitor: 'visitor',
 } as const;

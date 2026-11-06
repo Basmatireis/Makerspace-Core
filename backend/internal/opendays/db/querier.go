@@ -43,7 +43,9 @@ type Querier interface {
 	ListAcademicBreaks(ctx context.Context) ([]OpenDayAcademicBreak, error)
 	ListAcademicBreaksInRange(ctx context.Context, arg ListAcademicBreaksInRangeParams) ([]OpenDayAcademicBreak, error)
 	ListAssignments(ctx context.Context, openDayID uuid.UUID) ([]ListAssignmentsRow, error)
+	// Membership decides the kind of place; only extra roles can restrict a place further.
 	ListEligibilityRoles(ctx context.Context) ([]ListEligibilityRolesRow, error)
+	// The same eligibility as PersonEligibleForRequirement.
 	ListEligiblePeople(ctx context.Context, arg ListEligiblePeopleParams) ([]ListEligiblePeopleRow, error)
 	ListOpenDaysByPeriod(ctx context.Context, periodID uuid.UUID) ([]OpenDay, error)
 	// Upcoming (not yet ended) scheduled open days the person is on, with the supervisor places still open on each.
@@ -53,6 +55,8 @@ type Querier interface {
 	ListRequirementRoleIDs(ctx context.Context, requirementID uuid.UUID) ([]uuid.UUID, error)
 	ListRequirements(ctx context.Context, openDayID uuid.UUID) ([]OpenDayStaffRequirement, error)
 	ListUpcomingAssignmentsForPerson(ctx context.Context, personID uuid.UUID) ([]ListUpcomingAssignmentsForPersonRow, error)
+	// A place of a kind needs the membership of that kind; its role list, when not empty, also asks for one of those
+	// extra roles.
 	PersonEligibleForRequirement(ctx context.Context, arg PersonEligibleForRequirementParams) (bool, error)
 	TransitionPeriod(ctx context.Context, arg TransitionPeriodParams) (OpenDayPeriod, error)
 	UpdateAcademicBreak(ctx context.Context, arg UpdateAcademicBreakParams) (OpenDayAcademicBreak, error)

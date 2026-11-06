@@ -18,15 +18,10 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { Membership } from './membership';
+import type { Version } from './version';
 
-/**
- * How people holding a role staff open days. A person's staffing kind is `supervisor` when any of their roles
- * has the supervisor level, otherwise `trainee` when any has the trainee level, otherwise they do not staff.
- */
-export type StaffingLevel = typeof StaffingLevel[keyof typeof StaffingLevel];
-
-
-export const StaffingLevel = {
-  supervisor: 'supervisor',
-  trainee: 'trainee',
-} as const;
+export interface ChangeMembershipRequest {
+  membership: Membership;
+  expectedVersion: Version;
+}

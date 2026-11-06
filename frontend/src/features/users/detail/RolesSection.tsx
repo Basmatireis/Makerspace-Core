@@ -35,7 +35,10 @@ export function RolesSection({
         {person.roles.length === 0 && <span>No roles assigned</span>}
         {person.roles.map((role) => {
           const roleDetails = rolesById.get(role.id);
-          const mayRemove = Boolean(roleDetails && canManageRoleMembership(currentUser, roleDetails));
+          // A membership role is changed, never removed on its own.
+          const isMembership =
+            role.systemKey === 'supervisor' || role.systemKey === 'trainee' || role.systemKey === 'visitor';
+          const mayRemove = Boolean(roleDetails && !isMembership && canManageRoleMembership(currentUser, roleDetails));
           if (mayRemove) {
             return (
               <DismissibleTag

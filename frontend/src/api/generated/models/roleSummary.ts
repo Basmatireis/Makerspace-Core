@@ -29,7 +29,7 @@ export interface RoleSummary {
      */
   name: string;
   /**
-     * Present only for a protected system role.
+     * Present only for a system role (master or a membership role).
      * @nullable
      */
   systemKey?: RoleSummarySystemKey;

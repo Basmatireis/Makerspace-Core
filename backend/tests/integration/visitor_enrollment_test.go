@@ -49,12 +49,12 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		Assurance: authorization.AssuranceNormal, AuthenticatedAt: time.Now().UTC(),
 	}
 
-	roleID := ids.New()
-	if _, err := pool.Exec(
+	// Enrolled visitors hold the Visitor membership role; its behaviours decide Lab Rules and photo.
+	var roleID uuid.UUID
+	if err := pool.QueryRow(
 		ctx,
-		`INSERT INTO roles (id,name,laborordnung_mode,profile_image_required) VALUES ($1,'Visitor','blocking',true)`,
-		roleID,
-	); err != nil {
+		`UPDATE roles SET laborordnung_mode='blocking', profile_image_required=true WHERE system_key='visitor' RETURNING id`,
+	).Scan(&roleID); err != nil {
 		t.Fatal(err)
 	}
 	insertPublishedLabRulesVersion(t, pool, masterAccountID, "2026-visitor")
@@ -90,7 +90,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		t.Fatalf("permission-less configuration read error=%v", err)
 	}
 	configuration, err := service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{
-		Enabled: true, InitialRoleID: &roleID, DeviceTypeIDs: []uuid.UUID{kioskType.ID},
+		Enabled: true, DeviceTypeIDs: []uuid.UUID{kioskType.ID},
 		AllowedMethods: []visitor.AuthMethod{"pin", "password", "pin"}, ExpectedVersion: 1,
 	}, nil)
 	if err != nil {
@@ -373,12 +373,7 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 		return id
 	}
 	original := publish("original")
-	roleID := ids.New()
-	if _, err := pool.Exec(
-		ctx,
-		`INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'Pinned visitor','blocking')`,
-		roleID,
-	); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE roles SET laborordnung_mode='blocking' WHERE system_key='visitor'`); err != nil {
 		t.Fatal(err)
 	}
 	devices := manageddevices.NewService(pool)
@@ -395,7 +390,6 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 		master,
 		visitor.ConfigurationInput{
 			Enabled:         true,
-			InitialRoleID:   &roleID,
 			DeviceTypeIDs:   []uuid.UUID{deviceType.ID},
 			AllowedMethods:  []visitor.AuthMethod{"pin"},
 			ExpectedVersion: 1,
@@ -496,9 +490,8 @@ func TestVisitorEnrollmentChecksTheVisitorIn(t *testing.T) {
 			if _, err = labRules.Publish(ctx, master, versionID, time.Now().Add(-time.Second), nil); err != nil {
 				t.Fatal(err)
 			}
-			roleID := ids.New()
 			if _, err = pool.Exec(
-				ctx, `INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'Enrolling visitor',$2)`, roleID, mode,
+				ctx, `UPDATE roles SET laborordnung_mode=$1 WHERE system_key='visitor'`, mode,
 			); err != nil {
 				t.Fatal(err)
 			}
@@ -512,7 +505,7 @@ func TestVisitorEnrollmentChecksTheVisitorIn(t *testing.T) {
 				t.Fatal(err)
 			}
 			if _, err = service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{
-				Enabled: true, InitialRoleID: &roleID, DeviceTypeIDs: []uuid.UUID{deviceType.ID},
+				Enabled: true, DeviceTypeIDs: []uuid.UUID{deviceType.ID},
 				AllowedMethods: []visitor.AuthMethod{"pin"}, ExpectedVersion: 1,
 			}, nil); err != nil {
 				t.Fatal(err)

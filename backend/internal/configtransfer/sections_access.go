@@ -13,7 +13,6 @@ import (
 	configtransferdb "github.com/Basmatireis/Makerspace-Core/backend/internal/configtransfer/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -253,10 +252,10 @@ type roleEntry struct {
 	Description          *string `json:"description"`
 	ProfileImageRequired bool    `json:"profileImageRequired"`
 	LabRulesMode         string  `json:"labRulesMode"`
-	StaffingLevel        *string `json:"staffingLevel"`
-	// MinOpenDaysPerSemester is absent in files exported before roles could override the minimum; absent means the
-	// general minimum.
-	MinOpenDaysPerSemester *int                   `json:"minOpenDaysPerSemester"`
+	// StaffingLevel and MinOpenDaysPerSemester are accepted from files of releases before membership roles and
+	// ignored: membership and the staffing rules' exceptions replaced them.
+	StaffingLevel          *string                `json:"staffingLevel,omitempty"`
+	MinOpenDaysPerSemester *int                   `json:"minOpenDaysPerSemester,omitempty"`
 	Permissions            []permissionGrantEntry `json:"permissions"`
 }
 
@@ -280,14 +279,7 @@ func validateRoles(items *[]roleEntry) error {
 			return errors.New("the system role master cannot be imported")
 		}
 		item.Description = trimmed(item.Description)
-		if item.MinOpenDaysPerSemester != nil {
-			if *item.MinOpenDaysPerSemester < 0 || *item.MinOpenDaysPerSemester > roles.MaxMinOpenDaysPerSemester {
-				return fmt.Errorf("role %q: minOpenDaysPerSemester must be between 0 and 20", item.Name)
-			}
-			if item.StaffingLevel == nil {
-				return fmt.Errorf("role %q: minOpenDaysPerSemester requires a staffing level", item.Name)
-			}
-		}
+		item.StaffingLevel, item.MinOpenDaysPerSemester = nil, nil
 		if len(item.Permissions) > 1000 {
 			return fmt.Errorf("role %q has too many permissions", item.Name)
 		}
@@ -377,7 +369,8 @@ func loadRoles(ctx context.Context, q *configtransferdb.Queries) ([]storedRole, 
 	}
 	result := make([]storedRole, 0, len(rows))
 	for _, row := range rows {
-		if row.SystemKey != nil {
+		// Master is never transferred; the membership roles are matched by their fixed names and only updated.
+		if row.SystemKey != nil && authorization.SystemKey(*row.SystemKey) == authorization.SystemKeyMaster {
 			continue
 		}
 		roleGrants := grants[row.ID]
@@ -386,13 +379,11 @@ func loadRoles(ctx context.Context, q *configtransferdb.Queries) ([]storedRole, 
 		}
 		sort.SliceStable(roleGrants, func(i, j int) bool { return grantKey(roleGrants[i]) < grantKey(roleGrants[j]) })
 		result = append(result, storedRole{row: row, entry: roleEntry{
-			Name:                   row.Name,
-			Description:            row.Description,
-			ProfileImageRequired:   row.ProfileImageRequired,
-			LabRulesMode:           row.LaborordnungMode,
-			StaffingLevel:          row.StaffingLevel,
-			MinOpenDaysPerSemester: intFromInt32(row.MinOpenDaysPerSemester),
-			Permissions:            roleGrants,
+			Name:                 row.Name,
+			Description:          row.Description,
+			ProfileImageRequired: row.ProfileImageRequired,
+			LabRulesMode:         row.LaborordnungMode,
+			Permissions:          roleGrants,
 		}})
 	}
 	return result, nil
@@ -495,22 +486,25 @@ func applyRoles(r *run, items *[]roleEntry) (func() error, error) {
 			continue
 		}
 		mode := laborordnung.Mode(item.LabRulesMode)
-		level := (*roles.StaffingLevel)(item.StaffingLevel)
 		if !found {
 			_, err = r.attempt(item.Name, ActionCreate, "", func(tx pgx.Tx) error {
 				_, err := r.svc.Roles.CreateWithBehaviorsTx(
-					r.ctx, tx, r.p, item.Name, item.Description, grants, item.ProfileImageRequired, mode, level,
-					item.MinOpenDaysPerSemester, r.requestID,
+					r.ctx, tx, r.p, item.Name, item.Description, grants, item.ProfileImageRequired, mode, r.requestID,
 				)
 				return err
 			})
 		} else {
+			// A membership role keeps its fixed name.
+			name := &item.Name
+			if current.row.SystemKey != nil {
+				name = nil
+			}
 			_, err = r.attempt(item.Name, ActionUpdate, "", func(tx pgx.Tx) error {
 				version := current.row.Version
 				if !roleBehaviorsEqual(current.entry, item) {
 					updated, err := r.svc.Roles.UpdateWithBehaviorsTx(
-						r.ctx, tx, r.p, current.row.ID, version, &item.Name, true, item.Description,
-						&item.ProfileImageRequired, &mode, true, level, true, item.MinOpenDaysPerSemester, r.requestID,
+						r.ctx, tx, r.p, current.row.ID, version, name, true, item.Description,
+						&item.ProfileImageRequired, &mode, r.requestID,
 					)
 					if err != nil {
 						return err
@@ -533,12 +527,16 @@ func applyRoles(r *run, items *[]roleEntry) (func() error, error) {
 			if inFile[nameKey(role.row.Name)] {
 				continue
 			}
+			if role.row.SystemKey != nil {
+				r.keep(role.row.Name, "Membership roles cannot be deleted.")
+				continue
+			}
 			inUse, err := r.q.RoleInUse(r.ctx, role.row.ID)
 			if err != nil {
 				return err
 			}
 			if inUse {
-				r.keep(role.row.Name, "People, visitor enrollment or staffing requirements use this role.")
+				r.keep(role.row.Name, "People, staffing exceptions or staffing requirements use this role.")
 				continue
 			}
 			if _, err := r.attempt(role.row.Name, ActionDelete, "", func(tx pgx.Tx) error {
@@ -552,25 +550,18 @@ func applyRoles(r *run, items *[]roleEntry) (func() error, error) {
 }
 
 func roleBehaviorsEqual(current, item roleEntry) bool {
-	return current.Name == item.Name && sameText(current.Description, item.Description) &&
-		current.ProfileImageRequired == item.ProfileImageRequired && current.LabRulesMode == item.LabRulesMode &&
-		sameText(current.StaffingLevel, item.StaffingLevel) &&
-		sameOptionalInt(current.MinOpenDaysPerSemester, item.MinOpenDaysPerSemester)
+	return nameKey(current.Name) == nameKey(item.Name) && (current.Name == item.Name || isMembershipName(current.Name)) &&
+		sameText(current.Description, item.Description) &&
+		current.ProfileImageRequired == item.ProfileImageRequired && current.LabRulesMode == item.LabRulesMode
 }
 
-func sameOptionalInt(a, b *int) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
+// isMembershipName reports whether a role name is one of the fixed membership role names, which keep their spelling.
+func isMembershipName(name string) bool {
+	switch name {
+	case "Supervisor", "Trainee", "Visitor":
+		return true
 	}
-	return *a == *b
-}
-
-func intFromInt32(value *int32) *int {
-	if value == nil {
-		return nil
-	}
-	converted := int(*value)
-	return &converted
+	return false
 }
 
 func roleUnchanged(current, item roleEntry) bool {

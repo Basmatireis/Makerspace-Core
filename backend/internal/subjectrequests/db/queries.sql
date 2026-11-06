@@ -244,6 +244,13 @@ FROM open_day_assignments a JOIN open_days d ON d.id = a.open_day_id WHERE a.per
 -- name: CountOpenDayAssignments :one
 SELECT count(*)::bigint FROM open_day_assignments WHERE person_id = sqlc.arg(subject_person)::uuid;
 
+-- name: ExportStaffingExcusals :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object('semester', p.name, 'reason', e.reason, 'createdAt', e.created_at) ORDER BY p.starts_on), '[]'::jsonb)::jsonb AS document
+FROM staffing_excusals e JOIN open_day_periods p ON p.id = e.period_id WHERE e.person_id = sqlc.arg(subject_person)::uuid;
+
+-- name: CountStaffingExcusals :one
+SELECT count(*)::bigint FROM staffing_excusals WHERE person_id = sqlc.arg(subject_person)::uuid;
+
 -- name: ExportTrainingRecords :one
 SELECT COALESCE(jsonb_agg(jsonb_build_object('training', t.name, 'status', r.status, 'completedOn', r.completed_on, 'notes', r.notes, 'createdAt', r.created_at) ORDER BY t.name), '[]'::jsonb)::jsonb AS document
 FROM training_records r JOIN trainings t ON t.id = r.training_id WHERE r.person_id = sqlc.arg(subject_person)::uuid;

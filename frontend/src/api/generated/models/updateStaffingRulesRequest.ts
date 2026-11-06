@@ -18,11 +18,35 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { StaffingCountBy } from './staffingCountBy';
+import type { StaffingDefaultDeadline } from './staffingDefaultDeadline';
+import type { StaffingExceptionInput } from './staffingExceptionInput';
+import type { Version } from './version';
 
-export interface SupervisorDashboardRequirements {
-  /** @minimum 0 */
-  minOpenDaysPerSemester: number;
-  /** @minimum 1 */
-  traineeOpenDaysForPromotion: number;
-  supervisorRoleConfigured: boolean;
+export interface UpdateStaffingRulesRequest {
+  /**
+     * @minimum 0
+     * @maximum 20
+     */
+  supervisorMinimum: number;
+  /**
+     * @minimum 0
+     * @maximum 20
+     */
+  traineeMinimum: number;
+  /**
+     * @minimum 1
+     * @maximum 20
+     */
+  traineeReadyAfter: number;
+  /**
+     * @minimum 1
+     * @maximum 60
+     */
+  warningWindowDays: number;
+  countBy: StaffingCountBy;
+  defaultDeadline: StaffingDefaultDeadline;
+  /** @maxItems 200 */
+  exceptions: StaffingExceptionInput[];
+  expectedVersion: Version;
 }

@@ -197,6 +197,17 @@ func (q *Queries) CountSessions(ctx context.Context, subjectAccount uuid.UUID) (
 	return column_1, err
 }
 
+const countStaffingExcusals = `-- name: CountStaffingExcusals :one
+SELECT count(*)::bigint FROM staffing_excusals WHERE person_id = $1::uuid
+`
+
+func (q *Queries) CountStaffingExcusals(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countStaffingExcusals, subjectPerson)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countSurveyInvitations = `-- name: CountSurveyInvitations :one
 SELECT count(*)::bigint FROM survey_invitations WHERE person_id = $1::uuid
 `
@@ -566,6 +577,18 @@ FROM sessions s WHERE s.account_id = $1::uuid
 
 func (q *Queries) ExportSessions(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error) {
 	row := q.db.QueryRow(ctx, exportSessions, subjectAccount)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportStaffingExcusals = `-- name: ExportStaffingExcusals :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object('semester', p.name, 'reason', e.reason, 'createdAt', e.created_at) ORDER BY p.starts_on), '[]'::jsonb)::jsonb AS document
+FROM staffing_excusals e JOIN open_day_periods p ON p.id = e.period_id WHERE e.person_id = $1::uuid
+`
+
+func (q *Queries) ExportStaffingExcusals(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportStaffingExcusals, subjectPerson)
 	var document []byte
 	err := row.Scan(&document)
 	return document, err

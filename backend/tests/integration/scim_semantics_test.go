@@ -201,7 +201,7 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 					1,
 					source,
 				)
-				assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1`, 0, target.personID)
+				assertCount(t, pool, `SELECT count(*) FROM person_roles pr JOIN roles r ON r.id=pr.role_id WHERE pr.person_id=$1 AND (r.system_key IS NULL OR r.system_key='master')`, 0, target.personID)
 				assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='scim.account_reconciled'`, 0)
 			}
 		})

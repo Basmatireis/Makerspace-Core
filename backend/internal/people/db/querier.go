@@ -26,6 +26,8 @@ type Querier interface {
 	CountMergeHistory(ctx context.Context, arg CountMergeHistoryParams) (CountMergeHistoryRow, error)
 	CountPeople(ctx context.Context, arg CountPeopleParams) (int64, error)
 	CreatePerson(ctx context.Context, arg CreatePersonParams) (Person, error)
+	// The target's own excusal for a period wins over a merged one.
+	DeleteDuplicateMergeExcusals(ctx context.Context, arg DeleteDuplicateMergeExcusalsParams) (int64, error)
 	DeleteDuplicateMergeInboxRecipients(ctx context.Context, arg DeleteDuplicateMergeInboxRecipientsParams) (int64, error)
 	// One confirmation per Person and version: the target's confirmation of the same version wins.
 	DeleteDuplicateMergeLabRulesConfirmations(ctx context.Context, arg DeleteDuplicateMergeLabRulesConfirmationsParams) (int64, error)
@@ -43,16 +45,18 @@ type Querier interface {
 	DeletePerson(ctx context.Context, arg DeletePersonParams) (uuid.UUID, error)
 	// Keeps one record per training: the higher status (trainer over trained), then the most recently updated one.
 	DeleteSupersededMergeTrainingRecords(ctx context.Context, arg DeleteSupersededMergeTrainingRecordsParams) (int64, error)
+	// A person who becomes a visitor no longer staffs: their open days that have not started yet are freed.
+	DeleteUpcomingOpenDayAssignments(ctx context.Context, arg DeleteUpcomingOpenDayAssignmentsParams) (int64, error)
 	// Transaction-local: lets the history guards accept re-pointed person/account references (migration 00077).
 	EnablePeopleMergeMode(ctx context.Context) error
 	GetAccountByPersonForMutation(ctx context.Context, personID uuid.UUID) (Account, error)
 	GetMasterRole(ctx context.Context) (Role, error)
+	GetMembershipRole(ctx context.Context, systemKey *string) (Role, error)
 	GetPerson(ctx context.Context, id uuid.UUID) (Person, error)
 	GetPersonForDeletion(ctx context.Context, id uuid.UUID) (Person, error)
 	GetPersonForUpdate(ctx context.Context, id uuid.UUID) (Person, error)
+	GetPersonMembershipRole(ctx context.Context, personID uuid.UUID) (Role, error)
 	GetProfileImage(ctx context.Context, id uuid.UUID) (GetProfileImageRow, error)
-	// Not locked on purpose: the role itself is locked by the assignment check, which re-validates its staffing level.
-	GetPromotionSupervisorRole(ctx context.Context) (*uuid.UUID, error)
 	GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role, error)
 	GetRolePermissionGrantsForAssignment(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsForAssignmentRow, error)
 	IsPersonRoleAssigned(ctx context.Context, arg IsPersonRoleAssignedParams) (bool, error)
@@ -65,7 +69,6 @@ type Querier interface {
 	ListPeopleForMerge(ctx context.Context, ids []string) ([]Person, error)
 	ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Role, error)
 	ListPersonRolesByPeople(ctx context.Context, personIds []string) ([]ListPersonRolesByPeopleRow, error)
-	ListPersonStaffingRoles(ctx context.Context, personID uuid.UUID) ([]ListPersonStaffingRolesRow, error)
 	ListProfileImageRequirements(ctx context.Context, personIds []string) ([]ListProfileImageRequirementsRow, error)
 	// Locks the Accounts of the merged People in id order after the people and the master invariant lock.
 	LockAccountsForMerge(ctx context.Context, personIds []string) ([]Account, error)
@@ -73,6 +76,7 @@ type Querier interface {
 	// Locks every Person of a merge in id order. People are locked before the master invariant lock and accounts.
 	LockPeopleForMerge(ctx context.Context, ids []string) ([]Person, error)
 	MoveMergeAuthIdentities(ctx context.Context, arg MoveMergeAuthIdentitiesParams) (int64, error)
+	MoveMergeExcusals(ctx context.Context, arg MoveMergeExcusalsParams) (int64, error)
 	MoveMergeInboxRecipients(ctx context.Context, arg MoveMergeInboxRecipientsParams) (int64, error)
 	MoveMergeLabRulesConfirmations(ctx context.Context, arg MoveMergeLabRulesConfirmationsParams) (int64, error)
 	MoveMergeOpenDayAssignments(ctx context.Context, arg MoveMergeOpenDayAssignmentsParams) (int64, error)
@@ -80,6 +84,8 @@ type Querier interface {
 	MoveMergeSecondFactors(ctx context.Context, arg MoveMergeSecondFactorsParams) (int64, error)
 	MoveMergeShiftAssignments(ctx context.Context, arg MoveMergeShiftAssignmentsParams) (int64, error)
 	MoveMergeTrainingRecords(ctx context.Context, arg MoveMergeTrainingRecordsParams) (int64, error)
+	// Keeps the highest membership (supervisor > trainee > visitor) after roles of several people were united.
+	NormalizePersonMembership(ctx context.Context, personID uuid.UUID) error
 	PersonHasAccount(ctx context.Context, personID uuid.UUID) (bool, error)
 	PersonHasSCIMProvisioning(ctx context.Context, personID uuid.UUID) (bool, error)
 	PersonRequiresProfileImage(ctx context.Context, personID uuid.UUID) (bool, error)

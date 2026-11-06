@@ -55,7 +55,8 @@ func (q *Queries) AddRolePermissionDeviceType(ctx context.Context, arg AddRolePe
 
 const bumpRoleVersion = `-- name: BumpRoleVersion :one
 UPDATE roles SET version = version + 1, updated_at = now()
-WHERE id = $1 AND version = $2 AND system_key IS NULL RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester
+WHERE id = $1 AND version = $2 AND (system_key IS NULL OR system_key <> 'master')
+RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode
 `
 
 type BumpRoleVersionParams struct {
@@ -76,36 +77,21 @@ func (q *Queries) BumpRoleVersion(ctx context.Context, arg BumpRoleVersionParams
 		&i.UpdatedAt,
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
-		&i.StaffingLevel,
-		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }
 
-const clearSupervisorRoleRequirement = `-- name: ClearSupervisorRoleRequirement :exec
-UPDATE open_day_requirements SET supervisor_role_id = NULL, version = version + 1, updated_at = now()
-WHERE supervisor_role_id = $1
-`
-
-// A role that stops being a supervisor role can no longer be the role promotions assign.
-func (q *Queries) ClearSupervisorRoleRequirement(ctx context.Context, roleID *uuid.UUID) error {
-	_, err := q.db.Exec(ctx, clearSupervisorRoleRequirement, roleID)
-	return err
-}
-
 const createRole = `-- name: CreateRole :one
-INSERT INTO roles (id, name, description, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester
+INSERT INTO roles (id, name, description, profile_image_required, laborordnung_mode)
+VALUES ($1, $2, $3, $4, $5) RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode
 `
 
 type CreateRoleParams struct {
-	ID                     uuid.UUID
-	Name                   string
-	Description            *string
-	ProfileImageRequired   bool
-	LaborordnungMode       string
-	StaffingLevel          *string
-	MinOpenDaysPerSemester *int32
+	ID                   uuid.UUID
+	Name                 string
+	Description          *string
+	ProfileImageRequired bool
+	LaborordnungMode     string
 }
 
 func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
@@ -115,8 +101,6 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 		arg.Description,
 		arg.ProfileImageRequired,
 		arg.LaborordnungMode,
-		arg.StaffingLevel,
-		arg.MinOpenDaysPerSemester,
 	)
 	var i Role
 	err := row.Scan(
@@ -129,8 +113,6 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 		&i.UpdatedAt,
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
-		&i.StaffingLevel,
-		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }
@@ -170,7 +152,7 @@ func (q *Queries) DeleteRolePermissions(ctx context.Context, roleID uuid.UUID) e
 }
 
 const getRole = `-- name: GetRole :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester FROM roles WHERE id = $1
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode FROM roles WHERE id = $1
 `
 
 func (q *Queries) GetRole(ctx context.Context, id uuid.UUID) (Role, error) {
@@ -186,14 +168,12 @@ func (q *Queries) GetRole(ctx context.Context, id uuid.UUID) (Role, error) {
 		&i.UpdatedAt,
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
-		&i.StaffingLevel,
-		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }
 
 const getRoleForMutation = `-- name: GetRoleForMutation :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester FROM roles WHERE id = $1 FOR UPDATE
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode FROM roles WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetRoleForMutation(ctx context.Context, id uuid.UUID) (Role, error) {
@@ -209,8 +189,6 @@ func (q *Queries) GetRoleForMutation(ctx context.Context, id uuid.UUID) (Role, e
 		&i.UpdatedAt,
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
-		&i.StaffingLevel,
-		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }
@@ -303,7 +281,7 @@ func (q *Queries) ListMasterReauthenticationPolicy(ctx context.Context) ([]ListM
 }
 
 const listRoles = `-- name: ListRoles :many
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id
 `
 
 func (q *Queries) ListRoles(ctx context.Context) ([]Role, error) {
@@ -325,8 +303,6 @@ func (q *Queries) ListRoles(ctx context.Context) ([]Role, error) {
 			&i.UpdatedAt,
 			&i.ProfileImageRequired,
 			&i.LaborordnungMode,
-			&i.StaffingLevel,
-			&i.MinOpenDaysPerSemester,
 		); err != nil {
 			return nil, err
 		}
@@ -361,21 +337,19 @@ func (q *Queries) RoleAssignmentCount(ctx context.Context, roleID uuid.UUID) (in
 const updateRole = `-- name: UpdateRole :one
 UPDATE roles SET name = $1, description = $2,
     profile_image_required = $3,
-    laborordnung_mode = $4, staffing_level = $5,
-    min_open_days_per_semester = $6,
+    laborordnung_mode = $4,
     version = version + 1, updated_at = now()
-WHERE id = $7 AND version = $8 AND system_key IS NULL RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester
+WHERE id = $5 AND version = $6 AND (system_key IS NULL OR system_key <> 'master')
+RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode
 `
 
 type UpdateRoleParams struct {
-	Name                   string
-	Description            *string
-	ProfileImageRequired   bool
-	LaborordnungMode       string
-	StaffingLevel          *string
-	MinOpenDaysPerSemester *int32
-	ID                     uuid.UUID
-	ExpectedVersion        int64
+	Name                 string
+	Description          *string
+	ProfileImageRequired bool
+	LaborordnungMode     string
+	ID                   uuid.UUID
+	ExpectedVersion      int64
 }
 
 func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, error) {
@@ -384,8 +358,6 @@ func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, e
 		arg.Description,
 		arg.ProfileImageRequired,
 		arg.LaborordnungMode,
-		arg.StaffingLevel,
-		arg.MinOpenDaysPerSemester,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -400,8 +372,6 @@ func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, e
 		&i.UpdatedAt,
 		&i.ProfileImageRequired,
 		&i.LaborordnungMode,
-		&i.StaffingLevel,
-		&i.MinOpenDaysPerSemester,
 	)
 	return i, err
 }

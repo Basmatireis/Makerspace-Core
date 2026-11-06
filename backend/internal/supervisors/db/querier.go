@@ -9,7 +9,7 @@ import (
 )
 
 type Querier interface {
-	// Everyone holding at least one role with a staffing level, with their kind (supervisor wins over trainee).
+	// Everyone with the supervisor or trainee membership, with the names of their extra roles.
 	ListStaffingPeople(ctx context.Context) ([]ListStaffingPeopleRow, error)
 }
 

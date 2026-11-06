@@ -1068,9 +1068,6 @@ func (s *Service) validateInput(period opendaysdb.OpenDayPeriod, input ScheduleI
 		if r.RequiredCount < 0 || r.RequiredCount > 100 {
 			return apperror.Invalid("requiredCount must be between 0 and 100")
 		}
-		if r.RequiredCount > 0 && len(uniqueIDs(r.EligibleRoleIDs)) == 0 {
-			return apperror.Invalid("positive requirements need at least one eligible role")
-		}
 	}
 	return nil
 }

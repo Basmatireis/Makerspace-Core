@@ -22,9 +22,11 @@ import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 import type { VisitorAuthenticationMethod } from './visitorAuthenticationMethod';
 
+/**
+ * Enrolled visitors get the Visitor membership like every new person.
+ */
 export interface VisitorEnrollmentConfiguration {
   enabled: boolean;
-  initialRoleId: UUIDv7 | null;
   deviceTypeIds: UUIDv7[];
   allowedMethods: VisitorAuthenticationMethod[];
   version: Version;

@@ -287,10 +287,6 @@ export function useScheduleEditor({ canManage }: { canManage: boolean }) {
             };
           return requirement;
         });
-        if (
-          requirements.some((requirement) => requirement.requiredCount > 0 && requirement.eligibleRoleIds.length === 0)
-        )
-          throw new Error('Every enabled position type needs at least one eligible role.');
         return {
           ...slot,
           startsAt,
@@ -319,11 +315,6 @@ export function useScheduleEditor({ canManage }: { canManage: boolean }) {
       const timeZone = scheduleQuery.data!.timeZone;
       if (date < scheduleQuery.data!.period.startsOn || date > scheduleQuery.data!.period.endsOn)
         throw new Error('Choose a date within this Open Day period.');
-      if (
-        (configuration.supervisors > 0 && configuration.supervisorRoleIds.length === 0) ||
-        (configuration.trainees > 0 && configuration.traineeRoleIds.length === 0)
-      )
-        throw new Error('Every enabled position type needs at least one eligible role.');
       const startsAt = zonedDateTimeToISO(date, configuration.startTime, timeZone);
       const endDate = configuration.endTime <= configuration.startTime ? nextCalendarDate(date) : date;
       const endsAt = zonedDateTimeToISO(endDate, configuration.endTime, timeZone);

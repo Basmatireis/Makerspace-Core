@@ -22,20 +22,6 @@ func (q *Queries) AddAllowedDeviceType(ctx context.Context, deviceTypeID uuid.UU
 	return err
 }
 
-const assignVisitorRole = `-- name: AssignVisitorRole :exec
-INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)
-`
-
-type AssignVisitorRoleParams struct {
-	PersonID uuid.UUID
-	RoleID   uuid.UUID
-}
-
-func (q *Queries) AssignVisitorRole(ctx context.Context, arg AssignVisitorRoleParams) error {
-	_, err := q.db.Exec(ctx, assignVisitorRole, arg.PersonID, arg.RoleID)
-	return err
-}
-
 const clearAllowedDeviceTypes = `-- name: ClearAllowedDeviceTypes :exec
 DELETE FROM visitor_enrollment_device_types
 `
@@ -328,31 +314,8 @@ func (q *Queries) DeviceTypeExists(ctx context.Context, id uuid.UUID) (bool, err
 	return exists, err
 }
 
-const getAssignableRole = `-- name: GetAssignableRole :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, staffing_level, min_open_days_per_semester FROM roles WHERE id=$1
-`
-
-func (q *Queries) GetAssignableRole(ctx context.Context, id uuid.UUID) (Role, error) {
-	row := q.db.QueryRow(ctx, getAssignableRole, id)
-	var i Role
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.SystemKey,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ProfileImageRequired,
-		&i.LaborordnungMode,
-		&i.StaffingLevel,
-		&i.MinOpenDaysPerSemester,
-	)
-	return i, err
-}
-
 const getConfiguration = `-- name: GetConfiguration :one
-SELECT singleton, enabled, initial_role_id, allowed_methods, version, updated_by_account_id, created_at, updated_at FROM visitor_enrollment_configuration WHERE singleton=true
+SELECT singleton, enabled, allowed_methods, version, updated_by_account_id, created_at, updated_at FROM visitor_enrollment_configuration WHERE singleton=true
 `
 
 func (q *Queries) GetConfiguration(ctx context.Context) (VisitorEnrollmentConfiguration, error) {
@@ -361,7 +324,6 @@ func (q *Queries) GetConfiguration(ctx context.Context) (VisitorEnrollmentConfig
 	err := row.Scan(
 		&i.Singleton,
 		&i.Enabled,
-		&i.InitialRoleID,
 		&i.AllowedMethods,
 		&i.Version,
 		&i.UpdatedByAccountID,
@@ -372,7 +334,7 @@ func (q *Queries) GetConfiguration(ctx context.Context) (VisitorEnrollmentConfig
 }
 
 const getConfigurationForUpdate = `-- name: GetConfigurationForUpdate :one
-SELECT singleton, enabled, initial_role_id, allowed_methods, version, updated_by_account_id, created_at, updated_at FROM visitor_enrollment_configuration WHERE singleton=true FOR UPDATE
+SELECT singleton, enabled, allowed_methods, version, updated_by_account_id, created_at, updated_at FROM visitor_enrollment_configuration WHERE singleton=true FOR UPDATE
 `
 
 func (q *Queries) GetConfigurationForUpdate(ctx context.Context) (VisitorEnrollmentConfiguration, error) {
@@ -381,7 +343,6 @@ func (q *Queries) GetConfigurationForUpdate(ctx context.Context) (VisitorEnrollm
 	err := row.Scan(
 		&i.Singleton,
 		&i.Enabled,
-		&i.InitialRoleID,
 		&i.AllowedMethods,
 		&i.Version,
 		&i.UpdatedByAccountID,
@@ -396,7 +357,7 @@ SELECT ec.id, ec.managed_device_id, ec.token_digest, ec.csrf_digest, ec.expires_
 JOIN managed_devices md ON md.id=ec.managed_device_id
 JOIN visitor_enrollment_configuration c ON c.singleton=true
 WHERE ec.token_digest=$1 AND ec.used_at IS NULL AND ec.expires_at > now()
-  AND c.enabled AND c.initial_role_id IS NOT NULL
+  AND c.enabled
   AND md.revoked_at IS NULL AND (md.expires_at IS NULL OR md.expires_at > now())
   AND EXISTS (SELECT 1 FROM visitor_enrollment_device_types t WHERE t.device_type_id=md.device_type_id)
 `
@@ -422,7 +383,7 @@ SELECT ec.id, ec.managed_device_id, ec.token_digest, ec.csrf_digest, ec.expires_
 JOIN managed_devices md ON md.id=ec.managed_device_id
 JOIN visitor_enrollment_configuration c ON c.singleton=true
 WHERE ec.id=$1 AND ec.used_at IS NULL AND ec.expires_at > now()
-  AND c.enabled AND c.initial_role_id IS NOT NULL
+  AND c.enabled
   AND md.revoked_at IS NULL AND (md.expires_at IS NULL OR md.expires_at > now())
   AND EXISTS (SELECT 1 FROM visitor_enrollment_device_types t WHERE t.device_type_id=md.device_type_id)
 FOR UPDATE OF ec
@@ -513,8 +474,30 @@ func (q *Queries) GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID)
 	return items, nil
 }
 
+const getVisitorRole = `-- name: GetVisitorRole :one
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode FROM roles WHERE system_key='visitor'
+`
+
+// Every new person holds the Visitor membership role (assigned by a trigger on people).
+func (q *Queries) GetVisitorRole(ctx context.Context) (Role, error) {
+	row := q.db.QueryRow(ctx, getVisitorRole)
+	var i Role
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.SystemKey,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+	)
+	return i, err
+}
+
 const isDeviceTypeAllowed = `-- name: IsDeviceTypeAllowed :one
-SELECT c.enabled AND c.initial_role_id IS NOT NULL
+SELECT c.enabled
        AND md.revoked_at IS NULL AND (md.expires_at IS NULL OR md.expires_at > now())
        AND EXISTS (SELECT 1 FROM visitor_enrollment_device_types t WHERE t.device_type_id=md.device_type_id)
 FROM visitor_enrollment_configuration c
@@ -571,16 +554,15 @@ func (q *Queries) SetChallengeDelivery(ctx context.Context, arg SetChallengeDeli
 
 const updateConfiguration = `-- name: UpdateConfiguration :one
 UPDATE visitor_enrollment_configuration
-SET enabled=$1, initial_role_id=$2,
-    allowed_methods=$3, version=version+1,
-    updated_by_account_id=$4, updated_at=now()
-WHERE singleton=true AND version=$5
-RETURNING singleton, enabled, initial_role_id, allowed_methods, version, updated_by_account_id, created_at, updated_at
+SET enabled=$1,
+    allowed_methods=$2, version=version+1,
+    updated_by_account_id=$3, updated_at=now()
+WHERE singleton=true AND version=$4
+RETURNING singleton, enabled, allowed_methods, version, updated_by_account_id, created_at, updated_at
 `
 
 type UpdateConfigurationParams struct {
 	Enabled            bool
-	InitialRoleID      *uuid.UUID
 	AllowedMethods     []string
 	UpdatedByAccountID *uuid.UUID
 	ExpectedVersion    int64
@@ -589,7 +571,6 @@ type UpdateConfigurationParams struct {
 func (q *Queries) UpdateConfiguration(ctx context.Context, arg UpdateConfigurationParams) (VisitorEnrollmentConfiguration, error) {
 	row := q.db.QueryRow(ctx, updateConfiguration,
 		arg.Enabled,
-		arg.InitialRoleID,
 		arg.AllowedMethods,
 		arg.UpdatedByAccountID,
 		arg.ExpectedVersion,
@@ -598,7 +579,6 @@ func (q *Queries) UpdateConfiguration(ctx context.Context, arg UpdateConfigurati
 	err := row.Scan(
 		&i.Singleton,
 		&i.Enabled,
-		&i.InitialRoleID,
 		&i.AllowedMethods,
 		&i.Version,
 		&i.UpdatedByAccountID,

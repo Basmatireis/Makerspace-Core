@@ -5,6 +5,8 @@ export const STATUS_OPTIONS: Array<{ id: StaffingStatus; label: string }> = [
   { id: 'missing', label: 'Below minimum' },
   { id: 'ready', label: 'Ready for supervisor' },
   { id: 'fulfilled', label: 'Minimum reached' },
+  { id: 'excused', label: 'Excused' },
+  { id: 'no_minimum', label: 'No minimum' },
 ];
 
 export const KIND_OPTIONS = [
@@ -40,7 +42,7 @@ export function rowSearchText(row: SupervisorRow): string {
     options.find((option) => option.id === id)?.label ?? id;
   return [
     row.name,
-    label(KIND_OPTIONS, row.kind),
+    label(KIND_OPTIONS, row.membership),
     label(STATUS_OPTIONS, row.status),
     labRulesLabel(row.laborordnungState),
   ]
@@ -56,7 +58,7 @@ export function filterRows(rows: SupervisorRow[], search: string, filters: Filte
       (row) =>
         (!query || rowSearchText(row).includes(query)) &&
         matches('status', row.status) &&
-        matches('kind', row.kind) &&
+        matches('kind', row.membership) &&
         matches('labRules', row.laborordnungState) &&
         matches('photo', row.hasProfileImage ? 'complete' : 'missing'),
     )

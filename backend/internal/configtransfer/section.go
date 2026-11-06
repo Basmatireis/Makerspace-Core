@@ -43,7 +43,7 @@ var registry = []section{
 	machinesSection(),
 	inventoryArticlesSection(),
 	pricingSection(),
-	openDayRequirementsSection(),
+	staffingRulesSection(),
 	visitorEnrollmentSection(),
 	brandingSection(),
 	labRulesSection(),

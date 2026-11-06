@@ -19,13 +19,13 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Semester } from './semester';
-import type { SupervisorDashboardRequirements } from './supervisorDashboardRequirements';
+import type { StaffingRules } from './staffingRules';
 import type { SupervisorRow } from './supervisorRow';
 import type { SupervisorTotals } from './supervisorTotals';
 
 export interface SupervisorDashboard {
   semester: Semester | null;
-  requirements: SupervisorDashboardRequirements;
+  rules: StaffingRules;
   supervisors: SupervisorRow[];
   totals: SupervisorTotals;
 }

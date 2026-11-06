@@ -52,7 +52,6 @@ type InvitationNotifier interface {
 
 type Configuration struct {
 	Enabled        bool
-	InitialRoleID  *uuid.UUID
 	DeviceTypeIDs  []uuid.UUID
 	AllowedMethods []AuthMethod
 	Version        int64
@@ -61,7 +60,6 @@ type Configuration struct {
 
 type ConfigurationInput struct {
 	Enabled         bool
-	InitialRoleID   *uuid.UUID
 	DeviceTypeIDs   []uuid.UUID
 	AllowedMethods  []AuthMethod
 	ExpectedVersion int64
@@ -194,9 +192,9 @@ func (s *Service) UpdateConfigurationTx(
 	}
 	methods, err := normalizeMethods(input.AllowedMethods)
 	if err != nil || input.ExpectedVersion < 1 ||
-		(input.Enabled && (input.InitialRoleID == nil || len(input.DeviceTypeIDs) == 0 || len(methods) == 0)) {
+		(input.Enabled && (len(input.DeviceTypeIDs) == 0 || len(methods) == 0)) {
 		return Configuration{}, apperror.InvalidField(
-			"enabled enrollment requires an initial Role, at least one Device Type, and at least one authentication method",
+			"enabled enrollment requires at least one Device Type and at least one authentication method",
 		)
 	}
 	deviceTypes, err := uniqueUUIDs(input.DeviceTypeIDs)
@@ -204,8 +202,9 @@ func (s *Service) UpdateConfigurationTx(
 		return Configuration{}, err
 	}
 	queries := visitordb.New(tx)
-	if input.InitialRoleID != nil {
-		if err := authorizeRole(ctx, queries, principal, *input.InitialRoleID); err != nil {
+	// Enrollment hands out the Visitor membership, so enabling it needs the same privilege subset as assigning it.
+	if input.Enabled {
+		if err := authorizeVisitorRole(ctx, queries, principal); err != nil {
 			return Configuration{}, err
 		}
 	}
@@ -223,7 +222,6 @@ func (s *Service) UpdateConfigurationTx(
 		ctx,
 		visitordb.UpdateConfigurationParams{
 			Enabled:            input.Enabled,
-			InitialRoleID:      input.InitialRoleID,
 			AllowedMethods:     optional.ConvertSlice[string](methods),
 			UpdatedByAccountID: &actor,
 			ExpectedVersion:    input.ExpectedVersion,
@@ -251,14 +249,13 @@ func (s *Service) UpdateConfigurationTx(
 			Action:         "visitor_enrollment.configuration_updated",
 			ResourceType:   "visitor_enrollment_configuration",
 			RequestID:      requestID,
-			ChangedFields:  []string{"enabled", "initialRoleId", "deviceTypeIds", "allowedMethods"},
+			ChangedFields:  []string{"enabled", "deviceTypeIds", "allowedMethods"},
 		},
 	); err != nil {
 		return Configuration{}, err
 	}
 	return Configuration{
 		Enabled:        row.Enabled,
-		InitialRoleID:  row.InitialRoleID,
 		DeviceTypeIDs:  deviceTypes,
 		AllowedMethods: optional.ConvertSlice[AuthMethod](row.AllowedMethods),
 		Version:        row.Version,
@@ -446,14 +443,14 @@ func (s *Service) Submit(
 			return SubmissionResult{}, apperror.PermissionDenied
 		}
 	}
-	if configuration.InitialRoleID == nil {
+	if !configuration.Enabled {
 		return SubmissionResult{}, apperror.New(
 			http.StatusConflict,
 			"visitor_enrollment_disabled",
 			"Visitor enrollment is unavailable",
 		)
 	}
-	role, err := queries.GetAssignableRole(ctx, *configuration.InitialRoleID)
+	role, err := queries.GetVisitorRole(ctx)
 	if err != nil {
 		return SubmissionResult{}, err
 	}
@@ -543,12 +540,6 @@ func (s *Service) Submit(
 		); err != nil {
 			return SubmissionResult{}, err
 		}
-	}
-	if err := queries.AssignVisitorRole(
-		ctx,
-		visitordb.AssignVisitorRoleParams{PersonID: personID, RoleID: role.ID},
-	); err != nil {
-		return SubmissionResult{}, err
 	}
 	result := SubmissionResult{
 		PersonID:      personID,
@@ -740,7 +731,6 @@ func (s *Service) loadConfiguration(ctx context.Context, queries *visitordb.Quer
 	}
 	return Configuration{
 		Enabled:        row.Enabled,
-		InitialRoleID:  row.InitialRoleID,
 		DeviceTypeIDs:  deviceTypes,
 		AllowedMethods: optional.ConvertSlice[AuthMethod](row.AllowedMethods),
 		Version:        row.Version,
@@ -768,26 +758,16 @@ func (s *Service) pinnedLabRules(
 	}, nil
 }
 
-func authorizeRole(
+func authorizeVisitorRole(
 	ctx context.Context,
 	queries *visitordb.Queries,
 	principal authorization.Principal,
-	roleID uuid.UUID,
 ) error {
-	role, err := queries.GetAssignableRole(ctx, roleID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.NotFound
-	}
+	role, err := queries.GetVisitorRole(ctx)
 	if err != nil {
 		return err
 	}
-	if role.SystemKey != nil {
-		if !principal.Master {
-			return apperror.PermissionDenied
-		}
-		return nil
-	}
-	rows, err := queries.GetRolePermissionGrants(ctx, roleID)
+	rows, err := queries.GetRolePermissionGrants(ctx, role.ID)
 	if err != nil {
 		return err
 	}

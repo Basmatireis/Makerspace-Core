@@ -240,16 +240,35 @@ WHERE r.system_key = 'master';
 -- name: GetMasterRole :one
 SELECT * FROM roles WHERE system_key = 'master';
 
--- name: GetPromotionSupervisorRole :one
--- Not locked on purpose: the role itself is locked by the assignment check, which re-validates its staffing level.
-SELECT supervisor_role_id FROM open_day_requirements WHERE singleton = true;
+-- name: GetMembershipRole :one
+SELECT * FROM roles WHERE system_key = sqlc.arg(system_key);
 
--- name: ListPersonStaffingRoles :many
-SELECT r.id, r.staffing_level::text AS staffing_level
-FROM roles r
+-- name: GetPersonMembershipRole :one
+SELECT r.* FROM roles r
 JOIN person_roles pr ON pr.role_id = r.id
-WHERE pr.person_id = sqlc.arg(person_id) AND r.staffing_level IS NOT NULL
-ORDER BY r.id;
+WHERE pr.person_id = sqlc.arg(person_id) AND r.system_key IN ('supervisor', 'trainee', 'visitor')
+ORDER BY CASE r.system_key WHEN 'supervisor' THEN 0 WHEN 'trainee' THEN 1 ELSE 2 END
+LIMIT 1;
+
+-- name: DeleteUpcomingOpenDayAssignments :execrows
+-- A person who becomes a visitor no longer staffs: their open days that have not started yet are freed.
+DELETE FROM open_day_assignments a
+USING open_days d
+WHERE d.id = a.open_day_id AND a.person_id = sqlc.arg(person_id) AND d.starts_at > sqlc.arg(now);
+
+-- name: NormalizePersonMembership :exec
+-- Keeps the highest membership (supervisor > trainee > visitor) after roles of several people were united.
+SELECT normalize_person_membership(sqlc.arg(person_id)::uuid);
+
+-- name: DeleteDuplicateMergeExcusals :execrows
+-- The target's own excusal for a period wins over a merged one.
+DELETE FROM staffing_excusals source
+USING staffing_excusals target
+WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.arg(target_person_id)
+  AND source.period_id = target.period_id;
+
+-- name: MoveMergeExcusals :execrows
+UPDATE staffing_excusals SET person_id = sqlc.arg(target_person_id) WHERE person_id = sqlc.arg(source_person_id);
 
 -- People merge (people.merge). Every query below is part of PreviewMerge or Merge; see docs/people-merge.md.
 
@@ -595,7 +614,7 @@ WITH c01 AS (
     UPDATE signage_publications SET published_by_account_id = sqlc.arg(target_account_id)::uuid
     WHERE published_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
 ), c39 AS (
-    UPDATE open_day_requirements SET updated_by_account_id = sqlc.arg(target_account_id)::uuid
+    UPDATE staffing_rules SET updated_by_account_id = sqlc.arg(target_account_id)::uuid
     WHERE updated_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
 ), c40 AS (
     UPDATE wiref_delivery_settings SET updated_by_account_id = sqlc.arg(target_account_id)::uuid
@@ -651,6 +670,9 @@ WITH c01 AS (
 ), c58 AS (
     UPDATE filament_spools SET retired_by = sqlc.arg(target_account_id)::uuid
     WHERE retired_by = sqlc.arg(source_account_id)::uuid RETURNING 1
+), c59 AS (
+    UPDATE staffing_excusals SET created_by_account_id = sqlc.arg(target_account_id)::uuid
+    WHERE created_by_account_id = sqlc.arg(source_account_id)::uuid RETURNING 1
 )
 SELECT (
     (SELECT count(*) FROM c01) + (SELECT count(*) FROM c02) + (SELECT count(*) FROM c03) + (SELECT count(*) FROM c04)
@@ -667,7 +689,7 @@ SELECT (
     + (SELECT count(*) FROM c45) + (SELECT count(*) FROM c46) + (SELECT count(*) FROM c47) + (SELECT count(*) FROM c48)
     + (SELECT count(*) FROM c49) + (SELECT count(*) FROM c50) + (SELECT count(*) FROM c51) + (SELECT count(*) FROM c52)
     + (SELECT count(*) FROM c53) + (SELECT count(*) FROM c54) + (SELECT count(*) FROM c55) + (SELECT count(*) FROM c56)
-    + (SELECT count(*) FROM c57) + (SELECT count(*) FROM c58)
+    + (SELECT count(*) FROM c57) + (SELECT count(*) FROM c58) + (SELECT count(*) FROM c59)
 )::bigint AS moved;
 
 -- name: RepointMergeAuditEvents :execrows

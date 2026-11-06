@@ -36,7 +36,6 @@ import { MasterReauthenticationPolicyDialog } from './MasterReauthenticationPoli
 import { PermissionEditor } from './PermissionEditor';
 import { PermissionMatrix } from './PermissionMatrix';
 import { permissionGroupOrder, presentPermission } from './permissionPresentation';
-import { openDayRequirementsQueryOptions } from '../opendays/queries';
 import { CreateRoleDialog, DeleteRoleDialog, RoleSettingsDialog } from './RoleDialogs';
 import { deviceTypeListOptions, fullRoleCatalogOptions, permissionListOptions, roleKeys } from './queries';
 import { grantsForPermission, permissionChanges, describePermissionChanges } from './roleGrants';
@@ -56,11 +55,6 @@ export function RolesPage() {
   const rolesQuery = useQuery(fullRoleCatalogOptions);
   const permissionQuery = useQuery(permissionListOptions);
   const deviceTypesQuery = useQuery(deviceTypeListOptions);
-  // The general minimum only explains the role form's helper text; people without open_days.read just don't see it.
-  const requirementsQuery = useQuery(
-    openDayRequirementsQueryOptions(hasPermission(currentUser, PermissionId.open_daysread)),
-  );
-  const generalMinimum = requirementsQuery.data?.minOpenDaysPerSemester;
   // The empty fallback must keep its identity: roles is a dependency of the selection effect below.
   const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
   const permissions = useMemo(() => permissionQuery.data?.items ?? [], [permissionQuery.data]);
@@ -409,8 +403,11 @@ export function RolesPage() {
                     onClick={() => requestRole(role)}
                   >
                     <span className="roles-list__icon">
-                      {role.systemKey === 'master' ? (
-                        <Locked size={24} aria-label="Protected system role" />
+                      {role.systemKey ? (
+                        <Locked
+                          size={24}
+                          aria-label={role.systemKey === 'master' ? 'Protected system role' : 'Membership role'}
+                        />
                       ) : (
                         <UserRole size={24} aria-hidden="true" />
                       )}
@@ -436,7 +433,7 @@ export function RolesPage() {
                         onClick={() => navigate(`/settings/roles/${role.id}`)}
                       />
                     )}
-                    {manageable && (
+                    {manageable && !role.systemKey && (
                       <OverflowMenuItem
                         isDelete
                         itemText="Delete role"
@@ -512,7 +509,6 @@ export function RolesPage() {
       <CreateRoleDialog
         open={createOpen}
         roles={copySources}
-        generalMinimum={generalMinimum}
         isPending={createMutation.isPending}
         error={createMutation.error}
         onClose={() => navigate('/settings/roles', { replace: true })}
@@ -520,7 +516,6 @@ export function RolesPage() {
       />
       <RoleSettingsDialog
         role={settingsRole && canManageRole(settingsRole) ? settingsRole : undefined}
-        generalMinimum={generalMinimum}
         isPending={updateMutation.isPending}
         error={updateMutation.error}
         onClose={() => navigate('/settings/roles', { replace: true })}

@@ -95,6 +95,14 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 			}
 			continue
 		}
+		if key == "fromMembership" || key == "toMembership" {
+			// Membership changes name the system role keys, never role names.
+			text, ok := value.(string)
+			if !ok || (text != "" && text != "supervisor" && text != "trainee" && text != "visitor") {
+				return fmt.Errorf("invalid audit %s metadata", key)
+			}
+			continue
+		}
 		if countMetadataKey(key) {
 			// Counts (for example how many records a merge moved) are aggregate numbers, never personal data.
 			text, ok := value.(string)
@@ -109,6 +117,7 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		if key != "orderId" && key != "paymentId" && key != "replacementOrderId" && key != "externalInvoiceRequestId" &&
 			key != "roleId" &&
 			key != "personId" &&
+			key != "periodId" &&
 			key != "openDayId" &&
 			key != "eventId" &&
 			key != "shiftId" &&

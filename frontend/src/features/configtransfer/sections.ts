@@ -83,10 +83,10 @@ export const sectionDefinitions: SectionDefinition[] = [
     manage: [PermissionId.pricingmanage],
   },
   {
-    key: 'openDayRequirements',
-    label: 'Open day requirements',
-    description: 'Open days per semester and trainee promotion.',
-    read: [PermissionId.open_daysread],
+    key: 'staffingRules',
+    label: 'Staffing rules',
+    description: 'Open-day minimums, trainee readiness, deadlines and role exceptions.',
+    read: [PermissionId.open_daysmanage],
     manage: [PermissionId.open_daysmanage],
   },
   {

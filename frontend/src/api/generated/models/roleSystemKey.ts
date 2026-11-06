@@ -20,6 +20,8 @@
  */
 
 /**
+ * `master` is immutable. The membership roles `supervisor`, `trainee` and `visitor` cannot be renamed or
+ * deleted; every person holds exactly one of them.
  * @nullable
  */
 export type RoleSystemKey = typeof RoleSystemKey[keyof typeof RoleSystemKey] | null;
@@ -27,4 +29,7 @@ export type RoleSystemKey = typeof RoleSystemKey[keyof typeof RoleSystemKey] | n
 
 export const RoleSystemKey = {
   master: 'master',
+  supervisor: 'supervisor',
+  trainee: 'trainee',
+  visitor: 'visitor',
 } as const;

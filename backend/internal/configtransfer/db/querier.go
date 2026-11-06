@@ -18,9 +18,9 @@ type Querier interface {
 	GetCurrentLabRulesEffectiveAt(ctx context.Context) (pgtype.Timestamptz, error)
 	// The encrypted SMTP password is never selected; only whether one is stored.
 	GetMailConfiguration(ctx context.Context) (GetMailConfigurationRow, error)
-	GetOpenDayRequirements(ctx context.Context) (GetOpenDayRequirementsRow, error)
 	// Privacy: the controller, every retention decision that is not retired, and the record of processing activities.
 	GetPrivacySettingsForTransfer(ctx context.Context) (GetPrivacySettingsForTransferRow, error)
+	GetStaffingRules(ctx context.Context) (GetStaffingRulesRow, error)
 	GetVisitorEnrollmentConfiguration(ctx context.Context) (GetVisitorEnrollmentConfigurationRow, error)
 	GetWirefDeliverySettings(ctx context.Context) (GetWirefDeliverySettingsRow, error)
 	// Sale prices of single articles (stock_article) belong to the inventory, not to the transferred catalog.
@@ -47,6 +47,7 @@ type Querier interface {
 	ListRolePricingGroups(ctx context.Context) ([]ListRolePricingGroupsRow, error)
 	ListRoles(ctx context.Context) ([]ListRolesRow, error)
 	ListSessionPolicies(ctx context.Context) ([]ListSessionPoliciesRow, error)
+	ListStaffingRuleExceptions(ctx context.Context) ([]ListStaffingRuleExceptionsRow, error)
 	ListSurveyOptions(ctx context.Context, versionIds []uuid.UUID) ([]ListSurveyOptionsRow, error)
 	ListSurveyQuestions(ctx context.Context, versionIds []uuid.UUID) ([]ListSurveyQuestionsRow, error)
 	ListSurveyTriggers(ctx context.Context) ([]ListSurveyTriggersRow, error)

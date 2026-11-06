@@ -45,6 +45,7 @@ type Querier interface {
 	GetSentMessageForUpdate(ctx context.Context, arg GetSentMessageForUpdateParams) (GetSentMessageForUpdateRow, error)
 	// How a spool is named to people: its label and its article.
 	GetSpoolNotificationFacts(ctx context.Context, id uuid.UUID) (GetSpoolNotificationFactsRow, error)
+	GetStaffingWarningWindowDays(ctx context.Context) (int32, error)
 	InsertNotification(ctx context.Context, arg InsertNotificationParams) (InboxNotification, error)
 	InsertNotificationMail(ctx context.Context, arg InsertNotificationMailParams) error
 	InsertNotificationRoles(ctx context.Context, arg InsertNotificationRolesParams) error
@@ -58,14 +59,14 @@ type Querier interface {
 	// version.
 	ListEnabledAccountsAwaitingLabRules(ctx context.Context, versionID uuid.UUID) ([]ListEnabledAccountsAwaitingLabRulesRow, error)
 	ListEnabledAccountsOfPeople(ctx context.Context, personIds []string) ([]ListEnabledAccountsOfPeopleRow, error)
-	// Active accounts of people with any open day staffing level (supervisor or trainee).
+	// Active accounts of people who staff open days (supervisor or trainee membership).
 	ListEnabledStaffingAccountIDs(ctx context.Context) ([]uuid.UUID, error)
 	ListNotificationRoles(ctx context.Context, notificationIds []string) ([]ListNotificationRolesRow, error)
 	ListOwnNotifications(ctx context.Context, arg ListOwnNotificationsParams) ([]ListOwnNotificationsRow, error)
 	// Everyone holding the role, with or without an account.
 	ListPersonIDsByRole(ctx context.Context, roleID uuid.UUID) ([]uuid.UUID, error)
 	ListSentMessages(ctx context.Context, arg ListSentMessagesParams) ([]ListSentMessagesRow, error)
-	// Active accounts of people with the supervisor staffing level who are not assigned to the open day.
+	// Active accounts of people with the supervisor membership who are not assigned to the open day.
 	ListUnassignedSupervisorAccountIDs(ctx context.Context, arg ListUnassignedSupervisorAccountIDsParams) ([]uuid.UUID, error)
 	MailDeliveryEnabled(ctx context.Context) (bool, error)
 	MarkAllOwnNotificationsRead(ctx context.Context, arg MarkAllOwnNotificationsReadParams) (int64, error)

@@ -119,7 +119,7 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM password_credentials WHERE auth_identity_id = $1`, 0, account.identity)
 	assertCount(t, pool, `SELECT count(*) FROM sessions WHERE account_id = $1`, 0, account.accountID)
 	assertCount(t, pool, `SELECT count(*) FROM password_reset_tokens WHERE account_id = $1`, 0, account.accountID)
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id = $1`, 1, account.personID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles pr JOIN roles r ON r.id=pr.role_id WHERE pr.person_id = $1 AND r.system_key IS NULL`, 1, account.personID)
 	assertCount(t, pool, `SELECT count(*) FROM role_permission_grants WHERE role_id = $1`, 1, roleID)
 
 	var actorID, resourceID *uuid.UUID
@@ -658,7 +658,8 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if assigned.Version != 2 || len(assigned.Roles) != 1 || assigned.Roles[0].ID != roleID {
+	// Besides the role, the person keeps the Visitor membership every person starts with.
+	if assigned.Version != 2 || len(assigned.Roles) != 2 || assigned.Roles[1].ID != roleID {
 		t.Fatalf("assigned Person = %#v", assigned)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE person_id=$1`, 0, personID)
@@ -746,7 +747,7 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if removed.Version != 3 || len(removed.Roles) != 0 {
+	if removed.Version != 3 || len(removed.Roles) != 1 || removed.Roles[0].SystemKey == nil {
 		t.Fatalf("removed Person = %#v", removed)
 	}
 	assertCount(

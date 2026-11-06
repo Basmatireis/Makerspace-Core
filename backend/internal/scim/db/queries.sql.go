@@ -408,6 +408,24 @@ func (q *Queries) DeduplicateOpenDayAssignments(ctx context.Context, arg Dedupli
 	return err
 }
 
+const deleteDuplicateReconciledExcusals = `-- name: DeleteDuplicateReconciledExcusals :exec
+DELETE FROM staffing_excusals source
+USING staffing_excusals target
+WHERE source.person_id = $1 AND target.person_id = $2
+  AND source.period_id = target.period_id
+`
+
+type DeleteDuplicateReconciledExcusalsParams struct {
+	SourcePersonID uuid.UUID
+	TargetPersonID uuid.UUID
+}
+
+// The target's own excusal for a period wins over the source's.
+func (q *Queries) DeleteDuplicateReconciledExcusals(ctx context.Context, arg DeleteDuplicateReconciledExcusalsParams) error {
+	_, err := q.db.Exec(ctx, deleteDuplicateReconciledExcusals, arg.SourcePersonID, arg.TargetPersonID)
+	return err
+}
+
 const deleteReconciledAccount = `-- name: DeleteReconciledAccount :exec
 DELETE FROM accounts WHERE id=$1
 `
@@ -872,6 +890,16 @@ func (q *Queries) MoveOpenDayAssignments(ctx context.Context, arg MoveOpenDayAss
 	return err
 }
 
+const normalizeReconciledPersonMembership = `-- name: NormalizeReconciledPersonMembership :exec
+SELECT normalize_person_membership($1::uuid)
+`
+
+// Keeps the highest membership (supervisor > trainee > visitor) after the roles were transferred.
+func (q *Queries) NormalizeReconciledPersonMembership(ctx context.Context, personID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, normalizeReconciledPersonMembership, personID)
+	return err
+}
+
 const reenableConnectorOIDCIdentity = `-- name: ReenableConnectorOIDCIdentity :exec
 UPDATE auth_identities SET disabled_at=NULL, updated_at=now()
 WHERE account_id=$1 AND kind='oidc' AND provider_id=$2
@@ -954,6 +982,20 @@ WHERE token_digest=$1 AND (last_used_at IS NULL OR last_used_at < now()-interval
 
 func (q *Queries) TouchConnectorToken(ctx context.Context, tokenDigest []byte) error {
 	_, err := q.db.Exec(ctx, touchConnectorToken, tokenDigest)
+	return err
+}
+
+const transferExcusals = `-- name: TransferExcusals :exec
+UPDATE staffing_excusals SET person_id = $1 WHERE person_id = $2
+`
+
+type TransferExcusalsParams struct {
+	TargetPersonID uuid.UUID
+	SourcePersonID uuid.UUID
+}
+
+func (q *Queries) TransferExcusals(ctx context.Context, arg TransferExcusalsParams) error {
+	_, err := q.db.Exec(ctx, transferExcusals, arg.TargetPersonID, arg.SourcePersonID)
 	return err
 }
 

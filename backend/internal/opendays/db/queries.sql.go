@@ -405,9 +405,16 @@ WHERE d.status = 'scheduled'
   )
   AND r.required_count > (SELECT count(*) FROM open_day_assignments sa WHERE sa.requirement_id = r.id)
   AND EXISTS (
-      SELECT 1 FROM open_day_staff_requirement_roles rr
-      JOIN person_roles pr ON pr.role_id = rr.role_id
-      WHERE rr.requirement_id = r.id AND pr.person_id = $4
+      SELECT 1 FROM person_roles mp JOIN roles m ON m.id = mp.role_id
+      WHERE mp.person_id = $4 AND m.system_key = r.kind
+  )
+  AND (
+      NOT EXISTS (SELECT 1 FROM open_day_staff_requirement_roles rr WHERE rr.requirement_id = r.id)
+      OR EXISTS (
+          SELECT 1 FROM open_day_staff_requirement_roles rr
+          JOIN person_roles pr ON pr.role_id = rr.role_id
+          WHERE rr.requirement_id = r.id AND pr.person_id = $4
+      )
   )
 ORDER BY d.starts_at, d.id
 LIMIT 1
@@ -737,7 +744,7 @@ func (q *Queries) ListAssignments(ctx context.Context, openDayID uuid.UUID) ([]L
 }
 
 const listEligibilityRoles = `-- name: ListEligibilityRoles :many
-SELECT id, name FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id
+SELECT id, name FROM roles WHERE system_key IS NULL ORDER BY lower(name), id
 `
 
 type ListEligibilityRolesRow struct {
@@ -745,6 +752,7 @@ type ListEligibilityRolesRow struct {
 	Name string
 }
 
+// Membership decides the kind of place; only extra roles can restrict a place further.
 func (q *Queries) ListEligibilityRoles(ctx context.Context) ([]ListEligibilityRolesRow, error) {
 	rows, err := q.db.Query(ctx, listEligibilityRoles)
 	if err != nil {
@@ -766,11 +774,21 @@ func (q *Queries) ListEligibilityRoles(ctx context.Context) ([]ListEligibilityRo
 }
 
 const listEligiblePeople = `-- name: ListEligiblePeople :many
-SELECT DISTINCT p.id, p.first_name, p.last_name
+SELECT p.id, p.first_name, p.last_name
 FROM people p
-JOIN person_roles pr ON pr.person_id = p.id
-JOIN open_day_staff_requirement_roles rr ON rr.role_id = pr.role_id
-WHERE rr.requirement_id = $1
+JOIN open_day_staff_requirements r ON r.id = $1
+WHERE EXISTS (
+      SELECT 1 FROM person_roles mp JOIN roles m ON m.id = mp.role_id
+      WHERE mp.person_id = p.id AND m.system_key = r.kind
+  )
+  AND (
+      NOT EXISTS (SELECT 1 FROM open_day_staff_requirement_roles rr WHERE rr.requirement_id = r.id)
+      OR EXISTS (
+          SELECT 1 FROM open_day_staff_requirement_roles rr
+          JOIN person_roles pr ON pr.role_id = rr.role_id
+          WHERE rr.requirement_id = r.id AND pr.person_id = p.id
+      )
+  )
   AND ($2::text = '' OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower($2::text) || '%')
 ORDER BY p.last_name, p.first_name, p.id
 LIMIT $3
@@ -788,6 +806,7 @@ type ListEligiblePeopleRow struct {
 	LastName  string
 }
 
+// The same eligibility as PersonEligibleForRequirement.
 func (q *Queries) ListEligiblePeople(ctx context.Context, arg ListEligiblePeopleParams) ([]ListEligiblePeopleRow, error) {
 	rows, err := q.db.Query(ctx, listEligiblePeople, arg.RequirementID, arg.Search, arg.PageLimit)
 	if err != nil {
@@ -1082,10 +1101,18 @@ func (q *Queries) ListUpcomingAssignmentsForPerson(ctx context.Context, personID
 
 const personEligibleForRequirement = `-- name: PersonEligibleForRequirement :one
 SELECT EXISTS (
-    SELECT 1 FROM people p
-    JOIN person_roles pr ON pr.person_id = p.id
-    JOIN open_day_staff_requirement_roles rr ON rr.role_id = pr.role_id
-    WHERE p.id = $1 AND rr.requirement_id = $2
+    SELECT 1 FROM open_day_staff_requirements r
+    JOIN person_roles mp ON mp.person_id = $1
+    JOIN roles m ON m.id = mp.role_id AND m.system_key = r.kind
+    WHERE r.id = $2
+      AND (
+          NOT EXISTS (SELECT 1 FROM open_day_staff_requirement_roles rr WHERE rr.requirement_id = r.id)
+          OR EXISTS (
+              SELECT 1 FROM open_day_staff_requirement_roles rr
+              JOIN person_roles pr ON pr.role_id = rr.role_id
+              WHERE rr.requirement_id = r.id AND pr.person_id = $1
+          )
+      )
 )
 `
 
@@ -1094,6 +1121,8 @@ type PersonEligibleForRequirementParams struct {
 	RequirementID uuid.UUID
 }
 
+// A place of a kind needs the membership of that kind; its role list, when not empty, also asks for one of those
+// extra roles.
 func (q *Queries) PersonEligibleForRequirement(ctx context.Context, arg PersonEligibleForRequirementParams) (bool, error) {
 	row := q.db.QueryRow(ctx, personEligibleForRequirement, arg.PersonID, arg.RequirementID)
 	var exists bool

@@ -75,6 +75,7 @@ func TestOpenDayAssignmentReturnsNameBeyondEligibilityPage(t *testing.T) {
 	) INSERT INTO person_roles(person_id,role_id) SELECT person_id,$1 FROM accounts_insert`, masterRoleID); err != nil {
 		t.Fatal(err)
 	}
+	makeMasterHoldersSupervisors(t, pool)
 	service, err := opendays.NewService(pool, inbox.NewEmitter(), config.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +203,11 @@ func TestOpenDayPeriodSignUpDeadline(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	semester, err := staffingService.CurrentSemester(ctx, now)
+	rules, err := staffingService.Settings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	semester, err := staffingService.CurrentSemester(ctx, rules, now)
 	if err != nil || semester == nil {
 		t.Fatalf("semester = %v, err = %v", semester, err)
 	}

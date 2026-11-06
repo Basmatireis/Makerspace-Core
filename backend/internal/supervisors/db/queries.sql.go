@@ -19,11 +19,10 @@ WITH current_version AS (
     ORDER BY effective_at DESC, id DESC LIMIT 1
 ), staffing_people AS (
     SELECT p.id, p.version, p.first_name, p.last_name, p.profile_image_file_id, p.member_since,
-        CASE WHEN bool_or(designated.staffing_level = 'supervisor') THEN 'supervisor' ELSE 'trainee' END::text AS kind
+        membership.system_key AS membership
     FROM people p
-    JOIN person_roles pr ON pr.person_id = p.id
-    JOIN roles designated ON designated.id = pr.role_id AND designated.staffing_level IS NOT NULL
-    GROUP BY p.id
+    JOIN person_roles mp ON mp.person_id = p.id
+    JOIN roles membership ON membership.id = mp.role_id AND membership.system_key IN ('supervisor', 'trainee')
 ), modes AS (
     SELECT p.id AS person_id,
         COALESCE(max(CASE r.laborordnung_mode WHEN 'blocking' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END), 0)::integer AS mode_rank
@@ -32,8 +31,14 @@ WITH current_version AS (
     LEFT JOIN roles r ON r.id = pr.role_id
     GROUP BY p.id
 )
-SELECT sp.id AS person_id, sp.version AS person_version, sp.first_name, sp.last_name, sp.kind, sp.member_since,
+SELECT sp.id AS person_id, sp.version AS person_version, sp.first_name, sp.last_name, sp.membership::text AS membership,
+    sp.member_since,
     (sp.profile_image_file_id IS NOT NULL)::boolean AS has_profile_image,
+    COALESCE((
+        SELECT array_agg(r.name ORDER BY lower(r.name), r.id)
+        FROM person_roles pr JOIN roles r ON r.id = pr.role_id
+        WHERE pr.person_id = sp.id AND r.system_key IS NULL
+    ), '{}')::text[] AS extra_roles,
     CASE
       WHEN m.mode_rank = 0 THEN 'not_required'
       WHEN NOT EXISTS (SELECT 1 FROM current_version) THEN 'no_published_version'
@@ -53,13 +58,14 @@ type ListStaffingPeopleRow struct {
 	PersonVersion     int64
 	FirstName         string
 	LastName          string
-	Kind              string
+	Membership        string
 	MemberSince       pgtype.Date
 	HasProfileImage   bool
+	ExtraRoles        []string
 	LaborordnungState string
 }
 
-// Everyone holding at least one role with a staffing level, with their kind (supervisor wins over trainee).
+// Everyone with the supervisor or trainee membership, with the names of their extra roles.
 func (q *Queries) ListStaffingPeople(ctx context.Context) ([]ListStaffingPeopleRow, error) {
 	rows, err := q.db.Query(ctx, listStaffingPeople)
 	if err != nil {
@@ -74,9 +80,10 @@ func (q *Queries) ListStaffingPeople(ctx context.Context) ([]ListStaffingPeopleR
 			&i.PersonVersion,
 			&i.FirstName,
 			&i.LastName,
-			&i.Kind,
+			&i.Membership,
 			&i.MemberSince,
 			&i.HasProfileImage,
+			&i.ExtraRoles,
 			&i.LaborordnungState,
 		); err != nil {
 			return nil, err

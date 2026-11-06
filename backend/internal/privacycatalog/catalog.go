@@ -24,6 +24,7 @@ const (
 	EventExternalSignups privacy.CategoryID = "events.external_signups"
 	EventContent         privacy.CategoryID = "events.content"
 	OpenDayAssignments   privacy.CategoryID = "opendays.assignments"
+	StaffingExcusals     privacy.CategoryID = "opendays.staffing_excusals"
 	TrainingRecords      privacy.CategoryID = "trainings.records"
 	// LabRulesConfirmations keeps the identifier it had when confirmations were paper requests: policies,
 	// retention holds and subject requests store category identifiers.
@@ -212,6 +213,16 @@ func Definitions() []privacy.Definition {
 			ErasureOutcome: privacy.ErasureErased,
 			Fields:         []string{"open_day_assignments.person_id"},
 			Triggers:       []privacy.Trigger{privacy.TriggerCompletedAt},
+			Actions:        []privacy.Action{privacy.ActionRetainWithReview},
+			Subject:        privacy.SubjectPerson,
+		},
+		{
+			ID: StaffingExcusals, Owner: OpenDays, Name: "Staffing excusals",
+			Description:    "Who is excused from the open-day minimum of a semester, with the reason.",
+			Contains:       "Person, semester, free-text reason",
+			ErasureOutcome: privacy.ErasureErased,
+			Fields:         []string{"staffing_excusals.person_id", "staffing_excusals.reason"},
+			Triggers:       []privacy.Trigger{privacy.TriggerCreatedAt},
 			Actions:        []privacy.Action{privacy.ActionRetainWithReview},
 			Subject:        privacy.SubjectPerson,
 		},

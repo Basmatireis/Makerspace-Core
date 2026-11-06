@@ -153,7 +153,7 @@ func TestSCIMReconciliationPreservesAnEnabledMaster(t *testing.T) {
 		t.Fatalf("last-master reconciliation = %#v, %v", report, err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 1, sourceID)
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1`, 0, target.personID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles pr JOIN roles r ON r.id=pr.role_id WHERE pr.person_id=$1 AND (r.system_key IS NULL OR r.system_key='master')`, 0, target.personID)
 	if _, err := pool.Exec(ctx, `UPDATE accounts SET status='enabled' WHERE id=$1`, target.accountID); err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {
 	if source != "scim" || status != "enabled" || firstAuthenticated {
 		t.Fatalf("provisioned state source=%q status=%q firstAuthenticated=%v", source, status, firstAuthenticated)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1`, 0, personID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles pr JOIN roles r ON r.id=pr.role_id WHERE pr.person_id=$1 AND (r.system_key IS NULL OR r.system_key='master')`, 0, personID)
 	assertCount(
 		t,
 		pool,

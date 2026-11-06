@@ -21,13 +21,16 @@
 
 /**
  * `fulfilled`: staffed plus booked open days reach the minimum. `missing`: the minimum is not reached even with
- * sign-ups. `ready`: a trainee staffed enough open days as trainee and can be made supervisor.
+ * sign-ups. `ready`: a trainee staffed enough open days as trainee and can become a supervisor. `excused`: the
+ * person is excused for the semester. `no_minimum`: the person's minimum is zero.
  */
 export type StaffingStatus = typeof StaffingStatus[keyof typeof StaffingStatus];
 
 
 export const StaffingStatus = {
-  fulfilled: 'fulfilled',
   missing: 'missing',
+  fulfilled: 'fulfilled',
   ready: 'ready',
+  excused: 'excused',
+  no_minimum: 'no_minimum',
 } as const;

@@ -263,12 +263,24 @@ func loadMergeState(
 	return state, nil
 }
 
-// resultingRoles is the union of every merged Person's roles, the target's first.
+// resultingRoles is the union of every merged Person's roles, the target's first, with only the highest membership
+// (supervisor > trainee > visitor) kept.
 func (m mergeState) resultingRoles() []RoleSummary {
 	result := []RoleSummary{}
 	seen := map[uuid.UUID]struct{}{}
+	best := -1
 	for _, id := range m.ordered() {
 		for _, role := range m.roles[id] {
+			if rank := membershipRank(role); rank >= 0 && (best < 0 || rank < best) {
+				best = rank
+			}
+		}
+	}
+	for _, id := range m.ordered() {
+		for _, role := range m.roles[id] {
+			if rank := membershipRank(role); rank >= 0 && rank != best {
+				continue
+			}
 			if _, ok := seen[role.ID]; !ok {
 				seen[role.ID] = struct{}{}
 				result = append(result, role)
@@ -276,6 +288,23 @@ func (m mergeState) resultingRoles() []RoleSummary {
 		}
 	}
 	return result
+}
+
+// membershipRank orders membership roles (supervisor first); other roles rank -1.
+func membershipRank(role RoleSummary) int {
+	if role.SystemKey == nil {
+		return -1
+	}
+	switch *role.SystemKey {
+	case authorization.SystemKeySupervisor:
+		return 0
+	case authorization.SystemKeyTrainee:
+		return 1
+	case authorization.SystemKeyVisitor:
+		return 2
+	default:
+		return -1
+	}
 }
 
 func isMasterRole(role RoleSummary) bool {

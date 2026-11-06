@@ -2,6 +2,7 @@ package configtransfer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -20,80 +21,151 @@ import (
 // them. Roles and device types are referenced by name.
 
 const (
-	openDayRequirementsItem = "Open-day requirements"
-	visitorEnrollmentItem   = "Visitor enrollment"
-	mailItem                = "Mail delivery"
-	invoicingItem           = "wiRef invoice delivery"
+	staffingRulesItem     = "Staffing rules"
+	visitorEnrollmentItem = "Visitor enrollment"
+	mailItem              = "Mail delivery"
+	invoicingItem         = "wiRef invoice delivery"
 )
 
-type openDayRequirementsEntry struct {
-	MinOpenDaysPerSemester      int     `json:"minOpenDaysPerSemester"`
-	TraineeOpenDaysForPromotion int     `json:"traineeOpenDaysForPromotion"`
-	SupervisorRole              *string `json:"supervisorRole"`
+// Staffing rules: the rules with their exceptions, which name extra roles by name. Files of releases before the
+// staffing rules carry an "openDayRequirements" section instead, which an import reports as unknown and ignores.
+
+type staffingExceptionEntry struct {
+	Role    string `json:"role"`
+	Minimum int    `json:"minimum"`
 }
 
-func openDayRequirementsSection() section {
+type staffingRulesEntry struct {
+	SupervisorMinimum int                      `json:"supervisorMinimum"`
+	TraineeMinimum    int                      `json:"traineeMinimum"`
+	TraineeReadyAfter int                      `json:"traineeReadyAfter"`
+	WarningWindowDays int                      `json:"warningWindowDays"`
+	CountBy           string                   `json:"countBy"`
+	DefaultDeadline   string                   `json:"defaultDeadline"`
+	Exceptions        []staffingExceptionEntry `json:"exceptions"`
+}
+
+func staffingRulesSection() section {
 	return define(
-		SectionOpenDayRequirements,
-		permissions(authorization.OpenDaysRead),
+		SectionStaffingRules,
 		permissions(authorization.OpenDaysManage),
-		func(ctx context.Context, q *configtransferdb.Queries) (openDayRequirementsEntry, error) {
-			row, err := q.GetOpenDayRequirements(ctx)
-			if err != nil {
-				return openDayRequirementsEntry{}, err
-			}
-			return openDayRequirementsEntry{
-				MinOpenDaysPerSemester:      int(row.MinOpenDaysPerSemester),
-				TraineeOpenDaysForPromotion: int(row.TraineeOpenDaysForPromotion),
-				SupervisorRole:              row.SupervisorRoleName,
-			}, nil
-		},
-		func(entry *openDayRequirementsEntry) error {
-			entry.SupervisorRole = trimmed(entry.SupervisorRole)
-			return nil
-		},
-		func(r *run, entry *openDayRequirementsEntry) (func() error, error) {
-			if r.mode == ModeInsert {
-				r.skip(openDayRequirementsItem, reasonSingleton)
-				return nil, nil
-			}
-			current, err := r.q.GetOpenDayRequirements(r.ctx)
-			if err != nil {
-				return nil, err
-			}
-			if int(current.MinOpenDaysPerSemester) == entry.MinOpenDaysPerSemester &&
-				int(current.TraineeOpenDaysForPromotion) == entry.TraineeOpenDaysForPromotion &&
-				sameName(current.SupervisorRoleName, entry.SupervisorRole) {
-				r.skip(openDayRequirementsItem, reasonUnchanged)
-				return nil, nil
-			}
-			roleID, problem, err := roleIDByName(r.ctx, r.q, entry.SupervisorRole)
-			if err != nil {
-				return nil, err
-			}
-			if problem != "" {
-				r.conflict(openDayRequirementsItem, "role_missing", problem)
-				return nil, nil
-			}
-			_, err = r.attempt(openDayRequirementsItem, ActionUpdate, "", func(tx pgx.Tx) error {
-				_, err := r.svc.Staffing.UpdateRequirementsTx(r.ctx, tx, r.p, staffing.UpdateInput{
-					ExpectedVersion:             current.Version,
-					MinOpenDaysPerSemester:      entry.MinOpenDaysPerSemester,
-					TraineeOpenDaysForPromotion: entry.TraineeOpenDaysForPromotion,
-					SupervisorRoleID:            roleID,
-				}, r.requestID)
-				return err
-			})
-			return nil, err
-		},
+		permissions(authorization.OpenDaysManage),
+		exportStaffingRules,
+		validateStaffingRules,
+		applyStaffingRules,
 	)
 }
 
-func sameName(a, b *string) bool {
-	if a == nil || b == nil {
-		return a == nil && b == nil
+func exportStaffingRules(ctx context.Context, q *configtransferdb.Queries) (staffingRulesEntry, error) {
+	row, err := q.GetStaffingRules(ctx)
+	if err != nil {
+		return staffingRulesEntry{}, err
 	}
-	return nameKey(*a) == nameKey(*b)
+	exceptions, err := q.ListStaffingRuleExceptions(ctx)
+	if err != nil {
+		return staffingRulesEntry{}, err
+	}
+	entry := staffingRulesEntry{
+		SupervisorMinimum: int(row.SupervisorMinimum),
+		TraineeMinimum:    int(row.TraineeMinimum),
+		TraineeReadyAfter: int(row.TraineeReadyAfter),
+		WarningWindowDays: int(row.WarningWindowDays),
+		CountBy:           row.CountBy,
+		DefaultDeadline:   row.DefaultDeadline,
+		Exceptions:        make([]staffingExceptionEntry, 0, len(exceptions)),
+	}
+	for _, exception := range exceptions {
+		entry.Exceptions = append(entry.Exceptions, staffingExceptionEntry{
+			Role: exception.RoleName, Minimum: int(exception.Minimum),
+		})
+	}
+	return entry, nil
+}
+
+func validateStaffingRules(entry *staffingRulesEntry) error {
+	if entry.Exceptions == nil {
+		entry.Exceptions = []staffingExceptionEntry{}
+	}
+	if len(entry.Exceptions) > staffing.MaxExceptions {
+		return errors.New("too many staffing exceptions")
+	}
+	names := make([]*string, len(entry.Exceptions))
+	for i := range entry.Exceptions {
+		names[i] = &entry.Exceptions[i].Role
+		if entry.Exceptions[i].Minimum < 0 || entry.Exceptions[i].Minimum > staffing.MaxMinimum {
+			return errors.New("exception minimums must be between 0 and 20")
+		}
+	}
+	if !staffing.CountBy(entry.CountBy).Valid() {
+		return errors.New("countBy is invalid")
+	}
+	if !staffing.DefaultDeadline(entry.DefaultDeadline).Valid() {
+		return errors.New("defaultDeadline is invalid")
+	}
+	return checkNames("staffing exception role", names, 100)
+}
+
+func applyStaffingRules(r *run, entry *staffingRulesEntry) (func() error, error) {
+	if r.mode == ModeInsert {
+		r.skip(staffingRulesItem, reasonSingleton)
+		return nil, nil
+	}
+	current, err := exportStaffingRules(r.ctx, r.q)
+	if err != nil {
+		return nil, err
+	}
+	if sameStaffingRules(current, *entry) {
+		r.skip(staffingRulesItem, reasonUnchanged)
+		return nil, nil
+	}
+	input := staffing.UpdateInput{
+		SupervisorMinimum: entry.SupervisorMinimum,
+		TraineeMinimum:    entry.TraineeMinimum,
+		TraineeReadyAfter: entry.TraineeReadyAfter,
+		WarningWindowDays: entry.WarningWindowDays,
+		CountBy:           staffing.CountBy(entry.CountBy),
+		DefaultDeadline:   staffing.DefaultDeadline(entry.DefaultDeadline),
+	}
+	for _, exception := range entry.Exceptions {
+		roleID, problem, err := roleIDByName(r.ctx, r.q, &exception.Role)
+		if err != nil {
+			return nil, err
+		}
+		if problem != "" {
+			r.conflict(staffingRulesItem, "role_missing", problem)
+			return nil, nil
+		}
+		input.Exceptions = append(input.Exceptions, staffing.ExceptionInput{RoleID: *roleID, Minimum: exception.Minimum})
+	}
+	row, err := r.q.GetStaffingRules(r.ctx)
+	if err != nil {
+		return nil, err
+	}
+	input.ExpectedVersion = row.Version
+	_, err = r.attempt(staffingRulesItem, ActionUpdate, "", func(tx pgx.Tx) error {
+		_, err := r.svc.Staffing.UpdateRulesTx(r.ctx, tx, r.p, input, r.requestID)
+		return err
+	})
+	return nil, err
+}
+
+func sameStaffingRules(a, b staffingRulesEntry) bool {
+	if a.SupervisorMinimum != b.SupervisorMinimum || a.TraineeMinimum != b.TraineeMinimum ||
+		a.TraineeReadyAfter != b.TraineeReadyAfter || a.WarningWindowDays != b.WarningWindowDays ||
+		a.CountBy != b.CountBy || a.DefaultDeadline != b.DefaultDeadline || len(a.Exceptions) != len(b.Exceptions) {
+		return false
+	}
+	minimums := make(map[string]int, len(a.Exceptions))
+	for _, exception := range a.Exceptions {
+		minimums[nameKey(exception.Role)] = exception.Minimum
+	}
+	for _, exception := range b.Exceptions {
+		minimum, ok := minimums[nameKey(exception.Role)]
+		if !ok || minimum != exception.Minimum {
+			return false
+		}
+	}
+	return true
 }
 
 // roleIDByName resolves an optional role name; a missing role is a problem of the entry, not an error.
@@ -114,8 +186,10 @@ func roleIDByName(ctx context.Context, q *configtransferdb.Queries, name *string
 }
 
 type visitorEnrollmentEntry struct {
-	Enabled        bool     `json:"enabled"`
-	InitialRole    *string  `json:"initialRole"`
+	Enabled bool `json:"enabled"`
+	// InitialRole is accepted from files of releases before membership roles and ignored: enrolled visitors get the
+	// Visitor membership like every new person.
+	InitialRole    *string  `json:"initialRole,omitempty"`
 	AllowedMethods []string `json:"allowedMethods"`
 	DeviceTypes    []string `json:"deviceTypes"`
 }
@@ -127,7 +201,7 @@ func visitorEnrollmentSection() section {
 		permissions(authorization.VisitorEnrollmentManage),
 		exportVisitorEnrollment,
 		func(entry *visitorEnrollmentEntry) error {
-			entry.InitialRole = trimmed(entry.InitialRole)
+			entry.InitialRole = nil
 			entry.AllowedMethods = sortedStrings(entry.AllowedMethods)
 			if entry.DeviceTypes == nil {
 				entry.DeviceTypes = []string{}
@@ -152,7 +226,6 @@ func exportVisitorEnrollment(ctx context.Context, q *configtransferdb.Queries) (
 	}
 	entry := visitorEnrollmentEntry{
 		Enabled:        row.Enabled,
-		InitialRole:    row.InitialRoleName,
 		AllowedMethods: sortedStrings(row.AllowedMethods),
 		DeviceTypes:    make([]string, 0, len(types)),
 	}
@@ -179,21 +252,18 @@ func applyVisitorEnrollment(r *run, entry *visitorEnrollmentEntry) (func() error
 	if err != nil {
 		return nil, err
 	}
-	if current.Enabled == entry.Enabled && sameName(current.InitialRole, entry.InitialRole) &&
+	if current.Enabled == entry.Enabled &&
 		slices.Equal(current.AllowedMethods, entry.AllowedMethods) &&
 		slices.Equal(lowerNames(current.DeviceTypes), lowerNames(entry.DeviceTypes)) {
 		r.skip(visitorEnrollmentItem, reasonUnchanged)
 		return nil, nil
 	}
-	roleID, problem, err := roleIDByName(r.ctx, r.q, entry.InitialRole)
-	if err != nil {
-		return nil, err
-	}
+	problem := ""
 	types, err := deviceTypeIDs(r.ctx, r.q)
 	if err != nil {
 		return nil, err
 	}
-	input := visitor.ConfigurationInput{Enabled: entry.Enabled, InitialRoleID: roleID}
+	input := visitor.ConfigurationInput{Enabled: entry.Enabled}
 	for _, name := range entry.DeviceTypes {
 		id, ok := types[nameKey(name)]
 		if !ok && problem == "" {

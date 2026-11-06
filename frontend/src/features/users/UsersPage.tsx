@@ -110,7 +110,7 @@ export function UsersPage() {
   const canBatchManage = mayCreateAccounts || mayAssignRoles || mayDeleteAccounts || mayDeletePeople || mayMerge;
   const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: mayReadRoles });
   const supervisorRoleIds = new Set(
-    (rolesQuery.data ?? []).filter((role) => role.staffingLevel === 'supervisor').map((role) => role.id),
+    (rolesQuery.data ?? []).filter((role) => role.systemKey === 'supervisor').map((role) => role.id),
   );
   const assignableRoles = (rolesQuery.data ?? []).filter((role) => canManageRoleMembership(currentUser, role));
   const refreshPeople = async () => {

@@ -1,6 +1,5 @@
 import {
   getOpenDay,
-  getOpenDayRequirements,
   getOpenDayCalendarContext,
   listOpenDayAcademicBreaks,
   listOpenDayEligibilityRoles,
@@ -30,14 +29,6 @@ export function eligibilityRolesQueryOptions(enabled = true) {
   return {
     queryKey: openDayKeys.eligibilityRoles(),
     queryFn: ({ signal }: { signal: AbortSignal }) => listOpenDayEligibilityRoles({ signal }),
-    enabled,
-  };
-}
-
-export function openDayRequirementsQueryOptions(enabled = true) {
-  return {
-    queryKey: openDayKeys.requirements(),
-    queryFn: ({ signal }: { signal: AbortSignal }) => getOpenDayRequirements({ signal }),
     enabled,
   };
 }

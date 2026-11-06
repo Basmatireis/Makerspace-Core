@@ -1790,18 +1790,18 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /people/{personId}/promote-to-supervisor:
+  /people/{personId}/membership:
     parameters:
       - $ref: "#/components/parameters/PersonId"
-    post:
+    put:
       tags: [People]
-      operationId: promotePersonToSupervisor
-      summary: Make a trainee a supervisor
+      operationId: changePersonMembership
+      summary: Change a person's membership
       description: |
-        Requires `people.roles.assign`. In one transaction removes the person's roles with the trainee staffing level
-        and assigns the configured supervisor role, under the same privilege-subset and last-master rules as role
-        assignment. `409 promotion_role_not_configured` when the requirements settings name no supervisor role;
-        `409 not_a_trainee` when the person is not a trainee.
+        Requires `people.roles.assign`. In one transaction replaces the person's membership role (Supervisor,
+        Trainee or Visitor) under the same privilege-subset rules as role assignment, checked for the new and the
+        old membership role. Becoming a visitor also removes the person's open-day assignments that have not
+        started yet. Writes the audit event `person.membership_changed`.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -1810,7 +1810,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/VersionRequest"
+              $ref: "#/components/schemas/ChangeMembershipRequest"
       responses:
         "200":
           description: Person with updated roles.
@@ -1828,6 +1828,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -1842,7 +1844,9 @@ paths:
       description: |
         Requires `people.roles.assign`. Non-master actors may assign only roles
         whose permission set is a subset of their own effective permissions. Only
-        a master actor may assign the master role.
+        a master actor may assign the master role. Assigning a membership role
+        (Supervisor, Trainee, Visitor) changes the person's membership like
+        `PUT /people/{personId}/membership`.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -1875,7 +1879,9 @@ paths:
       tags: [People]
       operationId: removePersonRole
       summary: Remove a role from a person
-      description: Requires `people.roles.assign`; master removal also enforces master-only and last-enabled-master rules.
+      description: |
+        Requires `people.roles.assign`; master removal also enforces master-only and last-enabled-master rules.
+        A membership role cannot be removed on its own (`422 membership_required`); change the membership instead.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -1902,6 +1908,8 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -2711,7 +2719,9 @@ paths:
       tags: [Roles]
       operationId: updateRole
       summary: Update role metadata
-      description: Requires `roles.manage`. The master role cannot be renamed or edited.
+      description: |
+        Requires `roles.manage`. The master role cannot be renamed or edited. The membership roles (Supervisor,
+        Trainee, Visitor) keep their names (`409 membership_role_protected`) but their other fields stay editable.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -2746,7 +2756,9 @@ paths:
       tags: [Roles]
       operationId: deleteRole
       summary: Delete a configurable role
-      description: Requires `roles.manage`. Deletion removes the role's assignments and permission rows; the master role cannot be deleted.
+      description: |
+        Requires `roles.manage`. Deletion removes the role's assignments and permission rows; the master role
+        (`409 system_role_protected`) and the membership roles (`409 membership_role_protected`) cannot be deleted.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -4129,34 +4141,68 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /open-day-requirements:
+  /staffing-rules:
     get:
-      tags: [Open Days]
-      operationId: getOpenDayRequirements
-      summary: Read the semester requirements for open-day staffing
-      description: Requires `open_days.read`.
+      tags: [Supervisors]
+      operationId: getStaffingRules
+      summary: Read the staffing rules
+      description: Requires `supervisor_dashboard.read` or `open_days.manage`.
       security: [{sessionCookie: []}]
       responses:
-        "200": {description: Requirements., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayRequirements"}}}}
+        "200": {description: Rules., content: {application/json: {schema: {$ref: "#/components/schemas/StaffingRules"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
     put:
-      tags: [Open Days]
-      operationId: updateOpenDayRequirements
-      summary: Replace the semester requirements for open-day staffing
+      tags: [Supervisors]
+      operationId: updateStaffingRules
+      summary: Replace the staffing rules and their exceptions
       description: |
-        Requires `open_days.manage`. `supervisorRoleId` must reference a role with the supervisor staffing level
-        (`422 validation_failed` otherwise). Writes the audit event `open_day_requirements.updated`.
+        Requires `open_days.manage`. Exceptions name extra roles only; the system roles cannot have one
+        (`422 validation_failed`). Writes the audit event `staffing_rules.updated`.
       security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateOpenDayRequirementsRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateStaffingRulesRequest"}}}}
       responses:
-        "200": {description: Updated requirements., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayRequirements"}}}}
+        "200": {description: Updated rules., content: {application/json: {schema: {$ref: "#/components/schemas/StaffingRules"}}}}
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}/excusals/{personId}:
+    parameters:
+      - $ref: "#/components/parameters/OpenDayPeriodId"
+      - $ref: "#/components/parameters/PersonId"
+    put:
+      tags: [Supervisors]
+      operationId: setStaffingExcusal
+      summary: Excuse a person from the minimum of a period
+      description: |
+        Requires `open_days.manage`. Replaces the reason of an existing excusal. The reason is visible with
+        `supervisor_dashboard.read` only and never written to the audit event `staffing_excusal.saved`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetStaffingExcusalRequest"}}}}
+      responses:
+        "200": {description: The excusal., content: {application/json: {schema: {$ref: "#/components/schemas/StaffingExcusal"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Supervisors]
+      operationId: removeStaffingExcusal
+      summary: Withdraw a person's excusal for a period
+      description: Requires `open_days.manage`. Writes the audit event `staffing_excusal.removed`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Excusal removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /me/dashboard:
@@ -4250,12 +4296,19 @@ paths:
     get:
       tags: [Supervisors]
       operationId: getSupervisorDashboard
-      summary: Aggregate designated supervisors, compliance, profile images, and open-period assignment counts
+      summary: Evaluate every supervisor and trainee against the staffing rules of a semester
+      description: |
+        Requires `supervisor_dashboard.read`. `periodId` picks the semester (draft periods only with
+        `open_days.manage`, otherwise `404`); without it the current semester applies.
       security: [{sessionCookie: []}]
+      parameters:
+        - {name: periodId, in: query, required: false, schema: {$ref: "#/components/schemas/UUIDv7"}}
       responses:
         "200": {description: Privacy-minimized dashboard., content: {application/json: {schema: {$ref: "#/components/schemas/SupervisorDashboard"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /auth/oidc/providers:
@@ -11770,8 +11823,8 @@ components:
 
     ConfigurationSection:
       type: string
-      enum: [deviceTypes, sessionPolicies, roles, processes, competencies, trainings, materialTypes, machines, inventoryArticles, pricing, openDayRequirements, visitorEnrollment, branding, labRules, surveys, mail, invoicing, privacy]
-      x-enum-varnames: [ConfigurationSectionDeviceTypes, ConfigurationSectionSessionPolicies, ConfigurationSectionRoles, ConfigurationSectionProcesses, ConfigurationSectionCompetencies, ConfigurationSectionTrainings, ConfigurationSectionMaterialTypes, ConfigurationSectionMachines, ConfigurationSectionInventoryArticles, ConfigurationSectionPricing, ConfigurationSectionOpenDayRequirements, ConfigurationSectionVisitorEnrollment, ConfigurationSectionBranding, ConfigurationSectionLabRules, ConfigurationSectionSurveys, ConfigurationSectionMail, ConfigurationSectionInvoicing, ConfigurationSectionPrivacy]
+      enum: [deviceTypes, sessionPolicies, roles, processes, competencies, trainings, materialTypes, machines, inventoryArticles, pricing, staffingRules, visitorEnrollment, branding, labRules, surveys, mail, invoicing, privacy]
+      x-enum-varnames: [ConfigurationSectionDeviceTypes, ConfigurationSectionSessionPolicies, ConfigurationSectionRoles, ConfigurationSectionProcesses, ConfigurationSectionCompetencies, ConfigurationSectionTrainings, ConfigurationSectionMaterialTypes, ConfigurationSectionMachines, ConfigurationSectionInventoryArticles, ConfigurationSectionPricing, ConfigurationSectionStaffingRules, ConfigurationSectionVisitorEnrollment, ConfigurationSectionBranding, ConfigurationSectionLabRules, ConfigurationSectionSurveys, ConfigurationSectionMail, ConfigurationSectionInvoicing, ConfigurationSectionPrivacy]
 
     ConfigurationImportMode:
       type: string
@@ -13146,90 +13199,155 @@ components:
         pageSize: {type: integer, minimum: 1}
         total: {type: integer, format: int64, minimum: 0}
 
-    StaffingLevel:
+    Membership:
+      type: string
+      enum: [supervisor, trainee, visitor]
+      description: The membership system role a person holds exactly one of. Visitors do not staff open days.
+    StaffingKind:
       type: string
       enum: [supervisor, trainee]
-      description: |
-        How people holding a role staff open days. A person's staffing kind is `supervisor` when any of their roles
-        has the supervisor level, otherwise `trainee` when any has the trainee level, otherwise they do not staff.
+      description: How a person staffs open days, from their membership.
     StaffingStatus:
       type: string
-      enum: [fulfilled, missing, ready]
+      enum: [missing, fulfilled, ready, excused, no_minimum]
       description: |
         `fulfilled`: staffed plus booked open days reach the minimum. `missing`: the minimum is not reached even with
-        sign-ups. `ready`: a trainee staffed enough open days as trainee and can be made supervisor.
+        sign-ups. `ready`: a trainee staffed enough open days as trainee and can become a supervisor. `excused`: the
+        person is excused for the semester. `no_minimum`: the person's minimum is zero.
+    StaffingMinimumSource:
+      type: string
+      enum: [membership, exception, excused]
+      description: "Where a minimum comes from: the membership, an exception of an extra role, or an excusal."
     Semester:
       type: object
       additionalProperties: false
       required: [periodId, name, startsOn, endsOn, signUpBy]
       description: |
-        The open-day period serving as the semester: the non-draft, non-archived period containing today, else the
-        next upcoming one, else the most recent past one.
+        The open-day period serving as the semester: the requested period, else the non-draft, non-archived period
+        containing today, else the next upcoming one, else the most recent past one.
       properties:
         periodId: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         startsOn: {type: string, format: date}
         endsOn: {type: string, format: date}
-        signUpBy: {type: string, format: date, description: "The sign-up deadline of the period, else its end date."}
-    OpenDayRequirements:
+        signUpBy: {type: string, format: date, description: "The sign-up deadline of the period, else the default deadline of the staffing rules."}
+    StaffingException:
       type: object
       additionalProperties: false
-      required: [minOpenDaysPerSemester, traineeOpenDaysForPromotion, supervisorRoleId, version, updatedAt]
+      required: [roleId, roleName, minimum]
       properties:
-        minOpenDaysPerSemester: {type: integer, minimum: 0, maximum: 20}
-        traineeOpenDaysForPromotion: {type: integer, minimum: 1, maximum: 20}
-        supervisorRoleId:
-          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
-          nullable: true
-          description: The supervisor-level role promotions assign; null while not configured.
+        roleId: {$ref: "#/components/schemas/UUIDv7"}
+        roleName: {type: string}
+        minimum: {type: integer, minimum: 0, maximum: 20}
+    StaffingExceptionInput:
+      type: object
+      additionalProperties: false
+      required: [roleId, minimum]
+      properties:
+        roleId: {$ref: "#/components/schemas/UUIDv7"}
+        minimum: {type: integer, minimum: 0, maximum: 20}
+    StaffingCountBy:
+      type: string
+      enum: [timeslot, open_day]
+      description: What counts toward the minimum, every staffed timeslot or every open day with a staffed timeslot.
+    StaffingDefaultDeadline:
+      type: string
+      enum: [period_end, two_weeks_before_end]
+      description: The sign-up deadline of a period that sets none.
+    StaffingRules:
+      type: object
+      additionalProperties: false
+      required: [supervisorMinimum, traineeMinimum, traineeReadyAfter, warningWindowDays, countBy, defaultDeadline, exceptions, version, updatedAt]
+      properties:
+        supervisorMinimum: {type: integer, minimum: 0, maximum: 20}
+        traineeMinimum: {type: integer, minimum: 0, maximum: 20}
+        traineeReadyAfter: {type: integer, minimum: 1, maximum: 20, description: "Open days staffed as trainee in a semester after which a trainee is ready to become a supervisor."}
+        warningWindowDays: {type: integer, minimum: 1, maximum: 60, description: "How far ahead open places are pointed out and freed supervisor places notified."}
+        countBy: {$ref: "#/components/schemas/StaffingCountBy"}
+        defaultDeadline: {$ref: "#/components/schemas/StaffingDefaultDeadline"}
+        exceptions:
+          type: array
+          items: {$ref: "#/components/schemas/StaffingException"}
+          description: A person's minimum is the membership minimum, or the lowest exception among their extra roles when it is lower.
         version: {$ref: "#/components/schemas/Version"}
         updatedAt: {type: string, format: date-time}
-    UpdateOpenDayRequirementsRequest:
+    UpdateStaffingRulesRequest:
       type: object
       additionalProperties: false
-      required: [minOpenDaysPerSemester, traineeOpenDaysForPromotion, supervisorRoleId, expectedVersion]
+      required: [supervisorMinimum, traineeMinimum, traineeReadyAfter, warningWindowDays, countBy, defaultDeadline, exceptions, expectedVersion]
       properties:
-        minOpenDaysPerSemester: {type: integer, minimum: 0, maximum: 20}
-        traineeOpenDaysForPromotion: {type: integer, minimum: 1, maximum: 20}
-        supervisorRoleId:
-          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
-          nullable: true
-          description: Must reference a role with the supervisor staffing level.
+        supervisorMinimum: {type: integer, minimum: 0, maximum: 20}
+        traineeMinimum: {type: integer, minimum: 0, maximum: 20}
+        traineeReadyAfter: {type: integer, minimum: 1, maximum: 20}
+        warningWindowDays: {type: integer, minimum: 1, maximum: 60}
+        countBy: {$ref: "#/components/schemas/StaffingCountBy"}
+        defaultDeadline: {$ref: "#/components/schemas/StaffingDefaultDeadline"}
+        exceptions:
+          type: array
+          maxItems: 200
+          items: {$ref: "#/components/schemas/StaffingExceptionInput"}
         expectedVersion: {$ref: "#/components/schemas/Version"}
+    StaffingExcusal:
+      type: object
+      additionalProperties: false
+      required: [periodId, personId, reason, createdAt]
+      properties:
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        reason: {type: string, maxLength: 500}
+        createdAt: {type: string, format: date-time}
+    SetStaffingExcusalRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason: {type: string, maxLength: 500, description: "Shown to `supervisor_dashboard.read` only; may be empty."}
+    ChangeMembershipRequest:
+      type: object
+      additionalProperties: false
+      required: [membership, expectedVersion]
+      properties:
+        membership: {$ref: "#/components/schemas/Membership"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+    StaffingNextAssignment:
+      type: object
+      additionalProperties: false
+      required: [openDayId, startsAt, endsAt]
+      properties:
+        openDayId: {$ref: "#/components/schemas/UUIDv7"}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
     SupervisorDashboard:
       type: object
       additionalProperties: false
-      required: [semester, requirements, supervisors, totals]
+      required: [semester, rules, supervisors, totals]
       properties:
         semester:
           allOf: [{$ref: "#/components/schemas/Semester"}]
           nullable: true
-        requirements: {$ref: "#/components/schemas/SupervisorDashboardRequirements"}
+        rules: {$ref: "#/components/schemas/StaffingRules"}
         supervisors: {type: array, items: {$ref: "#/components/schemas/SupervisorRow"}}
         totals: {$ref: "#/components/schemas/SupervisorTotals"}
-    SupervisorDashboardRequirements:
-      type: object
-      additionalProperties: false
-      required: [minOpenDaysPerSemester, traineeOpenDaysForPromotion, supervisorRoleConfigured]
-      properties:
-        minOpenDaysPerSemester: {type: integer, minimum: 0}
-        traineeOpenDaysForPromotion: {type: integer, minimum: 1}
-        supervisorRoleConfigured: {type: boolean}
     SupervisorRow:
       type: object
       additionalProperties: false
-      required: [personId, personVersion, name, kind, hasProfileImage, laborordnungState, staffed, booked, staffedAsTrainee, minimum, status, missing, lastOpenDayAt, memberSince]
+      required: [personId, personVersion, name, membership, extraRoles, hasProfileImage, laborordnungState, staffed, booked, staffedAsTrainee, minimum, minimumSource, minimumExceptionRole, excused, excusalReason, status, missing, lastOpenDayAt, nextAssignment, memberSince]
       properties:
         personId: {$ref: "#/components/schemas/UUIDv7"}
         personVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string}
-        kind: {$ref: "#/components/schemas/StaffingLevel"}
+        membership: {$ref: "#/components/schemas/StaffingKind"}
+        extraRoles: {type: array, items: {type: string}, description: "Names of the person's roles besides the system roles."}
         hasProfileImage: {type: boolean}
         laborordnungState: {type: string, enum: [not_required, no_published_version, current, outdated]}
         staffed: {type: integer, minimum: 0, description: "Open days of the semester that ended, in any place."}
         booked: {type: integer, minimum: 0, description: "Upcoming open days of the semester, in any place."}
         staffedAsTrainee: {type: integer, minimum: 0, description: "Ended open days of the semester staffed in a trainee place."}
-        minimum: {type: integer, minimum: 0, maximum: 20, description: "The person's open-day minimum: the lowest override among their staffing roles, else the general minimum."}
+        minimum: {type: integer, minimum: 0, maximum: 20, description: "The person's resolved open-day minimum for the semester."}
+        minimumSource: {$ref: "#/components/schemas/StaffingMinimumSource"}
+        minimumExceptionRole: {type: string, nullable: true, description: "The extra role whose exception sets the minimum."}
+        excused: {type: boolean}
+        excusalReason: {type: string, nullable: true}
         status: {$ref: "#/components/schemas/StaffingStatus"}
         missing: {type: integer, minimum: 0, description: "Open days still missing to reach the minimum."}
         lastOpenDayAt:
@@ -13237,6 +13355,10 @@ components:
           format: date-time
           nullable: true
           description: Start of the last open day the person staffed in any semester.
+        nextAssignment:
+          allOf: [{$ref: "#/components/schemas/StaffingNextAssignment"}]
+          nullable: true
+          description: The next open day the person is assigned to, in any semester.
         memberSince: {type: string, format: date}
     PersonalDashboard:
       type: object
@@ -13271,14 +13393,16 @@ components:
     PersonalDashboardStaffing:
       type: object
       additionalProperties: false
-      required: [kind, semester, minimum, traineeThreshold, staffed, booked, staffedAsTrainee, status, missing, nextOpenPlace, nextOpenDay]
+      required: [kind, semester, minimum, minimumSource, traineeThreshold, warningWindowDays, staffed, booked, staffedAsTrainee, status, missing, nextOpenPlace, nextOpenDay]
       properties:
-        kind: {$ref: "#/components/schemas/StaffingLevel"}
+        kind: {$ref: "#/components/schemas/StaffingKind"}
         semester:
           allOf: [{$ref: "#/components/schemas/Semester"}]
           nullable: true
-        minimum: {type: integer, minimum: 0, description: "The person's own minimum: the lowest role override, else the general minimum."}
+        minimum: {type: integer, minimum: 0, description: "The person's own minimum for the semester."}
+        minimumSource: {$ref: "#/components/schemas/StaffingMinimumSource"}
         traineeThreshold: {type: integer, minimum: 1}
+        warningWindowDays: {type: integer, minimum: 1, maximum: 60}
         staffed: {type: integer, minimum: 0}
         booked: {type: integer, minimum: 0}
         staffedAsTrainee: {type: integer, minimum: 0}
@@ -13288,8 +13412,8 @@ components:
           allOf: [{$ref: "#/components/schemas/OpenPlace"}]
           nullable: true
           description: |
-            The next open day within 14 days that the person has not joined and that has a free place of their kind
-            they are eligible for.
+            The next open day within the warning window of the staffing rules that the person has not joined and
+            that has a free place of their kind they are eligible for.
         nextOpenDay:
           allOf: [{$ref: "#/components/schemas/NextOpenDayStaffing"}]
           nullable: true
@@ -15078,14 +15202,14 @@ components:
           maxLength: 100
         systemKey:
           type: string
-          enum: [master]
+          enum: [master, supervisor, trainee, visitor]
           nullable: true
-          description: Present only for a protected system role.
+          description: Present only for a system role (master or a membership role).
 
     Role:
       type: object
       additionalProperties: false
-      required: [id, name, description, systemKey, permissionGrants, profileImageRequired, laborordnungMode, staffingLevel, minOpenDaysPerSemester, createdAt, updatedAt, version]
+      required: [id, name, description, systemKey, permissionGrants, profileImageRequired, laborordnungMode, createdAt, updatedAt, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -15099,8 +15223,11 @@ components:
           nullable: true
         systemKey:
           type: string
-          enum: [master]
+          enum: [master, supervisor, trainee, visitor]
           nullable: true
+          description: |
+            `master` is immutable. The membership roles `supervisor`, `trainee` and `visitor` cannot be renamed or
+            deleted; every person holds exactly one of them.
         permissionGrants:
           type: array
           uniqueItems: true
@@ -15112,16 +15239,6 @@ components:
         laborordnungMode:
           type: string
           enum: [not_required, warning, blocking]
-        staffingLevel:
-          allOf: [{$ref: "#/components/schemas/StaffingLevel"}]
-          nullable: true
-          description: How people holding this role staff open days; null when the role does not staff.
-        minOpenDaysPerSemester:
-          type: integer
-          minimum: 0
-          maximum: 20
-          nullable: true
-          description: Open days per semester people holding this role must staff; null uses the general minimum of the open-day requirements. Only roles with a staffing level can set it.
         createdAt:
           type: string
           format: date-time
@@ -15156,16 +15273,6 @@ components:
           type: string
           enum: [not_required, warning, blocking]
           default: not_required
-        staffingLevel:
-          allOf: [{$ref: "#/components/schemas/StaffingLevel"}]
-          nullable: true
-          description: How people holding this role staff open days. Omitted or null means the role does not staff.
-        minOpenDaysPerSemester:
-          type: integer
-          minimum: 0
-          maximum: 20
-          nullable: true
-          description: Omitted or null uses the general minimum. Rejected (422) when the role has no staffing level.
 
     UpdateRoleRequest:
       type: object
@@ -15178,16 +15285,6 @@ components:
         laborordnungMode:
           type: string
           enum: [not_required, warning, blocking]
-        staffingLevel:
-          allOf: [{$ref: "#/components/schemas/StaffingLevel"}]
-          nullable: true
-          description: Omitted keeps the level; null clears it (which also clears `minOpenDaysPerSemester`).
-        minOpenDaysPerSemester:
-          type: integer
-          minimum: 0
-          maximum: 20
-          nullable: true
-          description: Omitted keeps the override; null clears it. Rejected (422) when the role has no staffing level afterwards.
         expectedVersion:
           $ref: "#/components/schemas/Version"
         name:
@@ -15771,10 +15868,10 @@ components:
     VisitorEnrollmentConfiguration:
       type: object
       additionalProperties: false
-      required: [enabled, initialRoleId, deviceTypeIds, allowedMethods, version, updatedAt]
+      required: [enabled, deviceTypeIds, allowedMethods, version, updatedAt]
+      description: Enrolled visitors get the Visitor membership like every new person.
       properties:
         enabled: {type: boolean}
-        initialRoleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         deviceTypeIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
         allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
         version: {$ref: "#/components/schemas/Version"}
@@ -15783,10 +15880,9 @@ components:
     UpdateVisitorEnrollmentConfigurationRequest:
       type: object
       additionalProperties: false
-      required: [enabled, initialRoleId, deviceTypeIds, allowedMethods, expectedVersion]
+      required: [enabled, deviceTypeIds, allowedMethods, expectedVersion]
       properties:
         enabled: {type: boolean}
-        initialRoleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         deviceTypeIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
         allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
         expectedVersion: {$ref: "#/components/schemas/Version"}

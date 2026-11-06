@@ -75,13 +75,17 @@ export function registerOpenDays(router: DemoRouter<DemoStore>): void {
     )
     .get('/open-day-academic-breaks', () => ok({ items: [] }))
     .get('/open-day-eligibility-roles', ({ store }) =>
-      ok({ items: store.roles.filter((role) => role.staffingLevel).map(({ id, name }) => ({ id, name })) }),
+      ok({ items: store.roles.filter((role) => !role.systemKey).map(({ id, name }) => ({ id, name })) }),
     )
-    .get('/open-day-requirements', ({ store }) =>
+    .get('/staffing-rules', ({ store }) =>
       ok({
-        minOpenDaysPerSemester: 2,
-        traineeOpenDaysForPromotion: 3,
-        supervisorRoleId: store.roles.find((role) => role.staffingLevel === 'supervisor')?.id ?? null,
+        supervisorMinimum: 2,
+        traineeMinimum: 2,
+        traineeReadyAfter: 3,
+        warningWindowDays: 14,
+        countBy: 'timeslot',
+        defaultDeadline: 'period_end',
+        exceptions: [],
         version: 1,
         updatedAt: store.now.toISOString(),
       }),

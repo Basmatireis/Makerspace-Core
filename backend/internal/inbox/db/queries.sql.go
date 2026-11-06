@@ -549,6 +549,17 @@ func (q *Queries) GetSpoolNotificationFacts(ctx context.Context, id uuid.UUID) (
 	return i, err
 }
 
+const getStaffingWarningWindowDays = `-- name: GetStaffingWarningWindowDays :one
+SELECT warning_window_days FROM staffing_rules WHERE singleton = true
+`
+
+func (q *Queries) GetStaffingWarningWindowDays(ctx context.Context) (int32, error) {
+	row := q.db.QueryRow(ctx, getStaffingWarningWindowDays)
+	var warning_window_days int32
+	err := row.Scan(&warning_window_days)
+	return warning_window_days, err
+}
+
 const insertNotification = `-- name: InsertNotification :one
 INSERT INTO inbox_notifications (id, kind, title, body, link, created_by_account_id, created_at, expires_at)
 VALUES (
@@ -830,11 +841,11 @@ SELECT DISTINCT a.id
 FROM accounts a
 JOIN person_roles pr ON pr.person_id = a.person_id
 JOIN roles r ON r.id = pr.role_id
-WHERE a.status = 'enabled' AND r.staffing_level IS NOT NULL
+WHERE a.status = 'enabled' AND r.system_key IN ('supervisor', 'trainee')
 ORDER BY a.id
 `
 
-// Active accounts of people with any open day staffing level (supervisor or trainee).
+// Active accounts of people who staff open days (supervisor or trainee membership).
 func (q *Queries) ListEnabledStaffingAccountIDs(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listEnabledStaffingAccountIDs)
 	if err != nil {
@@ -1042,7 +1053,7 @@ FROM accounts a
 JOIN person_roles pr ON pr.person_id = a.person_id
 JOIN roles r ON r.id = pr.role_id
 WHERE a.status = 'enabled'
-  AND r.staffing_level = 'supervisor'
+  AND r.system_key = 'supervisor'
   AND a.person_id <> $1::uuid
   AND NOT EXISTS (
       SELECT 1 FROM open_day_assignments x
@@ -1056,7 +1067,7 @@ type ListUnassignedSupervisorAccountIDsParams struct {
 	OpenDayID        uuid.UUID
 }
 
-// Active accounts of people with the supervisor staffing level who are not assigned to the open day.
+// Active accounts of people with the supervisor membership who are not assigned to the open day.
 func (q *Queries) ListUnassignedSupervisorAccountIDs(ctx context.Context, arg ListUnassignedSupervisorAccountIDsParams) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listUnassignedSupervisorAccountIDs, arg.ExcludedPersonID, arg.OpenDayID)
 	if err != nil {

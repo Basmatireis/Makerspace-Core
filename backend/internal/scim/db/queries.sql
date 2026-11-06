@@ -225,6 +225,20 @@ SELECT sqlc.arg(target_person_id), source.role_id, sqlc.narg(assigned_by_account
 FROM person_roles source WHERE source.person_id=sqlc.arg(source_person_id)
 ON CONFLICT (person_id, role_id) DO NOTHING;
 
+-- name: NormalizeReconciledPersonMembership :exec
+-- Keeps the highest membership (supervisor > trainee > visitor) after the roles were transferred.
+SELECT normalize_person_membership(sqlc.arg(person_id)::uuid);
+
+-- name: DeleteDuplicateReconciledExcusals :exec
+-- The target's own excusal for a period wins over the source's.
+DELETE FROM staffing_excusals source
+USING staffing_excusals target
+WHERE source.person_id = sqlc.arg(source_person_id) AND target.person_id = sqlc.arg(target_person_id)
+  AND source.period_id = target.period_id;
+
+-- name: TransferExcusals :exec
+UPDATE staffing_excusals SET person_id = sqlc.arg(target_person_id) WHERE person_id = sqlc.arg(source_person_id);
+
 -- name: BumpReconciledPersonVersion :exec
 UPDATE people SET version=version+1, updated_at=now() WHERE id=sqlc.arg(id);
 

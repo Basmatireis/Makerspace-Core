@@ -182,19 +182,22 @@ func (e *env) seed() {
 		Name: "Kiosk", IdleTimeoutSeconds: 600, AbsoluteLifetimeSeconds: 3600,
 		PostSessionDestination: manageddevices.DestinationVisitorKiosk, IsDefault: true,
 	}, nil))
-	supervisor := must(e.s.Roles.CreateWithBehaviors(ctx, p, "Supervisor", ptr("Runs open days"),
+	// The membership role Supervisor exists everywhere; only its description, behaviours and grants transfer.
+	supervisor := roleByName(e.t, e, "Supervisor")
+	supervisor = must(e.s.Roles.UpdateWithBehaviors(ctx, p, supervisor.ID, supervisor.Version, nil, true,
+		ptr("Runs open days"), ptr(true), ptr(laborordnung.ModeWarning), nil))
+	supervisor = must(e.s.Roles.ReplacePermissions(ctx, p, supervisor.ID, supervisor.Version,
 		[]authorization.PermissionGrant{
 			{PermissionID: authorization.OpenDaysRead, Scope: authorization.GrantEverywhere},
 			{
 				PermissionID: authorization.OpenDaysManage, Scope: authorization.GrantEverywhere,
 				MinimumAssurance: authorization.AssuranceNormal, ReauthWithinMinutes: ptr(15),
 			},
-			{
-				PermissionID: authorization.AttendanceAssist, Scope: authorization.GrantSelectedDeviceTypes,
-				DeviceTypeIDs: []uuid.UUID{kiosk.ID}, MinimumAssurance: authorization.AssuranceNormal,
-			},
-		}, true, laborordnung.ModeWarning, ptr(roles.StaffingSupervisor), ptr(1), nil))
-	visitorRole := must(e.s.Roles.Create(ctx, p, "Visitor", nil, nil, nil))
+		}, nil))
+	board := must(e.s.Roles.Create(ctx, p, "Board", nil, []authorization.PermissionGrant{{
+		PermissionID: authorization.AttendanceAssist, Scope: authorization.GrantSelectedDeviceTypes,
+		DeviceTypeIDs: []uuid.UUID{kiosk.ID}, MinimumAssurance: authorization.AssuranceNormal,
+	}}, nil))
 	logbook := e.s.MachineLogbook
 	fdm := must(logbook.CreateProcess(ctx, p, "FDM printers", machinelogbook.IntegrationFDMPrinter, nil, nil))
 	embroidery := must(logbook.CreateProcess(ctx, p, "Embroidery", machinelogbook.IntegrationNone,
@@ -239,12 +242,13 @@ func (e *env) seed() {
 	must(logbook.SetRolePricingGroups(ctx, p, []machinelogbook.RolePricingGroupInput{
 		{RoleID: supervisor.ID, PricingGroupID: group.ID, Priority: 10},
 	}, nil))
-	must(e.s.Staffing.UpdateRequirements(ctx, p, staffing.UpdateInput{
-		ExpectedVersion: 1, MinOpenDaysPerSemester: 3, TraineeOpenDaysForPromotion: 4,
-		SupervisorRoleID: &supervisor.ID,
+	must(e.s.Staffing.UpdateRules(ctx, p, staffing.UpdateInput{
+		ExpectedVersion: 1, SupervisorMinimum: 3, TraineeMinimum: 2, TraineeReadyAfter: 4, WarningWindowDays: 10,
+		CountBy: staffing.CountByOpenDay, DefaultDeadline: staffing.DeadlineTwoWeeksBeforeEnd,
+		Exceptions: []staffing.ExceptionInput{{RoleID: board.ID, Minimum: 1}},
 	}, nil))
 	must(e.s.Visitor.UpdateConfiguration(ctx, p, visitor.ConfigurationInput{
-		Enabled: true, InitialRoleID: &visitorRole.ID, DeviceTypeIDs: []uuid.UUID{kiosk.ID},
+		Enabled: true, DeviceTypeIDs: []uuid.UUID{kiosk.ID},
 		AllowedMethods: []visitor.AuthMethod{visitor.MethodPIN}, ExpectedVersion: 1,
 	}, nil))
 	current := must(e.s.Branding.Get(ctx, p))
@@ -508,48 +512,35 @@ func TestInsertLeavesExistingEntriesAndOverwriteUpdatesThem(t *testing.T) {
 	}
 }
 
-func TestRoleOpenDayMinimumTravelsAndOlderFilesStillImport(t *testing.T) {
+func TestStaffingRulesTravelWithExceptionsByRoleName(t *testing.T) {
+	source := newEnv(t)
+	source.seed()
+	data := source.export(source.master, SectionDeviceTypes, SectionRoles, SectionStaffingRules)
+	target := newEnv(t)
+	target.importFile(target.master, ModeOverwrite, data, SectionDeviceTypes, SectionRoles, SectionStaffingRules)
+	rules := must(target.s.Staffing.Rules(target.ctx, target.master))
+	if rules.SupervisorMinimum != 3 || rules.TraineeReadyAfter != 4 || rules.WarningWindowDays != 10 ||
+		rules.CountBy != staffing.CountByOpenDay || len(rules.Exceptions) != 1 || rules.Exceptions[0].RoleName != "Board" ||
+		rules.Exceptions[0].Minimum != 1 {
+		t.Fatalf("imported rules = %+v", rules)
+	}
+	if got := roleByName(t, target, "Supervisor"); got.Description == nil || *got.Description != "Runs open days" ||
+		got.SystemKey == nil || len(got.PermissionGrants) != 2 {
+		t.Fatalf("membership role after import = %+v", got)
+	}
+}
+
+func TestOlderRoleFilesWithStaffingFieldsStillImport(t *testing.T) {
 	source := newEnv(t)
 	source.seed()
 	data := source.export(source.master, SectionDeviceTypes, SectionRoles)
-	if !strings.Contains(string(data), `"minOpenDaysPerSemester"`) {
-		t.Fatal("export does not carry the role's open-day minimum")
+	older := regexp.MustCompile(`"labRulesMode"`).ReplaceAll(data,
+		[]byte(`"staffingLevel": "supervisor", "minOpenDaysPerSemester": 1, "labRulesMode"`))
+	target := newEnv(t)
+	target.importFile(target.master, ModeOverwrite, older, SectionDeviceTypes, SectionRoles)
+	if got := roleByName(t, target, "Board"); got.ID == uuid.Nil {
+		t.Fatal("the role of an older file was not imported")
 	}
-
-	t.Run("with the field", func(t *testing.T) {
-		target := newEnv(t)
-		target.importFile(target.master, ModeOverwrite, data, SectionDeviceTypes, SectionRoles)
-		got := roleByName(t, target, "Supervisor")
-		if got.MinOpenDaysPerSemester == nil || *got.MinOpenDaysPerSemester != 1 {
-			t.Fatalf("imported minimum = %v, want 1", got.MinOpenDaysPerSemester)
-		}
-	})
-
-	t.Run("older file without the field", func(t *testing.T) {
-		older := regexp.MustCompile(`"minOpenDaysPerSemester":\s*(null|\d+),\s*`).ReplaceAll(data, nil)
-		if strings.Contains(string(older), "minOpenDaysPerSemester") {
-			t.Fatal("test file still contains the field")
-		}
-		target := newEnv(t)
-		target.importFile(target.master, ModeOverwrite, older, SectionDeviceTypes, SectionRoles)
-		got := roleByName(t, target, "Supervisor")
-		if got.MinOpenDaysPerSemester != nil {
-			t.Fatalf("minimum without the field = %d, want the general minimum", *got.MinOpenDaysPerSemester)
-		}
-		if got.StaffingLevel == nil || *got.StaffingLevel != roles.StaffingSupervisor {
-			t.Fatalf("staffing level = %v", got.StaffingLevel)
-		}
-	})
-
-	t.Run("override on a role without staffing level is refused", func(t *testing.T) {
-		invalid := regexp.MustCompile(`"staffingLevel":\s*"supervisor"`).ReplaceAll(data, []byte(`"staffingLevel": null`))
-		target := newEnv(t)
-		if _, err := target.svc.Preview(
-			target.ctx, target.master, ModeOverwrite, []SectionKey{SectionDeviceTypes, SectionRoles}, bytes.NewReader(invalid),
-		); err == nil {
-			t.Fatal("an override without a staffing level was accepted")
-		}
-	})
 }
 
 func roleByName(t *testing.T, e *env, name string) roles.Role {
@@ -644,7 +635,7 @@ func missingReferences(t *testing.T, data []byte) {
 		got.Code != "process_missing" {
 		t.Fatalf("machine = %+v", got)
 	}
-	if got := item(t, report, SectionRoles, "Supervisor"); got.Action != ActionConflict ||
+	if got := item(t, report, SectionRoles, "Board"); got.Action != ActionConflict ||
 		got.Code != "device_type_missing" {
 		t.Fatalf("role = %+v", got)
 	}
@@ -653,11 +644,11 @@ func missingReferences(t *testing.T, data []byte) {
 	if !apperror.IsCode(err, "configuration_import_conflicts") {
 		t.Fatalf("apply = %v", err)
 	}
-	if got := item(t, report, SectionRoles, "Visitor"); got.Action != ActionCreate {
-		t.Fatalf("visitor role = %+v", got)
+	if got := item(t, report, SectionRoles, "Supervisor"); got.Action != ActionSkip {
+		t.Fatalf("membership role = %+v", got)
 	}
 	var count int
-	if err := target.pool.QueryRow(target.ctx, `SELECT count(*) FROM roles WHERE name = 'Visitor'`).Scan(&count); err != nil ||
+	if err := target.pool.QueryRow(target.ctx, `SELECT count(*) FROM roles WHERE name = 'Board'`).Scan(&count); err != nil ||
 		count != 0 {
 		t.Fatalf("a rejected import created roles: %d %v", count, err)
 	}

@@ -30,6 +30,8 @@ type Querier interface {
 	// One confirmation per person and version: the target's confirmation of the same version wins.
 	DeduplicateLabRuleConfirmations(ctx context.Context, arg DeduplicateLabRuleConfirmationsParams) error
 	DeduplicateOpenDayAssignments(ctx context.Context, arg DeduplicateOpenDayAssignmentsParams) error
+	// The target's own excusal for a period wins over the source's.
+	DeleteDuplicateReconciledExcusals(ctx context.Context, arg DeleteDuplicateReconciledExcusalsParams) error
 	DeleteReconciledAccount(ctx context.Context, id uuid.UUID) error
 	DeleteReconciledPerson(ctx context.Context, id uuid.UUID) error
 	DeleteSCIMUser(ctx context.Context, arg DeleteSCIMUserParams) error
@@ -46,6 +48,8 @@ type Querier interface {
 	LockReconciliationPeople(ctx context.Context, arg LockReconciliationPeopleParams) error
 	MoveLabRuleConfirmations(ctx context.Context, arg MoveLabRuleConfirmationsParams) error
 	MoveOpenDayAssignments(ctx context.Context, arg MoveOpenDayAssignmentsParams) error
+	// Keeps the highest membership (supervisor > trainee > visitor) after the roles were transferred.
+	NormalizeReconciledPersonMembership(ctx context.Context, personID uuid.UUID) error
 	ReenableConnectorOIDCIdentity(ctx context.Context, arg ReenableConnectorOIDCIdentityParams) error
 	RevokeActiveConnectorTokens(ctx context.Context, connectorID uuid.UUID) error
 	RevokeProvisionalSessions(ctx context.Context, sourceAccountID uuid.UUID) error
@@ -53,6 +57,7 @@ type Querier interface {
 	RevokeSessionsForIdentity(ctx context.Context, authIdentityID uuid.UUID) error
 	SetProvisionedAccountStatus(ctx context.Context, arg SetProvisionedAccountStatusParams) error
 	TouchConnectorToken(ctx context.Context, tokenDigest []byte) error
+	TransferExcusals(ctx context.Context, arg TransferExcusalsParams) error
 	TransferExternalIdentities(ctx context.Context, arg TransferExternalIdentitiesParams) error
 	TransferPersonRoles(ctx context.Context, arg TransferPersonRolesParams) error
 	TransferProfileImage(ctx context.Context, arg TransferProfileImageParams) error

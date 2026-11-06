@@ -1,6 +1,6 @@
 import { InlineNotification, Modal } from '@carbon/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { promotePersonToSupervisor } from '../../api/generated/people/people';
+import { changePersonMembership } from '../../api/generated/people/people';
 import type { SupervisorRow } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { plural } from '../dashboard/format';
@@ -17,7 +17,7 @@ export function PromoteDialog({ member, threshold, onClose, onPromoted }: Props)
   const client = useQueryClient();
   const promote = useMutation({
     mutationFn: (target: SupervisorRow) =>
-      promotePersonToSupervisor(target.personId, { expectedVersion: target.personVersion }),
+      changePersonMembership(target.personId, { membership: 'supervisor', expectedVersion: target.personVersion }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: ['supervisor-dashboard'] });
       if (member) onPromoted(member.name);
