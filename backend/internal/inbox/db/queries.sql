@@ -186,19 +186,21 @@ ON CONFLICT (account_id) DO UPDATE SET last_visible_at = EXCLUDED.last_visible_a
 -- name: ClaimUndeliveredNotifications :many
 -- Marks everything not yet delivered to the account as delivered and returns the notifications that need to appear
 -- on screen: banners and dialogs always, toasts only while they are recent (an account that was away for days does not
--- get a burst of old pop-ups). Bell-only notifications are marked delivered and not returned.
+-- get a burst of old pop-ups). Bell-only notifications are marked delivered and not returned, and so are notifications
+-- the account already read in the bell list before the poll came round.
 WITH claimed AS (
     UPDATE inbox_recipients rc
     SET delivered_at = sqlc.arg(now)
     FROM inbox_notifications cn
     WHERE cn.id = rc.notification_id AND rc.account_id = sqlc.arg(account_id) AND rc.delivered_at IS NULL
       AND cn.expires_at > sqlc.arg(now)
-    RETURNING rc.notification_id
+    RETURNING rc.notification_id, rc.read_at
 )
 SELECT n.*
 FROM claimed c
 JOIN inbox_notifications n ON n.id = c.notification_id
-WHERE n.appearance IN ('banner', 'dialog') OR (n.appearance = 'toast' AND n.created_at > sqlc.arg(toast_since))
+WHERE c.read_at IS NULL
+  AND (n.appearance IN ('banner', 'dialog') OR (n.appearance = 'toast' AND n.created_at > sqlc.arg(toast_since)))
 ORDER BY n.created_at DESC, n.id DESC
 LIMIT sqlc.arg(max_rows);
 

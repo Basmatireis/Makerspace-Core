@@ -1,5 +1,6 @@
 import './styles.scss';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ActionableNotification, Button, Modal, ToastNotification } from '@carbon/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -225,13 +226,16 @@ export function AlertViews({ poll }: { poll: NotificationUnreadCount }) {
 
   return (
     <>
-      {views.toasts.length > 0 && (
-        <div className="app-toasts app-toasts--top" aria-live="polite">
-          {views.toasts.map((alert) => (
-            <Toast key={alert.id} alert={alert} handlers={handlers} onExpire={() => hide(alert.id)} />
-          ))}
-        </div>
-      )}
+      {/* Pop-ups float over the whole shell, the bell panel included, so they leave the main area's stacking context. */}
+      {views.toasts.length > 0 &&
+        createPortal(
+          <div className="app-toasts app-toasts--top" aria-live="polite">
+            {views.toasts.map((alert) => (
+              <Toast key={alert.id} alert={alert} handlers={handlers} onExpire={() => hide(alert.id)} />
+            ))}
+          </div>,
+          document.body,
+        )}
       {banners.length > 0 && (
         <div className="notification-banners">
           {banners.map((alert) => (

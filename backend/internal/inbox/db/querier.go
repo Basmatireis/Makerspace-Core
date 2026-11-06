@@ -19,7 +19,8 @@ type Querier interface {
 	ClaimDueNotificationMails(ctx context.Context, arg ClaimDueNotificationMailsParams) ([]ClaimDueNotificationMailsRow, error)
 	// Marks everything not yet delivered to the account as delivered and returns the notifications that need to appear
 	// on screen: banners and dialogs always, toasts only while they are recent (an account that was away for days does not
-	// get a burst of old pop-ups). Bell-only notifications are marked delivered and not returned.
+	// get a burst of old pop-ups). Bell-only notifications are marked delivered and not returned, and so are notifications
+	// the account already read in the bell list before the poll came round.
 	ClaimUndeliveredNotifications(ctx context.Context, arg ClaimUndeliveredNotificationsParams) ([]InboxNotification, error)
 	CountOwnNotifications(ctx context.Context, arg CountOwnNotificationsParams) (int64, error)
 	CountOwnUnreadNotifications(ctx context.Context, arg CountOwnUnreadNotificationsParams) (int64, error)

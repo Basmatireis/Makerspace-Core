@@ -104,12 +104,13 @@ WITH claimed AS (
     FROM inbox_notifications cn
     WHERE cn.id = rc.notification_id AND rc.account_id = $4 AND rc.delivered_at IS NULL
       AND cn.expires_at > $3
-    RETURNING rc.notification_id
+    RETURNING rc.notification_id, rc.read_at
 )
 SELECT n.id, n.kind, n.title, n.body, n.link, n.created_by_account_id, n.created_at, n.expires_at, n.rule_id, n.firing_id, n.category_id, n.appearance, n.level, n.toast_seconds, n.button_kind, n.button_label, n.button_link, n.only_button_closes, n.allow_later
 FROM claimed c
 JOIN inbox_notifications n ON n.id = c.notification_id
-WHERE n.appearance IN ('banner', 'dialog') OR (n.appearance = 'toast' AND n.created_at > $1)
+WHERE c.read_at IS NULL
+  AND (n.appearance IN ('banner', 'dialog') OR (n.appearance = 'toast' AND n.created_at > $1))
 ORDER BY n.created_at DESC, n.id DESC
 LIMIT $2
 `
@@ -123,7 +124,8 @@ type ClaimUndeliveredNotificationsParams struct {
 
 // Marks everything not yet delivered to the account as delivered and returns the notifications that need to appear
 // on screen: banners and dialogs always, toasts only while they are recent (an account that was away for days does not
-// get a burst of old pop-ups). Bell-only notifications are marked delivered and not returned.
+// get a burst of old pop-ups). Bell-only notifications are marked delivered and not returned, and so are notifications
+// the account already read in the bell list before the poll came round.
 func (q *Queries) ClaimUndeliveredNotifications(ctx context.Context, arg ClaimUndeliveredNotificationsParams) ([]InboxNotification, error) {
 	rows, err := q.db.Query(ctx, claimUndeliveredNotifications,
 		arg.ToastSince,

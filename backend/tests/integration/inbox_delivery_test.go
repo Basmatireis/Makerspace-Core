@@ -111,6 +111,24 @@ func TestInboxPollHandsOverFreshNotificationsOnceAndRecordsPresence(t *testing.T
 	}
 }
 
+func TestInboxPollSkipsPopUpsAlreadyReadInTheList(t *testing.T) {
+	e := newDeliveryEnv(t)
+	operator := e.person("read-first")
+	toast := inAppAction("operator")
+	toast.InApp = appearance(notifyrules.AppearanceToast, nil)
+	rule := e.newRule(e.service, nil, toast)
+
+	e.emit(printerError("fatal", operator.PersonID))
+	// The person opens it from the bell list before the next poll comes round.
+	if err := e.inbox.MarkRead(testContext(t), operator, e.notificationOf(operator, rule.ID)); err != nil {
+		t.Fatal(err)
+	}
+	if fresh := e.poll(operator).Fresh; len(fresh) != 0 {
+		t.Fatalf("a notification read in the list still popped up: %+v", fresh)
+	}
+	assertCount(t, e.pool, `SELECT count(*) FROM inbox_recipients WHERE account_id=$1 AND delivered_at IS NULL`, 0, operator.AccountID)
+}
+
 func TestInboxOnlineOnlyNotificationsSkipOfflineAccounts(t *testing.T) {
 	e := newDeliveryEnv(t)
 	online, offline, stale := e.person("online"), e.person("offline"), e.person("stale")
