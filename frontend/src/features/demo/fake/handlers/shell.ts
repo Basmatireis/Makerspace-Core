@@ -88,13 +88,17 @@ function dashboard(store: DemoStore): PersonalDashboard {
 export function registerShell(router: DemoRouter<DemoStore>): void {
   router
     .get('/auth/me', ({ user }) =>
-      ok({ ...user, laborordnungStatus: { ...user.laborordnungStatus, actionRequired: false } }),
+      ok({
+        ...user,
+        laborordnungStatus: { ...user.laborordnungStatus, actionRequired: false },
+        notificationConsentRequired: false,
+      }),
     )
     // The shell reports activity to keep the session alive; in demo mode that is a no-op that returns the session.
     .add('POST', '/auth/activity', ({ user }) => ok(user.session))
     .get('/laborordnung/status/me', ({ user }) => ok({ ...user.laborordnungStatus, actionRequired: false }))
-    .get('/notifications/unread-count', () => ok({ unreadCount: 0 }))
-    .get('/notifications', ({ query }) => ok(paged([], query, { unreadCount: 0, fresh: [], pinned: [] })))
+    .get('/notifications/unread-count', () => ok({ unreadCount: 0, fresh: [], pinned: [] }))
+    .get('/notifications', ({ query }) => ok(paged([], query, { unreadCount: 0 })))
     .get('/me/dashboard', ({ store }) => ok(dashboard(store)))
     .get('/public/open-days', ({ store }) =>
       ok({
