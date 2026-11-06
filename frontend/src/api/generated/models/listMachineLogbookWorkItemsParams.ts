@@ -26,58 +26,40 @@ import type { WorkItemSource } from './workItemSource';
 import type { WorkItemStatus } from './workItemStatus';
 
 export type ListMachineLogbookWorkItemsParams = {
-/**
- * Case-insensitive substring match on print display ID, file name and machine name, and for jobs also the job display ID, job name, notes, recipient (person or organization) name, operator name and the display IDs and file names of the job's prints.
- * @maxLength 200
- */
-search?: string;
-/**
- * @maxItems 8
- */
-status?: WorkItemStatus[];
-/**
- * @maxItems 100
- */
-machineId?: UUIDv7[];
-/**
- * @maxItems 2
- */
-source?: WorkItemSource[];
-/**
- * @maxItems 100
- */
-materialId?: UUIDv7[];
-/**
- * Matches jobs only; prints have no billing state.
- * @maxItems 5
- */
-billing?: JobBillingState[];
-/**
- * Only items that need attention (at least one attention flag).
- */
-attention?: boolean;
-/**
- * Person or Organization identifier.
- */
-customerId?: UUIDv7;
-operatorPersonId?: UUIDv7;
-/**
- * Inclusive lower bound on the start time.
- */
-from?: string;
-/**
- * Exclusive upper bound on the start time.
- */
-to?: string;
-sort?: ListMachineLogbookWorkItemsSort;
-direction?: ListMachineLogbookWorkItemsDirection;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
+  /**
+   * Case-insensitive substring match on print display ID, file name and machine name, and for jobs also the job display ID, job name, notes, recipient (person or organization) name, operator name and the display IDs and file names of the job's prints.
+   * @maxLength 200
+   */
+  search?: string;
+  /** @maxItems 8 */
+  status?: WorkItemStatus[];
+  /** @maxItems 100 */
+  machineId?: UUIDv7[];
+  /** @maxItems 2 */
+  source?: WorkItemSource[];
+  /** @maxItems 100 */
+  materialId?: UUIDv7[];
+  /**
+   * Matches jobs only; prints have no billing state.
+   * @maxItems 5
+   */
+  billing?: JobBillingState[];
+  /** Only items that need attention (at least one attention flag). */
+  attention?: boolean;
+  /** Person or Organization identifier. */
+  customerId?: UUIDv7;
+  operatorPersonId?: UUIDv7;
+  /** Inclusive lower bound on the start time. */
+  from?: string;
+  /** Exclusive upper bound on the start time. */
+  to?: string;
+  sort?: ListMachineLogbookWorkItemsSort;
+  direction?: ListMachineLogbookWorkItemsDirection;
+  /** @minimum 1 */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
 };

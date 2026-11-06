@@ -21,5 +21,5 @@
 import type { Version } from './version';
 
 export type PutBrandingAssetParams = {
-expectedVersion: Version;
+  expectedVersion: Version;
 };

@@ -20,5 +20,5 @@
  */
 
 export type GetCashRegisterParams = {
-to?: string;
+  to?: string;
 };

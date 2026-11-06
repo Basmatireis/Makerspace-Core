@@ -21,27 +21,23 @@
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListExternalInvoiceRequestsParams = {
-/**
- * @minimum 1
- * @maximum 2147483647
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
-/**
- * Case-insensitive substring match on the request reference and the reference of its order.
- * @maxLength 200
- */
-search?: string;
-/**
- * @maxLength 200
- */
-status?: string;
-/**
- * Only the requests of this order, latest first, cancelled ones included.
- */
-orderId?: UUIDv7;
+  /**
+   * @minimum 1
+   * @maximum 2147483647
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
+  /**
+   * Case-insensitive substring match on the request reference and the reference of its order.
+   * @maxLength 200
+   */
+  search?: string;
+  /** @maxLength 200 */
+  status?: string;
+  /** Only the requests of this order, latest first, cancelled ones included. */
+  orderId?: UUIDv7;
 };

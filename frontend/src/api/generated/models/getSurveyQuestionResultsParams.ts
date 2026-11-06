@@ -22,17 +22,15 @@ import type { SurveyResponseSource } from './surveyResponseSource';
 import type { UUIDv7 } from './uUIDv7';
 
 export type GetSurveyQuestionResultsParams = {
-from?: string;
-to?: string;
-source?: SurveyResponseSource;
-linkId?: UUIDv7;
-/**
- * @minimum 1
- * @maximum 200
- */
-textLimit?: number;
-/**
- * @minimum 0
- */
-textOffset?: number;
+  from?: string;
+  to?: string;
+  source?: SurveyResponseSource;
+  linkId?: UUIDv7;
+  /**
+   * @minimum 1
+   * @maximum 200
+   */
+  textLimit?: number;
+  /** @minimum 0 */
+  textOffset?: number;
 };

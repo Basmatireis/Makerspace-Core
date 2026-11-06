@@ -22,14 +22,10 @@ import type { ExportCashbookContents } from './exportCashbookContents';
 import type { ExportCashbookFormat } from './exportCashbookFormat';
 
 export type ExportCashbookParams = {
-/**
- * First day, inclusive.
- */
-from: string;
-/**
- * Last day, inclusive.
- */
-to: string;
-contents?: ExportCashbookContents;
-format?: ExportCashbookFormat;
+  /** First day, inclusive. */
+  from: string;
+  /** Last day, inclusive. */
+  to: string;
+  contents?: ExportCashbookContents;
+  format?: ExportCashbookFormat;
 };

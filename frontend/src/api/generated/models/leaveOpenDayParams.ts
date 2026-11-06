@@ -21,5 +21,5 @@
 import type { UUIDv7 } from './uUIDv7';
 
 export type LeaveOpenDayParams = {
-timeslotId: UUIDv7;
+  timeslotId: UUIDv7;
 };

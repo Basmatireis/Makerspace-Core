@@ -22,24 +22,20 @@ import type { OrganizationKind } from './organizationKind';
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListOrganizationsParams = {
-/**
- * Case-insensitive substring match on organization name, contact name, contact email, locality and pricing group name.
- * @maxLength 200
- */
-search?: string;
-active?: boolean;
-kind?: OrganizationKind;
-/**
- * Only organizations assigned to this pricing group.
- */
-pricingGroupId?: UUIDv7;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
+  /**
+   * Case-insensitive substring match on organization name, contact name, contact email, locality and pricing group name.
+   * @maxLength 200
+   */
+  search?: string;
+  active?: boolean;
+  kind?: OrganizationKind;
+  /** Only organizations assigned to this pricing group. */
+  pricingGroupId?: UUIDv7;
+  /** @minimum 1 */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
 };
