@@ -1281,6 +1281,54 @@ func (q *Queries) ListOwnComingUpOpenDays(ctx context.Context, arg ListOwnComing
 	return items, nil
 }
 
+const listPeriodAssignmentSlots = `-- name: ListPeriodAssignmentSlots :many
+SELECT a.id, a.person_id, a.open_day_id, a.timeslot_id, t.starts_at, t.ends_at, d.status
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+WHERE d.period_id = $1
+`
+
+type ListPeriodAssignmentSlotsRow struct {
+	ID         uuid.UUID
+	PersonID   uuid.UUID
+	OpenDayID  uuid.UUID
+	TimeslotID uuid.UUID
+	StartsAt   time.Time
+	EndsAt     time.Time
+	Status     string
+}
+
+// Who holds which timeslot of the period's days, with the timeslot's current times and its day's status. A schedule
+// save compares this before and after its writes to tell people what changed for them.
+func (q *Queries) ListPeriodAssignmentSlots(ctx context.Context, periodID uuid.UUID) ([]ListPeriodAssignmentSlotsRow, error) {
+	rows, err := q.db.Query(ctx, listPeriodAssignmentSlots, periodID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPeriodAssignmentSlotsRow{}
+	for rows.Next() {
+		var i ListPeriodAssignmentSlotsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PersonID,
+			&i.OpenDayID,
+			&i.TimeslotID,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPeriodRequirementCounts = `-- name: ListPeriodRequirementCounts :many
 SELECT r.open_day_id, r.kind, r.required_count,
        (SELECT count(*) FROM open_day_assignments a WHERE a.requirement_id = r.id)::bigint AS assigned_count

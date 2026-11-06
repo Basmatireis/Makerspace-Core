@@ -250,11 +250,19 @@ WHERE pr.person_id = sqlc.arg(person_id) AND r.system_key IN ('supervisor', 'tra
 ORDER BY CASE r.system_key WHEN 'supervisor' THEN 0 WHEN 'trainee' THEN 1 ELSE 2 END
 LIMIT 1;
 
--- name: DeleteUpcomingOpenDayAssignments :execrows
--- A person who becomes a visitor no longer staffs: their timeslots that have not started yet are freed.
-DELETE FROM open_day_assignments a
-USING open_day_timeslots t
-WHERE t.id = a.timeslot_id AND a.person_id = sqlc.arg(person_id) AND t.starts_at > sqlc.arg(now);
+-- name: DeleteUpcomingOpenDayAssignments :many
+-- A person who becomes a visitor no longer staffs: their timeslots that have not started yet are freed. The freed
+-- timeslots come back so the person can be told; cancelled days are freed silently.
+WITH freed AS (
+    DELETE FROM open_day_assignments a
+    WHERE a.person_id = sqlc.arg(person_id)
+      AND a.timeslot_id IN (SELECT t.id FROM open_day_timeslots t WHERE t.starts_at > sqlc.arg(now))
+    RETURNING a.open_day_id, a.timeslot_id
+)
+SELECT f.open_day_id, d.period_id, t.starts_at, t.ends_at, (d.status = 'scheduled')::boolean AS scheduled
+FROM freed f
+JOIN open_days d ON d.id = f.open_day_id
+JOIN open_day_timeslots t ON t.id = f.timeslot_id;
 
 -- name: NormalizePersonMembership :exec
 -- Keeps the highest membership (supervisor > trainee > visitor) after roles of several people were united.

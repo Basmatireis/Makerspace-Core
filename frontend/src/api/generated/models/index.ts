@@ -72,6 +72,8 @@ export * from './bulkItem';
 export * from './calendarEntry';
 export * from './calendarEntryCategory';
 export * from './calendarEntrySource';
+export * from './calendarFeedLink';
+export * from './calendarFeedStatus';
 export * from './cashCount';
 export * from './cashCountCorrection';
 export * from './cashCountPage';

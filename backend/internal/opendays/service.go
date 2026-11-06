@@ -12,6 +12,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -161,6 +162,15 @@ type InboxEmitter interface {
 		ctx context.Context,
 		tx pgx.Tx,
 		timeslotID, leavingPersonID uuid.UUID,
+		location *time.Location,
+	) error
+	// OpenDayPersonNotice tells one person what changed about their own place on an open day.
+	OpenDayPersonNotice(
+		ctx context.Context,
+		tx pgx.Tx,
+		kind inbox.Kind,
+		personID uuid.UUID,
+		notice inbox.OpenDayNotice,
 		location *time.Location,
 	) error
 }

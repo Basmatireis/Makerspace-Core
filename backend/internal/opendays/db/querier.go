@@ -70,6 +70,9 @@ type Querier interface {
 	// Upcoming (not yet ended) timeslots of scheduled open days the person is on, with the supervisor places still open
 	// in each.
 	ListOwnComingUpOpenDays(ctx context.Context, arg ListOwnComingUpOpenDaysParams) ([]ListOwnComingUpOpenDaysRow, error)
+	// Who holds which timeslot of the period's days, with the timeslot's current times and its day's status. A schedule
+	// save compares this before and after its writes to tell people what changed for them.
+	ListPeriodAssignmentSlots(ctx context.Context, periodID uuid.UUID) ([]ListPeriodAssignmentSlotsRow, error)
 	// Places and assignments of the scheduled days of a period, for the period summary.
 	ListPeriodRequirementCounts(ctx context.Context, periodID uuid.UUID) ([]ListPeriodRequirementCountsRow, error)
 	ListPeriods(ctx context.Context) ([]OpenDayPeriod, error)

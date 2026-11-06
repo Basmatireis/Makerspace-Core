@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	peopledb "github.com/Basmatireis/Makerspace-Core/backend/internal/people/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
@@ -95,12 +97,40 @@ type Page struct {
 type Service struct {
 	pool  *pgxpool.Pool
 	files *files.Service
+	// inbox and location are set by WithMembershipNotices.
+	inbox    MembershipNotifier
+	location *time.Location
+}
+
+// MembershipNotifier is the part of the notification emitter this package uses. It writes inside the caller's
+// transaction.
+type MembershipNotifier interface {
+	// OpenDayPersonNotice tells a person that somebody else removed them from an open day.
+	OpenDayPersonNotice(
+		ctx context.Context,
+		tx pgx.Tx,
+		kind inbox.Kind,
+		personID uuid.UUID,
+		notice inbox.OpenDayNotice,
+		location *time.Location,
+	) error
 }
 
 // NewService returns the people service. fileService may be nil when profile images are not
 // served (administrative tools); image operations then fail.
 func NewService(pool *pgxpool.Pool, fileService *files.Service) *Service {
-	return &Service{pool: pool, files: fileService}
+	return &Service{pool: pool, files: fileService, location: time.UTC}
+}
+
+// WithMembershipNotices makes a membership change that frees open-day places tell the affected person, with times
+// worded in location (the makerspace time zone). Without it such a change frees the places silently, which is only
+// meant for administrative tools.
+func (s *Service) WithMembershipNotices(notifier MembershipNotifier, location *time.Location) *Service {
+	s.inbox = notifier
+	if location != nil {
+		s.location = location
+	}
+	return s
 }
 
 func (s *Service) Create(
@@ -1017,7 +1047,12 @@ func (s *Service) switchMembership(
 		if err != nil {
 			return Person{}, err
 		}
-		metadata["countRemovedOpenDayAssignments"] = strconv.FormatInt(freed, 10)
+		metadata["countRemovedOpenDayAssignments"] = strconv.Itoa(len(freed))
+		if personID != principal.PersonID {
+			if err := s.notifyFreedOpenDays(ctx, tx, personID, freed); err != nil {
+				return Person{}, err
+			}
+		}
 	}
 	actor := principal.AccountID
 	if err := audit.Write(ctx, tx, audit.Event{
@@ -1032,6 +1067,43 @@ func (s *Service) switchMembership(
 		return Person{}, err
 	}
 	return loadPerson(ctx, queries, row, includeDetails, includeMatriculation)
+}
+
+// notifyFreedOpenDays tells the person, once per open day, that somebody else removed them from the open days they
+// no longer staff. Cancelled days are not worth a message.
+func (s *Service) notifyFreedOpenDays(
+	ctx context.Context,
+	tx pgx.Tx,
+	personID uuid.UUID,
+	freed []peopledb.DeleteUpcomingOpenDayAssignmentsRow,
+) error {
+	if s.inbox == nil {
+		return nil
+	}
+	days := map[uuid.UUID]*inbox.OpenDayNotice{}
+	order := []uuid.UUID{}
+	for _, row := range freed {
+		if !row.Scheduled {
+			continue
+		}
+		notice, ok := days[row.OpenDayID]
+		if !ok {
+			notice = &inbox.OpenDayNotice{PeriodID: row.PeriodID, OpenDayID: row.OpenDayID}
+			days[row.OpenDayID] = notice
+			order = append(order, row.OpenDayID)
+		}
+		notice.Slots = append(notice.Slots, inbox.OpenDaySlot{StartsAt: row.StartsAt, EndsAt: row.EndsAt})
+	}
+	for _, dayID := range order {
+		notice := days[dayID]
+		sort.Slice(notice.Slots, func(i, j int) bool { return notice.Slots[i].StartsAt.Before(notice.Slots[j].StartsAt) })
+		if err := s.inbox.OpenDayPersonNotice(
+			ctx, tx, inbox.KindOpenDayUnassignedByOther, personID, *notice, s.location,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func membershipRequired() *apperror.Error {

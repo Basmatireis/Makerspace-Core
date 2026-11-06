@@ -20,6 +20,7 @@ const (
 	ruleAttached      = "the first source account becomes the target's account when the target has none"
 	ruleUnionedRoles  = "roles united on the target; only the highest membership stays"
 	ruleKeptIdentity  = "the chosen login email's identity moves to the surviving account; others are deleted"
+	ruleSourceFeed    = "deleted with the source person; the target keeps its own calendar link"
 	ruleInboxMoved    = "moved to the surviving account; duplicate deliveries dropped"
 	ruleGuideProgress = "deleted with the source account; the surviving account keeps its own progress"
 	ruleAuditRepoint  = "re-pointed to the surviving account (resource IDs of the merged person/account too)"
@@ -29,6 +30,7 @@ const (
 // MergeReferences lists every handled reference column.
 var MergeReferences = []MergeReference{
 	{"accounts", "person_id", "people", ruleAttached},
+	{"calendar_feeds", "person_id", "people", ruleSourceFeed},
 	{"cash_counts", "recorded_by_person_id", "people", ruleMoved},
 	{"cash_movements", "recorded_by_person_id", "people", ruleMoved},
 	{"event_shift_assignments", "person_id", "people", ruleDeduplicated},

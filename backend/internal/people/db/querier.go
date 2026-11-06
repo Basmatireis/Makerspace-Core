@@ -45,8 +45,9 @@ type Querier interface {
 	DeletePerson(ctx context.Context, arg DeletePersonParams) (uuid.UUID, error)
 	// Keeps one record per training: the higher status (trainer over trained), then the most recently updated one.
 	DeleteSupersededMergeTrainingRecords(ctx context.Context, arg DeleteSupersededMergeTrainingRecordsParams) (int64, error)
-	// A person who becomes a visitor no longer staffs: their timeslots that have not started yet are freed.
-	DeleteUpcomingOpenDayAssignments(ctx context.Context, arg DeleteUpcomingOpenDayAssignmentsParams) (int64, error)
+	// A person who becomes a visitor no longer staffs: their timeslots that have not started yet are freed. The freed
+	// timeslots come back so the person can be told; cancelled days are freed silently.
+	DeleteUpcomingOpenDayAssignments(ctx context.Context, arg DeleteUpcomingOpenDayAssignmentsParams) ([]DeleteUpcomingOpenDayAssignmentsRow, error)
 	// Transaction-local: lets the history guards accept re-pointed person/account references (migration 00077).
 	EnablePeopleMergeMode(ctx context.Context) error
 	GetAccountByPersonForMutation(ctx context.Context, personID uuid.UUID) (Account, error)

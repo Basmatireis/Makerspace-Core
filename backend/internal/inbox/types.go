@@ -14,9 +14,15 @@ const (
 	KindLabRulesPublished Kind = "lab_rules_published"
 	KindOpenDayPeriodOpen Kind = "open_day_period_open"
 	KindOpenDayPlaceFreed Kind = "open_day_place_freed"
-	KindRunFinished       Kind = "run_finished"
-	KindPrinterError      Kind = "printer_error"
-	KindFilamentChange    Kind = "filament_change"
+	// The open-day change kinds tell a person that something about their own staffing changed.
+	KindOpenDayTimeslotChanged   Kind = "open_day_timeslot_changed"
+	KindOpenDayTimeslotRemoved   Kind = "open_day_timeslot_removed"
+	KindOpenDayCancelled         Kind = "open_day_cancelled"
+	KindOpenDayAssignedByOther   Kind = "open_day_assigned_by_other"
+	KindOpenDayUnassignedByOther Kind = "open_day_unassigned_by_other"
+	KindRunFinished              Kind = "run_finished"
+	KindPrinterError             Kind = "printer_error"
+	KindFilamentChange           Kind = "filament_change"
 )
 
 // LabRulesConfirmLink is the page that shows the current Lab Rules and asks for the confirmation; Lab Rules

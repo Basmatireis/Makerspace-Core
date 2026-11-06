@@ -129,6 +129,13 @@ type BrandingConfiguration struct {
 	FunGreetingShare      int32
 }
 
+type CalendarFeed struct {
+	PersonID    uuid.UUID
+	TokenDigest []byte
+	CreatedAt   time.Time
+	LastUsedAt  pgtype.Timestamptz
+}
+
 type CashCount struct {
 	ID                 uuid.UUID
 	Reference          string

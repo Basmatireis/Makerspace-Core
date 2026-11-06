@@ -254,6 +254,15 @@ WHERE a.person_id = sqlc.arg(person_id)
   AND p.status IN ('staffing', 'published')
 ORDER BY t.starts_at, d.id;
 
+-- name: ListPeriodAssignmentSlots :many
+-- Who holds which timeslot of the period's days, with the timeslot's current times and its day's status. A schedule
+-- save compares this before and after its writes to tell people what changed for them.
+SELECT a.id, a.person_id, a.open_day_id, a.timeslot_id, t.starts_at, t.ends_at, d.status
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id
+JOIN open_day_timeslots t ON t.id = a.timeslot_id
+WHERE d.period_id = sqlc.arg(period_id);
+
 -- name: DeleteAssignment :one
 DELETE FROM open_day_assignments WHERE id = sqlc.arg(id) RETURNING *;
 

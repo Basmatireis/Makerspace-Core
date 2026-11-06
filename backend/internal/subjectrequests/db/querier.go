@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	CountAuditEvents(ctx context.Context, subjectAccount uuid.UUID) (int64, error)
+	CountCalendarFeed(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	CountEventContent(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	CountEventSignups(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	CountFinancialRecords(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
@@ -39,6 +40,8 @@ type Querier interface {
 	// Counts of records that name the account as the acting staff member (no content, the records belong to others).
 	ExportActorReferences(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error)
 	ExportAuditEvents(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error)
+	// Existence and dates only; the link's token is not stored and cannot be exported.
+	ExportCalendarFeed(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportEventContent(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportEventSignups(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)
 	ExportFinancialRecords(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error)

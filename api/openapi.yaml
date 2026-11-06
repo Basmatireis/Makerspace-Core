@@ -53,6 +53,8 @@ tags:
     description: "In-app notifications: the signed-in account's own inbox and manual messages to roles (docs/notifications.md)."
   - name: Guides
     description: "Which in-app guided tours the signed-in account has completed or dismissed."
+  - name: Calendar Feed
+    description: "A person's private calendar subscription: open-day timeslots and event shifts as iCalendar behind a secret link (docs/calendar-feed.md)."
   - name: Configuration Transfer
     description: "Export the configuration of this makerspace as a versioned JSON file and import it section by section (docs/configuration-transfer.md)."
   - name: Privacy
@@ -4307,6 +4309,64 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/calendar-feed:
+    get:
+      tags: [Calendar Feed]
+      operationId: getMyCalendarFeed
+      summary: Tell whether the signed-in person has a calendar subscription
+      description: Never returns the secret link; it is shown once when it is created.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: State of the person's calendar subscription., content: {application/json: {schema: {$ref: "#/components/schemas/CalendarFeedStatus"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Calendar Feed]
+      operationId: createMyCalendarFeed
+      summary: Create the calendar subscription or replace its secret link
+      description: |
+        Creates the signed-in person's subscription, or rotates it when one exists: the previous link stops working at
+        once. The response carries the full link; only a digest is stored, so it cannot be shown again. Audited as
+        `calendar_feed.created` or `calendar_feed.rotated` without the link.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "201": {description: The new link., content: {application/json: {schema: {$ref: "#/components/schemas/CalendarFeedLink"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Calendar Feed]
+      operationId: revokeMyCalendarFeed
+      summary: Revoke the calendar subscription
+      description: Deletes the link; calendars that still use it get `404`. Revoking without a subscription is a no-op. Audited as `calendar_feed.revoked`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: The subscription is gone.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /calendar/{token}.ics:
+    parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
+    get:
+      tags: [Calendar Feed]
+      operationId: getCalendarFeed
+      summary: Read a person's private iCalendar feed
+      description: |
+        Authenticated by the secret token in the path, so calendar applications can subscribe without a session.
+        Lists the owner's open-day timeslots and event shifts from 30 days back on; cancelled ones are marked
+        `STATUS:CANCELLED`. Contains no other person's name. Unknown, revoked and no longer active links answer `404`.
+        Rate limited per source address; never cached.
+      security: []
+      responses:
+        "200":
+          description: RFC 5545 calendar of the owner's commitments.
+          content: {text/calendar: {schema: {type: string}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /supervisor-dashboard:
@@ -11722,8 +11782,8 @@ components:
 
     NotificationKind:
       type: string
-      enum: [message, lab_rules_published, open_day_period_open, open_day_place_freed, run_finished, printer_error, filament_change]
-      x-enum-varnames: [NotificationKindMessage, NotificationKindLabRulesPublished, NotificationKindOpenDayPeriodOpen, NotificationKindOpenDayPlaceFreed, NotificationKindRunFinished, NotificationKindPrinterError, NotificationKindFilamentChange]
+      enum: [message, lab_rules_published, open_day_period_open, open_day_place_freed, open_day_timeslot_changed, open_day_timeslot_removed, open_day_cancelled, open_day_assigned_by_other, open_day_unassigned_by_other, run_finished, printer_error, filament_change]
+      x-enum-varnames: [NotificationKindMessage, NotificationKindLabRulesPublished, NotificationKindOpenDayPeriodOpen, NotificationKindOpenDayPlaceFreed, NotificationKindOpenDayTimeslotChanged, NotificationKindOpenDayTimeslotRemoved, NotificationKindOpenDayCancelled, NotificationKindOpenDayAssignedByOther, NotificationKindOpenDayUnassignedByOther, NotificationKindRunFinished, NotificationKindPrinterError, NotificationKindFilamentChange]
 
     Notification:
       type: object
@@ -11777,6 +11837,23 @@ components:
       required: [status]
       properties:
         status: {$ref: "#/components/schemas/GuideProgressStatus"}
+
+    CalendarFeedStatus:
+      type: object
+      additionalProperties: false
+      required: [active, createdAt, lastUsedAt]
+      properties:
+        active: {type: boolean, description: Whether the person has a calendar subscription.}
+        createdAt: {type: string, format: date-time, nullable: true, description: When the current link was created; null without a subscription.}
+        lastUsedAt: {type: string, format: date-time, nullable: true, description: "Last time a calendar read the feed, to the hour; null when it never did."}
+
+    CalendarFeedLink:
+      type: object
+      additionalProperties: false
+      required: [url, createdAt]
+      properties:
+        url: {type: string, description: "The complete subscription link (the public base URL followed by `/api/v1/calendar/{token}.ics`); a path when no public base URL is configured. Shown only in this response."}
+        createdAt: {type: string, format: date-time}
 
     NotificationUnreadCount:
       type: object

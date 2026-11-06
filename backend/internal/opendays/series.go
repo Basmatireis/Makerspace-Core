@@ -581,6 +581,7 @@ func (s *Service) copySeries(
 	sort.Slice(items, func(i, j int) bool { return items[i].ID.String() < items[j].ID.String() })
 	w := &scheduleWriter{
 		s: s, q: q, tx: tx, principal: principal, period: period, requestID: requestID, now: time.Now().UTC(),
+		removedDays: map[uuid.UUID]bool{}, deletedDays: map[uuid.UUID]bool{},
 	}
 	start, end := period.StartsOn.Time.UTC(), period.EndsOn.Time.UTC()
 	for _, item := range items {

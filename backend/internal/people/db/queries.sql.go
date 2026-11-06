@@ -683,10 +683,17 @@ func (q *Queries) DeleteSupersededMergeTrainingRecords(ctx context.Context, arg 
 	return result.RowsAffected(), nil
 }
 
-const deleteUpcomingOpenDayAssignments = `-- name: DeleteUpcomingOpenDayAssignments :execrows
-DELETE FROM open_day_assignments a
-USING open_day_timeslots t
-WHERE t.id = a.timeslot_id AND a.person_id = $1 AND t.starts_at > $2
+const deleteUpcomingOpenDayAssignments = `-- name: DeleteUpcomingOpenDayAssignments :many
+WITH freed AS (
+    DELETE FROM open_day_assignments a
+    WHERE a.person_id = $1
+      AND a.timeslot_id IN (SELECT t.id FROM open_day_timeslots t WHERE t.starts_at > $2)
+    RETURNING a.open_day_id, a.timeslot_id
+)
+SELECT f.open_day_id, d.period_id, t.starts_at, t.ends_at, (d.status = 'scheduled')::boolean AS scheduled
+FROM freed f
+JOIN open_days d ON d.id = f.open_day_id
+JOIN open_day_timeslots t ON t.id = f.timeslot_id
 `
 
 type DeleteUpcomingOpenDayAssignmentsParams struct {
@@ -694,13 +701,40 @@ type DeleteUpcomingOpenDayAssignmentsParams struct {
 	Now      time.Time
 }
 
-// A person who becomes a visitor no longer staffs: their timeslots that have not started yet are freed.
-func (q *Queries) DeleteUpcomingOpenDayAssignments(ctx context.Context, arg DeleteUpcomingOpenDayAssignmentsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteUpcomingOpenDayAssignments, arg.PersonID, arg.Now)
+type DeleteUpcomingOpenDayAssignmentsRow struct {
+	OpenDayID uuid.UUID
+	PeriodID  uuid.UUID
+	StartsAt  time.Time
+	EndsAt    time.Time
+	Scheduled bool
+}
+
+// A person who becomes a visitor no longer staffs: their timeslots that have not started yet are freed. The freed
+// timeslots come back so the person can be told; cancelled days are freed silently.
+func (q *Queries) DeleteUpcomingOpenDayAssignments(ctx context.Context, arg DeleteUpcomingOpenDayAssignmentsParams) ([]DeleteUpcomingOpenDayAssignmentsRow, error) {
+	rows, err := q.db.Query(ctx, deleteUpcomingOpenDayAssignments, arg.PersonID, arg.Now)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []DeleteUpcomingOpenDayAssignmentsRow{}
+	for rows.Next() {
+		var i DeleteUpcomingOpenDayAssignmentsRow
+		if err := rows.Scan(
+			&i.OpenDayID,
+			&i.PeriodID,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.Scheduled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const enablePeopleMergeMode = `-- name: EnablePeopleMergeMode :exec

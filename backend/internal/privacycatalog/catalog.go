@@ -40,6 +40,7 @@ const (
 	RunTimelapses          privacy.CategoryID = "runrecordings.timelapses"
 	InboxNotifications     privacy.CategoryID = "inbox.notifications"
 	GuideProgress          privacy.CategoryID = "guides.progress"
+	CalendarFeeds          privacy.CategoryID = "calendar.feeds"
 	SignageAnnouncements   privacy.CategoryID = "signage.announcements"
 	DeviceCredentials      privacy.CategoryID = "devices.credentials" //nolint:gosec // a category identifier, not a credential
 	ActorReferences        privacy.CategoryID = "platform.actor_references"
@@ -387,6 +388,18 @@ func Definitions() []privacy.Definition {
 			Actions:       []privacy.Action{privacy.ActionDelete},
 			Subject:       privacy.SubjectNone,
 			RetentionNote: "Rows are deleted with the account; a person can also reset them at any time.",
+		},
+		{
+			ID: CalendarFeeds, Owner: Platform, Name: "Calendar subscriptions",
+			Description:    "A person's private calendar link: only the digest of its secret, when it was created and when a calendar last read it.",
+			Contains:       "The digest of the link's secret token, the creation time and the hour of the last read, per person",
+			ErasureOutcome: privacy.ErasureErased,
+			Fields:         []string{"calendar_feeds.token_digest", "calendar_feeds.person_id"},
+			Triggers:       []privacy.Trigger{privacy.TriggerAccountClosedAt},
+			Actions:        []privacy.Action{privacy.ActionDelete},
+			Subject:        privacy.SubjectPerson,
+			RetentionNote: "The row is deleted with the person; a person can also revoke it at any time. The link's content " +
+				"is read from live open-day and event data and is never stored.",
 		},
 		{
 			ID: SignageAnnouncements, Owner: Signage, Name: "Signage announcements",

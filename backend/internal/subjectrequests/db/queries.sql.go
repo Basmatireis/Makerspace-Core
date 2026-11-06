@@ -23,6 +23,17 @@ func (q *Queries) CountAuditEvents(ctx context.Context, subjectAccount uuid.UUID
 	return column_1, err
 }
 
+const countCalendarFeed = `-- name: CountCalendarFeed :one
+SELECT count(*)::bigint FROM calendar_feeds WHERE person_id = $1::uuid
+`
+
+func (q *Queries) CountCalendarFeed(ctx context.Context, subjectPerson uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCalendarFeed, subjectPerson)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countEventContent = `-- name: CountEventContent :one
 SELECT ((SELECT count(*) FROM events e WHERE e.owner_person_id = $1::uuid)
     + (SELECT count(*) FROM event_tasks et WHERE et.assignee_person_id = $1::uuid))::bigint AS total
@@ -353,6 +364,22 @@ SELECT jsonb_build_object(
 
 func (q *Queries) ExportAuditEvents(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error) {
 	row := q.db.QueryRow(ctx, exportAuditEvents, subjectAccount)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportCalendarFeed = `-- name: ExportCalendarFeed :one
+SELECT COALESCE(
+    (SELECT jsonb_build_object('active', true, 'createdAt', f.created_at, 'lastUsedAt', f.last_used_at)
+     FROM calendar_feeds f WHERE f.person_id = $1::uuid),
+    jsonb_build_object('active', false)
+)::jsonb AS document
+`
+
+// Existence and dates only; the link's token is not stored and cannot be exported.
+func (q *Queries) ExportCalendarFeed(ctx context.Context, subjectPerson uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportCalendarFeed, subjectPerson)
 	var document []byte
 	err := row.Scan(&document)
 	return document, err

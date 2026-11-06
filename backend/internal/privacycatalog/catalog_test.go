@@ -34,7 +34,7 @@ var personalDataColumns = []string{
 	"event_shift_assignments.management_token_digest", "training_records.notes",
 	"survey_invitations.recipient_email", "survey_invitations.token_digest", "survey_responses.identified_person_id",
 	"survey_answers.text_value", "inbox_notifications.body", "inbox_recipients.account_id",
-	"notification_mail_outbox.person_id",
+	"notification_mail_outbox.person_id", "calendar_feeds.token_digest",
 	"orders.customer_person_id", "order_customer_snapshots.display_name", "order_items.description",
 	"payments.reason", "payments.external_reference", "order_adjustments.reason", "cash_movements.note",
 	"cash_movements.recorded_by_person_id", "cash_counts.note", "cash_counts.recorded_by_person_id",

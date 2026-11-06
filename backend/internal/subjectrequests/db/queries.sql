@@ -346,6 +346,17 @@ FROM account_guide_progress WHERE account_id = sqlc.arg(subject_account)::uuid;
 -- name: CountGuideProgress :one
 SELECT count(*)::bigint FROM account_guide_progress WHERE account_id = sqlc.arg(subject_account)::uuid;
 
+-- name: ExportCalendarFeed :one
+-- Existence and dates only; the link's token is not stored and cannot be exported.
+SELECT COALESCE(
+    (SELECT jsonb_build_object('active', true, 'createdAt', f.created_at, 'lastUsedAt', f.last_used_at)
+     FROM calendar_feeds f WHERE f.person_id = sqlc.arg(subject_person)::uuid),
+    jsonb_build_object('active', false)
+)::jsonb AS document;
+
+-- name: CountCalendarFeed :one
+SELECT count(*)::bigint FROM calendar_feeds WHERE person_id = sqlc.arg(subject_person)::uuid;
+
 -- name: ExportActorReferences :one
 -- Counts of records that name the account as the acting staff member (no content, the records belong to others).
 SELECT jsonb_build_object(

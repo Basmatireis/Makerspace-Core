@@ -130,6 +130,11 @@ func (s *Service) SaveSchedule(
 
 	w := &scheduleWriter{
 		s: s, q: q, tx: tx, principal: principal, period: period, requestID: requestID, now: time.Now().UTC(),
+		removedDays: map[uuid.UUID]bool{}, deletedDays: map[uuid.UUID]bool{},
+	}
+	heldBefore, err := snapshotHeldSlots(ctx, q, periodID)
+	if err != nil {
+		return Schedule{}, err
 	}
 	for _, day := range removals {
 		if err := w.removeDay(ctx, day); err != nil {
@@ -172,6 +177,9 @@ func (s *Service) SaveSchedule(
 		if err := w.rejectOverlaps(ctx); err != nil {
 			return Schedule{}, err
 		}
+		if err := w.notifyScheduleChanges(ctx, heldBefore); err != nil {
+			return Schedule{}, err
+		}
 		if _, err := q.BumpPeriodVersion(
 			ctx,
 			opendaysdb.BumpPeriodVersionParams{ID: periodID, ExpectedVersion: period.Version},
@@ -196,6 +204,9 @@ type scheduleWriter struct {
 	period    opendaysdb.OpenDayPeriod
 	requestID *uuid.UUID
 	now       time.Time
+	// removedDays are the days this save cancelled or deleted, deletedDays those that no longer exist; both feed the
+	// notifications to the people who were assigned.
+	removedDays, deletedDays map[uuid.UUID]bool
 }
 
 // slotState is a stored timeslot with its places by kind.
@@ -254,6 +265,7 @@ func (w *scheduleWriter) removeDay(ctx context.Context, day opendaysdb.OpenDay) 
 		); err != nil {
 			return databaseError(err)
 		}
+		w.deletedDays[day.ID] = true
 	} else if DayStatus(day.Status) == DayScheduled {
 		if _, err := w.q.CancelOpenDay(
 			ctx,
@@ -264,6 +276,7 @@ func (w *scheduleWriter) removeDay(ctx context.Context, day opendaysdb.OpenDay) 
 	} else {
 		return nil
 	}
+	w.removedDays[day.ID] = true
 	return writeAudit(ctx, w.tx, w.principal, action, "open_day", day.ID, w.requestID, nil)
 }
 

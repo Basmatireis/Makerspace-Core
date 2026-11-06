@@ -13,6 +13,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/calendarfeed"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/camerarelay"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/configtransfer"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/dashboard"
@@ -87,6 +88,7 @@ type Server struct {
 	oidc              *oidcservice.Service
 	scim              *scimservice.Service
 	visitor           *visitor.Service
+	calendarFeed      *calendarfeed.Service
 	branding          *branding.Service
 	signage           *signage.Service
 	attendance        *attendance.Service
@@ -102,6 +104,8 @@ type Server struct {
 	// surveyLinkViews and surveyLinkSubmits bound the anonymous share-link endpoints per client IP.
 	surveyLinkViews   *ratelimit.Limiter
 	surveyLinkSubmits *ratelimit.Limiter
+	// calendarFeedReads bounds reads of the public calendar feeds per client address.
+	calendarFeedReads *ratelimit.Limiter
 	// noticeMail sends the queued e-mails of printer notifications.
 	noticeMail *inbox.MailDelivery
 }
@@ -132,6 +136,10 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	openDaysService, err := opendays.NewService(pool, notificationEmitter, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize Open Days: %w", err)
+	}
+	calendarFeedService, err := calendarfeed.NewService(pool, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initialize calendar feed: %w", err)
 	}
 	eventService, err := events.NewService(pool, cfg, fileService)
 	if err != nil {
@@ -184,7 +192,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	managedDevicesService := manageddevices.NewService(pool)
 	visitorService := visitor.NewService(pool, cfg, fileService, labRulesService, notifier)
 	trainingsService := trainings.NewService(pool)
-	peopleService := people.NewService(pool, fileService)
+	peopleService := people.NewService(pool, fileService).WithMembershipNotices(notificationEmitter, location)
 	subjectRequestService := subjectrequests.NewService(pool, privacyService, peopleService, fileService)
 	configTransferService := configtransfer.NewService(pool, configtransfer.Services{
 		Files:           fileService,
@@ -254,6 +262,8 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		deviceRates:       newDeviceRateLimits(),
 		surveyLinkViews:   ratelimit.New(surveyLinkViewsPerWindow, surveyLinkWindow),
 		surveyLinkSubmits: ratelimit.New(surveyLinkSubmitsPerWindow, surveyLinkWindow),
+		calendarFeed:      calendarFeedService,
+		calendarFeedReads: ratelimit.New(calendarFeedReadsPerWindow, calendarFeedWindow),
 		attendance:        attendanceService,
 		noticeMail:        inbox.NewMailDelivery(pool, noticeMailer{notifier}),
 	}, nil

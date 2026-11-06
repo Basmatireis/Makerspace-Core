@@ -284,6 +284,15 @@ func registerBuiltinHandlers(service *privacy.Service, fileService *files.Servic
 		},
 		outcome: privacy.OutcomeErased, note: "Deleted with the account.",
 	})
+	register(privacycatalog.CalendarFeeds, builtin{
+		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {
+			return q.ExportCalendarFeed(ctx, s.PersonID)
+		},
+		count: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) (int64, error) {
+			return q.CountCalendarFeed(ctx, s.PersonID)
+		},
+		outcome: privacy.OutcomeErased, note: "Deleted with the person; calendars using the link stop receiving data.",
+	})
 	register(privacycatalog.ActorReferences, builtin{
 		account: true,
 		export: func(ctx context.Context, q *requestsdb.Queries, s privacy.DataSubject) ([]byte, error) {

@@ -8,6 +8,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
@@ -143,6 +144,17 @@ func (s *Service) assign(
 	}); err != nil {
 		return Assignment{}, err
 	}
+	if personID != p.PersonID {
+		slot, err := q.GetTimeslot(ctx, req.TimeslotID)
+		if err != nil {
+			return Assignment{}, err
+		}
+		if err := s.notifyAssignmentChange(
+			ctx, tx, inbox.KindOpenDayAssignedByOther, personID, period.ID, openDayID, slot,
+		); err != nil {
+			return Assignment{}, err
+		}
+	}
 	person, err := q.GetAssignmentPersonName(ctx, personID)
 	if err != nil {
 		return Assignment{}, err
@@ -249,6 +261,17 @@ func (s *Service) removeAssignment(
 		"timeslotId": assignment.TimeslotID.String(),
 	}); err != nil {
 		return err
+	}
+	if assignment.PersonID != p.PersonID {
+		slot, err := q.GetTimeslot(ctx, assignment.TimeslotID)
+		if err != nil {
+			return err
+		}
+		if err := s.notifyAssignmentChange(
+			ctx, tx, inbox.KindOpenDayUnassignedByOther, assignment.PersonID, period.ID, openDayID, slot,
+		); err != nil {
+			return err
+		}
 	}
 	// Only a freed supervisor place is worth a notification; empty trainee places never warn.
 	requirement, err := q.GetRequirement(ctx, assignment.RequirementID)
