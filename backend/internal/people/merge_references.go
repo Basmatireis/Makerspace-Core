@@ -73,6 +73,7 @@ var MergeReferences = []MergeReference{
 	{"files", "created_by_account_id", "accounts", ruleActor},
 	{"inbox_notifications", "created_by_account_id", "accounts", ruleActor},
 	{"account_guide_progress", "account_id", "accounts", ruleGuideProgress},
+	{"account_presence", "account_id", "accounts", ruleTransient},
 	{"inbox_recipients", "account_id", "accounts", ruleInboxMoved},
 	{"filament_spools", "retired_by", "accounts", ruleActor},
 	{"inventory_transactions", "actor_account_id", "accounts", ruleActor},
