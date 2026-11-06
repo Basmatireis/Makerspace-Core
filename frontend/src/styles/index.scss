@@ -240,11 +240,13 @@ h2 {
 // Carbon modals render where they are declared. Release the application content
 // stacking contexts while one is open so the modal covers the full shell,
 // including the persistent header and side navigation.
-body.cds--body--with-modal-open .app-main {
+body.cds--body--with-modal-open .app-main,
+body.panel-sheet-open .app-main {
   isolation: auto;
 }
 
-body.cds--body--with-modal-open .app-main > * {
+body.cds--body--with-modal-open .app-main > *,
+body.panel-sheet-open .app-main > * {
   z-index: auto;
 }
 

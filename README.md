@@ -121,7 +121,6 @@ Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same va
 - [Surveys: conditional questions, share links, results](docs/surveys.md)
 - [Device Bridge architecture](docs/device-bridge.md)
 - [Desktop kiosk](docs/desktop-device-bridge.md)
-- [Android kiosk](docs/android-kiosk.md)
 - [Authentication and sessions](docs/authentication.md)
 - [Bootstrap, recovery, cleanup, and deployment operations](docs/operations.md)
 - [Authorization and registered permissions](docs/authorization.md)

@@ -10,8 +10,7 @@ import type {
 } from '../../../api/generated/models';
 import { DetailPanel, DetailPanelHead, DetailPanelSection } from '../../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../../app/components/Facts';
-import { StateTag } from '../components/Places';
-import { initialsOf } from '../model/people';
+import { AssigneeDot, StateTag } from '../components/Places';
 import { dateOf, longDate, plural, relativeDay, timeRange, weekdayName } from '../model/dates';
 import type { ChangeKind, SeriesView } from '../model/derive';
 import {
@@ -67,7 +66,10 @@ function RequirementSection({
   const roles = (requirement.eligibleRoleIds ?? []).map((id) => roleNames.get(id) ?? 'a role');
   const canAssign = (viewer.canAssign || viewer.canManage) && open && !locked;
   const joinable = requirement.canJoin && free(requirement) > 0 && !locked;
-  const people = requirement.assignments;
+  // Without open_days.read_assignments the list is omitted, but the viewer still sees themselves with Leave.
+  const own = slot.myAssignment?.requirementId === requirement.id ? slot.myAssignment : undefined;
+  const people = requirement.assignments ?? (own ? [{ ...own, displayName: 'You', isCurrentUser: true }] : undefined);
+  const othersHidden = !requirement.assignments && own ? Math.max(0, requirement.assignedCount - 1) : 0;
   return (
     <section className="od-req" data-guide="open-days-positions">
       <h3>
@@ -92,11 +94,11 @@ function RequirementSection({
             const mine = assignment.isCurrentUser;
             return (
               <li key={assignment.id} className="od-person">
-                <i className={`od-av${mine ? ' is-me' : ''}`}>{initialsOf(assignment.displayName)}</i>
+                <AssigneeDot assignment={assignment} />
                 <span>
                   <b>
                     {assignment.displayName}
-                    {mine ? ' (you)' : ''}
+                    {mine && assignment.displayName !== 'You' ? ' (you)' : ''}
                   </b>
                 </span>
                 {mine && open && viewer.canSignUp && !locked ? (
@@ -123,6 +125,7 @@ function RequirementSection({
               </li>
             );
           })}
+          {othersHidden > 0 && <li className="od-hint">{plural(othersHidden, 'other place')} taken.</li>}
           {Array.from({ length: free(requirement) }, (_, index) => (
             <li key={`free-${index}`} className="od-person od-person--free">
               <i className={`od-av od-av--free${joinable ? ' is-for-me' : ''}`} />
@@ -299,7 +302,7 @@ export function DayPanel({
             title={`You're in${multi ? ` for ${mine.map((slot) => timeRange(slot.startsAt, slot.endsAt)).join(' and ')}` : ` as ${myRequirement(mine[0])?.kind ?? 'staff'}`}.`}
           />
           <div>
-            <Button kind="ghost" size="sm" as={Link} to="/profile#calendar">
+            <Button kind="ghost" size="sm" as={Link} to="/profile?calendar=subscription">
               Add to calendar
             </Button>
           </div>

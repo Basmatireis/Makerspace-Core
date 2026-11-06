@@ -11,6 +11,7 @@ import type {
   MaterialType,
   OpenDay,
   OpenDayPeriod,
+  OpenDaySeries,
   Order,
   OrderPayment,
   Organization,
@@ -18,6 +19,7 @@ import type {
   Process,
   Role,
   RolePricingGroup,
+  StaffingRules,
 } from '../../../api/generated/models';
 import { createdDemoId } from './ids';
 
@@ -48,6 +50,8 @@ export type DemoStore = {
   rolePricingGroups: RolePricingGroup[];
   period: OpenDayPeriod;
   openDays: OpenDay[];
+  series: OpenDaySeries[];
+  staffingRules: StaffingRules;
   guideProgress: GuideProgress[];
 };
 

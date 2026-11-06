@@ -31,5 +31,4 @@ type Platform string
 
 const (
 	PlatformDesktop Platform = "desktop"
-	PlatformAndroid Platform = "android"
 )

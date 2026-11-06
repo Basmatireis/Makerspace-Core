@@ -224,16 +224,22 @@ RETURNING *;
 
 -- name: ListAssignmentsByDays :many
 SELECT a.id, a.open_day_id, a.timeslot_id, a.requirement_id, a.person_id, a.created_by_account_id, a.created_at,
-       p.first_name, p.last_name
+       p.first_name, p.last_name, (p.profile_image_file_id IS NOT NULL)::boolean AS has_profile_image
 FROM open_day_assignments a JOIN people p ON p.id = a.person_id
 WHERE a.open_day_id = ANY(sqlc.arg(open_day_ids)::text[]::uuid[])
 ORDER BY a.created_at, a.id;
+
+-- name: GetAssignmentProfileImageFile :one
+SELECT p.profile_image_file_id
+FROM open_day_assignments a JOIN people p ON p.id = a.person_id
+WHERE a.id = sqlc.arg(id) AND a.open_day_id = sqlc.arg(open_day_id);
 
 -- name: GetAssignment :one
 SELECT * FROM open_day_assignments WHERE id = sqlc.arg(id);
 
 -- name: GetAssignmentPersonName :one
-SELECT first_name, last_name FROM people WHERE id = sqlc.arg(id);
+SELECT first_name, last_name, (profile_image_file_id IS NOT NULL)::boolean AS has_profile_image
+FROM people WHERE id = sqlc.arg(id);
 
 -- name: GetPersonTimeslotAssignment :one
 SELECT * FROM open_day_assignments

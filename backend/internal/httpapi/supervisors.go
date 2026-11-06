@@ -30,6 +30,7 @@ func (s *Server) GetSupervisorDashboard(
 			Name:                 supervisor.Name,
 			Membership:           openapi.StaffingKind(supervisor.Membership),
 			ExtraRoles:           supervisor.ExtraRoles,
+			Competencies:         competencyDTOs(supervisor.Competencies),
 			HasProfileImage:      supervisor.HasProfileImage,
 			LaborordnungState:    openapi.SupervisorRowLaborordnungState(supervisor.LaborordnungState),
 			Staffed:              supervisor.Counts.Staffed,

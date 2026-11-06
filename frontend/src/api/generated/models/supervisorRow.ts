@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { OpenDayCompetency } from './openDayCompetency';
 import type { StaffingKind } from './staffingKind';
 import type { StaffingMinimumSource } from './staffingMinimumSource';
 import type { StaffingNextAssignment } from './staffingNextAssignment';
@@ -33,6 +34,8 @@ export interface SupervisorRow {
   membership: StaffingKind;
   /** Names of the person's roles besides the system roles. */
   extraRoles: string[];
+  /** Active competency categories the person's training records cover (trained or trainer), in category order. */
+  competencies: OpenDayCompetency[];
   hasProfileImage: boolean;
   laborordnungState: SupervisorRowLaborordnungState;
   /**

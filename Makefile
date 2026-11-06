@@ -6,7 +6,7 @@ SHELL := /bin/sh
 	dev-connector dev-connector-logs dev-connector-down \
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
-	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-frontend-allowed-clients test-printer-connector-compose test-android test-desktop \
+	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-frontend-allowed-clients test-printer-connector-compose test-desktop \
 	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password seed-dev
 
 # Integration tests use their own database next to the development database so
@@ -84,9 +84,6 @@ test-frontend-allowed-clients: ## Check FRONTEND_ALLOWED_CLIENTS of the producti
 
 test-printer-connector-compose: ## Package and validate the printer-connector Compose bundle (connector + go2rtc).
 	./scripts/test-printer-connector-compose.sh
-
-test-android: ## Build and unit-test the Android kiosk in a pinned SDK container.
-	./scripts/test-android-kiosk.sh
 
 test-desktop: ## Build the PC/SC sidecar and run Rust formatting, lint, and unit checks.
 	cd desktop-kiosk && pnpm install --frozen-lockfile

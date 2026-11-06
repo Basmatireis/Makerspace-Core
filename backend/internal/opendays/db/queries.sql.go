@@ -596,19 +596,39 @@ func (q *Queries) GetAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssig
 }
 
 const getAssignmentPersonName = `-- name: GetAssignmentPersonName :one
-SELECT first_name, last_name FROM people WHERE id = $1
+SELECT first_name, last_name, (profile_image_file_id IS NOT NULL)::boolean AS has_profile_image
+FROM people WHERE id = $1
 `
 
 type GetAssignmentPersonNameRow struct {
-	FirstName string
-	LastName  string
+	FirstName       string
+	LastName        string
+	HasProfileImage bool
 }
 
 func (q *Queries) GetAssignmentPersonName(ctx context.Context, id uuid.UUID) (GetAssignmentPersonNameRow, error) {
 	row := q.db.QueryRow(ctx, getAssignmentPersonName, id)
 	var i GetAssignmentPersonNameRow
-	err := row.Scan(&i.FirstName, &i.LastName)
+	err := row.Scan(&i.FirstName, &i.LastName, &i.HasProfileImage)
 	return i, err
+}
+
+const getAssignmentProfileImageFile = `-- name: GetAssignmentProfileImageFile :one
+SELECT p.profile_image_file_id
+FROM open_day_assignments a JOIN people p ON p.id = a.person_id
+WHERE a.id = $1 AND a.open_day_id = $2
+`
+
+type GetAssignmentProfileImageFileParams struct {
+	ID        uuid.UUID
+	OpenDayID uuid.UUID
+}
+
+func (q *Queries) GetAssignmentProfileImageFile(ctx context.Context, arg GetAssignmentProfileImageFileParams) (*uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getAssignmentProfileImageFile, arg.ID, arg.OpenDayID)
+	var profile_image_file_id *uuid.UUID
+	err := row.Scan(&profile_image_file_id)
+	return profile_image_file_id, err
 }
 
 const getNextOpenPlace = `-- name: GetNextOpenPlace :one
@@ -968,7 +988,7 @@ func (q *Queries) ListAcademicBreaksInRange(ctx context.Context, arg ListAcademi
 
 const listAssignmentsByDays = `-- name: ListAssignmentsByDays :many
 SELECT a.id, a.open_day_id, a.timeslot_id, a.requirement_id, a.person_id, a.created_by_account_id, a.created_at,
-       p.first_name, p.last_name
+       p.first_name, p.last_name, (p.profile_image_file_id IS NOT NULL)::boolean AS has_profile_image
 FROM open_day_assignments a JOIN people p ON p.id = a.person_id
 WHERE a.open_day_id = ANY($1::text[]::uuid[])
 ORDER BY a.created_at, a.id
@@ -984,6 +1004,7 @@ type ListAssignmentsByDaysRow struct {
 	CreatedAt          time.Time
 	FirstName          string
 	LastName           string
+	HasProfileImage    bool
 }
 
 func (q *Queries) ListAssignmentsByDays(ctx context.Context, openDayIds []string) ([]ListAssignmentsByDaysRow, error) {
@@ -1005,6 +1026,7 @@ func (q *Queries) ListAssignmentsByDays(ctx context.Context, openDayIds []string
 			&i.CreatedAt,
 			&i.FirstName,
 			&i.LastName,
+			&i.HasProfileImage,
 		); err != nil {
 			return nil, err
 		}

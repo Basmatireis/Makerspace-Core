@@ -46,6 +46,13 @@ type RoleDraft = { baseRole: Role; permissionGrants: PermissionGrant[] };
 
 type PendingDraftAction = { kind: 'cell'; role: Role; permission: Permission } | { kind: 'role'; role: Role };
 
+/** What the "System role" tag stands for, shown as its tooltip. */
+function systemRoleHint(systemKey: string): string {
+  return systemKey === 'master'
+    ? 'Master is protected: its permissions and name cannot change.'
+    : 'Every person has exactly one of Supervisor, Trainee and Visitor. It cannot be renamed or deleted; its permissions can be edited, and its minimums are set under Staffing › Rules.';
+}
+
 export function RolesPage() {
   const currentUser = useCurrentUser();
   const navigate = useNavigate();
@@ -415,6 +422,13 @@ export function RolesPage() {
                     <span className="roles-list__copy">
                       <strong>{role.name}</strong>
                       <span>{role.description || 'No description'}</span>
+                      {role.systemKey && (
+                        <span>
+                          <Tag type="outline" size="sm" title={systemRoleHint(role.systemKey)}>
+                            System role
+                          </Tag>
+                        </span>
+                      )}
                     </span>
                   </button>
                   <OverflowMenu
@@ -444,7 +458,12 @@ export function RolesPage() {
                         }}
                       />
                     )}
-                    {!manageable && <OverflowMenuItem disabled itemText="Protected system role" />}
+                    {!manageable && (
+                      <OverflowMenuItem
+                        disabled
+                        itemText={role.systemKey === 'master' ? 'Protected system role' : 'You cannot change this role'}
+                      />
+                    )}
                   </OverflowMenu>
                 </div>
               );

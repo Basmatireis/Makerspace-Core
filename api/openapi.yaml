@@ -3254,6 +3254,32 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /open-days/{openDayId}/assignments/{assignmentId}/profile-image:
+    parameters:
+      - {$ref: "#/components/parameters/OpenDayId"}
+      - {$ref: "#/components/parameters/OpenDayAssignmentId"}
+    get:
+      tags: [Open Days]
+      operationId: getOpenDayAssignmentProfileImage
+      summary: Read the profile image of an assigned person
+      description: >-
+        Needs `open_days.read_assignments`, the permission that also shows the assigned person's name; it does not
+        need permission to read the person. 404 when the assignment does not belong to the open day or the person has
+        no profile image.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Normalized JPEG profile image.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            image/jpeg:
+              schema: {type: string, format: binary}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /open-day-staff-requirements/{requirementId}/eligible-people:
     parameters: [{$ref: "#/components/parameters/OpenDayRequirementId"}]
     get:
@@ -14539,13 +14565,17 @@ components:
     SupervisorRow:
       type: object
       additionalProperties: false
-      required: [personId, personVersion, name, membership, extraRoles, hasProfileImage, laborordnungState, staffed, booked, staffedAsTrainee, minimum, minimumSource, minimumExceptionRole, excused, excusalReason, status, missing, lastOpenDayAt, nextAssignment, memberSince]
+      required: [personId, personVersion, name, membership, extraRoles, competencies, hasProfileImage, laborordnungState, staffed, booked, staffedAsTrainee, minimum, minimumSource, minimumExceptionRole, excused, excusalReason, status, missing, lastOpenDayAt, nextAssignment, memberSince]
       properties:
         personId: {$ref: "#/components/schemas/UUIDv7"}
         personVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string}
         membership: {$ref: "#/components/schemas/StaffingKind"}
         extraRoles: {type: array, items: {type: string}, description: "Names of the person's roles besides the system roles."}
+        competencies:
+          type: array
+          items: {$ref: "#/components/schemas/OpenDayCompetency"}
+          description: Active competency categories the person's training records cover (trained or trainer), in category order.
         hasProfileImage: {type: boolean}
         laborordnungState: {type: string, enum: [not_required, no_published_version, current, outdated]}
         staffed: {type: integer, minimum: 0, description: "Open days of the semester that ended, in any place."}
@@ -16240,7 +16270,7 @@ components:
       enum: [visitor_terminal, staff_ui, signage_player]
     DevicePlatform:
       type: string
-      enum: [desktop, android]
+      enum: [desktop]
     ManagedDevice:
       type: object
       additionalProperties: false
@@ -16821,7 +16851,7 @@ components:
     OpenDayAssignment:
       type: object
       additionalProperties: false
-      required: [id, openDayId, timeslotId, requirementId, personId, displayName, isCurrentUser, createdAt]
+      required: [id, openDayId, timeslotId, requirementId, personId, displayName, profileImageUrl, isCurrentUser, createdAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         openDayId: {$ref: "#/components/schemas/UUIDv7"}
@@ -16829,6 +16859,11 @@ components:
         requirementId: {$ref: "#/components/schemas/UUIDv7"}
         personId: {$ref: "#/components/schemas/UUIDv7"}
         displayName: {type: string, maxLength: 201}
+        profileImageUrl:
+          type: string
+          nullable: true
+          pattern: "^/api/v1/open-days/"
+          description: Where the assigned person's profile image is read; null when they have none.
         isCurrentUser: {type: boolean}
         createdAt: {type: string, format: date-time}
 

@@ -16,7 +16,10 @@ import {
   joinOpenDay,
   leaveOpenDay,
   listOpenDayPeriods,
+  listOpenDaySeries,
+  listOpenDays,
   removeOpenDayAssignment,
+  saveOpenDaySchedule,
 } from '../../../api/generated/open-days/open-days';
 import {
   addOrderItem,
@@ -28,6 +31,8 @@ import {
 } from '../../../api/generated/orders/orders';
 import { listOrderPayments, recordOrderPayment, reverseOrderPayment } from '../../../api/generated/payments/payments';
 import { apiFetch, ApiError, setApiTransport } from '../../../api/http-client';
+import { getMyCalendarFeed } from '../../../api/generated/calendar-feed/calendar-feed';
+import { getStaffingRules, getSupervisorDashboard } from '../../../api/generated/supervisors/supervisors';
 import { demoTestUser } from '../demoTestUser';
 import { createDemoBackend } from './backend';
 import { DEMO_IDS } from './ids';
@@ -258,5 +263,86 @@ describe('open days', () => {
     ).rejects.toMatchObject({ status: 409 });
     await removeOpenDayAssignment(day.id, assignment.id);
     expect(dayRequirements(await getOpenDay(day.id)).find((item) => item.id === trainees.id)?.assignedCount).toBe(1);
+  });
+});
+
+describe('schedule, staffing and calendar feed', () => {
+  const manager = [...demoTestUser().permissions, 'open_days.manage', 'supervisor_dashboard.read'];
+  const slot = (id?: string) => ({
+    ...(id ? { id } : {}),
+    startsAt: '2026-12-01T16:00:00Z',
+    endsAt: '2026-12-01T19:00:00Z',
+    requirements: [
+      { kind: 'supervisor' as const, requiredCount: 2, eligibleRoleIds: [] },
+      { kind: 'trainee' as const, requiredCount: 1, eligibleRoleIds: [] },
+    ],
+  });
+
+  it('saves one delta: a new day, a weekly series and an edit that leaves the series', async () => {
+    start(manager as Parameters<typeof demoTestUser>[0]);
+    const before = await listOpenDays(DEMO_IDS.period);
+    expect(await listOpenDaySeries(DEMO_IDS.period)).toEqual({ items: [] });
+    const saved = await saveOpenDaySchedule(DEMO_IDS.period, {
+      expectedPeriodVersion: before.period.version,
+      creates: [{ internalNote: null, timeslots: [slot()] }],
+      updates: [],
+      removals: [],
+      seriesCreates: [
+        {
+          weekday: 3,
+          fromDate: '2026-12-02',
+          untilDate: '2026-12-23',
+          timeslots: [{ startTime: '17:00', endTime: '20:00' }],
+          supervisorPlaces: 2,
+          traineePlaces: 1,
+          supervisorRoleIds: [],
+          traineeRoleIds: [],
+          forcedDates: [],
+        },
+      ],
+    });
+    expect(saved.items).toHaveLength(before.items.length + 1 + 4);
+    expect(saved.period.version).toBe(before.period.version + 1);
+    const series = (await listOpenDaySeries(DEMO_IDS.period)).items;
+    expect(series).toHaveLength(1);
+    expect(series[0].dayCount).toBe(4);
+
+    const day = saved.items.find((item) => item.seriesId === series[0].id)!;
+    const edited = await saveOpenDaySchedule(DEMO_IDS.period, {
+      expectedPeriodVersion: saved.period.version,
+      creates: [],
+      updates: [
+        {
+          id: day.id,
+          internalNote: 'Moved',
+          expectedVersion: day.version,
+          timeslots: [
+            { ...slot(day.timeslots[0].id), startsAt: '2026-12-02T15:00:00Z', endsAt: '2026-12-02T18:00:00Z' },
+          ],
+        },
+      ],
+      removals: [],
+    });
+    const moved = edited.items.find((item) => item.id === day.id)!;
+    expect(moved.seriesId).toBeNull();
+    expect(moved.detachedFromSeriesId).toBe(series[0].id);
+    await expect(
+      saveOpenDaySchedule(DEMO_IDS.period, {
+        expectedPeriodVersion: before.period.version,
+        creates: [],
+        updates: [],
+        removals: [],
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('answers the staffing rules, the supervisor dashboard and the calendar feed status', async () => {
+    start(manager as Parameters<typeof demoTestUser>[0]);
+    const rules = await getStaffingRules();
+    expect(rules.warningWindowDays).toBe(14);
+    const dashboard = await getSupervisorDashboard();
+    expect(dashboard.semester?.periodId).toBe(DEMO_IDS.period);
+    expect(dashboard.supervisors.length).toBeGreaterThan(2);
+    expect(await getMyCalendarFeed()).toEqual({ active: false, createdAt: null, lastUsedAt: null });
   });
 });

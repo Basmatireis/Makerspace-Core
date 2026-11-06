@@ -171,7 +171,7 @@ describe('dry run in the editor', () => {
     expect(screen.getByRole('table', { name: 'Recipient conditions' })).toBeInTheDocument();
     expect(screen.getByTestId('estimate')).toHaveTextContent('12');
     expect(screen.getByText('Counts only the people who allowed News & events.')).toBeInTheDocument();
-    expect(screen.getByText('Mia Gruber, Jonas Huber +3 would get it')).toBeInTheDocument();
+    expect(screen.getByText('· Mia Gruber, Jonas Huber +3 would get it')).toBeInTheDocument();
     expect(bodies).toHaveLength(1);
     expect(bodies[0].personal).toBe(false);
 

@@ -6,8 +6,8 @@ GlobalWorkerOptions.workerPort = new Worker(new URL('pdfjs-dist/legacy/build/pdf
 });
 
 /**
- * Renders every page of a same-origin PDF into canvases appended to `container` with pdf.js. The Android kiosk
- * WebView cannot show PDFs natively and the CSP forbids object/embed, so this is the only inline path. This module
+ * Renders every page of a same-origin PDF into canvases appended to `container` with pdf.js. Tablet
+ * WebViews cannot show PDFs natively and the CSP forbids object/embed, so this is the only inline path. This module
  * and the worker it points at are loaded lazily, only when the PDF is shown. The legacy build polyfills the
  * newest JS APIs pdf.js 6 relies on, which tablet Safari lacks. pdf.js never evaluates code, so no CSP exception is
  * needed. Resolves after the last page; `onFirstPage` fires as soon as page 1 is drawn.

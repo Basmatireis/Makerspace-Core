@@ -1,7 +1,7 @@
 export const DEVICE_BRIDGE_PROTOCOL_VERSION = 1 as const;
 
 export type LocalCapabilityId = 'nfc' | 'camera' | 'qr' | 'barcode' | 'scale' | 'label_printer';
-export type BridgePlatform = 'browser' | 'desktop' | 'android';
+export type BridgePlatform = 'browser' | 'desktop';
 
 export type DeviceCapabilityState = {
   id: LocalCapabilityId;
@@ -26,7 +26,7 @@ export type NfcEvent = {
   sequence: number;
   kind: 'nfc_scan' | 'nfc_removed';
   occurredAt: string;
-  source: 'pcsc' | 'android' | 'simulator';
+  source: 'pcsc' | 'simulator';
   reader?: ReaderMetadata;
   uid?: string;
   uidFormat?: 'hex';
@@ -38,7 +38,7 @@ export type DeviceStateEvent = {
   sequence: number;
   kind: 'reader_state' | 'capability_state';
   occurredAt: string;
-  source: 'pcsc' | 'android' | 'simulator';
+  source: 'pcsc' | 'simulator';
   reader?: ReaderMetadata;
   state: string;
   errorCode?: string;
@@ -195,101 +195,15 @@ export class DesktopDeviceBridge implements DeviceBridge {
   }
 }
 
-type NativeTransport = { postMessage(message: string): void };
-type NativeMessage = { id?: string; result?: unknown; error?: { code?: string; message?: string }; event?: unknown };
-
-export class AndroidDeviceBridge implements DeviceBridge {
-  private readonly transport: NativeTransport;
-  private readonly listeners = new Set<(event: DeviceBridgeEvent) => void>();
-  private readonly pending = new Map<string, { resolve: (value: unknown) => void; reject: (reason: Error) => void }>();
-  private readonly messageHandler = (event: Event) => this.receive((event as CustomEvent<unknown>).detail);
-
-  constructor(transport: NativeTransport) {
-    this.transport = transport;
-    window.addEventListener('makerspace:device-bridge-message', this.messageHandler);
-  }
-  async getDeviceInfo(options: { signal?: AbortSignal } = {}): Promise<DeviceInfo> {
-    return normalizeDeviceInfo(await this.call('getDeviceInfo', options.signal));
-  }
-  async getCapabilities(options: { signal?: AbortSignal } = {}): Promise<readonly DeviceCapabilityState[]> {
-    return (await this.getDeviceInfo(options)).capabilities;
-  }
-  scanNfc(options: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<NfcEvent> {
-    return waitForNfc(this, options);
-  }
-  subscribeToNfc(callback: (event: NfcEvent) => void): Unsubscribe {
-    return this.subscribe((event) => {
-      if (event.kind === 'nfc_scan' || event.kind === 'nfc_removed') callback(event);
-    });
-  }
-  subscribe(callback: (event: DeviceBridgeEvent) => void): Unsubscribe {
-    this.listeners.add(callback);
-    return () => this.listeners.delete(callback);
-  }
-  disconnect(): void {
-    window.removeEventListener('makerspace:device-bridge-message', this.messageHandler);
-    for (const request of this.pending.values())
-      request.reject(new DeviceBridgeError('aborted', 'Android bridge disconnected'));
-    this.pending.clear();
-    this.listeners.clear();
-  }
-  private call(method: 'getDeviceInfo', signal?: AbortSignal): Promise<unknown> {
-    if (signal?.aborted)
-      return Promise.reject(new DeviceBridgeError('aborted', 'Android bridge request was cancelled'));
-    const id = crypto.randomUUID();
-    return new Promise((resolve, reject) => {
-      const abort = () => {
-        this.pending.delete(id);
-        reject(new DeviceBridgeError('aborted', 'Android bridge request was cancelled'));
-      };
-      signal?.addEventListener('abort', abort, { once: true });
-      this.pending.set(id, {
-        resolve: (value) => {
-          signal?.removeEventListener('abort', abort);
-          resolve(value);
-        },
-        reject: (error) => {
-          signal?.removeEventListener('abort', abort);
-          reject(error);
-        },
-      });
-      this.transport.postMessage(JSON.stringify({ protocolVersion: 1, id, method }));
-    });
-  }
-  private receive(value: unknown) {
-    const message = typeof value === 'string' ? safeJSON(value) : value;
-    if (!isRecord(message)) return;
-    const native = message as NativeMessage;
-    if (native.id && this.pending.has(native.id)) {
-      const request = this.pending.get(native.id)!;
-      this.pending.delete(native.id);
-      if (native.error)
-        request.reject(new DeviceBridgeError('unavailable', native.error.message ?? 'Android bridge request failed'));
-      else request.resolve(native.result);
-      return;
-    }
-    if (native.event) {
-      try {
-        const normalized = normalizeEvent(native.event);
-        for (const listener of [...this.listeners]) listener(normalized);
-      } catch {
-        /* Ignore malformed native messages. */
-      }
-    }
-  }
-}
-
 type EmbeddedDesktopBridgeConfig = { baseURL: string; pairingKey: string };
 
 declare global {
   interface Window {
-    makerspaceDeviceBridgeNative?: NativeTransport;
     makerspaceDesktopBridge?: EmbeddedDesktopBridgeConfig;
   }
 }
 
 export function createPlatformDeviceBridge(): DeviceBridge {
-  if (window.makerspaceDeviceBridgeNative) return new AndroidDeviceBridge(window.makerspaceDeviceBridgeNative);
   if (window.makerspaceDesktopBridge) return new DesktopDeviceBridge(window.makerspaceDesktopBridge);
   return new BrowserDeviceBridge();
 }
@@ -302,7 +216,7 @@ function normalizeDeviceInfo(value: unknown): DeviceInfo {
   if (
     !isRecord(value) ||
     value.protocolVersion !== 1 ||
-    !['desktop', 'android', 'browser'].includes(String(value.platform)) ||
+    !['desktop', 'browser'].includes(String(value.platform)) ||
     !Array.isArray(value.capabilities)
   ) {
     throw new DeviceBridgeError('invalid_response', 'Device bridge returned invalid device information');
@@ -346,7 +260,7 @@ function normalizeEvent(value: unknown): DeviceBridgeEvent {
     value.protocolVersion !== 1 ||
     !Number.isSafeInteger(value.sequence) ||
     typeof value.occurredAt !== 'string' ||
-    !['pcsc', 'android', 'simulator'].includes(String(value.source))
+    !['pcsc', 'simulator'].includes(String(value.source))
   ) {
     throw new DeviceBridgeError('invalid_response', 'Device bridge returned an invalid event');
   }
@@ -451,11 +365,4 @@ function readNumber(value: unknown, key: string): number {
 }
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
-}
-function safeJSON(value: string): unknown {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
-  }
 }

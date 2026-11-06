@@ -14,7 +14,7 @@ import { DateInput } from '../../../app/DateInput';
 import { DetailPanel, DetailPanelHead, DetailPanelSection } from '../../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../../app/components/Facts';
 import { ErrorState, InlineLoadingState } from '../../../app/PageState';
-import { PanelFrame } from '../components/PanelFrame';
+import { PanelFrame } from '../../../app/components/PanelFrame';
 import { RecordTable, type RecordColumn } from '../components/RecordTable';
 import { breakDays, breakError, type BreakFields } from '../model/breaks';
 import { dayMonthYear, shortDate } from '../model/dates';
@@ -229,7 +229,6 @@ export function BreaksTab() {
           rows={rows}
           columns={columns}
           getId={(item) => item.id}
-          getName={(item) => item.name}
           selectedId={selectedId}
           onSelect={(id) => {
             setSelectedId(id);

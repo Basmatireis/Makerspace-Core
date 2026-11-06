@@ -6,7 +6,7 @@ import type { OpenDayPeriod } from '../../../api/generated/models';
 import { ErrorState, InlineLoadingState } from '../../../app/PageState';
 import { dateOf, dayMonthYear } from '../model/dates';
 import { newPeriodDefaults } from '../model/periodDefaults';
-import { PanelFrame } from '../components/PanelFrame';
+import { PanelFrame } from '../../../app/components/PanelFrame';
 import { RecordTable, type RecordColumn } from '../components/RecordTable';
 import { periodsQueryOptions } from '../queries';
 import { PeriodForm } from './PeriodForm';
@@ -164,7 +164,6 @@ export function PeriodsTab({ initialId, canSignUp }: { initialId: string | null;
           rows={rows}
           columns={columns}
           getId={(period) => period.id}
-          getName={(period) => period.name}
           selectedId={selectedId}
           onSelect={(id) => {
             setSelectedId(id);

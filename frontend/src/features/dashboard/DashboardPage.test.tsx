@@ -142,7 +142,7 @@ describe('personal dashboard', () => {
     const comingUp = screen.getByText('Coming up').closest('.cds--contained-list') as HTMLElement;
     expect(within(comingUp).getByText('Open day · Autumn')).toBeInTheDocument();
     expect(within(comingUp).getByText('Maker Faire · Door')).toBeInTheDocument();
-    expect(screen.queryByText(/calendar/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /calendar/i })).not.toBeInTheDocument();
   });
 
   it('offers a supervisor the next free supervisor place and signs up with its requirement', async () => {

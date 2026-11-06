@@ -1,5 +1,4 @@
 import {
-  Calendar,
   Devices,
   Document,
   Education,
@@ -25,7 +24,6 @@ export type SettingsPageId =
   | 'roles'
   | 'single-sign-on'
   | 'devices-sessions'
-  | 'open-days'
   | 'trainings'
   | 'laborordnung'
   | 'surveys'
@@ -110,15 +108,6 @@ export const settingsItems: readonly SettingsItem[] = [
       PermissionId.managed_devicesread,
       PermissionId.visitor_enrollmentmanage,
     ],
-  },
-  {
-    id: 'open-days',
-    group: 'lab',
-    title: 'Open days & staffing',
-    description: 'How many open days supervisors and trainees staff per semester.',
-    path: '/settings/open-days',
-    icon: Calendar,
-    permissions: [PermissionId.open_daysmanage],
   },
   {
     id: 'trainings',

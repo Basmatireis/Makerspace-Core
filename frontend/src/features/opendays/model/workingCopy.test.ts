@@ -136,6 +136,19 @@ describe('working copy', () => {
       applyFrom: '2026-11-10',
       untilDate: '2026-11-17',
     });
+    // ScheduleSeriesUpdate allows no other fields (additionalProperties: false).
+    expect(Object.keys(body.seriesUpdates?.[0] ?? {}).sort()).toEqual([
+      'applyFrom',
+      'expectedVersion',
+      'forcedDates',
+      'id',
+      'supervisorPlaces',
+      'supervisorRoleIds',
+      'timeslots',
+      'traineePlaces',
+      'traineeRoleIds',
+      'untilDate',
+    ]);
   });
 
   it('extends a series with new days that skip holidays unless forced', () => {

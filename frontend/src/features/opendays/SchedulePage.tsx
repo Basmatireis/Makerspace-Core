@@ -19,11 +19,11 @@ import { ConfirmRemove, type RemovalRequest } from './components/ConfirmRemove';
 import { glanceTiles } from './components/glance';
 import { GlanceTiles } from './components/GlanceTiles';
 import { ListView } from './components/ListView';
-import { PanelFrame } from './components/PanelFrame';
+import { PanelFrame } from '../../app/components/PanelFrame';
 import { SaveBar } from './components/SaveBar';
 import { ScheduleToolbar, type ScheduleView } from './components/ScheduleToolbar';
 import { SectionTabs } from './components/SectionTabs';
-import { PANEL_DOCK_QUERY, useMediaQuery } from './components/useMedia';
+import { PANEL_DOCK_QUERY, useMediaQuery } from '../../app/components/useMediaQuery';
 import { applyBulk, type BulkPatch } from './model/bulk';
 import { addCalendarDays } from '../../app/dateTime';
 import {

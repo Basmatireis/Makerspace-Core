@@ -106,7 +106,12 @@ export function NextUpTile(props: Props) {
           Next up
         </span>
         <p className="db-tile__title">Nothing booked yet</p>
-        <p className="db-tile__meta">Open days need supervisors and trainees. Pick something that fits your week.</p>
+        <p className="db-tile__meta">
+          Open days need supervisors and trainees. Pick something that fits your week.
+          {props.staffing
+            ? ` Free places in the next ${plural(props.staffing.warningWindowDays, 'day')} are pointed out here.`
+            : ''}
+        </p>
         {hint}
         {canFindOpenDays && (
           <div className="db-tile__actions">

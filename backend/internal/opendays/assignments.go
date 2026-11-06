@@ -172,14 +172,15 @@ func (s *Service) assign(
 		return Assignment{}, err
 	}
 	return Assignment{
-		ID:            row.ID,
-		OpenDayID:     row.OpenDayID,
-		TimeslotID:    row.TimeslotID,
-		RequirementID: row.RequirementID,
-		PersonID:      row.PersonID,
-		DisplayName:   name,
-		IsCurrentUser: personID == p.PersonID,
-		CreatedAt:     row.CreatedAt,
+		ID:              row.ID,
+		OpenDayID:       row.OpenDayID,
+		TimeslotID:      row.TimeslotID,
+		RequirementID:   row.RequirementID,
+		PersonID:        row.PersonID,
+		DisplayName:     name,
+		HasProfileImage: person.HasProfileImage,
+		IsCurrentUser:   personID == p.PersonID,
+		CreatedAt:       row.CreatedAt,
 	}, nil
 }
 

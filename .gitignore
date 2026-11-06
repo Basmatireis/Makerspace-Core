@@ -27,12 +27,6 @@ frontend/dist/
 frontend/coverage/
 .pnpm-store/
 
-# Android build output and local SDK configuration
-android-kiosk/.gradle/
-android-kiosk/build/
-android-kiosk/app/build/
-android-kiosk/local.properties
-
 # Desktop kiosk build output
 desktop-kiosk/node_modules/
 desktop-kiosk/dist/

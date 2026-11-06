@@ -27,7 +27,6 @@ type RecordTableProps<T> = {
   rows: T[];
   columns: RecordColumn<T>[];
   getId: (row: T) => string;
-  getName: (row: T) => string;
   selectedId: string | null;
   onSelect: (id: string) => void;
   onSearch: (value: string) => void;
@@ -41,7 +40,6 @@ export function RecordTable<T>({
   rows,
   columns,
   getId,
-  getName,
   selectedId,
   onSelect,
   onSearch,
@@ -80,12 +78,7 @@ export function RecordTable<T>({
                 {columns.map((column) => (
                   <TableCell key={column.key} className={column.className}>
                     {column.primary ? (
-                      <button
-                        type="button"
-                        className="od-row-button"
-                        aria-label={`Show ${getName(row)}`}
-                        aria-pressed={id === selectedId}
-                      >
+                      <button type="button" className="od-row-button" aria-pressed={id === selectedId}>
                         {column.render(row)}
                       </button>
                     ) : (

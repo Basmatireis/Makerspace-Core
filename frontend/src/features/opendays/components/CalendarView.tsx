@@ -85,7 +85,6 @@ function Block({ day, props }: { day: OpenDay; props: CalendarViewProps }) {
       className={`od-blk state-${state}${props.matching.has(day.id) ? '' : ' is-dim'}${selected ? ' is-selected' : ''}${unsaved && unsaved !== 'cancelled' ? ' is-unsaved' : ''}`}
       aria-pressed={selected}
       data-guide="open-days-day"
-      aria-label={`${longDate(date)}, ${timeRange(day.startsAt, day.endsAt)}${multi ? `, ${day.timeslots.length} timeslots` : ''}${state === 'cancelled' ? ', cancelled' : ''}${unsaved ? ', unsaved' : ''}`}
       onClick={() => props.onOpen(day.id)}
     >
       <span className="od-blk__t">
@@ -125,6 +124,7 @@ function Block({ day, props }: { day: OpenDay; props: CalendarViewProps }) {
             </span>
           ))}
       </span>
+      <span className="cds--visually-hidden">{`, ${longDate(date)}${multi ? `, ${day.timeslots.length} timeslots` : ''}${state === 'cancelled' ? ', cancelled' : ''}${unsaved ? ', unsaved' : ''}`}</span>
     </button>
   );
 }

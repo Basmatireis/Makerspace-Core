@@ -194,7 +194,11 @@ export function RoleSettingsDialog({
                 id="edit-role-name"
                 labelText="Role name"
                 readOnly={Boolean(role.systemKey)}
-                helperText={role.systemKey ? 'Membership roles keep their name.' : undefined}
+                helperText={
+                  role.systemKey
+                    ? 'System roles keep their name. Open-day minimums are set under Staffing › Rules.'
+                    : undefined
+                }
                 invalid={Boolean(form.formState.errors.name)}
                 invalidText={form.formState.errors.name?.message}
                 {...form.register('name', {

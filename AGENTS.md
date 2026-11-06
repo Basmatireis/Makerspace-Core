@@ -19,7 +19,7 @@ This file is the single source of instructions for people and coding agents. Cod
 
 ## Security and privacy
 
-- Authorize operations with registered permissions, never hard-coded business role names. `master` is the only system role.
+- Authorize operations with registered permissions, never hard-coded business role names. The system roles are `master` and the membership roles Supervisor, Trainee and Visitor; identify them by `system_key`, never by name. Every person holds exactly one membership role.
 - Backend services must enforce self/all scopes, sensitive-field permissions, last-master invariants, and role privilege-subset rules.
 - Never expose matriculation numbers without their dedicated permission.
 - Never log or serialize passwords, hashes, cookies, session/reset tokens, authorization headers, request bodies, or unnecessary PII.

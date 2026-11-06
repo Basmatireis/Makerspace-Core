@@ -86,7 +86,14 @@ export function PeriodPanel({
         }
       />
       <div>
-        <Button kind="primary" size="md" renderIcon={ArrowRight} as={Link} to={`/open-days/${period.id}`}>
+        <Button
+          kind="primary"
+          size="md"
+          renderIcon={ArrowRight}
+          as={Link}
+          to={`/open-days/${period.id}`}
+          data-guide="open-days-open-schedule"
+        >
           Open schedule
         </Button>
       </div>

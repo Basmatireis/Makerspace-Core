@@ -14,7 +14,7 @@ import {
   Tag,
   Theme,
 } from '@carbon/react';
-import { Help, Logout, UserAvatar } from '@carbon/icons-react';
+import { Calendar, Help, Logout, UserAvatar } from '@carbon/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
@@ -36,6 +36,8 @@ const LabRulesConfirmModal = lazy(() => import('../features/laborordnung/confirm
 const GuideOffer = lazy(() => import('../features/guides/GuideOffer'));
 // The notification consent question replaces the application until it is answered, so it loads only for those people.
 const ConsentGate = lazy(() => import('../features/mynotifications/ConsentGate'));
+// The calendar subscription dialog loads when someone opens it from the profile menu or a `?calendar=subscription` link.
+const CalendarSubscriptionDialog = lazy(() => import('../features/profile/CalendarSubscriptionDialog'));
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 
@@ -62,6 +64,20 @@ export function AppShell() {
   const [sideNavExpanded, setSideNavExpanded] = useState(() => !currentNarrowState());
   const [profilePanelOpen, setProfilePanelOpen] = useState(false);
   const [notificationPanelOpen, setNotificationPanelOpen] = useState(false);
+  const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
+  // Any page can ask for the dialog with `?calendar=subscription`, for example the Open Days page.
+  const calendarLinked = new URLSearchParams(location.search).get('calendar') === 'subscription';
+  const closeCalendarDialog = () => {
+    setCalendarDialogOpen(false);
+    if (!calendarLinked) return;
+    const search = new URLSearchParams(location.search);
+    search.delete('calendar');
+    const rest = search.toString();
+    void navigate(
+      { pathname: location.pathname, search: rest ? `?${rest}` : '', hash: location.hash },
+      { replace: true },
+    );
+  };
   const profileActionRef = useRef<HTMLButtonElement>(null);
   const notificationActionRef = useRef<HTMLButtonElement>(null);
   const profilePanelRef = useRef<HTMLDivElement>(null);
@@ -213,6 +229,17 @@ export function AppShell() {
                       <Button kind="ghost" size="sm" onClick={() => navigate('/profile/notifications')}>
                         My notifications
                       </Button>
+                      <Button
+                        kind="ghost"
+                        size="sm"
+                        renderIcon={Calendar}
+                        onClick={() => {
+                          setProfilePanelOpen(false);
+                          setCalendarDialogOpen(true);
+                        }}
+                      >
+                        Calendar subscription
+                      </Button>
                     </>
                   )}
                   <Button kind="ghost" size="sm" onClick={() => setColorScheme(dark ? 'light' : 'dark')}>
@@ -293,6 +320,11 @@ export function AppShell() {
           ) : (
             <Suspense fallback={null}>
               <GuideOffer />
+            </Suspense>
+          )}
+          {(calendarDialogOpen || calendarLinked) && (
+            <Suspense fallback={null}>
+              <CalendarSubscriptionDialog onClose={closeCalendarDialog} />
             </Suspense>
           )}
         </div>

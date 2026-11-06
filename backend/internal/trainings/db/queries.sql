@@ -129,3 +129,15 @@ JOIN training_competencies tc ON tc.training_id = t.id
 JOIN competency_categories c ON c.id = tc.competency_id AND c.active
 WHERE a.open_day_id = ANY(sqlc.arg(open_day_ids)::text[]::uuid[])
 ORDER BY a.open_day_id, c.sort_order, sort_name, c.id;
+
+-- name: ListPersonCompetencies :many
+-- The active competency categories each of the given people is trained for or may train in. Inactive trainings and
+-- inactive categories do not count; trained and trainer count alike, as for open days. IDs are passed as text so the
+-- query also runs in pgx's simple protocol mode.
+SELECT DISTINCT tr.person_id, c.id, c.name, c.sort_order, lower(c.name) AS sort_name
+FROM training_records tr
+JOIN trainings t ON t.id = tr.training_id AND t.active
+JOIN training_competencies tc ON tc.training_id = t.id
+JOIN competency_categories c ON c.id = tc.competency_id AND c.active
+WHERE tr.person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[])
+ORDER BY tr.person_id, c.sort_order, sort_name, c.id;

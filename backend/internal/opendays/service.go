@@ -43,6 +43,7 @@ type Period struct {
 type Assignment struct {
 	ID, OpenDayID, TimeslotID, RequirementID, PersonID uuid.UUID
 	DisplayName                                        string
+	HasProfileImage                                    bool
 	IsCurrentUser                                      bool
 	CreatedAt                                          time.Time
 }
@@ -225,6 +226,29 @@ func (s *Service) ListPeriods(ctx context.Context, principal authorization.Princ
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+// AssignmentProfileImageFile returns the profile image file of an assigned person. It follows the rule that shows
+// the assigned person's name (open_days.read_assignments) instead of permission to read the person, so the people
+// who see who is on an open day also see their pictures.
+func (s *Service) AssignmentProfileImageFile(
+	ctx context.Context,
+	principal authorization.Principal,
+	openDayID, assignmentID uuid.UUID,
+) (uuid.UUID, error) {
+	if !principal.Has(authorization.OpenDaysReadAssignments) {
+		return uuid.Nil, apperror.PermissionDenied
+	}
+	fileID, err := opendaysdb.New(s.pool).GetAssignmentProfileImageFile(ctx, opendaysdb.GetAssignmentProfileImageFileParams{
+		ID: assignmentID, OpenDayID: openDayID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && fileID == nil) {
+		return uuid.Nil, apperror.NotFound
+	}
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return *fileID, nil
 }
 
 func (s *Service) ListUpcomingAssignmentsForPerson(
@@ -808,14 +832,15 @@ func (s *Service) loadDays(
 	mine := map[uuid.UUID]*Assignment{}
 	for _, a := range assignments {
 		item := Assignment{
-			ID:            a.ID,
-			OpenDayID:     a.OpenDayID,
-			TimeslotID:    a.TimeslotID,
-			RequirementID: a.RequirementID,
-			PersonID:      a.PersonID,
-			DisplayName:   strings.TrimSpace(a.FirstName + " " + a.LastName),
-			IsCurrentUser: a.PersonID == principal.PersonID,
-			CreatedAt:     a.CreatedAt,
+			ID:              a.ID,
+			OpenDayID:       a.OpenDayID,
+			TimeslotID:      a.TimeslotID,
+			RequirementID:   a.RequirementID,
+			PersonID:        a.PersonID,
+			DisplayName:     strings.TrimSpace(a.FirstName + " " + a.LastName),
+			HasProfileImage: a.HasProfileImage,
+			IsCurrentUser:   a.PersonID == principal.PersonID,
+			CreatedAt:       a.CreatedAt,
 		}
 		byRequirement[a.RequirementID] = append(byRequirement[a.RequirementID], item)
 		if item.IsCurrentUser {

@@ -1,64 +1,321 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
-@use '@carbon/styles/scss/components/progress-bar';
 @use '@carbon/styles/scss/theme' as theme;
 
-// Layout glue for the supervisor staffing page. The key figures filter the table; the active one is outlined.
+// Layout glue for the staffing page. Every control is a Carbon component.
 
-.staffing-metrics {
+.st-secondary {
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.st-people {
+  display: grid;
+  gap: $spacing-05;
+  padding-block-start: $spacing-05;
+}
+
+.st-tab-panel {
+  display: none;
+}
+
+.st-period {
+  display: flex;
+  justify-content: flex-end;
+}
+
+// The four glance tiles are one-click filter presets; the active one carries the interactive accent.
+.st-glance {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
   gap: $spacing-05;
 }
 
-.staffing-metric.cds--tile {
+.st-glance__tile.cds--tile {
   display: grid;
   align-content: start;
   gap: $spacing-02;
-  min-block-size: 8rem;
+  min-block-size: 6rem;
 }
 
-.staffing-metric--active.cds--tile {
-  outline: 2px solid theme.$border-interactive;
-  outline-offset: -2px;
+.st-glance__tile.is-active.cds--tile {
+  box-shadow: inset 0 -3px 0 theme.$border-interactive;
+  background: theme.$layer-selected-01;
 }
 
-.staffing-metric__label {
+.st-glance__label {
   @include type-style('heading-compact-01');
 }
 
-.staffing-metric__value {
+.st-glance__value {
   @include type-style('productive-heading-05');
+  font-variant-numeric: tabular-nums;
 }
 
-.staffing-metric__value--bad {
-  color: theme.$text-error;
-}
-
-.staffing-metric__value--zero {
+.st-glance__value small {
+  margin-inline-start: $spacing-03;
   color: theme.$text-secondary;
+  @include type-style('body-compact-01');
 }
 
-.staffing-secondary {
+// The table and the person panel. From 92 rem the panel sits beside the table.
+.st-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+
+.st-split__list {
+  min-inline-size: 0;
+}
+
+@media (min-width: 92rem) {
+  .st-split {
+    grid-template-columns: minmax(0, 1fr) 25rem;
+  }
+}
+
+.panel-frame .detail-panel {
+  border-inline-start-width: 3px;
+}
+
+// Table cells.
+.st-table .cds--data-table tbody tr {
+  cursor: pointer;
+}
+
+.st-row-button {
+  all: unset;
+  display: block;
+  inline-size: 100%;
+  cursor: pointer;
+  color: theme.$text-primary;
+}
+
+.st-row-button:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: 2px;
+}
+
+.st-name {
+  display: grid;
+  line-height: 1.25;
+  min-inline-size: 0;
+}
+
+.st-name small {
   color: theme.$text-secondary;
   @include type-style('helper-text-01');
 }
 
-.staffing-cell-stack {
-  display: grid;
-  gap: $spacing-02;
-  justify-items: start;
+.st-name__phone {
+  display: none;
 }
 
-.staffing-progress {
+.st-count {
   display: grid;
   gap: $spacing-02;
-  min-inline-size: 8rem;
+  min-inline-size: 7rem;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 41.98rem) {
-  .staffing-metrics {
+  .st-table .st-col--role,
+  .st-table .st-col--next,
+  .st-table .st-col--lab {
+    display: none;
+  }
+
+  .st-name__phone {
+    display: block;
+  }
+
+  .st-export {
+    display: none;
+  }
+
+  .st-glance {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: $spacing-03;
+  }
+}
+
+// Person panel.
+.st-days,
+.st-places {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.st-days li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  min-block-size: 2.5rem;
+  border-block-start: 1px solid theme.$border-subtle;
+  font-variant-numeric: tabular-nums;
+}
+
+.st-days li > span,
+.st-place > span {
+  display: grid;
+}
+
+.st-days small,
+.st-place small {
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.st-place {
+  all: unset;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: $spacing-03;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: 3rem;
+  padding-inline: $spacing-03;
+  border-block-start: 1px solid theme.$border-subtle;
+  cursor: pointer;
+}
+
+.st-place:hover {
+  background: theme.$layer-hover-01;
+}
+
+.st-place:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+
+.st-place:disabled {
+  cursor: not-allowed;
+  color: theme.$text-disabled;
+}
+
+// Rules tab.
+.st-rules {
+  display: grid;
+  gap: $spacing-05;
+  padding-block-start: $spacing-05;
+}
+
+.st-intro {
+  margin: 0;
+  max-inline-size: 72ch;
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.st-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: $spacing-05;
+  align-items: start;
+}
+
+.st-card.cds--tile {
+  display: grid;
+  gap: $spacing-05;
+  border-block-start: 3px solid theme.$border-subtle;
+}
+
+.st-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+}
+
+.st-card__head h3 {
+  @include type-style('heading-03');
+}
+
+.st-card__description {
+  margin: 0;
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.st-fields {
+  display: grid;
+  gap: $spacing-05;
+}
+
+.st-fields--2 {
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  align-items: start;
+}
+
+.st-exceptions {
+  display: grid;
+  gap: $spacing-05;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.st-exception {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7rem auto;
+  gap: $spacing-03;
+  align-items: start;
+}
+
+.st-exception__note {
+  grid-column: 1 / -1;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.st-savebar {
+  position: sticky;
+  inset-block-end: env(safe-area-inset-bottom, 0);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  background: theme.$layer-01;
+  box-shadow: 0 -1px 0 theme.$border-subtle;
+}
+
+.st-savebar p {
+  flex: 1;
+  margin: 0;
+  padding-inline: $spacing-05;
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.st-savebar.is-dirty {
+  box-shadow:
+    inset 3px 0 0 theme.$support-warning,
+    0 -2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.st-savebar.is-dirty p {
+  color: theme.$text-primary;
+}
+
+@media (max-width: 41.98rem) {
+  .st-savebar {
+    flex-wrap: wrap;
+  }
+
+  .st-savebar p {
+    flex: 1 0 100%;
+    padding-block: $spacing-04 $spacing-03;
+  }
+
+  .st-savebar .cds--btn {
+    flex: 1;
+  }
+
+  .st-exception {
+    grid-template-columns: minmax(0, 1fr) 6rem auto;
   }
 }

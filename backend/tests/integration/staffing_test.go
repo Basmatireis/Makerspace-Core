@@ -548,3 +548,45 @@ func migrationDownSection(t *testing.T, path string) string {
 	}
 	return down
 }
+
+func TestSupervisorDashboardListsTheCompetenciesOfTrainingRecords(t *testing.T) {
+	e := newStaffingEnv(t)
+	ctx := testContext(t)
+	supervisorRole := e.role("", level(roles.MembershipSupervisor), authorization.OpenDaysRead)
+	viewer := e.person("competency-viewer", e.role("Viewer", nil, authorization.SupervisorDashboardRead).ID)
+	trained := e.person("competency-trained", supervisorRole.ID)
+	untrained := e.person("competency-untrained", supervisorRole.ID)
+
+	printing, laser, retired := ids.New(), ids.New(), ids.New()
+	e.exec(`INSERT INTO competency_categories(id,name,sort_order) VALUES($1,'3D printing',20),($2,'Laser cutting',10)`,
+		printing, laser)
+	e.exec(`INSERT INTO competency_categories(id,name,sort_order,active) VALUES($1,'Retired',30,false)`, retired)
+	h2d, speedy, oldTraining, inactiveTraining := ids.New(), ids.New(), ids.New(), ids.New()
+	e.exec(`INSERT INTO trainings(id,name) VALUES($1,'H2D'),($2,'Speedy')`, h2d, speedy)
+	e.exec(`INSERT INTO trainings(id,name) VALUES($1,'Old')`, oldTraining)
+	e.exec(`INSERT INTO trainings(id,name,active) VALUES($1,'Inactive',false)`, inactiveTraining)
+	e.exec(`INSERT INTO training_competencies(training_id,competency_id) VALUES($1,$2),($3,$4),($5,$6),($7,$8)`,
+		h2d, printing, speedy, laser, oldTraining, retired, inactiveTraining, laser)
+	e.exec(`INSERT INTO training_records(person_id,training_id,status) VALUES
+		($1,$2,'trained'),($1,$3,'trainer'),($1,$4,'trained'),($1,$5,'trained')`,
+		trained.PersonID, h2d, speedy, oldTraining, inactiveTraining)
+
+	result, err := e.supervise.Get(ctx, viewer, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	labels := map[uuid.UUID]string{}
+	for _, row := range result.Supervisors {
+		labels[row.PersonID] = labelsOf(row.Competencies)
+	}
+	// Category order first, then name; retired categories and inactive trainings never count.
+	if labels[trained.PersonID] != "Laser cutting,3D printing" {
+		t.Fatalf("trained competencies = %q", labels[trained.PersonID])
+	}
+	if labels[untrained.PersonID] != "" {
+		t.Fatalf("untrained competencies = %q", labels[untrained.PersonID])
+	}
+	if _, err := e.supervise.Get(ctx, e.person("competency-denied"), nil); err == nil {
+		t.Fatal("competencies were readable without supervisor_dashboard.read")
+	}
+}

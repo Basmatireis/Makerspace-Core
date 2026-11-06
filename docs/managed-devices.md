@@ -10,7 +10,7 @@ The former `/settings/managed-devices` and `/settings/session-policies` routes r
 
 A managed device is a trusted kiosk identity, separate from a user identity. It has a random bearer token whose SHA-256 digest is stored in PostgreSQL. The plaintext token is returned only at creation and rotation and must be kept by native software in protected storage. It must never be put in local storage, IndexedDB, a URL, a log, or an audit event.
 
-Native clients send the token in `X-Managed-Device-Token`. The Android and Tauri desktop kiosks also install it as an HttpOnly, SameSite cookie so WebView requests can carry device context without exposing the token to JavaScript. A valid user session continues to work without a device, and a device token alone never logs in a user.
+Native clients send the token in `X-Managed-Device-Token`. The Tauri desktop kiosk also installs it as an HttpOnly, SameSite cookie so WebView requests can carry device context without exposing the token to JavaScript. A valid user session continues to work without a device, and a device token alone never logs in a user.
 
 Each device has one or both application modes:
 
@@ -31,4 +31,4 @@ Provision a device by creating its type and device, copying the one-time token i
 
 Successful authentication updates `last_seen_at` no more than once every five minutes. A stolen token can impersonate only the managed device; useful staff access still requires a separate user session and matching permission grants. Revoke or rotate a device credential immediately after suspected disclosure.
 
-See [Desktop kiosk](desktop-device-bridge.md) and [Android kiosk](android-kiosk.md) for native setup and security details.
+See [Desktop kiosk](desktop-device-bridge.md) for native setup and security details.

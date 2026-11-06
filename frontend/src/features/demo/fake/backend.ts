@@ -4,6 +4,7 @@ import { registerInventory } from './handlers/inventory';
 import { registerOpenDays } from './handlers/openDays';
 import { registerSales } from './handlers/sales';
 import { registerShell } from './handlers/shell';
+import { registerStaffing } from './handlers/staffing';
 import { registerWorkshop } from './handlers/workshop';
 import { DemoRouter, dispatch, toResponse } from './router';
 import { createStore } from './seed';
@@ -17,6 +18,7 @@ export function buildRouter(): DemoRouter<DemoStore> {
   const router = new DemoRouter<DemoStore>();
   registerShell(router);
   registerOpenDays(router);
+  registerStaffing(router);
   registerWorkshop(router);
   registerInventory(router);
   registerSales(router);

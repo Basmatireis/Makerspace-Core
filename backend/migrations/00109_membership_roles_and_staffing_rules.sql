@@ -60,6 +60,23 @@ BEGIN
         visitor_role := candidate;
     END IF;
 
+    -- Without a clear choice, an existing role that already carries the fixed name (and fits the level) becomes
+    -- that membership role instead of being renamed to "<name> (custom)".
+    IF supervisor_role IS NULL THEN
+        SELECT id INTO supervisor_role FROM roles
+        WHERE lower(name) = 'supervisor' AND system_key IS NULL AND staffing_level IS DISTINCT FROM 'trainee';
+    END IF;
+    IF trainee_role IS NULL THEN
+        SELECT id INTO trainee_role FROM roles
+        WHERE lower(name) = 'trainee' AND system_key IS NULL AND staffing_level IS DISTINCT FROM 'supervisor'
+          AND id IS DISTINCT FROM supervisor_role;
+    END IF;
+    IF visitor_role IS NULL THEN
+        SELECT id INTO visitor_role FROM roles
+        WHERE lower(name) = 'visitor' AND system_key IS NULL AND staffing_level IS NULL
+          AND id IS DISTINCT FROM supervisor_role AND id IS DISTINCT FROM trainee_role;
+    END IF;
+
     IF supervisor_role IS NULL THEN
         supervisor_role := uuidv7();
         INSERT INTO roles (id, name) VALUES (supervisor_role, 'Supervisor (membership)');

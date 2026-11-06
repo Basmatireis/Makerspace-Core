@@ -12,7 +12,6 @@
 - [Managed devices](managed-devices.md)
 - [Device Bridge architecture](device-bridge.md)
 - [Desktop kiosk](desktop-device-bridge.md)
-- [Android kiosk](android-kiosk.md)
 - [Kiosk, attendance, session policies, and surveys](kiosk-attendance-surveys.md)
 - [Surveys: conditional questions, share links, results](surveys.md)
 - [Semester staffing and the personal dashboard](staffing-and-dashboard.md)

@@ -16,7 +16,7 @@ type DeviceBridgeContextValue = {
 const DeviceBridgeContext = createContext<DeviceBridgeContextValue | null>(null);
 
 export function DeviceBridgeProvider({ children }: { children: ReactNode }) {
-  // The platform shell (desktop or Android) injects its bridge; browsers use the fallback.
+  // The platform shell (desktop) injects its bridge; browsers use the fallback.
   const [bridge] = useState<DeviceBridge>(() => createPlatformDeviceBridge());
   const [info, setInfo] = useState<DeviceInfo | null>(null);
   const [error, setError] = useState<Error | null>(null);

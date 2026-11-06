@@ -10,17 +10,20 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staffing"
 	supervisorsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/supervisors/db"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/trainings"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Row is one supervisor or trainee and their standing in the semester.
 type Row struct {
-	PersonID          uuid.UUID
-	PersonVersion     int64
-	Name              string
-	Membership        roles.Membership
-	ExtraRoles        []string
+	PersonID      uuid.UUID
+	PersonVersion int64
+	Name          string
+	Membership    roles.Membership
+	ExtraRoles    []string
+	// Competencies are the active competency categories the person's training records cover.
+	Competencies      []trainings.Competency
 	HasProfileImage   bool
 	LaborordnungState string
 	Counts            staffing.Counts
@@ -88,6 +91,14 @@ func (s *Service) Get(
 	if err != nil {
 		return Dashboard{}, err
 	}
+	personIDs := make([]uuid.UUID, 0, len(people))
+	for _, person := range people {
+		personIDs = append(personIDs, person.PersonID)
+	}
+	competencies, err := trainings.PersonCompetencies(ctx, s.pool, personIDs)
+	if err != nil {
+		return Dashboard{}, err
+	}
 	counts, err := s.staffing.Counts(ctx, rules, semester, now, nil)
 	if err != nil {
 		return Dashboard{}, err
@@ -111,6 +122,7 @@ func (s *Service) Get(
 			Name:              strings.TrimSpace(person.FirstName + " " + person.LastName),
 			Membership:        membership,
 			ExtraRoles:        person.ExtraRoles,
+			Competencies:      competencies[person.PersonID],
 			HasProfileImage:   person.HasProfileImage,
 			LaborordnungState: person.LaborordnungState,
 			Counts:            personCounts,
