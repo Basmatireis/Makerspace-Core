@@ -607,6 +607,7 @@ function currentUser(permissions: string[]) {
       postSessionDestination: 'login',
     },
     delegablePermissionGrants: [],
+    notificationConsentRequired: false,
     laborordnungStatus: {
       mode: 'not_required',
       state: 'not_required',

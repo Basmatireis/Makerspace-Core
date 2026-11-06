@@ -53,6 +53,9 @@ const firing = {
       status: 'sent',
       sentAt: '2026-03-01T10:00:01Z',
       readAt: '2026-03-01T10:02:00Z',
+      deliveredAt: '2026-03-01T10:00:05Z',
+      seenAt: '2026-03-01T10:01:00Z',
+      acknowledgedAt: '2026-03-01T10:02:00Z',
     },
     {
       name: 'Jonas Huber',
@@ -61,6 +64,9 @@ const firing = {
       status: 'skipped_muted',
       sentAt: '2026-03-01T10:20:00Z',
       readAt: null,
+      deliveredAt: null,
+      seenAt: null,
+      acknowledgedAt: null,
     },
   ],
 };
@@ -115,7 +121,12 @@ describe('activity tab', () => {
     expect(within(recipients).getByText('Mia Gruber')).toBeInTheDocument();
     expect(within(within(recipients).getByRole('row', { name: /Mia Gruber/ })).getByText('Sent')).toBeInTheDocument();
     expect(within(recipients).getByText('Skipped: muted')).toBeInTheDocument();
-    expect(within(recipients).getByText('Escalation step 1')).toBeInTheDocument();
+    for (const header of ['Recipient', 'Channel', 'Outcome', 'Sent', 'Delivered', 'Seen', 'Then']) {
+      expect(within(recipients).getByRole('columnheader', { name: header })).toBeInTheDocument();
+    }
+    expect(
+      within(within(recipients).getByRole('row', { name: /Mia Gruber/ })).getByText(/^Acknowledged /),
+    ).toBeInTheDocument();
     expect(screen.getByText('Escalation step 1: 0 of 1 recipient reached')).toBeInTheDocument();
   });
 

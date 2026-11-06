@@ -96,4 +96,19 @@ export async function signInWithPassword(page: Page, email: string, password: st
     }
   }
   await expect(page).toHaveURL(/\/dashboard$/);
+  await answerNotificationConsent(page);
+}
+
+/**
+ * A freshly seeded account has not answered the notification consent question, so the application shows it in place of
+ * the shell right after sign-in. Answering with every optional message off keeps the account's flows unblocked; a
+ * fixture that already answered goes straight to the shell.
+ */
+export async function answerNotificationConsent(page: Page) {
+  const question = page.getByRole('heading', { name: 'Which messages may we send you?' });
+  await question.or(page.getByRole('main')).first().waitFor();
+  if (await question.isVisible()) {
+    await page.getByRole('button', { name: 'Save and continue' }).click();
+    await expect(question).toBeHidden();
+  }
 }

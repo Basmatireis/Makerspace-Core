@@ -141,6 +141,7 @@ function currentUser(permissions: string[] = []) {
       deviceTypeIds: [],
       minimumAssurance: 'low',
     })),
+    notificationConsentRequired: false,
     laborordnungStatus: {
       mode: 'not_required',
       state: 'not_required',

@@ -22,6 +22,7 @@ import {
   deleteOwnNotificationSubscription,
   runNotificationRule,
   testNotificationRule,
+  testOwnNotificationSubscription,
   updateNotificationRule,
   updateOwnNotificationSubscription,
 } from '../../api/generated/notification-rules/notification-rules';
@@ -148,7 +149,7 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
     onError: (error) => notify({ kind: 'error', title: 'Run failed', subtitle: saveProblem(error, 'Rule').message }),
   });
   const test = useMutation({
-    mutationFn: () => testNotificationRule(rule!.id),
+    mutationFn: () => (personal ? testOwnNotificationSubscription(rule!.id) : testNotificationRule(rule!.id)),
     onSuccess: async (result) => {
       const sent = result.sent.inApp + result.sent.email;
       notify({
@@ -207,7 +208,7 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
   const unsaved = form.formState.isDirty && canManage;
   const savedTrigger = rule?.definition.trigger.type;
   const canRun = Boolean(rule) && !personal && canManage && (savedTrigger === 'manual' || savedTrigger === 'schedule');
-  const canTest = Boolean(rule) && !personal && canManage;
+  const canTest = Boolean(rule) && canManage;
   const unsavedReason = 'Save your changes first: this works on the saved rule.';
   const savedCollection = rule ? collectionOf(catalog, rule.definition) : undefined;
   const loopMode = rule?.definition.loop?.mode;

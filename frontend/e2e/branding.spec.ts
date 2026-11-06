@@ -54,6 +54,7 @@ function currentUser() {
     delegablePermissionGrants: [
       { permissionId: 'branding.manage', scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' },
     ],
+    notificationConsentRequired: false,
     laborordnungStatus: {
       mode: 'not_required',
       state: 'not_required',

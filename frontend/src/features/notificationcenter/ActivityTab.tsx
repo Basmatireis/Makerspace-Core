@@ -76,6 +76,15 @@ function timeline(firing: NotificationActivityFiring): { time: string; text: str
   return lines;
 }
 
+const optionalTime = (value: string | null) => (value ? formatDateTime(value) : '—');
+
+/** What the person did with the message afterwards: confirmed it with its button, or read or dismissed it. */
+function thenLabel(recipient: NotificationActivityRecipient): string {
+  if (recipient.acknowledgedAt) return `Acknowledged ${formatDateTime(recipient.acknowledgedAt)}`;
+  if (recipient.readAt) return `Read ${formatDateTime(recipient.readAt)}`;
+  return '—';
+}
+
 function RecipientTable({ recipients }: { recipients: NotificationActivityRecipient[] }) {
   return (
     <Table size="sm" aria-label="Recipients" useZebraStyles={false}>
@@ -85,8 +94,9 @@ function RecipientTable({ recipients }: { recipients: NotificationActivityRecipi
           <TableHeader>Channel</TableHeader>
           <TableHeader>Outcome</TableHeader>
           <TableHeader>Sent</TableHeader>
-          <TableHeader>Read</TableHeader>
-          <TableHeader>Step</TableHeader>
+          <TableHeader>Delivered</TableHeader>
+          <TableHeader>Seen</TableHeader>
+          <TableHeader>Then</TableHeader>
         </TableRow>
       </TableHead>
       <TableBody>
@@ -102,8 +112,9 @@ function RecipientTable({ recipients }: { recipients: NotificationActivityRecipi
                 </Tag>
               </TableCell>
               <TableCell>{formatDateTime(recipient.sentAt)}</TableCell>
-              <TableCell>{recipient.readAt ? formatDateTime(recipient.readAt) : '—'}</TableCell>
-              <TableCell>{stepLabel(recipient.step)}</TableCell>
+              <TableCell>{optionalTime(recipient.deliveredAt)}</TableCell>
+              <TableCell>{optionalTime(recipient.seenAt)}</TableCell>
+              <TableCell>{thenLabel(recipient)}</TableCell>
             </TableRow>
           );
         })}
@@ -154,7 +165,9 @@ export function ActivityTab() {
           <div className="nc-activity">
             <p className="nc-intro">
               Every time a rule fired in the last 90 days. Per recipient, <strong>Sent</strong> is when the message went
-              out and <strong>Read</strong> when the person read, acknowledged or dismissed it.
+              out; for in-app messages <strong>Delivered</strong> is when it reached the person's account,{' '}
+              <strong>Seen</strong> when it was shown on screen, and <strong>Then</strong> whether they read or
+              acknowledged it.
             </p>
             <div className="nc-activity__filter">
               <FuzzyComboBox<{ id: string; label: string }>

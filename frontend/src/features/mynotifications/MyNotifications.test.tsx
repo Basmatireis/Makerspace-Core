@@ -49,7 +49,7 @@ function settingsFixture(): NotificationSettings {
         categoryName: 'Service & safety',
         mandatory: true,
         why: ['You hold the role Supervisor'],
-        triggerSummary: "When something happens",
+        triggerSummary: 'When a printer reports an error',
         defaultChannels: ['in_app', 'email'],
         effectiveChannels: ['in_app'],
         blockedByConsent: false,
@@ -62,7 +62,7 @@ function settingsFixture(): NotificationSettings {
         categoryName: 'Surveys & feedback',
         mandatory: false,
         why: ['You are a member'],
-        triggerSummary: "When something happens",
+        triggerSummary: 'When something happens',
         defaultChannels: ['email'],
         effectiveChannels: ['email'],
         blockedByConsent: false,
@@ -75,7 +75,7 @@ function settingsFixture(): NotificationSettings {
         categoryName: 'News & events',
         mandatory: false,
         why: ['You are a member'],
-        triggerSummary: "When something happens",
+        triggerSummary: 'When something happens',
         defaultChannels: ['email'],
         effectiveChannels: [],
         blockedByConsent: true,
@@ -126,6 +126,7 @@ describe('My notifications page', () => {
     expect(screen.getByRole('switch', { name: 'Allow Surveys & feedback' })).toBeChecked();
     expect(screen.getByRole('switch', { name: 'Allow News & events' })).not.toBeChecked();
     expect(screen.getByText('Printer error')).toBeInTheDocument();
+    expect(screen.getByText('Service & safety · When a printer reports an error')).toBeInTheDocument();
     expect(screen.getByText("You don't get this: News & events is not allowed above.")).toBeInTheDocument();
     expect(screen.getByText('My machine alert')).toBeInTheDocument();
     // The catalog offers none of the events the ready-made subscriptions need.
@@ -252,6 +253,30 @@ describe('personal subscriptions', () => {
       },
     });
     expect(await screen.findByRole('heading', { name: 'My notifications' })).toBeInTheDocument();
+  });
+
+  it('sends a test of a saved subscription to the person, but not while changes are unsaved', async () => {
+    signedIn();
+    let tested = 0;
+    server.use(
+      http.get('*/api/v1/me/notification-subscriptions/:id', () => HttpResponse.json(mineSubscription)),
+      http.post('*/api/v1/me/notification-subscriptions/:id/test', () => {
+        tested += 1;
+        return HttpResponse.json({ sent: { inApp: 1, email: 0 }, itemsExamined: 0, matched: 1 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/profile/notifications/subscriptions/${mineSubscription.id}`);
+    const send = await screen.findByRole('button', { name: 'Send a test to me' });
+    expect(send).toBeEnabled();
+    await user.type(screen.getByLabelText('Name'), ' 2');
+    expect(send).toBeDisabled();
+    await user.clear(screen.getByLabelText('Name'));
+    await user.type(screen.getByLabelText('Name'), mineSubscription.name);
+    await waitFor(() => expect(send).toBeEnabled());
+    await user.click(send);
+    expect(await screen.findByText('Test sent to you')).toBeInTheDocument();
+    expect(tested).toBe(1);
   });
 
   it('offers only the ready-made subscriptions the catalog supports', () => {

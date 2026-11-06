@@ -2,6 +2,29 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- **Notification center.** Settings has a central place for notification rules. A rule fires on an event, on a schedule or by hand ("Run now"), can go through each item of a list ("For each") with a summary instead of one message per item, and filters by conditions, including conditions on the recipient. Escalation sends a reminder to others when nobody reacts, a throttle caps repeats, and a dry run shows who would be reached and how often before anything is sent. The Activity tab lists every firing of the last 90 days with, per recipient, the channel, outcome and when the message was sent, delivered, seen and acknowledged.
+- **Message categories with consent.** Messages belong to a category. Service and safety messages are always sent; everything else only if the person says yes. The question is asked once after sign-in and at the kiosk, and again when a category's text changes.
+- **My notifications.** The profile menu has a page where each person allows categories, chooses channels per rule that reaches them, mutes rules that are not mandatory, and creates their own subscriptions (also from ready-made ones) that notify only them. Saved subscriptions can send a test to the person.
+- **Pop-ups, banners and dialogs.** In-app messages can appear as a toast, a banner or a dialog, with a level (info, success, warning, error) and buttons that open a page or acknowledge the message. Delivery is tracked (delivered, seen, acknowledged), actions can be limited to people who are online with an e-mail as fallback, and escalation reacts to acknowledgement.
+- **Notices on signage and tablets.** Rules can show a notice on signage displays and on the kiosk tablets.
+- **New triggers** for visits, sales and accounts.
+- **Check-out surveys at the tablet.** When a person checks out at the tablet and a survey is due, the tablet offers it: answer now, get it by e-mail, no thanks, or don't ask again. Surveys have a new delivery option "Ask at the tablet".
+- **Device settings.** Devices are set up with "Used as", tap check-out as an extra option, surveys at check-out and a kiosk reset time.
+
+### Changed
+
+- **Printer notification settings are now rules.** The migration turns today's settings into rules, so the behaviour stays the same; they can be edited in the Notification center.
+- **Automatic survey e-mails need the Surveys & feedback consent.** People who have not allowed it are no longer mailed; they can still be asked at the tablet.
+
+### Upgrade notes
+
+- **Migrations 00112-00119 (notification center).** Rules, categories, consents, firings and delivery tracking, subscriptions, device settings and the move of printer notification settings into rules. New permissions `notification_rules.read` and `notification_rules.manage`.
+- **API.** `checkoutMode` on device settings is replaced by `allowTapCheckout`. `/printer-notification-settings` is removed (use the notification rules endpoints). `CurrentUser` gains `notificationConsentRequired`; the unread count carries `fresh` and `pinned`; notification rules, subscriptions, `/me/notifications/settings` and the rule activity are new.
+
 ## [0.18.1] - 2026-11-06
 
 ### Added

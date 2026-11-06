@@ -81,8 +81,7 @@ export function ReachingRulesTable({ settings }: { settings: NotificationSetting
           <div className={rule.blockedByConsent ? 'mn-dim' : undefined}>
             <div className="mn-rule-name">{rule.name}</div>
             <div className="mn-sub">
-              {rule.categoryName}
-              {rule.description ? ` · ${rule.description}` : ''}
+              {rule.categoryName} · {rule.triggerSummary}
             </div>
             {muted && (
               <Tag type="gray" size="sm">
