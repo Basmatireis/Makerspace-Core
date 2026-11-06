@@ -1,4 +1,5 @@
 import { Component, lazy, Suspense, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { RuleNotices } from '../features/signage/render/RuleNotices';
 import { SceneRenderer, ScreenFrame } from '../features/signage/render/SceneRenderer';
 import type { PlayerApi } from './api';
 import { PlayerRuntime } from './runtime';
@@ -30,6 +31,7 @@ export function PlayingScreen({ api, onRevoked }: { api: PlayerApi; onRevoked: (
           <div key={view.sceneKey} className={`pl-layer${view.transition === 'fade' ? ' sg-fade' : ''}`}>
             <SceneRenderer scene={view.scene} data={view.data} screenAspectRatio={display.aspectRatio} />
           </div>
+          <RuleNotices notices={view.ruleNotices} />
         </ScreenFrame>
       ) : (
         <p className="pl-message" role="status">

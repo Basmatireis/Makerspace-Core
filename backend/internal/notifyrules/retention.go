@@ -21,6 +21,14 @@ func DeliveryRetention() privacy.RetentionHandler {
 			return 0, err
 		}
 		runs, err := queries.DeleteRuleRunsBefore(ctx, cutoff)
-		return firings + runs, err
+		if err != nil {
+			return 0, err
+		}
+		signage, err := queries.DeleteSignageRuleNoticesBefore(ctx, cutoff)
+		if err != nil {
+			return 0, err
+		}
+		tablets, err := queries.DeleteKioskRuleNoticesBefore(ctx, cutoff)
+		return firings + runs + signage + tablets, err
 	})
 }

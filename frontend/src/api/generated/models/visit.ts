@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { KioskNotice } from './kioskNotice';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 import type { VisitAdmissionDecision } from './visitAdmissionDecision';
@@ -41,4 +42,9 @@ export interface Visit {
      */
   correctionReason: string | null;
   version: Version;
+  /**
+     * Only the answer of a tablet check-in carries notices; they are for that person at that tablet and are returned once.
+     * @maxItems 20
+     */
+  notices?: KioskNotice[];
 }

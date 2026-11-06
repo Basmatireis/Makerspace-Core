@@ -2,14 +2,19 @@ import { Button } from '@carbon/react';
 import { Login, Logout, UserAdmin } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
 import { useBranding } from '../../branding/branding';
+import type { KioskNotice } from '../../../api/generated/models';
 import { KioskHardwareStatus } from '../DeviceBridgePanel';
+import { KioskNotices } from './KioskNotices';
 
 export function HomeScreen({
   staffDestination,
+  notices = [],
   onCheckIn,
   onCheckOut,
 }: {
   staffDestination: string;
+  /** Banners a notification rule put on this tablet. */
+  notices?: KioskNotice[];
   onCheckIn: () => void;
   onCheckOut: () => void;
 }) {
@@ -21,6 +26,8 @@ export function HomeScreen({
         {branding.identity.tagline && <p className="tablet-home__tagline">{branding.identity.tagline}</p>}
         <p className="tablet-home__lead">Check in when you arrive and check out before you leave.</p>
       </div>
+
+      <KioskNotices notices={notices} />
 
       <div className="tablet-home__actions">
         <Button className="tablet-action" size="2xl" renderIcon={Login} onClick={onCheckIn}>

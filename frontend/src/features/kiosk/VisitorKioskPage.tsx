@@ -5,7 +5,7 @@ import {
   listTerminalPresence,
   terminalPublicCheckOut,
 } from '../../api/generated/attendance/attendance';
-import type { Visit } from '../../api/generated/models';
+import type { KioskNotice, Visit } from '../../api/generated/models';
 import { BrandMark } from '../../app/BrandMark';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useBranding } from '../branding/branding';
@@ -25,19 +25,28 @@ type Screen =
   | { kind: 'check-in' }
   | { kind: 'check-out'; preselected: string | null }
   | { kind: 'lab-rules'; credentials: Credentials; need: LabRulesNeed }
-  | { kind: 'result'; mode: 'check-in' | 'check-out'; displayName: string; at: string };
+  | {
+      kind: 'result';
+      mode: 'check-in' | 'check-out';
+      displayName: string;
+      at: string;
+      /** Notices for this person's check-in. */
+      notices: KioskNotice[];
+    };
 
 export function VisitorKioskPage() {
   const kiosk = useQuery({
     queryKey: ['kiosk', 'context'],
     queryFn: ({ signal }) => getTerminalContext({ signal }),
     retry: false,
+    // Rule notices arrive with the context, so the tablet asks again now and then.
+    refetchInterval: 60_000,
   });
   const presence = useQuery({
     queryKey: presenceKey,
     queryFn: ({ signal }) => listTerminalPresence({ signal }),
     refetchInterval: 10_000,
-    enabled: kiosk.isSuccess,
+    enabled: kiosk.data !== undefined,
   });
   const queryClient = useQueryClient();
   const branding = useBranding();
@@ -51,13 +60,15 @@ export function VisitorKioskPage() {
         mode: 'check-out',
         displayName: visit.displayName,
         at: visit.checkedOutAt ?? new Date().toISOString(),
+        notices: [],
       });
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: presenceKey }),
   });
 
   if (kiosk.isPending) return <FullPageLoading label="Loading visitor kiosk" />;
-  if (kiosk.isError)
+  // A failed refresh keeps the last known context on screen.
+  if (!kiosk.data)
     return (
       <main className="public-page">
         <ErrorState
@@ -69,6 +80,7 @@ export function VisitorKioskPage() {
     );
 
   const context = kiosk.data;
+  const contextNotices = context.notices ?? [];
   const publicTap = context.checkoutMode === 'public_tap';
   const home = () => {
     publicCheckout.reset();
@@ -82,7 +94,9 @@ export function VisitorKioskPage() {
   function credentialsDone(mode: 'check-in' | 'check-out', result: Visit) {
     void queryClient.invalidateQueries({ queryKey: presenceKey });
     const at = mode === 'check-in' ? result.checkedInAt : (result.checkedOutAt ?? new Date().toISOString());
-    setScreen({ kind: 'result', mode, displayName: result.displayName, at });
+    const forEveryone = contextNotices.filter((notice) => notice.mode === 'everyone_today');
+    const notices = mode === 'check-in' ? [...(result.notices ?? []), ...forEveryone] : [];
+    setScreen({ kind: 'result', mode, displayName: result.displayName, at, notices });
   }
 
   return (
@@ -109,6 +123,7 @@ export function VisitorKioskPage() {
         {screen.kind === 'home' && (
           <HomeScreen
             staffDestination={context.staffDestination}
+            notices={contextNotices.filter((notice) => notice.mode === 'banner')}
             onCheckIn={() => setScreen({ kind: 'check-in' })}
             onCheckOut={() => openCheckOut(null)}
           />
@@ -150,7 +165,13 @@ export function VisitorKioskPage() {
           />
         )}
         {screen.kind === 'result' && (
-          <ResultScreen mode={screen.mode} displayName={screen.displayName} at={screen.at} onDone={home} />
+          <ResultScreen
+            mode={screen.mode}
+            displayName={screen.displayName}
+            at={screen.at}
+            notices={screen.notices}
+            onDone={home}
+          />
         )}
       </section>
 

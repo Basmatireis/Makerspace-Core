@@ -98,6 +98,8 @@ type Querier interface {
 	ListLatestSignagePublications(ctx context.Context, displayIds []string) ([]ListLatestSignagePublicationsRow, error)
 	ListLiveSignageAnnouncements(ctx context.Context, now time.Time) ([]SignageAnnouncement, error)
 	ListLiveSignageAnnouncementsForDisplay(ctx context.Context, arg ListLiveSignageAnnouncementsForDisplayParams) ([]SignageAnnouncement, error)
+	// Notices a notification rule put on this display that are in force now.
+	ListLiveSignageRuleNotices(ctx context.Context, arg ListLiveSignageRuleNoticesParams) ([]ListLiveSignageRuleNoticesRow, error)
 	ListRulesFilteringTemplate(ctx context.Context, templateID uuid.UUID) ([]ListRulesFilteringTemplateRow, error)
 	// Rules of displays and of groups whose scene list shows the scene; owner_id is the display's or the group's.
 	ListRulesReferencingScene(ctx context.Context, sceneID uuid.UUID) ([]ListRulesReferencingSceneRow, error)

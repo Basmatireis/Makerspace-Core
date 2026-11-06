@@ -510,6 +510,22 @@ type InventoryTransaction struct {
 	DeletedBy           *uuid.UUID
 }
 
+type KioskRuleNotice struct {
+	ID        uuid.UUID
+	GroupID   uuid.UUID
+	FiringID  *uuid.UUID
+	DeviceID  uuid.UUID
+	Mode      string
+	PersonID  *uuid.UUID
+	Title     string
+	Body      string
+	Level     string
+	MustTap   bool
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	ShownAt   pgtype.Timestamptz
+}
+
 type LaborordnungConfirmation struct {
 	ID                        uuid.UUID
 	PersonID                  uuid.UUID
@@ -2116,6 +2132,17 @@ type SignageRule struct {
 	MultiMode               string
 	AlternateSeconds        int32
 	GroupID                 *uuid.UUID
+}
+
+type SignageRuleNotice struct {
+	ID        uuid.UUID
+	FiringID  *uuid.UUID
+	DisplayID uuid.UUID
+	Title     string
+	Body      string
+	Tone      string
+	StartsAt  time.Time
+	EndsAt    time.Time
 }
 
 type SignageRuleScene struct {

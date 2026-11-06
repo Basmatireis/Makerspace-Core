@@ -744,6 +744,13 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 			EndsAt:     nullableTimeValue(announcement.EndsAt),
 		})
 	}
+	ruleNotices := make([]openapi.SignagePlayerRuleNotice, 0, len(live.RuleNotices))
+	for _, notice := range live.RuleNotices {
+		ruleNotices = append(ruleNotices, openapi.SignagePlayerRuleNotice{
+			Id: notice.ID, Tone: openapi.SignagePlayerRuleNoticeTone(notice.Tone), Title: notice.Title, Body: notice.Body,
+			StartsAt: notice.StartsAt, EndsAt: notice.EndsAt,
+		})
+	}
 	openDays, events := signageCalendarDTO(live.OpenDays, live.Events)
 	streams := make([]openapi.SignagePlayerStream, 0, len(live.Streams))
 	for _, stream := range live.Streams {
@@ -757,6 +764,7 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 		Revision:      nullableValue(live.Revision),
 		Machines:      machines,
 		Announcements: announcements,
+		RuleNotices:   &ruleNotices,
 		OpenDays:      openDays, Events: events, Calendar: signageCalendarBlockDTO(live.Calendar), Streams: streams,
 		Timelapses: signageTimelapsesDTO(live.Timelapses),
 	}

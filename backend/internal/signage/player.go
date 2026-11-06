@@ -212,6 +212,17 @@ type LiveAnnouncement struct {
 	EndsAt         *time.Time
 }
 
+// LiveRuleNotice is a notice a notification rule put on the display: plain text for a limited time, shown above the
+// scene. It carries no media and no job data.
+type LiveRuleNotice struct {
+	ID       uuid.UUID
+	Tone     Tone
+	Title    string
+	Body     string
+	StartsAt time.Time
+	EndsAt   time.Time
+}
+
 // Stream is a camera the display may watch right now through the relay. The device credential authorizes
 // it; there is no ticket.
 type Stream struct {
@@ -224,6 +235,7 @@ type LiveData struct {
 	Revision      *int
 	Machines      []LiveMachine
 	Announcements []LiveAnnouncement
+	RuleNotices   []LiveRuleNotice
 	OpenDays      []PublicOpenDay
 	Events        []PublicEvent
 	// Calendar is set only while the display's publication has a calendar widget.
@@ -297,6 +309,7 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 		ServerTime:    now,
 		Machines:      []LiveMachine{},
 		Announcements: []LiveAnnouncement{},
+		RuleNotices:   []LiveRuleNotice{},
 		OpenDays:      []PublicOpenDay{},
 		Events:        []PublicEvent{},
 		Streams:       []Stream{},
@@ -383,6 +396,19 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 			BodyCSS:    announcement.Rendered.BodyCSS,
 			StartsAt:   announcement.StartsAt,
 			EndsAt:     announcement.EndsAt,
+		})
+	}
+	notices, err := q.ListLiveSignageRuleNotices(
+		ctx,
+		signagedb.ListLiveSignageRuleNoticesParams{Now: now, DisplayID: display.ID},
+	)
+	if err != nil {
+		return LiveData{}, err
+	}
+	for _, notice := range notices {
+		live.RuleNotices = append(live.RuleNotices, LiveRuleNotice{
+			ID: notice.ID, Tone: Tone(notice.Tone), Title: notice.Title, Body: notice.Body, StartsAt: notice.StartsAt,
+			EndsAt: notice.EndsAt,
 		})
 	}
 	if s.calendar != nil {

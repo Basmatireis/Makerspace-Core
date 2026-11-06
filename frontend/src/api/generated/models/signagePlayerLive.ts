@@ -23,6 +23,7 @@ import type { SignagePlayerEvent } from './signagePlayerEvent';
 import type { SignagePlayerLiveAnnouncement } from './signagePlayerLiveAnnouncement';
 import type { SignagePlayerLiveMachine } from './signagePlayerLiveMachine';
 import type { SignagePlayerOpenDay } from './signagePlayerOpenDay';
+import type { SignagePlayerRuleNotice } from './signagePlayerRuleNotice';
 import type { SignagePlayerStream } from './signagePlayerStream';
 import type { SignagePlayerTimelapse } from './signagePlayerTimelapse';
 
@@ -37,6 +38,11 @@ export interface SignagePlayerLive {
   machines: SignagePlayerLiveMachine[];
   /** @maxItems 100 */
   announcements: SignagePlayerLiveAnnouncement[];
+  /**
+     * Notices notification rules put on this display that are in force now. A player that is offline hides them at `endsAt`.
+     * @maxItems 20
+     */
+  ruleNotices?: SignagePlayerRuleNotice[];
   /** @maxItems 20 */
   openDays: SignagePlayerOpenDay[];
   /** @maxItems 20 */

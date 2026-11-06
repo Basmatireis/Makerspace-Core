@@ -99,7 +99,13 @@ func (d *Dispatcher) deliver(
 	now time.Time,
 ) error {
 	channel := in.Action.Channel
-	if channel != ChannelInApp && channel != ChannelEmail {
+	switch channel {
+	case ChannelSignage:
+		return d.deliverSignage(ctx, q, runtime, in, now)
+	case ChannelTablet:
+		return d.deliverTablet(ctx, q, runtime, in, now)
+	case ChannelInApp, ChannelEmail:
+	default:
 		return nil
 	}
 	people := dedupePeople(in.People)

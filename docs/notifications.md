@@ -159,6 +159,14 @@ Schedule and manual rules use the same engine as event rules (`fire.go`, `schedu
 
 `GET /notification-rules` already carries `stats.fired30`, `lastFiredAt` and the 14-day `sparkline` of every rule.
 
+## Signage and tablet notices
+
+The `signage` and `tablet` actions address displays and entrance tablets, not people. They are separate from signage announcements: a rule notice is plain text (no template, no media, no job data) that lives in its own table and ends by itself.
+
+- **Signage** (`signage_rule_notices`): one row per chosen display, `starts_at = now`, `ends_at = now + durationMinutes`. `GET /signage/player/live` lists the display's notices in force as `ruleNotices`; the player draws them above the scene with the announcement tone colours and hides them at `endsAt` (also when polls fail). Resolving the firing's token ends them at once.
+- **Tablet** (`kiosk_rule_notices`): one row per chosen tablet, sharing a `group_id` per delivery. `banner` shows on the start screen for a day, `everyone_today` on the result screen of every check-in until local midnight, both through `GET /terminal/context` (`notices`, polled once a minute). `person_checkin` (10 minutes) and `next_checkin` (30 days) address the event's `self` recipient and are returned once, in the `notices` of that person's terminal check-in response (`Visit.notices`); all copies of a `next_checkin` notice are used up together. `mustTap` keeps the result screen until the person presses OK (banners ignore it).
+- Person modes respect the category's consent and the rule's recipient conditions; an event without a `self` person skips them. Test sends and dry runs never write notices. Both endpoints are device-authenticated; a notice is never served to another person or tablet. Ended notices are deleted by the delivery retention.
+
 ## Frontend
 
 - The bell is an `IconButton` with a `badgeCount` in the header next to the profile action (Carbon's `HeaderGlobalAction` has no badge). The panel is a Carbon `HeaderPanel` whose content (`NotificationList`) is lazy-loaded and fetched the first time it is opened. Clicking a notification marks it read and follows its link; each item can be dismissed and "Mark all as read" clears the badge. Nothing is stored in the browser.

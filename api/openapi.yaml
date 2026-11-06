@@ -22107,6 +22107,23 @@ components:
         authenticationMethods: {type: array, uniqueItems: true, items: {type: string, enum: [password, pin, oidc, nfc]}}
         capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
         staffDestination: {type: string, enum: [login]}
+        notices:
+          type: array
+          maxItems: 50
+          items: {$ref: "#/components/schemas/KioskNotice"}
+          description: Notices a notification rule put on this tablet that are in force now (start-screen banners and the notices for everyone who checks in today). Present for device-authenticated tablets only; the tablet polls this about once a minute.
+    KioskNotice:
+      type: object
+      additionalProperties: false
+      required: [id, mode, title, body, level, mustTap]
+      description: Text a notification rule put on an entrance tablet. It names nobody.
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        mode: {type: string, enum: [banner, person_checkin, next_checkin, everyone_today]}
+        title: {type: string, maxLength: 120}
+        body: {type: string, maxLength: 2000}
+        level: {type: string, enum: [info, success, warning, error]}
+        mustTap: {type: boolean, description: "On a result screen the person has to press OK before the tablet returns to the start screen."}
     PublicPresence:
       type: object
       additionalProperties: false
@@ -22182,6 +22199,11 @@ components:
         admissionDecision: {type: string, enum: [admitted, warning]}
         correctionReason: {type: string, maxLength: 500, nullable: true}
         version: {$ref: "#/components/schemas/Version"}
+        notices:
+          type: array
+          maxItems: 20
+          items: {$ref: "#/components/schemas/KioskNotice"}
+          description: Only the answer of a tablet check-in carries notices; they are for that person at that tablet and are returned once.
     VisitList:
       type: object
       additionalProperties: false
@@ -23551,6 +23573,18 @@ components:
         bodyCss: {type: string}
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
+    SignagePlayerRuleNotice:
+      type: object
+      additionalProperties: false
+      required: [id, tone, title, body, startsAt, endsAt]
+      description: A notice a notification rule put on the display. Plain text; the player shows it above the scene until `endsAt`.
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        tone: {type: string, enum: [info, warning, critical]}
+        title: {type: string, maxLength: 120}
+        body: {type: string, maxLength: 2000}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
     SignagePlayerOpenDay:
       type: object
       additionalProperties: false
@@ -23630,6 +23664,11 @@ components:
         revision: {type: integer, nullable: true, description: Latest published revision; null before the first publication.}
         machines: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlayerLiveMachine"}}
         announcements: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlayerLiveAnnouncement"}}
+        ruleNotices:
+          type: array
+          maxItems: 20
+          items: {$ref: "#/components/schemas/SignagePlayerRuleNotice"}
+          description: Notices notification rules put on this display that are in force now. A player that is offline hides them at `endsAt`.
         openDays: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignagePlayerOpenDay"}}
         events: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignagePlayerEvent"}}
         calendar:

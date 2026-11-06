@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlayerApiError } from './api';
 import { PlayerApp } from './PlayerApp';
-import { fakeApi } from './testFixtures';
+import { fakeApi, live } from './testFixtures';
 
 describe('PlayerApp', () => {
   beforeEach(async () => {
@@ -85,5 +85,47 @@ describe('PlayerApp', () => {
       await vi.advanceTimersByTimeAsync(100);
     });
     expect(screen.getByRole('alert')).toHaveTextContent('This network may not pair displays');
+  });
+});
+
+describe('PlayerApp rule notices', () => {
+  beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('shows a rule notice above the scene until it ends', async () => {
+    const endsAt = new Date(Date.now() + 60_000).toISOString();
+    render(
+      <PlayerApp
+        api={fakeApi({
+          live: async () =>
+            live({
+              ruleNotices: [
+                {
+                  id: '0192f6f8-743e-7c77-a349-cd07c3e8a950',
+                  tone: 'critical',
+                  title: 'Fire drill',
+                  body: 'Leave the building.',
+                  startsAt: new Date(Date.now() - 1000).toISOString(),
+                  endsAt,
+                },
+              ],
+            }),
+        })}
+      />,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(screen.getByText('scene-a')).toBeInTheDocument();
+    expect(screen.getByText('Fire drill')).toBeInTheDocument();
+    expect(screen.getByText('Leave the building.')).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61_000);
+    });
+    expect(screen.queryByText('Fire drill')).not.toBeInTheDocument();
   });
 });

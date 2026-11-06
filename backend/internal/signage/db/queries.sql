@@ -624,3 +624,9 @@ SELECT name FROM signage_announcement_templates;
 
 -- name: ListSignageCustomLayoutNames :many
 SELECT name FROM signage_custom_layouts;
+
+-- name: ListLiveSignageRuleNotices :many
+-- Notices a notification rule put on this display that are in force now.
+SELECT id, title, body, tone, starts_at, ends_at FROM signage_rule_notices
+WHERE display_id = sqlc.arg(display_id) AND starts_at <= sqlc.arg(now)::timestamptz AND ends_at > sqlc.arg(now)::timestamptz
+ORDER BY starts_at, id;

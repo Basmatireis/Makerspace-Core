@@ -272,6 +272,13 @@ body:has(.tablet) {
   @include type-style('heading-07');
 }
 
+.tablet-notices {
+  display: grid;
+  gap: $spacing-03;
+  inline-size: 100%;
+  max-inline-size: none;
+}
+
 .tablet-result__lead {
   @include type-style('heading-03');
   color: $text-secondary;

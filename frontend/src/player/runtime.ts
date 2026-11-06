@@ -308,6 +308,7 @@ export class PlayerRuntime {
     this.live = {
       machines: live.machines,
       announcements: live.announcements,
+      ruleNotices: live.ruleNotices ?? [],
       openDays: live.openDays,
       events: live.events,
       calendar: live.calendar ?? null,

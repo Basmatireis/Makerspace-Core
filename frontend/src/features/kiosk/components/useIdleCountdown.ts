@@ -25,13 +25,14 @@ export function useIdleCountdown(onTimeout: () => void, seconds = idleTimeoutSec
 }
 
 /** Counts down once per second and calls onDone at zero (the result screen returns to the start screen). */
-export function useReturnCountdown(seconds: number, onDone: () => void) {
+export function useReturnCountdown(seconds: number, onDone: () => void, paused = false) {
   const [left, setLeft] = useState(seconds);
   const done = useLatestCallback(onDone);
   useEffect(() => {
+    if (paused) return undefined;
     const timer = window.setInterval(() => setLeft((current) => current - 1), 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [paused]);
   useEffect(() => {
     if (left <= 0) done();
   }, [left, done]);

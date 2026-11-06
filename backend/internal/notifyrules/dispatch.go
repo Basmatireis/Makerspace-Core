@@ -214,6 +214,18 @@ func (d *Dispatcher) Resolve(ctx context.Context, tx pgx.Tx, token, reason strin
 	if _, err = queries.DeletePendingEscalations(ctx, uuidStrings(resolved)); err != nil {
 		return fmt.Errorf("drop waiting notifications: %w", err)
 	}
+	// What the firing put on displays and tablets ends with it.
+	now := d.now()
+	if err = queries.EndSignageRuleNoticesOfFirings(ctx, notifyrulesdb.EndSignageRuleNoticesOfFiringsParams{
+		Now: now, FiringIds: uuidStrings(resolved),
+	}); err != nil {
+		return fmt.Errorf("end signage notices: %w", err)
+	}
+	if err = queries.ExpireKioskRuleNoticesOfFirings(ctx, notifyrulesdb.ExpireKioskRuleNoticesOfFiringsParams{
+		Now: now, FiringIds: uuidStrings(resolved),
+	}); err != nil {
+		return fmt.Errorf("end tablet notices: %w", err)
+	}
 	return nil
 }
 

@@ -1956,7 +1956,7 @@ func TestSignagePlayerLiveHeartbeatAndOnlineStatus(t *testing.T) {
 	if timelapses, present := live["timelapses"]; !present || timelapses != nil {
 		t.Fatalf("live timelapses without a timelapse widget = %v (present=%v)", timelapses, present)
 	}
-	if len(live) != 9 || live["revision"] != float64(1) || len(live["streams"].([]any)) != 0 ||
+	if len(live) != 10 || live["revision"] != float64(1) || len(live["streams"].([]any)) != 0 ||
 		live["serverTime"] == nil {
 		t.Fatalf("live = %v", live)
 	}

@@ -49,7 +49,7 @@ func (s *Server) UploadEventFile(
 			"Event files are limited to 25 MiB",
 		)
 	}
-	isBanner := r.Params.XEventFilePurpose != nil && *r.Params.XEventFilePurpose == openapi.Banner
+	isBanner := r.Params.XEventFilePurpose != nil && *r.Params.XEventFilePurpose == openapi.EventFilePurposeBanner
 	item, err := s.events.AttachFile(
 		ctx,
 		p,

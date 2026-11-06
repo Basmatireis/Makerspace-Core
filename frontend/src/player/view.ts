@@ -1,6 +1,7 @@
 import type {
   SignagePlayerLive,
   SignagePlayerManifest,
+  SignagePlayerRuleNotice,
   SignagePlayerScene,
   SignageTransition,
 } from '../api/generated/models';
@@ -58,7 +59,7 @@ export function holdResult(
 export type LiveSnapshot = Pick<
   SignagePlayerLive,
   'machines' | 'announcements' | 'openDays' | 'events' | 'calendar' | 'timelapses' | 'streams'
-> & {
+> & { ruleNotices?: SignagePlayerRuleNotice[] } & {
   /** Server clock minus device clock in milliseconds, so announcement windows follow the server. */
   skewMs: number;
 };
@@ -69,6 +70,8 @@ export type PlayerView = {
   transition: SignageTransition;
   /** Changes when another scene takes over, so the screen can fade. */
   sceneKey: string;
+  /** Notices of notification rules in force at the server's time; they hide at their end even when polls fail. */
+  ruleNotices: SignagePlayerRuleNotice[];
   ruleId: string;
   sceneId: string | null;
 };
@@ -157,5 +160,11 @@ export function resolveView(input: ViewInput): { view: PlayerView; hold: Hold } 
     alternateSeconds: result.alternateSeconds,
     cameraView: (machine) => camera.view(machine),
   };
-  return { view: { scene, data, transition, sceneKey, ruleId: result.ruleId, sceneId: scene?.id ?? null }, hold };
+  const ruleNotices = (live?.ruleNotices ?? []).filter(
+    (item) => Date.parse(item.startsAt) <= serverNow && Date.parse(item.endsAt) > serverNow,
+  );
+  return {
+    view: { scene, data, transition, sceneKey, ruleNotices, ruleId: result.ruleId, sceneId: scene?.id ?? null },
+    hold,
+  };
 }

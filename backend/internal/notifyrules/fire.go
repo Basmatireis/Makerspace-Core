@@ -293,6 +293,9 @@ func (d *Dispatcher) buildPlan(
 	var plan []stagedAction
 	var everyone []uuid.UUID
 	add := func(step int, delay time.Duration, action Action) error {
+		if action.Channel == ChannelSignage || action.Channel == ChannelTablet {
+			return addNotice(&plan, step, delay, action, occ.Event, ruleName)
+		}
 		if action.Channel != ChannelInApp && action.Channel != ChannelEmail {
 			return nil
 		}
@@ -326,6 +329,22 @@ func (d *Dispatcher) buildPlan(
 		}
 	}
 	return plan, dedupePeople(everyone), nil
+}
+
+// addNotice stages a signage or tablet action. Signage notices and the tablet modes for whoever is at the tablet
+// address no person; the person modes address the person the event is about (its "self" recipient) and are left out
+// when the event has none.
+func addNotice(plan *[]stagedAction, step int, delay time.Duration, action Action, ev Event, ruleName string) error {
+	var people []uuid.UUID
+	if action.Channel == ChannelTablet && action.Tablet != nil &&
+		(action.Tablet.Mode == TabletPersonCheckIn || action.Tablet.Mode == TabletNextCheckIn) {
+		if people = dedupePeople(ev.Recipients["self"]); len(people) == 0 {
+			return nil
+		}
+	}
+	filled, link := fillAction(action, ev, ruleName)
+	*plan = append(*plan, stagedAction{step: step, delay: delay, action: filled, link: link, people: people})
+	return nil
 }
 
 // fireOccurrence evaluates the rule's conditions for the occurrence and, when they hold, delivers or schedules its

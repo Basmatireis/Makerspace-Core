@@ -1755,6 +1755,54 @@ func (q *Queries) ListLiveSignageAnnouncementsForDisplay(ctx context.Context, ar
 	return items, nil
 }
 
+const listLiveSignageRuleNotices = `-- name: ListLiveSignageRuleNotices :many
+SELECT id, title, body, tone, starts_at, ends_at FROM signage_rule_notices
+WHERE display_id = $1 AND starts_at <= $2::timestamptz AND ends_at > $2::timestamptz
+ORDER BY starts_at, id
+`
+
+type ListLiveSignageRuleNoticesParams struct {
+	DisplayID uuid.UUID
+	Now       time.Time
+}
+
+type ListLiveSignageRuleNoticesRow struct {
+	ID       uuid.UUID
+	Title    string
+	Body     string
+	Tone     string
+	StartsAt time.Time
+	EndsAt   time.Time
+}
+
+// Notices a notification rule put on this display that are in force now.
+func (q *Queries) ListLiveSignageRuleNotices(ctx context.Context, arg ListLiveSignageRuleNoticesParams) ([]ListLiveSignageRuleNoticesRow, error) {
+	rows, err := q.db.Query(ctx, listLiveSignageRuleNotices, arg.DisplayID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLiveSignageRuleNoticesRow{}
+	for rows.Next() {
+		var i ListLiveSignageRuleNoticesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Body,
+			&i.Tone,
+			&i.StartsAt,
+			&i.EndsAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRulesFilteringTemplate = `-- name: ListRulesFilteringTemplate :many
 SELECT r.id AS rule_id, r.position, COALESCE(r.display_id, r.group_id)::uuid AS owner_id, (r.group_id IS NOT NULL)::boolean AS group_owned,
        COALESCE(d.name, g.name)::text AS owner_name

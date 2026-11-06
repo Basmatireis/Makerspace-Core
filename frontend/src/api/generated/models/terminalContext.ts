@@ -21,6 +21,7 @@
 import type { AuthenticationAssurance } from './authenticationAssurance';
 import type { CheckoutMode } from './checkoutMode';
 import type { DeviceCapability } from './deviceCapability';
+import type { KioskNotice } from './kioskNotice';
 import type { TerminalContextAuthenticationMethodsItem } from './terminalContextAuthenticationMethodsItem';
 import type { TerminalContextStaffDestination } from './terminalContextStaffDestination';
 import type { UUIDv7 } from './uUIDv7';
@@ -34,4 +35,9 @@ export interface TerminalContext {
   authenticationMethods: TerminalContextAuthenticationMethodsItem[];
   capabilities: DeviceCapability[];
   staffDestination: TerminalContextStaffDestination;
+  /**
+     * Notices a notification rule put on this tablet that are in force now (start-screen banners and the notices for everyone who checks in today). Present for device-authenticated tablets only; the tablet polls this about once a minute.
+     * @maxItems 50
+     */
+  notices?: KioskNotice[];
 }

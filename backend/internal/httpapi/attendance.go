@@ -6,8 +6,10 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/attendance"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/google/uuid"
 )
 
 func kioskDevice(ctx context.Context) (manageddevices.DeviceContext, error) {
@@ -38,12 +40,45 @@ func (s *Server) GetTerminalContext(
 	for i, capability := range value.Capabilities {
 		capabilities[i] = openapi.DeviceCapability(capability)
 	}
-	return openapi.GetTerminalContext200JSONResponse{DeviceId: value.DeviceID, DeviceName: value.DeviceName,
+	notices := s.kioskNotices(ctx, func(n *notifyrules.Notices) ([]notifyrules.KioskNotice, error) {
+		return n.ForDevice(ctx, device.ID)
+	})
+	return openapi.GetTerminalContext200JSONResponse{Notices: notices, DeviceId: value.DeviceID, DeviceName: value.DeviceName,
 		CheckoutMode: openapi.CheckoutMode(
 			value.CheckoutMode,
 		), CheckInAssurance: openapi.AuthenticationAssurance(value.CheckInAssurance),
 		CheckOutAssurance: openapi.AuthenticationAssurance(value.CheckOutAssurance), AuthenticationMethods: methods,
 		Capabilities: capabilities, StaffDestination: openapi.TerminalContextStaffDestination("login")}, nil
+}
+
+// kioskNotices reads tablet notices for a response that is already decided: a failure to read them only leaves the
+// notices out, it never fails a check-in that has happened.
+func (s *Server) kioskNotices(
+	ctx context.Context,
+	read func(*notifyrules.Notices) ([]notifyrules.KioskNotice, error),
+) *[]openapi.KioskNotice {
+	found, err := read(notifyrules.NewNotices(s.pool))
+	if err != nil {
+		s.logger.WarnContext(ctx, "read tablet notices", "error", err)
+		return nil
+	}
+	items := make([]openapi.KioskNotice, 0, len(found))
+	for _, notice := range found {
+		items = append(items, openapi.KioskNotice{
+			Id: notice.ID, Mode: openapi.KioskNoticeMode(notice.Mode), Title: notice.Title, Body: notice.Body,
+			Level: openapi.KioskNoticeLevel(notice.Level), MustTap: notice.MustTap,
+		})
+	}
+	return &items
+}
+
+// checkInDTO is the visit of a tablet check-in with the notices waiting for that person at this tablet.
+func (s *Server) checkInDTO(ctx context.Context, deviceID uuid.UUID, value attendance.Visit) openapi.Visit {
+	visit := visitDTO(value)
+	visit.Notices = s.kioskNotices(ctx, func(n *notifyrules.Notices) ([]notifyrules.KioskNotice, error) {
+		return n.TakeForCheckIn(ctx, deviceID, value.PersonID)
+	})
+	return visit
 }
 
 func (s *Server) ListTerminalPresence(
@@ -95,7 +130,7 @@ func (s *Server) TerminalPasswordCheckIn(
 	if err != nil {
 		return nil, err
 	}
-	return openapi.TerminalPasswordCheckIn201JSONResponse(visitDTO(value)), nil
+	return openapi.TerminalPasswordCheckIn201JSONResponse(s.checkInDTO(ctx, device.ID, value)), nil
 }
 
 func (s *Server) TerminalPinCheckIn(
@@ -124,7 +159,7 @@ func (s *Server) TerminalPinCheckIn(
 	if err != nil {
 		return nil, err
 	}
-	return openapi.TerminalPinCheckIn201JSONResponse(visitDTO(value)), nil
+	return openapi.TerminalPinCheckIn201JSONResponse(s.checkInDTO(ctx, device.ID, value)), nil
 }
 
 func (s *Server) TerminalPasswordCheckOut(
