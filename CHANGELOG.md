@@ -15,6 +15,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Profile images on open days.** The place dots show the assigned people's profile images (initials when there is none) to everyone who sees their names; your own place is green.
 - **Notices for schedule changes.** People are notified (in the app and by e-mail while mail delivery is on) when a timeslot they hold changes, is removed or the open day is cancelled, and when somebody else assigns or removes them.
 
+### Removed
+
+- **Android kiosk.** The Android app, its build check and the Android device bridge are gone; the desktop app is the only native shell. Managed devices report only the `desktop` platform, and migration 00112 drops stored Android hardware reports (the devices themselves stay).
+
 ### Changed
 
 - The semester tile and the dashboard's open-place hint follow the staffing rules (minimum, excusal, counting, warning window). The public JSON and ICS list one entry per open day with its timeslots in the description.

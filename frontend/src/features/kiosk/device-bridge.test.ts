@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  AndroidDeviceBridge,
   BrowserDeviceBridge,
   createPlatformDeviceBridge,
   DesktopDeviceBridge,
@@ -19,7 +18,6 @@ const info = {
 describe('Device Bridge contract', () => {
   afterEach(() => {
     delete window.makerspaceDesktopBridge;
-    delete window.makerspaceDeviceBridgeNative;
     vi.unstubAllGlobals();
   });
 
@@ -93,47 +91,6 @@ describe('Device Bridge contract', () => {
       uid: '04B8',
       duplicate: false,
     });
-    bridge.disconnect();
-  });
-
-  it('uses the narrow Android message transport and the same event format', async () => {
-    let request = '';
-    const bridge = new AndroidDeviceBridge({
-      postMessage: (message) => {
-        request = message;
-      },
-    });
-    const pending = bridge.getDeviceInfo();
-    const id = (JSON.parse(request) as { id: string }).id;
-    window.dispatchEvent(
-      new CustomEvent('makerspace:device-bridge-message', {
-        detail: {
-          id,
-          result: { ...info, platform: 'android' },
-        },
-      }),
-    );
-    await expect(pending).resolves.toMatchObject({ platform: 'android' });
-    const received: string[] = [];
-    const unsubscribe = bridge.subscribeToNfc((event) => {
-      if (event.uid) received.push(event.uid);
-    });
-    window.dispatchEvent(
-      new CustomEvent('makerspace:device-bridge-message', {
-        detail: {
-          event: {
-            protocolVersion: 1,
-            sequence: 9,
-            kind: 'nfc_scan',
-            occurredAt: '2026-01-01T00:00:00Z',
-            source: 'android',
-            nfc: { uid: '04A731', uidFormat: 'hex' },
-          },
-        },
-      }),
-    );
-    expect(received).toEqual(['04A731']);
-    unsubscribe();
     bridge.disconnect();
   });
 });

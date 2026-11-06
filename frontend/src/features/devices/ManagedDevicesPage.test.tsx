@@ -49,7 +49,7 @@ const hardware = {
   configuredCapabilities: ['nfc' as const, 'camera' as const],
   reportedCapabilities: ['nfc' as const],
   effectiveCapabilities: ['nfc' as const],
-  platform: 'android' as const,
+  platform: 'desktop' as const,
   bridgeVersion: '1.2.3',
   reportedAt: '2026-02-01T10:00:00Z',
 };

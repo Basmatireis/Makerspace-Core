@@ -204,7 +204,7 @@ func (s *Service) ReportHardware(
 ) (HardwareContext, error) {
 	report.Platform = Platform(strings.TrimSpace(string(report.Platform)))
 	report.BridgeVersion = strings.TrimSpace(report.BridgeVersion)
-	if report.Platform != PlatformDesktop && report.Platform != PlatformAndroid {
+	if report.Platform != PlatformDesktop {
 		return HardwareContext{}, apperror.InvalidField("platform is invalid")
 	}
 	if report.BridgeVersion == "" || len([]rune(report.BridgeVersion)) > 40 {

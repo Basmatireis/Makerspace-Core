@@ -102,7 +102,7 @@ func TestVisitorEnrollmentPhotoFollowsDeviceCapabilities(t *testing.T) {
 			if tc.reported != nil {
 				if _, err := pool.Exec(
 					ctx,
-					`INSERT INTO managed_device_hardware_reports (managed_device_id, platform, bridge_version) VALUES ($1,'android','1')`,
+					`INSERT INTO managed_device_hardware_reports (managed_device_id, platform, bridge_version) VALUES ($1,'desktop','1')`,
 					device.Device.ID,
 				); err != nil {
 					t.Fatal(err)

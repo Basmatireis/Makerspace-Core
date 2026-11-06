@@ -48,7 +48,7 @@ func TestAdministratorReadsConfiguredReportedAndEffectiveDeviceCapabilities(t *t
 		ctx,
 		manageddevices.DeviceContext{ID: created.Device.ID, Name: created.Device.Name},
 		manageddevices.HardwareReport{
-			Platform: manageddevices.PlatformAndroid, BridgeVersion: "1.2.3", Capabilities: []string{"nfc"},
+			Platform: manageddevices.PlatformDesktop, BridgeVersion: "1.2.3", Capabilities: []string{"nfc"},
 		},
 		nil,
 	); err != nil {

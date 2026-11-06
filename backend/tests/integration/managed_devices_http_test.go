@@ -208,7 +208,7 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 	admin := seedAccount(t, pool, "hardware-report-admin", true)
 	principal := authorization.Principal{AccountID: admin.accountID, PersonID: admin.personID, Master: true}
 	service := manageddevices.NewService(pool)
-	deviceType, err := service.CreateType(ctx, principal, "Android terminal", nil, nil)
+	deviceType, err := service.CreateType(ctx, principal, "Desktop terminal", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +280,7 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		"",
 		visitor.Token,
 		map[string]any{
-			"platform": "android", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc", "camera"},
+			"platform": "desktop", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc", "camera"},
 		},
 	)
 	assertStatus(t, response, http.StatusForbidden)
@@ -295,7 +295,7 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		"",
 		visitor.Token,
 		map[string]any{
-			"platform": "android", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc", "camera"},
+			"platform": "desktop", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc", "camera"},
 		},
 	)
 	assertStatus(t, response, http.StatusOK)
@@ -333,7 +333,7 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		"",
 		"not-a-valid-device-token",
 		map[string]any{
-			"platform": "android", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc"},
+			"platform": "desktop", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc"},
 		},
 	)
 	assertStatus(t, response, http.StatusUnauthorized)
@@ -349,7 +349,7 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 		staff.Token,
 		map[string]any{
 			"deviceId":      visitor.Device.ID,
-			"platform":      "android",
+			"platform":      "desktop",
 			"bridgeVersion": "1.0.0",
 			"capabilities":  []string{"nfc"},
 		},

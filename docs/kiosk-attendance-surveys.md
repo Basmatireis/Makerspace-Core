@@ -14,7 +14,7 @@ Surveys (drafts, conditional questions, share links, post-visit invitations, res
 
 
 
-The web bridge contract is versioned and selected at runtime. Android injects `window.makerspaceDeviceBridgeNative`; the Tauri shell injects a private loopback bridge configuration. Both report capabilities and emit only technical credential events (`nfc`, `qr`, or `barcode`). The web application and Core own resolution and business rules. The current desktop implementation supports PC/SC NFC UID reads; concrete USB drivers and other hardware adapters remain separate deployment work.
+The web bridge contract is versioned and selected at runtime. The Tauri shell injects a private loopback bridge configuration; it reports capabilities and emit only technical credential events (`nfc`, `qr`, or `barcode`). The web application and Core own resolution and business rules. The current desktop implementation supports PC/SC NFC UID reads; concrete USB drivers and other hardware adapters remain separate deployment work.
 
 ## Enrollment photo and on-screen keyboard
 

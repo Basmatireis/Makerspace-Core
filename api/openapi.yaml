@@ -15156,7 +15156,7 @@ components:
       enum: [visitor_terminal, staff_ui, signage_player]
     DevicePlatform:
       type: string
-      enum: [desktop, android]
+      enum: [desktop]
     ManagedDevice:
       type: object
       additionalProperties: false

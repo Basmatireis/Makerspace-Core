@@ -24,5 +24,4 @@ export type DevicePlatform = typeof DevicePlatform[keyof typeof DevicePlatform];
 
 export const DevicePlatform = {
   desktop: 'desktop',
-  android: 'android',
 } as const;

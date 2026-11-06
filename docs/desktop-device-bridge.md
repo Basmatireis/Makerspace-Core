@@ -1,6 +1,6 @@
 # Desktop kiosk
 
-Makerspace Core Desktop is a Tauri application that loads the existing Core web application in the operating system WebView and adds local hardware support. It follows the same model as the Android kiosk: Core remains the source of UI and business rules, while the native shell owns the managed-device credential, navigation boundary, and hardware adapter.
+Makerspace Core Desktop is a Tauri application that loads the existing Core web application in the operating system WebView and adds local hardware support. Core remains the source of UI and business rules, while the native shell owns the managed-device credential, navigation boundary, and hardware adapter.
 
 The desktop app bundles the Go Device Bridge as a private sidecar. The shell starts it on `127.0.0.1:17321`, creates the pairing key, restricts it to the configured Core origin, and injects the loopback connection into the web application. Operators do not copy a pairing key or run a second process. Ordinary browsers continue to use the browser fallback and do not become Managed Devices automatically.
 
@@ -19,7 +19,7 @@ pnpm dev
 
 Debug builds accept HTTP only on the exact loopback hosts `localhost`, `127.0.0.1`, and `::1`. A revoked, expired, or invalid token leaves the app on its registration screen with an actionable error. Set `MAKERSPACE_DESKTOP_RESET_REGISTRATION=1` for one launch to remove the saved registration and credential.
 
-The token is stored in the operating system credential store and installed into the WebView as the same HttpOnly, SameSite managed-device cookie used by Android. It is passed once to the bundled sidecar over stdin. It is never placed in command arguments, environment variables, URLs, JavaScript storage, configuration files, or logs. Non-secret registration metadata and the loopback pairing key live in the app configuration directory; private files use mode `0600` on Unix.
+The token is stored in the operating system credential store and installed into the WebView as the same HttpOnly, SameSite managed-device cookie Core expects from native clients. It is passed once to the bundled sidecar over stdin. It is never placed in command arguments, environment variables, URLs, JavaScript storage, configuration files, or logs. Non-secret registration metadata and the loopback pairing key live in the app configuration directory; private files use mode `0600` on Unix.
 
 The remote Core page has no Tauri command permissions. Navigation is limited to the exact registered Core origin, and only the bundled registration page can invoke registration. The managed-device identity and a staff user session remain separate credentials. Closing or restarting the native app does not extend a server-expired user session.
 
