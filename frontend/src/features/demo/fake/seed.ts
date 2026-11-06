@@ -313,6 +313,7 @@ function openDaySeed(store: DemoStore): OpenDay[] {
         requirementId,
         personId: others[personIndex].id,
         displayName: `${others[personIndex].firstName} ${others[personIndex].lastName}`,
+        profileImageUrl: null,
         isCurrentUser: false,
         createdAt: T,
       }));

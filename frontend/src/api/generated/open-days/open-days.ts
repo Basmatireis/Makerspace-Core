@@ -804,6 +804,32 @@ export const removeOpenDayAssignment = async (openDayId: string,
 );}
 
 
+export const getGetOpenDayAssignmentProfileImageUrl = (openDayId: string,
+    assignmentId: string,) => {
+
+
+
+
+  return `/api/v1/open-days/${openDayId}/assignments/${assignmentId}/profile-image`
+}
+
+/**
+ * Needs `open_days.read_assignments`, the permission that also shows the assigned person's name; it does not need permission to read the person. 404 when the assignment does not belong to the open day or the person has no profile image.
+ * @summary Read the profile image of an assigned person
+ */
+export const getOpenDayAssignmentProfileImage = async (openDayId: string,
+    assignmentId: string, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getGetOpenDayAssignmentProfileImageUrl(openDayId,assignmentId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
 export const getListOpenDayEligiblePeopleUrl = (requirementId: string,
     params?: ListOpenDayEligiblePeopleParams,) => {
   const normalizedParams = new URLSearchParams();

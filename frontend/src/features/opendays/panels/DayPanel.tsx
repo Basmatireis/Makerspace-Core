@@ -10,8 +10,7 @@ import type {
 } from '../../../api/generated/models';
 import { DetailPanel, DetailPanelHead, DetailPanelSection } from '../../../app/components/DetailPanel';
 import { Fact, FactsGrid } from '../../../app/components/Facts';
-import { OwnDot, StateTag } from '../components/Places';
-import { initialsOf } from '../model/people';
+import { AssigneeDot, StateTag } from '../components/Places';
 import { dateOf, longDate, plural, relativeDay, timeRange, weekdayName } from '../model/dates';
 import type { ChangeKind, SeriesView } from '../model/derive';
 import {
@@ -95,11 +94,7 @@ function RequirementSection({
             const mine = assignment.isCurrentUser;
             return (
               <li key={assignment.id} className="od-person">
-                {mine ? (
-                  <OwnDot initials={initialsOf(assignment.displayName)} />
-                ) : (
-                  <i className="od-av">{initialsOf(assignment.displayName)}</i>
-                )}
+                <AssigneeDot assignment={assignment} />
                 <span>
                   <b>
                     {assignment.displayName}

@@ -3252,6 +3252,32 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /open-days/{openDayId}/assignments/{assignmentId}/profile-image:
+    parameters:
+      - {$ref: "#/components/parameters/OpenDayId"}
+      - {$ref: "#/components/parameters/OpenDayAssignmentId"}
+    get:
+      tags: [Open Days]
+      operationId: getOpenDayAssignmentProfileImage
+      summary: Read the profile image of an assigned person
+      description: >-
+        Needs `open_days.read_assignments`, the permission that also shows the assigned person's name; it does not
+        need permission to read the person. 404 when the assignment does not belong to the open day or the person has
+        no profile image.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Normalized JPEG profile image.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            image/jpeg:
+              schema: {type: string, format: binary}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /open-day-staff-requirements/{requirementId}/eligible-people:
     parameters: [{$ref: "#/components/parameters/OpenDayRequirementId"}]
     get:
@@ -15705,7 +15731,7 @@ components:
     OpenDayAssignment:
       type: object
       additionalProperties: false
-      required: [id, openDayId, timeslotId, requirementId, personId, displayName, isCurrentUser, createdAt]
+      required: [id, openDayId, timeslotId, requirementId, personId, displayName, profileImageUrl, isCurrentUser, createdAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         openDayId: {$ref: "#/components/schemas/UUIDv7"}
@@ -15713,6 +15739,11 @@ components:
         requirementId: {$ref: "#/components/schemas/UUIDv7"}
         personId: {$ref: "#/components/schemas/UUIDv7"}
         displayName: {type: string, maxLength: 201}
+        profileImageUrl:
+          type: string
+          nullable: true
+          pattern: "^/api/v1/open-days/"
+          description: Where the assigned person's profile image is read; null when they have none.
         isCurrentUser: {type: boolean}
         createdAt: {type: string, format: date-time}
 

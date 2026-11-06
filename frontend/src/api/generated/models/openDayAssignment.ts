@@ -28,6 +28,12 @@ export interface OpenDayAssignment {
   personId: UUIDv7;
   /** @maxLength 201 */
   displayName: string;
+  /**
+     * Where the assigned person's profile image is read; null when they have none.
+     * @nullable
+     * @pattern ^/api/v1/open-days/
+     */
+  profileImageUrl: string | null;
   isCurrentUser: boolean;
   createdAt: string;
 }

@@ -32,6 +32,7 @@ function assign(store: DemoStore, day: OpenDay, requirementId: unknown, personId
     requirementId: requirement.id,
     personId,
     displayName: personName(person),
+    profileImageUrl: null,
     isCurrentUser: personId === store.user.person.id,
     createdAt: store.now.toISOString(),
   };

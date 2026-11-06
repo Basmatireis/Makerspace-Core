@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -915,9 +916,42 @@ func assignmentDTO(v opendays.Assignment) openapi.OpenDayAssignment {
 		RequirementId: v.RequirementID,
 		PersonId:      v.PersonID,
 		DisplayName:   v.DisplayName,
+		ProfileImageUrl: nullablePointer[string](
+			assignmentProfileImageURL(v), func(x string) string { return x },
+		),
 		IsCurrentUser: v.IsCurrentUser,
 		CreatedAt:     v.CreatedAt,
 	}
+}
+
+func assignmentProfileImageURL(v opendays.Assignment) *string {
+	if !v.HasProfileImage {
+		return nil
+	}
+	url := fmt.Sprintf("/api/v1/open-days/%s/assignments/%s/profile-image", v.OpenDayID, v.ID)
+	return &url
+}
+
+func (s *Server) GetOpenDayAssignmentProfileImage(
+	ctx context.Context,
+	request openapi.GetOpenDayAssignmentProfileImageRequestObject,
+) (openapi.GetOpenDayAssignmentProfileImageResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fileID, err := s.opendays.AssignmentProfileImageFile(ctx, principal, request.OpenDayId, request.AssignmentId)
+	if err != nil {
+		return nil, err
+	}
+	file, reader, err := s.files.Open(ctx, fileID)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.GetOpenDayAssignmentProfileImage200ImagejpegResponse{
+		Body: reader, ContentLength: file.Size,
+		Headers: openapi.GetOpenDayAssignmentProfileImage200ResponseHeaders{CacheControl: "private, no-store"},
+	}, nil
 }
 func academicBreakDTO(v opendays.AcademicBreak) openapi.AcademicBreak {
 	return openapi.AcademicBreak{

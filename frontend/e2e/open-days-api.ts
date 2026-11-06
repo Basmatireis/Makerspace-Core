@@ -43,6 +43,7 @@ export type Assignment = {
   requirementId: string;
   personId: string;
   displayName: string;
+  profileImageUrl: string | null;
   isCurrentUser: boolean;
   createdAt: string;
 };
@@ -368,7 +369,10 @@ export async function installOpenDaysApi(page: Page, world: World) {
     if (path === '/auth/oidc/providers') return json(route, { items: [] });
     if (path === '/public/config') return json(route, defaultPublicBrandingConfiguration());
     if (path === '/auth/me') return json(route, currentUser(world.permissions, world.membership, world.profileImage));
-    if (path === `/people/${ids.person}/profile-image` && world.profileImage) {
+    if (
+      (path === `/people/${ids.person}/profile-image` && world.profileImage) ||
+      /^\/open-days\/[^/]+\/assignments\/[^/]+-grace\/profile-image$/.test(path)
+    ) {
       // A 1×1 GIF is enough for the browser to load the image.
       return route.fulfill({
         status: 200,
@@ -441,6 +445,11 @@ export async function installOpenDaysApi(page: Page, world: World) {
         requirementId,
         personId: who.id,
         displayName: who.name,
+        // Grace has a profile image; everyone else falls back to initials.
+        profileImageUrl:
+          who.id === ids.grace
+            ? `/api/v1/open-days/${openDay.id}/assignments/${requirementId}-grace/profile-image`
+            : null,
         isCurrentUser: who.me,
         createdAt: timestamp,
       };

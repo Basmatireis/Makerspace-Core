@@ -484,6 +484,10 @@ test.describe('the Leitung', () => {
       personId: ids.grace,
     });
     await expect(panel.getByText('Grace Hopper', { exact: true })).toBeVisible();
+    // Grace has a profile image, which fills her dot; the free places stay empty.
+    const graceDot = panel.locator('.od-av[title="Grace Hopper"] img');
+    await expect(graceDot).toHaveAttribute('src', /\/assignments\/.+-grace\/profile-image$/);
+    await expect.poll(() => graceDot.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
     await panel.getByRole('button', { name: 'Remove Grace Hopper' }).click();
     await expect
       .poll(

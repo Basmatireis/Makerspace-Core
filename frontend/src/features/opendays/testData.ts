@@ -46,6 +46,7 @@ export function slot(
           requirementId: requirements[0].id,
           personId: 'me',
           displayName: 'Me',
+          profileImageUrl: null,
           isCurrentUser: true,
           createdAt: '2026-01-01T00:00:00Z',
         }

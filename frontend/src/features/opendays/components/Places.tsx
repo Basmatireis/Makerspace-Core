@@ -1,6 +1,11 @@
 import { Checkmark } from '@carbon/icons-react';
 import { Tag } from '@carbon/react';
-import type { OpenDay, OpenDayStaffRequirement, OpenDayTimeslot } from '../../../api/generated/models';
+import type {
+  OpenDay,
+  OpenDayAssignment,
+  OpenDayStaffRequirement,
+  OpenDayTimeslot,
+} from '../../../api/generated/models';
 import { useCurrentUser } from '../../auth/auth';
 import { initialsOf } from '../model/people';
 import { free, slotEnded, type StateTagInfo } from '../model/state';
@@ -29,11 +34,22 @@ export function OwnDot({ initials = '' }: { initials?: string }) {
   );
 }
 
+/** A taken place: the person's profile image when they have one, otherwise their initials. */
+export function AssigneeDot({ assignment }: { assignment: OpenDayAssignment }) {
+  const initials = initialsOf(assignment.displayName);
+  if (assignment.isCurrentUser) return <OwnDot initials={initials} />;
+  return (
+    <i className="od-av" title={assignment.displayName}>
+      {assignment.profileImageUrl ? <img className="od-av__img" src={assignment.profileImageUrl} alt="" /> : initials}
+    </i>
+  );
+}
+
 const kindLabel = (kind: string) => (kind === 'supervisor' ? 'Supervisors' : 'Trainees');
 
 /**
  * The places of one requirement as avatars: filled = taken, dashed = free, blue = free and yours to take, red dashed =
- * a supervisor place that is still needed, green filled or your profile image = you.
+ * a supervisor place that is still needed, green filled or your profile image = you; taken places show the person's profile image when there is one.
  */
 export function PlaceDots({
   day,
@@ -51,15 +67,7 @@ export function PlaceDots({
   if (!requirement) return <span className="od-none">—</span>;
   const open = day.status !== 'cancelled' && !slotEnded(slot, now);
   const taken = requirement.assignments
-    ? requirement.assignments.map((assignment) =>
-        assignment.isCurrentUser ? (
-          <OwnDot key={assignment.id} initials={initialsOf(assignment.displayName)} />
-        ) : (
-          <i key={assignment.id} className="od-av" title={assignment.displayName}>
-            {initialsOf(assignment.displayName)}
-          </i>
-        ),
-      )
+    ? requirement.assignments.map((assignment) => <AssigneeDot key={assignment.id} assignment={assignment} />)
     : Array.from({ length: requirement.assignedCount }, (_, index) => {
         // Without the names the own place still shows: it is the first taken dot.
         const mine = index === 0 && slot.myAssignment?.requirementId === requirement.id;

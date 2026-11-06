@@ -12,6 +12,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Rebuilt Open Days and Staffing pages.** Periods, breaks and the schedule (Upcoming, Short-staffed, Open for me, Mine, Past; list or calendar) with a fixed detail panel, a working copy with a save bar, and a Filters button with a red count. Staffing has a sortable, filterable People table with CSV export, a person panel (assign, remove, confirm Lab Rules, change membership, excuse) and the Rules tab.
 - **Training filter.** The staffing table filters and searches by the competency categories of a person's training records; `GET /supervisor-dashboard` rows carry them as `competencies`.
 - **Personal calendar subscription.** A secret link (profile menu › Calendar subscription) shows a person's open-day timeslots and event shifts in any calendar application; see `docs/calendar-feed.md`.
+- **Profile images on open days.** The place dots show the assigned people's profile images (initials when there is none) to everyone who sees their names; your own place is green.
 - **Notices for schedule changes.** People are notified (in the app and by e-mail while mail delivery is on) when a timeslot they hold changes, is removed or the open day is cancelled, and when somebody else assigns or removes them.
 
 ### Changed

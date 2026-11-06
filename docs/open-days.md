@@ -51,7 +51,7 @@ Every signed-in person can subscribe to their own open-day timeslots and event s
 
 Anonymous `GET /api/v1/public/open-days` and `/api/v1/public/open-days/calendar.ics` expose only Open Days from currently published periods, **one entry per open day** over its overall range. JSON contains stable ID, generic title, UTC start/end, the timeslots (start and end only), scheduled/cancelled state, update time, and the planned competencies (category ID and label only, see [trainings.md](trainings.md)). ICS uses a stable `urn:uuid:` UID, Open Day version as `SEQUENCE`, `LAST-MODIFIED`, `STATUS:CANCELLED` when relevant, the timeslots and competencies as `DESCRIPTION`, and the generation time as `DTSTAMP`. Neither representation contains notes, places, assignment names, counts, Person identifiers, trainings, or trainer rights.
 
-Internal readers receive staffing counts, their per-place `eligible` and `canJoin`, and their own assignment. Other assignment identities require `open_days.read_assignments`; internal notes require `open_days.manage`.
+Internal readers receive staffing counts, their per-place `eligible` and `canJoin`, and their own assignment. Other assignment identities require `open_days.read_assignments`; internal notes require `open_days.manage`. With the names come the assigned people's profile images: `profileImageUrl` points to `GET /open-days/{openDayId}/assignments/{assignmentId}/profile-image`, which needs the same permission and no permission to read the person; it is null when the person has no image, and the dot shows initials instead.
 
 ## Audit
 

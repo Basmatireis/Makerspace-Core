@@ -39,6 +39,7 @@ type Querier interface {
 	GetAcademicBreakForUpdate(ctx context.Context, id uuid.UUID) (OpenDayAcademicBreak, error)
 	GetAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssignment, error)
 	GetAssignmentPersonName(ctx context.Context, id uuid.UUID) (GetAssignmentPersonNameRow, error)
+	GetAssignmentProfileImageFile(ctx context.Context, arg GetAssignmentProfileImageFileParams) (*uuid.UUID, error)
 	// The next timeslot starting within the window that the person is not in yet and that has a free place of the given
 	// kind they are eligible for.
 	GetNextOpenPlace(ctx context.Context, arg GetNextOpenPlaceParams) (GetNextOpenPlaceRow, error)
