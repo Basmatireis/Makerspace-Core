@@ -1,0 +1,1070 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/components/contained-list';
+@use '@carbon/styles/scss/components/content-switcher';
+
+// Layout glue for the Open Days pages. Every control is a Carbon component; this file only places them and colours the
+// viewer-relative states (urgent, open, mine, full ...) with theme tokens, so both color schemes work.
+
+.state-mine {
+  --od-st: #{theme.$support-success};
+  --od-bg: #{theme.$highlight};
+}
+.state-urgent {
+  --od-st: #{theme.$support-error};
+  --od-bg: #{theme.$layer-01};
+}
+.state-short {
+  --od-st: #{theme.$support-error};
+  --od-bg: #{theme.$layer-01};
+}
+.state-open,
+.state-neutral {
+  --od-st: #{theme.$interactive};
+  --od-bg: #{theme.$highlight};
+}
+.state-full,
+.state-ok {
+  --od-st: #{theme.$border-strong-01};
+  --od-bg: #{theme.$layer-accent-01};
+}
+.state-other,
+.state-past,
+.state-cancelled {
+  --od-st: #{theme.$border-subtle-01};
+  --od-bg: #{theme.$layer-01};
+}
+.state-staffed {
+  --od-st: #{theme.$support-success};
+  --od-bg: #{theme.$layer-01};
+}
+
+.od-page {
+  display: grid;
+  gap: $spacing-05;
+  min-inline-size: 0;
+}
+.od-page > * {
+  min-inline-size: 0;
+}
+.od-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03 $spacing-05;
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+.od-none {
+  color: theme.$text-placeholder;
+}
+.od-hint {
+  margin: 0;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+.od-field-error {
+  margin: 0;
+  padding: $spacing-03 $spacing-05;
+  border-inline-start: 3px solid theme.$support-error;
+  background: theme.$layer-01;
+  @include type-style('body-compact-01');
+}
+.od-tab-count {
+  margin-inline-start: $spacing-03;
+  color: theme.$text-secondary;
+  font-variant-numeric: tabular-nums;
+}
+.od-tab-panel {
+  display: none;
+}
+.od-unsaved {
+  color: theme.$support-warning;
+  font-weight: 600;
+}
+
+// Glance tiles
+.od-glance {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: $spacing-03;
+  margin: 0;
+}
+.od-glance__tile {
+  border-block-start: 3px solid transparent;
+  min-block-size: 7rem;
+  display: grid;
+  align-content: start;
+  gap: $spacing-03;
+}
+.od-glance__tile.is-warn {
+  border-block-start-color: theme.$support-warning;
+}
+.od-glance__tile.is-bad {
+  border-block-start-color: theme.$support-error;
+}
+.od-glance__tile.is-good {
+  border-block-start-color: theme.$support-success;
+}
+.od-glance dt {
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.od-glance dd {
+  margin: 0;
+}
+.od-glance__value {
+  @include type-style('productive-heading-04');
+}
+.od-glance__value small {
+  margin-inline-start: $spacing-03;
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+.od-glance__helper {
+  display: grid;
+  gap: $spacing-02;
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.od-meter {
+  display: flex;
+  gap: 2px;
+  block-size: 0.375rem;
+  max-inline-size: 10rem;
+}
+.od-meter i {
+  flex: 1;
+  background: theme.$layer-accent-01;
+}
+.od-meter i.is-on {
+  background: theme.$support-success;
+}
+.is-warn .od-meter i.is-on {
+  background: theme.$support-warning;
+}
+
+// List and panel
+.od-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+}
+.od-main {
+  min-inline-size: 0;
+  container-type: inline-size;
+  container-name: odlist;
+  background: theme.$layer-01;
+}
+@media (min-width: 92rem) {
+  .od-split {
+    grid-template-columns: minmax(0, 1fr) 26rem;
+  }
+}
+.od-panel-frame--docked {
+  position: sticky;
+  inset-block-start: 4rem;
+  align-self: start;
+  min-inline-size: 0;
+}
+.od-panel-empty {
+  padding: $spacing-07 $spacing-05;
+  background: theme.$layer-01;
+  border-inline-start: 3px solid theme.$border-subtle-01;
+  color: theme.$text-secondary;
+  min-block-size: 12rem;
+}
+.od-panel-frame--sheet {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 9100;
+  max-block-size: 86vh;
+  overflow-y: auto;
+  background: theme.$layer-01;
+  border-block-start: 3px solid theme.$border-interactive;
+  box-shadow: 0 -6px 18px rgb(0 0 0 / 30%);
+  padding-block-end: env(safe-area-inset-bottom, 0);
+}
+.od-panel-frame--sheet:focus {
+  outline: none;
+}
+.od-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9099;
+  background: theme.$overlay;
+}
+.od-detail {
+  border-inline-start: 3px solid theme.$border-interactive;
+}
+.od-panel-frame--sheet .od-detail {
+  border-inline-start: 0;
+}
+.od-head-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+.od-req {
+  display: grid;
+  gap: $spacing-03;
+}
+.od-req h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: $spacing-03;
+  @include type-style('heading-compact-01');
+}
+.od-req__count {
+  font-weight: 400;
+  color: theme.$text-secondary;
+}
+.od-req h3 small {
+  font-weight: 400;
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.od-req ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.od-person {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+  min-block-size: 3rem;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+.od-person > span {
+  flex: 1;
+  min-inline-size: 0;
+  display: grid;
+}
+.od-person b {
+  font-weight: 400;
+  @include type-style('body-compact-01');
+}
+.od-person--free b {
+  color: theme.$text-secondary;
+}
+.od-needed {
+  color: theme.$support-error !important;
+}
+.od-slot {
+  display: grid;
+  gap: $spacing-04;
+  padding-inline-start: $spacing-04;
+  border-inline-start: 3px solid var(--od-st, #{theme.$border-subtle-01});
+}
+.od-slot__t {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: $spacing-03;
+  font-variant-numeric: tabular-nums;
+  @include type-style('heading-compact-02');
+}
+.od-note-text {
+  margin: 0;
+  white-space: pre-wrap;
+  @include type-style('body-compact-01');
+}
+.od-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}
+.od-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.od-items li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-04;
+  padding-block: $spacing-03;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+.od-items li > span {
+  display: grid;
+  min-inline-size: 0;
+}
+.od-items small {
+  color: theme.$text-secondary;
+  @include type-style('body-compact-01');
+}
+.od-cand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-04;
+  inline-size: 100%;
+}
+
+// Forms
+.od-form {
+  display: grid;
+  gap: $spacing-05;
+}
+.od-form__2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: $spacing-05;
+}
+.od-fs {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: $spacing-04;
+}
+.od-fs legend {
+  padding: 0 0 $spacing-03;
+  @include type-style('heading-compact-01');
+}
+.od-form__actions {
+  margin-inline: calc(-1 * #{$spacing-05});
+  position: sticky;
+  inset-block-end: 0;
+  z-index: 2;
+  background: theme.$layer-01;
+}
+.od-form__actions .cds--btn {
+  flex: 1;
+  max-inline-size: none;
+}
+.od-slots {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: $spacing-03;
+}
+.od-slots legend {
+  padding: 0 0 $spacing-03;
+  @include type-style('heading-compact-01');
+}
+.od-slotrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 2.5rem;
+  gap: $spacing-03;
+  align-items: center;
+}
+.od-slots__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: $spacing-03 $spacing-05;
+}
+.od-split {
+  container-name: odsplit;
+}
+.od-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}
+.od-bulk__field {
+  display: grid;
+  gap: $spacing-03;
+}
+
+// Toolbar and filters
+.od-toolbar .od-switch {
+  inline-size: auto;
+}
+.od-filters {
+  position: relative;
+  display: flex;
+}
+.od-filters__button {
+  position: relative;
+}
+.od-filters__button.is-active {
+  background: theme.$layer-selected-01;
+}
+.od-filters__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin-inline-start: $spacing-03;
+  padding-inline: $spacing-02;
+  border-radius: 0.625rem;
+  background: theme.$support-error;
+  color: theme.$text-on-color;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.od-filters__panel {
+  display: grid;
+  gap: $spacing-05;
+  padding: $spacing-05;
+  inline-size: max-content;
+  max-inline-size: min(40rem, calc(100vw - 2rem));
+  background: theme.$layer-02;
+}
+.od-filters__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: $spacing-05;
+}
+.od-filters__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-03;
+}
+.od-row-button {
+  all: unset;
+  cursor: pointer;
+  display: block;
+  inline-size: 100%;
+}
+.od-row-button:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: 2px;
+}
+.od-cell-2 {
+  display: grid;
+}
+.od-cell-2 small {
+  color: theme.$text-secondary;
+}
+.od-fill {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-04;
+}
+.od-fill__n {
+  min-inline-size: 3rem;
+  font-variant-numeric: tabular-nums;
+}
+.od-fill__bar {
+  display: block;
+  inline-size: 6rem;
+  block-size: 0.375rem;
+  background: theme.$layer-accent-01;
+}
+.od-fill__bar i {
+  display: block;
+  block-size: 100%;
+  background: theme.$support-success;
+}
+
+// Save bar
+.od-savebar {
+  position: sticky;
+  inset-block-end: env(safe-area-inset-bottom, 0);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  background: theme.$layer-01;
+  box-shadow:
+    inset 3px 0 0 theme.$support-warning,
+    0 -2px 6px rgb(0 0 0 / 15%);
+}
+.od-savebar__text {
+  flex: 1 1 14rem;
+  margin: 0;
+  padding: $spacing-04 $spacing-05;
+  @include type-style('body-compact-01');
+}
+.od-savebar__error {
+  color: theme.$support-error;
+}
+
+// List
+.od-list {
+  display: grid;
+}
+.od-row {
+  display: grid;
+  grid-template-columns: 4rem 7.5rem minmax(7rem, 1fr) minmax(6.5rem, 0.8fr) minmax(8rem, 1.3fr) 13rem 6rem;
+  gap: 0 $spacing-05;
+  align-items: center;
+  min-block-size: 4rem;
+  padding: $spacing-03 $spacing-05 $spacing-03 0.8125rem;
+  border-inline-start: 3px solid var(--od-st, transparent);
+  border-block-end: 1px solid theme.$border-subtle-01;
+  background: theme.$layer-01;
+  cursor: pointer;
+  position: relative;
+}
+.od-row.is-guest {
+  grid-template-columns: 4rem 9rem minmax(0, 1fr) auto auto;
+}
+.od-row:hover {
+  background: theme.$layer-hover-01;
+}
+.od-row:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+.od-row.is-selected {
+  background: theme.$layer-selected-01;
+}
+.od-row--head {
+  min-block-size: 2.5rem;
+  background: theme.$layer-accent-01;
+  border-inline-start-color: theme.$layer-accent-01;
+  cursor: default;
+  font-weight: 600;
+  @include type-style('body-compact-01');
+}
+.od-row--head:hover {
+  background: theme.$layer-accent-01;
+}
+.od-row.state-past,
+.od-row.state-staffed {
+  color: theme.$text-secondary;
+}
+.od-row.state-cancelled .od-when b {
+  text-decoration: line-through;
+  color: theme.$text-secondary;
+}
+.od-week {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: $spacing-04;
+  padding: $spacing-05 $spacing-05 $spacing-02;
+  text-transform: uppercase;
+  color: theme.$text-secondary;
+  background: theme.$background;
+  @include type-style('label-01');
+}
+.od-week span {
+  font-weight: 600;
+  color: theme.$text-primary;
+}
+.od-week small {
+  text-transform: none;
+  font-size: 0.75rem;
+}
+.od-week.is-now span {
+  color: theme.$interactive;
+}
+.od-date {
+  display: grid;
+  justify-items: center;
+  line-height: 1;
+  inline-size: 3rem;
+}
+.od-date__wd,
+.od-date__m,
+.od-ctx__date .od-date__wd,
+.od-ctx__date .od-date__m {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.32px;
+  color: theme.$text-secondary;
+}
+.od-date__d {
+  font-size: 1.5rem;
+  font-weight: 300;
+  padding-block: 0.125rem;
+  font-variant-numeric: tabular-nums;
+}
+.od-when {
+  display: grid;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+.od-when b {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.od-when small {
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.od-sermark,
+.od-note {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+}
+.od-sermark.is-off {
+  color: theme.$support-warning;
+}
+.od-col {
+  display: grid;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+.od-restrict {
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.od-places {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+.od-places__dots {
+  display: inline-flex;
+  gap: $spacing-02;
+}
+.od-places__n {
+  color: theme.$text-secondary;
+  font-variant-numeric: tabular-nums;
+  @include type-style('label-01');
+}
+.od-support,
+.od-state {
+  min-inline-size: 0;
+  overflow: hidden;
+}
+.od-tags {
+  display: flex;
+  gap: $spacing-02;
+  flex-wrap: nowrap;
+}
+.od-act {
+  display: flex;
+  justify-content: flex-end;
+  min-inline-size: 0;
+}
+.od-check {
+  display: inline-flex;
+  position: absolute;
+  inset-inline-start: 0.5rem;
+  inset-block-start: 0.75rem;
+}
+.od-list.is-selecting .od-row:not(.od-row--head) {
+  padding-inline-start: 2.75rem;
+}
+.od-row--slot {
+  min-block-size: 2.75rem;
+  padding-block: $spacing-02;
+  border-inline-start-style: dotted;
+}
+.od-row--slot .od-when--slot {
+  padding-inline-start: $spacing-04;
+  color: theme.$text-secondary;
+  font-variant-numeric: tabular-nums;
+}
+.od-row.has-slots {
+  border-block-end-color: transparent;
+}
+.od-av {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  flex: none;
+  border-radius: 50%;
+  background: theme.$layer-accent-01;
+  color: theme.$text-primary;
+  font-size: 0.6875rem;
+  font-style: normal;
+  font-weight: 600;
+}
+.od-av.is-me {
+  background: theme.$interactive;
+  color: theme.$text-on-color;
+}
+.od-av--anon {
+  background: theme.$border-strong-01;
+}
+.od-av--free {
+  background: transparent;
+  border: 1.5px dashed theme.$border-strong-01;
+}
+.od-av--free.is-needed {
+  border-color: theme.$support-error;
+}
+.od-av--free.is-for-me {
+  border: 1.5px solid theme.$interactive;
+  background: theme.$highlight;
+}
+.od-av--more {
+  background: transparent;
+  color: theme.$text-secondary;
+  inline-size: auto;
+  padding-inline: 0.125rem;
+}
+.state-past .od-av--free,
+.state-staffed .od-av--free,
+.state-cancelled .od-av--free {
+  border-color: theme.$border-subtle-01;
+}
+.od-ctx {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) auto;
+  gap: 0 $spacing-05;
+  align-items: center;
+  min-block-size: 3.5rem;
+  padding: $spacing-03 $spacing-05 $spacing-03 0.8125rem;
+  border-inline-start: 3px solid theme.$border-strong-01;
+  border-block-end: 1px solid theme.$border-subtle-01;
+  background: repeating-linear-gradient(135deg, theme.$layer-accent-01 0 1px, theme.$layer-01 1px 9px);
+}
+.od-ctx.is-cont {
+  min-block-size: 2.5rem;
+}
+.od-ctx__date {
+  display: grid;
+  justify-items: center;
+  line-height: 1;
+  inline-size: 3rem;
+  opacity: 0.7;
+}
+.od-ctx__text {
+  display: grid;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+.od-ctx__text small {
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.od-ctx.is-cont .od-ctx__text b {
+  font-weight: 400;
+  color: theme.$text-secondary;
+}
+
+@container odlist (max-width: 62rem) {
+  .od-row .od-support,
+  .od-row--head > span:nth-child(5) {
+    display: none;
+  }
+  .od-row {
+    grid-template-columns: 3.5rem 6.5rem minmax(6rem, 1fr) minmax(5rem, 0.8fr) minmax(8rem, 10.5rem) 4.5rem;
+    gap: 0 $spacing-04;
+  }
+  .od-row.is-guest {
+    grid-template-columns: 4rem 9rem minmax(0, 1fr) auto auto;
+  }
+  .od-row.is-guest .od-support,
+  .od-row--head.is-guest > span:nth-child(3) {
+    display: block;
+  }
+}
+@container odlist (max-width: 46rem) {
+  .od-row--head {
+    display: none;
+  }
+  .od-row,
+  .od-row.is-guest {
+    grid-template-columns: 3rem auto auto minmax(0, 1fr);
+    grid-template-areas: 'date when when state' 'date sup tr act';
+    gap: $spacing-03 $spacing-05;
+    padding: $spacing-04 $spacing-04 $spacing-04 0.5625rem;
+  }
+  .od-date {
+    grid-area: date;
+    align-self: start;
+  }
+  .od-when {
+    grid-area: when;
+  }
+  .od-col--sup {
+    grid-area: sup;
+  }
+  .od-col--tr {
+    grid-area: tr;
+  }
+  .od-col::before {
+    content: attr(data-k);
+    text-transform: uppercase;
+    letter-spacing: 0.32px;
+    color: theme.$text-secondary;
+    font-size: 0.6875rem;
+  }
+  .od-state {
+    grid-area: state;
+    justify-self: end;
+    align-self: start;
+  }
+  .od-act {
+    grid-area: act;
+    align-self: end;
+  }
+  .od-row .od-support {
+    display: none;
+  }
+  .od-row.has-slots .od-col--sum {
+    display: none;
+  }
+  .od-row.has-slots {
+    grid-template-areas: 'date when when state';
+  }
+  .od-row--slot {
+    min-block-size: 0;
+  }
+  .od-row--slot .od-col::before {
+    display: none;
+  }
+  .od-av {
+    inline-size: 1.375rem;
+    block-size: 1.375rem;
+    font-size: 0.5625rem;
+  }
+  .od-ctx {
+    grid-template-columns: 3rem minmax(0, 1fr);
+  }
+  .od-ctx__tag {
+    display: none;
+  }
+}
+
+// Calendar
+.od-cal-card {
+  container-type: inline-size;
+  container-name: odcal;
+}
+.od-cal-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03 $spacing-05;
+  padding: $spacing-04 $spacing-05;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+.od-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02 $spacing-05;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.od-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+.od-legend i {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  background: var(--od-bg);
+  border-inline-start: 3px solid var(--od-st);
+}
+.od-legend i.is-break {
+  background: repeating-linear-gradient(135deg, theme.$layer-accent-01 0 2px, transparent 2px 5px);
+  border: 0;
+}
+.od-cal {
+  display: grid;
+  grid-template-columns: 2.75rem repeat(7, minmax(0, 1fr));
+  gap: 1px;
+  background: theme.$border-subtle-01;
+  border-block-start: 1px solid theme.$border-subtle-01;
+}
+.od-cal__h {
+  background: theme.$layer-accent-01;
+  padding: $spacing-03;
+  font-weight: 600;
+  @include type-style('label-01');
+}
+.od-cal__wk {
+  background: theme.$layer-01;
+  padding: $spacing-02 $spacing-02 $spacing-02 $spacing-03;
+  display: grid;
+  align-content: start;
+  gap: 0.125rem;
+  color: theme.$text-secondary;
+  font-size: 0.6875rem;
+}
+.od-cal__wk b {
+  font-weight: 400;
+}
+.od-cal__wk small {
+  font-weight: 600;
+  color: theme.$text-primary;
+  text-transform: uppercase;
+}
+.od-cell {
+  min-block-size: 4.25rem;
+  min-inline-size: 0;
+  padding: 0.375rem 0.25rem;
+  background: theme.$layer-01;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-02;
+}
+.od-cell.is-out {
+  background: theme.$background;
+  color: theme.$text-placeholder;
+}
+.od-cell.is-break,
+.od-cell.is-holiday {
+  background: repeating-linear-gradient(135deg, theme.$layer-accent-01 0 2px, theme.$layer-01 2px 7px);
+}
+.od-cell__n {
+  padding-inline-start: 0.125rem;
+  color: theme.$text-secondary;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.od-cell.is-today .od-cell__n {
+  align-self: flex-start;
+  padding-inline: 0.3125rem;
+  border-radius: 0.5rem;
+  background: theme.$interactive;
+  color: theme.$text-on-color;
+  font-weight: 600;
+}
+.od-cell__ctx {
+  color: theme.$text-secondary;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.od-blk {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1875rem;
+  inline-size: 100%;
+  min-block-size: 3.125rem;
+  min-inline-size: 0;
+  padding: 0.25rem 0.25rem 0.3125rem 0.4375rem;
+  border: 0;
+  background: var(--od-bg);
+  box-shadow: inset 3px 0 0 var(--od-st);
+  color: theme.$text-primary;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.od-blk.state-short {
+  box-shadow:
+    inset 3px 0 0 var(--od-st),
+    inset 0 0 0 1px var(--od-st);
+}
+.od-blk:hover {
+  filter: brightness(0.96);
+}
+.od-blk:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+.od-blk.is-selected {
+  outline: 2px solid theme.$text-primary;
+  outline-offset: -2px;
+}
+.od-blk.is-dim {
+  opacity: 0.35;
+}
+.od-blk.is-unsaved {
+  border-block-end: 2px dashed theme.$support-warning;
+}
+.od-blk.state-cancelled .od-blk__t {
+  text-decoration: line-through;
+  color: theme.$text-secondary;
+}
+.od-blk__t {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+  font-size: 0.8125rem;
+}
+.od-blk__t .od-s {
+  display: none;
+}
+.od-blk__row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+  block-size: 1rem;
+  min-inline-size: 0;
+}
+.od-blk.state-cancelled .od-blk__row {
+  visibility: hidden;
+}
+.od-pp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  color: theme.$text-secondary;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.od-pp.is-empty {
+  opacity: 0.6;
+}
+.od-segs {
+  display: flex;
+  gap: 3px;
+  inline-size: 100%;
+  max-inline-size: 5rem;
+}
+.od-segs i {
+  flex: 1;
+  block-size: 0.25rem;
+  background: var(--od-bg);
+  box-shadow: inset 0 0 0 1px var(--od-st);
+}
+.od-segs i.state-mine {
+  background: theme.$interactive;
+  box-shadow: none;
+}
+.od-segs i.state-urgent,
+.od-segs i.state-short {
+  background: theme.$support-error;
+  box-shadow: none;
+}
+
+@media (max-width: 41.98rem) {
+  .od-cal {
+    grid-template-columns: 1.75rem repeat(7, minmax(0, 1fr));
+  }
+  .od-cal__h {
+    padding: $spacing-02;
+    font-size: 0.6875rem;
+  }
+  .od-cell {
+    min-block-size: 3.5rem;
+    padding: 0.25rem 0.125rem;
+  }
+  .od-cell__ctx {
+    display: none;
+  }
+  .od-blk {
+    min-block-size: 0;
+    padding: 0.1875rem 0.25rem 0.25rem 0.375rem;
+  }
+  .od-blk__t .od-l {
+    display: none;
+  }
+  .od-blk__t .od-s {
+    display: inline;
+  }
+  .od-blk__t {
+    font-size: 0.6875rem;
+    letter-spacing: -0.02em;
+  }
+  .od-blk__row:has(.od-pp) {
+    display: none;
+  }
+  .od-form__2 {
+    grid-template-columns: 1fr;
+  }
+  .od-glance {
+    grid-template-columns: 1fr 1fr;
+  }
+}

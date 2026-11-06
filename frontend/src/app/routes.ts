@@ -125,12 +125,12 @@ export const OpenDaysPage = lazy(() =>
 export const OpenDayPeriodPage = lazy(() =>
   import('../features/opendays/OpenDayPeriodPage').then(({ OpenDayPeriodPage }) => ({ default: OpenDayPeriodPage })),
 );
-export const OpenDayDetailPage = lazy(() =>
-  import('../features/opendays/OpenDayDetailPage').then(({ OpenDayDetailPage }) => ({ default: OpenDayDetailPage })),
+export const OpenDayRedirect = lazy(() =>
+  import('../features/opendays/OpenDayRedirect').then(({ OpenDayRedirect }) => ({ default: OpenDayRedirect })),
 );
-export const OpenDayManagementPage = lazy(() =>
-  import('../features/opendays/OpenDayManagementPage').then(({ OpenDayManagementPage }) => ({
-    default: OpenDayManagementPage,
+export const OpenDayBreaksRedirect = lazy(() =>
+  import('../features/opendays/OpenDayRedirect').then(({ OpenDayBreaksRedirect }) => ({
+    default: OpenDayBreaksRedirect,
   })),
 );
 export const MessagesPage = lazy(() =>

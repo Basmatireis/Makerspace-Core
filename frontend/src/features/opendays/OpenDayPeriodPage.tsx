@@ -1,10 +1,10 @@
-import { useCurrentUser } from '../auth/auth';
-import { hasPermission, PermissionId } from '../auth/permissions';
-import { ScheduleEditorPage } from './ScheduleEditorPage';
+import { Navigate, useParams } from 'react-router-dom';
+import { SchedulePage } from './SchedulePage';
 
+/** `/open-days/:periodId`: the schedule of one period. Everything on it is derived from the person's permissions. */
 export function OpenDayPeriodPage() {
-  const currentUser = useCurrentUser();
-  const canManage = hasPermission(currentUser, PermissionId.open_daysmanage);
-
-  return <ScheduleEditorPage canManage={canManage} />;
+  const { periodId = '' } = useParams();
+  if (!periodId) return <Navigate to="/open-days" replace />;
+  // The key resets the page's working copy and selection when another period is chosen.
+  return <SchedulePage key={periodId} periodId={periodId} />;
 }

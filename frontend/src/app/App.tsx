@@ -42,9 +42,9 @@ import {
   SubjectRequestPage,
   PrivacyPage,
   MaterialDetailPage,
-  OpenDayDetailPage,
-  OpenDayManagementPage,
+  OpenDayBreaksRedirect,
   OpenDayPeriodPage,
+  OpenDayRedirect,
   OpenDaysPage,
   OrderDetailPage,
   OrdersPage,
@@ -344,7 +344,7 @@ export function App() {
               path="open-days/:periodId/days/:openDayId"
               element={
                 <PermissionRoute anyOf={['open_days.read', 'open_days.manage']}>
-                  <OpenDayDetailPage />
+                  <OpenDayRedirect />
                 </PermissionRoute>
               }
             />
@@ -360,7 +360,7 @@ export function App() {
               path="open-days/manage"
               element={
                 <PermissionRoute allOf={['open_days.manage']}>
-                  <OpenDayManagementPage />
+                  <OpenDayBreaksRedirect />
                 </PermissionRoute>
               }
             />
