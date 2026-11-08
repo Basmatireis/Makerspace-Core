@@ -77,8 +77,10 @@ func Load() (Config, error) {
 			"PUBLIC_BASE_URL must be an HTTP(S) origin without credentials, path, query, or fragment",
 		)
 	}
-	if environment == "production" && base.Scheme != "https" {
-		return Config{}, errors.New("PUBLIC_BASE_URL must use HTTPS in production")
+	// Browsers treat loopback origins as secure contexts, so Secure __Host- cookies still work there.
+	// This lets an internal staging stack run in production mode behind an SSH tunnel.
+	if environment == "production" && base.Scheme != "https" && !isLoopbackHost(base.Hostname()) {
+		return Config{}, errors.New("PUBLIC_BASE_URL must use HTTPS in production (HTTP only for localhost)")
 	}
 
 	secure, err := strconv.ParseBool(envOr("SESSION_COOKIE_SECURE", strconv.FormatBool(environment == "production")))
@@ -340,6 +342,14 @@ const (
 	// MaxPrinterTimelapseBytes is the largest value PRINTER_TIMELAPSE_MAX_BYTES accepts (8 GiB).
 	MaxPrinterTimelapseBytes int64 = 8 << 30
 )
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	address, err := netip.ParseAddr(host)
+	return err == nil && address.IsLoopback()
+}
 
 func envOr(name, fallback string) string {
 	if value := strings.TrimSpace(os.Getenv(name)); value != "" {

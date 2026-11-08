@@ -34,6 +34,9 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - The Filters button and the fixed detail panel of Open Days and Staffing are shared components.
 - **Printer notification settings are now rules.** The migration turns today's settings into rules, so the behaviour stays the same; they can be edited in the Notification center.
 - **Automatic survey e-mails need the Surveys & feedback consent.** People who have not allowed it are no longer mailed; they can still be asked at the tablet.
+- **Release candidates.** Tags `vX.Y.Z-rc.N` build images and a GitHub pre-release for testing on a staging installation (notes from `[Unreleased]`).
+- **Only full version image tags.** Releases no longer publish or move `latest` and minor/major image tags; pin the full version, such as `0.19.0`.
+- `PUBLIC_BASE_URL` may use plain HTTP in production when its host is `localhost` or a loopback address, so an internal staging stack can be reached through an SSH tunnel. Every other production origin still needs HTTPS.
 
 ### Upgrade notes
 

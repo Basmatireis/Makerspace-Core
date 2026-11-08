@@ -18,17 +18,24 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - name: Validate stable semantic version
+      # vMAJOR.MINOR.PATCH is a release; vMAJOR.MINOR.PATCH-rc.N is a release candidate for staging.
+      - name: Validate semantic version
         id: version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo "Release tags must have the form vMAJOR.MINOR.PATCH."
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.([1-9][0-9]*))?$ ]]; then
+            echo "Release tags must have the form vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-rc.N."
             exit 1
           fi
           echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${BASH_REMATCH[4]}" ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
 
   # Reuse a green CI run instead of validating the same commit twice. The shortcut is deliberately
   # narrow: it needs a successful push run of ci.yml on main for exactly this commit. Anything else
@@ -153,12 +160,11 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}-${{ matrix.component }}
+          # Only the immutable full version: no latest and no moving minor or major tags, so a
+          # deployment changes only when its compose file names a new version.
           flavor: latest=false
           tags: |
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
-            type=raw,value=latest
       - name: Build and publish image
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -232,13 +238,19 @@ jobs:
         id: bundle
         env:
           VERSION: ${{ needs.tag.outputs.version }}
+          PRERELEASE: ${{ needs.tag.outputs.prerelease }}
         run: |
           archive_path="$(./scripts/package-production-compose.sh "$VERSION" "$RUNNER_TEMP")"
           echo "archive_path=$archive_path" >> "$GITHUB_OUTPUT"
           connector_archive_path="$(./scripts/package-printer-connector-compose.sh "$VERSION" "$RUNNER_TEMP")"
           echo "connector_archive_path=$connector_archive_path" >> "$GITHUB_OUTPUT"
           release_notes_path="${RUNNER_TEMP}/release-notes.md"
-          awk -v version="$VERSION" '
+          # A release candidate's changes are still under [Unreleased] in CHANGELOG.md.
+          notes_section="$VERSION"
+          if [ "$PRERELEASE" = true ]; then
+            notes_section=Unreleased
+          fi
+          awk -v version="$notes_section" '
             $0 ~ "^## \\[" version "\\]" { found = 1; next }
             found && /^## \[/ { exit }
             found { print }
@@ -253,4 +265,10 @@ jobs:
           COMPOSE_BUNDLE: ${{ steps.bundle.outputs.archive_path }}
           CONNECTOR_COMPOSE_BUNDLE: ${{ steps.bundle.outputs.connector_archive_path }}
           RELEASE_NOTES: ${{ steps.bundle.outputs.release_notes_path }}
-        run: gh release create "$RELEASE_TAG" "$COMPOSE_BUNDLE#Production Compose bundle" "$CONNECTOR_COMPOSE_BUNDLE#Printer Connector Compose bundle" --verify-tag --notes-file "$RELEASE_NOTES" --title "$RELEASE_TAG"
+          PRERELEASE: ${{ needs.tag.outputs.prerelease }}
+        run: |
+          prerelease_flag=()
+          if [ "$PRERELEASE" = true ]; then
+            prerelease_flag=(--prerelease)
+          fi
+          gh release create "$RELEASE_TAG" "$COMPOSE_BUNDLE#Production Compose bundle" "$CONNECTOR_COMPOSE_BUNDLE#Printer Connector Compose bundle" --verify-tag --notes-file "$RELEASE_NOTES" --title "$RELEASE_TAG" "${prerelease_flag[@]}"

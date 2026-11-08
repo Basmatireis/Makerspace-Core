@@ -18,8 +18,8 @@ stack=$1
 archive_prefix=$2
 version=$3
 output_directory=$4
-if ! printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
-    printf 'VERSION must have the form MAJOR.MINOR.PATCH without a leading v\n' >&2
+if ! printf '%s\n' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$'; then
+    printf 'VERSION must have the form MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-rc.N without a leading v\n' >&2
     exit 2
 fi
 

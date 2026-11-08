@@ -157,6 +157,32 @@ func TestLoadRequiresHTTPSProductionOrigin(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsHTTPProductionOriginOnlyOnLoopback(t *testing.T) {
+	for origin, accepted := range map[string]bool{
+		"http://localhost:8080":          true,
+		"http://127.0.0.1:8080":          true,
+		"http://[::1]:8080":              true,
+		"http://makerspace.example.test": false,
+		"http://129.27.203.55:8080":      false,
+		"http://localhost.example.test":  false,
+	} {
+		t.Run(origin, func(t *testing.T) {
+			setValidEnvironment(t)
+			t.Setenv("APP_ENV", "production")
+			t.Setenv("PUBLIC_BASE_URL", origin)
+			t.Setenv("AUTH_CHALLENGE_HMAC_KEY", base64.StdEncoding.EncodeToString([]byte(strings.Repeat("a", 32))))
+			t.Setenv("PIN_PEPPER", base64.StdEncoding.EncodeToString([]byte(strings.Repeat("b", 32))))
+			_, err := Load()
+			if accepted && err != nil {
+				t.Fatal(err)
+			}
+			if !accepted && err == nil {
+				t.Fatal("plaintext production origin was accepted")
+			}
+		})
+	}
+}
+
 func TestLoadRejectsValuesThatAreNotOrigins(t *testing.T) {
 	for _, value := range []string{
 		"ftp://example.test",

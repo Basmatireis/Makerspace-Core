@@ -17,7 +17,9 @@ git tag v0.4.0
 git push origin v0.4.0
 ```
 
-The tag starts `.github/workflows/release.yml`. It accepts only stable `vMAJOR.MINOR.PATCH` tags, makes sure the commit was validated by CI (reusing a green run or running the complete CI workflow, see [Release validation](#release-validation)), confirms that neither immutable `0.4.0` image tag already exists, publishes the images with `GITHUB_TOKEN`, verifies that they are anonymously pullable, and creates the `v0.4.0` GitHub Release with that version's notes from `CHANGELOG.md` plus version-pinned Core and printer-connector Compose bundles. Image digests are shown in the publish-job summaries and in GHCR. A failed validation publishes nothing.
+The tag starts `.github/workflows/release.yml`. It accepts stable `vMAJOR.MINOR.PATCH` tags and release candidates `vMAJOR.MINOR.PATCH-rc.N`, makes sure the commit was validated by CI (reusing a green run or running the complete CI workflow, see [Release validation](#release-validation)), confirms that neither immutable `0.4.0` image tag already exists, publishes the images with `GITHUB_TOKEN`, verifies that they are anonymously pullable, and creates the `v0.4.0` GitHub Release with that version's notes from `CHANGELOG.md` plus version-pinned Core and printer-connector Compose bundles. Image digests are shown in the publish-job summaries and in GHCR. A failed validation publishes nothing.
+
+A release candidate such as `v0.19.0-rc.1` goes through the same steps, but its GitHub Release is marked as a pre-release and takes its notes from `[Unreleased]`, because `CHANGELOG.md` keeps the changes there until the stable release. Release candidates are meant for a staging installation: tag `rc.1`, test it, fix and tag `rc.2` if needed, then tag the stable version from the commit that passed.
 
 Semantic versioning uses:
 
@@ -48,15 +50,10 @@ Images use the repository owner and name dynamically. For this repository, relea
 
 ```text
 ghcr.io/basmatireis/makerspace-core-backend:0.4.0
-ghcr.io/basmatireis/makerspace-core-backend:0.4
-ghcr.io/basmatireis/makerspace-core-backend:latest
-
 ghcr.io/basmatireis/makerspace-core-frontend:0.4.0
-ghcr.io/basmatireis/makerspace-core-frontend:0.4
-ghcr.io/basmatireis/makerspace-core-frontend:latest
 ```
 
-The full version tag, such as `0.4.0`, is immutable and the release workflow refuses to overwrite it. The minor tag, such as `0.4`, moves to the newest release in that minor line. For versions `1.0.0` and later, the major tag (for example `1`) also moves to the newest release in that major line. A broad `0` tag is deliberately not created. `latest` moves only when an explicit stable version tag is released; ordinary `main` commits do not update it. There is no `edge` image.
+plus the `-printer-connector` and `-local-updater` images with the same tag. Each image gets only its full version tag (`0.4.0`, or `0.4.0-rc.1` for a release candidate), which is immutable; the release workflow refuses to overwrite it. There are no moving tags (no `latest`, minor, major or `edge` tags), so an installation changes only when its compose file names a new version. Tools that watch for new versions compare these tags as semantic versions, where `-rc.N` is a pre-release.
 
 Each release attaches two bundles: `makerspace-core-VERSION-compose.tar.gz` and `makerspace-printer-connector-VERSION-compose.tar.gz` (the local service: connector and go2rtc; see [Hosting](hosting.md)); the release also publishes the `-printer-connector` and `-local-updater` images next to backend and frontend. The Core bundle contains only a `compose.yaml` with the exact immutable application version and a secret-free `.env.example`. Production hosts extract that bundle and do not need a repository checkout. All GHCR packages must be public before releasing; the unauthenticated image check deliberately blocks the GitHub Release otherwise.
 
