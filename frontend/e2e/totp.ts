@@ -102,13 +102,14 @@ export async function signInWithPassword(page: Page, email: string, password: st
 /**
  * A freshly seeded account has not answered the notification consent question, so the application shows it in place of
  * the shell right after sign-in. Answering with every optional message off keeps the account's flows unblocked; a
- * fixture that already answered goes straight to the shell.
+ * fixture that already answered goes straight to the shell. The server says which case applies, because the shell's
+ * main landmark renders before the lazily loaded question does.
  */
 export async function answerNotificationConsent(page: Page) {
+  const me = await page.request.get('/api/v1/auth/me');
+  expect(me.ok()).toBeTruthy();
+  if ((await me.json()).notificationConsentRequired !== true) return;
   const question = page.getByRole('heading', { name: 'Which messages may we send you?' });
-  await question.or(page.getByRole('main')).first().waitFor();
-  if (await question.isVisible()) {
-    await page.getByRole('button', { name: 'Save and continue' }).click();
-    await expect(question).toBeHidden();
-  }
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(question).toBeHidden();
 }

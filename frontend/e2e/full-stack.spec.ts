@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { welcomeTourSeen } from './guide-progress';
-import { signInWithPassword } from './totp';
+import { answerNotificationConsent, signInWithPassword } from './totp';
 
 const masterLogin = 'e2e-master@example.test';
 const masterPassword = 'E2E master workshop passphrase 42';
@@ -198,6 +198,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByLabel('PIN', { exact: true }).fill(phoneOnlyPIN);
     await page.getByRole('button', { name: 'Sign in with PIN' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
+    await answerNotificationConsent(page);
 
     await signOut(page);
     await signIn(page, masterLogin, masterPassword);
@@ -223,6 +224,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByLabel('PIN', { exact: true }).fill(phoneOnlyResetPIN);
     await page.getByRole('button', { name: 'Sign in with PIN' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
+    await answerNotificationConsent(page);
   });
 
   await test.step('verify supervisor redaction and self-only profile editing', async () => {

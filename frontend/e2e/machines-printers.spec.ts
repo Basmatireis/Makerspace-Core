@@ -53,7 +53,7 @@ for (const width of [390, 1440]) {
   test(`the Printers tab fits at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${base}/machines?tab=printers`);
-    await expect(page.getByRole('group', { name: 'Printer error', exact: true })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Printer error catalog' })).toBeVisible();
     await expectNoHorizontalScroll(page);
   });
 }
