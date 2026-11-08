@@ -22,35 +22,27 @@ import type { CashJournalKind } from './cashJournalKind';
 import type { GetCashJournalDirection } from './getCashJournalDirection';
 
 export type GetCashJournalParams = {
-/**
- * First day, inclusive (makerspace time zone).
- */
-from?: string;
-/**
- * Last day, inclusive (makerspace time zone).
- */
-to?: string;
-/**
- * @maxItems 6
- */
-kind?: CashJournalKind[];
-/**
- * Matches references, order references, reasons, notes and, with orders.read, customer names.
- * @maxLength 200
- */
-search?: string;
-/**
- * `asc` is oldest first (chronological), `desc` newest first.
- */
-direction?: GetCashJournalDirection;
-/**
- * @minimum 1
- * @maximum 2147483647
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
+  /** First day, inclusive (makerspace time zone). */
+  from?: string;
+  /** Last day, inclusive (makerspace time zone). */
+  to?: string;
+  /** @maxItems 6 */
+  kind?: CashJournalKind[];
+  /**
+   * Matches references, order references, reasons, notes and, with orders.read, customer names.
+   * @maxLength 200
+   */
+  search?: string;
+  /** `asc` is oldest first (chronological), `desc` newest first. */
+  direction?: GetCashJournalDirection;
+  /**
+   * @minimum 1
+   * @maximum 2147483647
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
 };

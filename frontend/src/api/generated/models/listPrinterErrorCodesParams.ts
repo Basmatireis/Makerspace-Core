@@ -22,20 +22,18 @@ import type { ListPrinterErrorCodesSource } from './listPrinterErrorCodesSource'
 import type { ListPrinterErrorCodesSourceFamily } from './listPrinterErrorCodesSourceFamily';
 
 export type ListPrinterErrorCodesParams = {
-/**
- * Case-insensitive substring match on code, meaning and description.
- * @maxLength 200
- */
-search?: string;
-sourceFamily?: ListPrinterErrorCodesSourceFamily;
-source?: ListPrinterErrorCodesSource;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
+  /**
+   * Case-insensitive substring match on code, meaning and description.
+   * @maxLength 200
+   */
+  search?: string;
+  sourceFamily?: ListPrinterErrorCodesSourceFamily;
+  source?: ListPrinterErrorCodesSource;
+  /** @minimum 1 */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
 };

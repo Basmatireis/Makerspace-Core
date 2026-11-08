@@ -22,37 +22,29 @@ import type { ListFilamentSpoolsLifecycle } from './listFilamentSpoolsLifecycle'
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListFilamentSpoolsParams = {
-/**
- * Case-insensitive substring match on the spool label (display ID), storage location, notes, acquisition reference, spool identifier values (such as tag IDs), the article's display ID, name, type, colour and manufacturer and the name of the machine the spool is mounted on.
- * @maxLength 200
- */
-search?: string;
-materialId?: UUIDv7;
-/**
- * active spools are in use; archived spools are retired and sit in the recycle bin.
- */
-lifecycle?: ListFilamentSpoolsLifecycle;
-/**
- * @maxLength 200
- */
-location?: string;
-mounted?: boolean;
-/**
- * Manufacturer of the spool's article.
- * @maxLength 150
- */
-manufacturer?: string;
-/**
- * true returns only active spools (usable for mounting and job usage).
- */
-consumable?: boolean;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
+  /**
+   * Case-insensitive substring match on the spool label (display ID), storage location, notes, acquisition reference, spool identifier values (such as tag IDs), the article's display ID, name, type, colour and manufacturer and the name of the machine the spool is mounted on.
+   * @maxLength 200
+   */
+  search?: string;
+  materialId?: UUIDv7;
+  /** active spools are in use; archived spools are retired and sit in the recycle bin. */
+  lifecycle?: ListFilamentSpoolsLifecycle;
+  /** @maxLength 200 */
+  location?: string;
+  mounted?: boolean;
+  /**
+   * Manufacturer of the spool's article.
+   * @maxLength 150
+   */
+  manufacturer?: string;
+  /** true returns only active spools (usable for mounting and job usage). */
+  consumable?: boolean;
+  /** @minimum 1 */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
 };

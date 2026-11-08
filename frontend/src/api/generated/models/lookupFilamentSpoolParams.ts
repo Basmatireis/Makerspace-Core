@@ -21,10 +21,10 @@
 import type { LookupFilamentSpoolKind } from './lookupFilamentSpoolKind';
 
 export type LookupFilamentSpoolParams = {
-kind: LookupFilamentSpoolKind;
-/**
- * @minLength 1
- * @maxLength 255
- */
-value: string;
+  kind: LookupFilamentSpoolKind;
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  value: string;
 };

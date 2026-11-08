@@ -22,6 +22,6 @@ import type { AuthenticationAssurance } from './authenticationAssurance';
 import type { UUIDv7 } from './uUIDv7';
 
 export type EvaluateRolePermissionsParams = {
-authenticationAssurance: AuthenticationAssurance;
-deviceTypeId?: UUIDv7;
+  authenticationAssurance: AuthenticationAssurance;
+  deviceTypeId?: UUIDv7;
 };

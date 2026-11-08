@@ -20,7 +20,7 @@
  */
 
 export type ListVisitsParams = {
-currentlyHere?: boolean;
-from?: string;
-to?: string;
+  currentlyHere?: boolean;
+  from?: string;
+  to?: string;
 };

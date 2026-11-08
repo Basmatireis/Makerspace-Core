@@ -21,5 +21,5 @@
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListInventorySuggestionsParams = {
-materialTypeId?: UUIDv7;
+  materialTypeId?: UUIDv7;
 };

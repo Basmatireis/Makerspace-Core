@@ -22,13 +22,11 @@ import type { ConfigurationImportModeParameter } from './configurationImportMode
 import type { ConfigurationImportSectionsParameter } from './configurationImportSectionsParameter';
 
 export type PreviewConfigurationImportParams = {
-/**
- * `overwrite` makes each chosen section equal the file (entries missing from it are deleted, or deactivated or kept when in use); `insert` only creates entries that do not exist yet.
- */
-mode: ConfigurationImportModeParameter;
-/**
- * @minItems 1
- * @maxItems 32
- */
-sections: ConfigurationImportSectionsParameter;
+  /** `overwrite` makes each chosen section equal the file (entries missing from it are deleted, or deactivated or kept when in use); `insert` only creates entries that do not exist yet. */
+  mode: ConfigurationImportModeParameter;
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  sections: ConfigurationImportSectionsParameter;
 };

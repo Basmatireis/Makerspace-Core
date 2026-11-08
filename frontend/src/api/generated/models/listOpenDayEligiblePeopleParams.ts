@@ -20,8 +20,6 @@
  */
 
 export type ListOpenDayEligiblePeopleParams = {
-/**
- * @maxLength 200
- */
-search?: string;
+  /** @maxLength 200 */
+  search?: string;
 };

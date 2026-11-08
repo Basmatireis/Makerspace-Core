@@ -23,30 +23,24 @@ import type { MachineRunState } from './machineRunState';
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListMachineRunsParams = {
-/**
- * Case-insensitive substring match on run display ID, file name, machine name, the display ID and name of the job, the material name and display ID of the reported spool, and the job's recipient (person or organization) and operator names.
- * @maxLength 200
- */
-search?: string;
-machineId?: UUIDv7;
-/**
- * @maxItems 6
- */
-state?: MachineRunState[];
-source?: MachineRunSource;
-/**
- * true returns only runs that belong to a job; false only unassigned runs.
- */
-assigned?: boolean;
-from?: string;
-to?: string;
-/**
- * @minimum 1
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
+  /**
+   * Case-insensitive substring match on run display ID, file name, machine name, the display ID and name of the job, the material name and display ID of the reported spool, and the job's recipient (person or organization) and operator names.
+   * @maxLength 200
+   */
+  search?: string;
+  machineId?: UUIDv7;
+  /** @maxItems 6 */
+  state?: MachineRunState[];
+  source?: MachineRunSource;
+  /** true returns only runs that belong to a job; false only unassigned runs. */
+  assigned?: boolean;
+  from?: string;
+  to?: string;
+  /** @minimum 1 */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
 };

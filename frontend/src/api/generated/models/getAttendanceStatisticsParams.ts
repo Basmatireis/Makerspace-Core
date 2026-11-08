@@ -20,6 +20,6 @@
  */
 
 export type GetAttendanceStatisticsParams = {
-from: string;
-to: string;
+  from: string;
+  to: string;
 };

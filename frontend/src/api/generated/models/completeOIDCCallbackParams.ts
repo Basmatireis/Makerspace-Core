@@ -20,14 +20,14 @@
  */
 
 export type CompleteOIDCCallbackParams = {
-/**
- * @minLength 1
- * @maxLength 4096
- */
-code: string;
-/**
- * @minLength 20
- * @maxLength 512
- */
-state: string;
+  /**
+   * @minLength 1
+   * @maxLength 4096
+   */
+  code: string;
+  /**
+   * @minLength 20
+   * @maxLength 512
+   */
+  state: string;
 };
