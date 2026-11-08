@@ -35,6 +35,12 @@ func newNoticeEnv(t *testing.T) *noticeEnv {
 	return e
 }
 
+// morningIn is 08:00 UTC the given number of days after now, so an Open Day and the timeslots the tests add or move
+// after it stay on one date in the makerspace's time zone whatever time of day the suite runs.
+func morningIn(now time.Time, days int) time.Time {
+	return time.Date(now.Year(), now.Month(), now.Day()+days, 8, 0, 0, 0, time.UTC)
+}
+
 type slotFixture struct{ id, supervisorRequirement uuid.UUID }
 
 // addSlot adds a second timeslot with places to a fixture day.
@@ -81,7 +87,7 @@ func (e *noticeEnv) save(delta opendays.ScheduleDelta) {
 
 func TestOpenDayScheduleSaveTellsAffectedPeopleOncePerDayAndNeverTheActor(t *testing.T) {
 	e := newNoticeEnv(t)
-	start := e.now.Add(3 * 24 * time.Hour).Truncate(time.Minute)
+	start := morningIn(e.now, 3)
 	day := e.openDay(start, 2*time.Hour, 3, 0)
 	second := e.addSlot(day, start.Add(3*time.Hour), 2*time.Hour)
 	for _, p := range []authorization.Principal{e.alice, e.bob, e.manager} {
@@ -139,7 +145,7 @@ func TestOpenDayScheduleSaveTellsAffectedPeopleOncePerDayAndNeverTheActor(t *tes
 
 func TestOpenDayCancellationTellsAssignedPeopleExceptTheActor(t *testing.T) {
 	e := newNoticeEnv(t)
-	start := e.now.Add(4 * 24 * time.Hour).Truncate(time.Minute)
+	start := morningIn(e.now, 4)
 	day := e.openDay(start, 2*time.Hour, 3, 0)
 	second := e.addSlot(day, start.Add(3*time.Hour), time.Hour)
 	for _, p := range []authorization.Principal{e.alice, e.manager} {
@@ -159,7 +165,7 @@ func TestOpenDayCancellationTellsAssignedPeopleExceptTheActor(t *testing.T) {
 	// A day deleted from a draft period no longer has a page: the notice links to the period.
 	draft := e.newPeriod("Draft", "draft", e.now.AddDate(0, 2, 0), e.now.AddDate(0, 3, 0))
 	draftDay, draftSlot, draftRequirement := ids.New(), ids.New(), ids.New()
-	draftStart := e.now.AddDate(0, 2, 5).Truncate(time.Minute)
+	draftStart := morningIn(e.now.AddDate(0, 2, 0), 5)
 	e.exec(`INSERT INTO open_days(id,period_id,starts_at,ends_at) VALUES($1,$2,$3,$4)`,
 		draftDay, draft, draftStart, draftStart.Add(time.Hour))
 	e.exec(`INSERT INTO open_day_timeslots(id,open_day_id,starts_at,ends_at,position) VALUES($1,$2,$3,$4,0)`,
@@ -200,7 +206,7 @@ func TestOpenDaySeriesShrinkCancelsLaterDaysAndTellsTheirStaff(t *testing.T) {
 	if weekday == 0 {
 		weekday = 7
 	}
-	periodVersion, _ := e.versions(e.openDay(e.now.Add(48*time.Hour), time.Hour, 1, 0).id)
+	periodVersion, _ := e.versions(e.openDay(morningIn(e.now, 2), time.Hour, 1, 0).id)
 	e.save(opendays.ScheduleDelta{ExpectedPeriodVersion: periodVersion, SeriesCreates: []opendays.SeriesCreate{{
 		Weekday: weekday, FromDate: firstDate, UntilDate: lastDate, SeriesTemplate: template,
 	}}})
@@ -233,7 +239,7 @@ func TestOpenDaySeriesShrinkCancelsLaterDaysAndTellsTheirStaff(t *testing.T) {
 
 func TestOpenDayAssignmentsByOthersNotifyButOwnActionsDoNot(t *testing.T) {
 	e := newNoticeEnv(t)
-	day := e.openDay(e.now.Add(5*24*time.Hour), 2*time.Hour, 5, 0)
+	day := e.openDay(morningIn(e.now, 5), 2*time.Hour, 5, 0)
 	ctx := testContext(t)
 
 	// Self sign-up is the person's own action.
@@ -296,10 +302,10 @@ func (e *noticeEnv) assignmentOf(dayID uuid.UUID, p authorization.Principal, tar
 func TestMembershipChangeToVisitorTellsThePersonOncePerFreedOpenDay(t *testing.T) {
 	e := newNoticeEnv(t)
 	ctx := testContext(t)
-	start := e.now.Add(3 * 24 * time.Hour).Truncate(time.Minute)
+	start := morningIn(e.now, 3)
 	busy := e.openDay(start, 2*time.Hour, 3, 0)
 	second := e.addSlot(busy, start.Add(3*time.Hour), time.Hour)
-	other := e.openDay(e.now.Add(6*24*time.Hour), 2*time.Hour, 3, 0)
+	other := e.openDay(morningIn(e.now, 6), 2*time.Hour, 3, 0)
 	e.holdSlot(busy, busy.timeslot, busy.supervisorRequirement, e.alice)
 	e.holdSlot(busy, second.id, second.supervisorRequirement, e.alice)
 	e.holdSlot(other, other.timeslot, other.supervisorRequirement, e.alice)
