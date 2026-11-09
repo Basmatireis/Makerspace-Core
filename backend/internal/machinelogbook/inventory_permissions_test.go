@@ -91,11 +91,13 @@ func TestInventoryPermissionsGateTheirOwnOperations(t *testing.T) {
 	})
 
 	t.Run("correct fixes stock and retires spools", func(t *testing.T) {
-		current := f.refresh(t, m.ID)
-		_, err := f.s.CorrectStock(ctx, without(authorization.InventoryCorrect), m.ID, current.InventoryVersion, "700",
-			nil, f.now, "recount", nil, &f.request)
+		// An article without spools, so a recount may lower stock freely.
+		loose := f.material(t, "1000")
+		current := f.refresh(t, loose.ID)
+		_, err := f.s.CorrectStock(ctx, without(authorization.InventoryCorrect), loose.ID, current.InventoryVersion, "700",
+			nil, f.now, "inventory_count", nil, &f.request)
 		denied(t, err)
-		_, err = f.s.MarkEmpty(ctx, without(authorization.InventoryCorrect), m.ID, current.InventoryVersion, f.now, nil,
+		_, err = f.s.MarkEmpty(ctx, without(authorization.InventoryCorrect), loose.ID, current.InventoryVersion, f.now, nil,
 			&f.request)
 		denied(t, err)
 		withSpools := func(permissions ...authorization.Permission) authorization.Principal {
@@ -107,8 +109,8 @@ func TestInventoryPermissionsGateTheirOwnOperations(t *testing.T) {
 			authorization.InventoryReceive, authorization.InventoryConsume), spool.ID, f.get(t, spool.ID).Version,
 			SpoolRetiredDiscarded, &f.request)
 		denied(t, err)
-		if _, err = f.s.CorrectStock(ctx, only(authorization.InventoryCorrect), m.ID, current.InventoryVersion, "700",
-			nil, f.now, "recount", nil, &f.request); err != nil {
+		if _, err = f.s.CorrectStock(ctx, only(authorization.InventoryCorrect), loose.ID, current.InventoryVersion, "700",
+			nil, f.now, "inventory_count", nil, &f.request); err != nil {
 			t.Fatalf("correction with inventory.correct: %v", err)
 		}
 		retired, err := f.s.RetireFilamentSpool(ctx, withSpools(authorization.InventoryCorrect), spool.ID,
