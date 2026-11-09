@@ -1204,6 +1204,46 @@ test('wraps the supervisor-needed action under its text in a narrow dashboard ti
   await expectNoHorizontalPageOverflow(page);
 });
 
+test('shows a notification dialog over the whole shell and keeps the page in place', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await installApi(page, { authenticated: true, user: currentUser() });
+  await page.goto('/dashboard');
+  const heading = page.getByRole('heading', { level: 1 });
+  const before = await visibleBoundingBox(heading, 'page heading');
+
+  await page.route('**/api/v1/notifications/unread-count', (route) =>
+    json(route, {
+      unreadCount: 1,
+      fresh: [],
+      pinned: [
+        {
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8c001',
+          appearance: 'dialog',
+          level: 'info',
+          title: 'You were assigned to an open day',
+          body: 'You were assigned to the timeslot 09:00–12:00.',
+          link: null,
+          button: { kind: 'none', label: null, link: null },
+          toastSeconds: null,
+          onlyButtonCloses: false,
+          allowLater: false,
+          createdAt: '2026-11-09T20:00:00Z',
+        },
+      ],
+    }),
+  );
+  await page.route('**/api/v1/notifications/*/seen', (route) => route.fulfill({ status: 204 }));
+  await page.reload();
+  const dialog = page.getByRole('dialog').filter({ hasText: 'You were assigned to an open day' });
+  await expect(dialog).toBeVisible();
+
+  // The backdrop covers the viewport, header included, and the page stays where it was beneath it.
+  const backdrop = await visibleBoundingBox(page.locator('.notification-dialog'), 'dialog backdrop');
+  expect(backdrop).toEqual({ x: 0, y: 0, width: 1280, height: 800 });
+  const beneath = await visibleBoundingBox(heading, 'page heading under the dialog');
+  expect(beneath.y).toBeCloseTo(before.y, 0);
+});
+
 test('collapses and opens the SideNav at the responsive breakpoint', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await installApi(page, { authenticated: true, user: currentUser() });
