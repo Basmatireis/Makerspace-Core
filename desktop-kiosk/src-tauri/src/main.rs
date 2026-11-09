@@ -16,6 +16,7 @@ const BRIDGE_URL: &str = "http://127.0.0.1:17321";
 const CREDENTIAL_SERVICE: &str = "at.makerspace.core.desktop";
 const CREDENTIAL_ACCOUNT: &str = "managed-device";
 const MAX_CONFIG_BYTES: u64 = 16 * 1024;
+const PAIRING_SECRET_HEADER: &str = "X-Device-Pairing-Secret";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -42,12 +43,43 @@ struct APIProblem {
     code: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PairingStartResponse {
+    code: String,
+    expires_at: String,
+    poll_secret: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PairingPollResponse {
+    status: String,
+    token: Option<String>,
+}
+
+/// What the registration page shows while a pairing code is open.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PairingCode {
+    code: String,
+    expires_at: String,
+}
+
+/// The open pairing request. The poll secret stays in the native process; the registration page never sees it, nor
+/// the token that a successful poll returns.
+struct PendingPairing {
+    core: Url,
+    poll_secret: String,
+    simulator: bool,
+}
+
 struct AppState {
     bridge: Mutex<Option<CommandChild>>,
     core_origin: Arc<RwLock<Option<String>>>,
     config_path: PathBuf,
     pairing_path: PathBuf,
     startup_error: Mutex<Option<String>>,
+    pending_pairing: Mutex<Option<PendingPairing>>,
 }
 
 #[tauri::command]
@@ -70,10 +102,135 @@ async fn register_device(
 ) -> Result<(), String> {
     let core = validate_core_url(&core_url)?;
     validate_token(&token)?;
-    let identity = fetch_device_identity(&core, &token).await?;
+    complete_registration(&app, &window, &state, &core, &token, simulator).await
+}
+
+/// Requests a pairing code from Core for this desktop. Staff enter the code under Settings › Devices & sessions ›
+/// Pair device; `poll_pairing` then collects the one-time native token.
+#[tauri::command]
+async fn start_pairing(
+    state: State<'_, AppState>,
+    core_url: String,
+    simulator: bool,
+) -> Result<PairingCode, String> {
+    let core = validate_core_url(&core_url)?;
+    // A request still open against the same Core is replaced instead of piling up.
+    let previous = state
+        .pending_pairing
+        .lock()
+        .map_err(|_| "The pairing state is unavailable.".to_owned())?
+        .take()
+        .filter(|pending| origin(&pending.core) == origin(&core))
+        .map(|pending| pending.poll_secret);
+    let mut request = http_client()?
+        .post(pairing_endpoint(&core)?)
+        .header("Accept", "application/json")
+        .json(&serde_json::json!({ "credentialDelivery": "nativeToken" }));
+    if let Some(secret) = &previous {
+        request = request.header(PAIRING_SECRET_HEADER, secret);
+    }
+    let response = request.send().await.map_err(|_| unreachable_core())?;
+    if !response.status().is_success() {
+        return Err(pairing_error(response).await);
+    }
+    let start = response
+        .json::<PairingStartResponse>()
+        .await
+        .map_err(|_| "Makerspace Core returned an invalid pairing response.".to_owned())?;
+    let poll_secret = start
+        .poll_secret
+        .filter(|secret| validate_token(secret).is_ok())
+        .ok_or_else(|| "Makerspace Core returned an invalid pairing response.".to_owned())?;
+    *state
+        .pending_pairing
+        .lock()
+        .map_err(|_| "The pairing state is unavailable.".to_owned())? = Some(PendingPairing {
+        core,
+        poll_secret,
+        simulator: simulator && cfg!(debug_assertions),
+    });
+    Ok(PairingCode {
+        code: start.code,
+        expires_at: start.expires_at,
+    })
+}
+
+/// Polls the open pairing request: `pending`, `expired` (request a new code), or `paired` once the one-time token was
+/// received and stored exactly like a manually entered token.
+#[tauri::command]
+async fn poll_pairing(
+    app: tauri::AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let (core, poll_secret, simulator) = {
+        let pending = state
+            .pending_pairing
+            .lock()
+            .map_err(|_| "The pairing state is unavailable.".to_owned())?;
+        let pending = pending
+            .as_ref()
+            .ok_or_else(|| "No pairing code is open.".to_owned())?;
+        (
+            pending.core.clone(),
+            pending.poll_secret.clone(),
+            pending.simulator,
+        )
+    };
+    let response = http_client()?
+        .get(pairing_endpoint(&core)?)
+        .header("Accept", "application/json")
+        .header(PAIRING_SECRET_HEADER, &poll_secret)
+        .send()
+        .await
+        .map_err(|_| unreachable_core())?;
+    if !response.status().is_success() {
+        return Err(pairing_error(response).await);
+    }
+    let poll = response
+        .json::<PairingPollResponse>()
+        .await
+        .map_err(|_| "Makerspace Core returned an invalid pairing response.".to_owned())?;
+    match poll.status.as_str() {
+        "pending" => Ok("pending".to_owned()),
+        "paired" => {
+            clear_pending_pairing(&state);
+            let token = poll
+                .token
+                .filter(|token| validate_token(token).is_ok())
+                .ok_or_else(|| {
+                    "Makerspace Core did not deliver a valid device credential.".to_owned()
+                })?;
+            complete_registration(&app, &window, &state, &core, &token, simulator).await?;
+            Ok("paired".to_owned())
+        }
+        _ => {
+            clear_pending_pairing(&state);
+            Ok("expired".to_owned())
+        }
+    }
+}
+
+fn clear_pending_pairing(state: &AppState) {
+    if let Ok(mut pending) = state.pending_pairing.lock() {
+        *pending = None;
+    }
+}
+
+/// Verifies the credential with Core, stores it in the operating-system credential store, starts the bridge and
+/// opens Core. Manual token entry and pairing share this path.
+async fn complete_registration(
+    app: &tauri::AppHandle,
+    window: &WebviewWindow,
+    state: &AppState,
+    core: &Url,
+    token: &str,
+    simulator: bool,
+) -> Result<(), String> {
+    let identity = fetch_device_identity(core, token).await?;
     let initial_path = initial_path(&identity).to_owned();
     let registration = StoredRegistration {
-        core_url: normalized_core_url(&core),
+        core_url: normalized_core_url(core),
         initial_path: initial_path.clone(),
         device_id: identity.device_id,
         device_name: identity.device_name,
@@ -82,11 +239,11 @@ async fn register_device(
     *state
         .core_origin
         .write()
-        .map_err(|_| "Desktop navigation state is unavailable.".to_owned())? = Some(origin(&core));
+        .map_err(|_| "Desktop navigation state is unavailable.".to_owned())? = Some(origin(core));
     let entry = credential_entry()?;
-    start_ready_bridge(&app, &state, &registration, &token).await?;
-    if entry.set_password(&token).is_err() {
-        stop_bridge(&state);
+    start_ready_bridge(app, state, &registration, token).await?;
+    if entry.set_password(token).is_err() {
+        stop_bridge(state);
         return Err(
             "The operating-system credential store rejected the managed-device credential."
                 .to_owned(),
@@ -94,10 +251,10 @@ async fn register_device(
     }
     if let Err(message) = store_registration(&state.config_path, &registration) {
         let _ = entry.delete_credential();
-        stop_bridge(&state);
+        stop_bridge(state);
         return Err(message);
     }
-    install_device_cookie(&window, &core, &token)?;
+    install_device_cookie(window, core, token)?;
     window
         .navigate(
             core.join(&initial_path)
@@ -106,10 +263,57 @@ async fn register_device(
         .map_err(|_| "The desktop window could not open Makerspace Core.".to_owned())
 }
 
+fn http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|_| "The registration client could not start.".to_owned())
+}
+
+fn pairing_endpoint(core: &Url) -> Result<Url, String> {
+    core.join("api/v1/public/managed-devices/pairing")
+        .map_err(|_| "The Makerspace Core pairing endpoint is invalid.".to_owned())
+}
+
+fn unreachable_core() -> String {
+    "Makerspace Core could not be reached. Check the URL and network connection.".to_owned()
+}
+
+async fn pairing_error(response: reqwest::Response) -> String {
+    let status = response.status().as_u16();
+    let code = response
+        .json::<APIProblem>()
+        .await
+        .ok()
+        .and_then(|problem| problem.code);
+    pairing_error_message(status, code.as_deref())
+}
+
+fn pairing_error_message(status: u16, code: Option<&str>) -> String {
+    match (status, code) {
+        (403, Some("pairing_network_denied")) => {
+            "This network may not register kiosks. Connect the desktop to the makerspace network."
+                .to_owned()
+        }
+        (409, Some("pairing_claimed")) => {
+            "This desktop was already paired. Wait a moment and try again.".to_owned()
+        }
+        (429, _) => "Too many pairing requests. Wait a few minutes and try again.".to_owned(),
+        (404, _) => "This Makerspace Core does not support pairing yet. Enter a managed-device token instead."
+            .to_owned(),
+        _ => format!("Makerspace Core rejected the pairing request (HTTP {status})."),
+    }
+}
+
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![register_device, take_startup_error])
+        .invoke_handler(tauri::generate_handler![
+            register_device,
+            start_pairing,
+            poll_pairing,
+            take_startup_error
+        ])
         .setup(|app| {
             let config_directory = app.path().app_config_dir()?;
             fs::create_dir_all(&config_directory)?;
@@ -132,6 +336,7 @@ fn main() {
                 config_path,
                 pairing_path,
                 startup_error: Mutex::new(None),
+                pending_pairing: Mutex::new(None),
             });
 
             let injected = serde_json::to_string(&serde_json::json!({
@@ -536,6 +741,52 @@ mod tests {
             &Url::parse("http://core.example.org/").unwrap(),
             &allowed
         ));
+    }
+
+    #[test]
+    fn pairing_uses_the_public_endpoint_of_the_configured_origin() {
+        let core = Url::parse("https://core.example.org/").unwrap();
+        assert_eq!(
+            pairing_endpoint(&core).unwrap().as_str(),
+            "https://core.example.org/api/v1/public/managed-devices/pairing"
+        );
+    }
+
+    #[test]
+    fn pairing_errors_are_actionable() {
+        assert!(pairing_error_message(403, Some("pairing_network_denied")).contains("network"));
+        assert!(pairing_error_message(429, Some("rate_limited")).contains("Too many"));
+        assert!(pairing_error_message(404, None).contains("token instead"));
+        assert_eq!(
+            pairing_error_message(500, None),
+            "Makerspace Core rejected the pairing request (HTTP 500)."
+        );
+    }
+
+    #[test]
+    fn pairing_code_for_the_page_omits_the_poll_secret() {
+        let start: PairingStartResponse = serde_json::from_str(
+            r#"{"code":"K7F2QX","expiresAt":"2026-11-09T10:15:00Z","pollSecret":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#,
+        )
+        .unwrap();
+        assert!(
+            start
+                .poll_secret
+                .as_deref()
+                .is_some_and(|secret| validate_token(secret).is_ok())
+        );
+        let shown = serde_json::to_string(&PairingCode {
+            code: start.code,
+            expires_at: start.expires_at,
+        })
+        .unwrap();
+        assert_eq!(
+            shown,
+            r#"{"code":"K7F2QX","expiresAt":"2026-11-09T10:15:00Z"}"#
+        );
+        let poll: PairingPollResponse = serde_json::from_str(r#"{"status":"pending"}"#).unwrap();
+        assert_eq!(poll.status, "pending");
+        assert!(poll.token.is_none());
     }
 
     #[test]
