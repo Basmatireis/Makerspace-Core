@@ -20,6 +20,13 @@ tmp/
 
 # Go build output
 backend/bin/
+# `go build ./cmd/<name>` run inside backend/ writes the binary next to go.mod
+/backend/admin
+/backend/api
+/backend/device-bridge
+/backend/devseed
+/backend/local-updater
+/backend/printer-connector
 
 # Frontend dependency and build output
 frontend/node_modules/
