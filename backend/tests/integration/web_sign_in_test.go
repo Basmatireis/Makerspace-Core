@@ -22,7 +22,7 @@ func webSignInAccount(t *testing.T, pool *pgxpool.Pool, suffix string, roleID uu
 	if err != nil {
 		t.Fatal(err)
 	}
-	revokeWebSignIn(t, pool, account.personID)
+	revokeWebSignIn(t, pool)
 	if _, err := pool.Exec(ctx, `UPDATE password_credentials SET password_hash=$1 WHERE auth_identity_id=$2`,
 		hash, account.identity); err != nil {
 		t.Fatal(err)

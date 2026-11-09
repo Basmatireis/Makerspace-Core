@@ -1020,43 +1020,45 @@ func seedAccount(t *testing.T, pool *pgxpool.Pool, suffix string, master bool) s
 		}
 	}
 	if !master {
-		grantWebSignIn(t, pool, personID)
+		allowVisitorWebSignIn(t, pool)
 	}
 	return seededAccount{accountID: accountID, personID: personID, identity: identityID}
 }
 
-// webSignInTestRoleID is a role holding only web.sign_in. seedAccount gives it to every non-master account so that
-// fixtures can sign in over HTTP; tests of the refusal take it away again with revokeWebSignIn.
-const webSignInTestRoleID = "01995ea6-6d00-7000-8000-0000000000f1"
-
-func grantWebSignIn(t *testing.T, pool *pgxpool.Pool, personID uuid.UUID) {
+// allowVisitorWebSignIn lets the Visitor membership role sign in to the web application, which migration 00122
+// denies it. Fixture accounts hold only that membership, so seedAccount calls it; tests of the refusal call
+// revokeWebSignIn. Every test has its own schema, so this never leaks into another test.
+func allowVisitorWebSignIn(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := testContext(t)
 	var applied bool
-	if err := pool.QueryRow(ctx,
-		`SELECT to_regclass('goose_db_version') IS NOT NULL AND
-		 EXISTS (SELECT 1 FROM goose_db_version WHERE version_id = 122 AND is_applied)`).Scan(&applied); err != nil {
+	// Migration 00122 only exists in schemas that have the tables below; its supervisor grant proves it ran.
+	if err := pool.QueryRow(ctx, `SELECT to_regclass('role_permission_grants') IS NOT NULL
+		AND to_regclass('person_roles') IS NOT NULL AND to_regclass('staffing_rules') IS NOT NULL`).Scan(&applied); err != nil {
 		t.Fatal(err)
+	}
+	if applied {
+		if err := pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM role_permission_grants WHERE permission_id = 'web.sign_in')`).Scan(&applied); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if !applied {
 		return
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO roles (id, name, description) VALUES ($1, 'Integration web sign-in', 'Test fixture')
-		ON CONFLICT (id) DO NOTHING;
 		INSERT INTO role_permission_grants (id, role_id, permission_id)
-		SELECT uuidv7(), $1, 'web.sign_in'
-		WHERE NOT EXISTS (SELECT 1 FROM role_permission_grants WHERE role_id = $1 AND permission_id = 'web.sign_in');
-		INSERT INTO person_roles (person_id, role_id) VALUES ($2, $1) ON CONFLICT DO NOTHING`,
-		webSignInTestRoleID, personID); err != nil {
+		SELECT uuidv7(), r.id, 'web.sign_in' FROM roles r
+		WHERE r.system_key = 'visitor' AND NOT EXISTS (
+			SELECT 1 FROM role_permission_grants g WHERE g.role_id = r.id AND g.permission_id = 'web.sign_in')`); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func revokeWebSignIn(t *testing.T, pool *pgxpool.Pool, personID uuid.UUID) {
+func revokeWebSignIn(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	if _, err := pool.Exec(testContext(t), `DELETE FROM person_roles WHERE person_id = $1 AND role_id = $2`,
-		personID, webSignInTestRoleID); err != nil {
+	if _, err := pool.Exec(testContext(t), `DELETE FROM role_permission_grants g USING roles r
+		WHERE g.role_id = r.id AND r.system_key = 'visitor' AND g.permission_id = 'web.sign_in'`); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -24,8 +24,13 @@ func webSignInNotPermitted() *apperror.Error {
 }
 
 // requireWebSignIn refuses an account whose roles do not grant web.sign_in. Permissions are re-read from the
-// database through db, so a caller inside a transaction sees the state it holds locks on.
+// database through db, so a caller inside a transaction sees the state it holds locks on. A sign-in on a verified
+// managed device (the tablet terminal, where visitors identify themselves by PIN) is the terminal flow and needs no
+// web access.
 func requireWebSignIn(ctx context.Context, db authdb.DBTX, accountID uuid.UUID) error {
+	if managedDeviceFromContext(ctx) != nil {
+		return nil
+	}
 	principal, err := authorization.LoadPermissionsFrom(ctx, db, authorization.Principal{AccountID: accountID})
 	if err != nil {
 		return err

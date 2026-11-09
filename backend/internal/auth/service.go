@@ -244,8 +244,8 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	if err != nil {
 		return Authenticated{}, err
 	}
-	// Sessions of accounts that lost web.sign_in stop working at once, wherever they were created.
-	if !principal.MaySignInToWeb() {
+	// Sessions of accounts that lost web.sign_in stop working at once, except terminal sessions on a managed device.
+	if row.ManagedDeviceID == nil && !principal.MaySignInToWeb() {
 		return Authenticated{}, webSignInNotPermitted()
 	}
 	currentDevice := managedDeviceFromContext(ctx)

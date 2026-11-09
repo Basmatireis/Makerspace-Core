@@ -291,6 +291,12 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		"name": "Member self-service", "description": "May read and update only the linked person",
 		"permissionGrants": []map[string]any{
 			{
+				"permissionId":     "web.sign_in",
+				"scope":            "everywhere",
+				"deviceTypeIds":    []string{},
+				"minimumAssurance": "low",
+			},
+			{
 				"permissionId":     "people.read.self",
 				"scope":            "everywhere",
 				"deviceTypeIds":    []string{},
@@ -380,6 +386,9 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		t.Fatalf("unexpected cross-person denial: %#v", denied)
 	}
 
+	// The member keeps web access through the Visitor membership after the role below is removed, so the rest of
+	// this test still exercises permission denial rather than the web.sign_in refusal.
+	allowVisitorWebSignIn(t, pool)
 	response = doJSON(
 		t,
 		adminClient,

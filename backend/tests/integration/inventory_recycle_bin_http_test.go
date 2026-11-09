@@ -99,6 +99,8 @@ func TestInventoryRecycleBinOverHTTP(t *testing.T) {
 		"name": "Material delete reader", "description": "Test role",
 		"permissionGrants": []map[string]any{{
 			"permissionId": "inventory.read", "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low",
+		}, {
+			"permissionId": "web.sign_in", "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low",
 		}},
 	}, &role)
 	post(root, http.MethodGet, "/people/"+person.Id.String(), http.StatusOK, nil, &person)
