@@ -21,5 +21,5 @@
 import type { SignageAssetKind } from './signageAssetKind';
 
 export type ListSignageAssetsParams = {
-  kind?: SignageAssetKind;
+kind?: SignageAssetKind;
 };

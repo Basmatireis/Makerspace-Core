@@ -22,7 +22,7 @@ export function MountSpoolModal({ spool, onClose }: { spool: FilamentSpool; onCl
   const printers = (machines.data?.items ?? []).filter((machine) => isFdm(machine.process));
   const profile = useQuery({ ...printerQuery(machineId ?? ''), enabled: Boolean(machineId) });
   const slots = (profile.data?.slots ?? []).filter((slot) => slot.status !== 'retired');
-  const free = slots.filter((slot) => !slot.spoolId);
+  const free = slots.filter((slot) => !slot.assignmentId);
   const mount = useMutation({
     mutationFn: (slot: PrinterSlot) => mountPrinterSpool(slot.id, { spoolId: spool.id }),
     onSuccess: async (slot) => {

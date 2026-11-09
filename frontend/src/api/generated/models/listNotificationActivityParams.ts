@@ -21,12 +21,14 @@
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListNotificationActivityParams = {
-  ruleId?: UUIDv7;
-  /** @minimum 1 */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  pageSize?: number;
+ruleId?: UUIDv7;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: number;
 };

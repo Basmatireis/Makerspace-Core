@@ -20,9 +20,9 @@
  */
 
 export type DownloadSignageAssetParams = {
-  /**
-   * The asset's sha256; enables long-lived private caching when it matches.
-   * @pattern ^[0-9a-f]{64}$
-   */
-  v?: string;
+/**
+ * The asset's sha256; enables long-lived private caching when it matches.
+ * @pattern ^[0-9a-f]{64}$
+ */
+v?: string;
 };

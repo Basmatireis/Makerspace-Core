@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
@@ -52,8 +53,13 @@ type Slot struct {
 	Status                     SlotStatus
 	AssignmentID, SpoolID      *uuid.UUID
 	SpoolDisplayID             *string
-	MountedAt                  *time.Time
-	Version                    int64
+	// MountKind is set while something is mounted: an inventory spool or customer filament, which has no spool.
+	MountKind                *MountKind
+	CustomerMaterialTypeID   *uuid.UUID
+	CustomerMaterialTypeName *string
+	CustomerColorName        *string
+	MountedAt                *time.Time
+	Version                  int64
 }
 type Profile struct {
 	MachineID            uuid.UUID
@@ -172,40 +178,56 @@ func inputUnit(row db.PrinterInputUnit) InputUnit {
 		Version:            row.Version,
 	}
 }
+func mountKind(value *string) *MountKind {
+	if value == nil {
+		return nil
+	}
+	kind := MountKind(*value)
+	return &kind
+}
+
 func slotFromGet(row db.GetPrinterSlotRow) Slot {
 	return Slot{
-		ID:                 row.ID,
-		InputUnitID:        row.InputUnitID,
-		MachineID:          row.MachineID,
-		InputUnitName:      row.InputUnitName,
-		Name:               row.Name,
-		Position:           int(row.Position),
-		NozzleIndex:        int(row.NozzleIndex),
-		ExternalIdentifier: row.ExternalIdentifier,
-		Status:             SlotStatus(row.Status),
-		AssignmentID:       row.AssignmentID,
-		SpoolID:            row.SpoolID,
-		SpoolDisplayID:     row.SpoolDisplayID,
-		MountedAt:          nullableTime(row.MountedAt),
-		Version:            row.Version,
+		ID:                       row.ID,
+		InputUnitID:              row.InputUnitID,
+		MachineID:                row.MachineID,
+		InputUnitName:            row.InputUnitName,
+		Name:                     row.Name,
+		Position:                 int(row.Position),
+		NozzleIndex:              int(row.NozzleIndex),
+		ExternalIdentifier:       row.ExternalIdentifier,
+		Status:                   SlotStatus(row.Status),
+		AssignmentID:             row.AssignmentID,
+		SpoolID:                  row.SpoolID,
+		SpoolDisplayID:           row.SpoolDisplayID,
+		MountKind:                mountKind(row.MountKind),
+		CustomerMaterialTypeID:   row.CustomerMaterialTypeID,
+		CustomerMaterialTypeName: row.CustomerMaterialTypeName,
+		CustomerColorName:        row.CustomerColorName,
+		MountedAt:                nullableTime(row.MountedAt),
+		Version:                  row.Version,
 	}
 }
 func slotFromList(row db.ListPrinterSlotsRow) Slot {
 	return Slot{
-		ID:                 row.ID,
-		InputUnitID:        row.InputUnitID,
-		MachineID:          row.MachineID,
-		InputUnitName:      row.InputUnitName,
-		Name:               row.Name,
-		Position:           int(row.Position),
-		NozzleIndex:        int(row.NozzleIndex),
-		ExternalIdentifier: row.ExternalIdentifier,
-		Status:             SlotStatus(row.Status),
-		AssignmentID:       row.AssignmentID,
-		SpoolID:            row.SpoolID,
-		SpoolDisplayID:     row.SpoolDisplayID,
-		MountedAt:          nullableTime(row.MountedAt),
-		Version:            row.Version,
+		ID:                       row.ID,
+		InputUnitID:              row.InputUnitID,
+		MachineID:                row.MachineID,
+		InputUnitName:            row.InputUnitName,
+		Name:                     row.Name,
+		Position:                 int(row.Position),
+		NozzleIndex:              int(row.NozzleIndex),
+		ExternalIdentifier:       row.ExternalIdentifier,
+		Status:                   SlotStatus(row.Status),
+		AssignmentID:             row.AssignmentID,
+		SpoolID:                  row.SpoolID,
+		SpoolDisplayID:           row.SpoolDisplayID,
+		MountKind:                mountKind(row.MountKind),
+		CustomerMaterialTypeID:   row.CustomerMaterialTypeID,
+		CustomerMaterialTypeName: row.CustomerMaterialTypeName,
+		CustomerColorName:        row.CustomerColorName,
+		MountedAt:                nullableTime(row.MountedAt),
+		Version:                  row.Version,
 	}
 }
 
@@ -615,7 +637,7 @@ func (s *Service) Mount(
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return Slot{}, err
 	}
-	if _, err = q.GetOpenAssignmentForSpool(ctx, spoolID); err == nil {
+	if _, err = q.GetOpenAssignmentForSpool(ctx, &spoolID); err == nil {
 		return Slot{}, apperror.Conflicting("spool_already_mounted", "Spool is already mounted")
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -628,7 +650,7 @@ func (s *Service) Mount(
 		db.CreatePrinterSpoolAssignmentParams{
 			ID:                 id,
 			SlotID:             slotID,
-			SpoolID:            spoolID,
+			SpoolID:            &spoolID,
 			MountedAt:          time.Now().UTC(),
 			MountedByAccountID: &actor,
 			Source:             "manual",
@@ -645,6 +667,92 @@ func (s *Service) Mount(
 		slotID,
 		requestID,
 		[]string{"assignment", "spoolId"},
+	); err != nil {
+		return Slot{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return Slot{}, err
+	}
+	row, err := db.New(s.pool).GetPrinterSlot(ctx, slotID)
+	return slotFromGet(row), err
+}
+
+// MaxCustomerColorNameLength is the longest colour name of customer filament.
+const MaxCustomerColorNameLength = 80
+
+// MountCustomerFilament records that filament the customer brought is loaded in a slot. It is the same open mount
+// as a spool (one per slot, same permission, same history) but has no inventory spool, so nothing is booked from
+// stock; runs the connector records on the slot count as customer material. The material type and colour name are
+// optional descriptions.
+func (s *Service) MountCustomerFilament(
+	ctx context.Context,
+	p authorization.Principal,
+	slotID uuid.UUID,
+	materialTypeID *uuid.UUID,
+	colorName *string,
+	requestID *uuid.UUID,
+) (Slot, error) {
+	if err := require(p, authorization.PrinterSlotsAssign); err != nil {
+		return Slot{}, err
+	}
+	if err := require(p, authorization.MachinesRead); err != nil {
+		return Slot{}, err
+	}
+	color := optional.Trimmed(colorName)
+	if color != nil && utf8.RuneCountInString(*color) > MaxCustomerColorNameLength {
+		return Slot{}, apperror.Invalid("colorName must be at most 80 characters")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Slot{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := db.New(tx)
+	slot, err := q.GetPrinterSlotForUpdate(ctx, slotID)
+	if err != nil {
+		return Slot{}, noRows(err)
+	}
+	if SlotStatus(slot.Status) != SlotAvailable {
+		return Slot{}, apperror.Conflicting("slot_unavailable", "Printer slot is not available")
+	}
+	if materialTypeID != nil {
+		exists, existsErr := q.MaterialTypeExists(ctx, *materialTypeID)
+		if existsErr != nil {
+			return Slot{}, existsErr
+		}
+		if !exists {
+			return Slot{}, apperror.Invalid("unknown material type")
+		}
+	}
+	if _, err = q.GetOpenAssignmentForSlot(ctx, slotID); err == nil {
+		return Slot{}, apperror.Conflicting("slot_occupied", "Unmount the current filament before mounting another")
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Slot{}, err
+	}
+	actor := p.AccountID
+	if _, err = q.CreateCustomerFilamentAssignment(
+		ctx,
+		db.CreateCustomerFilamentAssignmentParams{
+			ID:                     ids.New(),
+			SlotID:                 slotID,
+			CustomerMaterialTypeID: materialTypeID,
+			CustomerColorName:      color,
+			MountedAt:              time.Now().UTC(),
+			MountedByAccountID:     &actor,
+		},
+	); err != nil {
+		return Slot{}, dbError(err)
+	}
+	if err = writeAudit(
+		ctx,
+		tx,
+		p,
+		"printer_slot.customer_filament_mounted",
+		"printer_slot",
+		slotID,
+		requestID,
+		[]string{"assignment", "materialTypeId", "colorName"},
 	); err != nil {
 		return Slot{}, err
 	}

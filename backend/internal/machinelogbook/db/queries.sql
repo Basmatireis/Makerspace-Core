@@ -826,13 +826,18 @@ ORDER BY i.run_id, i.line_number;
 -- name: ListLatestReportedUsageSegmentsForRuns :many
 -- The segments of the latest report revision, with the article of the spool each one resolved to.
 SELECT g.id, g.item_id, g.segment_index, g.input_unit_external_id, g.slot_external_id, g.started_at, g.start_layer,
-       g.estimated_quantity_g, g.split, g.spool_id, s.material_id AS spool_material_id
+       g.estimated_quantity_g, g.split, g.spool_id, g.customer_assignment_id, s.material_id AS spool_material_id
 FROM machine_run_reported_usage_segments g
 JOIN machine_run_reported_usage_items i ON i.id = g.item_id
 LEFT JOIN filament_spools s ON s.id = g.spool_id
 WHERE i.run_id = ANY(sqlc.arg(run_ids)::uuid[])
   AND i.report_revision = (SELECT max(x.report_revision) FROM machine_run_reported_usage_items x WHERE x.run_id = i.run_id)
 ORDER BY g.item_id, g.segment_index;
+
+-- name: GetCustomerFilamentMount :one
+-- What staff said the customer filament of a mount is; the mount may be closed already.
+SELECT a.customer_material_type_id, a.customer_color_name
+FROM printer_spool_assignments a WHERE a.id = sqlc.arg(id) AND a.kind = 'customer';
 
 -- name: ListActiveRunUsagesForUpdate :many
 SELECT * FROM machine_run_usages WHERE run_id = sqlc.arg(run_id) AND active

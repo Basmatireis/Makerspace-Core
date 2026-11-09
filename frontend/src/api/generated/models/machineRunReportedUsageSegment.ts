@@ -56,4 +56,6 @@ export interface MachineRunReportedUsageSegment {
   spoolId?: UUIDv7 | null;
   /** The article of the resolved spool. */
   materialId?: UUIDv7 | null;
+  /** True when the segment was fed from customer filament instead of a spool. */
+  customerFilament?: boolean;
 }

@@ -61,7 +61,8 @@ type Querier interface {
 	GetConnectorForUpdate(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDigest []byte) (PrinterConnectorEnrollment, error)
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
-	GetOpenMountSpoolForSlot(ctx context.Context, slotID uuid.UUID) (uuid.UUID, error)
+	// spool_id is null for customer filament.
+	GetOpenMountForSlot(ctx context.Context, slotID uuid.UUID) (GetOpenMountForSlotRow, error)
 	GetPrinterErrorCodeSync(ctx context.Context) (GetPrinterErrorCodeSyncRow, error)
 	// The slot a connector names, with the names people know it by; any status, so a change in a slot that
 	// is unavailable right now is still reported.
@@ -93,7 +94,8 @@ type Querier interface {
 	ListPrinterErrorCodesByCodes(ctx context.Context, codes []string) ([]PrinterErrorCode, error)
 	// Open errors first (newest first), then errors resolved within the window, newest first.
 	ListPrinterErrorOccurrences(ctx context.Context, arg ListPrinterErrorOccurrencesParams) ([]ListPrinterErrorOccurrencesRow, error)
-	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)
+	// The mounts a slot had at a point in time: a spool, or customer filament (spool_id is null).
+	ListSlotMountsAt(ctx context.Context, arg ListSlotMountsAtParams) ([]ListSlotMountsAtRow, error)
 	// The Bambu tray_uuid both RFID chips of a spool store.
 	ListTrayUUIDSpoolsAt(ctx context.Context, arg ListTrayUUIDSpoolsAtParams) ([]uuid.UUID, error)
 	LockActiveSpoolByNFCTag(ctx context.Context, tagUid string) (uuid.UUID, error)
@@ -101,7 +103,7 @@ type Querier interface {
 	LockAvailableSlotByExternalIDs(ctx context.Context, arg LockAvailableSlotByExternalIDsParams) (uuid.UUID, error)
 	LockEventSource(ctx context.Context, lockKey string) error
 	LockOpenMountForSlot(ctx context.Context, slotID uuid.UUID) (LockOpenMountForSlotRow, error)
-	LockOpenMountForSpool(ctx context.Context, spoolID uuid.UUID) (LockOpenMountForSpoolRow, error)
+	LockOpenMountForSpool(ctx context.Context, spoolID *uuid.UUID) (LockOpenMountForSpoolRow, error)
 	MachineExists(ctx context.Context, id uuid.UUID) (bool, error)
 	NextPrintSequence(ctx context.Context) (int64, error)
 	// Keeps the newest keep_count entries of the connector that are not older than cutoff.

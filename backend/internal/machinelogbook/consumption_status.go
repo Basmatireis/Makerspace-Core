@@ -209,7 +209,7 @@ func unbookedLineReason(item RunReportedUsageItem, f ConsumptionFacts) (Consumpt
 	if reason, ok := unresolvedLineReason(item, f); !ok {
 		return reason, false
 	}
-	if item.SpoolID == nil {
+	if item.SpoolID == nil && item.CustomerAssignmentID == nil {
 		if item.SlotExternalID != nil && *item.SlotExternalID != "" {
 			return ReasonSlotWithoutSpoolAssignment, false
 		}
@@ -227,7 +227,7 @@ func unbookedSegmentReason(segment RunReportedUsageSegment) (ConsumptionReason, 
 	if quantity, err := decimal.NewFromString(*segment.EstimatedQuantityGrams); err == nil && quantity.IsZero() {
 		return "", true
 	}
-	if segment.SpoolID == nil {
+	if segment.SpoolID == nil && segment.CustomerAssignmentID == nil {
 		return ReasonSegmentWithoutSpool, false
 	}
 	return "", true

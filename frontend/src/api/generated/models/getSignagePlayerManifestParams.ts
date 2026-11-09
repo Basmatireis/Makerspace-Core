@@ -20,9 +20,9 @@
  */
 
 export type GetSignagePlayerManifestParams = {
-  /**
-   * @minimum 0
-   * @maximum 1000000000
-   */
-  known?: number;
+/**
+ * @minimum 0
+ * @maximum 1000000000
+ */
+known?: number;
 };

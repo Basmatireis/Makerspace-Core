@@ -20,11 +20,13 @@
  */
 
 export type SearchMachineJobOperatorsParams = {
-  /** @maxLength 200 */
-  search?: string;
-  /**
-   * @minimum 1
-   * @maximum 50
-   */
-  limit?: number;
+/**
+ * @maxLength 200
+ */
+search?: string;
+/**
+ * @minimum 1
+ * @maximum 50
+ */
+limit?: number;
 };

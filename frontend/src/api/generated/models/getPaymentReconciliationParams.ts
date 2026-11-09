@@ -21,17 +21,17 @@
 import type { GetPaymentReconciliationMethod } from './getPaymentReconciliationMethod';
 
 export type GetPaymentReconciliationParams = {
-  /**
-   * @minimum 1
-   * @maximum 2147483647
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  pageSize?: number;
-  method?: GetPaymentReconciliationMethod;
-  from?: string;
-  to?: string;
+/**
+ * @minimum 1
+ * @maximum 2147483647
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: number;
+method?: GetPaymentReconciliationMethod;
+from?: string;
+to?: string;
 };

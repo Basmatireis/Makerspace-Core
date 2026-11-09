@@ -507,7 +507,7 @@ var Tables = []Table{
 		"external_identifier": System,
 		"status":              System,
 	}},
-	{Name: "printer_spool_assignments", Columns: map[string]Treatment{"source": System}},
+	{Name: "printer_spool_assignments", Columns: map[string]Treatment{"source": System, "kind": System, "customer_color_name": Catalog}},
 	{Name: "privacy_category_snapshots", Columns: map[string]Treatment{
 		"category_id":     System,
 		"owner_module_id": System,

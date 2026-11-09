@@ -22,15 +22,15 @@ import type { PageParameter } from './pageParameter';
 import type { PageSizeParameter } from './pageSizeParameter';
 
 export type ListPrinterConnectorActivityParams = {
-  /**
-   * One-based result page.
-   * @minimum 1
-   */
-  page?: PageParameter;
-  /**
-   * Maximum records to return per page.
-   * @minimum 1
-   * @maximum 100
-   */
-  pageSize?: PageSizeParameter;
+/**
+ * One-based result page.
+ * @minimum 1
+ */
+page?: PageParameter;
+/**
+ * Maximum records to return per page.
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: PageSizeParameter;
 };

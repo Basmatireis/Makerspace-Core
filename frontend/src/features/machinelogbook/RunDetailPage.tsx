@@ -33,6 +33,7 @@ import { UsageFormModal } from './dialogs/UsageFormModal';
 import { ClaimRunModal } from './jobs/ClaimRunModal';
 import { MediaCard } from './jobs/MediaCard';
 import { RecipientMaterialModal } from './jobs/RecipientMaterialModal';
+import { SwitchToCustomerMaterialModal } from './jobs/SwitchToCustomerMaterialModal';
 import { ReportedSegments } from './jobs/ReportedSegments';
 import { openReportedLines, reportedLineName, reportedLineQuantity } from './jobs/runLines';
 import { useUpdateJobFacts } from './jobs/jobsQueries';
@@ -97,6 +98,7 @@ export function RunDetailPage() {
   const [resolutionLine, setResolutionLine] = useState<number | null>(null);
   const [resolutionSegment, setResolutionSegment] = useState<MachineRunReportedUsageItem | null>(null);
   const [recipientLine, setRecipientLine] = useState<number | null>(null);
+  const [switchUsageId, setSwitchUsageId] = useState<string | null>(null);
   const close = () => setDialog(null);
 
   const canReadJobs = can(PermissionId.machine_jobsread);
@@ -190,6 +192,16 @@ export function RunDetailPage() {
       {(canEditUsage || canDetach || canDelete) && (
         <OverflowMenu aria-label="More run actions" iconDescription="More run actions" flipped>
           {canEditUsage && <OverflowMenuItem itemText="Edit material usage" onClick={() => setDialog('usage')} />}
+          {canEditUsage &&
+            run.usages
+              .filter((usage) => usage.ownership === 'makerspace')
+              .map((usage) => (
+                <OverflowMenuItem
+                  key={usage.id}
+                  itemText={`Switch ${usage.materialName} to customer material`}
+                  onClick={() => setSwitchUsageId(usage.id)}
+                />
+              ))}
           {canDetach && (
             <OverflowMenuItem
               itemText="Detach from job"
@@ -643,6 +655,13 @@ export function RunDetailPage() {
             <ResolveReportedUsageModal open onClose={() => setResolutionLine(null)} run={run} item={item} />
           ) : null;
         })()}
+      {run && (
+        <SwitchToCustomerMaterialModal
+          run={run}
+          usage={run.usages.find((usage) => usage.id === switchUsageId) ?? null}
+          onClose={() => setSwitchUsageId(null)}
+        />
+      )}
       {run && (
         <RecipientMaterialModal
           run={run}

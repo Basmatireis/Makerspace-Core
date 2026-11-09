@@ -844,7 +844,7 @@ INSERT INTO machine_run_reported_usage_items (
     $6, $7, $8, $9,
     $10, $11, $12,
     $13, $14, $15, $16, $17
-) ON CONFLICT (run_id, report_revision, line_number) DO NOTHING RETURNING id, run_id, source_printer_event_id, report_revision, line_number, slicer_filament_id, extruder, input_unit_external_id, slot_external_id, planned_quantity_g, planned_length_mm, estimated_quantity_g, material_id, spool_id, method, calculation_version, quality, created_at
+) ON CONFLICT (run_id, report_revision, line_number) DO NOTHING RETURNING id, run_id, source_printer_event_id, report_revision, line_number, slicer_filament_id, extruder, input_unit_external_id, slot_external_id, planned_quantity_g, planned_length_mm, estimated_quantity_g, material_id, spool_id, method, calculation_version, quality, created_at, customer_assignment_id
 `
 
 type InsertReportedUsageItemParams struct {
@@ -907,6 +907,7 @@ func (q *Queries) InsertReportedUsageItem(ctx context.Context, arg InsertReporte
 		&i.CalculationVersion,
 		&i.Quality,
 		&i.CreatedAt,
+		&i.CustomerAssignmentID,
 	)
 	return i, err
 }
@@ -985,7 +986,7 @@ func (q *Queries) ListArtifactPreviews(ctx context.Context, artifactID uuid.UUID
 }
 
 const listLatestReportedUsageItems = `-- name: ListLatestReportedUsageItems :many
-SELECT i.id, i.run_id, i.source_printer_event_id, i.report_revision, i.line_number, i.slicer_filament_id, i.extruder, i.input_unit_external_id, i.slot_external_id, i.planned_quantity_g, i.planned_length_mm, i.estimated_quantity_g, i.material_id, i.spool_id, i.method, i.calculation_version, i.quality, i.created_at FROM machine_run_reported_usage_items i
+SELECT i.id, i.run_id, i.source_printer_event_id, i.report_revision, i.line_number, i.slicer_filament_id, i.extruder, i.input_unit_external_id, i.slot_external_id, i.planned_quantity_g, i.planned_length_mm, i.estimated_quantity_g, i.material_id, i.spool_id, i.method, i.calculation_version, i.quality, i.created_at, i.customer_assignment_id FROM machine_run_reported_usage_items i
 WHERE i.run_id = $1
   AND i.report_revision = (SELECT max(report_revision) FROM machine_run_reported_usage_items WHERE run_id = $1)
 ORDER BY i.line_number
@@ -1019,6 +1020,7 @@ func (q *Queries) ListLatestReportedUsageItems(ctx context.Context, runID uuid.U
 			&i.CalculationVersion,
 			&i.Quality,
 			&i.CreatedAt,
+			&i.CustomerAssignmentID,
 		); err != nil {
 			return nil, err
 		}

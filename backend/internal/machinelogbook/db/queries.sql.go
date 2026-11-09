@@ -1956,7 +1956,7 @@ const filamentSpoolMounted = `-- name: FilamentSpoolMounted :one
 SELECT EXISTS(SELECT 1 FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL)
 `
 
-func (q *Queries) FilamentSpoolMounted(ctx context.Context, spoolID uuid.UUID) (bool, error) {
+func (q *Queries) FilamentSpoolMounted(ctx context.Context, spoolID *uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, filamentSpoolMounted, spoolID)
 	var exists bool
 	err := row.Scan(&exists)
@@ -2141,6 +2141,24 @@ func (q *Queries) GetBillingPerson(ctx context.Context, id uuid.UUID) (GetBillin
 	row := q.db.QueryRow(ctx, getBillingPerson, id)
 	var i GetBillingPersonRow
 	err := row.Scan(&i.ID, &i.DisplayName)
+	return i, err
+}
+
+const getCustomerFilamentMount = `-- name: GetCustomerFilamentMount :one
+SELECT a.customer_material_type_id, a.customer_color_name
+FROM printer_spool_assignments a WHERE a.id = $1 AND a.kind = 'customer'
+`
+
+type GetCustomerFilamentMountRow struct {
+	CustomerMaterialTypeID *uuid.UUID
+	CustomerColorName      *string
+}
+
+// What staff said the customer filament of a mount is; the mount may be closed already.
+func (q *Queries) GetCustomerFilamentMount(ctx context.Context, id uuid.UUID) (GetCustomerFilamentMountRow, error) {
+	row := q.db.QueryRow(ctx, getCustomerFilamentMount, id)
+	var i GetCustomerFilamentMountRow
+	err := row.Scan(&i.CustomerMaterialTypeID, &i.CustomerColorName)
 	return i, err
 }
 
@@ -5103,7 +5121,7 @@ func (q *Queries) ListJobRunsForUpdate(ctx context.Context, jobID *uuid.UUID) ([
 }
 
 const listLatestReportedUsageItemsForRuns = `-- name: ListLatestReportedUsageItemsForRuns :many
-SELECT i.id, i.run_id, i.source_printer_event_id, i.report_revision, i.line_number, i.slicer_filament_id, i.extruder, i.input_unit_external_id, i.slot_external_id, i.planned_quantity_g, i.planned_length_mm, i.estimated_quantity_g, i.material_id, i.spool_id, i.method, i.calculation_version, i.quality, i.created_at FROM machine_run_reported_usage_items i
+SELECT i.id, i.run_id, i.source_printer_event_id, i.report_revision, i.line_number, i.slicer_filament_id, i.extruder, i.input_unit_external_id, i.slot_external_id, i.planned_quantity_g, i.planned_length_mm, i.estimated_quantity_g, i.material_id, i.spool_id, i.method, i.calculation_version, i.quality, i.created_at, i.customer_assignment_id FROM machine_run_reported_usage_items i
 WHERE i.run_id = ANY($1::uuid[])
   AND i.report_revision = (SELECT max(x.report_revision) FROM machine_run_reported_usage_items x WHERE x.run_id = i.run_id)
 ORDER BY i.run_id, i.line_number
@@ -5137,6 +5155,7 @@ func (q *Queries) ListLatestReportedUsageItemsForRuns(ctx context.Context, runId
 			&i.CalculationVersion,
 			&i.Quality,
 			&i.CreatedAt,
+			&i.CustomerAssignmentID,
 		); err != nil {
 			return nil, err
 		}
@@ -5150,7 +5169,7 @@ func (q *Queries) ListLatestReportedUsageItemsForRuns(ctx context.Context, runId
 
 const listLatestReportedUsageSegmentsForRuns = `-- name: ListLatestReportedUsageSegmentsForRuns :many
 SELECT g.id, g.item_id, g.segment_index, g.input_unit_external_id, g.slot_external_id, g.started_at, g.start_layer,
-       g.estimated_quantity_g, g.split, g.spool_id, s.material_id AS spool_material_id
+       g.estimated_quantity_g, g.split, g.spool_id, g.customer_assignment_id, s.material_id AS spool_material_id
 FROM machine_run_reported_usage_segments g
 JOIN machine_run_reported_usage_items i ON i.id = g.item_id
 LEFT JOIN filament_spools s ON s.id = g.spool_id
@@ -5160,17 +5179,18 @@ ORDER BY g.item_id, g.segment_index
 `
 
 type ListLatestReportedUsageSegmentsForRunsRow struct {
-	ID                  uuid.UUID
-	ItemID              uuid.UUID
-	SegmentIndex        int32
-	InputUnitExternalID *string
-	SlotExternalID      *string
-	StartedAt           time.Time
-	StartLayer          *int32
-	EstimatedQuantityG  pgtype.Numeric
-	Split               *string
-	SpoolID             *uuid.UUID
-	SpoolMaterialID     *uuid.UUID
+	ID                   uuid.UUID
+	ItemID               uuid.UUID
+	SegmentIndex         int32
+	InputUnitExternalID  *string
+	SlotExternalID       *string
+	StartedAt            time.Time
+	StartLayer           *int32
+	EstimatedQuantityG   pgtype.Numeric
+	Split                *string
+	SpoolID              *uuid.UUID
+	CustomerAssignmentID *uuid.UUID
+	SpoolMaterialID      *uuid.UUID
 }
 
 // The segments of the latest report revision, with the article of the spool each one resolved to.
@@ -5194,6 +5214,7 @@ func (q *Queries) ListLatestReportedUsageSegmentsForRuns(ctx context.Context, ru
 			&i.EstimatedQuantityG,
 			&i.Split,
 			&i.SpoolID,
+			&i.CustomerAssignmentID,
 			&i.SpoolMaterialID,
 		); err != nil {
 			return nil, err
@@ -9675,7 +9696,7 @@ WHERE spool_id=$3 AND unmounted_at IS NULL
 type UnmountFilamentSpoolParams struct {
 	UnmountedAt    time.Time
 	ActorAccountID *uuid.UUID
-	SpoolID        uuid.UUID
+	SpoolID        *uuid.UUID
 }
 
 func (q *Queries) UnmountFilamentSpool(ctx context.Context, arg UnmountFilamentSpoolParams) (int64, error) {

@@ -605,6 +605,7 @@ type MachineJob struct {
 	DeletedAt                pgtype.Timestamptz
 	DeletedBy                *uuid.UUID
 	HiddenFromSignage        bool
+	BillingRevision          int64
 }
 
 type MachineJobPricingSnapshot struct {
@@ -734,20 +735,22 @@ type MachineRunReportedUsageItem struct {
 	CalculationVersion   string
 	Quality              string
 	CreatedAt            time.Time
+	CustomerAssignmentID *uuid.UUID
 }
 
 type MachineRunReportedUsageSegment struct {
-	ID                  uuid.UUID
-	ItemID              uuid.UUID
-	SegmentIndex        int32
-	InputUnitExternalID *string
-	SlotExternalID      *string
-	StartedAt           time.Time
-	StartLayer          *int32
-	EstimatedQuantityG  pgtype.Numeric
-	Split               *string
-	SpoolID             *uuid.UUID
-	CreatedAt           time.Time
+	ID                   uuid.UUID
+	ItemID               uuid.UUID
+	SegmentIndex         int32
+	InputUnitExternalID  *string
+	SlotExternalID       *string
+	StartedAt            time.Time
+	StartLayer           *int32
+	EstimatedQuantityG   pgtype.Numeric
+	Split                *string
+	SpoolID              *uuid.UUID
+	CreatedAt            time.Time
+	CustomerAssignmentID *uuid.UUID
 }
 
 type MachineRunTimelapse struct {
@@ -1176,7 +1179,6 @@ type Order struct {
 	CustomerKind           string
 	CustomerPersonID       *uuid.UUID
 	CustomerOrganizationID *uuid.UUID
-	FulfillmentMode        string
 	TotalAmount            pgtype.Numeric
 	ReplacesOrderID        *uuid.UUID
 	ReplacesOrderReference *string
@@ -1236,6 +1238,7 @@ type OrderItem struct {
 	RemovedAt             pgtype.Timestamptz
 	RemovedByAccountID    *uuid.UUID
 	SourceMaterialID      *uuid.UUID
+	SourceBillingRevision *int64
 }
 
 type OrderJobClaim struct {
@@ -1694,16 +1697,19 @@ type PrinterSlot struct {
 }
 
 type PrinterSpoolAssignment struct {
-	ID                   uuid.UUID
-	SlotID               uuid.UUID
-	SpoolID              uuid.UUID
-	MountedAt            time.Time
-	UnmountedAt          pgtype.Timestamptz
-	MountedByAccountID   *uuid.UUID
-	UnmountedByAccountID *uuid.UUID
-	Source               string
-	SourceEventID        *uuid.UUID
-	CreatedAt            time.Time
+	ID                     uuid.UUID
+	SlotID                 uuid.UUID
+	SpoolID                *uuid.UUID
+	MountedAt              time.Time
+	UnmountedAt            pgtype.Timestamptz
+	MountedByAccountID     *uuid.UUID
+	UnmountedByAccountID   *uuid.UUID
+	Source                 string
+	SourceEventID          *uuid.UUID
+	CreatedAt              time.Time
+	Kind                   string
+	CustomerMaterialTypeID *uuid.UUID
+	CustomerColorName      *string
 }
 
 type PrivacyCategorySnapshot struct {

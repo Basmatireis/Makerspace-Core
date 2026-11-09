@@ -20,10 +20,16 @@
  */
 
 export type ListEventTasksParams = {
-  /** Only tasks assigned to the caller's Person. */
-  mine?: boolean;
-  /** Only open tasks whose due time has passed. */
-  overdue?: boolean;
-  /** Include done tasks. */
-  includeDone?: boolean;
+/**
+ * Only tasks assigned to the caller's Person.
+ */
+mine?: boolean;
+/**
+ * Only open tasks whose due time has passed.
+ */
+overdue?: boolean;
+/**
+ * Include done tasks.
+ */
+includeDone?: boolean;
 };

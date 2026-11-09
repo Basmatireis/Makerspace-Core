@@ -21,17 +21,17 @@
 import type { ListOrderPaymentsMethod } from './listOrderPaymentsMethod';
 
 export type ListOrderPaymentsParams = {
-  /**
-   * @minimum 1
-   * @maximum 2147483647
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  pageSize?: number;
-  method?: ListOrderPaymentsMethod;
-  from?: string;
-  to?: string;
+/**
+ * @minimum 1
+ * @maximum 2147483647
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: number;
+method?: ListOrderPaymentsMethod;
+from?: string;
+to?: string;
 };

@@ -58,6 +58,8 @@ export interface MachineRunReportedUsageItem {
   /** @maxLength 80 */
   calculationVersion: string;
   quality: MachineRunReportedUsageItemQuality;
+  /** True when the line was fed from customer filament mounted in its slot: it has no spool and is booked as customer material. */
+  customerFilament?: boolean;
   /**
      * The spools that fed this line in time order, when two or more did during the print (an AMS refill, a reloaded tray, a new RFID tag); empty otherwise. A line with segments has no spool of its own: each segment is booked on its own spool with its own quantity, and the segments' quantities add up to the line's.
      * @maxItems 24

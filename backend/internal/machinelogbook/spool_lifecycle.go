@@ -142,7 +142,7 @@ func (s *Service) RetireFilamentSpool(
 	actor := p.AccountID
 	if _, err = q.UnmountFilamentSpool(
 		ctx,
-		machinelogbookdb.UnmountFilamentSpoolParams{UnmountedAt: now, ActorAccountID: &actor, SpoolID: spoolID},
+		machinelogbookdb.UnmountFilamentSpoolParams{UnmountedAt: now, ActorAccountID: &actor, SpoolID: &spoolID},
 	); err != nil {
 		return FilamentSpool{}, err
 	}

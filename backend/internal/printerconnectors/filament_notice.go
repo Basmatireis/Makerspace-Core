@@ -21,8 +21,10 @@ type observedSlot struct {
 	trayUUID string
 	empty    bool
 	material string
-	// before is the spool mounted in the slot when the observation arrived.
-	before *uuid.UUID
+	// mounted is whether anything was mounted in the slot when the observation arrived; before is its spool,
+	// nil for customer filament.
+	mounted bool
+	before  *uuid.UUID
 }
 
 // observeSlot resolves the slot of a Bambu slot observation and the spool mounted in it. An unknown
@@ -63,9 +65,9 @@ func observeSlot(ctx context.Context, q *db.Queries, machineID uuid.UUID, payloa
 		empty:    value.Empty,
 		material: trayMaterial(value.TrayType, value.ProductName, value.Color),
 	}
-	before, err := q.GetOpenMountSpoolForSlot(ctx, slot.ID)
+	mount, err := q.GetOpenMountForSlot(ctx, slot.ID)
 	if err == nil {
-		observed.before = &before
+		observed.mounted, observed.before = true, mount.SpoolID
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
@@ -120,13 +122,13 @@ func notifyFilamentChange(
 			change.Kind, change.SpoolID = notifyrules.FilamentLoaded, &known
 		}
 	case slot.empty && slot.material != "":
-		if slot.before != nil {
+		if slot.mounted {
 			// A manual mount stays in Core; the printer only cannot read the tag of what is in the tray.
 			return nil
 		}
 		change.Kind = notifyrules.FilamentNoTag
 	case slot.empty:
-		if slot.before == nil {
+		if !slot.mounted {
 			return nil
 		}
 		change.Kind, change.SpoolID = notifyrules.FilamentUnloaded, slot.before

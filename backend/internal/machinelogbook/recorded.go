@@ -236,7 +236,31 @@ func (s *Service) consumeItemizedReportedUsage(
 	}
 	segments := segmentsFromRows(segmentRows)
 	parsed := make([]parsedUsage, 0, len(items))
-	bySpool := map[uuid.UUID]int{}
+	byKey := map[string]int{}
+	// merge adds a quantity to the usage already booked for the same source: a run holds one active usage per
+	// spool, and one per customer filament mount.
+	merge := func(key string, item machinelogbookdb.MachineRunReportedUsageItem, quantity decimal.Decimal) bool {
+		index, seen := byKey[key]
+		if !seen {
+			return false
+		}
+		parsed[index].Quantity = parsed[index].Quantity.Add(quantity)
+		if estimateQualityRank(item.Quality) < estimateQualityRank(*parsed[index].EstimateQuality) {
+			quality := item.Quality
+			parsed[index].EstimateQuality = &quality
+		}
+		return true
+	}
+	add := func(key string, item machinelogbookdb.MachineRunReportedUsageItem, usage parsedUsage) {
+		method, version, quality, revision := item.Method, item.CalculationVersion, item.Quality, item.ReportRevision
+		usage.QuantityBasis = string(QuantityBasisEstimated)
+		usage.UsageID = ids.New()
+		usage.SourcePrinterEventID = &eventID
+		usage.EstimationMethod, usage.CalculationVersion = &method, &version
+		usage.EstimateQuality, usage.ReportRevision = &quality, &revision
+		byKey[key] = len(parsed)
+		parsed = append(parsed, usage)
+	}
 	book := func(item machinelogbookdb.MachineRunReportedUsageItem, spoolID *uuid.UUID, quantity decimal.Decimal) error {
 		if spoolID == nil || !quantity.IsPositive() {
 			return nil
@@ -249,32 +273,37 @@ func (s *Service) consumeItemizedReportedUsage(
 			return err
 		}
 		// Lines or segments that drew from the same spool are one usage: a run holds one active usage per spool.
-		if index, seen := bySpool[*spoolID]; seen {
-			parsed[index].Quantity = parsed[index].Quantity.Add(quantity)
-			if estimateQualityRank(item.Quality) < estimateQualityRank(*parsed[index].EstimateQuality) {
-				quality := item.Quality
-				parsed[index].EstimateQuality = &quality
-			}
+		key := "spool/" + spoolID.String()
+		if merge(key, item, quantity) {
 			return nil
 		}
-		method, version, quality, revision := item.Method, item.CalculationVersion, item.Quality, item.ReportRevision
-		bySpool[*spoolID] = len(parsed)
-		parsed = append(
-			parsed,
-			parsedUsage{
-				MaterialID:           &spool.MaterialID,
-				SpoolID:              spoolID,
-				Ownership:            string(OwnershipMakerspace),
-				QuantityBasis:        string(QuantityBasisEstimated),
-				Quantity:             quantity,
-				UsageID:              ids.New(),
-				SourcePrinterEventID: &eventID,
-				EstimationMethod:     &method,
-				CalculationVersion:   &version,
-				EstimateQuality:      &quality,
-				ReportRevision:       &revision,
-			},
-		)
+		add(key, item, parsedUsage{
+			MaterialID: &spool.MaterialID,
+			SpoolID:    spoolID,
+			Ownership:  string(OwnershipMakerspace),
+			Quantity:   quantity,
+		})
+		return nil
+	}
+	// bookCustomer records filament the customer brought: no spool, no stock movement, never charged. The mount
+	// says what the filament is.
+	bookCustomer := func(item machinelogbookdb.MachineRunReportedUsageItem, assignmentID *uuid.UUID, quantity decimal.Decimal) error {
+		if assignmentID == nil || !quantity.IsPositive() {
+			return nil
+		}
+		key := "customer/" + assignmentID.String()
+		if merge(key, item, quantity) {
+			return nil
+		}
+		usage := parsedUsage{Ownership: string(OwnershipExternal), Quantity: quantity}
+		mount, err := q.GetCustomerFilamentMount(ctx, *assignmentID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if err == nil {
+			usage.MaterialTypeID, usage.ExternalMaterialName = mount.CustomerMaterialTypeID, mount.CustomerColorName
+		}
+		add(key, item, usage)
 		return nil
 	}
 	for _, item := range items {
@@ -296,10 +325,17 @@ func (s *Service) consumeItemizedReportedUsage(
 				if err = book(item, segment.SpoolID, quantity); err != nil {
 					return false, err
 				}
+				if err = bookCustomer(item, segment.CustomerAssignmentID, quantity); err != nil {
+					return false, err
+				}
 			}
 			continue
 		}
-		if err = book(item, item.SpoolID, decimalFromNumeric(item.EstimatedQuantityG)); err != nil {
+		quantity := decimalFromNumeric(item.EstimatedQuantityG)
+		if err = book(item, item.SpoolID, quantity); err != nil {
+			return false, err
+		}
+		if err = bookCustomer(item, item.CustomerAssignmentID, quantity); err != nil {
 			return false, err
 		}
 	}

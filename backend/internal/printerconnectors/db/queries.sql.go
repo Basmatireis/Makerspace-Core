@@ -516,7 +516,7 @@ VALUES ($1, $2, $3, $4, 'connector_reconciled', $5::uuid)
 type CreateReconciledMountParams struct {
 	ID            uuid.UUID
 	SlotID        uuid.UUID
-	SpoolID       uuid.UUID
+	SpoolID       *uuid.UUID
 	MountedAt     time.Time
 	SourceEventID uuid.UUID
 }
@@ -1212,15 +1212,21 @@ func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (Ma
 	return i, err
 }
 
-const getOpenMountSpoolForSlot = `-- name: GetOpenMountSpoolForSlot :one
-SELECT spool_id FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL
+const getOpenMountForSlot = `-- name: GetOpenMountForSlot :one
+SELECT id, spool_id FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL
 `
 
-func (q *Queries) GetOpenMountSpoolForSlot(ctx context.Context, slotID uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, getOpenMountSpoolForSlot, slotID)
-	var spool_id uuid.UUID
-	err := row.Scan(&spool_id)
-	return spool_id, err
+type GetOpenMountForSlotRow struct {
+	ID      uuid.UUID
+	SpoolID *uuid.UUID
+}
+
+// spool_id is null for customer filament.
+func (q *Queries) GetOpenMountForSlot(ctx context.Context, slotID uuid.UUID) (GetOpenMountForSlotRow, error) {
+	row := q.db.QueryRow(ctx, getOpenMountForSlot, slotID)
+	var i GetOpenMountForSlotRow
+	err := row.Scan(&i.ID, &i.SpoolID)
+	return i, err
 }
 
 const getPrinterErrorCodeSync = `-- name: GetPrinterErrorCodeSync :one
@@ -1472,12 +1478,12 @@ INSERT INTO machine_run_reported_usage_items (
     id, run_id, source_printer_event_id, report_revision, line_number,
     slicer_filament_id, extruder, input_unit_external_id, slot_external_id,
     planned_quantity_g, planned_length_mm, estimated_quantity_g, material_id, spool_id,
-    method, calculation_version, quality
+    method, calculation_version, quality, customer_assignment_id
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9,
     $10, $11, $12, $13, $14,
-    $15, $16, $17
+    $15, $16, $17, $18
 ) ON CONFLICT (run_id, report_revision, line_number) DO NOTHING
 `
 
@@ -1499,6 +1505,7 @@ type InsertReportedUsageItemParams struct {
 	Method               string
 	CalculationVersion   string
 	Quality              string
+	CustomerAssignmentID *uuid.UUID
 }
 
 func (q *Queries) InsertReportedUsageItem(ctx context.Context, arg InsertReportedUsageItemParams) (int64, error) {
@@ -1520,6 +1527,7 @@ func (q *Queries) InsertReportedUsageItem(ctx context.Context, arg InsertReporte
 		arg.Method,
 		arg.CalculationVersion,
 		arg.Quality,
+		arg.CustomerAssignmentID,
 	)
 	if err != nil {
 		return 0, err
@@ -1530,24 +1538,26 @@ func (q *Queries) InsertReportedUsageItem(ctx context.Context, arg InsertReporte
 const insertReportedUsageSegment = `-- name: InsertReportedUsageSegment :exec
 INSERT INTO machine_run_reported_usage_segments (
     id, item_id, segment_index, input_unit_external_id, slot_external_id, started_at, start_layer,
-    estimated_quantity_g, split, spool_id
+    estimated_quantity_g, split, spool_id, customer_assignment_id
 ) VALUES (
     $1, $2, $3, $4, $5,
-    $6, $7, $8, $9, $10
+    $6, $7, $8, $9, $10,
+    $11
 )
 `
 
 type InsertReportedUsageSegmentParams struct {
-	ID                  uuid.UUID
-	ItemID              uuid.UUID
-	SegmentIndex        int32
-	InputUnitExternalID *string
-	SlotExternalID      *string
-	StartedAt           time.Time
-	StartLayer          *int32
-	EstimatedQuantityG  pgtype.Numeric
-	Split               *string
-	SpoolID             *uuid.UUID
+	ID                   uuid.UUID
+	ItemID               uuid.UUID
+	SegmentIndex         int32
+	InputUnitExternalID  *string
+	SlotExternalID       *string
+	StartedAt            time.Time
+	StartLayer           *int32
+	EstimatedQuantityG   pgtype.Numeric
+	Split                *string
+	SpoolID              *uuid.UUID
+	CustomerAssignmentID *uuid.UUID
 }
 
 func (q *Queries) InsertReportedUsageSegment(ctx context.Context, arg InsertReportedUsageSegmentParams) error {
@@ -1562,6 +1572,7 @@ func (q *Queries) InsertReportedUsageSegment(ctx context.Context, arg InsertRepo
 		arg.EstimatedQuantityG,
 		arg.Split,
 		arg.SpoolID,
+		arg.CustomerAssignmentID,
 	)
 	return err
 }
@@ -2328,8 +2339,8 @@ func (q *Queries) ListPrinterErrorOccurrences(ctx context.Context, arg ListPrint
 	return items, nil
 }
 
-const listSlotSpoolsAt = `-- name: ListSlotSpoolsAt :many
-SELECT a.spool_id
+const listSlotMountsAt = `-- name: ListSlotMountsAt :many
+SELECT a.id, a.spool_id
 FROM printer_spool_assignments a
 JOIN printer_slots s ON s.id=a.slot_id
 JOIN printer_input_units u ON u.id=s.input_unit_id
@@ -2338,15 +2349,21 @@ WHERE u.machine_id=$1 AND s.external_identifier=$2
   AND a.mounted_at <= $4::timestamptz AND (a.unmounted_at IS NULL OR a.unmounted_at > $4::timestamptz)
 `
 
-type ListSlotSpoolsAtParams struct {
+type ListSlotMountsAtParams struct {
 	MachineID           uuid.UUID
 	SlotExternalID      *string
 	InputUnitExternalID *string
 	At                  time.Time
 }
 
-func (q *Queries) ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listSlotSpoolsAt,
+type ListSlotMountsAtRow struct {
+	ID      uuid.UUID
+	SpoolID *uuid.UUID
+}
+
+// The mounts a slot had at a point in time: a spool, or customer filament (spool_id is null).
+func (q *Queries) ListSlotMountsAt(ctx context.Context, arg ListSlotMountsAtParams) ([]ListSlotMountsAtRow, error) {
+	rows, err := q.db.Query(ctx, listSlotMountsAt,
 		arg.MachineID,
 		arg.SlotExternalID,
 		arg.InputUnitExternalID,
@@ -2356,13 +2373,13 @@ func (q *Queries) ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtPara
 		return nil, err
 	}
 	defer rows.Close()
-	items := []uuid.UUID{}
+	items := []ListSlotMountsAtRow{}
 	for rows.Next() {
-		var spool_id uuid.UUID
-		if err := rows.Scan(&spool_id); err != nil {
+		var i ListSlotMountsAtRow
+		if err := rows.Scan(&i.ID, &i.SpoolID); err != nil {
 			return nil, err
 		}
-		items = append(items, spool_id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -2476,7 +2493,7 @@ WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE
 type LockOpenMountForSlotRow struct {
 	ID        uuid.UUID
 	SlotID    uuid.UUID
-	SpoolID   uuid.UUID
+	SpoolID   *uuid.UUID
 	Source    string
 	MountedAt time.Time
 }
@@ -2502,12 +2519,12 @@ WHERE spool_id=$1 AND unmounted_at IS NULL FOR UPDATE
 type LockOpenMountForSpoolRow struct {
 	ID        uuid.UUID
 	SlotID    uuid.UUID
-	SpoolID   uuid.UUID
+	SpoolID   *uuid.UUID
 	Source    string
 	MountedAt time.Time
 }
 
-func (q *Queries) LockOpenMountForSpool(ctx context.Context, spoolID uuid.UUID) (LockOpenMountForSpoolRow, error) {
+func (q *Queries) LockOpenMountForSpool(ctx context.Context, spoolID *uuid.UUID) (LockOpenMountForSpoolRow, error) {
 	row := q.db.QueryRow(ctx, lockOpenMountForSpool, spoolID)
 	var i LockOpenMountForSpoolRow
 	err := row.Scan(

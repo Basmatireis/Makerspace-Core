@@ -135,10 +135,10 @@ func reconcileBambuSlotObservation(
 	if err != nil {
 		return err
 	}
-	if slotMount != nil && slotMount.SpoolID == spoolID {
+	if slotMount != nil && slotMount.SpoolID != nil && *slotMount.SpoolID == spoolID {
 		return nil
 	}
-	spoolRow, err := q.LockOpenMountForSpool(ctx, spoolID)
+	spoolRow, err := q.LockOpenMountForSpool(ctx, &spoolID)
 	spoolMount, err := readMount(db.LockOpenMountForSlotRow(spoolRow), err)
 	if err != nil {
 		return err
@@ -177,7 +177,7 @@ func reconcileBambuSlotObservation(
 	if err = q.CreateReconciledMount(ctx, db.CreateReconciledMountParams{
 		ID:            ids.New(),
 		SlotID:        slotID,
-		SpoolID:       spoolID,
+		SpoolID:       &spoolID,
 		MountedAt:     mountedAt,
 		SourceEventID: eventID,
 	}); err != nil {
@@ -419,10 +419,11 @@ func applyReportedUsage(
 	if !quantity.IsPositive() || !quantity.LessThan(maxReportedGrams) || (basis != "estimated" && basis != "actual") {
 		return nil
 	}
-	spoolID, err := resolveReportedSpool(ctx, q, run.MachineID, values, at)
+	source, err := resolveReportedSpool(ctx, q, run.MachineID, values, at)
 	if err != nil {
 		return err
 	}
+	spoolID := source.spoolID
 	if _, err = q.InsertReportedUsageItem(
 		ctx,
 		db.InsertReportedUsageItemParams{
@@ -436,6 +437,7 @@ func applyReportedUsage(
 			Method:               "legacy_report",
 			CalculationVersion:   "legacy-v1",
 			Quality:              "low",
+			CustomerAssignmentID: source.customerAssignmentID,
 		},
 	); err != nil {
 		return err
@@ -495,12 +497,13 @@ func applyReportedUsageItems(
 		}
 		// A line fed by several spools is booked per segment; its own spool stays empty even if the payload
 		// also names a slot, so the whole line is never booked on one spool.
-		var spoolID *uuid.UUID
+		var source reportedSource
 		if !segmented {
-			if spoolID, err = resolveReportedSpool(ctx, q, run.MachineID, item, at); err != nil {
+			if source, err = resolveReportedSpool(ctx, q, run.MachineID, item, at); err != nil {
 				return err
 			}
 		}
+		spoolID := source.spoolID
 		materialID := optionalUUID(item, "materialId")
 		var extruder *int32
 		if value, ok := item["extruder"].(float64); ok && value >= 0 && value == math.Trunc(value) &&
@@ -532,6 +535,7 @@ func applyReportedUsageItems(
 				Method:               method,
 				CalculationVersion:   calculationVersion,
 				Quality:              quality,
+				CustomerAssignmentID: source.customerAssignmentID,
 			},
 		)
 		if err != nil {
@@ -615,30 +619,41 @@ func pgNumericOptional(value *decimal.Decimal) pgtype.Numeric {
 	return pgNumeric(*value)
 }
 
+// reportedSource is what a reported line or segment was fed from: an inventory spool, customer filament (the
+// mount it came from) or, when both are nil, nothing Core can name.
+type reportedSource struct {
+	spoolID, customerAssignmentID *uuid.UUID
+}
+
 // resolveReportedSpool uses only authoritative historical slot assignments and
-// exact historical tray UUID and NFC identifiers. A disagreement or ambiguity is unresolved.
+// exact historical tray UUID and NFC identifiers. A disagreement or ambiguity is unresolved. A slot that held
+// customer filament resolves to that mount, unless the tag names a spool: then the evidence disagrees.
 func resolveReportedSpool(
 	ctx context.Context,
 	q *db.Queries,
 	machineID uuid.UUID,
 	values map[string]any,
 	at time.Time,
-) (*uuid.UUID, error) {
-	var slotSpool, tagSpool *uuid.UUID
+) (reportedSource, error) {
+	var slotSpool, tagSpool, slotCustomer *uuid.UUID
 	matched := false
 	unit, unitOK := payloadString(values, "inputUnitExternalId")
 	slot, slotOK := payloadString(values, "slotExternalId")
 	if unitOK && slotOK && unit != "" && slot != "" && utf8.RuneCountInString(unit) <= 200 &&
 		utf8.RuneCountInString(slot) <= 200 {
-		ids, err := q.ListSlotSpoolsAt(
+		mounts, err := q.ListSlotMountsAt(
 			ctx,
-			db.ListSlotSpoolsAtParams{MachineID: machineID, SlotExternalID: &slot, InputUnitExternalID: &unit, At: at},
+			db.ListSlotMountsAtParams{MachineID: machineID, SlotExternalID: &slot, InputUnitExternalID: &unit, At: at},
 		)
 		if err != nil {
-			return nil, err
+			return reportedSource{}, err
 		}
-		if len(ids) == 1 {
-			slotSpool = &ids[0]
+		if len(mounts) == 1 {
+			if mounts[0].SpoolID != nil {
+				slotSpool = mounts[0].SpoolID
+			} else {
+				slotCustomer = &mounts[0].ID
+			}
 		}
 	}
 	// The tray UUID is looked up first; the chip UID only decides when there is no tray UUID or no spool carries it.
@@ -646,7 +661,7 @@ func resolveReportedSpool(
 	if trayUUID != "" && utf8.RuneCountInString(trayUUID) <= 255 {
 		ids, err := q.ListTrayUUIDSpoolsAt(ctx, db.ListTrayUUIDSpoolsAtParams{TrayUuid: trayUUID, At: at})
 		if err != nil {
-			return nil, err
+			return reportedSource{}, err
 		}
 		if len(ids) == 1 {
 			tagSpool = &ids[0]
@@ -656,17 +671,23 @@ func resolveReportedSpool(
 	if tag, ok := payloadString(values, "tagUid"); ok && !matched && tag != "" && utf8.RuneCountInString(tag) <= 255 {
 		ids, err := q.ListNFCSpoolsAt(ctx, db.ListNFCSpoolsAtParams{TagUid: tag, At: at})
 		if err != nil {
-			return nil, err
+			return reportedSource{}, err
 		}
 		if len(ids) == 1 {
 			tagSpool = &ids[0]
 		}
 	}
 	if slotSpool != nil && tagSpool != nil && *slotSpool != *tagSpool {
-		return nil, nil
+		return reportedSource{}, nil
+	}
+	if slotCustomer != nil {
+		if tagSpool != nil {
+			return reportedSource{}, nil
+		}
+		return reportedSource{customerAssignmentID: slotCustomer}, nil
 	}
 	if slotSpool != nil {
-		return slotSpool, nil
+		return reportedSource{spoolID: slotSpool}, nil
 	}
-	return tagSpool, nil
+	return reportedSource{spoolID: tagSpool}, nil
 }

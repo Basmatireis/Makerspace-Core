@@ -169,6 +169,26 @@ describe('Machines & Jobs shared helpers', () => {
     expect(unresolvedReportedUsageItems(report)).toHaveLength(0);
   });
 
+  it('does not ask for a spool on report lines fed from customer filament', () => {
+    const report = {
+      reportedUsage: null,
+      reportedUsageItems: [
+        {
+          lineNumber: 0,
+          reportRevision: 1,
+          method: 'gcode',
+          calculationVersion: 'v1',
+          quality: 'medium',
+          estimatedQuantityGrams: '12.5',
+          customerFilament: true,
+          segments: [],
+        },
+      ],
+      usages: [],
+    } as unknown as Pick<MachineRun, 'reportedUsage' | 'reportedUsageItems' | 'usages'>;
+    expect(unresolvedReportedUsageItems(report)).toHaveLength(0);
+  });
+
   it('formats prices, durations and adjustments consistently', () => {
     expect(formatMoney('5')).toBe('€5.00');
     expect(formatMoney(null)).toBe('—');

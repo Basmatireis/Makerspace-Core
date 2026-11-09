@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PrinterSlotMountKind } from './printerSlotMountKind';
 import type { PrinterSlotStatus } from './printerSlotStatus';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
@@ -43,6 +44,21 @@ export interface PrinterSlot {
   spoolId?: UUIDv7 | null;
   /** @nullable */
   spoolDisplayId?: string | null;
+  /**
+     * What the slot holds while assignmentId is set: an inventory spool, or filament the customer brought (customer: no spool, nothing is booked from stock; runs recorded on the slot count as customer material).
+     * @nullable
+     */
+  mountKind?: PrinterSlotMountKind;
+  /** Customer filament only: the material type staff gave it. */
+  customerMaterialTypeId?: UUIDv7 | null;
+  /** @nullable */
+  customerMaterialTypeName?: string | null;
+  /**
+     * Customer filament only: the colour staff gave it.
+     * @maxLength 80
+     * @nullable
+     */
+  customerColorName?: string | null;
   /** @nullable */
   mountedAt?: string | null;
   version: Version;
