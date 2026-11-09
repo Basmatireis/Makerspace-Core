@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { InlineNotification, Modal, RadioButton, RadioButtonGroup, Stack, TextInput } from '@carbon/react';
+import { InlineNotification, Modal, Stack, TextInput } from '@carbon/react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { addOrderItem, createOrder, updateOrder, updateOrderItem } from '../../api/generated/orders/orders';
 import type { BillingParty, Order, OrderItem, WorkItem } from '../../api/generated/models';
@@ -12,9 +12,7 @@ import { jobLabel } from './logic';
 import { parseDecimalInput } from './money';
 import { customerJobsQuery, useFinanceMutation } from './queries';
 
-type Fulfillment = 'immediate' | 'deferred';
-
-/** Creates a draft (order = null) or edits the customer and hand-over of an existing draft. */
+/** Creates a draft (order = null) or edits the customer of an existing draft. */
 export function EditOrderModal({
   order,
   onClose,
@@ -36,7 +34,6 @@ export function EditOrderModal({
         }
       : null,
   );
-  const [fulfillment, setFulfillment] = useState<Fulfillment>(order?.fulfillmentMode ?? 'immediate');
   const parties = useQuery({ ...billingPartySearchQuery(search), placeholderData: keepPreviousData });
   const items = [
     ...new Map(
@@ -47,10 +44,10 @@ export function EditOrderModal({
     async () => {
       const target = customer ? { kind: customer.kind, id: customer.id } : null;
       if (order) {
-        await updateOrder(order.id, { customer: target, fulfillmentMode: fulfillment, expectedVersion: order.version });
+        await updateOrder(order.id, { customer: target, expectedVersion: order.version });
         return order.id;
       }
-      return (await createOrder({ customer: target, fulfillmentMode: fulfillment })).id;
+      return (await createOrder({ customer: target })).id;
     },
     (id) => {
       if (order)
@@ -91,16 +88,6 @@ export function EditOrderModal({
           onInputChange={setSearch}
           onChange={({ selectedItem }) => setCustomer(selectedItem ?? null)}
         />
-        <RadioButtonGroup
-          legendText="Hand-over"
-          name="order-fulfillment"
-          orientation="vertical"
-          valueSelected={fulfillment}
-          onChange={(value) => setFulfillment(value as Fulfillment)}
-        >
-          <RadioButton id="order-fulfillment-immediate" value="immediate" labelText="Handed over now" />
-          <RadioButton id="order-fulfillment-deferred" value="deferred" labelText="Customer picks it up later" />
-        </RadioButtonGroup>
         {mutation.error && (
           <InlineNotification
             kind="error"

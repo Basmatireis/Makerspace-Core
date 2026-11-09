@@ -61,7 +61,7 @@ func TestSeparatedFinancialPermissions(t *testing.T) {
 				ctx,
 				read,
 				o.ID,
-				UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "immediate"},
+				UpdateOrderDraftInput{ExpectedVersion: o.Version},
 				nil,
 			)
 			return e
@@ -126,13 +126,13 @@ func TestDraftEditingStaleVersionsAndConcurrentFinalization(t *testing.T) {
 		ctx,
 		f.p,
 		o.ID,
-		UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "deferred", PreserveCustomer: true},
+		UpdateOrderDraftInput{ExpectedVersion: o.Version, PreserveCustomer: true},
 		nil,
 	)
 	if e != nil || o.Customer == nil || o.Customer.ID != f.organization {
 		t.Fatalf("omitted customer not preserved: %v %+v", e, o)
 	}
-	if _, e = f.s.Update(ctx, f.p, o.ID, UpdateOrderDraftInput{ExpectedVersion: oldVersion, FulfillmentMode: "immediate"}, nil); !apperror.IsCode(
+	if _, e = f.s.Update(ctx, f.p, o.ID, UpdateOrderDraftInput{ExpectedVersion: oldVersion}, nil); !apperror.IsCode(
 		e,
 		"stale_write",
 	) {
@@ -142,7 +142,7 @@ func TestDraftEditingStaleVersionsAndConcurrentFinalization(t *testing.T) {
 		ctx,
 		f.p,
 		o.ID,
-		UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "immediate", Customer: nil},
+		UpdateOrderDraftInput{ExpectedVersion: o.Version, Customer: nil},
 		nil,
 	)
 	if e != nil || o.Customer != nil || o.CustomerKind != "anonymous" {
@@ -154,7 +154,6 @@ func TestDraftEditingStaleVersionsAndConcurrentFinalization(t *testing.T) {
 		o.ID,
 		UpdateOrderDraftInput{
 			ExpectedVersion: o.Version,
-			FulfillmentMode: "immediate",
 			Customer:        &OrderCustomer{Kind: "organization", ID: f.organization},
 		},
 		nil,
@@ -349,8 +348,7 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 		ctx,
 		f.p,
 		OrderDraftInput{
-			Customer:        &OrderCustomer{Kind: "organization", ID: f.organization},
-			FulfillmentMode: "immediate",
+			Customer: &OrderCustomer{Kind: "organization", ID: f.organization},
 		},
 		nil,
 	)

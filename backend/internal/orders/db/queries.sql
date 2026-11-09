@@ -14,14 +14,14 @@ SELECT * FROM order_operations WHERE operation_key=$1;
 INSERT INTO order_operations(id,operation_key,kind,request_fingerprint,actor_account_id,order_id,payment_id,request_id)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8);
 -- name: CreateOrder :one
-INSERT INTO orders(id,reference,customer_kind,customer_person_id,customer_organization_id,fulfillment_mode,created_by_account_id,replaces_order_id,replaces_order_reference)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *;
+INSERT INTO orders(id,reference,customer_kind,customer_person_id,customer_organization_id,created_by_account_id,replaces_order_id,replaces_order_reference)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *;
 -- name: GetOrder :one
 SELECT * FROM orders WHERE id=$1;
 -- name: LockOrder :one
 SELECT * FROM orders WHERE id=$1 FOR UPDATE;
 -- name: UpdateDraft :one
-UPDATE orders SET customer_kind=$2,customer_person_id=$3,customer_organization_id=$4,fulfillment_mode=$5,version=version+1,updated_at=now() WHERE id=$1 RETURNING *;
+UPDATE orders SET customer_kind=$2,customer_person_id=$3,customer_organization_id=$4,version=version+1,updated_at=now() WHERE id=$1 RETURNING *;
 -- name: BumpOrder :exec
 UPDATE orders SET version=version+1,updated_at=now() WHERE id=$1;
 -- name: TransitionOrder :exec

@@ -41,11 +41,7 @@ export function recalculateOrder(store: DemoStore, order: Order): Order {
   return order;
 }
 
-export function newOrder(
-  store: DemoStore,
-  customer: { kind: 'person' | 'organization'; id: string } | null,
-  fulfillmentMode: Order['fulfillmentMode'],
-): Order {
+export function newOrder(store: DemoStore, customer: { kind: 'person' | 'organization'; id: string } | null): Order {
   const party = customer ? billingParty(store, customer.kind, customer.id) : undefined;
   return {
     id: nextId(store),
@@ -55,7 +51,6 @@ export function newOrder(
     customerKind: party ? party.kind : 'anonymous',
     customer: party ? { kind: party.kind, id: party.id } : null,
     customerName: party?.displayName ?? null,
-    fulfillmentMode,
     totalAmount: '0.00',
     netCharge: '0.00',
     settledAmount: '0.00',

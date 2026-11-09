@@ -182,8 +182,7 @@ func TestPayOwnRefusesWhatIsNotTheCallersToPay(t *testing.T) {
 	paidOff := f.pay(t, f.personOrder(t, member.PersonID, "1"), "cash", "1")
 	onOrder := f.personJob(t, member.PersonID, f.person, uuid.Nil, "", "successful", 2)
 	draft, e := f.s.Create(ctx, f.p, OrderDraftInput{
-		Customer:        &OrderCustomer{Kind: CustomerPerson, ID: member.PersonID},
-		FulfillmentMode: "deferred",
+		Customer: &OrderCustomer{Kind: CustomerPerson, ID: member.PersonID},
 	}, nil)
 	if e != nil {
 		t.Fatal(e)

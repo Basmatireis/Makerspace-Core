@@ -38,7 +38,7 @@ func TestNotificationPaymentRecordedThroughTheOrdersService(t *testing.T) {
 	ctx := testContext(t)
 
 	order, err := service.Create(ctx, booker, orders.OrderDraftInput{
-		Customer: &orders.OrderCustomer{Kind: orders.CustomerPerson, ID: customer.PersonID}, FulfillmentMode: "immediate",
+		Customer: &orders.OrderCustomer{Kind: orders.CustomerPerson, ID: customer.PersonID},
 	}, nil)
 	if err != nil {
 		t.Fatalf("create order: %v", err)

@@ -416,10 +416,10 @@ func (s *Service) checkAnonymous(ctx context.Context, q *db.Queries, o db.Order)
 	if err != nil {
 		return err
 	}
-	if FulfillmentMode(o.FulfillmentMode) != FulfillmentImmediate || !d(balance).Equal(d(o.TotalAmount)) {
+	if !d(balance).Equal(d(o.TotalAmount)) {
 		return apperror.Conflicting(
 			"anonymous_requires_full_settlement",
-			"Anonymous sales require immediate fulfillment and full settlement",
+			"Anonymous sales require full settlement",
 		)
 	}
 	return nil

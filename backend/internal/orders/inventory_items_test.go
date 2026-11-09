@@ -68,8 +68,7 @@ func (f *fixture) emptyDraft(t *testing.T) Order {
 		t.Context(),
 		f.p,
 		OrderDraftInput{
-			Customer:        &OrderCustomer{Kind: "organization", ID: f.organization},
-			FulfillmentMode: "immediate",
+			Customer: &OrderCustomer{Kind: "organization", ID: f.organization},
 		},
 		&f.request,
 	)

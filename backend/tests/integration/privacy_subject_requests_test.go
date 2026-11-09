@@ -107,7 +107,7 @@ func seedSubject(t *testing.T, pool *pgxpool.Pool, suffix, orderReference string
 	trainingID := ids.New()
 	exec(`INSERT INTO trainings(id,name) VALUES($1,$2)`, trainingID, "Laser cutter "+suffix)
 	exec(`INSERT INTO training_records(person_id,training_id,status) VALUES($1,$2,'trained')`, subject.personID, trainingID)
-	exec(`INSERT INTO orders(id,reference,customer_kind,customer_person_id,fulfillment_mode) VALUES($1,$2,'person',$3,'immediate')`,
+	exec(`INSERT INTO orders(id,reference,customer_kind,customer_person_id) VALUES($1,$2,'person',$3)`,
 		ids.New(), orderReference, subject.personID)
 	return subject
 }

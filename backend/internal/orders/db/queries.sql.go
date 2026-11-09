@@ -423,8 +423,8 @@ func (q *Queries) CountRequests(ctx context.Context, arg CountRequestsParams) (i
 }
 
 const createOrder = `-- name: CreateOrder :one
-INSERT INTO orders(id,reference,customer_kind,customer_person_id,customer_organization_id,fulfillment_mode,created_by_account_id,replaces_order_id,replaces_order_reference)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, fulfillment_mode, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at
+INSERT INTO orders(id,reference,customer_kind,customer_person_id,customer_organization_id,created_by_account_id,replaces_order_id,replaces_order_reference)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at
 `
 
 type CreateOrderParams struct {
@@ -433,7 +433,6 @@ type CreateOrderParams struct {
 	CustomerKind           string
 	CustomerPersonID       *uuid.UUID
 	CustomerOrganizationID *uuid.UUID
-	FulfillmentMode        string
 	CreatedByAccountID     *uuid.UUID
 	ReplacesOrderID        *uuid.UUID
 	ReplacesOrderReference *string
@@ -446,7 +445,6 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		arg.CustomerKind,
 		arg.CustomerPersonID,
 		arg.CustomerOrganizationID,
-		arg.FulfillmentMode,
 		arg.CreatedByAccountID,
 		arg.ReplacesOrderID,
 		arg.ReplacesOrderReference,
@@ -460,7 +458,6 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		&i.CustomerKind,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
-		&i.FulfillmentMode,
 		&i.TotalAmount,
 		&i.ReplacesOrderID,
 		&i.ReplacesOrderReference,
@@ -853,7 +850,7 @@ func (q *Queries) GetOperation(ctx context.Context, operationKey uuid.UUID) (Ord
 }
 
 const getOrder = `-- name: GetOrder :one
-SELECT id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, fulfillment_mode, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at FROM orders WHERE id=$1
+SELECT id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at FROM orders WHERE id=$1
 `
 
 func (q *Queries) GetOrder(ctx context.Context, id uuid.UUID) (Order, error) {
@@ -867,7 +864,6 @@ func (q *Queries) GetOrder(ctx context.Context, id uuid.UUID) (Order, error) {
 		&i.CustomerKind,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
-		&i.FulfillmentMode,
 		&i.TotalAmount,
 		&i.ReplacesOrderID,
 		&i.ReplacesOrderReference,
@@ -1991,7 +1987,7 @@ func (q *Queries) ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItems
 }
 
 const listOrders = `-- name: ListOrders :many
-SELECT o.id, o.reference, o.status, o.currency, o.customer_kind, o.customer_person_id, o.customer_organization_id, o.fulfillment_mode, o.total_amount, o.replaces_order_id, o.replaces_order_reference, o.version, o.created_at, o.updated_at, o.created_by_account_id, o.finalized_at, o.cancelled_at, o.reversed_at FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
+SELECT o.id, o.reference, o.status, o.currency, o.customer_kind, o.customer_person_id, o.customer_organization_id, o.total_amount, o.replaces_order_id, o.replaces_order_reference, o.version, o.created_at, o.updated_at, o.created_by_account_id, o.finalized_at, o.cancelled_at, o.reversed_at FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
 WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||$1||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%') AND ($2::text='' OR o.status=$2) ORDER BY o.created_at DESC,o.id DESC LIMIT $4 OFFSET $3
 `
 
@@ -2024,7 +2020,6 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 			&i.CustomerKind,
 			&i.CustomerPersonID,
 			&i.CustomerOrganizationID,
-			&i.FulfillmentMode,
 			&i.TotalAmount,
 			&i.ReplacesOrderID,
 			&i.ReplacesOrderReference,
@@ -2231,7 +2226,7 @@ func (q *Queries) LockOperation(ctx context.Context, operationKey string) error 
 }
 
 const lockOrder = `-- name: LockOrder :one
-SELECT id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, fulfillment_mode, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at FROM orders WHERE id=$1 FOR UPDATE
+SELECT id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at FROM orders WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) LockOrder(ctx context.Context, id uuid.UUID) (Order, error) {
@@ -2245,7 +2240,6 @@ func (q *Queries) LockOrder(ctx context.Context, id uuid.UUID) (Order, error) {
 		&i.CustomerKind,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
-		&i.FulfillmentMode,
 		&i.TotalAmount,
 		&i.ReplacesOrderID,
 		&i.ReplacesOrderReference,
@@ -2905,7 +2899,7 @@ func (q *Queries) UpdateCashMovement(ctx context.Context, arg UpdateCashMovement
 }
 
 const updateDraft = `-- name: UpdateDraft :one
-UPDATE orders SET customer_kind=$2,customer_person_id=$3,customer_organization_id=$4,fulfillment_mode=$5,version=version+1,updated_at=now() WHERE id=$1 RETURNING id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, fulfillment_mode, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at
+UPDATE orders SET customer_kind=$2,customer_person_id=$3,customer_organization_id=$4,version=version+1,updated_at=now() WHERE id=$1 RETURNING id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at
 `
 
 type UpdateDraftParams struct {
@@ -2913,7 +2907,6 @@ type UpdateDraftParams struct {
 	CustomerKind           string
 	CustomerPersonID       *uuid.UUID
 	CustomerOrganizationID *uuid.UUID
-	FulfillmentMode        string
 }
 
 func (q *Queries) UpdateDraft(ctx context.Context, arg UpdateDraftParams) (Order, error) {
@@ -2922,7 +2915,6 @@ func (q *Queries) UpdateDraft(ctx context.Context, arg UpdateDraftParams) (Order
 		arg.CustomerKind,
 		arg.CustomerPersonID,
 		arg.CustomerOrganizationID,
-		arg.FulfillmentMode,
 	)
 	var i Order
 	err := row.Scan(
@@ -2933,7 +2925,6 @@ func (q *Queries) UpdateDraft(ctx context.Context, arg UpdateDraftParams) (Order
 		&i.CustomerKind,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
-		&i.FulfillmentMode,
 		&i.TotalAmount,
 		&i.ReplacesOrderID,
 		&i.ReplacesOrderReference,

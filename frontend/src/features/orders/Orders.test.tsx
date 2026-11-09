@@ -436,7 +436,7 @@ describe('orders list: row actions', () => {
     renderRoute(<App />, '/orders');
     const row = (await screen.findByText('O-2026-000010')).closest('tr')!;
     await user.click(row.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
-    expect(await screen.findByText('Edit customer and hand-over')).toBeInTheDocument();
+    expect(await screen.findByText('Edit customer')).toBeInTheDocument();
     expect(screen.queryByText('Create replacement draft')).not.toBeInTheDocument();
     await user.click(screen.getByText('Cancel draft'));
     expect(await screen.findByText('Cancel this draft?')).toBeInTheDocument();

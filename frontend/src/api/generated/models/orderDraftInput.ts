@@ -19,9 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { OrderCustomer } from './orderCustomer';
-import type { OrderDraftInputFulfillmentMode } from './orderDraftInputFulfillmentMode';
 
 export interface OrderDraftInput {
   customer?: OrderCustomer | null;
-  fulfillmentMode: OrderDraftInputFulfillmentMode;
 }

@@ -172,7 +172,7 @@ func (f *fixture) draft(t *testing.T, named bool, amount string) Order {
 	if named {
 		c = &OrderCustomer{Kind: "organization", ID: f.organization}
 	}
-	o, e := f.s.Create(t.Context(), f.p, OrderDraftInput{Customer: c, FulfillmentMode: "immediate"}, &f.request)
+	o, e := f.s.Create(t.Context(), f.p, OrderDraftInput{Customer: c}, &f.request)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -222,7 +222,7 @@ func TestOrderPaymentsReplacementAndImmutability(t *testing.T) {
 		ctx,
 		f.p,
 		o.ID,
-		UpdateOrderDraftInput{ExpectedVersion: o.Version, FulfillmentMode: "immediate"},
+		UpdateOrderDraftInput{ExpectedVersion: o.Version},
 		&f.request,
 	); !apperror.IsCode(
 		e,
@@ -344,7 +344,7 @@ func TestAnonymousCheckoutRollbackAndCustomerDeletion(t *testing.T) {
 	personOrder, e := f.s.Create(
 		ctx,
 		f.p,
-		OrderDraftInput{Customer: &OrderCustomer{Kind: "person", ID: f.person}, FulfillmentMode: "deferred"},
+		OrderDraftInput{Customer: &OrderCustomer{Kind: "person", ID: f.person}},
 		&f.request,
 	)
 	if e != nil {
@@ -430,7 +430,7 @@ func TestConcurrentReceiptsAndAuditRollback(t *testing.T) {
 	); e != nil {
 		t.Fatal(e)
 	}
-	if _, e = f.s.Create(ctx, f.p, OrderDraftInput{FulfillmentMode: "immediate"}, &f.request); e == nil {
+	if _, e = f.s.Create(ctx, f.p, OrderDraftInput{}, &f.request); e == nil {
 		t.Fatal("audit failure ignored")
 	}
 	after, e := f.s.List(ctx, f.p, "", "", 1, 100)
@@ -461,7 +461,7 @@ func TestJobSnapshotsAndClaims(t *testing.T) {
 	o, e := f.s.Create(
 		ctx,
 		f.p,
-		OrderDraftInput{Customer: &OrderCustomer{Kind: "person", ID: f.person}, FulfillmentMode: "immediate"},
+		OrderDraftInput{Customer: &OrderCustomer{Kind: "person", ID: f.person}},
 		&f.request,
 	)
 	if e != nil {

@@ -1169,7 +1169,6 @@ type Order struct {
 	CustomerKind           string
 	CustomerPersonID       *uuid.UUID
 	CustomerOrganizationID *uuid.UUID
-	FulfillmentMode        string
 	TotalAmount            pgtype.Numeric
 	ReplacesOrderID        *uuid.UUID
 	ReplacesOrderReference *string

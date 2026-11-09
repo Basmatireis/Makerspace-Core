@@ -20916,13 +20916,6 @@ components:
             -
               $ref: "#/components/schemas/OrderCustomer"
           nullable: true
-        fulfillmentMode:
-          type: "string"
-          enum:
-            - "immediate"
-            - "deferred"
-      required:
-        - "fulfillmentMode"
     UpdateOrderDraftInput:
       type: "object"
       additionalProperties: false
@@ -20932,15 +20925,9 @@ components:
             -
               $ref: "#/components/schemas/OrderCustomer"
           nullable: true
-        fulfillmentMode:
-          type: "string"
-          enum:
-            - "immediate"
-            - "deferred"
         expectedVersion:
           $ref: "#/components/schemas/Version"
       required:
-        - "fulfillmentMode"
         - "expectedVersion"
     OrderItemInput:
       type: "object"
@@ -21313,11 +21300,6 @@ components:
             -
               type: "string"
           nullable: true
-        fulfillmentMode:
-          type: "string"
-          enum:
-            - "immediate"
-            - "deferred"
         totalAmount:
           $ref: "#/components/schemas/Money"
         netCharge:
@@ -21410,7 +21392,6 @@ components:
         - "customerKind"
         - "customer"
         - "customerName"
-        - "fulfillmentMode"
         - "totalAmount"
         - "netCharge"
         - "settledAmount"

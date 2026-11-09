@@ -49,7 +49,7 @@ export function OrderPanel({
       <DetailPanelHead
         title={customerLabel(order)}
         titleId={titleId}
-        meta={`${customerKindLabel(order.customerKind)} · ${order.fulfillmentMode === 'immediate' ? 'Hand-over now' : 'Hand-over later'}`}
+        meta={customerKindLabel(order.customerKind)}
         secondary={`${order.reference} · created ${formatDateTime(order.createdAt)}${order.createdBy ? ` by ${order.createdBy.displayName}` : ''}`}
         helper={
           <span className="sales-inline">

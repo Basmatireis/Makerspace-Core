@@ -19,14 +19,6 @@ const (
 	CustomerAnonymous    CustomerKind = "anonymous"
 )
 
-// FulfillmentMode says whether an order is settled at once or later.
-type FulfillmentMode string
-
-const (
-	FulfillmentImmediate FulfillmentMode = "immediate"
-	FulfillmentDeferred  FulfillmentMode = "deferred"
-)
-
 // OrderItemKind is where the charge of an order item comes from.
 type OrderItemKind string
 

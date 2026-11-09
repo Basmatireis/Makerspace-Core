@@ -65,10 +65,7 @@ export function ReadyToBillModal({ canCreate, onClose }: { canCreate: boolean; o
     async () => {
       const created: string[] = [];
       for (const group of selectedGroups) {
-        let order = await createOrder({
-          customer: { kind: group.customer!.kind, id: group.customer!.id },
-          fulfillmentMode: 'deferred',
-        });
+        let order = await createOrder({ customer: { kind: group.customer!.kind, id: group.customer!.id } });
         created.push(order.id);
         for (const row of group.ready.filter((item) => selected.has(item.job.id))) {
           order = await addOrderItem(order.id, {

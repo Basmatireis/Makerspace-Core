@@ -236,8 +236,7 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 			ctx,
 			master,
 			orders.OrderDraftInput{
-				Customer:        &orders.OrderCustomer{Kind: "person", ID: personID},
-				FulfillmentMode: "deferred",
+				Customer: &orders.OrderCustomer{Kind: "person", ID: personID},
 			},
 			nil,
 		)
