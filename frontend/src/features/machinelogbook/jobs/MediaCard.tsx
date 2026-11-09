@@ -1,7 +1,16 @@
 /* eslint-disable react-refresh/only-export-components -- the card and its slide helpers belong together */
 import { useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Button, IconButton, Tag } from '@carbon/react';
-import { ChevronLeft, ChevronRight, Close, Download, NoImage, Play } from '@carbon/icons-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Close,
+  Download,
+  Launch,
+  Link as LinkIcon,
+  NoImage,
+  Play,
+} from '@carbon/icons-react';
 import {
   getDownloadMachineRunArtifactUrl,
   getDownloadMachineRunTimelapseUrl,
@@ -10,6 +19,8 @@ import {
 import type { MachineRunRecording } from '../../../api/generated/models';
 import { StackCard } from '../../../app/components/CardList';
 import { formatDate } from '../../../app/dateTime';
+import { useNotify } from '../../../app/toasts';
+import { copyToClipboard } from '../../profile/copyToClipboard';
 import { formatFileSize, timelapseMessage } from '../recording/recordingText';
 import { plateImages } from '../recording/thumbnails';
 import '../styles/jobs.scss';
@@ -137,13 +148,39 @@ export interface MediaCardProps {
   offSignage: boolean;
   onToggleSignage?: () => void;
   signagePending?: boolean;
+  /** The recorded run whose print page the card links to; omitted for runs without a job. */
+  printPageRunId?: string;
+}
+
+/** Opens the run's print page (the page its recipient gets by notification) or copies its link. */
+function PrintPageActions({ runId }: { runId: string }) {
+  const notify = useNotify();
+  const path = `/prints/${runId}`;
+  const copy = async () => {
+    const copied = await copyToClipboard(`${window.location.origin}${path}`);
+    notify(
+      copied
+        ? { kind: 'success', title: 'Link copied', subtitle: 'Anyone who may see this print can open it.' }
+        : { kind: 'error', title: 'Link not copied', subtitle: 'Copy the address of the print page by hand.' },
+    );
+  };
+  return (
+    <div className="jobs-media__page-actions">
+      <Button kind="ghost" size="sm" renderIcon={Launch} href={path} target="_blank" rel="noopener noreferrer">
+        Open print page
+      </Button>
+      <Button kind="ghost" size="sm" renderIcon={LinkIcon} onClick={() => void copy()}>
+        Copy link
+      </Button>
+    </div>
+  );
 }
 
 /**
  * "Print files & timelapses": a slideshow over the 3MF previews and timelapses of the runs, with arrows and dots,
  * a fixed two-row caption and the job's signage toggle in the title row.
  */
-export function MediaCard({ recordings, offSignage, onToggleSignage, signagePending }: MediaCardProps) {
+export function MediaCard({ recordings, offSignage, onToggleSignage, signagePending, printPageRunId }: MediaCardProps) {
   const slides = slidesOf(recordings);
   const [index, setIndex] = useState(0);
   const current = slides[Math.min(index, slides.length - 1)];
@@ -217,6 +254,7 @@ export function MediaCard({ recordings, offSignage, onToggleSignage, signagePend
           <Caption slide={current} />
         </figure>
       )}
+      {printPageRunId && <PrintPageActions runId={printPageRunId} />}
     </StackCard>
   );
 }

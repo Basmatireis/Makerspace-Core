@@ -643,3 +643,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.jobs-media__page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+  padding-block-start: $spacing-03;
+}

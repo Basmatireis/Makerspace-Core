@@ -1,0 +1,222 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/theme' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/breakpoint' as *;
+
+// Standalone page outside the application shell: a slim header and one centred column around the timelapse.
+.print-page {
+  min-block-size: 100dvh;
+  background: $background;
+  color: $text-primary;
+}
+
+.print-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-05;
+  padding: $spacing-03 $spacing-05;
+  border-block-end: 1px solid $border-subtle;
+  background: $layer-01;
+}
+
+.print-page__brand {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+  min-inline-size: 0;
+  @include type-style('heading-compact-02');
+}
+
+.print-page__logo {
+  inline-size: 1.75rem;
+  block-size: 2rem;
+}
+
+.print-page__brand-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.print-page__who {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  min-inline-size: 0;
+  color: $text-secondary;
+  @include type-style('body-compact-01');
+}
+
+.print-page__who-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.print-page__main {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-06;
+  max-inline-size: 75rem;
+  margin-inline: auto;
+  padding: $spacing-07 $spacing-05;
+}
+
+.print-page__intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: $spacing-05;
+}
+
+.print-page__eyebrow {
+  margin: 0 0 $spacing-02;
+  color: $text-secondary;
+  @include type-style('label-02');
+}
+
+.print-page__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-04;
+  margin: 0;
+  overflow-wrap: anywhere;
+  @include type-style('productive-heading-05');
+}
+
+// The stage keeps a 16:9 box so the page does not jump when the video arrives.
+.print-page__stage {
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+  background: $layer-01;
+}
+
+.print-page__video {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  background: #000; // the video letterbox is black in either theme
+  object-fit: contain;
+}
+
+.print-page__stage--message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-03;
+  padding: $spacing-06;
+  text-align: center;
+  color: $text-secondary;
+  border: 1px solid $border-subtle;
+}
+
+.print-page__stage-title {
+  margin: 0;
+  color: $text-primary;
+  @include type-style('productive-heading-03');
+}
+
+.print-page__lower {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: $spacing-05;
+  align-items: start;
+
+  @include breakpoint-down(lg) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+// Without a video the preview takes its place above, and the two cards sit side by side.
+.print-page__lower--cards {
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+.print-page__aside {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-05;
+  min-inline-size: 0;
+}
+
+.print-page__heading {
+  margin: 0 0 $spacing-04;
+  @include type-style('productive-heading-03');
+}
+
+.print-page__downloads {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-03;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.print-page__download {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-04;
+  min-inline-size: 0;
+}
+
+.print-page__download-text {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.print-page__secondary {
+  color: $text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.print-page__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: $spacing-03 $spacing-05;
+  margin: 0;
+
+  dt {
+    color: $text-secondary;
+    @include type-style('label-01');
+  }
+
+  dd {
+    margin: 0;
+    @include type-style('body-compact-01');
+    overflow-wrap: anywhere;
+  }
+}
+
+.print-page__footnote {
+  margin: 0;
+  color: $text-secondary;
+  @include type-style('helper-text-01');
+}
+
+.print-page__unavailable {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: $spacing-05;
+  max-inline-size: 40rem;
+  margin-block-start: $spacing-07;
+}
+
+.print-page__unavailable h1 {
+  margin: 0;
+  @include type-style('productive-heading-05');
+}
+
+.print-page__unavailable p {
+  margin: 0;
+  color: $text-secondary;
+  @include type-style('body-02');
+}

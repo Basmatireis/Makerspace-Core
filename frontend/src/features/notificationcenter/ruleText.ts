@@ -63,7 +63,12 @@ export function triggerLabel(catalog: NotificationCatalog | undefined, definitio
   const { trigger } = definition;
   if (trigger.type === 'manual') return 'When someone presses Run now';
   if (trigger.type === 'schedule') return scheduleText(trigger.schedule);
-  return catalog?.triggers.find((candidate) => candidate.key === trigger.event)?.label ?? trigger.event ?? '';
+  const found = catalog?.triggers.find((candidate) => candidate.key === trigger.event);
+  const label = found?.label ?? trigger.event ?? '';
+  if (!found?.machineScope || !trigger.machines?.length) return label;
+  const options = found.fields.find((field) => field.key === 'machine')?.options ?? [];
+  const names = trigger.machines.map((id) => options.find((option) => option.value === id)?.label ?? 'a machine');
+  return `${label} (only ${names.length <= 2 ? `on ${joinList(names)}` : `on ${names.length} machines`})`;
 }
 
 export function recipientLabel(

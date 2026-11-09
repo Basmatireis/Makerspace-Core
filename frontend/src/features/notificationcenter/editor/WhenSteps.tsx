@@ -14,6 +14,7 @@ import { Filter, Lightning, Repeat, Time, TouchInteraction } from '@carbon/icons
 import { blankDefinition, contextOf, emptySet, fieldGroups, weekdays, type RuleKind } from '../ruleModel';
 import { ConditionList } from './ConditionList';
 import { FlowStep, type StepProps } from './FlowStep';
+import { MachineScope } from './MachineScope';
 
 const triggerTypes = ['event', 'schedule', 'manual'] as const;
 const triggerTexts = { event: 'Something happens', schedule: 'On a schedule', manual: 'By hand' } as const;
@@ -87,6 +88,20 @@ export function WhenStep({ catalog, definition, edit, personal }: StepProps) {
             </SelectItemGroup>
           ))}
         </Select>
+      )}
+      {trigger.type === 'event' && ctx.trigger?.machineScope && (
+        // Keyed by the event so the radio choice starts from the saved machines again when the event changes.
+        <MachineScope
+          key={trigger.event}
+          options={ctx.trigger.fields.find((field) => field.key === 'machine')?.options ?? []}
+          selected={trigger.machines ?? []}
+          onChange={(machines) =>
+            edit((draft) => {
+              if (machines) draft.trigger.machines = machines;
+              else delete draft.trigger.machines;
+            })
+          }
+        />
       )}
       {trigger.type === 'manual' && (
         <p className="nc-note">

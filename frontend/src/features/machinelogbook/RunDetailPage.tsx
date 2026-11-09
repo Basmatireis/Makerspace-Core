@@ -536,11 +536,16 @@ export function RunDetailPage() {
               <div className="mj-stack">
                 {run.source === 'recorded' &&
                   (job && canEdit ? (
-                    <JobMediaCard job={job} recordings={recording.data ? [recording.data] : []} />
+                    <JobMediaCard
+                      job={job}
+                      recordings={recording.data ? [recording.data] : []}
+                      printPageRunId={runId}
+                    />
                   ) : (
                     <MediaCard
                       recordings={recording.data ? [recording.data] : []}
                       offSignage={run.jobHiddenFromSignage || run.hiddenFromSignage}
+                      printPageRunId={run.job ? runId : undefined}
                     />
                   ))}
                 {recording.isError && (
@@ -641,7 +646,15 @@ export function RunDetailPage() {
 }
 
 /** The media card of a run that belongs to a job: the title row toggles the job's signage flag. */
-function JobMediaCard({ job, recordings }: { job: MachineJob; recordings: MachineRunRecording[] }) {
+function JobMediaCard({
+  job,
+  recordings,
+  printPageRunId,
+}: {
+  job: MachineJob;
+  recordings: MachineRunRecording[];
+  printPageRunId: string;
+}) {
   const notify = useNotify();
   const update = useUpdateJobFacts(job);
   return (
@@ -649,6 +662,7 @@ function JobMediaCard({ job, recordings }: { job: MachineJob; recordings: Machin
       recordings={recordings}
       offSignage={job.hiddenFromSignage}
       signagePending={update.isPending}
+      printPageRunId={printPageRunId}
       onToggleSignage={
         job.operator
           ? () =>

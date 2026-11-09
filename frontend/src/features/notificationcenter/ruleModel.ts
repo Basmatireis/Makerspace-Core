@@ -380,6 +380,8 @@ function pruneSet(set: NotificationConditionSet, allowed: Set<string>): Notifica
 /** Drops everything that no longer fits after the trigger or the loop changed. */
 export function pruneDefinition(catalog: NotificationCatalog, definition: Definition): Definition {
   const next = clone(definition);
+  // Machine scope exists only for triggers whose events concern one machine each.
+  if (!contextOf(catalog, next).trigger?.machineScope) delete next.trigger.machines;
   const ifKeys = new Set(fieldGroups(catalog, next, 'if').flatMap((group) => group.fields.map((f) => f.key)));
   const filterKeys = new Set(fieldGroups(catalog, next, 'filter').flatMap((group) => group.fields.map((f) => f.key)));
   next.conditions = pruneSet(next.conditions, ifKeys);
