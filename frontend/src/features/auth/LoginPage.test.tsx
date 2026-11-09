@@ -103,3 +103,26 @@ describe('passkey sign-in button', () => {
     expect(await screen.findByRole('button', { name: 'Sign in with passkey' })).toBeInTheDocument();
   });
 });
+
+describe('sign-in without the web.sign_in permission', () => {
+  it('names the reason instead of the generic credentials error', async () => {
+    server.use(
+      http.post('*/api/v1/auth/login', () =>
+        HttpResponse.json(
+          { code: 'web_sign_in_not_permitted', message: 'This account may not sign in to the web application.' },
+          { status: 403 },
+        ),
+      ),
+      http.get('*/api/v1/auth/me', () => HttpResponse.json({ code: 'unauthenticated', message: 'x' }, { status: 401 })),
+    );
+    const user = userEvent.setup();
+    renderRoute(<LoginPage />, '/login');
+
+    await user.type(await screen.findByLabelText('Email'), 'visitor@example.test');
+    await user.type(screen.getByLabelText('Password'), 'correct horse battery');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByText(/may not sign in to the web application/)).toBeInTheDocument();
+    expect(screen.queryByText('The credentials are incorrect.')).not.toBeInTheDocument();
+  });
+});

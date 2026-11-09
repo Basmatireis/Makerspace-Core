@@ -14,7 +14,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { getStartOIDCLoginUrl, listOIDCLoginProviders } from '../../api/generated/oidc/oidc';
 import type { LoginRequest, PinLoginRequest, SecondFactorMethod } from '../../api/generated/models';
-import { ApiError } from '../../api/http-client';
+import { ApiError, apiErrorCode } from '../../api/http-client';
 import { BrandMark } from '../../app/BrandMark';
 import { FullPageLoading } from '../../app/PageState';
 import { currentUserQueryOptions, useCurrentUserQuery, useLogin, usePINLogin } from './auth';
@@ -129,6 +129,10 @@ export function LoginPage() {
     (loginMutation.error instanceof ApiError && loginMutation.error.status === 429) ||
     (pinLoginMutation.error instanceof ApiError && pinLoginMutation.error.status === 429);
   const loginError = loginMutation.isError || pinLoginMutation.isError;
+  // The server only answers this after the credentials were right, so naming the reason leaks nothing.
+  const notPermitted =
+    apiErrorCode(loginMutation.error) === 'web_sign_in_not_permitted' ||
+    apiErrorCode(pinLoginMutation.error) === 'web_sign_in_not_permitted';
 
   return (
     <main className="auth-page auth-page--login">
@@ -168,7 +172,13 @@ export function LoginPage() {
                   lowContrast
                   hideCloseButton
                   title={rateLimited ? 'Too many attempts' : 'Unable to sign in'}
-                  subtitle={rateLimited ? 'Wait a moment before trying again.' : 'The credentials are incorrect.'}
+                  subtitle={
+                    rateLimited
+                      ? 'Wait a moment before trying again.'
+                      : notPermitted
+                        ? 'This account may not sign in to the web application. Use the terminal at the makerspace instead.'
+                        : 'The credentials are incorrect.'
+                  }
                 />
               )}
 
