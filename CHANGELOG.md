@@ -38,6 +38,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- **Material rows in one line, with calculations.** Wherever a run's material is chosen (new job, add to job, usage editor, mapping reported material) the material, the optional spool and the quantity share one line. The quantity takes basic arithmetic such as `20*30*2` or `(40-2)/4` (comma or dot as decimal separator), shows the result below while typing and becomes the result when leaving the field; a grey example in the empty field says so. The width × height × count inputs for cm² and m² are gone.
 - **Open-day colours.** List and calendar show blue for days you hold a place on, red for days that still need people (managers: a free supervisor place; everyone else: a place you can take), green for full days and grey for cancelled ones. The separate "urgent within the warning window" state is gone from the schedule; the warning window still drives the dashboard hint and the freed-place notice.
 - **"Fully staffed" counts supervisor places only.** A period's fully staffed and short-staffed day counts ignore open trainee places.
 - **Period details delete with an icon.** The period panel has a delete icon button instead of the overflow menu.

@@ -12,6 +12,7 @@ import type {
   QuantityBasis,
 } from '../../../api/generated/models';
 import { decimalText, parseDecimalText } from '../../../app/decimalInput';
+import { resolveQuantityText } from '../../../app/quantityExpression';
 import { machineLogbookKeys } from '../queries';
 
 export type UsageRow = {
@@ -79,14 +80,14 @@ export const toUsageInputs = (rows: UsageRow[]): MachineJobUsageInput[] =>
             spoolId: null,
             materialTypeId: row.materialTypeId || null,
             label: row.externalName.trim() || null,
-            quantity: parseDecimalText(row.quantity) ?? row.quantity,
+            quantity: parseDecimalText(resolveQuantityText(row.quantity)) ?? row.quantity,
             quantityBasis: row.quantityBasis,
           }
         : {
             ownership: 'makerspace',
             materialId: row.materialId,
             spoolId: row.spoolId || null,
-            quantity: parseDecimalText(row.quantity) ?? row.quantity,
+            quantity: parseDecimalText(resolveQuantityText(row.quantity)) ?? row.quantity,
             quantityBasis: row.quantityBasis,
           },
     );
