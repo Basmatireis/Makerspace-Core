@@ -55,6 +55,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Fixed
 
+- **Unbooked filament in Material usage.** The part of a print no spool fed (or whose quantity is unknown) now appears in the Material usage table of the run with a Map action, instead of only in the run details. The "Reported material" entry is gone from the run details.
 - **Open-day places lost role restrictions nobody chose.** Before the membership roles, a place listed the roles allowed to fill it; the migration kept those lists, so places showed custom roles such as a former supervisor role as "extra roles". Migration 00126 removes the lists of places that existed before that migration; restrictions set since then stay.
 - **Upgrading a database with orders works again.** Migration 00123 of rc.2/rc.3 stopped on the first booked order item that came from a job ("order item content is immutable"). It now backfills the billing revision with the item guard switched off for that statement.
 - **Mapping reported material uses the material picker.** The map dialog for a report line the printer could not assign chooses the material like the usage editor: a stock article with an optional spool, or the recipient's own material. Run and job pages list unmapped report lines in their Material usage table with a Map action, so a job's lines can be mapped without opening the run.
