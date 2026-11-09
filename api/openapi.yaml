@@ -53,6 +53,8 @@ tags:
     description: "In-app notifications: the signed-in account's own inbox and manual messages to roles (docs/notifications.md)."
   - name: NotificationRules
     description: "Rule-based notification center: central and personal rules, categories, consents and each person's channel choices."
+  - name: Account preferences
+    description: "Small interface choices stored per account, such as the open-day list or calendar view."
   - name: Guides
     description: "Which in-app guided tours the signed-in account has completed or dismissed."
   - name: Calendar Feed
@@ -4734,6 +4736,39 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/preferences:
+    get:
+      tags: [Account preferences]
+      operationId: listMyAccountPreferences
+      summary: List the signed-in account's stored interface preferences
+      description: Always scoped to the session's account. Preferences without an entry use their default.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Stored preferences.,content: {application/json: {schema: {$ref: "#/components/schemas/AccountPreferenceList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /me/preferences/{key}:
+    put:
+      tags: [Account preferences]
+      operationId: updateMyAccountPreference
+      summary: Store one interface preference of the signed-in account
+      description: |
+        Creates or overwrites the account's value for the key. The account always comes from the session. Each key
+        accepts only its own values (`openDays.view`: `list` or `calendar`); anything else is refused with 422.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: key, in: path, required: true, schema: {$ref: "#/components/schemas/AccountPreferenceKey"}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AccountPreferenceUpdate"}}}}
+      responses:
+        "200": {description: Stored preference.,content: {application/json: {schema: {$ref: "#/components/schemas/AccountPreference"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -12356,6 +12391,38 @@ components:
       required: [status]
       properties:
         status: {$ref: "#/components/schemas/GuideProgressStatus"}
+
+    AccountPreferenceKey:
+      type: string
+      description: |
+        `openDays.view` is the List/Calendar choice shared by every open-day page (values `list`, `calendar`).
+      enum: [openDays.view]
+      x-enum-varnames: [AccountPreferenceKeyOpenDaysView]
+
+    AccountPreference:
+      type: object
+      additionalProperties: false
+      required: [key, value, updatedAt]
+      properties:
+        key: {$ref: "#/components/schemas/AccountPreferenceKey"}
+        value: {type: string, minLength: 1, maxLength: 64}
+        updatedAt: {type: string, format: date-time}
+
+    AccountPreferenceList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/AccountPreference"}
+
+    AccountPreferenceUpdate:
+      type: object
+      additionalProperties: false
+      required: [value]
+      properties:
+        value: {type: string, minLength: 1, maxLength: 64}
 
     CalendarFeedStatus:
       type: object

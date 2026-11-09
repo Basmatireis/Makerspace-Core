@@ -30,6 +30,13 @@ type AccountGuideProgress struct {
 	UpdatedAt time.Time
 }
 
+type AccountPreference struct {
+	AccountID uuid.UUID
+	Key       string
+	Value     string
+	UpdatedAt time.Time
+}
+
 type AccountPresence struct {
 	AccountID     uuid.UUID
 	LastVisibleAt time.Time

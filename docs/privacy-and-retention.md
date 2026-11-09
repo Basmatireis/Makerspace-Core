@@ -60,6 +60,7 @@ The table lists every built-in category. Legacy defaults are the behaviour that 
 | `notifications.consents` | Notification consents | `platform` | person | ended (withdrawn), 3 years, delete (scheduler) |
 | `surveys.offers` | Tablet survey offers | `attendance` | none | expired, 1 day, delete (scheduler) |
 | `guides.progress` | Guided tour progress | `platform` | account | none |
+| `accounts.preferences` | Interface preferences | `platform` | account | none |
 | `signage.announcements` | Signage announcements | `signage` | none | ended, 30 days, delete (lazy sweep on read) |
 | `devices.credentials` | Device and service credentials | `platform` | none | none |
 | `platform.actor_references` | Actor references | `platform` | account | none |

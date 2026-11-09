@@ -1,3 +1,4 @@
+export * from './account-preferences/account-preferences';
 export * from './accounts/accounts';
 export * from './attendance/attendance';
 export * from './audit/audit';
