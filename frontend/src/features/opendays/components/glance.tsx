@@ -12,12 +12,10 @@ import {
   weekdayShort,
 } from '../model/dates';
 import {
-  free,
   isShortStaffed,
   myRequirement,
   placesForMe,
   slotEnded,
-  startsSoon,
   supervisorsOf,
   type StateContext,
 } from '../model/state';
@@ -136,9 +134,6 @@ export function glanceTiles({ days, ctx, staffing, rows }: GlanceInput): GlanceT
   });
   if (viewer.canManage) {
     const short = upcoming.filter((day) => isShortStaffed(day, now));
-    const urgent = short.filter((day) =>
-      day.timeslots.some((slot) => startsSoon(slot, ctx) && free(supervisorsOf(slot)) > 0),
-    );
     const slots = upcoming.flatMap((day) => day.timeslots.filter((slot) => !slotEnded(slot, now)));
     const places = slots.reduce((sum, slot) => sum + (supervisorsOf(slot)?.requiredCount ?? 0), 0);
     const filled = slots.reduce(
@@ -151,8 +146,8 @@ export function glanceTiles({ days, ctx, staffing, rows }: GlanceInput): GlanceT
       label: 'Short-staffed',
       value: short.length,
       unit: short.length === 1 ? 'open day' : 'open days',
-      tone: urgent.length ? 'bad' : undefined,
-      helper: `${urgent.length} within ${ctx.warningDays} days · trainee places never count`,
+      tone: short.length ? 'bad' : undefined,
+      helper: 'Trainee places never count',
       section: 'short',
     });
     tiles.push({
@@ -164,22 +159,12 @@ export function glanceTiles({ days, ctx, staffing, rows }: GlanceInput): GlanceT
     });
   } else {
     const forMe = upcoming.filter((day) => placesForMe(day) > 0);
-    const urgent = forMe.filter((day) =>
-      day.timeslots.some(
-        (slot) => startsSoon(slot, ctx) && slot.requirements.some((item) => item.kind === 'supervisor' && item.canJoin),
-      ),
-    );
     tiles.push({
       id: 'for-me',
       label: 'Places for you',
       value: forMe.length,
       unit: forMe.length === 1 ? 'open day' : 'open days',
-      tone: urgent.length ? 'bad' : undefined,
-      helper: urgent.length
-        ? `${urgent.length} need a supervisor within ${ctx.warningDays} days`
-        : viewer.kind === 'trainee'
-          ? 'Trainee places only'
-          : 'Nothing urgent',
+      helper: viewer.kind === 'trainee' ? 'Trainee places only' : 'Places you can take',
       section: 'forme',
     });
   }

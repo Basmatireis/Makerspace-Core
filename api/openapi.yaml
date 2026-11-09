@@ -16853,8 +16853,8 @@ components:
         signUpDeadline: {type: string, format: date, nullable: true, description: "Date by which supervisors must have signed up for their open-day minimum; null uses the period's end date."}
         status: {$ref: "#/components/schemas/OpenDayPeriodStatus"}
         totalOpenDays: {type: integer, minimum: 0}
-        fullyStaffedCount: {type: integer, minimum: 0}
-        needsStaffCount: {type: integer, minimum: 0}
+        fullyStaffedCount: {type: integer, minimum: 0, description: Scheduled days whose supervisor places are all filled; trainee places do not count.}
+        needsStaffCount: {type: integer, minimum: 0, description: Scheduled days with a free supervisor place.}
         openSupervisorPositions:
           type: integer
           minimum: 0
