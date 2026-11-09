@@ -167,7 +167,7 @@ export function MachineDetailPage({ section: routeSection }: { section?: 'printe
           label="Machine sections"
           sections={sections.map((id) => ({ id, label: sectionLabels[id] }))}
           selected={section}
-          onChange={(id) => navigate(pathOf(id), { replace: true })}
+          onChange={(id) => void navigate(pathOf(id), { replace: true })}
         />
       }
     >
@@ -178,7 +178,7 @@ export function MachineDetailPage({ section: routeSection }: { section?: 'printe
           connection={connection}
           jobs={jobs}
           jobsQuery={canReadJobs ? jobsResult : null}
-          onShowJobs={() => navigate(pathOf('jobs'), { replace: true })}
+          onShowJobs={() => void navigate(pathOf('jobs'), { replace: true })}
         />
       )}
       {section === 'jobs' && <JobsWorkspace machineColumn={false} machineId={machine.id} urlPrefix="jobs." />}

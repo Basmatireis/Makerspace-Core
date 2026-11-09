@@ -53,7 +53,7 @@ function AddToOrderForm({ job, onClose }: { job: MachineJob; onClose: () => void
                 subtitle: `${job.displayId} → ${saved.reference}`,
               });
               onClose();
-              navigate(`/orders/${saved.id}`);
+              void navigate(`/orders/${saved.id}`);
             },
           },
         )

@@ -169,9 +169,11 @@ function DayRow({
   };
   return (
     <>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the row holds its own buttons and checkbox, so it cannot be a <button>; Enter and Space open it, like the click */}
       <div
         className={rowClass(`${sameDate ? ' is-samedate' : ''}${multi ? ' has-slots' : ''}`)}
         role="listitem"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard entry to the row's click action (see above)
         tabIndex={0}
         aria-current={props.selectedId === day.id ? 'true' : undefined}
         aria-label={`${longDate(date)}, ${timeRange(day.startsAt, day.endsAt)}`}
@@ -180,7 +182,7 @@ function DayRow({
         onKeyDown={onKey}
       >
         {props.selecting && (
-          <span className="od-check" onClick={(event) => event.stopPropagation()}>
+          <span className="od-check" role="presentation" onClick={(event) => event.stopPropagation()}>
             <Checkbox
               id={`od-check-${day.id}`}
               labelText={`Select ${longDate(date)} ${timeRange(day.startsAt, day.endsAt)}`}
@@ -249,6 +251,7 @@ function DayRow({
       </div>
       {multi &&
         day.timeslots.map((slot) => (
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- mouse shortcut to the detail that the day's own row above opens from the keyboard
           <div
             key={slot.id}
             className={`od-row od-row--slot state-${slotState(day, slot, ctx)}${selected ? ' is-selected' : ''}${staffing ? '' : ' is-guest'}`}

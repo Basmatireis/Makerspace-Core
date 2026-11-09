@@ -85,7 +85,8 @@ function SpoolsTable({
   ].map(([id, label]) => ({ id, label }));
   const current = selected ? spools.find((spool) => spool.id === selected) : undefined;
 
-  const open = (spool: FilamentSpool) => (panelFits ? select(spool.id) : navigate(machineLogbookPaths.spool(spool.id)));
+  const open = (spool: FilamentSpool) =>
+    panelFits ? select(spool.id) : void navigate(machineLogbookPaths.spool(spool.id));
   const onNameClick = (event: MouseEvent, spool: FilamentSpool) => {
     if (!panelFits || event.metaKey || event.ctrlKey || event.shiftKey) return;
     event.preventDefault();

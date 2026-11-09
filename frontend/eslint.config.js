@@ -1,4 +1,5 @@
 import js from '@eslint/js';
+import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import { readdirSync } from 'node:fs';
@@ -37,6 +38,37 @@ export default tseslint.config(
       'react-hooks/purity': 'off',
       'react-hooks/incompatible-library': 'off',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
+  },
+  {
+    ...jsxA11y.flatConfigs.recommended,
+    files: ['**/*.tsx'],
+    rules: {
+      ...jsxA11y.flatConfigs.recommended.rules,
+      // A scrollable region must be keyboard-focusable (WCAG 2.1.1), so tabIndex=0 on role="region" is the correct
+      // pattern (ScrollRegion). The recommended default only allows it on interactive-widget roles ("tabpanel").
+      'jsx-a11y/no-noninteractive-tabindex': ['error', { roles: ['tabpanel', 'region'], tags: [] }],
+    },
+  },
+  {
+    // Type-aware rules, deliberately limited to the two that catch real bugs (a rejection nobody sees, an async
+    // function where a void callback is expected). The rest of the type-checked presets stays off.
+    files: ['src/**/*.{ts,tsx}'],
+    languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+    },
+  },
+  {
+    // A missing await in a Playwright spec is a real bug, so the e2e suite gets the same two rules. tsconfig.e2e.json
+    // only supplies the program for linting: it is not referenced by tsconfig.json because the specs still have type
+    // errors (13, in mock data) that `tsc -b` would report; fixing those is outside this change.
+    files: ['e2e/**/*.ts', 'playwright.config.ts'],
+    languageOptions: { parserOptions: { project: './tsconfig.e2e.json', tsconfigRootDir: import.meta.dirname } },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
     },
   },
   {

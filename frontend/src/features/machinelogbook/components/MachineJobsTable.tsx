@@ -75,7 +75,7 @@ export function MachineJobsTable({ jobs, label = 'Jobs' }: { jobs: WorkItem[]; l
                     {...rowProps}
                     className="mj-row-clickable"
                     onClick={(event) => {
-                      if (!(event.target as HTMLElement).closest('a, button')) navigate(hrefOf(job));
+                      if (!(event.target as HTMLElement).closest('a, button')) void navigate(hrefOf(job));
                     }}
                   >
                     <TableCell className="mj-col-wide">

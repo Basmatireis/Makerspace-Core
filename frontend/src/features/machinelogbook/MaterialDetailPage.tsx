@@ -392,7 +392,7 @@ function MaterialDetail({ material }: { material: Material }) {
         material={material}
         dialog={dialog}
         onClose={() => setDialog(null)}
-        onDeleted={() => navigate(machineLogbookPaths.inventory(listTab))}
+        onDeleted={() => void navigate(machineLogbookPaths.inventory(listTab))}
       />
     </PageShell>
   );

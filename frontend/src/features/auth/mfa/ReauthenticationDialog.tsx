@@ -136,7 +136,12 @@ export function ReauthenticationDialog({ request, onFinish }: Props) {
         )}
         {hasPasskey && hasCode && (
           <div>
-            <Button kind="tertiary" renderIcon={FingerprintRecognition} disabled={passkeyBusy} onClick={passkey}>
+            <Button
+              kind="tertiary"
+              renderIcon={FingerprintRecognition}
+              disabled={passkeyBusy}
+              onClick={() => void passkey()}
+            >
               Use a passkey instead
             </Button>
           </div>

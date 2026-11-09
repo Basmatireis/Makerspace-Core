@@ -6,7 +6,7 @@ SHELL := /bin/sh
 	dev-connector dev-connector-logs dev-connector-down \
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
-	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-frontend-allowed-clients test-printer-connector-compose test-desktop lint-migrations \
+	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-frontend-allowed-clients test-printer-connector-compose test-desktop lint-migrations install-hooks \
 	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password seed-dev
 
 # Integration tests use their own database next to the development database so
@@ -105,6 +105,9 @@ test-migrations: ## Verify goose Up/Down/Up against an isolated empty database.
 
 lint-migrations: ## Lint new or changed migrations with squawk (BASE=origin/main; see .squawk.toml).
 	sh ./scripts/lint-migrations.sh $(or $(BASE),origin/main)
+
+install-hooks: ## Run the fast staged-file checks in .githooks/ (gofmt, prettier, migration lint) before each commit.
+	git config core.hooksPath .githooks
 
 check: check-generated check-backend check-frontend ## Regenerate, verify freshness, and run all static/unit checks.
 

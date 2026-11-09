@@ -36,7 +36,7 @@ export function EventCreateDialog({ open, onClose }: EventCreateDialogProps) {
     mutationFn: (input: CreateEventRequest) => createEvent(input),
     onSuccess: async (event) => {
       await queryClient.invalidateQueries({ queryKey: eventKeys.all });
-      guard.bypassAfterSubmit(() => navigate(`/events/${event.id}`, { replace: true }));
+      guard.bypassAfterSubmit(() => void navigate(`/events/${event.id}`, { replace: true }));
     },
   });
   const requestClose = useLatestCallback(() => {
@@ -63,7 +63,7 @@ export function EventCreateDialog({ open, onClose }: EventCreateDialogProps) {
           closeModal={requestClose}
         />
         <ModalBody hasScrollingContent>
-          <form id="create-event-form" onSubmit={submit}>
+          <form id="create-event-form" onSubmit={(event) => void submit(event)}>
             <Stack gap={5}>
               {mutation.isError && (
                 <InlineNotification

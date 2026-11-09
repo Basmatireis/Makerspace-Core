@@ -248,7 +248,7 @@ export function AnnouncementTemplateModal({
       onRequestClose={() => {
         if (!mutation.isPending) onClose();
       }}
-      onRequestSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      onRequestSubmit={() => void form.handleSubmit((values) => mutation.mutate(values))()}
     >
       <div className="sg-template-modal">
         <Stack gap={5}>

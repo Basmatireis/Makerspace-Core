@@ -88,6 +88,7 @@ export function UnassignedRunsStrip({
             <li key={item.id}>
               <div
                 className={isSelected ? 'jobs-strip__row jobs-strip__row--selected' : 'jobs-strip__row'}
+                role="presentation"
                 onClick={(event: MouseEvent<HTMLElement>) => {
                   // The row is a mouse convenience; the run's name is the keyboard control.
                   if (!(event.target as HTMLElement).closest('button, a')) select(item);

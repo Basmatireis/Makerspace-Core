@@ -453,7 +453,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
           defaultSort={{ key: 'updated', direction: 'DESC' }}
           pageSizes={[10, 25, 50]}
           onRowClick={(order) =>
-            panelFits ? select(order.id === selected?.id ? null : order.id) : navigate(`/orders/${order.id}`)
+            panelFits ? select(order.id === selected?.id ? null : order.id) : void navigate(`/orders/${order.id}`)
           }
           filterCategories={[
             // Paid and cancelled orders have a single status each, so the Status category only exists for the open section.
@@ -543,7 +543,11 @@ function OrdersTable({ orders }: { orders: Order[] }) {
         {orderActions.dialogs}
         {reviewing && <ReadyToBillModal canCreate={canWrite} onClose={() => setParam({ review: null })} />}
         {creating && (
-          <EditOrderModal order={null} onClose={() => setCreating(false)} onSaved={(id) => navigate(`/orders/${id}`)} />
+          <EditOrderModal
+            order={null}
+            onClose={() => setCreating(false)}
+            onSaved={(id) => void navigate(`/orders/${id}`)}
+          />
         )}
       </ListWithPanel>
     </PageShell>

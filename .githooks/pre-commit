@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# Fast checks on the staged files only. Enable with `make install-hooks`; skip once with
+# `git commit --no-verify`. CI runs the complete checks either way.
+
+set -eu
+
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+staged="$(git diff --cached --name-only --diff-filter=ACMR)"
+[ -n "$staged" ] || exit 0
+status=0
+
+go_files="$(printf '%s\n' "$staged" | grep '\.go$' || true)"
+if [ -n "$go_files" ]; then
+	# shellcheck disable=SC2086 # one path per word
+	unformatted="$(gofmt -l $go_files)"
+	if [ -n "$unformatted" ]; then
+		echo "gofmt: these staged files need formatting (gofmt -w <file>):"
+		printf '  %s\n' $unformatted
+		status=1
+	fi
+fi
+
+frontend_files="$(printf '%s\n' "$staged" | sed -n 's#^frontend/##p')"
+if [ -n "$frontend_files" ] && [ -x frontend/node_modules/.bin/prettier ]; then
+	# shellcheck disable=SC2086 # one path per word
+	if ! (cd frontend && node_modules/.bin/prettier --check --ignore-unknown --log-level warn $frontend_files); then
+		echo "prettier: run \`pnpm format\` in frontend/."
+		status=1
+	fi
+fi
+
+if printf '%s\n' "$staged" | grep -q '^backend/migrations/.*\.sql$'; then
+	sh ./scripts/lint-migrations.sh --staged || status=1
+fi
+
+exit "$status"

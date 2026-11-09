@@ -540,8 +540,11 @@ export function SchedulePage({ periodId }: { periodId: string }) {
       actions={
         viewer.canManage ? (
           <OverflowMenu size="lg" flipped aria-label="Period actions" iconDescription="Period actions">
-            <OverflowMenuItem itemText="Period details" onClick={() => navigate(`/open-days?period=${periodId}`)} />
-            <OverflowMenuItem itemText="Breaks" onClick={() => navigate('/open-days?tab=breaks')} />
+            <OverflowMenuItem
+              itemText="Period details"
+              onClick={() => void navigate(`/open-days?period=${periodId}`)}
+            />
+            <OverflowMenuItem itemText="Breaks" onClick={() => void navigate('/open-days?tab=breaks')} />
           </OverflowMenu>
         ) : (
           <Select
@@ -549,7 +552,7 @@ export function SchedulePage({ periodId }: { periodId: string }) {
             labelText="Period"
             size="lg"
             value={periodId}
-            onChange={(event) => navigate(`/open-days/${event.target.value}`)}
+            onChange={(event) => void navigate(`/open-days/${event.target.value}`)}
           >
             {(visiblePeriods.some((item) => item.id === periodId) ? visiblePeriods : [period, ...visiblePeriods]).map(
               (item) => (

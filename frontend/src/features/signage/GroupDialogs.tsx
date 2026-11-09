@@ -59,7 +59,7 @@ export function NewGroupModal({ onClose }: { onClose: () => void }) {
     onSuccess: async (group) => {
       await queryClient.invalidateQueries({ queryKey: signageKeys.groups() });
       onClose();
-      navigate(signagePaths.group(group.id));
+      void navigate(signagePaths.group(group.id));
     },
   });
   const submit = form.handleSubmit((values) => mutation.mutate(values));
@@ -77,9 +77,9 @@ export function NewGroupModal({ onClose }: { onClose: () => void }) {
       onRequestClose={() => {
         if (!mutation.isPending) onClose();
       }}
-      onRequestSubmit={submit}
+      onRequestSubmit={() => void submit()}
     >
-      <form noValidate onSubmit={submit}>
+      <form noValidate onSubmit={(event) => void submit(event)}>
         <Stack gap={5}>
           <p className="sg-secondary">
             Displays of a group show the same thing: the group owns their rules and default scenes, and publishing the
@@ -281,7 +281,7 @@ export function DeleteGroupDialog({ group, onClose }: { group: SignageDisplayGro
         queryClient.removeQueries({ queryKey: signageKeys.groupRules(group.id) });
         queryClient.removeQueries({ queryKey: signageKeys.groupPreview(group.id) });
         onClose();
-        navigate(signagePaths.displays);
+        void navigate(signagePaths.displays);
       }}
       remove={() => deleteSignageDisplayGroup(group.id, { expectedVersion: group.version })}
     >

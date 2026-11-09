@@ -358,7 +358,7 @@ function UserDetailContent({ person }: { person: Person }) {
                   <MenuItemDivider />
                   <MenuItem
                     label="Merge with…"
-                    onClick={() => navigate(`/people/merge?${new URLSearchParams({ person: person.id })}`)}
+                    onClick={() => void navigate(`/people/merge?${new URLSearchParams({ person: person.id })}`)}
                   />
                 </>
               )}

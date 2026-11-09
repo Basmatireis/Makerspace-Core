@@ -112,7 +112,7 @@ export function CashRegisterTab() {
                   panelFits={panelFits}
                   onSelect={(entry) => {
                     if (panelFits) select(entry.id === selected?.id ? null : entry.id);
-                    else if (entry.source === 'payment') navigate(`/payments/${entry.id}`);
+                    else if (entry.source === 'payment') void navigate(`/payments/${entry.id}`);
                   }}
                   filterTags={periodFilter.tag}
                   categories={[periodFilter.category, { key: 'kind', label: 'Kind', options: journalKindOptions }]}

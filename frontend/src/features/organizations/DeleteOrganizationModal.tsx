@@ -31,7 +31,7 @@ function DeleteOrganizationDialog({ organization, onClose }: Omit<Props, 'open'>
       ]);
       notify({ kind: 'success', title: 'Organization deleted', subtitle: `${organization.name} was deleted.` });
       onClose();
-      navigate(organizationPaths.list());
+      void navigate(organizationPaths.list());
     },
   });
   const code = remove.error instanceof ApiError ? remove.error.data?.code : undefined;

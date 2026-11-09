@@ -35,7 +35,7 @@ function LinkToast({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       onActionButtonClick={() => {
         onDismiss();
         if (toast.action) toast.action.run();
-        else if (toast.link) navigate(toast.link.to);
+        else if (toast.link) void navigate(toast.link.to);
       }}
       onClose={() => {
         onDismiss();

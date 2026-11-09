@@ -102,7 +102,7 @@ export function EventsPage({
     (id) => ({ id, label: SCOPE_LABEL[id] }),
   );
   const create = access.manage ? (
-    <Button renderIcon={Add} onClick={() => navigate('/events/new')}>
+    <Button renderIcon={Add} onClick={() => void navigate('/events/new')}>
       Create event
     </Button>
   ) : undefined;

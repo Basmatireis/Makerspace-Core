@@ -94,7 +94,7 @@ function AdjustmentForm({ onClose, job }: { onClose: () => void; job: MachineJob
       onRequestClose={() => {
         if (!pending) onClose();
       }}
-      onRequestSubmit={submit}
+      onRequestSubmit={() => void submit()}
     >
       <Stack gap={6}>
         <p>The calculated price stays visible on the job. Existing order charges are not changed.</p>

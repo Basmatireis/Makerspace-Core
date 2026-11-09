@@ -160,7 +160,7 @@ export function DeleteDisplayDialog({ display, onClose }: { display: SignageDisp
       queryClient.removeQueries({ queryKey: signageKeys.preview(display.id) });
       await queryClient.invalidateQueries({ queryKey: signageKeys.displays() });
       onClose();
-      navigate(signagePaths.displays);
+      void navigate(signagePaths.displays);
     },
     onError: (error) => {
       if (isStaleWrite(error)) void queryClient.invalidateQueries({ queryKey: signageKeys.displays() });

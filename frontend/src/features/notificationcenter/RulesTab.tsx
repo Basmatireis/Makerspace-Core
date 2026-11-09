@@ -211,7 +211,7 @@ export function RulesTab() {
             narrow: true,
             render: (rule) => (
               // Clicking the switch must not open the editor behind it.
-              <div onClick={(event) => event.stopPropagation()}>
+              <div role="presentation" onClick={(event) => event.stopPropagation()}>
                 <Toggle
                   id={`rule-on-${rule.id}`}
                   size="sm"
@@ -305,7 +305,7 @@ export function RulesTab() {
               totalCount={items.length}
               searchText={(rule) => `${rule.name} ${rule.description} ${triggerLabel(cat, rule.definition)}`}
               defaultSort={{ key: 'name', direction: 'ASC' }}
-              onRowClick={(rule) => navigate(`/settings/notifications/rules/${rule.id}`)}
+              onRowClick={(rule) => void navigate(`/settings/notifications/rules/${rule.id}`)}
               switcher={
                 <SectionSwitcher
                   label="Rules"

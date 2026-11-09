@@ -53,7 +53,7 @@ export function MasterReauthenticationPolicyDialog({ open, onClose }: { open: bo
       primaryButtonDisabled={save.isPending || !policy.data}
       preventCloseOnClickOutside
       onRequestClose={onClose}
-      onRequestSubmit={form.handleSubmit((values) => save.mutate(values))}
+      onRequestSubmit={() => void form.handleSubmit((values) => save.mutate(values))()}
     >
       <Stack gap={5}>
         <p>

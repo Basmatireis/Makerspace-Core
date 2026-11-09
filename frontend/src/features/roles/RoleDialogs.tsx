@@ -61,7 +61,7 @@ export function CreateRoleDialog({
     <ComposedModal open={open} onClose={onClose} size="sm" preventCloseOnClickOutside>
       <ModalHeader title="Create role" closeModal={onClose} />
       <ModalBody hasScrollingContent>
-        <Form id="create-role-form" onSubmit={submit} noValidate>
+        <Form id="create-role-form" onSubmit={(event) => void submit(event)} noValidate>
           <Stack gap={6}>
             {error && (
               <InlineNotification
@@ -179,7 +179,7 @@ export function RoleSettingsDialog({
       <ModalHeader title="Edit role" closeModal={onClose} />
       <ModalBody hasScrollingContent>
         {role && (
-          <Form id="edit-role-form" onSubmit={submit} noValidate>
+          <Form id="edit-role-form" onSubmit={(event) => void submit(event)} noValidate>
             <Stack gap={6}>
               {error && (
                 <InlineNotification

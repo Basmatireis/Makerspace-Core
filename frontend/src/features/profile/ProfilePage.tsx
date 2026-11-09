@@ -222,7 +222,7 @@ export function ProfilePage() {
                 />
               )}
               {editingProfile ? (
-                <Form onSubmit={submitProfile}>
+                <Form onSubmit={(event) => void submitProfile(event)}>
                   <Stack gap={6}>
                     <PersonFields
                       form={personForm}

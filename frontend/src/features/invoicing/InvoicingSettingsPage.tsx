@@ -141,7 +141,7 @@ function SettingsForm({ settings }: { settings: WiRefDeliverySettings }) {
   );
 
   return (
-    <Form onSubmit={submit}>
+    <Form onSubmit={(event) => void submit(event)}>
       <Stack gap={6}>
         {save.isError && (
           <InlineNotification

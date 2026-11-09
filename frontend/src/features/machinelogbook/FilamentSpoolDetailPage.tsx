@@ -60,6 +60,22 @@ function SpoolDetail({ spool }: { spool: FilamentSpool }) {
   const removeIdentifier = useMutation({
     mutationFn: (identifier: FilamentSpoolIdentifier) => deleteFilamentSpoolIdentifier(spool.id, identifier.id),
   });
+  const confirmRemoval = async () => {
+    if (!removing) return;
+    try {
+      await removeIdentifier.mutateAsync(removing);
+    } catch {
+      await refresh();
+      return;
+    }
+    await refresh();
+    notify({
+      kind: 'success',
+      title: 'Identifier removed',
+      subtitle: `${identifierLabel(removing.kind)} from ${spool.displayId}`,
+    });
+    setRemoving(null);
+  };
   const items = spoolActionsFor(spool, allowed);
   const primary = items.find((item) => item.id === (retired ? 'restore' : 'weigh'));
   const menu = items.filter((item) => item !== primary);
@@ -252,7 +268,7 @@ function SpoolDetail({ spool }: { spool: FilamentSpool }) {
         spool={spool}
         dialog={dialog}
         onClose={() => setDialog(null)}
-        onGone={dialog === 'purge' ? () => navigate(inventorySectionPath('bin')) : undefined}
+        onGone={dialog === 'purge' ? () => void navigate(inventorySectionPath('bin')) : undefined}
       />
       {deleting && material.data && (
         <DeleteLedgerEntryModal transaction={deleting} material={material.data} onClose={() => setDeleting(null)} />
@@ -265,22 +281,7 @@ function SpoolDetail({ spool }: { spool: FilamentSpool }) {
         pending={removeIdentifier.isPending}
         onClose={() => setRemoving(null)}
         error={removeIdentifier.isError ? spoolErrorMessage(removeIdentifier.error) : undefined}
-        onConfirm={async () => {
-          if (!removing) return;
-          try {
-            await removeIdentifier.mutateAsync(removing);
-          } catch {
-            await refresh();
-            return;
-          }
-          await refresh();
-          notify({
-            kind: 'success',
-            title: 'Identifier removed',
-            subtitle: `${identifierLabel(removing.kind)} from ${spool.displayId}`,
-          });
-          setRemoving(null);
-        }}
+        onConfirm={() => void confirmRemoval()}
       >
         <p>
           {removing ? `${identifierLabel(removing.kind)} ${removing.value}` : 'The identifier'} no longer finds this

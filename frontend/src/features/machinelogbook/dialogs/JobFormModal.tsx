@@ -337,7 +337,7 @@ function JobForm({ onClose, mode, job, initialValues, onSaved }: JobFormProps) {
         onClose();
         if (creating) {
           if (onSaved) onSaved(saved);
-          else navigate(machineLogbookPaths.job(saved.id));
+          else void navigate(machineLogbookPaths.job(saved.id));
         } else onSaved?.(saved);
       });
     },
@@ -528,7 +528,7 @@ function JobForm({ onClose, mode, job, initialValues, onSaved }: JobFormProps) {
           <Button
             kind="primary"
             disabled={pending || !machineId || (creating && !customer)}
-            onClick={submit}
+            onClick={() => void submit()}
             data-guide="workshop-job-submit"
           >
             {pending ? 'Saving…' : creating ? 'Create job' : 'Save job'}

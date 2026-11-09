@@ -572,7 +572,7 @@ function Editor({
           noun="Scene"
           confirmLabel="Delete scene"
           remove={() => deleteSignageScene(scene.id, { expectedVersion: saved.version })}
-          onDeleted={() => unsaved.bypassAfterSubmit(() => navigate(signagePaths.content()))}
+          onDeleted={() => unsaved.bypassAfterSubmit(() => void navigate(signagePaths.content()))}
           onClose={() => setDeleting(false)}
         >
           <p>

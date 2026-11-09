@@ -93,7 +93,7 @@ function Block({ day, props }: { day: OpenDay; props: CalendarViewProps }) {
       </span>
       <span className="od-blk__row">
         {props.selecting && (
-          <span className="od-check od-check--sm" onClick={(event) => event.stopPropagation()}>
+          <span className="od-check od-check--sm" role="presentation" onClick={(event) => event.stopPropagation()}>
             <Checkbox
               id={`od-cal-check-${day.id}`}
               labelText={`Select ${longDate(date)}`}

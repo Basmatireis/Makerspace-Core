@@ -81,7 +81,7 @@ export function PeopleBatchActions({
           disabled={selectedMembers.length < 2 || selectedMembers.length > MAX_MERGE_PEOPLE}
           onClick={() => {
             const query = new URLSearchParams(selectedMembers.map((member) => ['person', member.id]));
-            navigate(`/people/merge?${query}`);
+            void navigate(`/people/merge?${query}`);
           }}
         >
           Merge people

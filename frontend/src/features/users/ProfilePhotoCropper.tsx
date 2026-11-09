@@ -93,9 +93,11 @@ export function ProfilePhotoCropper({
   return (
     <div className="photo-cropper">
       {/* Carbon has no image cropper; this is a focusable drag surface with the same keys as the pointer. */}
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- custom drag surface: no ARIA role fits a 2-D pan, so it is a named group with documented arrow keys */}
       <div
         className="photo-cropper__mask"
         role="group"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users must be able to reach the drag surface (see above)
         tabIndex={0}
         aria-label="Photo position"
         aria-describedby="photo-cropper-help"

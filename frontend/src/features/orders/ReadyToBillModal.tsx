@@ -85,7 +85,7 @@ export function ReadyToBillModal({ canCreate, onClose }: { canCreate: boolean; o
         subtitle: `${selected.size} ${selected.size === 1 ? 'job' : 'jobs'} added. Review and finalize ${created.length === 1 ? 'it' : 'them'}.`,
       });
       onClose();
-      if (created.length === 1) navigate(`/orders/${created[0]}`);
+      if (created.length === 1) void navigate(`/orders/${created[0]}`);
     },
   );
 
@@ -106,7 +106,7 @@ export function ReadyToBillModal({ canCreate, onClose }: { canCreate: boolean; o
           Finished jobs without an order, per customer. Select the jobs to put on one draft order per customer.
         </p>
         {query.isPending && <InlineLoadingState label="Loading jobs" />}
-        {query.isError && <ErrorState message="The jobs could not be loaded." onRetry={() => query.refetch()} />}
+        {query.isError && <ErrorState message="The jobs could not be loaded." onRetry={() => void query.refetch()} />}
         {query.data && groups.length === 0 && (
           <EmptyState
             title="Nothing to bill"

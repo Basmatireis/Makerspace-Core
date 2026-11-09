@@ -96,7 +96,7 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
       }),
     onSuccess: async (display) => {
       await queryClient.invalidateQueries({ queryKey: signageKeys.displays() });
-      navigate(signagePaths.display(display.id));
+      void navigate(signagePaths.display(display.id));
     },
     onError: (error) => {
       if (
@@ -124,9 +124,9 @@ export function PairDisplayModal({ onClose }: { onClose: () => void }) {
       onRequestClose={() => {
         if (!mutation.isPending) onClose();
       }}
-      onRequestSubmit={submit}
+      onRequestSubmit={() => void submit()}
     >
-      <form noValidate onSubmit={submit}>
+      <form noValidate onSubmit={(event) => void submit(event)}>
         <Stack gap={5}>
           <p>
             On the screen, open <PlayerAddress /> in the kiosk browser; it shows a 6-character code.

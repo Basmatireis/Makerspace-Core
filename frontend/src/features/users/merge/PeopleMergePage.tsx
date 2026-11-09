@@ -135,7 +135,7 @@ export function PeopleMergePage() {
               onTarget={setTargetId}
             />
             <div className="people-merge__actions">
-              <Button kind="secondary" onClick={() => navigate('/people')}>
+              <Button kind="secondary" onClick={() => void navigate('/people')}>
                 Cancel
               </Button>
               <Button kind="primary" disabled={!canPreview || previewMutation.isPending} onClick={rerunPreview}>
@@ -250,7 +250,7 @@ export function PeopleMergePage() {
               <Button
                 onClick={() => {
                   clearPrivateQueryData();
-                  navigate('/login', { replace: true });
+                  void navigate('/login', { replace: true });
                 }}
               >
                 Sign in again

@@ -93,7 +93,7 @@ export function MailSettingsPage() {
       )}
       {configuration.data && (
         <Tile>
-          <Form onSubmit={submit}>
+          <Form onSubmit={(event) => void submit(event)}>
             <Stack gap={5}>
               {mutation.isError && (
                 <InlineNotification

@@ -121,7 +121,8 @@ export function InvoiceSection({ order }: { order: Order }) {
         <InlineLoadingState label="Loading invoice" />
       </Tile>
     );
-  if (query.isError) return <ErrorState message="The invoice could not be loaded." onRetry={() => query.refetch()} />;
+  if (query.isError)
+    return <ErrorState message="The invoice could not be loaded." onRetry={() => void query.refetch()} />;
   return <InvoiceContent key={query.data.id} order={order} request={query.data} />;
 }
 

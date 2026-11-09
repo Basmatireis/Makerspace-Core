@@ -71,7 +71,7 @@ export function useLogout() {
     onSuccess: () => {
       const currentUser = queryClient.getQueryData<CurrentUser>(authQueryKey);
       clearPrivateQueryData();
-      navigate(sessionDestination(currentUser), { replace: true });
+      void navigate(sessionDestination(currentUser), { replace: true });
     },
   });
 }
@@ -152,7 +152,7 @@ function SessionActivityHandler({ currentUser }: { currentUser: CurrentUser }) {
       const remaining = expireAt - Date.now();
       if (remaining <= 0) {
         clearPrivateQueryData();
-        navigate(sessionDestination(currentUser), { replace: true });
+        void navigate(sessionDestination(currentUser), { replace: true });
         return;
       }
       timeout = window.setTimeout(scheduleExpiry, Math.min(remaining + 100, 2_147_000_000));
@@ -227,7 +227,7 @@ export function SessionEventHandler() {
         location.pathname.startsWith('/events/public/') ||
         location.pathname.startsWith('/survey/');
       if (!publicPath) {
-        navigate(sessionDestination(currentUser, event instanceof CustomEvent ? event.detail : undefined), {
+        void navigate(sessionDestination(currentUser, event instanceof CustomEvent ? event.detail : undefined), {
           replace: true,
           state: { from: `${location.pathname}${location.search}` },
         });

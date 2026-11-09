@@ -147,7 +147,7 @@ function EditRunFormBody({ onClose, run, process }: { onClose: () => void; run: 
           <Button kind="secondary" disabled={pending} onClick={() => guard.requestDiscard(onClose)}>
             Cancel
           </Button>
-          <Button kind="primary" disabled={pending} onClick={submit}>
+          <Button kind="primary" disabled={pending} onClick={() => void submit()}>
             {pending ? 'Saving…' : 'Save changes'}
           </Button>
         </ModalFooter>

@@ -53,16 +53,14 @@ export function FileEditDialog({
     if (!mutation.isPending) onClose();
     return false;
   });
+  const submit = form.handleSubmit((value) => {
+    if (!mutation.isPending) mutation.mutate(value);
+  });
   return (
     <ComposedModal open={open} onClose={close} size="sm" preventCloseOnClickOutside>
       <ModalHeader title="Edit file details" />
       <ModalBody>
-        <form
-          id={formId}
-          onSubmit={form.handleSubmit((value) => {
-            if (!mutation.isPending) mutation.mutate(value);
-          })}
-        >
+        <form id={formId} onSubmit={(event) => void submit(event)}>
           <Stack gap={5}>
             {mutation.error && (
               <InlineNotification

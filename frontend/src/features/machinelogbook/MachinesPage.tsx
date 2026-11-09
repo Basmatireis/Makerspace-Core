@@ -152,7 +152,7 @@ export function MachinesPage() {
   // From 1056 px a row opens the panel next to the table; narrower screens go to the machine page.
   const open = (row: MachineRow) => {
     if (panelFits) setParam('machine', selectedId === row.id ? null : row.id);
-    else navigate(machineLogbookPaths.machine(row.id));
+    else void navigate(machineLogbookPaths.machine(row.id));
   };
 
   const columns: Column<MachineRow>[] = [

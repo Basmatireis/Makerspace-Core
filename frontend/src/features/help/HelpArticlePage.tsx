@@ -48,12 +48,19 @@ function ArticleBody({ article }: { article: HelpArticle }) {
           <div className="markdown-content help-prose">
             <ReactMarkdown
               components={{
-                a: ({ node, href, ...props }) => {
+                a: ({ node, href, children, ...props }) => {
                   void node;
-                  if (href?.startsWith('/')) return <CarbonLink as={Link} to={href} {...props} />;
+                  if (href?.startsWith('/'))
+                    return (
+                      <CarbonLink as={Link} to={href} {...props}>
+                        {children}
+                      </CarbonLink>
+                    );
                   const external = /^https?:\/\//i.test(href ?? '');
                   return (
-                    <a href={href} {...props} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})} />
+                    <a href={href} {...props} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+                      {children}
+                    </a>
                   );
                 },
               }}

@@ -109,7 +109,7 @@ export function InventoryItemModal({
       onRequestClose={() => {
         if (!mutation.isPending) onClose();
       }}
-      onRequestSubmit={form.handleSubmit((values) => mutation.mutate(values))}
+      onRequestSubmit={() => void form.handleSubmit((values) => mutation.mutate(values))()}
     >
       <Stack gap={5}>
         {item ? (

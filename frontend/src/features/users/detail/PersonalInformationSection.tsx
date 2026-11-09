@@ -62,7 +62,7 @@ export function PersonalInformationSection({
         />
       )}
       {editingPerson ? (
-        <Form onSubmit={submitPerson}>
+        <Form onSubmit={(event) => void submitPerson(event)}>
           <Stack gap={6}>
             <PersonFields
               form={personForm}

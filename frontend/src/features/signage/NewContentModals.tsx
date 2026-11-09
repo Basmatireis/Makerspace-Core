@@ -44,7 +44,7 @@ export function NewSceneModal({ onClose }: { onClose: () => void }) {
     onSuccess: async (scene) => {
       await queryClient.invalidateQueries({ queryKey: signageKeys.scenes() });
       onClose();
-      navigate(signagePaths.scene(scene.id));
+      void navigate(signagePaths.scene(scene.id));
     },
   });
   const submit = form.handleSubmit((values) => mutation.mutate(values));
@@ -61,9 +61,9 @@ export function NewSceneModal({ onClose }: { onClose: () => void }) {
       onRequestClose={() => {
         if (!mutation.isPending) onClose();
       }}
-      onRequestSubmit={submit}
+      onRequestSubmit={() => void submit()}
     >
-      <form noValidate onSubmit={submit}>
+      <form noValidate onSubmit={(event) => void submit(event)}>
         <Stack gap={5}>
           <TextInput
             id="scene-name"

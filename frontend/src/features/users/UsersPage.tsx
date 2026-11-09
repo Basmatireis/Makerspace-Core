@@ -327,12 +327,12 @@ export function UsersPage() {
                       />
                     )}
                     {mayCreate && (
-                      <Button kind="primary" renderIcon={Add} onClick={() => navigate('/people/new')}>
+                      <Button kind="primary" renderIcon={Add} onClick={() => void navigate('/people/new')}>
                         Add person
                       </Button>
                     )}
                     {mayViewSupervisorStaffing && (
-                      <Button kind="tertiary" renderIcon={UserRole} onClick={() => navigate('/people/staffing')}>
+                      <Button kind="tertiary" renderIcon={UserRole} onClick={() => void navigate('/people/staffing')}>
                         Members
                       </Button>
                     )}
@@ -382,7 +382,7 @@ export function UsersPage() {
                                 pending: makerspaceStatusByPersonId.get(row.id)?.isPending ?? false,
                                 failed: makerspaceStatusByPersonId.get(row.id)?.isError ?? false,
                               }}
-                              onOpenPerson={(personId) => navigate(`/people/${personId}`)}
+                              onOpenPerson={(personId) => void navigate(`/people/${personId}`)}
                             />
                           </TableCell>
                         ))}

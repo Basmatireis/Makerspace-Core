@@ -103,7 +103,7 @@ export function SetRateModal({
           labelText={`Rate for ${name} in ${group.name} (${selector.unit})`}
           inputMode="decimal"
           value={text}
-          autoFocus
+          data-modal-primary-focus
           placeholder={fallback ? rateText(fallback.rate) : undefined}
           invalid={invalid}
           invalidText="Use a decimal number, e.g. 0,08"

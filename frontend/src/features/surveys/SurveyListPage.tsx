@@ -92,7 +92,7 @@ export function SurveyListPage() {
     },
   ];
   const create = canManage ? (
-    <Button kind="primary" size="lg" onClick={() => navigate('/settings/surveys/new')}>
+    <Button kind="primary" size="lg" onClick={() => void navigate('/settings/surveys/new')}>
       New survey
     </Button>
   ) : undefined;
@@ -111,13 +111,13 @@ export function SurveyListPage() {
             sort={table.sort}
             onSortChange={table.setSort}
             filterCategories={filterCategories}
-            onRowClick={(survey) => navigate(`/settings/surveys/${survey.id}`)}
+            onRowClick={(survey) => void navigate(`/settings/surveys/${survey.id}`)}
             toolbarAction={create}
             empty={{
               title: 'No surveys yet',
               description: 'Create a survey to collect feedback from visitors and members.',
               action: canManage ? (
-                <Button kind="tertiary" onClick={() => navigate('/settings/surveys/new')}>
+                <Button kind="tertiary" onClick={() => void navigate('/settings/surveys/new')}>
                   New survey
                 </Button>
               ) : undefined,

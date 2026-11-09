@@ -53,7 +53,7 @@ export function SurveyTriggerForm({ survey, onSaved }: { survey: Survey; onSaved
     <Form
       noValidate
       aria-label={`Post-visit trigger for ${survey.name}`}
-      onSubmit={handleSubmit((values) => save.mutate(values))}
+      onSubmit={(event) => void handleSubmit((values) => save.mutate(values))(event)}
     >
       <Stack gap={5}>
         <h3>Post-visit trigger</h3>

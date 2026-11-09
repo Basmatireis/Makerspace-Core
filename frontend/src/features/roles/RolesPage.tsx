@@ -171,14 +171,14 @@ export function RolesPage() {
     mutationFn: (request: CreateRoleRequest) => createRole(request),
     onSuccess: async () => {
       await refreshRoles();
-      navigate('/settings/roles', { replace: true });
+      void navigate('/settings/roles', { replace: true });
     },
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, request }: { id: string; request: UpdateRoleRequest }) => updateRole(id, request),
     onSuccess: async () => {
       await refreshRoles();
-      navigate('/settings/roles', { replace: true });
+      void navigate('/settings/roles', { replace: true });
     },
   });
   const deleteMutation = useMutation({
@@ -186,7 +186,7 @@ export function RolesPage() {
     onSuccess: async () => {
       setDeleteRoleId(undefined);
       await refreshRoles();
-      navigate('/settings/roles', { replace: true });
+      void navigate('/settings/roles', { replace: true });
     },
   });
   const permissionMutation = useMutation({
@@ -388,7 +388,7 @@ export function RolesPage() {
               kind="primary"
               size="sm"
               renderIcon={Add}
-              onClick={() => navigate('/settings/roles/new')}
+              onClick={() => void navigate('/settings/roles/new')}
             >
               Create role
             </Button>
@@ -444,7 +444,7 @@ export function RolesPage() {
                     {manageable && (
                       <OverflowMenuItem
                         itemText="Edit role details"
-                        onClick={() => navigate(`/settings/roles/${role.id}`)}
+                        onClick={() => void navigate(`/settings/roles/${role.id}`)}
                       />
                     )}
                     {manageable && !role.systemKey && (
@@ -530,14 +530,14 @@ export function RolesPage() {
         roles={copySources}
         isPending={createMutation.isPending}
         error={createMutation.error}
-        onClose={() => navigate('/settings/roles', { replace: true })}
+        onClose={() => void navigate('/settings/roles', { replace: true })}
         onSubmit={(request) => createMutation.mutate(request)}
       />
       <RoleSettingsDialog
         role={settingsRole && canManageRole(settingsRole) ? settingsRole : undefined}
         isPending={updateMutation.isPending}
         error={updateMutation.error}
-        onClose={() => navigate('/settings/roles', { replace: true })}
+        onClose={() => void navigate('/settings/roles', { replace: true })}
         onSubmit={(request) => settingsRole && updateMutation.mutate({ id: settingsRole.id, request })}
       />
       <DeleteRoleDialog

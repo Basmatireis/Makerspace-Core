@@ -156,7 +156,7 @@ export function AppShell() {
                       aria-label="Help"
                       tooltipAlignment="end"
                       data-guide="header-help"
-                      onClick={() => navigate('/help')}
+                      onClick={() => void navigate('/help')}
                     >
                       <Help size={20} />
                     </HeaderGlobalAction>
@@ -223,10 +223,10 @@ export function AppShell() {
                   </Tag>
                   {!consentRequired && (
                     <>
-                      <Button kind="ghost" size="sm" onClick={() => navigate('/profile')}>
+                      <Button kind="ghost" size="sm" onClick={() => void navigate('/profile')}>
                         View profile
                       </Button>
-                      <Button kind="ghost" size="sm" onClick={() => navigate('/profile/notifications')}>
+                      <Button kind="ghost" size="sm" onClick={() => void navigate('/profile/notifications')}>
                         My notifications
                       </Button>
                       <Button

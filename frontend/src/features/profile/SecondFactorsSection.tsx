@@ -174,8 +174,8 @@ export function SecondFactorsSection() {
           onRequestClose={close}
         >
           <Stack gap={5}>
-            {dialog?.kind === 'totp' && <TotpEnrollmentPanel onEnrolled={enrolled} />}
-            {dialog?.kind === 'passkey' && <PasskeyRegistrationPanel onEnrolled={enrolled} />}
+            {dialog?.kind === 'totp' && <TotpEnrollmentPanel onEnrolled={(result) => void enrolled(result)} />}
+            {dialog?.kind === 'passkey' && <PasskeyRegistrationPanel onEnrolled={(result) => void enrolled(result)} />}
           </Stack>
         </Modal>
       )}

@@ -113,7 +113,7 @@ export function DeviceDetailPage() {
     onSuccess: async (kind) => {
       setConfirmation(null);
       await refresh();
-      if (kind === 'delete') navigate(devicesPath, { replace: true });
+      if (kind === 'delete') void navigate(devicesPath, { replace: true });
     },
   });
   const rotate = async (
