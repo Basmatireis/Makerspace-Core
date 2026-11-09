@@ -78,7 +78,7 @@ func (s *Service) finalize(
 			if e != nil {
 				return o, e
 			}
-			if i.SourceJobVersion == nil || job.Version != *i.SourceJobVersion {
+			if i.SourceBillingRevision == nil || job.BillingRevision != *i.SourceBillingRevision {
 				return o, apperror.Conflicting(
 					"source_snapshot_stale",
 					"Refresh the changed job snapshot before finalization",
@@ -118,12 +118,6 @@ func (s *Service) finalize(
 		); e != nil {
 			return o, e
 		}
-	}
-	if CustomerKind(o.CustomerKind) == CustomerAnonymous && FulfillmentMode(o.FulfillmentMode) != FulfillmentImmediate {
-		return o, apperror.Conflicting(
-			"anonymous_requires_full_settlement",
-			"Deferred fulfillment requires a named customer",
-		)
 	}
 	if err = s.jobs.SellFromStock(ctx, tx, p, sales, requestID); err != nil {
 		return o, err
@@ -402,7 +396,7 @@ func (s *Service) Command(
 			ctx,
 			tx,
 			p,
-			OrderDraftInput{Customer: customerReference(o), FulfillmentMode: FulfillmentMode(o.FulfillmentMode)},
+			OrderDraftInput{Customer: customerReference(o)},
 			&o,
 			requestID,
 		)

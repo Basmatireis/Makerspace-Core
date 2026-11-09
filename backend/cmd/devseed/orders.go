@@ -88,7 +88,7 @@ func (s *seeder) createOrders() {
 		sort.Slice(ps, func(i, j int) bool { return len(byCust[ps[i].id]) > len(byCust[ps[j].id]) })
 		return ps
 	}
-	build := func(c party, idxs []int, mode string, manual bool) orders.Order {
+	build := func(c party, idxs []int, manual bool) orders.Order {
 		var extras []orders.OrderItemInput
 		if manual {
 			extras = append(extras, orders.OrderItemInput{
@@ -99,7 +99,7 @@ func (s *seeder) createOrders() {
 				UnitPrice:   "20.00",
 			})
 		}
-		return s.draftOrder(s.orders, c, mode, idxs, extras)
+		return s.draftOrder(s.orders, c, idxs, extras)
 	}
 	finalize := func(o orders.Order, pays []orders.PaymentInput) orders.Order {
 		o, err := s.orders.Command(
@@ -139,10 +139,10 @@ func (s *seeder) createOrders() {
 		paidO6 = opened.Add(time.Duration(s.rng.Int63n(int64(open)))).Truncate(time.Minute).UTC()
 	}
 	// O1: student, paid in cash
-	o := build(ts[0], i1, "immediate", false)
+	o := build(ts[0], i1, false)
 	finalize(o, []orders.PaymentInput{{Method: "cash", Amount: sumItems(o), OccurredAt: paidO1}})
 	// O2: Fachschaft, partial card payment
-	o = build(s.orgs["fs"], fsJobs, "deferred", false)
+	o = build(s.orgs["fs"], fsJobs, false)
 	o = finalize(o, nil)
 	if d := decimal.RequireFromString(o.TotalAmount); d.GreaterThan(decimal.RequireFromString("1.00")) {
 		_, err := s.orders.RecordPayment(
@@ -165,12 +165,12 @@ func (s *seeder) createOrders() {
 		check("partial payment", err)
 	}
 	// O3: Lehrstuhl, unpaid, with manual item
-	o = build(s.orgs["chair"], chairJobs, "deferred", true)
+	o = build(s.orgs["chair"], chairJobs, true)
 	finalize(o, nil)
 	// O4: Startup, unpaid; job changed afterwards -> outdated
 	idx := startupJobs
 	if len(idx) > 0 {
-		o = build(s.orgs["startup"], idx, "deferred", false)
+		o = build(s.orgs["startup"], idx, false)
 		finalize(o, nil)
 		job, err := s.ml.GetJob(s.ctx, s.actor, s.jobs[idx[0]].id)
 		check("get job", err)
@@ -189,10 +189,10 @@ func (s *seeder) createOrders() {
 		log.Println("no startup jobs for outdated order")
 	}
 	// O5: draft for a student
-	o = build(ts[1], i5, "deferred", false)
+	o = build(ts[1], i5, false)
 	_ = o
 	// O6: second student paid in cash
-	o = build(ts[2], i6, "immediate", false)
+	o = build(ts[2], i6, false)
 	finalize(o, []orders.PaymentInput{{Method: "cash", Amount: sumItems(o), OccurredAt: paidO6}})
 }
 
@@ -210,17 +210,13 @@ func sumItems(o orders.Order) string {
 func (s *seeder) draftOrder(
 	svc *orders.Service,
 	c party,
-	mode string,
 	jobs []int,
 	extras []orders.OrderItemInput,
 ) orders.Order {
 	o, err := svc.Create(
 		s.ctx,
 		s.actor,
-		orders.OrderDraftInput{
-			Customer:        &orders.OrderCustomer{Kind: orders.CustomerKind(c.kind), ID: c.id},
-			FulfillmentMode: orders.FulfillmentMode(mode),
-		},
+		orders.OrderDraftInput{Customer: &orders.OrderCustomer{Kind: orders.CustomerKind(c.kind), ID: c.id}},
 		nil,
 	)
 	check("order create", err)
@@ -587,11 +583,7 @@ func (s *seeder) card(amount string, at time.Time) orders.PaymentInput {
 // billHistoric creates, finalizes and pays one historic order at its time.
 func (s *seeder) billHistoric(h *histOrder) {
 	svc := s.ordersAt(h.at)
-	mode := "immediate"
-	if h.pay == paySplit || h.pay == payInvoice || h.cust.cat == "org" {
-		mode = "deferred"
-	}
-	o := s.draftOrder(svc, h.cust, mode, h.jobs, h.extras)
+	o := s.draftOrder(svc, h.cust, h.jobs, h.extras)
 	total := decimal.RequireFromString(sumItems(o))
 	var pays []orders.PaymentInput
 	if total.IsPositive() {

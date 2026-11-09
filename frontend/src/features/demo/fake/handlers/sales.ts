@@ -248,11 +248,7 @@ export function registerSales(router: DemoRouter<DemoStore>): void {
       '/orders',
       ({ store, body }) => {
         const customer = body.customer as { kind: 'person' | 'organization'; id: string } | null | undefined;
-        const order = newOrder(
-          store,
-          customer ?? null,
-          (body.fulfillmentMode as Order['fulfillmentMode']) ?? 'immediate',
-        );
+        const order = newOrder(store, customer ?? null);
         store.orders.push(order);
         return created(order);
       },
@@ -267,14 +263,13 @@ export function registerSales(router: DemoRouter<DemoStore>): void {
         if (order.status !== 'draft') return fail(409, 'order_not_draft', 'Only a draft order can be changed.');
         const customer = body.customer as { kind: 'person' | 'organization'; id: string } | null | undefined;
         if (customer !== undefined) {
-          const draft = newOrder(store, customer, order.fulfillmentMode);
+          const draft = newOrder(store, customer);
           Object.assign(order, {
             customer: draft.customer,
             customerKind: draft.customerKind,
             customerName: draft.customerName,
           });
         }
-        order.fulfillmentMode = (body.fulfillmentMode as Order['fulfillmentMode']) ?? order.fulfillmentMode;
         return ok(recalculateOrder(store, order));
       },
       'orders.write',

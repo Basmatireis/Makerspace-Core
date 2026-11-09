@@ -167,7 +167,6 @@ describe('sales', () => {
     const job = await getMachineJob(DEMO_IDS.job);
     const order = await createOrder({
       customer: { kind: 'person', id: DEMO_IDS.customer },
-      fulfillmentMode: 'immediate',
     });
     const withItem = await addOrderItem(order.id, {
       kind: 'machine_job',
@@ -189,7 +188,7 @@ describe('sales', () => {
     const items = await listMachineLogbookWorkItems({ billing: ['on_order'] });
     expect(items.items.find((item) => item.id === job.id)?.billing?.orderReference).toBe(paid.reference);
     // The same job cannot go on a second order.
-    const second = await createOrder({ fulfillmentMode: 'immediate' });
+    const second = await createOrder({});
     await expect(
       addOrderItem(second.id, { kind: 'machine_job', machineJobId: job.id, expectedVersion: second.version }),
     ).rejects.toMatchObject({ status: 409 });
@@ -221,7 +220,7 @@ describe('sales', () => {
 
   it('keeps a draft out of the paid list until it is finalized', async () => {
     start();
-    const draft = await createOrder({ fulfillmentMode: 'deferred' });
+    const draft = await createOrder({});
     await expect(finalizeOrder(draft.id, { operationKey, expectedVersion: draft.version })).rejects.toMatchObject({
       status: 422,
     });

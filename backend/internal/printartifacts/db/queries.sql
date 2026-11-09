@@ -134,7 +134,7 @@ INSERT INTO machine_job_pricing_snapshots (
 
 -- name: ActivatePricingSnapshot :one
 UPDATE machine_jobs SET active_pricing_snapshot_id = sqlc.arg(snapshot_id), pricing_status = 'incomplete',
-    calculated_price = NULL, version = version + 1, updated_at = now()
+    calculated_price = NULL, version = version + 1, billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = sqlc.arg(id) RETURNING *;
 
 -- name: InsertPricingSnapshotRules :exec

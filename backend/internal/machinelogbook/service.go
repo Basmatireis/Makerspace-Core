@@ -475,7 +475,9 @@ type MachineJob struct {
 	HiddenFromSignage               bool
 	Attention                       []Attention
 	Version                         int64
-	CreatedAt, UpdatedAt            time.Time
+	// BillingRevision advances only with changes a charge depends on, unlike Version.
+	BillingRevision      int64
+	CreatedAt, UpdatedAt time.Time
 }
 
 type StatisticPoint struct{ Key, Label, Value string }

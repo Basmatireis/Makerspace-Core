@@ -40,8 +40,8 @@ func (e *scheduleEnv) unpaidOrder(p authorization.Principal, status string, amou
 	e.t.Helper()
 	e.counter++
 	order := ids.New()
-	e.exec(`INSERT INTO orders(id,reference,customer_kind,customer_person_id,fulfillment_mode)
-		VALUES($1,$2,'person',$3,'immediate')`, order, "O-2026-"+padded(900000+e.counter), p.PersonID)
+	e.exec(`INSERT INTO orders(id,reference,customer_kind,customer_person_id)
+		VALUES($1,$2,'person',$3)`, order, "O-2026-"+padded(900000+e.counter), p.PersonID)
 	if status != "finalized" {
 		return
 	}

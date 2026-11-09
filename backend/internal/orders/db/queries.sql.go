@@ -423,8 +423,8 @@ func (q *Queries) CountRequests(ctx context.Context, arg CountRequestsParams) (i
 }
 
 const createOrder = `-- name: CreateOrder :one
-INSERT INTO orders(id,reference,customer_kind,customer_person_id,customer_organization_id,fulfillment_mode,created_by_account_id,replaces_order_id,replaces_order_reference)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, fulfillment_mode, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at
+INSERT INTO orders(id,reference,customer_kind,customer_person_id,customer_organization_id,created_by_account_id,replaces_order_id,replaces_order_reference)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at
 `
 
 type CreateOrderParams struct {
@@ -433,7 +433,6 @@ type CreateOrderParams struct {
 	CustomerKind           string
 	CustomerPersonID       *uuid.UUID
 	CustomerOrganizationID *uuid.UUID
-	FulfillmentMode        string
 	CreatedByAccountID     *uuid.UUID
 	ReplacesOrderID        *uuid.UUID
 	ReplacesOrderReference *string
@@ -446,7 +445,6 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		arg.CustomerKind,
 		arg.CustomerPersonID,
 		arg.CustomerOrganizationID,
-		arg.FulfillmentMode,
 		arg.CreatedByAccountID,
 		arg.ReplacesOrderID,
 		arg.ReplacesOrderReference,
@@ -460,7 +458,6 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Order
 		&i.CustomerKind,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
-		&i.FulfillmentMode,
 		&i.TotalAmount,
 		&i.ReplacesOrderID,
 		&i.ReplacesOrderReference,
@@ -772,7 +769,7 @@ func (q *Queries) GetCustomerName(ctx context.Context, id uuid.UUID) (string, er
 }
 
 const getItem = `-- name: GetItem :one
-SELECT id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id, source_material_id FROM order_items WHERE id=$1 AND order_id=$2
+SELECT id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id, source_material_id, source_billing_revision FROM order_items WHERE id=$1 AND order_id=$2
 `
 
 type GetItemParams struct {
@@ -802,20 +799,23 @@ func (q *Queries) GetItem(ctx context.Context, arg GetItemParams) (OrderItem, er
 		&i.RemovedAt,
 		&i.RemovedByAccountID,
 		&i.SourceMaterialID,
+		&i.SourceBillingRevision,
 	)
 	return i, err
 }
 
 const getJobClaim = `-- name: GetJobClaim :one
-SELECT o.id AS order_id,i.id AS order_item_id,o.reference,i.source_job_version,j.version AS current_job_version FROM order_job_claims c JOIN order_items i ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id JOIN machine_jobs j ON j.id=c.machine_job_id WHERE c.machine_job_id=$1
+SELECT o.id AS order_id,i.id AS order_item_id,o.reference,i.source_job_version,i.source_billing_revision,j.version AS current_job_version,j.billing_revision AS current_billing_revision FROM order_job_claims c JOIN order_items i ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id JOIN machine_jobs j ON j.id=c.machine_job_id WHERE c.machine_job_id=$1
 `
 
 type GetJobClaimRow struct {
-	OrderID           uuid.UUID
-	OrderItemID       uuid.UUID
-	Reference         string
-	SourceJobVersion  *int64
-	CurrentJobVersion int64
+	OrderID                uuid.UUID
+	OrderItemID            uuid.UUID
+	Reference              string
+	SourceJobVersion       *int64
+	SourceBillingRevision  *int64
+	CurrentJobVersion      int64
+	CurrentBillingRevision int64
 }
 
 func (q *Queries) GetJobClaim(ctx context.Context, machineJobID uuid.UUID) (GetJobClaimRow, error) {
@@ -826,7 +826,9 @@ func (q *Queries) GetJobClaim(ctx context.Context, machineJobID uuid.UUID) (GetJ
 		&i.OrderItemID,
 		&i.Reference,
 		&i.SourceJobVersion,
+		&i.SourceBillingRevision,
 		&i.CurrentJobVersion,
+		&i.CurrentBillingRevision,
 	)
 	return i, err
 }
@@ -853,7 +855,7 @@ func (q *Queries) GetOperation(ctx context.Context, operationKey uuid.UUID) (Ord
 }
 
 const getOrder = `-- name: GetOrder :one
-SELECT id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, fulfillment_mode, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at FROM orders WHERE id=$1
+SELECT id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at FROM orders WHERE id=$1
 `
 
 func (q *Queries) GetOrder(ctx context.Context, id uuid.UUID) (Order, error) {
@@ -867,7 +869,6 @@ func (q *Queries) GetOrder(ctx context.Context, id uuid.UUID) (Order, error) {
 		&i.CustomerKind,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
-		&i.FulfillmentMode,
 		&i.TotalAmount,
 		&i.ReplacesOrderID,
 		&i.ReplacesOrderReference,
@@ -1223,24 +1224,25 @@ func (q *Queries) InsertCashMovement(ctx context.Context, arg InsertCashMovement
 }
 
 const insertItem = `-- name: InsertItem :one
-INSERT INTO order_items(id,order_id,position,kind,description,quantity,unit,unit_price,amount,source_machine_job_id,source_job_version,machine_job_snapshot,created_by_account_id,source_material_id)
-VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM order_items WHERE order_id=$2),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id, source_material_id
+INSERT INTO order_items(id,order_id,position,kind,description,quantity,unit,unit_price,amount,source_machine_job_id,source_job_version,source_billing_revision,machine_job_snapshot,created_by_account_id,source_material_id)
+VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM order_items WHERE order_id=$2),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id, source_material_id, source_billing_revision
 `
 
 type InsertItemParams struct {
-	ID                 uuid.UUID
-	OrderID            uuid.UUID
-	Kind               string
-	Description        string
-	Quantity           pgtype.Numeric
-	Unit               string
-	UnitPrice          pgtype.Numeric
-	Amount             pgtype.Numeric
-	SourceMachineJobID *uuid.UUID
-	SourceJobVersion   *int64
-	MachineJobSnapshot []byte
-	CreatedByAccountID *uuid.UUID
-	SourceMaterialID   *uuid.UUID
+	ID                    uuid.UUID
+	OrderID               uuid.UUID
+	Kind                  string
+	Description           string
+	Quantity              pgtype.Numeric
+	Unit                  string
+	UnitPrice             pgtype.Numeric
+	Amount                pgtype.Numeric
+	SourceMachineJobID    *uuid.UUID
+	SourceJobVersion      *int64
+	SourceBillingRevision *int64
+	MachineJobSnapshot    []byte
+	CreatedByAccountID    *uuid.UUID
+	SourceMaterialID      *uuid.UUID
 }
 
 func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (OrderItem, error) {
@@ -1255,6 +1257,7 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (OrderIt
 		arg.Amount,
 		arg.SourceMachineJobID,
 		arg.SourceJobVersion,
+		arg.SourceBillingRevision,
 		arg.MachineJobSnapshot,
 		arg.CreatedByAccountID,
 		arg.SourceMaterialID,
@@ -1279,6 +1282,7 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (OrderIt
 		&i.RemovedAt,
 		&i.RemovedByAccountID,
 		&i.SourceMaterialID,
+		&i.SourceBillingRevision,
 	)
 	return i, err
 }
@@ -1925,29 +1929,31 @@ func (q *Queries) ListCashbookEntries(ctx context.Context, arg ListCashbookEntri
 }
 
 const listItems = `-- name: ListItems :many
-SELECT i.id, i.order_id, i.position, i.kind, i.description, i.quantity, i.unit, i.unit_price, i.amount, i.source_machine_job_id, i.source_job_version, i.machine_job_snapshot, i.snapshot_schema_version, i.created_at, i.created_by_account_id, i.removed_at, i.removed_by_account_id, i.source_material_id,j.version AS current_job_version FROM order_items i LEFT JOIN machine_jobs j ON j.id=i.source_machine_job_id WHERE i.order_id=$1 ORDER BY i.position
+SELECT i.id, i.order_id, i.position, i.kind, i.description, i.quantity, i.unit, i.unit_price, i.amount, i.source_machine_job_id, i.source_job_version, i.machine_job_snapshot, i.snapshot_schema_version, i.created_at, i.created_by_account_id, i.removed_at, i.removed_by_account_id, i.source_material_id, i.source_billing_revision,j.version AS current_job_version,j.billing_revision AS current_billing_revision FROM order_items i LEFT JOIN machine_jobs j ON j.id=i.source_machine_job_id WHERE i.order_id=$1 ORDER BY i.position
 `
 
 type ListItemsRow struct {
-	ID                    uuid.UUID
-	OrderID               uuid.UUID
-	Position              int32
-	Kind                  string
-	Description           string
-	Quantity              pgtype.Numeric
-	Unit                  string
-	UnitPrice             pgtype.Numeric
-	Amount                pgtype.Numeric
-	SourceMachineJobID    *uuid.UUID
-	SourceJobVersion      *int64
-	MachineJobSnapshot    []byte
-	SnapshotSchemaVersion int32
-	CreatedAt             time.Time
-	CreatedByAccountID    *uuid.UUID
-	RemovedAt             pgtype.Timestamptz
-	RemovedByAccountID    *uuid.UUID
-	SourceMaterialID      *uuid.UUID
-	CurrentJobVersion     *int64
+	ID                     uuid.UUID
+	OrderID                uuid.UUID
+	Position               int32
+	Kind                   string
+	Description            string
+	Quantity               pgtype.Numeric
+	Unit                   string
+	UnitPrice              pgtype.Numeric
+	Amount                 pgtype.Numeric
+	SourceMachineJobID     *uuid.UUID
+	SourceJobVersion       *int64
+	MachineJobSnapshot     []byte
+	SnapshotSchemaVersion  int32
+	CreatedAt              time.Time
+	CreatedByAccountID     *uuid.UUID
+	RemovedAt              pgtype.Timestamptz
+	RemovedByAccountID     *uuid.UUID
+	SourceMaterialID       *uuid.UUID
+	SourceBillingRevision  *int64
+	CurrentJobVersion      *int64
+	CurrentBillingRevision *int64
 }
 
 func (q *Queries) ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItemsRow, error) {
@@ -1978,7 +1984,9 @@ func (q *Queries) ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItems
 			&i.RemovedAt,
 			&i.RemovedByAccountID,
 			&i.SourceMaterialID,
+			&i.SourceBillingRevision,
 			&i.CurrentJobVersion,
+			&i.CurrentBillingRevision,
 		); err != nil {
 			return nil, err
 		}
@@ -1991,7 +1999,7 @@ func (q *Queries) ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItems
 }
 
 const listOrders = `-- name: ListOrders :many
-SELECT o.id, o.reference, o.status, o.currency, o.customer_kind, o.customer_person_id, o.customer_organization_id, o.fulfillment_mode, o.total_amount, o.replaces_order_id, o.replaces_order_reference, o.version, o.created_at, o.updated_at, o.created_by_account_id, o.finalized_at, o.cancelled_at, o.reversed_at FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
+SELECT o.id, o.reference, o.status, o.currency, o.customer_kind, o.customer_person_id, o.customer_organization_id, o.total_amount, o.replaces_order_id, o.replaces_order_reference, o.version, o.created_at, o.updated_at, o.created_by_account_id, o.finalized_at, o.cancelled_at, o.reversed_at FROM orders o LEFT JOIN order_customer_snapshots cs ON cs.order_id=o.id
 WHERE ($1::text='' OR o.reference ILIKE '%'||$1||'%' OR COALESCE(cs.display_name,'') ILIKE '%'||$1||'%' OR COALESCE(o.replaces_order_reference,'') ILIKE '%'||$1||'%') AND ($2::text='' OR o.status=$2) ORDER BY o.created_at DESC,o.id DESC LIMIT $4 OFFSET $3
 `
 
@@ -2024,7 +2032,6 @@ func (q *Queries) ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order
 			&i.CustomerKind,
 			&i.CustomerPersonID,
 			&i.CustomerOrganizationID,
-			&i.FulfillmentMode,
 			&i.TotalAmount,
 			&i.ReplacesOrderID,
 			&i.ReplacesOrderReference,
@@ -2231,7 +2238,7 @@ func (q *Queries) LockOperation(ctx context.Context, operationKey string) error 
 }
 
 const lockOrder = `-- name: LockOrder :one
-SELECT id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, fulfillment_mode, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at FROM orders WHERE id=$1 FOR UPDATE
+SELECT id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at FROM orders WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) LockOrder(ctx context.Context, id uuid.UUID) (Order, error) {
@@ -2245,7 +2252,6 @@ func (q *Queries) LockOrder(ctx context.Context, id uuid.UUID) (Order, error) {
 		&i.CustomerKind,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
-		&i.FulfillmentMode,
 		&i.TotalAmount,
 		&i.ReplacesOrderID,
 		&i.ReplacesOrderReference,
@@ -2905,7 +2911,7 @@ func (q *Queries) UpdateCashMovement(ctx context.Context, arg UpdateCashMovement
 }
 
 const updateDraft = `-- name: UpdateDraft :one
-UPDATE orders SET customer_kind=$2,customer_person_id=$3,customer_organization_id=$4,fulfillment_mode=$5,version=version+1,updated_at=now() WHERE id=$1 RETURNING id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, fulfillment_mode, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at
+UPDATE orders SET customer_kind=$2,customer_person_id=$3,customer_organization_id=$4,version=version+1,updated_at=now() WHERE id=$1 RETURNING id, reference, status, currency, customer_kind, customer_person_id, customer_organization_id, total_amount, replaces_order_id, replaces_order_reference, version, created_at, updated_at, created_by_account_id, finalized_at, cancelled_at, reversed_at
 `
 
 type UpdateDraftParams struct {
@@ -2913,7 +2919,6 @@ type UpdateDraftParams struct {
 	CustomerKind           string
 	CustomerPersonID       *uuid.UUID
 	CustomerOrganizationID *uuid.UUID
-	FulfillmentMode        string
 }
 
 func (q *Queries) UpdateDraft(ctx context.Context, arg UpdateDraftParams) (Order, error) {
@@ -2922,7 +2927,6 @@ func (q *Queries) UpdateDraft(ctx context.Context, arg UpdateDraftParams) (Order
 		arg.CustomerKind,
 		arg.CustomerPersonID,
 		arg.CustomerOrganizationID,
-		arg.FulfillmentMode,
 	)
 	var i Order
 	err := row.Scan(
@@ -2933,7 +2937,6 @@ func (q *Queries) UpdateDraft(ctx context.Context, arg UpdateDraftParams) (Order
 		&i.CustomerKind,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
-		&i.FulfillmentMode,
 		&i.TotalAmount,
 		&i.ReplacesOrderID,
 		&i.ReplacesOrderReference,

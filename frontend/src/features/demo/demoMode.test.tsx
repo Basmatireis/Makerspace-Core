@@ -50,7 +50,7 @@ describe('demo mode', () => {
     );
     await enterDemoMode(demoTestUser());
     const { createOrder } = await import('../../api/generated/orders/orders');
-    const order = await createOrder({ fulfillmentMode: 'immediate' });
+    const order = await createOrder({});
     expect(order.status).toBe('draft');
     expect(networkWrites).toBe(0);
   });

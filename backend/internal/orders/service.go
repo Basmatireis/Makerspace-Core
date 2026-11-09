@@ -268,9 +268,6 @@ func (s *Service) create(
 	if err != nil {
 		return db.Order{}, err
 	}
-	if input.FulfillmentMode != FulfillmentImmediate && input.FulfillmentMode != FulfillmentDeferred {
-		return db.Order{}, apperror.Invalid("Invalid fulfillment mode")
-	}
 	n, err := q.NextOrderReference(ctx)
 	if err != nil {
 		return db.Order{}, err
@@ -281,7 +278,6 @@ func (s *Service) create(
 		CustomerKind:           string(kind),
 		CustomerPersonID:       person,
 		CustomerOrganizationID: org,
-		FulfillmentMode:        string(input.FulfillmentMode),
 		CreatedByAccountID:     &p.AccountID,
 	}
 	if original != nil {
@@ -292,7 +288,7 @@ func (s *Service) create(
 	if err != nil {
 		return o, err
 	}
-	return o, writeAudit(ctx, tx, p, "order.created", "order", o.ID, requestID, "customer", "fulfillmentMode")
+	return o, writeAudit(ctx, tx, p, "order.created", "order", o.ID, requestID, "customer")
 }
 
 func (s *Service) Create(
@@ -354,9 +350,6 @@ func (s *Service) Update(
 	if err = draft(o); err != nil {
 		return Order{}, err
 	}
-	if input.FulfillmentMode != FulfillmentImmediate && input.FulfillmentMode != FulfillmentDeferred {
-		return Order{}, apperror.Invalid("Invalid fulfillment mode")
-	}
 	_, err = q.UpdateDraft(
 		ctx,
 		db.UpdateDraftParams{
@@ -364,11 +357,10 @@ func (s *Service) Update(
 			CustomerKind:           string(kind),
 			CustomerPersonID:       person,
 			CustomerOrganizationID: org,
-			FulfillmentMode:        string(input.FulfillmentMode),
 		},
 	)
 	if err == nil {
-		err = writeAudit(ctx, tx, p, "order.updated", "order", id, requestID, "customer", "fulfillmentMode")
+		err = writeAudit(ctx, tx, p, "order.updated", "order", id, requestID, "customer")
 	}
 	if err != nil {
 		return Order{}, databaseError(err)
@@ -417,7 +409,6 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 		Status:                 OrderStatus(o.Status),
 		Currency:               o.Currency,
 		CustomerKind:           CustomerKind(o.CustomerKind),
-		FulfillmentMode:        FulfillmentMode(o.FulfillmentMode),
 		TotalAmount:            money(o.TotalAmount),
 		ReplacesOrderID:        o.ReplacesOrderID,
 		ReplacesOrderReference: o.ReplacesOrderReference,
@@ -493,8 +484,8 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 			CreatedAt:          i.CreatedAt,
 			RemovedAt:          timePointer(i.RemovedAt),
 		}
-		if i.CurrentJobVersion != nil && i.SourceJobVersion != nil {
-			item.SourceChanged = *i.CurrentJobVersion != *i.SourceJobVersion
+		if i.CurrentBillingRevision != nil && i.SourceBillingRevision != nil {
+			item.SourceChanged = *i.CurrentBillingRevision != *i.SourceBillingRevision
 		}
 		if i.MachineJobSnapshot != nil {
 			if e = json.Unmarshal(i.MachineJobSnapshot, &item.Snapshot); e != nil {

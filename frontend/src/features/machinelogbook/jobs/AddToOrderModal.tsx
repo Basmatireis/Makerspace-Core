@@ -21,7 +21,6 @@ function AddToOrderForm({ job, onClose }: { job: MachineJob; onClose: () => void
   const mode = chosenMode ?? (orders.length > 0 ? 'existing' : 'new');
   const [orderId, setOrderId] = useState<string | null>(null);
   const order = orders.find((item) => item.id === (orderId ?? orders[0]?.id)) ?? null;
-  const [handover, setHandover] = useState<'deferred' | 'immediate'>('deferred');
   const add = useAddJobToOrder(job);
   const recipient = job.customer?.displayName ?? 'the recipient';
   const failure =
@@ -45,7 +44,7 @@ function AddToOrderForm({ job, onClose }: { job: MachineJob; onClose: () => void
       }}
       onRequestSubmit={() =>
         add.mutate(
-          { order: mode === 'existing' ? order : null, fulfillmentMode: handover },
+          { order: mode === 'existing' ? order : null },
           {
             onSuccess: (saved) => {
               notify({
@@ -100,7 +99,7 @@ function AddToOrderForm({ job, onClose }: { job: MachineJob; onClose: () => void
           />
           <RadioButton id="add-to-order-new" value="new" labelText="New order" />
         </RadioButtonGroup>
-        {mode === 'existing' ? (
+        {mode === 'existing' && (
           <FuzzySelectField
             id="add-to-order-order"
             titleText="Order"
@@ -112,17 +111,6 @@ function AddToOrderForm({ job, onClose }: { job: MachineJob; onClose: () => void
             value={order?.id ?? null}
             onChange={setOrderId}
           />
-        ) : (
-          <RadioButtonGroup
-            name="add-to-order-handover"
-            legendText="Hand-over"
-            orientation="vertical"
-            valueSelected={handover}
-            onChange={(value) => setHandover(value as 'deferred' | 'immediate')}
-          >
-            <RadioButton id="add-to-order-later" value="deferred" labelText="Later: pick up or ship when it is paid" />
-            <RadioButton id="add-to-order-now" value="immediate" labelText="Now: the recipient takes it today" />
-          </RadioButtonGroup>
         )}
         <p className="mj-secondary">
           {mode === 'existing'

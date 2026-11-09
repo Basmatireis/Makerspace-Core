@@ -665,7 +665,6 @@ export function createStore(user: CurrentUser, now: Date = new Date()): DemoStor
       customerKind: party.kind,
       customer: { kind: party.kind, id: party.id },
       customerName: party.displayName,
-      fulfillmentMode: 'deferred',
       totalAmount: '0.00',
       netCharge: '0.00',
       settledAmount: '0.00',

@@ -544,11 +544,13 @@ func (s *Service) computeFromSnapshot(
 	return PricingComplete, numericFromDecimal(total.Round(2)), nil
 }
 
-// recalculateFromSnapshot reprices the job and bumps its version.
+// recalculateFromSnapshot reprices the job and bumps its version. The billing revision advances when
+// billingChange says runs or usages changed, or when the charge itself changes.
 func (s *Service) recalculateFromSnapshot(
 	ctx context.Context,
 	q *machinelogbookdb.Queries,
 	job machinelogbookdb.MachineJob,
+	billingChange bool,
 ) (machinelogbookdb.MachineJob, error) {
 	if job.ActivePricingSnapshotID == nil {
 		return job, nil
@@ -565,6 +567,7 @@ func (s *Service) recalculateFromSnapshot(
 			EffectivePrice:  effectivePriceForRow(job, amount),
 			ID:              job.ID,
 			ExpectedVersion: job.Version,
+			BillingChange:   billingChange,
 		},
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -675,7 +678,7 @@ func (s *Service) settleJob(
 			machinelogbookdb.BumpMachineJobVersionParams{ID: jobID, ExpectedVersion: job.Version},
 		)
 	}
-	return s.recalculateFromSnapshot(ctx, q, job)
+	return s.recalculateFromSnapshot(ctx, q, job, true)
 }
 
 // ChargeSource locks a job and returns domain data using the caller's transaction.

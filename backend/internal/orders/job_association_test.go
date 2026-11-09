@@ -35,7 +35,7 @@ func TestJobAssociationReturnsTheChargingOrderItem(t *testing.T) {
 	draft, err := f.s.Create(
 		ctx,
 		f.p,
-		OrderDraftInput{Customer: &OrderCustomer{Kind: "person", ID: f.person}, FulfillmentMode: "immediate"},
+		OrderDraftInput{Customer: &OrderCustomer{Kind: "person", ID: f.person}},
 		&f.request,
 	)
 	if err != nil {

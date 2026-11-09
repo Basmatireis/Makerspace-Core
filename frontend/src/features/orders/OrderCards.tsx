@@ -72,7 +72,7 @@ export function BalanceCard({ order, rows, action }: { order: Order; rows: Payme
   );
 }
 
-/** Who pays, how the order is handed over and its history. */
+/** Who pays and the history. */
 export function CustomerCard({ order, action }: { order: Order; action?: ReactNode }) {
   return (
     <StackCard title="Customer" action={action}>
@@ -92,10 +92,6 @@ export function CustomerCard({ order, action }: { order: Order; action?: ReactNo
         <div>
           <dt>Type</dt>
           <dd>{customerKindLabel(order.customerKind)}</dd>
-        </div>
-        <div>
-          <dt>Hand-over</dt>
-          <dd>{order.fulfillmentMode === 'immediate' ? 'Handed over' : 'Picks up later'}</dd>
         </div>
         <div>
           <dt>Created</dt>

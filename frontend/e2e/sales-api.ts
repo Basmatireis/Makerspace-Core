@@ -172,7 +172,6 @@ function order(orderId: string, reference: string, overrides: Partial<Order>): O
     customerKind: 'organization',
     customer: { kind: 'organization', id: ids.institute },
     customerName: 'Institute of Design',
-    fulfillmentMode: 'immediate',
     totalAmount: '0.00',
     netCharge: '0.00',
     settledAmount: '0.00',
@@ -288,7 +287,6 @@ export function createSalesWorld(permissions: string[] = salesPermissions) {
   const orders: Order[] = [
     order(ids.draft, 'O-2026-000105', {
       status: 'draft',
-      fulfillmentMode: 'deferred',
       totalAmount: '39.90',
       netCharge: '39.90',
       outstandingAmount: '39.90',

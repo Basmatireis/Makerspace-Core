@@ -20,15 +20,13 @@ type OrderCustomer struct {
 }
 
 type OrderDraftInput struct {
-	Customer        *OrderCustomer  `json:"customer,omitempty"`
-	FulfillmentMode FulfillmentMode `json:"fulfillmentMode"`
+	Customer *OrderCustomer `json:"customer,omitempty"`
 }
 
 type UpdateOrderDraftInput struct {
-	PreserveCustomer bool            `json:"-"`
-	Customer         *OrderCustomer  `json:"customer,omitempty"`
-	FulfillmentMode  FulfillmentMode `json:"fulfillmentMode"`
-	ExpectedVersion  int64           `json:"expectedVersion"`
+	PreserveCustomer bool           `json:"-"`
+	Customer         *OrderCustomer `json:"customer,omitempty"`
+	ExpectedVersion  int64          `json:"expectedVersion"`
 }
 
 type OrderItemInput struct {
@@ -158,7 +156,6 @@ type Order struct {
 	CustomerKind                   CustomerKind      `json:"customerKind"`
 	Customer                       *OrderCustomer    `json:"customer"`
 	CustomerName                   *string           `json:"customerName"`
-	FulfillmentMode                FulfillmentMode   `json:"fulfillmentMode"`
 	TotalAmount                    string            `json:"totalAmount"`
 	NetCharge                      string            `json:"netCharge"`
 	SettledAmount                  string            `json:"settledAmount"`

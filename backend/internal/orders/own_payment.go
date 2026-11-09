@@ -216,10 +216,7 @@ func (s *Service) orderOwnJobs(
 		ctx,
 		tx,
 		p,
-		OrderDraftInput{
-			Customer:        &OrderCustomer{Kind: CustomerPerson, ID: p.PersonID},
-			FulfillmentMode: FulfillmentImmediate,
-		},
+		OrderDraftInput{Customer: &OrderCustomer{Kind: CustomerPerson, ID: p.PersonID}},
 		nil,
 		requestID,
 	)

@@ -339,6 +339,7 @@ func (s *Service) jobFromRow(
 		EffectivePrice:    nullableDecimal(row.EffectivePrice),
 		HiddenFromSignage: row.HiddenFromSignage,
 		Version:           row.Version,
+		BillingRevision:   row.BillingRevision,
 		CreatedAt:         row.CreatedAt,
 		UpdatedAt:         row.UpdatedAt,
 		Usages:            []MachineJobUsage{},
@@ -697,7 +698,7 @@ func (s *Service) UpdateJobFacts(
 			return MachineJob{}, err
 		}
 	} else {
-		_, err = s.recalculateFromSnapshot(ctx, q, updated)
+		_, err = s.recalculateFromSnapshot(ctx, q, updated, false)
 		if err != nil {
 			return MachineJob{}, err
 		}

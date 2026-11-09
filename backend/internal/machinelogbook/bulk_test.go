@@ -64,7 +64,7 @@ func (f *jobFixture) putOnOrder(t *testing.T, job MachineJob) {
 		args []any
 	}{
 		{
-			`INSERT INTO orders (id, reference, customer_kind, fulfillment_mode) VALUES ($1, $2, 'anonymous', 'deferred')`,
+			`INSERT INTO orders (id, reference, customer_kind) VALUES ($1, $2, 'anonymous')`,
 			[]any{orderID, reference},
 		},
 		{`INSERT INTO order_items (id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot)

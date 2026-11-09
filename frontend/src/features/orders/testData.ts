@@ -37,7 +37,6 @@ export function order(overrides: Partial<Order> = {}): Order {
     customerKind: 'organization',
     customer: { kind: 'organization', id: ids.customer },
     customerName: 'Example institute',
-    fulfillmentMode: 'immediate',
     totalAmount: '10.00',
     netCharge: '10.00',
     settledAmount: '0.00',

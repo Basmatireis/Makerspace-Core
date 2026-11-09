@@ -102,16 +102,9 @@ export const draftOrdersQuery = (customer: Pick<BillingParty, 'id' | 'displayNam
 export function useAddJobToOrder(job: MachineJob) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async ({
-      order,
-      fulfillmentMode,
-    }: {
-      order: Order | null;
-      fulfillmentMode: 'deferred' | 'immediate';
-    }): Promise<Order> => {
+    mutationFn: async ({ order }: { order: Order | null }): Promise<Order> => {
       if (!job.customer) throw new Error('The job has no recipient.');
-      const target =
-        order ?? (await createOrder({ customer: { kind: job.customer.kind, id: job.customer.id }, fulfillmentMode }));
+      const target = order ?? (await createOrder({ customer: { kind: job.customer.kind, id: job.customer.id } }));
       return addOrderItem(target.id, {
         kind: 'machine_job',
         machineJobId: job.id,

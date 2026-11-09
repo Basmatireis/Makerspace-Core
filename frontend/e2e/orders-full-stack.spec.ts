@@ -207,7 +207,6 @@ test('sells billable jobs and manual items, takes cash and card, runs the wiRef 
   let invoiceOrder = await parse<Order>(
     await post('/orders', {
       customer: { kind: 'organization', id: organization.id },
-      fulfillmentMode: 'deferred',
     }),
   );
   invoiceOrder = await parse<Order>(

@@ -18,7 +18,7 @@ export type OrderAction = { id: OrderActionId; label: string; danger?: boolean }
 
 /**
  * The secondary order actions the Orders list offers in each row's overflow menu and in the detail panel: edit
- * customer and hand-over, create a replacement draft, correct the order and cancel a draft. The caller renders
+ * customer, create a replacement draft, correct the order and cancel a draft. The caller renders
  * `dialogs` once, outside the table, so a dialog never sits inside a clickable row.
  */
 export function useOrderActions() {
@@ -46,7 +46,7 @@ export function useOrderActions() {
     const draft = order.status === 'draft';
     const charged = (order.status === 'finalized' || order.status === 'reversed') && !order.replacedByOrderId;
     const actions: (OrderAction | false)[] = [
-      draft && canWrite && { id: 'edit', label: 'Edit customer and hand-over' },
+      draft && canWrite && { id: 'edit', label: 'Edit customer' },
       charged && canWrite && { id: 'replacement', label: 'Create replacement draft' },
       charged && canReverse && { id: 'correct', label: 'Correct order…' },
       draft && canWrite && { id: 'cancel', label: 'Cancel draft', danger: true },

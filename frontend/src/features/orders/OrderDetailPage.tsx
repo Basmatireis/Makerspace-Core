@@ -317,11 +317,6 @@ function OrderDetail({ order }: { order: Order }) {
               },
               { label: 'Customer', value: customerLabel(order), helper: customerKindLabel(order.customerKind) },
               {
-                label: 'Hand-over',
-                value: order.fulfillmentMode === 'immediate' ? 'Handed over' : 'Later',
-                helper: order.fulfillmentMode === 'immediate' ? 'Taken along on the day' : 'Pick-up or shipping later',
-              },
-              {
                 label: 'Created',
                 value: formatDateTime(order.createdAt),
                 helper: order.createdBy ? `by ${order.createdBy.displayName}` : undefined,

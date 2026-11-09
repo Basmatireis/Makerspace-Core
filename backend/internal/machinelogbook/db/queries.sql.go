@@ -15,9 +15,9 @@ import (
 
 const activatePricingSnapshot = `-- name: ActivatePricingSnapshot :one
 UPDATE machine_jobs SET active_pricing_snapshot_id = $1, pricing_status = $2,
-    calculated_price = $3, effective_price = $4, version = version + 1, updated_at = now()
+    calculated_price = $3, effective_price = $4, version = version + 1, billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = $5 AND version = $6
-RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
+RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision
 `
 
 type ActivatePricingSnapshotParams struct {
@@ -65,6 +65,7 @@ func (q *Queries) ActivatePricingSnapshot(ctx context.Context, arg ActivatePrici
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
@@ -266,9 +267,9 @@ func (q *Queries) BumpFilamentSpoolVersion(ctx context.Context, arg BumpFilament
 }
 
 const bumpMachineJobVersion = `-- name: BumpMachineJobVersion :one
-UPDATE machine_jobs SET version = version + 1, updated_at = now()
+UPDATE machine_jobs SET version = version + 1, billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = $1 AND version = $2
-RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
+RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision
 `
 
 type BumpMachineJobVersionParams struct {
@@ -276,6 +277,7 @@ type BumpMachineJobVersionParams struct {
 	ExpectedVersion int64
 }
 
+// Runs or usages changed, which is always a billing change.
 func (q *Queries) BumpMachineJobVersion(ctx context.Context, arg BumpMachineJobVersionParams) (MachineJob, error) {
 	row := q.db.QueryRow(ctx, bumpMachineJobVersion, arg.ID, arg.ExpectedVersion)
 	var i MachineJob
@@ -305,6 +307,7 @@ func (q *Queries) BumpMachineJobVersion(ctx context.Context, arg BumpMachineJobV
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
@@ -421,9 +424,9 @@ func (q *Queries) ClearDefaultPricingGroup(ctx context.Context, exceptID uuid.UU
 const clearMachineJobPriceAdjustment = `-- name: ClearMachineJobPriceAdjustment :one
 UPDATE machine_jobs SET price_adjustment_kind = NULL, price_adjustment_value = NULL, price_adjustment_reason = NULL,
     price_adjusted_by_account_id = NULL, price_adjusted_at = NULL, effective_price = calculated_price,
-    version = version + 1, updated_at = now()
+    version = version + 1, billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = $1 AND version = $2
-RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
+RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision
 `
 
 type ClearMachineJobPriceAdjustmentParams struct {
@@ -460,6 +463,7 @@ func (q *Queries) ClearMachineJobPriceAdjustment(ctx context.Context, arg ClearM
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
@@ -1099,7 +1103,7 @@ const createMachineJob = `-- name: CreateMachineJob :one
 INSERT INTO machine_jobs (id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, title, notes)
 VALUES ($1, $2, $3, $4, $5,
         $6, $7, $8)
-RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
+RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision
 `
 
 type CreateMachineJobParams struct {
@@ -1151,6 +1155,7 @@ func (q *Queries) CreateMachineJob(ctx context.Context, arg CreateMachineJobPara
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
@@ -2160,7 +2165,7 @@ func (q *Queries) GetDefaultPricingGroup(ctx context.Context) (PricingGroup, err
 }
 
 const getDeletedMachineJobForUpdate = `-- name: GetDeletedMachineJobForUpdate :one
-SELECT id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage FROM machine_jobs WHERE id = $1 AND deleted_at IS NOT NULL FOR UPDATE
+SELECT id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision FROM machine_jobs WHERE id = $1 AND deleted_at IS NOT NULL FOR UPDATE
 `
 
 func (q *Queries) GetDeletedMachineJobForUpdate(ctx context.Context, id uuid.UUID) (MachineJob, error) {
@@ -2192,6 +2197,7 @@ func (q *Queries) GetDeletedMachineJobForUpdate(ctx context.Context, id uuid.UUI
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
@@ -2527,7 +2533,7 @@ func (q *Queries) GetMachineForUpdate(ctx context.Context, id uuid.UUID) (Machin
 }
 
 const getMachineJobBase = `-- name: GetMachineJobBase :one
-SELECT id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage FROM machine_jobs WHERE id = $1 AND deleted_at IS NULL
+SELECT id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision FROM machine_jobs WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetMachineJobBase(ctx context.Context, id uuid.UUID) (MachineJob, error) {
@@ -2559,12 +2565,13 @@ func (q *Queries) GetMachineJobBase(ctx context.Context, id uuid.UUID) (MachineJ
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
 
 const getMachineJobForUpdate = `-- name: GetMachineJobForUpdate :one
-SELECT id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage FROM machine_jobs WHERE id = $1 AND deleted_at IS NULL FOR UPDATE
+SELECT id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision FROM machine_jobs WHERE id = $1 AND deleted_at IS NULL FOR UPDATE
 `
 
 func (q *Queries) GetMachineJobForUpdate(ctx context.Context, id uuid.UUID) (MachineJob, error) {
@@ -2596,6 +2603,7 @@ func (q *Queries) GetMachineJobForUpdate(ctx context.Context, id uuid.UUID) (Mac
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
@@ -5006,7 +5014,7 @@ SELECT j.id AS job_id,
        (EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = j.id)
         OR EXISTS (SELECT 1 FROM order_items i WHERE i.source_machine_job_id = j.id AND i.removed_at IS NULL))::boolean AS on_order,
        EXISTS (SELECT 1 FROM order_job_claims c JOIN order_items i ON i.id = c.order_item_id
-               WHERE c.machine_job_id = j.id AND i.source_job_version IS NOT NULL AND i.source_job_version <> j.version)::boolean AS order_outdated
+               WHERE c.machine_job_id = j.id AND i.source_billing_revision IS NOT NULL AND i.source_billing_revision <> j.billing_revision)::boolean AS order_outdated
 FROM machine_jobs j
 WHERE j.id = ANY($1::uuid[])
 `
@@ -6215,7 +6223,7 @@ SELECT j.id, j.display_id,
        j.effective_price,
        (j.customer_person_id IS NOT DISTINCT FROM $1::uuid)::boolean AS own,
        (CASE WHEN oc.machine_job_id IS NOT NULL THEN
-                (CASE WHEN oi.source_job_version IS NOT NULL AND oi.source_job_version <> j.version THEN 'order_outdated' ELSE 'on_order' END)
+                (CASE WHEN oi.source_billing_revision IS NOT NULL AND oi.source_billing_revision <> j.billing_revision THEN 'order_outdated' ELSE 'on_order' END)
              WHEN j.pricing_status = 'pending' THEN 'pending'
              WHEN j.pricing_status = 'incomplete' THEN 'price_incomplete'
              ELSE 'not_on_order' END)::text AS billing_state,
@@ -7305,7 +7313,7 @@ WITH items AS (
            CASE WHEN s.running THEN lr.progress_percent END,
            j.effective_price,
            (CASE WHEN oc.machine_job_id IS NOT NULL THEN
-                    (CASE WHEN oi.source_job_version IS NOT NULL AND oi.source_job_version <> j.version THEN 'order_outdated' ELSE 'on_order' END)
+                    (CASE WHEN oi.source_billing_revision IS NOT NULL AND oi.source_billing_revision <> j.billing_revision THEN 'order_outdated' ELSE 'on_order' END)
                  WHEN j.pricing_status = 'pending' THEN 'pending'
                  WHEN j.pricing_status = 'incomplete' THEN 'price_incomplete'
                  ELSE 'not_on_order' END)::text,
@@ -7785,24 +7793,33 @@ func (q *Queries) ReattachDetachedRunsOfJob(ctx context.Context, jobID *uuid.UUI
 
 const recalculateMachineJobPrice = `-- name: RecalculateMachineJobPrice :one
 UPDATE machine_jobs SET pricing_status = $1, calculated_price = $2,
-    effective_price = $3, version = version + 1, updated_at = now()
-WHERE id = $4 AND version = $5
-RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
+    effective_price = $3, version = version + 1,
+    billing_revision = billing_revision + (CASE WHEN $4::boolean
+        OR machine_jobs.pricing_status IS DISTINCT FROM $1
+        OR machine_jobs.calculated_price IS DISTINCT FROM $2
+        OR machine_jobs.effective_price IS DISTINCT FROM $3 THEN 1 ELSE 0 END),
+    updated_at = now()
+WHERE id = $5 AND version = $6
+RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision
 `
 
 type RecalculateMachineJobPriceParams struct {
 	PricingStatus   string
 	CalculatedPrice pgtype.Numeric
 	EffectivePrice  pgtype.Numeric
+	BillingChange   bool
 	ID              uuid.UUID
 	ExpectedVersion int64
 }
 
+// The billing revision advances when the caller says the runs or usages changed (billing_change) or when the
+// recalculation changes the charge itself.
 func (q *Queries) RecalculateMachineJobPrice(ctx context.Context, arg RecalculateMachineJobPriceParams) (MachineJob, error) {
 	row := q.db.QueryRow(ctx, recalculateMachineJobPrice,
 		arg.PricingStatus,
 		arg.CalculatedPrice,
 		arg.EffectivePrice,
+		arg.BillingChange,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -7833,6 +7850,7 @@ func (q *Queries) RecalculateMachineJobPrice(ctx context.Context, arg Recalculat
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
@@ -7841,7 +7859,7 @@ const refreshMachineJobPrice = `-- name: RefreshMachineJobPrice :one
 UPDATE machine_jobs SET pricing_status = $1, calculated_price = $2,
     effective_price = $3, updated_at = now()
 WHERE id = $4
-RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
+RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision
 `
 
 type RefreshMachineJobPriceParams struct {
@@ -7886,6 +7904,7 @@ func (q *Queries) RefreshMachineJobPrice(ctx context.Context, arg RefreshMachine
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
@@ -7992,7 +8011,7 @@ func (q *Queries) RestoreFilamentSpool(ctx context.Context, arg RestoreFilamentS
 }
 
 const restoreMachineJob = `-- name: RestoreMachineJob :exec
-UPDATE machine_jobs SET deleted_at = NULL, deleted_by = NULL, version = version + 1, updated_at = now()
+UPDATE machine_jobs SET deleted_at = NULL, deleted_by = NULL, version = version + 1, billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = $1 AND deleted_at IS NOT NULL
 `
 
@@ -8271,9 +8290,10 @@ func (q *Queries) SetInventoryTransactionDeleted(ctx context.Context, arg SetInv
 const setMachineJobPriceAdjustment = `-- name: SetMachineJobPriceAdjustment :one
 UPDATE machine_jobs SET price_adjustment_kind = $1, price_adjustment_value = $2,
     price_adjustment_reason = $3, price_adjusted_by_account_id = $4,
-    price_adjusted_at = $5, effective_price = $6, version = version + 1, updated_at = now()
+    price_adjusted_at = $5, effective_price = $6, version = version + 1,
+    billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = $7 AND version = $8
-RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
+RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision
 `
 
 type SetMachineJobPriceAdjustmentParams struct {
@@ -8325,6 +8345,7 @@ func (q *Queries) SetMachineJobPriceAdjustment(ctx context.Context, arg SetMachi
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
@@ -8467,9 +8488,9 @@ func (q *Queries) SnapshotRunUsagesOfMaterial(ctx context.Context, materialID *u
 }
 
 const softDeleteMachineJob = `-- name: SoftDeleteMachineJob :one
-UPDATE machine_jobs SET deleted_at = $1, deleted_by = $2, version = version + 1, updated_at = $1
+UPDATE machine_jobs SET deleted_at = $1, deleted_by = $2, version = version + 1, billing_revision = billing_revision + 1, updated_at = $1
 WHERE id = $3 AND deleted_at IS NULL AND version = $4
-RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
+RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision
 `
 
 type SoftDeleteMachineJobParams struct {
@@ -8513,6 +8534,7 @@ func (q *Queries) SoftDeleteMachineJob(ctx context.Context, arg SoftDeleteMachin
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }
@@ -9785,9 +9807,15 @@ WITH moved AS (
 UPDATE machine_jobs SET machine_id = $1,
     customer_person_id = $2, customer_organization_id = $3,
     operator_person_id = $4, outcome_override = $5, title = $6, notes = $7,
+    -- Notes, the operator and the signage flag are not billed; the other facts are (see billing_revision).
+    billing_revision = billing_revision + (CASE WHEN machine_jobs.machine_id IS DISTINCT FROM $1
+        OR machine_jobs.customer_person_id IS DISTINCT FROM $2
+        OR machine_jobs.customer_organization_id IS DISTINCT FROM $3
+        OR machine_jobs.outcome_override IS DISTINCT FROM $5
+        OR machine_jobs.title IS DISTINCT FROM $6 THEN 1 ELSE 0 END),
     version = version + 1, updated_at = now()
 WHERE machine_jobs.id = $8 AND machine_jobs.version = $9
-RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage
+RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by, hidden_from_signage, billing_revision
 `
 
 type UpdateMachineJobFactsParams struct {
@@ -9843,6 +9871,7 @@ func (q *Queries) UpdateMachineJobFacts(ctx context.Context, arg UpdateMachineJo
 		&i.DeletedAt,
 		&i.DeletedBy,
 		&i.HiddenFromSignage,
+		&i.BillingRevision,
 	)
 	return i, err
 }

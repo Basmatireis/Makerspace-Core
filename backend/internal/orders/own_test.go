@@ -26,7 +26,7 @@ func (f *fixture) personOrder(t *testing.T, person uuid.UUID, amount string) Ord
 	o, e := f.s.Create(
 		ctx,
 		f.p,
-		OrderDraftInput{Customer: &OrderCustomer{Kind: CustomerPerson, ID: person}, FulfillmentMode: "deferred"},
+		OrderDraftInput{Customer: &OrderCustomer{Kind: CustomerPerson, ID: person}},
 		nil,
 	)
 	if e != nil {

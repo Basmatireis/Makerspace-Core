@@ -26,7 +26,6 @@ import type { OrderAttention } from './orderAttention';
 import type { OrderCurrency } from './orderCurrency';
 import type { OrderCustomer } from './orderCustomer';
 import type { OrderCustomerKind } from './orderCustomerKind';
-import type { OrderFulfillmentMode } from './orderFulfillmentMode';
 import type { OrderItem } from './orderItem';
 import type { OrderSettlementState } from './orderSettlementState';
 import type { OrderStatus } from './orderStatus';
@@ -41,7 +40,6 @@ export interface Order {
   customerKind: OrderCustomerKind;
   customer: OrderCustomer | null;
   customerName: string | null;
-  fulfillmentMode: OrderFulfillmentMode;
   totalAmount: Money;
   netCharge: Money;
   settledAmount: Money;
