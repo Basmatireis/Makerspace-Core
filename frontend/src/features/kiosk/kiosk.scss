@@ -6,6 +6,7 @@
 // Pairing screen of an unregistered kiosk browser: the code must be readable from across the counter.
 .kiosk-pairing {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-height: 100vh;
   place-items: center;
   padding: $spacing-07 $spacing-05;
@@ -14,13 +15,18 @@
 }
 
 .kiosk-pairing__panel {
+  inline-size: 100%;
   max-width: 40rem;
+  grid-template-columns: minmax(0, 1fr);
   text-align: center;
 }
 
 .kiosk-pairing__logo {
-  max-height: 3rem;
+  block-size: 3rem;
+  inline-size: auto;
+  max-inline-size: 100%;
   margin-inline: auto;
+  object-fit: contain;
 }
 
 .kiosk-pairing__title {
@@ -30,9 +36,10 @@
 .kiosk-pairing__code {
   @include type-style('heading-07');
 
+  // Six characters stay on one line down to a 320 px phone.
+  font-size: clamp(2rem, 11vw, 3.375rem);
   font-family: 'IBM Plex Mono', monospace;
   letter-spacing: 0.3em;
-  overflow-wrap: anywhere;
 }
 
 .kiosk-pairing__hint {
