@@ -78,7 +78,7 @@ func (s *Service) finalize(
 			if e != nil {
 				return o, e
 			}
-			if i.SourceJobVersion == nil || job.Version != *i.SourceJobVersion {
+			if i.SourceBillingRevision == nil || job.BillingRevision != *i.SourceBillingRevision {
 				return o, apperror.Conflicting(
 					"source_snapshot_stale",
 					"Refresh the changed job snapshot before finalization",

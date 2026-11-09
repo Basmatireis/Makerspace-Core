@@ -270,6 +270,18 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	if _, err = logbook.UpdateJobFacts(ctx, master, changed.ID, changed.Version, edit, nil); err != nil {
 		t.Fatal(err)
 	}
+	// Notes and the signage flag are not billed: the order does not see them as a change.
+	notes, hidden := "Only a note", true
+	quiet := machinelogbook.JobUpdate{
+		MachineID:         machine.ID,
+		Customer:          machinelogbook.PartyReference{Kind: "person", ID: personID},
+		OperatorPersonID:  personID,
+		Notes:             &notes,
+		HiddenFromSignage: &hidden,
+	}
+	if _, err = logbook.UpdateJobFacts(ctx, master, unchanged.ID, unchanged.Version, quiet, nil); err != nil {
+		t.Fatal(err)
+	}
 
 	fetch := func(client *http.Client, path string, wantStatus int, target any) {
 		t.Helper()

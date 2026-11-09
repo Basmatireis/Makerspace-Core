@@ -42,7 +42,18 @@ END $$;
 
 ALTER TABLE orders DROP COLUMN fulfillment_mode;
 
+-- A job is "outdated" on an order when something it is billed for changed, not on every edit. The
+-- billing revision advances only with such changes; the version stays the optimistic-lock counter.
+-- Existing jobs and items start in step with their version, so what is outdated today stays outdated.
+ALTER TABLE machine_jobs ADD COLUMN billing_revision bigint NOT NULL DEFAULT 1 CHECK (billing_revision > 0);
+UPDATE machine_jobs SET billing_revision = version;
+ALTER TABLE order_items ADD COLUMN source_billing_revision bigint CHECK (source_billing_revision IS NULL OR source_billing_revision > 0);
+UPDATE order_items SET source_billing_revision = source_job_version WHERE source_job_version IS NOT NULL;
+
 -- +goose Down
+ALTER TABLE order_items DROP COLUMN source_billing_revision;
+ALTER TABLE machine_jobs DROP COLUMN billing_revision;
+
 -- Restores the column with every existing order as handed over immediately.
 ALTER TABLE orders ADD COLUMN fulfillment_mode text NOT NULL DEFAULT 'immediate' CHECK (fulfillment_mode IN ('immediate', 'deferred'));
 

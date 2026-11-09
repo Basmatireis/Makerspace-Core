@@ -47,12 +47,12 @@ SELECT id,(first_name||' '||last_name)::text AS display_name FROM people WHERE i
 -- name: GetOrganization :one
 SELECT id,name,kind,active FROM organizations WHERE id=$1;
 -- name: ListItems :many
-SELECT i.*,j.version AS current_job_version FROM order_items i LEFT JOIN machine_jobs j ON j.id=i.source_machine_job_id WHERE i.order_id=$1 ORDER BY i.position;
+SELECT i.*,j.version AS current_job_version,j.billing_revision AS current_billing_revision FROM order_items i LEFT JOIN machine_jobs j ON j.id=i.source_machine_job_id WHERE i.order_id=$1 ORDER BY i.position;
 -- name: GetItem :one
 SELECT * FROM order_items WHERE id=$1 AND order_id=$2;
 -- name: InsertItem :one
-INSERT INTO order_items(id,order_id,position,kind,description,quantity,unit,unit_price,amount,source_machine_job_id,source_job_version,machine_job_snapshot,created_by_account_id,source_material_id)
-VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM order_items WHERE order_id=$2),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *;
+INSERT INTO order_items(id,order_id,position,kind,description,quantity,unit,unit_price,amount,source_machine_job_id,source_job_version,source_billing_revision,machine_job_snapshot,created_by_account_id,source_material_id)
+VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM order_items WHERE order_id=$2),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *;
 -- name: RemoveItem :exec
 UPDATE order_items SET removed_at=now(),removed_by_account_id=$2 WHERE id=$1;
 -- name: ClaimJob :exec
@@ -62,7 +62,7 @@ DELETE FROM order_job_claims WHERE order_item_id=$1;
 -- name: ReleaseOrderClaims :exec
 DELETE FROM order_job_claims WHERE order_item_id IN (SELECT id FROM order_items WHERE order_id=$1);
 -- name: GetJobClaim :one
-SELECT o.id AS order_id,i.id AS order_item_id,o.reference,i.source_job_version,j.version AS current_job_version FROM order_job_claims c JOIN order_items i ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id JOIN machine_jobs j ON j.id=c.machine_job_id WHERE c.machine_job_id=$1;
+SELECT o.id AS order_id,i.id AS order_item_id,o.reference,i.source_job_version,i.source_billing_revision,j.version AS current_job_version,j.billing_revision AS current_billing_revision FROM order_job_claims c JOIN order_items i ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id JOIN machine_jobs j ON j.id=c.machine_job_id WHERE c.machine_job_id=$1;
 -- name: InsertAdjustment :exec
 INSERT INTO order_adjustments(id,reference,order_id,order_reference,kind,currency,amount,reason,actor_account_id) VALUES($1,$2,$3,$4,'full_reversal','EUR',$5,$6,$7);
 -- name: InsertAdjustmentItems :exec

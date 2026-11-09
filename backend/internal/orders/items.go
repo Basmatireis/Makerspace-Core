@@ -174,6 +174,7 @@ func (s *Service) insertItem(
 		params.Amount = numeric(amount)
 		params.SourceMachineJobID = &job.ID
 		params.SourceJobVersion = &job.Version
+		params.SourceBillingRevision = &job.BillingRevision
 		params.MachineJobSnapshot, err = json.Marshal(evidence)
 		if err != nil {
 			return db.OrderItem{}, err
@@ -358,6 +359,6 @@ func (s *Service) JobAssociation(
 		OrderID:        &r.OrderID,
 		OrderItemID:    &r.OrderItemID,
 		OrderReference: &r.Reference,
-		SourceChanged:  r.SourceJobVersion != nil && r.CurrentJobVersion != *r.SourceJobVersion,
+		SourceChanged:  r.SourceBillingRevision != nil && r.CurrentBillingRevision != *r.SourceBillingRevision,
 	}, nil
 }

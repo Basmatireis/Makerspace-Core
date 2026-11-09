@@ -1040,6 +1040,12 @@ WITH moved AS (
 UPDATE machine_jobs SET machine_id = sqlc.arg(machine_id),
     customer_person_id = sqlc.narg(customer_person_id), customer_organization_id = sqlc.narg(customer_organization_id),
     operator_person_id = sqlc.arg(operator_person_id), outcome_override = sqlc.narg(outcome_override), title = sqlc.narg(title), notes = sqlc.narg(notes),
+    -- Notes, the operator and the signage flag are not billed; the other facts are (see billing_revision).
+    billing_revision = billing_revision + (CASE WHEN machine_jobs.machine_id IS DISTINCT FROM sqlc.arg(machine_id)
+        OR machine_jobs.customer_person_id IS DISTINCT FROM sqlc.narg(customer_person_id)
+        OR machine_jobs.customer_organization_id IS DISTINCT FROM sqlc.narg(customer_organization_id)
+        OR machine_jobs.outcome_override IS DISTINCT FROM sqlc.narg(outcome_override)
+        OR machine_jobs.title IS DISTINCT FROM sqlc.narg(title) THEN 1 ELSE 0 END),
     version = version + 1, updated_at = now()
 WHERE machine_jobs.id = sqlc.arg(id) AND machine_jobs.version = sqlc.arg(expected_version)
 RETURNING *;
@@ -1048,7 +1054,8 @@ RETURNING *;
 SELECT count(*) FROM machine_runs WHERE job_id = sqlc.arg(job_id) AND source = 'recorded';
 
 -- name: BumpMachineJobVersion :one
-UPDATE machine_jobs SET version = version + 1, updated_at = now()
+-- Runs or usages changed, which is always a billing change.
+UPDATE machine_jobs SET version = version + 1, billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
@@ -1075,13 +1082,20 @@ SELECT COALESCE(max(revision), 0)::integer + 1 FROM machine_job_pricing_snapshot
 
 -- name: ActivatePricingSnapshot :one
 UPDATE machine_jobs SET active_pricing_snapshot_id = sqlc.arg(snapshot_id), pricing_status = sqlc.arg(pricing_status),
-    calculated_price = sqlc.narg(calculated_price), effective_price = sqlc.narg(effective_price), version = version + 1, updated_at = now()
+    calculated_price = sqlc.narg(calculated_price), effective_price = sqlc.narg(effective_price), version = version + 1, billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: RecalculateMachineJobPrice :one
+-- The billing revision advances when the caller says the runs or usages changed (billing_change) or when the
+-- recalculation changes the charge itself.
 UPDATE machine_jobs SET pricing_status = sqlc.arg(pricing_status), calculated_price = sqlc.narg(calculated_price),
-    effective_price = sqlc.narg(effective_price), version = version + 1, updated_at = now()
+    effective_price = sqlc.narg(effective_price), version = version + 1,
+    billing_revision = billing_revision + (CASE WHEN sqlc.arg(billing_change)::boolean
+        OR machine_jobs.pricing_status IS DISTINCT FROM sqlc.arg(pricing_status)
+        OR machine_jobs.calculated_price IS DISTINCT FROM sqlc.narg(calculated_price)
+        OR machine_jobs.effective_price IS DISTINCT FROM sqlc.narg(effective_price) THEN 1 ELSE 0 END),
+    updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
@@ -1095,14 +1109,15 @@ RETURNING *;
 -- name: SetMachineJobPriceAdjustment :one
 UPDATE machine_jobs SET price_adjustment_kind = sqlc.arg(kind), price_adjustment_value = sqlc.arg(value),
     price_adjustment_reason = sqlc.arg(reason), price_adjusted_by_account_id = sqlc.arg(actor_account_id),
-    price_adjusted_at = sqlc.arg(adjusted_at), effective_price = sqlc.narg(effective_price), version = version + 1, updated_at = now()
+    price_adjusted_at = sqlc.arg(adjusted_at), effective_price = sqlc.narg(effective_price), version = version + 1,
+    billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: ClearMachineJobPriceAdjustment :one
 UPDATE machine_jobs SET price_adjustment_kind = NULL, price_adjustment_value = NULL, price_adjustment_reason = NULL,
     price_adjusted_by_account_id = NULL, price_adjusted_at = NULL, effective_price = calculated_price,
-    version = version + 1, updated_at = now()
+    version = version + 1, billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
@@ -1231,7 +1246,7 @@ WITH items AS (
            CASE WHEN s.running THEN lr.progress_percent END,
            j.effective_price,
            (CASE WHEN oc.machine_job_id IS NOT NULL THEN
-                    (CASE WHEN oi.source_job_version IS NOT NULL AND oi.source_job_version <> j.version THEN 'order_outdated' ELSE 'on_order' END)
+                    (CASE WHEN oi.source_billing_revision IS NOT NULL AND oi.source_billing_revision <> j.billing_revision THEN 'order_outdated' ELSE 'on_order' END)
                  WHEN j.pricing_status = 'pending' THEN 'pending'
                  WHEN j.pricing_status = 'incomplete' THEN 'price_incomplete'
                  ELSE 'not_on_order' END)::text,
@@ -1412,7 +1427,7 @@ SELECT (EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = sqlc.a
     OR EXISTS (SELECT 1 FROM order_items i WHERE i.source_machine_job_id = sqlc.arg(job_id) AND i.removed_at IS NULL))::boolean AS on_order;
 
 -- name: SoftDeleteMachineJob :one
-UPDATE machine_jobs SET deleted_at = sqlc.arg(deleted_at), deleted_by = sqlc.narg(deleted_by), version = version + 1, updated_at = sqlc.arg(deleted_at)
+UPDATE machine_jobs SET deleted_at = sqlc.arg(deleted_at), deleted_by = sqlc.narg(deleted_by), version = version + 1, billing_revision = billing_revision + 1, updated_at = sqlc.arg(deleted_at)
 WHERE id = sqlc.arg(id) AND deleted_at IS NULL AND version = sqlc.arg(expected_version)
 RETURNING *;
 
@@ -1463,7 +1478,7 @@ SELECT * FROM machine_jobs WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL FO
 SELECT * FROM machine_runs WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL FOR UPDATE;
 
 -- name: RestoreMachineJob :exec
-UPDATE machine_jobs SET deleted_at = NULL, deleted_by = NULL, version = version + 1, updated_at = now()
+UPDATE machine_jobs SET deleted_at = NULL, deleted_by = NULL, version = version + 1, billing_revision = billing_revision + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND deleted_at IS NOT NULL;
 
 -- name: RestoreMachineRun :exec
@@ -1790,7 +1805,7 @@ SELECT j.id, j.display_id,
        j.effective_price,
        (j.customer_person_id IS NOT DISTINCT FROM sqlc.arg(person_id)::uuid)::boolean AS own,
        (CASE WHEN oc.machine_job_id IS NOT NULL THEN
-                (CASE WHEN oi.source_job_version IS NOT NULL AND oi.source_job_version <> j.version THEN 'order_outdated' ELSE 'on_order' END)
+                (CASE WHEN oi.source_billing_revision IS NOT NULL AND oi.source_billing_revision <> j.billing_revision THEN 'order_outdated' ELSE 'on_order' END)
              WHEN j.pricing_status = 'pending' THEN 'pending'
              WHEN j.pricing_status = 'incomplete' THEN 'price_incomplete'
              ELSE 'not_on_order' END)::text AS billing_state,
@@ -2042,7 +2057,7 @@ SELECT j.id AS job_id,
        (EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = j.id)
         OR EXISTS (SELECT 1 FROM order_items i WHERE i.source_machine_job_id = j.id AND i.removed_at IS NULL))::boolean AS on_order,
        EXISTS (SELECT 1 FROM order_job_claims c JOIN order_items i ON i.id = c.order_item_id
-               WHERE c.machine_job_id = j.id AND i.source_job_version IS NOT NULL AND i.source_job_version <> j.version)::boolean AS order_outdated
+               WHERE c.machine_job_id = j.id AND i.source_billing_revision IS NOT NULL AND i.source_billing_revision <> j.billing_revision)::boolean AS order_outdated
 FROM machine_jobs j
 WHERE j.id = ANY(sqlc.arg(job_ids)::uuid[]);
 

@@ -24,6 +24,7 @@ type Querier interface {
 	// The connectors drop the machine's assignment on their next configuration pull.
 	BumpConnectorsOfDeletedMachine(ctx context.Context, machineID uuid.UUID) error
 	BumpFilamentSpoolVersion(ctx context.Context, arg BumpFilamentSpoolVersionParams) (FilamentSpool, error)
+	// Runs or usages changed, which is always a billing change.
 	BumpMachineJobVersion(ctx context.Context, arg BumpMachineJobVersionParams) (MachineJob, error)
 	BumpRunVersion(ctx context.Context, arg BumpRunVersionParams) (MachineRun, error)
 	CancelManualRun(ctx context.Context, arg CancelManualRunParams) (MachineRun, error)
@@ -310,6 +311,8 @@ type Querier interface {
 	PurgeMaterial(ctx context.Context, id uuid.UUID) (int64, error)
 	// Recorded runs the job deletion detached, as long as they are still unassigned and alive.
 	ReattachDetachedRunsOfJob(ctx context.Context, jobID *uuid.UUID) (int64, error)
+	// The billing revision advances when the caller says the runs or usages changed (billing_change) or when the
+	// recalculation changes the charge itself.
 	RecalculateMachineJobPrice(ctx context.Context, arg RecalculateMachineJobPriceParams) (MachineJob, error)
 	// Keeps the price of a running job current without bumping its version.
 	RefreshMachineJobPrice(ctx context.Context, arg RefreshMachineJobPriceParams) (MachineJob, error)

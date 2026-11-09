@@ -598,6 +598,7 @@ type MachineJob struct {
 	DeletedAt                pgtype.Timestamptz
 	DeletedBy                *uuid.UUID
 	HiddenFromSignage        bool
+	BillingRevision          int64
 }
 
 type MachineJobPricingSnapshot struct {
@@ -1228,6 +1229,7 @@ type OrderItem struct {
 	RemovedAt             pgtype.Timestamptz
 	RemovedByAccountID    *uuid.UUID
 	SourceMaterialID      *uuid.UUID
+	SourceBillingRevision *int64
 }
 
 type OrderJobClaim struct {

@@ -769,7 +769,7 @@ func (q *Queries) GetCustomerName(ctx context.Context, id uuid.UUID) (string, er
 }
 
 const getItem = `-- name: GetItem :one
-SELECT id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id, source_material_id FROM order_items WHERE id=$1 AND order_id=$2
+SELECT id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id, source_material_id, source_billing_revision FROM order_items WHERE id=$1 AND order_id=$2
 `
 
 type GetItemParams struct {
@@ -799,20 +799,23 @@ func (q *Queries) GetItem(ctx context.Context, arg GetItemParams) (OrderItem, er
 		&i.RemovedAt,
 		&i.RemovedByAccountID,
 		&i.SourceMaterialID,
+		&i.SourceBillingRevision,
 	)
 	return i, err
 }
 
 const getJobClaim = `-- name: GetJobClaim :one
-SELECT o.id AS order_id,i.id AS order_item_id,o.reference,i.source_job_version,j.version AS current_job_version FROM order_job_claims c JOIN order_items i ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id JOIN machine_jobs j ON j.id=c.machine_job_id WHERE c.machine_job_id=$1
+SELECT o.id AS order_id,i.id AS order_item_id,o.reference,i.source_job_version,i.source_billing_revision,j.version AS current_job_version,j.billing_revision AS current_billing_revision FROM order_job_claims c JOIN order_items i ON i.id=c.order_item_id JOIN orders o ON o.id=i.order_id JOIN machine_jobs j ON j.id=c.machine_job_id WHERE c.machine_job_id=$1
 `
 
 type GetJobClaimRow struct {
-	OrderID           uuid.UUID
-	OrderItemID       uuid.UUID
-	Reference         string
-	SourceJobVersion  *int64
-	CurrentJobVersion int64
+	OrderID                uuid.UUID
+	OrderItemID            uuid.UUID
+	Reference              string
+	SourceJobVersion       *int64
+	SourceBillingRevision  *int64
+	CurrentJobVersion      int64
+	CurrentBillingRevision int64
 }
 
 func (q *Queries) GetJobClaim(ctx context.Context, machineJobID uuid.UUID) (GetJobClaimRow, error) {
@@ -823,7 +826,9 @@ func (q *Queries) GetJobClaim(ctx context.Context, machineJobID uuid.UUID) (GetJ
 		&i.OrderItemID,
 		&i.Reference,
 		&i.SourceJobVersion,
+		&i.SourceBillingRevision,
 		&i.CurrentJobVersion,
+		&i.CurrentBillingRevision,
 	)
 	return i, err
 }
@@ -1219,24 +1224,25 @@ func (q *Queries) InsertCashMovement(ctx context.Context, arg InsertCashMovement
 }
 
 const insertItem = `-- name: InsertItem :one
-INSERT INTO order_items(id,order_id,position,kind,description,quantity,unit,unit_price,amount,source_machine_job_id,source_job_version,machine_job_snapshot,created_by_account_id,source_material_id)
-VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM order_items WHERE order_id=$2),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id, source_material_id
+INSERT INTO order_items(id,order_id,position,kind,description,quantity,unit,unit_price,amount,source_machine_job_id,source_job_version,source_billing_revision,machine_job_snapshot,created_by_account_id,source_material_id)
+VALUES($1,$2,(SELECT COALESCE(max(position),0)+1 FROM order_items WHERE order_id=$2),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id, order_id, position, kind, description, quantity, unit, unit_price, amount, source_machine_job_id, source_job_version, machine_job_snapshot, snapshot_schema_version, created_at, created_by_account_id, removed_at, removed_by_account_id, source_material_id, source_billing_revision
 `
 
 type InsertItemParams struct {
-	ID                 uuid.UUID
-	OrderID            uuid.UUID
-	Kind               string
-	Description        string
-	Quantity           pgtype.Numeric
-	Unit               string
-	UnitPrice          pgtype.Numeric
-	Amount             pgtype.Numeric
-	SourceMachineJobID *uuid.UUID
-	SourceJobVersion   *int64
-	MachineJobSnapshot []byte
-	CreatedByAccountID *uuid.UUID
-	SourceMaterialID   *uuid.UUID
+	ID                    uuid.UUID
+	OrderID               uuid.UUID
+	Kind                  string
+	Description           string
+	Quantity              pgtype.Numeric
+	Unit                  string
+	UnitPrice             pgtype.Numeric
+	Amount                pgtype.Numeric
+	SourceMachineJobID    *uuid.UUID
+	SourceJobVersion      *int64
+	SourceBillingRevision *int64
+	MachineJobSnapshot    []byte
+	CreatedByAccountID    *uuid.UUID
+	SourceMaterialID      *uuid.UUID
 }
 
 func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (OrderItem, error) {
@@ -1251,6 +1257,7 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (OrderIt
 		arg.Amount,
 		arg.SourceMachineJobID,
 		arg.SourceJobVersion,
+		arg.SourceBillingRevision,
 		arg.MachineJobSnapshot,
 		arg.CreatedByAccountID,
 		arg.SourceMaterialID,
@@ -1275,6 +1282,7 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) (OrderIt
 		&i.RemovedAt,
 		&i.RemovedByAccountID,
 		&i.SourceMaterialID,
+		&i.SourceBillingRevision,
 	)
 	return i, err
 }
@@ -1921,29 +1929,31 @@ func (q *Queries) ListCashbookEntries(ctx context.Context, arg ListCashbookEntri
 }
 
 const listItems = `-- name: ListItems :many
-SELECT i.id, i.order_id, i.position, i.kind, i.description, i.quantity, i.unit, i.unit_price, i.amount, i.source_machine_job_id, i.source_job_version, i.machine_job_snapshot, i.snapshot_schema_version, i.created_at, i.created_by_account_id, i.removed_at, i.removed_by_account_id, i.source_material_id,j.version AS current_job_version FROM order_items i LEFT JOIN machine_jobs j ON j.id=i.source_machine_job_id WHERE i.order_id=$1 ORDER BY i.position
+SELECT i.id, i.order_id, i.position, i.kind, i.description, i.quantity, i.unit, i.unit_price, i.amount, i.source_machine_job_id, i.source_job_version, i.machine_job_snapshot, i.snapshot_schema_version, i.created_at, i.created_by_account_id, i.removed_at, i.removed_by_account_id, i.source_material_id, i.source_billing_revision,j.version AS current_job_version,j.billing_revision AS current_billing_revision FROM order_items i LEFT JOIN machine_jobs j ON j.id=i.source_machine_job_id WHERE i.order_id=$1 ORDER BY i.position
 `
 
 type ListItemsRow struct {
-	ID                    uuid.UUID
-	OrderID               uuid.UUID
-	Position              int32
-	Kind                  string
-	Description           string
-	Quantity              pgtype.Numeric
-	Unit                  string
-	UnitPrice             pgtype.Numeric
-	Amount                pgtype.Numeric
-	SourceMachineJobID    *uuid.UUID
-	SourceJobVersion      *int64
-	MachineJobSnapshot    []byte
-	SnapshotSchemaVersion int32
-	CreatedAt             time.Time
-	CreatedByAccountID    *uuid.UUID
-	RemovedAt             pgtype.Timestamptz
-	RemovedByAccountID    *uuid.UUID
-	SourceMaterialID      *uuid.UUID
-	CurrentJobVersion     *int64
+	ID                     uuid.UUID
+	OrderID                uuid.UUID
+	Position               int32
+	Kind                   string
+	Description            string
+	Quantity               pgtype.Numeric
+	Unit                   string
+	UnitPrice              pgtype.Numeric
+	Amount                 pgtype.Numeric
+	SourceMachineJobID     *uuid.UUID
+	SourceJobVersion       *int64
+	MachineJobSnapshot     []byte
+	SnapshotSchemaVersion  int32
+	CreatedAt              time.Time
+	CreatedByAccountID     *uuid.UUID
+	RemovedAt              pgtype.Timestamptz
+	RemovedByAccountID     *uuid.UUID
+	SourceMaterialID       *uuid.UUID
+	SourceBillingRevision  *int64
+	CurrentJobVersion      *int64
+	CurrentBillingRevision *int64
 }
 
 func (q *Queries) ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItemsRow, error) {
@@ -1974,7 +1984,9 @@ func (q *Queries) ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItems
 			&i.RemovedAt,
 			&i.RemovedByAccountID,
 			&i.SourceMaterialID,
+			&i.SourceBillingRevision,
 			&i.CurrentJobVersion,
+			&i.CurrentBillingRevision,
 		); err != nil {
 			return nil, err
 		}

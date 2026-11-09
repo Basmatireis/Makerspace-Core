@@ -484,8 +484,8 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 			CreatedAt:          i.CreatedAt,
 			RemovedAt:          timePointer(i.RemovedAt),
 		}
-		if i.CurrentJobVersion != nil && i.SourceJobVersion != nil {
-			item.SourceChanged = *i.CurrentJobVersion != *i.SourceJobVersion
+		if i.CurrentBillingRevision != nil && i.SourceBillingRevision != nil {
+			item.SourceChanged = *i.CurrentBillingRevision != *i.SourceBillingRevision
 		}
 		if i.MachineJobSnapshot != nil {
 			if e = json.Unmarshal(i.MachineJobSnapshot, &item.Snapshot); e != nil {
