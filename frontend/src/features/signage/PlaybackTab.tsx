@@ -37,7 +37,9 @@ export function PlaybackTab({ owner, activeRuleId }: { owner: PlaybackOwner; act
   const rulesResult = useQuery(ownerRulesQuery(key));
   const scenes = useQuery(scenesQuery()).data?.items;
   const names = useRuleNames();
-  const groupId = owner.kind === 'display' ? owner.display.groupId : null;
+  const groupId =
+    owner.kind === 'display' ? owner.display.groupId : owner.kind === 'embed' ? owner.embed.groupId : null;
+  const noun = info.kind === 'embed' ? 'embed' : 'display';
   const group = useQuery({ ...groupQuery(groupId ?? ''), enabled: groupId !== null });
   const [editing, setEditing] = useState<SignageRule | 'new' | null>(null);
   const [editingDefault, setEditingDefault] = useState(false);
@@ -77,8 +79,8 @@ export function PlaybackTab({ owner, activeRuleId }: { owner: PlaybackOwner; act
     <div className="sg-stack sg-tab">
       <div className="sg-tab__bar">
         <p className="sg-secondary">
-          The first matching rule wins. “Active” shows what the {info.kind === 'group' ? 'group' : 'display'} runs now,
-          from its last publication.
+          The first matching rule wins. “Active” shows what the {info.kind === 'group' ? 'group' : noun} runs now, from
+          its last publication.
         </p>
         {editable && rules && (
           <Button kind="tertiary" size="md" renderIcon={Add} onClick={() => setEditing('new')}>
@@ -94,7 +96,7 @@ export function PlaybackTab({ owner, activeRuleId }: { owner: PlaybackOwner; act
           lowContrast
           hideCloseButton
           title="Playback is managed by the group"
-          subtitle="Rules and default scenes of this display are those of its group. Change them there."
+          subtitle={`Rules and default scenes of this ${noun} are those of its group. Change them there.`}
           actionButtonLabel={group.data ? `Open ${group.data.name}` : 'Open group'}
           onActionButtonClick={() => void navigate(signagePaths.group(groupId))}
         />
@@ -224,7 +226,7 @@ export function PlaybackTab({ owner, activeRuleId }: { owner: PlaybackOwner; act
         </ContainedList>
         {rules?.items.length === 0 && (
           <p className="sg-secondary">
-            No rules yet. {info.kind === 'group' ? 'Its displays always show' : 'The display always shows'} the default
+            No rules yet. {info.kind === 'group' ? 'Its displays always show' : `The ${noun} always shows`} the default
             scenes.
           </p>
         )}
@@ -249,7 +251,7 @@ export function PlaybackTab({ owner, activeRuleId }: { owner: PlaybackOwner; act
         >
           <p>
             “{describeCondition(toPlaybackRule(deleting.rule), names)}” stops applying once the{' '}
-            {info.kind === 'group' ? 'group' : 'display'} is published.
+            {info.kind === 'group' ? 'group' : noun} is published.
           </p>
         </DeleteDialog>
       )}

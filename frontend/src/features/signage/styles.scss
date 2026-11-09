@@ -18,6 +18,21 @@
   align-items: center;
   gap: $spacing-02;
 }
+.sg-inline--end {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  > .cds--text-input-wrapper {
+    flex: 1;
+    max-inline-size: 28rem;
+  }
+  > .cds--btn {
+    margin-block-start: $spacing-06;
+  }
+}
+.sg-mono {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
 .sg-cell-stack {
   display: grid;
   gap: $spacing-02;

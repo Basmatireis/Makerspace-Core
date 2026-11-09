@@ -77,6 +77,8 @@ import {
   SignageDisplaysPage,
   SignageMediaPage,
   SignageSceneEditorPage,
+  SignageWebEmbedDetailPage,
+  SignageWebEmbedsPage,
   StatisticsPage,
   SupervisorStaffingPage,
   SurveyAdminPage,
@@ -389,6 +391,22 @@ export function App() {
               element={
                 <PermissionRoute allOf={['signage.read']}>
                   <SignageGroupDetailPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="signage/embeds"
+              element={
+                <PermissionRoute allOf={['signage.read']}>
+                  <SignageWebEmbedsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="signage/embeds/:embedId"
+              element={
+                <PermissionRoute allOf={['signage.read']}>
+                  <SignageWebEmbedDetailPage />
                 </PermissionRoute>
               }
             />
