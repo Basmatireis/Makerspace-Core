@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableRow } from '@carbon/react';
 import { Checkmark, ChevronDown, ChevronRight, Filter, Subtract } from '@carbon/icons-react';
 import type { ManagedDeviceType, Permission, PermissionGrant, Role } from '../../api/generated/models';
 import { permissionGrantDeviceTypeIds } from '../auth/permissions';
-import { permissionGroupOrder, presentPermission } from './permissionPresentation';
+import { permissionGroupOrder, presentPermission, sortPermissionsForDisplay } from './permissionPresentation';
 
 type Props = {
   permissions: Permission[];
@@ -39,7 +39,7 @@ export function PermissionMatrix({
 }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const byGroup = new Map<string, Permission[]>();
-  for (const permission of permissions) {
+  for (const permission of sortPermissionsForDisplay(permissions)) {
     const presented = presentPermission(permission);
     byGroup.set(presented.group, [...(byGroup.get(presented.group) ?? []), permission]);
   }
