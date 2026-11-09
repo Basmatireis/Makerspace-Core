@@ -46,6 +46,7 @@ type Table struct {
 // (and, unless kept, handled in db/queries.sql).
 var Tables = []Table{
 	{Name: "account_guide_progress", Columns: map[string]Treatment{"guide_id": System, "status": System}},
+	{Name: "account_preferences", Columns: map[string]Treatment{"key": System, "value": System}},
 	{Name: "account_presence", Emptied: EmptiedSignInState},
 	{Name: "accounts", Columns: map[string]Treatment{"status": System, "provisioning_source": System}},
 	{Name: "attendance_daily_statistics"},
