@@ -1019,7 +1019,46 @@ func seedAccount(t *testing.T, pool *pgxpool.Pool, suffix string, master bool) s
 			t.Fatal(insertErr)
 		}
 	}
+	if !master {
+		grantWebSignIn(t, pool, personID)
+	}
 	return seededAccount{accountID: accountID, personID: personID, identity: identityID}
+}
+
+// webSignInTestRoleID is a role holding only web.sign_in. seedAccount gives it to every non-master account so that
+// fixtures can sign in over HTTP; tests of the refusal take it away again with revokeWebSignIn.
+const webSignInTestRoleID = "01995ea6-6d00-7000-8000-0000000000f1"
+
+func grantWebSignIn(t *testing.T, pool *pgxpool.Pool, personID uuid.UUID) {
+	t.Helper()
+	ctx := testContext(t)
+	var applied bool
+	if err := pool.QueryRow(ctx,
+		`SELECT to_regclass('goose_db_version') IS NOT NULL AND
+		 EXISTS (SELECT 1 FROM goose_db_version WHERE version_id = 122 AND is_applied)`).Scan(&applied); err != nil {
+		t.Fatal(err)
+	}
+	if !applied {
+		return
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO roles (id, name, description) VALUES ($1, 'Integration web sign-in', 'Test fixture')
+		ON CONFLICT (id) DO NOTHING;
+		INSERT INTO role_permission_grants (id, role_id, permission_id)
+		SELECT uuidv7(), $1, 'web.sign_in'
+		WHERE NOT EXISTS (SELECT 1 FROM role_permission_grants WHERE role_id = $1 AND permission_id = 'web.sign_in');
+		INSERT INTO person_roles (person_id, role_id) VALUES ($2, $1) ON CONFLICT DO NOTHING`,
+		webSignInTestRoleID, personID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func revokeWebSignIn(t *testing.T, pool *pgxpool.Pool, personID uuid.UUID) {
+	t.Helper()
+	if _, err := pool.Exec(testContext(t), `DELETE FROM person_roles WHERE person_id = $1 AND role_id = $2`,
+		personID, webSignInTestRoleID); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func assertCount(t *testing.T, pool *pgxpool.Pool, query string, want int, args ...any) {
