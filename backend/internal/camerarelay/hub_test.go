@@ -605,3 +605,31 @@ func TestCloseEndsEveryConnectionWithoutLeakingGoroutines(t *testing.T) {
 
 	waitFor(t, "goroutines to end", func() bool { return runtime.NumGoroutine() <= baseline })
 }
+
+func TestEmbedViewerLimitReplacesTheDeviceLimits(t *testing.T) {
+	cfg := testConfig()
+	cfg.PendingTimeout = time.Minute
+	hub, p := newTestHub(t, cfg), newPairs(t)
+	f := connect(t, hub, p, uuid.New(), allow)
+	pending := 0
+	hold := func(viewer Viewer) {
+		t.Helper()
+		openAsync(hub, viewer)
+		pending++
+		waitFor(t, "pending session", func() bool { return hub.Stats().Sessions == pending })
+	}
+	// Six browsers of one embed may watch the same camera, beyond the per-device-and-machine limit of a player.
+	embed, machine := uuid.New(), uuid.New()
+	viewer := Viewer{DeviceID: embed, MachineID: machine, ConnectorID: f.id, AssignmentID: uuid.New(), Limit: 6}
+	for range 6 {
+		hold(viewer)
+	}
+	_, err := hub.Open(context.Background(), viewer)
+	expectCode(t, err, http.StatusConflict, "camera_busy")
+	other := viewer
+	other.MachineID = uuid.New()
+	_, err = hub.Open(context.Background(), other)
+	expectCode(t, err, http.StatusConflict, "camera_busy")
+	hub.Close()
+	waitFor(t, "all sessions released", func() bool { return hub.Stats().Sessions == 0 })
+}

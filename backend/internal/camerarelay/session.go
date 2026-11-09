@@ -12,9 +12,13 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Viewer identifies who wants to watch which camera, and through which connector assignment.
+// Viewer identifies who wants to watch which camera, and through which connector assignment. DeviceID is the signage
+// player's managed device, or the display id of a web embed, whose browsers all count against the embed.
 type Viewer struct {
 	DeviceID, MachineID, ConnectorID, AssignmentID uuid.UUID
+	// Limit, when positive, replaces the per-device limits: at most Limit sessions of this DeviceID in total, over all
+	// machines (a web embed's viewer limit). Exceeding it answers 409 camera_busy.
+	Limit int
 }
 
 type sessionState uint8
@@ -67,10 +71,13 @@ func (h *Hub) Open(ctx context.Context, viewer Viewer) (*Session, error) {
 	case c == nil:
 		h.mu.Unlock()
 		return nil, ErrCameraOffline
-	case h.byDeviceMachine[key] >= MaxStreamsPerDeviceMachine:
+	case viewer.Limit > 0 && h.byDevice[viewer.DeviceID] >= viewer.Limit:
+		h.mu.Unlock()
+		return nil, ErrViewerLimit
+	case viewer.Limit <= 0 && h.byDeviceMachine[key] >= MaxStreamsPerDeviceMachine:
 		h.mu.Unlock()
 		return nil, streamLimit("This device already watches this camera too often")
-	case h.byDevice[viewer.DeviceID] >= MaxStreamsPerDevice:
+	case viewer.Limit <= 0 && h.byDevice[viewer.DeviceID] >= MaxStreamsPerDevice:
 		h.mu.Unlock()
 		return nil, streamLimit("This device already watches too many cameras")
 	case h.byConnector[viewer.ConnectorID] >= MaxSessionsPerConnector || len(h.sessions) >= maxSessions:

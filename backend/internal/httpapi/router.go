@@ -333,7 +333,8 @@ func newHandler(server *Server, logger *slog.Logger) (http.Handler, error) {
 
 func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) || isRunTimelapsePath(r.URL.Path) {
+		if isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) || isRunTimelapsePath(r.URL.Path) ||
+			isSignageEmbedPath(r.URL.Path) {
 			// The generated request objects carry neither cookies nor Range headers; these handlers read them from the raw request.
 			r = r.WithContext(context.WithValue(r.Context(), httpRequestContextKey, r))
 		}
@@ -1125,6 +1126,11 @@ func isSignagePlayerPath(path string) bool {
 func isSignagePlayerDownloadPath(path string) bool {
 	return strings.HasPrefix(path, apiBasePath+"/signage/player/assets/") ||
 		strings.HasPrefix(path, apiBasePath+"/signage/player/timelapses/")
+}
+
+// isSignageEmbedPath matches the public web embed endpoints, whose handlers read Range and websocket headers.
+func isSignageEmbedPath(path string) bool {
+	return strings.HasPrefix(path, apiBasePath+"/public/signage/embeds/")
 }
 
 func isSignagePairingPath(path string) bool {

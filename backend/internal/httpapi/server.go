@@ -109,6 +109,8 @@ type Server struct {
 	surveyLinkSubmits *ratelimit.Limiter
 	// calendarFeedReads bounds reads of the public calendar feeds per client address.
 	calendarFeedReads *ratelimit.Limiter
+	// signageEmbedReads bounds requests to the public web embed endpoints per client address.
+	signageEmbedReads *ratelimit.Limiter
 	// notifyRules owns the notification categories, consents and rules.
 	notifyRules *notifyrules.Service
 	// notifyDispatcher delivers rule-based notifications for events and the ones that waited.
@@ -283,6 +285,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		surveyLinkSubmits:  ratelimit.New(surveyLinkSubmitsPerWindow, surveyLinkWindow),
 		calendarFeed:       calendarFeedService,
 		calendarFeedReads:  ratelimit.New(calendarFeedReadsPerWindow, calendarFeedWindow),
+		signageEmbedReads:  ratelimit.New(signageEmbedRequestsPerWindow, signageEmbedWindow),
 		attendance:         attendanceService,
 		noticeMail:         inbox.NewMailDelivery(pool, noticeMailer{notifier}),
 	}, nil

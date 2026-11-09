@@ -108,6 +108,13 @@ var ErrCameraOffline = apperror.New(
 	"The local service of this camera is not connected",
 )
 
+// ErrViewerLimit answers a web embed viewer while the embed's viewer limit is reached; the page shows its fallback.
+var ErrViewerLimit = apperror.New(
+	http.StatusConflict,
+	"camera_busy",
+	"Too many people are watching this camera here right now",
+)
+
 func streamLimit(message string) error {
 	return apperror.RateLimited("camera_stream_limit", message, limitRetryAfter)
 }

@@ -140,6 +140,16 @@ func (s *Service) AuthorizeCamera(ctx context.Context, deviceID, machineID uuid.
 	if err != nil {
 		return CameraGrant{}, err
 	}
+	return s.authorizeDisplayCamera(ctx, display, machineID)
+}
+
+// authorizeDisplayCamera applies the camera rule of AuthorizeCamera to a display or web embed that is allowed to
+// show anything at all.
+func (s *Service) authorizeDisplayCamera(
+	ctx context.Context,
+	display PlayerDisplay,
+	machineID uuid.UUID,
+) (CameraGrant, error) {
 	q := signagedb.New(s.pool)
 	scope, hidden, ok, err := s.publishedCameraScope(ctx, q, display, s.now())
 	if err != nil {
