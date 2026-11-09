@@ -37,7 +37,7 @@ export const getGetSignageEmbedFramePolicyUrl = (embedKey: string,) => {
 }
 
 /**
- * Public. The web server asks this before it serves the embed page and puts `frameAncestors` into the page's `Content-Security-Policy: frame-ancestors`. It always answers 200, because the web server's sub-request treats other answers as failures: an unknown key answers `'none'`, a known key (switched on or off) its allowed websites separated by spaces. The same value is in the `X-Embed-Frame-Ancestors` header. Rate-limited per client address.
+ * Public. The web server asks this before it serves the embed page and puts `frameAncestors` into the page's `Content-Security-Policy: frame-ancestors`. It always answers 200, because the web server's sub-request treats other answers as failures: an unknown key answers `'none'`, a known key (switched on or off) its allowed websites separated by spaces. The same value is in the `X-Embed-Frame-Ancestors` header. Not rate-limited, because the web server asks it for every page load.
  * @summary Websites that may frame the embed (for the web server)
  */
 export const getSignageEmbedFramePolicy = async (embedKey: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageEmbedFramePolicy> => {
@@ -69,7 +69,7 @@ export const getGetSignageEmbedManifestUrl = (embedKey: string,
 }
 
 /**
- * Public. Like `getSignagePlayerManifest` with the embed settings the player needs. Unknown key: 404. Switched off: `embed.enabled` false without a manifest, so the player shows its neutral page. Before the first publication: 404 `signage_not_published`. A request without `known` (or with 0) counts as a page load. Asset URLs point to the embed's asset endpoint. Never sets cookies. Rate-limited per client address.
+ * Public. Like `getSignagePlayerManifest` with the embed settings the player needs. Unknown key: 404. Switched off: `embed.enabled` false without a manifest, so the player shows its neutral page. Before the first publication: 404 `signage_not_published`. A request without `known` (or with 0) to a switched-on embed counts as a page load. Asset URLs point to the embed's asset endpoint; scene, asset and custom-layout names are empty. Never sets cookies. Rate-limited per client address.
  * @summary The web embed's latest publication
  */
 export const getSignageEmbedManifest = async (embedKey: string,
@@ -175,7 +175,7 @@ export const getStreamSignageEmbedCameraUrl = (embedKey: string,
 }
 
 /**
- * Public. A websocket upgrade like `streamSignagePlayerCamera`; answers a normal error response before the upgrade. The `Origin` header is required and must be the application's public origin (the embed page runs on it inside the iframe). Allowed while the embed is switched on, its camera is switched on now and in its latest publication, the machine is one of its chosen cameras and the usual camera rules hold (camera widget published, run not hidden, camera switch on). Re-checked every 15 seconds; close codes 4403, 4404 and 4503. Over the embed's viewer limit: 409 `camera_busy`.
+ * Public. A websocket upgrade like `streamSignagePlayerCamera`; answers a normal error response before the upgrade. The `Origin` header is required and must be the application's public origin (the embed page runs on it inside the iframe). Allowed while the embed is switched on, its camera is switched on now and in its latest publication, the machine is one of its chosen cameras and the usual camera rules hold (camera widget published, run not hidden, camera switch on). Re-checked every 15 seconds; close codes 4403, 4404 and 4503. Over the embed's viewer limit, or when web embeds already use half of the local service's streams: 409 `camera_busy`. One client address holds at most 2 streams of one embed (429).
  * @summary Websocket relay of a printer camera for a web embed (MSE)
  */
 export const streamSignageEmbedCamera = async (embedKey: string,

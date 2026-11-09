@@ -12,6 +12,9 @@ import (
 )
 
 type Querier interface {
+	// Adds page loads counted in memory to the bucket of their UTC day, starting a new bucket on another day. A batch of
+	// an older day than the stored bucket is dropped; last_loaded_at only moves forward.
+	AddSignageWebEmbedLoads(ctx context.Context, arg AddSignageWebEmbedLoadsParams) error
 	BumpSignageDisplayGroupVersion(ctx context.Context, arg BumpSignageDisplayGroupVersionParams) (int64, error)
 	BumpSignageDisplayVersion(ctx context.Context, arg BumpSignageDisplayVersionParams) (int64, error)
 	ClaimSignagePairingRequest(ctx context.Context, arg ClaimSignagePairingRequestParams) error
@@ -166,8 +169,6 @@ type Querier interface {
 	LockSignageScenesForShare(ctx context.Context, ids []string) ([]LockSignageScenesForShareRow, error)
 	NextSignagePublicationRevision(ctx context.Context, displayID uuid.UUID) (int32, error)
 	PruneSignagePublications(ctx context.Context, arg PruneSignagePublicationsParams) error
-	// Counts one page load in the bucket of the current UTC day, starting a new bucket on another day.
-	RecordSignageWebEmbedLoad(ctx context.Context, arg RecordSignageWebEmbedLoadParams) error
 	RenameSignageAsset(ctx context.Context, arg RenameSignageAssetParams) (int64, error)
 	RevokeSignageDisplay(ctx context.Context, arg RevokeSignageDisplayParams) (uuid.UUID, error)
 	SetSignageRuleEnabled(ctx context.Context, arg SetSignageRuleEnabledParams) (int64, error)

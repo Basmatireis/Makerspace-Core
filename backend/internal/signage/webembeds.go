@@ -270,7 +270,12 @@ func checkEmbedCameraMachines(ctx context.Context, q *signagedb.Queries, machine
 }
 
 // webEmbedFrom joins a display view of kind web_embed with its embed row.
-func webEmbedFrom(display Display, row signagedb.ListSignageWebEmbedsRow, today time.Time) (WebEmbed, error) {
+func webEmbedFrom(
+	display Display,
+	row signagedb.ListSignageWebEmbedsRow,
+	today time.Time,
+	unwritten embedLoads,
+) (WebEmbed, error) {
 	machines, err := parseUUIDs(row.CameraMachineIds)
 	if err != nil {
 		return WebEmbed{}, err
@@ -301,6 +306,12 @@ func webEmbedFrom(display Display, row signagedb.ListSignageWebEmbedsRow, today 
 	}
 	if row.LoadsDay.Valid && row.LoadsDay.Time.Equal(utcDate(today)) {
 		embed.LoadsToday = int(row.LoadsCount)
+	}
+	// Loads counted in memory but not written yet.
+	embed.LoadsToday += unwritten.count
+	if unwritten.count > 0 && (embed.LastLoadedAt == nil || unwritten.last.After(*embed.LastLoadedAt)) {
+		last := unwritten.last.UTC()
+		embed.LastLoadedAt = &last
 	}
 	return embed, nil
 }
@@ -335,7 +346,7 @@ func (s *Service) loadWebEmbeds(ctx context.Context, q *signagedb.Queries, views
 		if !ok {
 			continue
 		}
-		embed, err := webEmbedFrom(display, row, today)
+		embed, err := webEmbedFrom(display, row, today, s.embedLoads.today(display.ID, today))
 		if err != nil {
 			return nil, err
 		}

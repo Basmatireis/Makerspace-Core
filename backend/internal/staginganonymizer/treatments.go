@@ -15,6 +15,7 @@ const (
 	Neutral       Treatment = "replaced by a neutral text"
 	FileName      Treatment = "replaced by a neutral name that keeps the extension"
 	RandomToken   Treatment = "replaced by the digest of a random value"
+	RandomKey     Treatment = "replaced by a new random key"
 	Mailpit       Treatment = "pointed at staging's Mailpit"
 	ProductionKey Treatment = "cleared: encrypted with production's keys"
 )
@@ -629,10 +630,10 @@ var Tables = []Table{
 		"zones":            Catalog,
 		"font_family":      Catalog,
 	}},
-	// The embed key is a public identifier that ends up in other websites' HTML, not a secret.
+	// Embeds are switched off on staging and get a new key, so production embed codes do not reach staging.
 	{Name: "signage_web_embeds", Columns: map[string]Treatment{
 		"display_kind":       System,
-		"embed_key":          System,
+		"embed_key":          RandomKey,
 		"allowed_origins":    Catalog,
 		"camera_machine_ids": System,
 	}},

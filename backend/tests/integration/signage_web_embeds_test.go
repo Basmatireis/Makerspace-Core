@@ -1,13 +1,19 @@
 package integration_test
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
+	"github.com/google/uuid"
 )
 
 // createEmbed creates a 16:9 web embed allowed on https://www.example.org.
@@ -326,4 +332,57 @@ func TestSignageWebEmbedAnnouncementsGroupsAndPublication(t *testing.T) {
 	// A group cannot be deleted while the embed is a member.
 	e.expectCode(e.as(staff, http.MethodDelete, "/signage/groups/"+groupID,
 		map[string]any{"expectedVersion": e.groupVersion(staff, groupID)}), http.StatusConflict, "signage_in_use")
+}
+
+// Notification rules put notices on the makerspace's own screens only; a web embed is not a display they may target.
+func TestNotificationRulesRefuseWebEmbedsAsSignageTargets(t *testing.T) {
+	e := newRulesEnv(t)
+	ctx := testContext(t)
+	embedID := ids.New()
+	if _, err := e.pool.Exec(ctx, `INSERT INTO signage_displays (id, kind, name, aspect_width, aspect_height, visible_from_outside)
+		VALUES ($1, 'web_embed', 'Website', 16, 9, true)`, embedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.pool.Exec(ctx, `INSERT INTO signage_web_embeds (display_id, embed_key, allowed_origins)
+		VALUES ($1, $2, '{https://www.example.org}')`, embedID, strings.Repeat("k", 32)); err != nil {
+		t.Fatal(err)
+	}
+	input := eventRule("lab_rules_published", "need_confirm")
+	input.CategoryID = &e.service
+	input.Definition.Actions = []notifyrules.Action{{
+		Channel: notifyrules.ChannelSignage, Title: "Printer error",
+		Signage: &notifyrules.SignageTarget{DisplayIDs: []uuid.UUID{embedID}, DurationMinutes: 5, Tone: notifyrules.ToneInfo},
+	}}
+	_, err := e.rules.CreateRule(ctx, e.manager(), input, nil)
+	var refusal *apperror.Error
+	if !errors.As(err, &refusal) || !strings.Contains(fmt.Sprint(refusal.Code, refusal.Details), "displayIds") {
+		t.Fatalf("rule targeting a web embed = %v %#v, want a displayIds validation error", err, refusal.Details)
+	}
+}
+
+// A web embed's display row always stays visible from outside without allowCameraOutside: the device endpoints do not
+// reach it and the database refuses anything else.
+func TestWebEmbedDisplayStaysPublicOnly(t *testing.T) {
+	e := newSignageEnv(t)
+	staff := e.allStaff()
+	_, defaults := e.seedContent("Embed public only")
+	embed := e.createEmbed(staff, "Website", defaults)
+	id := embed["id"].(string)
+	e.expectCode(e.as(staff, http.MethodPut, "/signage/displays/"+id, map[string]any{
+		"expectedVersion": embed["version"], "name": "Website", "location": "",
+		"aspectRatio":        map[string]any{"width": 16, "height": 9},
+		"visibleFromOutside": false, "allowCameraOutside": true, "defaultScenes": defaults,
+	}), http.StatusNotFound, "not_found")
+	for _, update := range []string{
+		`UPDATE signage_displays SET visible_from_outside = false WHERE id = $1::uuid`,
+		`UPDATE signage_displays SET allow_camera_outside = true WHERE id = $1::uuid`,
+	} {
+		if _, err := e.pool.Exec(testContext(t), update, id); err == nil {
+			t.Fatalf("the database accepted %q for a web embed", update)
+		}
+	}
+	if e.count(`SELECT count(*) FROM signage_displays WHERE id = $1::uuid AND visible_from_outside
+		AND NOT allow_camera_outside`, id) != 1 {
+		t.Fatal("the embed's display row changed")
+	}
 }

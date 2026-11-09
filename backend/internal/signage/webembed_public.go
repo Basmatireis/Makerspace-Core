@@ -9,7 +9,6 @@ import (
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // noFrameAncestors is the frame-ancestors value for an unknown embed key: no website may frame the page.
@@ -103,8 +102,9 @@ func (s *Service) EmbedFrameAncestors(ctx context.Context, key string) (string, 
 }
 
 // EmbedManifest returns the embed's settings and its latest publication, or unchanged when the page already runs
-// revision known. A switched-off embed answers without a manifest. A request without a known revision is a page load
-// and is counted.
+// revision known. A switched-off embed answers without a manifest. A request of a switched-on embed without a known
+// revision is a page load and is counted. Scene, asset and custom-layout names stay out: the page renders without
+// them, and they may describe internal content.
 func (s *Service) EmbedManifest(
 	ctx context.Context,
 	key string,
@@ -115,24 +115,18 @@ func (s *Service) EmbedManifest(
 	if err != nil {
 		return PublicEmbed{}, nil, false, err
 	}
-	if known == nil || *known == 0 {
-		now := s.now()
-		if err := q.RecordSignageWebEmbedLoad(ctx, signagedb.RecordSignageWebEmbedLoadParams{
-			Now: now, Today: pgtype.Date{Time: utcDate(now), Valid: true}, DisplayID: embed.ID,
-		}); err != nil {
-			return PublicEmbed{}, nil, false, err
-		}
-	}
 	if !embed.Enabled {
 		return embed, nil, false, nil
+	}
+	if known == nil || *known == 0 {
+		// Counted in memory and written by FlushEmbedLoads, so a page load never writes to the database.
+		s.embedLoads.record(embed.ID, s.now())
 	}
 	latest, unchanged, err := s.PlayerManifest(ctx, embed.display, known)
 	if err != nil || unchanged {
 		return embed, nil, unchanged, err
 	}
-	// The recorded media switches are for Core only.
-	latest.EmbedMedia = nil
-	return embed, &latest, false, nil
+	return embed, publicManifest(latest), false, nil
 }
 
 // EmbedLive assembles the live data of a switched-on embed.
@@ -192,4 +186,27 @@ func (s *Service) AuthorizeEmbedCamera(ctx context.Context, key string, machineI
 		return EmbedCameraGrant{}, err
 	}
 	return EmbedCameraGrant{CameraGrant: grant, EmbedID: embed.ID, ViewerLimit: embed.ViewerLimit}, nil
+}
+
+// publicManifest is the manifest a web embed page gets: without the recorded media switches and without the names
+// of scenes, assets and custom layouts, which only staff need.
+func publicManifest(manifest Manifest) *Manifest {
+	public := manifest
+	public.EmbedMedia = nil
+	public.Scenes = make([]ManifestScene, len(manifest.Scenes))
+	for index, scene := range manifest.Scenes {
+		scene.Name = ""
+		public.Scenes[index] = scene
+	}
+	public.Assets = make([]ManifestAsset, len(manifest.Assets))
+	for index, asset := range manifest.Assets {
+		asset.Name = ""
+		public.Assets[index] = asset
+	}
+	public.CustomLayouts = make([]ManifestCustomLayout, len(manifest.CustomLayouts))
+	for index, layout := range manifest.CustomLayouts {
+		layout.Name = ""
+		public.CustomLayouts[index] = layout
+	}
+	return &public
 }

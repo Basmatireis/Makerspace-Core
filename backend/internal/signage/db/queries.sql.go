@@ -13,6 +13,33 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addSignageWebEmbedLoads = `-- name: AddSignageWebEmbedLoads :exec
+UPDATE signage_web_embeds
+SET last_loaded_at = GREATEST(COALESCE(last_loaded_at, $1::timestamptz), $1::timestamptz),
+    loads_count = CASE WHEN loads_day = $2::date THEN loads_count + $3::int ELSE $3::int END,
+    loads_day = $2::date
+WHERE display_id = $4 AND (loads_day IS NULL OR loads_day <= $2::date)
+`
+
+type AddSignageWebEmbedLoadsParams struct {
+	LastLoadedAt time.Time
+	Day          pgtype.Date
+	Loads        int32
+	DisplayID    uuid.UUID
+}
+
+// Adds page loads counted in memory to the bucket of their UTC day, starting a new bucket on another day. A batch of
+// an older day than the stored bucket is dropped; last_loaded_at only moves forward.
+func (q *Queries) AddSignageWebEmbedLoads(ctx context.Context, arg AddSignageWebEmbedLoadsParams) error {
+	_, err := q.db.Exec(ctx, addSignageWebEmbedLoads,
+		arg.LastLoadedAt,
+		arg.Day,
+		arg.Loads,
+		arg.DisplayID,
+	)
+	return err
+}
+
 const bumpSignageDisplayGroupVersion = `-- name: BumpSignageDisplayGroupVersion :one
 UPDATE signage_display_groups SET version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2 RETURNING version
@@ -3365,26 +3392,6 @@ type PruneSignagePublicationsParams struct {
 
 func (q *Queries) PruneSignagePublications(ctx context.Context, arg PruneSignagePublicationsParams) error {
 	_, err := q.db.Exec(ctx, pruneSignagePublications, arg.DisplayID, arg.MaxRevision)
-	return err
-}
-
-const recordSignageWebEmbedLoad = `-- name: RecordSignageWebEmbedLoad :exec
-UPDATE signage_web_embeds
-SET last_loaded_at = $1::timestamptz,
-    loads_count = CASE WHEN loads_day = $2::date THEN loads_count + 1 ELSE 1 END,
-    loads_day = $2::date
-WHERE display_id = $3
-`
-
-type RecordSignageWebEmbedLoadParams struct {
-	Now       time.Time
-	Today     pgtype.Date
-	DisplayID uuid.UUID
-}
-
-// Counts one page load in the bucket of the current UTC day, starting a new bucket on another day.
-func (q *Queries) RecordSignageWebEmbedLoad(ctx context.Context, arg RecordSignageWebEmbedLoadParams) error {
-	_, err := q.db.Exec(ctx, recordSignageWebEmbedLoad, arg.Now, arg.Today, arg.DisplayID)
 	return err
 }
 

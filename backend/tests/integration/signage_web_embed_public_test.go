@@ -10,8 +10,10 @@ import (
 	"testing"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 // publicGet requests a public embed endpoint without any credential and checks that no cookie is set.
@@ -76,7 +78,14 @@ func TestSignageEmbedPublicEndpoints(t *testing.T) {
 		body["unchanged"] != false || manifest["revision"] != float64(1) || manifest["embedMedia"] != nil {
 		t.Fatalf("embed manifest = %v", body)
 	}
+	// Names of scenes and assets are for staff only.
+	if scenes := manifest["scenes"].([]any); len(scenes) != 1 || scenes[0].(map[string]any)["name"] != "" {
+		t.Fatalf("embed scenes = %v", scenes)
+	}
 	assets := manifest["assets"].([]any)
+	if assets[0].(map[string]any)["name"] != "" {
+		t.Fatalf("embed asset name = %v", assets[0])
+	}
 	assetURL := assets[0].(map[string]any)["url"].(string)
 	if len(assets) != 1 || assetURL != "/api/v1"+base+"/assets/"+asset.ID.String()+"/"+asset.SHA256 {
 		t.Fatalf("embed assets = %v", assets)
@@ -110,6 +119,23 @@ func TestSignageEmbedPublicEndpoints(t *testing.T) {
 	if off["embed"].(map[string]any)["enabled"] != false || off["manifest"] != nil {
 		t.Fatalf("switched-off manifest = %v", off)
 	}
+	// A switched-off embed's page loads are not counted.
+	if got := e.embed(staff, id)["loadsToday"]; got != float64(3) {
+		t.Fatalf("loads after a switched-off page load = %v", got)
+	}
+	// Loads are counted in memory and written in batches; nothing was written per request.
+	if e.count(`SELECT loads_count FROM signage_web_embeds WHERE display_id = $1::uuid`, id) != 0 {
+		t.Fatal("a page load wrote to the database")
+	}
+	svc := e.fixture.service
+	for range 2 {
+		if _, _, _, err := svc.EmbedManifest(ctx, key, nil); err != nil && !apperror.IsCode(err, "signage_not_published") {
+			t.Fatal(err)
+		}
+	}
+	if written, err := svc.FlushEmbedLoads(ctx); err != nil || written != 0 {
+		t.Fatalf("flush of a switched-off embed = %d %v", written, err)
+	}
 	e.expectCode(e.publicGet(base+"/live"), http.StatusNotFound, "not_found")
 	e.expectCode(e.publicGet(strings.TrimPrefix(assetURL, "/api/v1")), http.StatusNotFound, "not_found")
 	if got := framePolicy(key); got != "https://www.example.org https://b.example:8443" {
@@ -118,6 +144,18 @@ func TestSignageEmbedPublicEndpoints(t *testing.T) {
 
 	// A new key ends the old one at once.
 	e.expect(e.patchEmbed(staff, id, map[string]any{"enabled": true}), http.StatusOK)
+	for range 2 {
+		if _, _, _, err := svc.EmbedManifest(ctx, key, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if written, err := svc.FlushEmbedLoads(ctx); err != nil || written != 2 {
+		t.Fatalf("flush = %d %v", written, err)
+	}
+	if e.count(`SELECT loads_count FROM signage_web_embeds WHERE display_id = $1::uuid AND last_loaded_at IS NOT NULL
+		AND loads_day = (now() AT TIME ZONE 'UTC')::date`, id) != 2 {
+		t.Fatal("the flush did not write the counted loads")
+	}
 	rotated := e.expect(e.as(staff, http.MethodPost, "/signage/web-embeds/"+id+"/rotate-key",
 		map[string]any{"expectedVersion": e.embed(staff, id)["version"]}), http.StatusOK)
 	if framePolicy(key) != "'none'" {
@@ -133,7 +171,7 @@ func TestSignageEmbedTimelapsesNeedThePublishedAndTheCurrentSwitch(t *testing.T)
 	staff := e.allStaff()
 	printer := e.printer("Embed timelapse printer")
 	store := files.NewService(e.pool, e.fixture.store)
-	clip := func(endedAgo string, fill byte) (uuid.UUID, string) {
+	clip := func(endedAgo string, fill byte, hidden bool) (uuid.UUID, string) {
 		t.Helper()
 		run := ids.New()
 		if _, err := e.pool.Exec(ctx,
@@ -141,9 +179,9 @@ func TestSignageEmbedTimelapsesNeedThePublishedAndTheCurrentSwitch(t *testing.T)
 				started_at, ended_at, hidden_from_signage)
 			 SELECT $1, 'R-2031-' || lpad((('x' || substr(replace($1::uuid::text, '-', ''), 17, 7))::bit(28)::int)::text, 9, '0'),
 				'recorded', a.id, $2, 'finished', now() - $3::interval - interval '1 hour', now() - $3::interval,
-				now() - $3::interval - interval '1 hour', now() - $3::interval, false
+				now() - $3::interval - interval '1 hour', now() - $3::interval, $4
 			 FROM printer_connector_assignments a WHERE a.machine_id = $2 AND a.ended_at IS NULL`,
-			run, printer.machineID, endedAgo); err != nil {
+			run, printer.machineID, endedAgo, hidden); err != nil {
 			t.Fatal(err)
 		}
 		data := append([]byte("\x00\x00\x00\x18ftypisom"), bytes.Repeat([]byte{fill}, 2000)...)
@@ -159,9 +197,10 @@ func TestSignageEmbedTimelapsesNeedThePublishedAndTheCurrentSwitch(t *testing.T)
 		}
 		return run, hex.EncodeToString(sum[:])
 	}
-	newest, newestSum := clip("1 hour", 1)
-	clip("2 days", 2)
-	clip("30 days", 3) // older than the embed's default 14 days
+	newest, newestSum := clip("1 hour", 1, false)
+	clip("2 days", 2, false)
+	clip("30 days", 3, false)                        // older than the embed's default 14 days
+	hiddenRun, hiddenSum := clip("3 hours", 4, true) // its operator kept it off signage
 
 	input := sceneInput("Embed timelapses", "full")
 	input.Zones = map[string]json.RawMessage{"main": timelapseWidget("all", nil, 10, 0)}
@@ -200,6 +239,7 @@ func TestSignageEmbedTimelapsesNeedThePublishedAndTheCurrentSwitch(t *testing.T)
 	if len(got) != 2 || got[0].(map[string]any)["url"] != "/api/v1"+clipPath {
 		t.Fatalf("clips after publishing = %v", got)
 	}
+	e.expectCode(e.publicGet(base+"/timelapses/"+hiddenRun.String()+"/"+hiddenSum), http.StatusNotFound, "not_found")
 	video := e.publicGet(clipPath)
 	if video.StatusCode != http.StatusOK {
 		t.Fatalf("clip download = %d", video.StatusCode)
@@ -283,4 +323,133 @@ func TestSignageEmbedCameraNeedsThePublishedAndTheCurrentSwitch(t *testing.T) {
 	if got := streams(); len(got) != 0 {
 		t.Fatalf("streams after switching off = %v", got)
 	}
+}
+
+func TestSignageEmbedRateLimitSparesTheFramePolicy(t *testing.T) {
+	e := newSignageEnv(t)
+	staff := e.allStaff()
+	_, defaults := e.seedContent("Embed rate limit")
+	key := e.createEmbed(staff, "Website", defaults)["embedKey"].(string)
+	client := e.newPlayer()
+	get := func(path string) *http.Response {
+		t.Helper()
+		request, err := http.NewRequestWithContext(testContext(t), http.MethodGet, e.api+path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return response
+	}
+	limited := 0
+	for range 1300 {
+		response := get("/public/signage/embeds/" + key + "/live")
+		if response.StatusCode == http.StatusTooManyRequests {
+			limited++
+		}
+		response.Body.Close()
+	}
+	if limited != 100 {
+		t.Fatalf("limited requests = %d, want 100 beyond 1200 per minute", limited)
+	}
+	e.expectCode(get("/public/signage/embeds/"+key+"/manifest"), http.StatusTooManyRequests, "rate_limited")
+	// The web server asks the frame policy for every page load; it is never limited.
+	if got := e.expect(get("/public/signage/embeds/"+key+"/frame-policy"), http.StatusOK); got["frameAncestors"] != "https://www.example.org" {
+		t.Fatalf("frame policy under the limit = %v", got)
+	}
+}
+
+func TestSignageEmbedCameraChoiceHiddenRunsAndEndingSessions(t *testing.T) {
+	r := newRelayEnv(t)
+	ctx := testContext(t)
+	second := r.bambu("Second relay printer", "bambu_h2d", "192.168.1.96", "40000002")
+	if _, err := r.pool.Exec(ctx, `UPDATE printer_connector_assignments SET camera_streaming = true WHERE machine_id = $1`,
+		second); err != nil {
+		t.Fatal(err)
+	}
+	input := sceneInput("Automatic embed cameras", "full")
+	input.Zones = map[string]json.RawMessage{"main": json.RawMessage(
+		`{"type":"camera","source":"auto","multi":"split","showProgress":false,"showRemaining":false,"fallback":"text","fallbackMediaId":null}`,
+	)}
+	scene, err := r.fixture.service.CreateScene(ctx, r.fixture.admin, input, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	embed := r.createEmbed(r.staff, "Website", sceneList(scene.ID))
+	id := embed["id"].(string)
+	r.expect(r.patchEmbed(r.staff, id, map[string]any{
+		"cameraEnabled": true, "cameraMachineIds": []string{r.machine.String()},
+	}), http.StatusOK)
+	publish := func() {
+		r.expect(r.as(r.staff, http.MethodPost, "/signage/web-embeds/"+id+"/publish", nil), http.StatusOK)
+	}
+	publish()
+	sameOrigin := http.Header{"Origin": {r.origin}}
+	key := embed["embedKey"].(string)
+	path := func(machine uuid.UUID) string {
+		return "/public/signage/embeds/" + key + "/cameras/" + machine.String() + "/stream"
+	}
+	// 409 camera_offline (no local service) and 404 camera_not_found (no relayed camera) both mean the request passed
+	// authorization; a refused one answers 403 camera_forbidden.
+	expect := func(machine uuid.UUID, status int, code string) {
+		t.Helper()
+		if _, got, gotCode := r.dial(path(machine), sameOrigin); got != status || gotCode != code {
+			t.Fatalf("embed viewer of %s = %d %s, want %d %s", machine, got, gotCode, status, code)
+		}
+	}
+	expect(r.machine, http.StatusConflict, "camera_offline")
+	// A camera the automatic widget covers but the embed did not choose stays forbidden.
+	expect(second, http.StatusForbidden, "camera_forbidden")
+	// Choosing it is not enough before the next publication.
+	r.expect(r.patchEmbed(r.staff, id, map[string]any{
+		"cameraMachineIds": []string{r.machine.String(), second.String()},
+	}), http.StatusOK)
+	expect(second, http.StatusForbidden, "camera_forbidden")
+	publish()
+	expect(second, http.StatusNotFound, "camera_not_found")
+
+	// A running run that its operator kept off signage hides the machine's camera from the embed too.
+	run := ids.New()
+	if _, err := r.pool.Exec(ctx,
+		`INSERT INTO machine_runs (id, display_id, source, assignment_id, machine_id, state, first_observed_at, last_observed_at,
+			started_at, hidden_from_signage)
+		 SELECT $1, 'R-2031-' || lpad((('x' || substr(replace($1::uuid::text, '-', ''), 17, 7))::bit(28)::int)::text, 9, '0'),
+			'recorded', a.id, $2, 'running', now() - interval '1 hour', now(), now() - interval '1 hour', true
+		 FROM printer_connector_assignments a WHERE a.machine_id = $2 AND a.ended_at IS NULL`, run, r.machine); err != nil {
+		t.Fatal(err)
+	}
+	expect(r.machine, http.StatusForbidden, "camera_forbidden")
+	if _, err := r.pool.Exec(ctx, `UPDATE machine_runs SET state = 'finished', ended_at = now() WHERE id = $1`, run); err != nil {
+		t.Fatal(err)
+	}
+	expect(r.machine, http.StatusConflict, "camera_offline")
+
+	// Running sessions end at the next re-check after a new key, switching the embed off and deleting it.
+	r.startConnector(r.connectorToken)
+	watch := func() *websocket.Conn {
+		t.Helper()
+		viewer, status, code := r.dial(path(r.machine), sameOrigin)
+		if status != http.StatusSwitchingProtocols {
+			t.Fatalf("embed viewer upgrade = %d %s", status, code)
+		}
+		expectStreaming(t, viewer)
+		return viewer
+	}
+	viewer := watch()
+	rotated := r.expect(r.as(r.staff, http.MethodPost, "/signage/web-embeds/"+id+"/rotate-key",
+		map[string]any{"expectedVersion": r.embed(r.staff, id)["version"]}), http.StatusOK)
+	expectViewerClosed(t, viewer, 4404)
+	key = rotated["embedKey"].(string)
+	viewer = watch()
+	r.expect(r.patchEmbed(r.staff, id, map[string]any{"enabled": false}), http.StatusOK)
+	expectViewerClosed(t, viewer, 4404)
+	// A switched-off embed is refused before the upgrade.
+	expect(r.machine, http.StatusNotFound, "not_found")
+	r.expect(r.patchEmbed(r.staff, id, map[string]any{"enabled": true}), http.StatusOK)
+	viewer = watch()
+	r.expect(r.as(r.staff, http.MethodDelete, "/signage/web-embeds/"+id,
+		map[string]any{"expectedVersion": r.embed(r.staff, id)["version"]}), http.StatusNoContent)
+	expectViewerClosed(t, viewer, 4404)
 }

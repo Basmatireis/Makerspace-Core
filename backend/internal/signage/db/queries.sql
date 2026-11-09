@@ -674,13 +674,14 @@ WHERE display_id = sqlc.arg(display_id);
 -- The caller holds the display's row lock.
 UPDATE signage_web_embeds SET embed_key = sqlc.arg(embed_key) WHERE display_id = sqlc.arg(display_id);
 
--- name: RecordSignageWebEmbedLoad :exec
--- Counts one page load in the bucket of the current UTC day, starting a new bucket on another day.
+-- name: AddSignageWebEmbedLoads :exec
+-- Adds page loads counted in memory to the bucket of their UTC day, starting a new bucket on another day. A batch of
+-- an older day than the stored bucket is dropped; last_loaded_at only moves forward.
 UPDATE signage_web_embeds
-SET last_loaded_at = sqlc.arg(now)::timestamptz,
-    loads_count = CASE WHEN loads_day = sqlc.arg(today)::date THEN loads_count + 1 ELSE 1 END,
-    loads_day = sqlc.arg(today)::date
-WHERE display_id = sqlc.arg(display_id);
+SET last_loaded_at = GREATEST(COALESCE(last_loaded_at, sqlc.arg(last_loaded_at)::timestamptz), sqlc.arg(last_loaded_at)::timestamptz),
+    loads_count = CASE WHEN loads_day = sqlc.arg(day)::date THEN loads_count + sqlc.arg(loads)::int ELSE sqlc.arg(loads)::int END,
+    loads_day = sqlc.arg(day)::date
+WHERE display_id = sqlc.arg(display_id) AND (loads_day IS NULL OR loads_day <= sqlc.arg(day)::date);
 
 -- name: DeleteSignageWebEmbedDisplay :one
 -- Deletes a web embed's display; its embed row, rules, default list, publications and announcement targets cascade.

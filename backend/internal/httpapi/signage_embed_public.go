@@ -15,9 +15,10 @@ import (
 
 // The public web embed endpoints are limited per client address (a limiter bounded in memory, see ratelimit). One
 // page load fetches the manifest and every asset, then polls live data every 30 seconds and the manifest every
-// minute; schools and companies put many visitors behind one address, so the limit is generous.
+// minute; a university network puts many visitors behind one address, so the limit is generous. The frame policy is
+// not limited: the web server asks it for every page load and turns any refusal into an error page.
 const (
-	signageEmbedRequestsPerWindow = 600
+	signageEmbedRequestsPerWindow = 1200
 	signageEmbedWindow            = time.Minute
 )
 
@@ -37,9 +38,6 @@ func (s *Server) GetSignageEmbedFramePolicy(
 	ctx context.Context,
 	r openapi.GetSignageEmbedFramePolicyRequestObject,
 ) (openapi.GetSignageEmbedFramePolicyResponseObject, error) {
-	if err := s.allowSignageEmbedRequest(ctx); err != nil {
-		return nil, err
-	}
 	ancestors, err := s.signage.EmbedFrameAncestors(ctx, r.EmbedKey)
 	if err != nil {
 		return nil, err
@@ -171,6 +169,7 @@ func (s *Server) StreamSignageEmbedCamera(
 		ConnectorID:  grant.ConnectorID,
 		AssignmentID: grant.AssignmentID,
 		Limit:        grant.ViewerLimit,
+		Client:       sourceAddress(ctx),
 	})
 	if errors.Is(err, context.Canceled) {
 		return nil, errViewerLeft
