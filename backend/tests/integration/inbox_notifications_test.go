@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/inbox"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
@@ -26,11 +28,12 @@ type inboxEnv struct {
 func newInboxEnv(t *testing.T) *inboxEnv {
 	t.Helper()
 	env := newStaffingEnv(t)
+	testdb.SeedNotificationRules(t, env.pool)
 	return &inboxEnv{staffingEnv: env, inbox: inbox.NewService(env.pool)}
 }
 
-// kinds returns the principal's notifications of one kind. The system notifications are written by the seeded
-// central rules; their kind names the rule's system key, so "lab_rules_published" finds what that rule sent.
+// kinds returns the principal's notifications of one kind. The system notifications are written by the central
+// rules newInboxEnv seeds; their kind names the rule's system key, so "lab_rules_published" finds what that rule sent.
 func (e *inboxEnv) kinds(p authorization.Principal, kind inbox.Kind) []inbox.Notification {
 	e.t.Helper()
 	page, err := e.inbox.List(testContext(e.t), p, 1, 100)
