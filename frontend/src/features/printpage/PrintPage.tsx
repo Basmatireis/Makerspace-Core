@@ -107,6 +107,8 @@ function PrintContent({ page }: { page: PrintPageData }) {
     ? `finished ${formatDate(page.endedAt)}`
     : `started ${formatDate(page.startedAt)}, still printing`;
   const status = page.timelapseStatus?.state;
+  // Failed, skipped or never found: the print's own preview stands in for the video, with a short note.
+  const previewInStage = !timelapse && status !== 'pending' && status !== 'expired';
   const preview = (
     <Tile>
       <h2 className="print-page__heading">Preview</h2>
@@ -183,20 +185,20 @@ function PrintContent({ page }: { page: PrintPageData }) {
           <p className="print-page__stage-title">The timelapse was deleted</p>
           <p className="print-page__secondary">Timelapses are removed after their retention period.</p>
         </div>
+      ) : previewInStage ? (
+        <>
+          {thumbnails.length > 0 && (
+            <PrintPreview thumbnails={thumbnails} emptyText="The print file contains no preview image." />
+          )}
+          <div className="print-page__stage print-page__stage--message print-page__stage--compact">
+            <p className="print-page__secondary">No timelapse was recorded for this print.</p>
+          </div>
+        </>
       ) : null}
 
       <div className={`print-page__lower${timelapse ? '' : ' print-page__lower--cards'}`}>
-        {timelapse ? (
-          <>
-            {preview}
-            {aside}
-          </>
-        ) : (
-          <>
-            {preview}
-            {aside}
-          </>
-        )}
+        {!(previewInStage && thumbnails.length > 0) && preview}
+        {aside}
       </div>
 
       {timelapse?.expiresAt && (

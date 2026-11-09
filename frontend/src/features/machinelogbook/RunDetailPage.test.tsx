@@ -478,7 +478,8 @@ describe('Run detail page', () => {
     const user = userEvent.setup();
     // userEvent.setup installs its own clipboard stub; read what the page wrote to it.
     renderRun();
-    const open = await screen.findByRole('link', { name: 'Open print page' });
+    const open = await screen.findByRole('link', { name: /Open print page/ });
+    expect(open).toHaveAccessibleName(/opens in a new tab/);
     expect(open).toHaveAttribute('href', `/prints/${ids.recordedRun}`);
     expect(open).toHaveAttribute('target', '_blank');
     await user.click(screen.getByRole('button', { name: 'Copy link' }));
@@ -491,7 +492,7 @@ describe('Run detail page', () => {
     serveRun(recordedRun());
     renderRun();
     await screen.findByRole('heading', { name: /Gearbox housing v3/ });
-    expect(screen.queryByRole('link', { name: 'Open print page' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open print page/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Copy link' })).not.toBeInTheDocument();
   });
 

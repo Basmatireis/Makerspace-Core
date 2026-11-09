@@ -482,12 +482,21 @@ export function toInput(draft: RuleDraft): NotificationRuleInput {
 }
 
 /** Problems found before sending; the server validates again and has the last word. */
-export function validateDraft(catalog: NotificationCatalog, draft: RuleDraft, personal = false): string[] {
+export const machinesMissingProblem = 'Choose at least one machine, or switch to All machines.';
+
+export function validateDraft(
+  catalog: NotificationCatalog,
+  draft: RuleDraft,
+  personal = false,
+  /** "Selected machines" is chosen but no machine is. */
+  machinesMissing = false,
+): string[] {
   const problems: string[] = [];
   const { definition } = draft;
   const ctx = contextOf(catalog, definition);
   if (!draft.name.trim()) problems.push(personal ? 'Give the subscription a name.' : 'Give the rule a name.');
   if (!personal && !draft.categoryId) problems.push('Choose a category.');
+  if (machinesMissing) problems.push(machinesMissingProblem);
   if (!definition.actions.length) problems.push('Add at least one action under Then.');
   const check = (action: Action, where: string) => {
     // A subscription always notifies its owner, so there is nothing to choose.

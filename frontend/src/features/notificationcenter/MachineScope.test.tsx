@@ -97,6 +97,29 @@ describe('machine scope of an event rule', () => {
     expect(body!.definition.trigger).not.toHaveProperty('machines');
   });
 
+  it('refuses to save "Selected machines" with no machine chosen', async () => {
+    serve(printerRule);
+    let saved = false;
+    server.use(
+      http.put('*/api/v1/notification-rules/:ruleId', () => {
+        saved = true;
+        return HttpResponse.json(printerRule);
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/settings/notifications/rules/${printerRuleId}`);
+
+    await user.click(await screen.findByRole('radio', { name: 'Selected machines' }));
+    expect(screen.queryByText(/reacts to every machine/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Choose at least one machine')).toBeInTheDocument();
+    expect(saved).toBe(false);
+
+    await user.click(screen.getByRole('radio', { name: 'All machines' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(saved).toBe(true));
+  });
+
   it('offers no machine choice for a trigger without machine scope', async () => {
     serve(printerRule, catalogFixture);
     renderRoute(<App />, `/settings/notifications/rules/${printerRuleId}`);

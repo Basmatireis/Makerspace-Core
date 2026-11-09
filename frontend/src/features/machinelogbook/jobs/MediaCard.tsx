@@ -167,7 +167,7 @@ function PrintPageActions({ runId }: { runId: string }) {
   return (
     <div className="jobs-media__page-actions">
       <Button kind="ghost" size="sm" renderIcon={Launch} href={path} target="_blank" rel="noopener noreferrer">
-        Open print page
+        Open print page<span className="cds--visually-hidden"> (opens in a new tab)</span>
       </Button>
       <Button kind="ghost" size="sm" renderIcon={LinkIcon} onClick={() => void copy()}>
         Copy link

@@ -19,7 +19,7 @@ import { MachineScope } from './MachineScope';
 const triggerTypes = ['event', 'schedule', 'manual'] as const;
 const triggerTexts = { event: 'Something happens', schedule: 'On a schedule', manual: 'By hand' } as const;
 
-export function WhenStep({ catalog, definition, edit, personal }: StepProps) {
+export function WhenStep({ catalog, definition, edit, personal, machineScope }: StepProps) {
   const trigger = definition.trigger;
   const schedule = trigger.schedule ?? { repeat: 'daily' };
   const openDay = schedule.repeat === 'before_open_day' || schedule.repeat === 'after_open_day';
@@ -90,11 +90,13 @@ export function WhenStep({ catalog, definition, edit, personal }: StepProps) {
         </Select>
       )}
       {trigger.type === 'event' && ctx.trigger?.machineScope && (
-        // Keyed by the event so the radio choice starts from the saved machines again when the event changes.
         <MachineScope
-          key={trigger.event}
           options={ctx.trigger.fields.find((field) => field.key === 'machine')?.options ?? []}
           selected={trigger.machines ?? []}
+          // The choice belongs to one event: changing the event starts from the saved machines again.
+          choosing={machineScope?.choosingFor === trigger.event}
+          onChoosing={(choosing) => machineScope?.setChoosingFor(choosing ? trigger.event : undefined)}
+          invalid={Boolean(machineScope?.invalid) && !trigger.machines?.length}
           onChange={(machines) =>
             edit((draft) => {
               if (machines) draft.trigger.machines = machines;

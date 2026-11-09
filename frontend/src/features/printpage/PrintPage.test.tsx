@@ -112,6 +112,22 @@ describe('print page', () => {
     expect(screen.queryByRole('link', { name: /Download Timelapse/ })).not.toBeInTheDocument();
   });
 
+  it.each(['failed', 'skipped', 'not_found'] as const)(
+    'shows the preview and a note when the timelapse is %s',
+    async (state) => {
+      serve({ ...page, timelapse: null, timelapseStatus: { state, reason: null, detail: null } });
+      renderRoute(<App />, `/prints/${runId}`);
+      expect(await screen.findByText('No timelapse was recorded for this print.')).toBeInTheDocument();
+      expect(screen.getAllByRole('img', { name: /Plate 1 preview/ })).toHaveLength(1);
+    },
+  );
+
+  it('shows only the note when there is no preview either', async () => {
+    serve({ ...page, timelapse: null, previews: [], timelapseStatus: { state: 'failed', reason: null, detail: null } });
+    renderRoute(<App />, `/prints/${runId}`);
+    expect(await screen.findByText('No timelapse was recorded for this print.')).toBeInTheDocument();
+  });
+
   it('says so when the timelapse was deleted', async () => {
     serve({ ...page, timelapse: null, timelapseStatus: { state: 'expired', reason: null, detail: null } });
     renderRoute(<App />, `/prints/${runId}`);

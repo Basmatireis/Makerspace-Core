@@ -1,18 +1,21 @@
 import { FilterableMultiSelect, RadioButton, RadioButtonGroup } from '@carbon/react';
-import { useState } from 'react';
 import type { NotificationCatalogOption } from '../../../api/generated/models';
 
 type Props = {
   options: NotificationCatalogOption[];
   /** The rule's `trigger.machines`; absent or empty means every machine. */
   selected: string[];
+  /** "Selected machines" was chosen, even if no machine is picked yet. The editor holds it so Save can refuse. */
+  choosing: boolean;
+  onChoosing: (choosing: boolean) => void;
+  /** Selected machines without any machine chosen was refused by the editor. */
+  invalid: boolean;
   onChange: (machines: string[] | undefined) => void;
 };
 
 /** "All machines" or a chosen few, for triggers whose events concern one machine each. */
-export function MachineScope({ options, selected, onChange }: Props) {
-  // Choosing "Selected machines" before picking any is a state the definition cannot hold (empty means all).
-  const [mode, setMode] = useState<'all' | 'selected'>(selected.length ? 'selected' : 'all');
+export function MachineScope({ options, selected, choosing, onChoosing, invalid, onChange }: Props) {
+  const selectedMode = choosing || selected.length > 0;
   const chosen = options.filter((option) => selected.includes(option.value));
   return (
     <div className="nc-machine-scope">
@@ -20,22 +23,26 @@ export function MachineScope({ options, selected, onChange }: Props) {
         legendText="Machines"
         name="nc-machine-scope"
         orientation="horizontal"
-        valueSelected={mode}
+        valueSelected={selectedMode ? 'selected' : 'all'}
         onChange={(value) => {
-          const next = value === 'selected' ? 'selected' : 'all';
-          setMode(next);
-          if (next === 'all') onChange(undefined);
+          if (value === 'selected') {
+            onChoosing(true);
+          } else {
+            onChoosing(false);
+            onChange(undefined);
+          }
         }}
       >
         <RadioButton id="nc-machines-all" labelText="All machines" value="all" />
         <RadioButton id="nc-machines-selected" labelText="Selected machines" value="selected" />
       </RadioButtonGroup>
-      {mode === 'selected' && (
+      {selectedMode && (
         <FilterableMultiSelect
           id="nc-machines"
           titleText="Only these machines"
-          helperText="With none chosen, the rule reacts to every machine."
           placeholder="Choose machines"
+          invalid={invalid}
+          invalidText="Choose at least one machine"
           items={options}
           itemToString={(option) => option?.label ?? ''}
           selectedItems={chosen}
