@@ -59,7 +59,7 @@ export const sectionDefinitions: SectionDefinition[] = [
     label: 'Material types',
     description: 'Filament, consumable and part categories.',
     read: [PermissionId.inventoryread],
-    manage: [PermissionId.inventorymanage],
+    manage: [PermissionId.inventoryarticlesmanage],
   },
   {
     key: 'machines',
@@ -73,7 +73,7 @@ export const sectionDefinitions: SectionDefinition[] = [
     label: 'Inventory articles',
     description: 'Article definitions; no stock, ledger or spools.',
     read: [PermissionId.inventoryread],
-    manage: [PermissionId.inventorymanage],
+    manage: [PermissionId.inventoryarticlesmanage],
   },
   {
     key: 'pricing',

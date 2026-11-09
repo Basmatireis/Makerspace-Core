@@ -24,7 +24,14 @@ const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.permissions }) }));
 
 const READ = [PermissionId.inventoryread];
-const MANAGE = [...READ, PermissionId.inventorymanage, PermissionId.filament_spoolsmanage];
+const MANAGE = [
+  ...READ,
+  PermissionId.inventoryarticlesmanage,
+  PermissionId.inventoryreceive,
+  PermissionId.inventoryconsume,
+  PermissionId.inventorycorrect,
+  PermissionId.filament_spoolsmanage,
+];
 const ALL = [...MANAGE, PermissionId.inventorydelete, PermissionId.inventoryledgerdelete];
 
 const blue = material({ attention: [] });
