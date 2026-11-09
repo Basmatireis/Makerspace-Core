@@ -20,7 +20,7 @@
  */
 import type { SignageAspectRatio } from './signageAspectRatio';
 import type { SignageSceneListItem } from './signageSceneListItem';
-import type { SignageWebEmbedOrigins } from './signageWebEmbedOrigins';
+import type { SignageWebEmbedOriginInput } from './signageWebEmbedOriginInput';
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
 
@@ -40,7 +40,7 @@ export interface UpdateSignageWebEmbedRequest {
      * @maxItems 100
      */
   defaultScenes?: SignageSceneListItem[];
-  allowedOrigins?: SignageWebEmbedOrigins;
+  allowedOrigins?: SignageWebEmbedOriginInput;
   openDirectly?: boolean;
   enabled?: boolean;
   cameraEnabled?: boolean;

@@ -20,7 +20,7 @@
  */
 import type { SignageAspectRatio } from './signageAspectRatio';
 import type { SignageSceneListItem } from './signageSceneListItem';
-import type { SignageWebEmbedOrigins } from './signageWebEmbedOrigins';
+import type { SignageWebEmbedOriginInput } from './signageWebEmbedOriginInput';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface CreateSignageWebEmbedRequest {
@@ -30,7 +30,7 @@ export interface CreateSignageWebEmbedRequest {
      */
   name: string;
   aspectRatio: SignageAspectRatio;
-  allowedOrigins: SignageWebEmbedOrigins;
+  allowedOrigins: SignageWebEmbedOriginInput;
   /** Optional; omitted or null means standalone. Joining needs the group's aspect ratio. */
   groupId?: UUIDv7 | null;
   /**

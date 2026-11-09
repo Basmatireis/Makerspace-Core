@@ -23939,6 +23939,11 @@ components:
       minItems: 1
       maxItems: 20
       items: {$ref: "#/components/schemas/SignageWebEmbedOrigin"}
+    SignageWebEmbedOriginInput:
+      type: array
+      maxItems: 20
+      description: "1 to 20 origins `https://host[:port]`; upper-case hosts are lower-cased and duplicates dropped. An empty list (removing the last website), a path, query, fragment, wildcard or another scheme answer 422."
+      items: {type: string, maxLength: 300}
     SignageWebEmbed:
       type: object
       additionalProperties: false
@@ -23991,7 +23996,7 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
-        allowedOrigins: {$ref: "#/components/schemas/SignageWebEmbedOrigins"}
+        allowedOrigins: {$ref: "#/components/schemas/SignageWebEmbedOriginInput"}
         groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional; omitted or null means standalone. Joining needs the group's aspect ratio."}
         defaultScenes:
           type: array
@@ -24014,7 +24019,7 @@ components:
           maxItems: 100
           items: {$ref: "#/components/schemas/SignageSceneListItem"}
           description: "The embed's own default list; must be empty in a group."
-        allowedOrigins: {$ref: "#/components/schemas/SignageWebEmbedOrigins"}
+        allowedOrigins: {$ref: "#/components/schemas/SignageWebEmbedOriginInput"}
         openDirectly: {type: boolean}
         enabled: {type: boolean}
         cameraEnabled: {type: boolean}

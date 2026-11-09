@@ -1084,6 +1084,7 @@ export * from './signageVideoWidgetType';
 export * from './signageWebEmbed';
 export * from './signageWebEmbedList';
 export * from './signageWebEmbedOrigin';
+export * from './signageWebEmbedOriginInput';
 export * from './signageWebEmbedOrigins';
 export * from './signageWidget';
 export * from './signageWidgetStyle';

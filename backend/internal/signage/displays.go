@@ -168,6 +168,16 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 		}
 		published[publication.DisplayID] = manifest
 	}
+	var embedIDs []uuid.UUID
+	for _, display := range displays {
+		if display.Kind == DisplayKindWebEmbed {
+			embedIDs = append(embedIDs, display.ID)
+		}
+	}
+	media, err := embedMediaOf(ctx, q, embedIDs)
+	if err != nil {
+		return nil, err
+	}
 	drafts := make([]displayDraft, 0, len(published))
 	for _, display := range displays {
 		if _, ok := published[display.ID]; ok {
@@ -176,6 +186,7 @@ func (s *Service) loadDisplays(ctx context.Context, q *signagedb.Queries, rows [
 				VisibleFromOutside: display.VisibleFromOutside,
 				DefaultScenes:      display.DefaultScenes,
 				Rules:              rules[display.ID],
+				EmbedMedia:         media[display.ID],
 			}
 			if display.GroupID != nil {
 				group := groups[*display.GroupID]
@@ -351,9 +362,19 @@ func (s *Service) GetDisplay(ctx context.Context, principal authorization.Princi
 	return s.getDisplay(ctx, signagedb.New(s.pool), id)
 }
 
+// getDisplay reads a display of kind device; a web embed is not found here.
 func (s *Service) getDisplay(ctx context.Context, q *signagedb.Queries, id uuid.UUID) (Display, error) {
+	return s.getDisplayOfKind(ctx, q, id, DisplayKindDevice)
+}
+
+func (s *Service) getDisplayOfKind(
+	ctx context.Context,
+	q *signagedb.Queries,
+	id uuid.UUID,
+	kind DisplayKind,
+) (Display, error) {
 	row, err := q.GetSignageDisplayView(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && DisplayKind(row.Kind) != kind) {
 		return Display{}, apperror.NotFound
 	}
 	if err != nil {
@@ -474,10 +495,7 @@ func (s *Service) UpdateDisplay(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	current, err := q.GetSignageDisplayForUpdate(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Display{}, apperror.NotFound
-	}
+	current, err := lockDisplayOfKind(ctx, q, id, DisplayKindDevice)
 	if err != nil {
 		return Display{}, err
 	}
@@ -487,30 +505,78 @@ func (s *Service) UpdateDisplay(
 	if current.RevokedAt.Valid || current.DeviceRevokedAt.Valid {
 		return Display{}, displayRevoked()
 	}
+	changed, err := applyDisplayDraft(ctx, q, current, checked)
+	if err != nil {
+		return Display{}, err
+	}
+	if err := writeAudit(
+		ctx,
+		tx,
+		principal,
+		"signage_display.updated",
+		"signage_display",
+		id,
+		requestID,
+		changed,
+	); err != nil {
+		return Display{}, err
+	}
+	result, err := s.getDisplay(ctx, q, id)
+	if err != nil {
+		return Display{}, err
+	}
+	return result, tx.Commit(ctx)
+}
+
+// lockDisplayOfKind locks a display row and answers 404 when it is missing or of the other kind, so the device
+// endpoints never touch web embeds and the embed endpoints never touch devices.
+func lockDisplayOfKind(
+	ctx context.Context,
+	q *signagedb.Queries,
+	id uuid.UUID,
+	kind DisplayKind,
+) (signagedb.GetSignageDisplayForUpdateRow, error) {
+	current, err := q.GetSignageDisplayForUpdate(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && DisplayKind(current.Kind) != kind) {
+		return signagedb.GetSignageDisplayForUpdateRow{}, apperror.NotFound
+	}
+	return current, err
+}
+
+// applyDisplayDraft writes the draft settings of a locked display or web embed whose version the caller checked and
+// returns the changed field names. Joining a group deletes the own rules; leaving one copies the group's rules and,
+// when the input's default list is empty, its default list.
+func applyDisplayDraft(
+	ctx context.Context,
+	q *signagedb.Queries,
+	current signagedb.GetSignageDisplayForUpdateRow,
+	checked DisplayInput,
+) ([]string, error) {
+	id, expected := current.ID, current.Version
 	groupChanged := !sameGroup(current.GroupID, checked.GroupID)
 	leaving := current.GroupID != nil && checked.GroupID == nil
 	if checked.GroupID == nil && len(checked.DefaultScenes) == 0 && !leaving {
-		return Display{}, defaultScenesRequired()
+		return nil, defaultScenesRequired()
 	}
 	if checked.GroupID != nil {
 		if err := lockJoinedGroup(ctx, q, *checked.GroupID, checked.AspectRatio, !groupChanged); err != nil {
-			return Display{}, err
+			return nil, err
 		}
 	}
 	currentDefault, err := decodeSceneList(current.DefaultScenes)
 	if err != nil {
-		return Display{}, err
+		return nil, err
 	}
 	finalDefault := checked.DefaultScenes
 	if leaving {
 		contents, err := loadGroupContent(ctx, q, []uuid.UUID{*current.GroupID})
 		if err != nil {
-			return Display{}, err
+			return nil, err
 		}
 		group := contents[*current.GroupID]
 		for position, rule := range group.Rules {
 			if err := insertRule(ctx, q, ruleOwner{DisplayID: id}, ids.New(), position, ruleInputOf(rule)); err != nil {
-				return Display{}, err
+				return nil, err
 			}
 		}
 		if len(finalDefault) == 0 {
@@ -520,14 +586,14 @@ func (s *Service) UpdateDisplay(
 	if groupChanged && checked.GroupID != nil {
 		// Joining: the display shows the group's content and keeps nothing of its own.
 		if err := q.DeleteSignageRulesOfDisplay(ctx, &id); err != nil {
-			return Display{}, err
+			return nil, err
 		}
 	}
 	// The default list is checked against the requested ratio, so a ratio change and a matching new
 	// default list can be saved together.
 	if len(finalDefault) > 0 {
 		if err := verifySceneList(ctx, q, checked.AspectRatio, finalDefault, "defaultScenes"); err != nil {
-			return Display{}, err
+			return nil, err
 		}
 	}
 	ratioChanged := aspectRatioOf(current.AspectWidth, current.AspectHeight) != checked.AspectRatio
@@ -540,10 +606,10 @@ func (s *Service) UpdateDisplay(
 			},
 		)
 		if err != nil {
-			return Display{}, err
+			return nil, err
 		}
 		if mismatched > 0 {
-			return Display{}, validation(
+			return nil, validation(
 				"%d rule(s) show a scene with another aspect ratio; change those rules first",
 				mismatched,
 			)
@@ -563,14 +629,14 @@ func (s *Service) UpdateDisplay(
 		GroupID:            checked.GroupID,
 		ID:                 id, ExpectedVersion: expected,
 	}); errors.Is(err, pgx.ErrNoRows) {
-		return Display{}, apperror.StaleWrite
+		return nil, apperror.StaleWrite
 	} else if err != nil {
-		return Display{}, databaseError(err)
+		return nil, databaseError(err)
 	}
 	defaultChanged := !sceneListsEqual(currentDefault, finalDefault)
 	if defaultChanged {
 		if err := replaceDefaultScenes(ctx, q, ruleOwner{DisplayID: id}, finalDefault); err != nil {
-			return Display{}, err
+			return nil, err
 		}
 	}
 	var changed []string
@@ -595,23 +661,7 @@ func (s *Service) UpdateDisplay(
 	if defaultChanged {
 		changed = append(changed, "defaultScenes")
 	}
-	if err := writeAudit(
-		ctx,
-		tx,
-		principal,
-		"signage_display.updated",
-		"signage_display",
-		id,
-		requestID,
-		changed,
-	); err != nil {
-		return Display{}, err
-	}
-	result, err := s.getDisplay(ctx, q, id)
-	if err != nil {
-		return Display{}, err
-	}
-	return result, tx.Commit(ctx)
+	return changed, nil
 }
 
 // RevokeDisplay revokes the display and its managed device in one transaction. The player's
@@ -635,10 +685,7 @@ func (s *Service) RevokeDisplay(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	current, err := q.GetSignageDisplayForUpdate(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Display{}, apperror.NotFound
-	}
+	current, err := lockDisplayOfKind(ctx, q, id, DisplayKindDevice)
 	if err != nil {
 		return Display{}, err
 	}
@@ -702,10 +749,7 @@ func (s *Service) DeleteDisplay(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	current, err := q.GetSignageDisplayForUpdate(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return apperror.NotFound
-	}
+	current, err := lockDisplayOfKind(ctx, q, id, DisplayKindDevice)
 	if err != nil {
 		return err
 	}
