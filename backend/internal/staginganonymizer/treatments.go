@@ -607,7 +607,7 @@ var Tables = []Table{
 		"player_version": System,
 		"errors":         System,
 	}},
-	{Name: "signage_displays", Columns: map[string]Treatment{"name": Catalog, "location": Catalog}},
+	{Name: "signage_displays", Columns: map[string]Treatment{"name": Catalog, "location": Catalog, "kind": System}},
 	{Name: "signage_pairing_requests", Emptied: EmptiedSignInState},
 	{Name: "signage_publications", Columns: map[string]Treatment{"manifest": Catalog, "manifest_sha256": System}},
 	{Name: "signage_rule_notices", Emptied: EmptiedHistory},
@@ -628,6 +628,13 @@ var Tables = []Table{
 		"theme":            System,
 		"zones":            Catalog,
 		"font_family":      Catalog,
+	}},
+	// The embed key is a public identifier that ends up in other websites' HTML, not a secret.
+	{Name: "signage_web_embeds", Columns: map[string]Treatment{
+		"display_kind":       System,
+		"embed_key":          System,
+		"allowed_origins":    Catalog,
+		"camera_machine_ids": System,
 	}},
 	{Name: "staffing_excusals", Columns: map[string]Treatment{"reason": Cleared}},
 	{Name: "staffing_rule_exceptions"},

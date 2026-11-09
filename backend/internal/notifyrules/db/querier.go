@@ -128,6 +128,7 @@ type Querier interface {
 	// Enabled central and personal rules that fire on one event. Personal rules have no category and carry their owner.
 	ListEnabledEventRules(ctx context.Context, triggerEvent *string) ([]ListEnabledEventRulesRow, error)
 	ListExistingDeviceIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
+	// Only screens with a device take rule notices; web embeds show public information only.
 	ListExistingDisplayIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListExistingPersonIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListExistingRoleIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)

@@ -21,29 +21,32 @@ const onlineWindow = 90 * time.Second
 
 // Display is a physical screen with its draft settings, publication state and health.
 type Display struct {
-	ID, ManagedDeviceID uuid.UUID
-	Name, Location      string
-	AspectRatio         AspectRatio
-	VisibleFromOutside  bool
-	AllowCameraOutside  bool
-	DefaultScenes       []SceneListItem // own list; empty while the display is in a group
-	GroupID             *uuid.UUID
-	Status              DisplayStatus // online | offline | revoked
-	RevokedAt           *time.Time
-	LastHeartbeatAt     *time.Time
-	PublishedRevision   *int
-	PublishedAt         *time.Time
-	PendingChanges      []PendingChange
-	ReportedRevision    *int
-	CurrentRule         *string
-	CurrentSceneID      *uuid.UUID
-	PlayerVersion       *string
-	CacheUsedBytes      *int64
-	CacheQuotaBytes     *int64
-	Errors              []string
-	Version             int64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ID uuid.UUID
+	// ManagedDeviceID is uuid.Nil for a web embed.
+	ManagedDeviceID    uuid.UUID
+	Kind               DisplayKind
+	Name, Location     string
+	AspectRatio        AspectRatio
+	VisibleFromOutside bool
+	AllowCameraOutside bool
+	DefaultScenes      []SceneListItem // own list; empty while the display is in a group
+	GroupID            *uuid.UUID
+	Status             DisplayStatus // online | offline | revoked
+	RevokedAt          *time.Time
+	LastHeartbeatAt    *time.Time
+	PublishedRevision  *int
+	PublishedAt        *time.Time
+	PendingChanges     []PendingChange
+	ReportedRevision   *int
+	CurrentRule        *string
+	CurrentSceneID     *uuid.UUID
+	PlayerVersion      *string
+	CacheUsedBytes     *int64
+	CacheQuotaBytes    *int64
+	Errors             []string
+	Version            int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // DisplayInput is the writable part of a display.
@@ -76,7 +79,7 @@ func (s *Service) displayFromView(row viewRow) (Display, error) {
 	}
 	display := Display{
 		ID:                 row.ID,
-		ManagedDeviceID:    row.ManagedDeviceID,
+		Kind:               DisplayKind(row.Kind),
 		Name:               row.Name,
 		Location:           row.Location,
 		AspectRatio:        aspectRatioOf(row.AspectWidth, row.AspectHeight),
@@ -93,6 +96,9 @@ func (s *Service) displayFromView(row viewRow) (Display, error) {
 		CacheQuotaBytes: row.CacheQuotaBytes,
 		Errors:          []string{},
 		Version:         row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(), Status: DisplayOffline,
+	}
+	if row.ManagedDeviceID != nil {
+		display.ManagedDeviceID = *row.ManagedDeviceID
 	}
 	if revoked := fromPgTime(row.RevokedAt); revoked != nil {
 		display.RevokedAt = revoked
@@ -326,7 +332,7 @@ func (s *Service) ListDisplays(ctx context.Context, principal authorization.Prin
 		return nil, err
 	}
 	q := signagedb.New(s.pool)
-	rows, err := q.ListSignageDisplayViews(ctx)
+	rows, err := q.ListSignageDisplayViews(ctx, string(DisplayKindDevice))
 	if err != nil {
 		return nil, err
 	}
@@ -652,7 +658,7 @@ func (s *Service) RevokeDisplay(
 		ctx,
 		tx,
 		principal,
-		current.ManagedDeviceID,
+		deviceIDOf(current.ManagedDeviceID),
 		requestID,
 	); err != nil {
 		return Display{}, err
@@ -711,7 +717,7 @@ func (s *Service) DeleteDisplay(
 		ctx,
 		tx,
 		principal,
-		current.ManagedDeviceID,
+		deviceIDOf(current.ManagedDeviceID),
 		requestID,
 	); err != nil {
 		return err
@@ -739,4 +745,12 @@ func (s *Service) DeleteDisplay(
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// deviceIDOf unwraps the managed device of a display of kind device; callers have refused web embeds before.
+func deviceIDOf(id *uuid.UUID) uuid.UUID {
+	if id == nil {
+		return uuid.Nil
+	}
+	return *id
 }

@@ -69,7 +69,7 @@ type PlayerDisplay struct {
 // PlayerDisplayFor resolves the display of a verified signage player device. A device without a
 // display answers 404; a revoked display (or a revoked device behind it) answers 403.
 func (s *Service) PlayerDisplayFor(ctx context.Context, deviceID uuid.UUID) (PlayerDisplay, error) {
-	row, err := signagedb.New(s.pool).GetSignageDisplayByDevice(ctx, deviceID)
+	row, err := signagedb.New(s.pool).GetSignageDisplayByDevice(ctx, &deviceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PlayerDisplay{}, apperror.NotFound
 	}
@@ -378,7 +378,7 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 	}
 	rows, err := q.ListLiveSignageAnnouncementsForDisplay(
 		ctx,
-		signagedb.ListLiveSignageAnnouncementsForDisplayParams{Now: now, DisplayID: display.ID},
+		signagedb.ListLiveSignageAnnouncementsForDisplayParams{Now: now, DisplayID: display.ID, Broadcasts: true},
 	)
 	if err != nil {
 		return LiveData{}, err

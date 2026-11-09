@@ -40,6 +40,7 @@ export * from './roles/roles';
 export * from './scim/scim';
 export * from './scim-administration/scim-administration';
 export * from './signage/signage';
+export * from './signage-embed/signage-embed';
 export * from './signage-player/signage-player';
 export * from './supervisors/supervisors';
 export * from './surveys/surveys';

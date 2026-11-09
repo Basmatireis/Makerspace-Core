@@ -310,7 +310,8 @@ func (s *Service) PairDisplay(
 	displayID := ids.New()
 	if _, err := q.CreateSignageDisplay(ctx, signagedb.CreateSignageDisplayParams{
 		ID:              displayID,
-		ManagedDeviceID: deviceID,
+		Kind:            string(DisplayKindDevice),
+		ManagedDeviceID: &deviceID,
 		Name:            checked.Name,
 		Location:        checked.Location,
 		AspectWidth:     int16(checked.AspectRatio.Width), AspectHeight: int16(checked.AspectRatio.Height),
