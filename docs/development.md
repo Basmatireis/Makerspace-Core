@@ -128,6 +128,19 @@ Each test gets its own database, copied from a template database that `internal/
 - Open days are staffed in a staffing or published period covering the coming week; when none exists, the run creates and publishes one and adds Tuesday/Thursday open days until six are upcoming.
 - The random seed defaults to the current time; pass `SEED_ARGS="-seed 42"` for a reproducible structure. All dates are relative to today.
 
+## Local guard rails
+
+Two sets of hooks catch the most common mistakes before CI does. Neither replaces `make check`.
+
+- **Git pre-commit** (opt-in, `make install-hooks`): checks only the staged files with `gofmt`, `prettier` (when `frontend/node_modules` exists) and the squawk migration lint. `git commit --no-verify` skips it once.
+- **Claude Code hooks** (`.claude/settings.json`, script `.claude/hooks/repo_guard.py`), active for every Claude Code session in this repository:
+  - Edits to generated files are refused: files with a `Code generated ... DO NOT EDIT` header and everything under `frontend/src/api/generated/`.
+  - Edits to migrations that already exist on `origin/main` are refused.
+  - After an edit, a Go file is formatted with `gofmt` and a frontend file with `prettier`.
+  - When a turn ends with changes to `api/openapi.yaml`, a `queries.sql` or a migration but no regenerated file, the agent is reminded once to run `make generate`.
+
+Slow checks (golangci-lint, type-aware ESLint, tests) deliberately stay out of both: they run in `make check` and CI.
+
 ## Browser end-to-end checks
 
 The browser suite uses the exact `@playwright/test` 1.63.0 and `@axe-core/playwright` 4.13.0 versions in the frontend lockfile. Its fast UI scenarios start Vite on `http://127.0.0.1:4173` and intercept API calls with deterministic, non-PII fixtures. They cover login to Dashboard, permission-gated Settings/profile behavior, keyboard dismissal, responsive SideNav behavior, session-expiry handling, a custom-Role destructive confirmation, and automated WCAG A/AA scans.

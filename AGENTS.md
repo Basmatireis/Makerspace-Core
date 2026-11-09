@@ -52,6 +52,6 @@ This file is the single source of instructions for people and coding agents. Cod
 
 - Add or update tests with behavior changes. Prefer real PostgreSQL integration tests for repository/API behavior.
 - Keep generated-code freshness, formatting, linting (`golangci-lint`, ESLint), type checking, unit tests, integration tests, and production builds reproducible through documented commands.
-- Project subagents in `.claude/agents/` review authorization, migrations, privacy and frontend changes and work on the test pipeline; skills in `.claude/skills/` describe adding an endpoint and cutting a release. Keep them in line with this file when rules change.
+- Project subagents in `.claude/agents/` review authorization, migrations, privacy and frontend changes and work on the test pipeline; skills in `.claude/skills/` describe adding an endpoint and cutting a release. The hooks in `.claude/settings.json` refuse edits to generated files and applied migrations; fix the source instead of working around them. Keep them in line with this file when rules change.
 - Do not commit design prototypes, implementation plans, progress logs, or review reports; they belong in branches, issues, or pull requests.
 - Do not add placeholder modules, pages, routes, or navigation for future makerspace concepts.
