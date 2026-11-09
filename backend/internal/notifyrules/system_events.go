@@ -88,8 +88,8 @@ func (e *SystemEvents) RunFinished(ctx context.Context, tx pgx.Tx, runID uuid.UU
 	placeholders := map[string]string{
 		"run": run.DisplayID, "machine": run.MachineName, "ending": ending, "job": "", "jobNote": "", "printPage": "",
 	}
-	// Only recorded runs have a print page.
-	if run.Source == "recorded" {
+	// Only recorded runs with a job (every run reaching here has one) have a print page.
+	if run.Source == "recorded" && run.JobID != nil {
 		placeholders["printPage"] = e.dispatcher.printPageAddress(runID)
 	}
 	if run.JobTitle != nil && strings.TrimSpace(*run.JobTitle) != "" {

@@ -16,6 +16,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // printPageFixture seeds recorded runs with jobs, a 3MF with one preview and a timelapse.
@@ -199,6 +200,28 @@ func TestPrintPageOpensForTheJobRecipientAndStaffOnly(t *testing.T) {
 		t.Fatalf("a preview of another 3MF answered %d", response.StatusCode)
 	}
 
+	// A real preview id of another run never opens through this run's page, for the recipient or for staff.
+	otherJob := f.job(&recipientPerson, nil, &operator, "Second print")
+	otherRun := f.run(&otherJob)
+	_, _, _, otherPreviewID := f.files(otherRun)
+	foreign := "/print-pages/" + run.String() + "/previews/" + otherPreviewID.String() + "/content"
+	for label, session := range map[string]staffSession{"recipient": recipient, "staff": staff} {
+		if response, body := g.rawGet(session.client, foreign); response.StatusCode != http.StatusNotFound {
+			t.Fatalf("%s opened another run's real preview through this run: %d %d bytes", label, response.StatusCode, len(body))
+		}
+	}
+	if response, _ := g.rawGet(recipient.client, "/print-pages/"+otherRun.String()+"/previews/"+otherPreviewID.String()+"/content"); response.StatusCode != http.StatusOK {
+		t.Fatalf("the preview through its own run answered %d", response.StatusCode)
+	}
+
+	// Without a session every print page path answers 401.
+	anonymous := newCookieClient(t)
+	for _, path := range paths {
+		if response, body := g.rawGet(anonymous, path); response.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("anonymous GET %s = %d %s, want 401", path, response.StatusCode, body)
+		}
+	}
+
 	// Another signed-in person gets the same 404 as for a run that does not exist.
 	g.expectPrintPageHidden(other, run, previewID, "other person")
 	g.expectPrintPageHidden(other, ids.New(), previewID, "unknown run")
@@ -262,6 +285,11 @@ func TestTimelapseReadyLinksThePrintPageOnlyForPasswordHolders(t *testing.T) {
 	withoutPassword := g.staff("tl-nopassword-" + suffix).account.personID
 	f.exec(`DELETE FROM password_credentials pc USING auth_identities i, accounts a
 		WHERE pc.auth_identity_id = i.id AND i.account_id = a.id AND a.person_id = $1`, withoutPassword)
+	disabledAccount := g.staff("tl-disabled-" + suffix).account.personID
+	f.exec(`UPDATE accounts SET status = 'disabled' WHERE person_id = $1`, disabledAccount)
+	disabledPassword := g.staff("tl-disabledpw-" + suffix).account.personID
+	f.exec(`UPDATE auth_identities i SET disabled_at = now() FROM accounts a
+		WHERE i.account_id = a.id AND a.person_id = $1 AND i.kind = 'password'`, disabledPassword)
 	organization := ids.New()
 	f.exec(`INSERT INTO organizations (id, name, kind, contact_email) VALUES ($1, 'Timelapse Org', 'other', 'tl-org@example.test')`, organization)
 	f.exec(`UPDATE mail_configuration SET enabled = true`)
@@ -354,6 +382,26 @@ func TestTimelapseReadyLinksThePrintPageOnlyForPasswordHolders(t *testing.T) {
 		t.Fatalf("mail without password = %q %v", got.body, got.link)
 	}
 
+	// A disabled account and a disabled password identity get no print page link either, if they get a mail at all.
+	for name, person := range map[string]uuid.UUID{"disabled account": disabledAccount, "disabled password identity": disabledPassword} {
+		person := person
+		run := f.run(func() *uuid.UUID { id := f.job(&person, nil, nil, "Stand "+name); return &id }())
+		raise(run)
+		var body string
+		var link *string
+		err := g.pool.QueryRow(ctx, `SELECT m.body, m.link FROM notification_mail_outbox m
+			JOIN notification_firings f ON f.id = m.firing_id WHERE f.rule_id = $1 AND m.person_id = $2`, everywhere, person).Scan(&body, &link)
+		if errors.Is(err, pgx.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if link != nil || strings.Contains(body, "/prints/") || strings.Contains(body, run.String()) {
+			t.Fatalf("mail to %s = %q %v", name, body, link)
+		}
+	}
+
 	orgRun := f.run(func() *uuid.UUID { id := f.job(nil, &organization, nil, ""); return &id }())
 	raise(orgRun)
 	if got := mailOf(everywhere, "organization_id", organization); got.body != "Watch it:" || got.link != nil {
@@ -365,8 +413,8 @@ func TestTimelapseReadyLinksThePrintPageOnlyForPasswordHolders(t *testing.T) {
 	otherRun := other.run(func() *uuid.UUID { id := other.job(&withPassword, nil, nil, "Elsewhere"); return &id }())
 	raise(otherRun)
 	raise(f.run(nil))
-	assertCount(t, g.pool, `SELECT count(*) FROM notification_firings WHERE rule_id = $1`, 4, everywhere)
-	assertCount(t, g.pool, `SELECT count(*) FROM notification_firings WHERE rule_id = $1`, 3, scoped)
+	assertCount(t, g.pool, `SELECT count(*) FROM notification_firings WHERE rule_id = $1`, 6, everywhere)
+	assertCount(t, g.pool, `SELECT count(*) FROM notification_firings WHERE rule_id = $1`, 5, scoped)
 	assertCount(t, g.pool, `SELECT count(*) FROM notification_firings WHERE rule_id = $1`, 1, elsewhere)
 }
 
@@ -377,4 +425,29 @@ func reasonOf(err error) string {
 	}
 	text, _ := app.Details["reason"].(string)
 	return text
+}
+
+// TestPersonalTimelapseReadyRuleNeedsMachineJobsRead refuses a personal timelapse_ready rule for an owner without
+// machine_jobs.read, and accepts it for one with the permission.
+func TestPersonalTimelapseReadyRuleNeedsMachineJobsRead(t *testing.T) {
+	g := newConnectorEnv(t)
+	ctx := testContext(t)
+	suffix := uuid.NewString()[:8]
+	plain := g.staff("tl-sub-plain-" + suffix)
+	staff := g.staff("tl-sub-staff-"+suffix, authorization.MachineJobsRead)
+	rules := notifyrules.NewService(g.pool)
+	input := notifyrules.RuleInput{
+		Name: "My timelapses", Enabled: true,
+		Definition: notifyrules.Definition{
+			Trigger:    notifyrules.TriggerDef{Type: notifyrules.TriggerEvent, Event: "timelapse_ready"},
+			Conditions: notifyrules.ConditionSet{Mode: notifyrules.ModeAll},
+			Actions:    []notifyrules.Action{{Channel: notifyrules.ChannelInApp, Recipients: []string{"me"}, Title: "Ready", Body: "{printPage}"}},
+		},
+	}
+	if _, err := rules.CreateSubscription(ctx, plain.principal, input, nil); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("an owner without machine_jobs.read subscribed to timelapse_ready: %v", err)
+	}
+	if _, err := rules.CreateSubscription(ctx, staff.principal, input, nil); err != nil {
+		t.Fatalf("an owner with machine_jobs.read was refused: %v", err)
+	}
 }

@@ -343,12 +343,12 @@ func throttleKey(per string, subjects map[string]string) string {
 // notification opens. Titles stay on one line; an empty title falls back to the rule's name, an empty body to the title.
 func fillAction(action Action, ev Event, ruleName string) (Action, string) {
 	title, _ := Fill(action.Title, ev.Placeholders)
-	title = Clip(singleLine(title), MaxTitleLength)
+	title = clipText(singleLine(title), MaxTitleLength)
 	if title == "" {
 		title = Clip(singleLine(ruleName), MaxTitleLength)
 	}
 	body, _ := Fill(action.Body, ev.Placeholders)
-	body = Clip(strings.TrimSpace(body), MaxBodyLength)
+	body = clipText(strings.TrimSpace(body), MaxBodyLength)
 	if body == "" {
 		body = title
 	}

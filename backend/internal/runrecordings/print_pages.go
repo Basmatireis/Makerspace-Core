@@ -39,7 +39,7 @@ type PrintPage struct {
 // organization) and holders of machine_jobs.read may open it; everybody else gets the same not-found answer as for a
 // run that does not exist, so the page never reveals that a run exists.
 func (s *Service) GetPrintPage(ctx context.Context, p authorization.Principal, runID uuid.UUID) (PrintPage, error) {
-	row, err := s.printPageRun(ctx, p, runID)
+	row, err := printPageRun(ctx, db.New(s.pool), p, runID)
 	if err != nil {
 		return PrintPage{}, err
 	}
@@ -86,10 +86,9 @@ func (s *Service) OpenPrintPageTimelapse(
 	p authorization.Principal,
 	runID uuid.UUID,
 ) (FileContent, io.ReadCloser, error) {
-	if _, err := s.printPageRun(ctx, p, runID); err != nil {
-		return FileContent{}, nil, err
-	}
-	return s.openTimelapse(ctx, runID)
+	return openPrintPageFile(ctx, s, p, runID, func(q *db.Queries) (FileContent, io.ReadCloser, error) {
+		return s.openTimelapse(ctx, q, runID)
+	})
 }
 
 // OpenPrintPageArtifact opens the original 3MF of a print page, with the access of GetPrintPage.
@@ -98,10 +97,9 @@ func (s *Service) OpenPrintPageArtifact(
 	p authorization.Principal,
 	runID uuid.UUID,
 ) (FileContent, io.ReadCloser, error) {
-	if _, err := s.printPageRun(ctx, p, runID); err != nil {
-		return FileContent{}, nil, err
-	}
-	return s.openArtifact(ctx, runID)
+	return openPrintPageFile(ctx, s, p, runID, func(q *db.Queries) (FileContent, io.ReadCloser, error) {
+		return s.openArtifact(ctx, q, runID)
+	})
 }
 
 // OpenPrintPagePreview opens a preview image of a print page's 3MF, with the access of GetPrintPage.
@@ -110,20 +108,41 @@ func (s *Service) OpenPrintPagePreview(
 	p authorization.Principal,
 	runID, previewID uuid.UUID,
 ) (FileContent, io.ReadCloser, error) {
-	if _, err := s.printPageRun(ctx, p, runID); err != nil {
+	return openPrintPageFile(ctx, s, p, runID, func(q *db.Queries) (FileContent, io.ReadCloser, error) {
+		return s.openPreview(ctx, q, runID, previewID)
+	})
+}
+
+// openPrintPageFile checks the viewer's access and looks the file up in one read-only repeatable-read transaction, so
+// the answer for the file always describes the same run, job and recipient the access was decided on.
+func openPrintPageFile(
+	ctx context.Context,
+	s *Service,
+	p authorization.Principal,
+	runID uuid.UUID,
+	open func(q *db.Queries) (FileContent, io.ReadCloser, error),
+) (FileContent, io.ReadCloser, error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
 		return FileContent{}, nil, err
 	}
-	return s.openPreview(ctx, runID, previewID)
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := db.New(tx)
+	if _, err := printPageRun(ctx, q, p, runID); err != nil {
+		return FileContent{}, nil, err
+	}
+	return open(q)
 }
 
 // printPageRun loads the run of a print page and decides whether the viewer may open it. A run the viewer may not
 // open answers exactly like a missing one.
-func (s *Service) printPageRun(
+func printPageRun(
 	ctx context.Context,
+	q *db.Queries,
 	p authorization.Principal,
 	runID uuid.UUID,
 ) (db.GetPrintPageRunRow, error) {
-	row, err := db.New(s.pool).GetPrintPageRun(ctx, runID)
+	row, err := q.GetPrintPageRun(ctx, runID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.GetPrintPageRunRow{}, apperror.NotFound
 	}

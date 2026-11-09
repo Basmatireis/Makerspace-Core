@@ -206,11 +206,11 @@ func (s *Service) OpenRunArtifact(
 	if !p.Has(authorization.MachineJobsRead) {
 		return FileContent{}, nil, apperror.PermissionDenied
 	}
-	return s.openArtifact(ctx, runID)
+	return s.openArtifact(ctx, db.New(s.pool), runID)
 }
 
-func (s *Service) openArtifact(ctx context.Context, runID uuid.UUID) (FileContent, io.ReadCloser, error) {
-	row, err := db.New(s.pool).GetRunArtifactFile(ctx, runID)
+func (s *Service) openArtifact(ctx context.Context, q *db.Queries, runID uuid.UUID) (FileContent, io.ReadCloser, error) {
+	row, err := q.GetRunArtifactFile(ctx, runID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return FileContent{}, nil, apperror.NotFound
 	}
@@ -248,7 +248,7 @@ func (s *Service) OpenConnectorRunArtifact(
 	} else if err != nil {
 		return FileContent{}, nil, err
 	}
-	return s.openArtifact(ctx, runID)
+	return s.openArtifact(ctx, db.New(s.pool), runID)
 }
 
 // OpenRunPreview opens a preview image of the run's 3MF. Needs machine_jobs.read.
@@ -260,11 +260,11 @@ func (s *Service) OpenRunPreview(
 	if !p.Has(authorization.MachineJobsRead) {
 		return FileContent{}, nil, apperror.PermissionDenied
 	}
-	return s.openPreview(ctx, runID, previewID)
+	return s.openPreview(ctx, db.New(s.pool), runID, previewID)
 }
 
-func (s *Service) openPreview(ctx context.Context, runID, previewID uuid.UUID) (FileContent, io.ReadCloser, error) {
-	row, err := db.New(s.pool).GetRunPreviewFile(ctx, db.GetRunPreviewFileParams{RunID: runID, PreviewID: previewID})
+func (s *Service) openPreview(ctx context.Context, q *db.Queries, runID, previewID uuid.UUID) (FileContent, io.ReadCloser, error) {
+	row, err := q.GetRunPreviewFile(ctx, db.GetRunPreviewFileParams{RunID: runID, PreviewID: previewID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return FileContent{}, nil, apperror.NotFound
 	}
@@ -292,11 +292,11 @@ func (s *Service) OpenRunTimelapse(
 	if !p.Has(authorization.MachineJobsRead) {
 		return FileContent{}, nil, apperror.PermissionDenied
 	}
-	return s.openTimelapse(ctx, runID)
+	return s.openTimelapse(ctx, db.New(s.pool), runID)
 }
 
-func (s *Service) openTimelapse(ctx context.Context, runID uuid.UUID) (FileContent, io.ReadCloser, error) {
-	row, err := db.New(s.pool).GetRunTimelapseFile(ctx, runID)
+func (s *Service) openTimelapse(ctx context.Context, q *db.Queries, runID uuid.UUID) (FileContent, io.ReadCloser, error) {
+	row, err := q.GetRunTimelapseFile(ctx, runID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return FileContent{}, nil, apperror.NotFound
 	}
