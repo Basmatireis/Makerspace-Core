@@ -13,47 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestPairingCodeUsesAlphabetAndLength(t *testing.T) {
-	seen := map[string]struct{}{}
-	for i := 0; i < 500; i++ {
-		code, err := GeneratePairingCode()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(code) != PairingCodeLength {
-			t.Fatalf("code %q has length %d", code, len(code))
-		}
-		for _, character := range code {
-			if !strings.ContainsRune(PairingCodeAlphabet, character) {
-				t.Fatalf("code %q contains %q outside the alphabet", code, character)
-			}
-		}
-		seen[code] = struct{}{}
-	}
-	if len(seen) < 490 {
-		t.Fatalf("only %d distinct codes in 500 draws", len(seen))
-	}
-	for _, ambiguous := range "01OI" {
-		if strings.ContainsRune(PairingCodeAlphabet, ambiguous) {
-			t.Fatalf("alphabet contains look-alike %q", ambiguous)
-		}
-	}
-}
-
-func TestNormalizePairingCode(t *testing.T) {
-	for raw, want := range map[string]string{"abc234": "ABC234", " abc-234 ": "ABC234", "ABC 234": "ABC234"} {
-		got, ok := NormalizePairingCode(raw)
-		if !ok || got != want {
-			t.Errorf("NormalizePairingCode(%q) = %q, %v; want %q", raw, got, ok, want)
-		}
-	}
-	for _, raw := range []string{"", "ABC23", "ABC2345", "ABC10O", "ABC23!", "ÄBC234"} {
-		if _, ok := NormalizePairingCode(raw); ok {
-			t.Errorf("NormalizePairingCode(%q) accepted a malformed code", raw)
-		}
-	}
-}
-
 func str(value string) *string { return &value }
 
 func validTimeWindow() RuleInput {

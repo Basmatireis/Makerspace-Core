@@ -43,6 +43,14 @@ body {
   margin: 0 0 spacing.$spacing-04;
 }
 
+.registration-card .pairing-code {
+  @include type.type-style('heading-07');
+  color: var(--cds-text-primary);
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.3em;
+  text-align: center;
+}
+
 .registration-card p {
   @include type.type-style('body-01');
   margin: 0;

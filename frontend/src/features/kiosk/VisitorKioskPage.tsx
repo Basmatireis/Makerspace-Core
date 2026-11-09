@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   getTerminalContext,
   listTerminalPresence,
@@ -8,6 +8,7 @@ import {
 import type { KioskNotice, TerminalConsentCategory, TerminalSurveyOffer, Visit } from '../../api/generated/models';
 import { BrandMark } from '../../app/BrandMark';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
+import { ApiError, apiErrorCode } from '../../api/http-client';
 import { useBranding } from '../branding/branding';
 import { ConsentScreen } from './components/ConsentScreen';
 import { CheckOutScreen } from './components/CheckOutScreen';
@@ -15,6 +16,7 @@ import type { Credentials, LabRulesNeed } from './components/checkIn';
 import { CredentialsScreen } from './components/CredentialsScreen';
 import { LabRulesScreen } from './components/LabRulesScreen';
 import { HomeScreen } from './components/HomeScreen';
+import { KioskPairingScreen } from './KioskPairingScreen';
 import { PresencePanel } from './components/PresencePanel';
 import { ResultScreen } from './components/ResultScreen';
 import { SurveyOfferScreen } from './components/SurveyOfferScreen';
@@ -72,16 +74,32 @@ export function VisitorKioskPage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: presenceKey }),
   });
 
+  // Stable identity: the pairing loop restarts whenever this callback changes.
+  const { refetch: refetchContext } = kiosk;
+  const paired = useCallback(() => void refetchContext(), [refetchContext]);
+
   if (kiosk.isPending) return <FullPageLoading label="Loading visitor kiosk" />;
+  // 404: this browser has no kiosk credential, so it offers a pairing code instead of an error.
+  if (!kiosk.data && kiosk.error instanceof ApiError && kiosk.error.status === 404)
+    return <KioskPairingScreen onPaired={paired} />;
   // A failed refresh keeps the last known context on screen.
   if (!kiosk.data)
     return (
       <main className="public-page">
-        <ErrorState
-          title="Kiosk unavailable"
-          message="This browser is not registered as an entrance kiosk."
-          onRetry={() => void kiosk.refetch()}
-        />
+        {apiErrorCode(kiosk.error) === 'device_not_kiosk' ? (
+          // Registered, but not as a kiosk: pairing again would replace this device's credential.
+          <ErrorState
+            title="Not set up as a kiosk"
+            message="This device is registered in Makerspace Core but not as an entrance kiosk. Change its Used as setting under Settings › Devices & sessions › Managed devices, or open the staff sign-in instead."
+            onRetry={() => void kiosk.refetch()}
+          />
+        ) : (
+          <ErrorState
+            title="Kiosk unavailable"
+            message="This browser is not registered as an entrance kiosk."
+            onRetry={() => void kiosk.refetch()}
+          />
+        )}
       </main>
     );
 

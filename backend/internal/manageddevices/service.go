@@ -13,6 +13,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	manageddevicesdb "github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -141,9 +142,24 @@ type HardwareContext struct {
 	ReportedAt                                  *time.Time
 }
 
-type Service struct{ pool *pgxpool.Pool }
+type Service struct {
+	pool *pgxpool.Pool
+	now  func() time.Time
 
-func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+	pairingRequests *ratelimit.Limiter // pairing codes handed out per client IP
+	pairingPolls    *ratelimit.Limiter // pairing polls per client IP
+	claimFailures   *ratelimit.Limiter // wrong pairing codes entered per staff account
+}
+
+func NewService(pool *pgxpool.Pool) *Service {
+	return &Service{
+		pool:            pool,
+		now:             func() time.Time { return time.Now().UTC() },
+		pairingRequests: ratelimit.New(pairingRequestsPerWindow, pairingRequestWindow),
+		pairingPolls:    ratelimit.New(pairingPollsPerWindow, pairingPollWindow),
+		claimFailures:   ratelimit.New(claimFailuresPerWindow, claimFailureWindow),
+	}
+}
 
 func (s *Service) Authenticate(ctx context.Context, raw string) (*DeviceContext, error) {
 	decoded, decodeErr := base64.RawURLEncoding.DecodeString(raw)

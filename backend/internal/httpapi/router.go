@@ -333,7 +333,8 @@ func newHandler(server *Server, logger *slog.Logger) (http.Handler, error) {
 
 func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) || isRunTimelapsePath(r.URL.Path) {
+		if isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) || isDevicePairingPath(r.URL.Path) ||
+			isRunTimelapsePath(r.URL.Path) {
 			// The generated request objects carry neither cookies nor Range headers; these handlers read them from the raw request.
 			r = r.WithContext(context.WithValue(r.Context(), httpRequestContextKey, r))
 		}
@@ -561,6 +562,23 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				return
 			}
 		}
+		if r.Method == http.MethodPost && isDevicePairingPath(r.URL.Path) &&
+			len(s.config.DevicePairingAllowedCIDRs) > 0 {
+			if client, ok := parseIP(sourceAddress(r.Context())); !ok ||
+				!isTrustedProxy(client, s.config.DevicePairingAllowedCIDRs) {
+				writeAPIError(
+					w,
+					r,
+					apperror.New(
+						http.StatusForbidden,
+						"pairing_network_denied",
+						"Pairing is not available from this network",
+					),
+					logger,
+				)
+				return
+			}
+		}
 		if device != nil && device.IsSignagePlayer() && !isSignagePairingPath(r.URL.Path) {
 			// A signage player may reach the player routes and the pairing endpoints, never staff, visitor or public APIs.
 			writeAPIError(
@@ -718,7 +736,8 @@ func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.H
 			next.ServeHTTP(w, r)
 			return
 		}
-		if isUnsafeMethod(r.Method) && r.Header.Get("Origin") != expectedOrigin && !isNativeDeviceHardwareReport(r) {
+		if isUnsafeMethod(r.Method) && r.Header.Get("Origin") != expectedOrigin && !isNativeDeviceHardwareReport(r) &&
+			!isNativeDevicePairingStart(r) {
 			writeAPIError(
 				w,
 				r,
@@ -734,6 +753,13 @@ func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.H
 func isNativeDeviceHardwareReport(r *http.Request) bool {
 	return r.Method == http.MethodPut && r.URL.Path == apiBasePath+"/managed-devices/self/hardware" &&
 		r.Header.Get("Origin") == "" && strings.TrimSpace(r.Header.Get("X-Managed-Device-Token")) != ""
+}
+
+// isNativeDevicePairingStart lets the desktop app, which sends no Origin, request a pairing code. Browsers always
+// send Origin on a POST, so this does not open a cross-site path; the handler additionally refuses an originless
+// request for browser (cookie) delivery, so the exemption serves only nativeToken requests.
+func isNativeDevicePairingStart(r *http.Request) bool {
+	return r.Method == http.MethodPost && isDevicePairingPath(r.URL.Path) && r.Header.Get("Origin") == ""
 }
 
 func requestMetadataMiddleware(next http.Handler, routes chi.Routes, trustedProxies []netip.Prefix) http.Handler {
@@ -1129,6 +1155,10 @@ func isSignagePlayerDownloadPath(path string) bool {
 
 func isSignagePairingPath(path string) bool {
 	return path == apiBasePath+"/public/signage/pairing"
+}
+
+func isDevicePairingPath(path string) bool {
+	return path == apiBasePath+"/public/managed-devices/pairing"
 }
 
 func isSCIMPath(path string) bool {

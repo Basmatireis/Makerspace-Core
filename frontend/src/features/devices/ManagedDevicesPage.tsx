@@ -12,6 +12,7 @@ import { DirectoryTable, useUrlState, type Column } from '../machinelogbook/shar
 import { SettingsLoading, SettingsSection } from '../settings/SettingsPageLayout';
 import { CreateDeviceModal, OneTimeToken } from './components/DeviceFormModal';
 import { DeviceStatusTag } from './components/DeviceStatusTag';
+import { PairDeviceModal } from './components/PairDeviceModal';
 import { devicePaths, keys, modeLabels } from './components/deviceShared';
 import { useAllManagedDevices } from './queries';
 
@@ -92,6 +93,7 @@ export function ManagedDevicesPanel() {
   const canManage = hasPermission(currentUser, PermissionId.managed_devicesmanage);
   const url = useUrlState('dev-');
   const [createOpen, setCreateOpen] = useState(false);
+  const [pairOpen, setPairOpen] = useState(false);
   const [secret, setSecret] = useState<ManagedDeviceProvisioning | null>(null);
   const { query: devicesQuery, devices } = useAllManagedDevices();
   const typesQuery = useQuery({
@@ -136,9 +138,14 @@ export function ManagedDevicesPanel() {
           onRowClick={(device) => void navigate(devicePaths.detail(device.id))}
           toolbarAction={
             canManage ? (
-              <Button kind="primary" size="lg" disabled={!typesQuery.data} onClick={() => setCreateOpen(true)}>
-                New device
-              </Button>
+              <>
+                <Button kind="secondary" size="lg" disabled={!typesQuery.data} onClick={() => setPairOpen(true)}>
+                  Pair device
+                </Button>
+                <Button kind="primary" size="lg" disabled={!typesQuery.data} onClick={() => setCreateOpen(true)}>
+                  New device
+                </Button>
+              </>
             ) : undefined
           }
           empty={{
@@ -156,6 +163,18 @@ export function ManagedDevicesPanel() {
             setCreateOpen(false);
             setSecret(value);
             await queryClient.invalidateQueries({ queryKey: keys.devices });
+          }}
+        />
+      )}
+      {pairOpen && typesQuery.data && (
+        <PairDeviceModal
+          types={typesQuery.data.items}
+          policies={policiesQuery.data?.items ?? []}
+          onClose={() => setPairOpen(false)}
+          onPaired={async (device) => {
+            setPairOpen(false);
+            await queryClient.invalidateQueries({ queryKey: keys.devices });
+            void navigate(devicePaths.detail(device.id));
           }}
         />
       )}

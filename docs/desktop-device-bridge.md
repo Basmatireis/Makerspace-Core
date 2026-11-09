@@ -6,9 +6,13 @@ The desktop app bundles the Go Device Bridge as a private sidecar. The shell sta
 
 ## Register a desktop
 
-1. In **Settings → Access & identity → Devices & sessions** (tab **Managed devices**), create or edit a device with the required application modes and capabilities. Select native-token delivery.
-2. Start Makerspace Core Desktop and enter the exact Core origin plus the one-time managed-device token.
-3. The shell verifies the token with Core before loading the web application. An entrance device with `visitor_terminal` opens `/kiosk`; other permitted devices open `/login`.
+1. Start Makerspace Core Desktop, enter the exact Core origin and choose **Show pairing code**. The app shows a six-character code with a countdown and polls Core every 3 seconds; an expired code is replaced automatically.
+2. In **Settings → Access & identity → Devices & sessions** (tab **Managed devices**), choose **Pair device**, enter the code and the device's name, type, application modes, kiosk settings and capabilities.
+3. On its next poll the native shell receives the one-time managed-device token, verifies it with Core and stores it exactly like a manually entered token. An entrance device with `visitor_terminal` opens `/kiosk`; other permitted devices open `/login`.
+
+The poll secret and the token stay in the native process: the registration page only sees the code and the result. Core delivers the token only once, so if storing it fails (credential store, hardware bridge) the shell keeps it in memory and retries on the next poll; cancelling the code discards it, and the device must then be rotated or paired again. See [Managed devices](managed-devices.md#pairing-a-kiosk) for the pairing protocol.
+
+Manual registration remains available: create a device with native-token delivery, choose **Enter a token instead** in the desktop app and paste the one-time token.
 
 Production registrations require HTTPS, including bundles created by `make build-desktop` or `pnpm build`. For local development against an HTTP Core origin such as `http://localhost:5173`, launch a debug build instead:
 

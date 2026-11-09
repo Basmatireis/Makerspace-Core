@@ -306,11 +306,74 @@ func TestOriginMiddlewareRequiresExactOriginForUnsafeRequests(t *testing.T) {
 		}
 	})
 
+	t.Run("native device pairing start", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/public/managed-devices/pairing", nil)
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf("originless pairing start status = %d", recorder.Code)
+		}
+
+		request = httptest.NewRequest(http.MethodPost, "/api/v1/public/managed-devices/pairing", nil)
+		request.Header.Set("Origin", "https://example.test")
+		recorder = httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("foreign-origin pairing start status = %d", recorder.Code)
+		}
+
+		request = httptest.NewRequest(http.MethodPost, "/api/v1/managed-devices/pairing", nil)
+		recorder = httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("originless staff claim status = %d", recorder.Code)
+		}
+	})
+
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
 	recorder = httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("safe request status = %d", recorder.Code)
+	}
+}
+
+func TestDevicePairingResponseSetsEveryCookieAndNoStore(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.SessionCookieSecure = true
+	cfg.ManagedDeviceCookieName = "__Host-makerspace_device"
+	cfg.DevicePairingCookieName = "__Host-makerspace_device_pairing"
+	server := &Server{config: cfg}
+	expiresAt := time.Now().UTC().Add(time.Hour)
+	recorder := httptest.NewRecorder()
+	response := devicePairingResponse{
+		status: http.StatusOK,
+		body:   openapi.ManagedDevicePairingPoll{Status: openapi.ManagedDevicePairingPollStatusPaired},
+		cookies: []*http.Cookie{
+			server.managedDeviceCookie("device-token", &expiresAt),
+			server.devicePairingCookie("", -1),
+		},
+	}
+	if err := response.VisitPollManagedDevicePairingResponse(recorder); err != nil {
+		t.Fatal(err)
+	}
+	if recorder.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("pairing answers must be no-store, got %q", recorder.Header().Get("Cache-Control"))
+	}
+	cookies := recorder.Result().Cookies()
+	if len(cookies) != 2 {
+		t.Fatalf("cookie count = %d, want 2", len(cookies))
+	}
+	device, poll := cookies[0], cookies[1]
+	if device.Name != cfg.ManagedDeviceCookieName || !device.HttpOnly || !device.Secure ||
+		device.SameSite != http.SameSiteStrictMode || device.MaxAge <= 0 || device.MaxAge > 3600 {
+		t.Fatalf("device cookie = %#v", device)
+	}
+	if poll.Name != cfg.DevicePairingCookieName || poll.MaxAge >= 0 || !poll.HttpOnly {
+		t.Fatalf("poll cookie must be cleared: %#v", poll)
+	}
+	if strings.Contains(recorder.Body.String(), "device-token") {
+		t.Fatal("a browser pairing answer must not put the token into the body")
 	}
 }
 
