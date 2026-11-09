@@ -137,7 +137,7 @@ describe('Run detail page', () => {
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '45');
     expect(screen.getByText(/45 % · ends ~/)).toBeInTheDocument();
     expect(screen.getByText('Outcome').nextSibling).toHaveTextContent('Not recorded yet');
-    expect(screen.getByText('Material').nextSibling).toHaveTextContent('Pending final report');
+    expect(screen.getByText('Material', { selector: 'dt' }).nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText(/Mounted spools describe the printer setup/)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Claim' }).length).toBeGreaterThan(0);
@@ -249,7 +249,7 @@ describe('Run detail page', () => {
     expect(screen.getByText(/Inventory is updated only after the run ends/)).toBeInTheDocument();
   });
 
-  it('maps an unresolved reported filament to a selected spool as an audited usage correction', async () => {
+  it('maps an unresolved reported filament from the material table to the recipient’s own material', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit, PermissionId.inventoryread];
     const whiteSpool = '0192f6f8-743e-7c77-a349-cd07c3e8d610';
     const yellowMaterial = '0192f6f8-743e-7c77-a349-cd07c3e8d611';
@@ -330,11 +330,17 @@ describe('Run detail page', () => {
 
     const user = userEvent.setup();
     renderRun();
-    await user.click(await screen.findByRole('button', { name: 'Map filament 1 to a spool' }));
+    const table = await screen.findByRole('table', { name: 'Material usage' });
+    expect(within(table).getByText('Not mapped')).toBeInTheDocument();
+    await user.click(within(table).getByRole('button', { name: 'Map Filament 1' }));
     const dialog = await screen.findByRole('dialog', { name: 'Map reported material' });
-    expect(within(dialog).getByLabelText('Consumed quantity (g)')).toHaveValue('0.55');
-    await user.selectOptions(within(dialog).getByLabelText('Spool used'), yellowSpool);
-    await user.click(within(dialog).getByRole('button', { name: 'Map and consume' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Select material' }));
+    const picker = await screen.findByRole('dialog', { name: 'Select material' });
+    await user.type(within(picker).getByLabelText('Label'), 'PLA Sunlu');
+    await user.click(within(picker).getByRole('button', { name: 'Use' }));
+    const mapped = await screen.findByRole('dialog', { name: 'Map reported material' });
+    expect(within(mapped).getByLabelText('Quantity')).toHaveValue('0.55');
+    await user.click(within(mapped).getByRole('button', { name: 'Map material' }));
 
     await waitFor(() =>
       expect(body).toEqual({
@@ -348,9 +354,11 @@ describe('Run detail page', () => {
             quantityBasis: 'actual',
           },
           {
-            ownership: 'makerspace',
-            materialId: yellowMaterial,
-            spoolId: yellowSpool,
+            ownership: 'external',
+            materialId: null,
+            spoolId: null,
+            materialTypeId: null,
+            label: 'PLA Sunlu',
             quantity: '0.55',
             quantityBasis: 'estimated',
           },

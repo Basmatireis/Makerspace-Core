@@ -53,6 +53,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 ### Fixed
 
 - **Upgrading a database with orders works again.** Migration 00123 of rc.2/rc.3 stopped on the first booked order item that came from a job ("order item content is immutable"). It now backfills the billing revision with the item guard switched off for that statement.
+- **Mapping reported material uses the material picker.** The map dialog for a report line the printer could not assign chooses the material like the usage editor: a stock article with an optional spool, or the recipient's own material. Run and job pages list unmapped report lines in their Material usage table with a Map action, so a job's lines can be mapped without opening the run.
 - **Visitor enrollment asks for the Lab Rules only when they are recorded.** While the Visitor role did not require the Lab Rules, the tablet still asked a new visitor to accept them, but no confirmation was stored. The Lab Rules step now appears only when the Visitor role requires them, and then the acceptance is listed under Lab Rules confirmations with the method "enrollment". `GET /visitor-enrollment/state` has the new field `labRulesRequired`.
 
 ### Upgrade notes

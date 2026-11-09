@@ -1,32 +1,29 @@
 import { useState } from 'react';
-import {
-  Button,
-  ComposedModal,
-  InlineNotification,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
-  Select,
-  SelectItem,
-  Stack,
-} from '@carbon/react';
+import { Button, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, Stack } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Controller, useForm } from 'react-hook-form';
+import { FormProvider, useForm } from 'react-hook-form';
 import { replaceMachineRunUsages } from '../../../api/generated/machine-runs/machine-runs';
-import type { MachineRun, MachineRunReportedUsageItem } from '../../../api/generated/models';
-import { DecimalField } from '../../../app/DecimalField';
-import { decimalText, decimalValidator, parseDecimalText } from '../../../app/decimalInput';
-import { machineLogbookKeys, spoolsQuery } from '../queries';
+import type { MachineRun, MachineRunReportedUsageItem, Process } from '../../../api/generated/models';
+import { decimalText, parseDecimalText } from '../../../app/decimalInput';
+import { machineLogbookKeys, machineQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
+import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
-import { saveError, toUsageInputs, usageRowsFromUsages } from './jobFormHelpers';
+import { reportedLineName } from '../jobs/runLines';
+import {
+  blankUsage,
+  hasMaterial,
+  saveError,
+  toUsageInputs,
+  usageRowsFromUsages,
+  type UsagesValues,
+} from './jobFormHelpers';
+import { UsageRowsEditor } from './UsageFormModal';
 
-type Values = { spoolId: string; quantity: string };
-
-const itemName = (item: MachineRunReportedUsageItem) =>
-  item.slicerFilamentId ? `filament ${item.slicerFilamentId}` : `reported line ${item.lineNumber + 1}`;
-
-/** Maps one unresolved machine-report line to a physical Core spool. */
+/**
+ * Books one unresolved machine-report line: a stock article (optionally its spool) or the recipient's own material,
+ * chosen in the same catalog picker as the usage editor. The connector's estimate is prefilled.
+ */
 export function ResolveReportedUsageModal({
   open,
   onClose,
@@ -38,61 +35,67 @@ export function ResolveReportedUsageModal({
   run: MachineRun;
   item: MachineRunReportedUsageItem;
 }) {
+  const can = useCan();
+  const machine = useQuery({ ...machineQuery(run.machineId), enabled: open && can('machines.read') });
+  if (!open || (can('machines.read') && machine.isPending)) return null;
+  return <ResolveForm onClose={onClose} run={run} item={item} process={machine.data?.process} />;
+}
+
+function ResolveForm({
+  onClose,
+  run,
+  item,
+  process,
+}: {
+  onClose: () => void;
+  run: MachineRun;
+  item: MachineRunReportedUsageItem;
+  process?: Process;
+}) {
   const client = useQueryClient();
   const notify = useNotify();
   const [error, setError] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const reportedQuantity = item.estimatedQuantityGrams ?? item.plannedQuantityGrams ?? '';
-  const form = useForm<Values>({ defaultValues: { spoolId: '', quantity: decimalText(reportedQuantity) } });
-  const spools = useQuery({ ...spoolsQuery({ consumable: true, page: 1, pageSize: 100 }), enabled: open });
-  const alreadyUsed = new Set(run.usages.map((usage) => usage.spoolId).filter(Boolean));
-  const choices = (spools.data?.items ?? []).filter(
-    (spool) => spool.materialId && spool.unit === 'g' && !alreadyUsed.has(spool.id),
-  );
+  const form = useForm<UsagesValues>({
+    defaultValues: {
+      usages: [{ ...blankUsage(), quantity: decimalText(reportedQuantity), quantityBasis: 'estimated' }],
+    },
+  });
 
   const mutation = useMutation({
-    mutationFn: ({ spoolId, quantity }: Values) => {
-      const spool = choices.find((candidate) => candidate.id === spoolId);
-      if (!spool?.materialId || parseDecimalText(quantity) === null)
-        throw new Error('Choose a spool and enter a quantity.');
-      const usages = usageRowsFromUsages(run.usages);
-      usages.push({
-        ownership: 'makerspace',
-        materialId: spool.materialId,
-        spoolId: spool.id,
-        externalName: '',
-        materialTypeId: '',
-        quantity: parseDecimalText(quantity) ?? '',
-        quantityBasis: 'estimated',
-        materialLabel: spool.materialName ?? undefined,
-        spoolLabel: spool.displayId,
-      });
-      return replaceMachineRunUsages(run.id, { usages: toUsageInputs(usages), expectedVersion: run.version });
-    },
-    onSuccess: async (_result, values) => {
-      const spool = choices.find((candidate) => candidate.id === values.spoolId);
+    mutationFn: ({ usages: [row] }: UsagesValues) =>
+      replaceMachineRunUsages(run.id, {
+        usages: toUsageInputs([...usageRowsFromUsages(run.usages), row]),
+        expectedVersion: run.version,
+      }),
+    onSuccess: async (_result, { usages: [row] }) => {
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
+      const quantity = formatQuantity(parseDecimalText(row.quantity) ?? '');
       notify({
         kind: 'success',
         title: 'Reported material mapped',
-        subtitle: `${formatQuantity(parseDecimalText(values.quantity) ?? '')} g was assigned to ${spool?.displayId ?? 'the selected spool'}; stock and calculated pricing were updated.`,
+        subtitle:
+          row.ownership === 'external'
+            ? `${quantity} g recorded as the recipient’s own material; not charged.`
+            : `${quantity} g of ${row.materialLabel ?? 'the selected material'} booked; stock and calculated pricing were updated.`,
       });
       onClose();
     },
-    onError: (cause) =>
-      setError(
-        saveError(cause, cause instanceof Error ? cause.message : 'The reported material could not be mapped.').message,
-      ),
+    onError: (cause) => setError(saveError(cause, 'The reported material could not be mapped.').message),
   });
 
-  const submit = form.handleSubmit((values) => {
-    setError(null);
-    mutation.mutate(values);
-  });
-  if (!open) return null;
+  const submit = form.handleSubmit(
+    (values) => {
+      setError(null);
+      mutation.mutate(values);
+    },
+    () => setError('Choose the material and enter a quantity above zero.'),
+  );
 
   return (
     <ComposedModal
-      open
+      open={!picking}
       size="md"
       preventCloseOnClickOutside
       onClose={() => {
@@ -103,84 +106,40 @@ export function ResolveReportedUsageModal({
     >
       <ModalHeader title="Map reported material" label={run.displayId} />
       <ModalBody hasForm>
-        <Stack gap={6}>
-          <p>
-            The printer reported{' '}
-            {reportedQuantity === '' ? 'an unknown quantity of' : `${formatQuantity(reportedQuantity)} g of`}{' '}
-            {itemName(item)}, but could not identify its physical spool. Choose the spool that was actually used.
-          </p>
-          <InlineNotification
-            kind="info"
-            lowContrast
-            hideCloseButton
-            title="Recorded as a staff correction"
-            subtitle="The original machine report is retained. Saving consumes stock from the selected spool, recalculates the job price, and prevents later connector reports from overwriting the correction."
-          />
-          {error && (
-            <InlineNotification kind="error" lowContrast hideCloseButton title="Material not mapped" subtitle={error} />
-          )}
-          {spools.isError && (
+        <FormProvider {...form}>
+          <Stack gap={6}>
+            <p>
+              The printer reported{' '}
+              {reportedQuantity === '' ? 'an unknown quantity' : `${formatQuantity(reportedQuantity)} g`} for{' '}
+              {reportedLineName(item)}, but could not identify the material. Choose what was actually used: an article
+              from stock, optionally with its spool, or the recipient’s own material.
+            </p>
             <InlineNotification
-              kind="error"
+              kind="info"
               lowContrast
               hideCloseButton
-              title="Spools unavailable"
-              subtitle="The spool list could not be loaded."
+              title="Recorded as a staff correction"
+              subtitle="The original machine report is retained. Stock material is consumed and priced; the recipient’s own material is never charged. Later connector reports do not overwrite the correction."
             />
-          )}
-          <Controller
-            control={form.control}
-            name="spoolId"
-            rules={{ required: true }}
-            render={({ field, fieldState }) => (
-              <Select
-                id="reported-material-spool"
-                labelText="Spool used"
-                value={field.value}
-                onChange={field.onChange}
-                invalid={fieldState.invalid}
-                invalidText="Choose the spool that was used."
-              >
-                <SelectItem value="" text={spools.isPending ? 'Loading spools…' : 'Select a spool'} />
-                {choices.map((spool) => (
-                  <SelectItem
-                    key={spool.id}
-                    value={spool.id}
-                    text={`${spool.displayId} · ${spool.materialName ?? 'Unknown material'} · ${formatQuantity(spool.remainingQuantity)} g left`}
-                  />
-                ))}
-              </Select>
-            )}
-          />
-          <Controller
-            control={form.control}
-            name="quantity"
-            rules={{ validate: decimalValidator({ positive: true, requiredMessage: 'Enter a quantity above zero.' }) }}
-            render={({ field, fieldState }) => (
-              <DecimalField
-                id="reported-material-quantity"
-                labelText="Consumed quantity (g)"
-                value={field.value}
-                invalid={fieldState.invalid}
-                invalidText={fieldState.error?.message ?? 'Enter a quantity above zero.'}
-                helperText="The connector's estimate is prefilled; change it only if you have a better measurement."
-                onChange={field.onChange}
+            {error && (
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title="Material not mapped"
+                subtitle={error}
               />
             )}
-          />
-          {!spools.isPending && choices.length === 0 && (
-            <p className="mj-secondary">
-              No unused consumable filament spool is available. Add or refill the spool in Inventory first.
-            </p>
-          )}
-        </Stack>
+            <UsageRowsEditor idPrefix="reported-material" process={process} onPickingChange={setPicking} single />
+          </Stack>
+        </FormProvider>
       </ModalBody>
       <ModalFooter>
         <Button kind="secondary" disabled={mutation.isPending} onClick={onClose}>
           Cancel
         </Button>
-        <Button kind="primary" disabled={mutation.isPending || choices.length === 0} onClick={submit}>
-          {mutation.isPending ? 'Saving…' : 'Map and consume'}
+        <Button kind="primary" disabled={mutation.isPending || !hasMaterial(form.watch('usages.0'))} onClick={submit}>
+          {mutation.isPending ? 'Saving…' : 'Map material'}
         </Button>
       </ModalFooter>
     </ComposedModal>

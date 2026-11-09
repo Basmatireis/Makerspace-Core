@@ -1,20 +1,11 @@
 import { useState } from 'react';
-import { RefLink } from '../../app/RefLink';
 import {
   ActionableNotification,
   Button,
-  DataTable,
   InlineNotification,
   Link as CarbonLink,
   OverflowMenu,
   OverflowMenuItem,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableHeader,
-  TableRow,
   Tag,
   Tile,
 } from '@carbon/react';
@@ -31,12 +22,14 @@ import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { JobRunsTable, type RunAction } from './components/JobRunsTable';
+import { MaterialUsageTable } from './components/MaterialUsageTable';
 import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { jobOrderQuery } from './dialogs/jobFormHelpers';
 import { PriceAdjustmentModal } from './dialogs/PriceAdjustmentModal';
 import { RepriceJobModal } from './dialogs/RepriceJobModal';
 import { RunFormModal } from './dialogs/RunFormModal';
+import { ResolveReportedUsageModal } from './dialogs/ResolveReportedUsageModal';
 import { UsageFormModal } from './dialogs/UsageFormModal';
 import { AddToJobModal } from './jobs/AddToJobModal';
 import { AddToOrderModal } from './jobs/AddToOrderModal';
@@ -45,22 +38,15 @@ import { jobPhase, JobPhaseTag, OutcomeStatusTag } from './jobs/jobStatus';
 import { useUpdateJobFacts } from './jobs/jobsQueries';
 import { MediaCard } from './jobs/MediaCard';
 import { jobQuery, jobRecordingsQuery, machineLogbookKeys } from './queries';
-import { jobConsumption, unitText } from './processConfig';
-import { formatDateTime, formatDuration, formatMoney, formatQuantity, formatTime } from './shared/format';
+import { jobConsumption } from './processConfig';
+import { formatDateTime, formatDuration, formatMoney, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
-import {
-  activeRuns,
-  adjustmentSummary,
-  FromMachineTag,
-  isRunLive,
-  machineJobName,
-  outcomeLabel,
-} from './shared/status';
+import { activeRuns, adjustmentSummary, isRunLive, machineJobName, outcomeLabel } from './shared/status';
 import { useNotify } from './shared/toasts';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
-import { usageHeaders, errorText, statusNow, runsNeedingOutcome } from './jobDetail/jobDetailShared';
+import { errorText, statusNow, runsNeedingOutcome } from './jobDetail/jobDetailShared';
 import { RunOutcomeRow } from './jobDetail/RunOutcomeRow';
 import { PriceBillingTile } from './jobDetail/PriceBillingTile';
 import './styles/jobs.scss';
@@ -73,6 +59,8 @@ function JobDetail({ job }: { job: MachineJob }) {
   const client = useQueryClient();
   const [dialog, setDialog] = useState<Dialog>(null);
   const [runDialog, setRunDialog] = useState<{ action: RunAction; runId: string } | null>(null);
+  // The report line being mapped; the run is read from the job on every render so the dialog sees its latest version.
+  const [mapping, setMapping] = useState<{ runId: string; lineNumber: number } | null>(null);
   const now = useNow();
   const canEdit = can('machine_jobs.edit');
   const canDelete = can('machine_jobs.delete');
@@ -165,21 +153,6 @@ function JobDetail({ job }: { job: MachineJob }) {
     ),
   ].filter(Boolean);
 
-  const usageRows = runs.flatMap((run) =>
-    run.usages.map((usage) => ({
-      id: `${run.id}-${usage.id}`,
-      run,
-      usage,
-      material: usage.ownership === 'external' ? usage.label || usage.materialName : usage.materialName,
-      source:
-        usage.ownership === 'external'
-          ? 'Recipient’s own (not charged)'
-          : usage.spoolDisplayId
-            ? `Spool ${usage.spoolDisplayId}${usage.spoolId ? '' : ' (deleted)'}`
-            : 'Makerspace stock',
-      quantity: `${formatQuantity(usage.quantity)} ${unitText(usage.unit)}`,
-    })),
-  );
   const name = machineJobName(job);
   const adjustmentDifference = price != null && calculated != null ? price - calculated : null;
   const running = status === 'running';
@@ -332,68 +305,16 @@ function JobDetail({ job }: { job: MachineJob }) {
                 onAdd={() => open('add-run')}
               />
             </div>
-            <DataTable rows={usageRows} headers={usageHeaders} size="md">
-              {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
-                <TableContainer title="Material usage" description="Everything consumed by the runs of this job.">
-                  <Table {...getTableProps()} aria-label="Material usage">
-                    <TableHead>
-                      <TableRow>
-                        {headers.map((header) => {
-                          const { key, ...props } = getHeaderProps({ header });
-                          return (
-                            <TableHeader key={key} {...props}>
-                              {header.header}
-                            </TableHeader>
-                          );
-                        })}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {rows.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={4}>No material recorded.</TableCell>
-                        </TableRow>
-                      )}
-                      {rows.map((row) => {
-                        const entry = usageRows.find((item) => item.id === row.id);
-                        if (!entry) return null;
-                        const { usage, run } = entry;
-                        const { key, ...props } = getRowProps({ row });
-                        return (
-                          <TableRow key={key} {...props}>
-                            <TableCell>
-                              <div className="mj-cell-stack">
-                                <span>{entry.material}</span>
-                                <span className="mj-secondary">{usage.materialTypeName}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="mj-cell-stack">
-                                <RefLink kind="run" reference={run.displayId} id={run.id} />
-                                {run.usagesFromMachine && (
-                                  <span>
-                                    <FromMachineTag />
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>{row.cells[2].value}</TableCell>
-                            <TableCell>
-                              {row.cells[3].value}{' '}
-                              {usage.quantityBasis === 'estimated' && (
-                                <Tag type="outline" size="sm">
-                                  Estimated
-                                </Tag>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </DataTable>
+            <MaterialUsageTable
+              runs={runs}
+              showRun
+              description="Everything consumed by the runs of this job, and what the machine reported but could not assign."
+              onMap={
+                canEdit && can('inventory.read')
+                  ? (run, item) => setMapping({ runId: run.id, lineNumber: item.lineNumber })
+                  : undefined
+              }
+            />
             <StackCard
               title="Notes"
               action={
@@ -437,6 +358,14 @@ function JobDetail({ job }: { job: MachineJob }) {
       <AddToJobModal open={dialog === 'add-run'} onClose={close} job={job} />
       {targetRun && runDialog?.action === 'edit' && <RunFormModal open onClose={close} mode="edit" run={targetRun} />}
       {targetRun && runDialog?.action === 'usage' && <UsageFormModal open onClose={close} run={targetRun} />}
+      {mapping &&
+        (() => {
+          const run = job.runs.find((candidate) => candidate.id === mapping.runId);
+          const item = run?.reportedUsageItems?.find((candidate) => candidate.lineNumber === mapping.lineNumber);
+          return run && item ? (
+            <ResolveReportedUsageModal open onClose={() => setMapping(null)} run={run} item={item} />
+          ) : null;
+        })()}
       <DestructiveActionDialog
         open={runDialog?.action === 'cancel' && !!targetRun}
         title="Cancel this run?"

@@ -32,10 +32,9 @@ import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
 import { UsageFormModal } from './dialogs/UsageFormModal';
 import { ClaimRunModal } from './jobs/ClaimRunModal';
 import { MediaCard } from './jobs/MediaCard';
-import { RecipientMaterialModal } from './jobs/RecipientMaterialModal';
+import { MaterialUsageTable } from './components/MaterialUsageTable';
 import { SwitchToCustomerMaterialModal } from './jobs/SwitchToCustomerMaterialModal';
 import { ReportedSegments } from './jobs/ReportedSegments';
-import { openReportedLines, reportedLineName, reportedLineQuantity } from './jobs/runLines';
 import { useUpdateJobFacts } from './jobs/jobsQueries';
 import { RunFileUpload, UploadMismatchNotice } from './recording/RunFileUpload';
 import { ResolveReportedUsageModal } from './dialogs/ResolveReportedUsageModal';
@@ -97,7 +96,6 @@ export function RunDetailPage() {
   const [uploaded, setUploaded] = useState<{ result: MachineRunArtifactUploadResult; fileName: string } | null>(null);
   const [resolutionLine, setResolutionLine] = useState<number | null>(null);
   const [resolutionSegment, setResolutionSegment] = useState<MachineRunReportedUsageItem | null>(null);
-  const [recipientLine, setRecipientLine] = useState<number | null>(null);
   const [switchUsageId, setSwitchUsageId] = useState<string | null>(null);
   const close = () => setDialog(null);
 
@@ -172,8 +170,6 @@ export function RunDetailPage() {
         ? reportedUsageText(run)
         : '';
   const unresolvedMaterials = run ? unresolvedReportedUsageItems(run) : [];
-  // Lines neither a spool nor the recipient's own material accounts for; staff resolve them one by one.
-  const openLines = run ? openReportedLines(run) : [];
   const plannedFilaments =
     artifact.data?.filaments.filter(
       (filament) => filament.plannedWeightGrams != null && Number(filament.plannedWeightGrams) >= 0,
@@ -412,50 +408,22 @@ export function RunDetailPage() {
                                       : undefined
                                   }
                                 />
-                                {!live && canEdit && can(PermissionId.inventoryread) && openLines.length > 0 ? (
-                                  <ul className="jobs-lines">
-                                    {openLines.map((item) => {
-                                      const grams = reportedLineQuantity(item);
-                                      return (
-                                        <li
-                                          key={`${item.reportRevision}-${item.lineNumber}`}
-                                          className="jobs-lines__line"
-                                        >
-                                          <span>
-                                            {reportedLineName(item)}
-                                            {grams != null ? ` · ${formatQuantity(grams)} g` : ''} · not booked
-                                          </span>
-                                          <span className="mj-inline">
-                                            <Button
-                                              kind="ghost"
-                                              size="sm"
-                                              onClick={() => setResolutionLine(item.lineNumber)}
-                                            >
-                                              Map{' '}
-                                              {item.slicerFilamentId
-                                                ? `filament ${item.slicerFilamentId}`
-                                                : `line ${item.lineNumber + 1}`}{' '}
-                                              to a spool
-                                            </Button>
-                                            <Button
-                                              kind="ghost"
-                                              size="sm"
-                                              onClick={() => setRecipientLine(item.lineNumber)}
-                                            >
-                                              Recipient’s own
-                                            </Button>
-                                          </span>
-                                        </li>
-                                      );
-                                    })}
-                                  </ul>
-                                ) : undefined}
                               </>
                             ),
                           },
                         ]
                       : []),
                   ]}
+                />
+                <MaterialUsageTable
+                  runs={[run]}
+                  showRun={false}
+                  description="Everything this run consumed, and what the machine reported but could not assign."
+                  onMap={
+                    !live && canEditUsage && can(PermissionId.inventoryread)
+                      ? (_run, item) => setResolutionLine(item.lineNumber)
+                      : undefined
+                  }
                 />
                 {live && run.source === 'recorded' && run.usages.length === 0 && (
                   <p className="mj-secondary">
@@ -660,13 +628,6 @@ export function RunDetailPage() {
           run={run}
           usage={run.usages.find((usage) => usage.id === switchUsageId) ?? null}
           onClose={() => setSwitchUsageId(null)}
-        />
-      )}
-      {run && (
-        <RecipientMaterialModal
-          run={run}
-          item={openLines.find((candidate) => candidate.lineNumber === recipientLine) ?? null}
-          onClose={() => setRecipientLine(null)}
         />
       )}
       <ClaimRunModal

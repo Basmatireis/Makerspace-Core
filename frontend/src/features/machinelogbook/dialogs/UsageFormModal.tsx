@@ -152,7 +152,7 @@ function UsageRowFields({
 }: {
   idPrefix: string;
   index: number;
-  onRemove: () => void;
+  onRemove?: () => void;
   onPick: () => void;
   canReadInventory: boolean;
   process?: Process;
@@ -181,9 +181,11 @@ function UsageRowFields({
     <div className="jobs-usage__row">
       <div className="jobs-usage__head">
         <span className="jobs-usage__number">Material {index + 1}</span>
-        <IconButton kind="ghost" size="sm" label="Remove material" align="left" onClick={onRemove}>
-          <TrashCan />
-        </IconButton>
+        {onRemove && (
+          <IconButton kind="ghost" size="sm" label="Remove material" align="left" onClick={onRemove}>
+            <TrashCan />
+          </IconButton>
+        )}
       </div>
       <div
         className={
@@ -278,16 +280,18 @@ function UsageRowFields({
  * Material rows of a run. Each row picks its material in the catalog picker (stock article, optionally a spool, or
  * the recipient's own material) and takes the quantity here; square centimetres get a width × height × count helper.
  * `process` limits the catalog to the machine's process. `onPickingChange` tells the dialog to hide while the picker
- * is open.
+ * is open. `single` edits exactly one row: no adding or removing.
  */
 export function UsageRowsEditor({
   idPrefix,
   process,
   onPickingChange,
+  single = false,
 }: {
   idPrefix: string;
   process?: Process;
   onPickingChange?: (picking: boolean) => void;
+  single?: boolean;
 }) {
   const can = useCan();
   const canReadInventory = can('inventory.read');
@@ -347,15 +351,17 @@ export function UsageRowsEditor({
             canReadInventory={canReadInventory}
             process={process}
             onPick={() => setPicking(index)}
-            onRemove={() => remove(index)}
+            onRemove={single ? undefined : () => remove(index)}
           />
         ))}
       </div>
-      <div>
-        <Button kind="ghost" size="sm" renderIcon={Add} onClick={() => append(blankUsage())}>
-          Add material
-        </Button>
-      </div>
+      {!single && (
+        <div>
+          <Button kind="ghost" size="sm" renderIcon={Add} onClick={() => append(blankUsage())}>
+            Add material
+          </Button>
+        </div>
+      )}
       <MaterialPickerModal
         open={picking !== null && canReadInventory}
         process={process}

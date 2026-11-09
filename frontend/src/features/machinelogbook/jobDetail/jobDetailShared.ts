@@ -2,13 +2,6 @@ import type { JobOrderAssociation, MachineJob, WorkItemBilling } from '../../../
 import { saveError } from '../dialogs/jobFormHelpers';
 import { activeRuns, isRunLive, type JobRowStatus } from '../shared/status';
 
-export const usageHeaders = [
-  { key: 'material', header: 'Material' },
-  { key: 'run', header: 'Run' },
-  { key: 'source', header: 'Source' },
-  { key: 'quantity', header: 'Quantity' },
-];
-
 /** What the job list shows as billing state; the job itself carries no billing field, only price status and the order association. */
 export function jobBilling(job: MachineJob, association: JobOrderAssociation | undefined): WorkItemBilling | undefined {
   if (association?.orderId)
