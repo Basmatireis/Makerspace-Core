@@ -177,7 +177,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	_ = adminCSRF
 
 	base := server.URL + "/api/v1/material-types"
-	// Reading needs inventory.read; writing needs inventory.manage.
+	// Reading needs inventory.read; writing needs inventory.articles.manage.
 	response := doJSON(t, nobodyClient, http.MethodGet, base, "", "", nil)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
@@ -389,7 +389,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	)
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'material_type.created'`, 2)
 
-	// Variants: reading the type lists them; writing needs inventory.manage.
+	// Variants: reading the type lists them; writing needs inventory.articles.manage.
 	variants := path + "/variants"
 	response = doJSON(t, readerClient, http.MethodPost, variants, origin, readerCSRF, map[string]any{"name": "Matte"})
 	assertStatus(t, response, http.StatusForbidden)

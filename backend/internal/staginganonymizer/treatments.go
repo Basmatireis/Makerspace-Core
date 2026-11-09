@@ -374,7 +374,6 @@ var Tables = []Table{
 		"status":                   System,
 		"currency":                 System,
 		"customer_kind":            System,
-		"fulfillment_mode":         System,
 		"replaces_order_reference": System,
 	}},
 	{Name: "organization_invoicing_requirements"},

@@ -86,7 +86,7 @@ type StockSale struct {
 
 // SellFromStock books one order_sale ledger row per sale at the current
 // weighted-average cost and only from unassigned (loose) stock. Orders have
-// already authorized the operation, so inventory.manage is not required. The
+// already authorized the operation, so inventory.consume is not required. The
 // balances are locked in ascending id order; if any article lacks loose stock
 // the whole call fails with 409 insufficient_stock and the caller rolls back.
 func (s *Service) SellFromStock(
