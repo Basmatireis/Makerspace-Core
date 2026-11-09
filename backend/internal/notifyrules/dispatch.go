@@ -71,6 +71,15 @@ type Dispatcher struct {
 	now      func() time.Time
 	// holiday tells whether a date is a public holiday; the application wires the Open Days calendar in.
 	holiday func(day time.Time) (bool, error)
+	// publicBaseURL is the installation's address without a trailing slash; placeholders that stand for an address
+	// (the print page) start with it.
+	publicBaseURL string
+}
+
+// WithPublicBaseURL sets the installation's public address (PUBLIC_BASE_URL) that address placeholders start with.
+func (d *Dispatcher) WithPublicBaseURL(base string) *Dispatcher {
+	d.publicBaseURL = strings.TrimRight(strings.TrimSpace(base), "/")
+	return d
 }
 
 // WithHolidays sets the public holiday calendar that the n.holiday condition looks at next to the academic breaks.

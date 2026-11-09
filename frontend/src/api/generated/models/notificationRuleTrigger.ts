@@ -19,6 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { NotificationRuleSchedule } from './notificationRuleSchedule';
+import type { UUIDv7 } from './uUIDv7';
 
 export interface NotificationRuleTrigger {
   /**
@@ -32,4 +33,9 @@ export interface NotificationRuleTrigger {
      */
   event?: string;
   schedule?: NotificationRuleSchedule;
+  /**
+     * Only for event triggers whose catalog entry has `machineScope`: the rule reacts only to events of these machines (the options of the trigger's `machine` field). Empty or absent means every machine.
+     * @maxItems 50
+     */
+  machines?: UUIDv7[];
 }

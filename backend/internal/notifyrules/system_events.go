@@ -86,7 +86,11 @@ func (e *SystemEvents) RunFinished(ctx context.Context, tx pgx.Tx, runID uuid.UU
 	}
 	fields := map[string]any{"machine": run.MachineID.String(), "outcome": outcome}
 	placeholders := map[string]string{
-		"run": run.DisplayID, "machine": run.MachineName, "ending": ending, "job": "", "jobNote": "",
+		"run": run.DisplayID, "machine": run.MachineName, "ending": ending, "job": "", "jobNote": "", "printPage": "",
+	}
+	// Only recorded runs have a print page.
+	if run.Source == "recorded" {
+		placeholders["printPage"] = e.dispatcher.printPageAddress(runID)
 	}
 	if run.JobTitle != nil && strings.TrimSpace(*run.JobTitle) != "" {
 		placeholders["job"] = *run.JobTitle
@@ -112,6 +116,53 @@ func (e *SystemEvents) RunFinished(ctx context.Context, tx pgx.Tx, runID uuid.UU
 		ExcludedPeople: excluded,
 		Subjects:       map[string]string{"machine": run.MachineID.String()},
 		Link:           "/workshop/jobs/runs/" + runID.String(),
+	})
+}
+
+// TimelapseReady raises timelapse_ready when the timelapse video of a recorded run was stored. A run without a live
+// job raises nothing. The notification opens the run's print page.
+func (e *SystemEvents) TimelapseReady(ctx context.Context, tx pgx.Tx, runID uuid.UUID) error {
+	q := notifyrulesdb.New(tx)
+	run, err := q.GetTimelapseEventFacts(ctx, runID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load run: %w", err)
+	}
+	job, title := run.JobDisplayID, ""
+	if run.JobTitle != nil && strings.TrimSpace(*run.JobTitle) != "" {
+		job = strings.TrimSpace(*run.JobTitle)
+		title = job
+	}
+	if title == "" {
+		if title, err = q.GetRunPrintName(ctx, runID); err != nil {
+			return fmt.Errorf("load print name: %w", err)
+		}
+	}
+	fields := map[string]any{"machine": run.MachineID.String()}
+	if _, outcome, ok := runEnding(run.Outcome, run.State); ok {
+		fields["outcome"] = outcome
+	}
+	switch {
+	case run.CustomerPersonID != nil:
+		fields["recipientType"] = "person"
+	case run.CustomerOrganizationID != nil:
+		fields["recipientType"] = "organization"
+	}
+	return e.emit(ctx, tx, Event{
+		Trigger: "timelapse_ready",
+		Fields:  fields,
+		Placeholders: map[string]string{
+			"run": run.DisplayID, "job": job, "machine": run.MachineName, "title": title,
+			"printPage": e.dispatcher.printPageAddress(runID),
+		},
+		Recipients: map[string][]uuid.UUID{
+			"operator": uuidPtrList(run.OperatorPersonID), "recipient": uuidPtrList(run.CustomerPersonID),
+		},
+		Organizations: map[string][]uuid.UUID{"recipient": uuidPtrList(run.CustomerOrganizationID)},
+		Subjects:      map[string]string{"machine": run.MachineID.String()},
+		Link:          PrintPageLink(runID),
 	})
 }
 

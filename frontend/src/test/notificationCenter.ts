@@ -22,6 +22,7 @@ export const catalogFixture: NotificationCatalog = {
       label: 'A printer reports an error',
       help: 'Fires when a printer reports an error.',
       subject: 'lab',
+      machineScope: false,
       fields: [
         field('severity', 'Severity', 'ordered', [
           { value: 'low', label: 'Low' },

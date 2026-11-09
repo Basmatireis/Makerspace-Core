@@ -260,6 +260,10 @@ func (s *Service) OpenRunPreview(
 	if !p.Has(authorization.MachineJobsRead) {
 		return FileContent{}, nil, apperror.PermissionDenied
 	}
+	return s.openPreview(ctx, runID, previewID)
+}
+
+func (s *Service) openPreview(ctx context.Context, runID, previewID uuid.UUID) (FileContent, io.ReadCloser, error) {
 	row, err := db.New(s.pool).GetRunPreviewFile(ctx, db.GetRunPreviewFileParams{RunID: runID, PreviewID: previewID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return FileContent{}, nil, apperror.NotFound
@@ -288,6 +292,10 @@ func (s *Service) OpenRunTimelapse(
 	if !p.Has(authorization.MachineJobsRead) {
 		return FileContent{}, nil, apperror.PermissionDenied
 	}
+	return s.openTimelapse(ctx, runID)
+}
+
+func (s *Service) openTimelapse(ctx context.Context, runID uuid.UUID) (FileContent, io.ReadCloser, error) {
 	row, err := db.New(s.pool).GetRunTimelapseFile(ctx, runID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return FileContent{}, nil, apperror.NotFound
