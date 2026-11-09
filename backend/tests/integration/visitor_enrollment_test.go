@@ -211,11 +211,11 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := authService.LoginWithPIN(ctx, "VISITOR.ONE", pin, "visitor-terminal", nil)
+	session, err := authService.LoginWithPIN(auth.WithManagedDeviceContext(ctx, &kiosk.Device.ID), "VISITOR.ONE", pin, "visitor-terminal", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	authenticated, err := authService.Authenticate(ctx, session.Token)
+	authenticated, err := authService.Authenticate(auth.WithManagedDeviceContext(ctx, &kiosk.Device.ID), session.Token)
 	if err != nil || authenticated.Principal.AccountID != result.AccountID ||
 		authenticated.Principal.Assurance != authorization.AssuranceLow {
 		t.Fatalf("visitor PIN authentication=%#v err=%v", authenticated.Principal, err)
@@ -285,7 +285,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		passwordResult.AccountID,
 	)
 	passwordSession, err := loginSession(authService.Login(
-		ctx,
+		auth.WithManagedDeviceContext(ctx, &kiosk.Device.ID),
 		passwordEmail,
 		"Visitor password workshop 94",
 		"visitor-password-login",
@@ -294,7 +294,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	passwordAuthenticated, err := authService.Authenticate(ctx, passwordSession.Token)
+	passwordAuthenticated, err := authService.Authenticate(auth.WithManagedDeviceContext(ctx, &kiosk.Device.ID), passwordSession.Token)
 	if err != nil || passwordAuthenticated.Principal.AccountID != passwordResult.AccountID ||
 		passwordAuthenticated.Principal.Assurance != authorization.AssuranceNormal {
 		t.Fatalf("visitor password authentication=%#v err=%v", passwordAuthenticated.Principal, err)

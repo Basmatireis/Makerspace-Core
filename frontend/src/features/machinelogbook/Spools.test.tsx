@@ -27,7 +27,10 @@ vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.perm
 const READ = [PermissionId.inventoryread, PermissionId.machinesread];
 const MANAGE = [
   ...READ,
-  PermissionId.inventorymanage,
+  PermissionId.inventoryarticlesmanage,
+  PermissionId.inventoryreceive,
+  PermissionId.inventoryconsume,
+  PermissionId.inventorycorrect,
   PermissionId.filament_spoolsmanage,
   PermissionId.printer_slotsassign,
   PermissionId.inventorydelete,

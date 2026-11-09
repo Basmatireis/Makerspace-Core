@@ -134,7 +134,7 @@ export function ArticlePanel({
         <Button size="sm" renderIcon={ArrowRight} as={Link} to={machineLogbookPaths.material(material.id)}>
           Open article
         </Button>
-        {allowed.manage && (
+        {allowed.receive && (
           <Button size="sm" kind="secondary" renderIcon={Add} onClick={() => onAction({ name: 'receive' })}>
             Receive stock
           </Button>

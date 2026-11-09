@@ -185,7 +185,7 @@ func (s *Service) ReceiveStock(
 	in ReceiptInput,
 	requestID *uuid.UUID,
 ) (ReceiptResult, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryReceive); err != nil {
 		return ReceiptResult{}, err
 	}
 	if in.Placement != nil && in.Placement.Mode == PlacementNewSpools {

@@ -161,6 +161,9 @@ func (s *Service) Login(
 		authorization.AccountStatus(login.Status) != authorization.AccountEnabled || login.ResetRequired {
 		return LoginResult{}, apperror.InvalidCredentials
 	}
+	if err := requireWebSignIn(ctx, tx, login.AccountID); err != nil {
+		return LoginResult{}, err
+	}
 	if security.PasswordNeedsRehash(login.PasswordHash) {
 		upgradedHash, err := security.HashPassword(password)
 		if err != nil {
@@ -240,6 +243,10 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	})
 	if err != nil {
 		return Authenticated{}, err
+	}
+	// Sessions of accounts that lost web.sign_in stop working at once, except terminal sessions on a managed device.
+	if row.ManagedDeviceID == nil && !principal.MaySignInToWeb() {
+		return Authenticated{}, webSignInNotPermitted()
 	}
 	currentDevice := managedDeviceFromContext(ctx)
 	if (row.ManagedDeviceID == nil) != (currentDevice == nil) ||
@@ -655,6 +662,9 @@ func (s *Service) CreateOIDCSession(
 	}
 	if !usable {
 		return Session{}, apperror.Unauthenticated
+	}
+	if err := requireWebSignIn(ctx, db, accountID); err != nil {
+		return Session{}, err
 	}
 	state, err := queries.GetAccountSecondFactorState(ctx, accountID)
 	if err != nil {

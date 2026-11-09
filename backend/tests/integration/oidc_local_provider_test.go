@@ -27,6 +27,7 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	operator := seedAccount(t, pool, "oidc-review", true)
+	allowVisitorWebSignIn(t, pool)
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		t.Fatal(err)

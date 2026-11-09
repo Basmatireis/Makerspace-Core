@@ -269,11 +269,11 @@ func TestSpoolLifecyclePermissions(t *testing.T) {
 	ctx := t.Context()
 	m := f.material(t, "2000")
 	spool := f.spool(t, m, "1000")
-	inventoryOnly := restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryManage)
+	inventoryOnly := restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryCorrect)
 	if _, err := f.s.RetireFilamentSpool(ctx, inventoryOnly, spool.ID, spool.Version, SpoolRetiredEmpty, &f.request); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("retire without filament_spools.manage: %v", err)
 	}
-	manager := restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryManage, authorization.FilamentSpoolsManage)
+	manager := restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryCorrect, authorization.FilamentSpoolsManage)
 	retired, err := f.s.RetireFilamentSpool(ctx, manager, spool.ID, spool.Version, SpoolRetiredDiscarded, &f.request)
 	if err != nil {
 		t.Fatal(err)
@@ -361,7 +361,7 @@ func TestMaterialRecycleBinRestoreAndPurge(t *testing.T) {
 	spool := f.spool(t, m, "1000")
 	m = f.refresh(t, m.ID)
 
-	manager := restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryManage)
+	manager := restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryArticlesManage)
 	if err := f.s.DeleteMaterial(ctx, manager, m.ID, m.Version, &f.request); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("delete without inventory.delete: %v", err)
 	}
@@ -435,7 +435,7 @@ func TestLedgerEntryDeleteRestoreAndPurge(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	manager := restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryManage, authorization.InventoryDelete)
+	manager := restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryArticlesManage, authorization.InventoryDelete)
 	if err := f.s.DeleteInventoryTransaction(ctx, manager, consumption, m.InventoryVersion, &f.request); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("delete without inventory.ledger.delete: %v", err)
 	}

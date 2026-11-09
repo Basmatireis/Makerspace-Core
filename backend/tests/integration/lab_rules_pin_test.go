@@ -400,6 +400,7 @@ func TestPhoneOnlyAccountSupportsAdministrativePINAndManualEnrollment(t *testing
 	if account.Status != "enabled" || len(account.AuthIdentities) != 1 || !account.AuthIdentities[0].Usable {
 		t.Fatalf("enabled PIN-only account=%#v", account)
 	}
+	allowVisitorWebSignIn(t, pool)
 	session, err := authService.LoginWithPIN(ctx, "PHONE.ONLY", "123456", "phone-only-login", nil)
 	if err != nil {
 		t.Fatal(err)

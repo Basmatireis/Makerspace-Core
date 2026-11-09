@@ -119,7 +119,7 @@ export const getCreateFilamentSpoolUrl = () => {
 }
 
 /**
- * Requires `filament_spools.manage` and `inventory.manage`. The spool gets the label S-<TYPECODE>-<VARIANT>-<COLOUR>-<NN> of its article, NN being the smallest number no active spool with the same prefix uses.
+ * Requires `filament_spools.manage` and `inventory.articles.manage`. The spool gets the label S-<TYPECODE>-<VARIANT>-<COLOUR>-<NN> of its article, NN being the smallest number no active spool with the same prefix uses.
  * @summary Register a purchased or already-counted spool
  */
 export const createFilamentSpool = async (createFilamentSpoolRequest: CreateFilamentSpoolRequest, options?: Parameters<typeof apiFetch>[1]): Promise<FilamentSpool> => {
@@ -395,7 +395,7 @@ export const getRetireFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 }
 
 /**
- * Requires `filament_spools.manage` and `inventory.manage`. `empty` books the remaining quantity as used up (manual consumption, reason unrecorded_consumption), `discarded` as disposed (disposal, reason disposed). The spool is unmounted, its identifiers are retired, it is archived and its label number becomes free. Audited as `filament_spool.retired`.
+ * Requires `filament_spools.manage` and `inventory.correct`. `empty` books the remaining quantity as used up (manual consumption, reason unrecorded_consumption), `discarded` as disposed (disposal, reason disposed). The spool is unmounted, its identifiers are retired, it is archived and its label number becomes free. Audited as `filament_spool.retired`.
  * @summary Retire a spool into the inventory recycle bin
  */
 export const retireFilamentSpool = async (spoolId: UUIDv7,
@@ -434,7 +434,7 @@ export const getRestoreFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 }
 
 /**
- * Requires `filament_spools.manage` and `inventory.manage`. The spool becomes active again, unmounted. A spool retired as discarded gets the written-off quantity back (adjustment, reason other); one retired as empty stays at its remaining quantity. When another active spool took its label meanwhile, the spool gets the next free number of its article's prefix. Identifiers come back unless another spool uses them now. Audited as `filament_spool.restored`.
+ * Requires `filament_spools.manage` and `inventory.correct`. The spool becomes active again, unmounted. A spool retired as discarded gets the written-off quantity back (adjustment, reason other); one retired as empty stays at its remaining quantity. When another active spool took its label meanwhile, the spool gets the next free number of its article's prefix. Identifiers come back unless another spool uses them now. Audited as `filament_spool.restored`.
  * @summary Bring a retired spool back
  */
 export const restoreFilamentSpool = async (spoolId: UUIDv7,

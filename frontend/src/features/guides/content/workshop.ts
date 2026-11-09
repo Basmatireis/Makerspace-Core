@@ -307,7 +307,7 @@ const receiveStock: GuideDefinition = {
   duration: '2 min',
   kind: 'workflow',
   demo: true,
-  requires: (user) => hasPermission(user, 'inventory.read') && hasPermission(user, 'inventory.manage'),
+  requires: (user) => hasPermission(user, 'inventory.read') && hasPermission(user, 'inventory.receive'),
   steps: [
     {
       id: 'open',

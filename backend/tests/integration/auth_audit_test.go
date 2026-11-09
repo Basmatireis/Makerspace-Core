@@ -792,6 +792,8 @@ func TestMasterRecoveryRevokesSessionCreatedByConcurrentLogin(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// The account no longer holds master; it still signs in through the Visitor membership.
+	allowVisitorWebSignIn(t, pool)
 	authService, err := auth.NewService(pool, cfg, nil)
 	if err != nil {
 		t.Fatal(err)

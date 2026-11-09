@@ -200,7 +200,7 @@ func materialTypesSection() section {
 	return define(
 		SectionMaterialTypes,
 		permissions(authorization.InventoryRead),
-		permissions(authorization.InventoryManage),
+		permissions(authorization.InventoryArticlesManage),
 		func(ctx context.Context, q *configtransferdb.Queries) ([]materialTypeEntry, error) {
 			rows, err := q.ListMaterialTypes(ctx)
 			if err != nil {
@@ -870,7 +870,7 @@ func inventoryArticlesSection() section {
 	return define(
 		SectionInventoryArticles,
 		permissions(authorization.InventoryRead),
-		permissions(authorization.InventoryManage),
+		permissions(authorization.InventoryArticlesManage),
 		exportInventoryArticles,
 		func(items *[]inventoryArticleEntry) error {
 			names := make([]*string, len(*items))

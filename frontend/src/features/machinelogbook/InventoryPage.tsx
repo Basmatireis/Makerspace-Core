@@ -24,7 +24,8 @@ export function InventoryPage() {
   const [params, setParams] = useSearchParams();
   const [receiving, setReceiving] = useState(false);
   const requested = params.get('tab');
-  const canManage = can('inventory.manage');
+  const canManage = can('inventory.articles.manage');
+  const canReceive = can('inventory.receive');
   const canRead = can('inventory.read');
 
   // Links and bookmarks of the former Filament, Consumables, Materials and Parts tabs land on Articles.
@@ -65,7 +66,7 @@ export function InventoryPage() {
     <PageShell {...header}>
       {tab === 'spools' && (
         <div data-guide="workshop-spools-list">
-          <InventorySpoolsTable onReceive={canManage ? start : undefined} />
+          <InventorySpoolsTable onReceive={canReceive ? start : undefined} />
         </div>
       )}
       {tab === 'bin' && <InventoryRecycleBin />}

@@ -433,6 +433,9 @@ func (s *Service) CompletePasskeyLogin(
 	if err != nil {
 		return Session{}, err
 	}
+	if err := requireWebSignIn(ctx, tx, accountID); err != nil {
+		return Session{}, err
+	}
 	session, err := s.createPasskeySession(ctx, queries, accountID, used.ID)
 	if err != nil {
 		return Session{}, err

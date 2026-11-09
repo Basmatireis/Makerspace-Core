@@ -17,13 +17,13 @@ import { isRetired, mountText } from './spoolShared';
 
 export type SpoolDialog = 'weigh' | 'retire' | 'edit' | 'identifier' | 'mount' | 'unmount' | 'restore' | 'purge';
 
-/** What the person may do with spools. Everything that moves stock needs `inventory.manage` as well. */
+/** What the person may do with spools. Weighing, retiring and restoring also need `inventory.correct`. */
 export function useSpoolPermissions() {
   const can = useCan();
   const spools = can('filament_spools.manage');
   return {
-    /** Weigh, retire, restore and register: spool and stock permissions. */
-    move: spools && can('inventory.manage'),
+    /** Weigh, retire and restore: spool and stock-correction permissions. */
+    move: spools && can('inventory.correct'),
     /** Descriptive fields and identifiers. */
     edit: spools,
     mount: can('printer_slots.assign') && can('machines.read'),

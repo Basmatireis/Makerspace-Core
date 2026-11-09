@@ -102,7 +102,7 @@ function MaterialCategories({ processId }: { processId: string }) {
     <StackCard
       title="Material categories"
       action={
-        can('inventory.manage') ? (
+        can('inventory.articles.manage') ? (
           <Button kind="ghost" size="sm" renderIcon={Edit} as={Link} to={machineLogbookPaths.inventory('types')}>
             Edit
           </Button>

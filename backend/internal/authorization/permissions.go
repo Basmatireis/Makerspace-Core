@@ -60,6 +60,7 @@ const (
 	AccountsPINRemoveAll               Permission = Permission(openapi.AccountsPinRemoveAll)
 	AccountsPINReset                   Permission = Permission(openapi.AccountsPinReset)
 	AccountsMFAReset                   Permission = Permission(openapi.AccountsMfaReset)
+	WebSignIn                          Permission = Permission(openapi.WebSignIn)
 	PeopleRolesAssign                  Permission = Permission(openapi.PeopleRolesAssign)
 	RolesRead                          Permission = Permission(openapi.RolesRead)
 	RolesManage                        Permission = Permission(openapi.RolesManage)
@@ -111,7 +112,10 @@ const (
 	MachineJobsOverridePrice           Permission = Permission(openapi.MachineJobsOverridePrice)
 	MachineJobsDelete                  Permission = Permission(openapi.MachineJobsDelete)
 	InventoryRead                      Permission = Permission(openapi.InventoryRead)
-	InventoryManage                    Permission = Permission(openapi.InventoryManage)
+	InventoryArticlesManage            Permission = Permission(openapi.InventoryArticlesManage)
+	InventoryReceive                   Permission = Permission(openapi.InventoryReceive)
+	InventoryConsume                   Permission = Permission(openapi.InventoryConsume)
+	InventoryCorrect                   Permission = Permission(openapi.InventoryCorrect)
 	InventoryDelete                    Permission = Permission(openapi.InventoryDelete)
 	InventoryLedgerDelete              Permission = Permission(openapi.InventoryLedgerDelete)
 	FilamentSpoolsManage               Permission = Permission(openapi.FilamentSpoolsManage)
@@ -173,6 +177,7 @@ var registry = []Permission{
 	AccountsPasswordEnrollSelf, AccountsPasswordEnrollAll, AccountsPasswordRemoveSelf, AccountsPasswordRemoveAll,
 	AccountsPINEnrollSelf, AccountsPINEnrollAll, AccountsPINRemoveSelf, AccountsPINRemoveAll, AccountsPINReset,
 	AccountsMFAReset,
+	WebSignIn,
 	PeopleRolesAssign,
 	RolesRead, RolesManage, AuditRead,
 	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage,
@@ -187,7 +192,8 @@ var registry = []Permission{
 	TrainingsManage, TrainingRecordsReadSelf, TrainingRecordsReadAll, TrainingRecordsUpdate,
 	TrainingRecordsUpdateSelf,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice, MachineJobsDelete,
-	InventoryRead, InventoryManage, InventoryDelete, InventoryLedgerDelete, FilamentSpoolsManage, PrinterSlotsAssign,
+	InventoryRead, InventoryArticlesManage, InventoryReceive, InventoryConsume, InventoryCorrect,
+	InventoryDelete, InventoryLedgerDelete, FilamentSpoolsManage, PrinterSlotsAssign,
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride,
@@ -250,6 +256,7 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	AccountsPINRemoveAll:               "Remove another account's PIN method and revoke its sessions.",
 	AccountsPINReset:                   "Replace or issue a one-time PIN setup challenge for another account.",
 	AccountsMFAReset:                   "Remove every second factor of another account (a master account's only by a master).",
+	WebSignIn:                          "Sign in to the web application (password, single sign-on, passkey); the kiosk is unaffected.",
 	PeopleRolesAssign:                  "Assign or remove permitted roles on people.",
 	RolesRead:                          "Read roles and the application permission registry.",
 	RolesManage:                        "Create, update, and delete permitted configurable roles.",
@@ -301,7 +308,10 @@ var descriptions = map[Permission]string{ //nolint:gosec // human-readable permi
 	MachineJobsOverridePrice:           "Set and clear final machine-job price overrides.",
 	MachineJobsDelete:                  "Delete machine jobs and runs, optionally restoring their consumed material.",
 	InventoryRead:                      "Read materials, balances, valuation, and inventory history.",
-	InventoryManage:                    "Create materials and record purchases, consumption, corrections, and disposal.",
+	InventoryArticlesManage:            "Create and edit articles, material types and variants, and register filament spools.",
+	InventoryReceive:                   "Record goods receipts and purchases.",
+	InventoryConsume:                   "Record consumption and move stock between spools.",
+	InventoryCorrect:                   "Correct stock, mark spools empty, and retire or restore spools.",
 	InventoryDelete:                    "Move articles to the inventory recycle bin, restore them, and delete articles and retired spools for good.",
 	InventoryLedgerDelete:              "Delete, restore, and purge single inventory ledger entries, reversing their effect on stock.",
 	FilamentSpoolsManage:               "Manage physical filament spool records and identifiers.",
@@ -524,6 +534,13 @@ func (p Principal) ReauthenticationDenial() (ReauthenticationRequirement, bool) 
 		return ReauthenticationRequirement{}, false
 	}
 	return *p.denials.easiest, true
+}
+
+// MaySignInToWeb reports whether the account may hold a web session: it holds the master role or one of its roles
+// grants web.sign_in. Scope and assurance of that grant do not matter, because the right is checked before a session
+// (and its assurance and device) exists.
+func (p Principal) MaySignInToWeb() bool {
+	return p.HoldsMasterRole || len(p.grants[WebSignIn]) > 0
 }
 
 func (p Principal) CanReadPerson(personID uuid.UUID) bool {

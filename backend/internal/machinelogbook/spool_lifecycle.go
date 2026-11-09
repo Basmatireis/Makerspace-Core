@@ -82,7 +82,7 @@ func (s *Service) RetireFilamentSpool(
 	if err := require(p, authorization.FilamentSpoolsManage); err != nil {
 		return FilamentSpool{}, err
 	}
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryCorrect); err != nil {
 		return FilamentSpool{}, err
 	}
 	if expectedVersion < 1 || !validRetireOutcome(outcome) {
@@ -198,7 +198,7 @@ func (s *Service) RestoreFilamentSpool(
 	if err := require(p, authorization.FilamentSpoolsManage); err != nil {
 		return FilamentSpool{}, err
 	}
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryCorrect); err != nil {
 		return FilamentSpool{}, err
 	}
 	if expectedVersion < 1 {

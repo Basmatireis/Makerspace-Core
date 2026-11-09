@@ -180,7 +180,7 @@ export function PrinterSetup({
   const canManage = can('machines.manage');
   const canAssign = can('printer_slots.assign');
   const canReadInventory = can('inventory.read');
-  const canRegister = can('inventory.manage') && canReadInventory;
+  const canRegister = can('inventory.articles.manage') && canReadInventory;
   const canReadConnectors = can('printer_connectors.read');
   const canManageConnectors = can('printer_connectors.manage');
   const [disableOpen, setDisableOpen] = useState(false);

@@ -217,7 +217,7 @@ export function registerInventory(router: DemoRouter<DemoStore>): void {
         }
         return receive(store, request);
       },
-      'inventory.manage',
+      'inventory.receive',
     )
     .add(
       'POST',
@@ -226,6 +226,6 @@ export function registerInventory(router: DemoRouter<DemoStore>): void {
         const material = createMaterial(store, body as unknown as CreateMaterialRequest);
         return material ? created(material) : fail(422, 'invalid_material_type', 'Choose a material type.');
       },
-      'inventory.manage',
+      'inventory.articles.manage',
     );
 }

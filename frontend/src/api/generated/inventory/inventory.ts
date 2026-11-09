@@ -82,7 +82,7 @@ export const getCreateMaterialTypeUrl = () => {
 }
 
 /**
- * Requires `inventory.manage`. Names are unique ignoring case (409 material_type_exists).
+ * Requires `inventory.articles.manage`. Names are unique ignoring case (409 material_type_exists).
  * @summary Create a material type
  */
 export const createMaterialType = async (createMaterialTypeRequest: CreateMaterialTypeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MaterialType> => {
@@ -144,7 +144,7 @@ export const getUpdateMaterialTypeUrl = (materialTypeId: UUIDv7,) => {
 }
 
 /**
- * Requires `inventory.manage`. Renames, deactivates or reactivates the type. The unit can change to another unit of the same dimension at any time: the rates of the type's and its variants' material pricing rules are converted in the same transaction so prices stay the same (articles keep their own units). A unit of another dimension is only possible while no material, pricing rule or run usage uses the type (409 material_type_unit_in_use).
+ * Requires `inventory.articles.manage`. Renames, deactivates or reactivates the type. The unit can change to another unit of the same dimension at any time: the rates of the type's and its variants' material pricing rules are converted in the same transaction so prices stay the same (articles keep their own units). A unit of another dimension is only possible while no material, pricing rule or run usage uses the type (409 material_type_unit_in_use).
  * @summary Update a material type
  */
 export const updateMaterialType = async (materialTypeId: UUIDv7,
@@ -183,7 +183,7 @@ export const getDeleteMaterialTypeUrl = (materialTypeId: UUIDv7,) => {
 }
 
 /**
- * Requires `inventory.manage`. Permanently deletes a type that no material uses (deleted articles included), together with its variants and its pricing rules, active or not. A type with materials answers 409 material_type_in_use; deactivate it instead.
+ * Requires `inventory.articles.manage`. Permanently deletes a type that no material uses (deleted articles included), together with its variants and its pricing rules, active or not. A type with materials answers 409 material_type_in_use; deactivate it instead.
  * @summary Delete a material type
  */
 export const deleteMaterialType = async (materialTypeId: UUIDv7,
@@ -222,7 +222,7 @@ export const getCreateMaterialTypeVariantUrl = (materialTypeId: UUIDv7,) => {
 }
 
 /**
- * Requires `inventory.manage`. Variants (Basic, Matte, Silk …) are the list an article of the type picks its variant from and the level a material pricing rule can target. Names are trimmed and unique per type ignoring case (409 material_type_variant_exists). Parts take no variants (422 material_type_variant_not_allowed).
+ * Requires `inventory.articles.manage`. Variants (Basic, Matte, Silk …) are the list an article of the type picks its variant from and the level a material pricing rule can target. Names are trimmed and unique per type ignoring case (409 material_type_variant_exists). Parts take no variants (422 material_type_variant_not_allowed).
  * @summary Add a variant to a material type
  */
 export const createMaterialTypeVariant = async (materialTypeId: UUIDv7,
@@ -262,7 +262,7 @@ export const getUpdateMaterialTypeVariantUrl = (materialTypeId: UUIDv7,
 }
 
 /**
- * Requires `inventory.manage`. The new name is unique per type ignoring case (409 material_type_variant_exists). Articles of the variant follow the rename; an article whose name was generated from type, variant, colour and manufacturer is renamed with it, a typed name stays. Spool labels keep the old name.
+ * Requires `inventory.articles.manage`. The new name is unique per type ignoring case (409 material_type_variant_exists). Articles of the variant follow the rename; an article whose name was generated from type, variant, colour and manufacturer is renamed with it, a typed name stays. Spool labels keep the old name.
  * @summary Rename a variant
  */
 export const updateMaterialTypeVariant = async (materialTypeId: UUIDv7,
@@ -303,7 +303,7 @@ export const getDeleteMaterialTypeVariantUrl = (materialTypeId: UUIDv7,
 }
 
 /**
- * Requires `inventory.manage`. Deletes a variant that no article (deleted ones included) and no active pricing rule uses; otherwise 409 material_type_variant_in_use. Inactive pricing rules of the variant (cleared rates) are deleted with it.
+ * Requires `inventory.articles.manage`. Deletes a variant that no article (deleted ones included) and no active pricing rule uses; otherwise 409 material_type_variant_in_use. Inactive pricing rules of the variant (cleared rates) are deleted with it.
  * @summary Delete a variant
  */
 export const deleteMaterialTypeVariant = async (materialTypeId: UUIDv7,
@@ -359,7 +359,7 @@ export const getCreateMaterialUrl = () => {
 }
 
 /**
- * Requires `inventory.manage`. Filament and consumable articles may omit the name; it is then generated from type, variant, colour and manufacturer. A name that is already taken (ignoring case) answers 409 material_name_conflict with details.materialId of the existing article.
+ * Requires `inventory.articles.manage`. Filament and consumable articles may omit the name; it is then generated from type, variant, colour and manufacturer. A name that is already taken (ignoring case) answers 409 material_name_conflict with details.materialId of the existing article.
  * @summary Create an inventory article
  */
 export const createMaterial = async (createMaterialRequest: CreateMaterialRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Material> => {
@@ -567,7 +567,7 @@ export const getReceiveInventoryStockUrl = () => {
 }
 
 /**
- * Requires `inventory.manage`; a placement on new spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for an existing or a newly described article in a single transaction with one audit event.
+ * Requires `inventory.receive` (describing a new article also needs `inventory.articles.manage`); a placement on new spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for an existing or a newly described article in a single transaction with one audit event.
  * @summary Receive purchased stock
  */
 export const receiveInventoryStock = async (receiveInventoryStockRequest: ReceiveInventoryStockRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InventoryReceiptResult> => {

@@ -197,7 +197,13 @@ describe('Identifier modal detected tags', () => {
   });
 });
 
-const WITH_STOCK = [...BOTH, PermissionId.inventorymanage];
+const WITH_STOCK = [
+  ...BOTH,
+  PermissionId.inventoryarticlesmanage,
+  PermissionId.inventoryreceive,
+  PermissionId.inventoryconsume,
+  PermissionId.inventorycorrect,
+];
 
 const filament = {
   id: id(30),

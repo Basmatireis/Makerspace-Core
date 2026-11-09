@@ -16,7 +16,13 @@ vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.perm
 
 const id = (n: number) => `0192f6f8-743e-7c77-a349-cd07c3e8c${String(n).padStart(3, '0')}`;
 const now = '2026-09-15T11:26:00Z';
-const MANAGER = [PermissionId.inventoryread, PermissionId.inventorymanage];
+const MANAGER = [
+  PermissionId.inventoryread,
+  PermissionId.inventoryarticlesmanage,
+  PermissionId.inventoryreceive,
+  PermissionId.inventoryconsume,
+  PermissionId.inventorycorrect,
+];
 const WITH_SPOOLS = [...MANAGER, PermissionId.filament_spoolsmanage];
 
 const variantOf = (n: number, name: string) => ({

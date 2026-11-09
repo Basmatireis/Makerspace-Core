@@ -160,37 +160,37 @@ function MaterialDetail({ material }: { material: Material }) {
           Edit article
         </Button>
       )}
-      {allowed.manage && (
+      {allowed.receive && (
         <Button renderIcon={Add} onClick={() => setDialog({ name: 'receive' })}>
           Receive stock
         </Button>
       )}
-      {(allowed.manage || allowed.delete) && (
+      {(allowed.register || allowed.consume || allowed.correct || allowed.delete) && (
         <OverflowMenu aria-label="More article actions" iconDescription="More article actions" flipped>
           {filament && allowed.register && (
             <OverflowMenuItem itemText="Register spool" onClick={() => setDialog({ name: 'register' })} />
           )}
-          {allowed.manage && (
+          {allowed.consume && (
             <OverflowMenuItem
               itemText="Record consumption"
               disabled={loose <= 0}
               onClick={() => setDialog({ name: 'movement', mode: 'consumption' })}
             />
           )}
-          {allowed.manage && (
+          {allowed.correct && (
             <OverflowMenuItem
               itemText="Correct stock"
               onClick={() => setDialog({ name: 'movement', mode: 'correction' })}
             />
           )}
-          {allowed.manage && (
+          {allowed.correct && (
             <OverflowMenuItem
               itemText="Record disposal"
               disabled={loose <= 0}
               onClick={() => setDialog({ name: 'movement', mode: 'disposal' })}
             />
           )}
-          {allowed.manage && (
+          {allowed.correct && (
             <OverflowMenuItem
               itemText="Mark as empty"
               disabled={Number(material.quantity) <= 0 || Number(material.assignedQuantity) > 0}
@@ -232,7 +232,7 @@ function MaterialDetail({ material }: { material: Material }) {
             role="status"
             title="Needs attention"
             subtitle={material.attention.map((item) => item.message).join(' · ')}
-            actionButtonLabel={allowed.manage ? 'Receive stock' : ''}
+            actionButtonLabel={allowed.receive ? 'Receive stock' : ''}
             onActionButtonClick={() => setDialog({ name: 'receive' })}
           />
         )}

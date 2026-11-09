@@ -418,7 +418,7 @@ func (s *Service) CreateMaterial(
 	in MaterialInput,
 	requestID *uuid.UUID,
 ) (Material, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return Material{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -449,7 +449,7 @@ func (s *Service) CreateMaterialTx(
 	in MaterialInput,
 	requestID *uuid.UUID,
 ) (uuid.UUID, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return uuid.Nil, err
 	}
 	return s.createMaterialTx(ctx, tx, p, in, requestID)
@@ -561,7 +561,7 @@ func (s *Service) UpdateMaterial(
 	in MaterialInput,
 	requestID *uuid.UUID,
 ) (Material, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return Material{}, err
 	}
 	var result Material
@@ -581,7 +581,7 @@ func (s *Service) UpdateMaterialTx(
 	in MaterialInput,
 	requestID *uuid.UUID,
 ) (Material, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return Material{}, err
 	}
 	if in.ExpectedVersion < 1 {
@@ -1127,7 +1127,7 @@ func (s *Service) AddPurchase(
 	supplier, reference, note *string,
 	requestID *uuid.UUID,
 ) (InventoryMutationResult, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryReceive); err != nil {
 		return InventoryMutationResult{}, err
 	}
 	qty, err := parseDecimal(quantity, true)
@@ -1190,8 +1190,13 @@ func (s *Service) RecordConsumption(
 	reason, note *string,
 	requestID *uuid.UUID,
 ) (InventoryMutationResult, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryConsume); err != nil {
 		return InventoryMutationResult{}, err
+	}
+	if disposal {
+		if err := require(p, authorization.InventoryCorrect); err != nil {
+			return InventoryMutationResult{}, err
+		}
 	}
 	qty, err := parseDecimal(quantity, true)
 	if err != nil {
@@ -1257,7 +1262,7 @@ func (s *Service) CorrectStock(
 	note *string,
 	requestID *uuid.UUID,
 ) (InventoryMutationResult, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryCorrect); err != nil {
 		return InventoryMutationResult{}, err
 	}
 	physical, err := parseDecimal(physicalQuantity, false)
@@ -1339,7 +1344,7 @@ func (s *Service) MarkEmpty(
 	note *string,
 	requestID *uuid.UUID,
 ) (InventoryMutationResult, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryCorrect); err != nil {
 		return InventoryMutationResult{}, err
 	}
 	if occurredAt.IsZero() {

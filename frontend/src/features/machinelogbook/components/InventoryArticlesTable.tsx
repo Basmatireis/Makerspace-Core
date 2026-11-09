@@ -197,7 +197,7 @@ function ArticlesTable({
         pageSizes={[25, 50, 100]}
         onRowClick={open}
         toolbarAction={
-          allowed.manage ? (
+          allowed.receive ? (
             <Button renderIcon={Add} onClick={onReceive} data-guide="workshop-receive-stock">
               Receive stock
             </Button>
@@ -213,7 +213,7 @@ function ArticlesTable({
         empty={{
           title: `No ${noun} yet`,
           description: `Receive stock to add ${noun} to the inventory. Quantities and costs are tracked from there.`,
-          action: allowed.manage ? (
+          action: allowed.receive ? (
             <Button kind="tertiary" onClick={onReceive}>
               Receive stock
             </Button>

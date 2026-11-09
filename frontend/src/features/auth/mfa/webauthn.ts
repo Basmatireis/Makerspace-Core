@@ -118,6 +118,9 @@ export function describeAuthenticationError(error: unknown): string {
     if (error.status === 429 || code === 'second_factor_rate_limited') {
       return 'Too many attempts. Wait a moment before trying again.';
     }
+    if (code === 'web_sign_in_not_permitted') {
+      return 'This account may not sign in to the web application. Use the terminal at the makerspace instead.';
+    }
     if (code === 'second_factor_invalid') return 'That code is not correct.';
     if (code === 'passkey_invalid') return 'That passkey was not accepted.';
     if (code === 'passkey_clone_suspected') return 'That passkey was refused because it may have been copied.';

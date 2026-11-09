@@ -635,7 +635,10 @@ describe('Machine detail', () => {
         PermissionId.machinesread,
         PermissionId.printer_slotsassign,
         PermissionId.inventoryread,
-        PermissionId.inventorymanage,
+        PermissionId.inventoryarticlesmanage,
+        PermissionId.inventoryreceive,
+        PermissionId.inventoryconsume,
+        PermissionId.inventorycorrect,
       ]);
       const article = {
         id: 'material-1',

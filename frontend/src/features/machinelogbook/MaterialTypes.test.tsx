@@ -159,7 +159,14 @@ describe('Types and categories', () => {
   });
 
   it('creates a filament type in grams without asking for processes', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage, PermissionId.machinesread];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+      PermissionId.machinesread,
+    ];
     serveTypes();
     let submitted: unknown;
     server.use(
@@ -186,7 +193,14 @@ describe('Types and categories', () => {
   });
 
   it('creates a consumable type with its processes and a part category without any', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage, PermissionId.machinesread];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+      PermissionId.machinesread,
+    ];
     serveTypes();
     const bodies: unknown[] = [];
     server.use(
@@ -230,7 +244,13 @@ describe('Types and categories', () => {
   });
 
   it('opens the edit dialog from a row and saves code and machine use', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     serveTypes();
     let submitted: Record<string, unknown> | undefined;
     server.use(
@@ -258,7 +278,13 @@ describe('Types and categories', () => {
   });
 
   it('locks the unit of a used type and explains a refused delete', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     serveTypes();
     server.use(
       http.delete(`*/api/v1/material-types/${pla.id}`, () =>
@@ -277,7 +303,13 @@ describe('Types and categories', () => {
     expect(await screen.findByText('In use')).toBeInTheDocument();
   });
   it('offers only units of the same kind for a used type and no units across kinds', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     const usedPlywood = { ...plywood, materialCount: 2 };
     serveTypes([pla, usedPlywood, retired, fasteners]);
     const user = userEvent.setup();
@@ -294,7 +326,13 @@ describe('Types and categories', () => {
   });
 
   it('offers every unit grouped by kind for an unused type', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     serveTypes();
     const user = userEvent.setup();
     renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
@@ -321,7 +359,13 @@ describe('Deleting a type', () => {
   const user0 = () => userEvent.setup();
 
   async function openDelete(row: string, heading: string, name: string) {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     serveTypes([
       {
         ...pla,
@@ -412,7 +456,13 @@ describe('Variants of a type', () => {
   }
 
   it('lists variants in the table, adds and renames them, and blocks deleting a used one', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     let variants = [basic, matte];
     serveTypes();
     server.use(http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants }] })));
@@ -465,7 +515,13 @@ describe('Variants of a type', () => {
   });
 
   it('deletes an unused variant at once', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     serveTypes();
     server.use(
       http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants: [basic, matte] }] })),
@@ -486,7 +542,10 @@ describe('Variants of a type', () => {
   it('shows own and inherited rates and sends the variant when a cell is edited', async () => {
     auth.permissions = [
       PermissionId.inventoryread,
-      PermissionId.inventorymanage,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
       PermissionId.pricingread,
       PermissionId.pricingmanage,
     ];
@@ -541,7 +600,10 @@ describe('Variants of a type', () => {
   it('deletes the rule of a variant when its rate is cleared', async () => {
     auth.permissions = [
       PermissionId.inventoryread,
-      PermissionId.inventorymanage,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
       PermissionId.pricingread,
       PermissionId.pricingmanage,
     ];
@@ -573,7 +635,14 @@ describe('Variants of a type', () => {
   });
 
   it('explains where to create a pricing group when none exists', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage, PermissionId.pricingread];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+      PermissionId.pricingread,
+    ];
     serveTypes();
     server.use(
       http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants: [basic, matte] }] })),
@@ -588,7 +657,14 @@ describe('Variants of a type', () => {
   });
 
   it('keeps the rates read-only without pricing.manage and hides them without pricing.read', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage, PermissionId.pricingread];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+      PermissionId.pricingread,
+    ];
     serveTypes();
     server.use(
       http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ ...pla, variants: [basic, matte] }] })),
@@ -602,7 +678,13 @@ describe('Variants of a type', () => {
   });
 
   it('shows no variants for part categories', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     serveTypes();
     const user = userEvent.setup();
     renderWithProviders(<InventoryPage />, machineLogbookPaths.inventory('types'));
@@ -646,7 +728,13 @@ describe('Article form', () => {
   } as Material;
 
   it('validates the colour code, previews it and follows the generated name', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     serveTypes();
     let submitted: Record<string, unknown> | undefined;
     server.use(
@@ -683,7 +771,13 @@ describe('Article form', () => {
   });
 
   it('leaves the name out when it is the generated one and takes the reported colour with one click', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     serveTypes();
     const generated = { ...material, name: 'PLA · Red', variant: null } as Material;
     let submitted: Record<string, unknown> | undefined;
@@ -708,7 +802,13 @@ describe('Article form', () => {
   });
 
   it('limits the unit to the type dimension, warns about the conversion and sends the new unit', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     const tape = type({
       id: '0192f6f8-743e-7c77-a349-cd07c3e8f010',
       name: 'Tape',
@@ -756,7 +856,13 @@ describe('Article form', () => {
   });
 
   it('shows the count label only for pieces and sends it', async () => {
-    auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
+    auth.permissions = [
+      PermissionId.inventoryread,
+      PermissionId.inventoryarticlesmanage,
+      PermissionId.inventoryreceive,
+      PermissionId.inventoryconsume,
+      PermissionId.inventorycorrect,
+    ];
     serveTypes();
     const bolts = {
       ...material,

@@ -129,7 +129,7 @@ func TestPriceQuoteOverHTTP(t *testing.T) {
 		assertStatus(t, response, http.StatusOK)
 		response.Body.Close()
 		grants := make([]map[string]any, 0, len(permissions))
-		for _, permission := range permissions {
+		for _, permission := range append([]string{"web.sign_in"}, permissions...) {
 			grants = append(
 				grants,
 				map[string]any{

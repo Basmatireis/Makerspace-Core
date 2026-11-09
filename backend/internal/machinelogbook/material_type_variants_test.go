@@ -180,7 +180,7 @@ func TestMaterialTypeVariantsAreManagedPerType(t *testing.T) {
 	}
 }
 
-func TestMaterialTypeVariantWritesNeedInventoryManage(t *testing.T) {
+func TestMaterialTypeVariantWritesNeedArticlesManage(t *testing.T) {
 	f := newVariantFixture(t)
 	ctx := t.Context()
 	typeID := f.materialType.ID
@@ -215,9 +215,9 @@ func TestMaterialTypeVariantWritesNeedInventoryManage(t *testing.T) {
 	if err != nil || len(materialType.Variants) != 1 || materialType.Variants[0].Name != "Kept" {
 		t.Fatalf("read with inventory.read: %+v %v", materialType.Variants, err)
 	}
-	manager := restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryManage)
+	manager := restrictedPrincipal(t, f.pool, authorization.InventoryRead, authorization.InventoryArticlesManage)
 	if _, err = f.s.CreateMaterialTypeVariant(ctx, manager, typeID, "Silk", &f.request); err != nil {
-		t.Fatalf("create with inventory.manage: %v", err)
+		t.Fatalf("create with inventory.articles.manage: %v", err)
 	}
 }
 
@@ -408,7 +408,7 @@ func TestVariantPricingRulesAreUniquePerVariant(t *testing.T) {
 	) {
 		t.Fatalf("delete a variant with an active rule: %v", err)
 	}
-	reader := restrictedPrincipal(t, f.pool, authorization.PricingRead, authorization.InventoryManage)
+	reader := restrictedPrincipal(t, f.pool, authorization.PricingRead, authorization.InventoryArticlesManage)
 	if _, err = f.s.CreatePricingRuleWithVariant(
 		ctx, reader, f.group.ID, PricingRuleMaterial, nil, &typeID, &matte.ID, nil, "0.3", &f.request,
 	); !apperror.IsCode(err, "permission_denied") {
