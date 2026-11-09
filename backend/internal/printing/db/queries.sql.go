@@ -79,7 +79,7 @@ func (q *Queries) ApplyPrinterSlotSetup(ctx context.Context, arg ApplyPrinterSlo
 
 const closePrinterSpoolAssignment = `-- name: ClosePrinterSpoolAssignment :one
 UPDATE printer_spool_assignments SET unmounted_at=$1, unmounted_by_account_id=$2
-WHERE id=$3 AND unmounted_at IS NULL RETURNING id, slot_id, spool_id, mounted_at, unmounted_at, mounted_by_account_id, unmounted_by_account_id, source, source_event_id, created_at
+WHERE id=$3 AND unmounted_at IS NULL RETURNING id, slot_id, spool_id, mounted_at, unmounted_at, mounted_by_account_id, unmounted_by_account_id, source, source_event_id, created_at, kind, customer_material_type_id, customer_color_name
 `
 
 type ClosePrinterSpoolAssignmentParams struct {
@@ -102,6 +102,53 @@ func (q *Queries) ClosePrinterSpoolAssignment(ctx context.Context, arg ClosePrin
 		&i.Source,
 		&i.SourceEventID,
 		&i.CreatedAt,
+		&i.Kind,
+		&i.CustomerMaterialTypeID,
+		&i.CustomerColorName,
+	)
+	return i, err
+}
+
+const createCustomerFilamentAssignment = `-- name: CreateCustomerFilamentAssignment :one
+INSERT INTO printer_spool_assignments (id, slot_id, kind, customer_material_type_id, customer_color_name, mounted_at, mounted_by_account_id, source)
+VALUES ($1, $2, 'customer', $3, $4,
+        $5, $6, 'manual') RETURNING id, slot_id, spool_id, mounted_at, unmounted_at, mounted_by_account_id, unmounted_by_account_id, source, source_event_id, created_at, kind, customer_material_type_id, customer_color_name
+`
+
+type CreateCustomerFilamentAssignmentParams struct {
+	ID                     uuid.UUID
+	SlotID                 uuid.UUID
+	CustomerMaterialTypeID *uuid.UUID
+	CustomerColorName      *string
+	MountedAt              time.Time
+	MountedByAccountID     *uuid.UUID
+}
+
+// Customer filament is a mount without an inventory spool; nothing is booked from stock.
+func (q *Queries) CreateCustomerFilamentAssignment(ctx context.Context, arg CreateCustomerFilamentAssignmentParams) (PrinterSpoolAssignment, error) {
+	row := q.db.QueryRow(ctx, createCustomerFilamentAssignment,
+		arg.ID,
+		arg.SlotID,
+		arg.CustomerMaterialTypeID,
+		arg.CustomerColorName,
+		arg.MountedAt,
+		arg.MountedByAccountID,
+	)
+	var i PrinterSpoolAssignment
+	err := row.Scan(
+		&i.ID,
+		&i.SlotID,
+		&i.SpoolID,
+		&i.MountedAt,
+		&i.UnmountedAt,
+		&i.MountedByAccountID,
+		&i.UnmountedByAccountID,
+		&i.Source,
+		&i.SourceEventID,
+		&i.CreatedAt,
+		&i.Kind,
+		&i.CustomerMaterialTypeID,
+		&i.CustomerColorName,
 	)
 	return i, err
 }
@@ -227,13 +274,13 @@ func (q *Queries) CreatePrinterSlot(ctx context.Context, arg CreatePrinterSlotPa
 
 const createPrinterSpoolAssignment = `-- name: CreatePrinterSpoolAssignment :one
 INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, mounted_by_account_id, source, source_event_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, slot_id, spool_id, mounted_at, unmounted_at, mounted_by_account_id, unmounted_by_account_id, source, source_event_id, created_at
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, slot_id, spool_id, mounted_at, unmounted_at, mounted_by_account_id, unmounted_by_account_id, source, source_event_id, created_at, kind, customer_material_type_id, customer_color_name
 `
 
 type CreatePrinterSpoolAssignmentParams struct {
 	ID                 uuid.UUID
 	SlotID             uuid.UUID
-	SpoolID            uuid.UUID
+	SpoolID            *uuid.UUID
 	MountedAt          time.Time
 	MountedByAccountID *uuid.UUID
 	Source             string
@@ -262,6 +309,9 @@ func (q *Queries) CreatePrinterSpoolAssignment(ctx context.Context, arg CreatePr
 		&i.Source,
 		&i.SourceEventID,
 		&i.CreatedAt,
+		&i.Kind,
+		&i.CustomerMaterialTypeID,
+		&i.CustomerColorName,
 	)
 	return i, err
 }
@@ -278,7 +328,7 @@ func (q *Queries) GetMachineProcess(ctx context.Context, machineID uuid.UUID) (s
 }
 
 const getOpenAssignmentForSlot = `-- name: GetOpenAssignmentForSlot :one
-SELECT id, slot_id, spool_id, mounted_at, unmounted_at, mounted_by_account_id, unmounted_by_account_id, source, source_event_id, created_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE
+SELECT id, slot_id, spool_id, mounted_at, unmounted_at, mounted_by_account_id, unmounted_by_account_id, source, source_event_id, created_at, kind, customer_material_type_id, customer_color_name FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE
 `
 
 func (q *Queries) GetOpenAssignmentForSlot(ctx context.Context, slotID uuid.UUID) (PrinterSpoolAssignment, error) {
@@ -295,15 +345,18 @@ func (q *Queries) GetOpenAssignmentForSlot(ctx context.Context, slotID uuid.UUID
 		&i.Source,
 		&i.SourceEventID,
 		&i.CreatedAt,
+		&i.Kind,
+		&i.CustomerMaterialTypeID,
+		&i.CustomerColorName,
 	)
 	return i, err
 }
 
 const getOpenAssignmentForSpool = `-- name: GetOpenAssignmentForSpool :one
-SELECT id, slot_id, spool_id, mounted_at, unmounted_at, mounted_by_account_id, unmounted_by_account_id, source, source_event_id, created_at FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL FOR UPDATE
+SELECT id, slot_id, spool_id, mounted_at, unmounted_at, mounted_by_account_id, unmounted_by_account_id, source, source_event_id, created_at, kind, customer_material_type_id, customer_color_name FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL FOR UPDATE
 `
 
-func (q *Queries) GetOpenAssignmentForSpool(ctx context.Context, spoolID uuid.UUID) (PrinterSpoolAssignment, error) {
+func (q *Queries) GetOpenAssignmentForSpool(ctx context.Context, spoolID *uuid.UUID) (PrinterSpoolAssignment, error) {
 	row := q.db.QueryRow(ctx, getOpenAssignmentForSpool, spoolID)
 	var i PrinterSpoolAssignment
 	err := row.Scan(
@@ -317,6 +370,9 @@ func (q *Queries) GetOpenAssignmentForSpool(ctx context.Context, spoolID uuid.UU
 		&i.Source,
 		&i.SourceEventID,
 		&i.CreatedAt,
+		&i.Kind,
+		&i.CustomerMaterialTypeID,
+		&i.CustomerColorName,
 	)
 	return i, err
 }
@@ -406,31 +462,37 @@ func (q *Queries) GetPrinterProfileForUpdate(ctx context.Context, machineID uuid
 
 const getPrinterSlot = `-- name: GetPrinterSlot :one
 SELECT sl.id, sl.input_unit_id, sl.name, sl.position, sl.external_identifier, sl.status, sl.version, sl.created_at, sl.updated_at, sl.nozzle_index, u.machine_id, u.name AS input_unit_name,
-       a.id AS assignment_id, a.spool_id, a.mounted_at, s.display_id AS spool_display_id
+       a.id AS assignment_id, a.spool_id, a.mounted_at, s.display_id AS spool_display_id,
+       a.kind AS mount_kind, a.customer_material_type_id, ct.name AS customer_material_type_name, a.customer_color_name
 FROM printer_slots sl
 JOIN printer_input_units u ON u.id=sl.input_unit_id
 LEFT JOIN printer_spool_assignments a ON a.slot_id=sl.id AND a.unmounted_at IS NULL
 LEFT JOIN filament_spools s ON s.id=a.spool_id
+LEFT JOIN material_types ct ON ct.id=a.customer_material_type_id
 WHERE sl.id=$1
 `
 
 type GetPrinterSlotRow struct {
-	ID                 uuid.UUID
-	InputUnitID        uuid.UUID
-	Name               string
-	Position           int32
-	ExternalIdentifier *string
-	Status             string
-	Version            int64
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	NozzleIndex        int32
-	MachineID          uuid.UUID
-	InputUnitName      string
-	AssignmentID       *uuid.UUID
-	SpoolID            *uuid.UUID
-	MountedAt          pgtype.Timestamptz
-	SpoolDisplayID     *string
+	ID                       uuid.UUID
+	InputUnitID              uuid.UUID
+	Name                     string
+	Position                 int32
+	ExternalIdentifier       *string
+	Status                   string
+	Version                  int64
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+	NozzleIndex              int32
+	MachineID                uuid.UUID
+	InputUnitName            string
+	AssignmentID             *uuid.UUID
+	SpoolID                  *uuid.UUID
+	MountedAt                pgtype.Timestamptz
+	SpoolDisplayID           *string
+	MountKind                *string
+	CustomerMaterialTypeID   *uuid.UUID
+	CustomerMaterialTypeName *string
+	CustomerColorName        *string
 }
 
 func (q *Queries) GetPrinterSlot(ctx context.Context, id uuid.UUID) (GetPrinterSlotRow, error) {
@@ -453,6 +515,10 @@ func (q *Queries) GetPrinterSlot(ctx context.Context, id uuid.UUID) (GetPrinterS
 		&i.SpoolID,
 		&i.MountedAt,
 		&i.SpoolDisplayID,
+		&i.MountKind,
+		&i.CustomerMaterialTypeID,
+		&i.CustomerMaterialTypeName,
+		&i.CustomerColorName,
 	)
 	return i, err
 }
@@ -630,32 +696,38 @@ func (q *Queries) ListPrinterProfileIDs(ctx context.Context) ([]uuid.UUID, error
 
 const listPrinterSlots = `-- name: ListPrinterSlots :many
 SELECT sl.id, sl.input_unit_id, sl.name, sl.position, sl.external_identifier, sl.status, sl.version, sl.created_at, sl.updated_at, sl.nozzle_index, u.machine_id, u.name AS input_unit_name,
-       a.id AS assignment_id, a.spool_id, a.mounted_at, s.display_id AS spool_display_id
+       a.id AS assignment_id, a.spool_id, a.mounted_at, s.display_id AS spool_display_id,
+       a.kind AS mount_kind, a.customer_material_type_id, ct.name AS customer_material_type_name, a.customer_color_name
 FROM printer_slots sl
 JOIN printer_input_units u ON u.id=sl.input_unit_id
 LEFT JOIN printer_spool_assignments a ON a.slot_id=sl.id AND a.unmounted_at IS NULL
 LEFT JOIN filament_spools s ON s.id=a.spool_id
+LEFT JOIN material_types ct ON ct.id=a.customer_material_type_id
 WHERE u.machine_id=$1
 ORDER BY u.position, sl.position, sl.id
 `
 
 type ListPrinterSlotsRow struct {
-	ID                 uuid.UUID
-	InputUnitID        uuid.UUID
-	Name               string
-	Position           int32
-	ExternalIdentifier *string
-	Status             string
-	Version            int64
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	NozzleIndex        int32
-	MachineID          uuid.UUID
-	InputUnitName      string
-	AssignmentID       *uuid.UUID
-	SpoolID            *uuid.UUID
-	MountedAt          pgtype.Timestamptz
-	SpoolDisplayID     *string
+	ID                       uuid.UUID
+	InputUnitID              uuid.UUID
+	Name                     string
+	Position                 int32
+	ExternalIdentifier       *string
+	Status                   string
+	Version                  int64
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+	NozzleIndex              int32
+	MachineID                uuid.UUID
+	InputUnitName            string
+	AssignmentID             *uuid.UUID
+	SpoolID                  *uuid.UUID
+	MountedAt                pgtype.Timestamptz
+	SpoolDisplayID           *string
+	MountKind                *string
+	CustomerMaterialTypeID   *uuid.UUID
+	CustomerMaterialTypeName *string
+	CustomerColorName        *string
 }
 
 func (q *Queries) ListPrinterSlots(ctx context.Context, machineID uuid.UUID) ([]ListPrinterSlotsRow, error) {
@@ -684,6 +756,10 @@ func (q *Queries) ListPrinterSlots(ctx context.Context, machineID uuid.UUID) ([]
 			&i.SpoolID,
 			&i.MountedAt,
 			&i.SpoolDisplayID,
+			&i.MountKind,
+			&i.CustomerMaterialTypeID,
+			&i.CustomerMaterialTypeName,
+			&i.CustomerColorName,
 		); err != nil {
 			return nil, err
 		}
@@ -732,8 +808,8 @@ func (q *Queries) ListPrinterSlotsForUpdate(ctx context.Context, machineID uuid.
 }
 
 const listPrinterSpoolAssignmentHistory = `-- name: ListPrinterSpoolAssignmentHistory :many
-SELECT a.id, a.slot_id, a.spool_id, a.mounted_at, a.unmounted_at, a.mounted_by_account_id, a.unmounted_by_account_id, a.source, a.source_event_id, a.created_at, s.display_id AS spool_display_id
-FROM printer_spool_assignments a JOIN filament_spools s ON s.id=a.spool_id
+SELECT a.id, a.slot_id, a.spool_id, a.mounted_at, a.unmounted_at, a.mounted_by_account_id, a.unmounted_by_account_id, a.source, a.source_event_id, a.created_at, a.kind, a.customer_material_type_id, a.customer_color_name, s.display_id AS spool_display_id
+FROM printer_spool_assignments a LEFT JOIN filament_spools s ON s.id=a.spool_id
 WHERE a.slot_id=$1 ORDER BY a.mounted_at DESC, a.id DESC
 LIMIT $3 OFFSET $2
 `
@@ -745,17 +821,20 @@ type ListPrinterSpoolAssignmentHistoryParams struct {
 }
 
 type ListPrinterSpoolAssignmentHistoryRow struct {
-	ID                   uuid.UUID
-	SlotID               uuid.UUID
-	SpoolID              uuid.UUID
-	MountedAt            time.Time
-	UnmountedAt          pgtype.Timestamptz
-	MountedByAccountID   *uuid.UUID
-	UnmountedByAccountID *uuid.UUID
-	Source               string
-	SourceEventID        *uuid.UUID
-	CreatedAt            time.Time
-	SpoolDisplayID       string
+	ID                     uuid.UUID
+	SlotID                 uuid.UUID
+	SpoolID                *uuid.UUID
+	MountedAt              time.Time
+	UnmountedAt            pgtype.Timestamptz
+	MountedByAccountID     *uuid.UUID
+	UnmountedByAccountID   *uuid.UUID
+	Source                 string
+	SourceEventID          *uuid.UUID
+	CreatedAt              time.Time
+	Kind                   string
+	CustomerMaterialTypeID *uuid.UUID
+	CustomerColorName      *string
+	SpoolDisplayID         *string
 }
 
 func (q *Queries) ListPrinterSpoolAssignmentHistory(ctx context.Context, arg ListPrinterSpoolAssignmentHistoryParams) ([]ListPrinterSpoolAssignmentHistoryRow, error) {
@@ -778,6 +857,9 @@ func (q *Queries) ListPrinterSpoolAssignmentHistory(ctx context.Context, arg Lis
 			&i.Source,
 			&i.SourceEventID,
 			&i.CreatedAt,
+			&i.Kind,
+			&i.CustomerMaterialTypeID,
+			&i.CustomerColorName,
 			&i.SpoolDisplayID,
 		); err != nil {
 			return nil, err
@@ -799,6 +881,17 @@ func (q *Queries) LockSpoolLifecycle(ctx context.Context, id uuid.UUID) (string,
 	var lifecycle string
 	err := row.Scan(&lifecycle)
 	return lifecycle, err
+}
+
+const materialTypeExists = `-- name: MaterialTypeExists :one
+SELECT EXISTS (SELECT 1 FROM material_types WHERE id=$1)::boolean
+`
+
+func (q *Queries) MaterialTypeExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, materialTypeExists, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const shiftPrinterInputUnitsForSetup = `-- name: ShiftPrinterInputUnitsForSetup :exec

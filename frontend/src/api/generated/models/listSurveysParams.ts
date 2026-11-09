@@ -23,19 +23,21 @@ import type { ListSurveysSort } from './listSurveysSort';
 import type { ListSurveysStatus } from './listSurveysStatus';
 
 export type ListSurveysParams = {
-  /**
-   * Case-insensitive substring match on the survey name and the title of its latest version.
-   * @maxLength 160
-   */
-  search?: string;
-  status?: ListSurveysStatus;
-  sort?: ListSurveysSort;
-  order?: ListSurveysOrder;
-  /**
-   * @minimum 1
-   * @maximum 200
-   */
-  limit?: number;
-  /** @minimum 0 */
-  offset?: number;
+/**
+ * Case-insensitive substring match on the survey name and the title of its latest version.
+ * @maxLength 160
+ */
+search?: string;
+status?: ListSurveysStatus;
+sort?: ListSurveysSort;
+order?: ListSurveysOrder;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
 };

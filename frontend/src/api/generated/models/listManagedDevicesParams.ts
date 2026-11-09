@@ -22,15 +22,15 @@ import type { CursorParameter } from './cursorParameter';
 import type { LimitParameter } from './limitParameter';
 
 export type ListManagedDevicesParams = {
-  /**
-   * Maximum records to return.
-   * @minimum 1
-   * @maximum 100
-   */
-  limit?: LimitParameter;
-  /**
-   * Opaque cursor returned by the previous page.
-   * @maxLength 500
-   */
-  cursor?: CursorParameter;
+/**
+ * Maximum records to return.
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: LimitParameter;
+/**
+ * Opaque cursor returned by the previous page.
+ * @maxLength 500
+ */
+cursor?: CursorParameter;
 };

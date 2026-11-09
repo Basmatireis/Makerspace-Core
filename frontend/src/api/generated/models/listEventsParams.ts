@@ -24,22 +24,22 @@ import type { PageSizeParameter } from './pageSizeParameter';
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListEventsParams = {
-  scope?: EventListScope;
-  /**
-   * Case-insensitive substring match on internal name, public title, location and the organizer's full name.
-   * @maxLength 200
-   */
-  search?: string;
-  ownerPersonId?: UUIDv7;
-  /**
-   * One-based result page.
-   * @minimum 1
-   */
-  page?: PageParameter;
-  /**
-   * Maximum records to return per page.
-   * @minimum 1
-   * @maximum 100
-   */
-  pageSize?: PageSizeParameter;
+scope?: EventListScope;
+/**
+ * Case-insensitive substring match on internal name, public title, location and the organizer's full name.
+ * @maxLength 200
+ */
+search?: string;
+ownerPersonId?: UUIDv7;
+/**
+ * One-based result page.
+ * @minimum 1
+ */
+page?: PageParameter;
+/**
+ * Maximum records to return per page.
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: PageSizeParameter;
 };

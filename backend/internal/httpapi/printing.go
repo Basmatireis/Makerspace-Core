@@ -27,20 +27,24 @@ func inputUnitDTO(v printing.InputUnit) openapi.PrinterInputUnit {
 }
 func slotDTO(v printing.Slot) openapi.PrinterSlot {
 	return openapi.PrinterSlot{
-		Id:                 v.ID,
-		InputUnitId:        v.InputUnitID,
-		InputUnitName:      v.InputUnitName,
-		MachineId:          v.MachineID,
-		Name:               v.Name,
-		Position:           v.Position,
-		NozzleIndex:        v.NozzleIndex,
-		ExternalIdentifier: nullableString(v.ExternalIdentifier),
-		Status:             openapi.PrinterSlotStatus(v.Status),
-		AssignmentId:       nullableUUIDValue(v.AssignmentID),
-		SpoolId:            nullableUUIDValue(v.SpoolID),
-		SpoolDisplayId:     nullableString(v.SpoolDisplayID),
-		MountedAt:          nullableValue(v.MountedAt),
-		Version:            v.Version,
+		Id:                       v.ID,
+		InputUnitId:              v.InputUnitID,
+		InputUnitName:            v.InputUnitName,
+		MachineId:                v.MachineID,
+		Name:                     v.Name,
+		Position:                 v.Position,
+		NozzleIndex:              v.NozzleIndex,
+		ExternalIdentifier:       nullableString(v.ExternalIdentifier),
+		Status:                   openapi.PrinterSlotStatus(v.Status),
+		AssignmentId:             nullableUUIDValue(v.AssignmentID),
+		SpoolId:                  nullableUUIDValue(v.SpoolID),
+		SpoolDisplayId:           nullableString(v.SpoolDisplayID),
+		MountKind:                nullableEnum[openapi.PrinterSlotMountKind](v.MountKind),
+		CustomerMaterialTypeId:   nullableUUIDValue(v.CustomerMaterialTypeID),
+		CustomerMaterialTypeName: nullableString(v.CustomerMaterialTypeName),
+		CustomerColorName:        nullableString(v.CustomerColorName),
+		MountedAt:                nullableValue(v.MountedAt),
+		Version:                  v.Version,
 	}
 }
 func profileDTO(v printing.Profile) openapi.PrinterProfile {
@@ -237,6 +241,31 @@ func (s *Server) MountPrinterSpool(
 		return nil, e
 	}
 	return openapi.MountPrinterSpool200JSONResponse(slotDTO(item)), nil
+}
+
+func (s *Server) MountCustomerFilament(
+	ctx context.Context,
+	r openapi.MountCustomerFilamentRequestObject,
+) (openapi.MountCustomerFilamentResponseObject, error) {
+	p, e := requirePrincipal(ctx)
+	if e != nil {
+		return nil, e
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, e := s.printing.MountCustomerFilament(
+		ctx,
+		p,
+		r.SlotId,
+		setupUUID(r.Body.MaterialTypeId),
+		nullableStringPointer(r.Body.ColorName),
+		requestIDPointer(ctx),
+	)
+	if e != nil {
+		return nil, e
+	}
+	return openapi.MountCustomerFilament200JSONResponse(slotDTO(item)), nil
 }
 
 func (s *Server) UnmountPrinterSpool(

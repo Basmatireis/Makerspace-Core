@@ -20,13 +20,17 @@
  */
 
 export type ListSCIMUsersParams = {
-  /** @maxLength 512 */
-  filter?: string;
-  /** @minimum 1 */
-  startIndex?: number;
-  /**
-   * @minimum 0
-   * @maximum 100
-   */
-  count?: number;
+/**
+ * @maxLength 512
+ */
+filter?: string;
+/**
+ * @minimum 1
+ */
+startIndex?: number;
+/**
+ * @minimum 0
+ * @maximum 100
+ */
+count?: number;
 };

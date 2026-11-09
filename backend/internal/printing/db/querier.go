@@ -15,13 +15,15 @@ type Querier interface {
 	ApplyPrinterInputUnitSetup(ctx context.Context, arg ApplyPrinterInputUnitSetupParams) error
 	ApplyPrinterSlotSetup(ctx context.Context, arg ApplyPrinterSlotSetupParams) error
 	ClosePrinterSpoolAssignment(ctx context.Context, arg ClosePrinterSpoolAssignmentParams) (PrinterSpoolAssignment, error)
+	// Customer filament is a mount without an inventory spool; nothing is booked from stock.
+	CreateCustomerFilamentAssignment(ctx context.Context, arg CreateCustomerFilamentAssignmentParams) (PrinterSpoolAssignment, error)
 	CreatePrinterInputUnit(ctx context.Context, arg CreatePrinterInputUnitParams) (PrinterInputUnit, error)
 	CreatePrinterProfile(ctx context.Context, arg CreatePrinterProfileParams) (PrinterProfile, error)
 	CreatePrinterSlot(ctx context.Context, arg CreatePrinterSlotParams) (PrinterSlot, error)
 	CreatePrinterSpoolAssignment(ctx context.Context, arg CreatePrinterSpoolAssignmentParams) (PrinterSpoolAssignment, error)
 	GetMachineProcess(ctx context.Context, machineID uuid.UUID) (string, error)
 	GetOpenAssignmentForSlot(ctx context.Context, slotID uuid.UUID) (PrinterSpoolAssignment, error)
-	GetOpenAssignmentForSpool(ctx context.Context, spoolID uuid.UUID) (PrinterSpoolAssignment, error)
+	GetOpenAssignmentForSpool(ctx context.Context, spoolID *uuid.UUID) (PrinterSpoolAssignment, error)
 	GetPrinterInputUnitForUpdate(ctx context.Context, id uuid.UUID) (PrinterInputUnit, error)
 	GetPrinterProfile(ctx context.Context, machineID uuid.UUID) (GetPrinterProfileRow, error)
 	GetPrinterProfileForUpdate(ctx context.Context, machineID uuid.UUID) (PrinterProfile, error)
@@ -36,6 +38,7 @@ type Querier interface {
 	ListPrinterSlotsForUpdate(ctx context.Context, machineID uuid.UUID) ([]PrinterSlot, error)
 	ListPrinterSpoolAssignmentHistory(ctx context.Context, arg ListPrinterSpoolAssignmentHistoryParams) ([]ListPrinterSpoolAssignmentHistoryRow, error)
 	LockSpoolLifecycle(ctx context.Context, id uuid.UUID) (string, error)
+	MaterialTypeExists(ctx context.Context, id uuid.UUID) (bool, error)
 	ShiftPrinterInputUnitsForSetup(ctx context.Context, arg ShiftPrinterInputUnitsForSetupParams) error
 	ShiftPrinterSlotsForSetup(ctx context.Context, arg ShiftPrinterSlotsForSetupParams) error
 	UpdatePrinterInputUnit(ctx context.Context, arg UpdatePrinterInputUnitParams) (PrinterInputUnit, error)

@@ -24,6 +24,8 @@ type reportedSegment struct {
 	quantity        *decimal.Decimal
 	split           *string
 	spoolID         *uuid.UUID
+	// customerAssignmentID is the customer filament mount the segment was fed from instead of a spool.
+	customerAssignmentID *uuid.UUID
 }
 
 // reportedSegments reads the segments of a line fed by two or more spools and
@@ -77,9 +79,11 @@ func reportedSegments(
 				segment.split = &split
 			}
 		}
-		if segment.spoolID, err = resolveReportedSpool(ctx, q, machineID, values, startedAt); err != nil {
+		source, err := resolveReportedSpool(ctx, q, machineID, values, startedAt)
+		if err != nil {
 			return nil, true, err
 		}
+		segment.spoolID, segment.customerAssignmentID = source.spoolID, source.customerAssignmentID
 		segments = append(segments, segment)
 	}
 	return segments, true, nil
@@ -90,16 +94,17 @@ func insertReportedSegments(ctx context.Context, q *db.Queries, itemID uuid.UUID
 		if err := q.InsertReportedUsageSegment(
 			ctx,
 			db.InsertReportedUsageSegmentParams{
-				ID:                  ids.New(),
-				ItemID:              itemID,
-				SegmentIndex:        int32(index),
-				InputUnitExternalID: segment.inputUnit,
-				SlotExternalID:      segment.slot,
-				StartedAt:           segment.startedAt,
-				StartLayer:          segment.startLayer,
-				EstimatedQuantityG:  pgNumericOptional(segment.quantity),
-				Split:               segment.split,
-				SpoolID:             segment.spoolID,
+				ID:                   ids.New(),
+				ItemID:               itemID,
+				SegmentIndex:         int32(index),
+				InputUnitExternalID:  segment.inputUnit,
+				SlotExternalID:       segment.slot,
+				StartedAt:            segment.startedAt,
+				StartLayer:           segment.startLayer,
+				EstimatedQuantityG:   pgNumericOptional(segment.quantity),
+				Split:                segment.split,
+				SpoolID:              segment.spoolID,
+				CustomerAssignmentID: segment.customerAssignmentID,
 			},
 		); err != nil {
 			return err

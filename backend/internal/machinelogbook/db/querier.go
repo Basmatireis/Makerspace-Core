@@ -120,7 +120,7 @@ type Querier interface {
 	// Lets this transaction rewrite the quantities and unit costs of ledger rows; the immutability trigger checks the setting.
 	EnableInventoryUnitConversion(ctx context.Context) error
 	FilamentSpoolIdentifierInUse(ctx context.Context, arg FilamentSpoolIdentifierInUseParams) (bool, error)
-	FilamentSpoolMounted(ctx context.Context, spoolID uuid.UUID) (bool, error)
+	FilamentSpoolMounted(ctx context.Context, spoolID *uuid.UUID) (bool, error)
 	FindFilamentSpoolByIdentifier(ctx context.Context, arg FindFilamentSpoolByIdentifierParams) (uuid.UUID, error)
 	FindMaterialByName(ctx context.Context, name string) (uuid.UUID, error)
 	FindMaterialTypeByCode(ctx context.Context, code string) (uuid.UUID, error)
@@ -131,6 +131,8 @@ type Querier interface {
 	GetArtifactReference(ctx context.Context, id uuid.UUID) (GetArtifactReferenceRow, error)
 	GetBillingOrganization(ctx context.Context, id uuid.UUID) (GetBillingOrganizationRow, error)
 	GetBillingPerson(ctx context.Context, id uuid.UUID) (GetBillingPersonRow, error)
+	// What staff said the customer filament of a mount is; the mount may be closed already.
+	GetCustomerFilamentMount(ctx context.Context, id uuid.UUID) (GetCustomerFilamentMountRow, error)
 	GetDefaultPricingGroup(ctx context.Context) (PricingGroup, error)
 	GetDeletedMachineJobForUpdate(ctx context.Context, id uuid.UUID) (MachineJob, error)
 	GetDeletedMachineRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)

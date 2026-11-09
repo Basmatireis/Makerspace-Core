@@ -31,6 +31,9 @@ type RunReportedUsageItem struct {
 	PlannedQuantityGrams, PlannedLengthMillimeters, EstimatedQuantityGrams *string
 	MaterialID, SpoolID                                                    *uuid.UUID
 	Method, CalculationVersion, Quality                                    string
+	// CustomerAssignmentID is the customer filament mount that fed the line: it has no spool and is booked as
+	// customer material.
+	CustomerAssignmentID *uuid.UUID
 	// Segments are the spools that fed the line, in time order, when it was fed by two or more during the
 	// print; the line then has no spool of its own and each segment is booked on its own spool.
 	Segments []RunReportedUsageSegment
@@ -45,6 +48,8 @@ type RunReportedUsageSegment struct {
 	StartLayer                          *int
 	EstimatedQuantityGrams, Split       *string
 	SpoolID, SpoolMaterialID            *uuid.UUID
+	// CustomerAssignmentID is the customer filament mount that fed the segment instead of a spool.
+	CustomerAssignmentID *uuid.UUID
 }
 
 // segmentsFromRows groups the segment rows of the latest report revisions by their line.
@@ -52,13 +57,14 @@ func segmentsFromRows(rows []machinelogbookdb.ListLatestReportedUsageSegmentsFor
 	byItem := map[uuid.UUID][]RunReportedUsageSegment{}
 	for _, row := range rows {
 		segment := RunReportedUsageSegment{
-			Index:               int(row.SegmentIndex),
-			InputUnitExternalID: row.InputUnitExternalID,
-			SlotExternalID:      row.SlotExternalID,
-			StartedAt:           row.StartedAt.UTC(),
-			Split:               row.Split,
-			SpoolID:             row.SpoolID,
-			SpoolMaterialID:     row.SpoolMaterialID,
+			Index:                int(row.SegmentIndex),
+			InputUnitExternalID:  row.InputUnitExternalID,
+			SlotExternalID:       row.SlotExternalID,
+			StartedAt:            row.StartedAt.UTC(),
+			Split:                row.Split,
+			SpoolID:              row.SpoolID,
+			SpoolMaterialID:      row.SpoolMaterialID,
+			CustomerAssignmentID: row.CustomerAssignmentID,
 		}
 		if row.StartLayer != nil {
 			layer := int(*row.StartLayer)
@@ -419,6 +425,7 @@ func (s *Service) queryRuns(
 				Method:                   item.Method,
 				CalculationVersion:       item.CalculationVersion,
 				Quality:                  item.Quality,
+				CustomerAssignmentID:     item.CustomerAssignmentID,
 				Segments:                 segments[item.ID],
 			},
 		)

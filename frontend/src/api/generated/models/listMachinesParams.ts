@@ -21,17 +21,19 @@
 import type { MachineStatus } from './machineStatus';
 
 export type ListMachinesParams = {
-  /**
-   * Case-insensitive substring match on machine name, machine type and external identifier.
-   * @maxLength 200
-   */
-  search?: string;
-  status?: MachineStatus;
-  /** @minimum 1 */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  pageSize?: number;
+/**
+ * Case-insensitive substring match on machine name, machine type and external identifier.
+ * @maxLength 200
+ */
+search?: string;
+status?: MachineStatus;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: number;
 };

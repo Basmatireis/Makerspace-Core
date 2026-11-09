@@ -35,11 +35,13 @@ VALUES (sqlc.arg(id), sqlc.arg(input_unit_id), sqlc.arg(name), sqlc.arg(position
 
 -- name: GetPrinterSlot :one
 SELECT sl.*, u.machine_id, u.name AS input_unit_name,
-       a.id AS assignment_id, a.spool_id, a.mounted_at, s.display_id AS spool_display_id
+       a.id AS assignment_id, a.spool_id, a.mounted_at, s.display_id AS spool_display_id,
+       a.kind AS mount_kind, a.customer_material_type_id, ct.name AS customer_material_type_name, a.customer_color_name
 FROM printer_slots sl
 JOIN printer_input_units u ON u.id=sl.input_unit_id
 LEFT JOIN printer_spool_assignments a ON a.slot_id=sl.id AND a.unmounted_at IS NULL
 LEFT JOIN filament_spools s ON s.id=a.spool_id
+LEFT JOIN material_types ct ON ct.id=a.customer_material_type_id
 WHERE sl.id=sqlc.arg(id);
 
 -- name: GetPrinterSlotForUpdate :one
@@ -48,11 +50,13 @@ WHERE sl.id=sqlc.arg(id) FOR UPDATE OF sl;
 
 -- name: ListPrinterSlots :many
 SELECT sl.*, u.machine_id, u.name AS input_unit_name,
-       a.id AS assignment_id, a.spool_id, a.mounted_at, s.display_id AS spool_display_id
+       a.id AS assignment_id, a.spool_id, a.mounted_at, s.display_id AS spool_display_id,
+       a.kind AS mount_kind, a.customer_material_type_id, ct.name AS customer_material_type_name, a.customer_color_name
 FROM printer_slots sl
 JOIN printer_input_units u ON u.id=sl.input_unit_id
 LEFT JOIN printer_spool_assignments a ON a.slot_id=sl.id AND a.unmounted_at IS NULL
 LEFT JOIN filament_spools s ON s.id=a.spool_id
+LEFT JOIN material_types ct ON ct.id=a.customer_material_type_id
 WHERE u.machine_id=sqlc.arg(machine_id)
 ORDER BY u.position, sl.position, sl.id;
 
@@ -71,13 +75,22 @@ SELECT * FROM printer_spool_assignments WHERE spool_id=sqlc.arg(spool_id) AND un
 INSERT INTO printer_spool_assignments (id, slot_id, spool_id, mounted_at, mounted_by_account_id, source, source_event_id)
 VALUES (sqlc.arg(id), sqlc.arg(slot_id), sqlc.arg(spool_id), sqlc.arg(mounted_at), sqlc.narg(mounted_by_account_id), sqlc.arg(source), sqlc.narg(source_event_id)) RETURNING *;
 
+-- name: CreateCustomerFilamentAssignment :one
+-- Customer filament is a mount without an inventory spool; nothing is booked from stock.
+INSERT INTO printer_spool_assignments (id, slot_id, kind, customer_material_type_id, customer_color_name, mounted_at, mounted_by_account_id, source)
+VALUES (sqlc.arg(id), sqlc.arg(slot_id), 'customer', sqlc.narg(customer_material_type_id), sqlc.narg(customer_color_name),
+        sqlc.arg(mounted_at), sqlc.narg(mounted_by_account_id), 'manual') RETURNING *;
+
+-- name: MaterialTypeExists :one
+SELECT EXISTS (SELECT 1 FROM material_types WHERE id=sqlc.arg(id))::boolean;
+
 -- name: ClosePrinterSpoolAssignment :one
 UPDATE printer_spool_assignments SET unmounted_at=sqlc.arg(unmounted_at), unmounted_by_account_id=sqlc.narg(unmounted_by_account_id)
 WHERE id=sqlc.arg(id) AND unmounted_at IS NULL RETURNING *;
 
 -- name: ListPrinterSpoolAssignmentHistory :many
 SELECT a.*, s.display_id AS spool_display_id
-FROM printer_spool_assignments a JOIN filament_spools s ON s.id=a.spool_id
+FROM printer_spool_assignments a LEFT JOIN filament_spools s ON s.id=a.spool_id
 WHERE a.slot_id=sqlc.arg(slot_id) ORDER BY a.mounted_at DESC, a.id DESC
 LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 

@@ -47,6 +47,10 @@ func TestPrinterOperationsRequireTheirPermissions(t *testing.T) {
 			func() error { _, err := s.UpdateSlot(ctx, p, id, "Slot", 0, "available", nil, 1, nil); return err },
 		},
 		{"printer_slots.assign mount", func() error { _, err := s.Mount(ctx, p, id, id, nil); return err }},
+		{
+			"printer_slots.assign mount customer filament",
+			func() error { _, err := s.MountCustomerFilament(ctx, p, id, nil, nil, nil); return err },
+		},
 		{"printer_slots.assign unmount", func() error { _, err := s.Unmount(ctx, p, id, nil); return err }},
 	}
 	for _, test := range tests {

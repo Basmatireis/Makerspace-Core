@@ -204,21 +204,22 @@ INSERT INTO machine_run_reported_usage_items (
     id, run_id, source_printer_event_id, report_revision, line_number,
     slicer_filament_id, extruder, input_unit_external_id, slot_external_id,
     planned_quantity_g, planned_length_mm, estimated_quantity_g, material_id, spool_id,
-    method, calculation_version, quality
+    method, calculation_version, quality, customer_assignment_id
 ) VALUES (
     sqlc.arg(id), sqlc.arg(run_id), sqlc.arg(source_printer_event_id), sqlc.arg(report_revision), sqlc.arg(line_number),
     sqlc.narg(slicer_filament_id), sqlc.narg(extruder), sqlc.narg(input_unit_external_id), sqlc.narg(slot_external_id),
     sqlc.narg(planned_quantity_g), sqlc.narg(planned_length_mm), sqlc.narg(estimated_quantity_g), sqlc.narg(material_id), sqlc.narg(spool_id),
-    sqlc.arg(method), sqlc.arg(calculation_version), sqlc.arg(quality)
+    sqlc.arg(method), sqlc.arg(calculation_version), sqlc.arg(quality), sqlc.narg(customer_assignment_id)
 ) ON CONFLICT (run_id, report_revision, line_number) DO NOTHING;
 
 -- name: InsertReportedUsageSegment :exec
 INSERT INTO machine_run_reported_usage_segments (
     id, item_id, segment_index, input_unit_external_id, slot_external_id, started_at, start_layer,
-    estimated_quantity_g, split, spool_id
+    estimated_quantity_g, split, spool_id, customer_assignment_id
 ) VALUES (
     sqlc.arg(id), sqlc.arg(item_id), sqlc.arg(segment_index), sqlc.narg(input_unit_external_id), sqlc.narg(slot_external_id),
-    sqlc.arg(started_at), sqlc.narg(start_layer), sqlc.narg(estimated_quantity_g), sqlc.narg(split), sqlc.narg(spool_id)
+    sqlc.arg(started_at), sqlc.narg(start_layer), sqlc.narg(estimated_quantity_g), sqlc.narg(split), sqlc.narg(spool_id),
+    sqlc.narg(customer_assignment_id)
 );
 
 -- name: UpsertPrinterErrorOccurrence :one
@@ -321,8 +322,9 @@ SET last_observed_at=GREATEST(last_observed_at, sqlc.arg(observed_at)::timestamp
 WHERE assignment_id=sqlc.arg(assignment_id) AND source_family=sqlc.arg(source_family)
   AND original_code=sqlc.arg(original_code) AND resolved_at IS NULL;
 
--- name: ListSlotSpoolsAt :many
-SELECT a.spool_id
+-- name: ListSlotMountsAt :many
+-- The mounts a slot had at a point in time: a spool, or customer filament (spool_id is null).
+SELECT a.id, a.spool_id
 FROM printer_spool_assignments a
 JOIN printer_slots s ON s.id=a.slot_id
 JOIN printer_input_units u ON u.id=s.input_unit_id
@@ -488,8 +490,9 @@ FROM printer_slots s JOIN printer_input_units u ON u.id=s.input_unit_id
 WHERE u.machine_id=sqlc.arg(machine_id)
   AND u.external_identifier=sqlc.arg(input_unit_external_id)::text AND s.external_identifier=sqlc.arg(slot_external_id)::text;
 
--- name: GetOpenMountSpoolForSlot :one
-SELECT spool_id FROM printer_spool_assignments WHERE slot_id=sqlc.arg(slot_id) AND unmounted_at IS NULL;
+-- name: GetOpenMountForSlot :one
+-- spool_id is null for customer filament.
+SELECT id, spool_id FROM printer_spool_assignments WHERE slot_id=sqlc.arg(slot_id) AND unmounted_at IS NULL;
 
 -- name: FindActiveSpoolByNFCTag :one
 -- Like LockActiveSpoolByNFCTag without the lock.

@@ -21,5 +21,5 @@
 import type { UUIDv7 } from './uUIDv7';
 
 export type GetSupervisorDashboardParams = {
-  periodId?: UUIDv7;
+periodId?: UUIDv7;
 };

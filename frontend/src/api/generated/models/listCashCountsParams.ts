@@ -20,16 +20,16 @@
  */
 
 export type ListCashCountsParams = {
-  /**
-   * @minimum 1
-   * @maximum 2147483647
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  pageSize?: number;
-  from?: string;
-  to?: string;
+/**
+ * @minimum 1
+ * @maximum 2147483647
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: number;
+from?: string;
+to?: string;
 };

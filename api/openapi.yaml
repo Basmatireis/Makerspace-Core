@@ -8757,6 +8757,28 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /printer-slots/{slotId}/mount-customer-filament:
+    parameters:
+      - {name: slotId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Printing]
+      operationId: mountCustomerFilament
+      summary: Record filament the customer brought as loaded in a slot
+      description: >-
+        Needs printer_slots.assign (and machines.read), like mounting a spool. No inventory spool is involved and nothing
+        is booked from stock; runs the connector records on the slot book that usage as customer material. Unmount
+        works as for a spool (409 slot_occupied while the slot holds something).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/MountCustomerFilamentRequest"}}}}
+      responses:
+        "200": {description: Updated slot., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterSlot"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /printer-slots/{slotId}/unmount:
     parameters:
       - {name: slotId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -9056,6 +9078,30 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReplaceMachineRunUsagesRequest"}}}}
       responses:
         "200": {description: Usage replaced., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunUpdateResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/{runId}/usages/{usageId}/customer-material:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: usageId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Runs]
+      operationId: switchMachineRunUsageToCustomerMaterial
+      summary: Switch one booked makerspace usage of a run to customer material
+      description: >-
+        Needs machine_jobs.edit. The stock booking of that usage is reversed with a compensating inventory transaction,
+        the quantity stays, and the job is priced again without charging the material. Other usages are untouched.
+        409 usage_already_customer_material when the usage already is customer material. Switching back is done by
+        replacing the run's usages.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SwitchUsageToCustomerMaterialRequest"}}}}
+      responses:
+        "200": {description: Usage switched., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunUpdateResult"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -19672,8 +19718,34 @@ components:
         assignmentId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         spoolDisplayId: {type: string, nullable: true}
+        mountKind:
+          type: string
+          enum: [spool, customer]
+          nullable: true
+          description: >-
+            What the slot holds while assignmentId is set: an inventory spool, or filament the customer brought
+            (customer: no spool, nothing is booked from stock; runs recorded on the slot count as customer material).
+        customerMaterialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Customer filament only: the material type staff gave it."}
+        customerMaterialTypeName: {type: string, nullable: true}
+        customerColorName: {type: string, maxLength: 80, nullable: true, description: "Customer filament only: the colour staff gave it."}
         mountedAt: {type: string, format: date-time, nullable: true}
         version: {$ref: "#/components/schemas/Version"}
+
+    MountCustomerFilamentRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional kind of material (422 when unknown)."}
+        colorName: {type: string, minLength: 1, maxLength: 80, nullable: true, description: Optional free-text colour.}
+
+    SwitchUsageToCustomerMaterialRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {type: integer, format: int64, minimum: 1}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional; omitted keeps the material type of the article the usage was booked from."}
+        label: {type: string, minLength: 1, maxLength: 120, nullable: true, description: "Optional free-text description such as brand and colour."}
 
     ConfigurePrinterRequest:
       type: object
@@ -19797,6 +19869,7 @@ components:
         method: {type: string, maxLength: 80}
         calculationVersion: {type: string, maxLength: 80}
         quality: {type: string, enum: [high, medium, low, unresolved]}
+        customerFilament: {type: boolean, description: "True when the line was fed from customer filament mounted in its slot: it has no spool and is booked as customer material."}
         segments:
           type: array
           maxItems: 24
@@ -19823,6 +19896,7 @@ components:
         split: {type: string, enum: [gcode_layer, progress], nullable: true, description: "How the line was split: by the G-code extrusion before each segment's first layer, or by printer progress (a time-based estimate)."}
         spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: The article of the resolved spool.}
+        customerFilament: {type: boolean, description: "True when the segment was fed from customer filament instead of a spool."}
 
     MachineRun:
       type: object

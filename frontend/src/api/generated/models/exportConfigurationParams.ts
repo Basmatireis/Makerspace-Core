@@ -21,9 +21,9 @@
 import type { ConfigurationSection } from './configurationSection';
 
 export type ExportConfigurationParams = {
-  /**
-   * @minItems 1
-   * @maxItems 32
-   */
-  sections: ConfigurationSection[];
+/**
+ * @minItems 1
+ * @maxItems 32
+ */
+sections: ConfigurationSection[];
 };

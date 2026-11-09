@@ -22,8 +22,8 @@ import type { SurveyResponseSource } from './surveyResponseSource';
 import type { UUIDv7 } from './uUIDv7';
 
 export type ExportSurveyResultsCSVParams = {
-  from?: string;
-  to?: string;
-  source?: SurveyResponseSource;
-  linkId?: UUIDv7;
+from?: string;
+to?: string;
+source?: SurveyResponseSource;
+linkId?: UUIDv7;
 };

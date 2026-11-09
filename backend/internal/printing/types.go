@@ -9,6 +9,14 @@ type SpoolLifecycle string
 // SpoolActive marks a spool that can be mounted.
 const SpoolActive SpoolLifecycle = "active"
 
+// MountKind says what a slot's open mount holds: an inventory spool or filament the customer brought.
+type MountKind string
+
+const (
+	MountSpool    MountKind = "spool"
+	MountCustomer MountKind = "customer"
+)
+
 // PrinterModel is a supported printer model.
 type PrinterModel string
 

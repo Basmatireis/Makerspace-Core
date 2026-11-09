@@ -22,24 +22,28 @@ import type { MachineJobOutcome } from './machineJobOutcome';
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListMachineJobsParams = {
-  /**
-   * Case-insensitive substring match on job display ID, job name, notes, machine name, recipient (person or organization) name, operator name, used material name and the display IDs and file names of the job's runs.
-   * @maxLength 200
-   */
-  search?: string;
-  machineId?: UUIDv7;
-  /** Person or Organization identifier. */
-  customerId?: UUIDv7;
-  operatorPersonId?: UUIDv7;
-  materialId?: UUIDv7;
-  outcome?: MachineJobOutcome;
-  from?: string;
-  to?: string;
-  /** @minimum 1 */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  pageSize?: number;
+/**
+ * Case-insensitive substring match on job display ID, job name, notes, machine name, recipient (person or organization) name, operator name, used material name and the display IDs and file names of the job's runs.
+ * @maxLength 200
+ */
+search?: string;
+machineId?: UUIDv7;
+/**
+ * Person or Organization identifier.
+ */
+customerId?: UUIDv7;
+operatorPersonId?: UUIDv7;
+materialId?: UUIDv7;
+outcome?: MachineJobOutcome;
+from?: string;
+to?: string;
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: number;
 };

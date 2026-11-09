@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
@@ -136,6 +137,35 @@ func (s *Server) ReplaceMachineRunUsages(
 		return nil, err
 	}
 	return openapi.ReplaceMachineRunUsages200JSONResponse(mlRunResultDTO(item)), nil
+}
+
+func (s *Server) SwitchMachineRunUsageToCustomerMaterial(
+	ctx context.Context,
+	r openapi.SwitchMachineRunUsageToCustomerMaterialRequestObject,
+) (openapi.SwitchMachineRunUsageToCustomerMaterialResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.SwitchRunUsageToCustomerMaterial(
+		ctx,
+		p,
+		r.RunId,
+		r.UsageId,
+		r.Body.ExpectedVersion,
+		machinelogbook.CustomerMaterialInput{
+			MaterialTypeID: setupUUID(r.Body.MaterialTypeId),
+			Label:          nullableStringPointer(r.Body.Label),
+		},
+		requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.SwitchMachineRunUsageToCustomerMaterial200JSONResponse(mlRunResultDTO(item)), nil
 }
 
 func (s *Server) CancelMachineRun(
@@ -344,6 +374,7 @@ func mlRunBase(item machinelogbook.MachineRun) openapi.MachineRun {
 				Method:                   u.Method,
 				CalculationVersion:       u.CalculationVersion,
 				Quality:                  openapi.MachineRunReportedUsageItemQuality(u.Quality),
+				CustomerFilament:         customerFilamentFlag(u.CustomerAssignmentID),
 				Segments:                 mlReportedSegmentsDTO(u.Segments),
 			},
 		)
@@ -654,8 +685,18 @@ func mlReportedSegmentsDTO(items []machinelogbook.RunReportedUsageSegment) []ope
 				Split:                  split,
 				SpoolId:                nullableUUIDValue(segment.SpoolID),
 				MaterialId:             nullableUUIDValue(segment.SpoolMaterialID),
+				CustomerFilament:       customerFilamentFlag(segment.CustomerAssignmentID),
 			},
 		)
 	}
 	return out
+}
+
+// customerFilamentFlag marks a reported line or segment fed from customer filament; it is omitted otherwise.
+func customerFilamentFlag(assignmentID *uuid.UUID) *bool {
+	if assignmentID == nil {
+		return nil
+	}
+	flag := true
+	return &flag
 }
