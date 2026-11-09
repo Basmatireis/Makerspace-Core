@@ -242,7 +242,13 @@ export function unresolvedReportedUsageItems(
   const reportedUsageItems = Array.isArray(run.reportedUsageItems) ? run.reportedUsageItems : [];
   return reportedUsageItems.filter((item) => {
     const quantity = item.estimatedQuantityGrams ?? item.plannedQuantityGrams;
-    return quantity != null && Number(quantity) > 0 && !matches.has(item.lineNumber) && !hasSegments(item);
+    return (
+      quantity != null &&
+      Number(quantity) > 0 &&
+      !matches.has(item.lineNumber) &&
+      !hasSegments(item) &&
+      !item.customerFilament
+    );
   });
 }
 

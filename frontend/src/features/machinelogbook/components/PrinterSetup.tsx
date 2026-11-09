@@ -57,6 +57,7 @@ import { machineLogbookKeys, printerErrorsQuery, spoolsQuery } from '../queries'
 import { connectorDiagnostic } from '../shared/connectorHelpers';
 import { formatDateTime, formatQuantity, formatRelative } from '../shared/format';
 import { machineLogbookPaths } from '../shared/paths';
+import { MountCustomerFilamentModal } from '../dialogs/MountCustomerFilamentModal';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import { DetectedTrayCell } from './DetectedTrayCell';
@@ -70,7 +71,7 @@ const EVENTS_SHOWN = 8;
 
 /** A loaded spool the printer reports in a slot without a spool in Core. */
 const unregistered = (tray: PrinterLiveStatusTray | null, slot: PrinterSlot) =>
-  Boolean(tray && !tray.empty && (tray.rfid || tray.tagUid || tray.trayUuid) && !slot.spoolId);
+  Boolean(tray && !tray.empty && (tray.rfid || tray.tagUid || tray.trayUuid) && !slot.assignmentId);
 
 function PrinterEvents({ machineId }: { machineId: string }) {
   const can = useCan();
@@ -185,6 +186,7 @@ export function PrinterSetup({
   const [disableOpen, setDisableOpen] = useState(false);
   const [wizard, setWizard] = useState<{ step: StepKey; addDetected?: string } | null>(null);
   const [mountSlot, setMountSlot] = useState<PrinterSlot | null>(null);
+  const [customerSlot, setCustomerSlot] = useState<{ slot: PrinterSlot; unit: string } | null>(null);
   const [registering, setRegistering] = useState<{ slot: PrinterSlot; tray: PrinterLiveStatusTray } | null>(null);
   const [selectedSpool, setSelectedSpool] = useState<FilamentSpool | null>(null);
 
@@ -261,7 +263,11 @@ export function PrinterSetup({
   const unmount = useMutation({
     mutationFn: ({ slot }: { slot: PrinterSlot; unit: string }) => unmountPrinterSpool(slot.id),
     onSuccess: async (_saved, { slot, unit }) => {
-      notify({ kind: 'success', title: 'Spool unmounted', subtitle: `${unit} · ${slot.name}` });
+      notify({
+        kind: 'success',
+        title: slot.mountKind === 'customer' ? 'Customer filament unmounted' : 'Spool unmounted',
+        subtitle: `${unit} · ${slot.name}`,
+      });
       await refresh();
     },
     onError: () =>
@@ -343,7 +349,7 @@ export function PrinterSetup({
     assignment?.runtimeState === 'degraded' || assignment?.runtimeState === 'disconnected'
       ? `Connector ${assignment.runtimeState}${assignment.runtimeErrorCode ? ` · ${assignment.runtimeErrorCode}` : ''}`
       : null;
-  const mountedCount = slots.filter((slot) => slot.spoolId).length;
+  const mountedCount = slots.filter((slot) => slot.assignmentId).length;
   const canEditAssignment = canManage && canManageConnectors && Boolean(connection);
   const recordingDisabled = !profile.enabled;
 
@@ -397,6 +403,18 @@ export function PrinterSetup({
                 </span>
               )}
             </div>
+          ) : slot.mountKind === 'customer' ? (
+            <div className="mj-cell-stack">
+              <span>
+                <Tag type="teal" size="sm">
+                  Customer filament
+                </Tag>
+              </span>
+              <span className="mj-secondary">
+                {[slot.customerMaterialTypeName, slot.customerColorName].filter(Boolean).join(' · ') ||
+                  'Not charged and not booked from stock'}
+              </span>
+            </div>
           ) : waitingHere ? (
             <div className="mj-cell-stack">
               <span>
@@ -411,7 +429,7 @@ export function PrinterSetup({
           )}
         </TableCell>
         <TableCell className="mj-col-num">
-          {canAssign && slot.spoolId && (
+          {canAssign && slot.assignmentId && (
             <Button
               kind="ghost"
               size="sm"
@@ -422,12 +440,12 @@ export function PrinterSetup({
               Unmount
             </Button>
           )}
-          {!slot.spoolId && waitingHere && canRegister && (
+          {!slot.assignmentId && waitingHere && canRegister && (
             <Button kind="ghost" size="sm" renderIcon={Add} onClick={() => setRegistering({ slot, tray: tray! })}>
               Register
             </Button>
           )}
-          {canAssign && canReadInventory && !slot.spoolId && !waitingHere && slot.status === 'available' && (
+          {canAssign && canReadInventory && !slot.assignmentId && !waitingHere && slot.status === 'available' && (
             <Button
               kind="ghost"
               size="sm"
@@ -438,6 +456,16 @@ export function PrinterSetup({
               }}
             >
               Mount
+            </Button>
+          )}
+          {canAssign && !slot.assignmentId && slot.status === 'available' && (
+            <Button
+              kind="ghost"
+              size="sm"
+              renderIcon={LinkIcon}
+              onClick={() => setCustomerSlot({ slot, unit: unit.name })}
+            >
+              Mount customer filament
             </Button>
           )}
         </TableCell>
@@ -743,6 +771,23 @@ export function PrinterSetup({
           tray={registering.tray}
           canMount={canAssign && registering.slot.status === 'available'}
           onClose={() => setRegistering(null)}
+        />
+      )}
+
+      {customerSlot && (
+        <MountCustomerFilamentModal
+          slot={customerSlot.slot}
+          unitName={customerSlot.unit}
+          onClose={() => setCustomerSlot(null)}
+          onMounted={() => {
+            notify({
+              kind: 'success',
+              title: 'Customer filament mounted',
+              subtitle: `${customerSlot.unit} · ${customerSlot.slot.name}`,
+            });
+            setCustomerSlot(null);
+            void refresh();
+          }}
         />
       )}
 

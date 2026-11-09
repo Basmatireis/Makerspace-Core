@@ -827,7 +827,7 @@ describe('Machine detail', () => {
   it('offers Unmount for mounted slots to printer_slots.assign and calls the API', async () => {
     const mountedProfile: PrinterProfile = {
       ...profile,
-      slots: [{ ...profile.slots[0], spoolId: 'spool-1', spoolDisplayId: 'S-0001' }],
+      slots: [{ ...profile.slots[0], assignmentId: 'assignment-1', spoolId: 'spool-1', spoolDisplayId: 'S-0001' }],
     };
     setup([PermissionId.machinesread, PermissionId.printer_slotsassign], { profileResponse: mountedProfile });
     let unmounted = false;
@@ -842,6 +842,43 @@ describe('Machine detail', () => {
     expect(await screen.findByText('S-0001', undefined, { timeout: 5000 })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Unmount' }));
     await waitFor(() => expect(unmounted).toBe(true));
+  });
+  it('shows customer filament in a slot and mounts it with printer_slots.assign alone', async () => {
+    const mountedProfile: PrinterProfile = {
+      ...profile,
+      slots: [
+        {
+          ...profile.slots[0],
+          assignmentId: 'assignment-2',
+          mountKind: 'customer',
+          customerColorName: 'Galaxy black',
+        },
+      ],
+    };
+    setup([PermissionId.machinesread, PermissionId.printer_slotsassign], { profileResponse: mountedProfile });
+    renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
+    expect(await screen.findByText('Customer filament', undefined, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.getByText('Galaxy black')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Unmount' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mount customer filament' })).not.toBeInTheDocument();
+  });
+
+  it('offers to mount customer filament in an empty slot', async () => {
+    setup([PermissionId.machinesread, PermissionId.printer_slotsassign]);
+    let body: unknown;
+    server.use(
+      http.post('*/api/v1/printer-slots/slot-1/mount-customer-filament', async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ ...profile.slots[0], assignmentId: 'assignment-3', mountKind: 'customer' });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage(`/workshop/machines/${bambu.id}?tab=printer`);
+    await user.click(await screen.findByRole('button', { name: 'Mount customer filament' }, { timeout: 5000 }));
+    await user.type(await screen.findByLabelText('Colour (optional)'), 'Red');
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Mount customer filament' }));
+    await waitFor(() => expect(body).toEqual({ materialTypeId: null, colorName: 'Red' }));
   });
 });
 
