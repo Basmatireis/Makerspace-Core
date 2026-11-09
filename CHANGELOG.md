@@ -31,6 +31,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Removed
 
+- **No ready-made notification rules.** The application no longer ships notification rules: migration 00127 deletes the rules seeded by migration 00115 (open-day changes, freed places, sign-up open, new Lab Rules, printer errors, finished runs and spool changes), so only rules staff create in the notification center send anything. Notifications already sent stay.
 - **Android kiosk.** The Android app, its build check and the Android device bridge are gone; the desktop app is the only native shell. Managed devices report only the `desktop` platform, and migration 00112 drops stored Android hardware reports (the devices themselves stay).
 - Settings › Lab operations › Open days & staffing, and the staffing level and open-days minimum fields of the role editor.
 - **Order fulfilment mode.** Orders no longer ask whether the customer takes the items now or picks them up later; `fulfillmentMode` is gone from the order API (#56).
