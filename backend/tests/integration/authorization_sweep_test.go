@@ -37,6 +37,7 @@ var selfServiceOperations = map[string]string{
 	"GetOwnSecondFactors":               "lists the caller's own second factors",
 	"GetPersonalDashboard":              "returns the caller's own dashboard",
 	"ListMyGuideProgress":               "returns the caller's own guide progress",
+	"ListMyAccountPreferences":          "returns the caller's own interface preferences",
 	"ListNotifications":                 "lists the caller's own notifications",
 	"ListOwnNotificationSubscriptions":  "lists the caller's own notification subscriptions",
 	"ListOwnPublicEventAssignments":     "lists the caller's own assignments to an event",
@@ -53,6 +54,7 @@ var selfServiceOperations = map[string]string{
 	"StartPasskeyRegistration":          "starts registering a passkey for the caller's own account",
 	"StartTotpEnrollment":               "starts TOTP enrolment for the caller's own account",
 	"UpdateMyGuideProgress":             "records the caller's own guide progress",
+	"UpdateMyAccountPreference":         "stores one of the caller's own interface preferences",
 }
 
 // unprobedOperations lists the session-protected operations the sweep cannot exercise because the request
