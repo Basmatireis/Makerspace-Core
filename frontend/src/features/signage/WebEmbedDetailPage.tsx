@@ -1,5 +1,5 @@
 import './styles.scss';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Button,
   InlineNotification,
@@ -73,6 +73,8 @@ function Detail({ embed, crumbs }: { embed: SignageWebEmbed; crumbs: { label: st
   const canManage = hasPermission(user, PermissionId.signagemanage);
   const canPublish = hasPermission(user, PermissionId.signagepublish);
   const [deleting, setDeleting] = useState(false);
+  const menuWrapper = useRef<HTMLDivElement | null>(null);
+  const deleteLauncher = useRef<HTMLElement | null>(null);
   const { preview, view, now } = usePublishedView(embed.id);
   const group = useQuery({ ...groupQuery(embed.groupId ?? ''), enabled: embed.groupId !== null }).data;
   const pending = embed.pendingChanges;
@@ -107,9 +109,16 @@ function Detail({ embed, crumbs }: { embed: SignageWebEmbed; crumbs: { label: st
         </Button>
       )}
       {canManage && (
-        <div>
+        <div ref={menuWrapper}>
           <OverflowMenu flipped aria-label="Web embed actions" iconDescription="Web embed actions">
-            <OverflowMenuItem itemText="Delete" isDelete onClick={() => setDeleting(true)} />
+            <OverflowMenuItem
+              itemText="Delete"
+              isDelete
+              onClick={() => {
+                deleteLauncher.current = menuWrapper.current?.querySelector('button') ?? null;
+                setDeleting(true);
+              }}
+            />
           </OverflowMenu>
         </div>
       )}
@@ -169,7 +178,7 @@ function Detail({ embed, crumbs }: { embed: SignageWebEmbed; crumbs: { label: st
             lowContrast
             hideCloseButton
             title="Not published yet"
-            subtitle="Websites show “Nothing to show yet” until you publish its first revision."
+            subtitle="Websites show “This screen isn’t available” until you publish its first revision."
           />
         )}
         {!neverPublished && pending.length > 0 && (
@@ -253,7 +262,9 @@ function Detail({ embed, crumbs }: { embed: SignageWebEmbed; crumbs: { label: st
           </div>
         </div>
       </div>
-      {deleting && <DeleteWebEmbedDialog embed={embed} onClose={() => setDeleting(false)} />}
+      {deleting && (
+        <DeleteWebEmbedDialog embed={embed} launcherButtonRef={deleteLauncher} onClose={() => setDeleting(false)} />
+      )}
     </PageShell>
   );
 }

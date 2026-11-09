@@ -4,7 +4,7 @@ import type { SignageEmbedSettings } from '../api/generated/models';
 import { createEmbedApi, PlayerApiError } from './api';
 import { embedKeyFromPath, isTopLevel } from './embed';
 import { EmbedApp } from './PlayerApp';
-import { EMBED_LIVE_INTERVAL_MS, MANIFEST_INTERVAL_MS, PlayerRuntime } from './runtime';
+import { EMBED_LIVE_INTERVAL_MS, EMBED_UNAVAILABLE_RECHECK_MS, MANIFEST_INTERVAL_MS, PlayerRuntime } from './runtime';
 import { live, manifest } from './testFixtures';
 
 const KEY = 'AbCdEfGhIjKlMnOpQrStUvWx';
@@ -91,17 +91,29 @@ describe('embed runtime', () => {
     vi.unstubAllGlobals();
   });
 
-  it('is unavailable when switched off and stops polling', async () => {
-    const api = embedApi(settings({ enabled: false }), {
-      manifest: vi.fn(async () => ({ embed: settings({ enabled: false }), unchanged: false })),
+  it('is unavailable when switched off, re-checks every 5 minutes without live polling and recovers', async () => {
+    let enabled = false;
+    const api = embedApi(settings(), {
+      manifest: vi.fn(async () => ({ embed: settings({ enabled }), unchanged: false, manifest: manifest(1) })),
     });
-    const runtime = new PlayerRuntime({ api, embed: { isTopLevel: () => false } });
+    const runtime = new PlayerRuntime({
+      api,
+      embed: { isTopLevel: () => false },
+      loadAsset: async () => 'ready',
+    });
     runtime.start();
     await vi.advanceTimersByTimeAsync(100);
     expect(runtime.getSnapshot().status).toBe('unavailable');
     await vi.advanceTimersByTimeAsync(MANIFEST_INTERVAL_MS * 2);
     expect(api.live).not.toHaveBeenCalled();
     expect(api.manifest).toHaveBeenCalledTimes(1);
+    enabled = true;
+    await vi.advanceTimersByTimeAsync(EMBED_UNAVAILABLE_RECHECK_MS);
+    expect(api.manifest.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(runtime.getSnapshot()).toMatchObject({ status: 'playing', revision: 1 });
+    await vi.advanceTimersByTimeAsync(EMBED_LIVE_INTERVAL_MS);
+    expect(api.live).toHaveBeenCalled();
+    runtime.stop();
   });
 
   it('is unavailable for an unknown key (404)', async () => {
@@ -115,6 +127,9 @@ describe('embed runtime', () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(runtime.getSnapshot().status).toBe('unavailable');
     expect(api.live).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(EMBED_UNAVAILABLE_RECHECK_MS);
+    expect(api.manifest).toHaveBeenCalledTimes(2);
+    runtime.stop();
   });
 
   it('is unavailable when opened directly although openDirectly is false', async () => {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Button,
   Checkbox,
@@ -13,7 +13,7 @@ import {
   Tile,
   Toggle,
 } from '@carbon/react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, type UseFormReturn } from 'react-hook-form';
 import type { SignageWebEmbed } from '../../api/generated/models';
 import { useUpdateEmbed } from './embedMutations';
 import { errorMessage, isStaleWrite } from './helpers';
@@ -34,6 +34,17 @@ const numberChange =
   (_: unknown, { value }: { value: string | number }) =>
     field.onChange(value === '' ? Number.NaN : Number(value));
 
+/** Resets the form only when the saved values themselves change, not on unrelated version bumps. */
+function useResetOnSaved<T extends Record<string, unknown>>(form: UseFormReturn<T>, saved: T) {
+  const key = JSON.stringify(saved);
+  const lastKey = useRef(key);
+  useEffect(() => {
+    if (lastKey.current === key) return;
+    lastKey.current = key;
+    form.reset(JSON.parse(key) as T);
+  }, [form, key]);
+}
+
 function CameraDetails({ embed }: { embed: SignageWebEmbed }) {
   const update = useUpdateEmbed(embed.id);
   const { machines } = useMachineOptions();
@@ -41,6 +52,7 @@ function CameraDetails({ embed }: { embed: SignageWebEmbed }) {
   const form = useForm<{ machineIds: string[]; viewers: number }>({
     defaultValues: { machineIds: embed.cameraMachineIds, viewers: embed.cameraViewerLimit },
   });
+  useResetOnSaved(form, { machineIds: embed.cameraMachineIds, viewers: embed.cameraViewerLimit });
   const { errors, isDirty } = form.formState;
   const save = form.handleSubmit((values) =>
     update.mutate(
@@ -115,6 +127,7 @@ function TimelapseDetails({ embed }: { embed: SignageWebEmbed }) {
   const form = useForm<{ count: number; days: number }>({
     defaultValues: { count: embed.timelapseCount, days: embed.timelapseMaxAgeDays },
   });
+  useResetOnSaved(form, { count: embed.timelapseCount, days: embed.timelapseMaxAgeDays });
   const { errors, isDirty } = form.formState;
   const save = form.handleSubmit((values) =>
     update.mutate(
@@ -183,7 +196,8 @@ function TimelapseDetails({ embed }: { embed: SignageWebEmbed }) {
 /** What the embed shows besides public information. Switching cameras or timelapses on asks first; off applies at once. */
 export function WebEmbedDataTab({ embed, canManage }: { embed: SignageWebEmbed; canManage: boolean }) {
   const update = useUpdateEmbed(embed.id);
-  const { machines } = useMachineOptions();
+  const { machines, known } = useMachineOptions();
+  const mediaLauncher = useRef<HTMLElement | null>(null);
   const [confirming, setConfirming] = useState<MediaKind | null>(null);
 
   const turnOn = () => {
@@ -205,8 +219,10 @@ export function WebEmbedDataTab({ embed, canManage }: { embed: SignageWebEmbed; 
     update.mutate({ expectedVersion: embed.version, ...request }, { onSuccess: () => setConfirming(null) });
   };
   const toggle = (kind: MediaKind, checked: boolean) => {
-    if (checked) setConfirming(kind);
-    else
+    if (checked) {
+      mediaLauncher.current = document.getElementById(`embed-${kind}`);
+      setConfirming(kind);
+    } else
       update.mutate({
         expectedVersion: embed.version,
         ...(kind === 'camera' ? { cameraEnabled: false } : { timelapseEnabled: false }),
@@ -251,14 +267,14 @@ export function WebEmbedDataTab({ embed, canManage }: { embed: SignageWebEmbed; 
             labelA="Off"
             labelB="On"
             toggled={embed.cameraEnabled}
-            disabled={!canManage || update.isPending}
+            disabled={!canManage || update.isPending || !known}
             onToggle={(checked) => toggle('camera', checked)}
           />
           <p className="sg-secondary">
             Live picture of the chosen printers while they print. Same relay as displays; no picture when a run is
             hidden from signage.
           </p>
-          {embed.cameraEnabled && (canManage ? <CameraDetails key={embed.version} embed={embed} /> : null)}
+          {embed.cameraEnabled && (canManage ? <CameraDetails key={embed.id} embed={embed} /> : null)}
           <Toggle
             id="embed-timelapse"
             labelText="Timelapses"
@@ -271,7 +287,7 @@ export function WebEmbedDataTab({ embed, canManage }: { embed: SignageWebEmbed; 
           <p className="sg-secondary">
             Finished runs with a timelapse. The caption is printer and date only. Runs hidden from signage never appear.
           </p>
-          {embed.timelapseEnabled && (canManage ? <TimelapseDetails key={embed.version} embed={embed} /> : null)}
+          {embed.timelapseEnabled && (canManage ? <TimelapseDetails key={embed.id} embed={embed} /> : null)}
           {update.isError && confirming === null && (
             <InlineNotification
               kind="error"
@@ -291,6 +307,7 @@ export function WebEmbedDataTab({ embed, canManage }: { embed: SignageWebEmbed; 
         <MediaConfirmModal
           kind={confirming}
           embed={embed}
+          launcherButtonRef={mediaLauncher}
           pending={update.isPending}
           error={update.isError ? errorMessage(update.error) : undefined}
           onConfirm={turnOn}

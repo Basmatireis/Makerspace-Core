@@ -1,5 +1,5 @@
 import './styles.scss';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Button,
   Link as CarbonLink,
@@ -31,12 +31,13 @@ export function WebEmbedsPage() {
   const navigate = useNavigate();
   const canManage = hasPermission(useCurrentUser(), PermissionId.signagemanage);
   const [creating, setCreating] = useState(false);
+  const newLauncher = useRef<HTMLButtonElement | null>(null);
   const now = useNow(30_000);
   const query = useQuery(embedsQuery());
   const groups = useQuery(groupsQuery()).data?.items;
   const embeds = query.data?.items ?? [];
   const newButton = canManage ? (
-    <Button renderIcon={Add} onClick={() => setCreating(true)}>
+    <Button ref={newLauncher} renderIcon={Add} onClick={() => setCreating(true)}>
       New web embed
     </Button>
   ) : undefined;
@@ -119,7 +120,7 @@ export function WebEmbedsPage() {
           </TableContainer>
         )}
       </QueryBoundary>
-      {creating && <NewWebEmbedModal onClose={() => setCreating(false)} />}
+      {creating && <NewWebEmbedModal launcherButtonRef={newLauncher} onClose={() => setCreating(false)} />}
     </PageShell>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import { Checkbox, InlineNotification, Modal, Stack, TextInput } from '@carbon/react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -19,10 +19,27 @@ import { hostOf, normalizeOrigin } from './webEmbeds';
 
 const staleText = 'This web embed was changed somewhere else. It was refreshed; try again.';
 
+/** The dialogs unmount when closed, so Carbon cannot return focus: put it back on the launcher once they are gone. */
+function useReturnFocus(launcherButtonRef: RefObject<HTMLElement | null> | undefined) {
+  useEffect(() => {
+    const launcher = launcherButtonRef?.current;
+    return () => {
+      if (launcher?.isConnected) launcher.focus();
+    };
+  }, [launcherButtonRef]);
+}
+
 type NewValues = AspectFields & { name: string; website: string };
 
 /** Creates a web embed from a name, an aspect ratio and the first website, then opens it. Content comes afterwards. */
-export function NewWebEmbedModal({ onClose }: { onClose: () => void }) {
+export function NewWebEmbedModal({
+  launcherButtonRef,
+  onClose,
+}: {
+  launcherButtonRef?: RefObject<HTMLElement | null>;
+  onClose: () => void;
+}) {
+  useReturnFocus(launcherButtonRef);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const form = useForm<NewValues>({
@@ -46,6 +63,7 @@ export function NewWebEmbedModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal
       open
+      launcherButtonRef={launcherButtonRef}
       size="md"
       modalHeading="New web embed"
       modalLabel="Web embeds"
@@ -111,6 +129,7 @@ export function MediaConfirmModal({
   embed,
   pending,
   error,
+  launcherButtonRef,
   onConfirm,
   onClose,
 }: {
@@ -118,14 +137,17 @@ export function MediaConfirmModal({
   embed: Pick<SignageWebEmbed, 'name' | 'allowedOrigins'>;
   pending: boolean;
   error?: string;
+  launcherButtonRef?: RefObject<HTMLElement | null>;
   onConfirm: () => void;
   onClose: () => void;
 }) {
   const [acknowledged, setAcknowledged] = useState(false);
+  useReturnFocus(launcherButtonRef);
   const camera = kind === 'camera';
   return (
     <Modal
       open
+      launcherButtonRef={launcherButtonRef}
       size="sm"
       modalLabel={embed.name}
       modalHeading={camera ? 'Show printer cameras on other websites?' : 'Show timelapses on other websites?'}
@@ -198,7 +220,15 @@ export function RotateKeyDialog({ embed, onClose }: { embed: SignageWebEmbed; on
 }
 
 /** Deletes a web embed with its rules and publications and returns to the list. */
-export function DeleteWebEmbedDialog({ embed, onClose }: { embed: SignageWebEmbed; onClose: () => void }) {
+export function DeleteWebEmbedDialog({
+  embed,
+  launcherButtonRef,
+  onClose,
+}: {
+  embed: SignageWebEmbed;
+  launcherButtonRef?: RefObject<HTMLElement | null>;
+  onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const remove = useMutation({
@@ -223,6 +253,7 @@ export function DeleteWebEmbedDialog({ embed, onClose }: { embed: SignageWebEmbe
       confirmLabel="Delete"
       pending={remove.isPending}
       error={remove.isError ? (isStaleWrite(remove.error) ? staleText : errorMessage(remove.error)) : undefined}
+      launcherButtonRef={launcherButtonRef}
       onConfirm={() => remove.mutate()}
       onClose={onClose}
     >

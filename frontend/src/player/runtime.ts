@@ -25,6 +25,8 @@ export const MANIFEST_INTERVAL_MS = 60_000;
 /** Web embeds poll live data less often than devices (no heartbeat either). */
 export const EMBED_LIVE_INTERVAL_MS = 30_000;
 const UNPUBLISHED_INTERVAL_MS = 10_000;
+/** An unavailable web embed only re-checks its manifest this often, so turning it on again recovers without a reload. */
+export const EMBED_UNAVAILABLE_RECHECK_MS = 5 * 60_000;
 const MAX_BACKOFF_MS = 120_000;
 const ERROR_MEMORY_MS = 5 * 60_000;
 const FIRST_LIVE_GRACE_MS = 3_000;
@@ -162,6 +164,7 @@ export class PlayerRuntime {
     if (this.stopped) return;
     this.every(async () => {
       await this.refreshManifest();
+      if (this.unavailable) return EMBED_UNAVAILABLE_RECHECK_MS;
       return this.unpublished || this.manifestFailures > 0
         ? Math.min(UNPUBLISHED_INTERVAL_MS * 2 ** this.manifestFailures, MAX_BACKOFF_MS)
         : MANIFEST_INTERVAL_MS;
@@ -175,6 +178,8 @@ export class PlayerRuntime {
     if (this.loopsStarted || this.stopped || this.revoked) return;
     this.loopsStarted = true;
     this.every(async () => {
+      // An unavailable embed does not poll live data; this idle tick only waits for it to be available again.
+      if (this.unavailable) return EMBED_LIVE_INTERVAL_MS;
       await this.pollLive();
       const interval = this.embed ? EMBED_LIVE_INTERVAL_MS : LIVE_INTERVAL_MS;
       return this.online ? interval : backoffMs(this.liveFailures, interval, MAX_BACKOFF_MS);
@@ -279,19 +284,25 @@ export class PlayerRuntime {
     this.publish();
   }
 
-  /** An embed that is switched off, unknown, or not meant to be opened directly shows a neutral screen and stops polling. */
+  /**
+   * An embed that is switched off or unknown shows a neutral screen and only re-checks its manifest slowly. One that is not
+   * meant to be opened directly stops for good.
+   */
   private embedAvailable(settings: SignageEmbedSettings | undefined) {
     const topLevel = this.embed?.isTopLevel?.() ?? false;
-    if (settings && settings.enabled && (settings.openDirectly || !topLevel)) return true;
-    this.makeUnavailable();
+    if (settings && settings.enabled && (settings.openDirectly || !topLevel)) {
+      this.unavailable = false;
+      return true;
+    }
+    this.makeUnavailable(!settings || !settings.enabled);
     return false;
   }
 
-  private makeUnavailable() {
+  private makeUnavailable(recheck: boolean) {
     this.unavailable = true;
     this.active = null;
     this.live = null;
-    this.stop();
+    if (!recheck) this.stop();
     this.publish();
   }
 
@@ -450,7 +461,7 @@ export class PlayerRuntime {
       }
       // Any other 404 means the device has no display any more: it must be paired again (an embed key is gone: unavailable).
       if (error instanceof PlayerApiError && error.status === 404) {
-        if (this.embed) this.makeUnavailable();
+        if (this.embed) this.makeUnavailable(true);
         else this.markRevoked();
         return;
       }
