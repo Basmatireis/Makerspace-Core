@@ -60,13 +60,16 @@ How code in this repository is written. [AGENTS.md](../AGENTS.md) holds the bind
 
 ### Linting **(checked)**
 
-`golangci-lint run` with `backend/.golangci.yml`: the standard set plus `bodyclose`, `errorlint`, `gosec`, `lll`, `misspell`, `nilerr`, `unconvert`, `usestdlibvars`. A `//nolint:<linter> // <reason>` is allowed only on a single line with a concrete reason.
+`golangci-lint run` with `backend/.golangci.yml`: the standard set plus `bodyclose`, `depguard`, `errorlint`, `gosec`, `lll`, `misspell`, `nilerr`, `unconvert`, `usestdlibvars`. A `//nolint:<linter> // <reason>` is allowed only on a single line with a concrete reason.
+
+The layering in [Layout](#layout) is checked: `depguard` keeps `internal/openapi` and `internal/httpapi` out of domain packages, and `TestHandlersDoNotImportRepositories` keeps the sqlc `db` packages out of `internal/httpapi`.
 
 ## SQL and migrations
 
 - One goose migration per schema change, always with a working `Down`; `DO` blocks are wrapped in `-- +goose StatementBegin/End`. Applied migrations are never edited.
 - sqlc query names are `VerbObject[ByKey]` (`GetAccountForAuthentication`). Queries that lock (`FOR UPDATE`) say so in the name or a comment.
 - Identifiers are UUIDv7 generated in Go; timestamps are `timestamptz` in UTC.
+- Dropping or renaming a column or table and adding a required column are deliberate decisions: the Up section says so with `-- squawk-ignore <rule>` and the reason on the line above (checked by `make lint-migrations`).
 
 ## OpenAPI
 

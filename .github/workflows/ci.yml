@@ -1,11 +1,10 @@
 name: CI
 
 on:
+  # Pull requests always start the workflow so the required `CI result` check reports; the
+  # `Changed areas` job skips the heavy jobs when only documentation changed.
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
   push:
     branches: [main]
     paths-ignore:
@@ -25,6 +24,8 @@ concurrency:
 jobs:
   generated:
     name: Generated code
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     env:
       POSTGRES_PASSWORD: ci-local-database-password
@@ -56,6 +57,8 @@ jobs:
 
   backend:
     name: Backend
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -63,6 +66,13 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The pull request merge commit and its first parent (the base) for the migration lint.
+          fetch-depth: 2
+      - name: Lint new migrations
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        run: sh ./scripts/lint-migrations.sh HEAD^1
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -94,6 +104,8 @@ jobs:
 
   backend-integration:
     name: Backend integration
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     env:
       POSTGRES_PASSWORD: ci-local-database-password
@@ -121,6 +133,8 @@ jobs:
 
   frontend:
     name: Frontend
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -160,13 +174,15 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
+      code: ${{ steps.filter.outputs.code }}
       desktop: ${{ steps.filter.outputs.desktop }}
     steps:
       # The macOS desktop job is the slowest and most expensive one, so a pull request skips it when
       # no file it can depend on changed (the Tauri app, the Go bridge it bundles from backend/, the
       # API contract, or this workflow). Pushes to main and release validation always run it, and
-      # any failure to list the changed files runs it as well.
-      - name: Decide whether the desktop kiosk must be built
+      # any failure to list the changed files runs it as well. A pull request that only changes
+      # Markdown or docs/ skips every job except this one and the `CI result` gate.
+      - name: Decide which jobs must run
         id: filter
         env:
           GH_TOKEN: ${{ github.token }}
@@ -174,16 +190,21 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           PULL_REQUEST: ${{ github.event.pull_request.number }}
         run: |
+          code=true
           desktop=true
           if [ "$EVENT" = pull_request ]; then
             if files="$(gh api --paginate "repos/${REPOSITORY}/pulls/${PULL_REQUEST}/files" --jq '.[] | .filename, (.previous_filename // empty)')" && [ -n "$files" ]; then
+              if ! printf '%s\n' "$files" | grep -Evq '(\.md$|^docs/)'; then
+                code=false
+              fi
               if ! printf '%s\n' "$files" | grep -Eq '^(desktop-kiosk/|backend/|api/|\.github/workflows/ci\.yml$|go\.work)'; then
                 desktop=false
               fi
             fi
           fi
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
           echo "desktop=${desktop}" >> "$GITHUB_OUTPUT"
-          echo "Desktop kiosk job needed: ${desktop}"
+          echo "Code jobs needed: ${code}; desktop kiosk job needed: ${desktop}"
 
   desktop:
     name: Desktop kiosk
@@ -229,6 +250,8 @@ jobs:
 
   end-to-end-shard:
     name: End-to-end shard ${{ matrix.shard }}/3
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -302,10 +325,13 @@ jobs:
           RESULT: ${{ needs.end-to-end-shard.result }}
         run: |
           echo "End-to-end shards: ${RESULT}"
-          test "$RESULT" = success
+          # Skipped only for a documentation-only pull request.
+          test "$RESULT" = success || test "$RESULT" = skipped
 
   containers:
     name: Container (${{ matrix.component }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -336,6 +362,8 @@ jobs:
 
   production-compose:
     name: Production bundle
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -364,3 +392,32 @@ jobs:
         run: make test-frontend-allowed-clients
       - name: Test printer connector deployment bundle
         run: make test-printer-connector-compose
+
+  # The single required check of the `main` ruleset. It fails when any job failed or was
+  # cancelled; a job skipped for a documentation-only pull request counts as passed.
+  result:
+    name: CI result
+    needs:
+      - generated
+      - backend
+      - backend-integration
+      - frontend
+      - changes
+      - desktop
+      - end-to-end
+      - containers
+      - production-compose
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job to pass or be skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: ${RESULTS}"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
