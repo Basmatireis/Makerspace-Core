@@ -151,6 +151,9 @@ export COMPOSE_PROJECT_NAME="makerspace-core-production-smoke-failure-$smoke_id"
 cat >"$deployment_directory/compose.override.yaml" <<'YAML'
 services:
   backend:
+    # Without restarts the container settles as exited instead of looking "running"
+    # during each one-minute wait for the database.
+    restart: "no"
     environment:
       GOOSE_DBSTRING: postgres://makerspace@127.0.0.1:1/makerspace?sslmode=disable&connect_timeout=1
 YAML
@@ -161,11 +164,11 @@ if compose up -d; then
 fi
 
 failed_backend_container=$(compose ps --all --quiet backend)
-# A restarting container is briefly "running" between attempts, so wait for a
-# settled failed state instead of sampling it once.
+# The entrypoint first waits up to a minute for an unreachable database, so wait
+# for a settled failed state instead of sampling it once.
 failed_backend_state=
 attempt=0
-while [ "$attempt" -lt 30 ]; do
+while [ "$attempt" -lt 120 ]; do
     failed_backend_state=$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$failed_backend_container")
     case "$failed_backend_state" in
         "exited "[1-9]*|"restarting "[1-9]*) break ;;
