@@ -159,3 +159,43 @@ SELECT * FROM device_types WHERE lower(name) = lower(sqlc.arg(name)::text);
 -- name: SetManagedDeviceTokenDigest :one
 UPDATE managed_devices SET token_digest = sqlc.arg(token_digest), version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND revoked_at IS NULL RETURNING id;
+
+-- Pairing -----------------------------------------------------------------------------------------------------
+
+-- name: DeleteExpiredManagedDevicePairingRequests :exec
+DELETE FROM managed_device_pairing_requests WHERE expires_at <= sqlc.arg(now)::timestamptz;
+
+-- name: CountOpenManagedDevicePairingRequests :one
+SELECT count(*) FROM managed_device_pairing_requests WHERE expires_at > sqlc.arg(now)::timestamptz;
+
+-- name: CreateManagedDevicePairingRequest :exec
+INSERT INTO managed_device_pairing_requests (id, code_digest, poll_secret_digest, credential_delivery, created_at, expires_at)
+VALUES (sqlc.arg(id), sqlc.arg(code_digest), sqlc.arg(poll_secret_digest), sqlc.arg(credential_delivery), sqlc.arg(created_at), sqlc.arg(expires_at));
+
+-- name: DeleteOpenManagedDevicePairingRequestByPollDigest :exec
+DELETE FROM managed_device_pairing_requests
+WHERE poll_secret_digest = sqlc.arg(poll_secret_digest) AND claimed_device_id IS NULL;
+
+-- name: GetManagedDevicePairingRequestForPoll :one
+-- Locks the request so that two concurrent polls cannot both collect the credential.
+SELECT id, credential_delivery, claimed_device_id FROM managed_device_pairing_requests
+WHERE poll_secret_digest = sqlc.arg(poll_secret_digest) FOR UPDATE;
+
+-- name: GetOpenManagedDevicePairingRequestByCode :one
+-- Locks the open request so that two staff members cannot claim the same code.
+SELECT id FROM managed_device_pairing_requests
+WHERE code_digest = sqlc.arg(code_digest) AND claimed_at IS NULL AND expires_at > sqlc.arg(now)::timestamptz FOR UPDATE;
+
+-- name: ClaimManagedDevicePairingRequest :exec
+UPDATE managed_device_pairing_requests
+SET claimed_device_id = sqlc.arg(device_id), claimed_at = sqlc.arg(now)::timestamptz, expires_at = sqlc.arg(delivery_deadline)
+WHERE id = sqlc.arg(id);
+
+-- name: DeleteManagedDevicePairingRequest :exec
+DELETE FROM managed_device_pairing_requests WHERE id = sqlc.arg(id);
+
+-- name: IssuePairedManagedDeviceToken :one
+-- Replaces the unusable placeholder digest of a freshly paired device with the digest of the delivered token.
+UPDATE managed_devices SET token_digest = sqlc.arg(token_digest), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
+RETURNING expires_at;

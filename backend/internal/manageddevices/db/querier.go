@@ -6,21 +6,30 @@ package manageddevicesdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
 	AddDeviceCapability(ctx context.Context, arg AddDeviceCapabilityParams) error
 	AddReportedDeviceCapability(ctx context.Context, arg AddReportedDeviceCapabilityParams) error
+	ClaimManagedDevicePairingRequest(ctx context.Context, arg ClaimManagedDevicePairingRequestParams) error
 	ClearDefaultSessionPolicy(ctx context.Context, id uuid.UUID) error
 	ClearDeviceCapabilities(ctx context.Context, managedDeviceID uuid.UUID) error
 	ClearReportedDeviceCapabilities(ctx context.Context, managedDeviceID uuid.UUID) error
+	CountOpenManagedDevicePairingRequests(ctx context.Context, now time.Time) (int64, error)
 	CreateDeviceType(ctx context.Context, arg CreateDeviceTypeParams) (DeviceType, error)
 	CreateManagedDevice(ctx context.Context, arg CreateManagedDeviceParams) (ManagedDevice, error)
+	CreateManagedDevicePairingRequest(ctx context.Context, arg CreateManagedDevicePairingRequestParams) error
 	CreateSessionPolicy(ctx context.Context, arg CreateSessionPolicyParams) (SessionPolicy, error)
 	DeleteDeviceType(ctx context.Context, arg DeleteDeviceTypeParams) (uuid.UUID, error)
+	// Pairing -----------------------------------------------------------------------------------------------------
+	DeleteExpiredManagedDevicePairingRequests(ctx context.Context, now time.Time) error
 	DeleteManagedDevice(ctx context.Context, arg DeleteManagedDeviceParams) (uuid.UUID, error)
+	DeleteManagedDevicePairingRequest(ctx context.Context, id uuid.UUID) error
+	DeleteOpenManagedDevicePairingRequestByPollDigest(ctx context.Context, pollSecretDigest []byte) error
 	EnsureManagedDeviceTypeByName(ctx context.Context, arg EnsureManagedDeviceTypeByNameParams) error
 	GetDefaultSessionPolicy(ctx context.Context) (SessionPolicy, error)
 	GetDeviceType(ctx context.Context, id uuid.UUID) (DeviceType, error)
@@ -29,8 +38,14 @@ type Querier interface {
 	GetManagedDevice(ctx context.Context, id uuid.UUID) (GetManagedDeviceRow, error)
 	GetManagedDeviceForMutation(ctx context.Context, id uuid.UUID) (ManagedDevice, error)
 	GetManagedDeviceHardwareReport(ctx context.Context, managedDeviceID uuid.UUID) (GetManagedDeviceHardwareReportRow, error)
+	// Locks the request so that two concurrent polls cannot both collect the credential.
+	GetManagedDevicePairingRequestForPoll(ctx context.Context, pollSecretDigest []byte) (GetManagedDevicePairingRequestForPollRow, error)
+	// Locks the open request so that two staff members cannot claim the same code.
+	GetOpenManagedDevicePairingRequestByCode(ctx context.Context, arg GetOpenManagedDevicePairingRequestByCodeParams) (uuid.UUID, error)
 	GetSessionPolicy(ctx context.Context, id uuid.UUID) (SessionPolicy, error)
 	GetValidManagedDeviceByDigest(ctx context.Context, tokenDigest []byte) (GetValidManagedDeviceByDigestRow, error)
+	// Replaces the unusable placeholder digest of a freshly paired device with the digest of the delivered token.
+	IssuePairedManagedDeviceToken(ctx context.Context, arg IssuePairedManagedDeviceTokenParams) (pgtype.Timestamptz, error)
 	ListDeviceCapabilities(ctx context.Context, managedDeviceID uuid.UUID) ([]string, error)
 	ListDeviceTypes(ctx context.Context) ([]DeviceType, error)
 	ListManagedDevices(ctx context.Context) ([]ListManagedDevicesRow, error)

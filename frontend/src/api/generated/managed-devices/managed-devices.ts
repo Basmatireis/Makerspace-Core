@@ -26,13 +26,17 @@ import type {
   ListManagedDevicesParams,
   ManagedDevice,
   ManagedDeviceList,
+  ManagedDevicePairingPoll,
+  ManagedDevicePairingStart,
   ManagedDeviceProvisioning,
   ManagedDeviceType,
   ManagedDeviceTypeList,
+  PairManagedDeviceRequest,
   RotateManagedDeviceTokenRequest,
   SessionPolicy,
   SessionPolicyInput,
   SessionPolicyList,
+  StartManagedDevicePairingRequest,
   UUIDv7,
   UpdateManagedDeviceRequest,
   UpdateManagedDeviceTypeRequest,
@@ -264,6 +268,44 @@ return apiFetch<ManagedDeviceProvisioning>(getCreateManagedDeviceUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(createManagedDeviceRequest)
+  }
+);}
+
+
+export const getPairManagedDeviceUrl = () => {
+
+
+
+
+  return `/api/v1/managed-devices/pairing`
+}
+
+/**
+ * Requires `managed_devices.manage`. Claims the open pairing request with that code and creates the managed device with the given settings in one transaction; the kiosk receives its credential on its next poll, in the form it asked for (browser cookie or one-time native token). Unknown, expired, already claimed and malformed codes all answer the same 422 `pairing_code_invalid`; repeated failures of one account answer 429.
+ * @summary Register a kiosk by the pairing code it shows
+ */
+export const pairManagedDevice = async (pairManagedDeviceRequest: PairManagedDeviceRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDevice> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<ManagedDevice>(getPairManagedDeviceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(pairManagedDeviceRequest)
   }
 );}
 
@@ -525,6 +567,68 @@ return apiFetch<ManagedDeviceProvisioning>(getRotateManagedDeviceTokenUrl(manage
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(rotateManagedDeviceTokenRequest)
+  }
+);}
+
+
+export const getStartManagedDevicePairingUrl = () => {
+
+
+
+
+  return `/api/v1/public/managed-devices/pairing`
+}
+
+/**
+ * Public. Creates a pairing request valid for 15 minutes. `bindBrowser` (a kiosk browser) sets the HttpOnly `SameSite=Strict` poll-secret cookie (Secure in production); `nativeToken` (the desktop app) returns the poll secret once in the body instead, and the app sends it back in `X-Device-Pairing-Secret`. A previous request of the same kiosk (cookie or header) is replaced; if staff already claimed it, the answer is 409 `pairing_claimed` and the kiosk collects its credential by polling. Rate-limited per client IP and capped globally (429); optionally restricted to `DEVICE_PAIRING_ALLOWED_CIDRS` (403 `pairing_network_denied`).
+ * @summary An unregistered kiosk requests a pairing code
+ */
+export const startManagedDevicePairing = async (startManagedDevicePairingRequest: StartManagedDevicePairingRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDevicePairingStart> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<ManagedDevicePairingStart>(getStartManagedDevicePairingUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(startManagedDevicePairingRequest)
+  }
+);}
+
+
+export const getPollManagedDevicePairingUrl = () => {
+
+
+
+
+  return `/api/v1/public/managed-devices/pairing`
+}
+
+/**
+ * Public; identifies the request by the poll-secret cookie or the `X-Device-Pairing-Secret` header. `pending` until staff claim the code, `expired` when the request is gone or timed out. The first poll after the claim answers `paired` exactly once and then deletes the request: a browser request receives the managed-device cookie (the same HttpOnly cookie as browser binding), a native request receives the one-time `token` in the body.
+ * @summary Poll the kiosk's pairing request (every 3 seconds)
+ */
+export const pollManagedDevicePairing = async ( options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDevicePairingPoll> => {
+
+  return apiFetch<ManagedDevicePairingPoll>(getPollManagedDevicePairingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 
