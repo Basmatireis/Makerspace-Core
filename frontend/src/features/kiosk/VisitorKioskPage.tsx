@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   getTerminalContext,
   listTerminalPresence,
@@ -8,6 +8,7 @@ import {
 import type { KioskNotice, TerminalConsentCategory, TerminalSurveyOffer, Visit } from '../../api/generated/models';
 import { BrandMark } from '../../app/BrandMark';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
+import { ApiError } from '../../api/http-client';
 import { useBranding } from '../branding/branding';
 import { ConsentScreen } from './components/ConsentScreen';
 import { CheckOutScreen } from './components/CheckOutScreen';
@@ -15,6 +16,7 @@ import type { Credentials, LabRulesNeed } from './components/checkIn';
 import { CredentialsScreen } from './components/CredentialsScreen';
 import { LabRulesScreen } from './components/LabRulesScreen';
 import { HomeScreen } from './components/HomeScreen';
+import { KioskPairingScreen } from './KioskPairingScreen';
 import { PresencePanel } from './components/PresencePanel';
 import { ResultScreen } from './components/ResultScreen';
 import { SurveyOfferScreen } from './components/SurveyOfferScreen';
@@ -72,7 +74,14 @@ export function VisitorKioskPage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: presenceKey }),
   });
 
+  // Stable identity: the pairing loop restarts whenever this callback changes.
+  const { refetch: refetchContext } = kiosk;
+  const paired = useCallback(() => void refetchContext(), [refetchContext]);
+
   if (kiosk.isPending) return <FullPageLoading label="Loading visitor kiosk" />;
+  // 404: this browser has no kiosk credential, so it offers a pairing code instead of an error.
+  if (!kiosk.data && kiosk.error instanceof ApiError && kiosk.error.status === 404)
+    return <KioskPairingScreen onPaired={paired} />;
   // A failed refresh keeps the last known context on screen.
   if (!kiosk.data)
     return (

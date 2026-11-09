@@ -3,6 +3,48 @@
 @use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/type' as *;
 
+// Pairing screen of an unregistered kiosk browser: the code must be readable from across the counter.
+.kiosk-pairing {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: $spacing-07 $spacing-05;
+  background: $background;
+  color: $text-primary;
+}
+
+.kiosk-pairing__panel {
+  max-width: 40rem;
+  text-align: center;
+}
+
+.kiosk-pairing__logo {
+  max-height: 3rem;
+  margin-inline: auto;
+}
+
+.kiosk-pairing__title {
+  @include type-style('heading-04');
+}
+
+.kiosk-pairing__code {
+  @include type-style('heading-07');
+
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.3em;
+  overflow-wrap: anywhere;
+}
+
+.kiosk-pairing__hint {
+  @include type-style('body-02');
+}
+
+.kiosk-pairing__small {
+  @include type-style('body-01');
+
+  color: $text-secondary;
+}
+
 body:has(.tablet) {
   overflow: hidden;
   touch-action: manipulation;

@@ -288,7 +288,7 @@ function AssuranceSelect({
   );
 }
 
-function DevicePolicyFields({
+export function DevicePolicyFields({
   id,
   policies,
   value,

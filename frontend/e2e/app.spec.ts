@@ -17,6 +17,9 @@ type ApiState = {
   supervisorDashboard?: ReturnType<typeof supervisorDashboard>;
   staffingRules?: ReturnType<typeof staffingRules>;
   user?: ReturnType<typeof currentUser>;
+  deviceTypes?: unknown[];
+  sessionPolicies?: unknown[];
+  pairedDevices?: unknown[];
 };
 
 const personId = '0192f6f8-743e-7c77-a349-cd07c3e8a901';
@@ -326,6 +329,35 @@ function personalDashboard() {
   };
 }
 
+const deviceTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8a960';
+const kioskPolicyId = '0192f6f8-743e-7c77-a349-cd07c3e8a961';
+const pairedManagedDeviceId = '0192f6f8-743e-7c77-a349-cd07c3e8a962';
+
+function pairedDevice(name: string) {
+  return {
+    id: pairedManagedDeviceId,
+    name,
+    deviceTypeId,
+    deviceTypeName: 'Entrance tablet',
+    status: 'active',
+    expiresAt: null,
+    revokedAt: null,
+    lastSeenAt: null,
+    sessionPolicyId: kioskPolicyId,
+    terminalEnabled: true,
+    allowedApplicationModes: ['visitor_terminal'],
+    checkInAssurance: 'normal',
+    checkOutAssurance: 'normal',
+    allowTapCheckout: false,
+    offerSurveysAtCheckout: false,
+    kioskResetSeconds: 60,
+    capabilities: [],
+    version: 1,
+    createdAt: '2026-11-09T10:00:00Z',
+    updatedAt: '2026-11-09T10:00:00Z',
+  };
+}
+
 async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({
     status,
@@ -455,7 +487,52 @@ async function installApi(page: Page, state: ApiState) {
     }
 
     if (path === '/api/v1/managed-device-types' && request.method() === 'GET') {
-      await json(route, { items: [] });
+      await json(route, { items: state.deviceTypes ?? [] });
+      return;
+    }
+
+    if (path === '/api/v1/managed-devices' && request.method() === 'GET') {
+      await json(route, { items: [], nextCursor: null });
+      return;
+    }
+
+    if (path === '/api/v1/session-policies' && request.method() === 'GET') {
+      await json(route, { items: state.sessionPolicies ?? [] });
+      return;
+    }
+
+    if (path === '/api/v1/managed-devices/pairing' && request.method() === 'POST') {
+      const body = request.postDataJSON() as { code: string; name: string };
+      if (body.code !== 'K7F2QX') {
+        await json(route, { code: 'pairing_code_invalid', message: 'The pairing code is invalid or has expired' }, 422);
+        return;
+      }
+      const device = pairedDevice(body.name);
+      state.pairedDevices = [...(state.pairedDevices ?? []), device];
+      await json(route, device, 201);
+      return;
+    }
+
+    const pairedDeviceId = path.match(/^\/api\/v1\/managed-devices\/([^/]+)(\/hardware)?$/);
+    if (pairedDeviceId && pairedDeviceId[1] === pairedManagedDeviceId && request.method() === 'GET') {
+      await json(
+        route,
+        pairedDeviceId[2]
+          ? {
+              deviceId: pairedManagedDeviceId,
+              deviceName: 'Lobby kiosk',
+              terminalEnabled: true,
+              allowedApplicationModes: ['visitor_terminal'],
+              sessionPolicyId: kioskPolicyId,
+              configuredCapabilities: [],
+              reportedCapabilities: [],
+              effectiveCapabilities: [],
+              platform: null,
+              bridgeVersion: null,
+              reportedAt: null,
+            }
+          : pairedDevice('Lobby kiosk'),
+      );
       return;
     }
 
@@ -1421,4 +1498,51 @@ test('groups the settings overview, redirects merged screens and fits a 375 px v
   await expect(page.getByRole('tab', { name: 'SCIM provisioning' })).toBeVisible();
   await expect(page.getByLabel('Breadcrumb').getByRole('link', { name: 'Access & identity' })).toBeVisible();
   await expectNoHorizontalPageOverflow(page);
+});
+
+test('pairs a kiosk by its code from the Managed devices tab', async ({ page }) => {
+  await installApi(page, {
+    authenticated: true,
+    user: currentUser(['managed_devices.read', 'managed_devices.manage']),
+    deviceTypes: [
+      {
+        id: deviceTypeId,
+        name: 'Entrance tablet',
+        description: null,
+        version: 1,
+        createdAt: '2026-11-09T10:00:00Z',
+        updatedAt: '2026-11-09T10:00:00Z',
+      },
+    ],
+    sessionPolicies: [
+      {
+        id: kioskPolicyId,
+        name: 'Kiosk',
+        idleTimeoutSeconds: 120,
+        absoluteLifetimeSeconds: 900,
+        postSessionDestination: 'visitor_terminal',
+        isDefault: false,
+        version: 1,
+        createdAt: '2026-11-09T10:00:00Z',
+        updatedAt: '2026-11-09T10:00:00Z',
+      },
+    ],
+  });
+
+  await page.goto('/settings/devices-sessions?tab=managed-devices');
+  await page.getByRole('button', { name: 'Pair device' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Pairing code').fill('aaaaaa');
+  await dialog.getByLabel('Device name').fill('Lobby kiosk');
+  await dialog.getByLabel('Device type').selectOption(deviceTypeId);
+  await dialog.getByLabel('Session policy').selectOption(kioskPolicyId);
+  await expectNoSeriousAccessibilityViolations(page);
+  await dialog.getByRole('button', { name: 'Pair device' }).click();
+  await expect(dialog.getByText(/This code was not accepted/)).toBeVisible();
+
+  await dialog.getByLabel('Pairing code').fill('k7f-2qx');
+  await dialog.getByRole('button', { name: 'Pair device' }).click();
+  await expect(page).toHaveURL(new RegExp(`/settings/devices-sessions/devices/${pairedManagedDeviceId}$`));
+  await expect(page.getByRole('heading', { name: 'Lobby kiosk' })).toBeVisible();
 });
