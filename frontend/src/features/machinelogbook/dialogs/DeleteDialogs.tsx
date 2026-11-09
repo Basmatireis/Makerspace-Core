@@ -168,7 +168,7 @@ function DeleteJobDialog({ job, onClose }: Omit<JobProps, 'open'>) {
       await invalidateAll(client);
       notify({ kind: 'success', title: 'Job deleted', subtitle: `${job.displayId} was deleted.` });
       onClose();
-      navigate(machineLogbookPaths.jobs());
+      void navigate(machineLogbookPaths.jobs());
     },
   });
   const serverOnOrder = errorCode(remove.error) === 'job_on_order';

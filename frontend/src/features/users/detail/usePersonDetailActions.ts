@@ -214,7 +214,7 @@ export function usePersonDetailActions({
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: peopleKeys.detail(person.id) });
       await queryClient.invalidateQueries({ queryKey: peopleKeys.lists() });
-      navigate('/people', { replace: true });
+      void navigate('/people', { replace: true });
     },
   });
   const roleMutation = useMutation({

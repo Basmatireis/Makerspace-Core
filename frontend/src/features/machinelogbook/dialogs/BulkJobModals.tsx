@@ -96,7 +96,7 @@ function BulkJobDialog({ mode, onClose, runs, onDone }: Omit<Props, 'open'> & { 
           title: `${plural(runs.length, 'run')} combined`,
           subtitle: `${created.combined.displayId} holds all selected runs.`,
         });
-        navigate(machineLogbookPaths.job(created.combined.id));
+        void navigate(machineLogbookPaths.job(created.combined.id));
       }
     },
   });

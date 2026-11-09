@@ -97,16 +97,15 @@ export function PublicPageTab({ event, now, canManage }: { event: Event; now: nu
     now,
   );
   const titleMissing = live && values.title.trim() === '';
+  const submit = form.handleSubmit((value) => {
+    if (!save.isPending) save.mutate(value);
+  });
 
   return (
     <div className="ev-public-tab ev-tab">
       <div className="ev-stack">
         <Tile>
-          <form
-            onSubmit={form.handleSubmit((value) => {
-              if (!save.isPending) save.mutate(value);
-            })}
-          >
+          <form onSubmit={(event) => void submit(event)}>
             <Stack gap={5}>
               <SectionHeading title="Public texts" />
               {!editable && (

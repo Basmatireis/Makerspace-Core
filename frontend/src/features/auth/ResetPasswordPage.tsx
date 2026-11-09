@@ -117,7 +117,7 @@ export function PINEnrollmentPage() {
               </Button>
             </Stack>
           ) : (
-            <Form onSubmit={submit}>
+            <Form onSubmit={(event) => void submit(event)}>
               <Stack gap={6}>
                 <TextInput
                   id="pin-setup-code"
@@ -237,7 +237,7 @@ export function EmailVerificationPage() {
               </Button>
             </Stack>
           ) : (
-            <Form onSubmit={submit}>
+            <Form onSubmit={(event) => void submit(event)}>
               <Stack gap={6}>
                 <TextInput
                   id="verification-email"
@@ -378,7 +378,7 @@ function PasswordChallengePage({ invitation }: { invitation: boolean }) {
               </Button>
             </Stack>
           ) : (
-            <Form onSubmit={complete}>
+            <Form onSubmit={(event) => void complete(event)}>
               <Stack gap={6}>
                 <TextInput
                   id="challenge-email"

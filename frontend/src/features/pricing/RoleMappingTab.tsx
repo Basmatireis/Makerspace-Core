@@ -91,7 +91,7 @@ export function RoleMappingTab({ groups, canEdit }: { groups: PricingGroup[]; ca
 
   if (mapped.isPending) return <FullPageLoading label="Loading role mapping" />;
   if (mapped.isError)
-    return <ErrorState message="The role mapping could not be loaded." onRetry={() => mapped.refetch()} />;
+    return <ErrorState message="The role mapping could not be loaded." onRetry={() => void mapped.refetch()} />;
   return (
     <Stack gap={5}>
       <InlineNotification

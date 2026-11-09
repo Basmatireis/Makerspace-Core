@@ -69,7 +69,18 @@ export function PanelFrame({ label, open, placeholder, onClose, children }: Pane
     );
   if (!open) return null;
   return (
-    <>
+    // The layer has no box of its own (display: contents); it only receives the sheet's Escape key from React's bubbling.
+    <div
+      className="panel-frame__layer"
+      role="presentation"
+      onKeyDown={(event) => {
+        // Dialogs opened from the sheet are portalled but bubble through React; only the sheet's own keys count.
+        if (event.key === 'Escape' && ref.current?.contains(event.target as Node)) {
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       <div className="panel-frame__scrim" onClick={onClose} aria-hidden="true" />
       <aside
         ref={ref}
@@ -78,16 +89,9 @@ export function PanelFrame({ label, open, placeholder, onClose, children }: Pane
         aria-modal="true"
         aria-label={label}
         className="panel-frame panel-frame--sheet"
-        onKeyDown={(event) => {
-          // Dialogs opened from the sheet are portalled but bubble through React; only the sheet's own keys count.
-          if (event.key === 'Escape' && ref.current?.contains(event.target as Node)) {
-            event.stopPropagation();
-            onClose();
-          }
-        }}
       >
         {children}
       </aside>
-    </>
+    </div>
   );
 }

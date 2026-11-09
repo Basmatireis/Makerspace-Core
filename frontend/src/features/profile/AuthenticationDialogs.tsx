@@ -55,7 +55,7 @@ export function AuthenticationDialogs({ authentication }: { authentication: Prof
       <ComposedModal aria-label="Change password" open={passwordModalOpen} onClose={closePasswordModal}>
         <ModalHeader title="Change password" label={passwordIdentity?.displayIdentifier ?? undefined} />
         <ModalBody>
-          <Form id="change-own-password-form" onSubmit={submitPassword}>
+          <Form id="change-own-password-form" onSubmit={(event) => void submitPassword(event)}>
             <Stack gap={5}>
               <p>Changing your password signs out your other sessions.</p>
               {passwordMutation.isError && (
@@ -121,7 +121,7 @@ export function AuthenticationDialogs({ authentication }: { authentication: Prof
       >
         <ModalHeader title="Remove password method?" />
         <ModalBody>
-          <Form id="remove-own-password-form" onSubmit={submitRemovePassword}>
+          <Form id="remove-own-password-form" onSubmit={(event) => void submitRemovePassword(event)}>
             <Stack gap={5}>
               <p>
                 You will be signed out. Your account remains active, but you will need another authentication method to
@@ -170,7 +170,7 @@ export function AuthenticationDialogs({ authentication }: { authentication: Prof
       >
         <ModalHeader title={pinIdentity ? 'Set new username and PIN' : 'Add username and PIN'} />
         <ModalBody>
-          <Form id="set-own-pin-form" onSubmit={submitPIN}>
+          <Form id="set-own-pin-form" onSubmit={(event) => void submitPIN(event)}>
             <Stack gap={5}>
               {pinMutation.isError && (
                 <InlineNotification
@@ -299,7 +299,7 @@ export function AuthenticationDialogs({ authentication }: { authentication: Prof
       >
         <ModalHeader title={oidcProviderToLink ? `Link ${oidcProviderToLink.displayName}` : 'Link OIDC provider'} />
         <ModalBody>
-          <Form id="link-oidc-provider-form" onSubmit={submitOIDCLink}>
+          <Form id="link-oidc-provider-form" onSubmit={(event) => void submitOIDCLink(event)}>
             <Stack gap={5}>
               <p>Linking is available for five minutes after recent password or OIDC authentication.</p>
               {passwordIdentity && (

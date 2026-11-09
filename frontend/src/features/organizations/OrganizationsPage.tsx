@@ -138,7 +138,7 @@ export function OrganizationsPage() {
           onClose={() => setCreateOpen(false)}
           onCreated={(organization) => {
             setCreateOpen(false);
-            navigate(organizationPaths.detail(organization.id));
+            void navigate(organizationPaths.detail(organization.id));
           }}
         />
       )}

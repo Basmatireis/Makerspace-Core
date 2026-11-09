@@ -88,7 +88,7 @@ function ClaimForm({ onClose, run, canCreate, canAttach }: ClaimProps & { run: M
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
       notify({ kind: 'success', title: 'Job created', subtitle: `${job.displayId} contains ${run.displayId}.` });
       onClose();
-      navigate(machineLogbookPaths.job(job.id));
+      void navigate(machineLogbookPaths.job(job.id));
     },
     onError: (cause) => setError(saveError(cause).message),
   });
@@ -112,7 +112,7 @@ function ClaimForm({ onClose, run, canCreate, canAttach }: ClaimProps & { run: M
           onSuccess: () => {
             notify({ kind: 'success', title: 'Run attached', subtitle: `${run.displayId} → ${job.displayId}` });
             onClose();
-            navigate(machineLogbookPaths.job(job.id));
+            void navigate(machineLogbookPaths.job(job.id));
           },
           onError: (cause) => setError(saveError(cause, 'The run could not be attached.').message),
         },

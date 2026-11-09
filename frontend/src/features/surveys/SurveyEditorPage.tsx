@@ -128,7 +128,7 @@ function SurveyEditorForm({ survey }: { survey?: Survey }) {
     onSuccess: async (saved) => {
       if (!saved) return;
       await queryClient.invalidateQueries({ queryKey: surveyKeys.all });
-      navigate(`/settings/surveys/${saved.id}`);
+      void navigate(`/settings/surveys/${saved.id}`);
     },
   });
   const back = survey ? `/settings/surveys/${survey.id}` : '/settings/surveys';
@@ -142,7 +142,7 @@ function SurveyEditorForm({ survey }: { survey?: Survey }) {
         { label: 'Surveys', to: '/settings/surveys' },
       ]}
     >
-      <Form onSubmit={handleSubmit((values) => save.mutate(values))}>
+      <Form onSubmit={(event) => void handleSubmit((values) => save.mutate(values))(event)}>
         <Stack gap={6}>
           <TextInput
             id="survey-name"
@@ -371,7 +371,7 @@ function SurveyEditorForm({ survey }: { survey?: Survey }) {
             />
           )}
           <div className="button-cluster">
-            <Button type="button" kind="secondary" onClick={() => navigate(back)}>
+            <Button type="button" kind="secondary" onClick={() => void navigate(back)}>
               Cancel
             </Button>
             <Button type="submit" disabled={save.isPending}>

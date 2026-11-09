@@ -63,7 +63,7 @@ export function AccountDialogs({
       <ComposedModal open={createAccountOpen} onClose={() => setCreateAccountOpen(false)}>
         <ModalHeader title="Create account" label={`${person.firstName} ${person.lastName}`} />
         <ModalBody>
-          <Form id="create-account-form" onSubmit={submitCreateAccount}>
+          <Form id="create-account-form" onSubmit={(event) => void submitCreateAccount(event)}>
             <Stack gap={5}>
               <p>
                 Create an active application account for this person. Authentication methods can be configured
@@ -114,7 +114,7 @@ export function AccountDialogs({
           label={`${person.firstName} ${person.lastName}`}
         />
         <ModalBody>
-          <Form id="account-login-email-form" onSubmit={submitEmail}>
+          <Form id="account-login-email-form" onSubmit={(event) => void submitEmail(event)}>
             <Stack gap={5}>
               <p>
                 This is the person's email and the address used for password login. Changing it signs the person out of
@@ -170,7 +170,7 @@ export function AccountDialogs({
           label={`${person.firstName} ${person.lastName}`}
         />
         <ModalBody>
-          <Form id="set-account-pin-form" onSubmit={submitPIN}>
+          <Form id="set-account-pin-form" onSubmit={(event) => void submitPIN(event)}>
             <Stack gap={5}>
               <p>Configure this method directly. Existing account sessions will be signed out.</p>
               {pinMutation.isError && (
@@ -253,7 +253,7 @@ export function AccountDialogs({
           label={passwordIdentity?.displayIdentifier ?? `${person.firstName} ${person.lastName}`}
         />
         <ModalBody>
-          <Form id="set-account-password-form" onSubmit={submitPassword}>
+          <Form id="set-account-password-form" onSubmit={(event) => void submitPassword(event)}>
             <Stack gap={5}>
               {passwordMutation.isError && (
                 <InlineNotification

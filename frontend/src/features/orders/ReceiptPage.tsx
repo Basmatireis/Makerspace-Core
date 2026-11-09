@@ -33,7 +33,7 @@ export function ReceiptPage() {
   if (query.isError)
     return (
       <PageShell title="Receipt" breadcrumbs={crumbs} width="wide">
-        <ErrorState message="The receipt could not be loaded." onRetry={() => query.refetch()} />
+        <ErrorState message="The receipt could not be loaded." onRetry={() => void query.refetch()} />
       </PageShell>
     );
   return <Receipt key={query.data.id} order={query.data} />;

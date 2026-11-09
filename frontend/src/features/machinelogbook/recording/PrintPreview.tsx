@@ -46,7 +46,7 @@ export function PrintPreview({
 
   return (
     // The wrapper only forwards arrow keys from the chevrons and thumbnails inside it, which are the focusable controls.
-    <div className="print-preview" onKeyDown={many ? onKeyDown : undefined}>
+    <div className="print-preview" role="presentation" onKeyDown={many ? onKeyDown : undefined}>
       <div className="print-preview__stage">
         <img src={current.src} alt={`${current.label} preview of ${current.fileName}`} />
         {many && (

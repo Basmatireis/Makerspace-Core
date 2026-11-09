@@ -603,7 +603,7 @@ export function RunDetailPage() {
           job={job}
           onDeleteJob={canDeleteJob && job ? () => setDialog('delete-job') : undefined}
           onDeleted={() =>
-            navigate(
+            void navigate(
               jobRef && !onlyRun && canReadJobs ? machineLogbookPaths.job(jobRef.id) : machineLogbookPaths.jobs(),
             )
           }

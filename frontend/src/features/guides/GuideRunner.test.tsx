@@ -182,7 +182,14 @@ function Harness({ guide }: { guide: string }) {
       <Link to="/elsewhere">go elsewhere</Link>
       <ul data-guide="menu" role="listbox">
         {['Alpha option', 'Beta option', 'Gamma option'].map((name) => (
-          <li key={name} role="option" aria-selected={picked === name} onClick={() => setPicked(name)}>
+          <li
+            key={name}
+            role="option"
+            aria-selected={picked === name}
+            tabIndex={0}
+            onClick={() => setPicked(name)}
+            onKeyDown={(event) => event.key === 'Enter' && setPicked(name)}
+          >
             {name}
           </li>
         ))}

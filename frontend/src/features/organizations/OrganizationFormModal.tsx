@@ -38,6 +38,9 @@ export function OrganizationFormModal({
       onClose();
     }
   };
+  const submit = form.handleSubmit((values) => {
+    if (!mutation.isPending) mutation.mutate(values);
+  });
   return (
     <Modal
       open={open}
@@ -47,9 +50,7 @@ export function OrganizationFormModal({
       secondaryButtonText="Cancel"
       primaryButtonDisabled={mutation.isPending}
       onRequestClose={close}
-      onRequestSubmit={form.handleSubmit((values) => {
-        if (!mutation.isPending) mutation.mutate(values);
-      })}
+      onRequestSubmit={() => void submit()}
     >
       <Stack gap={5}>
         <p className="section-description">Address, contact and members can be added on the organization page.</p>

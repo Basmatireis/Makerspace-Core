@@ -218,14 +218,14 @@ function CashbookTable({
             iconDescription={`Actions for ${line.reference}`}
             aria-label={`Actions for ${line.reference}`}
           >
-            <OverflowMenuItem itemText="Open payment" onClick={() => navigate(`/payments/${line.payment.id}`)} />
+            <OverflowMenuItem itemText="Open payment" onClick={() => void navigate(`/payments/${line.payment.id}`)} />
             {canOrders && line.orderId && (
-              <OverflowMenuItem itemText="Open order" onClick={() => navigate(`/orders/${line.orderId}`)} />
+              <OverflowMenuItem itemText="Open order" onClick={() => void navigate(`/orders/${line.orderId}`)} />
             )}
             {printable && (
               <OverflowMenuItem
                 itemText="Show receipt"
-                onClick={() => navigate(`/orders/${line.orderId}/receipt?payment=${line.payment.id}`)}
+                onClick={() => void navigate(`/orders/${line.orderId}/receipt?payment=${line.payment.id}`)}
               />
             )}
             {receipt && canReverse && canOrders && line.orderId && (
@@ -265,7 +265,7 @@ function CashbookTable({
         defaultSort={{ key: 'time', direction: 'DESC' }}
         pageSizes={[10, 25, 50]}
         onRowClick={(line) => {
-          if (line.type === 'payment') navigate(`/payments/${line.payment.id}`);
+          if (line.type === 'payment') void navigate(`/payments/${line.payment.id}`);
         }}
         switcher={<FilterTags period={periodFilter.tag} categories={categories} />}
         filterCategories={categories}

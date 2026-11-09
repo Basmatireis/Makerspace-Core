@@ -48,7 +48,7 @@ export function SecondFactorStep({ methods, onRestart, onDone }: Props) {
       setCode('');
     }
   };
-  const usePasskey = async () => {
+  const verifyWithPasskey = async () => {
     setPasskeyBusy(true);
     setPasskeyError(null);
     try {
@@ -92,6 +92,8 @@ export function SecondFactorStep({ methods, onRestart, onDone }: Props) {
             onChange={(event) => setCode(event.target.value)}
             inputMode={useRecoveryCode ? 'text' : 'numeric'}
             autoComplete="one-time-code"
+            // The step is a single code field: the person has just chosen to verify, so it takes focus.
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- one-field step, nothing else to reach first
             autoFocus
             maxLength={useRecoveryCode ? 32 : 6}
           />
@@ -102,7 +104,12 @@ export function SecondFactorStep({ methods, onRestart, onDone }: Props) {
           </Button>
         )}
         {!expired && hasPasskey && (
-          <Button kind="tertiary" renderIcon={FingerprintRecognition} disabled={passkeyBusy} onClick={usePasskey}>
+          <Button
+            kind="tertiary"
+            renderIcon={FingerprintRecognition}
+            disabled={passkeyBusy}
+            onClick={() => void verifyWithPasskey()}
+          >
             Use a passkey
           </Button>
         )}

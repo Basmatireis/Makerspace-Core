@@ -19,13 +19,13 @@ function GuardHarness({
   return (
     <>
       <p>Editor</p>
-      <Button onClick={() => guard.requestDiscard(() => navigate('/closed'))}>Cancel editor</Button>
-      <Button onClick={() => guard.requestDiscard(() => navigate('?tab=local'))}>Change local tab</Button>
-      <Button onClick={() => navigate('?tab=settings')}>Settings tab</Button>
+      <Button onClick={() => guard.requestDiscard(() => void navigate('/closed'))}>Cancel editor</Button>
+      <Button onClick={() => guard.requestDiscard(() => void navigate('?tab=local'))}>Change local tab</Button>
+      <Button onClick={() => void navigate('?tab=settings')}>Settings tab</Button>
       <Button
         onClick={() => {
           setDirty(false);
-          guard.bypassAfterSubmit(() => navigate('/saved'));
+          guard.bypassAfterSubmit(() => void navigate('/saved'));
         }}
       >
         Save and leave

@@ -85,7 +85,7 @@ export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, empty
                 if (!job) return null;
                 const { key, ...rowProps } = getRowProps({ row });
                 return (
-                  <TableRow key={key} {...rowProps} className="mj-table-row" onClick={() => navigate(hrefOf(job))}>
+                  <TableRow key={key} {...rowProps} className="mj-table-row" onClick={() => void navigate(hrefOf(job))}>
                     <TableCell>
                       <div className="mj-cell-stack">
                         <CarbonLink

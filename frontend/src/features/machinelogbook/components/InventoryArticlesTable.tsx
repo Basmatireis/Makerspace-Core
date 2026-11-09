@@ -73,7 +73,7 @@ function ArticlesTable({
   const current = selected ? articles.find((article) => article.id === selected) : undefined;
 
   // Wide screens select the row into the panel; below 1056 px the panel is gone, so the article page opens.
-  const open = (row: Material) => (panelFits ? select(row.id) : navigate(machineLogbookPaths.material(row.id)));
+  const open = (row: Material) => (panelFits ? select(row.id) : void navigate(machineLogbookPaths.material(row.id)));
   const onNameClick = (event: MouseEvent, row: Material) => {
     if (!panelFits || event.metaKey || event.ctrlKey || event.shiftKey) return;
     event.preventDefault();

@@ -36,7 +36,7 @@ export function CustomLayoutsTable({
 }) {
   const [deleting, setDeleting] = useState<SignageCustomLayout | null>(null);
   const navigate = useNavigate();
-  const copy = useDuplicate(duplicateSignageCustomLayout, (layout) => navigate(signagePaths.layout(layout.id)));
+  const copy = useDuplicate(duplicateSignageCustomLayout, (layout) => void navigate(signagePaths.layout(layout.id)));
   if (layouts.length === 0)
     return (
       <EmptyState

@@ -133,7 +133,7 @@ export function ManagedDevicesPanel() {
           searchText={deviceSearchText}
           defaultSort={{ key: 'name', direction: 'ASC' }}
           filterCategories={[{ key: 'status', label: 'Status', options: statusOptions }]}
-          onRowClick={(device) => navigate(devicePaths.detail(device.id))}
+          onRowClick={(device) => void navigate(devicePaths.detail(device.id))}
           toolbarAction={
             canManage ? (
               <Button kind="primary" size="lg" disabled={!typesQuery.data} onClick={() => setCreateOpen(true)}>

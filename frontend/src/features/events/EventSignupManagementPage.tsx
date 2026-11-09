@@ -169,7 +169,7 @@ function ManagementForm({
   };
   return (
     <Tile>
-      <form onSubmit={update}>
+      <form onSubmit={(event) => void update(event)}>
         <Stack gap={5}>
           <div className="event-record__title">
             <h2>Your signup</h2>

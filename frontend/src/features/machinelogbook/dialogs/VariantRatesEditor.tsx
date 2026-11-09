@@ -151,6 +151,8 @@ export function VariantRatesEditor({ type }: { type: MaterialType }) {
                           labelText={`Rate for ${cellLabel} (${unit})`}
                           hideLabel
                           inputMode="decimal"
+                          // The editor replaces the cell the person just activated, so focus must follow it.
+                          // eslint-disable-next-line jsx-a11y/no-autofocus -- keeps keyboard focus where the person was
                           autoFocus
                           value={text}
                           invalid={text.trim() !== '' && parsed === null}

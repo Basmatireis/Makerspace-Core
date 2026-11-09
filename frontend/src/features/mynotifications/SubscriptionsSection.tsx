@@ -49,7 +49,7 @@ export function SubscriptionsSection({ catalog, subscriptions }: Props) {
     },
   });
   const openNew = (state?: { starter: (typeof starters)[number]['draft'] }) =>
-    navigate(`${personalSubscriptionPath}/new`, { state });
+    void navigate(`${personalSubscriptionPath}/new`, { state });
 
   return (
     <section aria-labelledby="mn-subscriptions-title">
@@ -87,7 +87,7 @@ export function SubscriptionsSection({ catalog, subscriptions }: Props) {
               <Button
                 kind="ghost"
                 size="sm"
-                onClick={() => navigate(`${personalSubscriptionPath}/${rule.id}`)}
+                onClick={() => void navigate(`${personalSubscriptionPath}/${rule.id}`)}
                 aria-label={`Edit ${rule.name}`}
               >
                 Edit

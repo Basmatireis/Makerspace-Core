@@ -56,10 +56,14 @@ export function LegalPage({ kind }: { kind: 'imprint' | 'privacy' }) {
                 <div className="markdown-content">
                   <ReactMarkdown
                     components={{
-                      a: ({ node, ...props }) => {
+                      a: ({ node, children, ...props }) => {
                         void node;
                         const external = /^https?:\/\//i.test(props.href ?? '');
-                        return <a {...props} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})} />;
+                        return (
+                          <a {...props} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+                            {children}
+                          </a>
+                        );
                       },
                     }}
                   >

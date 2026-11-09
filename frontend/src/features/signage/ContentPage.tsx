@@ -66,7 +66,7 @@ export function ContentPage() {
   const [creating, setCreating] = useState<'scene' | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<SignageAnnouncementTemplate | 'new' | null>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<SignageAnnouncementTemplate | null>(null);
-  const duplicateScene = useDuplicate(duplicateSignageScene, (copy) => navigate(signagePaths.scene(copy.id)));
+  const duplicateScene = useDuplicate(duplicateSignageScene, (copy) => void navigate(signagePaths.scene(copy.id)));
   const duplicateTemplate = useDuplicate(duplicateSignageAnnouncementTemplate, (copy) => setEditingTemplate(copy));
   const scenes = useQuery(scenesQuery());
   const templates = useQuery(templatesQuery());
@@ -80,7 +80,7 @@ export function ContentPage() {
       renderIcon={Add}
       onClick={() => {
         if (section === 'announcements') setEditingTemplate('new');
-        else if (section === 'layouts') navigate(signagePaths.newLayout);
+        else if (section === 'layouts') void navigate(signagePaths.newLayout);
         else setCreating('scene');
       }}
     >
@@ -89,7 +89,7 @@ export function ContentPage() {
   ) : undefined;
   const open = (event: { preventDefault: () => void }, to: string) => {
     event.preventDefault();
-    navigate(to);
+    void navigate(to);
   };
 
   return (

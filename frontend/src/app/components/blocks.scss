@@ -379,6 +379,10 @@ a.card-list__row:focus-visible {
   @include type-style('body-compact-01');
 }
 
+.panel-frame__layer {
+  display: contents;
+}
+
 .panel-frame__scrim {
   position: fixed;
   inset: 0;

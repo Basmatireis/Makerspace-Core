@@ -30,6 +30,8 @@ export function TableFilters<K extends string>({
   return (
     <div
       className="table-filters"
+      // The wrapper only receives Escape bubbling up from the controls inside it; it is not a control itself.
+      role="presentation"
       onKeyDown={(event) => {
         if (event.key === 'Escape' && open) {
           event.stopPropagation();

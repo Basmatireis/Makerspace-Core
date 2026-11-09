@@ -48,9 +48,13 @@ export function LegalEditor({
               {markdown ? (
                 <ReactMarkdown
                   components={{
-                    a: ({ node, ...props }) => {
+                    a: ({ node, children, ...props }) => {
                       void node;
-                      return <a {...props} target="_blank" rel="noopener noreferrer" />;
+                      return (
+                        <a {...props} target="_blank" rel="noopener noreferrer">
+                          {children}
+                        </a>
+                      );
                     },
                   }}
                 >

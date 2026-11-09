@@ -53,7 +53,7 @@ function SurveyDetail({ survey }: { survey: Survey }) {
     mutationFn: () => deleteSurvey(survey.id),
     onSuccess: async () => {
       await refresh();
-      navigate('/settings/surveys', { replace: true });
+      void navigate('/settings/surveys', { replace: true });
     },
   });
   const locked = survey.responseCount > 0;
@@ -125,7 +125,7 @@ function SurveyDetail({ survey }: { survey: Survey }) {
                 <Button
                   kind="tertiary"
                   renderIcon={Edit}
-                  onClick={() => navigate(`/settings/surveys/${survey.id}/edit`)}
+                  onClick={() => void navigate(`/settings/surveys/${survey.id}/edit`)}
                 >
                   Edit
                 </Button>

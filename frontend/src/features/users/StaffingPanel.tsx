@@ -338,7 +338,7 @@ export function StaffingPanel({
             {hasMenu && (
               <OverflowMenu iconDescription={`Actions for ${row.name}`} size="sm" flipped>
                 {can.openPerson && (
-                  <OverflowMenuItem itemText="Open profile" onClick={() => navigate(`/people/${row.personId}`)} />
+                  <OverflowMenuItem itemText="Open profile" onClick={() => void navigate(`/people/${row.personId}`)} />
                 )}
                 {can.membership &&
                   targets.map((target) => (

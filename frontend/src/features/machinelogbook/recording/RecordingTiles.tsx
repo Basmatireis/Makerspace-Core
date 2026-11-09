@@ -29,6 +29,7 @@ function TimelapseVideo({ recording }: { recording: MachineRunRecording }) {
   return (
     <div className="mj-stack">
       {/* The printer's timelapse has no audio or speech, so there is nothing to caption. */}
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- silent video */}
       <video
         className="recording-video"
         controls

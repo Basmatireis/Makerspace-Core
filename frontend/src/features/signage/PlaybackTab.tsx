@@ -96,7 +96,7 @@ export function PlaybackTab({ owner, activeRuleId }: { owner: PlaybackOwner; act
           title="Playback is managed by the group"
           subtitle="Rules and default scenes of this display are those of its group. Change them there."
           actionButtonLabel={group.data ? `Open ${group.data.name}` : 'Open group'}
-          onActionButtonClick={() => navigate(signagePaths.group(groupId))}
+          onActionButtonClick={() => void navigate(signagePaths.group(groupId))}
         />
       )}
       {write.isError && (

@@ -39,8 +39,8 @@ export function NewRuleModal({ open, rules, onClose }: Props) {
       onRequestClose={onClose}
       onSecondarySubmit={onClose}
       onRequestSubmit={() => {
-        if (template) navigate('/settings/notifications/rules/new', { state: { template } });
-        else navigate(`/settings/notifications/rules/new?type=${kind}`);
+        if (template) void navigate('/settings/notifications/rules/new', { state: { template } });
+        else void navigate(`/settings/notifications/rules/new?type=${kind}`);
       }}
     >
       <Stack gap={6}>

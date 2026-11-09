@@ -91,11 +91,17 @@ describe('timelapse widget', () => {
   it('cuts a clip off after the maximum seconds', () => {
     vi.useFakeTimers();
     const { container } = render(<TimelapseWidget widget={widget({ maxSeconds: 5 })} data={data()} />);
-    act(() => vi.advanceTimersByTime(4_900));
+    act(() => {
+      vi.advanceTimersByTime(4_900);
+    });
     expect(videoSrc(container)).toBe(CLIPS[1].url);
-    act(() => vi.advanceTimersByTime(200));
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
     expect(videoSrc(container)).toBe(CLIPS[0].url);
-    act(() => vi.advanceTimersByTime(5_000));
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
     expect(videoSrc(container)).toBe(CLIPS[1].url);
   });
 
@@ -103,7 +109,9 @@ describe('timelapse widget', () => {
     vi.useFakeTimers();
     const { container } = render(<TimelapseWidget widget={widget({ maxSeconds: 5, count: 1 })} data={data()} />);
     const first = container.querySelector('video');
-    act(() => vi.advanceTimersByTime(5_000));
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
     expect(container.querySelector('video')).not.toBe(first);
     expect(videoSrc(container)).toBe(CLIPS[1].url);
   });

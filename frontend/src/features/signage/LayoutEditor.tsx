@@ -85,7 +85,7 @@ export function LayoutEditor({ layout, canEdit, onReload }: Props) {
       setRemoval(null);
       await queryClient.invalidateQueries({ queryKey: signageKeys.all });
       form.reset(values);
-      unsaved.bypassAfterSubmit(() => navigate(signagePaths.content('layouts')));
+      unsaved.bypassAfterSubmit(() => void navigate(signagePaths.content('layouts')));
     },
     onError: (error) => {
       setRemoval(null);
@@ -180,7 +180,7 @@ export function LayoutEditor({ layout, canEdit, onReload }: Props) {
           </div>
         </div>
       ) : (
-        <form noValidate onSubmit={submit}>
+        <form noValidate onSubmit={(event) => void submit(event)}>
           <div className="sg-layout-editor">
             <Stack gap={5}>
               <Controller

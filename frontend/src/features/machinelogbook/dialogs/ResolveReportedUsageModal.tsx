@@ -138,7 +138,11 @@ function ResolveForm({
         <Button kind="secondary" disabled={mutation.isPending} onClick={onClose}>
           Cancel
         </Button>
-        <Button kind="primary" disabled={mutation.isPending || !hasMaterial(form.watch('usages.0'))} onClick={submit}>
+        <Button
+          kind="primary"
+          disabled={mutation.isPending || !hasMaterial(form.watch('usages.0'))}
+          onClick={() => void submit()}
+        >
           {mutation.isPending ? 'Saving…' : 'Map material'}
         </Button>
       </ModalFooter>

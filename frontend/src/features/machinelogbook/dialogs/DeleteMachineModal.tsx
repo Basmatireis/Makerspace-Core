@@ -25,7 +25,7 @@ function DeleteMachineDialog({ machine, onClose }: Omit<Props, 'open'>) {
     mutationFn: () => deleteMachine(machine.id, { expectedVersion: machine.version }),
     onSuccess: async () => {
       client.removeQueries({ queryKey: machineLogbookKeys.machine(machine.id) });
-      navigate(machineLogbookPaths.machines());
+      void navigate(machineLogbookPaths.machines());
       onClose();
       notify({ kind: 'success', title: 'Machine deleted', subtitle: `${machine.name} was deleted.` });
       await Promise.all([

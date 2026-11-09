@@ -127,7 +127,7 @@ export function PricingPage() {
       {pricing.isPending ? (
         <FullPageLoading label="Loading pricing" />
       ) : pricing.isError ? (
-        <ErrorState message="The pricing could not be loaded." onRetry={() => pricing.refetch()} />
+        <ErrorState message="The pricing could not be loaded." onRetry={() => void pricing.refetch()} />
       ) : (
         <div>
           <Tabs

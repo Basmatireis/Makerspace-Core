@@ -97,7 +97,7 @@ export function BrandingLegalSettingsPage() {
       >
         <TabPanels>
           <TabPanel>
-            <Form onSubmit={form.handleSubmit((input) => save.mutate(input))}>
+            <Form onSubmit={(event) => void form.handleSubmit((input) => save.mutate(input))(event)}>
               <div className="branding-settings-grid">
                 <Tile>
                   <Stack gap={5}>
@@ -276,7 +276,7 @@ export function BrandingLegalSettingsPage() {
             </div>
           </TabPanel>
           <TabPanel>
-            <Form onSubmit={form.handleSubmit((input) => save.mutate(input))}>
+            <Form onSubmit={(event) => void form.handleSubmit((input) => save.mutate(input))(event)}>
               <div className="branding-settings-grid">
                 <LegalEditor
                   kind="imprint"

@@ -144,7 +144,7 @@ export function DiagnosticsModal({ connector: opened, onClose }: { connector: Pr
             kind="primary"
             onClick={() => {
               onClose();
-              navigate(machineLogbookPaths.machine(selected.assignment.machineId, 'printer'));
+              void navigate(machineLogbookPaths.machine(selected.assignment.machineId, 'printer'));
             }}
           >
             Open printer setup

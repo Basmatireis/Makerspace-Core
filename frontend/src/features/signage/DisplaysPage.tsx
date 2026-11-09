@@ -104,7 +104,7 @@ function GroupsSection({ canManage }: { canManage: boolean }) {
                   <TableRow
                     key={group.id}
                     className="sg-row-link"
-                    onClick={() => navigate(signagePaths.group(group.id))}
+                    onClick={() => void navigate(signagePaths.group(group.id))}
                   >
                     <TableCell>
                       <CarbonLink
@@ -191,7 +191,7 @@ export function DisplaysPage() {
                   <TableRow
                     key={display.id}
                     className="sg-row-link"
-                    onClick={() => navigate(signagePaths.display(display.id))}
+                    onClick={() => void navigate(signagePaths.display(display.id))}
                   >
                     <TableCell>
                       <div className="sg-cell-stack">

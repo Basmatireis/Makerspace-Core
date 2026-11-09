@@ -166,7 +166,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
 
   return (
     <main className="visitor-flow">
-      <Form className="visitor-flow__form" onSubmit={submit}>
+      <Form className="visitor-flow__form" onSubmit={(event) => void submit(event)}>
         <header className="visitor-flow__header">
           <Button as={Link} to="/kiosk" kind="ghost" size="lg" renderIcon={ArrowLeft}>
             Back to check-in

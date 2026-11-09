@@ -63,7 +63,7 @@ export function useOrderActions() {
     mutation.mutate(
       async () => {
         const next = await createReplacementOrder(order.id, command(order, 'replacement'));
-        navigate(`/orders/${next.id}`);
+        void navigate(`/orders/${next.id}`);
       },
       {
         onError: (error) =>

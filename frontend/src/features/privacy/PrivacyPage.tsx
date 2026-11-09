@@ -123,7 +123,7 @@ function SettingsForm({ settings, canManage }: { settings: PrivacySettings; canM
 
   return (
     <Tile>
-      <Form onSubmit={submit}>
+      <Form onSubmit={(event) => void submit(event)}>
         <Stack gap={5}>
           {notice === 'saved' && (
             <InlineNotification

@@ -372,7 +372,7 @@ function WizardBody({
         setStepIndex((index) => index + 1);
       } else {
         finish(saved!, 'Machine added');
-        navigate(machineLogbookPaths.machine(saved!.id));
+        void navigate(machineLogbookPaths.machine(saved!.id));
       }
     } catch (failure) {
       const fallback =

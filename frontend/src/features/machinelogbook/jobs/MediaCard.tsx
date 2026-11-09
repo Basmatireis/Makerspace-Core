@@ -61,6 +61,7 @@ function Stage({ slide }: { slide: Slide }) {
   if (recording.timelapse)
     return (
       // The printer's timelapse has no audio or speech, so there is nothing to caption.
+      // eslint-disable-next-line jsx-a11y/media-has-caption -- silent video
       <video
         className="jobs-media__video"
         controls

@@ -312,7 +312,9 @@ function RetentionEditor({
         <div className="privacy-retention__main">
           <form
             className="privacy-retention__form"
-            onSubmit={handleSubmit((input) => save.mutate({ ...input, categoryId: category.id }))}
+            onSubmit={(event) =>
+              void handleSubmit((input) => save.mutate({ ...input, categoryId: category.id }))(event)
+            }
             noValidate
           >
             <Tile>

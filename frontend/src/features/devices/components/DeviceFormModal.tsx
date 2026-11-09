@@ -40,6 +40,7 @@ import {
   type DeviceConfiguration,
   type DeviceUse,
 } from './deviceShared';
+import { copyToClipboard } from '../../profile/copyToClipboard';
 import { ExpirationFields } from './ExpirationModal';
 import { MutationError } from './ConfirmationModal';
 
@@ -453,10 +454,8 @@ export function OneTimeToken({
               <Button
                 kind="secondary"
                 renderIcon={Copy}
-                onClick={async () => {
-                  await navigator.clipboard.writeText(provisioning.token!);
-                  setCopied(true);
-                }}
+                // Copying can fail (permission, insecure context); the token stays selectable in the field above.
+                onClick={() => void copyToClipboard(provisioning.token!).then((ok) => ok && setCopied(true))}
               >
                 {copied ? 'Copied' : 'Copy token'}
               </Button>

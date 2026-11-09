@@ -265,7 +265,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
             title={`${pluralize(activeAnnouncements.length, 'announcement')} active`}
             subtitle={activeAnnouncements.map((item) => item.title).join(' · ')}
             actionButtonLabel="Manage"
-            onActionButtonClick={() => navigate(signagePaths.announcements)}
+            onActionButtonClick={() => void navigate(signagePaths.announcements)}
           />
         )}
 

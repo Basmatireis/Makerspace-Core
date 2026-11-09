@@ -51,7 +51,7 @@ export function CreateEventDialog({ open, onClose }: { open: boolean; onClose: (
     },
     onSuccess: async (event) => {
       await invalidateEvents(client);
-      guard.bypassAfterSubmit(() => navigate(`/events/${event.id}?mode=edit`, { replace: true }));
+      guard.bypassAfterSubmit(() => void navigate(`/events/${event.id}?mode=edit`, { replace: true }));
     },
   });
   const requestClose = useLatestCallback(() => {

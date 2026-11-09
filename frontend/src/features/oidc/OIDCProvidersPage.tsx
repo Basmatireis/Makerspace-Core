@@ -218,7 +218,7 @@ function ProviderForm({
   };
   return (
     <Tile>
-      <Form onSubmit={submit}>
+      <Form onSubmit={(event) => void submit(event)}>
         <Stack gap={5}>
           <h2>{title}</h2>
           {mutation.isError && (

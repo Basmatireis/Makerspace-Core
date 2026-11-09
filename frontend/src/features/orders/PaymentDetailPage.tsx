@@ -32,7 +32,7 @@ export function PaymentDetailPage() {
   if (query.isError)
     return (
       <PageShell title="Payment" breadcrumbs={crumbs} width="wide">
-        <ErrorState message="The payment could not be loaded." onRetry={() => query.refetch()} />
+        <ErrorState message="The payment could not be loaded." onRetry={() => void query.refetch()} />
       </PageShell>
     );
   return <PaymentDetail key={query.data.id} payment={query.data} />;
@@ -90,7 +90,7 @@ function PaymentDetail({ payment }: { payment: OrderPayment }) {
             <Button
               kind="tertiary"
               renderIcon={Printer}
-              onClick={() => navigate(`/orders/${order.data.id}/receipt?payment=${payment.id}`)}
+              onClick={() => void navigate(`/orders/${order.data.id}/receipt?payment=${payment.id}`)}
             >
               Print receipt
             </Button>

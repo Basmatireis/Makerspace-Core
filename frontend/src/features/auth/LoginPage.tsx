@@ -85,7 +85,7 @@ export function LoginPage() {
         setSecondFactor(pending.methods);
         return;
       }
-      navigate(safeReturnPath(location.state as LocationState), { replace: true });
+      void navigate(safeReturnPath(location.state as LocationState), { replace: true });
     } catch {
       // The generic inline error below intentionally avoids account enumeration.
     }
@@ -100,7 +100,7 @@ export function LoginPage() {
     if (Object.keys(errors).length > 0) return;
     try {
       await pinLoginMutation.mutateAsync(pinCredentials);
-      navigate(safeReturnPath(location.state as LocationState), { replace: true });
+      void navigate(safeReturnPath(location.state as LocationState), { replace: true });
     } catch {
       /* generic error below */
     }
@@ -114,7 +114,7 @@ export function LoginPage() {
       try {
         await passkeys.signInWithPasskey();
         await queryClient.fetchQuery(currentUserQueryOptions());
-        navigate(safeReturnPath(location.state as LocationState), { replace: true });
+        void navigate(safeReturnPath(location.state as LocationState), { replace: true });
       } catch (error) {
         setPasskeyError(passkeys.describeAuthenticationError(error));
       }
@@ -161,7 +161,7 @@ export function LoginPage() {
               <SecondFactorStep
                 methods={secondFactor}
                 onRestart={() => setSecondFactor(null)}
-                onDone={() => navigate(safeReturnPath(location.state as LocationState), { replace: true })}
+                onDone={() => void navigate(safeReturnPath(location.state as LocationState), { replace: true })}
               />
             </Suspense>
           ) : (
@@ -196,7 +196,7 @@ export function LoginPage() {
               </div>
 
               {method === 'password' ? (
-                <Form onSubmit={onSubmit}>
+                <Form onSubmit={(event) => void onSubmit(event)}>
                   <Stack gap={6}>
                     <TextInput
                       id="login-email"
@@ -230,7 +230,7 @@ export function LoginPage() {
                   </Stack>
                 </Form>
               ) : (
-                <Form onSubmit={submitPIN}>
+                <Form onSubmit={(event) => void submitPIN(event)}>
                   <Stack gap={6}>
                     <TextInput
                       id="pin-login-name"
@@ -278,7 +278,7 @@ export function LoginPage() {
                     kind="tertiary"
                     renderIcon={FingerprintRecognition}
                     disabled={passkeyBusy}
-                    onClick={signInWithPasskey}
+                    onClick={() => void signInWithPasskey()}
                   >
                     Sign in with passkey
                   </Button>

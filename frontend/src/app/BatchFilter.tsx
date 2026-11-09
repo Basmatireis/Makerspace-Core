@@ -117,6 +117,8 @@ export function BatchFilter({ id, label, categories, applied, onApply, onReset }
     <div
       ref={wrapper}
       className="app-batch-filter"
+      // The wrapper only receives Escape bubbling up from the controls inside it; it is not a control itself.
+      role="presentation"
       onKeyDown={(event) => {
         if (event.key === 'Escape' && open && !(event.target as Element).closest('.flatpickr-calendar')) {
           event.stopPropagation();

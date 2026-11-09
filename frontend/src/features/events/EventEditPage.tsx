@@ -91,7 +91,7 @@ export function EventEditPage() {
     onSuccess: async (_, kind) => {
       await invalidateEvents(client);
       setDialog(null);
-      if (kind === 'delete') navigate('/events', { replace: true });
+      if (kind === 'delete') void navigate('/events', { replace: true });
     },
   });
   const rotate = useMutation({

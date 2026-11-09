@@ -28,7 +28,7 @@ export function UserCreatePage() {
     mutationFn: (request: Parameters<typeof createPerson>[0]) => createPerson(request),
     onSuccess: async (person) => {
       await queryClient.invalidateQueries({ queryKey: peopleKeys.lists() });
-      navigate(`/people/${person.id}`, { replace: true });
+      void navigate(`/people/${person.id}`, { replace: true });
     },
   });
 
@@ -43,7 +43,7 @@ export function UserCreatePage() {
   return (
     <PageShell title="Add person" breadcrumbs={[{ label: 'Directory' }, { label: 'People', to: '/people' }]}>
       <Tile className="form-tile">
-        <Form onSubmit={onSubmit}>
+        <Form onSubmit={(event) => void onSubmit(event)}>
           <Stack gap={7}>
             {createMutation.isError && (
               <InlineNotification
@@ -60,7 +60,7 @@ export function UserCreatePage() {
               editMatriculation={canWriteMatriculation}
             />
             <div className="form-actions">
-              <Button kind="secondary" type="button" onClick={() => navigate('/people')}>
+              <Button kind="secondary" type="button" onClick={() => void navigate('/people')}>
                 Cancel
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>

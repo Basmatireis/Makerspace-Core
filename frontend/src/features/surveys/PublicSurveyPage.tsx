@@ -96,7 +96,7 @@ function PublicSurvey({ kind }: { kind: Kind }) {
 
   return (
     <main className="public-page">
-      <Form className="survey-public" onSubmit={handleSubmit(onSubmit)} noValidate>
+      <Form className="survey-public" onSubmit={(event) => void handleSubmit(onSubmit)(event)} noValidate>
         <header>
           <h1>{survey.data.title}</h1>
           {survey.data.introduction && <p>{survey.data.introduction}</p>}

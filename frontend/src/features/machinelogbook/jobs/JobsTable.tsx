@@ -291,7 +291,7 @@ export function JobsTable({
   const open = (selection: JobsSelection) => {
     if (panelFits && onSelect) onSelect(selection);
     else
-      navigate(
+      void navigate(
         selection.kind === 'job' ? machineLogbookPaths.job(selection.id) : machineLogbookPaths.run(selection.id),
       );
   };

@@ -493,7 +493,7 @@ function UsageFormBody({
           <Button kind="secondary" disabled={pending} onClick={() => guard.requestDiscard(onClose)}>
             Cancel
           </Button>
-          <Button kind="primary" disabled={pending} onClick={submit}>
+          <Button kind="primary" disabled={pending} onClick={() => void submit()}>
             {pending ? 'Saving…' : 'Save usage'}
           </Button>
         </ModalFooter>

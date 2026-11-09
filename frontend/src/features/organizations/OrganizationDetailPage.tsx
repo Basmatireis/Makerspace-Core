@@ -92,17 +92,15 @@ function MasterDataSection({ organization, canManage }: { organization: Organiza
       }),
     onSuccess: refresh,
   });
+  const submit = form.handleSubmit((values) => {
+    if (!mutation.isPending) mutation.mutate(values);
+  });
   return (
     <DetailSection
       title="Master data"
       description="Deactivating an organization removes it from new billing selections. Existing jobs, orders and history remain."
     >
-      <form
-        onSubmit={form.handleSubmit((values) => {
-          if (!mutation.isPending) mutation.mutate(values);
-        })}
-        noValidate
-      >
+      <form onSubmit={(event) => void submit(event)} noValidate>
         <Stack gap={5}>
           <div className="organization-form-grid">
             <TextInput
@@ -222,14 +220,12 @@ function InvoiceDataForm({
     onSettled: refresh,
   });
   const errors = form.formState.errors;
+  const submit = form.handleSubmit((values) => {
+    if (!mutation.isPending) mutation.mutate(values);
+  });
   return (
     <DetailSection title="Invoice data" description="Used to prefill invoice drafts for this organization.">
-      <form
-        onSubmit={form.handleSubmit((values) => {
-          if (!mutation.isPending) mutation.mutate(values);
-        })}
-        noValidate
-      >
+      <form onSubmit={(event) => void submit(event)} noValidate>
         <Stack gap={5}>
           <div className="organization-form-grid">
             <div className="organization-form-grid__wide">

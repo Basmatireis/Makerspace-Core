@@ -50,7 +50,7 @@ export function OrderDetailPage() {
   if (query.isError) {
     return (
       <PageShell title="Order" breadcrumbs={crumbs} width="wide">
-        <ErrorState message="The order could not be loaded." onRetry={() => query.refetch()} />
+        <ErrorState message="The order could not be loaded." onRetry={() => void query.refetch()} />
       </PageShell>
     );
   }
@@ -137,7 +137,7 @@ function OrderDetail({ order }: { order: Order }) {
   else if (order.status === 'reversed' && order.replacedByOrderId)
     primary = {
       label: `Open ${order.replacedByOrderReference}`,
-      run: () => navigate(`/orders/${order.replacedByOrderId}`),
+      run: () => void navigate(`/orders/${order.replacedByOrderId}`),
     };
 
   // Taking payment is optional: with payment rights "Finalize" stays available next to "Finalize and take payment".
@@ -198,7 +198,7 @@ function OrderDetail({ order }: { order: Order }) {
               kind="tertiary"
               renderIcon={Printer}
               data-guide="order-receipt"
-              onClick={() => navigate(`/orders/${order.id}/receipt`)}
+              onClick={() => void navigate(`/orders/${order.id}/receipt`)}
             >
               Print receipt
             </Button>

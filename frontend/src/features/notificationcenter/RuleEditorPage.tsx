@@ -127,7 +127,7 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
       const stay = saved.warnings?.length
         ? `${personal ? personalSubscriptionPath : `${listPath}/rules`}/${saved.id}`
         : back;
-      guard.bypassAfterSubmit(() => navigate(stay));
+      guard.bypassAfterSubmit(() => void navigate(stay));
     },
   });
   const afterSend = () =>
@@ -171,7 +171,7 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: notificationCenterKeys.all });
       setConfirmDelete(false);
-      guard.bypassAfterSubmit(() => navigate(back));
+      guard.bypassAfterSubmit(() => void navigate(back));
     },
   });
 
@@ -237,7 +237,7 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
               kind="ghost"
               label={`Duplicate ${noun.toLowerCase()}`}
               align="bottom"
-              onClick={() => guard.requestDiscard(() => navigate(newPath, { state: { template: rule } }))}
+              onClick={() => guard.requestDiscard(() => void navigate(newPath, { state: { template: rule } }))}
             >
               <Copy />
             </IconButton>
@@ -279,7 +279,7 @@ export function RuleEditor({ catalog, categories, rule, initial, canManage, pers
               </Button>
             </span>
           )}
-          <Button kind="secondary" size="md" onClick={() => guard.requestDiscard(() => navigate(back))}>
+          <Button kind="secondary" size="md" onClick={() => guard.requestDiscard(() => void navigate(back))}>
             {canManage ? 'Cancel' : 'Back'}
           </Button>
           {canManage && (
