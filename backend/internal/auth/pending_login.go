@@ -161,6 +161,9 @@ func (s *Service) finishPendingLogin(
 	requestID *uuid.UUID,
 ) (Session, error) {
 	queries := authdb.New(tx)
+	if err := requireWebSignIn(ctx, tx, pending.AccountID); err != nil {
+		return Session{}, err
+	}
 	if err := queries.DeletePendingLogin(ctx, pending.ID); err != nil {
 		return Session{}, err
 	}

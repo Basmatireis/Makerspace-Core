@@ -94,6 +94,9 @@ func (s *Service) LoginWithPIN(
 		authorization.AccountStatus(login.Status) != authorization.AccountEnabled {
 		return Session{}, apperror.InvalidCredentials
 	}
+	if err := requireWebSignIn(ctx, tx, login.AccountID); err != nil {
+		return Session{}, err
+	}
 
 	session, err := s.createPINSession(ctx, txQueries, login.AccountID, login.AuthIdentityID)
 	if err != nil {
