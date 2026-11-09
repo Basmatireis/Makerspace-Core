@@ -118,7 +118,7 @@ Approve the audit, application-log, and backup retention policies above before c
 docker compose up -d
 ```
 
-Compose pulls missing images and waits for healthy PostgreSQL. The backend container runs `goose up` and starts the API process only after migration succeeds; the frontend starts only after the backend is healthy. The deployment defines and runs exactly three containers: database, backend, and frontend. The API binary itself never applies or reverts migrations.
+Compose pulls missing images and waits for healthy PostgreSQL. The backend container waits up to a minute until it can connect (on a new volume PostgreSQL restarts once after initializing), runs `goose up` and starts the API process only after migration succeeds; the frontend starts only after the backend is healthy. The deployment defines and runs exactly three containers: database, backend, and frontend. The API binary itself never applies or reverts migrations.
 
 Inspect startup and automatic migration state with:
 
