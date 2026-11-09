@@ -355,6 +355,13 @@ FROM account_guide_progress WHERE account_id = sqlc.arg(subject_account)::uuid;
 -- name: CountGuideProgress :one
 SELECT count(*)::bigint FROM account_guide_progress WHERE account_id = sqlc.arg(subject_account)::uuid;
 
+-- name: ExportAccountPreferences :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object('key', key, 'value', value, 'updatedAt', updated_at) ORDER BY key), '[]'::jsonb)::jsonb AS document
+FROM account_preferences WHERE account_id = sqlc.arg(subject_account)::uuid;
+
+-- name: CountAccountPreferences :one
+SELECT count(*)::bigint FROM account_preferences WHERE account_id = sqlc.arg(subject_account)::uuid;
+
 -- name: ExportCalendarFeed :one
 -- Existence and dates only; the link's token is not stored and cannot be exported.
 SELECT COALESCE(

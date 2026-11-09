@@ -274,6 +274,8 @@ export type World = {
   feed: { active: boolean; createdAt: string | null; lastUsedAt: string | null };
   requests: Recorded[];
   unexpected: string[];
+  /** The stored open-day view preference of the signed-in account. */
+  openDaysView?: 'list' | 'calendar';
   /** Whether the signed-in person has a profile image. */
   profileImage?: boolean;
   /** The body a schedule save answered with, for follow-up assertions. */
@@ -382,6 +384,17 @@ export async function installOpenDaysApi(page: Page, world: World) {
       });
     }
     if (path === '/me/guides') return json(route, welcomeTourSeen);
+    if (path === '/me/preferences') {
+      return json(route, {
+        items: world.openDaysView
+          ? [{ key: 'openDays.view', value: world.openDaysView, updatedAt: '2026-01-01T00:00:00Z' }]
+          : [],
+      });
+    }
+    if (path === '/me/preferences/openDays.view' && method === 'PUT') {
+      world.openDaysView = (route.request().postDataJSON() as { value: 'list' | 'calendar' }).value;
+      return json(route, { key: 'openDays.view', value: world.openDaysView, updatedAt: '2026-01-01T00:00:00Z' });
+    }
     if (path === '/me/dashboard') {
       return json(route, { person: { firstName: 'Ada', memberSince: '2025-09-01' }, comingUp: [] });
     }

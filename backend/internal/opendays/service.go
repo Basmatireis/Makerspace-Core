@@ -158,6 +158,8 @@ type Service struct {
 // the caller's transaction.
 type NotificationEmitter interface {
 	PeriodOpens(ctx context.Context, tx pgx.Tx, periodID uuid.UUID) error
+	// OpenDayPeriodChanged is told that a period was published or that its schedule changed while people could see it.
+	OpenDayPeriodChanged(ctx context.Context, tx pgx.Tx, periodID uuid.UUID, kind notifyrules.OpenDayPeriodChangeKind) error
 	// OpenDayPlaceFreed is told about a supervisor place that became free in a timeslot.
 	PlaceFreed(
 		ctx context.Context,
@@ -561,6 +563,11 @@ func (s *Service) TransitionPeriod(
 	// open before.
 	if PeriodStatus(current.Status) == PeriodDraft && target == PeriodStaffing {
 		if err := s.inbox.PeriodOpens(ctx, tx, id); err != nil {
+			return Period{}, err
+		}
+	}
+	if target == PeriodPublished {
+		if err := s.inbox.OpenDayPeriodChanged(ctx, tx, id, notifyrules.OpenDayPeriodPublished); err != nil {
 			return Period{}, err
 		}
 	}

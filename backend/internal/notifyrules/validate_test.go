@@ -286,7 +286,7 @@ func TestLoopRules(t *testing.T) {
 
 func TestScheduleRules(t *testing.T) {
 	hours := 24
-	bad := 99
+	bad := 169
 	valid := []Schedule{
 		{Repeat: RepeatDaily, Time: "09:00"},
 		{Repeat: RepeatWeekdays, Time: "18:30"},

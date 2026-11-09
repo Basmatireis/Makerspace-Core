@@ -906,6 +906,25 @@ func (q *Queries) GetMachineEventFacts(ctx context.Context, id uuid.UUID) (GetMa
 	return i, err
 }
 
+const getOpenDayPeriodChangeFacts = `-- name: GetOpenDayPeriodChangeFacts :one
+SELECT p.id, p.name,
+       (SELECT count(*) FROM open_days d WHERE d.period_id = p.id AND d.status = 'scheduled')::integer AS day_count
+FROM open_day_periods p WHERE p.id = $1
+`
+
+type GetOpenDayPeriodChangeFactsRow struct {
+	ID       uuid.UUID
+	Name     string
+	DayCount int32
+}
+
+func (q *Queries) GetOpenDayPeriodChangeFacts(ctx context.Context, id uuid.UUID) (GetOpenDayPeriodChangeFactsRow, error) {
+	row := q.db.QueryRow(ctx, getOpenDayPeriodChangeFacts, id)
+	var i GetOpenDayPeriodChangeFactsRow
+	err := row.Scan(&i.ID, &i.Name, &i.DayCount)
+	return i, err
+}
+
 const getOpenDayPeriodEventFacts = `-- name: GetOpenDayPeriodEventFacts :one
 SELECT id, name, sign_up_deadline FROM open_day_periods WHERE id = $1
 `

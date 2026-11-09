@@ -1,4 +1,5 @@
 import type {
+  AccountPreference,
   GuideProgress,
   PersonalDashboard,
   PersonalOrder,
@@ -123,6 +124,16 @@ export function registerShell(router: DemoRouter<DemoStore>): void {
         updatedAt: store.now.toISOString(),
       };
       store.guideProgress = [...store.guideProgress.filter((item) => item.guideId !== entry.guideId), entry];
+      return ok(entry);
+    })
+    .get('/me/preferences', ({ store }) => ok({ items: store.accountPreferences }))
+    .add('PUT', '/me/preferences/{key}', ({ store, params, body }) => {
+      const entry: AccountPreference = {
+        key: params.key as AccountPreference['key'],
+        value: String(body.value),
+        updatedAt: store.now.toISOString(),
+      };
+      store.accountPreferences = [...store.accountPreferences.filter((item) => item.key !== entry.key), entry];
       return ok(entry);
     })
     .add('DELETE', '/me/guides', ({ store }) => {

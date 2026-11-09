@@ -40,6 +40,7 @@ const (
 	RunTimelapses          privacy.CategoryID = "runrecordings.timelapses"
 	InboxNotifications     privacy.CategoryID = "inbox.notifications"
 	GuideProgress          privacy.CategoryID = "guides.progress"
+	AccountPreferences     privacy.CategoryID = "accounts.preferences"
 	CalendarFeeds          privacy.CategoryID = "calendar.feeds"
 	NotificationConsents   privacy.CategoryID = "notifications.consents"
 	SurveyOffers           privacy.CategoryID = "surveys.offers"
@@ -403,6 +404,16 @@ func Definitions() []privacy.Definition {
 			Actions:       []privacy.Action{privacy.ActionDelete},
 			Subject:       privacy.SubjectNone,
 			RetentionNote: "Rows are deleted with the account; a person can also reset them at any time.",
+		},
+		{
+			ID: AccountPreferences, Owner: Platform, Name: "Interface preferences",
+			Description:   "Small interface choices stored per account, such as the open-day list or calendar view.",
+			Contains:      "Preference keys with their value and the time of the last change, per account",
+			Fields:        []string{"account_preferences.*"},
+			Triggers:      []privacy.Trigger{privacy.TriggerAccountClosedAt},
+			Actions:       []privacy.Action{privacy.ActionDelete},
+			Subject:       privacy.SubjectNone,
+			RetentionNote: "Rows are deleted with the account.",
 		},
 		{
 			ID: CalendarFeeds, Owner: Platform, Name: "Calendar subscriptions",

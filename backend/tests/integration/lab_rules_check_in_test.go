@@ -279,3 +279,21 @@ func TestTerminalServesOnlyTheCurrentLabRulesVersion(t *testing.T) {
 		t.Fatalf("announcing a published version: %v", err)
 	}
 }
+
+func TestKioskConfirmationAppearsInTheConfirmationHistory(t *testing.T) {
+	f := newCheckInFixture(t, "blocking")
+	if _, err := f.pinCheckIn(t, attendance.LabRulesChoice{ConfirmVersionID: &f.versionID}); err != nil {
+		t.Fatal(err)
+	}
+	items, total, err := f.labRules.ListConfirmations(testContext(t), f.master, laborordnung.ConfirmationFilters{
+		PersonID: &f.visitor.personID, Sort: laborordnung.ConfirmationSortConfirmedAt, Descending: true,
+		Page: 1, PageSize: 25,
+	})
+	if err != nil || total != 1 || len(items) != 1 {
+		t.Fatalf("history after a kiosk confirmation: total=%d items=%#v err=%v", total, items, err)
+	}
+	if items[0].Method != laborordnung.MethodKiosk || items[0].VersionID != f.versionID ||
+		items[0].HumanRevision != "2026.2" || items[0].PersonID != f.visitor.personID {
+		t.Fatalf("history entry=%#v, want the kiosk confirmation of version 2026.2", items[0])
+	}
+}

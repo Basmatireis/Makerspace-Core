@@ -15,6 +15,8 @@ export const server = setupServer(
   http.get('*/api/v1/me/guides', () =>
     HttpResponse.json({ items: [{ guideId: 'welcome', status: 'dismissed', updatedAt: '2026-01-01T00:00:00Z' }] }),
   ),
+  // The open-day pages ask for the stored list/calendar view; by default nothing is stored.
+  http.get('*/api/v1/me/preferences', () => HttpResponse.json({ items: [] })),
   // The rule editor asks for a dry run of every draft; by default there is nothing to show.
   http.post('*/api/v1/notification-rules/dry-run', () =>
     HttpResponse.json({

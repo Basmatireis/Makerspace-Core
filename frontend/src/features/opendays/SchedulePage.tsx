@@ -21,7 +21,7 @@ import { GlanceTiles } from './components/GlanceTiles';
 import { ListView } from './components/ListView';
 import { PanelFrame } from '../../app/components/PanelFrame';
 import { SaveBar } from './components/SaveBar';
-import { ScheduleToolbar, type ScheduleView } from './components/ScheduleToolbar';
+import { ScheduleToolbar } from './components/ScheduleToolbar';
 import { SectionTabs } from './components/SectionTabs';
 import { PANEL_DOCK_QUERY, useMediaQuery } from '../../app/components/useMediaQuery';
 import { applyBulk, type BulkPatch } from './model/bulk';
@@ -71,18 +71,9 @@ import {
 import { scheduleErrorMessage } from './scheduleErrors';
 import { STATUS_TAG } from './periods/status';
 import { useDayActions } from './useDayActions';
+import { useOpenDaysView } from './useOpenDaysView';
 
-const VIEW_KEY = 'od-view';
 const EMPTY: never[] = [];
-
-// The list/calendar choice is a per-viewer convenience; storage can be unavailable (private windows), so it is optional.
-function readView(): ScheduleView {
-  try {
-    return window.localStorage.getItem(VIEW_KEY) === 'calendar' ? 'calendar' : 'list';
-  } catch {
-    return 'list';
-  }
-}
 
 type Panel =
   | { kind: 'view' }
@@ -115,7 +106,7 @@ export function SchedulePage({ periodId }: { periodId: string }) {
   const periodsQuery = useQuery({ ...periodsQueryOptions(), enabled: !viewer.canManage });
 
   const [section, setSection] = useState<SectionId>('upcoming');
-  const [view, setViewState] = useState<ScheduleView>(readView);
+  const [view, setView] = useOpenDaysView();
   const [filters, setFilters] = useState<FilterValues>({});
   const [search, setSearch] = useState('');
   const [showEarlier, setShowEarlier] = useState(false);
@@ -196,14 +187,6 @@ export function SchedulePage({ periodId }: { periodId: string }) {
   const selected = days.find((day) => day.id === selectedId) ?? null;
   const count = editCount(editor.edits);
 
-  const setView = (next: ScheduleView) => {
-    setViewState(next);
-    try {
-      window.localStorage.setItem(VIEW_KEY, next);
-    } catch {
-      /* the choice is only remembered when storage is available */
-    }
-  };
   const select = (id: string) => {
     setSelectedId(id);
     setPanel({ kind: 'view' });

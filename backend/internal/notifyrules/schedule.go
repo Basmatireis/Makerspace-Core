@@ -26,6 +26,12 @@ const (
 	maxScheduleLate = 2 * time.Hour
 	// openDayCatchUp is how long after its time a rule before or after an open day still fires.
 	openDayCatchUp = 6 * time.Hour
+	// MaxOpenDayOffsetHours is the longest a rule may act before an open day starts or after it ends (seven days). The
+	// open-day window the scheduler loads covers it on both sides.
+	MaxOpenDayOffsetHours = 168
+	// openDayWindow is how far back and ahead of now the scheduler looks for open days: the longest offset, the catch-up
+	// time and a day of slack.
+	openDayWindow = MaxOpenDayOffsetHours*time.Hour + openDayCatchUp + 24*time.Hour
 	// openDayPoll is how often rules before or after open days look for open days that were created meanwhile.
 	openDayPoll    = 5 * time.Minute
 	scheduleRetry  = 5 * time.Minute
@@ -204,7 +210,7 @@ func (d *Dispatcher) runOpenDaySchedule(
 	schedule Schedule,
 	now time.Time,
 ) error {
-	days, err := d.openDayItems(ctx, q, nil, now.Add(-7*24*time.Hour), now.Add(14*24*time.Hour), now)
+	days, err := d.openDayItems(ctx, q, nil, now.Add(-openDayWindow), now.Add(openDayWindow), now)
 	if err != nil {
 		return err
 	}

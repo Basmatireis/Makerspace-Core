@@ -23,6 +23,7 @@ const (
 	ruleSourceFeed    = "deleted with the source person; the target keeps its own calendar link"
 	ruleInboxMoved    = "moved to the surviving account; duplicate deliveries dropped"
 	ruleGuideProgress = "deleted with the source account; the surviving account keeps its own progress"
+	rulePreferences   = "deleted with the source account; the surviving account keeps its own preferences"
 	ruleAuditRepoint  = "re-pointed to the surviving account (resource IDs of the merged person/account too)"
 	ruleNotifyPerson  = "deleted with the source person; the target keeps its own answers and the 90-day delivery log is not merged"
 	ruleNotifyAccount = "deleted with the source account; the surviving account keeps its own rules and channel choices"
@@ -76,6 +77,7 @@ var MergeReferences = []MergeReference{
 	{"files", "created_by_account_id", "accounts", ruleActor},
 	{"inbox_notifications", "created_by_account_id", "accounts", ruleActor},
 	{"account_guide_progress", "account_id", "accounts", ruleGuideProgress},
+	{"account_preferences", "account_id", "accounts", rulePreferences},
 	{"account_presence", "account_id", "accounts", ruleTransient},
 	{"inbox_recipients", "account_id", "accounts", ruleInboxMoved},
 	{"filament_spools", "retired_by", "accounts", ruleActor},

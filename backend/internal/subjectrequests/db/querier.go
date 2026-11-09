@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	CountAccountPreferences(ctx context.Context, subjectAccount uuid.UUID) (int64, error)
 	CountAuditEvents(ctx context.Context, subjectAccount uuid.UUID) (int64, error)
 	CountCalendarFeed(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	CountEventContent(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
@@ -40,6 +41,7 @@ type Querier interface {
 	DeleteProcessingActivity(ctx context.Context, arg DeleteProcessingActivityParams) (uuid.UUID, error)
 	DeleteSubjectRequestsByID(ctx context.Context, ids []string) (int64, error)
 	ExportAccount(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error)
+	ExportAccountPreferences(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error)
 	// Counts of records that name the account as the acting staff member (no content, the records belong to others).
 	ExportActorReferences(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error)
 	ExportAuditEvents(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error)

@@ -108,6 +108,22 @@ export function startersFor(catalog: NotificationCatalog): Starter[] {
         actions: [message('in_app', 'Open day in 3 hours', '{day}, {time}. {supervisors} supervisor(s) signed up.')],
       }),
     },
+    {
+      key: 'days-before-my-open-day',
+      name: 'Reminder for my upcoming open-day slot',
+      description:
+        'A message 2 days before each open day you are signed up for. Change the number of days in the editor.',
+      area: 'Open Days',
+      draft: draft('Open day in 2 days', {
+        // Hours, because the schedule counts them: 48 hours are 2 days, up to 7 days (168 hours) are allowed.
+        trigger: { type: 'schedule', schedule: { repeat: 'before_open_day', hours: 48 } },
+        loop: null,
+        conditions: all(condition('e.mine', 'yes')),
+        actions: [
+          message('in_app', 'Open day on {day}', 'Your slot is {time}. {supervisors} supervisor(s) signed up.'),
+        ],
+      }),
+    },
   ];
   return candidates.filter((starter) => fits(catalog, starter.draft));
 }

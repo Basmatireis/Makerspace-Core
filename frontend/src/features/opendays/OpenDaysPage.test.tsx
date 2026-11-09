@@ -56,6 +56,38 @@ function mock(
   );
 }
 
+describe('Open Days list and calendar view', () => {
+  it('starts in the view stored on the account', async () => {
+    mock(['open_days.read', 'open_days.signup']);
+    server.use(
+      http.get('*/api/v1/me/preferences', () =>
+        HttpResponse.json({ items: [{ key: 'openDays.view', value: 'calendar', updatedAt: '2026-01-01T00:00:00Z' }] }),
+      ),
+    );
+    renderRoute(<App />, '/open-days/p-staffing');
+    expect(await screen.findByRole('group', { name: 'Period calendar' }, { timeout: 5000 })).toBeInTheDocument();
+    expect(screen.queryByRole('listitem', { name: /17:00–21:00/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the list when nothing is stored and saves the choice on the account', async () => {
+    mock(['open_days.read', 'open_days.signup']);
+    const saved: unknown[] = [];
+    server.use(
+      http.put('*/api/v1/me/preferences/openDays.view', async ({ request }) => {
+        const body = (await request.json()) as { value: string };
+        saved.push(body);
+        return HttpResponse.json({ key: 'openDays.view', value: body.value, updatedAt: '2026-01-01T00:00:00Z' });
+      }),
+    );
+    renderRoute(<App />, '/open-days/p-staffing');
+    await screen.findAllByRole('listitem', { name: /17:00–21:00/ });
+    // The toolbar's icon-only toggle is found by its guide anchor.
+    await userEvent.click(document.querySelector('[data-guide="open-days-view"]') as Element);
+    expect(await screen.findByRole('group', { name: 'Period calendar' }, { timeout: 5000 })).toBeInTheDocument();
+    await waitFor(() => expect(saved).toEqual([{ value: 'calendar' }]));
+  });
+});
+
 describe('Open Days routing', () => {
   it('sends people without open_days.manage to the schedule of the current visible period, never a draft', async () => {
     mock(['open_days.read', 'open_days.signup']);

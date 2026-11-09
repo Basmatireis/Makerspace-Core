@@ -2,6 +2,7 @@ import type {
   BillingParty,
   CurrentUser,
   FilamentSpool,
+  AccountPreference,
   GuideProgress,
   InventoryTransaction,
   MachineJob,
@@ -53,6 +54,8 @@ export type DemoStore = {
   series: OpenDaySeries[];
   staffingRules: StaffingRules;
   guideProgress: GuideProgress[];
+  /** Stored interface preferences of the demo account, so demo mode never writes to the real one. */
+  accountPreferences: AccountPreference[];
 };
 
 export const can = (store: DemoStore, permission: string): boolean =>

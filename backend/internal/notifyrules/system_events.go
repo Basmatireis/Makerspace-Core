@@ -357,6 +357,43 @@ func (e *SystemEvents) PeriodOpens(ctx context.Context, tx pgx.Tx, periodID uuid
 	})
 }
 
+// OpenDayPeriodChangeKind says what happened to a period's schedule; the value is the trigger's "change" field.
+type OpenDayPeriodChangeKind string
+
+const (
+	OpenDayPeriodPublished OpenDayPeriodChangeKind = "published"
+	OpenDayPeriodChanged   OpenDayPeriodChangeKind = "changed"
+)
+
+// OpenDayPeriodChanged raises open_day_period_changed when a period was published or its schedule changed while people
+// could already see it. The throttle subject "period" lets a rule limit a burst of saves.
+func (e *SystemEvents) OpenDayPeriodChanged(
+	ctx context.Context,
+	tx pgx.Tx,
+	periodID uuid.UUID,
+	kind OpenDayPeriodChangeKind,
+) error {
+	q := notifyrulesdb.New(tx)
+	period, err := q.GetOpenDayPeriodChangeFacts(ctx, periodID)
+	if err != nil {
+		return fmt.Errorf("load open day period: %w", err)
+	}
+	people, err := q.ListStaffingPeople(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve staffing people: %w", err)
+	}
+	return e.emit(ctx, tx, Event{
+		Trigger: "open_day_period_changed",
+		Fields:  map[string]any{"period": period.Name, "change": string(kind), "days": float64(period.DayCount)},
+		Placeholders: map[string]string{
+			"period": period.Name, "change": string(kind), "days": fmt.Sprintf("%d", period.DayCount),
+		},
+		Recipients: map[string][]uuid.UUID{"staffing_people": people},
+		Subjects:   map[string]string{"period": periodID.String()},
+		Link:       "/open-days/" + periodID.String(),
+	})
+}
+
 // PlaceFreed raises place_freed when leavingPersonID gave up a supervisor place in a timeslot of a scheduled open day
 // that starts within the warning window of the staffing rules, the same window the dashboard hint for a free place
 // uses. Trainee places never raise it, so callers pass only supervisor places. The date is shown in location.

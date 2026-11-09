@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/accountpreferences"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/attendance"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
@@ -59,47 +60,48 @@ const apiBasePath = "/api/v1"
 // service calls. Business validation, authorization, transactions, and audit
 // writes deliberately remain in those services.
 type Server struct {
-	routes            routePolicy
-	logger            *slog.Logger
-	pool              *pgxpool.Pool
-	config            config.Config
-	auth              *auth.Service
-	people            *people.Service
-	accounts          *accounts.Service
-	permissions       *authorization.Service
-	roles             *roles.Service
-	audit             *audit.Service
-	opendays          *opendays.Service
-	events            *events.Service
-	managedDevices    *manageddevices.Service
-	mail              *mailservice.Service
-	files             *files.Service
-	laborordnung      *laborordnung.Service
-	orders            *orders.Service
-	invoicing         *invoicing.Service
-	machineLogbook    *machinelogbook.Service
-	printArtifacts    *printartifacts.Service
-	printing          *printing.Service
-	printerConnectors *printerconnectors.Service
-	runRecordings     *runrecordings.Service
-	supervisors       *supervisors.Service
-	staffing          *staffing.Service
-	dashboard         *dashboard.Service
-	guides            *guides.Service
-	oidc              *oidcservice.Service
-	scim              *scimservice.Service
-	visitor           *visitor.Service
-	calendarFeed      *calendarfeed.Service
-	branding          *branding.Service
-	signage           *signage.Service
-	attendance        *attendance.Service
-	surveys           *surveys.Service
-	inbox             *inbox.Service
-	configTransfer    *configtransfer.Service
-	trainings         *trainings.Service
-	privacy           *privacy.Service
-	subjectRequests   *subjectrequests.Service
-	deviceRates       deviceRateLimits
+	routes             routePolicy
+	logger             *slog.Logger
+	pool               *pgxpool.Pool
+	config             config.Config
+	auth               *auth.Service
+	people             *people.Service
+	accounts           *accounts.Service
+	permissions        *authorization.Service
+	roles              *roles.Service
+	audit              *audit.Service
+	opendays           *opendays.Service
+	events             *events.Service
+	managedDevices     *manageddevices.Service
+	mail               *mailservice.Service
+	files              *files.Service
+	laborordnung       *laborordnung.Service
+	orders             *orders.Service
+	invoicing          *invoicing.Service
+	machineLogbook     *machinelogbook.Service
+	printArtifacts     *printartifacts.Service
+	printing           *printing.Service
+	printerConnectors  *printerconnectors.Service
+	runRecordings      *runrecordings.Service
+	supervisors        *supervisors.Service
+	staffing           *staffing.Service
+	dashboard          *dashboard.Service
+	guides             *guides.Service
+	accountPreferences *accountpreferences.Service
+	oidc               *oidcservice.Service
+	scim               *scimservice.Service
+	visitor            *visitor.Service
+	calendarFeed       *calendarfeed.Service
+	branding           *branding.Service
+	signage            *signage.Service
+	attendance         *attendance.Service
+	surveys            *surveys.Service
+	inbox              *inbox.Service
+	configTransfer     *configtransfer.Service
+	trainings          *trainings.Service
+	privacy            *privacy.Service
+	subjectRequests    *subjectrequests.Service
+	deviceRates        deviceRateLimits
 	// cameraRelay pairs signage viewers with the printer connectors' camera streams.
 	cameraRelay *camerarelay.Hub
 	// surveyLinkViews and surveyLinkSubmits bound the anonymous share-link endpoints per client IP.
@@ -235,53 +237,54 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	})
 	privacyService.Register(privacycatalog.PrivacyRecords, subjectrequests.RetentionHandler())
 	return &Server{
-		logger:            logger,
-		cameraRelay:       relay,
-		pool:              pool,
-		config:            cfg,
-		auth:              authService,
-		people:            peopleService,
-		subjectRequests:   subjectRequestService,
-		accounts:          accounts.NewService(pool, cfg, notifier).WithNotifications(notificationEmitter),
-		permissions:       authorization.NewService(),
-		roles:             rolesService,
-		audit:             audit.NewService(pool),
-		opendays:          openDaysService,
-		events:            eventService,
-		managedDevices:    managedDevicesService,
-		mail:              mailer,
-		files:             fileService,
-		laborordnung:      labRulesService,
-		machineLogbook:    machineLogbook,
-		printArtifacts:    printartifacts.NewService(pool, fileService, machineLogbook, runRecordingsService),
-		printing:          printingService,
-		printerConnectors: printerConnectorService,
-		runRecordings:     runRecordingsService,
-		orders:            ordersService,
-		invoicing:         invoicingService,
-		supervisors:       supervisors.NewService(pool, staffingService),
-		staffing:          staffingService,
-		dashboard:         dashboard.NewService(pool, staffingService, openDaysService, eventService, ordersService, machineLogbook),
-		oidc:              oidcService,
-		scim:              scimservice.NewService(pool),
-		visitor:           visitorService,
-		branding:          brandingService,
-		signage:           signageService,
-		surveys:           surveyService,
-		inbox:             inbox.NewService(pool),
-		notifyRules:       notifyrules.NewService(pool).WithDispatcher(notifyDispatcher, location),
-		notifyDispatcher:  notifyDispatcher,
-		guides:            guides.NewService(pool),
-		configTransfer:    configTransferService,
-		trainings:         trainingsService,
-		privacy:           privacyService,
-		deviceRates:       newDeviceRateLimits(),
-		surveyLinkViews:   ratelimit.New(surveyLinkViewsPerWindow, surveyLinkWindow),
-		surveyLinkSubmits: ratelimit.New(surveyLinkSubmitsPerWindow, surveyLinkWindow),
-		calendarFeed:      calendarFeedService,
-		calendarFeedReads: ratelimit.New(calendarFeedReadsPerWindow, calendarFeedWindow),
-		attendance:        attendanceService,
-		noticeMail:        inbox.NewMailDelivery(pool, noticeMailer{notifier}),
+		logger:             logger,
+		cameraRelay:        relay,
+		pool:               pool,
+		config:             cfg,
+		auth:               authService,
+		people:             peopleService,
+		subjectRequests:    subjectRequestService,
+		accounts:           accounts.NewService(pool, cfg, notifier).WithNotifications(notificationEmitter),
+		permissions:        authorization.NewService(),
+		roles:              rolesService,
+		audit:              audit.NewService(pool),
+		opendays:           openDaysService,
+		events:             eventService,
+		managedDevices:     managedDevicesService,
+		mail:               mailer,
+		files:              fileService,
+		laborordnung:       labRulesService,
+		machineLogbook:     machineLogbook,
+		printArtifacts:     printartifacts.NewService(pool, fileService, machineLogbook, runRecordingsService),
+		printing:           printingService,
+		printerConnectors:  printerConnectorService,
+		runRecordings:      runRecordingsService,
+		orders:             ordersService,
+		invoicing:          invoicingService,
+		supervisors:        supervisors.NewService(pool, staffingService),
+		staffing:           staffingService,
+		dashboard:          dashboard.NewService(pool, staffingService, openDaysService, eventService, ordersService, machineLogbook),
+		oidc:               oidcService,
+		scim:               scimservice.NewService(pool),
+		visitor:            visitorService,
+		branding:           brandingService,
+		signage:            signageService,
+		surveys:            surveyService,
+		inbox:              inbox.NewService(pool),
+		notifyRules:        notifyrules.NewService(pool).WithDispatcher(notifyDispatcher, location),
+		notifyDispatcher:   notifyDispatcher,
+		guides:             guides.NewService(pool),
+		accountPreferences: accountpreferences.NewService(pool),
+		configTransfer:     configTransferService,
+		trainings:          trainingsService,
+		privacy:            privacyService,
+		deviceRates:        newDeviceRateLimits(),
+		surveyLinkViews:    ratelimit.New(surveyLinkViewsPerWindow, surveyLinkWindow),
+		surveyLinkSubmits:  ratelimit.New(surveyLinkSubmitsPerWindow, surveyLinkWindow),
+		calendarFeed:       calendarFeedService,
+		calendarFeedReads:  ratelimit.New(calendarFeedReadsPerWindow, calendarFeedWindow),
+		attendance:         attendanceService,
+		noticeMail:         inbox.NewMailDelivery(pool, noticeMailer{notifier}),
 	}, nil
 }
 

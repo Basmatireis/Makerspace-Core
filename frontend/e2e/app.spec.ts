@@ -538,6 +538,7 @@ async function installApi(page: Page, state: ApiState) {
     }
 
     if (path === '/api/v1/me/guides') return route.fulfill({ json: welcomeTourSeen });
+    if (path === '/api/v1/me/preferences') return route.fulfill({ json: { items: [] } });
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 }

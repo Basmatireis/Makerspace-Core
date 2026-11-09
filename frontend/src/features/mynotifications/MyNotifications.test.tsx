@@ -279,6 +279,24 @@ describe('personal subscriptions', () => {
     expect(tested).toBe(1);
   });
 
+  it('offers the open-day reminder N days before once the catalog knows whether the day is mine', () => {
+    const withMine = {
+      ...catalogFixture,
+      openDay: {
+        ...catalogFixture.openDay,
+        fields: [{ key: 'mine', label: 'I am signed up', type: 'bool', options: [], unit: null }],
+      },
+    };
+    const starter = startersFor(withMine).find((entry) => entry.key === 'days-before-my-open-day');
+    expect(starter?.draft.definition.trigger).toEqual({
+      type: 'schedule',
+      schedule: { repeat: 'before_open_day', hours: 48 },
+    });
+    expect(starter?.draft.definition.conditions.items).toEqual([{ field: 'e.mine', op: 'yes' }]);
+    expect(starter?.draft.definition.actions[0].recipients).toEqual(['me']);
+    expect(startersFor(catalogFixture).some((entry) => entry.key === 'days-before-my-open-day')).toBe(false);
+  });
+
   it('offers only the ready-made subscriptions the catalog supports', () => {
     expect(startersFor(catalogFixture)).toEqual([]);
     const catalog = {

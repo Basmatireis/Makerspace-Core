@@ -12,6 +12,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const countAccountPreferences = `-- name: CountAccountPreferences :one
+SELECT count(*)::bigint FROM account_preferences WHERE account_id = $1::uuid
+`
+
+func (q *Queries) CountAccountPreferences(ctx context.Context, subjectAccount uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countAccountPreferences, subjectAccount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countAuditEvents = `-- name: CountAuditEvents :one
 SELECT count(*)::bigint FROM audit_events WHERE actor_account_id = $1::uuid
 `
@@ -362,6 +373,18 @@ FROM accounts a WHERE a.id = $1::uuid
 
 func (q *Queries) ExportAccount(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error) {
 	row := q.db.QueryRow(ctx, exportAccount, subjectAccount)
+	var document []byte
+	err := row.Scan(&document)
+	return document, err
+}
+
+const exportAccountPreferences = `-- name: ExportAccountPreferences :one
+SELECT COALESCE(jsonb_agg(jsonb_build_object('key', key, 'value', value, 'updatedAt', updated_at) ORDER BY key), '[]'::jsonb)::jsonb AS document
+FROM account_preferences WHERE account_id = $1::uuid
+`
+
+func (q *Queries) ExportAccountPreferences(ctx context.Context, subjectAccount uuid.UUID) ([]byte, error) {
+	row := q.db.QueryRow(ctx, exportAccountPreferences, subjectAccount)
 	var document []byte
 	err := row.Scan(&document)
 	return document, err

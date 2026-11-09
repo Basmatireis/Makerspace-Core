@@ -541,6 +541,7 @@ export function createStore(user: CurrentUser, now: Date = new Date()): DemoStor
     },
     // The welcome tour counts as handled, so demo mode does not offer it again.
     guideProgress: [{ guideId: 'welcome', status: 'dismissed', updatedAt: T }],
+    accountPreferences: [],
   };
   store.openDays = openDaySeed(store);
   refreshPeriod(store);
