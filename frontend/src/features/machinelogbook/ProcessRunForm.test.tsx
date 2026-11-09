@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { dimensionOf } from './units';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type {
@@ -229,7 +229,7 @@ describe('process driven run form', () => {
     expect(within(dialog).queryByLabelText(/Stitches/)).not.toBeInTheDocument();
   });
 
-  it('calculates cm² from width, height and count for cutting machines and keeps the result editable', async () => {
+  it('computes a calculation typed into the quantity and books its result', async () => {
     let body: AddManualMachineRunRequest | undefined;
     server.use(
       ...lookups,
@@ -246,16 +246,18 @@ describe('process driven run form', () => {
     );
     const dialog = await screen.findByRole('dialog', { name: 'Add to job' });
     await pickMaterial(user, dialog, 'Birch 4 mm');
-    fireEvent.change(await within(dialog).findByLabelText('Width (cm)'), { target: { value: '20' } });
-    fireEvent.change(within(dialog).getByLabelText('Height (cm)'), { target: { value: '10' } });
-    fireEvent.change(within(dialog).getByLabelText('Count'), { target: { value: '3' } });
-    const quantity = within(dialog).getByLabelText('Quantity (cm²)');
-    await waitFor(() => expect(quantity).toHaveValue('600'));
+    expect(within(dialog).queryByLabelText('Width (cm)')).not.toBeInTheDocument();
+    const quantity = await within(dialog).findByLabelText('Quantity (cm²)');
+    expect(quantity).toHaveAttribute('placeholder', 'e.g. 20*30*2');
+    await user.type(quantity, '20*10,5*3');
+    expect(within(dialog).getByText('= 630 cm²')).toBeInTheDocument();
+    await user.tab();
+    expect(quantity).toHaveValue('630');
     await user.clear(quantity);
-    await user.type(quantity, '575');
+    await user.type(quantity, '(20+5)*2');
     await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
     await waitFor(() => expect(body).toBeDefined());
-    expect(body?.run.usages).toEqual([expect.objectContaining({ materialId: t(17), quantity: '575' })]);
+    expect(body?.run.usages).toEqual([expect.objectContaining({ materialId: t(17), quantity: '50' })]);
   });
 });
 

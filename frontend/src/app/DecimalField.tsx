@@ -6,18 +6,27 @@ type Props = Omit<ComponentProps<typeof TextInput>, 'value' | 'onChange' | 'type
   onChange: (value: string) => void;
   /** Whole numbers only: numeric keyboard on phones. */
   integer?: boolean;
+  /** Takes calculations such as 20*30: the full keyboard on phones, whose decimal pad has no operators. */
+  calculation?: boolean;
 };
 
 /**
  * Carbon text input for typed numbers. It hands back exactly what was typed; parse it with `parseDecimalText`.
  * A `type="number"` input cannot be used because browsers report "12," as empty, which clears the field.
  */
-export function DecimalField({ value, onChange, integer = false, autoComplete = 'off', ...rest }: Props) {
+export function DecimalField({
+  value,
+  onChange,
+  integer = false,
+  calculation = false,
+  autoComplete = 'off',
+  ...rest
+}: Props) {
   return (
     <TextInput
       {...rest}
       autoComplete={autoComplete}
-      inputMode={integer ? 'numeric' : 'decimal'}
+      inputMode={calculation ? 'text' : integer ? 'numeric' : 'decimal'}
       value={value}
       onChange={(event) => onChange(event.target.value)}
     />

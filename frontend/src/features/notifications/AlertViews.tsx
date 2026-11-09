@@ -243,7 +243,8 @@ export function AlertViews({ poll }: { poll: NotificationUnreadCount }) {
           ))}
         </div>
       )}
-      {dialog && <Dialog key={dialog.id} alert={dialog} handlers={handlers} />}
+      {/* A direct child of the main area would be laid out as page content, so the dialog leaves it too. */}
+      {dialog && createPortal(<Dialog key={dialog.id} alert={dialog} handlers={handlers} />, document.body)}
     </>
   );
 }

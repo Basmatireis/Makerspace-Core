@@ -9,31 +9,53 @@ import {
   TableRow,
   Tag,
 } from '@carbon/react';
-import type { MachineRun, MachineRunReportedUsageItem } from '../../../api/generated/models';
+import type {
+  MachineRun,
+  MachineRunReportedUsageItem,
+  MachineRunReportedUsageSegment,
+} from '../../../api/generated/models';
 import { RefLink } from '../../../app/RefLink';
 import { openReportedLines, reportedLineName, reportedLineQuantity } from '../jobs/runLines';
 import { unitText } from '../processConfig';
-import { formatQuantity } from '../shared/format';
-import { FromMachineTag } from '../shared/status';
+import { formatQuantity, formatTime } from '../shared/format';
+import { FromMachineTag, hasSegments } from '../shared/status';
+
+/** "from layer 41", else the time the feed moved to the segment's spool. */
+const startText = (segment: MachineRunReportedUsageSegment) =>
+  segment.startLayer != null ? `from layer ${segment.startLayer}` : `from ${formatTime(segment.startedAt)}`;
+
+/** Parts of reported lines that no spool fed, or whose quantity is unknown: nothing booked them yet. */
+const openSegments = (run: MachineRun) =>
+  (run.reportedUsageItems ?? [])
+    .filter(hasSegments)
+    .flatMap((item) =>
+      item.segments
+        .filter((segment) => !segment.spoolId || segment.estimatedQuantityGrams == null)
+        .map((segment) => ({ run, item, segment })),
+    );
 
 /**
  * The material of one or more runs in one table: booked usage and, below it, report lines the machine could not
- * assign to a material, each with "Map" when `onMap` is given. `showRun` adds the run column for a job.
+ * assign to a material, each with "Map" when `onMap` is given, and the parts of a line fed by several spools that no
+ * spool accounts for, with "Map" when `onMapSegment` is given. `showRun` adds the run column for a job.
  */
 export function MaterialUsageTable({
   runs,
   showRun,
   description,
   onMap,
+  onMapSegment,
 }: {
   runs: MachineRun[];
   showRun: boolean;
   description: string;
   onMap?: (run: MachineRun, item: MachineRunReportedUsageItem) => void;
+  onMapSegment?: (run: MachineRun, item: MachineRunReportedUsageItem, segment: MachineRunReportedUsageSegment) => void;
 }) {
   const booked = runs.flatMap((run) => run.usages.map((usage) => ({ run, usage })));
   const open = runs.flatMap((run) => openReportedLines(run).map((item) => ({ run, item })));
-  const actions = Boolean(onMap) && open.length > 0;
+  const segments = runs.flatMap(openSegments);
+  const actions = (Boolean(onMap) && open.length > 0) || (Boolean(onMapSegment) && segments.length > 0);
   const columns = 3 + (showRun ? 1 : 0) + (actions ? 1 : 0);
   const runCell = (run: MachineRun) =>
     showRun && (
@@ -65,7 +87,7 @@ export function MaterialUsageTable({
           </TableRow>
         </TableHead>
         <TableBody>
-          {booked.length === 0 && open.length === 0 && (
+          {booked.length === 0 && open.length === 0 && segments.length === 0 && (
             <TableRow>
               <TableCell colSpan={columns}>No material recorded.</TableCell>
             </TableRow>
@@ -116,14 +138,55 @@ export function MaterialUsageTable({
                 <TableCell>{grams == null ? '—' : `${formatQuantity(grams)} g`}</TableCell>
                 {actions && (
                   <TableCell>
-                    <Button
-                      kind="ghost"
-                      size="sm"
-                      aria-label={`Map ${reportedLineName(item)}${showRun ? ` of ${run.displayId}` : ''}`}
-                      onClick={() => onMap?.(run, item)}
-                    >
-                      Map
-                    </Button>
+                    {onMap && (
+                      <Button
+                        kind="ghost"
+                        size="sm"
+                        aria-label={`Map ${reportedLineName(item)}${showRun ? ` of ${run.displayId}` : ''}`}
+                        onClick={() => onMap(run, item)}
+                      >
+                        Map
+                      </Button>
+                    )}
+                  </TableCell>
+                )}
+              </TableRow>
+            );
+          })}
+          {segments.map(({ run, item, segment }) => {
+            const name = `${reportedLineName(item)} part ${segment.index + 1}`;
+            return (
+              <TableRow key={`${run.id}-segment-${item.reportRevision}-${item.lineNumber}-${segment.index}`}>
+                <TableCell>
+                  <div className="mj-cell-stack">
+                    <span>{name}</span>
+                    <span className="mj-secondary">
+                      Reported by the machine · {startText(segment)}
+                      {segment.split === 'progress' ? ' · estimated by progress' : ''}
+                    </span>
+                  </div>
+                </TableCell>
+                {runCell(run)}
+                <TableCell>
+                  <Tag type="red" size="sm">
+                    {segment.spoolId ? 'Quantity unknown' : 'No spool'}
+                  </Tag>
+                </TableCell>
+                <TableCell>
+                  {segment.estimatedQuantityGrams == null ? '—' : `${formatQuantity(segment.estimatedQuantityGrams)} g`}
+                </TableCell>
+                {actions && (
+                  <TableCell>
+                    {onMapSegment && (
+                      <Button
+                        kind="ghost"
+                        size="sm"
+                        aria-label={`Map ${name}${showRun ? ` of ${run.displayId}` : ''}`}
+                        onClick={() => onMapSegment(run, item, segment)}
+                      >
+                        Map
+                      </Button>
+                    )}
                   </TableCell>
                 )}
               </TableRow>

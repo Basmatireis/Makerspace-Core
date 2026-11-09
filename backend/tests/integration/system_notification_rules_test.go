@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
 	"github.com/google/uuid"
 )
 
-// everythingExists is the validation lookup of a fresh database: the seeded rules name no stored rows, and any
+// everythingExists is the validation lookup of a fresh database: the seeded test rules name no stored rows, and any
 // identifier a custom rule adds is accepted.
 type everythingExists struct{}
 
@@ -24,10 +25,24 @@ func (everythingExists) ExistingIDs(_ notifyrules.IDKind, ids []uuid.UUID) (map[
 	return found, nil
 }
 
-// TestSeededSystemRulesAreValidCentralRulesOfTheServiceCategory loads every system rule the migrations seeded and
-// runs it through the validator the editor uses, so a seed can never drift from the catalog.
+// TestMigrationsShipNoNotificationRules checks that a new installation sends no notification until staff create a rule.
+func TestMigrationsShipNoNotificationRules(t *testing.T) {
+	env := newRulesEnv(t)
+	var count int
+	if err := env.pool.QueryRow(testContext(t), `SELECT count(*) FROM notification_rules`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("notification rules after the migrations = %d, want 0", count)
+	}
+}
+
+// TestSeededSystemRulesAreValidCentralRulesOfTheServiceCategory loads every rule testdb.SeedNotificationRules creates
+// for the tests of system events and runs it through the validator the editor uses, so the fixture can never drift
+// from the catalog.
 func TestSeededSystemRulesAreValidCentralRulesOfTheServiceCategory(t *testing.T) {
 	env := newRulesEnv(t)
+	testdb.SeedNotificationRules(t, env.pool)
 	rows, err := env.pool.Query(testContext(t), `
 		SELECT r.system_key, r.trigger_event, r.enabled, r.mandatory, r.owner_account_id IS NULL, r.category_id, r.definition::text
 		FROM notification_rules r WHERE r.system_key IS NOT NULL`)

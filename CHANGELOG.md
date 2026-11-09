@@ -32,12 +32,14 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Removed
 
+- **No ready-made notification rules.** The application no longer ships notification rules: migration 00127 deletes the rules seeded by migration 00115 (open-day changes, freed places, sign-up open, new Lab Rules, printer errors, finished runs and spool changes), so only rules staff create in the notification center send anything. Notifications already sent stay.
 - **Android kiosk.** The Android app, its build check and the Android device bridge are gone; the desktop app is the only native shell. Managed devices report only the `desktop` platform, and migration 00112 drops stored Android hardware reports (the devices themselves stay).
 - Settings › Lab operations › Open days & staffing, and the staffing level and open-days minimum fields of the role editor.
 - **Order fulfilment mode.** Orders no longer ask whether the customer takes the items now or picks them up later; `fulfillmentMode` is gone from the order API (#56).
 
 ### Changed
 
+- **Material rows in one line, with calculations.** Wherever a run's material is chosen (new job, add to job, usage editor, mapping reported material) the material, the optional spool and the quantity share one line. The quantity takes basic arithmetic such as `20*30*2` or `(40-2)/4` (comma or dot as decimal separator), shows the result below while typing and becomes the result when leaving the field; a grey example in the empty field says so. The width × height × count inputs for cm² and m² are gone.
 - **Open-day colours.** List and calendar show blue for days you hold a place on, red for days that still need people (managers: a free supervisor place; everyone else: a place you can take), green for full days and grey for cancelled ones. The separate "urgent within the warning window" state is gone from the schedule; the warning window still drives the dashboard hint and the freed-place notice.
 - **"Fully staffed" counts supervisor places only.** A period's fully staffed and short-staffed day counts ignore open trainee places.
 - **Period details delete with an icon.** The period panel has a delete icon button instead of the overflow menu.
@@ -56,6 +58,8 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Fixed
 
+- **Unbooked filament in Material usage.** The part of a print no spool fed (or whose quantity is unknown) now appears in the Material usage table of the run with a Map action, instead of only in the run details. The "Reported material" entry is gone from the run details.
+- **Notification dialogs cover the screen.** A notification shown as a dialog pushed the page out of view and dimmed only the content area; it now lies over the whole app with the page visible beneath.
 - **Open-day places lost role restrictions nobody chose.** Before the membership roles, a place listed the roles allowed to fill it; the migration kept those lists, so places showed custom roles such as a former supervisor role as "extra roles". Migration 00126 removes the lists of places that existed before that migration; restrictions set since then stay.
 - **Upgrading a database with orders works again.** Migration 00123 of rc.2/rc.3 stopped on the first booked order item that came from a job ("order item content is immutable"). It now backfills the billing revision with the item guard switched off for that statement.
 - **Mapping reported material uses the material picker.** The map dialog for a report line the printer could not assign chooses the material like the usage editor: a stock article with an optional spool, or the recipient's own material. Run and job pages list unmapped report lines in their Material usage table with a Map action, so a job's lines can be mapped without opening the run.

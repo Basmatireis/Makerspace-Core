@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
@@ -38,6 +40,7 @@ type ingestHarness struct {
 func newIngestHarness(t *testing.T) *ingestHarness {
 	t.Helper()
 	pool := printerConnectorIntegrationPool(t)
+	testdb.SeedNotificationRules(t, pool)
 	ctx := t.Context()
 	h := &ingestHarness{t: t, pool: pool, logbook: machinelogbook.NewService(pool, notifyrules.NewSystemEvents(nil))}
 	printingService := printing.NewService(pool)

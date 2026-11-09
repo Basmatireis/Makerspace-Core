@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
+
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 	"github.com/google/uuid"
 )
@@ -14,6 +16,7 @@ import (
 // the operator of the run's job is told in the cancelling transaction, except when they cancelled it.
 func TestCancelManualRunNotifiesTheOperatorUnlessTheyCancelledIt(t *testing.T) {
 	f := newLiveJobFixture(t)
+	testdb.SeedNotificationRules(t, f.pool)
 	ctx := t.Context()
 	operatorPerson, operatorAccount := ids.New(), ids.New()
 	suffix := strings.ReplaceAll(operatorPerson.String(), "-", "")[:12]
