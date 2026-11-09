@@ -2,21 +2,19 @@ package orders
 
 import (
 	"context"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -63,48 +61,9 @@ type fixture struct {
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("TEST_DATABASE_URL is not set")
-	}
 	ctx := t.Context()
-	admin, e := pgxpool.New(ctx, url)
-	if e != nil {
-		t.Fatal(e)
-	}
-	schema := "orders_test_" + strings.ReplaceAll(ids.New().String(), "-", "")
-	if _, e = admin.Exec(ctx, "CREATE SCHEMA "+schema); e != nil {
-		t.Fatal(e)
-	}
-	cfg, e := pgxpool.ParseConfig(url)
-	if e != nil {
-		t.Fatal(e)
-	}
-	cfg.ConnConfig.RuntimeParams["search_path"] = schema
-	pool, e := pgxpool.NewWithConfig(ctx, cfg)
-	if e != nil {
-		t.Fatal(e)
-	}
-	t.Cleanup(func() {
-		pool.Close()
-		_, _ = admin.Exec(context.Background(), "DROP SCHEMA "+schema+" CASCADE")
-		admin.Close()
-	})
-	paths, e := filepath.Glob("../../migrations/*.sql")
-	if e != nil {
-		t.Fatal(e)
-	}
-	sort.Strings(paths)
-	for _, path := range paths {
-		raw, e := os.ReadFile(path)
-		if e != nil {
-			t.Fatal(e)
-		}
-		up, _, _ := strings.Cut(string(raw), "-- +goose Down")
-		if _, e = pool.Exec(ctx, up); e != nil {
-			t.Fatalf("migrate %s: %v", path, e)
-		}
-	}
+	pool := testdb.NewPool(t, pgx.QueryExecModeCacheStatement)
+	var e error
 	f := &fixture{pool: pool, person: ids.New(), organization: ids.New(), request: ids.New()}
 	account := ids.New()
 	if _, e = pool.Exec(

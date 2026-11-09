@@ -4,14 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
-	"runtime"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/testdb"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
@@ -895,64 +892,8 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 // arguments for json columns, which the printer connector queries use.
 func migratedPoolMode(t *testing.T, mode pgx.QueryExecMode) *pgxpool.Pool {
 	t.Helper()
-	databaseURL := os.Getenv("TEST_DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("TEST_DATABASE_URL is not set")
-	}
-	ctx := testContext(t)
-	adminPool, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	schema := "makerspace_test_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	identifier := pgx.Identifier{schema}.Sanitize()
-	if _, err := adminPool.Exec(ctx, "CREATE SCHEMA "+identifier); err != nil {
-		adminPool.Close()
-		t.Fatal(err)
-	}
-
-	poolConfig, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		adminPool.Close()
-		t.Fatal(err)
-	}
-	poolConfig.ConnConfig.RuntimeParams["search_path"] = schema
-	poolConfig.ConnConfig.DefaultQueryExecMode = mode
-	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
-	if err != nil {
-		adminPool.Close()
-		t.Fatal(err)
-	}
+	pool := testdb.NewPool(t, mode)
 	registerTestPool(t, pool)
-	t.Cleanup(func() {
-		pool.Close()
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_, _ = adminPool.Exec(cleanupCtx, "DROP SCHEMA "+identifier+" CASCADE")
-		adminPool.Close()
-	})
-
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("cannot locate integration test source")
-	}
-	migrations, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "..", "..", "migrations", "*.sql"))
-	if err != nil || len(migrations) == 0 {
-		t.Fatalf("locate migrations: %v", err)
-	}
-	for _, path := range migrations {
-		migration, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		up, _, found := strings.Cut(string(migration), "-- +goose Down")
-		if !found {
-			t.Fatalf("migration %s has no Goose Down section", filepath.Base(path))
-		}
-		if _, err := pool.Exec(ctx, up); err != nil {
-			t.Fatalf("apply migration %s: %v", filepath.Base(path), err)
-		}
-	}
 	return pool
 }
 

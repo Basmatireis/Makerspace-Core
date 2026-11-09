@@ -115,6 +115,8 @@ The sanitizer accepts NDJSON and whitespace-separated JSON streams, creates its 
 
 `make test-integration` runs against a dedicated database, `makerspace_test` by default, in the Compose PostgreSQL. Override the name with `TEST_POSTGRES_DB=...`. `make test-db` creates the database if it is missing and applies all migrations to it. Tests never write into the development database.
 
+Each test gets its own database, copied from a template database that `internal/platform/testdb` migrates once per set of migration files (`makerspace_template_<digest>`). The template is rebuilt when a migration file changes, and templates of earlier migration sets are dropped. Copying a template takes a fraction of a second, so packages run in parallel against the same server without migrating per test.
+
 ### Demo data
 
 `make seed-dev` adds demo data for a university makerspace to the development database through the `backend/cmd/devseed` program. It writes through the service layer and is repeatable: each run adds a new set of demo data on top of existing data. It refuses to run only with `APP_ENV=production`. Pass options with `SEED_ARGS="-seed 42 -actor-email …"`.
