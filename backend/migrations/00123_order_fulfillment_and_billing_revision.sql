@@ -48,7 +48,11 @@ ALTER TABLE orders DROP COLUMN fulfillment_mode;
 ALTER TABLE machine_jobs ADD COLUMN billing_revision bigint NOT NULL DEFAULT 1 CHECK (billing_revision > 0);
 UPDATE machine_jobs SET billing_revision = version;
 ALTER TABLE order_items ADD COLUMN source_billing_revision bigint CHECK (source_billing_revision IS NULL OR source_billing_revision > 0);
+-- Booked items are immutable; the guard is off only for this backfill of the new column, inside the
+-- migration's transaction.
+ALTER TABLE order_items DISABLE TRIGGER order_items_frozen;
 UPDATE order_items SET source_billing_revision = source_job_version WHERE source_job_version IS NOT NULL;
+ALTER TABLE order_items ENABLE TRIGGER order_items_frozen;
 
 -- +goose Down
 ALTER TABLE order_items DROP COLUMN source_billing_revision;

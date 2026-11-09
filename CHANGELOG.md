@@ -52,6 +52,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Fixed
 
+- **Upgrading a database with orders works again.** Migration 00123 of rc.2/rc.3 stopped on the first booked order item that came from a job ("order item content is immutable"). It now backfills the billing revision with the item guard switched off for that statement.
 - **Visitor enrollment asks for the Lab Rules only when they are recorded.** While the Visitor role did not require the Lab Rules, the tablet still asked a new visitor to accept them, but no confirmation was stored. The Lab Rules step now appears only when the Visitor role requires them, and then the acceptance is listed under Lab Rules confirmations with the method "enrollment". `GET /visitor-enrollment/state` has the new field `labRulesRequired`.
 
 ### Upgrade notes
