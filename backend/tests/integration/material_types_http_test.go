@@ -172,7 +172,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	}
 
 	readerClient, readerCSRF := member("reader", "inventory.read")
-	managerClient, managerCSRF := member("manager", "inventory.read", "inventory.manage")
+	managerClient, managerCSRF := member("manager", "inventory.read", "inventory.articles.manage")
 	nobodyClient, nobodyCSRF := member("nobody", "machines.read")
 	_ = adminCSRF
 
