@@ -36,9 +36,15 @@ export interface OpenDayPeriod {
   status: OpenDayPeriodStatus;
   /** @minimum 0 */
   totalOpenDays: number;
-  /** @minimum 0 */
+  /**
+     * Scheduled days whose supervisor places are all filled; trainee places do not count.
+     * @minimum 0
+     */
   fullyStaffedCount: number;
-  /** @minimum 0 */
+  /**
+     * Scheduled days with a free supervisor place.
+     * @minimum 0
+     */
   needsStaffCount: number;
   /**
      * Total unfilled positions across scheduled supervisor requirements; trainee vacancies are excluded.

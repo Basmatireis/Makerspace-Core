@@ -43,7 +43,7 @@ import { dayMatchesSearch, dayPasses, filterDefs, type FilterValues } from './mo
 import { findOverlap } from './model/overlap';
 import { inSection, sectionDefs, type SectionId } from './model/sections';
 import { slotSummary } from './model/timeslots';
-import { DEFAULT_WARNING_DAYS, dayEnded, viewerOf, type StateContext } from './model/state';
+import { dayEnded, viewerOf, type StateContext } from './model/state';
 import {
   editCount,
   editorReducer,
@@ -147,9 +147,7 @@ export function SchedulePage({ periodId }: { periodId: string }) {
         : null,
     [schedule, savedSeries, editor.edits, entries, periodId, now],
   );
-  const warningDays =
-    rowsQuery.data?.rules.warningWindowDays ?? dashboardQuery.data?.staffing?.warningWindowDays ?? DEFAULT_WARNING_DAYS;
-  const ctx: StateContext = useMemo(() => ({ viewer, now, warningDays }), [viewer, now, warningDays]);
+  const ctx: StateContext = useMemo(() => ({ viewer, now }), [viewer, now]);
   const days = derived?.days ?? EMPTY;
   const changes = derived?.changes ?? new Map();
   const rows = useMemo(

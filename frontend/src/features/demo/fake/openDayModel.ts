@@ -13,7 +13,10 @@ const mine = (store: DemoStore, assignment: OpenDayAssignment) => assignment.per
 /** Recomputes the counters of the period from its Open Days. */
 export function refreshPeriod(store: DemoStore): void {
   const days = store.openDays.filter(ACTIVE);
-  const staffed = (day: OpenDay) => dayRequirements(day).every((item) => item.assignedCount >= item.requiredCount);
+  const staffed = (day: OpenDay) =>
+    dayRequirements(day)
+      .filter((item) => item.kind === 'supervisor')
+      .every((item) => item.assignedCount >= item.requiredCount);
   store.period.totalOpenDays = store.openDays.length;
   store.period.cancelledCount = store.openDays.length - days.length;
   store.period.fullyStaffedCount = days.filter(staffed).length;

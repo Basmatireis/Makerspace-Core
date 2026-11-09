@@ -37,22 +37,22 @@ export type CalendarViewProps = {
 };
 
 function Legend({ ctx }: { ctx: StateContext }) {
-  const { viewer, warningDays } = ctx;
+  const { viewer } = ctx;
   const items: [SlotState, string][] =
     !viewer.canSignUp && !viewer.canManage
       ? [['neutral', 'Open day']]
       : viewer.canManage
         ? [
-            ['urgent', `Supervisor missing, within ${warningDays} days`],
             ['short', 'Supervisor missing'],
             ['mine', "You're in"],
-            ['ok', 'Staffed'],
+            ['ok', 'Supervisors complete'],
+            ['cancelled', 'Cancelled'],
           ]
         : [
-            ['urgent', `Supervisor needed within ${warningDays} days`],
             ['open', 'Place for you'],
             ['mine', "You're in"],
             ['full', 'Full for you'],
+            ['cancelled', 'Cancelled'],
           ];
   return (
     <ul className="od-legend" aria-label="Legend">

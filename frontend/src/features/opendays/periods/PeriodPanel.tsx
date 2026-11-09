@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Button, IconButton, OverflowMenu, OverflowMenuItem, Tag } from '@carbon/react';
-import { ArrowRight, Close, Edit } from '@carbon/icons-react';
+import { Button, IconButton, Tag } from '@carbon/react';
+import { ArrowRight, Close, Edit, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { deleteOpenDayPeriod } from '../../../api/generated/open-days/open-days';
@@ -75,10 +75,9 @@ export function PeriodPanel({
                 <Edit />
               </IconButton>
             )}
-            <OverflowMenu size="md" flipped aria-label="More actions for this period" iconDescription="More actions">
-              {editable && <OverflowMenuItem itemText="Edit name, dates and deadline" onClick={onEdit} />}
-              <OverflowMenuItem itemText="Delete period" isDelete hasDivider onClick={() => setConfirmDelete(true)} />
-            </OverflowMenu>
+            <IconButton kind="ghost" size="md" label="Delete period" onClick={() => setConfirmDelete(true)}>
+              <TrashCan />
+            </IconButton>
             <IconButton kind="ghost" size="md" label="Close details" onClick={onClose}>
               <Close />
             </IconButton>

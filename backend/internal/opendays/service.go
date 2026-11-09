@@ -760,13 +760,12 @@ func (s *Service) periodFromRow(
 	if err != nil {
 		return Period{}, err
 	}
+	// Only supervisor places decide whether a day is staffed; open trainee places never keep it short.
 	short := map[uuid.UUID]bool{}
 	for _, count := range counts {
-		if count.AssignedCount < int64(count.RequiredCount) {
+		if RequirementKind(count.Kind) == RequirementSupervisor && count.AssignedCount < int64(count.RequiredCount) {
 			short[count.OpenDayID] = true
-			if RequirementKind(count.Kind) == RequirementSupervisor {
-				result.OpenSupervisorPositions += int(int64(count.RequiredCount) - count.AssignedCount)
-			}
+			result.OpenSupervisorPositions += int(int64(count.RequiredCount) - count.AssignedCount)
 		}
 	}
 	for _, day := range days {

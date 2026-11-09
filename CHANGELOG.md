@@ -37,6 +37,9 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
+- **Open-day colours.** List and calendar show blue for days you hold a place on, red for days that still need people (managers: a free supervisor place; everyone else: a place you can take), green for full days and grey for cancelled ones. The separate "urgent within the warning window" state is gone from the schedule; the warning window still drives the dashboard hint and the freed-place notice.
+- **"Fully staffed" counts supervisor places only.** A period's fully staffed and short-staffed day counts ignore open trainee places.
+- **Period details delete with an icon.** The period panel has a delete icon button instead of the overflow menu.
 - The semester tile and the dashboard's open-place hint follow the staffing rules (minimum, excusal, counting, warning window). The public JSON and ICS list one entry per open day with its timeslots in the description.
 - The Filters button and the fixed detail panel of Open Days and Staffing are shared components.
 - **Printer notification settings are now rules.** The migration turns today's settings into rules, so the behaviour stays the same; they can be edited in the Notification center.
@@ -52,6 +55,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Fixed
 
+- **Open-day places lost role restrictions nobody chose.** Before the membership roles, a place listed the roles allowed to fill it; the migration kept those lists, so places showed custom roles such as a former supervisor role as "extra roles". Migration 00126 removes the lists of places that existed before that migration; restrictions set since then stay.
 - **Upgrading a database with orders works again.** Migration 00123 of rc.2/rc.3 stopped on the first booked order item that came from a job ("order item content is immutable"). It now backfills the billing revision with the item guard switched off for that statement.
 - **Mapping reported material uses the material picker.** The map dialog for a report line the printer could not assign chooses the material like the usage editor: a stock article with an optional spool, or the recipient's own material. Run and job pages list unmapped report lines in their Material usage table with a Map action, so a job's lines can be mapped without opening the run.
 - **Visitor enrollment asks for the Lab Rules only when they are recorded.** While the Visitor role did not require the Lab Rules, the tablet still asked a new visitor to accept them, but no confirmation was stored. The Lab Rules step now appears only when the Visitor role requires them, and then the acceptance is listed under Lab Rules confirmations with the method "enrollment". `GET /visitor-enrollment/state` has the new field `labRulesRequired`.

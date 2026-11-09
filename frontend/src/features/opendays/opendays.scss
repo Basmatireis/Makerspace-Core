@@ -4,38 +4,35 @@
 @use '@carbon/styles/scss/components/contained-list';
 
 // Layout glue for the Open Days pages. Every control is a Carbon component; this file only places them and colours the
-// viewer-relative states (urgent, open, mine, full ...) with theme tokens, so both color schemes work.
+// viewer-relative states with theme tokens, so both color schemes work: blue = you're in, red = still needs people
+// (or a place for you), green = full, grey = cancelled.
 
 .state-mine {
-  --od-st: #{theme.$support-success};
-  --od-bg: color-mix(in srgb, #{theme.$support-success} 18%, #{theme.$layer-01});
+  --od-st: #{theme.$support-info};
+  --od-bg: color-mix(in srgb, #{theme.$support-info} 18%, #{theme.$layer-01});
 }
-.state-urgent {
+.state-short,
+.state-open {
   --od-st: #{theme.$support-error};
-  --od-bg: color-mix(in srgb, #{theme.$support-error} 30%, #{theme.$layer-01});
-}
-.state-short {
-  --od-st: #{theme.$support-error};
-  --od-bg: color-mix(in srgb, #{theme.$support-error} 8%, #{theme.$layer-01});
-}
-.state-open,
-.state-neutral {
-  --od-st: #{theme.$interactive};
-  --od-bg: #{theme.$highlight};
+  --od-bg: color-mix(in srgb, #{theme.$support-error} 12%, #{theme.$layer-01});
 }
 .state-full,
 .state-ok {
+  --od-st: #{theme.$support-success};
+  --od-bg: color-mix(in srgb, #{theme.$support-success} 14%, #{theme.$layer-01});
+}
+.state-cancelled {
   --od-st: #{theme.$border-strong-01};
   --od-bg: #{theme.$layer-accent-01};
 }
+.state-neutral,
 .state-other,
-.state-past,
-.state-cancelled {
+.state-past {
   --od-st: #{theme.$border-subtle-01};
   --od-bg: #{theme.$layer-01};
 }
 .state-staffed {
-  --od-st: #{theme.$support-success};
+  --od-st: #{theme.$support-info};
   --od-bg: #{theme.$layer-01};
 }
 
@@ -803,9 +800,6 @@
   background: var(--od-bg);
   border-inline-start: 3px solid var(--od-st);
 }
-.od-legend i.state-urgent {
-  box-shadow: inset 0 0 0 1px var(--od-st);
-}
 .od-legend i.is-break {
   background: repeating-linear-gradient(135deg, theme.$layer-accent-01 0 2px, transparent 2px 5px);
   border: 0;
@@ -897,11 +891,6 @@
   text-align: start;
   cursor: pointer;
 }
-.od-blk.state-urgent {
-  box-shadow:
-    inset 3px 0 0 var(--od-st),
-    inset 0 0 0 1px var(--od-st);
-}
 .od-blk:hover {
   filter: brightness(0.96);
 }
@@ -966,12 +955,17 @@
   box-shadow: inset 0 0 0 1px var(--od-st);
 }
 .od-segs i.state-mine {
-  background: theme.$support-success;
+  background: theme.$support-info;
   box-shadow: none;
 }
-.od-segs i.state-urgent,
-.od-segs i.state-short {
+.od-segs i.state-short,
+.od-segs i.state-open {
   background: theme.$support-error;
+  box-shadow: none;
+}
+.od-segs i.state-full,
+.od-segs i.state-ok {
+  background: theme.$support-success;
   box-shadow: none;
 }
 

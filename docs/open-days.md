@@ -31,7 +31,9 @@ A **series** describes how a period's days were generated: a weekday, a first an
 
 The schedule page of a period (`/open-days/{periodId}`) edits a local working copy and saves **one atomic delta** (`PUT /open-day-periods/{periodId}/schedule`: created, updated and removed days, series created, updated and rejoined), guarded by the period version and the versions of the affected days. Nothing is written until the save bar is confirmed; a stale version answers 409 and the editor reloads the server state. Removing a draft day hard-deletes it; after staffing begins, removal records a cancellation and retains assignments and audit history. The sections are Upcoming, Short-staffed (managers), Open for me, Mine and Past, each as list or calendar, with a fixed detail panel (beside the list from 92 rem, a bottom sheet below). People who may only read or sign up land directly on the current period; people with `open_days.manage` start on the period list with the Periods and Breaks tabs.
 
-Short-staffed means a supervisor place of a timeslot that has not ended is still empty; it becomes urgent when the timeslot starts within the warning window of the staffing rules. Empty trainee places never warn.
+Short-staffed means a supervisor place of a timeslot that has not ended is still empty. Empty trainee places never count: a day is fully staffed (also in the period's "Fully staffed" count) once its supervisor places are filled.
+
+List and calendar colour each day from the viewer's side. People with `open_days.manage`: red while a supervisor place is free, green when all supervisor places are filled, blue when they hold a place themselves, grey when cancelled. People who sign up: red when there is a place they can take, green when every place of their own kind is taken, blue when they hold a place, grey when cancelled. A day with several timeslots shows the strongest state (blue, then red, then green).
 
 ## Local time and calendar context
 

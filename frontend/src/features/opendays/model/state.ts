@@ -1,6 +1,6 @@
 import type { CurrentUser, OpenDay, OpenDayStaffRequirement, OpenDayTimeslot } from '../../../api/generated/models';
 import { hasPermission } from '../../auth/permissions';
-import { dateOf, dayDiff, plural, shortTimeRange } from './dates';
+import { plural, shortTimeRange } from './dates';
 
 /** What the signed-in person may do with open days; the backend enforces all of it again. */
 export type Viewer = {
@@ -27,27 +27,19 @@ export function viewerOf(user: CurrentUser): Viewer {
   };
 }
 
-/** Clock and rules the states depend on. `warningDays` is the staffing rules' warning window. */
-export type StateContext = { viewer: Viewer; now: Date; warningDays: number };
+/** The viewer and the clock the states depend on. */
+export type StateContext = { viewer: Viewer; now: Date };
 
-export const DEFAULT_WARNING_DAYS = 14;
-
+/**
+ * Colours: blue for a day the viewer holds a place on, red for one that still needs people (managers: a supervisor
+ * place is free; others: a place they can take), green for one that is full (managers: all supervisor places; others:
+ * every place of their own kind), grey for cancelled days. Trainee places never make a day red for managers.
+ */
 export type SlotState =
-  'cancelled' | 'mine' | 'staffed' | 'past' | 'urgent' | 'short' | 'open' | 'full' | 'ok' | 'other' | 'neutral';
+  'cancelled' | 'mine' | 'staffed' | 'past' | 'short' | 'open' | 'full' | 'ok' | 'other' | 'neutral';
 
 /** The most telling state first: a day shows the strongest state of its timeslots. */
-const STATE_ORDER: SlotState[] = [
-  'mine',
-  'urgent',
-  'short',
-  'open',
-  'full',
-  'ok',
-  'other',
-  'neutral',
-  'staffed',
-  'past',
-];
+const STATE_ORDER: SlotState[] = ['mine', 'short', 'open', 'full', 'ok', 'other', 'neutral', 'staffed', 'past'];
 
 export const free = (requirement: OpenDayStaffRequirement | undefined) =>
   requirement ? Math.max(0, requirement.requiredCount - requirement.assignedCount) : 0;
@@ -57,11 +49,6 @@ export const traineesOf = (slot: OpenDayTimeslot) => slot.requirements.find((ite
 
 export const slotEnded = (slot: Pick<OpenDayTimeslot, 'endsAt'>, now: Date) => new Date(slot.endsAt) <= now;
 export const dayEnded = (day: Pick<OpenDay, 'endsAt'>, now: Date) => new Date(day.endsAt) <= now;
-
-/** An open slot starts within the warning window: unfilled supervisor places there are urgent. */
-export function startsSoon(slot: Pick<OpenDayTimeslot, 'startsAt' | 'endsAt'>, ctx: StateContext) {
-  return !slotEnded(slot, ctx.now) && dayDiff(dateOf(slot.startsAt), dateOf(ctx.now)) <= ctx.warningDays;
-}
 
 /** Supervisor places still free in timeslots that have not ended; trainee places never count as short-staffed. */
 export function missingSupervisors(day: OpenDay, now: Date) {
@@ -99,14 +86,12 @@ export function slotState(day: OpenDay, slot: OpenDayTimeslot, ctx: StateContext
   const ended = slotEnded(slot, ctx.now);
   if (slot.myAssignment) return ended ? 'staffed' : 'mine';
   if (ended) return 'past';
-  if (ctx.viewer.canManage && free(supervisorsOf(slot)) > 0) return startsSoon(slot, ctx) ? 'urgent' : 'short';
+  if (ctx.viewer.canManage) return free(supervisorsOf(slot)) > 0 ? 'short' : 'ok';
   if (!ctx.viewer.canSignUp || !ctx.viewer.personId) return 'neutral';
   const eligible = slot.requirements.filter((item) => item.eligible);
   if (!eligible.length) return 'other';
-  const joinable = joinablePlaces(slot);
-  if (joinable.length)
-    return joinable.some((item) => item.kind === 'supervisor') && startsSoon(slot, ctx) ? 'urgent' : 'open';
-  if (eligible.every((item) => free(item) === 0)) return ctx.viewer.canManage ? 'ok' : 'full';
+  if (joinablePlaces(slot).length) return 'open';
+  if (eligible.every((item) => free(item) === 0)) return 'full';
   return 'neutral';
 }
 
@@ -116,7 +101,7 @@ export function dayState(day: OpenDay, ctx: StateContext): SlotState {
   return states.sort((a, b) => STATE_ORDER.indexOf(a) - STATE_ORDER.indexOf(b))[0] ?? 'neutral';
 }
 
-export type StateTagInfo = { label: string; color: 'green' | 'red' | 'blue' | 'gray' | 'outline'; urgent?: boolean };
+export type StateTagInfo = { label: string; color: 'green' | 'red' | 'blue' | 'gray' | 'outline' };
 
 const kindName = (kind: string) => (kind === 'supervisor' ? 'Supervisor' : 'Trainee');
 
@@ -139,29 +124,21 @@ export function stateTag(
         !slot && day.timeslots.length > 1
           ? `You're in · ${upcoming.map((item) => shortTimeRange(item.startsAt, item.endsAt)).join(', ')}`
           : `You're in · ${kindName(myRequirement(first)?.kind ?? 'supervisor')}`;
-      return { label, color: 'green' };
+      return { label, color: 'blue' };
     }
     case 'staffed':
       return {
         label: `You staffed${slot || day.timeslots.length === 1 ? ` · ${kindName(myRequirement(mine[0])?.kind ?? 'supervisor')}` : ''}`,
         color: 'outline',
       };
-    case 'urgent':
-      return ctx.viewer.canManage
-        ? { label: `${plural(missing, 'supervisor')} missing`, color: 'red', urgent: true }
-        : {
-            label: compact ? 'Supervisor needed' : `Supervisor needed · ${plural(places, 'place')} open`,
-            color: 'red',
-            urgent: true,
-          };
     case 'short':
       return { label: `${plural(missing, 'supervisor')} missing`, color: 'red' };
     case 'open':
-      return { label: compact ? 'Place for you' : `${plural(places, 'place')} for you`, color: 'blue' };
+      return { label: compact ? 'Place for you' : `${plural(places, 'place')} for you`, color: 'red' };
     case 'full':
-      return { label: 'Full', color: 'gray' };
+      return { label: 'Full', color: 'green' };
     case 'ok':
-      return { label: 'Staffed', color: 'gray' };
+      return { label: 'Staffed', color: 'green' };
     case 'other':
       return { label: 'Other roles only', color: 'outline' };
     case 'cancelled':

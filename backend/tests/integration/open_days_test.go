@@ -457,6 +457,10 @@ func TestOpenDayPeriodSummaryCountsIndividualSupervisorVacancies(t *testing.T) {
 			summary.OpenSupervisorPositions,
 		)
 	}
+	// The third day has both supervisors and no trainee: only supervisor places decide whether a day is staffed.
+	if summary.FullyStaffedCount != 1 || summary.NeedsStaffCount != 2 {
+		t.Fatalf("fully staffed = %d, needs staff = %d; want 1 and 2", summary.FullyStaffedCount, summary.NeedsStaffCount)
+	}
 }
 
 func TestOpenDaysVisibilityAndValidation(t *testing.T) {
