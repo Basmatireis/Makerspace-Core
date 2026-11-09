@@ -1,11 +1,13 @@
 import type {
   SignagePlayerHeartbeat,
+  SignagePlayerManifestResponse,
   SignagePlayerLive,
   SignagePlayerManifest,
   SignageAspectRatio,
+  SignageEmbedSettings,
 } from '../api/generated/models';
 import { isRevoked, PlayerApiError, type PlayerApi } from './api';
-import { loadAsset as defaultLoadAsset, settleLimited, type AssetLoader } from './assets';
+import { createAssetLoader, loadAsset as defaultLoadAsset, settleLimited, type AssetLoader } from './assets';
 import { CacheQuotaError, createPlayerStore, type PersistedLive, type PlayerStore } from './cache';
 import type { CameraSource } from './camera';
 import { LazyCameraSource } from './lazyCamera';
@@ -20,6 +22,8 @@ import { PLAYER_VERSION } from './version';
 export const LIVE_INTERVAL_MS = 10_000;
 export const HEARTBEAT_INTERVAL_MS = 30_000;
 export const MANIFEST_INTERVAL_MS = 60_000;
+/** Web embeds poll live data less often than devices (no heartbeat either). */
+export const EMBED_LIVE_INTERVAL_MS = 30_000;
 const UNPUBLISHED_INTERVAL_MS = 10_000;
 const MAX_BACKOFF_MS = 120_000;
 const ERROR_MEMORY_MS = 5 * 60_000;
@@ -30,7 +34,7 @@ export const PERSISTED_LIVE_MAX_AGE_MS = 24 * 3_600_000;
 /** An unchanged live payload is written to storage at most this often (kind to SD cards). */
 const LIVE_SAVE_INTERVAL_MS = 5 * 60_000;
 
-export type RuntimeStatus = 'starting' | 'unpublished' | 'playing' | 'revoked';
+export type RuntimeStatus = 'starting' | 'unpublished' | 'playing' | 'revoked' | 'unavailable';
 
 export type RuntimeSnapshot = {
   status: RuntimeStatus;
@@ -42,8 +46,19 @@ export type RuntimeSnapshot = {
   revision: number | null;
 };
 
+/** What the runtime calls; an embed has no heartbeat and its manifest answer carries the embed settings. */
+export type RuntimeApi = {
+  manifest(known: number | null): Promise<SignagePlayerManifestResponse & { embed?: SignageEmbedSettings }>;
+  live: PlayerApi['live'];
+  heartbeat?: PlayerApi['heartbeat'];
+};
+
+/** Web embed mode: public API, no pairing, no heartbeat, no Cache Storage; assets and clips load by URL. */
+export type EmbedDeps = { isTopLevel?: () => boolean };
+
 export type RuntimeDeps = {
-  api: PlayerApi;
+  api: RuntimeApi;
+  embed?: EmbedDeps;
   loadAsset?: AssetLoader;
   /** The offline cache; `null` (no Cache Storage) falls back to in-memory preloading. Defaults to the browser's. */
   store?: PlayerStore | null;
@@ -66,7 +81,8 @@ const activeOf = (manifest: SignagePlayerManifest): Active => ({
 });
 
 export class PlayerRuntime {
-  private readonly api: PlayerApi;
+  private readonly api: RuntimeApi;
+  private readonly embed: EmbedDeps | null;
   private readonly loadAsset: AssetLoader;
   private readonly store: PlayerStore | null;
   private readonly camera: CameraSource;
@@ -93,6 +109,7 @@ export class PlayerRuntime {
   private manifestRetryAt = 0;
   private manifestFailures = 0;
   private revoked = false;
+  private unavailable = false;
   /** The playing loops (live, heartbeat) start once the manifest call proved the device has a credential. */
   private loopsStarted = false;
   private cacheUsedBytes = 0;
@@ -104,8 +121,9 @@ export class PlayerRuntime {
 
   constructor(deps: RuntimeDeps) {
     this.api = deps.api;
-    this.loadAsset = deps.loadAsset ?? defaultLoadAsset;
-    this.store = deps.store === undefined ? createPlayerStore() : deps.store;
+    this.embed = deps.embed ?? null;
+    this.loadAsset = deps.loadAsset ?? (this.embed ? createAssetLoader('omit') : defaultLoadAsset);
+    this.store = this.embed ? null : deps.store === undefined ? createPlayerStore() : deps.store;
     this.camera = deps.camera ?? new LazyCameraSource();
     this.camera.setErrorSink?.((message) => this.note(message));
     this.camera.subscribe?.(() => {
@@ -158,8 +176,10 @@ export class PlayerRuntime {
     this.loopsStarted = true;
     this.every(async () => {
       await this.pollLive();
-      return this.online ? LIVE_INTERVAL_MS : backoffMs(this.liveFailures, LIVE_INTERVAL_MS, MAX_BACKOFF_MS);
+      const interval = this.embed ? EMBED_LIVE_INTERVAL_MS : LIVE_INTERVAL_MS;
+      return this.online ? interval : backoffMs(this.liveFailures, interval, MAX_BACKOFF_MS);
     }, true);
+    if (this.embed) return;
     this.every(async () => {
       await this.sendHeartbeat();
       return this.heartbeatFailures > 0
@@ -259,7 +279,24 @@ export class PlayerRuntime {
     this.publish();
   }
 
+  /** An embed that is switched off, unknown, or not meant to be opened directly shows a neutral screen and stops polling. */
+  private embedAvailable(settings: SignageEmbedSettings | undefined) {
+    const topLevel = this.embed?.isTopLevel?.() ?? false;
+    if (settings && settings.enabled && (settings.openDirectly || !topLevel)) return true;
+    this.makeUnavailable();
+    return false;
+  }
+
+  private makeUnavailable() {
+    this.unavailable = true;
+    this.active = null;
+    this.live = null;
+    this.stop();
+    this.publish();
+  }
+
   private async sendHeartbeat() {
+    if (!this.api.heartbeat) return;
     try {
       const use = await this.store?.usage();
       if (use) {
@@ -384,6 +421,7 @@ export class PlayerRuntime {
   private async fetchManifest() {
     try {
       const response = await this.api.manifest(this.active?.manifest.revision ?? null);
+      if (this.embed && !this.embedAvailable(response.embed)) return;
       this.unpublished = false;
       this.startPlayingLoops();
       if (response.unchanged || !response.manifest) {
@@ -410,9 +448,10 @@ export class PlayerRuntime {
         this.manifestFailures = 0;
         return;
       }
-      // Any other 404 means the device has no display any more: it must be paired again.
+      // Any other 404 means the device has no display any more: it must be paired again (an embed key is gone: unavailable).
       if (error instanceof PlayerApiError && error.status === 404) {
-        this.markRevoked();
+        if (this.embed) this.makeUnavailable();
+        else this.markRevoked();
         return;
       }
       this.manifestFailures += 1;
@@ -469,14 +508,16 @@ export class PlayerRuntime {
     const now = this.now();
     let status: RuntimeStatus = this.revoked
       ? 'revoked'
-      : this.active
-        ? 'playing'
-        : this.unpublished
-          ? 'unpublished'
-          : 'starting';
+      : this.unavailable
+        ? 'unavailable'
+        : this.active
+          ? 'playing'
+          : this.unpublished
+            ? 'unpublished'
+            : 'starting';
     let view: PlayerView | null = null;
     const gate = this.liveAttempted || now - this.startedAt >= FIRST_LIVE_GRACE_MS;
-    if (this.active && gate && !this.revoked) {
+    if (this.active && gate && !this.revoked && !this.unavailable) {
       const { urls, names } = this.active;
       const resolved = resolveView({
         manifest: this.active.manifest,
