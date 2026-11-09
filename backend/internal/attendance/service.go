@@ -194,6 +194,15 @@ func (s *Service) kiosk(
 
 func (s *Service) KioskContext(ctx context.Context, device manageddevices.DeviceContext) (KioskContext, error) {
 	row, err := s.kiosk(ctx, device)
+	if errors.Is(err, apperror.NotFound) {
+		// A registered device that is not a kiosk must not look unregistered: the kiosk page would offer to pair it
+		// again and replace its credential.
+		return KioskContext{}, apperror.New(
+			http.StatusForbidden,
+			"device_not_kiosk",
+			"This managed device is not configured as an entrance kiosk",
+		)
+	}
 	if err != nil {
 		return KioskContext{}, err
 	}

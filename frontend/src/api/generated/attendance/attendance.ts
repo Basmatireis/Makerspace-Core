@@ -49,6 +49,9 @@ export const getGetTerminalContextUrl = () => {
   return `/api/v1/terminal/context`
 }
 
+/**
+ * 404 when the request carries no valid managed-device credential (an unregistered browser, which then offers a pairing code); 403 `device_not_kiosk` when the device is registered but not configured as an entrance kiosk.
+ */
 export const getTerminalContext = async ( options?: Parameters<typeof apiFetch>[1]): Promise<TerminalContext> => {
 
   return apiFetch<TerminalContext>(getGetTerminalContextUrl(),

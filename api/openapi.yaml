@@ -2048,6 +2048,26 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /managed-devices/pairing:
+    post:
+      tags: [Managed Devices]
+      operationId: pairManagedDevice
+      summary: Register a kiosk by the pairing code it shows
+      description: |
+        Requires `managed_devices.manage`. Claims the open pairing request with that code and creates the managed device with the given settings in one transaction; the kiosk receives its credential on its next poll, in the form it asked for (browser cookie or one-time native token). Unknown, expired, already claimed and malformed codes all answer the same 422 `pairing_code_invalid`; repeated failures of one account answer 429.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PairManagedDeviceRequest"}}}}
+      responses:
+        "201": {description: Device created; the kiosk collects its credential on its next poll., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDevice"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /managed-devices/self/hardware:
     get:
       tags: [Managed Devices]
@@ -2166,6 +2186,40 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/managed-devices/pairing:
+    post:
+      tags: [Managed Devices]
+      operationId: startManagedDevicePairing
+      summary: An unregistered kiosk requests a pairing code
+      description: |
+        Public. Creates a pairing request valid for 15 minutes. `bindBrowser` (a kiosk browser) sets the HttpOnly `SameSite=Strict` poll-secret cookie (Secure in production); `nativeToken` (the desktop app) returns the poll secret once in the body instead, and the app sends it back in `X-Device-Pairing-Secret`. A browser (`bindBrowser`) request must carry the Origin header; only the desktop app's `nativeToken` request may omit it. A client that already presents a valid managed-device credential (cookie or `X-Managed-Device-Token`) is refused with 409 `device_already_registered`, so pairing never replaces a registered device's credential. A previous request of the same kiosk (cookie or header) is replaced; if staff already claimed it, the answer is 409 `pairing_claimed` and the kiosk collects its credential by polling. Rate-limited per client IP and capped globally (429); optionally restricted to `DEVICE_PAIRING_ALLOWED_CIDRS` (403 `pairing_network_denied`).
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/DevicePairingSecret"
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/StartManagedDevicePairingRequest"}}}}
+      responses:
+        "201": {description: Code to show on the screen., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Set-Cookie: {schema: {type: string}}}, content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDevicePairingStart"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    get:
+      tags: [Managed Devices]
+      operationId: pollManagedDevicePairing
+      summary: Poll the kiosk's pairing request (every 3 seconds)
+      description: |
+        Public; identifies the request by the poll-secret cookie or the `X-Device-Pairing-Secret` header. `pending` until staff claim the code, `expired` when the request is gone or timed out. The first poll after the claim answers `paired` exactly once and then deletes the request: a browser request receives the managed-device cookie (the same HttpOnly cookie as browser binding), a native request receives the one-time `token` in the body. A client that already presents a valid managed-device credential gets 409 `device_already_registered`.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/DevicePairingSecret"
+      responses:
+        "200": {description: Pairing state., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Set-Cookie: {schema: {type: string}}}, content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDevicePairingPoll"}}}}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /privacy/overview:
@@ -11391,9 +11445,11 @@ paths:
     get:
       tags: [Attendance]
       operationId: getTerminalContext
+      description: 404 when the request carries no valid managed-device credential (an unregistered browser, which then offers a pairing code); 403 `device_not_kiosk` when the device is registered but not configured as an entrance kiosk.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       responses:
         "200": {description: Public terminal capabilities and attendance policy., content: {application/json: {schema: {$ref: "#/components/schemas/TerminalContext"}}}}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/presence:
@@ -12062,6 +12118,12 @@ components:
       in: path
       required: true
       schema: {$ref: "#/components/schemas/UUIDv7"}
+    DevicePairingSecret:
+      name: X-Device-Pairing-Secret
+      in: header
+      required: false
+      description: Poll secret of a native pairing request (the desktop app); browsers use the HttpOnly poll-secret cookie instead.
+      schema: {type: string, maxLength: 100}
     OpenDayPeriodId:
       name: periodId
       in: path
@@ -16601,6 +16663,63 @@ components:
           maxLength: 43
           readOnly: true
           description: Returned only by device creation and token rotation; it cannot be retrieved later.
+    PairManagedDeviceRequest:
+      type: object
+      additionalProperties: false
+      description: The pairing code plus the fields of `CreateManagedDeviceRequest`; the kiosk chose the credential delivery when it requested the code.
+      required: [code, name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, allowTapCheckout, offerSurveysAtCheckout, kioskResetSeconds, capabilities]
+      properties:
+        code: {type: string, minLength: 1, maxLength: 20, description: "The six characters the kiosk shows; case, spaces and dashes are ignored."}
+        name: {type: string, minLength: 1, maxLength: 100}
+        deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        expiresAt: {type: string, format: date-time, nullable: true}
+        sessionPolicyId:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          nullable: true
+        terminalEnabled: {type: boolean}
+        allowedApplicationModes:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/DeviceApplicationMode"}
+        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        allowTapCheckout: {type: boolean}
+        offerSurveysAtCheckout: {type: boolean}
+        kioskResetSeconds: {type: integer, minimum: 15, maximum: 600}
+        capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
+    StartManagedDevicePairingRequest:
+      type: object
+      additionalProperties: false
+      required: [credentialDelivery]
+      properties:
+        credentialDelivery: {$ref: "#/components/schemas/ManagedDeviceCredentialDelivery"}
+    ManagedDevicePairingStart:
+      type: object
+      additionalProperties: false
+      required: [code, expiresAt]
+      properties:
+        code: {type: string, pattern: "^[A-HJ-NP-Z2-9]{6}$"}
+        expiresAt: {type: string, format: date-time}
+        pollSecret:
+          type: string
+          minLength: 43
+          maxLength: 43
+          readOnly: true
+          description: Only for `nativeToken` requests; send it in `X-Device-Pairing-Secret` when polling. Browsers get an HttpOnly cookie instead.
+    ManagedDevicePairingPoll:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {type: string, enum: [pending, expired, paired], x-enum-varnames: [ManagedDevicePairingPollStatusPending, ManagedDevicePairingPollStatusExpired, ManagedDevicePairingPollStatusPaired]}
+        token:
+          type: string
+          minLength: 43
+          maxLength: 43
+          readOnly: true
+          description: The one-time managed-device token, only in the `paired` answer to a `nativeToken` request. It is never returned again.
     DeviceHardwareReport:
       type: object
       additionalProperties: false
