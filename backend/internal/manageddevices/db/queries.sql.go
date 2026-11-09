@@ -43,6 +43,29 @@ func (q *Queries) AddReportedDeviceCapability(ctx context.Context, arg AddReport
 	return err
 }
 
+const claimManagedDevicePairingRequest = `-- name: ClaimManagedDevicePairingRequest :exec
+UPDATE managed_device_pairing_requests
+SET claimed_device_id = $1, claimed_at = $2::timestamptz, expires_at = $3
+WHERE id = $4
+`
+
+type ClaimManagedDevicePairingRequestParams struct {
+	DeviceID         *uuid.UUID
+	Now              time.Time
+	DeliveryDeadline time.Time
+	ID               uuid.UUID
+}
+
+func (q *Queries) ClaimManagedDevicePairingRequest(ctx context.Context, arg ClaimManagedDevicePairingRequestParams) error {
+	_, err := q.db.Exec(ctx, claimManagedDevicePairingRequest,
+		arg.DeviceID,
+		arg.Now,
+		arg.DeliveryDeadline,
+		arg.ID,
+	)
+	return err
+}
+
 const clearDefaultSessionPolicy = `-- name: ClearDefaultSessionPolicy :exec
 UPDATE session_policies SET is_default = false, version = version + 1, updated_at = now()
 WHERE is_default AND id <> $1
@@ -70,6 +93,17 @@ WHERE managed_device_id = $1
 func (q *Queries) ClearReportedDeviceCapabilities(ctx context.Context, managedDeviceID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, clearReportedDeviceCapabilities, managedDeviceID)
 	return err
+}
+
+const countOpenManagedDevicePairingRequests = `-- name: CountOpenManagedDevicePairingRequests :one
+SELECT count(*) FROM managed_device_pairing_requests WHERE expires_at > $1::timestamptz
+`
+
+func (q *Queries) CountOpenManagedDevicePairingRequests(ctx context.Context, now time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, countOpenManagedDevicePairingRequests, now)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const createDeviceType = `-- name: CreateDeviceType :one
@@ -163,6 +197,32 @@ func (q *Queries) CreateManagedDevice(ctx context.Context, arg CreateManagedDevi
 	return i, err
 }
 
+const createManagedDevicePairingRequest = `-- name: CreateManagedDevicePairingRequest :exec
+INSERT INTO managed_device_pairing_requests (id, code_digest, poll_secret_digest, credential_delivery, created_at, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type CreateManagedDevicePairingRequestParams struct {
+	ID                 uuid.UUID
+	CodeDigest         []byte
+	PollSecretDigest   []byte
+	CredentialDelivery string
+	CreatedAt          time.Time
+	ExpiresAt          time.Time
+}
+
+func (q *Queries) CreateManagedDevicePairingRequest(ctx context.Context, arg CreateManagedDevicePairingRequestParams) error {
+	_, err := q.db.Exec(ctx, createManagedDevicePairingRequest,
+		arg.ID,
+		arg.CodeDigest,
+		arg.PollSecretDigest,
+		arg.CredentialDelivery,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
 const createSessionPolicy = `-- name: CreateSessionPolicy :one
 INSERT INTO session_policies (id, name, idle_timeout_seconds, absolute_lifetime_seconds, post_session_destination, is_default)
 VALUES ($1, $2, $3, $4,
@@ -218,6 +278,17 @@ func (q *Queries) DeleteDeviceType(ctx context.Context, arg DeleteDeviceTypePara
 	return id, err
 }
 
+const deleteExpiredManagedDevicePairingRequests = `-- name: DeleteExpiredManagedDevicePairingRequests :exec
+
+DELETE FROM managed_device_pairing_requests WHERE expires_at <= $1::timestamptz
+`
+
+// Pairing -----------------------------------------------------------------------------------------------------
+func (q *Queries) DeleteExpiredManagedDevicePairingRequests(ctx context.Context, now time.Time) error {
+	_, err := q.db.Exec(ctx, deleteExpiredManagedDevicePairingRequests, now)
+	return err
+}
+
 const deleteManagedDevice = `-- name: DeleteManagedDevice :one
 DELETE FROM managed_devices WHERE id = $1 AND version = $2
   AND revoked_at IS NOT NULL RETURNING id
@@ -233,6 +304,25 @@ func (q *Queries) DeleteManagedDevice(ctx context.Context, arg DeleteManagedDevi
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const deleteManagedDevicePairingRequest = `-- name: DeleteManagedDevicePairingRequest :exec
+DELETE FROM managed_device_pairing_requests WHERE id = $1
+`
+
+func (q *Queries) DeleteManagedDevicePairingRequest(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteManagedDevicePairingRequest, id)
+	return err
+}
+
+const deleteOpenManagedDevicePairingRequestByPollDigest = `-- name: DeleteOpenManagedDevicePairingRequestByPollDigest :exec
+DELETE FROM managed_device_pairing_requests
+WHERE poll_secret_digest = $1 AND claimed_device_id IS NULL
+`
+
+func (q *Queries) DeleteOpenManagedDevicePairingRequestByPollDigest(ctx context.Context, pollSecretDigest []byte) error {
+	_, err := q.db.Exec(ctx, deleteOpenManagedDevicePairingRequestByPollDigest, pollSecretDigest)
+	return err
 }
 
 const ensureManagedDeviceTypeByName = `-- name: EnsureManagedDeviceTypeByName :exec
@@ -431,6 +521,43 @@ func (q *Queries) GetManagedDeviceHardwareReport(ctx context.Context, managedDev
 	return i, err
 }
 
+const getManagedDevicePairingRequestForPoll = `-- name: GetManagedDevicePairingRequestForPoll :one
+SELECT id, credential_delivery, claimed_device_id FROM managed_device_pairing_requests
+WHERE poll_secret_digest = $1 FOR UPDATE
+`
+
+type GetManagedDevicePairingRequestForPollRow struct {
+	ID                 uuid.UUID
+	CredentialDelivery string
+	ClaimedDeviceID    *uuid.UUID
+}
+
+// Locks the request so that two concurrent polls cannot both collect the credential.
+func (q *Queries) GetManagedDevicePairingRequestForPoll(ctx context.Context, pollSecretDigest []byte) (GetManagedDevicePairingRequestForPollRow, error) {
+	row := q.db.QueryRow(ctx, getManagedDevicePairingRequestForPoll, pollSecretDigest)
+	var i GetManagedDevicePairingRequestForPollRow
+	err := row.Scan(&i.ID, &i.CredentialDelivery, &i.ClaimedDeviceID)
+	return i, err
+}
+
+const getOpenManagedDevicePairingRequestByCode = `-- name: GetOpenManagedDevicePairingRequestByCode :one
+SELECT id FROM managed_device_pairing_requests
+WHERE code_digest = $1 AND claimed_at IS NULL AND expires_at > $2::timestamptz FOR UPDATE
+`
+
+type GetOpenManagedDevicePairingRequestByCodeParams struct {
+	CodeDigest []byte
+	Now        time.Time
+}
+
+// Locks the open request so that two staff members cannot claim the same code.
+func (q *Queries) GetOpenManagedDevicePairingRequestByCode(ctx context.Context, arg GetOpenManagedDevicePairingRequestByCodeParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getOpenManagedDevicePairingRequestByCode, arg.CodeDigest, arg.Now)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getSessionPolicy = `-- name: GetSessionPolicy :one
 SELECT id, name, idle_timeout_seconds, absolute_lifetime_seconds, post_session_destination, is_default, version, created_at, updated_at FROM session_policies WHERE id = $1
 `
@@ -496,6 +623,25 @@ func (q *Queries) GetValidManagedDeviceByDigest(ctx context.Context, tokenDigest
 		&i.KioskResetSeconds,
 	)
 	return i, err
+}
+
+const issuePairedManagedDeviceToken = `-- name: IssuePairedManagedDeviceToken :one
+UPDATE managed_devices SET token_digest = $1, version = version + 1, updated_at = now()
+WHERE id = $2 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now())
+RETURNING expires_at
+`
+
+type IssuePairedManagedDeviceTokenParams struct {
+	TokenDigest []byte
+	ID          uuid.UUID
+}
+
+// Replaces the unusable placeholder digest of a freshly paired device with the digest of the delivered token.
+func (q *Queries) IssuePairedManagedDeviceToken(ctx context.Context, arg IssuePairedManagedDeviceTokenParams) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, issuePairedManagedDeviceToken, arg.TokenDigest, arg.ID)
+	var expires_at pgtype.Timestamptz
+	err := row.Scan(&expires_at)
+	return expires_at, err
 }
 
 const listDeviceCapabilities = `-- name: ListDeviceCapabilities :many

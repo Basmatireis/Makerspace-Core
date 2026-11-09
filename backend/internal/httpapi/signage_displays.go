@@ -458,20 +458,9 @@ func (s *Server) PollSignagePairing(
 	}
 	response := signagePairingPollResponse{status: openapi.SignagePairingPollStatus(poll.Status)}
 	if poll.Status == signage.PairingPaired {
-		expires := time.Now().UTC().AddDate(10, 0, 0)
 		response.cookies = []*http.Cookie{
 			// Same attributes as the browser binding of the generic managed-device endpoints.
-			//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
-			{
-				Name:     s.config.ManagedDeviceCookieName,
-				Value:    poll.DeviceToken,
-				Path:     "/",
-				HttpOnly: true,
-				Secure:   s.config.SessionCookieSecure,
-				SameSite: http.SameSiteStrictMode,
-				Expires:  expires,
-				MaxAge:   10 * 365 * 24 * 60 * 60,
-			},
+			s.managedDeviceCookie(poll.DeviceToken, nil),
 			s.signagePairingCookie("", -1),
 		}
 	}

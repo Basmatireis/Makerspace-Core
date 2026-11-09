@@ -22,23 +22,26 @@ type Config struct {
 	HTTPTrustedProxies []netip.Prefix
 	// SignagePairingAllowedCIDRs restricts POST /public/signage/pairing to these client networks (empty: any).
 	SignagePairingAllowedCIDRs []netip.Prefix
-	Environment                string
-	PublicBaseURL              *url.URL
-	SessionCookieName          string
-	CSRFCookieName             string
-	ManagedDeviceCookieName    string
-	OIDCFlowCookieName         string
-	PendingLoginCookieName     string
-	EnrollmentCookieName       string
-	EnrollmentCSRFName         string
-	SignagePairingCookieName   string
-	SessionCookieSecure        bool
-	SessionIdleTTL             time.Duration
-	SessionAbsoluteTTL         time.Duration
-	PasswordResetTTL           time.Duration
-	AuditRetention             time.Duration
-	EventSignupRetention       time.Duration
-	SurveyDeliveryInterval     time.Duration
+	// DevicePairingAllowedCIDRs restricts POST /public/managed-devices/pairing to these client networks (empty: any).
+	DevicePairingAllowedCIDRs []netip.Prefix
+	Environment               string
+	PublicBaseURL             *url.URL
+	SessionCookieName         string
+	CSRFCookieName            string
+	ManagedDeviceCookieName   string
+	OIDCFlowCookieName        string
+	PendingLoginCookieName    string
+	EnrollmentCookieName      string
+	EnrollmentCSRFName        string
+	SignagePairingCookieName  string
+	DevicePairingCookieName   string
+	SessionCookieSecure       bool
+	SessionIdleTTL            time.Duration
+	SessionAbsoluteTTL        time.Duration
+	PasswordResetTTL          time.Duration
+	AuditRetention            time.Duration
+	EventSignupRetention      time.Duration
+	SurveyDeliveryInterval    time.Duration
 	// PrinterErrorCodeSourceURL is where the printer error code meanings are fetched from; empty turns the sync off.
 	PrinterErrorCodeSourceURL string
 	// PrinterTimelapseMaxBytes is the largest timelapse video a printer connector may upload.
@@ -152,6 +155,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	devicePairingAllowed, err := prefixListEnv("DEVICE_PAIRING_ALLOWED_CIDRS")
+	if err != nil {
+		return Config{}, err
+	}
 	challengeKey, err := secretKeyEnv("AUTH_CHALLENGE_HMAC_KEY", environment)
 	if err != nil {
 		return Config{}, err
@@ -210,6 +217,7 @@ func Load() (Config, error) {
 	enrollmentName := "makerspace_enrollment"
 	enrollmentCSRFName := "makerspace_enrollment_csrf"
 	signagePairingName := "makerspace_signage_pairing"
+	devicePairingName := "makerspace_device_pairing"
 	if secure {
 		sessionName = "__Host-makerspace_session"
 		csrfName = "__Host-makerspace_csrf"
@@ -219,6 +227,7 @@ func Load() (Config, error) {
 		enrollmentName = "__Host-makerspace_enrollment"
 		enrollmentCSRFName = "__Host-makerspace_enrollment_csrf"
 		signagePairingName = "__Host-makerspace_signage_pairing"
+		devicePairingName = "__Host-makerspace_device_pairing"
 	}
 
 	return Config{
@@ -227,6 +236,7 @@ func Load() (Config, error) {
 		HTTPAddr:                   envOr("HTTP_ADDR", ":8080"),
 		HTTPTrustedProxies:         trustedProxies,
 		SignagePairingAllowedCIDRs: pairingAllowed,
+		DevicePairingAllowedCIDRs:  devicePairingAllowed,
 		Environment:                environment,
 		PublicBaseURL:              base,
 		SessionCookieName:          sessionName,
@@ -237,6 +247,7 @@ func Load() (Config, error) {
 		EnrollmentCookieName:       enrollmentName,
 		EnrollmentCSRFName:         enrollmentCSRFName,
 		SignagePairingCookieName:   signagePairingName,
+		DevicePairingCookieName:    devicePairingName,
 		SessionCookieSecure:        secure,
 		SessionIdleTTL:             idle,
 		SessionAbsoluteTTL:         absolute,

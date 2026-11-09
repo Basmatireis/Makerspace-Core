@@ -370,27 +370,32 @@ func (s *Server) managedDeviceProvisioning(
 ) (openapi.ManagedDeviceProvisioning, string) {
 	result := openapi.ManagedDeviceProvisioning{Device: managedDeviceDTO(v.Device)}
 	if delivery == openapi.BindBrowser {
-		expires := time.Now().UTC().AddDate(10, 0, 0)
-		maxAge := 10 * 365 * 24 * 60 * 60
-		if v.Device.ExpiresAt != nil {
-			expires = v.Device.ExpiresAt.UTC()
-			maxAge = max(1, int(time.Until(expires).Seconds()))
-		}
-		//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit; the CSRF cookie is readable by design
-		cookie := (&http.Cookie{
-			Name:     s.config.ManagedDeviceCookieName,
-			Value:    v.Token,
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   s.config.SessionCookieSecure,
-			SameSite: http.SameSiteStrictMode,
-			Expires:  expires,
-			MaxAge:   maxAge,
-		}).String()
-		return result, cookie
+		return result, s.managedDeviceCookie(v.Token, v.Device.ExpiresAt).String()
 	}
 	result.Token = &v.Token
 	return result, ""
+}
+
+// managedDeviceCookie is the browser binding of a managed-device credential: HttpOnly and SameSite=Strict, valid as
+// long as the device (ten years when it never expires).
+func (s *Server) managedDeviceCookie(token string, deviceExpiresAt *time.Time) *http.Cookie {
+	expires := time.Now().UTC().AddDate(10, 0, 0)
+	maxAge := 10 * 365 * 24 * 60 * 60
+	if deviceExpiresAt != nil {
+		expires = deviceExpiresAt.UTC()
+		maxAge = max(1, int(time.Until(expires).Seconds()))
+	}
+	//nolint:gosec // Secure follows config, HttpOnly and SameSite are explicit
+	return &http.Cookie{
+		Name:     s.config.ManagedDeviceCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   s.config.SessionCookieSecure,
+		SameSite: http.SameSiteStrictMode,
+		Expires:  expires,
+		MaxAge:   maxAge,
+	}
 }
 
 func deviceTypeDTO(v manageddevices.DeviceType) openapi.ManagedDeviceType {

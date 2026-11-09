@@ -2,12 +2,9 @@ package signage
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -15,6 +12,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/pairingcode"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ratelimit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
@@ -24,10 +22,8 @@ import (
 )
 
 const (
-	// PairingCodeAlphabet leaves out look-alike characters (0/O, 1/I).
-	PairingCodeAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	// PairingCodeLength is the number of characters of a pairing code.
-	PairingCodeLength = 6
+	// PairingCodeAlphabet is the alphabet of the codes a player shows.
+	PairingCodeAlphabet = pairingcode.Alphabet
 	// PairingTTL is how long an unclaimed pairing code stays valid.
 	PairingTTL = 15 * time.Minute
 
@@ -57,38 +53,8 @@ func rateLimited(message string, retryAfter time.Duration) error {
 	return apperror.RateLimited("rate_limited", message, retryAfter)
 }
 
-// GeneratePairingCode returns a random code over PairingCodeAlphabet. The alphabet has 32
-// characters, so masking a random byte to five bits is unbiased.
-func GeneratePairingCode() (string, error) {
-	raw := make([]byte, PairingCodeLength)
-	if _, err := rand.Read(raw); err != nil {
-		return "", err
-	}
-	code := make([]byte, PairingCodeLength)
-	for index, value := range raw {
-		code[index] = PairingCodeAlphabet[value&31]
-	}
-	return string(code), nil
-}
-
-// NormalizePairingCode upper-cases the code and drops spaces and dashes; ok is false when the
-// result is not a well-formed code.
-func NormalizePairingCode(raw string) (string, bool) {
-	code := strings.ToUpper(strings.NewReplacer(" ", "", "-", "").Replace(raw))
-	if len(code) != PairingCodeLength {
-		return "", false
-	}
-	for _, character := range code {
-		if !strings.ContainsRune(PairingCodeAlphabet, character) {
-			return "", false
-		}
-	}
-	return code, true
-}
-
 func pairingCodeDigest(code string) []byte {
-	sum := sha256.Sum256([]byte("signage-pairing-code:" + code))
-	return sum[:]
+	return pairingcode.Digest("signage-pairing-code", code)
 }
 
 // PairingStart is what an unpaired player receives: the code to show and the secret that proves
@@ -121,7 +87,7 @@ func (s *Service) StartPairing(ctx context.Context, clientIP, previousPollSecret
 }
 
 func (s *Service) tryStartPairing(ctx context.Context, now time.Time, previousPollSecret string) (PairingStart, error) {
-	code, err := GeneratePairingCode()
+	code, err := pairingcode.Generate()
 	if err != nil {
 		return PairingStart{}, err
 	}
@@ -274,7 +240,7 @@ func (s *Service) PairDisplay(
 			s.claimFailures.Refund(account, now)
 		}
 	}()
-	normalized, wellFormed := NormalizePairingCode(code)
+	normalized, wellFormed := pairingcode.Normalize(code)
 	if !wellFormed {
 		wrongCode = true
 		return Display{}, errPairingCodeInvalid()

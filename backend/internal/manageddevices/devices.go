@@ -394,40 +394,9 @@ func (s *Service) CreateConfigured(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := manageddevicesdb.New(tx)
-	if _, err = q.GetDeviceType(ctx, typeID); errors.Is(err, pgx.ErrNoRows) {
-		return ProvisionedDevice{}, apperror.NotFound
-	} else if err != nil {
-		return ProvisionedDevice{}, err
-	}
-	if settings.SessionPolicyID != nil {
-		if _, err = q.GetSessionPolicy(ctx, *settings.SessionPolicyID); errors.Is(err, pgx.ErrNoRows) {
-			return ProvisionedDevice{}, apperror.NotFound
-		} else if err != nil {
-			return ProvisionedDevice{}, err
-		}
-	}
-	row, err := q.CreateManagedDevice(
-		ctx,
-		manageddevicesdb.CreateManagedDeviceParams{ID: ids.New(), Name: name,
-			DeviceTypeID:    typeID,
-			TokenDigest:     digest,
-			ExpiresAt:       timestamp(expiresAt),
-			SessionPolicyID: settings.SessionPolicyID,
-			TerminalEnabled: settings.KioskEnabled, CheckInAssurance: string(settings.CheckInAssurance),
-			AllowedAppModes:   optional.ConvertSlice[string](settings.AllowedApplicationModes),
-			CheckOutAssurance: string(settings.CheckOutAssurance), AllowTapCheckout: settings.AllowTapCheckout,
-			OfferSurveysAtCheckout: settings.OfferSurveysAtCheckout, KioskResetSeconds: settings.KioskResetSeconds},
-	)
+	row, err := insertDeviceTx(ctx, q, name, typeID, expiresAt, settings, digest)
 	if err != nil {
-		return ProvisionedDevice{}, databaseError(err)
-	}
-	for _, capability := range settings.Capabilities {
-		if err = q.AddDeviceCapability(
-			ctx,
-			manageddevicesdb.AddDeviceCapabilityParams{ManagedDeviceID: row.ID, Capability: capability},
-		); err != nil {
-			return ProvisionedDevice{}, err
-		}
+		return ProvisionedDevice{}, err
 	}
 	actor := principal.AccountID
 	if err = audit.Write(
@@ -463,6 +432,55 @@ func (s *Service) CreateConfigured(
 	result := deviceFromGetRow(view)
 	result.Capabilities = append([]string(nil), settings.Capabilities...)
 	return ProvisionedDevice{Device: result, Token: token}, nil
+}
+
+// insertDeviceTx creates a validated device and its configured capabilities; the caller authorizes, audits and
+// commits.
+func insertDeviceTx(
+	ctx context.Context,
+	q *manageddevicesdb.Queries,
+	name string,
+	typeID uuid.UUID,
+	expiresAt *time.Time,
+	settings DeviceSettings,
+	tokenDigest []byte,
+) (manageddevicesdb.ManagedDevice, error) {
+	if _, err := q.GetDeviceType(ctx, typeID); errors.Is(err, pgx.ErrNoRows) {
+		return manageddevicesdb.ManagedDevice{}, apperror.NotFound
+	} else if err != nil {
+		return manageddevicesdb.ManagedDevice{}, err
+	}
+	if settings.SessionPolicyID != nil {
+		if _, err := q.GetSessionPolicy(ctx, *settings.SessionPolicyID); errors.Is(err, pgx.ErrNoRows) {
+			return manageddevicesdb.ManagedDevice{}, apperror.NotFound
+		} else if err != nil {
+			return manageddevicesdb.ManagedDevice{}, err
+		}
+	}
+	row, err := q.CreateManagedDevice(
+		ctx,
+		manageddevicesdb.CreateManagedDeviceParams{ID: ids.New(), Name: name,
+			DeviceTypeID:    typeID,
+			TokenDigest:     tokenDigest,
+			ExpiresAt:       timestamp(expiresAt),
+			SessionPolicyID: settings.SessionPolicyID,
+			TerminalEnabled: settings.KioskEnabled, CheckInAssurance: string(settings.CheckInAssurance),
+			AllowedAppModes:   optional.ConvertSlice[string](settings.AllowedApplicationModes),
+			CheckOutAssurance: string(settings.CheckOutAssurance), AllowTapCheckout: settings.AllowTapCheckout,
+			OfferSurveysAtCheckout: settings.OfferSurveysAtCheckout, KioskResetSeconds: settings.KioskResetSeconds},
+	)
+	if err != nil {
+		return manageddevicesdb.ManagedDevice{}, databaseError(err)
+	}
+	for _, capability := range settings.Capabilities {
+		if err = q.AddDeviceCapability(
+			ctx,
+			manageddevicesdb.AddDeviceCapabilityParams{ManagedDeviceID: row.ID, Capability: capability},
+		); err != nil {
+			return manageddevicesdb.ManagedDevice{}, err
+		}
+	}
+	return row, nil
 }
 
 func (s *Service) Revoke(

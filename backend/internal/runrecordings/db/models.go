@@ -838,6 +838,17 @@ type ManagedDeviceHardwareReport struct {
 	ReportedAt      time.Time
 }
 
+type ManagedDevicePairingRequest struct {
+	ID                 uuid.UUID
+	CodeDigest         []byte
+	PollSecretDigest   []byte
+	CredentialDelivery string
+	CreatedAt          time.Time
+	ExpiresAt          time.Time
+	ClaimedDeviceID    *uuid.UUID
+	ClaimedAt          pgtype.Timestamptz
+}
+
 type ManagedDeviceReportedCapability struct {
 	ManagedDeviceID uuid.UUID
 	Capability      string

@@ -283,6 +283,7 @@ var Tables = []Table{
 		"platform":       System,
 		"bridge_version": System,
 	}},
+	{Name: "managed_device_pairing_requests", Emptied: EmptiedSignInState},
 	{Name: "managed_device_reported_capabilities", Columns: map[string]Treatment{"capability": System}},
 	{Name: "managed_devices", Columns: map[string]Treatment{
 		"name":                Catalog,

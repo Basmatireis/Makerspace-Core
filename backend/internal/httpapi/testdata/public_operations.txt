@@ -18,6 +18,7 @@ GET /public/events/{publicId} GetPublicEvent
 GET /public/events/{publicId}/banner GetPublicEventBanner
 GET /public/events/{publicId}/files/{eventFileId} DownloadPublicEventFile
 GET /public/legal/{document} GetPublicLegalDocument
+GET /public/managed-devices/pairing PollManagedDevicePairing
 GET /public/open-days ListPublicOpenDays
 GET /public/open-days/calendar.ics GetPublicOpenDaysCalendar
 GET /public/signage/embeds/{embedKey}/assets/{assetId}/{sha256} GetSignageEmbedAsset
@@ -66,6 +67,7 @@ POST /printer-connector/self/events IngestPrinterConnectorEvents
 POST /printer-connector/self/heartbeat ReportPrinterConnectorHeartbeat
 POST /public/event-signups/current/cancel CancelCurrentEventSignup
 POST /public/events/{publicId}/signups CreatePublicEventSignup
+POST /public/managed-devices/pairing StartManagedDevicePairing
 POST /public/signage/pairing StartSignagePairing
 POST /public/survey-links/{token} SubmitPublicSurveyByLink
 POST /public/surveys/{token} SubmitPublicSurvey

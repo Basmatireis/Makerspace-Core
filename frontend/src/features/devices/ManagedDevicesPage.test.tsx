@@ -2,7 +2,11 @@ import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import type { CreateManagedDeviceRequest, RotateManagedDeviceTokenRequest } from '../../api/generated/models';
+import type {
+  CreateManagedDeviceRequest,
+  PairManagedDeviceRequest,
+  RotateManagedDeviceTokenRequest,
+} from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { currentUserFixture } from '../../test/fixtures';
@@ -288,6 +292,80 @@ describe('Managed devices administration', () => {
         capabilities: [],
       }),
     );
+  });
+
+  it('pairs a kiosk by its code and reads every rejected code the same', async () => {
+    const submitted: PairManagedDeviceRequest[] = [];
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.managed_devicesread, PermissionId.managed_devicesmanage])),
+      ),
+      http.get('*/api/v1/managed-device-types', () => HttpResponse.json({ items: [deviceType] })),
+      http.get('*/api/v1/managed-devices', () => HttpResponse.json({ items: [], nextCursor: null })),
+      http.get('*/api/v1/managed-devices/:deviceId', () =>
+        HttpResponse.json({ ...device, name: 'Lobby kiosk', terminalEnabled: true }),
+      ),
+      http.get('*/api/v1/managed-devices/:deviceId/hardware', () => HttpResponse.json(hardware)),
+      http.get('*/api/v1/session-policies', () =>
+        HttpResponse.json({
+          items: [
+            {
+              id: policyId,
+              name: 'Kiosk policy',
+              idleTimeoutSeconds: 900,
+              absoluteTimeoutSeconds: 28800,
+              postLogoutDestination: 'visitor_terminal',
+              isDefault: false,
+              version: 1,
+            },
+          ],
+        }),
+      ),
+      http.post('*/api/v1/managed-devices/pairing', async ({ request }) => {
+        const body = (await request.json()) as PairManagedDeviceRequest;
+        submitted.push(body);
+        if (submitted.length === 1)
+          return HttpResponse.json(
+            { code: 'pairing_code_invalid', message: 'The pairing code is invalid or has expired' },
+            { status: 422 },
+          );
+        return HttpResponse.json({ ...device, name: 'Lobby kiosk', terminalEnabled: true }, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/devices-sessions?tab=managed-devices');
+    await user.click(await screen.findByRole('button', { name: 'Pair device' }));
+    const dialog = await screen.findByRole('dialog');
+    const pair = within(dialog).getByRole('button', { name: 'Pair device' });
+    await user.type(within(dialog).getByLabelText(/Pairing code/), 'k7f-2qo');
+    await user.type(within(dialog).getByLabelText('Device name'), 'Lobby kiosk');
+    await user.selectOptions(within(dialog).getByLabelText('Device type'), typeId);
+    await user.selectOptions(within(dialog).getByLabelText('Session policy'), policyId);
+    // O is not part of the alphabet.
+    expect(pair).toBeDisabled();
+    await user.clear(within(dialog).getByLabelText(/Pairing code/));
+    await user.type(within(dialog).getByLabelText(/Pairing code/), 'k7f-2qx');
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Camera' }));
+    await user.click(pair);
+    expect(await within(dialog).findByText(/This code was not accepted/)).toBeInTheDocument();
+
+    await user.click(pair);
+    expect(await screen.findByRole('heading', { name: 'Lobby kiosk' })).toBeInTheDocument();
+    expect(submitted[1]).toEqual({
+      code: 'K7F2QX',
+      name: 'Lobby kiosk',
+      deviceTypeId: typeId,
+      expiresAt: null,
+      sessionPolicyId: policyId,
+      terminalEnabled: true,
+      allowedApplicationModes: ['visitor_terminal'],
+      checkInAssurance: 'normal',
+      checkOutAssurance: 'normal',
+      allowTapCheckout: false,
+      offerSurveysAtCheckout: false,
+      kioskResetSeconds: 60,
+      capabilities: ['camera'],
+    });
   });
 
   it('edits a kiosk into a staff device and shows stored assurance values the kiosk cannot ask for', async () => {

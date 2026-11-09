@@ -17,7 +17,8 @@ import { replaceMachineRunUsages } from '../../../api/generated/machine-runs/mac
 import type { MachineRun, MaterialUnit, Process } from '../../../api/generated/models';
 import { FuzzySelectField } from '../../../app/components/FuzzyComboBox';
 import { DecimalField } from '../../../app/DecimalField';
-import { decimalNumber, decimalValidator, parseDecimalText } from '../../../app/decimalInput';
+import { decimalValidator } from '../../../app/decimalInput';
+import { evaluateExpression, isExpression, resolveQuantityText } from '../../../app/quantityExpression';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import { materialTypesQuery } from '../inventoryQueries';
@@ -41,71 +42,6 @@ import {
 import { MaterialPickerModal, stockText, type PickedMaterial } from './MaterialPickerModal';
 import '../styles/jobs.scss';
 import '../jobs/jobs.scss';
-
-/** Square centimetres expressed in the usage unit, rounded to what the unit can show. */
-const areaIn = (cm2: number, unit: 'cm2' | 'm2') =>
-  unit === 'm2' ? Math.round((cm2 / 10000) * 1e6) / 1e6 : Math.round(cm2 * 100) / 100;
-
-/** Width x height x count in centimetres gives the area of cut material in the usage unit (cm² or m²); the result stays editable. */
-function AreaHelper({
-  idPrefix,
-  unit,
-  onArea,
-}: {
-  idPrefix: string;
-  unit: 'cm2' | 'm2';
-  onArea: (area: number) => void;
-}) {
-  const [size, setSize] = useState({ width: '', height: '', count: '1' });
-  const area =
-    (decimalNumber(size.width) ?? 0) *
-    (decimalNumber(size.height) ?? 0) *
-    (decimalNumber(size.count, { integer: true }) ?? 0);
-  const change = (key: 'width' | 'height' | 'count', value: string) => {
-    const next = { ...size, [key]: value };
-    setSize(next);
-    const nextArea =
-      (decimalNumber(next.width) ?? 0) *
-      (decimalNumber(next.height) ?? 0) *
-      (decimalNumber(next.count, { integer: true }) ?? 0);
-    if (nextArea > 0) onArea(areaIn(nextArea, unit));
-  };
-  const invalid = (value: string, integer = false) =>
-    value.trim() !== '' && parseDecimalText(value, { integer }) === null;
-  return (
-    <div className="jobs-usage__area">
-      <DecimalField
-        id={`${idPrefix}-width`}
-        labelText="Width (cm)"
-        value={size.width}
-        invalid={invalid(size.width)}
-        invalidText="Enter a number, e.g. 12,5."
-        onChange={(value) => change('width', value)}
-      />
-      <DecimalField
-        id={`${idPrefix}-height`}
-        labelText="Height (cm)"
-        value={size.height}
-        invalid={invalid(size.height)}
-        invalidText="Enter a number, e.g. 12,5."
-        onChange={(value) => change('height', value)}
-      />
-      <DecimalField
-        id={`${idPrefix}-count`}
-        labelText="Count"
-        integer
-        value={size.count}
-        invalid={invalid(size.count, true)}
-        invalidText="Enter a whole number."
-        onChange={(value) => change('count', value)}
-      />
-      <p className="mj-secondary jobs-usage__area-note" aria-live="polite">
-        = {area > 0 ? `${formatQuantity(areaIn(area, unit), 6)} ${unitSymbol(unit)}` : '…'} · fills the quantity, which
-        stays editable
-      </p>
-    </div>
-  );
-}
 
 /** The chosen material of a row: swatch, name, category and stock, with a button that opens the picker again. */
 function SelectedMaterial({
@@ -236,8 +172,6 @@ function UsageRowFields({
             )}
           />
         )}
-      </div>
-      <div className="jobs-usage__line jobs-usage__line--quantity">
         <Controller
           control={control}
           name={`usages.${index}.quantity`}
@@ -246,39 +180,49 @@ function UsageRowFields({
               const current = values.usages[index];
               if (isBlankUsage(current)) return true;
               if (!hasMaterial(current)) return 'Select a material.';
-              return decimalValidator({ positive: true, requiredMessage: 'Enter a quantity above zero.' })(value);
+              if (isExpression(value) && evaluateExpression(value) === null) return 'Check the calculation.';
+              return decimalValidator({ positive: true, requiredMessage: 'Enter a quantity above zero.' })(
+                resolveQuantityText(value),
+              );
             },
           }}
-          render={({ field: quantity, fieldState }) => (
-            <DecimalField
-              id={`${idPrefix}-quantity`}
-              labelText={unit ? `Quantity (${articleUnitLabel(unit, material?.countLabel)})` : 'Quantity'}
-              value={quantity.value}
-              disabled={!chosen}
-              helperText={chosen ? undefined : 'Select a material first.'}
-              invalid={fieldState.invalid}
-              invalidText={fieldState.error?.message ?? 'Enter a quantity above zero.'}
-              onChange={quantity.onChange}
-            />
-          )}
+          render={({ field: quantity, fieldState }) => {
+            const result = isExpression(quantity.value) ? evaluateExpression(quantity.value) : null;
+            return (
+              <DecimalField
+                id={`${idPrefix}-quantity`}
+                labelText={unit ? `Quantity (${articleUnitLabel(unit, material?.countLabel)})` : 'Quantity'}
+                value={quantity.value}
+                disabled={!chosen}
+                calculation
+                placeholder={unit === 'cm2' || unit === 'm2' ? 'e.g. 20*30*2' : 'e.g. 12+3,5'}
+                helperText={
+                  !chosen
+                    ? 'Select a material first.'
+                    : result !== null
+                      ? `= ${formatQuantity(resolveQuantityText(quantity.value), 6)}${unit ? ` ${unitSymbol(unit)}` : ''}`
+                      : undefined
+                }
+                invalid={fieldState.invalid}
+                invalidText={fieldState.error?.message ?? 'Enter a quantity above zero.'}
+                onChange={quantity.onChange}
+                onBlur={() => {
+                  // A finished calculation becomes its result, so the row shows the quantity that is booked.
+                  if (result !== null) quantity.onChange(resolveQuantityText(quantity.value));
+                  quantity.onBlur();
+                }}
+              />
+            );
+          }}
         />
       </div>
-      {(unit === 'cm2' || unit === 'm2') && (
-        <AreaHelper
-          idPrefix={idPrefix}
-          unit={unit}
-          onArea={(area) =>
-            setValue(`usages.${index}.quantity`, String(area), { shouldDirty: true, shouldValidate: true })
-          }
-        />
-      )}
     </div>
   );
 }
 
 /**
  * Material rows of a run. Each row picks its material in the catalog picker (stock article, optionally a spool, or
- * the recipient's own material) and takes the quantity here; square centimetres get a width × height × count helper.
+ * the recipient's own material) and takes the quantity here, also as a calculation such as 20*30*2.
  * `process` limits the catalog to the machine's process. `onPickingChange` tells the dialog to hide while the picker
  * is open. `single` edits exactly one row: no adding or removing.
  */
