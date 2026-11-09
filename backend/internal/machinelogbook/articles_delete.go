@@ -71,7 +71,7 @@ func (s *Service) RemoveUnusedMaterialTx(
 	expected int64,
 	requestID *uuid.UUID,
 ) error {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return err
 	}
 	if expected < 1 {

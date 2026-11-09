@@ -329,7 +329,7 @@ func (s *Service) CreateMaterialTypeWithOptions(
 	options MaterialTypeOptions,
 	requestID *uuid.UUID,
 ) (MaterialType, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return MaterialType{}, err
 	}
 	var result MaterialType
@@ -351,7 +351,7 @@ func (s *Service) CreateMaterialTypeTx(
 	processIDs []uuid.UUID,
 	requestID *uuid.UUID,
 ) (MaterialType, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return MaterialType{}, err
 	}
 	return s.createMaterialTypeTx(ctx, tx, p, name, kind, unit, processIDs, MaterialTypeOptions{}, requestID)
@@ -471,7 +471,7 @@ func (s *Service) UpdateMaterialTypeWithOptions(
 	options MaterialTypeOptions,
 	requestID *uuid.UUID,
 ) (MaterialType, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return MaterialType{}, err
 	}
 	var result MaterialType
@@ -498,7 +498,7 @@ func (s *Service) UpdateMaterialTypeTx(
 	active bool,
 	requestID *uuid.UUID,
 ) (MaterialType, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return MaterialType{}, err
 	}
 	return s.updateMaterialTypeTx(
@@ -717,7 +717,7 @@ func (s *Service) DeleteMaterialType(
 	expected int64,
 	requestID *uuid.UUID,
 ) error {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return err
 	}
 	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
@@ -734,7 +734,7 @@ func (s *Service) DeleteMaterialTypeTx(
 	expected int64,
 	requestID *uuid.UUID,
 ) error {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return err
 	}
 	if expected < 1 {

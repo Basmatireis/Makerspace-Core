@@ -142,7 +142,7 @@ func (s *Service) CreateMaterialTypeVariant(
 	name string,
 	requestID *uuid.UUID,
 ) (MaterialTypeVariant, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return MaterialTypeVariant{}, err
 	}
 	name, err := validateVariantName(name)
@@ -176,7 +176,7 @@ func (s *Service) MaterialTypeVariantTx(
 	name string,
 	requestID *uuid.UUID,
 ) (MaterialTypeVariant, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return MaterialTypeVariant{}, err
 	}
 	name, err := validateVariantName(name)
@@ -250,7 +250,7 @@ func (s *Service) UpdateMaterialTypeVariant(
 	name string,
 	requestID *uuid.UUID,
 ) (MaterialTypeVariant, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return MaterialTypeVariant{}, err
 	}
 	name, err := validateVariantName(name)
@@ -353,7 +353,7 @@ func (s *Service) DeleteMaterialTypeVariant(
 	typeID, id uuid.UUID,
 	requestID *uuid.UUID,
 ) error {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return err
 	}
 	return database.InTx(ctx, s.pool, func(tx pgx.Tx) error {

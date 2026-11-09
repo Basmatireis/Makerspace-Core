@@ -80,7 +80,7 @@ export function RegisterSpoolModal({
   const notify = useNotify();
   const refresh = useRefreshInventory();
   const newArticle = useNewFilamentArticle();
-  const canCreateArticle = can('inventory.manage');
+  const canCreateArticle = can('inventory.articles.manage');
   const canMount = can('printer_slots.assign') && Boolean(detected?.slotId);
   const materials = useQuery({ ...filamentMaterialsQuery(), enabled: open });
   const types = useQuery({ ...materialTypesQuery(), enabled: open && Boolean(detected) });

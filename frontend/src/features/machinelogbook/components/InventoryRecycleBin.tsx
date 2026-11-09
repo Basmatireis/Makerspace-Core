@@ -30,7 +30,7 @@ function useBinPermissions() {
   const spools = can('filament_spools.manage');
   return {
     material: { restore: can('inventory.delete'), purge: can('inventory.delete') },
-    spool: { restore: spools && can('inventory.manage'), purge: spools && can('inventory.delete') },
+    spool: { restore: spools && can('inventory.correct'), purge: spools && can('inventory.delete') },
     ledger: { restore: can('inventory.ledger.delete'), purge: can('inventory.ledger.delete') },
   };
 }

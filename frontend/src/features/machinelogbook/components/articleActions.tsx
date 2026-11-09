@@ -42,10 +42,13 @@ export function useSelectedRow(param = 'selected') {
 export function useArticlePermissions() {
   const can = useCan();
   return {
-    manage: can('inventory.manage'),
+    manage: can('inventory.articles.manage'),
+    receive: can('inventory.receive'),
+    consume: can('inventory.consume'),
+    correct: can('inventory.correct'),
     delete: can('inventory.delete'),
     deleteLedger: can('inventory.ledger.delete'),
-    register: can('inventory.manage') && can('filament_spools.manage'),
+    register: can('inventory.articles.manage') && can('filament_spools.manage'),
   };
 }
 

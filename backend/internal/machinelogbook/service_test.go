@@ -130,24 +130,40 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			_, _, err := s.ListFilamentSpools(ctx, p, SpoolFilters{Page: 1, PageSize: 25})
 			return err
 		}},
-		{"inventory.manage", func() error {
+		{"inventory.articles.manage", func() error {
 			_, err := s.CreateMaterial(ctx, p, MaterialInput{Name: "PLA", MaterialTypeID: id}, nil)
+			return err
+		}},
+		{"inventory.receive", func() error {
+			_, err := s.AddPurchase(ctx, p, id, 1, "1", "1", now, nil, nil, nil, nil)
+			return err
+		}},
+		{"inventory.consume", func() error {
+			_, err := s.RecordConsumption(ctx, p, id, 1, "1", now, false, nil, nil, nil)
+			return err
+		}},
+		{"inventory.correct", func() error {
+			_, err := s.CorrectStock(ctx, p, id, 1, "1", nil, now, "recount", nil, nil)
+			return err
+		}},
+		{"inventory.correct mark empty", func() error {
+			_, err := s.MarkEmpty(ctx, p, id, 1, now, nil, nil)
 			return err
 		}},
 		{"inventory.read material types", func() error { _, err := s.ListMaterialTypes(ctx, p); return err }},
 		{"inventory.read material type", func() error { _, err := s.GetMaterialType(ctx, p, id); return err }},
-		{"inventory.manage create material type", func() error {
+		{"inventory.articles.manage create material type", func() error {
 			_, err := s.CreateMaterialType(ctx, p, "PLA", "filament", "g", nil, nil)
 			return err
 		}},
 		{
-			"inventory.manage update material type",
+			"inventory.articles.manage update material type",
 			func() error {
 				_, err := s.UpdateMaterialType(ctx, p, id, 1, "PLA", "", "g", nil, true, nil)
 				return err
 			},
 		},
-		{"inventory.manage delete material type", func() error { return s.DeleteMaterialType(ctx, p, id, 1, nil) }},
+		{"inventory.articles.manage delete material type", func() error { return s.DeleteMaterialType(ctx, p, id, 1, nil) }},
 		{"inventory.delete delete material", func() error { return s.DeleteMaterial(ctx, p, id, 1, nil) }},
 		{"inventory.delete purge material", func() error { return s.PurgeMaterial(ctx, p, id, 1, nil) }},
 		{"inventory.ledger.delete", func() error { return s.DeleteInventoryTransaction(ctx, p, id, 1, nil) }},
@@ -155,11 +171,11 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			"filament_spools.manage",
 			func() error { _, err := s.CreateFilamentSpool(ctx, p, FilamentSpoolInput{}, nil); return err },
 		},
-		{"filament_spools.manage retire", func() error {
+		{"inventory.correct retire spool", func() error {
 			_, err := s.RetireFilamentSpool(ctx, p, id, 1, SpoolRetiredEmpty, nil)
 			return err
 		}},
-		{"filament_spools.manage restore", func() error {
+		{"inventory.correct restore spool", func() error {
 			_, err := s.RestoreFilamentSpool(ctx, p, id, 1, nil)
 			return err
 		}},

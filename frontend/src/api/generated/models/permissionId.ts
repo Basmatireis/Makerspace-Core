@@ -118,7 +118,10 @@ export const PermissionId = {
   machine_jobsoverride_price: 'machine_jobs.override_price',
   machine_jobsdelete: 'machine_jobs.delete',
   inventoryread: 'inventory.read',
-  inventorymanage: 'inventory.manage',
+  inventoryarticlesmanage: 'inventory.articles.manage',
+  inventoryreceive: 'inventory.receive',
+  inventoryconsume: 'inventory.consume',
+  inventorycorrect: 'inventory.correct',
   inventorydelete: 'inventory.delete',
   inventoryledgerdelete: 'inventory.ledger.delete',
   filament_spoolsmanage: 'filament_spools.manage',
@@ -148,4 +151,5 @@ export const PermissionId = {
   privacyretentionexecute: 'privacy.retention.execute',
   privacyrequestsmanage: 'privacy.requests.manage',
   privacyrequestsexecute: 'privacy.requests.execute',
+  websign_in: 'web.sign_in',
 } as const;

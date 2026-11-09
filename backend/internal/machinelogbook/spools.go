@@ -463,7 +463,7 @@ func (s *Service) CreateFilamentSpool(
 	if err := require(p, authorization.FilamentSpoolsManage); err != nil {
 		return FilamentSpool{}, err
 	}
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryArticlesManage); err != nil {
 		return FilamentSpool{}, err
 	}
 	if input.StockMode != StockModeNewAcquisition && input.StockMode != StockModeExistingStock {
@@ -790,7 +790,7 @@ func (s *Service) TransferSpoolStock(
 	note *string,
 	requestID *uuid.UUID,
 ) (InventoryTransaction, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryConsume); err != nil {
 		return InventoryTransaction{}, err
 	}
 	qty, err := parseDecimal(quantity, true)
@@ -906,8 +906,13 @@ func (s *Service) ConsumeFilamentSpool(
 	reason, note *string,
 	requestID *uuid.UUID,
 ) (InventoryMutationResult, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryConsume); err != nil {
 		return InventoryMutationResult{}, err
+	}
+	if disposal {
+		if err := require(p, authorization.InventoryCorrect); err != nil {
+			return InventoryMutationResult{}, err
+		}
 	}
 	qty, err := parseDecimal(quantity, true)
 	if err != nil || occurredAt.IsZero() {
@@ -981,7 +986,7 @@ func (s *Service) CorrectFilamentSpoolStock(
 	note *string,
 	requestID *uuid.UUID,
 ) (InventoryMutationResult, error) {
-	if err := require(p, authorization.InventoryManage); err != nil {
+	if err := require(p, authorization.InventoryCorrect); err != nil {
 		return InventoryMutationResult{}, err
 	}
 	physicalQty, err := parseDecimal(physical, false)

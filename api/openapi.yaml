@@ -7792,7 +7792,7 @@ paths:
       tags: [Inventory]
       operationId: createMaterialType
       summary: Create a material type
-      description: Requires `inventory.manage`. Names are unique ignoring case (409 material_type_exists).
+      description: Requires `inventory.articles.manage`. Names are unique ignoring case (409 material_type_exists).
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateMaterialTypeRequest"}}}}
       responses:
@@ -7823,7 +7823,7 @@ paths:
       operationId: updateMaterialType
       summary: Update a material type
       description: >-
-        Requires `inventory.manage`. Renames, deactivates or reactivates the type. The unit can change to another unit of the same dimension at any time:
+        Requires `inventory.articles.manage`. Renames, deactivates or reactivates the type. The unit can change to another unit of the same dimension at any time:
         the rates of the type's and its variants' material pricing rules are converted in the same transaction so prices stay the same (articles keep their
         own units). A unit of another dimension is only possible while no material, pricing rule or run usage uses the type (409 material_type_unit_in_use).
       security: [{sessionCookie: [], csrfHeader: []}]
@@ -7841,7 +7841,7 @@ paths:
       operationId: deleteMaterialType
       summary: Delete a material type
       description: >-
-        Requires `inventory.manage`. Permanently deletes a type that no material uses (deleted articles included), together with its variants
+        Requires `inventory.articles.manage`. Permanently deletes a type that no material uses (deleted articles included), together with its variants
         and its pricing rules, active or not. A type with materials answers 409 material_type_in_use; deactivate it instead.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
@@ -7862,7 +7862,7 @@ paths:
       operationId: createMaterialTypeVariant
       summary: Add a variant to a material type
       description: >-
-        Requires `inventory.manage`. Variants (Basic, Matte, Silk …) are the list an article of the type picks its variant from and the level a
+        Requires `inventory.articles.manage`. Variants (Basic, Matte, Silk …) are the list an article of the type picks its variant from and the level a
         material pricing rule can target. Names are trimmed and unique per type ignoring case (409 material_type_variant_exists). Parts take no
         variants (422 material_type_variant_not_allowed).
       security: [{sessionCookie: [], csrfHeader: []}]
@@ -7885,7 +7885,7 @@ paths:
       operationId: updateMaterialTypeVariant
       summary: Rename a variant
       description: >-
-        Requires `inventory.manage`. The new name is unique per type ignoring case (409 material_type_variant_exists). Articles of the variant
+        Requires `inventory.articles.manage`. The new name is unique per type ignoring case (409 material_type_variant_exists). Articles of the variant
         follow the rename; an article whose name was generated from type, variant, colour and manufacturer is renamed with it, a typed name
         stays. Spool labels keep the old name.
       security: [{sessionCookie: [], csrfHeader: []}]
@@ -7903,7 +7903,7 @@ paths:
       operationId: deleteMaterialTypeVariant
       summary: Delete a variant
       description: >-
-        Requires `inventory.manage`. Deletes a variant that no article (deleted ones included) and no active pricing rule uses; otherwise
+        Requires `inventory.articles.manage`. Deletes a variant that no article (deleted ones included) and no active pricing rule uses; otherwise
         409 material_type_variant_in_use. Inactive pricing rules of the variant (cleared rates) are deleted with it.
       security: [{sessionCookie: [], csrfHeader: []}]
       responses:
@@ -7941,7 +7941,7 @@ paths:
       operationId: createMaterial
       summary: Create an inventory article
       description: >-
-        Requires `inventory.manage`. Filament and consumable articles may omit the name; it is then generated from type, variant, colour and
+        Requires `inventory.articles.manage`. Filament and consumable articles may omit the name; it is then generated from type, variant, colour and
         manufacturer. A name that is already taken (ignoring case) answers 409 material_name_conflict with details.materialId of the existing article.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateMaterialRequest"}}}}
@@ -8043,7 +8043,7 @@ paths:
       operationId: receiveInventoryStock
       summary: Receive purchased stock
       description: >-
-        Requires `inventory.manage`; a placement on new spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for
+        Requires `inventory.receive` (describing a new article also needs `inventory.articles.manage`); a placement on new spools additionally needs `filament_spools.manage`. Books one purchase (or one per new spool) for
         an existing or a newly described article in a single transaction with one audit event.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReceiveInventoryStockRequest"}}}}
@@ -8172,7 +8172,7 @@ paths:
       operationId: createFilamentSpool
       summary: Register a purchased or already-counted spool
       description: >-
-        Requires `filament_spools.manage` and `inventory.manage`. The spool gets the label
+        Requires `filament_spools.manage` and `inventory.articles.manage`. The spool gets the label
         S-<TYPECODE>-<VARIANT>-<COLOUR>-<NN> of its article, NN being the smallest number no active spool with the same
         prefix uses.
       security: [{sessionCookie: [], csrfHeader: []}]
@@ -8318,7 +8318,7 @@ paths:
       operationId: retireFilamentSpool
       summary: Retire a spool into the inventory recycle bin
       description: >-
-        Requires `filament_spools.manage` and `inventory.manage`. `empty` books the remaining quantity as used up
+        Requires `filament_spools.manage` and `inventory.correct`. `empty` books the remaining quantity as used up
         (manual consumption, reason unrecorded_consumption), `discarded` as disposed (disposal, reason disposed). The
         spool is unmounted, its identifiers are retired, it is archived and its label number becomes free. Audited as
         `filament_spool.retired`.
@@ -8422,7 +8422,7 @@ paths:
       operationId: restoreFilamentSpool
       summary: Bring a retired spool back
       description: >-
-        Requires `filament_spools.manage` and `inventory.manage`. The spool becomes active again, unmounted. A spool
+        Requires `filament_spools.manage` and `inventory.correct`. The spool becomes active again, unmounted. A spool
         retired as discarded gets the written-off quantity back (adjustment, reason other); one retired as empty stays
         at its remaining quantity. When another active spool took its label meanwhile, the spool gets the next free
         number of its article's prefix. Identifiers come back unless another spool uses them now. Audited as
@@ -12267,7 +12267,10 @@ components:
         - machine_jobs.override_price
         - machine_jobs.delete
         - inventory.read
-        - inventory.manage
+        - inventory.articles.manage
+        - inventory.receive
+        - inventory.consume
+        - inventory.correct
         - inventory.delete
         - inventory.ledger.delete
         - filament_spools.manage
@@ -12297,6 +12300,7 @@ components:
         - privacy.retention.execute
         - privacy.requests.manage
         - privacy.requests.execute
+        - web.sign_in
 
     NotificationKind:
       type: string
