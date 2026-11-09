@@ -23,11 +23,17 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Check-out surveys at the tablet.** When a person checks out at the tablet and a survey is due, the tablet offers it: answer now, get it by e-mail, no thanks, or don't ask again. Surveys have a new delivery option "Ask at the tablet".
 - **Device settings.** Devices are set up with "Used as", tap check-out as an extra option, surveys at check-out and a kiosk reset time.
 - **Anonymized staging data.** `admin anonymize-for-staging --confirm-irreversible-anonymization` turns a copy of the production database into data a staging installation may hold: stable fake names and `@example.invalid` addresses, no credentials, tokens, personal free text, personal files or audit log, mail pointed at Mailpit. It refuses to run unless `PUBLIC_BASE_URL` is a loopback origin. A schema-wide test fails when a new table or text column is not classified. See `docs/operations.md`.
+- **Customer filament in printer slots.** A slot can hold filament the customer brought (optional type and colour), shown as "Customer filament" in the printer setup. Prints the connector records on such a slot book customer material: no stock movement, no material charge (#70).
+- **Switch a run's usage to customer material.** A booked makerspace usage of any run, also one recorded automatically, can be switched to customer material; the stock booking is reversed and the job repriced (`machine_jobs.edit`, #69).
+- **Web sign-in permission.** New permission `web.sign_in`: without it an account cannot sign in to the web app (password, PIN, passkey, OIDC) and its sessions stop working; sign-in and check-in at the tablet terminal and visitor enrollment stay possible. The Visitor role does not hold it, so visitors use only the terminal (#58).
+- **Open-day view follows you.** The List/Calendar choice of the open-day pages is stored on the account and restored on every device (#55).
+- **Open-day notifications.** New notification trigger "An open-day schedule is published or changed" and the ready-made subscription "Reminder for my upcoming open-day slot" (#47).
 
 ### Removed
 
 - **Android kiosk.** The Android app, its build check and the Android device bridge are gone; the desktop app is the only native shell. Managed devices report only the `desktop` platform, and migration 00112 drops stored Android hardware reports (the devices themselves stay).
 - Settings › Lab operations › Open days & staffing, and the staffing level and open-days minimum fields of the role editor.
+- **Order fulfilment mode.** Orders no longer ask whether the customer takes the items now or picks them up later; `fulfillmentMode` is gone from the order API (#56).
 
 ### Changed
 
@@ -39,6 +45,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Only full version image tags.** Releases no longer publish or move `latest` and minor/major image tags; pin the full version, such as `0.19.0`.
 - The production backend waits up to a minute for the database before migrating, so the first start on a new volume no longer fails while PostgreSQL restarts after its initialization.
 - `PUBLIC_BASE_URL` may use plain HTTP in production when its host is `localhost` or a loopback address, so an internal staging stack can be reached through an SSH tunnel. Every other production origin still needs HTTPS.
+- **Finer inventory permissions.** `inventory.manage` is replaced by `inventory.articles.manage` (articles, material types, variants, new spools), `inventory.receive` (goods receipts and purchases), `inventory.consume` (consumption, transfers between spools) and `inventory.correct` (corrections, disposal, mark empty, retire and restore spools; a disposal needs it too) (#67).
+- **Permissions grouped by app area.** The role editor groups every permission by the area it belongs to (People, Accounts & sign-in, Roles & audit, Open Days, Events, Trainings, Workshop, Inventory, Sales & cash, Signage, Notifications, Devices & kiosk, Lab Rules, Privacy, Settings & integrations); there is no "Other" group any more.
+- **"Order outdated" only for billing changes.** A job on an order is flagged outdated only when something billed changes (runs and usages, machine, recipient, outcome, title, price adjustments, price), not for notes, the operator or the signage flag (#49).
+- Notification rules before or after an open day may use up to 168 hours (was 72).
 
 ### Upgrade notes
 
@@ -51,6 +61,9 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - Documentation: `docs/open-days.md`, `docs/staffing-and-dashboard.md`, `docs/authorization.md`.
 - **Migrations 00113-00120 (notification center).** Rules, categories, consents, firings and delivery tracking, subscriptions, device settings and the move of printer notification settings into rules. New permissions `notification_rules.read` and `notification_rules.manage`.
 - **API.** `checkoutMode` on device settings is replaced by `allowTapCheckout`. `/printer-notification-settings` is removed (use the notification rules endpoints). `CurrentUser` gains `notificationConsentRequired`; the unread count carries `fresh` and `pinned`; notification rules, subscriptions, `/me/notifications/settings` and the rule activity are new.
+- **Migrations 00121-00125.** 00121 splits `inventory.manage`: every grant becomes one grant of each of the four new permissions (scope, assurance and devices kept). 00122 grants `web.sign_in` to every role except master (always allowed) and the Visitor role. 00123 drops `orders.fulfillment_mode` and adds `machine_jobs.billing_revision` and `order_items.source_billing_revision` (orders outdated before the upgrade stay outdated until refreshed). 00124 adds `account_preferences`. 00125 lets printer slot mounts hold customer filament.
+- **Breaking API changes.** `inventory.manage` is no longer a permission id. `fulfillmentMode` is removed from orders and is refused on `POST /orders` and `PATCH /orders/{orderId}`. Web sign-in answers 403 `web_sign_in_not_permitted` for accounts without `web.sign_in`. New endpoints `GET /me/preferences`, `PUT /me/preferences/{key}`, `POST /printer-slots/{slotId}/mount-customer-filament` and `POST /machine-runs/{runId}/usages/{usageId}/customer-material`; `PrinterSlot` gains `mountKind` and the customer filament fields.
+- Visitors who used the web app lose access with this version; give a role `web.sign_in` in the role editor if some of them still need it.
 
 ## [0.18.1] - 2026-11-06
 
