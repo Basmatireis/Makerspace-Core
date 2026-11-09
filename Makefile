@@ -6,7 +6,7 @@ SHELL := /bin/sh
 	dev-connector dev-connector-logs dev-connector-down \
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
-	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-frontend-allowed-clients test-printer-connector-compose test-desktop \
+	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-frontend-allowed-clients test-printer-connector-compose test-desktop lint-migrations \
 	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password seed-dev
 
 # Integration tests use their own database next to the development database so
@@ -102,6 +102,9 @@ seed-dev: migrate-up ## Add demo makerspace data to the development database (re
 .PHONY: test-migrations
 test-migrations: ## Verify goose Up/Down/Up against an isolated empty database.
 	sh ./scripts/test-migrations.sh
+
+lint-migrations: ## Lint new or changed migrations with squawk (BASE=origin/main; see .squawk.toml).
+	sh ./scripts/lint-migrations.sh $(or $(BASE),origin/main)
 
 check: check-generated check-backend check-frontend ## Regenerate, verify freshness, and run all static/unit checks.
 

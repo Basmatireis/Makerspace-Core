@@ -38,7 +38,9 @@ Image builds do not run tests: CI validates the commit (and a release only publi
 - **Compose-based CI jobs** (generated code, backend integration, end-to-end, production bundle) build their images through `docker compose`/`docker build`. Those jobs first run `docker/build-push-action` for the same Dockerfile target with the same `type=gha` scope; because `setup-buildx-action` makes that builder the default for Compose too, the later build is a cache hit instead of compiling `sqlc`/`oapi-codegen`/goose again. A cache miss only makes the job slower, never different.
 - **End-to-end shards.** The Playwright suite is `fullyParallel`, so three shard jobs each start their own isolated stack and run a third of the specs (`PLAYWRIGHT_SHARD`, read by `scripts/test-e2e.sh`). The `End-to-end` check that the ruleset requires is an aggregate job that fails unless all shards pass.
 - **Desktop kiosk (macOS).** Rust build artifacts are cached. A pull request skips this job when no changed file is under `desktop-kiosk/`, `backend/`, `api/` or is `ci.yml`; a skipped job satisfies a required check, pushes to `main` and releases always run it, and a failure to list the changed files runs it.
-- Jobs in `ci.yml` have no `needs:` between them. If a job such as `Backend integration` starts late, that is runner queueing, not workflow ordering.
+- **Documentation-only pull requests.** Pull requests always start CI so the required check reports. When every changed file is Markdown or under `docs/`, the `Changed areas` job skips all other jobs, and `CI result` passes. Pushes to `main` still ignore documentation-only commits.
+- Apart from the few seconds of `Changed areas`, which every job waits for, jobs in `ci.yml` do not depend on each other. If a job such as `Backend integration` starts late, that is runner queueing, not workflow ordering.
+- **Migration lint.** On pull requests the `Backend` job runs `scripts/lint-migrations.sh` (squawk, rules in `.squawk.toml`) on the Up section of new or changed migrations. Lock and concurrent-traffic rules are off because production migrates before the API starts; dropping or renaming columns and tables and adding required columns must be acknowledged with `-- squawk-ignore <rule>` and a reason. Run it locally with `make lint-migrations`.
 
 ## Release validation
 
@@ -61,18 +63,7 @@ Roll back by selecting an older full version tag, such as `0.3.2`, rather than r
 
 ## GitHub repository configuration
 
-After the first CI run, create a branch ruleset for `main` that requires pull requests and these exact successful checks:
-
-- `Generated code`
-- `Backend`
-- `Backend integration`
-- `Frontend`
-- `End-to-end` (aggregates the three `End-to-end shard N/3` jobs; do not require the shard jobs themselves)
-- `Container (backend)`
-- `Container (frontend)`
-- `Production Compose` (Core and printer connector bundles)
-
-Also block force pushes and branch deletion. No special administrator-approval policy is required by this project.
+The branch ruleset `main` requires a pull request for every change (no approval needed, so a single maintainer can merge their own), the single successful check `CI result`, and blocks force pushes and branch deletion. `CI result` is the last job of `ci.yml` and fails when any other job failed or was cancelled, so the ruleset does not change when jobs are added, renamed or sharded. Repository administrators may bypass the ruleset only when merging a pull request, never with a direct push. Merged branches are deleted automatically, and auto-merge is available (`gh pr merge --auto --squash`).
 
 GitHub may create GHCR packages as private initially. Set both backend and frontend package visibility to public before the first release. No additional registry secret is required: the publish job alone receives `packages: write`, and the GitHub Release job alone receives `contents: write`.
 

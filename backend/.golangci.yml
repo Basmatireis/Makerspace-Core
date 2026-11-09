@@ -7,6 +7,7 @@ linters:
   default: standard
   enable:
     - bodyclose
+    - depguard
     - errorlint
     - gosec
     - lll
@@ -15,6 +16,24 @@ linters:
     - unconvert
     - usestdlibvars
   settings:
+    depguard:
+      # Layering from AGENTS.md: transport types stay in the HTTP layer. The reverse rule (no
+      # sqlc rows in handlers) is TestHandlersDoNotImportRepositories in internal/httpapi,
+      # because depguard cannot match the per-feature db packages with one pattern.
+      rules:
+        domain-without-transport:
+          files:
+            - "**/internal/**"
+            - "!**/internal/httpapi/**"
+            - "!**/internal/openapi/**"
+            # Permission identifiers are generated from the PermissionId enum of the contract.
+            - "!**/internal/authorization/permissions.go"
+            - "!$test"
+          deny:
+            - pkg: "github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+              desc: services use domain types; only internal/httpapi maps OpenAPI transport types
+            - pkg: "github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
+              desc: services must not depend on the HTTP layer
     lll:
       line-length: 160
       tab-width: 4
