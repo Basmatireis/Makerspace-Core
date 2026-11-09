@@ -1,0 +1,22 @@
+# squawk lints the Up section of new goose migrations (scripts/lint-migrations.sh).
+# Production applies migrations before the API starts, so nothing else holds locks on
+# the single small database: the rules about lock duration and concurrent traffic are
+# off. What stays on is data loss and rollback safety, which every migration must
+# decide explicitly with `-- squawk-ignore <rule>` and a reason on the line above.
+pg_version = "18.0"
+assume_in_transaction = true
+excluded_rules = [
+  "adding-foreign-key-constraint",
+  "ban-drop-constraint",
+  "ban-drop-default",
+  "ban-drop-function",
+  "ban-drop-not-null",
+  "constraint-missing-not-valid",
+  "disallowed-unique-constraint",
+  "prefer-bigint-over-int",
+  "prefer-bigint-over-smallint",
+  "require-concurrent-index-creation",
+  "require-concurrent-index-deletion",
+  "require-lock-timeout",
+  "require-statement-timeout",
+]
