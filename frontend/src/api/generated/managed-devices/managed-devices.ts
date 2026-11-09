@@ -580,7 +580,7 @@ export const getStartManagedDevicePairingUrl = () => {
 }
 
 /**
- * Public. Creates a pairing request valid for 15 minutes. `bindBrowser` (a kiosk browser) sets the HttpOnly `SameSite=Strict` poll-secret cookie (Secure in production); `nativeToken` (the desktop app) returns the poll secret once in the body instead, and the app sends it back in `X-Device-Pairing-Secret`. A previous request of the same kiosk (cookie or header) is replaced; if staff already claimed it, the answer is 409 `pairing_claimed` and the kiosk collects its credential by polling. Rate-limited per client IP and capped globally (429); optionally restricted to `DEVICE_PAIRING_ALLOWED_CIDRS` (403 `pairing_network_denied`).
+ * Public. Creates a pairing request valid for 15 minutes. `bindBrowser` (a kiosk browser) sets the HttpOnly `SameSite=Strict` poll-secret cookie (Secure in production); `nativeToken` (the desktop app) returns the poll secret once in the body instead, and the app sends it back in `X-Device-Pairing-Secret`. A browser (`bindBrowser`) request must carry the Origin header; only the desktop app's `nativeToken` request may omit it. A client that already presents a valid managed-device credential (cookie or `X-Managed-Device-Token`) is refused with 409 `device_already_registered`, so pairing never replaces a registered device's credential. A previous request of the same kiosk (cookie or header) is replaced; if staff already claimed it, the answer is 409 `pairing_claimed` and the kiosk collects its credential by polling. Rate-limited per client IP and capped globally (429); optionally restricted to `DEVICE_PAIRING_ALLOWED_CIDRS` (403 `pairing_network_denied`).
  * @summary An unregistered kiosk requests a pairing code
  */
 export const startManagedDevicePairing = async (startManagedDevicePairingRequest: StartManagedDevicePairingRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDevicePairingStart> => {
@@ -618,7 +618,7 @@ export const getPollManagedDevicePairingUrl = () => {
 }
 
 /**
- * Public; identifies the request by the poll-secret cookie or the `X-Device-Pairing-Secret` header. `pending` until staff claim the code, `expired` when the request is gone or timed out. The first poll after the claim answers `paired` exactly once and then deletes the request: a browser request receives the managed-device cookie (the same HttpOnly cookie as browser binding), a native request receives the one-time `token` in the body.
+ * Public; identifies the request by the poll-secret cookie or the `X-Device-Pairing-Secret` header. `pending` until staff claim the code, `expired` when the request is gone or timed out. The first poll after the claim answers `paired` exactly once and then deletes the request: a browser request receives the managed-device cookie (the same HttpOnly cookie as browser binding), a native request receives the one-time `token` in the body. A client that already presents a valid managed-device credential gets 409 `device_already_registered`.
  * @summary Poll the kiosk's pairing request (every 3 seconds)
  */
 export const pollManagedDevicePairing = async ( options?: Parameters<typeof apiFetch>[1]): Promise<ManagedDevicePairingPoll> => {

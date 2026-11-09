@@ -43,7 +43,8 @@ struct APIProblem {
     code: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+// No Debug: these responses carry the poll secret and the device token, which must never reach a log.
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PairingStartResponse {
     code: String,
@@ -51,7 +52,7 @@ struct PairingStartResponse {
     poll_secret: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 struct PairingPollResponse {
     status: String,
     token: Option<String>,
@@ -71,6 +72,9 @@ struct PendingPairing {
     core: Url,
     poll_secret: String,
     simulator: bool,
+    /// Core hands out the token only once. If storing it fails (bridge, credential store), it is kept here so that
+    /// the next poll retries the registration instead of losing the credential.
+    received_token: Option<String>,
 }
 
 struct AppState {
@@ -148,6 +152,7 @@ async fn start_pairing(
         core,
         poll_secret,
         simulator: simulator && cfg!(debug_assertions),
+        received_token: None,
     });
     Ok(PairingCode {
         code: start.code,
@@ -163,7 +168,7 @@ async fn poll_pairing(
     window: WebviewWindow,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    let (core, poll_secret, simulator) = {
+    let (core, poll_secret, simulator, received_token) = {
         let pending = state
             .pending_pairing
             .lock()
@@ -175,8 +180,12 @@ async fn poll_pairing(
             pending.core.clone(),
             pending.poll_secret.clone(),
             pending.simulator,
+            pending.received_token.clone(),
         )
     };
+    if let Some(token) = received_token {
+        return finish_pairing(&app, &window, &state, &core, &token, simulator).await;
+    }
     let response = http_client()?
         .get(pairing_endpoint(&core)?)
         .header("Accept", "application/json")
@@ -194,21 +203,38 @@ async fn poll_pairing(
     match poll.status.as_str() {
         "pending" => Ok("pending".to_owned()),
         "paired" => {
-            clear_pending_pairing(&state);
-            let token = poll
-                .token
-                .filter(|token| validate_token(token).is_ok())
-                .ok_or_else(|| {
-                    "Makerspace Core did not deliver a valid device credential.".to_owned()
-                })?;
-            complete_registration(&app, &window, &state, &core, &token, simulator).await?;
-            Ok("paired".to_owned())
+            let Some(token) = poll.token.filter(|token| validate_token(token).is_ok()) else {
+                clear_pending_pairing(&state);
+                return Err("Makerspace Core did not deliver a valid device credential.".to_owned());
+            };
+            if let Ok(mut pending) = state.pending_pairing.lock()
+                && let Some(pending) = pending.as_mut()
+            {
+                pending.received_token = Some(token.clone());
+            }
+            finish_pairing(&app, &window, &state, &core, &token, simulator).await
         }
         _ => {
             clear_pending_pairing(&state);
             Ok("expired".to_owned())
         }
     }
+}
+
+/// Registers with the received token; the pending request (and the token) is dropped only once that succeeded.
+async fn finish_pairing(
+    app: &tauri::AppHandle,
+    window: &WebviewWindow,
+    state: &AppState,
+    core: &Url,
+    token: &str,
+    simulator: bool,
+) -> Result<String, String> {
+    complete_registration(app, window, state, core, token, simulator)
+        .await
+        .map_err(|message| format!("{message} Retrying…"))?;
+    clear_pending_pairing(state);
+    Ok("paired".to_owned())
 }
 
 fn clear_pending_pairing(state: &AppState) {

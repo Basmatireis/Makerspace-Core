@@ -73,6 +73,11 @@ export async function runKioskPairing({
       shown = { kind: 'waiting', code: start.code, expiresAt: Date.parse(start.expiresAt) };
     } catch (error) {
       if (signal.aborted) break;
+      if (apiErrorCode(error) === 'device_already_registered') {
+        // This browser already holds a device credential: the kiosk page asks Core what it is instead.
+        onState({ kind: 'paired' });
+        return true;
+      }
       if (error instanceof ApiError && error.status === 409 && apiErrorCode(error) === 'pairing_claimed') {
         shown = { kind: 'claimed' };
       } else if (

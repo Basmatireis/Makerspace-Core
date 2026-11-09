@@ -756,7 +756,8 @@ func isNativeDeviceHardwareReport(r *http.Request) bool {
 }
 
 // isNativeDevicePairingStart lets the desktop app, which sends no Origin, request a pairing code. Browsers always
-// send Origin on a POST, so this does not open a cross-site path; the request carries no credential either.
+// send Origin on a POST, so this does not open a cross-site path; the handler additionally refuses an originless
+// request for browser (cookie) delivery, so the exemption serves only nativeToken requests.
 func isNativeDevicePairingStart(r *http.Request) bool {
 	return r.Method == http.MethodPost && isDevicePairingPath(r.URL.Path) && r.Header.Get("Origin") == ""
 }

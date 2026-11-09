@@ -50,6 +50,16 @@ describe('kiosk pairing loop', () => {
     expect(states).toContainEqual({ kind: 'claimed' });
   });
 
+  it('stops and lets the page re-check when the browser is already registered', async () => {
+    const api = {
+      start: vi.fn().mockRejectedValue(new ApiError(409, { code: 'device_already_registered' })),
+      poll: vi.fn(),
+    };
+    const { done } = run(api);
+    await expect(done).resolves.toBe(true);
+    expect(api.poll).not.toHaveBeenCalled();
+  });
+
   it('reports a denied network and rate limits without losing the code', async () => {
     const controller = new AbortController();
     const api = {

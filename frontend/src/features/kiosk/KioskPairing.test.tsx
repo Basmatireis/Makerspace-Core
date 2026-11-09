@@ -32,6 +32,29 @@ describe('unregistered kiosk browser', () => {
     expect(requested).toEqual({ credentialDelivery: 'bindBrowser' });
   });
 
+  it('tells a registered device that is not a kiosk so instead of offering to pair it again', async () => {
+    let pairingRequested = false;
+    server.use(
+      http.get('*/api/v1/terminal/context', () =>
+        HttpResponse.json(
+          { code: 'device_not_kiosk', message: 'This managed device is not configured as an entrance kiosk' },
+          { status: 403 },
+        ),
+      ),
+      http.post('*/api/v1/public/managed-devices/pairing', () => {
+        pairingRequested = true;
+        return HttpResponse.json({}, { status: 500 });
+      }),
+    );
+    renderRoute(<App />, '/kiosk');
+    expect(await screen.findByText('Not set up as a kiosk')).toBeInTheDocument();
+    expect(screen.getByText(/registered in Makerspace Core but not as an entrance kiosk/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'This browser is not registered as a kiosk' }),
+    ).not.toBeInTheDocument();
+    expect(pairingRequested).toBe(false);
+  });
+
   it('keeps the error for other failures', async () => {
     server.use(
       http.get('*/api/v1/terminal/context', () =>

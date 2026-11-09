@@ -87,6 +87,16 @@ func errPairingCodeInvalid() error {
 	)
 }
 
+// ErrAlreadyRegistered answers a pairing request from a client that already presents a valid managed-device
+// credential.
+func ErrAlreadyRegistered() error {
+	return apperror.New(
+		http.StatusConflict,
+		"device_already_registered",
+		"This device is already registered; revoke it in Makerspace Core before pairing it again",
+	)
+}
+
 func pairingRateLimited(message string, retryAfter time.Duration) error {
 	return apperror.RateLimited("rate_limited", message, retryAfter)
 }

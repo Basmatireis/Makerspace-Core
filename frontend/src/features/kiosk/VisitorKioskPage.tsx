@@ -8,7 +8,7 @@ import {
 import type { KioskNotice, TerminalConsentCategory, TerminalSurveyOffer, Visit } from '../../api/generated/models';
 import { BrandMark } from '../../app/BrandMark';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
-import { ApiError } from '../../api/http-client';
+import { ApiError, apiErrorCode } from '../../api/http-client';
 import { useBranding } from '../branding/branding';
 import { ConsentScreen } from './components/ConsentScreen';
 import { CheckOutScreen } from './components/CheckOutScreen';
@@ -86,11 +86,20 @@ export function VisitorKioskPage() {
   if (!kiosk.data)
     return (
       <main className="public-page">
-        <ErrorState
-          title="Kiosk unavailable"
-          message="This browser is not registered as an entrance kiosk."
-          onRetry={() => void kiosk.refetch()}
-        />
+        {apiErrorCode(kiosk.error) === 'device_not_kiosk' ? (
+          // Registered, but not as a kiosk: pairing again would replace this device's credential.
+          <ErrorState
+            title="Not set up as a kiosk"
+            message="This device is registered in Makerspace Core but not as an entrance kiosk. Change its Used as setting under Settings › Devices & sessions › Managed devices, or open the staff sign-in instead."
+            onRetry={() => void kiosk.refetch()}
+          />
+        ) : (
+          <ErrorState
+            title="Kiosk unavailable"
+            message="This browser is not registered as an entrance kiosk."
+            onRetry={() => void kiosk.refetch()}
+          />
+        )}
       </main>
     );
 

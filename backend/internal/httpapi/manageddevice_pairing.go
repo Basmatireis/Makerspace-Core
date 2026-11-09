@@ -8,6 +8,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 )
 
 const defaultDevicePairingCookieName = "makerspace_device_pairing"
@@ -72,6 +73,15 @@ func (response devicePairingResponse) VisitPollManagedDevicePairingResponse(w ht
 	return response.write(w)
 }
 
+// rejectRegisteredDevice refuses pairing for a request that already carries a valid managed-device credential
+// (cookie or header): pairing would replace that browser's credential with a new device's.
+func rejectRegisteredDevice(ctx context.Context) error {
+	if _, registered := ctx.Value(visitorDeviceContextKey).(manageddevices.DeviceContext); registered {
+		return manageddevices.ErrAlreadyRegistered()
+	}
+	return nil
+}
+
 func (s *Server) StartManagedDevicePairing(
 	ctx context.Context,
 	r openapi.StartManagedDevicePairingRequestObject,
@@ -79,9 +89,15 @@ func (s *Server) StartManagedDevicePairing(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
+	if err := rejectRegisteredDevice(ctx); err != nil {
+		return nil, err
+	}
 	delivery := manageddevices.DeliveryBrowserCookie
 	if r.Body.CredentialDelivery == openapi.NativeToken {
 		delivery = manageddevices.DeliveryNativeToken
+	} else if request := httpRequest(ctx); request == nil || request.Header.Get("Origin") == "" {
+		// The origin check excuses a missing Origin only for the desktop app; a browser always sends one.
+		return nil, apperror.New(http.StatusForbidden, "origin_invalid", "Request origin is not allowed")
 	}
 	start, err := s.managedDevices.StartPairing(
 		ctx,
@@ -108,6 +124,9 @@ func (s *Server) PollManagedDevicePairing(
 	ctx context.Context,
 	r openapi.PollManagedDevicePairingRequestObject,
 ) (openapi.PollManagedDevicePairingResponseObject, error) {
+	if err := rejectRegisteredDevice(ctx); err != nil {
+		return nil, err
+	}
 	poll, err := s.managedDevices.PollPairing(
 		ctx,
 		sourceAddress(ctx),

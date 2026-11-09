@@ -10,7 +10,7 @@ The desktop app bundles the Go Device Bridge as a private sidecar. The shell sta
 2. In **Settings → Access & identity → Devices & sessions** (tab **Managed devices**), choose **Pair device**, enter the code and the device's name, type, application modes, kiosk settings and capabilities.
 3. On its next poll the native shell receives the one-time managed-device token, verifies it with Core and stores it exactly like a manually entered token. An entrance device with `visitor_terminal` opens `/kiosk`; other permitted devices open `/login`.
 
-The poll secret and the token stay in the native process: the registration page only sees the code and the result. See [Managed devices](managed-devices.md#pairing-a-kiosk) for the pairing protocol.
+The poll secret and the token stay in the native process: the registration page only sees the code and the result. Core delivers the token only once, so if storing it fails (credential store, hardware bridge) the shell keeps it in memory and retries on the next poll; cancelling the code discards it, and the device must then be rotated or paired again. See [Managed devices](managed-devices.md#pairing-a-kiosk) for the pairing protocol.
 
 Manual registration remains available: create a device with native-token delivery, choose **Enter a token instead** in the desktop app and paste the one-time token.
 

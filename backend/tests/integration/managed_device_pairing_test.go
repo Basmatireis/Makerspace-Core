@@ -3,10 +3,12 @@ package integration_test
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"net/http"
 	"net/netip"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -300,6 +302,95 @@ func TestKioskPairingNativeDeliveryReturnsTheTokenOnlyToItsPoller(t *testing.T) 
 		"X-Managed-Device-Token", token), http.StatusOK)
 	if identity["deviceName"] != "Desk app" {
 		t.Fatalf("the delivered token must authenticate the paired device: %v", identity)
+	}
+
+	// A registered device that is not a kiosk is told so instead of looking unregistered, and cannot be paired again
+	// over its own credential.
+	e.expectCode(e.do(newCookieClient(t), "", http.MethodGet, "/terminal/context", nil,
+		"X-Managed-Device-Token", token), http.StatusForbidden, "device_not_kiosk")
+	e.expectCode(e.do(newCookieClient(t), "", http.MethodPost, devicePairingPath,
+		map[string]any{"credentialDelivery": "nativeToken"}, "Origin", "", "X-Managed-Device-Token", token),
+		http.StatusConflict, "device_already_registered")
+}
+
+func TestKioskPairingRefusesBrowsersWithoutOriginAndRegisteredDevices(t *testing.T) {
+	e := newKioskPairingEnv(t, nil)
+	staff := e.manager()
+
+	// The originless exemption serves only the desktop app.
+	e.expectCode(
+		e.do(e.newPlayer(), "", http.MethodPost, devicePairingPath, map[string]any{"credentialDelivery": "bindBrowser"},
+			"Origin", ""),
+		http.StatusForbidden,
+		"origin_invalid",
+	)
+
+	// A browser that already holds a valid device cookie can neither start nor poll a pairing.
+	kiosk := e.newPlayer()
+	code := e.startBrowser(kiosk)
+	e.expect(e.claim(staff, code, "Registered kiosk"), http.StatusCreated)
+	if poll := e.expect(e.do(kiosk, "", http.MethodGet, devicePairingPath, nil), http.StatusOK); poll["status"] != "paired" {
+		t.Fatalf("poll = %v", poll)
+	}
+	e.expectCode(
+		e.do(kiosk, "", http.MethodPost, devicePairingPath, map[string]any{"credentialDelivery": "bindBrowser"}),
+		http.StatusConflict,
+		"device_already_registered",
+	)
+	e.expectCode(e.do(kiosk, "", http.MethodGet, devicePairingPath, nil), http.StatusConflict, "device_already_registered")
+
+	// A signage player's credential never reaches kiosk pairing.
+	signageStaff := e.allStaff()
+	_, defaults := e.seedContent("Kiosk pairing isolation")
+	_, player := e.pair(signageStaff, "Isolated player", defaults)
+	e.expectCode(
+		e.do(player, "", http.MethodPost, devicePairingPath, map[string]any{"credentialDelivery": "bindBrowser"}),
+		http.StatusForbidden,
+		"device_mode_denied",
+	)
+	e.expectCode(e.do(player, "", http.MethodGet, devicePairingPath, nil), http.StatusForbidden, "device_mode_denied")
+}
+
+func TestKioskPairingConcurrentPollsDeliverTheCredentialOnce(t *testing.T) {
+	e := newKioskPairingEnv(t, nil)
+	staff := e.manager()
+	for round := 0; round < 5; round++ {
+		code, secret := e.startNative()
+		e.expect(e.claim(staff, code, "Concurrent "+ids.New().String()[24:]), http.StatusCreated)
+		const pollers = 4
+		tokens := make(chan string, pollers)
+		var wait sync.WaitGroup
+		for i := 0; i < pollers; i++ {
+			wait.Add(1)
+			go func() {
+				defer wait.Done()
+				request, err := http.NewRequestWithContext(testContext(t), http.MethodGet, e.api+devicePairingPath, nil)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				request.Header.Set(devicePairingHeader, secret)
+				response, err := http.DefaultClient.Do(request)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				defer response.Body.Close()
+				var body map[string]any
+				if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+					t.Error(err)
+					return
+				}
+				if token, _ := body["token"].(string); token != "" {
+					tokens <- token
+				}
+			}()
+		}
+		wait.Wait()
+		close(tokens)
+		if delivered := len(tokens); delivered != 1 {
+			t.Fatalf("round %d: %d polls received a token, want exactly 1", round, delivered)
+		}
 	}
 }
 
