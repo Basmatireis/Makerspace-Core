@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	opendaysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/opendays/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
@@ -179,6 +180,12 @@ func (s *Service) SaveSchedule(
 		}
 		if err := w.notifyScheduleChanges(ctx, heldBefore); err != nil {
 			return Schedule{}, err
+		}
+		// A draft is still being prepared and nobody sees it; once people can, a save is news to the staffing people.
+		if PeriodStatus(period.Status) != PeriodDraft {
+			if err := s.inbox.OpenDayPeriodChanged(ctx, tx, periodID, notifyrules.OpenDayPeriodChanged); err != nil {
+				return Schedule{}, err
+			}
 		}
 		if _, err := q.BumpPeriodVersion(
 			ctx,

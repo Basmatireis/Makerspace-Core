@@ -213,8 +213,8 @@ func (v *validator) schedule(s *Schedule) error {
 		}
 		return forbid(true, false, true)
 	case RepeatBeforeOpenDay, RepeatAfterOpenDay:
-		if s.Hours == nil || *s.Hours < 0 || *s.Hours > 72 {
-			return fail("trigger.schedule.hours", "must be between 0 and 72")
+		if s.Hours == nil || *s.Hours < 0 || *s.Hours > MaxOpenDayOffsetHours {
+			return fail("trigger.schedule.hours", "must be between 0 and 168")
 		}
 		if s.Time != "" {
 			return fail("trigger.schedule.time", "does not apply to this repeat")

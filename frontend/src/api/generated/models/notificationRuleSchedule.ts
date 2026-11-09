@@ -41,9 +41,9 @@ export interface NotificationRuleSchedule {
      */
   dayOfMonth?: number;
   /**
-     * Hours before or after the open day.
+     * Hours before or after the open day (up to seven days).
      * @minimum 0
-     * @maximum 72
+     * @maximum 168
      */
   hours?: number;
 }

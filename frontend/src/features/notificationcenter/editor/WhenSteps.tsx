@@ -121,7 +121,7 @@ export function WhenStep({ catalog, definition, edit, personal }: StepProps) {
               id="nc-schedule-hours"
               label={schedule.repeat === 'before_open_day' ? 'Hours before it starts' : 'Hours after it ends'}
               min={0}
-              max={72}
+              max={168}
               value={schedule.hours ?? 0}
               onChange={(_event, state) => setSchedule({ hours: Number(state.value) || 0 })}
             />

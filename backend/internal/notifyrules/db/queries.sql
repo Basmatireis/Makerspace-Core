@@ -454,6 +454,11 @@ SELECT DISTINCT person_id FROM open_day_assignments WHERE open_day_id = sqlc.arg
 -- name: GetOpenDayPeriodEventFacts :one
 SELECT id, name, sign_up_deadline FROM open_day_periods WHERE id = sqlc.arg(id);
 
+-- name: GetOpenDayPeriodChangeFacts :one
+SELECT p.id, p.name,
+       (SELECT count(*) FROM open_days d WHERE d.period_id = p.id AND d.status = 'scheduled')::integer AS day_count
+FROM open_day_periods p WHERE p.id = sqlc.arg(id);
+
 -- name: GetOpenDayTimeslotEventFacts :one
 SELECT d.id AS open_day_id, d.period_id, t.starts_at, t.ends_at, d.status
 FROM open_day_timeslots t

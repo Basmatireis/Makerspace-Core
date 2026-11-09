@@ -77,6 +77,7 @@ type Querier interface {
 	GetLabRulesRevision(ctx context.Context, id uuid.UUID) (string, error)
 	// The machine and the operator of the run that is printing on it right now, if any.
 	GetMachineEventFacts(ctx context.Context, id uuid.UUID) (GetMachineEventFactsRow, error)
+	GetOpenDayPeriodChangeFacts(ctx context.Context, id uuid.UUID) (GetOpenDayPeriodChangeFactsRow, error)
 	GetOpenDayPeriodEventFacts(ctx context.Context, id uuid.UUID) (GetOpenDayPeriodEventFactsRow, error)
 	GetOpenDayTimeslotEventFacts(ctx context.Context, id uuid.UUID) (GetOpenDayTimeslotEventFactsRow, error)
 	GetOrderEventFacts(ctx context.Context, id uuid.UUID) (GetOrderEventFactsRow, error)

@@ -484,6 +484,25 @@ var coreTriggers = []Trigger{
 		},
 	},
 	{
+		Key: "open_day_period_changed", Area: "Open Days", Label: "An open-day schedule is published or changed",
+		Help: "Fires when a period is published, and when days, timeslots or series change in a period people can already " +
+			"see (staffing or published). One save raises one event however many days it touched; to limit a burst of " +
+			"saves, throttle the rule once per period.",
+		Subject: SubjectLab, Permission: authorization.OpenDaysRead,
+		Fields: []Field{
+			{Key: "period", Label: "Period", Type: FieldText},
+			{Key: "change", Label: "What happened", Type: FieldEnum, Options: options("published", "Published", "changed", "Changed")},
+			{Key: "days", Label: "Open days in the period", Type: FieldNumber},
+		},
+		Recipients: triggerSubjects("staffing_people", "Everyone who staffs open days"),
+		Placeholders: []Placeholder{
+			{"period", "Name of the period", "Winter term 2026/27"},
+			{"change", "\"published\" or \"changed\"", "published"},
+			{"days", "Number of scheduled open days in the period", "12"},
+		},
+		ThrottleSubjects: triggerSubjects("period", "period"),
+	},
+	{
 		Key: "lab_rules_published", Area: "People", Label: "New Lab Rules take effect",
 		Help:       "Fires once per version, when it becomes effective.",
 		Subject:    SubjectLab,

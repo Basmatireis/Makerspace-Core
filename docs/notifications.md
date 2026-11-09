@@ -72,6 +72,7 @@ Every trigger of the catalog (`notifyrules/catalog.go`, `catalog_triggers.go`) h
 | `role_changed` | `people.ChangeRole` (also a switched system role) | `self` | change, role, privileged | `roles.read` |
 | `privacy_request_created` | `subjectrequests.Create` | none (roles and people) | request type | `privacy.requests.manage` |
 | `open_day_signup` | `opendays` sign-up and assignment | `self`, `day_team` | place type, days until, weekday, signed up by themselves | `open_days.read` |
+| `open_day_period_changed` | `opendays.TransitionPeriod` (to published) and `SaveSchedule` (days, timeslots or series changed) in a staffing or published period; a draft stays quiet. One event per save | `staffing_people` | period name, change (`published` or `changed`), number of scheduled days | `open_days.read` |
 
 Definitions that need a word. **On duty** are the supervisors (system role) who have an open visit at that moment; the arriving or leaving person is not in the list. **Privileged** is the master role or a role that grants any permission ending in `.manage`. **First visit** means no earlier visit that still counts. **Lab Rules at check-in** is "not confirmed" when the visit was admitted with a warning and "confirmed" otherwise, including roles without Lab Rules.
 
@@ -126,7 +127,7 @@ Schedule and manual rules use the same engine as event rules (`fire.go`, `schedu
   A rule that fails is retried every five minutes and cannot hold back the others.
 - **Before/after each open day.** The rule looks at the scheduled open days around now (cancelled ones never fire):
   it fires for a day when `start - hours` (before) or `end + hours` (after) has passed, at most six hours ago and
-  after the rule was last saved. The handled open day is recorded in `notification_rule_runs(rule_id, run_key)` in
+  after the rule was last saved. `hours` is 0 to 168 (seven days), so "two days before" is 48. The handled open day is recorded in `notification_rule_runs(rule_id, run_key)` in
   the same transaction as the firing, so a restart or a second scheduler pass never fires a day twice. The rule polls
   every five minutes for open days created meanwhile. Its context is `e.supervisors/free/trainees/weekday` (and
   `e.mine` in personal rules), the placeholders `{day} {time} {supervisors} {trainees} {free}` and the recipient
@@ -159,6 +160,13 @@ Schedule and manual rules use the same engine as event rules (`fire.go`, `schedu
 | `GET /notification-rules/activity` | `notification_rules.read` | Firings newest first (`ruleId`, `page`, `pageSize` up to 100) with channels, people reached, a result tag (`delivered`, `escalated`, `throttled`, `skipped`, `test`, `resolved`) and the delivery log per recipient: name (never an address), channel, step, status, sent and read times, and for the in-app copy `deliveredAt`, `seenAt` and `acknowledgedAt` (the earliest time on any of the person's accounts, `null` while it has not happened). |
 
 `GET /notification-rules` already carries `stats.fired30`, `lastFiredAt` and the 14-day `sparkline` of every rule.
+
+### Open-day notifications
+
+- **Schedule published or changed.** The trigger `open_day_period_changed` (area Open Days) reaches `staffing_people`. Its fields are the period name, `change` (`published`, `changed`) and the number of scheduled days; its throttle subject is the period, so a rule can say "at most once per period" to quiet a burst of saves. A save in a draft period raises nothing; `period_opens` still announces the draft becoming open for sign-up.
+- **A slot I hold changes.** `open_day_timeslot_changed`, `open_day_timeslot_removed`, `open_day_cancelled`, `open_day_assigned_by_other` and `open_day_unassigned_by_other` (system notices, see above).
+- **Reminder for my upcoming slot.** The ready-made subscription "Reminder for my upcoming open-day slot" (My notifications) is a personal rule before each open day (48 hours, editable up to 7 days) with the condition `e.mine`, so only people signed up for that day are reminded. "Remind me before my open day" is the same in hours.
+- **Open day below its minimum.** The ready-made subscription "Free open days while I'm below my minimum" and rules over the `open_days` collection (`i.free`, `i.startsIn`) cover this.
 
 ## Signage and tablet notices
 
