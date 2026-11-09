@@ -50,6 +50,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **"Order outdated" only for billing changes.** A job on an order is flagged outdated only when something billed changes (runs and usages, machine, recipient, outcome, title, price adjustments, price), not for notes, the operator or the signage flag (#49).
 - Notification rules before or after an open day may use up to 168 hours (was 72).
 
+### Fixed
+
+- **Visitor enrollment asks for the Lab Rules only when they are recorded.** While the Visitor role did not require the Lab Rules, the tablet still asked a new visitor to accept them, but no confirmation was stored. The Lab Rules step now appears only when the Visitor role requires them, and then the acceptance is listed under Lab Rules confirmations with the method "enrollment". `GET /visitor-enrollment/state` has the new field `labRulesRequired`.
+
 ### Upgrade notes
 
 - **Migration 00109 (membership roles and staffing rules).** Creates `staffing_rules`, `staffing_rule_exceptions` and `staffing_excusals`; marks or creates the Supervisor, Trainee and Visitor roles (a role already using such a name becomes "<name> (custom)"), gives each person the membership their former staffing-level roles implied, turns role minimum overrides of the remaining extra roles into exceptions, and adds the triggers that guarantee one membership per person. Drops `open_day_requirements`, `roles.staffing_level`, `roles.min_open_days_per_semester` and the visitor enrollment `initial_role_id`. Review the roles list after upgrading.

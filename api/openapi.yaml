@@ -17496,11 +17496,12 @@ components:
     VisitorEnrollmentState:
       type: object
       additionalProperties: false
-      required: [allowedMethods, capabilities, currentLabRules, expiresAt]
+      required: [allowedMethods, capabilities, currentLabRules, labRulesRequired, expiresAt]
       properties:
         allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
         capabilities: {type: array, uniqueItems: true, description: "Effective capabilities of the enrolling device. A profile photo is required exactly when this includes camera or file_upload.", items: {$ref: "#/components/schemas/DeviceCapability"}}
         currentLabRules: {allOf: [{$ref: "#/components/schemas/VisitorLabRulesVersion"}], nullable: true}
+        labRulesRequired: {type: boolean, description: "Whether the Visitor role asks for the Lab Rules. Only then does the kiosk show them and does enrollment record the confirmation."}
         expiresAt: {type: string, format: date-time}
 
     VisitorEnrollmentSubmission:

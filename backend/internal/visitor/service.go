@@ -90,7 +90,10 @@ type EnrollmentState struct {
 	// Capabilities are the effective capabilities of the enrolling device.
 	Capabilities    []string
 	CurrentLabRules *LabRulesVersion
-	ExpiresAt       time.Time
+	// LabRulesRequired is whether the Visitor role asks for the Lab Rules; only then does Submit record a
+	// confirmation, so only then does the kiosk show them.
+	LabRulesRequired bool
+	ExpiresAt        time.Time
 }
 
 type SubmissionInput struct {
@@ -348,7 +351,12 @@ func (s *Service) State(ctx context.Context, enrollment Context) (EnrollmentStat
 	if err != nil {
 		return EnrollmentState{}, err
 	}
-	version, err := s.pinnedLabRules(ctx, visitordb.New(s.pool), enrollment.ID)
+	queries := visitordb.New(s.pool)
+	role, err := queries.GetVisitorRole(ctx)
+	if err != nil {
+		return EnrollmentState{}, err
+	}
+	version, err := s.pinnedLabRules(ctx, queries, enrollment.ID)
 	if err != nil {
 		return EnrollmentState{}, err
 	}
@@ -357,10 +365,11 @@ func (s *Service) State(ctx context.Context, enrollment Context) (EnrollmentStat
 		return EnrollmentState{}, err
 	}
 	return EnrollmentState{
-		AllowedMethods:  configuration.AllowedMethods,
-		Capabilities:    capabilities,
-		CurrentLabRules: version,
-		ExpiresAt:       enrollment.ExpiresAt,
+		AllowedMethods:   configuration.AllowedMethods,
+		Capabilities:     capabilities,
+		CurrentLabRules:  version,
+		LabRulesRequired: laborordnung.Mode(role.LaborordnungMode) != laborordnung.ModeNotRequired,
+		ExpiresAt:        enrollment.ExpiresAt,
 	}, nil
 }
 

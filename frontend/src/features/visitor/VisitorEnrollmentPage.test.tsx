@@ -47,6 +47,7 @@ describe('controlled visitor enrollment', () => {
         HttpResponse.json({
           allowedMethods: ['pin'],
           capabilities: ['camera', 'file_upload'],
+          labRulesRequired: true,
           currentLabRules: {
             id: versionId,
             humanRevision: '2026-09',
@@ -147,6 +148,53 @@ describe('controlled visitor enrollment', () => {
     expect(await screen.findByText('Kiosk screen')).toBeInTheDocument();
   });
 
+  it('skips the Lab Rules step when the Visitor role does not ask for them', async () => {
+    let submission: VisitorEnrollmentSubmission | undefined;
+    server.use(
+      http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
+      http.get('*/api/v1/visitor-enrollment/state', () =>
+        HttpResponse.json({
+          allowedMethods: ['pin'],
+          capabilities: [],
+          labRulesRequired: false,
+          currentLabRules: { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' },
+          expiresAt: '2026-09-20T12:15:00Z',
+        }),
+      ),
+      http.post('*/api/v1/visitor-enrollment/submissions', async ({ request }) => {
+        submission = (await request.json()) as VisitorEnrollmentSubmission;
+        return HttpResponse.json(
+          {
+            personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
+            accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
+            accountStatus: 'enabled',
+            invitationDelivery: null,
+            admission: 'admitted',
+            attendance: 'checked_in',
+          },
+          { status: 201 },
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderKioskAware();
+
+    expect(await screen.findByText('Visitor enrollment · Step 1 of 2')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('First name'), 'New');
+    await user.type(screen.getByLabelText('Last name'), 'Visitor');
+    await user.type(screen.getByLabelText('Email'), 'new.visitor@example.test');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByRole('heading', { name: 'Sign-in method' })).toBeInTheDocument();
+    await user.type(screen.getByLabelText('PIN login username'), 'Visitor.One');
+    await user.type(screen.getByLabelText('PIN (6–12 digits)'), '654321');
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Submit enrollment' }));
+
+    expect(await screen.findByRole('heading', { name: 'New, your account is ready.' })).toBeInTheDocument();
+    expect(screen.queryByText(/Lab Rules/)).not.toBeInTheDocument();
+    expect(submission).toMatchObject({ labRulesAccepted: false });
+  });
+
   it('offers the email invitation only with an email address and goes back to the kiosk', async () => {
     server.use(
       http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
@@ -154,6 +202,7 @@ describe('controlled visitor enrollment', () => {
         HttpResponse.json({
           allowedMethods: ['password', 'pin'],
           capabilities: ['camera', 'file_upload'],
+          labRulesRequired: true,
           currentLabRules: { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' },
           expiresAt: '2026-09-20T12:15:00Z',
         }),
@@ -182,6 +231,7 @@ describe('controlled visitor enrollment', () => {
         HttpResponse.json({
           allowedMethods: ['pin'],
           capabilities: ['nfc'],
+          labRulesRequired: true,
           currentLabRules: { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' },
           expiresAt: '2026-09-20T12:15:00Z',
         }),
@@ -229,6 +279,7 @@ describe('controlled visitor enrollment', () => {
         HttpResponse.json({
           allowedMethods: ['pin'],
           capabilities: ['nfc'],
+          labRulesRequired: true,
           currentLabRules: revision,
           expiresAt: '2026-09-20T12:15:00Z',
         }),
@@ -286,6 +337,7 @@ describe('controlled visitor enrollment', () => {
           HttpResponse.json({
             allowedMethods: ['pin'],
             capabilities: ['camera', 'file_upload'],
+            labRulesRequired: true,
             currentLabRules: null,
             expiresAt: '2026-09-20T12:15:00Z',
           }),

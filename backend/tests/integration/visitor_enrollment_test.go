@@ -519,6 +519,13 @@ func TestVisitorEnrollmentChecksTheVisitorIn(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			state, err := service.State(ctx, enrollment)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.LabRulesRequired != (mode != "not_required") || state.CurrentLabRules == nil {
+				t.Fatalf("state=%#v for mode %s: the kiosk asks for the Lab Rules only when enrollment records the confirmation", state, mode)
+			}
 			email, login, pin := "arriving@example.test", "arriving.visitor", "654321"
 			if mode != "not_required" {
 				_, err = service.Submit(ctx, enrollment, visitor.SubmissionInput{

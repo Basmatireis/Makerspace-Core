@@ -10,6 +10,7 @@ export type EnrollmentOutcome = {
   method: 'password' | 'pin';
   email: string;
   loginName: string;
+  labRulesConfirmed: boolean;
 };
 
 // Shown after the submission; returns to the kiosk on its own.
@@ -30,7 +31,10 @@ export function EnrollmentDone({ outcome, onDone }: { outcome: EnrollmentOutcome
       <div className="visitor-done__grid">
         <div className="visitor-done__column">
           <h2 className="visitor-done__heading">You are checked in</h2>
-          <p className="visitor-done__lead">You confirmed the Lab Rules and are checked in. Have fun in the lab.</p>
+          <p className="visitor-done__lead">
+            {outcome.labRulesConfirmed ? 'You confirmed the Lab Rules and are checked in.' : 'You are checked in.'} Have
+            fun in the lab.
+          </p>
         </div>
         <div className="visitor-done__column">
           <h2 className="visitor-done__heading">How you sign in</h2>

@@ -27,5 +27,7 @@ export interface VisitorEnrollmentState {
   /** Effective capabilities of the enrolling device. A profile photo is required exactly when this includes camera or file_upload. */
   capabilities: DeviceCapability[];
   currentLabRules: VisitorLabRulesVersion | null;
+  /** Whether the Visitor role asks for the Lab Rules. Only then does the kiosk show them and does enrollment record the confirmation. */
+  labRulesRequired: boolean;
   expiresAt: string;
 }

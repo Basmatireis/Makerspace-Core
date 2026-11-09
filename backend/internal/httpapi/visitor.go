@@ -90,9 +90,10 @@ func (s *Server) GetVisitorEnrollmentState(
 		capabilities[index] = openapi.DeviceCapability(capability)
 	}
 	result := openapi.VisitorEnrollmentState{
-		AllowedMethods: methods,
-		Capabilities:   capabilities,
-		ExpiresAt:      state.ExpiresAt,
+		AllowedMethods:   methods,
+		Capabilities:     capabilities,
+		LabRulesRequired: state.LabRulesRequired,
+		ExpiresAt:        state.ExpiresAt,
 	}
 	if state.CurrentLabRules == nil {
 		result.CurrentLabRules = nullable.NewNullNullable[openapi.VisitorLabRulesVersion]()

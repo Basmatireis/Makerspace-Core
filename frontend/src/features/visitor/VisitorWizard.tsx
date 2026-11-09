@@ -34,14 +34,15 @@ import './visitor.scss';
 
 const idleSeconds = 30;
 const graceSeconds = 30;
-const stepTitles = ['About you', 'Sign-in method', 'Lab Rules'] as const;
+const allStepTitles = ['About you', 'Sign-in method', 'Lab Rules'] as const;
 const pinPattern = /^[0-9]{6,12}$/;
 const loginNamePattern = /^[A-Za-z0-9._-]{3,64}$/;
 const emailPattern = /^\S+@\S+\.\S+$/;
 
 type EnrollmentState = Awaited<ReturnType<typeof getVisitorEnrollmentState>>;
 
-// Three steps that fit one tablet screen. All entries live only in this component: leaving the page (back, Done or
+// Three steps that fit one tablet screen; the Lab Rules step only when the Visitor role asks for them, because only
+// then does enrollment record the confirmation. All entries live only in this component: leaving the page (back, Done or
 // inactivity) unmounts it, which releases the camera and discards everything.
 function BrandLockup() {
   const branding = useBranding();
@@ -60,6 +61,8 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const queryClient = useQueryClient();
   const heading = useRef<HTMLHeadingElement>(null);
   const [step, setStep] = useState(0);
+  const stepTitles = state.labRulesRequired ? allStepTitles : allStepTitles.slice(0, 2);
+  const lastStep = stepTitles.length - 1;
   const [rulesOpen, setRulesOpen] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -110,7 +113,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!valid[step] || mutation.isPending) return;
-    if (step < 2) {
+    if (step < lastStep) {
       setStep(step + 1);
       return;
     }
@@ -127,7 +130,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
         pin: method === 'pin' ? pin : null,
         profileImageBase64: image?.base64 ?? null,
         profileImageFilename: image?.filename ?? null,
-        labRulesAccepted: ready,
+        labRulesAccepted: state.labRulesRequired && ready,
       });
       setOutcome({
         firstName: firstName.trim(),
@@ -135,6 +138,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
         method,
         email: email.trim(),
         loginName: loginName.trim(),
+        labRulesConfirmed: state.labRulesRequired,
       });
       setPIN('');
       setImage(undefined);
@@ -375,10 +379,10 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
           <Button
             type="submit"
             size="xl"
-            renderIcon={step < 2 ? ArrowRight : undefined}
+            renderIcon={step < lastStep ? ArrowRight : undefined}
             disabled={!valid[step] || mutation.isPending}
           >
-            {step < 2 ? 'Next' : mutation.isPending ? 'Submitting…' : 'Submit enrollment'}
+            {step < lastStep ? 'Next' : mutation.isPending ? 'Submitting…' : 'Submit enrollment'}
           </Button>
         </footer>
       </Form>
