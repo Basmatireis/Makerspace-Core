@@ -20,5 +20,5 @@
  */
 
 export type ListPrinterConnectorEventsParams = {
-includeCleared?: boolean;
+  includeCleared?: boolean;
 };

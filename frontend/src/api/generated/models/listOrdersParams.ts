@@ -20,23 +20,21 @@
  */
 
 export type ListOrdersParams = {
-/**
- * @minimum 1
- * @maximum 2147483647
- */
-page?: number;
-/**
- * @minimum 1
- * @maximum 100
- */
-pageSize?: number;
-/**
- * Case-insensitive substring match on the order reference, the customer name captured with the order and the reference of the order it replaces.
- * @maxLength 200
- */
-search?: string;
-/**
- * @maxLength 200
- */
-status?: string;
+  /**
+   * @minimum 1
+   * @maximum 2147483647
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: number;
+  /**
+   * Case-insensitive substring match on the order reference, the customer name captured with the order and the reference of the order it replaces.
+   * @maxLength 200
+   */
+  search?: string;
+  /** @maxLength 200 */
+  status?: string;
 };

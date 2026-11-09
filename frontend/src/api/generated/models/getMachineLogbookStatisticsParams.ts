@@ -20,6 +20,6 @@
  */
 
 export type GetMachineLogbookStatisticsParams = {
-from: string;
-to: string;
+  from: string;
+  to: string;
 };

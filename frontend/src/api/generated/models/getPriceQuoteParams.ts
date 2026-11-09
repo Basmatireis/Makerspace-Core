@@ -22,17 +22,11 @@ import type { Decimal } from './decimal';
 import type { UUIDv7 } from './uUIDv7';
 
 export type GetPriceQuoteParams = {
-machineId?: UUIDv7;
-/**
- * Runtime in hours; requires machineId.
- */
-hours?: Decimal;
-/**
- * Inventory article.
- */
-materialId?: UUIDv7;
-/**
- * Quantity in the article's unit; requires materialId.
- */
-quantity?: Decimal;
+  machineId?: UUIDv7;
+  /** Runtime in hours; requires machineId. */
+  hours?: Decimal;
+  /** Inventory article. */
+  materialId?: UUIDv7;
+  /** Quantity in the article's unit; requires materialId. */
+  quantity?: Decimal;
 };

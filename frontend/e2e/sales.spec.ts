@@ -54,7 +54,7 @@ test.describe('sales and payments', () => {
     await page.goto('/orders');
     const row = page.getByRole('row').filter({ hasText: 'O-2026-000105' });
     await row.locator('.cds--overflow-menu').click();
-    await expect(page.getByRole('menuitem', { name: 'Edit customer and hand-over' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Edit customer' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Cancel draft' })).toBeVisible();
     await page.keyboard.press('Escape');
     await page.goto(`/orders/${salesIds.draft}`);

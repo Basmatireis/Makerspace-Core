@@ -75,6 +75,12 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
       .click();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
 
+    // Custom roles start without web access; members of this role sign in to the web app below.
+    await page
+      .getByRole('button', { name: 'Set Sign in to the web app for E2E workshop supervisors to Unconditional' })
+      .click();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+
     await page.getByRole('button', { name: 'Review and save' }).click();
     const permissionReview = page.getByRole('dialog', {
       name: 'Review permission changes for E2E workshop supervisors',
@@ -169,6 +175,17 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByRole('button', { name: 'Create person' }).click();
     await expect(page).toHaveURL(/\/people\/[0-9a-f-]+$/);
     phoneOnlyPersonPath = new URL(page.url()).pathname;
+
+    // A Visitor alone may not sign in to the web app; the custom role grants web.sign_in.
+    await page.getByRole('button', { name: 'Actions', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Manage roles' }).click();
+    const phoneOnlyRoleDialog = page.getByRole('dialog');
+    await phoneOnlyRoleDialog.getByText('Choose a role').click();
+    await page.getByRole('option', { name: 'E2E workshop supervisors' }).click();
+    await phoneOnlyRoleDialog.getByRole('button', { name: 'Assign role' }).click();
+    await expect(
+      page.getByLabel('Assigned roles').getByText('E2E workshop supervisors', { exact: true }),
+    ).toBeVisible();
 
     await page.getByRole('button', { name: 'Actions', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Create account' }).click();

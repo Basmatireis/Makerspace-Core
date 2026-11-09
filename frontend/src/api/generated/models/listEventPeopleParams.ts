@@ -20,8 +20,6 @@
  */
 
 export type ListEventPeopleParams = {
-/**
- * @maxLength 200
- */
-search?: string;
+  /** @maxLength 200 */
+  search?: string;
 };

@@ -25,38 +25,38 @@ import type { PeopleLaborordnungStatusFilter } from './peopleLaborordnungStatusF
 import type { UUIDv7 } from './uUIDv7';
 
 export type ListPeopleParams = {
-/**
- * One-based result page.
- * @minimum 1
- */
-page?: PageParameter;
-/**
- * Maximum records to return per page.
- * @minimum 1
- * @maximum 100
- */
-pageSize?: PageSizeParameter;
-/**
- * Case-insensitive substring match on first name, last name, the full name in either order (first and last, or last and first), email and phone. Matriculation numbers are matched only when the caller holds `people.read.matriculation`.
- * @maxLength 200
- */
-search?: string;
-/**
- * Return people assigned to at least one of these roles. Role membership
- * is Person data and is available with `people.read.all`.
- * @maxItems 50
- */
-roleIds?: UUIDv7[];
-/**
- * Return people matching at least one account lifecycle category. Supplying
- * this filter requires `accounts.read`.
- * @maxItems 3
- */
-accountStatuses?: PeopleAccountStatusFilter[];
-/**
- * Return people matching at least one permission-gated Lab Rules presentation
- * status. Supplying this filter requires `laborordnung.confirmations.read`.
- * @maxItems 5
- */
-laborordnungStatuses?: PeopleLaborordnungStatusFilter[];
+  /**
+   * One-based result page.
+   * @minimum 1
+   */
+  page?: PageParameter;
+  /**
+   * Maximum records to return per page.
+   * @minimum 1
+   * @maximum 100
+   */
+  pageSize?: PageSizeParameter;
+  /**
+   * Case-insensitive substring match on first name, last name, the full name in either order (first and last, or last and first), email and phone. Matriculation numbers are matched only when the caller holds `people.read.matriculation`.
+   * @maxLength 200
+   */
+  search?: string;
+  /**
+   * Return people assigned to at least one of these roles. Role membership
+   * is Person data and is available with `people.read.all`.
+   * @maxItems 50
+   */
+  roleIds?: UUIDv7[];
+  /**
+   * Return people matching at least one account lifecycle category. Supplying
+   * this filter requires `accounts.read`.
+   * @maxItems 3
+   */
+  accountStatuses?: PeopleAccountStatusFilter[];
+  /**
+   * Return people matching at least one permission-gated Lab Rules presentation
+   * status. Supplying this filter requires `laborordnung.confirmations.read`.
+   * @maxItems 5
+   */
+  laborordnungStatuses?: PeopleLaborordnungStatusFilter[];
 };
