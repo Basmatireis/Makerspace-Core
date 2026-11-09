@@ -74,7 +74,7 @@ The inventory is enforced by tests in `backend/internal/privacycatalog/catalog_t
 - `TestEveryPersonalDataColumnBelongsToACategory` proves that every known personal-data column and every foreign key to people belongs to exactly one category, and that no field is claimed twice.
 - `TestLegacyDefaultsMatchTheRoutinesTheyReplace` checks each legacy default against the routine it describes.
 
-Adding a column that holds personal data without declaring it fails the build's tests.
+Adding a column that holds personal data without declaring it fails the build's tests. The staging anonymizer (see [Staging copy of production data](operations.md#staging-copy-of-production-data)) has its own schema-wide coverage test and refuses to keep a column declared here unless the exception is documented.
 
 ## Registry status
 

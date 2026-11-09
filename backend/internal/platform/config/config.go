@@ -326,6 +326,12 @@ func prefixListEnv(name string) ([]netip.Prefix, error) {
 	return prefixes, nil
 }
 
+// PublicBaseURLIsLoopback reports whether the installation is only reachable on this machine, as development
+// and the tunnelled staging stack are; production never is.
+func (c Config) PublicBaseURLIsLoopback() bool {
+	return c.PublicBaseURL != nil && isLoopbackHost(c.PublicBaseURL.Hostname())
+}
+
 func (c Config) ValidateDatabase() error {
 	if c.DatabaseURL == "" {
 		return errors.New("DATABASE_URL is required")

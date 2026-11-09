@@ -228,6 +228,27 @@ docker compose down
 
 Do not add `--volumes` unless deliberate, irreversible database deletion is intended. The expected load is a handful of concurrent users: run one backend process with its conservative pgx pool. Domains, certificates, reverse-proxy products, backup infrastructure, and any external OTLP collector remain site-specific responsibilities.
 
+## Staging copy of production data
+
+A staging installation may hold a copy of production only after `admin anonymize-for-staging` has run on it. The command rewrites the whole database it is pointed at in one transaction and refuses to start unless `--confirm-irreversible-anonymization` is given and `PUBLIC_BASE_URL` is a loopback origin (production always serves a public one). Run it against a throwaway copy, never against a database a running installation uses; it needs to own the tables (or be a superuser) because the immutability triggers of booked records are switched off while their free text is rewritten.
+
+```sh
+DATABASE_URL=postgres://…/copy PUBLIC_BASE_URL=http://localhost:8080 admin anonymize-for-staging --confirm-irreversible-anonymization
+```
+
+What happens:
+
+- **People** get a fake first and last name chosen by their ID (the same person gets the same name on every refresh) and an email `first.last.<tag>@example.invalid`; phone, matriculation number, photo reference and profile image are cleared. Login identities follow the new email. Order and invoice snapshots, contacts and external event sign-ups get fake names and addresses too.
+- **Credentials and tokens** are deleted: passwords, PINs and their identities, passkeys, TOTP secrets, recovery codes, sessions, reset tokens, pending sign-ins, calendar feed links, visitor enrollment contexts, survey links, connector enrollments and credentials, signage pairing requests. Device tokens are replaced by random digests, so devices, printer connectors and signage displays stay listed but must be paired again with staging.
+- **Production's identity provider and secrets**: OIDC providers, SCIM connectors and their users are deleted; the SMTP password and the printers' stored access codes, encrypted with production's `APP_ENCRYPTION_KEYS`, are cleared. Mail goes to staging's Mailpit (`mailpit:1025`, no TLS, sender `makerspace-staging@example.invalid`) and the wiRef recipient becomes `wiref@example.invalid`.
+- **Free text written about people** is cleared or replaced by a neutral text: notes and reasons on jobs, runs, spools, inventory, visits, trainings, Lab Rules confirmations, open days, excusals, payments, cash records, invoice requests and order lines, job titles, event task titles, survey free-text answers and run file names. Catalog content stays: machines, materials, trainings, events' public texts, signage, branding, privacy texts and notification rules.
+- **History** is deleted: the audit log (one event records the anonymization), notifications and their deliveries, inbox, printer live status, connector activity and discovery, data subject requests. Printer event payloads, print file metadata and printer error contexts are cleared.
+- **Files**: blobs are never copied. Files that belong to people (profile images, event attachments, subject request exports) are deleted with their rows; system files (Lab Rules PDFs, print files and previews, timelapses, signage assets, branding) keep their metadata under a neutral name, so their downloads and previews fail on staging.
+
+Every table and every column that can hold text is classified in `backend/internal/staginganonymizer/treatments.go`. `TestStagingAnonymizerCoversEverySchemaColumn` fails when a migration adds a table or a text column that is not classified there, and a unit test refuses to keep a column the privacy registry declares as personal unless the exception is listed with its reason.
+
+Afterwards nobody can sign in. The command prints the login emails of every master (a master who used only OIDC or a PIN gets a password identity); give one of them a password with the interactive `admin reset-password`. The infra repository's `refresh-staging-data` job runs the whole refresh on the VM.
+
 ## Failure and rollback
 
 Application rollback is safe only while its binary remains compatible with the migrated schema. Prefer forward fixes for data-bearing migrations. For production, restore `compose.yaml` from the previous immutable release bundle and run `docker compose up -d`; backend startup only applies missing forward migrations and never silently downgrades the schema. Revert a production migration only after reviewing its Down section and confirming that losing new schema/data is acceptable. `make migrate-down` remains the development-stack helper for deliberate manual work from a repository checkout.

@@ -19,6 +19,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/staginganonymizer"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/google/uuid"
@@ -35,7 +36,7 @@ func main() {
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
 		return errors.New(
-			"usage: admin <bootstrap-master|recover-master|reset-password|cleanup|deliver-surveys|verify-files|reencrypt-oidc-secrets|migrate-files-local-to-s3>",
+			"usage: admin <bootstrap-master|recover-master|reset-password|cleanup|deliver-surveys|verify-files|reencrypt-oidc-secrets|migrate-files-local-to-s3|anonymize-for-staging>",
 		)
 	}
 	if args[0] == "reset-password" && len(args) != 1 {
@@ -47,6 +48,11 @@ func run(ctx context.Context, args []string) error {
 	}
 	if err := cfg.ValidateDatabase(); err != nil {
 		return err
+	}
+	if args[0] == "anonymize-for-staging" {
+		if err := checkAnonymizeForStaging(args[1:], cfg); err != nil {
+			return err
+		}
 	}
 	pool, err := database.Open(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -234,9 +240,44 @@ func run(ctx context.Context, args []string) error {
 		}
 		fmt.Printf("copied_and_verified files=%d\n", count)
 		return nil
+	case "anonymize-for-staging":
+		result, err := staginganonymizer.NewService(pool).Anonymize(ctx, cfg.PublicBaseURL.String())
+		if err != nil {
+			return err
+		}
+		fmt.Printf("anonymized for staging; deleted personal files=%d\n", result.DeletedFiles)
+		fmt.Println("nobody can sign in until a master gets a password with `admin reset-password`; master login emails:")
+		for _, email := range result.MasterLoginEmails {
+			fmt.Println("  " + email)
+		}
+		return nil
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
 	}
+}
+
+// anonymizeConfirmationFlag must be spelled out because the command irreversibly rewrites every person,
+// credential and free text in the database it is pointed at.
+const anonymizeConfirmationFlag = "confirm-irreversible-anonymization"
+
+// checkAnonymizeForStaging runs before the database is opened. Production serves a public origin, so a
+// non-loopback PUBLIC_BASE_URL means this is not a staging copy.
+func checkAnonymizeForStaging(args []string, cfg config.Config) error {
+	flags := flag.NewFlagSet("anonymize-for-staging", flag.ContinueOnError)
+	confirmed := flags.Bool(anonymizeConfirmationFlag, false, "confirm that this database is a copy to anonymize")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("anonymize-for-staging accepts only --" + anonymizeConfirmationFlag)
+	}
+	if !*confirmed {
+		return errors.New("anonymize-for-staging rewrites the whole database; pass --" + anonymizeConfirmationFlag)
+	}
+	if !cfg.PublicBaseURLIsLoopback() {
+		return errors.New("anonymize-for-staging refuses to run: PUBLIC_BASE_URL is not a loopback origin, so this looks like production")
+	}
+	return nil
 }
 
 func promptBootstrap() (admin.BootstrapInput, error) {

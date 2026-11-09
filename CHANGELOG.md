@@ -22,6 +22,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **New triggers** for visits, sales and accounts.
 - **Check-out surveys at the tablet.** When a person checks out at the tablet and a survey is due, the tablet offers it: answer now, get it by e-mail, no thanks, or don't ask again. Surveys have a new delivery option "Ask at the tablet".
 - **Device settings.** Devices are set up with "Used as", tap check-out as an extra option, surveys at check-out and a kiosk reset time.
+- **Anonymized staging data.** `admin anonymize-for-staging --confirm-irreversible-anonymization` turns a copy of the production database into data a staging installation may hold: stable fake names and `@example.invalid` addresses, no credentials, tokens, personal free text, personal files or audit log, mail pointed at Mailpit. It refuses to run unless `PUBLIC_BASE_URL` is a loopback origin. A schema-wide test fails when a new table or text column is not classified. See `docs/operations.md`.
 
 ### Removed
 
