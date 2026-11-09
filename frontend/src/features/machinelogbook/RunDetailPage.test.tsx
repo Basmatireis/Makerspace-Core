@@ -97,7 +97,7 @@ describe('Run detail page', () => {
     serveRun(recordedRun());
     renderRun();
     expect(await screen.findByRole('heading', { name: /Gearbox housing v3/ })).toBeInTheDocument();
-    expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('42 g PLA Black');
+    expect(screen.queryByText('Reported material')).not.toBeInTheDocument();
     expect(screen.getByText('Runtime').nextSibling).toHaveTextContent('1 h 0 min');
     // The machine reported the outcome, so the label says so.
     expect(screen.getByText('Outcome').nextSibling).toHaveTextContent('Successful');
@@ -138,7 +138,6 @@ describe('Run detail page', () => {
     expect(screen.getByText(/45 % · ends ~/)).toBeInTheDocument();
     expect(screen.getByText('Outcome').nextSibling).toHaveTextContent('Not recorded yet');
     expect(screen.getByText('Material', { selector: 'dt' }).nextSibling).toHaveTextContent('Pending final report');
-    expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('Pending final report');
     expect(screen.getByText(/Mounted spools describe the printer setup/)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Claim' }).length).toBeGreaterThan(0);
   });
@@ -214,7 +213,7 @@ describe('Run detail page', () => {
     serveRun({ ...runningRecorded(), reportedUsageItems: undefined } as unknown as ReturnType<typeof recordedRun>);
     renderRun();
     expect(await screen.findByText('Run in progress')).toBeInTheDocument();
-    expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('Pending final report');
+    expect(screen.getByText('No material recorded.')).toBeInTheDocument();
   });
 
   it('shows a display-only live filament estimate from the parsed artifact', async () => {
@@ -629,17 +628,19 @@ describe('Run detail · spool segments', () => {
       ...overrides,
     });
 
-  it('lists the spools of a line, flags the unresolved one and announces the material change', async () => {
+  it('lists the part no spool fed in the material usage table and announces the material change', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit, PermissionId.inventoryread];
     serveRun(segmented());
     renderRun();
     expect(await screen.findByText('Material changed during the print')).toBeInTheDocument();
-    expect(screen.getByText(/Unit 0 · Slot 2 · fed by 3 spools/)).toBeInTheDocument();
-    expect(screen.getByText(/PLA Black · 40 g · from layer 0/)).toBeInTheDocument();
-    expect(screen.getByText(/PLA Blue · 20 g · from layer 120 · estimated by progress/)).toBeInTheDocument();
-    expect(screen.getByText('No spool')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Map filament/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Book Unit 0 · Slot 2 part 3 on a spool' })).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Material usage' });
+    expect(within(table).getByText('PLA Black')).toBeInTheDocument();
+    expect(within(table).getByText('PLA Blue')).toBeInTheDocument();
+    const open = within(table).getByText('Unit 0 · Slot 2 part 3').closest('tr')!;
+    expect(within(open).getByText('No spool')).toBeInTheDocument();
+    expect(within(open).getByText(/Reported by the machine · from /)).toBeInTheDocument();
+    expect(within(open).getByRole('button', { name: 'Map Unit 0 · Slot 2 part 3' })).toBeInTheDocument();
+    expect(screen.queryByText('Reported material')).not.toBeInTheDocument();
   });
 
   it('shows no notice and no booking button for a run without a material change', async () => {
@@ -648,6 +649,6 @@ describe('Run detail · spool segments', () => {
     renderRun();
     expect(await screen.findByText('No spool')).toBeInTheDocument();
     expect(screen.queryByText('Material changed during the print')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /on a spool/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Map / })).not.toBeInTheDocument();
   });
 });

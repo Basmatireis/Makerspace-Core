@@ -508,19 +508,16 @@
   font-weight: 600;
 }
 
+// Material, optional spool and quantity in one line; labels on top, so helper and error texts hang below.
 .jobs-usage__line {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 12rem);
   gap: $spacing-05;
-  align-items: end;
+  align-items: start;
 }
 
 .jobs-usage__line--spool {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-}
-
-.jobs-usage__line--quantity {
-  grid-template-columns: minmax(10rem, 14rem);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(8rem, 12rem);
 }
 
 .jobs-usage__field {
@@ -552,26 +549,10 @@
   background: repeating-linear-gradient(135deg, transparent 0 3px, theme.$border-strong-01 3px 4px);
 }
 
-.jobs-usage__area {
-  display: grid;
-  grid-template-columns: minmax(5rem, 8rem) minmax(5rem, 8rem) minmax(4rem, 6rem) minmax(0, 1fr);
-  gap: $spacing-04;
-  align-items: end;
-}
-
-.jobs-usage__area-note {
-  align-self: center;
-  margin-block-start: $spacing-05;
-}
-
 @media (max-width: 41.98rem) {
-  .jobs-usage__line--spool,
-  .jobs-usage__line--quantity {
+  .jobs-usage__line,
+  .jobs-usage__line--spool {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .jobs-usage__area {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 

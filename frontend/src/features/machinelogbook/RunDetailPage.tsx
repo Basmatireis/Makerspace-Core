@@ -34,7 +34,6 @@ import { ClaimRunModal } from './jobs/ClaimRunModal';
 import { MediaCard } from './jobs/MediaCard';
 import { MaterialUsageTable } from './components/MaterialUsageTable';
 import { SwitchToCustomerMaterialModal } from './jobs/SwitchToCustomerMaterialModal';
-import { ReportedSegments } from './jobs/ReportedSegments';
 import { useUpdateJobFacts } from './jobs/jobsQueries';
 import { RunFileUpload, UploadMismatchNotice } from './recording/RunFileUpload';
 import { ResolveReportedUsageModal } from './dialogs/ResolveReportedUsageModal';
@@ -50,7 +49,6 @@ import { QueryBoundary } from './shared/QueryBoundary';
 import {
   FromMachineTag,
   isRunLive,
-  reportedUsageText,
   RunOutcomeTag,
   runEnd,
   runName,
@@ -163,12 +161,6 @@ export function RunDetailPage() {
   const progress = run ? runProgress(run, now) : 0;
   const consumedMaterial =
     run && live && run.usages.length === 0 ? 'Pending final report' : run ? runConsumptionText(run) : '';
-  const reportedMaterial =
-    run && live && run.reportedUsage == null && (run.reportedUsageItems?.length ?? 0) === 0
-      ? 'Pending final report'
-      : run
-        ? reportedUsageText(run)
-        : '';
   const unresolvedMaterials = run ? unresolvedReportedUsageItems(run) : [];
   const plannedFilaments =
     artifact.data?.filaments.filter(
@@ -384,35 +376,6 @@ export function RunDetailPage() {
                     { label: 'Source', value: run.source === 'recorded' ? 'Recorded' : 'Manual' },
                     { label: 'Started', value: formatDateTime(run.startedAt) },
                     { label: run.endedAt ? 'Ended' : 'Estimated end', value: end ? formatDateTime(end) : '—' },
-                    ...(run.source === 'recorded'
-                      ? [
-                          {
-                            label: 'Reported material',
-                            value: reportedMaterial,
-                            note: (
-                              <>
-                                <ReportedSegments
-                                  run={run}
-                                  onMap={
-                                    !live &&
-                                    canEdit &&
-                                    can(PermissionId.inventoryread) &&
-                                    !run.usages.some((usage) => usage.staffCorrected)
-                                      ? (item, segment) =>
-                                          setResolutionSegment({
-                                            ...item,
-                                            plannedQuantityGrams: null,
-                                            estimatedQuantityGrams: segment.estimatedQuantityGrams ?? null,
-                                            segments: [],
-                                          })
-                                      : undefined
-                                  }
-                                />
-                              </>
-                            ),
-                          },
-                        ]
-                      : []),
                   ]}
                 />
                 <MaterialUsageTable
@@ -422,6 +385,20 @@ export function RunDetailPage() {
                   onMap={
                     !live && canEditUsage && can(PermissionId.inventoryread)
                       ? (_run, item) => setResolutionLine(item.lineNumber)
+                      : undefined
+                  }
+                  onMapSegment={
+                    !live &&
+                    canEdit &&
+                    can(PermissionId.inventoryread) &&
+                    !run.usages.some((usage) => usage.staffCorrected)
+                      ? (_run, item, segment) =>
+                          setResolutionSegment({
+                            ...item,
+                            plannedQuantityGrams: null,
+                            estimatedQuantityGrams: segment.estimatedQuantityGrams ?? null,
+                            segments: [],
+                          })
                       : undefined
                   }
                 />
