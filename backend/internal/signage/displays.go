@@ -228,6 +228,12 @@ func (s *Service) buildManifests(
 		if err != nil {
 			return nil, err
 		}
+		visible := make([]Block, 0, len(scene.Blocks))
+		for _, block := range scene.Blocks {
+			if !block.Hidden {
+				visible = append(visible, block)
+			}
+		}
 		published := ManifestScene{
 			ID:                scene.ID,
 			Name:              scene.Name,
@@ -239,7 +245,7 @@ func (s *Service) buildManifests(
 			Theme:             scene.Theme,
 			FontFamily:        scene.FontFamily,
 			FontAssetID:       scene.FontAssetID,
-			Blocks:            scene.Blocks,
+			Blocks:            visible,
 			Version:           scene.Version,
 		}
 		ids, err := sceneAssetIDs(published)

@@ -286,10 +286,10 @@ BEGIN
     RETURN jsonb_build_object(
         'id', block_id,
         'name', block_name,
-        'x', signage_00129_clamp((zone ->> 'x')::integer, -8000, 8000),
-        'y', signage_00129_clamp((zone ->> 'y')::integer, -8000, 8000),
-        'w', signage_00129_clamp((zone ->> 'w')::integer, 8, 8000),
-        'h', signage_00129_clamp((zone ->> 'h')::integer, 8, 8000),
+        'x', signage_00129_clamp((zone ->> 'x')::integer, -120000, 120000),
+        'y', signage_00129_clamp((zone ->> 'y')::integer, -120000, 120000),
+        'w', signage_00129_clamp((zone ->> 'w')::integer, 8, 120000),
+        'h', signage_00129_clamp((zone ->> 'h')::integer, 8, 120000),
         'hidden', false,
         'locked', false,
         'widget', widget,
@@ -404,6 +404,8 @@ ALTER TABLE signage_scenes DROP COLUMN custom_layout_id, DROP COLUMN layout_id, 
 DROP TABLE signage_custom_layouts;
 
 -- +goose Down
+-- After a rollback every display and display group must be republished: stored publications are in the
+-- block (v4) manifest shape and are not converted back.
 -- Lossy: layouts and block styles cannot be restored. Every scene gets the full-screen layout showing the widget of
 -- its first visible block that is not empty (in the older widget shape, without a style), or an empty one. The
 -- custom layouts table comes back empty.

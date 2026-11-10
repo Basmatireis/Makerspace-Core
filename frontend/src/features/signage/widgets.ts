@@ -35,9 +35,9 @@ export const WIDGET_TYPES = Object.keys(WIDGET_LABELS) as WidgetType[];
 export const LIMITS = {
   blocks: 40,
   blockName: 60,
-  blockCoordinate: 8000,
+  blockCoordinate: 120000,
   blockMinExtent: 8,
-  blockMaxExtent: 8000,
+  blockMaxExtent: 120000,
   text: 20000,
   css: 20000,
   fonts: 10,

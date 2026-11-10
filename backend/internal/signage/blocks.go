@@ -24,9 +24,9 @@ const (
 	// thousands of characters each.
 	maxBlocksJSONBytes = 1 << 20
 	maxBlockNameRunes  = 60
-	maxBlockCoordinate = 8000
+	maxBlockCoordinate = 120000
 	minBlockExtent     = 8
-	maxBlockExtent     = 8000
+	maxBlockExtent     = 120000
 
 	maxBlockBorderWidth   = 40
 	maxBlockLength        = 400

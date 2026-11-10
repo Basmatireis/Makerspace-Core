@@ -78,7 +78,7 @@ describe('snapMove', () => {
     expect(snapMove({ x: 12.4, y: 7.6, w: 50, h: 50 }, NO_TARGETS, 6, 0).rect).toMatchObject({ x: 12, y: 8 });
   });
   it('clamps to the API limits', () => {
-    expect(snapMove({ x: 99999, y: -99999, w: 50, h: 50 }, NO_TARGETS, 6).rect).toMatchObject({ x: 8000, y: -8000 });
+    expect(snapMove({ x: 999999, y: -999999, w: 50, h: 50 }, NO_TARGETS, 6).rect).toMatchObject({ x: 120000, y: -120000 });
   });
 });
 
@@ -118,7 +118,7 @@ describe('snapResize', () => {
 
 describe('geometry helpers', () => {
   it('clampRect rounds and limits', () => {
-    expect(clampRect({ x: 1.5, y: -9000, w: 2, h: 9000.4 })).toEqual({ x: 2, y: -8000, w: 8, h: 8000 });
+    expect(clampRect({ x: 1.5, y: -9000, w: 2, h: 9000.4 })).toEqual({ x: 2, y: -9000, w: 8, h: 9000 });
   });
   it('boundsOf', () => {
     expect(boundsOf([])).toBeNull();

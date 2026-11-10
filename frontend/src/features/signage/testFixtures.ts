@@ -267,7 +267,6 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
     http.get('*/api/v1/signage/announcement-templates', () => HttpResponse.json({ items: templates })),
     http.get('*/api/v1/signage/announcements', () => HttpResponse.json({ items: announcements })),
     http.get('*/api/v1/signage/machines', () => HttpResponse.json({ items: machines })),
-    http.get('*/api/v1/signage/custom-layouts', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/signage/calendar', () => HttpResponse.json(calendar)),
     http.get('*/api/v1/signage/displays', () => HttpResponse.json({ items: displays })),
     http.get('*/api/v1/signage/displays/:id', ({ params }) => {

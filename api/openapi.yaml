@@ -23013,10 +23013,10 @@ components:
       properties:
         id: {type: string, pattern: "^[A-Za-z0-9_-]{1,40}$", description: Unique within the scene.}
         name: {type: string, minLength: 1, maxLength: 60}
-        x: {type: integer, minimum: -8000, maximum: 8000}
-        y: {type: integer, minimum: -8000, maximum: 8000}
-        w: {type: integer, minimum: 8, maximum: 8000}
-        h: {type: integer, minimum: 8, maximum: 8000}
+        x: {type: integer, minimum: -120000, maximum: 120000}
+        y: {type: integer, minimum: -120000, maximum: 120000}
+        w: {type: integer, minimum: 8, maximum: 120000}
+        h: {type: integer, minimum: 8, maximum: 120000}
         hidden: {type: boolean, description: Hidden blocks are not shown on displays.}
         locked: {type: boolean, description: Locked blocks cannot be moved in the editor; no effect on displays.}
         widget: {$ref: "#/components/schemas/SignageWidget"}

@@ -159,6 +159,11 @@ func TestSignageBlocksMigrationMatchesGoConversion(t *testing.T) {
 	}
 	// Zones outside the layout are ignored; an odd widget value renders empty.
 	insert(16, 9, "split", nil, `{"left":"oops","right":null,"ghost":{"type":"clock","mode":"time"}}`)
+	// A 100:1 screen is 108000 units wide: geometry must not be clamped to the old 8000 limit.
+	wide := ids.New()
+	exec(`INSERT INTO signage_scenes (id, name, aspect_width, aspect_height, layout_id, background_color, theme, zones, version)
+		VALUES ($1, 'wide', 100, 1, 'split', '#101820', 'dark', $2, 3)`,
+		wide, `{"left":{"type":"clock","mode":"time"},"right":{"type":"clock","mode":"time"}}`)
 	if next < len(widgets) {
 		t.Fatalf("only %d of %d widget fixtures used", next, len(widgets))
 	}
@@ -250,6 +255,14 @@ func TestSignageBlocksMigrationMatchesGoConversion(t *testing.T) {
 		if _, _, err := signage.ParseBlocks(stored); err != nil {
 			t.Fatalf("scene %s: converted blocks do not validate: %v\n%s", id, err, stored)
 		}
+	}
+	var wideRightX, wideRightW int
+	if err := pool.QueryRow(ctx, `SELECT (b ->> 'x')::int, (b ->> 'w')::int FROM signage_scenes, jsonb_array_elements(blocks) b
+		WHERE id = $1 AND b ->> 'id' = 'right'`, wide).Scan(&wideRightX, &wideRightW); err != nil {
+		t.Fatal(err)
+	}
+	if wideRightX != 54000 || wideRightW <= 8000 {
+		t.Fatalf("100:1 split right block at x=%d w=%d, want x=54000 and a width beyond the old limit", wideRightX, wideRightW)
 	}
 	var leftovers int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_proc WHERE proname LIKE 'signage_00129_%'`).Scan(&leftovers); err != nil ||

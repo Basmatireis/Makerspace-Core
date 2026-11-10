@@ -66,6 +66,15 @@ func (s *Service) DuplicateScene(
 	if err != nil {
 		return Scene{}, err
 	}
+	// The source may reference assets that were deleted or are being deleted since it was saved; verifying
+	// share-locks them so the copy cannot end up with a dangling reference.
+	_, refs, err := ParseBlocks(source.Blocks)
+	if err != nil {
+		return Scene{}, err
+	}
+	if err := s.verifyReferences(ctx, q, source.BackgroundAssetID, source.FontAssetID, refs); err != nil {
+		return Scene{}, err
+	}
 	names, err := q.ListSignageSceneNames(ctx)
 	if err != nil {
 		return Scene{}, err

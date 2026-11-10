@@ -36,23 +36,23 @@ export interface SignageBlock {
      */
   name: string;
   /**
-     * @minimum -8000
-     * @maximum 8000
+     * @minimum -120000
+     * @maximum 120000
      */
   x: number;
   /**
-     * @minimum -8000
-     * @maximum 8000
+     * @minimum -120000
+     * @maximum 120000
      */
   y: number;
   /**
      * @minimum 8
-     * @maximum 8000
+     * @maximum 120000
      */
   w: number;
   /**
      * @minimum 8
-     * @maximum 8000
+     * @maximum 120000
      */
   h: number;
   /** Hidden blocks are not shown on displays. */
