@@ -39,11 +39,14 @@
   padding: 0;
   border: 0;
 }
+// Carbon keeps a quarter of an accordion's width free for reading text; the form fields here use the whole pane.
+.sg-props .cds--accordion__content {
+  padding-inline-end: $spacing-05;
+}
 .sg-props__section {
   display: grid;
   gap: $spacing-05;
   min-inline-size: 0;
-  padding-inline-end: $spacing-05;
 }
 .sg-props__pair {
   display: grid;

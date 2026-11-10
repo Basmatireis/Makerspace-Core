@@ -39,6 +39,16 @@ textarea.sg-code {
   justify-content: space-between;
   gap: $spacing-04;
 }
+.sg-category-row .cds--form-item {
+  flex: 1 1 auto;
+  margin: 0;
+}
+// Without a label above it the swatch needs no offset, and a smaller one keeps the rows compact.
+.sg-category-row .app-color-picker {
+  inline-size: 2rem;
+  block-size: 2rem;
+  margin-block-start: 0;
+}
 .sg-form-row.sg-form-row--four {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
