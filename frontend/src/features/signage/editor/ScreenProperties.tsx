@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AccordionItem, RadioButton, RadioButtonGroup, Tag, Toggle } from '@carbon/react';
+import { AccordionItem, RadioButton, RadioButtonGroup, Tag, TextInput, Toggle } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { AspectRatioInput } from '../AspectRatioInput';
 import { ratioOfParts, ratioPartsError, ratioPartsOf, type RatioParts } from '../aspectFields';
@@ -27,7 +27,7 @@ const SHORTCUTS: [string, string][] = [
   ['Shift click', 'Add or remove a block from the selection'],
 ];
 
-/** Properties of the screen itself, shown while no block is selected. */
+/** Properties of the screen itself (name, shape, background, font), shown while no block is selected. */
 export function ScreenProperties({
   draft,
   canEdit,
@@ -67,6 +67,16 @@ export function ScreenProperties({
     <>
       <AccordionItem title="Screen" open>
         <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
+          <TextInput
+            id="sg-screen-name"
+            labelText="Screen name"
+            maxLength={100}
+            readOnly={!canEdit}
+            value={draft.name}
+            invalid={draft.name.trim() === ''}
+            invalidText="Give the screen a name"
+            onChange={(event) => patch({ name: event.target.value }, 'name')}
+          />
           <div
             role="presentation"
             onBlur={(event) => {

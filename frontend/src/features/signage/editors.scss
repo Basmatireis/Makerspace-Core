@@ -284,9 +284,12 @@ textarea.sg-code {
   border-block-end: 1px solid theme.$border-subtle-01;
   background: theme.$layer-01;
 }
-.sg-se__name {
-  flex: 0 1 22rem;
-  min-inline-size: 8rem;
+.sg-se__title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  @include type-style('heading-compact-02');
 }
 .sg-se__spacer {
   flex: 1 1 auto;

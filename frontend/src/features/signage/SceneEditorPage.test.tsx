@@ -120,6 +120,17 @@ describe('Screen editor', () => {
     expect(screen.getByText('Nothing selected')).toBeInTheDocument();
   });
 
+  it('clears the selection on a click around the screen', async () => {
+    mockSignage(editing);
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await user.click(await layer('header'));
+    expect(screen.getByRole('button', { name: 'header', pressed: true })).toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByRole('application', { name: 'Screen canvas' }), { button: 0 });
+    expect(screen.getByRole('button', { name: 'header', pressed: false })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Screen name' })).toBeInTheDocument();
+  });
+
   it('selects several blocks with Shift and aligns them with the group toolbar', async () => {
     mockSignage(editing, { scenes: [twoBlocks()] });
     renderRoute(<App />, editor);

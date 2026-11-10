@@ -1,15 +1,6 @@
 import './styles.scss';
 import { useEffect, useState } from 'react';
-import {
-  Button,
-  ContentSwitcher,
-  IconButton,
-  InlineLoading,
-  InlineNotification,
-  Switch,
-  TextInput,
-  Toggle,
-} from '@carbon/react';
+import { Button, ContentSwitcher, IconButton, InlineLoading, InlineNotification, Switch, Toggle } from '@carbon/react';
 import { ArrowLeft, Checkmark, Redo, Send, Undo, View, WarningFilled } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -279,19 +270,9 @@ function Editor({ scene }: { scene: SignageScene }) {
         >
           <ArrowLeft />
         </IconButton>
-        <TextInput
-          id="sg-screen-name"
-          className="sg-se__name"
-          labelText="Screen name"
-          hideLabel
-          size="md"
-          maxLength={100}
-          readOnly={!canEdit}
-          value={draft.name}
-          invalid={draft.name.trim() === ''}
-          invalidText="Give the screen a name"
-          onChange={(event) => apply({ ...draft, name: event.target.value }, 'name')}
-        />
+        <h1 className="sg-se__title" title={draft.name}>
+          {draft.name.trim() || 'Untitled screen'}
+        </h1>
         <div className="sg-se__spacer" />
         {canEdit ? (
           <SaveState status={autosave.status} onRetry={autosave.retry} />

@@ -287,6 +287,17 @@ export function Canvas(props: CanvasProps) {
     if (canEdit && !hit.locked) startTransform(event, group ? [...selectedIds] : [hit.id], null);
   };
 
+  // A click on the light area around the screen clears the selection and ends text editing.
+  const onBackgroundPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || live || boxRef.current?.contains(event.target as Node)) return;
+    if ((event.target as Element).closest('[data-canvas-ui]')) return;
+    // Pressing the canvas's own scrollbars scrolls; it does not clear anything.
+    const area = event.currentTarget;
+    if (event.nativeEvent.offsetX > area.clientWidth || event.nativeEvent.offsetY > area.clientHeight) return;
+    if (editingId) props.onEditText(null);
+    if (selectedIds.length > 0 && !(event.shiftKey || event.metaKey || event.ctrlKey)) props.onSelect([]);
+  };
+
   const onDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
     if ((event.target as Element).closest('[data-canvas-ui]')) return;
     const hit = blockAt(draft.blocks, toGrid(event.clientX, event.clientY));
@@ -362,6 +373,7 @@ export function Canvas(props: CanvasProps) {
       // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
       tabIndex={0}
       data-canvas-region
+      onPointerDown={onBackgroundPointerDown}
       {...dropProps}
     >
       <p id="sg-canvas-keys" className="sg-sr-only">
