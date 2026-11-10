@@ -21,6 +21,12 @@ GET /public/legal/{document} GetPublicLegalDocument
 GET /public/managed-devices/pairing PollManagedDevicePairing
 GET /public/open-days ListPublicOpenDays
 GET /public/open-days/calendar.ics GetPublicOpenDaysCalendar
+GET /public/signage/embeds/{embedKey}/assets/{assetId}/{sha256} GetSignageEmbedAsset
+GET /public/signage/embeds/{embedKey}/cameras/{machineId}/stream StreamSignageEmbedCamera
+GET /public/signage/embeds/{embedKey}/frame-policy GetSignageEmbedFramePolicy
+GET /public/signage/embeds/{embedKey}/live GetSignageEmbedLive
+GET /public/signage/embeds/{embedKey}/manifest GetSignageEmbedManifest
+GET /public/signage/embeds/{embedKey}/timelapses/{runId}/{sha256} GetSignageEmbedTimelapse
 GET /public/signage/pairing PollSignagePairing
 GET /public/survey-links/{token} GetPublicSurveyByLink
 GET /public/surveys/{token} GetPublicSurvey
@@ -79,6 +85,7 @@ POST /terminal/survey-offers/{token}/never TerminalSurveyOfferNever
 POST /terminal/survey-offers/{token}/responses TerminalSurveyOfferSubmit
 POST /terminal/survey-offers/{token}/send-email TerminalSurveyOfferSendEmail
 POST /visitor-enrollment/context BeginVisitorEnrollment
+POST /visitor-enrollment/login-name-suggestions SuggestVisitorPinLoginName
 POST /visitor-enrollment/submissions SubmitVisitorEnrollment
 PUT /managed-devices/self/hardware ReportOwnManagedDeviceHardware
 PUT /printer-connector/self/assignments/{assignmentId}/runs/{runId}/artifact UploadPrinterConnectorRunArtifact

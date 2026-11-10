@@ -57,19 +57,22 @@ type PublicCalendar interface {
 	BreaksBetween(ctx context.Context, from, to time.Time) ([]CalendarBreak, error)
 }
 
-// PlayerDisplay is the display a player credential is bound to.
+// PlayerDisplay is the display a player credential is bound to, or the display of a web embed.
 type PlayerDisplay struct {
 	ID                 uuid.UUID
 	Name, Location     string
 	AspectRatio        AspectRatio
 	VisibleFromOutside bool
 	AllowCameraOutside bool
+	// embed is set for a web embed: its live data skips announcements for all displays and groups and rule
+	// notices, and its camera and timelapses follow the embed's switches instead of allowCameraOutside.
+	embed *embedSwitches
 }
 
 // PlayerDisplayFor resolves the display of a verified signage player device. A device without a
 // display answers 404; a revoked display (or a revoked device behind it) answers 403.
 func (s *Service) PlayerDisplayFor(ctx context.Context, deviceID uuid.UUID) (PlayerDisplay, error) {
-	row, err := signagedb.New(s.pool).GetSignageDisplayByDevice(ctx, deviceID)
+	row, err := signagedb.New(s.pool).GetSignageDisplayByDevice(ctx, &deviceID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PlayerDisplay{}, apperror.NotFound
 	}
@@ -324,7 +327,7 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 				return LiveData{}, err
 			}
 		}
-		if live.Timelapses, _, err = s.timelapseSelection(ctx, q, display, manifest, now); err != nil {
+		if live.Timelapses, err = s.displayTimelapses(ctx, q, display, manifest, now); err != nil {
 			return LiveData{}, err
 		}
 		revision := manifest.Revision
@@ -378,7 +381,7 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 	}
 	rows, err := q.ListLiveSignageAnnouncementsForDisplay(
 		ctx,
-		signagedb.ListLiveSignageAnnouncementsForDisplayParams{Now: now, DisplayID: display.ID},
+		signagedb.ListLiveSignageAnnouncementsForDisplayParams{Now: now, DisplayID: display.ID, Broadcasts: display.embed == nil},
 	)
 	if err != nil {
 		return LiveData{}, err
@@ -398,12 +401,15 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 			EndsAt:     announcement.EndsAt,
 		})
 	}
-	notices, err := q.ListLiveSignageRuleNotices(
-		ctx,
-		signagedb.ListLiveSignageRuleNoticesParams{Now: now, DisplayID: display.ID},
-	)
-	if err != nil {
-		return LiveData{}, err
+	// Notices of notification rules are for the makerspace's own screens; a web embed shows public data only.
+	var notices []signagedb.ListLiveSignageRuleNoticesRow
+	if display.embed == nil {
+		if notices, err = q.ListLiveSignageRuleNotices(
+			ctx,
+			signagedb.ListLiveSignageRuleNoticesParams{Now: now, DisplayID: display.ID},
+		); err != nil {
+			return LiveData{}, err
+		}
 	}
 	for _, notice := range notices {
 		live.RuleNotices = append(live.RuleNotices, LiveRuleNotice{
@@ -439,16 +445,12 @@ func (s *Service) PreviewDisplay(
 		return DisplayPreview{}, err
 	}
 	q := signagedb.New(s.pool)
-	row, err := q.GetSignageDisplayView(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return DisplayPreview{}, apperror.NotFound
-	}
+	display, err := s.previewDisplayFor(ctx, q, id)
 	if err != nil {
 		return DisplayPreview{}, err
 	}
 	// The preview never offers camera streams: it is not the display itself.
-	live, err := s.playerLive(ctx, PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location,
-		VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside}, false)
+	live, err := s.playerLive(ctx, display, false)
 	if err != nil {
 		return DisplayPreview{}, err
 	}
@@ -459,6 +461,35 @@ func (s *Service) PreviewDisplay(
 		preview.Manifest = &manifest
 	}
 	return preview, nil
+}
+
+// previewDisplayFor describes a display or web embed for an admin preview, which shows what its screen would get.
+func (s *Service) previewDisplayFor(ctx context.Context, q *signagedb.Queries, id uuid.UUID) (PlayerDisplay, error) {
+	row, err := q.GetSignageDisplayView(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PlayerDisplay{}, apperror.NotFound
+	}
+	if err != nil {
+		return PlayerDisplay{}, err
+	}
+	display := PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location,
+		VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside}
+	if DisplayKind(row.Kind) == DisplayKindWebEmbed {
+		rows, err := q.ListSignageWebEmbeds(ctx, []string{id.String()})
+		if err != nil {
+			return PlayerDisplay{}, err
+		}
+		if len(rows) != 1 {
+			return PlayerDisplay{}, apperror.NotFound
+		}
+		switches, err := embedSwitchesOf(rows[0].CameraEnabled, rows[0].CameraMachineIds, rows[0].TimelapseEnabled,
+			rows[0].TimelapseCount, rows[0].TimelapseMaxAgeDays)
+		if err != nil {
+			return PlayerDisplay{}, err
+		}
+		display.embed = &switches
+	}
+	return display, nil
 }
 
 // Heartbeat is what a player reports about itself every 30 seconds.

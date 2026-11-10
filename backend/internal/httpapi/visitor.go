@@ -8,6 +8,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
@@ -89,11 +90,24 @@ func (s *Server) GetVisitorEnrollmentState(
 	for index, capability := range state.Capabilities {
 		capabilities[index] = openapi.DeviceCapability(capability)
 	}
+	// The consent question of a tablet check-in is asked while enrolling, so a new visitor answers it right away.
+	categories, err := s.notifyRules.ConsentCategories(ctx)
+	if err != nil {
+		return nil, err
+	}
+	consentCategories := make([]openapi.TerminalConsentCategory, len(categories))
+	for index, category := range categories {
+		consentCategories[index] = openapi.TerminalConsentCategory{
+			Id: category.ID, Name: category.Name, Description: category.Description,
+			Basis: openapi.TerminalConsentCategoryBasis(category.Basis),
+		}
+	}
 	result := openapi.VisitorEnrollmentState{
-		AllowedMethods:   methods,
-		Capabilities:     capabilities,
-		LabRulesRequired: state.LabRulesRequired,
-		ExpiresAt:        state.ExpiresAt,
+		AllowedMethods:    methods,
+		Capabilities:      capabilities,
+		LabRulesRequired:  state.LabRulesRequired,
+		ConsentCategories: consentCategories,
+		ExpiresAt:         state.ExpiresAt,
 	}
 	if state.CurrentLabRules == nil {
 		result.CurrentLabRules = nullable.NewNullNullable[openapi.VisitorLabRulesVersion]()
@@ -142,14 +156,19 @@ func (s *Server) SubmitVisitorEnrollment(
 	for index, method := range request.Body.AuthMethods {
 		methods[index] = visitor.AuthMethod(method)
 	}
+	consents := make([]notifyrules.ConsentAnswer, len(request.Body.Consents))
+	for index, answer := range request.Body.Consents {
+		consents[index] = notifyrules.ConsentAnswer{CategoryID: answer.CategoryId, Granted: answer.Granted}
+	}
 	result, err := s.visitor.Submit(ctx, enrollment, visitor.SubmissionInput{
 		FirstName: request.Body.FirstName, LastName: request.Body.LastName,
-		Email: nullableStringPointer(request.Body.Email), Phone: nullableStringPointer(request.Body.Phone),
+		Email:        string(request.Body.Email),
 		AuthMethods:  methods,
 		PINLoginName: nullableStringPointer(request.Body.PinLoginName),
 		PIN:          nullableStringPointer(request.Body.Pin),
 		ProfileImage: profileImage, ProfileImageFilename: request.Body.ProfileImageFilename.GetOrEmpty(),
 		LabRulesAccepted: request.Body.LabRulesAccepted,
+		Consents:         consents,
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -167,6 +186,27 @@ func (s *Server) SubmitVisitorEnrollment(
 		),
 	}
 	return visitorSubmissionCookieResponse{config: s.config, body: body}, nil
+}
+
+func (s *Server) SuggestVisitorPinLoginName(
+	ctx context.Context,
+	request openapi.SuggestVisitorPinLoginNameRequestObject,
+) (openapi.SuggestVisitorPinLoginNameResponseObject, error) {
+	enrollment, ok := ctx.Value(visitorEnrollmentContextKey).(visitor.Context)
+	if !ok {
+		return nil, invalidRequest("enrollment context is required")
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	loginName, err := s.visitor.SuggestLoginName(ctx, enrollment, request.Body.FirstName, request.Body.LastName)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.SuggestVisitorPinLoginName200JSONResponse{
+		Body:    openapi.VisitorLoginNameSuggestion{LoginName: loginName},
+		Headers: openapi.SuggestVisitorPinLoginName200ResponseHeaders{CacheControl: "no-store"},
+	}, nil
 }
 
 func (s *Server) EvaluateVisitorAdmission(

@@ -77,8 +77,8 @@ JOIN visitor_enrollment_contexts ec ON ec.lab_rules_version_id=v.id
 WHERE ec.id=sqlc.arg(context_id);
 
 -- name: CreateVisitorPerson :one
-INSERT INTO people (id, first_name, last_name, email, phone, profile_image_file_id, profile_image_source, member_since)
-VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(phone), sqlc.narg(profile_image_file_id), CASE WHEN sqlc.narg(profile_image_file_id)::uuid IS NULL THEN NULL ELSE 'terminal_capture' END, sqlc.arg(member_since))
+INSERT INTO people (id, first_name, last_name, email, profile_image_file_id, profile_image_source, member_since)
+VALUES (sqlc.arg(id), sqlc.arg(first_name), sqlc.arg(last_name), sqlc.narg(email), sqlc.narg(profile_image_file_id), CASE WHEN sqlc.narg(profile_image_file_id)::uuid IS NULL THEN NULL ELSE 'terminal_capture' END, sqlc.arg(member_since))
 RETURNING *;
 
 -- name: CreateVisitorAccount :one
@@ -110,3 +110,8 @@ WHERE id=sqlc.arg(id);
 
 -- name: DeleteExpiredEnrollmentContexts :execrows
 DELETE FROM visitor_enrollment_contexts WHERE expires_at < sqlc.arg(before_time);
+
+-- name: PINLoginNameTaken :one
+SELECT EXISTS (
+    SELECT 1 FROM auth_identities WHERE kind = 'pin' AND identifier_normalized = sqlc.arg(identifier_normalized)
+)::boolean AS taken;

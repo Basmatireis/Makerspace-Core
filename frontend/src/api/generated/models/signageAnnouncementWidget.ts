@@ -22,8 +22,6 @@ import type { SignageAnnouncementWidgetStyle } from './signageAnnouncementWidget
 import type { SignageAnnouncementWidgetType } from './signageAnnouncementWidgetType';
 import type { SignageAnnouncementWidgetWhenMany } from './signageAnnouncementWidgetWhenMany';
 import type { SignageAnnouncementWidgetWhenNone } from './signageAnnouncementWidgetWhenNone';
-import type { SignageTextSize } from './signageTextSize';
-import type { SignageWidgetStyle } from './signageWidgetStyle';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageAnnouncementWidget {
@@ -34,7 +32,6 @@ export interface SignageAnnouncementWidget {
      */
   templateIds: UUIDv7[];
   style: SignageAnnouncementWidgetStyle;
-  size: SignageTextSize;
   whenNone: SignageAnnouncementWidgetWhenNone;
   /** @maxLength 500 */
   fallbackText: string;
@@ -44,6 +41,4 @@ export interface SignageAnnouncementWidget {
      * @maximum 300
      */
   rotateSeconds: number;
-  /** The zone box style. Named `boxStyle` here because `style` already selects the announcement presentation (banner, card, full). */
-  boxStyle?: SignageWidgetStyle;
 }

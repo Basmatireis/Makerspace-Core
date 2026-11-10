@@ -114,6 +114,9 @@ type Querier interface {
 	DisableInvoiceEventGuards(ctx context.Context) error
 	DisableOrderAdjustmentGuards(ctx context.Context) error
 	DisableOrderItemGuards(ctx context.Context) error
+	// Staging must not serve the production screens on other websites: every web embed is switched off and gets a new
+	// random key (24 random bytes, base64url), so the production embed codes do not work against staging.
+	DisableSignageWebEmbeds(ctx context.Context) error
 	EnableCashCountGuards(ctx context.Context) error
 	EnableCashMovementGuards(ctx context.Context) error
 	EnableCustomerSnapshotGuards(ctx context.Context) error

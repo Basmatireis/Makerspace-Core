@@ -51,6 +51,7 @@ import {
   OrganizationDetailPage,
   OrganizationsPage,
   PINEnrollmentPage,
+  PrintPage,
   PaymentDetailPage,
   PaymentsPage,
   PricingPage,
@@ -71,12 +72,13 @@ import {
   DevicesSessionsPage,
   SignageAnnouncementsPage,
   SignageContentPage,
-  SignageCustomLayoutEditorPage,
   SignageDisplayDetailPage,
   SignageGroupDetailPage,
   SignageDisplaysPage,
   SignageMediaPage,
   SignageSceneEditorPage,
+  SignageWebEmbedDetailPage,
+  SignageWebEmbedsPage,
   StatisticsPage,
   SupervisorStaffingPage,
   SurveyAdminPage,
@@ -167,6 +169,17 @@ export function App() {
               <ColorSchemeRoot>
                 <ProtectedRoute>
                   <LabRulesConfirmPage />
+                </ProtectedRoute>
+              </ColorSchemeRoot>
+            }
+          />
+          {/* Opened from the "timelapse ready" notification and e-mail: needs a session but not the application shell. */}
+          <Route
+            path="/prints/:runId"
+            element={
+              <ColorSchemeRoot>
+                <ProtectedRoute>
+                  <PrintPage />
                 </ProtectedRoute>
               </ColorSchemeRoot>
             }
@@ -393,6 +406,22 @@ export function App() {
               }
             />
             <Route
+              path="signage/embeds"
+              element={
+                <PermissionRoute allOf={['signage.read']}>
+                  <SignageWebEmbedsPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
+              path="signage/embeds/:embedId"
+              element={
+                <PermissionRoute allOf={['signage.read']}>
+                  <SignageWebEmbedDetailPage />
+                </PermissionRoute>
+              }
+            />
+            <Route
               path="signage/announcements"
               element={
                 <PermissionRoute anyOf={['signage.read', 'signage.override']}>
@@ -413,22 +442,6 @@ export function App() {
               element={
                 <PermissionRoute allOf={['signage.read']}>
                   <SignageSceneEditorPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="signage/layouts/new"
-              element={
-                <PermissionRoute allOf={['signage.read', 'signage.content.manage']}>
-                  <SignageCustomLayoutEditorPage />
-                </PermissionRoute>
-              }
-            />
-            <Route
-              path="signage/layouts/:layoutId"
-              element={
-                <PermissionRoute allOf={['signage.read']}>
-                  <SignageCustomLayoutEditorPage />
                 </PermissionRoute>
               }
             />

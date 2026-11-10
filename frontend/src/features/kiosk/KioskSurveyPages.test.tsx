@@ -69,7 +69,7 @@ describe('public kiosk and survey pages', () => {
     expect(await screen.findByRole('heading', { name: 'Welcome to the Makerspace' })).toBeInTheDocument();
     const publicName = await screen.findByText('Ada L.');
     expect(screen.queryByText('Ada Lovelace')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Register as a visitor/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Register' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Staff sign in/ })).toHaveAttribute('href', '/login');
     expect(authRequests).toBe(0);
 
@@ -85,10 +85,8 @@ describe('public kiosk and survey pages', () => {
     renderRoute(<App />, '/kiosk');
 
     await user.click(await screen.findByRole('button', { name: 'Check in' }));
-    expect(await screen.findByRole('link', { name: /New here\? Register as a visitor/ })).toHaveAttribute(
-      'href',
-      '/visitor-enrollment',
-    );
+    expect(await screen.findByText('First time here?')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Register' })).toHaveAttribute('href', '/visitor-enrollment');
     expect(screen.getByText('0 digits · 6–12')).toBeInTheDocument();
     for (const digit of '1234') await user.click(screen.getByRole('button', { name: digit }));
     expect(screen.getByText('4 digits · 6–12')).toBeInTheDocument();
@@ -96,7 +94,7 @@ describe('public kiosk and survey pages', () => {
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     await user.click(await screen.findByRole('button', { name: 'Check out' }));
-    expect(screen.queryByRole('link', { name: /Register as a visitor/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Register' })).not.toBeInTheDocument();
   });
 
   it('offers the way back to the kiosk on the sign-in page only when coming from the kiosk', async () => {

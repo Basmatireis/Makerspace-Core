@@ -60,6 +60,17 @@ While an offer exists, the automatic e-mail invitation of that visit is postpone
 
 The answer of a tablet check-in also carries `consentRequired` and `consentCategories` (`id`, `name`, `description`, `basis`) while the person has consent categories unanswered at their current text. The tablet posts the answers to `POST /terminal/consents` (`visitId`, `answers[{categoryId, granted}]`): they are stored with place `kiosk` and the tablet as for the app (audit `notification_consent.answered`), only for the person of an open visit that was checked in at this tablet within the last 10 minutes; every other case answers 404.
 
+## Visitor enrollment steps
+
+The wizard at `/visitor-enrollment` has up to four steps:
+
+1. **About you.** First and last name, a required email address (contact and the account's login email) and, on kiosks that can take or upload one, a photo. There is no phone field.
+2. **Sign-in method.** When both methods are allowed, a switch chooses between "Email and password" (preselected; the address from step 1 is shown and can be corrected, and the invitation goes there) and "Login name and PIN". For a PIN the kiosk asks `POST /visitor-enrollment/login-name-suggestions` (`firstName`, `lastName`, enrollment context and CSRF header) for `firstname.lastname`, lower case with umlauts written out and accents dropped, with a random number appended when that name is taken (random, so the answer does not reveal which numbered names exist; 403 when PIN enrollment is not allowed). It creates nothing and answers 422 when no valid name can be built; the visitor may change the suggestion, and the submission checks the name again.
+3. **Messages.** The consent categories from the enrollment state (`consentCategories`, the categories with basis `consent`), each with a No/Yes switch; nothing is preselected and Next works with everything off. The submission sends an answer per category in `consents`; they are stored with place `kiosk` and the kiosk device in the enrollment transaction (audit `notification_consent.answered`), so the next check-in does not ask again. The step is left out when no category needs consent.
+4. **Lab Rules**, only when the Visitor role asks for them (see below).
+
+The header links the imprint and privacy policy from the branding legal settings.
+
 ## Enrollment photo and on-screen keyboard
 
 The "About you" step of visitor enrollment picks its photo source from the kiosk's effective capabilities (see [Managed devices](managed-devices.md)): `camera` shows "Start camera", `file_upload` shows the upload. After a photo is taken or chosen the visitor positions it under a round mask (drag, arrow keys, zoom slider 1x to 3x) and the visible square is uploaded as a 512x512 JPEG. With neither capability the photo is hidden and not required; the backend enforces this per device.

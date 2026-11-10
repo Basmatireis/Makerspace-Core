@@ -211,7 +211,7 @@ Each person- or account-linked category registers a `privacy.SubjectHandler` wit
 | `retained_legal` | Kept for a legal obligation, link removed | financial records, idempotency evidence, audit events |
 | `manual_review` | An operator must act first | SCIM mappings (deprovision in the identity provider) |
 
-Print files and run timelapses are not person-linked; the export's manifest says so and they are referenced only through machine jobs.
+Print files and run timelapses are not person-linked; the export's manifest says so and they are referenced only through machine jobs. Besides staff with `machine_jobs.read`, the current recipient of a job (a person, not an organization) can view a recorded run's timelapse, previews and 3MF on its print page (`/prints/{runId}`) and loses that access when the job's recipient changes or the run or job is deleted. The page itself shows no material, price, operator or recipient, but the downloaded 3MF keeps its slicer metadata (for example filament settings), and a timelapse shows whatever is in the printer camera's field of view, which can include people at the printer.
 
 ### Processing activities
 

@@ -2064,18 +2064,6 @@ type SignageAsset struct {
 	CreatedAt          time.Time
 }
 
-type SignageCustomLayout struct {
-	ID        uuid.UUID
-	Name      string
-	Mode      string
-	Columns   []int32
-	Rows      []int32
-	Zones     []byte
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 type SignageDefaultScene struct {
 	DisplayID  *uuid.UUID
 	Position   int32
@@ -2087,7 +2075,7 @@ type SignageDefaultScene struct {
 
 type SignageDisplay struct {
 	ID                 uuid.UUID
-	ManagedDeviceID    uuid.UUID
+	ManagedDeviceID    *uuid.UUID
 	Name               string
 	Location           string
 	VisibleFromOutside bool
@@ -2099,6 +2087,7 @@ type SignageDisplay struct {
 	AspectWidth        int16
 	AspectHeight       int16
 	GroupID            *uuid.UUID
+	Kind               string
 }
 
 type SignageDisplayGroup struct {
@@ -2184,21 +2173,37 @@ type SignageRuleScene struct {
 type SignageScene struct {
 	ID                uuid.UUID
 	Name              string
-	LayoutID          string
 	BackgroundColor   string
 	BackgroundAssetID *uuid.UUID
 	BackgroundFit     string
 	BackgroundDim     int32
 	Theme             string
-	Zones             []byte
 	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
-	CustomLayoutID    *uuid.UUID
 	AspectWidth       int16
 	AspectHeight      int16
 	FontFamily        string
 	FontAssetID       *uuid.UUID
+	Blocks            []byte
+}
+
+type SignageWebEmbed struct {
+	DisplayID           uuid.UUID
+	DisplayKind         string
+	EmbedKey            string
+	AllowedOrigins      []string
+	OpenDirectly        bool
+	Enabled             bool
+	CameraEnabled       bool
+	CameraMachineIds    []uuid.UUID
+	CameraViewerLimit   int16
+	TimelapseEnabled    bool
+	TimelapseCount      int16
+	TimelapseMaxAgeDays int16
+	LastLoadedAt        pgtype.Timestamptz
+	LoadsDay            pgtype.Date
+	LoadsCount          int32
 }
 
 type StaffingExcusal struct {

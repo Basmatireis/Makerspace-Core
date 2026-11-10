@@ -87,10 +87,10 @@ func TestSignageTimelapseWidgetLiveAndContent(t *testing.T) {
 	tooOld := withTimelapse(insertRun(second, "finished", "40 days", false), 'o')
 	withoutClip := insertRun(second, "finished", "20 minutes", false)
 
-	publish := func(name string, zones map[string]json.RawMessage, layout string) (string, *http.Client) {
+	publish := func(name string, widgets ...json.RawMessage) (string, *http.Client) {
 		t.Helper()
-		input := sceneInput(name, layout)
-		input.Zones = zones
+		input := sceneInput(name)
+		input.Blocks = widgetBlocks(widgets...)
 		scene, err := svc.CreateScene(ctx, admin, input, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -138,9 +138,7 @@ func TestSignageTimelapseWidgetLiveAndContent(t *testing.T) {
 	}
 
 	// A widget for both machines, two newest clips within 30 days.
-	machinesDisplay, machinesPlayer := publish("Machine clips", map[string]json.RawMessage{
-		"main": timelapseWidget("machines", []uuid.UUID{first, second}, 2, 30),
-	}, "full")
+	machinesDisplay, machinesPlayer := publish("Machine clips", timelapseWidget("machines", []uuid.UUID{first, second}, 2, 30))
 	current := live(machinesPlayer)
 	expectRuns("machines widget", listed(current), newestB, newestA)
 	clip := current["timelapses"].([]any)[0].(map[string]any)
@@ -180,12 +178,13 @@ func TestSignageTimelapseWidgetLiveAndContent(t *testing.T) {
 	}
 
 	// Every machine within 30 days, merged with a second widget of any age for one machine.
-	_, allPlayer := publish("All clips", map[string]json.RawMessage{"main": timelapseWidget("all", nil, 20, 30)}, "full")
+	_, allPlayer := publish("All clips", timelapseWidget("all", nil, 20, 30))
 	expectRuns("all source", listed(live(allPlayer)), newestB, newestA, olderA, oldestA)
-	_, mergedPlayer := publish("Merged clips", map[string]json.RawMessage{
-		"left":  timelapseWidget("all", nil, 20, 30),
-		"right": timelapseWidget("machines", []uuid.UUID{second}, 5, 0),
-	}, "split")
+	_, mergedPlayer := publish(
+		"Merged clips",
+		timelapseWidget("all", nil, 20, 30),
+		timelapseWidget("machines", []uuid.UUID{second}, 5, 0),
+	)
 	expectRuns("merged widgets", listed(live(mergedPlayer)), newestB, newestA, olderA, oldestA, tooOld)
 	response, body = g.rawGet(mergedPlayer, clipPath(tooOld))
 	if response.StatusCode != http.StatusOK || !bytes.Equal(body, tooOld.data) {
@@ -193,9 +192,7 @@ func TestSignageTimelapseWidgetLiveAndContent(t *testing.T) {
 	}
 
 	// A display without a timelapse widget gets null and no clips.
-	_, clockPlayer := publish("Clock only", map[string]json.RawMessage{
-		"main": json.RawMessage(`{"type":"clock","mode":"time"}`),
-	}, "full")
+	_, clockPlayer := publish("Clock only", json.RawMessage(`{"type":"clock","mode":"time"}`))
 	if runs := listed(live(clockPlayer)); runs != nil {
 		t.Fatalf("display without timelapse widget lists %v", runs)
 	}

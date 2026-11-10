@@ -470,6 +470,31 @@ describe('Run detail page', () => {
     expect(document.querySelector('.cds--overflow-menu')).toBeNull();
   });
 
+  it('links the print page of a recorded run in a job and copies its absolute address', async () => {
+    auth.permissions = [PermissionId.machine_jobsread];
+    serveRun(recordedRun({ job: { id: ids.job, displayId: 'J-2026-000001', title: null } }));
+    server.use(http.get(`*/api/v1/machine-jobs/${ids.job}`, () => HttpResponse.json(jobFixture())));
+    const user = userEvent.setup();
+    // userEvent.setup installs its own clipboard stub; read what the page wrote to it.
+    renderRun();
+    const open = await screen.findByRole('link', { name: /Open print page/ });
+    expect(open).toHaveAccessibleName(/opens in a new tab/);
+    expect(open).toHaveAttribute('href', `/prints/${ids.recordedRun}`);
+    expect(open).toHaveAttribute('target', '_blank');
+    await user.click(screen.getByRole('button', { name: 'Copy link' }));
+    expect(await screen.findByText('Link copied')).toBeInTheDocument();
+    expect(await navigator.clipboard.readText()).toBe(`${window.location.origin}/prints/${ids.recordedRun}`);
+  });
+
+  it('offers no print page for a run that belongs to no job', async () => {
+    auth.permissions = [PermissionId.machine_jobsread];
+    serveRun(recordedRun());
+    renderRun();
+    await screen.findByRole('heading', { name: /Gearbox housing v3/ });
+    expect(screen.queryByRole('link', { name: /Open print page/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy link' })).not.toBeInTheDocument();
+  });
+
   it('deletes a recorded run with machine_jobs.delete, asks about consumption and returns to the job', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsdelete];
     const assigned = recordedRun({

@@ -100,17 +100,6 @@ const (
 	FormatHTML     RichTextFormat = "html"
 )
 
-// CustomLayoutMode is how the zones of a custom layout are positioned.
-type CustomLayoutMode string
-
-const (
-	LayoutModeGrid CustomLayoutMode = "grid"
-	LayoutModeFree CustomLayoutMode = "free"
-)
-
-// CustomLayoutID is the scene layout id that selects a custom layout.
-const CustomLayoutID = "custom"
-
 // MultiMode is how several matches share a screen or camera widget.
 type MultiMode string
 
@@ -169,7 +158,7 @@ const (
 	ToneNeutral  Tone = "neutral"
 )
 
-// WidgetType is the kind of widget in a scene zone.
+// WidgetType is the kind of widget in a scene block.
 type WidgetType string
 
 const (
@@ -188,25 +177,6 @@ const (
 	WidgetAgenda       WidgetType = "agenda"
 	WidgetCalendar     WidgetType = "calendar"
 	WidgetTimelapse    WidgetType = "timelapse"
-)
-
-// TextSize is the type size of a text or announcement widget.
-type TextSize string
-
-const (
-	TextSizeS  TextSize = "s"
-	TextSizeM  TextSize = "m"
-	TextSizeL  TextSize = "l"
-	TextSizeXL TextSize = "xl"
-)
-
-// TextAlign is the alignment of a text widget.
-type TextAlign string
-
-const (
-	TextAlignStart  TextAlign = "start"
-	TextAlignCenter TextAlign = "center"
-	TextAlignEnd    TextAlign = "end"
 )
 
 // ClockMode is what a clock widget shows.
@@ -267,6 +237,14 @@ const (
 	WhenManyRotate WhenMany = "rotate"
 	WhenManyNewest WhenMany = "newest"
 	WhenManyStack  WhenMany = "stack"
+)
+
+// DisplayKind tells a screen with a managed device from a web embed, which other websites show in an iframe.
+type DisplayKind string
+
+const (
+	DisplayKindDevice   DisplayKind = "device"
+	DisplayKindWebEmbed DisplayKind = "web_embed"
 )
 
 // DisplayStatus is whether a display is reachable.
@@ -331,7 +309,6 @@ const (
 	ChangeTargetRule    ChangeTarget = "rule"
 	ChangeTargetScene   ChangeTarget = "scene"
 	ChangeTargetAsset   ChangeTarget = "asset"
-	ChangeTargetLayout  ChangeTarget = "layout"
 )
 
 // ChangeKind is how a draft differs from the published state.

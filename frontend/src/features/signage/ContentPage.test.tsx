@@ -9,51 +9,118 @@ import { server } from '../../test/server';
 import { announcementFixture, ids, mockSignage, sceneFixture, templateFixture } from './testFixtures';
 
 describe('Content page', () => {
-  it('shows scene tiles read-only with signage.read and no playlists', async () => {
+  it('shows screen cards read-only with signage.read, as Screens and Announcement templates tabs', async () => {
     mockSignage([PermissionId.signageread]);
     renderRoute(<App />, '/signage/content');
-    expect(await screen.findByRole('heading', { name: 'Content' })).toBeInTheDocument();
-    const tile = await screen.findByRole('link', { name: 'Scene Open days poster' });
+    expect(await screen.findByRole('heading', { name: 'Screens' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Screens' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Announcement templates' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Layouts' })).not.toBeInTheDocument();
+    const tile = await screen.findByRole('link', { name: 'Screen Open days poster' });
     expect(tile).toHaveAttribute('href', `/signage/scenes/${ids.scene}`);
-    expect(within(tile).getByText('9:16')).toBeInTheDocument();
-    expect(within(tile).queryByText(/Used in/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'New scene' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Playlists' })).not.toBeInTheDocument();
+    expect(within(tile).getByText('Portrait 9:16')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New screen' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
   });
 
-  it('creates a scene with a layout and opens the editor', async () => {
+  it('filters the cards by name or shape', async () => {
+    mockSignage([PermissionId.signageread], {
+      scenes: [sceneFixture(), sceneFixture({ id: ids.scene2, name: 'Lobby', aspectRatio: { width: 16, height: 9 } })],
+    });
+    renderRoute(<App />, '/signage/content');
+    const user = userEvent.setup();
+    await screen.findByRole('link', { name: 'Screen Lobby' });
+    await user.type(screen.getByRole('searchbox', { name: 'Search screens' }), 'landscape');
+    expect(screen.queryByRole('link', { name: 'Screen Open days poster' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Screen Lobby' })).toBeInTheDocument();
+    await user.clear(screen.getByRole('searchbox', { name: 'Search screens' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Search screens' }), 'zzz');
+    expect(await screen.findByText('No screens match')).toBeInTheDocument();
+  });
+
+  it('creates a screen from a starter and opens the editor', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
     let body: Record<string, unknown> | undefined;
     server.use(
       http.post('*/api/v1/signage/scenes', async ({ request }) => {
         body = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(
-          sceneFixture({
-            id: ids.scene2,
-            name: String(body.name),
-            layoutId: 'split',
-            zones: { left: { type: 'empty' }, right: { type: 'empty' } },
-          }),
-          { status: 201 },
-        );
+        return HttpResponse.json(sceneFixture({ id: ids.scene2, name: String(body.name) }), { status: 201 });
       }),
     );
     const { router } = renderRoute(<App />, '/signage/content');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'New scene' }));
+    await user.click(await screen.findByRole('button', { name: 'New screen' }));
     const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Create scene' }));
-    expect(await within(dialog).findByText('Give the scene a name')).toBeInTheDocument();
+    await user.clear(within(dialog).getByLabelText('Name'));
+    await user.click(within(dialog).getByRole('button', { name: 'Create screen' }));
+    expect(await within(dialog).findByText('Give the screen a name')).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Name'), 'Lobby');
-    await user.click(within(dialog).getByRole('radio', { name: /Two columns/ }));
-    await user.click(within(dialog).getByRole('button', { name: 'Create scene' }));
+    await user.click(within(dialog).getByRole('radio', { name: /Full screen \+ ticker/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Create screen' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/signage/scenes/${ids.scene2}`));
-    expect(body).toMatchObject({
-      name: 'Lobby',
-      aspectRatio: { width: 9, height: 16 },
-      layoutId: 'split',
-      zones: { left: { type: 'empty' }, right: { type: 'empty' } },
-    });
+    // 16:9 is a 1920 x 1080 grid; the usable area inside the 48-unit margin is 1824 x 984.
+    expect(body).toMatchObject({ name: 'Lobby', aspectRatio: { width: 16, height: 9 }, theme: 'dark' });
+    const blocks = body?.blocks as {
+      id: string;
+      name: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      widget: unknown;
+    }[];
+    expect(blocks.map(({ name, x, y, w, h, widget }) => ({ name, x, y, w, h, widget }))).toEqual([
+      { name: 'Block 1', x: 48, y: 48, w: 1824, h: 827, widget: { type: 'empty' } },
+      { name: 'Block 2', x: 48, y: 904, w: 1824, h: 128, widget: { type: 'empty' } },
+    ]);
+    expect(blocks[0].id).toMatch(/^b[a-z0-9]+$/);
+  });
+
+  it('validates the shape, swaps it and transposes the starter for portrait', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    let body: Record<string, unknown> | undefined;
+    server.use(
+      http.post('*/api/v1/signage/scenes', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(sceneFixture({ id: ids.scene2 }), { status: 201 });
+      }),
+    );
+    renderRoute(<App />, '/signage/content');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'New screen' }));
+    const dialog = await screen.findByRole('dialog');
+    const width = within(dialog).getByRole('spinbutton', { name: 'Width part of the ratio' });
+    const height = within(dialog).getByRole('spinbutton', { name: 'Height part of the ratio' });
+    const create = within(dialog).getByRole('button', { name: 'Create screen' });
+    expect(within(dialog).getByText('Landscape')).toBeInTheDocument();
+
+    await user.clear(width);
+    await user.type(width, '50');
+    expect(within(dialog).getByText('Use a shape between 1:5 and 5:1.')).toBeInTheDocument();
+    expect(create).toBeDisabled();
+    await user.clear(width);
+    await user.type(width, '1000');
+    expect(within(dialog).getByText(/whole numbers between 1 and 999/)).toBeInTheDocument();
+    expect(create).toBeDisabled();
+    await user.clear(width);
+    await user.type(width, '16');
+    expect(create).toBeEnabled();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Swap width and height' }));
+    expect(width).toHaveValue(9);
+    expect(height).toHaveValue(16);
+    expect(within(dialog).getByText('Portrait')).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('radio', { name: /Full screen \+ ticker/ }));
+    await user.click(create);
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body?.aspectRatio).toEqual({ width: 9, height: 16 });
+    // Portrait grid 1080 x 1920: the ticker becomes a narrow column on the right.
+    const blocks = body?.blocks as { x: number; y: number; w: number; h: number }[];
+    expect(blocks.map(({ x, y, w, h }) => [x, y, w, h])).toEqual([
+      [48, 48, 827, 1824],
+      [904, 48, 128, 1824],
+    ]);
   });
 
   it('lists announcement templates and hides the actions without signage.content.manage', async () => {
@@ -156,7 +223,7 @@ describe('Content page', () => {
     );
   });
 
-  it('duplicates a scene and opens the copy; read-only people get no button', async () => {
+  it('duplicates a screen from its menu and opens the copy', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
     server.use(
       http.post('*/api/v1/signage/scenes/:id/duplicate', () =>
@@ -164,15 +231,34 @@ describe('Content page', () => {
       ),
     );
     const { router } = renderRoute(<App />, '/signage/content');
-    await userEvent.setup().click(await screen.findByRole('button', { name: /Duplicate/ }));
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Actions for Open days poster' }));
+    await user.click(await screen.findByText('Duplicate'));
     await waitFor(() => expect(router.state.location.pathname).toBe(`/signage/scenes/${ids.scene2}`));
   });
 
-  it('shows no duplicate button without signage.content.manage', async () => {
+  it('deletes a screen from its menu with its version', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    let sent: unknown;
+    server.use(
+      http.delete('*/api/v1/signage/scenes/:id', async ({ request }) => {
+        sent = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderRoute(<App />, '/signage/content');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Actions for Open days poster' }));
+    await user.click(await screen.findByText('Delete'));
+    await user.click(await screen.findByRole('button', { name: 'Delete screen' }));
+    await waitFor(() => expect(sent).toEqual({ expectedVersion: 3 }));
+  });
+
+  it('shows no screen menu without signage.content.manage', async () => {
     mockSignage([PermissionId.signageread], { templates: [templateFixture()] });
     renderRoute(<App />, '/signage/content');
-    await screen.findByRole('link', { name: 'Scene Open days poster' });
-    expect(screen.queryByRole('button', { name: /Duplicate/ })).not.toBeInTheDocument();
+    await screen.findByRole('link', { name: 'Screen Open days poster' });
+    expect(screen.queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
   });
 
   it('duplicates an announcement template and opens the copy for editing', async () => {

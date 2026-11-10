@@ -2,20 +2,20 @@ package signage
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/google/uuid"
 )
 
-// LayoutsVersion is the version of the layout model that manifests were built against: 2 added
-// custom layouts to the manifest. Bump it whenever the layout list or its meaning changes incompatibly.
-const LayoutsVersion = 2
-
 // ManifestVersion is the shape of the manifests this code publishes: 3 replaced playlists with scene lists
-// on rules and the default. Stored manifests without the field are upgraded when they are read.
-const ManifestVersion = 3
+// on rules and the default, 4 replaced layouts with zones by blocks. Stored manifests of an older shape are
+// upgraded when they are read.
+const ManifestVersion = 4
 
 // blankSceneID is the id of the synthetic scene that an upgraded publication shows when its default playlist
 // was empty and it holds no scene with the display's aspect ratio.
@@ -45,31 +45,18 @@ type ManifestRule struct {
 
 // ManifestScene is a scene as published; the version identifies the draft it was taken from.
 type ManifestScene struct {
-	ID                uuid.UUID                  `json:"id"`
-	Name              string                     `json:"name"`
-	AspectRatio       AspectRatio                `json:"aspectRatio"`
-	LayoutID          string                     `json:"layoutId"`
-	CustomLayoutID    *uuid.UUID                 `json:"customLayoutId"`
-	BackgroundColor   string                     `json:"backgroundColor"`
-	BackgroundAssetID *uuid.UUID                 `json:"backgroundAssetId"`
-	BackgroundFit     MediaFit                   `json:"backgroundFit"`
-	BackgroundDim     int                        `json:"backgroundDim"`
-	Theme             Theme                      `json:"theme"`
-	FontFamily        SceneFontFamily            `json:"fontFamily"`
-	FontAssetID       *uuid.UUID                 `json:"fontAssetId"`
-	Zones             map[string]json.RawMessage `json:"zones"`
-	Version           int64                      `json:"version"`
-}
-
-// ManifestCustomLayout is a custom layout as published; the version identifies the draft it was taken from.
-type ManifestCustomLayout struct {
-	ID      uuid.UUID        `json:"id"`
-	Name    string           `json:"name"`
-	Mode    CustomLayoutMode `json:"mode"`
-	Columns []int            `json:"columns"`
-	Rows    []int            `json:"rows"`
-	Zones   []CustomZone     `json:"zones"`
-	Version int64            `json:"version"`
+	ID                uuid.UUID       `json:"id"`
+	Name              string          `json:"name"`
+	AspectRatio       AspectRatio     `json:"aspectRatio"`
+	BackgroundColor   string          `json:"backgroundColor"`
+	BackgroundAssetID *uuid.UUID      `json:"backgroundAssetId"`
+	BackgroundFit     MediaFit        `json:"backgroundFit"`
+	BackgroundDim     int             `json:"backgroundDim"`
+	Theme             Theme           `json:"theme"`
+	FontFamily        SceneFontFamily `json:"fontFamily"`
+	FontAssetID       *uuid.UUID      `json:"fontAssetId"`
+	Blocks            []Block         `json:"blocks"`
+	Version           int64           `json:"version"`
 }
 
 // ManifestAsset is a media file a published scene uses; players fetch it by id and sha256.
@@ -94,10 +81,25 @@ type Manifest struct {
 	Rules           []ManifestRule  `json:"rules"`
 	Scenes          []ManifestScene `json:"scenes"`
 	Assets          []ManifestAsset `json:"assets"`
-	// CustomLayouts holds the custom layouts the published scenes use; publications made before custom
-	// layouts existed do not have the field.
-	CustomLayouts  []ManifestCustomLayout `json:"customLayouts"`
-	LayoutsVersion int                    `json:"layoutsVersion"`
+	// EmbedMedia is set on publications of web embeds only: the media switches at publish time. It is never sent to
+	// a player; the public endpoints combine it with the current switches.
+	EmbedMedia *ManifestEmbedMedia `json:"embedMedia,omitempty"`
+}
+
+// ManifestEmbedMedia records which media a web embed was allowed to show when it was published. Switching a medium
+// on takes effect with the next publication; switching it off takes effect at once, because the public endpoints
+// require the published and the current switch.
+type ManifestEmbedMedia struct {
+	Camera           bool        `json:"camera"`
+	CameraMachineIDs []uuid.UUID `json:"cameraMachineIds"`
+	Timelapses       bool        `json:"timelapses"`
+}
+
+func embedMediaEqual(a, b *ManifestEmbedMedia) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Camera == b.Camera && a.Timelapses == b.Timelapses && slices.Equal(a.CameraMachineIDs, b.CameraMachineIDs)
 }
 
 // displayDraft is the editable state of one display that a manifest is built from.
@@ -108,16 +110,18 @@ type displayDraft struct {
 	VisibleFromOutside bool
 	DefaultScenes      []SceneListItem
 	Rules              []Rule
+	// EmbedMedia is set for web embeds only.
+	EmbedMedia *ManifestEmbedMedia
 }
 
-// manifestContent holds the scenes, assets and custom layouts that drafts can reach.
+// manifestContent holds the scenes and assets that drafts can reach.
 type manifestContent struct {
-	scenes        map[uuid.UUID]ManifestScene
-	assets        map[uuid.UUID]ManifestAsset
-	customLayouts map[uuid.UUID]ManifestCustomLayout
+	scenes map[uuid.UUID]ManifestScene
+	assets map[uuid.UUID]ManifestAsset
 }
 
-// sceneAssetIDs lists the assets a scene's background and widgets use.
+// sceneAssetIDs lists the assets a scene's background, font and visible blocks use; displays never show
+// hidden blocks, so their assets are not published.
 func sceneAssetIDs(scene ManifestScene) ([]uuid.UUID, error) {
 	var ids []uuid.UUID
 	if scene.BackgroundAssetID != nil {
@@ -126,15 +130,13 @@ func sceneAssetIDs(scene ManifestScene) ([]uuid.UUID, error) {
 	if scene.FontAssetID != nil {
 		ids = append(ids, *scene.FontAssetID)
 	}
-	keys := make([]string, 0, len(scene.Zones))
-	for key := range scene.Zones {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, key := range keys {
-		_, refs, err := ValidateWidget(key, scene.Zones[key])
+	for _, block := range scene.Blocks {
+		if block.Hidden {
+			continue
+		}
+		refs, err := blockRefs(block)
 		if err != nil {
-			return nil, fmt.Errorf("scene %s zone %s: %w", scene.ID, key, err)
+			return nil, fmt.Errorf("scene %s block %s: %w", scene.ID, block.ID, err)
 		}
 		ids = append(ids, refs.AllAssets()...)
 	}
@@ -154,12 +156,11 @@ func assembleManifest(draft displayDraft, content manifestContent) (Manifest, er
 			AspectRatio:        draft.AspectRatio,
 			VisibleFromOutside: draft.VisibleFromOutside,
 		},
-		DefaultScenes:  append([]SceneListItem{}, draft.DefaultScenes...),
-		Rules:          []ManifestRule{},
-		Scenes:         []ManifestScene{},
-		Assets:         []ManifestAsset{},
-		CustomLayouts:  []ManifestCustomLayout{},
-		LayoutsVersion: LayoutsVersion,
+		DefaultScenes: append([]SceneListItem{}, draft.DefaultScenes...),
+		Rules:         []ManifestRule{},
+		Scenes:        []ManifestScene{},
+		Assets:        []ManifestAsset{},
+		EmbedMedia:    draft.EmbedMedia,
 	}
 	sceneIDs := map[uuid.UUID]struct{}{}
 	for _, item := range draft.DefaultScenes {
@@ -175,16 +176,12 @@ func assembleManifest(draft displayDraft, content manifestContent) (Manifest, er
 		}
 	}
 	assetIDs := map[uuid.UUID]struct{}{}
-	layoutIDs := map[uuid.UUID]struct{}{}
 	for _, id := range sortedIDs(sceneIDs) {
 		scene, ok := content.scenes[id]
 		if !ok {
 			return Manifest{}, fmt.Errorf("scene %s is missing", id)
 		}
 		manifest.Scenes = append(manifest.Scenes, scene)
-		if scene.CustomLayoutID != nil {
-			layoutIDs[*scene.CustomLayoutID] = struct{}{}
-		}
 		ids, err := sceneAssetIDs(scene)
 		if err != nil {
 			return Manifest{}, err
@@ -199,13 +196,6 @@ func assembleManifest(draft displayDraft, content manifestContent) (Manifest, er
 			return Manifest{}, fmt.Errorf("asset %s is missing", id)
 		}
 		manifest.Assets = append(manifest.Assets, asset)
-	}
-	for _, id := range sortedIDs(layoutIDs) {
-		layout, ok := content.customLayouts[id]
-		if !ok {
-			return Manifest{}, fmt.Errorf("custom layout %s is missing", id)
-		}
-		manifest.CustomLayouts = append(manifest.CustomLayouts, layout)
 	}
 	return manifest, nil
 }
@@ -234,8 +224,17 @@ func sortedIDs(set map[uuid.UUID]struct{}) []uuid.UUID {
 	return ids
 }
 
+// manifestWidgets lists the widgets of the visible blocks of every published scene.
+func manifestWidgets(manifest Manifest) []RawWidget {
+	var widgets []RawWidget
+	for _, scene := range manifest.Scenes {
+		widgets = append(widgets, visibleWidgets(scene.Blocks)...)
+	}
+	return widgets
+}
+
 // ManifestMachineIDs lists the machines a published manifest refers to: rule conditions, status
-// widgets and camera widgets. These are the machines the live endpoint reports.
+// widgets and camera widgets of visible blocks. These are the machines the live endpoint reports.
 func ManifestMachineIDs(manifest Manifest) []uuid.UUID {
 	ids := map[uuid.UUID]struct{}{}
 	for _, rule := range manifest.Rules {
@@ -243,31 +242,29 @@ func ManifestMachineIDs(manifest Manifest) []uuid.UUID {
 			ids[id] = struct{}{}
 		}
 	}
-	for _, scene := range manifest.Scenes {
-		for _, raw := range scene.Zones {
-			var widget struct {
-				Type       WidgetType   `json:"type"`
-				Source     CameraSource `json:"source"`
-				MachineID  *uuid.UUID   `json:"machineId"`
-				MachineIDs []uuid.UUID  `json:"machineIds"`
+	for _, raw := range manifestWidgets(manifest) {
+		var widget struct {
+			Type       WidgetType   `json:"type"`
+			Source     CameraSource `json:"source"`
+			MachineID  *uuid.UUID   `json:"machineId"`
+			MachineIDs []uuid.UUID  `json:"machineIds"`
+		}
+		if json.Unmarshal(raw, &widget) != nil {
+			continue
+		}
+		switch widget.Type {
+		case WidgetCamera:
+			if widget.MachineID != nil {
+				ids[*widget.MachineID] = struct{}{}
 			}
-			if json.Unmarshal(raw, &widget) != nil {
-				continue
-			}
-			switch widget.Type {
-			case WidgetCamera:
-				if widget.MachineID != nil {
-					ids[*widget.MachineID] = struct{}{}
-				}
-				if widget.Source == CameraSourceAuto {
-					for _, id := range widget.MachineIDs {
-						ids[id] = struct{}{}
-					}
-				}
-			case WidgetStatus:
+			if widget.Source == CameraSourceAuto {
 				for _, id := range widget.MachineIDs {
 					ids[id] = struct{}{}
 				}
+			}
+		case WidgetStatus:
+			for _, id := range widget.MachineIDs {
+				ids[id] = struct{}{}
 			}
 		}
 	}
@@ -275,33 +272,31 @@ func ManifestMachineIDs(manifest Manifest) []uuid.UUID {
 }
 
 // ManifestCameraMachineIDs lists the machines whose camera stream the published manifest can show:
-// the machines of camera widgets bound to a machine and the machines an automatic camera widget is
+// the machines of visible camera widgets bound to a machine and the machines an automatic camera widget is
 // restricted to. allCameras reports an automatic widget without a restriction; it may show every
 // machine that has a camera, which the caller resolves.
 func ManifestCameraMachineIDs(manifest Manifest) (ids []uuid.UUID, allCameras bool) {
 	set := map[uuid.UUID]struct{}{}
-	for _, scene := range manifest.Scenes {
-		for _, raw := range scene.Zones {
-			var widget struct {
-				Type       WidgetType   `json:"type"`
-				Source     CameraSource `json:"source"`
-				MachineID  *uuid.UUID   `json:"machineId"`
-				MachineIDs []uuid.UUID  `json:"machineIds"`
+	for _, raw := range manifestWidgets(manifest) {
+		var widget struct {
+			Type       WidgetType   `json:"type"`
+			Source     CameraSource `json:"source"`
+			MachineID  *uuid.UUID   `json:"machineId"`
+			MachineIDs []uuid.UUID  `json:"machineIds"`
+		}
+		if json.Unmarshal(raw, &widget) != nil || widget.Type != WidgetCamera {
+			continue
+		}
+		switch {
+		case widget.Source != CameraSourceAuto:
+			if widget.MachineID != nil {
+				set[*widget.MachineID] = struct{}{}
 			}
-			if json.Unmarshal(raw, &widget) != nil || widget.Type != WidgetCamera {
-				continue
-			}
-			switch {
-			case widget.Source != CameraSourceAuto:
-				if widget.MachineID != nil {
-					set[*widget.MachineID] = struct{}{}
-				}
-			case len(widget.MachineIDs) == 0:
-				allCameras = true
-			default:
-				for _, id := range widget.MachineIDs {
-					set[id] = struct{}{}
-				}
+		case len(widget.MachineIDs) == 0:
+			allCameras = true
+		default:
+			for _, id := range widget.MachineIDs {
+				set[id] = struct{}{}
 			}
 		}
 	}
@@ -316,8 +311,8 @@ type PendingChange struct {
 }
 
 // diffManifests lists what publishing the draft would change compared with the published manifest.
-// Scenes and layouts are compared by id and version, assets by id and checksum, rules and the default scene
-// list by content.
+// Scenes are compared by id, version and blocks (a publication upgraded from layouts and zones keeps its scene
+// versions), assets by id and checksum, rules and the default scene list by content.
 func diffManifests(published, draft Manifest) []PendingChange {
 	changes := []PendingChange{}
 	if published.Display != draft.Display {
@@ -326,11 +321,14 @@ func diffManifests(published, draft Manifest) []PendingChange {
 	if !sceneListsEqual(published.DefaultScenes, draft.DefaultScenes) {
 		changes = append(changes, PendingChange{Kind: ChangeTargetDisplay, Name: "Default scenes", Change: ChangeModified})
 	}
+	if !embedMediaEqual(published.EmbedMedia, draft.EmbedMedia) {
+		changes = append(changes, PendingChange{Kind: ChangeTargetDisplay, Name: "Data shown", Change: ChangeModified})
+	}
 	changes = append(changes, diffRules(published.Rules, draft.Rules)...)
 	scenes := func(manifest Manifest) map[uuid.UUID]versioned {
 		result := map[uuid.UUID]versioned{}
 		for _, scene := range manifest.Scenes {
-			result[scene.ID] = versioned{name: scene.Name, marker: fmt.Sprint(scene.Version)}
+			result[scene.ID] = versioned{name: scene.Name, marker: fmt.Sprint(scene.Version) + ":" + blocksDigest(scene.Blocks)}
 		}
 		return result
 	}
@@ -341,20 +339,30 @@ func diffManifests(published, draft Manifest) []PendingChange {
 		}
 		return result
 	}
-	layouts := func(manifest Manifest) map[uuid.UUID]versioned {
-		result := map[uuid.UUID]versioned{}
-		for _, layout := range manifest.CustomLayouts {
-			result[layout.ID] = versioned{name: layout.Name, marker: fmt.Sprint(layout.Version)}
-		}
-		return result
-	}
 	changes = append(changes, diffEntities(ChangeTargetScene, scenes(published), scenes(draft))...)
-	changes = append(changes, diffEntities(ChangeTargetLayout, layouts(published), layouts(draft))...)
 	changes = append(changes, diffEntities(ChangeTargetAsset, assets(published), assets(draft))...)
 	return changes
 }
 
 type versioned struct{ name, marker string }
+
+// blocksDigest identifies the content of blocks independent of key order and whitespace of their widgets.
+func blocksDigest(blocks []Block) string {
+	encoded, err := json.Marshal(blocks)
+	if err != nil {
+		return ""
+	}
+	var generic any
+	if json.Unmarshal(encoded, &generic) != nil {
+		return ""
+	}
+	normalized, err := json.Marshal(generic)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(normalized)
+	return hex.EncodeToString(sum[:])
+}
 
 func diffEntities(kind ChangeTarget, published, draft map[uuid.UUID]versioned) []PendingChange {
 	var changes []PendingChange
@@ -423,9 +431,9 @@ func diffRules(published, draft []ManifestRule) []PendingChange {
 	return changes
 }
 
-// legacyManifestShape holds the fields that publications stored before manifest version 3 carried instead:
-// orientation and resolution before aspect ratios, and rule targets, the default playlist and the playlists
-// before scene lists.
+// legacyManifestShape holds the fields that older publications carried instead: orientation and resolution
+// before aspect ratios, rule targets, the default playlist and the playlists before scene lists (version 3),
+// and layouts with zones and the custom layouts before blocks (version 4).
 type legacyManifestShape struct {
 	Display struct {
 		Orientation string `json:"orientation"`
@@ -436,8 +444,10 @@ type legacyManifestShape struct {
 	} `json:"display"`
 	Scenes []struct {
 		Orientation string `json:"orientation"`
+		legacyManifestScene
 	} `json:"scenes"`
-	Rules []struct {
+	CustomLayouts []LegacyCustomLayout `json:"customLayouts"`
+	Rules         []struct {
 		TargetKind string    `json:"targetKind"`
 		TargetID   uuid.UUID `json:"targetId"`
 	} `json:"rules"`
@@ -448,15 +458,17 @@ type legacyManifestShape struct {
 	} `json:"playlists"`
 }
 
-// upgradeManifest reads a stored publication. Stored rows are never rewritten, so a publication made before
-// manifest version 3 still has the older shape; it is converted in memory:
+// upgradeManifest reads a stored publication. Stored rows are never rewritten, so an older publication still has
+// an older shape; it is converted in memory:
 //   - a publication made before aspect ratios gets the ratios that migration 00090 gave its display and scenes
 //     (the reduced resolution, or 16:9 / 9:16 when that does not fit 1–100; scenes 16:9 when landscape and
 //     9:16 when portrait);
 //   - a rule that showed a scene shows a one-item list (10 seconds, cut), a rule that showed a playlist shows
 //     the published playlist's items, and a rule whose playlist was empty is dropped (it showed nothing);
 //   - the default playlist's items become the default list; an empty default playlist becomes the first scene
-//     with the display's ratio, or a synthetic black Blank scene when there is none.
+//     with the display's ratio, or a synthetic black Blank scene when there is none;
+//   - a scene with a layout and zones gets the blocks that migration 00130 gave the stored scenes, using the
+//     custom layout published with it (ConvertLegacyScene).
 func upgradeManifest(raw []byte) (Manifest, error) {
 	var manifest Manifest
 	if err := json.Unmarshal(raw, &manifest); err != nil {
@@ -475,6 +487,18 @@ func upgradeManifest(raw []byte) (Manifest, error) {
 	if err := json.Unmarshal(raw, &legacy); err != nil {
 		return Manifest{}, err
 	}
+	if manifest.ManifestVersion < 3 {
+		upgradeToSceneLists(&manifest, legacy)
+	}
+	if err := upgradeToBlocks(&manifest, legacy); err != nil {
+		return Manifest{}, err
+	}
+	manifest.ManifestVersion = ManifestVersion
+	return manifest, nil
+}
+
+// upgradeToSceneLists converts a publication made before manifest version 3.
+func upgradeToSceneLists(manifest *Manifest, legacy legacyManifestShape) {
 	if manifest.Display.AspectRatio == (AspectRatio{}) {
 		resolution := AspectRatio{Width: legacy.Display.Resolution.Width, Height: legacy.Display.Resolution.Height}
 		ratio := resolution.Reduce()
@@ -515,10 +539,35 @@ func upgradeManifest(raw []byte) (Manifest, error) {
 		manifest.DefaultScenes = append([]SceneListItem{}, playlists[legacy.DefaultPlaylistID]...)
 	}
 	if len(manifest.DefaultScenes) == 0 {
-		manifest.DefaultScenes = []SceneListItem{{SceneID: fallbackScene(&manifest), Seconds: defaultItemSeconds, Transition: TransitionCut}}
+		manifest.DefaultScenes = []SceneListItem{{SceneID: fallbackScene(manifest), Seconds: defaultItemSeconds, Transition: TransitionCut}}
 	}
-	manifest.ManifestVersion = ManifestVersion
-	return manifest, nil
+}
+
+// upgradeToBlocks gives every scene published with a layout and zones its blocks.
+func upgradeToBlocks(manifest *Manifest, legacy legacyManifestShape) error {
+	layouts := make(map[uuid.UUID]LegacyCustomLayout, len(legacy.CustomLayouts))
+	for _, layout := range legacy.CustomLayouts {
+		layouts[layout.ID] = layout
+	}
+	for index := range manifest.Scenes {
+		scene := &manifest.Scenes[index]
+		if scene.Blocks != nil || index >= len(legacy.Scenes) {
+			continue
+		}
+		stored := legacy.Scenes[index].legacyManifestScene
+		var custom *LegacyCustomLayout
+		if stored.CustomLayoutID != nil {
+			if layout, ok := layouts[*stored.CustomLayoutID]; ok {
+				custom = &layout
+			}
+		}
+		blocks, err := ConvertLegacyScene(scene.AspectRatio, stored.LayoutID, custom, stored.Zones)
+		if err != nil {
+			return fmt.Errorf("upgrade scene %s: %w", scene.ID, err)
+		}
+		scene.Blocks = blocks
+	}
+	return nil
 }
 
 // fallbackScene is the default an upgraded publication shows when its default playlist was empty: the first
@@ -529,16 +578,17 @@ func fallbackScene(manifest *Manifest) uuid.UUID {
 			return scene.ID
 		}
 	}
+	// The full layout with an empty zone: one empty block, which cannot fail to convert.
+	blocks, _ := ConvertLegacyScene(manifest.Display.AspectRatio, "full", nil, nil)
 	manifest.Scenes = append(manifest.Scenes, ManifestScene{
 		ID:              blankSceneID,
 		Name:            "Blank",
 		AspectRatio:     manifest.Display.AspectRatio,
-		LayoutID:        "full",
 		BackgroundColor: "#000000",
 		BackgroundFit:   MediaFitCover,
 		Theme:           ThemeDark,
 		FontFamily:      SceneFontSans,
-		Zones:           map[string]json.RawMessage{"main": json.RawMessage(`{"type":"empty"}`)},
+		Blocks:          blocks,
 		Version:         1,
 	})
 	return blankSceneID

@@ -39,6 +39,7 @@ import { signagePaths } from './paths';
 import { displayQuery, groupQuery, rulesQuery, signageKeys } from './queries';
 import { toPlaybackRule, type PublishedView } from './publishedView';
 import { describeCondition, sceneListPosition } from './engine/playback';
+import { visibleWidgets } from './widgets';
 
 export function DisplayDetailPage() {
   const { displayId = '' } = useParams();
@@ -154,7 +155,7 @@ function Detail({ display, crumbs }: { display: SignageDisplay; crumbs: { label:
     display.visibleFromOutside &&
     !display.allowCameraOutside &&
     (view?.manifest.scenes.some((scene) =>
-      Object.values(scene.zones).some((widget) => widget.type === 'camera' || widget.type === 'timelapse'),
+      visibleWidgets(scene.blocks).some((widget) => widget.type === 'camera' || widget.type === 'timelapse'),
     ) ??
       false);
 

@@ -15,6 +15,7 @@ const (
 	Neutral       Treatment = "replaced by a neutral text"
 	FileName      Treatment = "replaced by a neutral name that keeps the extension"
 	RandomToken   Treatment = "replaced by the digest of a random value"
+	RandomKey     Treatment = "replaced by a new random key"
 	Mailpit       Treatment = "pointed at staging's Mailpit"
 	ProductionKey Treatment = "cleared: encrypted with production's keys"
 )
@@ -594,13 +595,6 @@ var Tables = []Table{
 	{Name: "signage_announcement_values", Columns: map[string]Treatment{"key": System, "value": Catalog}},
 	{Name: "signage_announcements"},
 	{Name: "signage_assets", Columns: map[string]Treatment{"kind": System, "name": Catalog}},
-	{Name: "signage_custom_layouts", Columns: map[string]Treatment{
-		"name":    Catalog,
-		"mode":    System,
-		"columns": System,
-		"rows":    System,
-		"zones":   Catalog,
-	}},
 	{Name: "signage_default_scenes", Columns: map[string]Treatment{"transition": System}},
 	{Name: "signage_display_groups", Columns: map[string]Treatment{"name": Catalog}},
 	{Name: "signage_display_states", Columns: map[string]Treatment{
@@ -608,7 +602,7 @@ var Tables = []Table{
 		"player_version": System,
 		"errors":         System,
 	}},
-	{Name: "signage_displays", Columns: map[string]Treatment{"name": Catalog, "location": Catalog}},
+	{Name: "signage_displays", Columns: map[string]Treatment{"name": Catalog, "location": Catalog, "kind": System}},
 	{Name: "signage_pairing_requests", Emptied: EmptiedSignInState},
 	{Name: "signage_publications", Columns: map[string]Treatment{"manifest": Catalog, "manifest_sha256": System}},
 	{Name: "signage_rule_notices", Emptied: EmptiedHistory},
@@ -623,12 +617,18 @@ var Tables = []Table{
 	}},
 	{Name: "signage_scenes", Columns: map[string]Treatment{
 		"name":             Catalog,
-		"layout_id":        System,
 		"background_color": Catalog,
 		"background_fit":   System,
 		"theme":            System,
-		"zones":            Catalog,
+		"blocks":           Catalog,
 		"font_family":      Catalog,
+	}},
+	// Embeds are switched off on staging and get a new key, so production embed codes do not reach staging.
+	{Name: "signage_web_embeds", Columns: map[string]Treatment{
+		"display_kind":       System,
+		"embed_key":          RandomKey,
+		"allowed_origins":    Catalog,
+		"camera_machine_ids": System,
 	}},
 	{Name: "staffing_excusals", Columns: map[string]Treatment{"reason": Cleared}},
 	{Name: "staffing_rule_exceptions"},

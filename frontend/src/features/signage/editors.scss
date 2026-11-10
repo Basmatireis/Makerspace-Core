@@ -1,10 +1,10 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
 @use '@carbon/styles/scss/theme' as theme;
+@use '@carbon/styles/scss/breakpoint' as *;
 
-// Admin editors added with custom layouts and rich text: widget style and rich text fields, fonts in Media, and the layout
-// editor. Carbon components carry the controls; this file holds layout glue and the two drawing surfaces (grid cells and
-// free rectangles), which Carbon has no equivalent for.
+// Admin editors for rich text and widget styles, and fonts in Media. Carbon components carry the controls; this file holds
+// layout glue only.
 
 // Rich text, style and placeholder fields ---------------------------------------------------------------------------------------------
 .sg-code textarea,
@@ -71,42 +71,6 @@ textarea.sg-code {
   line-height: 1.3;
 }
 
-// Custom layouts ----------------------------------------------------------------------------------------------------------------------
-.sg-layout-thumb {
-  inline-size: 5.5rem;
-  padding-block: $spacing-02;
-}
-.sg-layout-thumb .sg-sketch {
-  max-inline-size: none;
-}
-.sg-sketch--free {
-  position: relative;
-  display: block;
-}
-.sg-sketch--free .sg-sketch__zone {
-  position: absolute;
-  box-sizing: border-box;
-}
-.sg-layout-editor {
-  display: grid;
-  grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
-  gap: $spacing-06;
-  align-items: start;
-  margin-block-end: $spacing-05;
-}
-.sg-layout-editor > * {
-  min-inline-size: 0;
-}
-@media (max-width: 65.98rem) {
-  .sg-layout-editor {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-.sg-layout-readonly {
-  display: grid;
-  gap: $spacing-05;
-  max-inline-size: 36rem;
-}
 .sg-panel {
   padding: $spacing-05;
   background: theme.$layer-01;
@@ -304,4 +268,526 @@ textarea.sg-code {
   inset-block-start: calc(50% - 0.375rem);
   inset-inline-start: -0.375rem;
   cursor: ew-resize;
+}
+
+// Screen editor page ------------------------------------------------------------------------------------------------------
+// Full width below the app header: top bar, then palette and blocks · canvas · properties, each pane scrolling on its own.
+.sg-se {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  block-size: calc(100vh - 3rem);
+  background: theme.$background;
+}
+.sg-se__bar {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  min-inline-size: 0;
+  padding: $spacing-03 $spacing-05;
+  border-block-end: 1px solid theme.$border-subtle-01;
+  background: theme.$layer-01;
+}
+.sg-se__name {
+  flex: 0 1 22rem;
+  min-inline-size: 8rem;
+}
+.sg-se__spacer {
+  flex: 1 1 auto;
+}
+.sg-se__state {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  inline-size: auto;
+  color: theme.$text-secondary;
+  white-space: nowrap;
+  @include type-style('label-01');
+}
+.sg-se__state--warning svg {
+  fill: theme.$support-warning;
+}
+.sg-se__state--error svg {
+  fill: theme.$support-error;
+}
+.sg-se__notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03;
+  padding: $spacing-03 $spacing-05 0;
+}
+.sg-se__notice .cds--inline-notification {
+  margin: 0;
+}
+.sg-se__work {
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr) 21rem;
+  min-block-size: 0;
+}
+.sg-se__left,
+.sg-se__right {
+  min-block-size: 0;
+  overflow-y: auto;
+  background: theme.$layer-01;
+}
+.sg-se__left {
+  display: grid;
+  align-content: start;
+  gap: $spacing-05;
+  padding-block: $spacing-04 $spacing-07;
+  border-inline-end: 1px solid theme.$border-subtle-01;
+}
+.sg-se__right {
+  border-inline-start: 1px solid theme.$border-subtle-01;
+}
+.sg-se__centre {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+.sg-se__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-05;
+  padding: $spacing-03 $spacing-05;
+  border-block-start: 1px solid theme.$border-subtle-01;
+  background: theme.$layer-01;
+}
+.sg-se__fidelity {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+.sg-se__fidelity svg {
+  fill: theme.$support-success;
+}
+.sg-se__zoom {
+  inline-size: 14rem;
+}
+.sg-se__foot .cds--form-item {
+  flex: 0 0 auto;
+}
+
+@include breakpoint-down(lg) {
+  .sg-se {
+    block-size: auto;
+  }
+  .sg-se__bar {
+    flex-wrap: wrap;
+  }
+  .sg-se__work {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sg-se__centre {
+    order: -1;
+    grid-template-rows: 70vh auto;
+  }
+  .sg-se__left,
+  .sg-se__right {
+    overflow: visible;
+    border: 0;
+    border-block-start: 1px solid theme.$border-subtle-01;
+  }
+}
+
+// Left pane: palette and blocks list
+.sg-pane__title {
+  padding-inline: $spacing-05;
+  @include type-style('heading-compact-01');
+}
+.sg-pane__hint {
+  padding: $spacing-02 $spacing-05 $spacing-03;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+.sg-palette__label {
+  padding: $spacing-03 $spacing-05 $spacing-02;
+  color: theme.$text-secondary;
+  @include type-style('label-01');
+}
+.sg-palette__items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-inline: $spacing-03;
+}
+.sg-palette__item.cds--btn {
+  justify-content: flex-start;
+  gap: $spacing-03;
+  min-inline-size: 0;
+  padding-inline: $spacing-03;
+  cursor: grab;
+}
+.sg-palette__item.cds--btn .cds--btn__icon {
+  order: -1;
+  margin: 0;
+}
+.sg-layers__list {
+  display: grid;
+}
+.sg-layers__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: $spacing-02;
+  min-block-size: 2.5rem;
+  padding-inline: $spacing-03 $spacing-02;
+}
+.sg-layers__row:hover {
+  background: theme.$layer-hover-01;
+}
+.sg-layers__row--selected {
+  background: theme.$layer-selected-01;
+  box-shadow: inset 3px 0 0 theme.$border-interactive;
+}
+.sg-layers__row--hidden .sg-layers__label {
+  color: theme.$text-disabled;
+}
+.sg-layers__row--dragging {
+  opacity: 0.5;
+}
+.sg-layers__row--drop-above::before,
+.sg-layers__row--drop-below::after {
+  content: '';
+  position: absolute;
+  inset-inline: $spacing-03;
+  block-size: 2px;
+  background: theme.$border-interactive;
+}
+.sg-layers__row--drop-above::before {
+  inset-block-start: -1px;
+}
+.sg-layers__row--drop-below::after {
+  inset-block-end: -1px;
+}
+.sg-layers__name.cds--btn {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  gap: $spacing-03;
+  min-inline-size: 0;
+  max-inline-size: none;
+  min-block-size: 2rem;
+  padding: 0 $spacing-02;
+  color: theme.$text-primary;
+  text-align: start;
+}
+.sg-layers__name svg {
+  flex: 0 0 auto;
+  fill: theme.$icon-secondary;
+}
+.sg-layers__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sg-layers__warning {
+  flex: 0 0 auto;
+  fill: theme.$support-warning;
+}
+.sg-layers__toggle {
+  opacity: 0.55;
+}
+.sg-layers__row:hover .sg-layers__toggle,
+.sg-layers__toggle:focus-within {
+  opacity: 1;
+}
+
+// Canvas: the screen centred in a scrolling area with room for the floating toolbars
+.sg-sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.sg-canvas:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
+.sg-canvas {
+  position: relative;
+  min-block-size: 0;
+  overflow: auto;
+  background: theme.$layer-02;
+}
+.sg-canvas__inner {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  inline-size: max-content;
+  min-inline-size: 100%;
+}
+.sg-canvas__box {
+  position: relative;
+  flex: 0 0 auto;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 30%);
+}
+.sg-canvas__box > .sg-frame {
+  max-inline-size: none;
+}
+.sg-canvas__overlay {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  user-select: none;
+}
+.sg-canvas__overlay > * {
+  position: absolute;
+  box-sizing: border-box;
+}
+.sg-canvas__overlay--dragging {
+  cursor: grabbing;
+}
+.sg-canvas__hover {
+  outline: 1px solid theme.$border-interactive;
+  pointer-events: none;
+}
+.sg-canvas__selection {
+  border: 2px solid theme.$border-interactive;
+  pointer-events: none;
+}
+.sg-canvas__multi {
+  border: 2px solid theme.$border-interactive;
+  pointer-events: none;
+}
+.sg-canvas__group {
+  border: 1px dashed theme.$border-interactive;
+  pointer-events: none;
+}
+.sg-canvas__handle {
+  inline-size: 10px;
+  block-size: 10px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid theme.$border-interactive;
+  background: theme.$background;
+}
+.sg-canvas__handle--n,
+.sg-canvas__handle--s {
+  cursor: ns-resize;
+}
+.sg-canvas__handle--e,
+.sg-canvas__handle--w {
+  cursor: ew-resize;
+}
+.sg-canvas__handle--nw,
+.sg-canvas__handle--se {
+  cursor: nwse-resize;
+}
+.sg-canvas__handle--ne,
+.sg-canvas__handle--sw {
+  cursor: nesw-resize;
+}
+.sg-canvas__guide {
+  pointer-events: none;
+}
+.sg-canvas__guide--v {
+  inline-size: 0;
+  border-inline-start: 1px solid #ff3d9a;
+}
+.sg-canvas__guide--h {
+  block-size: 0;
+  border-block-start: 1px solid #ff3d9a;
+}
+.sg-canvas__guide--mirror {
+  border-style: dashed;
+}
+.sg-canvas__guide--axis {
+  border-color: rgb(255 61 154 / 50%);
+  border-style: dotted;
+}
+.sg-canvas__badge {
+  padding: $spacing-01 $spacing-03;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: theme.$background-inverse;
+  color: theme.$text-inverse;
+  white-space: pre;
+  pointer-events: none;
+  @include type-style('label-01');
+}
+.sg-canvas__marquee {
+  border: 1px solid theme.$border-interactive;
+  background: rgb(69 137 255 / 12%);
+  pointer-events: none;
+}
+.sg-canvas__ghost {
+  border: 2px dashed theme.$border-interactive;
+  background: rgb(69 137 255 / 18%);
+  pointer-events: none;
+}
+.sg-canvas__margins {
+  border: 1px dashed rgb(255 255 255 / 45%);
+  outline: 1px dashed rgb(0 0 0 / 35%);
+  pointer-events: none;
+}
+.sg-canvas__overflow {
+  border-block-end: 6px solid transparent;
+  border-image: repeating-linear-gradient(-45deg, #da1e28 0 6px, #fff 6px 12px) 6;
+  pointer-events: none;
+}
+.sg-canvas__toolbar {
+  z-index: 2;
+  inline-size: max-content;
+}
+.sg-canvas__edit-layer {
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.sg-inline-text {
+  position: absolute;
+  pointer-events: auto;
+  outline: 2px solid theme.$border-interactive;
+}
+.sg-inline-text__body {
+  min-block-size: 1em;
+  outline: none;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  cursor: text;
+  user-select: text;
+}
+// The rendered text lives in a shadow root with browser defaults plus RICH_TEXT_BASE_CSS; the editable copy sits in the
+// page under Carbon's reset, so the same defaults are restored here.
+.sg-inline-text__body {
+  > :first-child {
+    margin-block-start: 0;
+  }
+  > :last-child {
+    margin-block-end: 0;
+  }
+  h1,
+  h2 {
+    font-weight: 700;
+    line-height: 1.15;
+    margin-block: 0.4em 0.25em;
+  }
+  h1 {
+    font-size: 2em;
+  }
+  h2 {
+    font-size: 1.5em;
+  }
+  p,
+  ul,
+  ol {
+    margin-block: 0 0.5em;
+  }
+  ul,
+  ol {
+    padding-inline-start: 1.2em;
+  }
+  ul {
+    list-style: disc;
+  }
+  ol {
+    list-style: decimal;
+  }
+  b,
+  strong {
+    font-weight: 700;
+  }
+  i,
+  em {
+    font-style: italic;
+  }
+}
+.sg-quick {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+.sg-quick__label {
+  color: rgb(255 255 255 / 70%);
+  @include type-style('label-01');
+}
+.sg-quick__panel {
+  display: grid;
+  justify-items: center;
+  gap: $spacing-02;
+  max-inline-size: 100%;
+  padding: $spacing-03;
+  background: theme.$layer-01;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 30%);
+  pointer-events: auto;
+}
+.sg-quick__panel .sg-quick__label {
+  color: theme.$text-secondary;
+}
+.sg-quick__items {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+// Floating block, group and text toolbars
+.sg-toolbar {
+  display: flex;
+  align-items: center;
+  background: theme.$layer-01;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 30%);
+}
+.sg-toolbar__type {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-02;
+  padding-inline: $spacing-03;
+  color: theme.$text-secondary;
+  white-space: nowrap;
+  @include type-style('label-01');
+}
+.sg-toolbar__sep {
+  align-self: stretch;
+  inline-size: 1px;
+  margin-block: $spacing-02;
+  background: theme.$border-subtle-01;
+}
+.sg-toolbar__rotate svg {
+  transform: rotate(90deg);
+}
+.sg-toolbar__danger svg {
+  fill: theme.$support-error;
+}
+
+// Preview and publish dialogs
+.sg-preview__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: $spacing-06;
+  margin-block-end: $spacing-05;
+}
+.sg-preview__controls .cds--form-item {
+  flex: 0 1 auto;
+}
+.sg-preview__stage {
+  display: flex;
+  justify-content: center;
+  padding: $spacing-05;
+  background: #161616;
+}
+.sg-preview__display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 100%;
+  overflow: hidden;
+  background: #000;
+}
+.sg-preview__note {
+  margin-block-start: $spacing-03;
+  color: theme.$text-secondary;
+  @include type-style('helper-text-01');
+}
+.sg-publish__body {
+  display: grid;
+  gap: $spacing-05;
 }

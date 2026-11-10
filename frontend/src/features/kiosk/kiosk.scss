@@ -129,6 +129,8 @@ body:has(.tablet) {
 
 .tablet-main {
   grid-area: main;
+  display: grid;
+  align-content: start;
   overflow-y: auto;
   padding: $spacing-08 $spacing-09;
 }
@@ -146,7 +148,20 @@ body:has(.tablet) {
 .tablet-home {
   display: grid;
   gap: $spacing-08;
+  inline-size: 100%;
   max-inline-size: 48rem;
+}
+
+// The start screen sits in the middle of the free space; the other screens start at the top.
+.tablet-main:has(> .tablet-home) {
+  place-content: center;
+  justify-items: center;
+}
+
+.tablet-home__title,
+.tablet-home__tagline,
+.tablet-home__lead {
+  text-align: center;
 }
 
 .tablet-home__title {
@@ -199,6 +214,7 @@ body:has(.tablet) {
 .tablet-home__footer {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: $spacing-04;
 }
 
@@ -207,7 +223,29 @@ body:has(.tablet) {
 .tablet-identify {
   display: grid;
   gap: $spacing-07;
+  justify-self: center;
+  inline-size: 100%;
   max-inline-size: 52rem;
+}
+
+.tablet-register {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-05;
+  padding: $spacing-05 $spacing-06;
+  background: $layer-accent-01;
+  border-inline-start: 4px solid $border-interactive;
+}
+
+.tablet-register__title {
+  @include type-style('heading-03');
+}
+
+.tablet-register__text {
+  @include type-style('body-02');
+  color: $text-secondary;
 }
 
 .tablet-identify__header {

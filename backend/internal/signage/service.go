@@ -1,4 +1,4 @@
-// Package signage owns digital-signage content (layouts, media assets, scenes, announcement templates and
+// Package signage owns digital-signage content (media assets, scenes made of blocks, announcement templates and
 // announcements) and the displays that show it: pairing, rules with their scene lists, the default scene
 // list, publications and the player API.
 package signage
@@ -38,6 +38,7 @@ type Service struct {
 	claimFailures   *ratelimit.Limiter // wrong pairing codes entered per staff account
 	pairingPolls    *ratelimit.Limiter // pairing polls per client IP
 
+	embedLoads *embedLoadCounter // page loads of web embeds until the next flush
 }
 
 // Option customises the service at construction.
@@ -69,6 +70,7 @@ func NewService(
 		pairingRequests: ratelimit.New(pairingRequestsPerWindow, pairingRequestWindow),
 		claimFailures:   ratelimit.New(claimFailuresPerWindow, claimFailureWindow),
 		pairingPolls:    ratelimit.New(pairingPollsPerWindow, pairingPollWindow),
+		embedLoads:      newEmbedLoadCounter(),
 	}
 	for _, option := range options {
 		option(service)
@@ -220,12 +222,4 @@ func int32Pointer(value *int) *int32 {
 	}
 	converted := int32(*value)
 	return &converted
-}
-
-// ListLayouts returns the fixed layouts; it is available to every signage reader.
-func (s *Service) ListLayouts(_ context.Context, principal authorization.Principal) ([]Layout, error) {
-	if err := requireRead(principal); err != nil {
-		return nil, err
-	}
-	return Layouts(), nil
 }

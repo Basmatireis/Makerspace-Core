@@ -99,6 +99,14 @@ export const SignageDisplaysPage = lazy(() =>
 export const SignageDisplayDetailPage = lazy(() =>
   import('../features/signage/DisplayDetailPage').then(({ DisplayDetailPage }) => ({ default: DisplayDetailPage })),
 );
+export const SignageWebEmbedsPage = lazy(() =>
+  import('../features/signage/WebEmbedsPage').then(({ WebEmbedsPage }) => ({ default: WebEmbedsPage })),
+);
+export const SignageWebEmbedDetailPage = lazy(() =>
+  import('../features/signage/WebEmbedDetailPage').then(({ WebEmbedDetailPage }) => ({
+    default: WebEmbedDetailPage,
+  })),
+);
 export const SignageGroupDetailPage = lazy(() =>
   import('../features/signage/GroupDetailPage').then(({ GroupDetailPage }) => ({ default: GroupDetailPage })),
 );
@@ -110,11 +118,6 @@ export const SignageContentPage = lazy(() =>
 );
 export const SignageSceneEditorPage = lazy(() =>
   import('../features/signage/SceneEditorPage').then(({ SceneEditorPage }) => ({ default: SceneEditorPage })),
-);
-export const SignageCustomLayoutEditorPage = lazy(() =>
-  import('../features/signage/CustomLayoutEditorPage').then(({ CustomLayoutEditorPage }) => ({
-    default: CustomLayoutEditorPage,
-  })),
 );
 export const SignageMediaPage = lazy(() =>
   import('../features/signage/MediaPage').then(({ MediaPage }) => ({ default: MediaPage })),
@@ -224,6 +227,7 @@ export const EventSignupManagementPage = lazy(() =>
     default: EventSignupManagementPage,
   })),
 );
+export const PrintPage = lazy(() => import('../features/printpage/PrintPage'));
 export const LabRulesConfirmPage = lazy(() => import('../features/laborordnung/confirm/LabRulesConfirmPage'));
 export const VisitorKioskPage = lazy(() =>
   import('../features/kiosk/VisitorKioskPage').then(({ VisitorKioskPage }) => ({

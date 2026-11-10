@@ -132,7 +132,7 @@ func TestSignageGroupMembershipRulesAndReferences(t *testing.T) {
 	staff := e.allStaff()
 	sceneA, defaults := e.seedContent("A")
 	sceneB := e.fixture.scene(t, "B scene")
-	portraitInput := sceneInput("Portrait", "full")
+	portraitInput := sceneInput("Portrait")
 	portraitInput.AspectRatio = signage.AspectRatio{Width: 9, Height: 16}
 	portrait, err := e.fixture.service.CreateScene(ctx, e.fixture.admin, portraitInput, nil)
 	if err != nil {
@@ -223,7 +223,7 @@ func TestSignageGroupMembershipRulesAndReferences(t *testing.T) {
 
 	// Scenes used by the group are referenced as kind group; their ratio cannot change.
 	expectInUse(t, e.fixture.service.DeleteScene(ctx, e.fixture.admin, sceneB.ID, sceneB.Version, nil), "group")
-	changed := sceneInput("B scene", "full")
+	changed := sceneInput("B scene")
 	changed.AspectRatio = signage.AspectRatio{Width: 9, Height: 16}
 	if _, err := e.fixture.service.UpdateScene(ctx, e.fixture.admin, sceneB.ID, sceneB.Version, changed, nil); err == nil {
 		t.Fatal("scene ratio changed while a group rule shows it")

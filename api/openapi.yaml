@@ -40,6 +40,8 @@ tags:
   - name: Pricing
   - name: Machine Jobs
   - name: Machine Runs
+  - name: Print pages
+    description: "The standalone page of one recorded print, opened from a notification e-mail by the job's recipient or by staff (docs/machine-logbook.md)."
   - name: Inventory
   - name: Filament Spools
   - name: Printing
@@ -49,6 +51,8 @@ tags:
   - name: Branding
   - name: Signage
   - name: Signage Player
+  - name: Signage Embed
+    description: Public endpoints of signage web embeds, addressed by the embed key.
   - name: Notifications
     description: "In-app notifications: the signed-in account's own inbox and manual messages to roles (docs/notifications.md)."
   - name: NotificationRules
@@ -5336,102 +5340,6 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /signage/layouts:
-    get:
-      tags: [Signage]
-      operationId: listSignageLayouts
-      summary: List the fixed, code-defined scene layouts
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Layouts with their zones., content: {application/json: {schema: {$ref: "#/components/schemas/SignageLayoutList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /signage/custom-layouts:
-    get:
-      tags: [Signage]
-      operationId: listSignageCustomLayouts
-      summary: List the custom layouts
-      description: Needs `signage.read` or `signage.content.manage`. Items carry `sceneCount`.
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Custom layouts by name., content: {application/json: {schema: {$ref: "#/components/schemas/SignageCustomLayoutList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    post:
-      tags: [Signage]
-      operationId: createSignageCustomLayout
-      summary: Create a custom layout
-      description: Needs `signage.content.manage`. Audited as `signage_custom_layout.created`.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSignageCustomLayoutRequest"}}}}
-      responses:
-        "201": {description: Custom layout created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageCustomLayout"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /signage/custom-layouts/{customLayoutId}/duplicate:
-    parameters: [{$ref: "#/components/parameters/SignageCustomLayoutId"}]
-    post:
-      tags: [Signage]
-      operationId: duplicateSignageCustomLayout
-      summary: Duplicate a custom layout
-      description: Copies every field of the layout, including its zones. The copy has a fresh id and version 1 and is named `<name> (copy)`, `<name> (copy 2)`, … (the first name not taken, truncated to fit 100 characters). Needs `signage.content.manage`. Audited as `signage_custom_layout.created`.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      responses:
-        "201": {description: Copy created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageCustomLayout"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /signage/custom-layouts/{customLayoutId}:
-    parameters: [{$ref: "#/components/parameters/SignageCustomLayoutId"}]
-    get:
-      tags: [Signage]
-      operationId: getSignageCustomLayout
-      description: Needs `signage.read` or `signage.content.manage`.
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Custom layout., content: {application/json: {schema: {$ref: "#/components/schemas/SignageCustomLayout"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    put:
-      tags: [Signage]
-      operationId: updateSignageCustomLayout
-      summary: Replace a custom layout
-      description: |
-        Needs `signage.content.manage`. Audited as `signage_custom_layout.updated`. Removing zones is allowed: in the same transaction every scene using the layout loses the widgets of the removed zone ids, gets an empty widget for new zone ids, bumps its version and is audited as `signage_scene.updated` (`zones`).
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageCustomLayoutRequest"}}}}
-      responses:
-        "200": {description: Updated custom layout., content: {application/json: {schema: {$ref: "#/components/schemas/SignageCustomLayout"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    delete:
-      tags: [Signage]
-      operationId: deleteSignageCustomLayout
-      description: Needs `signage.content.manage`. Answers 409 `signage_in_use` with `details.references` while a scene uses the layout.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
-      responses:
-        "204": {description: Custom layout deleted.}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /signage/machines:
     get:
       tags: [Signage]
@@ -5646,7 +5554,10 @@ paths:
       tags: [Signage]
       operationId: updateSignageScene
       summary: Replace a scene
-      description: When the layout (built-in or custom) changes and `zones` is omitted, widgets move to the new layout by position; surplus widgets are dropped and new zones are empty.
+      description: >-
+        Replaces the whole scene including every block (the editor saves drafts with this call). Changing the aspect
+        ratio is refused while a rule or default scene list shows the scene on a display with another ratio. Needs
+        `signage.content.manage`. Audited as `signage_scene.updated`.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageSceneRequest"}}}}
       responses:
@@ -6221,6 +6132,245 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/web-embeds:
+    get:
+      tags: [Signage]
+      operationId: listSignageWebEmbeds
+      summary: List web embeds
+      description: Requires `signage.read`. Web embeds show a signage screen in an iframe on other websites; they are signage displays without a device and are not listed by `listSignageDisplays`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Web embeds by name., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbedList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: createSignageWebEmbed
+      summary: Create a web embed
+      description: |
+        Requires `signage.manage`. Creates the embed with a new random embed key, switched on, without cameras and timelapses. `allowedOrigins` lists the websites that may frame it (1 to 20 origins `https://host[:port]`, lower-case host, no path, query or fragment; 422 otherwise). Like a display it needs `defaultScenes` without `groupId` and none with it. Nothing is shown until the first publication.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSignageWebEmbedRequest"}}}}
+      responses:
+        "201": {description: Web embed created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbed"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/web-embeds/{embedId}:
+    parameters: [{$ref: "#/components/parameters/SignageWebEmbedId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageWebEmbed
+      description: Requires `signage.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Web embed., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbed"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Signage]
+      operationId: updateSignageWebEmbed
+      summary: Change a web embed
+      description: |
+        Requires `signage.manage`. Omitted fields stay unchanged. Name, aspect ratio, group and default scenes are drafts that reach the websites with the next publication, as for displays. Switching the embed, its camera or its timelapses off takes effect immediately; switching camera or timelapses on takes effect only after the next publication. The last allowed website cannot be removed (422). The audit event lists the changed field names only.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageWebEmbedRequest"}}}}
+      responses:
+        "200": {description: Updated web embed., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbed"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignageWebEmbed
+      summary: Delete a web embed
+      description: Requires `signage.manage`. Deletes the embed with its rules, default list, publications and announcement targets. Websites that still frame it show the neutral "not available" page.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Web embed deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/web-embeds/{embedId}/rotate-key:
+    parameters: [{$ref: "#/components/parameters/SignageWebEmbedId"}]
+    post:
+      tags: [Signage]
+      operationId: rotateSignageWebEmbedKey
+      summary: Give a web embed a new embed key
+      description: Requires `signage.manage`. The old embed code stops working immediately; every website must use the new one. The audit event records that the key changed, never the key.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Web embed with its new key., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbed"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/web-embeds/{embedId}/publish:
+    parameters: [{$ref: "#/components/parameters/SignageWebEmbedId"}]
+    post:
+      tags: [Signage]
+      operationId: publishSignageWebEmbed
+      summary: Publish the web embed's current drafts
+      description: Requires `signage.publish`. Like `publishSignageDisplay`; the publication also records whether the camera and timelapses are switched on and which cameras are chosen, so switching them on reaches the websites only now. Rules and the preview of an embed use the display endpoints with the embed id as `displayId`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Web embed with its new published revision., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbed"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/frame-policy:
+    parameters: [{$ref: "#/components/parameters/SignageEmbedKey"}]
+    get:
+      tags: [Signage Embed]
+      operationId: getSignageEmbedFramePolicy
+      summary: Websites that may frame the embed (for the web server)
+      description: |
+        Public. The web server asks this before it serves the embed page and puts `frameAncestors` into the page's `Content-Security-Policy: frame-ancestors`. It always answers 200, because the web server's sub-request treats other answers as failures: an unknown key answers `'none'`, a known key (switched on or off) its allowed websites separated by spaces. The same value is in the `X-Embed-Frame-Ancestors` header. Not rate-limited, because the web server asks it for every page load.
+      security: []
+      responses:
+        "200":
+          description: Frame ancestors.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            X-Embed-Frame-Ancestors: {schema: {type: string, maxLength: 2000}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/SignageEmbedFramePolicy"}}}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/manifest:
+    parameters: [{$ref: "#/components/parameters/SignageEmbedKey"}]
+    get:
+      tags: [Signage Embed]
+      operationId: getSignageEmbedManifest
+      summary: The web embed's latest publication
+      description: |
+        Public. Like `getSignagePlayerManifest` with the embed settings the player needs. Unknown key: 404. Switched off: `embed.enabled` false without a manifest, so the player shows its neutral page. Before the first publication: 404 `signage_not_published`. A request without `known` (or with 0) to a switched-on embed counts as a page load. Asset URLs point to the embed's asset endpoint; scene, asset and custom-layout names are empty. Never sets cookies. Rate-limited per client address.
+      security: []
+      parameters:
+        - {name: known, in: query, required: false, schema: {type: integer, minimum: 0, maximum: 1000000000}}
+      responses:
+        "200": {description: Manifest or unchanged marker., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignageEmbedManifestResponse"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/live:
+    parameters: [{$ref: "#/components/parameters/SignageEmbedKey"}]
+    get:
+      tags: [Signage Embed]
+      operationId: getSignageEmbedLive
+      summary: Live data of a web embed
+      description: |
+        Public. What a display that is visible from outside gets: machine status, announcements that name the embed itself (never those for all displays or for a group), open days and events; never rule notices. `streams` only while the embed's camera is switched on now and in its latest publication, for the chosen machines; `timelapses` only while its timelapses are switched on now and in its latest publication, capped by the embed's count and age. Paths point to the embed's endpoints. Unknown or switched-off embed: 404. Rate-limited per client address.
+      security: []
+      responses:
+        "200": {description: Live data., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlayerLive"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/assets/{assetId}/{sha256}:
+    parameters:
+      - {$ref: "#/components/parameters/SignageEmbedKey"}
+      - {$ref: "#/components/parameters/SignageAssetId"}
+      - {name: sha256, in: path, required: true, schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+    get:
+      tags: [Signage Embed]
+      operationId: getSignageEmbedAsset
+      summary: Asset bytes of the web embed's latest publication
+      description: Public. Like `getSignagePlayerAsset` for the embed's latest publication; 404 for an unknown or switched-off embed. Rate-limited per client address.
+      security: []
+      responses:
+        "200":
+          description: Asset bytes.
+          headers:
+            Cache-Control: {schema: {type: string}}
+            ETag: {schema: {type: string}}
+            X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
+            Content-Security-Policy: {schema: {type: string}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+            image/webp: {schema: {type: string, format: binary}}
+            video/mp4: {schema: {type: string, format: binary}}
+            font/woff2: {schema: {type: string, format: binary}}
+        "206":
+          description: Partial content for a Range request.
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "416": {description: Range not satisfiable.}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/timelapses/{runId}/{sha256}:
+    parameters:
+      - {$ref: "#/components/parameters/SignageEmbedKey"}
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: sha256, in: path, required: true, schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+    get:
+      tags: [Signage Embed]
+      operationId: getSignageEmbedTimelapse
+      summary: Timelapse video listed in the web embed's live timelapses
+      description: Public. Like `getSignagePlayerTimelapse` for the embed's current timelapse selection; 404 while its timelapses are not allowed. Rate-limited per client address.
+      security: []
+      responses:
+        "200":
+          description: Video bytes.
+          headers:
+            Cache-Control: {schema: {type: string}}
+            ETag: {schema: {type: string}}
+            X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
+            Content-Security-Policy: {schema: {type: string}}
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "206":
+          description: Partial content for a Range request.
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "416": {description: Range not satisfiable.}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/cameras/{machineId}/stream:
+    parameters:
+      - {$ref: "#/components/parameters/SignageEmbedKey"}
+      - {name: machineId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Signage Embed]
+      operationId: streamSignageEmbedCamera
+      summary: Websocket relay of a printer camera for a web embed (MSE)
+      description: |
+        Public. A websocket upgrade like `streamSignagePlayerCamera`; answers a normal error response before the upgrade. The `Origin` header is required and must be the application's public origin (the embed page runs on it inside the iframe). Allowed while the embed is switched on, its camera is switched on now and in its latest publication, the machine is one of its chosen cameras and the usual camera rules hold (camera widget published, run not hidden, camera switch on). Re-checked every 15 seconds; close codes 4403, 4404 and 4503. Over the embed's viewer limit, or when web embeds already use half of the local service's streams: 409 `camera_busy`. One client address holds at most 2 streams of one embed (429).
+      security: []
+      responses:
+        "101": {description: Switching Protocols. The websocket relay is open.}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {description: "The embed's viewer limit is reached (`camera_busy`) or the local service is not connected (`camera_offline`).", content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+
   /public/signage/pairing:
     post:
       tags: [Signage]
@@ -6422,6 +6572,27 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /visitor-enrollment/login-name-suggestions:
+    post:
+      tags: [Visitor Enrollment]
+      operationId: suggestVisitorPinLoginName
+      summary: Suggest a free PIN login name from the visitor's name
+      description: |
+        Builds `firstname.lastname` (lower case, umlauts and accents transliterated, other characters dropped) and
+        appends a random number when that name is taken (a random number, so the answer does not tell which numbered names exist). Answers 403 when PIN enrollment is not allowed. It creates nothing; the name is checked again when the enrollment is
+        submitted. Answers 422 when no valid login name can be built from the name.
+      security: []
+      parameters:
+        - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorLoginNameSuggestionRequest"}}}}
+      responses:
+        "200": {description: A login name that is free right now., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorLoginNameSuggestion"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /visitor-enrollment/submissions:
     post:
       tags: [Visitor Enrollment]
@@ -6430,7 +6601,9 @@ paths:
       description: |
         Completing enrollment counts as arriving: the visitor is checked in. When the configured role asks for the Lab
         Rules, `labRulesAccepted` must be true (422 otherwise) and records the visitor's confirmation (method
-        `enrollment`) of the Lab Rules version pinned by the enrollment context. When that version is no longer the
+        `enrollment`) of the Lab Rules version pinned by the enrollment context. `consents` holds the visitor's answers
+        to the notification categories listed in the enrollment state (place `kiosk`); they are stored in the same
+        transaction, and a category left out is asked at a later check-in. When that version is no longer the
         current one, the answer is 409 `lab_rules_changed` and the kiosk must start over with the new version.
         Current device, method, and initial-role configuration is still enforced.
       security: []
@@ -9409,6 +9582,90 @@ paths:
         "416": {description: The requested range is not satisfiable.}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /print-pages/{runId}:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Print pages]
+      operationId: getPrintPage
+      summary: The print page of one recorded run
+      description: >-
+        Any signed-in person who is the current recipient (a person, not an organization) of the run's job, or anyone with machine_jobs.read.
+        Everybody else, and runs that are unknown, manual, without a job, or whose run or job is in the recycle bin, get the same 404, so the
+        answer never reveals whether a run exists. The page names the print, the machine, its times and outcome, the timelapse and the 3MF with
+        its previews; it never carries material, quantities, prices, the operator or the recipient.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Print page., content: {application/json: {schema: {$ref: "#/components/schemas/PrintPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-pages/{runId}/timelapse/content:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Print pages]
+      operationId: downloadPrintPageTimelapse
+      summary: Stream or download the timelapse of a print page
+      description: >-
+        Same access as getPrintPage. Served like downloadMachineRunTimelapse: HTTP Range requests (one range) are answered with 206 when the
+        storage backend can seek, other backends answer the full body with `Accept-Ranges: none`; always `Cache-Control: no-store` and
+        `Content-Disposition: attachment`. 404 when the run has no timelapse.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Whole video.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Accept-Ranges: {schema: {type: string}}}
+          content: {video/mp4: {schema: {type: string, format: binary}}}
+        "206":
+          description: Partial content for a Range request.
+          headers: {Content-Range: {schema: {type: string}}}
+          content: {video/mp4: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "416": {description: The requested range is not satisfiable.}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-pages/{runId}/file/content:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Print pages]
+      operationId: downloadPrintPageFile
+      summary: Download the 3MF of a print page
+      description: Same access as getPrintPage. The original 3MF as an attachment; 404 when the run has no stored 3MF.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Original 3MF bytes as an attachment.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content: {application/octet-stream: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-pages/{runId}/previews/{previewId}/content:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: previewId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Print pages]
+      operationId: getPrintPagePreview
+      summary: Image of a preview of a print page's 3MF
+      description: Same access as getPrintPage. 404 unless the preview belongs to the run's 3MF. Served inline for img elements.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Validated PNG or JPEG bytes.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /machine-runs/{runId}/artifact-refetch:
     parameters:
       - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -12178,11 +12435,6 @@ components:
       in: path
       required: true
       schema: {$ref: "#/components/schemas/UUIDv7"}
-    SignageCustomLayoutId:
-      name: customLayoutId
-      in: path
-      required: true
-      schema: {$ref: "#/components/schemas/UUIDv7"}
     SignageSceneId:
       name: sceneId
       in: path
@@ -12203,6 +12455,17 @@ components:
       in: path
       required: true
       schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageWebEmbedId:
+      name: embedId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageEmbedKey:
+      name: embedKey
+      in: path
+      required: true
+      description: The public embed key from the embed code.
+      schema: {type: string, pattern: "^[A-Za-z0-9_-]{20,64}$"}
     SignageDisplayGroupId:
       name: groupId
       in: path
@@ -12702,6 +12965,14 @@ components:
         type: {type: string, maxLength: 40, description: "One of event, schedule, manual."}
         event: {type: string, maxLength: 60, description: Key of a catalog trigger.}
         schedule: {$ref: "#/components/schemas/NotificationRuleSchedule"}
+        machines:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/UUIDv7"}
+          description: >-
+            Only for event triggers whose catalog entry has `machineScope`: the rule reacts only to events of these machines (the options of the
+            trigger's `machine` field). Empty or absent means every machine.
 
     NotificationRuleLoop:
       type: object
@@ -13087,13 +13358,14 @@ components:
     NotificationCatalogTrigger:
       type: object
       additionalProperties: false
-      required: [key, area, label, help, subject, fields, recipients, placeholders, resolutions, throttleSubjects]
+      required: [key, area, label, help, subject, machineScope, fields, recipients, placeholders, resolutions, throttleSubjects]
       properties:
         key: {type: string}
         area: {type: string}
         label: {type: string}
         help: {type: string}
         subject: {type: string, maxLength: 40, description: "`lab` or `self`. `self` events concern one person; a personal rule only fires for that person."}
+        machineScope: {type: boolean, description: "The trigger's events concern one machine: a rule may limit itself to some machines with `trigger.machines`, chosen from the options of its `machine` field."}
         fields: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogField"}}
         recipients: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}}
         placeholders: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogPlaceholder"}}
@@ -13178,6 +13450,14 @@ components:
         askFeedbackAtCheckout: {type: boolean}
         rules: {type: array, items: {$ref: "#/components/schemas/NotificationReachingRule"}}
 
+    ConsentAnswer:
+      type: object
+      additionalProperties: false
+      required: [categoryId, granted]
+      properties:
+        categoryId: {$ref: "#/components/schemas/UUIDv7"}
+        granted: {type: boolean}
+
     AnswerNotificationConsentsRequest:
       type: object
       additionalProperties: false
@@ -13187,13 +13467,7 @@ components:
           type: array
           minItems: 1
           maxItems: 50
-          items:
-            type: object
-            additionalProperties: false
-            required: [categoryId, granted]
-            properties:
-              categoryId: {$ref: "#/components/schemas/UUIDv7"}
-              granted: {type: boolean}
+          items: {$ref: "#/components/schemas/ConsentAnswer"}
         place: {type: string, maxLength: 40, description: "`app` or `profile`: where the person answered. The tablet answers through its own endpoint."}
 
     SetNotificationRulePreferenceRequest:
@@ -17621,9 +17895,10 @@ components:
     VisitorEnrollmentState:
       type: object
       additionalProperties: false
-      required: [allowedMethods, capabilities, currentLabRules, labRulesRequired, expiresAt]
+      required: [allowedMethods, capabilities, currentLabRules, labRulesRequired, consentCategories, expiresAt]
       properties:
         allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
+        consentCategories: {type: array, maxItems: 50, description: "Notification categories that need the visitor's consent, asked during enrollment. Nothing is preselected.", items: {$ref: "#/components/schemas/TerminalConsentCategory"}}
         capabilities: {type: array, uniqueItems: true, description: "Effective capabilities of the enrolling device. A profile photo is required exactly when this includes camera or file_upload.", items: {$ref: "#/components/schemas/DeviceCapability"}}
         currentLabRules: {allOf: [{$ref: "#/components/schemas/VisitorLabRulesVersion"}], nullable: true}
         labRulesRequired: {type: boolean, description: "Whether the Visitor role asks for the Lab Rules. Only then does the kiosk show them and does enrollment record the confirmation."}
@@ -17632,18 +17907,33 @@ components:
     VisitorEnrollmentSubmission:
       type: object
       additionalProperties: false
-      required: [firstName, lastName, email, phone, authMethods, pinLoginName, pin, profileImageBase64, profileImageFilename, labRulesAccepted]
+      required: [firstName, lastName, email, authMethods, pinLoginName, pin, profileImageBase64, profileImageFilename, labRulesAccepted, consents]
       properties:
         firstName: {type: string, minLength: 1, maxLength: 100}
         lastName: {type: string, minLength: 1, maxLength: 100}
-        email: {type: string, format: email, nullable: true}
-        phone: {type: string, minLength: 1, maxLength: 64, nullable: true}
+        email: {type: string, format: email, minLength: 3, maxLength: 320, description: "Required: the visitor's contact address and the account's login email."}
         authMethods: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
         pinLoginName: {type: string, minLength: 3, maxLength: 64, nullable: true}
         pin: {type: string, pattern: "^[0-9]{6,12}$", writeOnly: true, nullable: true}
         profileImageBase64: {type: string, format: byte, minLength: 4, maxLength: 12000000, writeOnly: true, nullable: true, description: Required when the enrolling device's effective capabilities include camera or file_upload; otherwise it may be null.}
         profileImageFilename: {type: string, minLength: 1, maxLength: 255, nullable: true}
         labRulesAccepted: {type: boolean, description: "The visitor read and accepts the pinned Lab Rules (\"I have read and accept the Lab Rules\"). Must be true when the visitor role asks for the Lab Rules."}
+        consents: {type: array, maxItems: 50, description: "Answers to the enrollment state's consent categories; may be empty.", items: {$ref: "#/components/schemas/ConsentAnswer"}}
+
+    VisitorLoginNameSuggestionRequest:
+      type: object
+      additionalProperties: false
+      required: [firstName, lastName]
+      properties:
+        firstName: {type: string, minLength: 1, maxLength: 100}
+        lastName: {type: string, minLength: 1, maxLength: 100}
+
+    VisitorLoginNameSuggestion:
+      type: object
+      additionalProperties: false
+      required: [loginName]
+      properties:
+        loginName: {type: string, minLength: 3, maxLength: 64}
 
     VisitorEnrollmentResult:
       type: object
@@ -20310,6 +20600,55 @@ components:
         timelapseStatus: {allOf: [{$ref: "#/components/schemas/MachineRunTimelapseStatus"}], nullable: true, description: Null for manual runs and running runs without a report.}
         commands: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/MachineRunCommand"}, description: The latest command of each kind.}
 
+    PrintPage:
+      type: object
+      additionalProperties: false
+      description: >-
+        One recorded print as its recipient sees it. Deliberately without material, quantities, prices, the operator, who started it and the
+        recipient.
+      required: [runId, displayId, title, machineName, startedAt, endedAt, durationSeconds, outcome, timelapse, timelapseStatus, artifact, previews, viewerIsStaff]
+      properties:
+        runId: {$ref: "#/components/schemas/UUIDv7"}
+        displayId: {type: string, description: The run's number.}
+        title: {type: string, description: "The job's title; without one the 3MF's original file name, then the printer's file name, then the run's number."}
+        machineName: {type: string}
+        startedAt: {type: string, format: date-time}
+        endedAt: {type: string, format: date-time, nullable: true, description: Null while the print runs.}
+        durationSeconds: {type: integer, format: int64, minimum: 0, nullable: true, description: From start to end; null while the print runs.}
+        outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true}
+        timelapse: {allOf: [{$ref: "#/components/schemas/PrintPageTimelapse"}], nullable: true, description: Stream with downloadPrintPageTimelapse.}
+        timelapseStatus: {allOf: [{$ref: "#/components/schemas/MachineRunTimelapseStatus"}], nullable: true, description: "Why there is no timelapse (yet); `detail` is always null here."}
+        artifact: {allOf: [{$ref: "#/components/schemas/PrintPageArtifact"}], nullable: true, description: Download with downloadPrintPageFile.}
+        previews: {type: array, maxItems: 200, items: {$ref: "#/components/schemas/PrintPagePreview"}, description: "Images of the 3MF, plates first; load them with getPrintPagePreview."}
+        viewerIsStaff: {type: boolean, description: The caller holds machine_jobs.read and may open the run in the workshop pages.}
+
+    PrintPageTimelapse:
+      type: object
+      additionalProperties: false
+      required: [sizeBytes, mimeType, expiresAt]
+      properties:
+        sizeBytes: {type: integer, format: int64, minimum: 1}
+        mimeType: {type: string, enum: [video/mp4]}
+        expiresAt: {type: string, format: date-time, nullable: true, description: When the retention setting removes it; null keeps it.}
+
+    PrintPageArtifact:
+      type: object
+      additionalProperties: false
+      required: [originalFileName, sizeBytes]
+      properties:
+        originalFileName: {type: string}
+        sizeBytes: {type: integer, format: int64, minimum: 0}
+
+    PrintPagePreview:
+      type: object
+      additionalProperties: false
+      required: [id, role, plateNumber, primary]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        role: {type: string, enum: [plate, model, other], description: "plate previews carry plateNumber (shown as Plate N)."}
+        plateNumber: {type: integer, minimum: 0, nullable: true}
+        primary: {type: boolean}
+
     MachineRunRecordingList:
       type: object
       additionalProperties: false
@@ -22626,13 +22965,7 @@ components:
           type: array
           minItems: 1
           maxItems: 50
-          items:
-            type: object
-            additionalProperties: false
-            required: [categoryId, granted]
-            properties:
-              categoryId: {$ref: "#/components/schemas/UUIDv7"}
-              granted: {type: boolean}
+          items: {$ref: "#/components/schemas/ConsentAnswer"}
     TerminalSurveyOffer:
       type: object
       additionalProperties: false
@@ -22995,11 +23328,6 @@ components:
         surveyId: {$ref: "#/components/schemas/UUIDv7"}
         totalResponses: {type: integer, format: int64, minimum: 0, description: "Responses matching the filters."}
         questions: {type: array, items: {$ref: "#/components/schemas/SurveyQuestionResult"}}
-    SignageLayoutId:
-      type: string
-      description: Fixed, code-defined layouts shared by backend validation and frontend rendering, or `custom` (then `customLayoutId` names the custom layout).
-      enum: [full, stack3, stack4, split, grid2x2, quad_banner, main_side, main_footer, banner_main, custom]
-      x-enum-varnames: [SignageLayoutIdFull, SignageLayoutIdStack3, SignageLayoutIdStack4, SignageLayoutIdSplit, SignageLayoutIdGrid2x2, SignageLayoutIdQuadBanner, SignageLayoutIdMainSide, SignageLayoutIdMainFooter, SignageLayoutIdBannerMain, SignageLayoutIdCustom]
     SignageAspectRatio:
       type: object
       additionalProperties: false
@@ -23008,108 +23336,6 @@ components:
       properties:
         width: {type: integer, minimum: 1, maximum: 16384}
         height: {type: integer, minimum: 1, maximum: 16384}
-    SignageLayoutZone:
-      type: object
-      additionalProperties: false
-      required: [id, label, col, row, colSpan, rowSpan]
-      properties:
-        id: {type: string, pattern: "^[a-z][a-z0-9_]*$", maxLength: 40}
-        label: {type: string, maxLength: 60}
-        col: {type: integer, minimum: 1}
-        row: {type: integer, minimum: 1}
-        colSpan: {type: integer, minimum: 1}
-        rowSpan: {type: integer, minimum: 1}
-    SignageLayout:
-      type: object
-      additionalProperties: false
-      required: [id, name, columns, rows, zones]
-      properties:
-        id: {$ref: "#/components/schemas/SignageLayoutId"}
-        name: {type: string, maxLength: 100}
-        columns: {type: string, description: CSS grid-template-columns., maxLength: 100}
-        rows: {type: string, description: CSS grid-template-rows., maxLength: 100}
-        zones: {type: array, items: {$ref: "#/components/schemas/SignageLayoutZone"}}
-    SignageLayoutList:
-      type: object
-      additionalProperties: false
-      required: [items]
-      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageLayout"}}}
-    SignageCustomLayoutMode:
-      type: string
-      enum: [grid, free]
-      x-enum-varnames: [SignageCustomLayoutModeGrid, SignageCustomLayoutModeFree]
-    SignageGridPlacement:
-      type: object
-      additionalProperties: false
-      required: [col, row, colSpan, rowSpan]
-      description: 1-based grid lines; the zone must lie inside the layout's tracks.
-      properties:
-        col: {type: integer, minimum: 1, maximum: 12}
-        row: {type: integer, minimum: 1, maximum: 12}
-        colSpan: {type: integer, minimum: 1, maximum: 12}
-        rowSpan: {type: integer, minimum: 1, maximum: 12}
-    SignageFreeRect:
-      type: object
-      additionalProperties: false
-      required: [x, y, width, height]
-      description: Percentages of the screen with at most two decimals; `width` and `height` are at least 1, `x + width` and `y + height` at most 100.
-      properties:
-        x: {type: number, format: double, minimum: 0, maximum: 100}
-        y: {type: number, format: double, minimum: 0, maximum: 100}
-        width: {type: number, format: double, minimum: 1, maximum: 100}
-        height: {type: number, format: double, minimum: 1, maximum: 100}
-    SignageCustomLayoutZone:
-      type: object
-      additionalProperties: false
-      required: [id, label, grid, rect]
-      description: Grid layouts use `grid` (and `rect` is null); free layouts use `rect` (and `grid` is null). In free mode the array order is the stacking order (later on top).
-      properties:
-        id: {type: string, pattern: "^[a-z][a-z0-9_]{0,39}$", maxLength: 40}
-        label: {type: string, minLength: 1, maxLength: 60}
-        grid: {allOf: [{$ref: "#/components/schemas/SignageGridPlacement"}], nullable: true}
-        rect: {allOf: [{$ref: "#/components/schemas/SignageFreeRect"}], nullable: true}
-    SignageCustomLayout:
-      type: object
-      additionalProperties: false
-      required: [id, name, mode, columns, rows, zones, sceneCount, version, createdAt, updatedAt]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        name: {type: string, minLength: 1, maxLength: 100}
-        mode: {$ref: "#/components/schemas/SignageCustomLayoutMode"}
-        columns: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}, description: "Grid column track weights in `fr`; `[1]` for free layouts."}
-        rows: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}, description: "Grid row track weights in `fr`; `[1]` for free layouts."}
-        zones: {type: array, minItems: 1, maxItems: 12, items: {$ref: "#/components/schemas/SignageCustomLayoutZone"}}
-        sceneCount: {type: integer, minimum: 0, description: Number of scenes using the layout.}
-        version: {$ref: "#/components/schemas/Version"}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
-    SignageCustomLayoutList:
-      type: object
-      additionalProperties: false
-      required: [items]
-      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageCustomLayout"}}}
-    CreateSignageCustomLayoutRequest:
-      type: object
-      additionalProperties: false
-      required: [name, mode, columns, rows, zones]
-      description: In `free` mode `columns` and `rows` are ignored and stored as `[1]`.
-      properties:
-        name: {type: string, minLength: 1, maxLength: 100}
-        mode: {$ref: "#/components/schemas/SignageCustomLayoutMode"}
-        columns: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
-        rows: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
-        zones: {type: array, minItems: 1, maxItems: 12, items: {$ref: "#/components/schemas/SignageCustomLayoutZone"}}
-    UpdateSignageCustomLayoutRequest:
-      type: object
-      additionalProperties: false
-      required: [expectedVersion, name, mode, columns, rows, zones]
-      properties:
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-        name: {type: string, minLength: 1, maxLength: 100}
-        mode: {$ref: "#/components/schemas/SignageCustomLayoutMode"}
-        columns: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
-        rows: {type: array, minItems: 1, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
-        zones: {type: array, minItems: 1, maxItems: 12, items: {$ref: "#/components/schemas/SignageCustomLayoutZone"}}
 
     SignageAssetKind:
       type: string
@@ -23158,10 +23384,6 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 150}
 
-    SignageTextSize:
-      type: string
-      enum: [s, m, l, xl]
-      x-enum-varnames: [SignageTextSizeS, SignageTextSizeM, SignageTextSizeL, SignageTextSizeXl]
     SignageFit:
       type: string
       enum: [contain, cover]
@@ -23174,44 +23396,88 @@ components:
       type: string
       enum: [inherit, sans, serif, mono, custom]
       x-enum-varnames: [SignageStyleFontFamilyInherit, SignageStyleFontFamilySans, SignageStyleFontFamilySerif, SignageStyleFontFamilyMono, SignageStyleFontFamilyCustom]
-    SignageStyleAlign:
+    SignageBlockAlign:
       type: string
-      enum: [inherit, start, center, end]
-      x-enum-varnames: [SignageStyleAlignInherit, SignageStyleAlignStart, SignageStyleAlignCenter, SignageStyleAlignEnd]
-    SignageWidgetStyle:
+      enum: [start, center, end]
+      x-enum-varnames: [SignageBlockAlignStart, SignageBlockAlignCenter, SignageBlockAlignEnd]
+    SignageBlockBorderStyle:
+      type: string
+      enum: [solid, dashed, dotted, double]
+      x-enum-varnames: [SignageBlockBorderStyleSolid, SignageBlockBorderStyleDashed, SignageBlockBorderStyleDotted, SignageBlockBorderStyleDouble]
+    SignageBlockShadow:
+      type: string
+      enum: [none, soft, strong, glow]
+      x-enum-varnames: [SignageBlockShadowNone, SignageBlockShadowSoft, SignageBlockShadowStrong, SignageBlockShadowGlow]
+      description: "`glow` uses the border colour, falling back to the text colour."
+    SignageBlockFontWeight:
+      type: string
+      enum: [inherit, "400", "500", "600", "700"]
+      x-enum-varnames: [SignageBlockFontWeightInherit, SignageBlockFontWeightN400, SignageBlockFontWeightN500, SignageBlockFontWeightN600, SignageBlockFontWeightN700]
+    SignageBlockStyle:
       type: object
       additionalProperties: false
-      required: [textColor, backgroundColor, borderColor, backgroundOpacity, padding, radius, borderWidth, fontScale, fontFamily, fontAssetId, align, verticalAlign]
-      description: Optional style of a widget's zone box; absent means the previous look. Every field is required inside it. Length units `u` are 1 % of the design width.
+      required: [backgroundColor, backgroundOpacity, backgroundAssetId, backgroundDim, textColor, borderWidth, borderStyle, borderColor, radius, shadow, fontFamily, fontAssetId, fontWeight, lineHeight, letterSpacing, uppercase, textSize, padding, align, verticalAlign, opacity]
+      description: >-
+        Style of a block's box. Every field is required. Lengths are integers in grid units: the scene's short side is
+        1080 units long.
       properties:
-        textColor: {type: string, pattern: "^#[0-9a-f]{6}$", nullable: true}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$", nullable: true}
-        borderColor: {type: string, pattern: "^#[0-9a-f]{6}$", nullable: true}
-        backgroundOpacity: {type: integer, minimum: 0, maximum: 100}
-        padding: {type: integer, minimum: 0, maximum: 10, description: In u.}
-        radius: {type: integer, minimum: 0, maximum: 10, description: In u.}
-        borderWidth: {type: integer, minimum: 0, maximum: 20, description: In tenths of u.}
-        fontScale: {type: integer, minimum: 25, maximum: 400, description: Percent.}
+        backgroundOpacity: {type: integer, minimum: 0, maximum: 100, description: Percent.}
+        backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Image asset behind the content; must be null for the media widgets image, video, slideshow, camera and timelapse."}
+        backgroundDim: {type: integer, minimum: 0, maximum: 90, description: "Percent of darkening over the background image; must be 0 for media widgets."}
+        textColor: {type: string, pattern: "^#[0-9a-f]{6}$", nullable: true, description: Null uses the scene's text colour.}
+        borderWidth: {type: integer, minimum: 0, maximum: 40}
+        borderStyle: {$ref: "#/components/schemas/SignageBlockBorderStyle"}
+        borderColor: {type: string, pattern: "^#[0-9a-f]{6}$", nullable: true, description: Null uses the text colour.}
+        radius: {type: integer, minimum: 0, maximum: 400}
+        shadow: {$ref: "#/components/schemas/SignageBlockShadow"}
         fontFamily: {$ref: "#/components/schemas/SignageStyleFontFamily"}
         fontAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "A font asset; required exactly when `fontFamily` is `custom`."}
-        align: {$ref: "#/components/schemas/SignageStyleAlign"}
-        verticalAlign: {$ref: "#/components/schemas/SignageStyleAlign"}
+        fontWeight: {$ref: "#/components/schemas/SignageBlockFontWeight"}
+        lineHeight: {type: integer, minimum: 80, maximum: 250, description: "Percent of the font size (125 is 1.25)."}
+        letterSpacing: {type: integer, minimum: -10, maximum: 50, description: Hundredths of an em.}
+        uppercase: {type: boolean}
+        textSize: {type: integer, minimum: 8, maximum: 400, description: "Text and announcement widgets: the font size (announcements: of the title; the body is 0.6 of it). Other widgets scale their internal sizes with it; 32 is the default look."}
+        padding: {type: integer, minimum: 0, maximum: 400}
+        align: {$ref: "#/components/schemas/SignageBlockAlign"}
+        verticalAlign: {$ref: "#/components/schemas/SignageBlockAlign"}
+        opacity: {type: integer, minimum: 10, maximum: 100, description: Percent.}
+    SignageBlock:
+      type: object
+      additionalProperties: false
+      required: [id, name, x, y, w, h, hidden, locked, widget, style]
+      description: A freely positioned box on the scene's layout grid (short side 1080 units) that shows one widget.
+      properties:
+        id: {type: string, pattern: "^[A-Za-z0-9_-]{1,40}$", description: Unique within the scene.}
+        name: {type: string, minLength: 1, maxLength: 60}
+        x: {type: integer, minimum: -120000, maximum: 120000}
+        y: {type: integer, minimum: -120000, maximum: 120000}
+        w: {type: integer, minimum: 8, maximum: 120000}
+        h: {type: integer, minimum: 8, maximum: 120000}
+        hidden: {type: boolean, description: Hidden blocks are not shown on displays.}
+        locked: {type: boolean, description: Locked blocks cannot be moved in the editor; no effect on displays.}
+        widget: {$ref: "#/components/schemas/SignageWidget"}
+        style: {$ref: "#/components/schemas/SignageBlockStyle"}
+    SignageBlocks:
+      type: array
+      maxItems: 40
+      description: The blocks of a scene; the array order is the stacking order (later on top).
+      items: {$ref: "#/components/schemas/SignageBlock"}
     SignageEmptyWidget:
       type: object
       additionalProperties: false
       required: [type]
       properties:
         type: {type: string, enum: [empty], x-enum-varnames: [SignageEmptyWidgetTypeEmpty]}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageImageWidget:
       type: object
       additionalProperties: false
-      required: [type, mediaId, fit]
+      required: [type, mediaId, fit, dim]
       properties:
         type: {type: string, enum: [image], x-enum-varnames: [SignageImageWidgetTypeImage]}
         mediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         fit: {$ref: "#/components/schemas/SignageFit"}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
+        dim: {type: integer, minimum: 0, maximum: 90, description: Percent of darkening over the image.}
     SignageVideoWidget:
       type: object
       additionalProperties: false
@@ -23220,7 +23486,6 @@ components:
         type: {type: string, enum: [video], x-enum-varnames: [SignageVideoWidgetTypeVideo]}
         mediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         fit: {$ref: "#/components/schemas/SignageFit"}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageSlideshowWidget:
       type: object
       additionalProperties: false
@@ -23229,20 +23494,17 @@ components:
         type: {type: string, enum: [slideshow], x-enum-varnames: [SignageSlideshowWidgetTypeSlideshow]}
         mediaIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
         seconds: {type: integer, minimum: 3, maximum: 3600}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageTextWidget:
       type: object
       additionalProperties: false
-      required: [type, text, size, align]
+      required: [type, text, fit]
       properties:
         type: {type: string, enum: [text], x-enum-varnames: [SignageTextWidgetTypeText]}
         text: {type: string, maxLength: 20000, description: "Rendered according to `format`: plain text as text nodes, markdown and HTML sanitized by the browser. The backend never renders HTML."}
-        size: {$ref: "#/components/schemas/SignageTextSize"}
-        align: {type: string, enum: [start, center, end], x-enum-varnames: [SignageTextWidgetAlignStart, SignageTextWidgetAlignCenter, SignageTextWidgetAlignEnd]}
         format: {$ref: "#/components/schemas/SignageRichTextFormat"}
-        css: {type: string, maxLength: 20000, description: "Sanitized by the browser; only affects the zone."}
+        css: {type: string, maxLength: 20000, description: "Sanitized by the browser; only affects the block."}
+        fit: {type: boolean, description: Shrinks the text until it fits the block; the block's text size is the largest size.}
         fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Font assets the CSS uses (distinct, kind `font`)."}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageQrWidget:
       type: object
       additionalProperties: false
@@ -23251,7 +23513,6 @@ components:
         type: {type: string, enum: [qr], x-enum-varnames: [SignageQrWidgetTypeQr]}
         url: {type: string, maxLength: 500, pattern: "^https://", description: Absolute https URL.}
         caption: {type: string, maxLength: 200}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageClockWidget:
       type: object
       additionalProperties: false
@@ -23259,11 +23520,10 @@ components:
       properties:
         type: {type: string, enum: [clock], x-enum-varnames: [SignageClockWidgetTypeClock]}
         mode: {type: string, enum: [time, datetime, date], x-enum-varnames: [SignageClockWidgetModeTime, SignageClockWidgetModeDatetime, SignageClockWidgetModeDate]}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageCameraWidget:
       type: object
       additionalProperties: false
-      required: [type, source, machineId, multi, showProgress, showRemaining, fallback, fallbackMediaId]
+      required: [type, source, machineId, multi, showProgress, showRemaining, fallback, fallbackMediaId, showLive, showName]
       properties:
         type: {type: string, enum: [camera], x-enum-varnames: [SignageCameraWidgetTypeCamera]}
         source: {type: string, enum: [machine, auto], x-enum-varnames: [SignageCameraWidgetSourceMachine, SignageCameraWidgetSourceAuto]}
@@ -23271,10 +23531,11 @@ components:
         multi: {type: string, enum: [split, alternate], x-enum-varnames: [SignageCameraWidgetMultiSplit, SignageCameraWidgetMultiAlternate]}
         showProgress: {type: boolean}
         showRemaining: {type: boolean}
+        showLive: {type: boolean, description: Shows the live badge on the picture.}
+        showName: {type: boolean, description: Shows the machine name on the picture.}
         fallback: {type: string, enum: [image, text, hide], x-enum-varnames: [SignageCameraWidgetFallbackImage, SignageCameraWidgetFallbackText, SignageCameraWidgetFallbackHide]}
         fallbackMediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; only kept when `fallback` is `image`.}
         machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}, description: "Only for `auto`: the machines the camera may show (empty or missing means every machine with a camera). Distinct, existing machines; cleared for `machine`."}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageStatusWidget:
       type: object
       additionalProperties: false
@@ -23284,7 +23545,6 @@ components:
         machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
         showProgress: {type: boolean}
         showRemaining: {type: boolean}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageOpenDaysWidget:
       type: object
       additionalProperties: false
@@ -23299,7 +23559,6 @@ components:
         format: {$ref: "#/components/schemas/SignageRichTextFormat"}
         css: {type: string, maxLength: 20000}
         fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageEventsWidget:
       type: object
       additionalProperties: false
@@ -23313,7 +23572,6 @@ components:
         format: {$ref: "#/components/schemas/SignageRichTextFormat"}
         css: {type: string, maxLength: 20000}
         fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageAgendaWidget:
       type: object
       additionalProperties: false
@@ -23332,7 +23590,6 @@ components:
         format: {$ref: "#/components/schemas/SignageRichTextFormat"}
         css: {type: string, maxLength: 20000}
         fontAssetIds: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/UUIDv7"}}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageCalendarColors:
       type: object
       additionalProperties: false
@@ -23359,7 +23616,6 @@ components:
         showWeekNumbers: {type: boolean}
         title: {type: string, maxLength: 200, description: Heading; empty hides it.}
         showCompetencies: {type: boolean, description: "Weeks view: adds the planned competencies to open days, the first two and +N; absent means false."}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageTimelapseWidget:
       type: object
       additionalProperties: false
@@ -23375,23 +23631,20 @@ components:
         transition: {$ref: "#/components/schemas/SignageTransition"}
         showCaption: {type: boolean, description: "Shows the machine name and the day the print ended; never the job, file or person."}
         fit: {$ref: "#/components/schemas/SignageFit"}
-        style: {$ref: "#/components/schemas/SignageWidgetStyle"}
     SignageAnnouncementWidget:
       type: object
       additionalProperties: false
-      required: [type, templateIds, style, size, whenNone, fallbackText, whenMany, rotateSeconds]
+      required: [type, templateIds, style, whenNone, fallbackText, whenMany, rotateSeconds]
       properties:
         type: {type: string, enum: [announcement], x-enum-varnames: [SignageAnnouncementWidgetTypeAnnouncement]}
         templateIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}, description: Empty means any template.}
         style: {type: string, enum: [banner, card, full], x-enum-varnames: [SignageAnnouncementWidgetStyleBanner, SignageAnnouncementWidgetStyleCard, SignageAnnouncementWidgetStyleFull]}
-        size: {$ref: "#/components/schemas/SignageTextSize"}
         whenNone: {type: string, enum: [empty, text], x-enum-varnames: [SignageAnnouncementWidgetWhenNoneEmpty, SignageAnnouncementWidgetWhenNoneText]}
         fallbackText: {type: string, maxLength: 500}
         whenMany: {type: string, enum: [rotate, newest, stack], x-enum-varnames: [SignageAnnouncementWidgetWhenManyRotate, SignageAnnouncementWidgetWhenManyNewest, SignageAnnouncementWidgetWhenManyStack]}
         rotateSeconds: {type: integer, minimum: 3, maximum: 300}
-        boxStyle: {allOf: [{$ref: "#/components/schemas/SignageWidgetStyle"}], description: "The zone box style. Named `boxStyle` here because `style` already selects the announcement presentation (banner, card, full)."}
     SignageWidget:
-      description: One widget per layout zone. Fields are decoded strictly; unknown fields are rejected.
+      description: The content of a block. Fields are decoded strictly; unknown fields are rejected.
       oneOf:
         - $ref: "#/components/schemas/SignageEmptyWidget"
         - $ref: "#/components/schemas/SignageImageWidget"
@@ -23426,11 +23679,6 @@ components:
           agenda: "#/components/schemas/SignageAgendaWidget"
           calendar: "#/components/schemas/SignageCalendarWidget"
           timelapse: "#/components/schemas/SignageTimelapseWidget"
-    SignageZones:
-      type: object
-      description: Widget per zone id of the scene's layout.
-      maxProperties: 12
-      additionalProperties: {$ref: "#/components/schemas/SignageWidget"}
     SignageSceneFontFamily:
       type: string
       enum: [sans, serif, mono, custom]
@@ -23439,13 +23687,11 @@ components:
     SignageScene:
       type: object
       additionalProperties: false
-      required: [id, name, aspectRatio, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, fontFamily, fontAssetId, zones, version, createdAt, updatedAt]
+      required: [id, name, aspectRatio, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, fontFamily, fontAssetId, blocks, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
-        layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
-        customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The custom layout; set exactly when `layoutId` is `custom`."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
         backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
@@ -23453,7 +23699,7 @@ components:
         theme: {type: string, enum: [dark, light], x-enum-varnames: [SignageSceneThemeDark, SignageSceneThemeLight]}
         fontFamily: {$ref: "#/components/schemas/SignageSceneFontFamily"}
         fontAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Font asset; set exactly when `fontFamily` is `custom`."}
-        zones: {$ref: "#/components/schemas/SignageZones"}
+        blocks: {$ref: "#/components/schemas/SignageBlocks"}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -23465,12 +23711,10 @@ components:
     CreateSignageSceneRequest:
       type: object
       additionalProperties: false
-      required: [name, aspectRatio, layoutId, backgroundColor, backgroundFit, backgroundDim, theme]
+      required: [name, aspectRatio, backgroundColor, backgroundFit, backgroundDim, theme, blocks]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
-        layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
-        customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required with `layoutId` `custom`, otherwise omitted or null."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
         backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; omitted or null means none.}
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
@@ -23478,17 +23722,15 @@ components:
         theme: {type: string, enum: [dark, light], x-enum-varnames: [CreateSignageSceneRequestThemeDark, CreateSignageSceneRequestThemeLight]}
         fontFamily: {$ref: "#/components/schemas/SignageSceneFontFamily"}
         fontAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Font asset; set exactly when `fontFamily` is `custom`."}
-        zones: {$ref: "#/components/schemas/SignageZones"}
+        blocks: {$ref: "#/components/schemas/SignageBlocks"}
     UpdateSignageSceneRequest:
       type: object
       additionalProperties: false
-      required: [expectedVersion, name, aspectRatio, layoutId, backgroundColor, backgroundFit, backgroundDim, theme, fontFamily, fontAssetId]
+      required: [expectedVersion, name, aspectRatio, backgroundColor, backgroundFit, backgroundDim, theme, fontFamily, fontAssetId, blocks]
       properties:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string, minLength: 1, maxLength: 100}
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
-        layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
-        customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required with `layoutId` `custom`, otherwise omitted or null."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
         backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; omitted or null clears it.}
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
@@ -23496,7 +23738,7 @@ components:
         theme: {type: string, enum: [dark, light], x-enum-varnames: [UpdateSignageSceneRequestThemeDark, UpdateSignageSceneRequestThemeLight]}
         fontFamily: {$ref: "#/components/schemas/SignageSceneFontFamily"}
         fontAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Font asset; set exactly when `fontFamily` is `custom`."}
-        zones: {$ref: "#/components/schemas/SignageZones"}
+        blocks: {$ref: "#/components/schemas/SignageBlocks"}
 
     SignageTransition:
       type: string
@@ -23664,8 +23906,8 @@ components:
     SignagePendingChangeKind:
       type: string
       description: "A changed default scene list is reported as `display` with the name `Default scenes`."
-      enum: [display, rule, scene, asset, layout]
-      x-enum-varnames: [SignagePendingChangeKindDisplay, SignagePendingChangeKindRule, SignagePendingChangeKindScene, SignagePendingChangeKindAsset, SignagePendingChangeKindLayout]
+      enum: [display, rule, scene, asset]
+      x-enum-varnames: [SignagePendingChangeKindDisplay, SignagePendingChangeKindRule, SignagePendingChangeKindScene, SignagePendingChangeKindAsset]
     SignagePendingChangeType:
       type: string
       enum: [added, modified, removed]
@@ -23800,6 +24042,129 @@ components:
           description: "Must be empty with `groupId` and list at least one scene without it (422 otherwise). When a display leaves its group with an empty list it keeps a copy of the group's default list."
         groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional; omitted or null means standalone. Joining needs the group's aspect ratio."}
 
+    SignageWebEmbedOrigin:
+      type: string
+      maxLength: 300
+      pattern: "^https://[a-z0-9.-]+(:[0-9]{1,5})?$"
+      description: A website that may frame the embed, as an origin `https://host[:port]` with a lower-case host.
+      example: https://www.example.org
+    SignageWebEmbedOrigins:
+      type: array
+      minItems: 1
+      maxItems: 20
+      items: {$ref: "#/components/schemas/SignageWebEmbedOrigin"}
+    SignageWebEmbedOriginInput:
+      type: array
+      maxItems: 20
+      description: "1 to 20 origins `https://host[:port]`; upper-case hosts are lower-cased and duplicates dropped. An empty list (removing the last website), a path, query, fragment, wildcard or another scheme answer 422."
+      items: {type: string, maxLength: 300}
+    SignageWebEmbed:
+      type: object
+      additionalProperties: false
+      description: A signage screen shown in an iframe on other websites; a display without a device. Its id is also its display id for the rule and preview endpoints.
+      required: [id, name, aspectRatio, groupId, defaultScenes, embedKey, embedUrl, allowedOrigins, openDirectly, enabled, cameraEnabled, cameraMachineIds, cameraViewerLimit, timelapseEnabled, timelapseCount, timelapseMaxAgeDays, publishedRevision, publishedAt, pendingChanges, hasUnpublishedChanges, lastLoadedAt, loadsToday, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The group the embed belongs to; its rules and default list are then the group's."}
+        defaultScenes:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items: {$ref: "#/components/schemas/SignageSceneListItem"}
+          description: The embed's own default scene list; empty while it is in a group.
+        embedKey: {type: string, pattern: "^[A-Za-z0-9_-]{20,64}$", description: "Public identifier in the embed code; not a secret. A new key (`rotateSignageWebEmbedKey`) ends every copy of the old code."}
+        embedUrl: {type: string, maxLength: 400, description: "Absolute URL of the embed page (`<public origin>/embed/<embedKey>`) for the iframe's `src`."}
+        allowedOrigins: {$ref: "#/components/schemas/SignageWebEmbedOrigins"}
+        openDirectly: {type: boolean, description: "Whether the embed page also shows its content when opened directly instead of inside an iframe."}
+        enabled: {type: boolean, description: "Switched off, websites show a neutral \"not available\" page; takes effect immediately."}
+        cameraEnabled: {type: boolean, description: "Live cameras may be shown. Switching off takes effect immediately, switching on with the next publication."}
+        cameraMachineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}, description: Machines whose camera the embed may show.}
+        cameraViewerLimit: {type: integer, minimum: 1, maximum: 20, description: Concurrent camera viewers of this embed; more see the camera widget's fallback.}
+        timelapseEnabled: {type: boolean, description: "Timelapse clips may be shown. Switching off takes effect immediately, switching on with the next publication."}
+        timelapseCount: {type: integer, minimum: 1, maximum: 20, description: At most this many clips per timelapse widget and in total.}
+        timelapseMaxAgeDays: {type: integer, minimum: 1, maximum: 90, description: Only clips of prints that ended within this many days.}
+        publishedRevision: {type: integer, nullable: true, description: Null until the first publication.}
+        publishedAt: {type: string, format: date-time, nullable: true}
+        pendingChanges:
+          type: array
+          maxItems: 500
+          description: "Differences between the drafts and the latest publication, as for displays; switching camera or timelapses on is a `display` change named `Data shown`. Empty when never published."
+          items: {$ref: "#/components/schemas/SignagePendingChange"}
+        hasUnpublishedChanges: {type: boolean, description: True when never published or `pendingChanges` is not empty.}
+        lastLoadedAt: {type: string, format: date-time, nullable: true, description: Last page load on any website.}
+        loadsToday: {type: integer, minimum: 0, description: Page loads on the current UTC day.}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SignageWebEmbedList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageWebEmbed"}}}
+    CreateSignageWebEmbedRequest:
+      type: object
+      additionalProperties: false
+      required: [name, aspectRatio, allowedOrigins]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+        allowedOrigins: {$ref: "#/components/schemas/SignageWebEmbedOriginInput"}
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional; omitted or null means standalone. Joining needs the group's aspect ratio."}
+        defaultScenes:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items: {$ref: "#/components/schemas/SignageSceneListItem"}
+          description: "Required (1 or more scenes) without `groupId`, empty or omitted with it."
+    UpdateSignageWebEmbedRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Omitted keeps the group; null leaves it (the embed keeps a copy of the group's rules and, without `defaultScenes`, of its default list)."}
+        defaultScenes:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items: {$ref: "#/components/schemas/SignageSceneListItem"}
+          description: "The embed's own default list; must be empty in a group."
+        allowedOrigins: {$ref: "#/components/schemas/SignageWebEmbedOriginInput"}
+        openDirectly: {type: boolean}
+        enabled: {type: boolean}
+        cameraEnabled: {type: boolean}
+        cameraMachineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
+        cameraViewerLimit: {type: integer, minimum: 1, maximum: 20}
+        timelapseEnabled: {type: boolean}
+        timelapseCount: {type: integer, minimum: 1, maximum: 20}
+        timelapseMaxAgeDays: {type: integer, minimum: 1, maximum: 90}
+    SignageEmbedFramePolicy:
+      type: object
+      additionalProperties: false
+      required: [frameAncestors]
+      properties:
+        frameAncestors: {type: string, maxLength: 2000, description: "Value for CSP `frame-ancestors`: the allowed origins separated by spaces, or `'none'` for an unknown key."}
+    SignageEmbedSettings:
+      type: object
+      additionalProperties: false
+      required: [enabled, openDirectly, aspectRatio]
+      properties:
+        enabled: {type: boolean, description: False shows the neutral "not available" page.}
+        openDirectly: {type: boolean, description: False shows the neutral page when the embed page is not inside an iframe.}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+    SignageEmbedManifestResponse:
+      type: object
+      additionalProperties: false
+      required: [embed, unchanged]
+      properties:
+        embed: {$ref: "#/components/schemas/SignageEmbedSettings"}
+        unchanged: {type: boolean, description: "True when the page already runs the requested `known` revision; `manifest` is then omitted. Always false while the embed is switched off."}
+        manifest: {$ref: "#/components/schemas/SignagePlayerManifest"}
+
     SignageRuleConditionKind:
       type: string
       enum: [time_window, machine_printing, announcement_active, live_data_unavailable]
@@ -23908,13 +24273,11 @@ components:
     SignagePlayerScene:
       type: object
       additionalProperties: false
-      required: [id, name, aspectRatio, layoutId, customLayoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, fontFamily, fontAssetId, zones, version]
+      required: [id, name, aspectRatio, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, fontFamily, fontAssetId, blocks, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
-        layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
-        customLayoutId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set exactly when `layoutId` is `custom`; the layout is in the manifest's `customLayouts`."}
         backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
         backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         backgroundFit: {$ref: "#/components/schemas/SignageFit"}
@@ -23922,19 +24285,7 @@ components:
         theme: {type: string, enum: [dark, light], x-enum-varnames: [SignagePlayerSceneThemeDark, SignagePlayerSceneThemeLight]}
         fontFamily: {$ref: "#/components/schemas/SignageSceneFontFamily"}
         fontAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Font asset; set exactly when `fontFamily` is `custom`."}
-        zones: {$ref: "#/components/schemas/SignageZones"}
-        version: {$ref: "#/components/schemas/Version"}
-    SignagePlayerCustomLayout:
-      type: object
-      additionalProperties: false
-      required: [id, name, mode, columns, rows, zones, version]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        name: {type: string}
-        mode: {$ref: "#/components/schemas/SignageCustomLayoutMode"}
-        columns: {type: array, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
-        rows: {type: array, maxItems: 12, items: {type: integer, minimum: 1, maximum: 100}}
-        zones: {type: array, maxItems: 12, items: {$ref: "#/components/schemas/SignageCustomLayoutZone"}}
+        blocks: {$ref: "#/components/schemas/SignageBlocks"}
         version: {$ref: "#/components/schemas/Version"}
     SignagePlayerAsset:
       type: object
@@ -23961,23 +24312,21 @@ components:
     SignagePlayerManifest:
       type: object
       additionalProperties: false
-      required: [manifestVersion, revision, display, rules, defaultScenes, scenes, assets, customLayouts, layoutsVersion]
+      required: [manifestVersion, revision, display, rules, defaultScenes, scenes, assets]
       properties:
         manifestVersion:
           type: integer
-          minimum: 3
+          minimum: 4
           description: >-
-            Shape of the manifest; 3 since rules and the default carry scene lists instead of playlists. Publications
-            stored in an older shape (without this field) are upgraded when they are read, so this endpoint always
-            answers 3.
+            Shape of the manifest; 4 since scenes carry free-positioned blocks instead of a layout with zones.
+            Publications stored in an older shape are upgraded when they are read (layouts and zones become blocks),
+            so this endpoint always answers 4.
         revision: {type: integer, minimum: 1}
         display: {$ref: "#/components/schemas/SignagePlayerManifestDisplay"}
         rules: {type: array, maxItems: 50, description: Enabled rules in evaluation order., items: {$ref: "#/components/schemas/SignagePlayerRule"}}
         defaultScenes: {$ref: "#/components/schemas/SignageSceneListItems"}
         scenes: {type: array, items: {$ref: "#/components/schemas/SignagePlayerScene"}}
         assets: {type: array, items: {$ref: "#/components/schemas/SignagePlayerAsset"}}
-        customLayouts: {type: array, description: The custom layouts the published scenes use; empty in publications made before custom layouts., items: {$ref: "#/components/schemas/SignagePlayerCustomLayout"}}
-        layoutsVersion: {type: integer, minimum: 1, description: "2 for publications that carry `customLayouts`."}
     SignagePlayerManifestResponse:
       type: object
       additionalProperties: false

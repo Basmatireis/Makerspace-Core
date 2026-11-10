@@ -46,6 +46,17 @@ func (c cameraScope) includes(machineID uuid.UUID) bool {
 	return c.all || slices.Contains(c.ids, machineID)
 }
 
+// restrictedTo keeps only the given machines of the scope.
+func (c cameraScope) restrictedTo(machines []uuid.UUID) cameraScope {
+	kept := make([]uuid.UUID, 0, len(machines))
+	for _, id := range machines {
+		if c.includes(id) {
+			kept = append(kept, id)
+		}
+	}
+	return cameraScope{ids: kept}
+}
+
 // publishedCameraScope returns the cameras the display's latest publication shows, without the machines whose
 // running run was hidden from signage. ok is false when the display may not show any camera: it was never
 // published, or it is visible from outside without allowCameraOutside.
@@ -55,7 +66,7 @@ func (s *Service) publishedCameraScope(
 	display PlayerDisplay,
 	now time.Time,
 ) (scope cameraScope, hidden []uuid.UUID, ok bool, err error) {
-	if !cameraAllowed(display) {
+	if display.embed == nil && !cameraAllowed(display) {
 		return cameraScope{}, nil, false, nil
 	}
 	manifest, published, err := s.latestManifest(ctx, q, display.ID)
@@ -63,6 +74,15 @@ func (s *Service) publishedCameraScope(
 		return cameraScope{}, nil, false, err
 	}
 	scope.ids, scope.all = ManifestCameraMachineIDs(manifest)
+	if display.embed != nil {
+		// A web embed shows only the cameras chosen for it, while its camera is switched on now and was when it
+		// was published.
+		machines, allowed := display.embed.camerasFor(manifest)
+		if !allowed {
+			return cameraScope{}, nil, false, nil
+		}
+		scope = scope.restrictedTo(machines)
+	}
 	if !scope.all && len(scope.ids) == 0 {
 		return cameraScope{}, nil, false, nil
 	}
@@ -120,6 +140,16 @@ func (s *Service) AuthorizeCamera(ctx context.Context, deviceID, machineID uuid.
 	if err != nil {
 		return CameraGrant{}, err
 	}
+	return s.authorizeDisplayCamera(ctx, display, machineID)
+}
+
+// authorizeDisplayCamera applies the camera rule of AuthorizeCamera to a display or web embed that is allowed to
+// show anything at all.
+func (s *Service) authorizeDisplayCamera(
+	ctx context.Context,
+	display PlayerDisplay,
+	machineID uuid.UUID,
+) (CameraGrant, error) {
 	q := signagedb.New(s.pool)
 	scope, hidden, ok, err := s.publishedCameraScope(ctx, q, display, s.now())
 	if err != nil {

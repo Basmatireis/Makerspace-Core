@@ -1,7 +1,6 @@
 package signage
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,13 +18,12 @@ import (
 
 var colorPattern = regexp.MustCompile(`^#[0-9a-f]{6}$`)
 
-// Scene is one screen composition: a layout plus one widget per zone and the background.
+// Scene is one screen composition: freely positioned blocks on a layout grid of the scene's aspect ratio, and
+// the background.
 type Scene struct {
 	ID                uuid.UUID
 	Name              string
 	AspectRatio       AspectRatio
-	LayoutID          string
-	CustomLayoutID    *uuid.UUID
 	BackgroundColor   string
 	BackgroundAssetID *uuid.UUID
 	BackgroundFit     MediaFit
@@ -33,19 +31,17 @@ type Scene struct {
 	Theme             Theme
 	FontFamily        SceneFontFamily
 	FontAssetID       *uuid.UUID
-	Zones             map[string]RawWidget
+	Blocks            []Block
 	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
 
-// SceneInput is the writable part of a scene. A nil Zones keeps the stored widgets (remapped by
-// position when the layout changes) on update and creates empty zones on create.
+// SceneInput is the writable part of a scene. Blocks is the JSON array of the scene's blocks; it replaces the
+// stored blocks (null or absent is an empty scene).
 type SceneInput struct {
 	Name              string
 	AspectRatio       AspectRatio
-	LayoutID          string
-	CustomLayoutID    *uuid.UUID
 	BackgroundColor   string
 	BackgroundAssetID *uuid.UUID
 	BackgroundFit     MediaFit
@@ -54,29 +50,35 @@ type SceneInput struct {
 	// FontFamily empty means sans.
 	FontFamily  SceneFontFamily
 	FontAssetID *uuid.UUID
-	Zones       map[string]json.RawMessage
+	Blocks      json.RawMessage
+}
+
+// storedBlocks decodes the blocks column. PostgreSQL normalises jsonb whitespace and key order; widgets are
+// handed out in compact form again.
+func storedBlocks(raw []byte) ([]Block, error) {
+	blocks := []Block{}
+	if err := json.Unmarshal(raw, &blocks); err != nil {
+		return nil, err
+	}
+	for index := range blocks {
+		compact, err := compactJSON(blocks[index].Widget)
+		if err != nil {
+			return nil, err
+		}
+		blocks[index].Widget = compact
+	}
+	return blocks, nil
 }
 
 func sceneFromRow(row signagedb.SignageScene) (Scene, error) {
-	stored := map[string]RawWidget{}
-	if err := json.Unmarshal(row.Zones, &stored); err != nil {
+	blocks, err := storedBlocks(row.Blocks)
+	if err != nil {
 		return Scene{}, err
-	}
-	// PostgreSQL normalises jsonb whitespace; hand out the compact canonical form again.
-	zones := make(map[string]RawWidget, len(stored))
-	for key, widget := range stored {
-		var compact bytes.Buffer
-		if err := json.Compact(&compact, widget); err != nil {
-			return Scene{}, err
-		}
-		zones[key] = compact.Bytes()
 	}
 	return Scene{
 		ID:                row.ID,
 		Name:              row.Name,
 		AspectRatio:       aspectRatioOf(row.AspectWidth, row.AspectHeight),
-		LayoutID:          row.LayoutID,
-		CustomLayoutID:    row.CustomLayoutID,
 		BackgroundColor:   row.BackgroundColor,
 		BackgroundAssetID: row.BackgroundAssetID,
 		BackgroundFit:     MediaFit(row.BackgroundFit),
@@ -84,36 +86,24 @@ func sceneFromRow(row signagedb.SignageScene) (Scene, error) {
 		Theme:             Theme(row.Theme),
 		FontFamily:        SceneFontFamily(row.FontFamily),
 		FontAssetID:       row.FontAssetID,
-		Zones:             zones, Version: row.Version, CreatedAt: row.CreatedAt.UTC(), UpdatedAt: row.UpdatedAt.UTC(),
+		Blocks:            blocks,
+		Version:           row.Version,
+		CreatedAt:         row.CreatedAt.UTC(),
+		UpdatedAt:         row.UpdatedAt.UTC(),
 	}, nil
 }
 
 type validatedScene struct {
 	SceneInput
-	name string
-	// builtin is the fixed layout of the scene; it is only set when the scene does not use a custom layout.
-	builtin *Layout
+	name   string
+	blocks []Block
+	refs   WidgetRefs
 }
 
 func validateSceneInput(input SceneInput) (validatedScene, error) {
 	name, err := cleanName(input.Name, "scene name", 100)
 	if err != nil {
 		return validatedScene{}, err
-	}
-	var builtin *Layout
-	if input.LayoutID == CustomLayoutID {
-		if input.CustomLayoutID == nil {
-			return validatedScene{}, validation("customLayoutId is required with the custom layout")
-		}
-	} else {
-		layout, ok := LayoutByID(input.LayoutID)
-		if !ok {
-			return validatedScene{}, validation("layoutId is not a known layout")
-		}
-		if input.CustomLayoutID != nil {
-			return validatedScene{}, validation("customLayoutId is only allowed with the custom layout")
-		}
-		builtin = &layout
 	}
 	ratio, err := checkAspectRatio(input.AspectRatio)
 	if err != nil {
@@ -143,47 +133,11 @@ func validateSceneInput(input SceneInput) (validatedScene, error) {
 	if (input.FontFamily == SceneFontCustom) != (input.FontAssetID != nil) {
 		return validatedScene{}, validation("fontAssetId is required exactly when fontFamily is custom")
 	}
-	return validatedScene{SceneInput: input, name: name, builtin: builtin}, nil
-}
-
-// sceneLayout resolves the zone list of a scene's layout. A custom layout is share-locked when lock is set so
-// that a concurrent change of its zones waits for the scene write (and the other way round never deadlocks:
-// scene writes take this lock before the scene row).
-func sceneLayout(
-	ctx context.Context,
-	q *signagedb.Queries,
-	layoutID string,
-	customID *uuid.UUID,
-	lock bool,
-) (Layout, error) {
-	if layoutID != CustomLayoutID {
-		layout, ok := LayoutByID(layoutID)
-		if !ok {
-			return Layout{}, validation("layoutId is not a known layout")
-		}
-		return layout, nil
-	}
-	if customID == nil {
-		return Layout{}, validation("customLayoutId is required with the custom layout")
-	}
-	get := q.GetSignageCustomLayout
-	if lock {
-		get = q.GetSignageCustomLayoutForShare
-	}
-	row, err := get(ctx, *customID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Layout{}, validation("the custom layout does not exist")
-	}
+	blocks, refs, err := ParseBlocks(input.Blocks)
 	if err != nil {
-		return Layout{}, err
+		return validatedScene{}, err
 	}
-	custom, err := customLayoutFromRow(
-		row.ID, row.Name, row.Mode, row.Columns, row.Rows, row.Zones, 0, row.Version, row.CreatedAt, row.UpdatedAt,
-	)
-	if err != nil {
-		return Layout{}, err
-	}
-	return custom.layout(), nil
+	return validatedScene{SceneInput: input, name: name, blocks: blocks, refs: refs}, nil
 }
 
 func samePointer(a, b *uuid.UUID) bool {
@@ -304,19 +258,9 @@ func (s *Service) CreateScene(
 	if err != nil {
 		return Scene{}, err
 	}
-	var zones map[string]RawWidget
-	var refs WidgetRefs
-	parse := func(layout Layout) (err error) {
-		zones = emptyZones(layout)
-		if input.Zones != nil {
-			zones, refs, err = ParseZones(layout, input.Zones)
-		}
-		return err
-	}
-	if checked.builtin != nil {
-		if err := parse(*checked.builtin); err != nil {
-			return Scene{}, err
-		}
+	encoded, err := marshalBlocks(checked.blocks)
+	if err != nil {
+		return Scene{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -324,20 +268,7 @@ func (s *Service) CreateScene(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	if checked.builtin == nil {
-		layout, err := sceneLayout(ctx, q, input.LayoutID, input.CustomLayoutID, true)
-		if err != nil {
-			return Scene{}, err
-		}
-		if err := parse(layout); err != nil {
-			return Scene{}, err
-		}
-	}
-	encoded, err := marshalZones(zones)
-	if err != nil {
-		return Scene{}, err
-	}
-	if err := s.verifyReferences(ctx, q, input.BackgroundAssetID, input.FontAssetID, refs); err != nil {
+	if err := s.verifyReferences(ctx, q, input.BackgroundAssetID, input.FontAssetID, checked.refs); err != nil {
 		return Scene{}, err
 	}
 	id := ids.New()
@@ -346,8 +277,6 @@ func (s *Service) CreateScene(
 		Name:              checked.name,
 		AspectWidth:       int16(checked.AspectRatio.Width),
 		AspectHeight:      int16(checked.AspectRatio.Height),
-		LayoutID:          input.LayoutID,
-		CustomLayoutID:    input.CustomLayoutID,
 		BackgroundColor:   input.BackgroundColor,
 		BackgroundAssetID: input.BackgroundAssetID,
 		BackgroundFit:     string(input.BackgroundFit),
@@ -355,7 +284,7 @@ func (s *Service) CreateScene(
 		Theme:             string(input.Theme),
 		FontFamily:        string(checked.FontFamily),
 		FontAssetID:       input.FontAssetID,
-		Zones:             string(encoded),
+		Blocks:            string(encoded),
 	})
 	if err != nil {
 		return Scene{}, databaseError(err)
@@ -368,7 +297,7 @@ func (s *Service) CreateScene(
 		"signage_scene",
 		id,
 		requestID,
-		[]string{"name", "aspectRatio", "layoutId", "background", "theme", "font", "zones"},
+		[]string{"name", "aspectRatio", "background", "theme", "font", "blocks"},
 	); err != nil {
 		return Scene{}, err
 	}
@@ -378,8 +307,8 @@ func (s *Service) CreateScene(
 	return sceneFromRow(row)
 }
 
-// UpdateScene replaces a scene. Changing the layout without new zones keeps the existing widgets
-// by position (zone n of the new layout takes the widget of zone n of the old one).
+// UpdateScene replaces a scene with all its blocks. Changing the aspect ratio is refused while a rule or default
+// scene list shows the scene on a display with another ratio.
 func (s *Service) UpdateScene(
 	ctx context.Context,
 	principal authorization.Principal,
@@ -398,12 +327,9 @@ func (s *Service) UpdateScene(
 	if err != nil {
 		return Scene{}, err
 	}
-	var parsed map[string]RawWidget
-	var refs WidgetRefs
-	if checked.builtin != nil && input.Zones != nil {
-		if parsed, refs, err = ParseZones(*checked.builtin, input.Zones); err != nil {
-			return Scene{}, err
-		}
+	encoded, err := marshalBlocks(checked.blocks)
+	if err != nil {
+		return Scene{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -411,21 +337,6 @@ func (s *Service) UpdateScene(
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := signagedb.New(tx)
-	// The new layout is share-locked before the scene row: a layout update locks the layout first and the
-	// scenes after, so both orders agree.
-	var next Layout
-	if checked.builtin != nil {
-		next = *checked.builtin
-	} else {
-		if next, err = sceneLayout(ctx, q, input.LayoutID, input.CustomLayoutID, true); err != nil {
-			return Scene{}, err
-		}
-		if input.Zones != nil {
-			if parsed, refs, err = ParseZones(next, input.Zones); err != nil {
-				return Scene{}, err
-			}
-		}
-	}
 	current, err := q.GetSignageSceneForUpdate(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Scene{}, apperror.NotFound
@@ -454,40 +365,14 @@ func (s *Service) UpdateScene(
 			)
 		}
 	}
-	changed := []string{"name", "aspectRatio", "layoutId", "background", "theme", "font"}
-	zones := parsed
-	if zones == nil {
-		stored := map[string]RawWidget{}
-		if err := json.Unmarshal(current.Zones, &stored); err != nil {
-			return Scene{}, err
-		}
-		zones = stored
-		if current.LayoutID != input.LayoutID || !samePointer(current.CustomLayoutID, input.CustomLayoutID) {
-			// The previous layout is read without a lock: its zone list is consistent with the stored widgets
-			// because a layout update cannot rewrite this scene while we hold its row lock.
-			if previous, err := sceneLayout(ctx, q, current.LayoutID, current.CustomLayoutID, false); err == nil {
-				zones = remapZones(previous, stored, next)
-			} else {
-				zones = emptyZones(next)
-			}
-			changed = append(changed, "zones")
-		}
-	} else {
-		changed = append(changed, "zones")
-	}
-	if err := s.verifyReferences(ctx, q, input.BackgroundAssetID, input.FontAssetID, refs); err != nil {
+	if err := s.verifyReferences(ctx, q, input.BackgroundAssetID, input.FontAssetID, checked.refs); err != nil {
 		return Scene{}, err
 	}
-	encoded, err := marshalZones(zones)
-	if err != nil {
-		return Scene{}, err
-	}
+	changed := sceneChanges(current, checked)
 	row, err := q.UpdateSignageScene(ctx, signagedb.UpdateSignageSceneParams{
 		Name:              checked.name,
 		AspectWidth:       int16(checked.AspectRatio.Width),
 		AspectHeight:      int16(checked.AspectRatio.Height),
-		LayoutID:          input.LayoutID,
-		CustomLayoutID:    input.CustomLayoutID,
 		BackgroundColor:   input.BackgroundColor,
 		BackgroundAssetID: input.BackgroundAssetID,
 		BackgroundFit:     string(input.BackgroundFit),
@@ -495,7 +380,9 @@ func (s *Service) UpdateScene(
 		Theme:             string(input.Theme),
 		FontFamily:        string(checked.FontFamily),
 		FontAssetID:       input.FontAssetID,
-		Zones:             string(encoded), ID: id, ExpectedVersion: expected,
+		Blocks:            string(encoded),
+		ID:                id,
+		ExpectedVersion:   expected,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Scene{}, apperror.StaleWrite
@@ -519,6 +406,31 @@ func (s *Service) UpdateScene(
 		return Scene{}, err
 	}
 	return sceneFromRow(row)
+}
+
+// sceneChanges names the parts of a scene that an update changes; blocks are compared by content.
+func sceneChanges(current signagedb.SignageScene, next validatedScene) []string {
+	var changed []string
+	if current.Name != next.name {
+		changed = append(changed, "name")
+	}
+	if aspectRatioOf(current.AspectWidth, current.AspectHeight) != next.AspectRatio {
+		changed = append(changed, "aspectRatio")
+	}
+	if current.BackgroundColor != next.BackgroundColor || !samePointer(current.BackgroundAssetID, next.BackgroundAssetID) ||
+		current.BackgroundFit != string(next.BackgroundFit) || int(current.BackgroundDim) != next.BackgroundDim {
+		changed = append(changed, "background")
+	}
+	if current.Theme != string(next.Theme) {
+		changed = append(changed, "theme")
+	}
+	if current.FontFamily != string(next.FontFamily) || !samePointer(current.FontAssetID, next.FontAssetID) {
+		changed = append(changed, "font")
+	}
+	if stored, err := storedBlocks(current.Blocks); err != nil || blocksDigest(stored) != blocksDigest(next.blocks) {
+		changed = append(changed, "blocks")
+	}
+	return changed
 }
 
 // DeleteScene removes a scene that no rule's scene list and no default scene list refers to. Scenes only

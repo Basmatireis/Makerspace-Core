@@ -591,6 +591,7 @@ func notificationCatalogDTO(view notifyrules.CatalogView) openapi.NotificationCa
 		triggers = append(triggers, openapi.NotificationCatalogTrigger{
 			Key: trigger.Key, Area: trigger.Area, Label: trigger.Label, Help: trigger.Help,
 			Subject:          string(trigger.Subject),
+			MachineScope:     trigger.MachineScope(),
 			Fields:           catalogFieldsDTO(trigger.Fields),
 			Recipients:       catalogChoicesDTO(trigger.Recipients),
 			Placeholders:     catalogPlaceholdersDTO(trigger.Placeholders),

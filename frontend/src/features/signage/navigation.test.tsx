@@ -22,24 +22,25 @@ describe('Signage navigation', () => {
     expect(screen.queryByRole('button', { name: 'Signage' })).not.toBeInTheDocument();
   });
 
-  it('lists Displays, Announcements, Content and Media for signage.read and opens the group on signage pages', () => {
+  it('lists Displays, Web embeds, Announcements, Screens and Media for signage.read and opens the group on signage pages', () => {
     renderNavigation([PermissionId.signageread], '/signage/scenes/some-scene');
     expect(screen.getByRole('button', { name: 'Signage' })).toHaveAttribute('aria-expanded', 'true');
     const links = screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/signage'));
     expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
       ['Displays', '/signage'],
+      ['Web embeds', '/signage/embeds'],
       ['Announcements', '/signage/announcements'],
-      ['Content', '/signage/content'],
+      ['Screens', '/signage/content'],
       ['Media', '/signage/media'],
     ]);
-    expect(screen.getByRole('link', { name: 'Content' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Screens' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Media' })).not.toHaveAttribute('aria-current');
   });
 
-  it('keeps Content active on custom layout pages', () => {
-    renderNavigation([PermissionId.signageread], '/signage/layouts/some-layout');
+  it('keeps Screens active on scene pages', () => {
+    renderNavigation([PermissionId.signageread], '/signage/scenes/some-scene');
     expect(screen.getByRole('button', { name: 'Signage' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('link', { name: 'Content' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Screens' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('marks Displays active on display pages', () => {
@@ -54,7 +55,7 @@ describe('Signage navigation', () => {
     expect(links.map((link) => link.textContent)).toEqual(['Announcements']);
   });
 
-  it('hides Displays, Content and Media for signage.manage alone', () => {
+  it('hides Displays, Screens and Media for signage.manage alone', () => {
     renderNavigation([PermissionId.signagemanage]);
     expect(screen.queryByRole('button', { name: 'Signage' })).not.toBeInTheDocument();
   });

@@ -480,7 +480,15 @@ func (s *Server) signagePlayerDisplay(ctx context.Context) (signage.PlayerDispla
 	return s.signage.PlayerDisplayFor(ctx, device.ID)
 }
 
+// signagePlayerBase is the path prefix of the player endpoints; manifests and live data point their asset, timelapse
+// and camera URLs below the prefix of whoever asks (a player or a web embed).
+const signagePlayerBase = apiBasePath + "/signage/player"
+
 func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerManifest, error) {
+	return signageManifestDTO(manifest, signagePlayerBase)
+}
+
+func signageManifestDTO(manifest signage.Manifest, base string) (openapi.SignagePlayerManifest, error) {
 	rules := make([]openapi.SignagePlayerRule, 0, len(manifest.Rules))
 	for _, rule := range manifest.Rules {
 		var match nullable.Nullable[openapi.SignageMachineMatch]
@@ -506,20 +514,14 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 	}
 	scenes := make([]openapi.SignagePlayerScene, 0, len(manifest.Scenes))
 	for _, scene := range manifest.Scenes {
-		zones := make(openapi.SignageZones, len(scene.Zones))
-		for key, raw := range scene.Zones {
-			var widget openapi.SignageWidget
-			if err := widget.UnmarshalJSON(raw); err != nil {
-				return openapi.SignagePlayerManifest{}, err
-			}
-			zones[key] = widget
+		blocks, err := signageBlocksDTO(scene.Blocks)
+		if err != nil {
+			return openapi.SignagePlayerManifest{}, err
 		}
 		scenes = append(scenes, openapi.SignagePlayerScene{
 			Id:                scene.ID,
 			Name:              scene.Name,
 			AspectRatio:       signageAspectRatioDTO(scene.AspectRatio),
-			LayoutId:          openapi.SignageLayoutId(scene.LayoutID),
-			CustomLayoutId:    nullableValue(scene.CustomLayoutID),
 			BackgroundColor:   scene.BackgroundColor,
 			BackgroundAssetId: nullableValue(scene.BackgroundAssetID),
 			BackgroundFit:     openapi.SignageFit(scene.BackgroundFit),
@@ -527,7 +529,7 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 			Theme:             openapi.SignagePlayerSceneTheme(scene.Theme),
 			FontFamily:        openapi.SignageSceneFontFamily(scene.FontFamily),
 			FontAssetId:       nullableValue(scene.FontAssetID),
-			Zones:             zones,
+			Blocks:            blocks,
 			Version:           scene.Version,
 		})
 	}
@@ -543,27 +545,13 @@ func signagePlayerManifestDTO(manifest signage.Manifest) (openapi.SignagePlayerM
 			Width: nullableValue(
 				asset.Width,
 			), Height: nullableValue(asset.Height), DurationMs: nullableValue(asset.DurationMs),
-			Url: apiBasePath + "/signage/player/assets/" + asset.ID.String() + "/" + asset.SHA256,
-		})
-	}
-	customLayouts := make([]openapi.SignagePlayerCustomLayout, 0, len(manifest.CustomLayouts))
-	for _, layout := range manifest.CustomLayouts {
-		customLayouts = append(customLayouts, openapi.SignagePlayerCustomLayout{
-			Id:      layout.ID,
-			Name:    layout.Name,
-			Mode:    openapi.SignageCustomLayoutMode(layout.Mode),
-			Columns: layout.Columns,
-			Rows:    layout.Rows,
-			Zones:   signageCustomZoneDTOs(layout.Zones),
-			Version: layout.Version,
+			Url: base + "/assets/" + asset.ID.String() + "/" + asset.SHA256,
 		})
 	}
 	return openapi.SignagePlayerManifest{
 		ManifestVersion: manifest.ManifestVersion,
 		Revision:        manifest.Revision,
 		DefaultScenes:   signageSceneListDTO(manifest.DefaultScenes),
-		CustomLayouts:   customLayouts,
-		LayoutsVersion:  manifest.LayoutsVersion,
 		Display: openapi.SignagePlayerManifestDisplay{
 			AspectRatio:        signageAspectRatioDTO(manifest.Display.AspectRatio),
 			VisibleFromOutside: manifest.Display.VisibleFromOutside,
@@ -707,6 +695,10 @@ func signageCalendarBlockDTO(block *signage.CalendarBlock) nullable.Nullable[ope
 }
 
 func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
+	return signageLiveDTO(live, signagePlayerBase)
+}
+
+func signageLiveDTO(live signage.LiveData, base string) openapi.SignagePlayerLive {
 	machines := make([]openapi.SignagePlayerLiveMachine, 0, len(live.Machines))
 	for _, machine := range live.Machines {
 		machines = append(machines, openapi.SignagePlayerLiveMachine{
@@ -745,7 +737,10 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	for _, stream := range live.Streams {
 		streams = append(
 			streams,
-			openapi.SignagePlayerStream{MachineId: stream.MachineID, Path: cameraStreamPath(stream.MachineID)},
+			openapi.SignagePlayerStream{
+				MachineId: stream.MachineID,
+				Path:      base + "/cameras/" + stream.MachineID.String() + "/stream",
+			},
 		)
 	}
 	return openapi.SignagePlayerLive{
@@ -755,12 +750,15 @@ func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 		Announcements: announcements,
 		RuleNotices:   &ruleNotices,
 		OpenDays:      openDays, Events: events, Calendar: signageCalendarBlockDTO(live.Calendar), Streams: streams,
-		Timelapses: signageTimelapsesDTO(live.Timelapses),
+		Timelapses: signageTimelapsesDTO(live.Timelapses, base),
 	}
 }
 
 // signageTimelapsesDTO is null while the publication has no timelapse widget.
-func signageTimelapsesDTO(clips []signage.LiveTimelapse) nullable.Nullable[[]openapi.SignagePlayerTimelapse] {
+func signageTimelapsesDTO(
+	clips []signage.LiveTimelapse,
+	base string,
+) nullable.Nullable[[]openapi.SignagePlayerTimelapse] {
 	if clips == nil {
 		return nullable.NewNullNullable[[]openapi.SignagePlayerTimelapse]()
 	}
@@ -773,7 +771,7 @@ func signageTimelapsesDTO(clips []signage.LiveTimelapse) nullable.Nullable[[]ope
 			EndedAt:     clip.EndedAt,
 			Sha256:      clip.SHA256,
 			SizeBytes:   clip.SizeBytes,
-			Url:         apiBasePath + "/signage/player/timelapses/" + clip.RunID.String() + "/" + clip.SHA256,
+			Url:         base + "/timelapses/" + clip.RunID.String() + "/" + clip.SHA256,
 		})
 	}
 	return nullable.NewNullableWithValue(items)

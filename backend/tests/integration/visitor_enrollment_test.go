@@ -137,7 +137,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	loginName := "Visitor.One"
 	pin := "654321"
 	result, err := service.Submit(ctx, enrollment, visitor.SubmissionInput{
-		FirstName: "New", LastName: "Visitor", Email: &email,
+		FirstName: "New", LastName: "Visitor", Email: email,
 		AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &loginName, PIN: &pin,
 		ProfileImage: visitorTestJPEG(t), ProfileImageFilename: "camera.jpg", LabRulesAccepted: true,
 	}, nil)
@@ -245,7 +245,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	}
 	passwordEmail := "password-visitor@example.test"
 	passwordResult, err := service.Submit(ctx, passwordContext, visitor.SubmissionInput{
-		FirstName: "Password", LastName: "Visitor", Email: &passwordEmail,
+		FirstName: "Password", LastName: "Visitor", Email: passwordEmail,
 		AuthMethods: []visitor.AuthMethod{"password"}, ProfileImage: visitorTestJPEG(t),
 		ProfileImageFilename: "password-visitor.jpg", LabRulesAccepted: true,
 	}, nil)
@@ -309,7 +309,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = service.Submit(ctx, duplicateContext, visitor.SubmissionInput{
-		FirstName: "Duplicate", LastName: "Visitor", Email: &email,
+		FirstName: "Duplicate", LastName: "Visitor", Email: email,
 		AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &loginName, PIN: &pin,
 		ProfileImage: visitorTestJPEG(t), ProfileImageFilename: "duplicate.jpg", LabRulesAccepted: true,
 	}, nil)
@@ -435,7 +435,7 @@ func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
 		visitor.SubmissionInput{
 			FirstName:        "Pinned",
 			LastName:         "Visitor",
-			Email:            &email,
+			Email:            email,
 			AuthMethods:      []visitor.AuthMethod{"pin"},
 			PINLoginName:     &login,
 			PIN:              &pin,
@@ -529,7 +529,7 @@ func TestVisitorEnrollmentChecksTheVisitorIn(t *testing.T) {
 			email, login, pin := "arriving@example.test", "arriving.visitor", "654321"
 			if mode != "not_required" {
 				_, err = service.Submit(ctx, enrollment, visitor.SubmissionInput{
-					FirstName: "Arriving", LastName: "Visitor", Email: &email,
+					FirstName: "Arriving", LastName: "Visitor", Email: email,
 					AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &login, PIN: &pin,
 					ProfileImage: visitorTestJPEG(t),
 				}, nil)
@@ -539,7 +539,7 @@ func TestVisitorEnrollmentChecksTheVisitorIn(t *testing.T) {
 				assertCount(t, pool, `SELECT count(*) FROM visits`, 0)
 			}
 			result, err := service.Submit(ctx, enrollment, visitor.SubmissionInput{
-				FirstName: "Arriving", LastName: "Visitor", Email: &email,
+				FirstName: "Arriving", LastName: "Visitor", Email: email,
 				AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &login, PIN: &pin,
 				ProfileImage: visitorTestJPEG(t), LabRulesAccepted: true,
 			}, nil)

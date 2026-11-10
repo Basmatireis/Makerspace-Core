@@ -18,48 +18,6 @@ import (
 
 const signageAssetCSP = "default-src 'none'; style-src 'none'; sandbox"
 
-func (s *Server) ListSignageLayouts(
-	ctx context.Context,
-	_ openapi.ListSignageLayoutsRequestObject,
-) (openapi.ListSignageLayoutsResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	layouts, err := s.signage.ListLayouts(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]openapi.SignageLayout, 0, len(layouts))
-	for _, layout := range layouts {
-		zones := make([]openapi.SignageLayoutZone, 0, len(layout.Zones))
-		for _, zone := range layout.Zones {
-			zones = append(
-				zones,
-				openapi.SignageLayoutZone{
-					Id:      zone.ID,
-					Label:   zone.Label,
-					Col:     zone.Col,
-					Row:     zone.Row,
-					ColSpan: zone.ColSpan,
-					RowSpan: zone.RowSpan,
-				},
-			)
-		}
-		items = append(
-			items,
-			openapi.SignageLayout{
-				Id:      openapi.SignageLayoutId(layout.ID),
-				Name:    layout.Name,
-				Columns: layout.Columns,
-				Rows:    layout.Rows,
-				Zones:   zones,
-			},
-		)
-	}
-	return openapi.ListSignageLayouts200JSONResponse{Items: items}, nil
-}
-
 // Machines ----------------------------------------------------------------------------------------------------
 
 func (s *Server) ListSignageMachines(
@@ -258,42 +216,54 @@ func (s *Server) DownloadSignageAsset(
 
 // Scenes ------------------------------------------------------------------------------------------------------
 
-func signageZonesInput(zones *openapi.SignageZones) (map[string]json.RawMessage, error) {
-	if zones == nil {
-		return nil, nil
+// signageBlocksInput hands the request's blocks to the service as JSON, which decodes and validates them strictly.
+func signageBlocksInput(blocks openapi.SignageBlocks) (json.RawMessage, error) {
+	if blocks == nil {
+		blocks = openapi.SignageBlocks{}
 	}
-	result := make(map[string]json.RawMessage, len(*zones))
-	for key, widget := range *zones {
-		raw, err := widget.MarshalJSON()
-		if err != nil {
-			return nil, invalidRequest("zone widget is invalid")
-		}
-		result[key] = raw
+	raw, err := json.Marshal(blocks)
+	if err != nil {
+		return nil, invalidRequest("blocks are invalid")
+	}
+	return raw, nil
+}
+
+// signageBlocksDTO maps canonical blocks to the transport type, which has the same JSON shape.
+func signageBlocksDTO(blocks []signage.Block) (openapi.SignageBlocks, error) {
+	if len(blocks) == 0 {
+		return openapi.SignageBlocks{}, nil
+	}
+	raw, err := json.Marshal(blocks)
+	if err != nil {
+		return nil, err
+	}
+	var result openapi.SignageBlocks
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
 	}
 	return result, nil
 }
 
 func signageSceneDTO(scene signage.Scene) (openapi.SignageScene, error) {
-	zones := make(openapi.SignageZones, len(scene.Zones))
-	for key, raw := range scene.Zones {
-		var widget openapi.SignageWidget
-		if err := widget.UnmarshalJSON(raw); err != nil {
-			return openapi.SignageScene{}, err
-		}
-		zones[key] = widget
+	blocks, err := signageBlocksDTO(scene.Blocks)
+	if err != nil {
+		return openapi.SignageScene{}, err
 	}
 	return openapi.SignageScene{
 		Id:                scene.ID,
 		Name:              scene.Name,
 		AspectRatio:       signageAspectRatioDTO(scene.AspectRatio),
-		LayoutId:          openapi.SignageLayoutId(scene.LayoutID),
-		CustomLayoutId:    nullableValue(scene.CustomLayoutID),
 		BackgroundColor:   scene.BackgroundColor,
 		BackgroundAssetId: nullableValue(scene.BackgroundAssetID),
 		BackgroundFit:     openapi.SignageFit(scene.BackgroundFit),
-		BackgroundDim:     scene.BackgroundDim, Theme: openapi.SignageSceneTheme(scene.Theme), Zones: zones,
-		FontFamily: openapi.SignageSceneFontFamily(scene.FontFamily), FontAssetId: nullableValue(scene.FontAssetID),
-		Version: scene.Version, CreatedAt: scene.CreatedAt, UpdatedAt: scene.UpdatedAt,
+		BackgroundDim:     scene.BackgroundDim,
+		Theme:             openapi.SignageSceneTheme(scene.Theme),
+		Blocks:            blocks,
+		FontFamily:        openapi.SignageSceneFontFamily(scene.FontFamily),
+		FontAssetId:       nullableValue(scene.FontAssetID),
+		Version:           scene.Version,
+		CreatedAt:         scene.CreatedAt,
+		UpdatedAt:         scene.UpdatedAt,
 	}, nil
 }
 
@@ -331,21 +301,21 @@ func (s *Server) CreateSignageScene(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	zones, err := signageZonesInput(r.Body.Zones)
+	blocks, err := signageBlocksInput(r.Body.Blocks)
 	if err != nil {
 		return nil, err
 	}
 	scene, err := s.signage.CreateScene(ctx, p, signage.SceneInput{
-		Name:            r.Body.Name,
-		AspectRatio:     signageAspectRatio(r.Body.AspectRatio),
-		LayoutID:        string(r.Body.LayoutId),
-		CustomLayoutID:  uuidNullable(r.Body.CustomLayoutId),
-		BackgroundColor: r.Body.BackgroundColor,
-		BackgroundAssetID: uuidNullable(
-			r.Body.BackgroundAssetId,
-		), BackgroundFit: signage.MediaFit(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
-		Theme: signage.Theme(r.Body.Theme), Zones: zones,
-		FontFamily: signage.SceneFontFamily(sceneFontOrDefault(r.Body.FontFamily)), FontAssetID: uuidNullable(r.Body.FontAssetId),
+		Name:              r.Body.Name,
+		AspectRatio:       signageAspectRatio(r.Body.AspectRatio),
+		BackgroundColor:   r.Body.BackgroundColor,
+		BackgroundAssetID: uuidNullable(r.Body.BackgroundAssetId),
+		BackgroundFit:     signage.MediaFit(r.Body.BackgroundFit),
+		BackgroundDim:     r.Body.BackgroundDim,
+		Theme:             signage.Theme(r.Body.Theme),
+		Blocks:            blocks,
+		FontFamily:        signage.SceneFontFamily(sceneFontOrDefault(r.Body.FontFamily)),
+		FontAssetID:       uuidNullable(r.Body.FontAssetId),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -387,21 +357,21 @@ func (s *Server) UpdateSignageScene(
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	zones, err := signageZonesInput(r.Body.Zones)
+	blocks, err := signageBlocksInput(r.Body.Blocks)
 	if err != nil {
 		return nil, err
 	}
 	scene, err := s.signage.UpdateScene(ctx, p, r.SceneId, r.Body.ExpectedVersion, signage.SceneInput{
-		Name:            r.Body.Name,
-		AspectRatio:     signageAspectRatio(r.Body.AspectRatio),
-		LayoutID:        string(r.Body.LayoutId),
-		CustomLayoutID:  uuidNullable(r.Body.CustomLayoutId),
-		BackgroundColor: r.Body.BackgroundColor,
-		BackgroundAssetID: uuidNullable(
-			r.Body.BackgroundAssetId,
-		), BackgroundFit: signage.MediaFit(r.Body.BackgroundFit), BackgroundDim: r.Body.BackgroundDim,
-		Theme: signage.Theme(r.Body.Theme), Zones: zones,
-		FontFamily: signage.SceneFontFamily(r.Body.FontFamily), FontAssetID: uuidNullable(r.Body.FontAssetId),
+		Name:              r.Body.Name,
+		AspectRatio:       signageAspectRatio(r.Body.AspectRatio),
+		BackgroundColor:   r.Body.BackgroundColor,
+		BackgroundAssetID: uuidNullable(r.Body.BackgroundAssetId),
+		BackgroundFit:     signage.MediaFit(r.Body.BackgroundFit),
+		BackgroundDim:     r.Body.BackgroundDim,
+		Theme:             signage.Theme(r.Body.Theme),
+		Blocks:            blocks,
+		FontFamily:        signage.SceneFontFamily(r.Body.FontFamily),
+		FontAssetID:       uuidNullable(r.Body.FontAssetId),
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err

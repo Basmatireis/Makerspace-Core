@@ -140,6 +140,13 @@ DELETE FROM signage_pairing_requests;
 -- so every device has to be paired again.
 UPDATE managed_devices SET token_digest = sha256(convert_to(gen_random_uuid()::text || id::text, 'UTF8'));
 
+-- name: DisableSignageWebEmbeds :exec
+-- Staging must not serve the production screens on other websites: every web embed is switched off and gets a new
+-- random key (24 random bytes, base64url), so the production embed codes do not work against staging.
+UPDATE signage_web_embeds
+SET enabled = false,
+    embed_key = translate(encode(uuid_send(gen_random_uuid()) || substring(uuid_send(gen_random_uuid()) FROM 1 FOR 8), 'base64'), '+/', '-_');
+
 -- name: ClearPrinterConnectorSecrets :exec
 UPDATE printer_connector_assignments SET encrypted_secrets = NULL WHERE encrypted_secrets IS NOT NULL;
 

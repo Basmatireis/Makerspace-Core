@@ -174,6 +174,9 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         pathname === '/signage' || pathname.startsWith('/signage/displays') || pathname.startsWith('/signage/groups'),
     });
   }
+  if (canReadSignage) {
+    signage.push({ label: 'Web embeds', to: '/signage/embeds', active: pathname.startsWith('/signage/embeds') });
+  }
   if (canReadSignage || hasPermission(currentUser, 'signage.override')) {
     signage.push({
       label: 'Announcements',
@@ -183,12 +186,9 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   }
   if (canReadSignage) {
     signage.push({
-      label: 'Content',
+      label: 'Screens',
       to: '/signage/content',
-      active:
-        pathname.startsWith('/signage/content') ||
-        pathname.startsWith('/signage/scenes') ||
-        pathname.startsWith('/signage/layouts'),
+      active: pathname.startsWith('/signage/content') || pathname.startsWith('/signage/scenes'),
     });
     signage.push({ label: 'Media', to: '/signage/media', active: pathname.startsWith('/signage/media') });
   }

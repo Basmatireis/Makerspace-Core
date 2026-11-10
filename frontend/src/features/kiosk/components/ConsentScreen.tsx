@@ -47,14 +47,16 @@ export function ConsentScreen({
         {categories.map((category) => (
           <div key={category.id} className="tablet-consent__item">
             <div>
-              <p className="tablet-consent__name">{category.name}</p>
+              <p className="tablet-consent__name" id={`kiosk-consent-name-${category.id}`}>
+                {category.name}
+              </p>
               <p className="tablet-consent__description">{category.description}</p>
             </div>
             <Toggle
               id={`kiosk-consent-${category.id}`}
               size="md"
-              labelText={category.name}
-              hideLabel
+              // Labelled by the name beside it, so the switch itself shows "No" or "Yes".
+              aria-labelledby={`kiosk-consent-name-${category.id}`}
               labelA="No"
               labelB="Yes"
               toggled={granted[category.id] === true}

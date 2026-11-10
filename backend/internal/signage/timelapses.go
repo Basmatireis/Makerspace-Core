@@ -57,52 +57,50 @@ type timelapseNeed struct {
 // only in count share one need with the largest count. present reports any timelapse widget at all.
 func timelapseNeedsOf(manifest Manifest) (needs []timelapseNeed, present bool) {
 	byKey := map[string]int{}
-	for _, scene := range manifest.Scenes {
-		for _, raw := range scene.Zones {
-			var widget struct {
-				Type       WidgetType      `json:"type"`
-				Source     TimelapseSource `json:"source"`
-				MachineIDs []uuid.UUID     `json:"machineIds"`
-				Count      int             `json:"count"`
-				MaxAgeDays int             `json:"maxAgeDays"`
-			}
-			if json.Unmarshal(raw, &widget) != nil || widget.Type != WidgetTimelapse {
-				continue
-			}
-			present = true
-			need := timelapseNeed{
-				all:        widget.Source == TimelapseSourceAll,
-				maxAgeDays: min(max(widget.MaxAgeDays, 0), maxTimelapseAgeDays),
-				count:      min(max(widget.Count, 0), maxTimelapseCount),
-			}
-			if !need.all {
-				set := map[uuid.UUID]struct{}{}
-				for _, id := range widget.MachineIDs {
-					set[id] = struct{}{}
-				}
-				need.machines = sortedIDs(set)
-				if len(need.machines) == 0 {
-					continue
-				}
-			}
-			if need.count == 0 {
-				continue
-			}
-			var key bytes.Buffer
-			if need.all {
-				key.WriteString("all")
-			}
-			for _, id := range need.machines {
-				key.Write(id[:])
-			}
-			key.WriteString("/" + strconv.Itoa(need.maxAgeDays))
-			if index, seen := byKey[key.String()]; seen {
-				needs[index].count = max(needs[index].count, need.count)
-				continue
-			}
-			byKey[key.String()] = len(needs)
-			needs = append(needs, need)
+	for _, raw := range manifestWidgets(manifest) {
+		var widget struct {
+			Type       WidgetType      `json:"type"`
+			Source     TimelapseSource `json:"source"`
+			MachineIDs []uuid.UUID     `json:"machineIds"`
+			Count      int             `json:"count"`
+			MaxAgeDays int             `json:"maxAgeDays"`
 		}
+		if json.Unmarshal(raw, &widget) != nil || widget.Type != WidgetTimelapse {
+			continue
+		}
+		present = true
+		need := timelapseNeed{
+			all:        widget.Source == TimelapseSourceAll,
+			maxAgeDays: min(max(widget.MaxAgeDays, 0), maxTimelapseAgeDays),
+			count:      min(max(widget.Count, 0), maxTimelapseCount),
+		}
+		if !need.all {
+			set := map[uuid.UUID]struct{}{}
+			for _, id := range widget.MachineIDs {
+				set[id] = struct{}{}
+			}
+			need.machines = sortedIDs(set)
+			if len(need.machines) == 0 {
+				continue
+			}
+		}
+		if need.count == 0 {
+			continue
+		}
+		var key bytes.Buffer
+		if need.all {
+			key.WriteString("all")
+		}
+		for _, id := range need.machines {
+			key.Write(id[:])
+		}
+		key.WriteString("/" + strconv.Itoa(need.maxAgeDays))
+		if index, seen := byKey[key.String()]; seen {
+			needs[index].count = max(needs[index].count, need.count)
+			continue
+		}
+		byKey[key.String()] = len(needs)
+		needs = append(needs, need)
 	}
 	return needs, present
 }
@@ -110,20 +108,24 @@ func timelapseNeedsOf(manifest Manifest) (needs []timelapseNeed, present bool) {
 // timelapseSelection lists the clips the publication's timelapse widgets show right now: finished recorded
 // runs with a stored timelapse that are not hidden from signage, the union of every widget's newest clips,
 // newest first and at most maxLiveTimelapses. present reports whether the publication has a timelapse widget.
-// Timelapses are camera recordings, so a display visible from outside without allowCameraOutside gets none.
 func (s *Service) timelapseSelection(
 	ctx context.Context,
 	q *signagedb.Queries,
-	display PlayerDisplay,
 	manifest Manifest,
 	now time.Time,
+	caps *timelapseCaps,
 ) (clips []LiveTimelapse, present bool, err error) {
 	needs, present := timelapseNeedsOf(manifest)
 	if !present {
 		return nil, false, nil
 	}
-	if !cameraAllowed(display) {
-		return []LiveTimelapse{}, true, nil
+	if caps != nil {
+		for index := range needs {
+			needs[index].count = min(needs[index].count, caps.count)
+			if needs[index].maxAgeDays == 0 || needs[index].maxAgeDays > caps.maxAgeDays {
+				needs[index].maxAgeDays = caps.maxAgeDays
+			}
+		}
 	}
 	seen := map[uuid.UUID]struct{}{}
 	clips = []LiveTimelapse{}
@@ -160,10 +162,52 @@ func (s *Service) timelapseSelection(
 		}
 		return bytes.Compare(clips[i].RunID[:], clips[j].RunID[:]) > 0
 	})
-	if len(clips) > maxLiveTimelapses {
-		clips = clips[:maxLiveTimelapses]
+	limit := maxLiveTimelapses
+	if caps != nil {
+		limit = min(limit, caps.count)
+	}
+	if len(clips) > limit {
+		clips = clips[:limit]
 	}
 	return clips, true, nil
+}
+
+// timelapseCaps bounds the timelapse widgets of a web embed: at most count clips per widget and in total, and only
+// clips of prints that ended within maxAgeDays.
+type timelapseCaps struct {
+	count, maxAgeDays int
+}
+
+// displayTimelapses is the timelapse selection of a display's publication: nil without a timelapse widget. A web
+// embed gets clips only while its timelapses are switched on now and were when it was published (an empty list
+// otherwise, so its widgets show their fallback), capped by its settings.
+// Timelapses are camera recordings, so a display visible from outside without allowCameraOutside gets none either.
+func (s *Service) displayTimelapses(
+	ctx context.Context,
+	q *signagedb.Queries,
+	display PlayerDisplay,
+	manifest Manifest,
+	now time.Time,
+) ([]LiveTimelapse, error) {
+	if display.embed == nil && !cameraAllowed(display) {
+		if _, present := timelapseNeedsOf(manifest); present {
+			return []LiveTimelapse{}, nil
+		}
+		return nil, nil
+	}
+	var caps *timelapseCaps
+	if display.embed != nil {
+		allowed, embedCaps := display.embed.timelapsesFor(manifest)
+		if !allowed {
+			if _, present := timelapseNeedsOf(manifest); present {
+				return []LiveTimelapse{}, nil
+			}
+			return nil, nil
+		}
+		caps = &embedCaps
+	}
+	clips, _, err := s.timelapseSelection(ctx, q, manifest, now, caps)
+	return clips, err
 }
 
 // OpenPlayerTimelapse opens a timelapse video for a player, but only while the run is in the display's
@@ -183,7 +227,7 @@ func (s *Service) OpenPlayerTimelapse(
 	if !ok {
 		return TimelapseFile{}, apperror.NotFound
 	}
-	clips, _, err := s.timelapseSelection(ctx, q, display, manifest, s.now())
+	clips, err := s.displayTimelapses(ctx, q, display, manifest, s.now())
 	if err != nil {
 		return TimelapseFile{}, err
 	}

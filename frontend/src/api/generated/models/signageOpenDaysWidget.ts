@@ -20,7 +20,6 @@
  */
 import type { SignageOpenDaysWidgetType } from './signageOpenDaysWidgetType';
 import type { SignageRichTextFormat } from './signageRichTextFormat';
-import type { SignageWidgetStyle } from './signageWidgetStyle';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageOpenDaysWidget {
@@ -52,5 +51,4 @@ export interface SignageOpenDaysWidget {
   css?: string;
   /** @maxItems 10 */
   fontAssetIds?: UUIDv7[];
-  style?: SignageWidgetStyle;
 }

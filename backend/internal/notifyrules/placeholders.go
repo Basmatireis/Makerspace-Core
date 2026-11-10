@@ -44,3 +44,22 @@ func Clip(text string, limit int) string {
 	runes := []rune(text)
 	return strings.TrimSpace(string(runes[:limit-1])) + "…"
 }
+
+// printPageTail finds print page addresses of any base address, so a cut never lands inside one.
+var printPageTail = regexp.MustCompile(`\S*` + regexp.QuoteMeta(PrintPageLinkPrefix) +
+	`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
+
+// clipText is Clip that never cuts inside a print page address: the mail variant for people without a password
+// recognises a whole address only, so a cut one is dropped with the rest of the text instead.
+func clipText(text string, limit int) string {
+	if utf8.RuneCountInString(text) <= limit {
+		return text
+	}
+	cut := len(string([]rune(text)[:limit-1]))
+	for _, m := range printPageTail.FindAllStringIndex(text, -1) {
+		if m[0] < cut && cut < m[1] {
+			return strings.TrimSpace(text[:m[0]]) + "…"
+		}
+	}
+	return Clip(text, limit)
+}

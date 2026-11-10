@@ -20,9 +20,9 @@
  */
 import type {
   CreateSignageAnnouncementTemplateRequest,
-  CreateSignageCustomLayoutRequest,
   CreateSignageDisplayGroupRequest,
   CreateSignageSceneRequest,
+  CreateSignageWebEmbedRequest,
   DownloadSignageAssetParams,
   DownloadSignageTimelapseParams,
   ListSignageAssetsParams,
@@ -37,14 +37,11 @@ import type {
   SignageAsset,
   SignageAssetList,
   SignageCalendar,
-  SignageCustomLayout,
-  SignageCustomLayoutList,
   SignageDisplay,
   SignageDisplayGroup,
   SignageDisplayGroupList,
   SignageDisplayList,
   SignageDisplayPreview,
-  SignageLayoutList,
   SignageMachineList,
   SignagePairingPoll,
   SignagePairingStart,
@@ -52,227 +49,20 @@ import type {
   SignageRuleRequest,
   SignageScene,
   SignageSceneList,
+  SignageWebEmbed,
+  SignageWebEmbedList,
   StartSignageAnnouncementRequest,
   UUIDv7,
   UpdateSignageAnnouncementRequest,
   UpdateSignageAnnouncementTemplateRequest,
-  UpdateSignageCustomLayoutRequest,
   UpdateSignageDisplayGroupRequest,
   UpdateSignageDisplayRequest,
   UpdateSignageSceneRequest,
+  UpdateSignageWebEmbedRequest,
   VersionRequest
 } from '../models';
 
 import { apiFetch } from '../../http-client';
-
-export const getListSignageLayoutsUrl = () => {
-
-
-
-
-  return `/api/v1/signage/layouts`
-}
-
-/**
- * @summary List the fixed, code-defined scene layouts
- */
-export const listSignageLayouts = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageLayoutList> => {
-
-  return apiFetch<SignageLayoutList>(getListSignageLayoutsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getListSignageCustomLayoutsUrl = () => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts`
-}
-
-/**
- * Needs `signage.read` or `signage.content.manage`. Items carry `sceneCount`.
- * @summary List the custom layouts
- */
-export const listSignageCustomLayouts = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayoutList> => {
-
-  return apiFetch<SignageCustomLayoutList>(getListSignageCustomLayoutsUrl(),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getCreateSignageCustomLayoutUrl = () => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts`
-}
-
-/**
- * Needs `signage.content.manage`. Audited as `signage_custom_layout.created`.
- * @summary Create a custom layout
- */
-export const createSignageCustomLayout = async (createSignageCustomLayoutRequest: CreateSignageCustomLayoutRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageCustomLayout>(getCreateSignageCustomLayoutUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(createSignageCustomLayoutRequest)
-  }
-);}
-
-
-export const getDuplicateSignageCustomLayoutUrl = (customLayoutId: string,) => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts/${customLayoutId}/duplicate`
-}
-
-/**
- * Copies every field of the layout, including its zones. The copy has a fresh id and version 1 and is named `<name> (copy)`, `<name> (copy 2)`, … (the first name not taken, truncated to fit 100 characters). Needs `signage.content.manage`. Audited as `signage_custom_layout.created`.
- * @summary Duplicate a custom layout
- */
-export const duplicateSignageCustomLayout = async (customLayoutId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
-
-  return apiFetch<SignageCustomLayout>(getDuplicateSignageCustomLayoutUrl(customLayoutId),
-  {
-    ...options,
-    method: 'POST'
-
-
-  }
-);}
-
-
-export const getGetSignageCustomLayoutUrl = (customLayoutId: string,) => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts/${customLayoutId}`
-}
-
-/**
- * Needs `signage.read` or `signage.content.manage`.
- */
-export const getSignageCustomLayout = async (customLayoutId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
-
-  return apiFetch<SignageCustomLayout>(getGetSignageCustomLayoutUrl(customLayoutId),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-export const getUpdateSignageCustomLayoutUrl = (customLayoutId: string,) => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts/${customLayoutId}`
-}
-
-/**
- * Needs `signage.content.manage`. Audited as `signage_custom_layout.updated`. Removing zones is allowed: in the same transaction every scene using the layout loses the widgets of the removed zone ids, gets an empty widget for new zone ids, bumps its version and is audited as `signage_scene.updated` (`zones`).
- * @summary Replace a custom layout
- */
-export const updateSignageCustomLayout = async (customLayoutId: string,
-    updateSignageCustomLayoutRequest: UpdateSignageCustomLayoutRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageCustomLayout> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<SignageCustomLayout>(getUpdateSignageCustomLayoutUrl(customLayoutId),
-  {
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(updateSignageCustomLayoutRequest)
-  }
-);}
-
-
-export const getDeleteSignageCustomLayoutUrl = (customLayoutId: string,) => {
-
-
-
-
-  return `/api/v1/signage/custom-layouts/${customLayoutId}`
-}
-
-/**
- * Needs `signage.content.manage`. Answers 409 `signage_in_use` with `details.references` while a scene uses the layout.
- */
-export const deleteSignageCustomLayout = async (customLayoutId: string,
-    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
-
-    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
-    if (!h) return {};
-    if (h instanceof Headers) return Object.fromEntries(h.entries());
-    if (Symbol.iterator in h) {
-      return Object.fromEntries(
-        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
-      );
-    }
-    const headers: Record<string, string | readonly string[]> = {};
-    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
-      if (value !== undefined) headers[name] = value;
-    }
-    return headers;
-  };
-return apiFetch<void>(getDeleteSignageCustomLayoutUrl(customLayoutId),
-  {
-    ...options,
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
-    body: JSON.stringify(versionRequest)
-  }
-);}
-
 
 export const getListSignageMachinesUrl = () => {
 
@@ -642,7 +432,7 @@ export const getUpdateSignageSceneUrl = (sceneId: string,) => {
 }
 
 /**
- * When the layout (built-in or custom) changes and `zones` is omitted, widgets move to the new layout by position; surplus widgets are dropped and new zones are empty.
+ * Replaces the whole scene including every block (the editor saves drafts with this call). Changing the aspect ratio is refused while a rule or default scene list shows the scene on a display with another ratio. Needs `signage.content.manage`. Audited as `signage_scene.updated`.
  * @summary Replace a scene
  */
 export const updateSignageScene = async (sceneId: string,
@@ -1943,6 +1733,232 @@ return apiFetch<SignageRuleList>(getReorderSignageGroupRulesUrl(groupId),
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(reorderSignageRulesRequest)
+  }
+);}
+
+
+export const getListSignageWebEmbedsUrl = () => {
+
+
+
+
+  return `/api/v1/signage/web-embeds`
+}
+
+/**
+ * Requires `signage.read`. Web embeds show a signage screen in an iframe on other websites; they are signage displays without a device and are not listed by `listSignageDisplays`.
+ * @summary List web embeds
+ */
+export const listSignageWebEmbeds = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbedList> => {
+
+  return apiFetch<SignageWebEmbedList>(getListSignageWebEmbedsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateSignageWebEmbedUrl = () => {
+
+
+
+
+  return `/api/v1/signage/web-embeds`
+}
+
+/**
+ * Requires `signage.manage`. Creates the embed with a new random embed key, switched on, without cameras and timelapses. `allowedOrigins` lists the websites that may frame it (1 to 20 origins `https://host[:port]`, lower-case host, no path, query or fragment; 422 otherwise). Like a display it needs `defaultScenes` without `groupId` and none with it. Nothing is shown until the first publication.
+ * @summary Create a web embed
+ */
+export const createSignageWebEmbed = async (createSignageWebEmbedRequest: CreateSignageWebEmbedRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageWebEmbed>(getCreateSignageWebEmbedUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createSignageWebEmbedRequest)
+  }
+);}
+
+
+export const getGetSignageWebEmbedUrl = (embedId: string,) => {
+
+
+
+
+  return `/api/v1/signage/web-embeds/${embedId}`
+}
+
+/**
+ * Requires `signage.read`.
+ */
+export const getSignageWebEmbed = async (embedId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
+
+  return apiFetch<SignageWebEmbed>(getGetSignageWebEmbedUrl(embedId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateSignageWebEmbedUrl = (embedId: string,) => {
+
+
+
+
+  return `/api/v1/signage/web-embeds/${embedId}`
+}
+
+/**
+ * Requires `signage.manage`. Omitted fields stay unchanged. Name, aspect ratio, group and default scenes are drafts that reach the websites with the next publication, as for displays. Switching the embed, its camera or its timelapses off takes effect immediately; switching camera or timelapses on takes effect only after the next publication. The last allowed website cannot be removed (422). The audit event lists the changed field names only.
+ * @summary Change a web embed
+ */
+export const updateSignageWebEmbed = async (embedId: string,
+    updateSignageWebEmbedRequest: UpdateSignageWebEmbedRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageWebEmbed>(getUpdateSignageWebEmbedUrl(embedId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateSignageWebEmbedRequest)
+  }
+);}
+
+
+export const getDeleteSignageWebEmbedUrl = (embedId: string,) => {
+
+
+
+
+  return `/api/v1/signage/web-embeds/${embedId}`
+}
+
+/**
+ * Requires `signage.manage`. Deletes the embed with its rules, default list, publications and announcement targets. Websites that still frame it show the neutral "not available" page.
+ * @summary Delete a web embed
+ */
+export const deleteSignageWebEmbed = async (embedId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getDeleteSignageWebEmbedUrl(embedId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getRotateSignageWebEmbedKeyUrl = (embedId: string,) => {
+
+
+
+
+  return `/api/v1/signage/web-embeds/${embedId}/rotate-key`
+}
+
+/**
+ * Requires `signage.manage`. The old embed code stops working immediately; every website must use the new one. The audit event records that the key changed, never the key.
+ * @summary Give a web embed a new embed key
+ */
+export const rotateSignageWebEmbedKey = async (embedId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageWebEmbed>(getRotateSignageWebEmbedKeyUrl(embedId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getPublishSignageWebEmbedUrl = (embedId: string,) => {
+
+
+
+
+  return `/api/v1/signage/web-embeds/${embedId}/publish`
+}
+
+/**
+ * Requires `signage.publish`. Like `publishSignageDisplay`; the publication also records whether the camera and timelapses are switched on and which cameras are chosen, so switching them on reaches the websites only now. Rules and the preview of an embed use the display endpoints with the embed id as `displayId`.
+ * @summary Publish the web embed's current drafts
+ */
+export const publishSignageWebEmbed = async (embedId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
+
+  return apiFetch<SignageWebEmbed>(getPublishSignageWebEmbedUrl(embedId),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 

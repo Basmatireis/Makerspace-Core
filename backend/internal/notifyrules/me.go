@@ -84,60 +84,101 @@ func (s *Service) AnswerConsents(
 	deviceID *uuid.UUID,
 	requestID *uuid.UUID,
 ) (Settings, error) {
-	if place != PlaceApp && place != PlaceKiosk && place != PlaceProfile {
-		return Settings{}, apperror.InvalidField("place: must be app, kiosk or profile")
-	}
-	if len(answers) == 0 || len(answers) > MaxCategories {
+	if len(answers) == 0 {
 		return Settings{}, apperror.InvalidField("answers: between 1 and 50 answers")
 	}
-	now := s.now()
 	var result Settings
 	err := database.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		queries := notifyrulesdb.New(tx)
-		existing, err := queries.ListConsentsOfPerson(ctx, p.PersonID)
-		if err != nil {
+		if err := s.AnswerConsentsTx(ctx, tx, p, answers, place, deviceID, requestID); err != nil {
 			return err
 		}
-		stored := make(map[uuid.UUID]notifyrulesdb.NotificationConsent, len(existing))
-		for _, consent := range existing {
-			stored[consent.CategoryID] = consent
-		}
-		seen := map[uuid.UUID]bool{}
-		for _, answer := range answers {
-			if seen[answer.CategoryID] {
-				return apperror.InvalidField("answers: a category is answered twice")
-			}
-			seen[answer.CategoryID] = true
-			category, err := queries.GetCategory(ctx, answer.CategoryID)
-			if err != nil {
-				if noRows(err) == apperror.NotFound { //nolint:errorlint // sentinel returned by noRows
-					return apperror.InvalidField("answers: unknown category")
-				}
-				return err
-			}
-			if Basis(category.Basis) != BasisConsent {
-				return apperror.New(http.StatusUnprocessableEntity, "category_needs_no_consent", "This category needs no consent.")
-			}
-			if previous, ok := stored[answer.CategoryID]; ok && previous.Granted == answer.Granted &&
-				previous.TextVersion == category.TextVersion {
-				continue
-			}
-			if err := queries.UpsertConsent(ctx, notifyrulesdb.UpsertConsentParams{
-				PersonID: p.PersonID, CategoryID: answer.CategoryID, Granted: answer.Granted,
-				TextVersion: category.TextVersion, AnsweredAt: now, Place: string(place), DeviceID: deviceID,
-			}); err != nil {
-				return err
-			}
-			event := auditEvent(p, "notification_consent.answered", "notification_consent", answer.CategoryID, requestID,
-				[]string{"granted"})
-			if err := audit.Write(ctx, tx, event); err != nil {
-				return err
-			}
-		}
-		result, err = s.settings(ctx, queries, p)
+		var err error
+		result, err = s.settings(ctx, notifyrulesdb.New(tx), p)
 		return err
 	})
 	return result, err
+}
+
+// AnswerConsentsTx records consent answers inside the caller's transaction, so that visitor enrollment stores them
+// with the new person. No answers is valid and changes nothing; the rules are those of AnswerConsents. It writes for
+// whichever principal it is given: the caller decides that the answers are that person's own.
+func (s *Service) AnswerConsentsTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	p authorization.Principal,
+	answers []ConsentAnswer,
+	place ConsentPlace,
+	deviceID *uuid.UUID,
+	requestID *uuid.UUID,
+) error {
+	if place != PlaceApp && place != PlaceKiosk && place != PlaceProfile {
+		return apperror.InvalidField("place: must be app, kiosk or profile")
+	}
+	if len(answers) > MaxCategories {
+		return apperror.InvalidField("answers: between 1 and 50 answers")
+	}
+	if len(answers) == 0 {
+		return nil
+	}
+	now := s.now()
+	queries := notifyrulesdb.New(tx)
+	existing, err := queries.ListConsentsOfPerson(ctx, p.PersonID)
+	if err != nil {
+		return err
+	}
+	stored := make(map[uuid.UUID]notifyrulesdb.NotificationConsent, len(existing))
+	for _, consent := range existing {
+		stored[consent.CategoryID] = consent
+	}
+	seen := map[uuid.UUID]bool{}
+	for _, answer := range answers {
+		if seen[answer.CategoryID] {
+			return apperror.InvalidField("answers: a category is answered twice")
+		}
+		seen[answer.CategoryID] = true
+		category, err := queries.GetCategory(ctx, answer.CategoryID)
+		if err != nil {
+			if noRows(err) == apperror.NotFound { //nolint:errorlint // sentinel returned by noRows
+				return apperror.InvalidField("answers: unknown category")
+			}
+			return err
+		}
+		if Basis(category.Basis) != BasisConsent {
+			return apperror.New(http.StatusUnprocessableEntity, "category_needs_no_consent", "This category needs no consent.")
+		}
+		if previous, ok := stored[answer.CategoryID]; ok && previous.Granted == answer.Granted &&
+			previous.TextVersion == category.TextVersion {
+			continue
+		}
+		if err := queries.UpsertConsent(ctx, notifyrulesdb.UpsertConsentParams{
+			PersonID: p.PersonID, CategoryID: answer.CategoryID, Granted: answer.Granted,
+			TextVersion: category.TextVersion, AnsweredAt: now, Place: string(place), DeviceID: deviceID,
+		}); err != nil {
+			return err
+		}
+		event := auditEvent(p, "notification_consent.answered", "notification_consent", answer.CategoryID, requestID,
+			[]string{"granted"})
+		if err := audit.Write(ctx, tx, event); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ConsentCategories lists the categories that need consent, as a new person is asked them. Their names and
+// descriptions are the text shown at the tablet, so no permission is needed.
+func (s *Service) ConsentCategories(ctx context.Context) ([]Category, error) {
+	all, err := s.categories(ctx, notifyrulesdb.New(s.pool))
+	if err != nil {
+		return nil, err
+	}
+	items := make([]Category, 0, len(all))
+	for _, category := range all {
+		if category.Basis == BasisConsent {
+			items = append(items, category)
+		}
+	}
+	return items, nil
 }
 
 // SetRulePreference stores the principal's channel choice for a central rule. Switching both channels off mutes the

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { playerShellFiles } from './shellFiles';
 
-// The service worker precaches the player's static files and its lazy chunks (the rich text renderer), so a display that
-// starts offline can still render markdown and HTML.
+// The service worker precaches the player's static files, the fonts of its CSS and its lazy chunks (the rich text
+// renderer), so a display that starts offline can still render markdown and HTML in IBM Plex.
 
 describe('player shell files', () => {
   const manifest = {
@@ -11,6 +11,7 @@ describe('player shell files', () => {
       imports: ['_react.js'],
       dynamicImports: ['src/features/signage/render/richText.ts'],
       css: ['assets/player-1.css'],
+      assets: ['assets/IBMPlexSans-Regular-Latin1-7.woff2'],
     },
     '_react.js': { file: 'assets/react-2.js' },
     'src/features/signage/render/richText.ts': {
@@ -23,8 +24,9 @@ describe('player shell files', () => {
     '_admin.js': { file: 'assets/admin-6.js' },
   };
 
-  it('lists static imports, CSS and the lazy chunk with its own imports, sorted', () => {
+  it('lists static imports, CSS with its fonts and the lazy chunk with its own imports, sorted', () => {
     expect(playerShellFiles(manifest)).toEqual([
+      '/assets/IBMPlexSans-Regular-Latin1-7.woff2',
       '/assets/player-1.css',
       '/assets/player-1.js',
       '/assets/purify-4.js',

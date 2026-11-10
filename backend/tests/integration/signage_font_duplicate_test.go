@@ -24,7 +24,7 @@ func (e *signageEnv) uploadFont(staff staffSession, name string) map[string]any 
 func sceneUpdateBody(scene map[string]any) map[string]any {
 	return map[string]any{
 		"expectedVersion": scene["version"], "name": scene["name"], "aspectRatio": scene["aspectRatio"],
-		"layoutId": scene["layoutId"], "backgroundColor": scene["backgroundColor"], "backgroundFit": scene["backgroundFit"],
+		"blocks": scene["blocks"], "backgroundColor": scene["backgroundColor"], "backgroundFit": scene["backgroundFit"],
 		"backgroundDim": scene["backgroundDim"], "theme": scene["theme"],
 		"fontFamily": scene["fontFamily"], "fontAssetId": scene["fontAssetId"],
 	}
@@ -38,7 +38,7 @@ func TestSignageSceneFontRoundTripManifestAndDelete(t *testing.T) {
 	image := e.fixture.uploadImage(t, "poster.jpg")
 
 	// The default is sans without an asset.
-	omitted := sceneBody("full", "", nil)
+	omitted := sceneBody(nil)
 	delete(omitted, "fontFamily")
 	delete(omitted, "fontAssetId")
 	plain := e.createScene(staff, omitted)
@@ -47,14 +47,14 @@ func TestSignageSceneFontRoundTripManifestAndDelete(t *testing.T) {
 	}
 
 	// Custom needs a font asset; a font asset needs custom; the asset must be a font.
-	custom := sceneBody("full", "", nil)
+	custom := sceneBody(nil)
 	custom["fontFamily"] = "custom"
 	e.expectCode(e.as(staff, http.MethodPost, "/signage/scenes", custom), http.StatusUnprocessableEntity, "validation_failed")
 	custom["fontAssetId"] = image.ID.String()
 	e.expectCode(e.as(staff, http.MethodPost, "/signage/scenes", custom), http.StatusUnprocessableEntity, "validation_failed")
 	custom["fontAssetId"] = ids.New().String()
 	e.expectCode(e.as(staff, http.MethodPost, "/signage/scenes", custom), http.StatusUnprocessableEntity, "validation_failed")
-	serif := sceneBody("full", "", nil)
+	serif := sceneBody(nil)
 	serif["fontFamily"] = "serif"
 	serif["fontAssetId"] = fontID
 	e.expectCode(e.as(staff, http.MethodPost, "/signage/scenes", serif), http.StatusUnprocessableEntity, "validation_failed")
@@ -120,12 +120,12 @@ func TestSignageSceneFontRoundTripManifestAndDelete(t *testing.T) {
 func TestSignageClockDateMode(t *testing.T) {
 	e := newSignageEnv(t)
 	staff := e.allStaff()
-	scene := e.createScene(staff, sceneBody("full", "", map[string]any{"main": map[string]any{"type": "clock", "mode": "date"}}))
-	if scene["zones"].(map[string]any)["main"].(map[string]any)["mode"] != "date" {
+	scene := e.createScene(staff, sceneBody(map[string]any{"main": map[string]any{"type": "clock", "mode": "date"}}))
+	if blockOf(scene, "main")["widget"].(map[string]any)["mode"] != "date" {
 		t.Fatalf("scene = %v", scene)
 	}
 	expectRejected(t, e.as(staff, http.MethodPost, "/signage/scenes",
-		sceneBody("full", "", map[string]any{"main": map[string]any{"type": "clock", "mode": "weekday"}})))
+		sceneBody(map[string]any{"main": map[string]any{"type": "clock", "mode": "weekday"}})))
 }
 
 func jsonEqual(a, b any) bool { return reflect.DeepEqual(a, b) }
@@ -146,9 +146,9 @@ func TestSignageDuplicateScene(t *testing.T) {
 	manager := e.staff("dup-scene-manager", authorization.SignageManage, authorization.SignagePublish)
 	font := e.uploadFont(staff, "Dup.woff2")
 
-	body := sceneBody("split", "", map[string]any{
+	body := sceneBody(map[string]any{
 		"left":  map[string]any{"type": "clock", "mode": "datetime"},
-		"right": map[string]any{"type": "text", "text": "Hello", "size": "m", "align": "start"},
+		"right": map[string]any{"type": "text", "text": "Hello", "fit": false},
 	})
 	body["name"] = "Welcome"
 	body["backgroundDim"] = 35
@@ -171,8 +171,8 @@ func TestSignageDuplicateScene(t *testing.T) {
 		t.Fatalf("first copy = %v", first)
 	}
 	for _, key := range []string{
-		"aspectRatio", "layoutId", "customLayoutId", "backgroundColor", "backgroundAssetId", "backgroundFit",
-		"backgroundDim", "theme", "fontFamily", "fontAssetId", "zones",
+		"aspectRatio", "backgroundColor", "backgroundAssetId", "backgroundFit",
+		"backgroundDim", "theme", "fontFamily", "fontAssetId", "blocks",
 	} {
 		if !jsonEqual(first[key], source[key]) {
 			t.Fatalf("copy %s = %v, want %v", key, first[key], source[key])
@@ -193,7 +193,7 @@ func TestSignageDuplicateScene(t *testing.T) {
 	e.expectCode(e.as(editor, http.MethodPost, "/signage/scenes/"+ids.New().String()+"/duplicate", nil), http.StatusNotFound, "not_found")
 
 	// A long name is truncated so that the suffixed name fits 100 characters.
-	long := sceneBody("full", "", nil)
+	long := sceneBody(nil)
 	long["name"] = strings.Repeat("x", 100)
 	longScene := e.createScene(staff, long)
 	longCopy := e.expect(e.as(editor, http.MethodPost, "/signage/scenes/"+longScene["id"].(string)+"/duplicate", nil), http.StatusCreated)
@@ -247,34 +247,5 @@ func TestSignageDuplicateAnnouncementTemplate(t *testing.T) {
 		t.Fatalf("created audit rows %d -> %d, want +2", before, after)
 	}
 	e.expectCode(e.as(editor, http.MethodPost, "/signage/announcement-templates/"+ids.New().String()+"/duplicate", nil),
-		http.StatusNotFound, "not_found")
-}
-
-func TestSignageDuplicateCustomLayout(t *testing.T) {
-	e := newSignageEnv(t)
-	editor := e.staff("dup-layout-editor", authorization.SignageContentManage)
-	viewer := e.staff("dup-layout-viewer", authorization.SignageRead)
-	source := e.createLayout(editor, layoutBody("Wall", gridZoneBody("a", 1, 1, 1, 1), gridZoneBody("b", 2, 1, 1, 1)))
-	path := "/signage/custom-layouts/" + source["id"].(string) + "/duplicate"
-	e.expectCode(e.as(viewer, http.MethodPost, path, nil), http.StatusForbidden, "permission_denied")
-	before := e.countAudit("signage_custom_layout.created")
-
-	first := e.expect(e.as(editor, http.MethodPost, path, nil), http.StatusCreated)
-	if first["name"] != "Wall (copy)" || first["id"] == source["id"] || versionOf(first) != 1 || first["sceneCount"] != float64(0) {
-		t.Fatalf("copy = %v", first)
-	}
-	for _, key := range []string{"mode", "columns", "rows", "zones"} {
-		if !jsonEqual(first[key], source[key]) {
-			t.Fatalf("copy %s = %v, want %v", key, first[key], source[key])
-		}
-	}
-	second := e.expect(e.as(editor, http.MethodPost, path, nil), http.StatusCreated)
-	if second["name"] != "Wall (copy 2)" {
-		t.Fatalf("second copy = %v", second["name"])
-	}
-	if after := e.countAudit("signage_custom_layout.created"); after != before+2 {
-		t.Fatalf("created audit rows %d -> %d, want +2", before, after)
-	}
-	e.expectCode(e.as(editor, http.MethodPost, "/signage/custom-layouts/"+ids.New().String()+"/duplicate", nil),
 		http.StatusNotFound, "not_found")
 }

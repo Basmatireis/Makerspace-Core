@@ -22,6 +22,33 @@ vi.mock('../users/profilePhotoCrop', async (importOriginal) => ({
 }));
 
 const versionId = '0192f6f8-743e-7c77-a349-cd07c3e8ab01';
+const newsId = '0192f6f8-743e-7c77-a349-cd07c3e8ab21';
+const surveysId = '0192f6f8-743e-7c77-a349-cd07c3e8ab22';
+const consentCategories = [
+  { id: newsId, name: 'News & events', description: 'Workshops and events.', basis: 'consent' },
+  { id: surveysId, name: 'Surveys & feedback', description: 'Surveys about your visit.', basis: 'consent' },
+];
+
+function enrollmentState(overrides: Record<string, unknown> = {}) {
+  return {
+    allowedMethods: ['pin'],
+    capabilities: ['camera', 'file_upload'],
+    labRulesRequired: true,
+    currentLabRules: { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' },
+    consentCategories: [],
+    expiresAt: '2026-09-20T12:15:00Z',
+    ...overrides,
+  };
+}
+
+const created = {
+  personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
+  accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
+  accountStatus: 'enabled',
+  invitationDelivery: null,
+  admission: 'admitted',
+  attendance: 'checked_in',
+};
 
 describe('controlled visitor enrollment', () => {
   it('does not expose the enrollment form when backend device verification fails', async () => {
@@ -34,65 +61,47 @@ describe('controlled visitor enrollment', () => {
     renderRoute(<VisitorEnrollmentPage />, '/visitor-enrollment');
 
     expect(await screen.findByRole('heading', { name: 'Visitor enrollment unavailable' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /submit enrollment/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /register and check in/i })).not.toBeInTheDocument();
   });
 
-  it('submits only the configured method and the Lab Rules acceptance, never a Role ID', async () => {
+  it('asks the consent question and submits the answers, the method and the Lab Rules, never a Role ID', async () => {
     let submission: (VisitorEnrollmentSubmission & { roleId?: string }) | undefined;
+    const suggestionRequests: unknown[] = [];
     server.use(
-      http.post('*/api/v1/visitor-enrollment/context', () => {
-        return new HttpResponse(null, { status: 204 });
+      http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
+      http.get('*/api/v1/visitor-enrollment/state', () => HttpResponse.json(enrollmentState({ consentCategories }))),
+      http.post('*/api/v1/visitor-enrollment/login-name-suggestions', async ({ request }) => {
+        suggestionRequests.push(await request.json());
+        return HttpResponse.json({ loginName: 'new.visitor2' });
       }),
-      http.get('*/api/v1/visitor-enrollment/state', () =>
-        HttpResponse.json({
-          allowedMethods: ['pin'],
-          capabilities: ['camera', 'file_upload'],
-          labRulesRequired: true,
-          currentLabRules: {
-            id: versionId,
-            humanRevision: '2026-09',
-            effectiveAt: '2026-09-01T00:00:00Z',
-          },
-          expiresAt: '2026-09-20T12:15:00Z',
-        }),
-      ),
       http.post('*/api/v1/visitor-enrollment/submissions', async ({ request }) => {
         submission = (await request.json()) as VisitorEnrollmentSubmission & { roleId?: string };
-        return HttpResponse.json(
-          {
-            personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
-            accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
-            accountStatus: 'enabled',
-            invitationDelivery: null,
-            admission: 'admitted',
-            attendance: 'checked_in',
-          },
-          { status: 201 },
-        );
+        return HttpResponse.json(created, { status: 201 });
       }),
     );
     const user = userEvent.setup();
     const { queryClient } = renderKioskAware();
 
-    // Step 1: required fields and the contact rule are visible, Next stays disabled until the step is valid.
+    // Step 1: name, email and photo are required; there is no phone field.
     expect(await screen.findByRole('heading', { name: 'About you' })).toHaveFocus();
-    expect(screen.getByText(/Email or phone, at least one/)).toBeInTheDocument();
+    expect(screen.getByText('Visitor enrollment · Step 1 of 4')).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Legal information' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Phone')).not.toBeInTheDocument();
     const next = screen.getByRole('button', { name: 'Next' });
-    expect(next).toBeDisabled();
     await user.type(screen.getByLabelText('First name'), 'New');
     await user.type(screen.getByLabelText('Last name'), 'Visitor');
-    await user.type(screen.getByLabelText('Email'), 'new.visitor@example.test');
-    expect(next).toBeDisabled();
     await choosePhoto(user);
     expect(await screen.findByAltText('Selected profile')).toBeInTheDocument();
+    expect(next).toBeDisabled();
+    await user.type(screen.getByLabelText('Email'), 'new.visitor@example.test');
     await waitFor(() => expect(next).toBeEnabled());
     await user.click(next);
 
-    // Step 2: only the configured method is offered; entries survive going back.
+    // Step 2: only the configured method is offered, with a login name suggested from the name.
     expect(await screen.findByRole('heading', { name: 'Sign-in method' })).toHaveFocus();
-    expect(screen.queryByLabelText(/Email invitation/)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/Login name and PIN/)).toBeChecked();
-    await user.type(screen.getByLabelText('PIN login username'), 'Visitor.One');
+    expect(screen.queryByRole('tab', { name: 'Email and password' })).not.toBeInTheDocument();
+    expect(await screen.findByDisplayValue('new.visitor2')).toBeInTheDocument();
+    expect(suggestionRequests).toEqual([{ firstName: 'New', lastName: 'Visitor' }]);
     await user.type(screen.getByLabelText('PIN (6–12 digits)'), '65432');
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     await user.type(screen.getByLabelText('PIN (6–12 digits)'), '1');
@@ -101,42 +110,55 @@ describe('controlled visitor enrollment', () => {
     expect(screen.getByLabelText('First name')).toHaveValue('New');
     expect(screen.getByAltText('Selected profile')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    expect(screen.getByLabelText('PIN login username')).toHaveValue('Visitor.One');
+    expect(screen.getByLabelText('Login name')).toHaveValue('new.visitor2');
     await user.click(screen.getByRole('button', { name: 'Next' }));
 
-    // Step 3
+    // Step 3: nothing is preselected and every switch may stay off.
+    expect(await screen.findByRole('heading', { name: 'Messages' })).toHaveFocus();
+    expect(screen.getByText(/Which messages may we send to new.visitor@example.test\?/)).toBeInTheDocument();
+    const news = screen.getByRole('switch', { name: 'News & events' });
+    expect(news).not.toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Surveys & feedback' })).not.toBeChecked();
+    expect(screen.getAllByText('No')).toHaveLength(2);
+    await user.click(news);
+    expect(news).toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    // Step 4
     expect(await screen.findByRole('heading', { name: 'Lab Rules' })).toHaveFocus();
     await user.click(screen.getByRole('button', { name: 'View current Lab Rules PDF' }));
     expect(await screen.findByText(/Mock PDF viewer/)).toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: 'Lab Rules, revision 2026-09' })).toBeInTheDocument();
     await user.click(
       within(screen.getByRole('dialog', { name: 'Lab Rules, revision 2026-09' })).getByRole('button', {
         name: 'Close',
       }),
     );
     await waitFor(() => expect(screen.queryByText(/Mock PDF viewer/)).not.toBeInTheDocument());
-    const submit = screen.getByRole('button', { name: 'Submit enrollment' });
+    const submit = screen.getByRole('button', { name: 'Register and check in' });
     expect(submit).toBeDisabled();
-    await user.click(screen.getByLabelText('I have read and accept the Lab Rules *'));
+    await user.click(screen.getByLabelText('I have read and accept the Lab Rules'));
     await user.click(submit);
 
     expect(await screen.findByRole('heading', { name: 'New, your account is ready.' })).toBeInTheDocument();
-    expect(screen.getByText('You are checked in')).toBeInTheDocument();
-    expect(screen.queryByText(/supervisor/)).not.toBeInTheDocument();
-    expect(screen.getByText('Visitor.One')).toBeInTheDocument();
+    expect(screen.getByText('new.visitor2')).toBeInTheDocument();
     await waitFor(() => expect(submission).toBeDefined());
     expect(submission).toMatchObject({
       firstName: 'New',
       lastName: 'Visitor',
       email: 'new.visitor@example.test',
       authMethods: ['pin'],
-      pinLoginName: 'Visitor.One',
+      pinLoginName: 'new.visitor2',
       pin: '654321',
       profileImageFilename: 'profile-photo.jpg',
       labRulesAccepted: true,
+      consents: [
+        { categoryId: newsId, granted: true },
+        { categoryId: surveysId, granted: false },
+      ],
     });
     expect(submission?.profileImageBase64).toBe('/9j/2Q==');
     expect(submission).not.toHaveProperty('roleId');
+    expect(submission).not.toHaveProperty('phone');
     expect(
       queryClient
         .getMutationCache()
@@ -148,32 +170,19 @@ describe('controlled visitor enrollment', () => {
     expect(await screen.findByText('Kiosk screen')).toBeInTheDocument();
   });
 
-  it('skips the Lab Rules step when the Visitor role does not ask for them', async () => {
+  it('leaves out the Messages and Lab Rules steps when nothing needs consent and the role asks for no Lab Rules', async () => {
     let submission: VisitorEnrollmentSubmission | undefined;
     server.use(
       http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
       http.get('*/api/v1/visitor-enrollment/state', () =>
-        HttpResponse.json({
-          allowedMethods: ['pin'],
-          capabilities: [],
-          labRulesRequired: false,
-          currentLabRules: { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' },
-          expiresAt: '2026-09-20T12:15:00Z',
-        }),
+        HttpResponse.json(enrollmentState({ capabilities: [], labRulesRequired: false })),
+      ),
+      http.post('*/api/v1/visitor-enrollment/login-name-suggestions', () =>
+        HttpResponse.json({ code: 'validation_failed', message: 'Invalid' }, { status: 422 }),
       ),
       http.post('*/api/v1/visitor-enrollment/submissions', async ({ request }) => {
         submission = (await request.json()) as VisitorEnrollmentSubmission;
-        return HttpResponse.json(
-          {
-            personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
-            accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
-            accountStatus: 'enabled',
-            invitationDelivery: null,
-            admission: 'admitted',
-            attendance: 'checked_in',
-          },
-          { status: 201 },
-        );
+        return HttpResponse.json(created, { status: 201 });
       }),
     );
     const user = userEvent.setup();
@@ -185,41 +194,59 @@ describe('controlled visitor enrollment', () => {
     await user.type(screen.getByLabelText('Email'), 'new.visitor@example.test');
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(await screen.findByRole('heading', { name: 'Sign-in method' })).toBeInTheDocument();
-    await user.type(screen.getByLabelText('PIN login username'), 'Visitor.One');
+    // Without a suggestion the visitor types a login name of their own.
+    await user.type(screen.getByLabelText('Login name'), 'Visitor.One');
     await user.type(screen.getByLabelText('PIN (6–12 digits)'), '654321');
     expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Submit enrollment' }));
+    await user.click(screen.getByRole('button', { name: 'Register and check in' }));
 
     expect(await screen.findByRole('heading', { name: 'New, your account is ready.' })).toBeInTheDocument();
     expect(screen.queryByText(/Lab Rules/)).not.toBeInTheDocument();
-    expect(submission).toMatchObject({ labRulesAccepted: false });
+    expect(submission).toMatchObject({ labRulesAccepted: false, pinLoginName: 'Visitor.One', consents: [] });
   });
 
-  it('offers the email invitation only with an email address and goes back to the kiosk', async () => {
+  it('preselects the email invitation with the address from the first step and goes back to the kiosk', async () => {
+    let submission: VisitorEnrollmentSubmission | undefined;
     server.use(
       http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
       http.get('*/api/v1/visitor-enrollment/state', () =>
-        HttpResponse.json({
-          allowedMethods: ['password', 'pin'],
-          capabilities: ['camera', 'file_upload'],
-          labRulesRequired: true,
-          currentLabRules: { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' },
-          expiresAt: '2026-09-20T12:15:00Z',
-        }),
+        HttpResponse.json(
+          enrollmentState({ allowedMethods: ['password', 'pin'], capabilities: [], labRulesRequired: false }),
+        ),
       ),
+      http.post('*/api/v1/visitor-enrollment/login-name-suggestions', () =>
+        HttpResponse.json({ loginName: 'pia.mail' }),
+      ),
+      http.post('*/api/v1/visitor-enrollment/submissions', async ({ request }) => {
+        submission = (await request.json()) as VisitorEnrollmentSubmission;
+        return HttpResponse.json({ ...created, invitationDelivery: 'sent' }, { status: 201 });
+      }),
     );
     const user = userEvent.setup();
     renderKioskAware();
     await user.type(await screen.findByLabelText('First name'), 'Pia');
-    await user.type(screen.getByLabelText('Last name'), 'Phone');
-    await user.type(screen.getByLabelText('Phone'), '+43 660 1234567');
-    await choosePhoto(user);
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled());
+    await user.type(screen.getByLabelText('Last name'), 'Mail');
+    await user.type(screen.getByLabelText('Email'), 'pia@example.test');
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    expect(await screen.findByLabelText(/Email invitation/)).toBeDisabled();
-    expect(screen.getByText(/you did not enter an email address/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
-    await user.click(screen.getByRole('link', { name: 'Back to check-in' }));
+
+    expect(await screen.findByRole('tab', { name: 'Email and password' })).toHaveAttribute('aria-selected', 'true');
+    const address = screen.getByLabelText('Email');
+    expect(address).toHaveValue('pia@example.test');
+    await user.click(screen.getByRole('tab', { name: 'Login name and PIN' }));
+    expect(await screen.findByDisplayValue('pia.mail')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Email and password' }));
+    await user.clear(screen.getByLabelText('Email'));
+    await user.type(screen.getByLabelText('Email'), 'pia.mail@example.test');
+    await user.click(screen.getByRole('button', { name: 'Register and check in' }));
+
+    expect(await screen.findByText('pia.mail@example.test')).toBeInTheDocument();
+    expect(submission).toMatchObject({
+      email: 'pia.mail@example.test',
+      authMethods: ['password'],
+      pinLoginName: null,
+      pin: null,
+    });
+    await user.click(screen.getByRole('button', { name: /^Done/ }));
     expect(await screen.findByText('Kiosk screen')).toBeInTheDocument();
   });
 
@@ -228,42 +255,29 @@ describe('controlled visitor enrollment', () => {
     server.use(
       http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
       http.get('*/api/v1/visitor-enrollment/state', () =>
-        HttpResponse.json({
-          allowedMethods: ['pin'],
-          capabilities: ['nfc'],
-          labRulesRequired: true,
-          currentLabRules: { id: versionId, humanRevision: '2026-09', effectiveAt: '2026-09-01T00:00:00Z' },
-          expiresAt: '2026-09-20T12:15:00Z',
-        }),
+        HttpResponse.json(enrollmentState({ capabilities: ['nfc'] })),
+      ),
+      http.post('*/api/v1/visitor-enrollment/login-name-suggestions', () =>
+        HttpResponse.json({ loginName: 'nora.nophoto' }),
       ),
       http.post('*/api/v1/visitor-enrollment/submissions', async ({ request }) => {
         submission = (await request.json()) as VisitorEnrollmentSubmission;
-        return HttpResponse.json(
-          {
-            personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
-            accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
-            accountStatus: 'enabled',
-            invitationDelivery: null,
-            admission: 'admitted',
-            attendance: 'checked_in',
-          },
-          { status: 201 },
-        );
+        return HttpResponse.json(created, { status: 201 });
       }),
     );
     const user = userEvent.setup();
     renderKioskAware();
     await user.type(await screen.findByLabelText('First name'), 'Nora');
     await user.type(screen.getByLabelText('Last name'), 'Nophoto');
-    await user.type(screen.getByLabelText('Phone'), '+43 660 1234567');
+    await user.type(screen.getByLabelText('Email'), 'nora@example.test');
     expect(screen.queryByText('Profile photo')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Start camera' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.type(await screen.findByLabelText('PIN login username'), 'Nora.No');
+    expect(await screen.findByDisplayValue('nora.nophoto')).toBeInTheDocument();
     await user.type(screen.getByLabelText('PIN (6–12 digits)'), '654321');
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(await screen.findByLabelText('I have read and accept the Lab Rules *'));
-    await user.click(screen.getByRole('button', { name: 'Submit enrollment' }));
+    await user.click(await screen.findByLabelText('I have read and accept the Lab Rules'));
+    await user.click(screen.getByRole('button', { name: 'Register and check in' }));
     await waitFor(() => expect(submission).toBeDefined());
     expect(submission?.profileImageBase64).toBeNull();
     expect(submission?.profileImageFilename).toBeNull();
@@ -276,13 +290,10 @@ describe('controlled visitor enrollment', () => {
     server.use(
       http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
       http.get('*/api/v1/visitor-enrollment/state', () =>
-        HttpResponse.json({
-          allowedMethods: ['pin'],
-          capabilities: ['nfc'],
-          labRulesRequired: true,
-          currentLabRules: revision,
-          expiresAt: '2026-09-20T12:15:00Z',
-        }),
+        HttpResponse.json(enrollmentState({ capabilities: ['nfc'], currentLabRules: revision, consentCategories })),
+      ),
+      http.post('*/api/v1/visitor-enrollment/login-name-suggestions', () =>
+        HttpResponse.json({ loginName: 'nora.nophoto' }),
       ),
       http.post('*/api/v1/visitor-enrollment/submissions', async ({ request }) => {
         submissions.push((await request.json()) as VisitorEnrollmentSubmission);
@@ -290,39 +301,31 @@ describe('controlled visitor enrollment', () => {
           revision = { id: newVersionId, humanRevision: '2026-10', effectiveAt: '2026-10-01T00:00:00Z' };
           return HttpResponse.json({ code: 'lab_rules_changed', message: 'The Lab Rules changed' }, { status: 409 });
         }
-        return HttpResponse.json(
-          {
-            personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
-            accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
-            accountStatus: 'enabled',
-            invitationDelivery: null,
-            admission: 'admitted',
-            attendance: 'checked_in',
-          },
-          { status: 201 },
-        );
+        return HttpResponse.json(created, { status: 201 });
       }),
     );
     const user = userEvent.setup();
     renderKioskAware();
     await user.type(await screen.findByLabelText('First name'), 'Nora');
     await user.type(screen.getByLabelText('Last name'), 'Nophoto');
-    await user.type(screen.getByLabelText('Phone'), '+43 660 1234567');
+    await user.type(screen.getByLabelText('Email'), 'nora@example.test');
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.type(await screen.findByLabelText('PIN login username'), 'Nora.No');
+    expect(await screen.findByDisplayValue('nora.nophoto')).toBeInTheDocument();
     await user.type(screen.getByLabelText('PIN (6–12 digits)'), '654321');
     await user.click(screen.getByRole('button', { name: 'Next' }));
-    await user.click(await screen.findByLabelText('I have read and accept the Lab Rules *'));
-    await user.click(screen.getByRole('button', { name: 'Submit enrollment' }));
+    expect(await screen.findByRole('heading', { name: 'Messages' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(await screen.findByLabelText('I have read and accept the Lab Rules'));
+    await user.click(screen.getByRole('button', { name: 'Register and check in' }));
 
     expect(await screen.findByText('The Lab Rules changed')).toBeInTheDocument();
     expect(await screen.findByText(/Read the current Lab Rules \(revision 2026-10\)/)).toBeInTheDocument();
     expect(screen.queryByText('Enrollment not completed')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('I have read and accept the Lab Rules *')).not.toBeChecked();
-    expect(screen.getByRole('button', { name: 'Submit enrollment' })).toBeDisabled();
+    expect(screen.getByLabelText('I have read and accept the Lab Rules')).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Register and check in' })).toBeDisabled();
 
-    await user.click(screen.getByLabelText('I have read and accept the Lab Rules *'));
-    await user.click(screen.getByRole('button', { name: 'Submit enrollment' }));
+    await user.click(screen.getByLabelText('I have read and accept the Lab Rules'));
+    await user.click(screen.getByRole('button', { name: 'Register and check in' }));
     expect(await screen.findByRole('heading', { name: 'Nora, your account is ready.' })).toBeInTheDocument();
     expect(submissions).toHaveLength(2);
   });
@@ -334,13 +337,7 @@ describe('controlled visitor enrollment', () => {
       server.use(
         http.post('*/api/v1/visitor-enrollment/context', () => new HttpResponse(null, { status: 204 })),
         http.get('*/api/v1/visitor-enrollment/state', () =>
-          HttpResponse.json({
-            allowedMethods: ['pin'],
-            capabilities: ['camera', 'file_upload'],
-            labRulesRequired: true,
-            currentLabRules: null,
-            expiresAt: '2026-09-20T12:15:00Z',
-          }),
+          HttpResponse.json(enrollmentState({ currentLabRules: null })),
         ),
       );
       vi.useFakeTimers({ shouldAdvanceTime: true });

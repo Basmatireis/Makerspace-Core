@@ -24,6 +24,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -97,10 +98,10 @@ type EnrollmentState struct {
 }
 
 type SubmissionInput struct {
-	FirstName    string
-	LastName     string
-	Email        *string
-	Phone        *string
+	FirstName string
+	LastName  string
+	// Email is required: the visitor's contact address and the account's login email.
+	Email        string
 	AuthMethods  []AuthMethod
 	PINLoginName *string
 	PIN          *string
@@ -109,6 +110,8 @@ type SubmissionInput struct {
 	ProfileImageFilename string
 	// LabRulesAccepted is the visitor's "I have read and accept the Lab Rules"; required when the role asks for them.
 	LabRulesAccepted bool
+	// Consents are the visitor's answers to the notification categories that need consent; may be empty.
+	Consents []notifyrules.ConsentAnswer
 }
 
 type SubmissionResult struct {
@@ -125,6 +128,14 @@ type SubmissionResult struct {
 type Attendance string
 
 const AttendanceCheckedIn Attendance = "checked_in"
+
+// EnrollmentConsents stores the visitor's notification consent answers inside the enrollment transaction.
+type EnrollmentConsents interface {
+	AnswerConsentsTx(
+		ctx context.Context, tx pgx.Tx, p authorization.Principal, answers []notifyrules.ConsentAnswer,
+		place notifyrules.ConsentPlace, deviceID *uuid.UUID, requestID *uuid.UUID,
+	) error
+}
 
 // EnrollmentAttendance counts a finished enrollment as arriving, inside the enrollment transaction.
 type EnrollmentAttendance interface {
@@ -143,10 +154,14 @@ type Service struct {
 	labRules   *laborordnung.Service
 	notifier   InvitationNotifier
 	attendance EnrollmentAttendance
+	consents   EnrollmentConsents
 }
 
 // SetAttendance wires the attendance module, which itself depends on services built after this one.
 func (s *Service) SetAttendance(a EnrollmentAttendance) { s.attendance = a }
+
+// SetConsents wires the notification rules module that stores the consent answers given while enrolling.
+func (s *Service) SetConsents(c EnrollmentConsents) { s.consents = c }
 
 func NewService(
 	pool *pgxpool.Pool,
@@ -470,8 +485,7 @@ func (s *Service) Submit(
 			ID:                 personID,
 			FirstName:          clean.FirstName,
 			LastName:           clean.LastName,
-			Email:              clean.Email,
-			Phone:              clean.Phone,
+			Email:              &clean.Email,
 			ProfileImageFileID: storedImageID,
 			MemberSince:        dates.TodayUTC(),
 		},
@@ -486,17 +500,17 @@ func (s *Service) Submit(
 		return SubmissionResult{}, databaseError(err)
 	}
 	var challengeID *uuid.UUID
-	if clean.Email != nil && !slices.Contains(clean.AuthMethods, MethodPassword) {
+	if !slices.Contains(clean.AuthMethods, MethodPassword) {
 		// The visitor's email is the account's login email even when they enrol with a PIN only (a password
 		// can be set later). Another account already using the address leaves this account without one.
-		if display, normalized, normalizeErr := security.NormalizeEmail(*clean.Email); normalizeErr == nil {
+		if display, normalized, normalizeErr := security.NormalizeEmail(clean.Email); normalizeErr == nil {
 			if _, err := accounts.TrySetProvisionedLoginEmail(ctx, tx, accountID, display, normalized, false); err != nil {
 				return SubmissionResult{}, err
 			}
 		}
 	}
 	if slices.Contains(clean.AuthMethods, MethodPassword) {
-		display, normalized, _ := security.NormalizeEmail(*clean.Email)
+		display, normalized, _ := security.NormalizeEmail(clean.Email)
 		identity, err := queries.CreateVisitorPasswordIdentity(
 			ctx,
 			visitordb.CreateVisitorPasswordIdentityParams{
@@ -586,6 +600,15 @@ func (s *Service) Submit(
 		}
 		confirmedVersionID = &pinned.ID
 	}
+	if s.consents != nil && len(clean.Consents) > 0 {
+		principal := authorization.Principal{PersonID: personID, AccountID: accountID}
+		deviceID := enrollment.ManagedDeviceID
+		if err := s.consents.AnswerConsentsTx(
+			ctx, tx, principal, clean.Consents, notifyrules.PlaceKiosk, &deviceID, requestID,
+		); err != nil {
+			return SubmissionResult{}, err
+		}
+	}
 	if s.attendance != nil {
 		if err := s.attendance.CheckInAtEnrollment(ctx, tx, attendance.EnrollmentCheckIn{
 			PersonID: personID, AccountID: accountID, DeviceID: enrollment.ManagedDeviceID,
@@ -625,7 +648,7 @@ func (s *Service) Submit(
 		delivery := auth.DeliveryFailed
 		var deliveryFailure *string
 		if s.notifier != nil &&
-			s.notifier.SendInvitation(ctx, *clean.Email, invitationCode, invitationExpiresAt) == nil {
+			s.notifier.SendInvitation(ctx, clean.Email, invitationCode, invitationExpiresAt) == nil {
 			delivery = auth.DeliverySent
 		} else {
 			value := "provider_error"
@@ -683,21 +706,11 @@ func (s *Service) validateSubmission(input SubmissionInput, photoRequired bool) 
 		len([]rune(input.LastName)) > 100 {
 		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("firstName and lastName are required")
 	}
-	input.Email = optional.Trimmed(input.Email)
-	input.Phone = optional.Trimmed(input.Phone)
-	if input.Email == nil && input.Phone == nil {
-		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("at least one contact method is required")
+	display, _, err := security.NormalizeEmail(strings.TrimSpace(input.Email))
+	if err != nil {
+		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("email is required and must be valid")
 	}
-	if input.Email != nil {
-		display, _, err := security.NormalizeEmail(*input.Email)
-		if err != nil {
-			return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("email is invalid")
-		}
-		input.Email = &display
-	}
-	if input.Phone != nil && len([]rune(*input.Phone)) > 64 {
-		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("phone is invalid")
-	}
+	input.Email = display
 	methods, err := normalizeMethods(input.AuthMethods)
 	if err != nil || len(methods) == 0 {
 		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField(
@@ -705,9 +718,6 @@ func (s *Service) validateSubmission(input SubmissionInput, photoRequired bool) 
 		)
 	}
 	input.AuthMethods = methods
-	if slices.Contains(methods, MethodPassword) && input.Email == nil {
-		return SubmissionInput{}, "", "", "", nil, apperror.InvalidField("email is required for password invitation")
-	}
 	var pinDisplay, pinNormalized, pinHash string
 	if slices.Contains(methods, MethodPIN) {
 		if input.PINLoginName == nil || input.PIN == nil {

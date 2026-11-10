@@ -22,18 +22,16 @@ func TestHiddenRunRemovesMachineFromSignageLive(t *testing.T) {
 		[]uuid.UUID{hiding, other}); err != nil {
 		t.Fatal(err)
 	}
-	boundInput := sceneInput("Bound camera", "full")
-	boundInput.Zones = map[string]json.RawMessage{"main": cameraWidget(hiding)}
+	boundInput := sceneInput("Bound camera")
+	boundInput.Blocks = widgetBlocks(cameraWidget(hiding))
 	bound, err := svc.CreateScene(ctx, admin, boundInput, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	autoInput := sceneInput("Automatic cameras", "full")
-	autoInput.Zones = map[string]json.RawMessage{
-		"main": json.RawMessage(
-			`{"type":"camera","source":"auto","multi":"split","showProgress":false,"showRemaining":false,"fallback":"text","fallbackMediaId":null}`,
-		),
-	}
+	autoInput := sceneInput("Automatic cameras")
+	autoInput.Blocks = widgetBlocks(json.RawMessage(
+		`{"type":"camera","source":"auto","multi":"split","showProgress":false,"showRemaining":false,"fallback":"text","fallbackMediaId":null,"showLive":true,"showName":true}`,
+	))
 	automatic, err := svc.CreateScene(ctx, admin, autoInput, nil)
 	if err != nil {
 		t.Fatal(err)

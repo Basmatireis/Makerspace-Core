@@ -18,14 +18,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AnswerNotificationConsentsRequestAnswersItem } from './answerNotificationConsentsRequestAnswersItem';
+import type { ConsentAnswer } from './consentAnswer';
 
 export interface AnswerNotificationConsentsRequest {
   /**
      * @minItems 1
      * @maxItems 50
      */
-  answers: AnswerNotificationConsentsRequestAnswersItem[];
+  answers: ConsentAnswer[];
   /**
      * `app` or `profile`: where the person answered. The tablet answers through its own endpoint.
      * @maxLength 40
