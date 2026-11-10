@@ -14,8 +14,8 @@ const CATEGORY_LABEL: Record<CalendarCategory, string> = {
   openDay: 'Open day',
   event: 'Event',
 };
-/** Planned competencies per open day in the weeks view before "+n". */
-const CALENDAR_COMPETENCIES = 2;
+/** Planned competencies per open day before "+n"; a month cell has room for one. */
+const CALENDAR_COMPETENCIES = { month: 1, weeks: 2 } as const;
 /** Entries shown per day before "+n"; a month cell is small, a week row has room. */
 const MAX_ENTRIES = { month: 2, weeks: 4 } as const;
 
@@ -50,7 +50,9 @@ function DayCell({ day, widget, limit }: { day: CalendarDay; widget: SignageCale
           >
             {entry.time !== '' && <span className="sg-cal__time">{entry.time}</span>}
             <span className="sg-cal__label">{entry.label}</span>
-            {entry.competencies && <CompetencyChips labels={entry.competencies} limit={CALENDAR_COMPETENCIES} />}
+            {entry.competencies && (
+              <CompetencyChips labels={entry.competencies} limit={CALENDAR_COMPETENCIES[widget.view]} />
+            )}
           </span>
         );
       })}

@@ -23615,7 +23615,7 @@ components:
         colors: {$ref: "#/components/schemas/SignageCalendarColors"}
         showWeekNumbers: {type: boolean}
         title: {type: string, maxLength: 200, description: Heading; empty hides it.}
-        showCompetencies: {type: boolean, description: "Weeks view: adds the planned competencies to open days, the first two and +N; absent means false."}
+        showCompetencies: {type: boolean, description: "Adds the planned competencies to open days: the first one (month view) or two (weeks view) and +N; absent means false."}
         hideLegend: {type: boolean, description: "Leaves out the colour legend below the calendar; absent means false (legend shown)."}
     SignageTimelapseWidget:
       type: object

@@ -100,12 +100,13 @@ export function CalendarFields({
           labelA="Off"
           labelB="On"
           toggled={widget.showCompetencies === true}
-          disabled={widget.view === 'month'}
           onToggle={(checked) => onChange(withField(widget, 'showCompetencies', checked || undefined))}
         />
       )}
-      {widget.showOpenDays && widget.view === 'month' && (
-        <p className="sg-secondary">Month cells are too small for competencies; the weeks view shows the first two.</p>
+      {widget.showOpenDays && widget.showCompetencies && (
+        <p className="sg-secondary">
+          The month view shows the first competency of each open day, the weeks view the first two.
+        </p>
       )}
       <p className="sg-secondary">Weeks start on Monday. Dates are shown in the makerspace time zone.</p>
     </>

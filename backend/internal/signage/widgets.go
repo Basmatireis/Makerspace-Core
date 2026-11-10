@@ -183,7 +183,7 @@ type calendarW struct {
 	Colors          calendarColors `json:"colors"`
 	ShowWeekNumbers bool           `json:"showWeekNumbers"`
 	Title           *string        `json:"title,omitempty"`
-	// ShowCompetencies adds the planned competencies to open days in the weeks view; absent keeps the previous look.
+	// ShowCompetencies adds the planned competencies to open days; absent keeps the previous look.
 	ShowCompetencies bool `json:"showCompetencies,omitempty"`
 	// HideLegend leaves out the colour legend; absent shows it as before.
 	HideLegend bool `json:"hideLegend,omitempty"`

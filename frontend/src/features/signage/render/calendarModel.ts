@@ -12,7 +12,7 @@ export type CalendarEntry = {
   /** `HH:MM` or `HH:MM–HH:MM` on the day an entry starts; empty on its later days. */
   time: string;
   cancelled: boolean;
-  /** Open days in the weeks view with `showCompetencies`: the planned competencies, on the day the entry starts. */
+  /** Open days with `showCompetencies`: the planned competencies, on the day the entry starts. */
   competencies?: readonly string[];
 };
 
@@ -150,7 +150,7 @@ export function buildCalendar(
         (index) => calendar.openDays[index].status === 'cancelled',
         // Month cells are too small; the weeks view has room for the first ones.
         (index) =>
-          widget.showCompetencies && !monthView && calendar.openDays[index].status !== 'cancelled'
+          widget.showCompetencies && calendar.openDays[index].status !== 'cancelled'
             ? (calendar.openDays[index].competencies ?? [])
             : undefined,
       );
