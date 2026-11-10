@@ -261,7 +261,7 @@ func TestTerminalEmailCodeCheckInSurvivesLabRulesRetry(t *testing.T) {
 	if _, err := service.EmailCodeCheckOut(ctx, f.device, email, notifier.loginCode(t, email), "kiosk-email", nil); err != nil {
 		t.Fatalf("check-out with a fresh code: %v", err)
 	}
-	assertCount(t, f.pool, `SELECT count(*) FROM auth_challenges WHERE kind='email_login' AND used_at IS NULL`, 0)
+	assertCount(t, f.pool, `SELECT count(*) FROM auth_challenges WHERE kind='email_check_in' AND used_at IS NOT NULL`, 1)
 }
 
 // principalWithFreshPermissions is principalWithPermissions with a normal sign-in that just happened.

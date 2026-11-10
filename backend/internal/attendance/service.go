@@ -29,7 +29,7 @@ type CredentialVerifier interface {
 	VerifyPasswordForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
 	VerifyPINForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
 	VerifyEmailCodeForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
-	RequestEmailCode(ctx context.Context, email, sourceKey string, requestID *uuid.UUID) error
+	RequestCheckInEmailCode(ctx context.Context, email, sourceKey string, requestID *uuid.UUID) error
 	// ConsumeVerifiedTx uses up a one-time proof (an emailed code) inside the attendance transaction, so it is spent
 	// exactly when the check-in or check-out commits.
 	ConsumeVerifiedTx(ctx context.Context, tx pgx.Tx, verified auth.VerifiedIdentity) error
@@ -324,8 +324,8 @@ func (s *Service) PINCheckIn(
 	return s.checkIn(ctx, device, verified, choice, requestID)
 }
 
-// RequestEmailCode mails a check-in code to an account that signs in with an emailed code. Like the web request it
-// never tells whether the address belongs to one.
+// RequestEmailCode mails a check-in code to an account that signs in with an emailed code; it works only at a kiosk,
+// not for the web login. Like the web request it never tells whether the address belongs to one.
 func (s *Service) RequestEmailCode(
 	ctx context.Context,
 	device manageddevices.DeviceContext,
@@ -335,7 +335,7 @@ func (s *Service) RequestEmailCode(
 	if _, err := s.kiosk(ctx, device); err != nil {
 		return err
 	}
-	return s.auth.RequestEmailCode(ctx, email, source, requestID)
+	return s.auth.RequestCheckInEmailCode(ctx, email, source, requestID)
 }
 
 // EmailCodeCheckIn checks in with an emailed code. The code stays valid until a check-in succeeds, so the kiosk can

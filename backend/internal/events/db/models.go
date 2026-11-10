@@ -211,6 +211,12 @@ type DeviceType struct {
 	UpdatedAt   time.Time
 }
 
+type EmailCodeFailure struct {
+	ID        uuid.UUID
+	AccountID uuid.UUID
+	FailedAt  time.Time
+}
+
 type Event struct {
 	ID                  uuid.UUID
 	Name                string

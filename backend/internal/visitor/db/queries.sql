@@ -102,8 +102,13 @@ SELECT EXISTS (
 UPDATE visitor_enrollment_contexts
 SET email_display=sqlc.arg(email_display), email_normalized=sqlc.arg(email_normalized),
     email_code_digest=sqlc.arg(email_code_digest), email_code_expires_at=sqlc.arg(email_code_expires_at),
-    email_code_attempts=0, email_codes_sent=email_codes_sent+1, email_verified_at=NULL
+    email_code_attempts=0, email_verified_at=NULL
 WHERE id=sqlc.arg(id);
+
+-- name: CountEnrollmentEmailCodeSend :exec
+-- Every send attempt counts, also one refused because the address already has an account, so a kiosk cannot probe
+-- addresses beyond the per-context limit.
+UPDATE visitor_enrollment_contexts SET email_codes_sent=email_codes_sent+1 WHERE id=sqlc.arg(id);
 
 -- name: ClearEnrollmentEmailCode :exec
 -- Withdraws a code whose mail could not be delivered, unless a newer code replaced it meanwhile.

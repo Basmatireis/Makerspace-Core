@@ -89,6 +89,7 @@ var Tables = []Table{
 	}},
 	{Name: "competency_categories", Columns: map[string]Treatment{"name": Catalog, "description": Catalog}},
 	{Name: "device_types", Columns: map[string]Treatment{"name": Catalog, "description": Catalog}},
+	{Name: "email_code_failures", Emptied: EmptiedSignInState},
 	{Name: "event_files", Emptied: EmptiedPersonalFile},
 	{Name: "event_sessions", Columns: map[string]Treatment{
 		"name":        Catalog,

@@ -92,15 +92,15 @@ func (q *Queries) ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateL
 	return allowed, err
 }
 
-const consumeEmailLoginChallenge = `-- name: ConsumeEmailLoginChallenge :execrows
+const consumeEmailCodeChallenge = `-- name: ConsumeEmailCodeChallenge :execrows
 UPDATE auth_challenges SET used_at = now()
-WHERE id = $1 AND kind = 'email_login' AND used_at IS NULL AND cancelled_at IS NULL
+WHERE id = $1 AND kind IN ('email_login', 'email_check_in') AND used_at IS NULL AND cancelled_at IS NULL
   AND attempt_count < 5 AND expires_at > now()
 `
 
 // Uses an emailed sign-in code once; zero rows means it was used, replaced, exhausted or expired meanwhile.
-func (q *Queries) ConsumeEmailLoginChallenge(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, consumeEmailLoginChallenge, id)
+func (q *Queries) ConsumeEmailCodeChallenge(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, consumeEmailCodeChallenge, id)
 	if err != nil {
 		return 0, err
 	}
@@ -134,6 +134,23 @@ func (q *Queries) ConsumeWebAuthnChallenge(ctx context.Context, arg ConsumeWebAu
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const countEmailCodeFailures = `-- name: CountEmailCodeFailures :one
+SELECT count(*)::bigint AS failures FROM email_code_failures
+WHERE account_id = $1 AND failed_at > $2::timestamptz
+`
+
+type CountEmailCodeFailuresParams struct {
+	AccountID uuid.UUID
+	Since     time.Time
+}
+
+func (q *Queries) CountEmailCodeFailures(ctx context.Context, arg CountEmailCodeFailuresParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEmailCodeFailures, arg.AccountID, arg.Since)
+	var failures int64
+	err := row.Scan(&failures)
+	return failures, err
 }
 
 const countSecondFactors = `-- name: CountSecondFactors :one
@@ -513,7 +530,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (u
 }
 
 const deleteEmailLoginChallengesForAccount = `-- name: DeleteEmailLoginChallengesForAccount :exec
-DELETE FROM auth_challenges WHERE account_id = $1 AND kind = 'email_login'
+DELETE FROM auth_challenges WHERE account_id = $1 AND kind IN ('email_login', 'email_check_in')
 `
 
 func (q *Queries) DeleteEmailLoginChallengesForAccount(ctx context.Context, accountID uuid.UUID) error {
@@ -526,6 +543,8 @@ WITH deleted_challenges AS (
     DELETE FROM auth_challenges WHERE expires_at < $1::timestamptz RETURNING 1
 ), deleted_limits AS (
     DELETE FROM auth_rate_limits WHERE updated_at < $1::timestamptz - interval '1 day' RETURNING 1
+), deleted_code_failures AS (
+    DELETE FROM email_code_failures WHERE failed_at < $1::timestamptz - interval '1 day' RETURNING 1
 )
 SELECT count(*) FROM deleted_challenges
 `
@@ -726,9 +745,10 @@ func (q *Queries) EnableInvitedAccount(ctx context.Context, accountID uuid.UUID)
 
 const findEmailCodeTarget = `-- name: FindEmailCodeTarget :one
 SELECT a.id AS account_id, a.person_id, a.status, i.id AS auth_identity_id, i.identifier_display AS delivery_address,
-       i.email_code_enabled
+       i.email_code_enabled, COALESCE(pc.reset_required, false)::boolean AS reset_required
 FROM auth_identities i
 JOIN accounts a ON a.id = i.account_id
+LEFT JOIN password_credentials pc ON pc.auth_identity_id = i.id
 WHERE i.kind = 'password' AND i.disabled_at IS NULL AND i.identifier_normalized = $1::text
 `
 
@@ -739,9 +759,11 @@ type FindEmailCodeTargetRow struct {
 	AuthIdentityID   uuid.UUID
 	DeliveryAddress  *string
 	EmailCodeEnabled bool
+	ResetRequired    bool
 }
 
-// The login email identity behind an address, whether or not it signs in with an emailed code.
+// The login email identity behind an address, whether or not it signs in with an emailed code. A password that must
+// be reset blocks the emailed code as it blocks the password.
 func (q *Queries) FindEmailCodeTarget(ctx context.Context, identifierNormalized string) (FindEmailCodeTargetRow, error) {
 	row := q.db.QueryRow(ctx, findEmailCodeTarget, identifierNormalized)
 	var i FindEmailCodeTargetRow
@@ -752,6 +774,7 @@ func (q *Queries) FindEmailCodeTarget(ctx context.Context, identifierNormalized 
 		&i.AuthIdentityID,
 		&i.DeliveryAddress,
 		&i.EmailCodeEnabled,
+		&i.ResetRequired,
 	)
 	return i, err
 }
@@ -1597,6 +1620,20 @@ type RaiseSessionToStrongMFAParams struct {
 // multi-factor login.
 func (q *Queries) RaiseSessionToStrongMFA(ctx context.Context, arg RaiseSessionToStrongMFAParams) error {
 	_, err := q.db.Exec(ctx, raiseSessionToStrongMFA, arg.AuthenticatedAt, arg.ID)
+	return err
+}
+
+const recordEmailCodeFailure = `-- name: RecordEmailCodeFailure :exec
+INSERT INTO email_code_failures (id, account_id) VALUES ($1, $2)
+`
+
+type RecordEmailCodeFailureParams struct {
+	ID        uuid.UUID
+	AccountID uuid.UUID
+}
+
+func (q *Queries) RecordEmailCodeFailure(ctx context.Context, arg RecordEmailCodeFailureParams) error {
+	_, err := q.db.Exec(ctx, recordEmailCodeFailure, arg.ID, arg.AccountID)
 	return err
 }
 

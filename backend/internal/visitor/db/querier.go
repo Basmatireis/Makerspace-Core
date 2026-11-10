@@ -18,6 +18,9 @@ type Querier interface {
 	ClearEnrollmentEmailCode(ctx context.Context, arg ClearEnrollmentEmailCodeParams) error
 	// The verified address now lives on the account; the used context keeps no copy of it.
 	ConsumeEnrollmentContext(ctx context.Context, id uuid.UUID) (int64, error)
+	// Every send attempt counts, also one refused because the address already has an account, so a kiosk cannot probe
+	// addresses beyond the per-context limit.
+	CountEnrollmentEmailCodeSend(ctx context.Context, id uuid.UUID) error
 	CreateEnrollmentContext(ctx context.Context, arg CreateEnrollmentContextParams) (VisitorEnrollmentContext, error)
 	CreateVisitorAccount(ctx context.Context, arg CreateVisitorAccountParams) (Account, error)
 	CreateVisitorPerson(ctx context.Context, arg CreateVisitorPersonParams) (Person, error)

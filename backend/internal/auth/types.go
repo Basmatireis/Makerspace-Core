@@ -9,6 +9,7 @@ const (
 	ChallengeEmailVerification ChallengeKind = "email_verification"
 	ChallengePINEnrollment     ChallengeKind = "pin_enrollment"
 	ChallengeEmailLogin        ChallengeKind = "email_login"
+	ChallengeEmailCheckIn      ChallengeKind = "email_check_in"
 )
 
 // LoginMethod is how the login email identity proved itself when a session or pending login was created.

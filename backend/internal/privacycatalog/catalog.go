@@ -126,7 +126,7 @@ func declarations() []privacy.Definition {
 			Fields: []string{
 				"sessions.token_digest", "sessions.csrf_digest", "password_reset_tokens.token_digest",
 				"auth_challenges.delivery_address", "auth_challenges.code_digest", "auth_rate_limits.key_digest",
-				"pin_login_throttles.key_digest",
+				"pin_login_throttles.key_digest", "email_code_failures.*",
 			},
 			Triggers: []privacy.Trigger{privacy.TriggerExpiredAt},
 			Actions:  []privacy.Action{privacy.ActionDelete},

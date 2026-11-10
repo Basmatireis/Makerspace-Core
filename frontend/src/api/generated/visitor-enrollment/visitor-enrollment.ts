@@ -174,8 +174,9 @@ export const getSendVisitorEnrollmentEmailCodeUrl = () => {
  * Delivery is synchronous so the kiosk can ask for another address: a provider error answers
  * `422 email_delivery_failed`, disabled mail `503 mail_unavailable`. A syntactically invalid address answers
  * `422 email_invalid`; an address that is already an account's login email answers
- * `409 authentication_identifier_exists` (the visitor checks in instead). At most five codes are sent per
- * enrollment context and per address within fifteen minutes (`429 verification_rate_limited`).
+ * `409 authentication_identifier_exists` (the visitor checks in instead). At most five send attempts, refused
+ * ones included, are allowed per enrollment context, and five codes per address within fifteen minutes
+ * (`429 verification_rate_limited`).
  * @summary Mail a code that verifies the visitor's email address
  */
 export const sendVisitorEnrollmentEmailCode = async (visitorEnrollmentEmailRequest: VisitorEnrollmentEmailRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {

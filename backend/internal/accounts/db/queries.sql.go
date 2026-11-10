@@ -212,7 +212,7 @@ func (q *Queries) DeleteAuthIdentityForAccount(ctx context.Context, arg DeleteAu
 }
 
 const deleteEmailLoginChallengesForAccount = `-- name: DeleteEmailLoginChallengesForAccount :exec
-DELETE FROM auth_challenges WHERE account_id = $1 AND kind = 'email_login'
+DELETE FROM auth_challenges WHERE account_id = $1 AND kind IN ('email_login', 'email_check_in')
 `
 
 func (q *Queries) DeleteEmailLoginChallengesForAccount(ctx context.Context, accountID uuid.UUID) error {
@@ -246,7 +246,7 @@ func (q *Queries) DeletePasskeysForAccount(ctx context.Context, accountID uuid.U
 const deletePasswordChallengesForAccount = `-- name: DeletePasswordChallengesForAccount :exec
 DELETE FROM auth_challenges
 WHERE account_id = $1
-  AND kind IN ('invitation', 'email_verification', 'password_reset', 'email_login')
+  AND kind IN ('invitation', 'email_verification', 'password_reset', 'email_login', 'email_check_in')
 `
 
 func (q *Queries) DeletePasswordChallengesForAccount(ctx context.Context, accountID uuid.UUID) error {

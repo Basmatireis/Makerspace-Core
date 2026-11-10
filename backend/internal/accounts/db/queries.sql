@@ -193,7 +193,7 @@ WHERE id = sqlc.arg(id) AND kind = 'password';
 -- name: DeletePasswordChallengesForAccount :exec
 DELETE FROM auth_challenges
 WHERE account_id = sqlc.arg(account_id)
-  AND kind IN ('invitation', 'email_verification', 'password_reset', 'email_login');
+  AND kind IN ('invitation', 'email_verification', 'password_reset', 'email_login', 'email_check_in');
 
 -- name: DeletePINEnrollmentChallengesForAccount :exec
 DELETE FROM auth_challenges
@@ -263,7 +263,7 @@ UPDATE auth_identities SET email_code_enabled = sqlc.arg(enabled), updated_at = 
 WHERE id = sqlc.arg(id) AND kind = 'password' AND email_code_enabled IS DISTINCT FROM sqlc.arg(enabled);
 
 -- name: DeleteEmailLoginChallengesForAccount :exec
-DELETE FROM auth_challenges WHERE account_id = sqlc.arg(account_id) AND kind = 'email_login';
+DELETE FROM auth_challenges WHERE account_id = sqlc.arg(account_id) AND kind IN ('email_login', 'email_check_in');
 
 -- name: DeletePasswordCredentialForIdentity :exec
 -- Removes only the password of a login email identity that also signs in with an emailed code.

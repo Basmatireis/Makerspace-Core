@@ -149,11 +149,13 @@ export const getRequestEmailLoginCodeUrl = () => {
 }
 
 /**
- * Mails a six-digit sign-in code to the login email when that account is enabled and has sign-in with an
- * emailed code turned on. The code is valid for ten minutes and for five wrong entries; a new request replaces
- * the previous code. The answer is the same `202` for known, unknown, ineligible and rate-limited addresses,
- * and the mail is sent after the answer, so neither the answer nor its timing tells whether the address belongs
- * to an account. The same code also works at a kiosk (`/terminal/check-in/email-code`).
+ * Mails a six-digit sign-in code to the login email when that account is enabled, has sign-in with an emailed
+ * code turned on and no password reset pending. The code is valid for ten minutes and for five wrong entries; a
+ * new request replaces the previous code. After ten wrong codes within 24 hours, across all its codes, an
+ * account gets no new codes and accepts none until the oldest of them is a day old. The answer is the same
+ * `202` for known, unknown, ineligible, blocked and rate-limited addresses; the account is looked up and the
+ * code issued and mailed only after the answer, so neither the answer nor its timing tells whether the address
+ * belongs to an account. The code works only for `POST /auth/email-code/login`, not at a kiosk.
  * @summary Mail a one-time sign-in code
  */
 export const requestEmailLoginCode = async (requestEmailLoginCodeRequest: RequestEmailLoginCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -191,9 +193,10 @@ export const getLoginWithEmailCodeUrl = () => {
 }
 
 /**
- * Signs in with the code from `POST /auth/email-code`. Wrong, expired, used and unknown codes answer the same
- * `401 invalid_credentials`; after five wrong codes the code is invalid and a new one must be requested. The
- * code is consumed by a successful sign-in. The session has `normal` assurance like a password session:
+ * Signs in with the code from `POST /auth/email-code`. Wrong, expired, used and unknown codes, accounts with a
+ * pending password reset and accounts whose budget of ten wrong codes per 24 hours is used up all answer the
+ * same `401 invalid_credentials`; after five wrong codes the code is invalid and a new one must be requested.
+ * The code is consumed by a successful sign-in. The session has `normal` assurance like a password session:
  * control of the mailbox already allows resetting the password, so the emailed code proves no less. Second
  * factors work as with `POST /auth/login`: an account with an authenticator app or passkey gets `202` and a
  * pending-login cookie, and an account that must use a second factor but has none gets a session flagged

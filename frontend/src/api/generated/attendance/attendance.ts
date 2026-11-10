@@ -225,8 +225,9 @@ export const getRequestTerminalEmailCodeUrl = () => {
 }
 
 /**
- * Same rules and answer as `POST /auth/email-code`: the code goes only to an enabled account that signs in with
- * an emailed code, and the answer never tells whether the address belongs to one.
+ * Same rules, budget and answer as `POST /auth/email-code`: the code goes only to an enabled account that signs
+ * in with an emailed code, and the answer never tells whether the address belongs to one. The code works only
+ * for `/terminal/check-in/email-code` and `/terminal/check-out/email-code`, not for the web login.
  * @summary Mail a one-time code for checking in or out at this kiosk
  */
 export const requestTerminalEmailCode = async (requestEmailLoginCodeRequest: RequestEmailLoginCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -264,8 +265,9 @@ export const getTerminalEmailCodeCheckInUrl = () => {
 }
 
 /**
- * Checks in with the code from `POST /terminal/email-code`. Wrong, expired and unknown codes answer
- * `401 invalid_credentials`; after five wrong codes a new one must be requested. The code is consumed only by
+ * Checks in with the code from `POST /terminal/email-code`. Wrong, expired and unknown codes (and accounts with a
+ * pending password reset or a used-up budget of wrong codes) answer `401 invalid_credentials`; after five wrong
+ * codes a new one must be requested; wrong codes count toward the account's budget. The code is consumed only by
  * a successful check-in, so after a Lab Rules answer the terminal repeats the check-in with the same code.
  * When the person must confirm the current Lab Rules, the terminal shows them and repeats the check-in with
  * `confirmLabRulesVersionId` (records the confirmation, method `kiosk`, and admits the person) or, for roles

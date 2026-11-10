@@ -38,7 +38,9 @@ func (noEmailCodes) VerifyEmailCodeForAttendance(
 	return auth.VerifiedIdentity{}, apperror.InvalidCredentials
 }
 
-func (noEmailCodes) RequestEmailCode(context.Context, string, string, *uuid.UUID) error { return nil }
+func (noEmailCodes) RequestCheckInEmailCode(context.Context, string, string, *uuid.UUID) error {
+	return nil
+}
 
 func (noEmailCodes) ConsumeVerifiedTx(context.Context, pgx.Tx, auth.VerifiedIdentity) error {
 	return nil

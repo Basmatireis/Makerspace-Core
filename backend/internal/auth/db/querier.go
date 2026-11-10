@@ -18,9 +18,10 @@ type Querier interface {
 	ConfirmTOTPCredential(ctx context.Context, arg ConfirmTOTPCredentialParams) error
 	ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateLimitParams) (*bool, error)
 	// Uses an emailed sign-in code once; zero rows means it was used, replaced, exhausted or expired meanwhile.
-	ConsumeEmailLoginChallenge(ctx context.Context, id uuid.UUID) (int64, error)
+	ConsumeEmailCodeChallenge(ctx context.Context, id uuid.UUID) (int64, error)
 	// Single use: the row is deleted whether or not the assertion then verifies.
 	ConsumeWebAuthnChallenge(ctx context.Context, arg ConsumeWebAuthnChallengeParams) (WebauthnChallenge, error)
+	CountEmailCodeFailures(ctx context.Context, arg CountEmailCodeFailuresParams) (int64, error)
 	CountSecondFactors(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionParams) (Session, error)
 	CreatePINIdentity(ctx context.Context, arg CreatePINIdentityParams) (AuthIdentity, error)
@@ -51,7 +52,8 @@ type Querier interface {
 	DeleteWebAuthnChallengesForSession(ctx context.Context, arg DeleteWebAuthnChallengesForSessionParams) error
 	DeleteWebAuthnCredential(ctx context.Context, arg DeleteWebAuthnCredentialParams) (int64, error)
 	EnableInvitedAccount(ctx context.Context, accountID uuid.UUID) error
-	// The login email identity behind an address, whether or not it signs in with an emailed code.
+	// The login email identity behind an address, whether or not it signs in with an emailed code. A password that must
+	// be reset blocks the emailed code as it blocks the password.
 	FindEmailCodeTarget(ctx context.Context, identifierNormalized string) (FindEmailCodeTargetRow, error)
 	FindLoginAccountByEmail(ctx context.Context, identifierNormalized string) (uuid.UUID, error)
 	FindPINLogin(ctx context.Context, identifierNormalized string) (FindPINLoginRow, error)
@@ -92,6 +94,7 @@ type Querier interface {
 	// The session proved a second factor (enrollment, second-factor reauthentication): it is now equivalent to a
 	// multi-factor login.
 	RaiseSessionToStrongMFA(ctx context.Context, arg RaiseSessionToStrongMFAParams) error
+	RecordEmailCodeFailure(ctx context.Context, arg RecordEmailCodeFailureParams) error
 	// A key that stayed quiet for 15 minutes starts over, so a shared source (a NAT, a
 	// terminal) is not stuck at the maximum back-off after a few old failures.
 	RecordPINFailure(ctx context.Context, arg RecordPINFailureParams) error

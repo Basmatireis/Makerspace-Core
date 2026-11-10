@@ -198,11 +198,13 @@ paths:
       operationId: requestEmailLoginCode
       summary: Mail a one-time sign-in code
       description: |
-        Mails a six-digit sign-in code to the login email when that account is enabled and has sign-in with an
-        emailed code turned on. The code is valid for ten minutes and for five wrong entries; a new request replaces
-        the previous code. The answer is the same `202` for known, unknown, ineligible and rate-limited addresses,
-        and the mail is sent after the answer, so neither the answer nor its timing tells whether the address belongs
-        to an account. The same code also works at a kiosk (`/terminal/check-in/email-code`).
+        Mails a six-digit sign-in code to the login email when that account is enabled, has sign-in with an emailed
+        code turned on and no password reset pending. The code is valid for ten minutes and for five wrong entries; a
+        new request replaces the previous code. After ten wrong codes within 24 hours, across all its codes, an
+        account gets no new codes and accepts none until the oldest of them is a day old. The answer is the same
+        `202` for known, unknown, ineligible, blocked and rate-limited addresses; the account is looked up and the
+        code issued and mailed only after the answer, so neither the answer nor its timing tells whether the address
+        belongs to an account. The code works only for `POST /auth/email-code/login`, not at a kiosk.
       security: []
       requestBody:
         required: true
@@ -223,9 +225,10 @@ paths:
       operationId: loginWithEmailCode
       summary: Start a session with an emailed one-time code
       description: |
-        Signs in with the code from `POST /auth/email-code`. Wrong, expired, used and unknown codes answer the same
-        `401 invalid_credentials`; after five wrong codes the code is invalid and a new one must be requested. The
-        code is consumed by a successful sign-in. The session has `normal` assurance like a password session:
+        Signs in with the code from `POST /auth/email-code`. Wrong, expired, used and unknown codes, accounts with a
+        pending password reset and accounts whose budget of ten wrong codes per 24 hours is used up all answer the
+        same `401 invalid_credentials`; after five wrong codes the code is invalid and a new one must be requested.
+        The code is consumed by a successful sign-in. The session has `normal` assurance like a password session:
         control of the mailbox already allows resetting the password, so the emailed code proves no less. Second
         factors work as with `POST /auth/login`: an account with an authenticator app or passkey gets `202` and a
         pending-login cookie, and an account that must use a second factor but has none gets a session flagged
@@ -6737,8 +6740,9 @@ paths:
         Delivery is synchronous so the kiosk can ask for another address: a provider error answers
         `422 email_delivery_failed`, disabled mail `503 mail_unavailable`. A syntactically invalid address answers
         `422 email_invalid`; an address that is already an account's login email answers
-        `409 authentication_identifier_exists` (the visitor checks in instead). At most five codes are sent per
-        enrollment context and per address within fifteen minutes (`429 verification_rate_limited`).
+        `409 authentication_identifier_exists` (the visitor checks in instead). At most five send attempts, refused
+        ones included, are allowed per enrollment context, and five codes per address within fifteen minutes
+        (`429 verification_rate_limited`).
       security: []
       parameters:
         - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
@@ -11883,8 +11887,9 @@ paths:
       operationId: requestTerminalEmailCode
       summary: Mail a one-time code for checking in or out at this kiosk
       description: |
-        Same rules and answer as `POST /auth/email-code`: the code goes only to an enabled account that signs in with
-        an emailed code, and the answer never tells whether the address belongs to one.
+        Same rules, budget and answer as `POST /auth/email-code`: the code goes only to an enabled account that signs
+        in with an emailed code, and the answer never tells whether the address belongs to one. The code works only
+        for `/terminal/check-in/email-code` and `/terminal/check-out/email-code`, not for the web login.
       security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RequestEmailLoginCodeRequest"}}}}
       responses:
@@ -11897,8 +11902,9 @@ paths:
       tags: [Attendance]
       operationId: terminalEmailCodeCheckIn
       description: |
-        Checks in with the code from `POST /terminal/email-code`. Wrong, expired and unknown codes answer
-        `401 invalid_credentials`; after five wrong codes a new one must be requested. The code is consumed only by
+        Checks in with the code from `POST /terminal/email-code`. Wrong, expired and unknown codes (and accounts with a
+        pending password reset or a used-up budget of wrong codes) answer `401 invalid_credentials`; after five wrong
+        codes a new one must be requested; wrong codes count toward the account's budget. The code is consumed only by
         a successful check-in, so after a Lab Rules answer the terminal repeats the check-in with the same code.
         When the person must confirm the current Lab Rules, the terminal shows them and repeats the check-in with
         `confirmLabRulesVersionId` (records the confirmation, method `kiosk`, and admits the person) or, for roles

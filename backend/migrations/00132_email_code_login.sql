@@ -1,14 +1,25 @@
 -- +goose Up
 -- Sign-in with a one-time code mailed to the login email. The switch lives on the login email identity (the
--- auth_identities row of kind 'password', whose identifier is the login email), so it disappears with the address.
+-- auth_identities row of kind 'password', whose identifier is the login email). It stays on when the address changes:
+-- codes then go to the new address, whose owner proves control by entering them. It goes away only with the identity.
 ALTER TABLE auth_identities
     ADD COLUMN email_code_enabled boolean NOT NULL DEFAULT false,
     ADD CONSTRAINT auth_identities_email_code_kind_check CHECK (NOT email_code_enabled OR kind = 'password');
 
--- Sign-in codes are account-bound challenges: digest only, ten minutes, five wrong entries, single use.
+-- Sign-in codes are account-bound challenges: digest only, ten minutes, five wrong entries, single use. A code for the
+-- web login (email_login) and one for kiosk check-in/out (email_check_in) are separate and never stand in for each other.
 ALTER TABLE auth_challenges DROP CONSTRAINT auth_challenges_kind_check;
 ALTER TABLE auth_challenges ADD CONSTRAINT auth_challenges_kind_check
-    CHECK (kind IN ('invitation', 'email_verification', 'password_reset', 'pin_enrollment', 'email_login'));
+    CHECK (kind IN ('invitation', 'email_verification', 'password_reset', 'pin_enrollment', 'email_login', 'email_check_in'));
+
+-- Wrong emailed codes of an account across all its codes. A new code resets the per-code attempts, so this rolling
+-- budget bounds guessing over time; rows older than a day no longer count and are pruned with the sign-in state.
+CREATE TABLE email_code_failures (
+    id uuid PRIMARY KEY,
+    account_id uuid NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    failed_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX email_code_failures_account_idx ON email_code_failures (account_id, failed_at);
 
 ALTER TABLE sessions DROP CONSTRAINT sessions_auth_method_check;
 ALTER TABLE sessions ADD CONSTRAINT sessions_auth_method_check
@@ -129,7 +140,8 @@ WHERE pc.auth_identity_id = i.id AND i.email_code_enabled;
 -- reset or invitation to sign in on the web again. Emailed-code sessions, codes and pending logins are deleted, and
 -- email-code check-ins become password check-ins (the closest remaining method) so the narrower constraints hold.
 DELETE FROM sessions WHERE auth_method = 'email_code';
-DELETE FROM auth_challenges WHERE kind = 'email_login';
+DELETE FROM auth_challenges WHERE kind IN ('email_login', 'email_check_in');
+DROP TABLE email_code_failures;
 DELETE FROM pending_logins WHERE auth_method = 'email_code';
 UPDATE visits SET check_in_method = 'password' WHERE check_in_method = 'email_code';
 UPDATE visits SET check_out_method = 'password' WHERE check_out_method = 'email_code';

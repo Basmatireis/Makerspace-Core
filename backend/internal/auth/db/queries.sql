@@ -269,6 +269,8 @@ WITH deleted_challenges AS (
     DELETE FROM auth_challenges WHERE expires_at < sqlc.arg(before_time)::timestamptz RETURNING 1
 ), deleted_limits AS (
     DELETE FROM auth_rate_limits WHERE updated_at < sqlc.arg(before_time)::timestamptz - interval '1 day' RETURNING 1
+), deleted_code_failures AS (
+    DELETE FROM email_code_failures WHERE failed_at < sqlc.arg(before_time)::timestamptz - interval '1 day' RETURNING 1
 )
 SELECT count(*) FROM deleted_challenges;
 
@@ -515,17 +517,19 @@ WHERE a.id = sqlc.arg(account_id);
 
 
 -- name: FindEmailCodeTarget :one
--- The login email identity behind an address, whether or not it signs in with an emailed code.
+-- The login email identity behind an address, whether or not it signs in with an emailed code. A password that must
+-- be reset blocks the emailed code as it blocks the password.
 SELECT a.id AS account_id, a.person_id, a.status, i.id AS auth_identity_id, i.identifier_display AS delivery_address,
-       i.email_code_enabled
+       i.email_code_enabled, COALESCE(pc.reset_required, false)::boolean AS reset_required
 FROM auth_identities i
 JOIN accounts a ON a.id = i.account_id
+LEFT JOIN password_credentials pc ON pc.auth_identity_id = i.id
 WHERE i.kind = 'password' AND i.disabled_at IS NULL AND i.identifier_normalized = sqlc.arg(identifier_normalized)::text;
 
--- name: ConsumeEmailLoginChallenge :execrows
+-- name: ConsumeEmailCodeChallenge :execrows
 -- Uses an emailed sign-in code once; zero rows means it was used, replaced, exhausted or expired meanwhile.
 UPDATE auth_challenges SET used_at = now()
-WHERE id = sqlc.arg(id) AND kind = 'email_login' AND used_at IS NULL AND cancelled_at IS NULL
+WHERE id = sqlc.arg(id) AND kind IN ('email_login', 'email_check_in') AND used_at IS NULL AND cancelled_at IS NULL
   AND attempt_count < 5 AND expires_at > now();
 
 -- name: SetEmailCodeEnabled :execrows
@@ -533,7 +537,14 @@ UPDATE auth_identities SET email_code_enabled = sqlc.arg(enabled), updated_at = 
 WHERE id = sqlc.arg(id) AND kind = 'password' AND email_code_enabled IS DISTINCT FROM sqlc.arg(enabled);
 
 -- name: DeleteEmailLoginChallengesForAccount :exec
-DELETE FROM auth_challenges WHERE account_id = sqlc.arg(account_id) AND kind = 'email_login';
+DELETE FROM auth_challenges WHERE account_id = sqlc.arg(account_id) AND kind IN ('email_login', 'email_check_in');
+
+-- name: RecordEmailCodeFailure :exec
+INSERT INTO email_code_failures (id, account_id) VALUES (sqlc.arg(id), sqlc.arg(account_id));
+
+-- name: CountEmailCodeFailures :one
+SELECT count(*)::bigint AS failures FROM email_code_failures
+WHERE account_id = sqlc.arg(account_id) AND failed_at > sqlc.arg(since)::timestamptz;
 
 -- name: DeletePasswordCredential :exec
 -- Removes only the password of a login email identity that also signs in with an emailed code.

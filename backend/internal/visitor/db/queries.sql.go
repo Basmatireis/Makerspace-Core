@@ -63,6 +63,17 @@ func (q *Queries) ConsumeEnrollmentContext(ctx context.Context, id uuid.UUID) (i
 	return result.RowsAffected(), nil
 }
 
+const countEnrollmentEmailCodeSend = `-- name: CountEnrollmentEmailCodeSend :exec
+UPDATE visitor_enrollment_contexts SET email_codes_sent=email_codes_sent+1 WHERE id=$1
+`
+
+// Every send attempt counts, also one refused because the address already has an account, so a kiosk cannot probe
+// addresses beyond the per-context limit.
+func (q *Queries) CountEnrollmentEmailCodeSend(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, countEnrollmentEmailCodeSend, id)
+	return err
+}
+
 const createEnrollmentContext = `-- name: CreateEnrollmentContext :one
 INSERT INTO visitor_enrollment_contexts (id, managed_device_id, token_digest, csrf_digest, expires_at, lab_rules_version_id)
 VALUES ($1, $2, $3, $4, $5,
@@ -476,7 +487,7 @@ const setEnrollmentEmailCode = `-- name: SetEnrollmentEmailCode :exec
 UPDATE visitor_enrollment_contexts
 SET email_display=$1, email_normalized=$2,
     email_code_digest=$3, email_code_expires_at=$4,
-    email_code_attempts=0, email_codes_sent=email_codes_sent+1, email_verified_at=NULL
+    email_code_attempts=0, email_verified_at=NULL
 WHERE id=$5
 `
 

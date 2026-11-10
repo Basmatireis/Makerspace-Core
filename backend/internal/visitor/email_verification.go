@@ -86,11 +86,18 @@ func (s *Service) SendEmailCode(ctx context.Context, enrollment Context, email s
 	if locked.EmailCodesSent >= EmailCodesPerContext {
 		return emailCodeRateLimited()
 	}
+	if err := queries.CountEnrollmentEmailCodeSend(ctx, enrollment.ID); err != nil {
+		return err
+	}
 	taken, err := queries.LoginEmailTaken(ctx, normalized)
 	if err != nil {
 		return err
 	}
 	if taken {
+		// The attempt stays counted.
+		if err := tx.Commit(ctx); err != nil {
+			return err
+		}
 		return errIdentifierExists()
 	}
 	if err := queries.SetEnrollmentEmailCode(ctx, visitordb.SetEnrollmentEmailCodeParams{
