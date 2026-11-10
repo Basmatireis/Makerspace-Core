@@ -416,13 +416,6 @@ function Editor({ scene }: { scene: SignageScene }) {
             onArrange={arrangeAction}
           />
           <footer className="sg-se__foot">
-            <span
-              className="sg-se__fidelity"
-              title="Every display of this shape scales the same layout to its size, so line breaks match."
-            >
-              <Checkmark aria-hidden="true" />
-              Looks exactly like on every {aspectLabel(draft.aspectRatio)} display
-            </span>
             <div className="sg-se__spacer" />
             <Toggle
               id="sg-show-margins"

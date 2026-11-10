@@ -321,8 +321,11 @@ textarea.sg-code {
   grid-template-columns: 16rem minmax(0, 1fr) 21rem;
   min-block-size: 0;
 }
+// Positioned so absolutely placed control parts (Carbon toggles, hidden labels) scroll with the pane and do not make
+// the page itself taller, which let focusing a field scroll the whole editor away.
 .sg-se__left,
 .sg-se__right {
+  position: relative;
   min-block-size: 0;
   overflow-y: auto;
   background: theme.$layer-01;
@@ -351,16 +354,6 @@ textarea.sg-code {
   padding: $spacing-03 $spacing-05;
   border-block-start: 1px solid theme.$border-subtle-01;
   background: theme.$layer-01;
-}
-.sg-se__fidelity {
-  display: inline-flex;
-  align-items: center;
-  gap: $spacing-02;
-  color: theme.$text-secondary;
-  @include type-style('helper-text-01');
-}
-.sg-se__fidelity svg {
-  fill: theme.$support-success;
 }
 .sg-se__zoom {
   inline-size: 14rem;
@@ -409,7 +402,7 @@ textarea.sg-code {
 // Palette items are tiles in a three-column grid: icon above a label that may wrap to two lines.
 .sg-palette__items {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
   gap: 1px;
   margin-inline: $spacing-05;
 }
@@ -426,6 +419,9 @@ textarea.sg-code {
   background: theme.$layer-02;
   color: theme.$text-primary;
   text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
   cursor: grab;
   @include type-style('label-01');
 }
@@ -488,6 +484,20 @@ textarea.sg-code {
   padding: 0 $spacing-02;
   color: theme.$text-primary;
   text-align: start;
+}
+// The name button is the row's click target, not a visible button: the row shows hover, selection and keyboard focus.
+.sg-layers__name.cds--btn:hover,
+.sg-layers__name.cds--btn:active {
+  background: transparent;
+}
+.sg-layers__name.cds--btn:focus {
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
+.sg-layers__row:has(.sg-layers__name:focus-visible) {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
 }
 .sg-layers__name svg {
   flex: 0 0 auto;

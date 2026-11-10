@@ -62,7 +62,6 @@ describe('Screen editor', () => {
     expect(block('header')).toHaveStyle({ left: '0px', top: '0px', width: '1080px' });
     expect(block('main')).not.toBeNull();
     expect(screen.getByText('Draft saved')).toBeInTheDocument();
-    expect(screen.getByText(/Looks exactly like on every 9:16 display/)).toBeInTheDocument();
   });
 
   it('adds a block from the palette and fills a selected empty block', async () => {
