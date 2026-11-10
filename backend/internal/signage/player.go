@@ -324,7 +324,7 @@ func (s *Service) playerLive(ctx context.Context, display PlayerDisplay, withStr
 				return LiveData{}, err
 			}
 		}
-		if live.Timelapses, _, err = s.timelapseSelection(ctx, q, manifest, now); err != nil {
+		if live.Timelapses, _, err = s.timelapseSelection(ctx, q, display, manifest, now); err != nil {
 			return LiveData{}, err
 		}
 		revision := manifest.Revision
@@ -447,7 +447,8 @@ func (s *Service) PreviewDisplay(
 		return DisplayPreview{}, err
 	}
 	// The preview never offers camera streams: it is not the display itself.
-	live, err := s.playerLive(ctx, PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location}, false)
+	live, err := s.playerLive(ctx, PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location,
+		VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside}, false)
 	if err != nil {
 		return DisplayPreview{}, err
 	}

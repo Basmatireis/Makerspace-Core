@@ -1,13 +1,18 @@
 import { Link as CarbonLink } from '@carbon/react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useBranding } from './branding';
 
+/** Router state of a legal page opened from a link: where its back button returns to. */
+export type LegalReturnState = { returnTo?: string };
+
 function LegalLink({ href, children }: { href: string; children: string }) {
+  const location = useLocation();
   const external = /^https?:\/\//i.test(href);
+  const state: LegalReturnState = { returnTo: location.pathname + location.search };
   return external ? (
     <CarbonLink href={href}>{children}</CarbonLink>
   ) : (
-    <CarbonLink as={Link} to={href}>
+    <CarbonLink as={Link} to={href} state={state}>
       {children}
     </CarbonLink>
   );

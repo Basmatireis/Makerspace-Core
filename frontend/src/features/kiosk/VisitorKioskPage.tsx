@@ -10,6 +10,7 @@ import { BrandMark } from '../../app/BrandMark';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { ApiError, apiErrorCode } from '../../api/http-client';
 import { useBranding } from '../branding/branding';
+import { LegalLinks } from '../branding/LegalLinks';
 import { ConsentScreen } from './components/ConsentScreen';
 import { CheckOutScreen } from './components/CheckOutScreen';
 import type { Credentials, LabRulesNeed } from './components/checkIn';
@@ -141,6 +142,7 @@ export function VisitorKioskPage() {
             <p className="tablet-header__device">{context.deviceName}</p>
           </div>
         </div>
+        <LegalLinks className="tablet-header__legal" />
         <div className="tablet-header__time">
           <p className="tablet-header__date">
             {now.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}

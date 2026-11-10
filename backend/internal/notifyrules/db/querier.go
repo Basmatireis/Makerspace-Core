@@ -49,6 +49,7 @@ type Querier interface {
 	CountSupervisorsOnline(ctx context.Context, since time.Time) (int64, error)
 	CountSurveyResponsesSince(ctx context.Context, since pgtype.Date) (int64, error)
 	CountTrainingRecordsSince(ctx context.Context, since time.Time) (int64, error)
+	// Completed visits come from the UTC daily statistics, so the first day counts in full.
 	CountVisitsSince(ctx context.Context, since time.Time) (int64, error)
 	DeferPendingAction(ctx context.Context, arg DeferPendingActionParams) error
 	DeleteCategory(ctx context.Context, arg DeleteCategoryParams) (int64, error)
@@ -104,8 +105,8 @@ type Querier interface {
 	// A recorded run with a live job whose timelapse was stored; runs or jobs in the recycle bin are left out.
 	GetTimelapseEventFacts(ctx context.Context, id uuid.UUID) (GetTimelapseEventFactsRow, error)
 	GetTrainingName(ctx context.Context, id uuid.UUID) (string, error)
-	// The facts of a visit for the check-in and check-out triggers. first_visit is true when the person has no earlier
-	// visit that still counts.
+	// The facts of a visit for the check-in and check-out triggers. first_visit is true when the person has no completed
+	// visit yet: check-out records the last visit date after this runs.
 	GetVisitEventFacts(ctx context.Context, id uuid.UUID) (GetVisitEventFactsRow, error)
 	InsertCategory(ctx context.Context, arg InsertCategoryParams) error
 	InsertFiring(ctx context.Context, arg InsertFiringParams) error
@@ -145,6 +146,8 @@ type Querier interface {
 	ListKioskDeviceNotices(ctx context.Context, arg ListKioskDeviceNoticesParams) ([]ListKioskDeviceNoticesRow, error)
 	// Unshown notices for one person at one tablet. Rows are locked so that two simultaneous check-ins show a notice once.
 	ListKioskPersonNotices(ctx context.Context, arg ListKioskPersonNoticesParams) ([]ListKioskPersonNoticesRow, error)
+	// The day of the last visit (UTC midnight): today while the person is checked in, otherwise the date kept at their
+	// last check-out. No visit history is kept.
 	ListLastVisits(ctx context.Context, personIds []string) ([]ListLastVisitsRow, error)
 	ListMachineOptions(ctx context.Context) ([]ListMachineOptionsRow, error)
 	ListMaterialTypeOptions(ctx context.Context) ([]ListMaterialTypeOptionsRow, error)

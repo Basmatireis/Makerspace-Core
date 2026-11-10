@@ -42,7 +42,7 @@ export function usePublishedView(
 
 /**
  * Names of the outside-visible displays that play the scene (default scenes or a rule) but do not allow live cameras:
- * a camera widget in the scene shows its fallback there.
+ * a camera or timelapse widget in the scene shows its fallback there.
  */
 export function useCameraBlockedDisplays(sceneId: string): string[] {
   const displays = useQuery(displaysQuery()).data?.items;

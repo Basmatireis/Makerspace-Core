@@ -555,7 +555,8 @@ func TestVisitorEnrollmentChecksTheVisitorIn(t *testing.T) {
 				  AND check_in_assurance='low' AND admission_decision='admitted' AND check_in_device_id=$2
 				  AND checked_in_by_account_id=$3`,
 				1, result.PersonID, device.Device.ID, result.AccountID)
-			assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='visit.checked_in'`, 1)
+			// Arriving is not audited; the open visit is the record while the visitor is here.
+			assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action LIKE 'visit.%'`, 0)
 			confirmations := 1
 			if mode == "not_required" {
 				confirmations = 0

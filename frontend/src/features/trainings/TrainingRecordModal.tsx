@@ -138,7 +138,7 @@ export function TrainingRecordModal({
                   <TextArea
                     id="training-notes"
                     labelText="Internal notes (optional)"
-                    helperText="Visible to people who manage training records, not to the person."
+                    helperText="Visible to people who manage training records, not to the person. Do not enter health or medical details."
                     rows={3}
                     maxCount={2000}
                     enableCounter

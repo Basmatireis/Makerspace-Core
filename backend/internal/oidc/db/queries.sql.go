@@ -103,7 +103,7 @@ func (q *Queries) CreateJITAccount(ctx context.Context, arg CreateJITAccountPara
 const createJITPerson = `-- name: CreateJITPerson :one
 INSERT INTO people (id, first_name, last_name, email, phone, member_since)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since, last_visit_on
 `
 
 type CreateJITPersonParams struct {
@@ -139,6 +139,7 @@ func (q *Queries) CreateJITPerson(ctx context.Context, arg CreateJITPersonParams
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
 		&i.MemberSince,
+		&i.LastVisitOn,
 	)
 	return i, err
 }

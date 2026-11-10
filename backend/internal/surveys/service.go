@@ -905,14 +905,14 @@ func (s *Service) CreatePostVisitInvitations(ctx context.Context, tx pgx.Tx, per
 	return nil
 }
 
-func (s *Service) CancelPostVisitInvitations(ctx context.Context, tx pgx.Tx, visitID uuid.UUID) error {
-	_, err := surveysdb.New(tx).CancelSurveyInvitationsForVisit(ctx, &visitID)
-	return err
-}
-
 func (s *Service) DeliverDue(ctx context.Context, limit int32) (int, error) {
 	if limit < 1 || limit > 1000 {
 		limit = 25
+	}
+	// Expired tablet offers still name the person and the check-out; the delivery loop is the frequent job that
+	// removes them.
+	if err := surveysdb.New(s.pool).DeleteExpiredSurveyOffers(ctx); err != nil {
+		return 0, err
 	}
 	rows, err := surveysdb.New(s.pool).ClaimDueSurveyInvitations(ctx, limit)
 	if err != nil {

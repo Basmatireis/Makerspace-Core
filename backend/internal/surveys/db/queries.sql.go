@@ -49,20 +49,6 @@ func (q *Queries) CancelSurveyInvitationsForSurvey(ctx context.Context, surveyID
 	return result.RowsAffected(), nil
 }
 
-const cancelSurveyInvitationsForVisit = `-- name: CancelSurveyInvitationsForVisit :execrows
-UPDATE survey_invitations SET status = 'cancelled', person_id = NULL, visit_id = NULL,
-  recipient_email = NULL, delivery_claimed_at = NULL
-WHERE visit_id = $1 AND status IN ('pending', 'delivering', 'sent', 'failed')
-`
-
-func (q *Queries) CancelSurveyInvitationsForVisit(ctx context.Context, visitID *uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, cancelSurveyInvitationsForVisit, visitID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const claimDueSurveyInvitations = `-- name: ClaimDueSurveyInvitations :many
 WITH candidates AS (
   SELECT si.id FROM survey_invitations si
@@ -181,7 +167,7 @@ func (q *Queries) ConsumeSurveyInvitation(ctx context.Context, id uuid.UUID) (in
 }
 
 const consumeSurveyOffer = `-- name: ConsumeSurveyOffer :execrows
-UPDATE survey_offers SET consumed_at = now(), visit_id = NULL
+UPDATE survey_offers SET consumed_at = now(), visit_id = NULL, person_id = NULL
 WHERE id = $1 AND consumed_at IS NULL
 `
 
@@ -402,15 +388,16 @@ func (q *Queries) CreateSurveyInvitation(ctx context.Context, arg CreateSurveyIn
 }
 
 const createSurveyOffer = `-- name: CreateSurveyOffer :exec
-INSERT INTO survey_offers (id, token_digest, visit_id, device_id, survey_id, survey_version_id, expires_at)
-VALUES ($1, $2, $3, $4, $5,
-  $6, $7)
+INSERT INTO survey_offers (id, token_digest, visit_id, person_id, device_id, survey_id, survey_version_id, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6,
+  $7, $8)
 `
 
 type CreateSurveyOfferParams struct {
 	ID              uuid.UUID
 	TokenDigest     []byte
 	VisitID         *uuid.UUID
+	PersonID        *uuid.UUID
 	DeviceID        uuid.UUID
 	SurveyID        uuid.UUID
 	SurveyVersionID uuid.UUID
@@ -422,6 +409,7 @@ func (q *Queries) CreateSurveyOffer(ctx context.Context, arg CreateSurveyOfferPa
 		arg.ID,
 		arg.TokenDigest,
 		arg.VisitID,
+		arg.PersonID,
 		arg.DeviceID,
 		arg.SurveyID,
 		arg.SurveyVersionID,
@@ -692,9 +680,10 @@ func (q *Queries) DeleteExpiredSurveyInvitationPII(ctx context.Context, beforeTi
 }
 
 const deleteExpiredSurveyOffers = `-- name: DeleteExpiredSurveyOffers :exec
-DELETE FROM survey_offers WHERE expires_at < now() - interval '1 day'
+DELETE FROM survey_offers WHERE expires_at < now()
 `
 
+// An offer that ran out unused still names the person and the check-out time, so it goes as soon as it expires.
 func (q *Queries) DeleteExpiredSurveyOffers(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteExpiredSurveyOffers)
 	return err
@@ -811,6 +800,23 @@ func (q *Queries) GetLatestSurveyVersionForUpdate(ctx context.Context, surveyID 
 		&i.PublishedAt,
 		&i.CreatedAt,
 	)
+	return i, err
+}
+
+const getOfferPerson = `-- name: GetOfferPerson :one
+SELECT p.id, p.email FROM people p WHERE p.id = $1
+`
+
+type GetOfferPersonRow struct {
+	ID    uuid.UUID
+	Email *string
+}
+
+// The person who checked out. The visit is gone by the time the tablet answers, so the offer carries the person.
+func (q *Queries) GetOfferPerson(ctx context.Context, personID uuid.UUID) (GetOfferPersonRow, error) {
+	row := q.db.QueryRow(ctx, getOfferPerson, personID)
+	var i GetOfferPersonRow
+	err := row.Scan(&i.ID, &i.Email)
 	return i, err
 }
 
@@ -1036,7 +1042,7 @@ func (q *Queries) GetSurveyOffer(ctx context.Context, arg GetSurveyOfferParams) 
 }
 
 const getSurveyOfferForUpdate = `-- name: GetSurveyOfferForUpdate :one
-SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status
+SELECT o.id, o.visit_id, o.person_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status
 FROM survey_offers o
 JOIN surveys s ON s.id = o.survey_id
 WHERE o.token_digest = $1 AND o.device_id = $2
@@ -1052,6 +1058,7 @@ type GetSurveyOfferForUpdateParams struct {
 type GetSurveyOfferForUpdateRow struct {
 	ID              uuid.UUID
 	VisitID         *uuid.UUID
+	PersonID        *uuid.UUID
 	SurveyID        uuid.UUID
 	SurveyVersionID uuid.UUID
 	ExpiresAt       time.Time
@@ -1065,6 +1072,7 @@ func (q *Queries) GetSurveyOfferForUpdate(ctx context.Context, arg GetSurveyOffe
 	err := row.Scan(
 		&i.ID,
 		&i.VisitID,
+		&i.PersonID,
 		&i.SurveyID,
 		&i.SurveyVersionID,
 		&i.ExpiresAt,
@@ -1209,22 +1217,6 @@ func (q *Queries) GetSurveyTrigger(ctx context.Context, surveyID uuid.UUID) (Sur
 		&i.UpdatedAt,
 		&i.AskAtTablet,
 	)
-	return i, err
-}
-
-const getVisitPersonForOffer = `-- name: GetVisitPersonForOffer :one
-SELECT p.id, p.email FROM visits v JOIN people p ON p.id = v.person_id WHERE v.id = $1
-`
-
-type GetVisitPersonForOfferRow struct {
-	ID    uuid.UUID
-	Email *string
-}
-
-func (q *Queries) GetVisitPersonForOffer(ctx context.Context, visitID uuid.UUID) (GetVisitPersonForOfferRow, error) {
-	row := q.db.QueryRow(ctx, getVisitPersonForOffer, visitID)
-	var i GetVisitPersonForOfferRow
-	err := row.Scan(&i.ID, &i.Email)
 	return i, err
 }
 

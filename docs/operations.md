@@ -67,7 +67,7 @@ docker compose run --rm --entrypoint /app/admin backend deliver-surveys --limit 
 
 External Event signup contact snapshots and management-token digests default to a 180-day retention period after an Event is completed or cancelled (`EVENT_SIGNUP_RETENTION=4320h`). The same cleanup erases those fields transactionally, retains only non-PII staffing history and any still-linked Person ID, and records a privacy-minimized audit event. Set `EVENT_SIGNUP_RETENTION=0` only as an explicit opt-out backed by the installation's documented retention policy.
 
-Completed and voided Visit detail is removed after 90 days; completed Visit rows are first rolled into non-identifying UTC daily attendance aggregates. Open Visits are never removed by retention cleanup.
+Visits are not retained after check-out: the check-out transaction rolls the visit into non-identifying UTC daily attendance aggregates, keeps the person's last visit date and deletes the visit; voiding deletes an open visit ([details](kiosk-attendance-surveys.md#visits-are-anonymized-at-check-out)). Open Visits are never removed by retention cleanup.
 
 Automatic policy runs are off by default. The scheduler then runs only the legacy routines for in-app notifications, signage announcements, printer telemetry and timelapses. Review the seeded retention policies in Settings › Data › Privacy & data retention (tab Retention policies) and confirm each period against the operating record before relying on them; an active policy replaces the legacy period of its category. See [Retention policies](privacy-and-retention.md#retention-policies) and [Scheduler and legacy behaviour](privacy-and-retention.md#scheduler-and-legacy-behaviour).
 

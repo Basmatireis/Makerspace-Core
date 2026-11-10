@@ -11663,13 +11663,12 @@ paths:
     get:
       tags: [Attendance]
       operationId: listVisits
+      description: |
+        The visits of the people who are in the lab right now. Check-out rolls a visit into the daily statistics and
+        deletes it, so completed visits are not kept and cannot be listed.
       security: [{sessionCookie: []}]
-      parameters:
-        - {name: currentlyHere, in: query, schema: {type: boolean}}
-        - {name: from, in: query, schema: {type: string, format: date-time}}
-        - {name: to, in: query, schema: {type: string, format: date-time}}
       responses:
-        "200": {description: Attendance records., content: {application/json: {schema: {$ref: "#/components/schemas/VisitList"}}}}
+        "200": {description: Open visits., content: {application/json: {schema: {$ref: "#/components/schemas/VisitList"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -11707,6 +11706,10 @@ paths:
     post:
       tags: [Attendance]
       operationId: voidVisit
+      description: |
+        Removes an open visit that should not count (for example a check-in by mistake). The visit is deleted and adds
+        nothing to the statistics; the reason is required but not stored. Completed visits no longer exist (404). The
+        audit event names the acting account but not the visit or the person.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VoidVisitRequest"}}}}
       responses:
@@ -11721,6 +11724,9 @@ paths:
     get:
       tags: [Attendance]
       operationId: getAttendanceStatistics
+      description: |
+        Completed visits come from the non-identifying daily statistics (UTC days) of every day the period touches, so
+        partial first and last days count in full; open visits are added live.
       security: [{sessionCookie: []}]
       parameters:
         - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
@@ -22845,7 +22851,7 @@ components:
         from: {type: string, format: date-time}
         to: {type: string, format: date-time}
         visitorCount: {type: integer, format: int64, minimum: 0}
-        uniqueVisitors: {type: integer, format: int64, minimum: 0}
+        uniqueVisitors: {type: integer, format: int64, minimum: 0, description: "Sum of the daily unique visitors: a person who came on three days counts three times. No visit history is kept to count people across days."}
         visitorHours: {$ref: "#/components/schemas/Decimal"}
         peakOccupancy: {type: integer, format: int64, minimum: 0}
         currentOccupancy: {type: integer, format: int64, minimum: 0}
@@ -23862,7 +23868,7 @@ components:
         location: {type: string, maxLength: 150}
         aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
         visibleFromOutside: {type: boolean}
-        allowCameraOutside: {type: boolean, description: "Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams. Takes effect immediately (no publication needed)."}
+        allowCameraOutside: {type: boolean, description: "Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams or play timelapses. Takes effect immediately (no publication needed)."}
         defaultScenes:
           type: array
           minItems: 0
@@ -24300,6 +24306,7 @@ components:
           description: >-
             Present only while the display's publication contains a timelapse widget: the union of the clips the published timelapse widgets
             need, newest first, at most 50. Only finished recorded runs with a stored timelapse that are not hidden from signage.
+            Empty for a display that is visible from outside without `allowCameraOutside`.
     SignageCalendar:
       type: object
       additionalProperties: false

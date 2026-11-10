@@ -110,15 +110,20 @@ func timelapseNeedsOf(manifest Manifest) (needs []timelapseNeed, present bool) {
 // timelapseSelection lists the clips the publication's timelapse widgets show right now: finished recorded
 // runs with a stored timelapse that are not hidden from signage, the union of every widget's newest clips,
 // newest first and at most maxLiveTimelapses. present reports whether the publication has a timelapse widget.
+// Timelapses are camera recordings, so a display visible from outside without allowCameraOutside gets none.
 func (s *Service) timelapseSelection(
 	ctx context.Context,
 	q *signagedb.Queries,
+	display PlayerDisplay,
 	manifest Manifest,
 	now time.Time,
 ) (clips []LiveTimelapse, present bool, err error) {
 	needs, present := timelapseNeedsOf(manifest)
 	if !present {
 		return nil, false, nil
+	}
+	if !cameraAllowed(display) {
+		return []LiveTimelapse{}, true, nil
 	}
 	seen := map[uuid.UUID]struct{}{}
 	clips = []LiveTimelapse{}
@@ -162,7 +167,8 @@ func (s *Service) timelapseSelection(
 }
 
 // OpenPlayerTimelapse opens a timelapse video for a player, but only while the run is in the display's
-// current timelapse selection with exactly this checksum; everything else is 404.
+// current timelapse selection with exactly this checksum; everything else is 404, including every clip for a
+// display visible from outside without allowCameraOutside.
 func (s *Service) OpenPlayerTimelapse(
 	ctx context.Context,
 	display PlayerDisplay,
@@ -177,7 +183,7 @@ func (s *Service) OpenPlayerTimelapse(
 	if !ok {
 		return TimelapseFile{}, apperror.NotFound
 	}
-	clips, _, err := s.timelapseSelection(ctx, q, manifest, s.now())
+	clips, _, err := s.timelapseSelection(ctx, q, display, manifest, s.now())
 	if err != nil {
 		return TimelapseFile{}, err
 	}

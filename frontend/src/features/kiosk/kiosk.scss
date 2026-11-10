@@ -77,8 +77,10 @@ body:has(.tablet) {
 .tablet-header {
   grid-area: header;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: $spacing-05;
   padding: $spacing-05 $spacing-07;
   background: $layer-01;
   border-block-end: 1px solid $border-subtle-01;
