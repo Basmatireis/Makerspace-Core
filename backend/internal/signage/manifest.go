@@ -467,7 +467,7 @@ type legacyManifestShape struct {
 //     the published playlist's items, and a rule whose playlist was empty is dropped (it showed nothing);
 //   - the default playlist's items become the default list; an empty default playlist becomes the first scene
 //     with the display's ratio, or a synthetic black Blank scene when there is none;
-//   - a scene with a layout and zones gets the blocks that migration 00130 gave the stored scenes, using the
+//   - a scene with a layout and zones gets the blocks that migration 00131 gave the stored scenes, using the
 //     custom layout published with it (ConvertLegacyScene).
 func upgradeManifest(raw []byte) (Manifest, error) {
 	var manifest Manifest

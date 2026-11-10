@@ -198,7 +198,7 @@ func TestUpgradeManifestFallsBackToBlankScene(t *testing.T) {
 }
 
 // A version 3 publication carries layouts with zones and the custom layouts it uses. Reading it gives every scene
-// the blocks that migration 00130 gave the stored scenes: built-in grids, custom grids and free layouts, and a
+// the blocks that migration 00131 gave the stored scenes: built-in grids, custom grids and free layouts, and a
 // missing custom layout renders as full.
 func TestUpgradeVersion3ManifestConvertsLayoutsToBlocks(t *testing.T) {
 	const raw = `{"manifestVersion":3,"revision":7,"display":{"aspectRatio":{"width":16,"height":9},"visibleFromOutside":false},
