@@ -1,13 +1,11 @@
-import type { SignageCustomLayout, SignageScene } from '../../api/generated/models';
-import { resolveLayout } from './layouts';
-import { HEX_COLOR, widgetError } from './widgets';
+import type { SignageScene, UpdateSignageSceneRequest } from '../../api/generated/models';
+import { blocksError, HEX_COLOR } from './widgets';
 
+/** The editable part of a scene: everything the editor changes and autosaves. */
 export type Draft = Pick<
   SignageScene,
   | 'name'
   | 'aspectRatio'
-  | 'layoutId'
-  | 'customLayoutId'
   | 'backgroundColor'
   | 'backgroundAssetId'
   | 'backgroundFit'
@@ -15,13 +13,12 @@ export type Draft = Pick<
   | 'theme'
   | 'fontFamily'
   | 'fontAssetId'
-  | 'zones'
+  | 'blocks'
 >;
+
 export const toDraft = (scene: SignageScene): Draft => ({
   name: scene.name,
   aspectRatio: scene.aspectRatio,
-  layoutId: scene.layoutId,
-  customLayoutId: scene.customLayoutId,
   backgroundColor: scene.backgroundColor,
   backgroundAssetId: scene.backgroundAssetId,
   backgroundFit: scene.backgroundFit,
@@ -29,18 +26,20 @@ export const toDraft = (scene: SignageScene): Draft => ({
   theme: scene.theme,
   fontFamily: scene.fontFamily,
   fontAssetId: scene.fontAssetId,
-  zones: scene.zones,
+  blocks: scene.blocks,
+});
+
+export const draftRequest = (draft: Draft, expectedVersion: number): UpdateSignageSceneRequest => ({
+  expectedVersion,
+  ...draft,
+  backgroundAssetId: draft.backgroundAssetId ?? null,
 });
 
 /** What certainly would be rejected is not sent; the person sees why instead of a failed save. */
-export function draftError(draft: Draft, customLayouts: readonly SignageCustomLayout[] = []): string | null {
-  if (draft.name.trim() === '') return 'Give the scene a name.';
+export function draftError(draft: Draft): string | null {
+  if (draft.name.trim() === '') return 'Give the screen a name.';
   if (draft.name.length > 100) return 'The name is limited to 100 characters.';
   if (!HEX_COLOR.test(draft.backgroundColor)) return 'Enter the background colour as #rrggbb.';
   if (draft.fontFamily === 'custom' && !draft.fontAssetId) return 'Choose an uploaded font.';
-  for (const zone of resolveLayout(draft.layoutId, draft.customLayoutId, customLayouts).zones) {
-    const message = widgetError(draft.zones[zone.id] ?? { type: 'empty' });
-    if (message) return `Zone ${zone.label}: ${message}`;
-  }
-  return null;
+  return blocksError(draft.blocks);
 }
