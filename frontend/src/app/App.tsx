@@ -51,6 +51,7 @@ import {
   OrganizationDetailPage,
   OrganizationsPage,
   PINEnrollmentPage,
+  PrintPage,
   PaymentDetailPage,
   PaymentsPage,
   PricingPage,
@@ -167,6 +168,17 @@ export function App() {
               <ColorSchemeRoot>
                 <ProtectedRoute>
                   <LabRulesConfirmPage />
+                </ProtectedRoute>
+              </ColorSchemeRoot>
+            }
+          />
+          {/* Opened from the "timelapse ready" notification and e-mail: needs a session but not the application shell. */}
+          <Route
+            path="/prints/:runId"
+            element={
+              <ColorSchemeRoot>
+                <ProtectedRoute>
+                  <PrintPage />
                 </ProtectedRoute>
               </ColorSchemeRoot>
             }

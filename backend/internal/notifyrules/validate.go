@@ -100,6 +100,9 @@ func (v *validator) triggerDef(t *TriggerDef) error {
 			return fail("trigger.event", "unknown or unavailable event")
 		}
 		v.trigger, v.hasTrig = trigger, true
+		if err := v.machines(t.Machines, trigger); err != nil {
+			return err
+		}
 		v.event = v.visibleFields(trigger.Fields)
 		v.recipients = keySet(trigger.Recipients)
 		v.resolutions = keySet(append(GenericResolutions(), trigger.Resolutions...))
@@ -109,6 +112,9 @@ func (v *validator) triggerDef(t *TriggerDef) error {
 			v.placeholders[p.Key] = true
 		}
 	case TriggerSchedule:
+		if len(t.Machines) > 0 {
+			return fail("trigger.machines", "only an event trigger about a machine takes machines")
+		}
 		if t.Event != "" {
 			return fail("trigger.event", "a schedule trigger has no event")
 		}
@@ -125,6 +131,9 @@ func (v *validator) triggerDef(t *TriggerDef) error {
 			}
 		}
 	case TriggerManual:
+		if len(t.Machines) > 0 {
+			return fail("trigger.machines", "only an event trigger about a machine takes machines")
+		}
 		if v.env.Personal {
 			return fail("trigger.type", "a personal rule fires on an event or a schedule")
 		}
@@ -135,6 +144,36 @@ func (v *validator) triggerDef(t *TriggerDef) error {
 		v.recipients, v.subjects, v.placeholders = map[string]bool{}, map[string]bool{}, map[string]bool{}
 	default:
 		return fail("trigger.type", "must be event, schedule or manual")
+	}
+	return nil
+}
+
+// machines checks the machine scope of an event rule: only triggers about one machine take it, and every machine must
+// be one the trigger's machine field offers.
+func (v *validator) machines(machines []uuid.UUID, trigger Trigger) error {
+	if len(machines) == 0 {
+		return nil
+	}
+	field, ok := trigger.Field(MachineScopeField)
+	if !ok || !v.env.canSee(field.Permission) {
+		return fail("trigger.machines", "this event is not about a machine")
+	}
+	if len(machines) > MaxMachines {
+		return fail("trigger.machines", fmt.Sprintf("at most %d machines", MaxMachines))
+	}
+	options, err := v.optionValues(field)
+	if err != nil {
+		return err
+	}
+	seen := map[uuid.UUID]bool{}
+	for _, machine := range machines {
+		if seen[machine] {
+			return fail("trigger.machines", "lists a machine twice")
+		}
+		seen[machine] = true
+		if _, known := options[machine.String()]; !known {
+			return fail("trigger.machines", "contains an unknown machine")
+		}
 	}
 	return nil
 }

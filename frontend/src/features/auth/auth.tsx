@@ -63,7 +63,8 @@ export function usePINLogin() {
   });
 }
 
-export function useLogout() {
+/** `returnTo` (an in-app path) is where the next sign-in comes back to, for example to hand a page to another account. */
+export function useLogout(returnTo?: string) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   return useMutation({
@@ -71,7 +72,10 @@ export function useLogout() {
     onSuccess: () => {
       const currentUser = queryClient.getQueryData<CurrentUser>(authQueryKey);
       clearPrivateQueryData();
-      void navigate(sessionDestination(currentUser), { replace: true });
+      void navigate(sessionDestination(currentUser), {
+        replace: true,
+        state: returnTo ? { from: returnTo } : undefined,
+      });
     },
   });
 }

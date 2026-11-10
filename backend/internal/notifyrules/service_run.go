@@ -462,6 +462,8 @@ func (s *Service) estimate(ctx context.Context, q *store, def Definition, matche
 		occurrences, err = q.CountPrinterErrorsSince(ctx, since)
 	case "run_finished":
 		occurrences, err = q.CountFinishedJobRunsSince(ctx, pgtypeTime(since))
+	case "timelapse_ready":
+		occurrences, err = q.CountJobRunTimelapsesSince(ctx, since)
 	case "lab_rules_published":
 		occurrences, err = q.CountLabRulesPublishedSince(ctx, pgtypeTime(since))
 	case "check_in":

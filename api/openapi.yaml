@@ -40,6 +40,8 @@ tags:
   - name: Pricing
   - name: Machine Jobs
   - name: Machine Runs
+  - name: Print pages
+    description: "The standalone page of one recorded print, opened from a notification e-mail by the job's recipient or by staff (docs/machine-logbook.md)."
   - name: Inventory
   - name: Filament Spools
   - name: Printing
@@ -9409,6 +9411,90 @@ paths:
         "416": {description: The requested range is not satisfiable.}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /print-pages/{runId}:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Print pages]
+      operationId: getPrintPage
+      summary: The print page of one recorded run
+      description: >-
+        Any signed-in person who is the current recipient (a person, not an organization) of the run's job, or anyone with machine_jobs.read.
+        Everybody else, and runs that are unknown, manual, without a job, or whose run or job is in the recycle bin, get the same 404, so the
+        answer never reveals whether a run exists. The page names the print, the machine, its times and outcome, the timelapse and the 3MF with
+        its previews; it never carries material, quantities, prices, the operator or the recipient.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Print page., content: {application/json: {schema: {$ref: "#/components/schemas/PrintPage"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-pages/{runId}/timelapse/content:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Print pages]
+      operationId: downloadPrintPageTimelapse
+      summary: Stream or download the timelapse of a print page
+      description: >-
+        Same access as getPrintPage. Served like downloadMachineRunTimelapse: HTTP Range requests (one range) are answered with 206 when the
+        storage backend can seek, other backends answer the full body with `Accept-Ranges: none`; always `Cache-Control: no-store` and
+        `Content-Disposition: attachment`. 404 when the run has no timelapse.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Whole video.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}, Accept-Ranges: {schema: {type: string}}}
+          content: {video/mp4: {schema: {type: string, format: binary}}}
+        "206":
+          description: Partial content for a Range request.
+          headers: {Content-Range: {schema: {type: string}}}
+          content: {video/mp4: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "416": {description: The requested range is not satisfiable.}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-pages/{runId}/file/content:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Print pages]
+      operationId: downloadPrintPageFile
+      summary: Download the 3MF of a print page
+      description: Same access as getPrintPage. The original 3MF as an attachment; 404 when the run has no stored 3MF.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Original 3MF bytes as an attachment.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content: {application/octet-stream: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-pages/{runId}/previews/{previewId}/content:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: previewId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Print pages]
+      operationId: getPrintPagePreview
+      summary: Image of a preview of a print page's 3MF
+      description: Same access as getPrintPage. 404 unless the preview belongs to the run's 3MF. Served inline for img elements.
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Validated PNG or JPEG bytes.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /machine-runs/{runId}/artifact-refetch:
     parameters:
       - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -12696,6 +12782,14 @@ components:
         type: {type: string, maxLength: 40, description: "One of event, schedule, manual."}
         event: {type: string, maxLength: 60, description: Key of a catalog trigger.}
         schedule: {$ref: "#/components/schemas/NotificationRuleSchedule"}
+        machines:
+          type: array
+          maxItems: 50
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/UUIDv7"}
+          description: >-
+            Only for event triggers whose catalog entry has `machineScope`: the rule reacts only to events of these machines (the options of the
+            trigger's `machine` field). Empty or absent means every machine.
 
     NotificationRuleLoop:
       type: object
@@ -13081,13 +13175,14 @@ components:
     NotificationCatalogTrigger:
       type: object
       additionalProperties: false
-      required: [key, area, label, help, subject, fields, recipients, placeholders, resolutions, throttleSubjects]
+      required: [key, area, label, help, subject, machineScope, fields, recipients, placeholders, resolutions, throttleSubjects]
       properties:
         key: {type: string}
         area: {type: string}
         label: {type: string}
         help: {type: string}
         subject: {type: string, maxLength: 40, description: "`lab` or `self`. `self` events concern one person; a personal rule only fires for that person."}
+        machineScope: {type: boolean, description: "The trigger's events concern one machine: a rule may limit itself to some machines with `trigger.machines`, chosen from the options of its `machine` field."}
         fields: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogField"}}
         recipients: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogChoice"}}
         placeholders: {type: array, items: {$ref: "#/components/schemas/NotificationCatalogPlaceholder"}}
@@ -20303,6 +20398,55 @@ components:
         timelapse: {allOf: [{$ref: "#/components/schemas/MachineRunTimelapse"}], nullable: true, description: Stream with downloadMachineRunTimelapse.}
         timelapseStatus: {allOf: [{$ref: "#/components/schemas/MachineRunTimelapseStatus"}], nullable: true, description: Null for manual runs and running runs without a report.}
         commands: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/MachineRunCommand"}, description: The latest command of each kind.}
+
+    PrintPage:
+      type: object
+      additionalProperties: false
+      description: >-
+        One recorded print as its recipient sees it. Deliberately without material, quantities, prices, the operator, who started it and the
+        recipient.
+      required: [runId, displayId, title, machineName, startedAt, endedAt, durationSeconds, outcome, timelapse, timelapseStatus, artifact, previews, viewerIsStaff]
+      properties:
+        runId: {$ref: "#/components/schemas/UUIDv7"}
+        displayId: {type: string, description: The run's number.}
+        title: {type: string, description: "The job's title; without one the 3MF's original file name, then the printer's file name, then the run's number."}
+        machineName: {type: string}
+        startedAt: {type: string, format: date-time}
+        endedAt: {type: string, format: date-time, nullable: true, description: Null while the print runs.}
+        durationSeconds: {type: integer, format: int64, minimum: 0, nullable: true, description: From start to end; null while the print runs.}
+        outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true}
+        timelapse: {allOf: [{$ref: "#/components/schemas/PrintPageTimelapse"}], nullable: true, description: Stream with downloadPrintPageTimelapse.}
+        timelapseStatus: {allOf: [{$ref: "#/components/schemas/MachineRunTimelapseStatus"}], nullable: true, description: "Why there is no timelapse (yet); `detail` is always null here."}
+        artifact: {allOf: [{$ref: "#/components/schemas/PrintPageArtifact"}], nullable: true, description: Download with downloadPrintPageFile.}
+        previews: {type: array, maxItems: 200, items: {$ref: "#/components/schemas/PrintPagePreview"}, description: "Images of the 3MF, plates first; load them with getPrintPagePreview."}
+        viewerIsStaff: {type: boolean, description: The caller holds machine_jobs.read and may open the run in the workshop pages.}
+
+    PrintPageTimelapse:
+      type: object
+      additionalProperties: false
+      required: [sizeBytes, mimeType, expiresAt]
+      properties:
+        sizeBytes: {type: integer, format: int64, minimum: 1}
+        mimeType: {type: string, enum: [video/mp4]}
+        expiresAt: {type: string, format: date-time, nullable: true, description: When the retention setting removes it; null keeps it.}
+
+    PrintPageArtifact:
+      type: object
+      additionalProperties: false
+      required: [originalFileName, sizeBytes]
+      properties:
+        originalFileName: {type: string}
+        sizeBytes: {type: integer, format: int64, minimum: 0}
+
+    PrintPagePreview:
+      type: object
+      additionalProperties: false
+      required: [id, role, plateNumber, primary]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        role: {type: string, enum: [plate, model, other], description: "plate previews carry plateNumber (shown as Plate N)."}
+        plateNumber: {type: integer, minimum: 0, nullable: true}
+        primary: {type: boolean}
 
     MachineRunRecordingList:
       type: object

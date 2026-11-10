@@ -31,6 +31,7 @@ export * from './people/people';
 export * from './permissions/permissions';
 export * from './pricing/pricing';
 export * from './print-artifacts/print-artifacts';
+export * from './print-pages/print-pages';
 export * from './printer-connectors/printer-connectors';
 export * from './printing/printing';
 export * from './privacy/privacy';

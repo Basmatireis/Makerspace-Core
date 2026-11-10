@@ -359,7 +359,7 @@ func declarations() []privacy.Definition {
 		},
 		{
 			ID: PrintArtifacts, Owner: Machines, Name: "Print files and previews",
-			Description:   "3MF files with their embedded metadata and the preview images generated from them.",
+			Description:   "3MF files with their embedded metadata and the preview images generated from them. Staff and the job's recipient (on the print page) can download them.",
 			Contains:      "3MF files with embedded metadata, generated previews",
 			Fields:        []string{"print_artifacts.*", "print_artifact_previews.*"},
 			Triggers:      []privacy.Trigger{privacy.TriggerCreatedAt, privacy.TriggerCompletedAt},
@@ -383,7 +383,7 @@ func declarations() []privacy.Definition {
 		},
 		{
 			ID: RunTimelapses, Owner: Machines, Name: "Run timelapses",
-			Description: "Timelapse videos of recorded runs.",
+			Description: "Timelapse videos of recorded runs; the camera may show people at the printer. Staff and the job's recipient (on the print page) can view them.",
 			Contains:    "Timelapse videos of recorded runs",
 			Fields:      []string{"machine_run_timelapses.*"},
 			Triggers:    []privacy.Trigger{privacy.TriggerCreatedAt},
