@@ -49,10 +49,12 @@ function DayCell({ day, widget, limit }: { day: CalendarDay; widget: SignageCale
         <span className="sg-cal__number">{day.day}</span>
         {shown.map((entry, index) => {
           const color = widget.colors[entry.category];
+          // The plain colour also draws the entry as a bar in the narrowest cells.
           const entryStyle = {
             borderInlineStartColor: color,
             background: withOpacity(color, 30),
-          } satisfies CSSProperties;
+            '--sg-cal-color': color,
+          } as CSSProperties;
           return (
             <span
               key={`${entry.category}-${index}`}
