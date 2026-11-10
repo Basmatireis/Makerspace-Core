@@ -234,6 +234,8 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService).
 		WithNotifications(notificationEmitter)
 	visitorService.SetAttendance(attendanceService)
+	notifyRulesService := notifyrules.NewService(pool).WithDispatcher(notifyDispatcher, location)
+	visitorService.SetConsents(notifyRulesService)
 	runRecordingsService := runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg)).
 		WithNotifications(notificationEmitter)
 	auditRetention, eventSignupRetention := cfg.AuditRetention, cfg.EventSignupRetention
@@ -277,7 +279,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 		signage:            signageService,
 		surveys:            surveyService,
 		inbox:              inbox.NewService(pool),
-		notifyRules:        notifyrules.NewService(pool).WithDispatcher(notifyDispatcher, location),
+		notifyRules:        notifyRulesService,
 		notifyDispatcher:   notifyDispatcher,
 		guides:             guides.NewService(pool),
 		accountPreferences: accountpreferences.NewService(pool),

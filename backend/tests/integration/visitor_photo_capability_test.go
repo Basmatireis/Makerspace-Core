@@ -141,7 +141,7 @@ func TestVisitorEnrollmentPhotoFollowsDeviceCapabilities(t *testing.T) {
 			submit := func(enrollment visitor.Context, loginName string, image []byte) error {
 				email, pin := loginName+"@example.test", "654321"
 				_, err := service.Submit(ctx, enrollment, visitor.SubmissionInput{
-					FirstName: "Photo", LastName: "Visitor", Email: &email, AuthMethods: []visitor.AuthMethod{"pin"},
+					FirstName: "Photo", LastName: "Visitor", Email: email, AuthMethods: []visitor.AuthMethod{"pin"},
 					PINLoginName: &loginName, PIN: &pin, ProfileImage: image, LabRulesAccepted: true,
 				}, nil)
 				return err

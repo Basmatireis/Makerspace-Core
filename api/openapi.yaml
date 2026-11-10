@@ -6665,6 +6665,27 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /visitor-enrollment/login-name-suggestions:
+    post:
+      tags: [Visitor Enrollment]
+      operationId: suggestVisitorPinLoginName
+      summary: Suggest a free PIN login name from the visitor's name
+      description: |
+        Builds `firstname.lastname` (lower case, umlauts and accents transliterated, other characters dropped) and
+        appends a random number when that name is taken (a random number, so the answer does not tell which numbered names exist). Answers 403 when PIN enrollment is not allowed. It creates nothing; the name is checked again when the enrollment is
+        submitted. Answers 422 when no valid login name can be built from the name.
+      security: []
+      parameters:
+        - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorLoginNameSuggestionRequest"}}}}
+      responses:
+        "200": {description: A login name that is free right now., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorLoginNameSuggestion"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /visitor-enrollment/submissions:
     post:
       tags: [Visitor Enrollment]
@@ -6673,7 +6694,9 @@ paths:
       description: |
         Completing enrollment counts as arriving: the visitor is checked in. When the configured role asks for the Lab
         Rules, `labRulesAccepted` must be true (422 otherwise) and records the visitor's confirmation (method
-        `enrollment`) of the Lab Rules version pinned by the enrollment context. When that version is no longer the
+        `enrollment`) of the Lab Rules version pinned by the enrollment context. `consents` holds the visitor's answers
+        to the notification categories listed in the enrollment state (place `kiosk`); they are stored in the same
+        transaction, and a category left out is asked at a later check-in. When that version is no longer the
         current one, the answer is 409 `lab_rules_changed` and the kiosk must start over with the new version.
         Current device, method, and initial-role configuration is still enforced.
       security: []
@@ -13519,6 +13542,14 @@ components:
         askFeedbackAtCheckout: {type: boolean}
         rules: {type: array, items: {$ref: "#/components/schemas/NotificationReachingRule"}}
 
+    ConsentAnswer:
+      type: object
+      additionalProperties: false
+      required: [categoryId, granted]
+      properties:
+        categoryId: {$ref: "#/components/schemas/UUIDv7"}
+        granted: {type: boolean}
+
     AnswerNotificationConsentsRequest:
       type: object
       additionalProperties: false
@@ -13528,13 +13559,7 @@ components:
           type: array
           minItems: 1
           maxItems: 50
-          items:
-            type: object
-            additionalProperties: false
-            required: [categoryId, granted]
-            properties:
-              categoryId: {$ref: "#/components/schemas/UUIDv7"}
-              granted: {type: boolean}
+          items: {$ref: "#/components/schemas/ConsentAnswer"}
         place: {type: string, maxLength: 40, description: "`app` or `profile`: where the person answered. The tablet answers through its own endpoint."}
 
     SetNotificationRulePreferenceRequest:
@@ -17962,9 +17987,10 @@ components:
     VisitorEnrollmentState:
       type: object
       additionalProperties: false
-      required: [allowedMethods, capabilities, currentLabRules, labRulesRequired, expiresAt]
+      required: [allowedMethods, capabilities, currentLabRules, labRulesRequired, consentCategories, expiresAt]
       properties:
         allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
+        consentCategories: {type: array, maxItems: 50, description: "Notification categories that need the visitor's consent, asked during enrollment. Nothing is preselected.", items: {$ref: "#/components/schemas/TerminalConsentCategory"}}
         capabilities: {type: array, uniqueItems: true, description: "Effective capabilities of the enrolling device. A profile photo is required exactly when this includes camera or file_upload.", items: {$ref: "#/components/schemas/DeviceCapability"}}
         currentLabRules: {allOf: [{$ref: "#/components/schemas/VisitorLabRulesVersion"}], nullable: true}
         labRulesRequired: {type: boolean, description: "Whether the Visitor role asks for the Lab Rules. Only then does the kiosk show them and does enrollment record the confirmation."}
@@ -17973,18 +17999,33 @@ components:
     VisitorEnrollmentSubmission:
       type: object
       additionalProperties: false
-      required: [firstName, lastName, email, phone, authMethods, pinLoginName, pin, profileImageBase64, profileImageFilename, labRulesAccepted]
+      required: [firstName, lastName, email, authMethods, pinLoginName, pin, profileImageBase64, profileImageFilename, labRulesAccepted, consents]
       properties:
         firstName: {type: string, minLength: 1, maxLength: 100}
         lastName: {type: string, minLength: 1, maxLength: 100}
-        email: {type: string, format: email, nullable: true}
-        phone: {type: string, minLength: 1, maxLength: 64, nullable: true}
+        email: {type: string, format: email, minLength: 3, maxLength: 320, description: "Required: the visitor's contact address and the account's login email."}
         authMethods: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
         pinLoginName: {type: string, minLength: 3, maxLength: 64, nullable: true}
         pin: {type: string, pattern: "^[0-9]{6,12}$", writeOnly: true, nullable: true}
         profileImageBase64: {type: string, format: byte, minLength: 4, maxLength: 12000000, writeOnly: true, nullable: true, description: Required when the enrolling device's effective capabilities include camera or file_upload; otherwise it may be null.}
         profileImageFilename: {type: string, minLength: 1, maxLength: 255, nullable: true}
         labRulesAccepted: {type: boolean, description: "The visitor read and accepts the pinned Lab Rules (\"I have read and accept the Lab Rules\"). Must be true when the visitor role asks for the Lab Rules."}
+        consents: {type: array, maxItems: 50, description: "Answers to the enrollment state's consent categories; may be empty.", items: {$ref: "#/components/schemas/ConsentAnswer"}}
+
+    VisitorLoginNameSuggestionRequest:
+      type: object
+      additionalProperties: false
+      required: [firstName, lastName]
+      properties:
+        firstName: {type: string, minLength: 1, maxLength: 100}
+        lastName: {type: string, minLength: 1, maxLength: 100}
+
+    VisitorLoginNameSuggestion:
+      type: object
+      additionalProperties: false
+      required: [loginName]
+      properties:
+        loginName: {type: string, minLength: 3, maxLength: 64}
 
     VisitorEnrollmentResult:
       type: object
@@ -23016,13 +23057,7 @@ components:
           type: array
           minItems: 1
           maxItems: 50
-          items:
-            type: object
-            additionalProperties: false
-            required: [categoryId, granted]
-            properties:
-              categoryId: {$ref: "#/components/schemas/UUIDv7"}
-              granted: {type: boolean}
+          items: {$ref: "#/components/schemas/ConsentAnswer"}
     TerminalSurveyOffer:
       type: object
       additionalProperties: false

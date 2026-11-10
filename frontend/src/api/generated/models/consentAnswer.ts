@@ -20,7 +20,7 @@
  */
 import type { UUIDv7 } from './uUIDv7';
 
-export type TerminalConsentRequestAnswersItem = {
+export interface ConsentAnswer {
   categoryId: UUIDv7;
   granted: boolean;
-};
+}
