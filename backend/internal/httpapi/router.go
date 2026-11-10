@@ -1145,7 +1145,8 @@ func sourceAddress(ctx context.Context) string {
 func isVisitorEnrollmentPublicPath(path string) bool {
 	switch path {
 	case apiBasePath + "/visitor-enrollment/context", apiBasePath + "/visitor-enrollment/state",
-		apiBasePath + "/visitor-enrollment/lab-rules.pdf", apiBasePath + "/visitor-enrollment/submissions":
+		apiBasePath + "/visitor-enrollment/lab-rules.pdf", apiBasePath + "/visitor-enrollment/submissions",
+		apiBasePath + "/visitor-enrollment/login-name-suggestions":
 		return true
 	default:
 		return false

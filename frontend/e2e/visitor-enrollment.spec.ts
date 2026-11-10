@@ -69,9 +69,19 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
             humanRevision: '2026-09',
             effectiveAt: '2026-09-01T00:00:00Z',
           },
+          consentCategories: [
+            {
+              id: '0192f6f8-743e-7c77-a349-cd07c3e8ab21',
+              name: 'News & events',
+              description: 'Workshops, events and other news.',
+              basis: 'consent',
+            },
+          ],
           expiresAt: '2030-01-01T00:00:00Z',
         },
       });
+    } else if (path.endsWith('/visitor-enrollment/login-name-suggestions')) {
+      await route.fulfill({ json: { loginName: 'local.visitor' } });
     } else if (path.endsWith('/visitor-enrollment/lab-rules.pdf')) {
       await route.fulfill({ contentType: 'application/pdf', body: labRulesPdf });
     } else if (path.endsWith('/visitor-enrollment/submissions')) {
@@ -108,9 +118,19 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   await page.screenshot({ path: testInfo.outputPath('visitor-step-1.png') });
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByRole('heading', { name: 'Sign-in method' })).toBeFocused();
-  await page.getByLabel('PIN login username', { exact: true }).fill('local.visitor');
+  await expect(page.getByLabel('Login name', { exact: true })).toHaveValue('local.visitor');
   await page.getByLabel('PIN (6–12 digits)', { exact: true }).fill('654321');
   await page.screenshot({ path: testInfo.outputPath('visitor-step-2.png') });
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByRole('heading', { name: 'Messages' })).toBeFocused();
+  // Carbon draws the switch over its button; a visitor taps the drawn switch.
+  await page
+    .locator('.visitor-flow__consent-item', { hasText: 'News & events' })
+    .locator('.cds--toggle__appearance')
+    .click();
+  await expect(page.getByRole('switch', { name: 'News & events' })).toBeChecked();
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('visitor-messages.png') });
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByRole('heading', { name: 'Lab Rules' })).toBeFocused();
   await page.getByRole('button', { name: 'View current Lab Rules PDF' }).click();
@@ -120,8 +140,8 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   await page.keyboard.press('Escape');
   await expect(rules).toBeHidden();
   await page.getByText(/I have read and accept the Lab Rules/).click();
-  await page.screenshot({ path: testInfo.outputPath('visitor-step-3.png') });
-  await page.getByRole('button', { name: 'Submit enrollment' }).click();
+  await page.screenshot({ path: testInfo.outputPath('visitor-step-4.png') });
+  await page.getByRole('button', { name: 'Register and check in' }).click();
   await expect(page.getByRole('heading', { name: 'Local, your account is ready.' })).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('visitor-submitted.png'), fullPage: true });

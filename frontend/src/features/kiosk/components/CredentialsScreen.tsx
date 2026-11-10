@@ -104,14 +104,24 @@ export function CredentialsScreen({
         <Button kind="ghost" size="lg" renderIcon={ArrowLeft} iconDescription="Back" onClick={onCancel}>
           Back
         </Button>
-        {mode === 'check-in' && (
-          <Button as={Link} to="/visitor-enrollment" kind="tertiary" size="lg" renderIcon={UserFollow}>
-            New here? Register as a visitor
-          </Button>
-        )}
       </div>
 
       <h1 className="tablet-identify__title">{mode === 'check-in' ? 'Who is arriving?' : 'Who is leaving?'}</h1>
+
+      {/* First-time visitors have no credentials yet: their way in sits right under the question. */}
+      {mode === 'check-in' && (
+        <div className="tablet-register">
+          <div>
+            <p className="tablet-register__title">First time here?</p>
+            <p className="tablet-register__text">
+              Register as a visitor. It takes about two minutes and checks you in.
+            </p>
+          </div>
+          <Button as={Link} to="/visitor-enrollment" size="xl" renderIcon={UserFollow}>
+            Register
+          </Button>
+        </div>
+      )}
 
       {available.length > 1 && (
         <ContentSwitcher

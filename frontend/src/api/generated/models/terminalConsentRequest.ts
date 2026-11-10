@@ -18,7 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { TerminalConsentRequestAnswersItem } from './terminalConsentRequestAnswersItem';
+import type { ConsentAnswer } from './consentAnswer';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface TerminalConsentRequest {
@@ -27,5 +27,5 @@ export interface TerminalConsentRequest {
      * @minItems 1
      * @maxItems 50
      */
-  answers: TerminalConsentRequestAnswersItem[];
+  answers: ConsentAnswer[];
 }

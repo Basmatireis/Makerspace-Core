@@ -1,23 +1,25 @@
 import {
   Button,
   Checkbox,
+  ContentSwitcher,
   Form,
-  FormGroup,
   InlineNotification,
+  Link as CarbonLink,
   Modal,
   PasswordInput,
   ProgressIndicator,
   ProgressStep,
-  RadioTile,
+  Switch,
   TextInput,
-  TileGroup,
+  Toggle,
 } from '@carbon/react';
 import { ArrowLeft, ArrowRight } from '@carbon/icons-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   submitVisitorEnrollment,
+  suggestVisitorPinLoginName,
   type getVisitorEnrollmentState,
 } from '../../api/generated/visitor-enrollment/visitor-enrollment';
 import type { VisitorAuthenticationMethod } from '../../api/generated/models';
@@ -25,6 +27,7 @@ import { apiErrorCode } from '../../api/http-client';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { BrandMark } from '../../app/BrandMark';
 import { usePageTitle, useBranding } from '../branding/branding';
+import { LegalLinks } from '../branding/LegalLinks';
 import { EnrollmentDone, type EnrollmentOutcome } from './components/EnrollmentDone';
 import { LabRulesModal } from './components/LabRulesModal';
 import { ProfilePhotoPicker, type ProfileImage } from './components/ProfilePhotoPicker';
@@ -34,23 +37,34 @@ import './visitor.scss';
 
 const idleSeconds = 30;
 const graceSeconds = 30;
-const allStepTitles = ['About you', 'Sign-in method', 'Lab Rules'] as const;
+type StepKey = 'about' | 'method' | 'messages' | 'rules';
+const stepTitles: Record<StepKey, string> = {
+  about: 'About you',
+  method: 'Sign-in method',
+  messages: 'Messages',
+  rules: 'Lab Rules',
+};
 const pinPattern = /^[0-9]{6,12}$/;
 const loginNamePattern = /^[A-Za-z0-9._-]{3,64}$/;
 const emailPattern = /^\S+@\S+\.\S+$/;
 
 type EnrollmentState = Awaited<ReturnType<typeof getVisitorEnrollmentState>>;
 
-// Three steps that fit one tablet screen; the Lab Rules step only when the Visitor role asks for them, because only
-// then does enrollment record the confirmation. All entries live only in this component: leaving the page (back, Done or
-// inactivity) unmounts it, which releases the camera and discards everything.
+// Up to four steps that each fit one tablet screen. Messages asks the notification consent of a tablet check-in, so a
+// new visitor answers it right away; it is left out when no category needs consent. The Lab Rules step appears only
+// when the Visitor role asks for them, because only then does enrollment record the confirmation. All entries live
+// only in this component: leaving the page (back, Done or inactivity) unmounts it, which releases the camera and
+// discards everything.
 function BrandLockup() {
   const branding = useBranding();
   return (
-    <p className="visitor-flow__brand">
-      <BrandMark kind="logo" className="visitor-flow__logo" />
-      <span>{branding.identity.displayName}</span>
-    </p>
+    <div className="visitor-flow__header-end">
+      <LegalLinks />
+      <p className="visitor-flow__brand">
+        <BrandMark kind="logo" className="visitor-flow__logo" />
+        <span>{branding.identity.displayName}</span>
+      </p>
+    </div>
   );
 }
 
@@ -60,18 +74,27 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const heading = useRef<HTMLHeadingElement>(null);
+  const branding = useBranding();
   const [step, setStep] = useState(0);
-  const stepTitles = state.labRulesRequired ? allStepTitles : allStepTitles.slice(0, 2);
-  const lastStep = stepTitles.length - 1;
+  const steps: StepKey[] = [
+    'about',
+    'method',
+    ...(state.consentCategories.length > 0 ? (['messages'] as const) : []),
+    ...(state.labRulesRequired ? (['rules'] as const) : []),
+  ];
+  const current = steps[step];
+  const lastStep = steps.length - 1;
   const [rulesOpen, setRulesOpen] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
   const [image, setImage] = useState<ProfileImage>();
   const [chosen, setChosen] = useState<VisitorAuthenticationMethod>();
-  const [loginName, setLoginName] = useState('');
+  // Undefined until the visitor types: the field shows the suggestion from the backend instead.
+  const [loginName, setLoginName] = useState<string>();
   const [pin, setPIN] = useState('');
+  const [granted, setGranted] = useState<Record<string, boolean>>({});
   const [ready, setReady] = useState(false);
   const [rulesChanged, setRulesChanged] = useState(false);
   const [outcome, setOutcome] = useState<EnrollmentOutcome>();
@@ -93,26 +116,43 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   // The backend applies the same rule from the device's capabilities.
   const sources = { camera: state.capabilities.includes('camera'), upload: state.capabilities.includes('file_upload') };
   const photoRequired = sources.camera || sources.upload;
-  const hasEmail = email.trim() !== '';
+  const emailValid = emailPattern.test(email.trim());
   const options = (['password', 'pin'] as const).filter((method) => state.allowedMethods.includes(method));
-  const selectable = options.filter((method) => method !== 'password' || hasEmail);
-  // Derived instead of synchronised: an email removed on step 1 invalidates a password choice, and a single
-  // possible method is selected for the visitor.
-  const method = chosen && selectable.includes(chosen) ? chosen : selectable.length === 1 ? selectable[0] : undefined;
+  // The email invitation is preselected: the address is already there from the first step.
+  const method = chosen && options.includes(chosen) ? chosen : options[0];
 
-  const valid = [
-    firstName.trim() !== '' &&
-      lastName.trim() !== '' &&
-      (hasEmail || phone.trim() !== '') &&
-      (!hasEmail || emailPattern.test(email.trim())) &&
-      (!photoRequired || Boolean(image)),
-    method === 'password' || (method === 'pin' && loginNamePattern.test(loginName.trim()) && pinPattern.test(pin)),
-    ready && Boolean(state.currentLabRules),
-  ];
+  // A free login name built from the name, asked only once the visitor chooses a PIN. It is a suggestion; the
+  // submission checks the name again.
+  const names = { firstName: firstName.trim(), lastName: lastName.trim() };
+  const suggestion = useQuery({
+    queryKey: ['visitor-enrollment', 'login-name', names.firstName, names.lastName],
+    queryFn: ({ signal }) => suggestVisitorPinLoginName(names, { signal }),
+    enabled:
+      current === 'method' &&
+      method === 'pin' &&
+      loginName === undefined &&
+      names.firstName !== '' &&
+      names.lastName !== '',
+    retry: false,
+    staleTime: Infinity,
+    gcTime: 0,
+  });
+  const effectiveLoginName = loginName ?? suggestion.data?.loginName ?? '';
+
+  const valid: Record<StepKey, boolean> = {
+    about: names.firstName !== '' && names.lastName !== '' && emailValid && (!photoRequired || Boolean(image)),
+    method:
+      method === 'password'
+        ? emailValid
+        : method === 'pin' && loginNamePattern.test(effectiveLoginName.trim()) && pinPattern.test(pin),
+    // Nothing is preselected and every answer may be "No".
+    messages: true,
+    rules: ready && Boolean(state.currentLabRules),
+  };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!valid[step] || mutation.isPending) return;
+    if (!valid[current] || mutation.isPending) return;
     if (step < lastStep) {
       setStep(step + 1);
       return;
@@ -121,23 +161,26 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
     setRulesChanged(false);
     try {
       const result = await mutation.mutateAsync({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim() || null,
-        phone: phone.trim() || null,
+        firstName: names.firstName,
+        lastName: names.lastName,
+        email: email.trim(),
         authMethods: [method],
-        pinLoginName: method === 'pin' ? loginName.trim() : null,
+        pinLoginName: method === 'pin' ? effectiveLoginName.trim() : null,
         pin: method === 'pin' ? pin : null,
         profileImageBase64: image?.base64 ?? null,
         profileImageFilename: image?.filename ?? null,
         labRulesAccepted: state.labRulesRequired && ready,
+        consents: state.consentCategories.map((category) => ({
+          categoryId: category.id,
+          granted: granted[category.id] === true,
+        })),
       });
       setOutcome({
-        firstName: firstName.trim(),
+        firstName: names.firstName,
         invitationDelivery: result.invitationDelivery,
         method,
         email: email.trim(),
-        loginName: loginName.trim(),
+        loginName: effectiveLoginName.trim(),
         labRulesConfirmed: state.labRulesRequired,
       });
       setPIN('');
@@ -147,7 +190,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
         // A newer revision became effective while the visitor was filling in the form: load it, ask again.
         setReady(false);
         setRulesChanged(true);
-        setStep(2);
+        setStep(steps.indexOf('rules'));
         await queryClient.invalidateQueries({ queryKey: ['visitor-enrollment', 'state'] });
       }
       /* Other failures are rendered by the notification below. */
@@ -175,17 +218,17 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
         </header>
 
         <ProgressIndicator currentIndex={step} spaceEqually aria-label="Enrollment progress">
-          {stepTitles.map((title) => (
-            <ProgressStep key={title} label={title} />
+          {steps.map((key) => (
+            <ProgressStep key={key} label={stepTitles[key]} />
           ))}
         </ProgressIndicator>
 
         <div className="visitor-flow__body">
           <p className="visitor-flow__eyebrow">
-            Visitor enrollment · Step {step + 1} of {stepTitles.length}
+            Visitor enrollment · Step {step + 1} of {steps.length}
           </p>
           <h1 className="visitor-flow__title" tabIndex={-1} ref={heading}>
-            {stepTitles[step]}
+            {stepTitles[current]}
           </h1>
 
           {mutation.isError && apiErrorCode(mutation.error) !== 'lab_rules_changed' && (
@@ -198,61 +241,53 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
             />
           )}
 
-          {step === 0 && (
+          {current === 'about' && (
             <div className="visitor-flow__about">
               <div className="visitor-flow__fields">
-                <p className="visitor-flow__note">Fields marked with * are required.</p>
+                <p className="visitor-flow__note">
+                  All fields are required. How we use your data is explained in the{' '}
+                  <CarbonLink as={Link} to={branding.legal.privacy.href} inline>
+                    privacy policy
+                  </CarbonLink>
+                  .
+                </p>
                 <div className="visitor-flow__pair">
-                  <div className="visitor-required">
-                    <TextInput
-                      id="visitor-first-name"
-                      labelText="First name"
-                      required
-                      autoComplete="off"
-                      value={firstName}
-                      onChange={(event) => setFirstName(event.target.value)}
-                    />
-                  </div>
-                  <div className="visitor-required">
-                    <TextInput
-                      id="visitor-last-name"
-                      labelText="Last name"
-                      required
-                      autoComplete="off"
-                      value={lastName}
-                      onChange={(event) => setLastName(event.target.value)}
-                    />
-                  </div>
+                  <TextInput
+                    id="visitor-first-name"
+                    labelText="First name"
+                    required
+                    autoComplete="off"
+                    value={firstName}
+                    onChange={(event) => setFirstName(event.target.value)}
+                  />
+                  <TextInput
+                    id="visitor-last-name"
+                    labelText="Last name"
+                    required
+                    autoComplete="off"
+                    value={lastName}
+                    onChange={(event) => setLastName(event.target.value)}
+                  />
                 </div>
-                <FormGroup legendText="How can we reach you? Email or phone, at least one *">
-                  <div className="visitor-flow__contact">
-                    <TextInput
-                      id="visitor-email"
-                      type="email"
-                      labelText="Email"
-                      helperText="Needed for an email invitation."
-                      autoComplete="off"
-                      invalid={hasEmail && !emailPattern.test(email.trim())}
-                      invalidText="Enter a valid email address."
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                    />
-                    <TextInput
-                      id="visitor-phone"
-                      type="tel"
-                      labelText="Phone"
-                      autoComplete="off"
-                      value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
-                    />
-                  </div>
-                </FormGroup>
+                <TextInput
+                  id="visitor-email"
+                  type="email"
+                  labelText="Email"
+                  helperText="We contact you here, for example about your account or the Lab Rules."
+                  required
+                  autoComplete="off"
+                  invalid={emailTouched && email.trim() !== '' && !emailValid}
+                  invalidText="Enter a valid email address."
+                  value={email}
+                  onBlur={() => setEmailTouched(true)}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
               </div>
               <ProfilePhotoPicker image={image} sources={sources} required={photoRequired} onChange={setImage} />
             </div>
           )}
 
-          {step === 1 && (
+          {current === 'method' && (
             <div className="visitor-flow__methods">
               {options.length === 0 ? (
                 <InlineNotification
@@ -263,67 +298,126 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                   subtitle="Visitor enrollment is not configured with a sign-in method. Ask a staff member."
                 />
               ) : (
-                <TileGroup
-                  legend="How do you want to sign in?"
-                  name="visitor-method"
-                  valueSelected={method}
-                  onChange={(value: string | number | undefined) => setChosen(value as VisitorAuthenticationMethod)}
-                >
-                  {options.map((option) => (
-                    <RadioTile
-                      key={option}
-                      id={`visitor-method-${option}`}
-                      value={option}
-                      disabled={!selectable.includes(option)}
-                    >
-                      <span className="visitor-flow__tile-title">
-                        {option === 'password' ? 'Email invitation' : 'Login name and PIN'}
-                      </span>
-                      <span className="visitor-flow__tile-text">
-                        {option === 'password'
-                          ? selectable.includes(option)
-                            ? 'We email you a link to choose a password.'
-                            : 'Not available: you did not enter an email address. Go back to add one.'
-                          : 'Choose a login name and a PIN of 6 to 12 digits.'}
-                      </span>
-                    </RadioTile>
-                  ))}
-                </TileGroup>
-              )}
-              {method === 'pin' && (
-                <div className="visitor-flow__pair">
-                  <div className="visitor-required">
-                    <TextInput
-                      id="visitor-login-name"
-                      labelText="PIN login username"
-                      helperText="3–64 letters, numbers, dots, underscores or hyphens."
-                      autoComplete="off"
-                      autoCapitalize="none"
-                      spellCheck={false}
-                      required
-                      value={loginName}
-                      onChange={(event) => setLoginName(event.target.value)}
-                    />
-                  </div>
-                  <div className="visitor-required">
-                    <PasswordInput
-                      id="visitor-pin-value"
-                      labelText="PIN (6–12 digits)"
-                      helperText="Digits only."
-                      required
-                      pattern="[0-9]{6,12}"
-                      inputMode="numeric"
-                      autoComplete="new-password"
-                      value={pin}
-                      onChange={(event) => setPIN(event.target.value)}
-                    />
-                  </div>
-                </div>
+                <>
+                  {options.length > 1 && (
+                    <>
+                      <p className="visitor-flow__question" id="visitor-method-label">
+                        How do you want to sign in at this tablet?
+                      </p>
+                      {/* The same switch the check-in screen uses for its two sign-in methods. */}
+                      <ContentSwitcher
+                        size="lg"
+                        aria-labelledby="visitor-method-label"
+                        selectedIndex={options.indexOf(method ?? options[0])}
+                        onChange={({ name }) => setChosen(name as VisitorAuthenticationMethod)}
+                      >
+                        {options.map((option) => (
+                          <Switch
+                            key={option}
+                            name={option}
+                            text={option === 'password' ? 'Email and password' : 'Login name and PIN'}
+                          />
+                        ))}
+                      </ContentSwitcher>
+                    </>
+                  )}
+                  {method === 'password' && (
+                    <div className="visitor-flow__method-fields">
+                      <p className="visitor-flow__method-lead">
+                        We email you a link to choose a password for your next check-in. Check the address before you
+                        continue.
+                      </p>
+                      <TextInput
+                        id="visitor-invitation-email"
+                        type="email"
+                        labelText="Email"
+                        helperText="The same address as on the first step; a change here applies to both."
+                        required
+                        autoComplete="off"
+                        invalid={!emailValid}
+                        invalidText="Enter a valid email address."
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                      />
+                    </div>
+                  )}
+                  {method === 'pin' && (
+                    <div className="visitor-flow__method-fields">
+                      <p className="visitor-flow__method-lead">
+                        Choose a login name and a PIN of 6 to 12 digits to check in at this tablet. We suggest a login
+                        name from your name.
+                      </p>
+                      <div className="visitor-flow__pair">
+                        <TextInput
+                          id="visitor-login-name"
+                          labelText="Login name"
+                          helperText="3–64 letters, numbers, dots, underscores or hyphens."
+                          autoComplete="off"
+                          autoCapitalize="none"
+                          spellCheck={false}
+                          required
+                          invalid={effectiveLoginName !== '' && !loginNamePattern.test(effectiveLoginName.trim())}
+                          invalidText="Use 3–64 letters, numbers, dots, underscores or hyphens."
+                          value={effectiveLoginName}
+                          onChange={(event) => setLoginName(event.target.value)}
+                        />
+                        <PasswordInput
+                          id="visitor-pin-value"
+                          labelText="PIN (6–12 digits)"
+                          helperText="Digits only. Keep it to yourself."
+                          required
+                          pattern="[0-9]{6,12}"
+                          inputMode="numeric"
+                          autoComplete="new-password"
+                          value={pin}
+                          onChange={(event) => setPIN(event.target.value.replace(/\D/g, ''))}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
 
-          {step === 2 &&
+          {current === 'messages' && (
+            <div className="visitor-flow__consent">
+              <p className="visitor-flow__lead">
+                Which messages may we send to {email.trim()}? Nothing is preselected, and you can continue with
+                everything off.
+              </p>
+              <div className="visitor-flow__consent-list">
+                {state.consentCategories.map((category) => (
+                  <div key={category.id} className="visitor-flow__consent-item">
+                    <div>
+                      <p className="visitor-flow__consent-name" id={`visitor-consent-name-${category.id}`}>
+                        {category.name}
+                      </p>
+                      <p className="visitor-flow__consent-description">{category.description}</p>
+                    </div>
+                    <Toggle
+                      id={`visitor-consent-${category.id}`}
+                      size="md"
+                      aria-labelledby={`visitor-consent-name-${category.id}`}
+                      labelA="No"
+                      labelB="Yes"
+                      toggled={granted[category.id] === true}
+                      onToggle={(checked) => setGranted((answers) => ({ ...answers, [category.id]: checked }))}
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="visitor-flow__note">
+                Messages about your account, your visits and safety in the lab are always sent. Details in the{' '}
+                <CarbonLink as={Link} to={branding.legal.privacy.href} inline size="sm">
+                  privacy policy
+                </CarbonLink>
+                .
+              </p>
+            </div>
+          )}
+
+          {current === 'rules' &&
             (state.currentLabRules ? (
               <div className="visitor-flow__rules">
                 {rulesChanged && (
@@ -352,7 +446,7 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                 </div>
                 <Checkbox
                   id="visitor-ready"
-                  labelText="I have read and accept the Lab Rules *"
+                  labelText="I have read and accept the Lab Rules"
                   checked={ready}
                   onChange={(_, data) => setReady(data.checked)}
                 />
@@ -380,9 +474,9 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
             type="submit"
             size="xl"
             renderIcon={step < lastStep ? ArrowRight : undefined}
-            disabled={!valid[step] || mutation.isPending}
+            disabled={!valid[current] || mutation.isPending}
           >
-            {step < lastStep ? 'Next' : mutation.isPending ? 'Submitting…' : 'Submit enrollment'}
+            {step < lastStep ? 'Next' : mutation.isPending ? 'Submitting…' : 'Register and check in'}
           </Button>
         </footer>
       </Form>

@@ -22,18 +22,27 @@ body:has(.visitor-flow) {
 
 .visitor-flow__form {
   display: grid;
+  // An explicit column keeps the grid from growing to the progress indicator's min-content width on narrow screens.
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   block-size: 100%;
-  max-inline-size: 72rem;
-  margin-inline: auto;
-  padding-inline: $spacing-06;
+  padding-inline: $spacing-07;
 }
 
 .visitor-flow__header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: $spacing-03 $spacing-05;
   padding-block: $spacing-04;
+}
+
+.visitor-flow__header-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-03 $spacing-07;
 }
 
 .visitor-flow__brand {
@@ -49,9 +58,7 @@ body:has(.visitor-flow) {
 }
 
 .visitor-flow__header--done {
-  max-inline-size: 72rem;
-  margin-inline: auto;
-  padding-inline: $spacing-06;
+  padding-inline: $spacing-07;
   justify-content: flex-end;
 }
 
@@ -64,14 +71,17 @@ body:has(.visitor-flow) {
   padding-block: $spacing-06;
 }
 
+// The step is introduced in the middle; its content uses the full width.
 .visitor-flow__eyebrow {
   @include type-style('label-02');
   color: $text-secondary;
+  text-align: center;
 }
 
 .visitor-flow__title {
   @include type-style('heading-06');
   margin-block-start: -$spacing-04;
+  text-align: center;
 
   // Focus moves here programmatically on each step so screen readers announce it; the heading is not a control.
   &:focus {
@@ -88,6 +98,13 @@ body:has(.visitor-flow) {
 .visitor-flow__lead {
   @include type-style('body-02');
   max-inline-size: 40rem;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.visitor-flow__question {
+  @include type-style('heading-03');
+  text-align: center;
 }
 
 .visitor-flow__footer {
@@ -109,12 +126,21 @@ body:has(.visitor-flow) {
   align-items: start;
 }
 
+.visitor-flow__about .visitor-photo {
+  justify-items: center;
+  text-align: center;
+}
+
 .visitor-flow__fields,
-.visitor-flow__contact,
 .visitor-flow__methods,
-.visitor-flow__rules {
+.visitor-flow__rules,
+.visitor-flow__consent {
   display: grid;
   gap: $spacing-05;
+}
+
+.visitor-flow__rules {
+  justify-items: center;
 }
 
 .visitor-flow__pair {
@@ -123,36 +149,45 @@ body:has(.visitor-flow) {
   gap: $spacing-05;
 }
 
-// A required marker for fields whose Carbon label carries no asterisk of its own.
-.visitor-required .cds--label::after {
-  color: $text-error;
-  content: ' *';
-}
-
-.visitor-flow__methods .cds--tile-group > .cds--tile-group__fieldset,
-.visitor-flow__methods .cds--tile-group {
+.visitor-flow__method-fields {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: $spacing-05;
+  padding: $spacing-05;
+  background: $layer-01;
+  border-inline-start: 3px solid $border-interactive;
 }
 
-.visitor-flow__methods .cds--tile-group legend {
-  grid-column: 1 / -1;
+.visitor-flow__method-lead {
+  @include type-style('body-02');
 }
 
-.visitor-flow__methods .cds--tile--selectable {
-  min-block-size: 8rem;
+// Two yes/no rows read better in a narrower, centred column than across the whole screen.
+.visitor-flow__consent {
+  inline-size: 100%;
+  max-inline-size: 48rem;
+  margin-inline: auto;
 }
 
-.visitor-flow__tile-title {
+.visitor-flow__consent-list {
+  display: grid;
+  gap: $spacing-03;
+}
+
+.visitor-flow__consent-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: $spacing-06;
+  padding: $spacing-05;
+  background: $layer-01;
+}
+
+.visitor-flow__consent-name {
   @include type-style('heading-03');
-  display: block;
-  margin-block-end: $spacing-03;
 }
 
-.visitor-flow__tile-text {
-  @include type-style('body-compact-01');
-  display: block;
+.visitor-flow__consent-description {
+  @include type-style('body-02');
   color: $text-secondary;
 }
 
@@ -273,9 +308,23 @@ body:has(.visitor-flow) {
 }
 
 @media (max-width: 40rem) {
-  .visitor-flow__pair,
-  .visitor-flow__methods .cds--tile-group {
+  .visitor-flow__pair {
     grid-template-columns: 1fr;
+  }
+
+  .visitor-flow__form {
+    // Four step labels do not fit a phone; "Step n of 4" above the title carries the progress there.
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    padding-inline: $spacing-05;
+  }
+
+  .visitor-flow__form .cds--progress {
+    display: none;
+  }
+
+  .visitor-flow__footer .cds--btn {
+    flex: 1;
+    min-inline-size: 0;
   }
 }
 
