@@ -414,8 +414,8 @@ export function Canvas(props: CanvasProps) {
                 })}
               />
             )}
+            {/* Empty blocks keep their choice while another block is dragged; it is their only visible outline. */}
             {canEdit &&
-              !live &&
               blocks
                 .filter((b) => b.widget.type === 'empty' && !b.hidden && !b.locked)
                 .map((b) => (

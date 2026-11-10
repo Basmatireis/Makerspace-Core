@@ -743,6 +743,9 @@ textarea.sg-code {
   container-type: size;
   pointer-events: none;
 }
+.sg-canvas__overlay--dragging .sg-quick__item.cds--btn {
+  pointer-events: none;
+}
 .sg-quick__panel {
   display: flex;
   flex-direction: column;
