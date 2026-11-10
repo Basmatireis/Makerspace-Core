@@ -162,6 +162,76 @@ func (s *Server) TerminalPinCheckIn(
 	return openapi.TerminalPinCheckIn201JSONResponse(s.checkInDTO(ctx, device.ID, value)), nil
 }
 
+func (s *Server) RequestTerminalEmailCode(
+	ctx context.Context,
+	request openapi.RequestTerminalEmailCodeRequestObject,
+) (openapi.RequestTerminalEmailCodeResponseObject, error) {
+	device, err := kioskDevice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("email is required")
+	}
+	if err := s.attendance.RequestEmailCode(
+		ctx, device, string(request.Body.Email), sourceAddress(ctx), requestIDPointer(ctx),
+	); err != nil {
+		return nil, err
+	}
+	return openapi.RequestTerminalEmailCode202Response{
+		Headers: openapi.RequestTerminalEmailCode202ResponseHeaders{CacheControl: "no-store"},
+	}, nil
+}
+
+func (s *Server) TerminalEmailCodeCheckIn(
+	ctx context.Context,
+	request openapi.TerminalEmailCodeCheckInRequestObject,
+) (openapi.TerminalEmailCodeCheckInResponseObject, error) {
+	device, err := kioskDevice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil || request.Body.Code == nil {
+		return nil, invalidRequest("email and code are required")
+	}
+	value, err := s.attendance.EmailCodeCheckIn(
+		ctx,
+		device,
+		string(request.Body.Email),
+		*request.Body.Code,
+		sourceAddress(ctx),
+		attendance.LabRulesChoice{
+			ConfirmVersionID: request.Body.ConfirmLabRulesVersionId,
+			Defer:            request.Body.DeferLabRules != nil && *request.Body.DeferLabRules,
+		},
+		requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.TerminalEmailCodeCheckIn201JSONResponse(s.checkInDTO(ctx, device.ID, value)), nil
+}
+
+func (s *Server) TerminalEmailCodeCheckOut(
+	ctx context.Context,
+	request openapi.TerminalEmailCodeCheckOutRequestObject,
+) (openapi.TerminalEmailCodeCheckOutResponseObject, error) {
+	device, err := kioskDevice(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil || request.Body.Code == nil {
+		return nil, invalidRequest("email and code are required")
+	}
+	value, err := s.attendance.EmailCodeCheckOut(
+		ctx, device, string(request.Body.Email), *request.Body.Code, sourceAddress(ctx), requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.TerminalEmailCodeCheckOut200JSONResponse(visitDTO(value)), nil
+}
+
 func (s *Server) TerminalPasswordCheckOut(
 	ctx context.Context,
 	request openapi.TerminalPasswordCheckOutRequestObject,

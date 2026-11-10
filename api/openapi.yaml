@@ -192,6 +192,107 @@ paths:
         "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /auth/email-code:
+    post:
+      tags: [Authentication]
+      operationId: requestEmailLoginCode
+      summary: Mail a one-time sign-in code
+      description: |
+        Mails a six-digit sign-in code to the login email when that account is enabled and has sign-in with an
+        emailed code turned on. The code is valid for ten minutes and for five wrong entries; a new request replaces
+        the previous code. The answer is the same `202` for known, unknown, ineligible and rate-limited addresses,
+        and the mail is sent after the answer, so neither the answer nor its timing tells whether the address belongs
+        to an account. The same code also works at a kiosk (`/terminal/check-in/email-code`).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RequestEmailLoginCodeRequest"}
+      responses:
+        "202":
+          description: Request accepted without disclosing account or delivery state.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/email-code/login:
+    post:
+      tags: [Authentication]
+      operationId: loginWithEmailCode
+      summary: Start a session with an emailed one-time code
+      description: |
+        Signs in with the code from `POST /auth/email-code`. Wrong, expired, used and unknown codes answer the same
+        `401 invalid_credentials`; after five wrong codes the code is invalid and a new one must be requested. The
+        code is consumed by a successful sign-in. The session has `normal` assurance like a password session:
+        control of the mailbox already allows resetting the password, so the emailed code proves no less. Second
+        factors work as with `POST /auth/login`: an account with an authenticator app or passkey gets `202` and a
+        pending-login cookie, and an account that must use a second factor but has none gets a session flagged
+        `mfaSetupRequired`. Accounts without `web.sign_in` answer `403 web_sign_in_not_permitted`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EmailCodeLoginRequest"}
+      responses:
+        "204":
+          description: Session created. The browser receives session and CSRF cookies.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Set-Cookie:
+              description: Session and CSRF cookies. Multiple Set-Cookie headers may be sent.
+              schema: {type: string}
+        "202":
+          description: Code accepted; a second factor is required before a session is created.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Set-Cookie:
+              description: HttpOnly pending-login cookie.
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/SecondFactorRequired"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/methods/email-code:
+    put:
+      tags: [Authentication]
+      operationId: enableOwnEmailCode
+      summary: Turn on sign-in with an emailed code for the current account
+      description: |
+        Requires `accounts.email_code.manage.self` and a sign-in at `normal` assurance within the last ten minutes
+        (`403 fresh_authentication_required` otherwise). The account needs a login email (`422 login_email_required`).
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      responses:
+        "204": {description: Sign-in with an emailed code is on.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Authentication]
+      operationId: disableOwnEmailCode
+      summary: Turn off sign-in with an emailed code for the current account
+      description: |
+        Requires `accounts.email_code.manage.self` and a sign-in at `normal` assurance within the last ten minutes.
+        Outstanding sign-in codes are deleted and the account's other sessions are revoked.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      responses:
+        "204": {description: Sign-in with an emailed code is off.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /auth/methods/pin:
     put:
       tags: [Authentication]
@@ -1625,7 +1726,9 @@ paths:
         `accounts.password.remove.all`, `accounts.pin.remove.all`, or
         `identities.oidc.unlink.all`. The account lifecycle state is unchanged;
         dependent credentials and challenges are deleted, and existing account
-        sessions are revoked.
+        sessions are revoked. Removing the password identity of an account that
+        signs in with an emailed code deletes only the password and keeps the
+        login email, so the emailed code keeps working.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -1649,6 +1752,57 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/email-code:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    put:
+      tags: [Accounts]
+      operationId: enableAccountEmailCode
+      summary: Turn on sign-in with an emailed code for an account
+      description: |
+        Requires `accounts.email_code.manage.all`; only a master may change a master account. The account needs a
+        login email (`422 login_email_required`).
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VersionRequest"}
+      responses:
+        "200": {description: Account with sign-in by emailed code on., content: {application/json: {schema: {$ref: "#/components/schemas/Account"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Accounts]
+      operationId: disableAccountEmailCode
+      summary: Turn off sign-in with an emailed code for an account
+      description: |
+        Requires `accounts.email_code.manage.all`; only a master may change a master account. Outstanding sign-in
+        codes are deleted and the account's sessions are revoked.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VersionRequest"}
+      responses:
+        "200": {description: Account with sign-in by emailed code off., content: {application/json: {schema: {$ref: "#/components/schemas/Account"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /accounts/{accountId}/second-factors/reset:
     parameters:
@@ -6572,21 +6726,48 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /visitor-enrollment/login-name-suggestions:
+  /visitor-enrollment/email-verification:
     post:
       tags: [Visitor Enrollment]
-      operationId: suggestVisitorPinLoginName
-      summary: Suggest a free PIN login name from the visitor's name
+      operationId: sendVisitorEnrollmentEmailCode
+      summary: Mail a code that verifies the visitor's email address
       description: |
-        Builds `firstname.lastname` (lower case, umlauts and accents transliterated, other characters dropped) and
-        appends a random number when that name is taken (a random number, so the answer does not tell which numbered names exist). Answers 403 when PIN enrollment is not allowed. It creates nothing; the name is checked again when the enrollment is
-        submitted. Answers 422 when no valid login name can be built from the name.
+        Binds the address to the enrollment context and mails it a six-digit code, valid for ten minutes and five
+        wrong entries. A new request replaces the previous code and address and clears an earlier verification.
+        Delivery is synchronous so the kiosk can ask for another address: a provider error answers
+        `422 email_delivery_failed`, disabled mail `503 mail_unavailable`. A syntactically invalid address answers
+        `422 email_invalid`; an address that is already an account's login email answers
+        `409 authentication_identifier_exists` (the visitor checks in instead). At most five codes are sent per
+        enrollment context and per address within fifteen minutes (`429 verification_rate_limited`).
       security: []
       parameters:
         - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorLoginNameSuggestionRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorEnrollmentEmailRequest"}}}}
       responses:
-        "200": {description: A login name that is free right now., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorLoginNameSuggestion"}}}}
+        "202": {description: Code mailed to the address., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+
+  /visitor-enrollment/email-verification/confirm:
+    post:
+      tags: [Visitor Enrollment]
+      operationId: confirmVisitorEnrollmentEmail
+      summary: Verify the visitor's email address with the mailed code
+      description: |
+        A wrong, expired or exhausted code answers `422 challenge_invalid`; after five wrong codes a new one must be
+        requested. A correct code marks the context's address as verified; the submission uses that address.
+      security: []
+      parameters:
+        - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorEnrollmentEmailConfirmation"}}}}
+      responses:
+        "204": {description: Address verified., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}}
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
@@ -6605,7 +6786,11 @@ paths:
         to the notification categories listed in the enrollment state (place `kiosk`); they are stored in the same
         transaction, and a category left out is asked at a later check-in. When that version is no longer the
         current one, the answer is 409 `lab_rules_changed` and the kiosk must start over with the new version.
-        Current device, method, and initial-role configuration is still enforced.
+        The account's login email is the address verified on this context (`POST
+        /visitor-enrollment/email-verification` and `/confirm`); without a verified address the answer is
+        `409 email_verification_required`. The account signs in with an emailed code only: no password, PIN or
+        invitation is created. An address that became another account's login email meanwhile answers
+        `409 authentication_identifier_exists`. Current device and enrollment configuration is still enforced.
       security: []
       parameters:
         - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
@@ -11692,6 +11877,46 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/email-code:
+    post:
+      tags: [Attendance]
+      operationId: requestTerminalEmailCode
+      summary: Mail a one-time code for checking in or out at this kiosk
+      description: |
+        Same rules and answer as `POST /auth/email-code`: the code goes only to an enabled account that signs in with
+        an emailed code, and the answer never tells whether the address belongs to one.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RequestEmailLoginCodeRequest"}}}}
+      responses:
+        "202": {description: Request accepted without disclosing account or delivery state., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/check-in/email-code:
+    post:
+      tags: [Attendance]
+      operationId: terminalEmailCodeCheckIn
+      description: |
+        Checks in with the code from `POST /terminal/email-code`. Wrong, expired and unknown codes answer
+        `401 invalid_credentials`; after five wrong codes a new one must be requested. The code is consumed only by
+        a successful check-in, so after a Lab Rules answer the terminal repeats the check-in with the same code.
+        When the person must confirm the current Lab Rules, the terminal shows them and repeats the check-in with
+        `confirmLabRulesVersionId` (records the confirmation, method `kiosk`, and admits the person) or, for roles
+        that only warn, `deferLabRules` (admits the person with admission decision `warning`). Without either the
+        answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
+        `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
+        A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+        The check-in has `normal` assurance.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TerminalEmailCodeCheckInRequest"}}}}
+      responses:
+        "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/check-out/password:
     post:
       tags: [Attendance]
@@ -11715,6 +11940,20 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/check-out/email-code:
+    post:
+      tags: [Attendance]
+      operationId: terminalEmailCodeCheckOut
+      description: Checks out with the code from `POST /terminal/email-code`; the code is consumed only by a successful check-out.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceEmailCodeRequest"}}}}
+      responses:
+        "200": {description: Visitor checked out., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
   /terminal/consents:
     post:
@@ -12614,6 +12853,8 @@ components:
         - accounts.pin.remove.self
         - accounts.pin.remove.all
         - accounts.pin.reset
+        - accounts.email_code.manage.self
+        - accounts.email_code.manage.all
         - accounts.mfa.reset
         - people.roles.assign
         - roles.read
@@ -13767,7 +14008,7 @@ components:
       required: [method, assurance, authenticatedAt, authenticatedAssurance, mfaEnrolled, mfaRequired, mfaSetupRequired, secondFactorMethods, reauthenticationRequired]
       description: How the current session was authenticated and what the frontend must ask for.
       properties:
-        method: {type: string, enum: [password, pin, oidc, passkey]}
+        method: {type: string, enum: [password, pin, oidc, passkey, email_code]}
         assurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
         authenticatedAt: {type: string, format: date-time, description: "Time of the login or the last reauthentication."}
         authenticatedAssurance:
@@ -13817,6 +14058,28 @@ components:
           $ref: "#/components/schemas/Email"
         password:
           $ref: "#/components/schemas/ExistingPassword"
+
+    RequestEmailLoginCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+
+    EmailLoginCode:
+      type: string
+      format: password
+      pattern: "^[0-9]{6}$"
+      writeOnly: true
+      description: The six-digit code from the mail.
+
+    EmailCodeLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+        code: {$ref: "#/components/schemas/EmailLoginCode"}
 
     PinLoginRequest:
       type: object
@@ -15474,7 +15737,7 @@ components:
     AccountSummary:
       type: object
       additionalProperties: false
-      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, authIdentities, version]
+      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, emailCodeEnabled, authIdentities, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -15488,6 +15751,9 @@ components:
           allOf: [{$ref: "#/components/schemas/Email"}]
           nullable: true
           description: The account's login email, which is also the person's email. Null only for accounts that were provisioned without an email (for example phone-only visitors or accounts created before every account had one); clients should prompt for one.
+        emailCodeEnabled:
+          type: boolean
+          description: Whether the account can sign in (and check in at a kiosk) with a one-time code mailed to its login email. Always false without a login email.
         provisioningSource:
           type: string
           enum: [local, invitation, oidc_jit, scim, visitor]
@@ -15504,7 +15770,7 @@ components:
     Account:
       type: object
       additionalProperties: false
-      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, authIdentities, createdAt, updatedAt, version]
+      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, emailCodeEnabled, authIdentities, createdAt, updatedAt, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -15518,6 +15784,9 @@ components:
           allOf: [{$ref: "#/components/schemas/Email"}]
           nullable: true
           description: The account's login email, which is also the person's email. Null only for accounts that were provisioned without an email (for example phone-only visitors or accounts created before every account had one); clients should prompt for one.
+        emailCodeEnabled:
+          type: boolean
+          description: Whether the account can sign in (and check in at a kiosk) with a one-time code mailed to its login email. Always false without a login email.
         provisioningSource:
           type: string
           enum: [local, invitation, oidc_jit, scim, visitor]
@@ -17857,30 +18126,24 @@ components:
       properties:
         items: {type: array, items: {$ref: "#/components/schemas/PublicOpenDay"}}
 
-    VisitorAuthenticationMethod:
-      type: string
-      enum: [password, pin]
-
     VisitorEnrollmentConfiguration:
       type: object
       additionalProperties: false
-      required: [enabled, deviceTypeIds, allowedMethods, version, updatedAt]
-      description: Enrolled visitors get the Visitor membership like every new person.
+      required: [enabled, deviceTypeIds, version, updatedAt]
+      description: Enrolled visitors get the Visitor membership like every new person and sign in with a code mailed to their verified email address.
       properties:
         enabled: {type: boolean}
         deviceTypeIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
-        allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
         version: {$ref: "#/components/schemas/Version"}
         updatedAt: {type: string, format: date-time}
 
     UpdateVisitorEnrollmentConfigurationRequest:
       type: object
       additionalProperties: false
-      required: [enabled, deviceTypeIds, allowedMethods, expectedVersion]
+      required: [enabled, deviceTypeIds, expectedVersion]
       properties:
         enabled: {type: boolean}
         deviceTypeIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
-        allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     VisitorLabRulesVersion:
@@ -17895,9 +18158,10 @@ components:
     VisitorEnrollmentState:
       type: object
       additionalProperties: false
-      required: [allowedMethods, capabilities, currentLabRules, labRulesRequired, consentCategories, expiresAt]
+      required: [capabilities, currentLabRules, labRulesRequired, consentCategories, email, emailVerified, expiresAt]
       properties:
-        allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
+        email: {type: string, nullable: true, maxLength: 254, description: "The address the last verification code was mailed to on this context, or null before one was sent."}
+        emailVerified: {type: boolean, description: "Whether that address was confirmed with its code; the submission needs it."}
         consentCategories: {type: array, maxItems: 50, description: "Notification categories that need the visitor's consent, asked during enrollment. Nothing is preselected.", items: {$ref: "#/components/schemas/TerminalConsentCategory"}}
         capabilities: {type: array, uniqueItems: true, description: "Effective capabilities of the enrolling device. A profile photo is required exactly when this includes camera or file_upload.", items: {$ref: "#/components/schemas/DeviceCapability"}}
         currentLabRules: {allOf: [{$ref: "#/components/schemas/VisitorLabRulesVersion"}], nullable: true}
@@ -17907,43 +18171,38 @@ components:
     VisitorEnrollmentSubmission:
       type: object
       additionalProperties: false
-      required: [firstName, lastName, email, authMethods, pinLoginName, pin, profileImageBase64, profileImageFilename, labRulesAccepted, consents]
+      required: [firstName, lastName, profileImageBase64, profileImageFilename, labRulesAccepted, consents]
+      description: The account's login email is the address verified on the enrollment context; it is not part of the submission.
       properties:
         firstName: {type: string, minLength: 1, maxLength: 100}
         lastName: {type: string, minLength: 1, maxLength: 100}
-        email: {type: string, format: email, minLength: 3, maxLength: 320, description: "Required: the visitor's contact address and the account's login email."}
-        authMethods: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
-        pinLoginName: {type: string, minLength: 3, maxLength: 64, nullable: true}
-        pin: {type: string, pattern: "^[0-9]{6,12}$", writeOnly: true, nullable: true}
         profileImageBase64: {type: string, format: byte, minLength: 4, maxLength: 12000000, writeOnly: true, nullable: true, description: Required when the enrolling device's effective capabilities include camera or file_upload; otherwise it may be null.}
         profileImageFilename: {type: string, minLength: 1, maxLength: 255, nullable: true}
         labRulesAccepted: {type: boolean, description: "The visitor read and accepts the pinned Lab Rules (\"I have read and accept the Lab Rules\"). Must be true when the visitor role asks for the Lab Rules."}
         consents: {type: array, maxItems: 50, description: "Answers to the enrollment state's consent categories; may be empty.", items: {$ref: "#/components/schemas/ConsentAnswer"}}
 
-    VisitorLoginNameSuggestionRequest:
+    VisitorEnrollmentEmailRequest:
       type: object
       additionalProperties: false
-      required: [firstName, lastName]
+      required: [email]
       properties:
-        firstName: {type: string, minLength: 1, maxLength: 100}
-        lastName: {type: string, minLength: 1, maxLength: 100}
+        email: {type: string, minLength: 1, maxLength: 320, description: "The visitor's address. Checked by the server, which answers 422 email_invalid for a malformed one."}
 
-    VisitorLoginNameSuggestion:
+    VisitorEnrollmentEmailConfirmation:
       type: object
       additionalProperties: false
-      required: [loginName]
+      required: [code]
       properties:
-        loginName: {type: string, minLength: 3, maxLength: 64}
+        code: {$ref: "#/components/schemas/EmailLoginCode"}
 
     VisitorEnrollmentResult:
       type: object
       additionalProperties: false
-      required: [personId, accountId, accountStatus, invitationDelivery, admission, attendance]
+      required: [personId, accountId, accountStatus, admission, attendance]
       properties:
         personId: {$ref: "#/components/schemas/UUIDv7"}
         accountId: {$ref: "#/components/schemas/UUIDv7"}
         accountStatus: {type: string, enum: [enabled, disabled]}
-        invitationDelivery: {type: string, enum: [sent, failed], nullable: true}
         admission: {type: string, enum: [admitted], description: The visitor confirmed the Lab Rules while enrolling (or their role does not ask for them) and is admitted.}
         attendance:
           type: string
@@ -22836,7 +23095,7 @@ components:
         kioskResetSeconds: {type: integer, minimum: 15, maximum: 600, description: "Seconds of inactivity after which the tablet returns to its start screen."}
         checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
         checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
-        authenticationMethods: {type: array, uniqueItems: true, items: {type: string, enum: [password, pin, oidc, nfc]}}
+        authenticationMethods: {type: array, uniqueItems: true, items: {type: string, enum: [password, pin, email_code, oidc, nfc]}}
         capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
         staffDestination: {type: string, enum: [login]}
         notices:
@@ -22894,6 +23153,22 @@ components:
       properties:
         loginName: {type: string, minLength: 3, maxLength: 64}
         pin: {type: string, format: password, minLength: 6, maxLength: 12, pattern: "^[0-9]{6,12}$", writeOnly: true}
+    AttendanceEmailCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+        code: {$ref: "#/components/schemas/EmailLoginCode"}
+    TerminalEmailCodeCheckInRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+        code: {$ref: "#/components/schemas/EmailLoginCode"}
+        confirmLabRulesVersionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: The Lab Rules version the person read and confirms while checking in; it must be the current one.}
+        deferLabRules: {type: boolean, description: Check in without confirming; only allowed when the person's role merely warns.}
     TerminalPasswordCheckInRequest:
       type: object
       additionalProperties: false

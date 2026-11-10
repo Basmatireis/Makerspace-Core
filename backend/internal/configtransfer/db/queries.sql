@@ -135,7 +135,7 @@ JOIN roles r ON r.id = e.role_id
 ORDER BY lower(r.name), r.id;
 
 -- name: GetVisitorEnrollmentConfiguration :one
-SELECT c.enabled, c.allowed_methods, c.version
+SELECT c.enabled, c.version
 FROM visitor_enrollment_configuration c;
 
 -- name: ListVisitorEnrollmentDeviceTypes :many

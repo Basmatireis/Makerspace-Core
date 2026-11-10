@@ -25,12 +25,13 @@ SELECT EXISTS (
 );
 
 -- name: CreateSession :one
--- A password session: normal assurance, or strong_mfa when the login also verified a second factor.
+-- A session of the login email identity (password or emailed code): normal assurance, or strong_mfa when the login
+-- also verified a second factor.
 INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
   base_assurance, current_assurance, authenticated_assurance, mfa_setup_required, authenticated_at,
   idle_expires_at, absolute_expires_at, managed_device_id, session_policy_id, session_policy_version,
   idle_timeout_seconds, post_session_destination)
-VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id)::uuid, sqlc.arg(token_digest), sqlc.arg(csrf_digest), 'password',
+VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id)::uuid, sqlc.arg(token_digest), sqlc.arg(csrf_digest), sqlc.arg(auth_method),
   sqlc.arg(assurance), sqlc.arg(assurance), sqlc.arg(assurance), sqlc.arg(mfa_setup_required), now(),
   sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at), sqlc.narg(managed_device_id), sqlc.narg(session_policy_id),
   sqlc.arg(session_policy_version), sqlc.arg(idle_timeout_seconds), sqlc.arg(post_session_destination))
@@ -207,7 +208,7 @@ WHERE i.kind = 'password' AND i.identifier_normalized = sqlc.arg(identifier_norm
 
 -- name: GetPasswordIdentityTargetForAccount :one
 SELECT a.id AS account_id, a.status, i.id AS auth_identity_id,
-       i.identifier_display AS delivery_address, i.verified_at
+       i.identifier_display AS delivery_address, i.verified_at, i.email_code_enabled
 FROM auth_identities i
 JOIN accounts a ON a.id = i.account_id
 WHERE i.account_id = sqlc.arg(account_id) AND i.kind = 'password'
@@ -442,8 +443,8 @@ SELECT ((SELECT count(*) FROM mfa_totp_credentials t WHERE t.account_id = sqlc.a
       + (SELECT count(*) FROM webauthn_credentials w WHERE w.account_id = sqlc.arg(account_id)::uuid))::bigint AS total;
 
 -- name: CreatePendingLogin :exec
-INSERT INTO pending_logins (id, token_digest, account_id, auth_identity_id, managed_device_id, expires_at)
-VALUES (sqlc.arg(id), sqlc.arg(token_digest), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.narg(managed_device_id), sqlc.arg(expires_at));
+INSERT INTO pending_logins (id, token_digest, account_id, auth_identity_id, managed_device_id, expires_at, auth_method)
+VALUES (sqlc.arg(id), sqlc.arg(token_digest), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.narg(managed_device_id), sqlc.arg(expires_at), sqlc.arg(auth_method));
 
 -- name: GetPendingLoginForUpdate :one
 SELECT * FROM pending_logins WHERE token_digest = sqlc.arg(token_digest) AND expires_at > now() FOR UPDATE;
@@ -512,3 +513,28 @@ FROM accounts a JOIN people p ON p.id = a.person_id
 LEFT JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
 WHERE a.id = sqlc.arg(account_id);
 
+
+-- name: FindEmailCodeTarget :one
+-- The login email identity behind an address, whether or not it signs in with an emailed code.
+SELECT a.id AS account_id, a.person_id, a.status, i.id AS auth_identity_id, i.identifier_display AS delivery_address,
+       i.email_code_enabled
+FROM auth_identities i
+JOIN accounts a ON a.id = i.account_id
+WHERE i.kind = 'password' AND i.disabled_at IS NULL AND i.identifier_normalized = sqlc.arg(identifier_normalized)::text;
+
+-- name: ConsumeEmailLoginChallenge :execrows
+-- Uses an emailed sign-in code once; zero rows means it was used, replaced, exhausted or expired meanwhile.
+UPDATE auth_challenges SET used_at = now()
+WHERE id = sqlc.arg(id) AND kind = 'email_login' AND used_at IS NULL AND cancelled_at IS NULL
+  AND attempt_count < 5 AND expires_at > now();
+
+-- name: SetEmailCodeEnabled :execrows
+UPDATE auth_identities SET email_code_enabled = sqlc.arg(enabled), updated_at = now()
+WHERE id = sqlc.arg(id) AND kind = 'password' AND email_code_enabled IS DISTINCT FROM sqlc.arg(enabled);
+
+-- name: DeleteEmailLoginChallengesForAccount :exec
+DELETE FROM auth_challenges WHERE account_id = sqlc.arg(account_id) AND kind = 'email_login';
+
+-- name: DeletePasswordCredential :exec
+-- Removes only the password of a login email identity that also signs in with an emailed code.
+DELETE FROM password_credentials WHERE auth_identity_id = sqlc.arg(auth_identity_id);

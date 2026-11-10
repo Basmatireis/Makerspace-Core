@@ -27,6 +27,8 @@ var personalDataColumns = []string{
 	"webauthn_credentials.credential_id", "mfa_totp_credentials.secret_ciphertext", "mfa_recovery_codes.code_digest",
 	"oidc_flows.state_digest", "scim_users.external_id", "scim_users.user_name", "scim_users.provisioning_data",
 	"scim_connector_tokens.token_digest", "visitor_enrollment_contexts.token_digest",
+	"visitor_enrollment_contexts.email_display", "visitor_enrollment_contexts.email_normalized",
+	"visitor_enrollment_contexts.email_code_digest",
 	"visits.person_id", "laborordnung_confirmations.person_id", "laborordnung_confirmations.physical_document_reference",
 	"laborordnung_confirmations.archive_note", "open_day_assignments.person_id", "events.owner_person_id",
 	"event_tasks.assignee_person_id", "event_shift_assignments.first_name_snapshot",

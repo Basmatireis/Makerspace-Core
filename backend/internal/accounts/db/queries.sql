@@ -22,6 +22,7 @@ SELECT * FROM accounts WHERE person_id = sqlc.arg(person_id) FOR UPDATE;
 SELECT a.id, a.person_id, a.status, a.provisioning_source, a.first_authenticated_at,
        a.version, a.created_at, a.updated_at,
        i.id AS auth_identity_id, i.identifier_display AS login_email,
+       COALESCE(i.email_code_enabled, false)::boolean AS email_code_enabled,
        CASE WHEN prt.id IS NOT NULL OR pc.reset_required THEN 'reset_required'
             WHEN pc.auth_identity_id IS NULL THEN 'not_set' ELSE 'active' END AS password_status
 FROM accounts a
@@ -34,6 +35,7 @@ WHERE a.id = sqlc.arg(id);
 SELECT a.id, a.person_id, a.status, a.provisioning_source, a.first_authenticated_at,
        a.version, a.created_at, a.updated_at,
        i.id AS auth_identity_id, i.identifier_display AS login_email,
+       COALESCE(i.email_code_enabled, false)::boolean AS email_code_enabled,
        CASE WHEN EXISTS (
                 SELECT 1 FROM password_reset_tokens prt
                 WHERE prt.account_id = a.id AND prt.expires_at > now()
@@ -98,7 +100,7 @@ SELECT * FROM auth_identities WHERE account_id = sqlc.arg(account_id) AND kind =
 SELECT i.*, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug,
        CASE
          WHEN i.disabled_at IS NOT NULL THEN false
-         WHEN i.kind = 'password' THEN EXISTS (
+         WHEN i.kind = 'password' THEN i.email_code_enabled OR EXISTS (
            SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
          )
          WHEN i.kind = 'pin' THEN EXISTS (
@@ -116,7 +118,7 @@ ORDER BY i.kind, i.created_at, i.id;
 SELECT i.*, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug,
        CASE
          WHEN i.disabled_at IS NOT NULL THEN false
-         WHEN i.kind = 'password' THEN EXISTS (
+         WHEN i.kind = 'password' THEN i.email_code_enabled OR EXISTS (
            SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
          )
          WHEN i.kind = 'pin' THEN EXISTS (
@@ -191,7 +193,7 @@ WHERE id = sqlc.arg(id) AND kind = 'password';
 -- name: DeletePasswordChallengesForAccount :exec
 DELETE FROM auth_challenges
 WHERE account_id = sqlc.arg(account_id)
-  AND kind IN ('invitation', 'email_verification', 'password_reset');
+  AND kind IN ('invitation', 'email_verification', 'password_reset', 'email_login');
 
 -- name: DeletePINEnrollmentChallengesForAccount :exec
 DELETE FROM auth_challenges
@@ -255,3 +257,14 @@ DELETE FROM webauthn_credentials WHERE account_id = sqlc.arg(account_id);
 
 -- name: DeletePendingLoginsForAccount :exec
 DELETE FROM pending_logins WHERE account_id = sqlc.arg(account_id);
+
+-- name: SetEmailCodeEnabled :execrows
+UPDATE auth_identities SET email_code_enabled = sqlc.arg(enabled), updated_at = now()
+WHERE id = sqlc.arg(id) AND kind = 'password' AND email_code_enabled IS DISTINCT FROM sqlc.arg(enabled);
+
+-- name: DeleteEmailLoginChallengesForAccount :exec
+DELETE FROM auth_challenges WHERE account_id = sqlc.arg(account_id) AND kind = 'email_login';
+
+-- name: DeletePasswordCredentialForIdentity :exec
+-- Removes only the password of a login email identity that also signs in with an emailed code.
+DELETE FROM password_credentials WHERE auth_identity_id = sqlc.arg(auth_identity_id);

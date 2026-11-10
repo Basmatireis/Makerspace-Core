@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifyrules"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
@@ -41,13 +40,9 @@ func (s *Server) UpdateVisitorEnrollmentConfiguration(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	methods := make([]visitor.AuthMethod, len(request.Body.AllowedMethods))
-	for index, method := range request.Body.AllowedMethods {
-		methods[index] = visitor.AuthMethod(method)
-	}
 	value, err := s.visitor.UpdateConfiguration(ctx, principal, visitor.ConfigurationInput{
 		Enabled: request.Body.Enabled, DeviceTypeIDs: request.Body.DeviceTypeIds,
-		AllowedMethods: methods, ExpectedVersion: request.Body.ExpectedVersion,
+		ExpectedVersion: request.Body.ExpectedVersion,
 	}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
@@ -82,10 +77,6 @@ func (s *Server) GetVisitorEnrollmentState(
 	if err != nil {
 		return nil, err
 	}
-	methods := make([]openapi.VisitorAuthenticationMethod, len(state.AllowedMethods))
-	for index, method := range state.AllowedMethods {
-		methods[index] = openapi.VisitorAuthenticationMethod(method)
-	}
 	capabilities := make([]openapi.DeviceCapability, len(state.Capabilities))
 	for index, capability := range state.Capabilities {
 		capabilities[index] = openapi.DeviceCapability(capability)
@@ -102,8 +93,13 @@ func (s *Server) GetVisitorEnrollmentState(
 			Basis: openapi.TerminalConsentCategoryBasis(category.Basis),
 		}
 	}
+	email := nullable.NewNullNullable[string]()
+	if state.Email != "" {
+		email = nullable.NewNullableWithValue(state.Email)
+	}
 	result := openapi.VisitorEnrollmentState{
-		AllowedMethods:    methods,
+		Email:             email,
+		EmailVerified:     state.EmailVerified,
 		Capabilities:      capabilities,
 		LabRulesRequired:  state.LabRulesRequired,
 		ConsentCategories: consentCategories,
@@ -152,20 +148,12 @@ func (s *Server) SubmitVisitorEnrollment(
 	if request.Body.ProfileImageBase64.IsSpecified() && !request.Body.ProfileImageBase64.IsNull() {
 		profileImage = request.Body.ProfileImageBase64.GetOrEmpty()
 	}
-	methods := make([]visitor.AuthMethod, len(request.Body.AuthMethods))
-	for index, method := range request.Body.AuthMethods {
-		methods[index] = visitor.AuthMethod(method)
-	}
 	consents := make([]notifyrules.ConsentAnswer, len(request.Body.Consents))
 	for index, answer := range request.Body.Consents {
 		consents[index] = notifyrules.ConsentAnswer{CategoryID: answer.CategoryId, Granted: answer.Granted}
 	}
 	result, err := s.visitor.Submit(ctx, enrollment, visitor.SubmissionInput{
 		FirstName: request.Body.FirstName, LastName: request.Body.LastName,
-		Email:        string(request.Body.Email),
-		AuthMethods:  methods,
-		PINLoginName: nullableStringPointer(request.Body.PinLoginName),
-		PIN:          nullableStringPointer(request.Body.Pin),
 		ProfileImage: profileImage, ProfileImageFilename: request.Body.ProfileImageFilename.GetOrEmpty(),
 		LabRulesAccepted: request.Body.LabRulesAccepted,
 		Consents:         consents,
@@ -178,20 +166,14 @@ func (s *Server) SubmitVisitorEnrollment(
 		AccountStatus: openapi.VisitorEnrollmentResultAccountStatus(result.AccountStatus),
 		Admission:     openapi.VisitorEnrollmentResultAdmission(result.Admission),
 		Attendance:    openapi.VisitorEnrollmentResultAttendance(result.Attendance),
-		InvitationDelivery: nullablePointer(
-			result.InvitationDelivery,
-			func(value auth.DeliveryStatus) openapi.VisitorEnrollmentResultInvitationDelivery {
-				return openapi.VisitorEnrollmentResultInvitationDelivery(value)
-			},
-		),
 	}
 	return visitorSubmissionCookieResponse{config: s.config, body: body}, nil
 }
 
-func (s *Server) SuggestVisitorPinLoginName(
+func (s *Server) SendVisitorEnrollmentEmailCode(
 	ctx context.Context,
-	request openapi.SuggestVisitorPinLoginNameRequestObject,
-) (openapi.SuggestVisitorPinLoginNameResponseObject, error) {
+	request openapi.SendVisitorEnrollmentEmailCodeRequestObject,
+) (openapi.SendVisitorEnrollmentEmailCodeResponseObject, error) {
 	enrollment, ok := ctx.Value(visitorEnrollmentContextKey).(visitor.Context)
 	if !ok {
 		return nil, invalidRequest("enrollment context is required")
@@ -199,13 +181,30 @@ func (s *Server) SuggestVisitorPinLoginName(
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	loginName, err := s.visitor.SuggestLoginName(ctx, enrollment, request.Body.FirstName, request.Body.LastName)
-	if err != nil {
+	if err := s.visitor.SendEmailCode(ctx, enrollment, request.Body.Email, requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
-	return openapi.SuggestVisitorPinLoginName200JSONResponse{
-		Body:    openapi.VisitorLoginNameSuggestion{LoginName: loginName},
-		Headers: openapi.SuggestVisitorPinLoginName200ResponseHeaders{CacheControl: "no-store"},
+	return openapi.SendVisitorEnrollmentEmailCode202Response{
+		Headers: openapi.SendVisitorEnrollmentEmailCode202ResponseHeaders{CacheControl: "no-store"},
+	}, nil
+}
+
+func (s *Server) ConfirmVisitorEnrollmentEmail(
+	ctx context.Context,
+	request openapi.ConfirmVisitorEnrollmentEmailRequestObject,
+) (openapi.ConfirmVisitorEnrollmentEmailResponseObject, error) {
+	enrollment, ok := ctx.Value(visitorEnrollmentContextKey).(visitor.Context)
+	if !ok {
+		return nil, invalidRequest("enrollment context is required")
+	}
+	if request.Body == nil || request.Body.Code == nil {
+		return nil, invalidRequest("code is required")
+	}
+	if err := s.visitor.ConfirmEmail(ctx, enrollment, *request.Body.Code, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.ConfirmVisitorEnrollmentEmail204Response{
+		Headers: openapi.ConfirmVisitorEnrollmentEmail204ResponseHeaders{CacheControl: "no-store"},
 	}, nil
 }
 
@@ -227,12 +226,8 @@ func (s *Server) EvaluateVisitorAdmission(
 }
 
 func visitorConfigurationDTO(value visitor.Configuration) openapi.VisitorEnrollmentConfiguration {
-	methods := make([]openapi.VisitorAuthenticationMethod, len(value.AllowedMethods))
-	for index, method := range value.AllowedMethods {
-		methods[index] = openapi.VisitorAuthenticationMethod(method)
-	}
 	return openapi.VisitorEnrollmentConfiguration{
-		Enabled: value.Enabled, DeviceTypeIds: value.DeviceTypeIDs, AllowedMethods: methods, Version: value.Version, UpdatedAt: value.UpdatedAt,
+		Enabled: value.Enabled, DeviceTypeIds: value.DeviceTypeIDs, Version: value.Version, UpdatedAt: value.UpdatedAt,
 	}
 }
 

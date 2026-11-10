@@ -1,8 +1,6 @@
 package integration_test
 
 import (
-	"net/http"
-	"regexp"
 	"testing"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/attendance"
@@ -19,14 +17,15 @@ import (
 )
 
 type consentEnrollmentEnv struct {
-	pool    *pgxpool.Pool
-	service *visitor.Service
-	device  uuid.UUID
-	context manageddevices.DeviceContext
+	pool     *pgxpool.Pool
+	service  *visitor.Service
+	notifier *notificationRecorder
+	device   uuid.UUID
+	context  manageddevices.DeviceContext
 }
 
-// newConsentEnrollmentEnv enables PIN and password enrollment on one kiosk, without Lab Rules, and wires the
-// attendance and consent modules like the server does.
+// newConsentEnrollmentEnv enables enrollment on one kiosk, without Lab Rules, and wires the attendance and consent
+// modules like the server does.
 func newConsentEnrollmentEnv(t *testing.T) consentEnrollmentEnv {
 	t.Helper()
 	pool := migratedPool(t)
@@ -39,7 +38,8 @@ func newConsentEnrollmentEnv(t *testing.T) consentEnrollmentEnv {
 	}
 	fileService := files.NewService(pool, local)
 	labRules := laborordnung.NewService(pool, notifyrules.NewSystemEvents(nil), fileService)
-	service := visitor.NewService(pool, integrationConfig(t), fileService, labRules, nil)
+	notifier := newNotificationRecorder()
+	service := visitor.NewService(pool, integrationConfig(t), fileService, labRules, notifier)
 	service.SetAttendance(attendance.NewService(pool, nil, labRules, nil))
 	service.SetConsents(notifyrules.NewService(pool))
 	if _, err = pool.Exec(ctx, `UPDATE roles SET laborordnung_mode='not_required' WHERE system_key='visitor'`); err != nil {
@@ -55,18 +55,18 @@ func newConsentEnrollmentEnv(t *testing.T) consentEnrollmentEnv {
 		t.Fatal(err)
 	}
 	if _, err = service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{
-		Enabled: true, DeviceTypeIDs: []uuid.UUID{deviceType.ID},
-		AllowedMethods: []visitor.AuthMethod{"pin", "password"}, ExpectedVersion: 1,
+		Enabled: true, DeviceTypeIDs: []uuid.UUID{deviceType.ID}, ExpectedVersion: 1,
 	}, nil); err != nil {
 		t.Fatal(err)
 	}
 	return consentEnrollmentEnv{
-		pool: pool, service: service, device: device.Device.ID,
+		pool: pool, service: service, notifier: notifier, device: device.Device.ID,
 		context: manageddevices.DeviceContext{ID: device.Device.ID, DeviceTypeID: deviceType.ID},
 	}
 }
 
-func (e consentEnrollmentEnv) enrollment(t *testing.T) visitor.Context {
+// begin opens a fresh enrollment context without a verified address.
+func (e consentEnrollmentEnv) begin(t *testing.T) visitor.Context {
 	t.Helper()
 	ctx := testContext(t)
 	issue, err := e.service.Begin(ctx, e.context)
@@ -75,6 +75,20 @@ func (e consentEnrollmentEnv) enrollment(t *testing.T) visitor.Context {
 	}
 	enrollment, err := e.service.AuthenticateContext(ctx, issue.ContextToken)
 	if err != nil {
+		t.Fatal(err)
+	}
+	return enrollment
+}
+
+// enrollment opens a context and verifies email on it with the mailed code.
+func (e consentEnrollmentEnv) enrollment(t *testing.T, email string) visitor.Context {
+	t.Helper()
+	ctx := testContext(t)
+	enrollment := e.begin(t)
+	if err := e.service.SendEmailCode(ctx, enrollment, email, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.service.ConfirmEmail(ctx, enrollment, e.notifier.enrollmentCode(email), nil); err != nil {
 		t.Fatal(err)
 	}
 	return enrollment
@@ -89,12 +103,8 @@ func (e consentEnrollmentEnv) category(t *testing.T, key string) uuid.UUID {
 	return id
 }
 
-func pinSubmission(first, last, email, login string) visitor.SubmissionInput {
-	pin := "654321"
-	return visitor.SubmissionInput{
-		FirstName: first, LastName: last, Email: email,
-		AuthMethods: []visitor.AuthMethod{"pin"}, PINLoginName: &login, PIN: &pin,
-	}
+func submission(first, last string) visitor.SubmissionInput {
+	return visitor.SubmissionInput{FirstName: first, LastName: last}
 }
 
 func TestVisitorEnrollmentStoresConsentAnswers(t *testing.T) {
@@ -103,16 +113,16 @@ func TestVisitorEnrollmentStoresConsentAnswers(t *testing.T) {
 	news, surveys, service := e.category(t, "news"), e.category(t, "surveys"), e.category(t, "service")
 
 	// A category that needs no consent cannot be answered; nothing of the enrollment is kept.
-	refused := pinSubmission("Refused", "Visitor", "refused@example.test", "refused.visitor")
+	refused := submission("Refused", "Visitor")
 	refused.Consents = []notifyrules.ConsentAnswer{{CategoryID: service, Granted: true}}
-	if _, err := e.service.Submit(ctx, e.enrollment(t), refused, nil); !apperror.IsCode(err, "category_needs_no_consent") {
+	if _, err := e.service.Submit(ctx, e.enrollment(t, "refused@example.test"), refused, nil); !apperror.IsCode(err, "category_needs_no_consent") {
 		t.Fatalf("answering a required category error=%v", err)
 	}
 	assertCount(t, e.pool, `SELECT count(*) FROM people WHERE first_name='Refused'`, 0)
 
-	input := pinSubmission("Consenting", "Visitor", "consenting@example.test", "consenting.visitor")
+	input := submission("Consenting", "Visitor")
 	input.Consents = []notifyrules.ConsentAnswer{{CategoryID: news, Granted: true}, {CategoryID: surveys, Granted: false}}
-	result, err := e.service.Submit(ctx, e.enrollment(t), input, nil)
+	result, err := e.service.Submit(ctx, e.enrollment(t, "consenting@example.test"), input, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,68 +140,9 @@ func TestVisitorEnrollmentStoresConsentAnswers(t *testing.T) {
 	}
 
 	// Answering nothing is allowed: the check-in asks again later.
-	silent, err := e.service.Submit(ctx, e.enrollment(t), pinSubmission("Silent", "Visitor", "silent@example.test", "silent.visitor"), nil)
+	silent, err := e.service.Submit(ctx, e.enrollment(t, "silent@example.test"), submission("Silent", "Visitor"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertCount(t, e.pool, `SELECT count(*) FROM notification_consents WHERE person_id=$1`, 0, silent.PersonID)
-}
-
-func TestVisitorEnrollmentRequiresEmail(t *testing.T) {
-	e := newConsentEnrollmentEnv(t)
-	ctx := testContext(t)
-	for _, email := range []string{"", "  ", "not-an-address"} {
-		_, err := e.service.Submit(ctx, e.enrollment(t), pinSubmission("Mailless", "Visitor", email, "mailless.visitor"), nil)
-		if !apperror.IsCode(err, "validation_failed") {
-			t.Fatalf("email %q error=%v, want validation_failed", email, err)
-		}
-	}
-	assertCount(t, e.pool, `SELECT count(*) FROM people WHERE first_name='Mailless'`, 0)
-}
-
-func TestVisitorLoginNameSuggestion(t *testing.T) {
-	e := newConsentEnrollmentEnv(t)
-	ctx := testContext(t)
-	enrollment := e.enrollment(t)
-
-	suggested, err := e.service.SuggestLoginName(ctx, enrollment, " Jonas ", "Weiß")
-	if err != nil || suggested != "jonas.weiss" {
-		t.Fatalf("suggestion=%q err=%v, want jonas.weiss", suggested, err)
-	}
-	if _, err = e.service.Submit(ctx, e.enrollment(t), pinSubmission("Jonas", "Weiß", "jonas@example.test", "Jonas.Weiss"), nil); err != nil {
-		t.Fatal(err)
-	}
-	// Taken names are compared case-insensitively, like logins.
-	suggested, err = e.service.SuggestLoginName(ctx, enrollment, "Jonas", "Weiss")
-	if err != nil || !regexp.MustCompile(`^jonas\.weiss[0-9]+$`).MatchString(suggested) {
-		t.Fatalf("suggestion for a taken name=%q err=%v, want jonas.weiss with a number", suggested, err)
-	}
-	if _, err = e.service.SuggestLoginName(ctx, enrollment, "李", "王"); !apperror.IsCode(err, "validation_failed") {
-		t.Fatalf("suggestion without usable characters error=%v, want validation_failed", err)
-	}
-}
-
-func TestVisitorLoginNameSuggestionOnlyWhenPINIsAllowed(t *testing.T) {
-	e := newConsentEnrollmentEnv(t)
-	ctx := testContext(t)
-	enrollment := e.enrollment(t)
-	if _, err := e.pool.Exec(ctx, `UPDATE visitor_enrollment_configuration SET allowed_methods=ARRAY['password']`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := e.service.SuggestLoginName(ctx, enrollment, "Jonas", "Weiss"); !apperror.IsCode(err, "permission_denied") {
-		t.Fatalf("suggestion without PIN enrollment error=%v, want permission_denied", err)
-	}
-}
-
-func TestVisitorLoginNameSuggestionNeedsAnEnrollingKiosk(t *testing.T) {
-	e := newSignageEnv(t)
-	body := map[string]any{"firstName": "Jonas", "lastName": "Weiss"}
-	// Without a registered kiosk there is no enrollment context to suggest a name in.
-	e.expectCode(
-		e.do(
-			newCookieClient(t), "", http.MethodPost, "/visitor-enrollment/login-name-suggestions", body,
-			"X-Enrollment-CSRF-Token", "not-a-real-enrollment-csrf-token",
-		),
-		http.StatusNotFound, "not_found",
-	)
 }

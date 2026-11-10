@@ -92,6 +92,21 @@ func (q *Queries) ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateL
 	return allowed, err
 }
 
+const consumeEmailLoginChallenge = `-- name: ConsumeEmailLoginChallenge :execrows
+UPDATE auth_challenges SET used_at = now()
+WHERE id = $1 AND kind = 'email_login' AND used_at IS NULL AND cancelled_at IS NULL
+  AND attempt_count < 5 AND expires_at > now()
+`
+
+// Uses an emailed sign-in code once; zero rows means it was used, replaced, exhausted or expired meanwhile.
+func (q *Queries) ConsumeEmailLoginChallenge(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, consumeEmailLoginChallenge, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const consumeWebAuthnChallenge = `-- name: ConsumeWebAuthnChallenge :one
 DELETE FROM webauthn_challenges
 WHERE challenge_digest = $1 AND purpose = $2
@@ -219,7 +234,7 @@ func (q *Queries) CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionPa
 const createPINIdentity = `-- name: CreatePINIdentity :one
 INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at)
 VALUES ($1, $2, 'pin', $3, $4, now())
-RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
+RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at, email_code_enabled
 `
 
 type CreatePINIdentityParams struct {
@@ -251,6 +266,7 @@ func (q *Queries) CreatePINIdentity(ctx context.Context, arg CreatePINIdentityPa
 		&i.VerifiedAt,
 		&i.DisabledAt,
 		&i.LastUsedAt,
+		&i.EmailCodeEnabled,
 	)
 	return i, err
 }
@@ -414,8 +430,8 @@ func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswo
 }
 
 const createPendingLogin = `-- name: CreatePendingLogin :exec
-INSERT INTO pending_logins (id, token_digest, account_id, auth_identity_id, managed_device_id, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO pending_logins (id, token_digest, account_id, auth_identity_id, managed_device_id, expires_at, auth_method)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 `
 
 type CreatePendingLoginParams struct {
@@ -425,6 +441,7 @@ type CreatePendingLoginParams struct {
 	AuthIdentityID  uuid.UUID
 	ManagedDeviceID *uuid.UUID
 	ExpiresAt       time.Time
+	AuthMethod      string
 }
 
 func (q *Queries) CreatePendingLogin(ctx context.Context, arg CreatePendingLoginParams) error {
@@ -435,6 +452,7 @@ func (q *Queries) CreatePendingLogin(ctx context.Context, arg CreatePendingLogin
 		arg.AuthIdentityID,
 		arg.ManagedDeviceID,
 		arg.ExpiresAt,
+		arg.AuthMethod,
 	)
 	return err
 }
@@ -444,10 +462,10 @@ INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_diges
   base_assurance, current_assurance, authenticated_assurance, mfa_setup_required, authenticated_at,
   idle_expires_at, absolute_expires_at, managed_device_id, session_policy_id, session_policy_version,
   idle_timeout_seconds, post_session_destination)
-VALUES ($1, $2, $3::uuid, $4, $5, 'password',
-  $6, $6, $6, $7, now(),
-  $8, $9, $10, $11,
-  $12, $13, $14)
+VALUES ($1, $2, $3::uuid, $4, $5, $6,
+  $7, $7, $7, $8, now(),
+  $9, $10, $11, $12,
+  $13, $14, $15)
 RETURNING id
 `
 
@@ -457,6 +475,7 @@ type CreateSessionParams struct {
 	AuthIdentityID         uuid.UUID
 	TokenDigest            []byte
 	CsrfDigest             []byte
+	AuthMethod             string
 	Assurance              string
 	MfaSetupRequired       bool
 	IdleExpiresAt          time.Time
@@ -468,7 +487,8 @@ type CreateSessionParams struct {
 	PostSessionDestination string
 }
 
-// A password session: normal assurance, or strong_mfa when the login also verified a second factor.
+// A session of the login email identity (password or emailed code): normal assurance, or strong_mfa when the login
+// also verified a second factor.
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, createSession,
 		arg.ID,
@@ -476,6 +496,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (u
 		arg.AuthIdentityID,
 		arg.TokenDigest,
 		arg.CsrfDigest,
+		arg.AuthMethod,
 		arg.Assurance,
 		arg.MfaSetupRequired,
 		arg.IdleExpiresAt,
@@ -489,6 +510,15 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (u
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const deleteEmailLoginChallengesForAccount = `-- name: DeleteEmailLoginChallengesForAccount :exec
+DELETE FROM auth_challenges WHERE account_id = $1 AND kind = 'email_login'
+`
+
+func (q *Queries) DeleteEmailLoginChallengesForAccount(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteEmailLoginChallengesForAccount, accountID)
+	return err
 }
 
 const deleteExpiredAuthSecurityState = `-- name: DeleteExpiredAuthSecurityState :execrows
@@ -574,6 +604,16 @@ DELETE FROM auth_identities WHERE id = $1 AND kind = 'pin'
 
 func (q *Queries) DeletePINIdentity(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deletePINIdentity, id)
+	return err
+}
+
+const deletePasswordCredential = `-- name: DeletePasswordCredential :exec
+DELETE FROM password_credentials WHERE auth_identity_id = $1
+`
+
+// Removes only the password of a login email identity that also signs in with an emailed code.
+func (q *Queries) DeletePasswordCredential(ctx context.Context, authIdentityID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePasswordCredential, authIdentityID)
 	return err
 }
 
@@ -682,6 +722,38 @@ WHERE id = $1 AND status = 'disabled' AND administratively_disabled_at IS NULL
 func (q *Queries) EnableInvitedAccount(ctx context.Context, accountID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, enableInvitedAccount, accountID)
 	return err
+}
+
+const findEmailCodeTarget = `-- name: FindEmailCodeTarget :one
+SELECT a.id AS account_id, a.person_id, a.status, i.id AS auth_identity_id, i.identifier_display AS delivery_address,
+       i.email_code_enabled
+FROM auth_identities i
+JOIN accounts a ON a.id = i.account_id
+WHERE i.kind = 'password' AND i.disabled_at IS NULL AND i.identifier_normalized = $1::text
+`
+
+type FindEmailCodeTargetRow struct {
+	AccountID        uuid.UUID
+	PersonID         uuid.UUID
+	Status           string
+	AuthIdentityID   uuid.UUID
+	DeliveryAddress  *string
+	EmailCodeEnabled bool
+}
+
+// The login email identity behind an address, whether or not it signs in with an emailed code.
+func (q *Queries) FindEmailCodeTarget(ctx context.Context, identifierNormalized string) (FindEmailCodeTargetRow, error) {
+	row := q.db.QueryRow(ctx, findEmailCodeTarget, identifierNormalized)
+	var i FindEmailCodeTargetRow
+	err := row.Scan(
+		&i.AccountID,
+		&i.PersonID,
+		&i.Status,
+		&i.AuthIdentityID,
+		&i.DeliveryAddress,
+		&i.EmailCodeEnabled,
+	)
+	return i, err
 }
 
 const findLoginAccountByEmail = `-- name: FindLoginAccountByEmail :one
@@ -964,7 +1036,7 @@ func (q *Queries) GetLoginByEmail(ctx context.Context, identifierNormalized stri
 }
 
 const getPINIdentityForAccount = `-- name: GetPINIdentityForAccount :one
-SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at FROM auth_identities WHERE account_id = $1 AND kind = 'pin' FOR UPDATE
+SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at, email_code_enabled FROM auth_identities WHERE account_id = $1 AND kind = 'pin' FOR UPDATE
 `
 
 func (q *Queries) GetPINIdentityForAccount(ctx context.Context, accountID uuid.UUID) (AuthIdentity, error) {
@@ -984,6 +1056,7 @@ func (q *Queries) GetPINIdentityForAccount(ctx context.Context, accountID uuid.U
 		&i.VerifiedAt,
 		&i.DisabledAt,
 		&i.LastUsedAt,
+		&i.EmailCodeEnabled,
 	)
 	return i, err
 }
@@ -1007,7 +1080,7 @@ func (q *Queries) GetPasswordCredentialForAccount(ctx context.Context, accountID
 
 const getPasswordIdentityTargetForAccount = `-- name: GetPasswordIdentityTargetForAccount :one
 SELECT a.id AS account_id, a.status, i.id AS auth_identity_id,
-       i.identifier_display AS delivery_address, i.verified_at
+       i.identifier_display AS delivery_address, i.verified_at, i.email_code_enabled
 FROM auth_identities i
 JOIN accounts a ON a.id = i.account_id
 WHERE i.account_id = $1 AND i.kind = 'password'
@@ -1015,11 +1088,12 @@ WHERE i.account_id = $1 AND i.kind = 'password'
 `
 
 type GetPasswordIdentityTargetForAccountRow struct {
-	AccountID       uuid.UUID
-	Status          string
-	AuthIdentityID  uuid.UUID
-	DeliveryAddress *string
-	VerifiedAt      pgtype.Timestamptz
+	AccountID        uuid.UUID
+	Status           string
+	AuthIdentityID   uuid.UUID
+	DeliveryAddress  *string
+	VerifiedAt       pgtype.Timestamptz
+	EmailCodeEnabled bool
 }
 
 func (q *Queries) GetPasswordIdentityTargetForAccount(ctx context.Context, accountID uuid.UUID) (GetPasswordIdentityTargetForAccountRow, error) {
@@ -1031,6 +1105,7 @@ func (q *Queries) GetPasswordIdentityTargetForAccount(ctx context.Context, accou
 		&i.AuthIdentityID,
 		&i.DeliveryAddress,
 		&i.VerifiedAt,
+		&i.EmailCodeEnabled,
 	)
 	return i, err
 }
@@ -1068,7 +1143,7 @@ func (q *Queries) GetPasswordResetByDigest(ctx context.Context, tokenDigest []by
 }
 
 const getPendingLogin = `-- name: GetPendingLogin :one
-SELECT id, token_digest, account_id, auth_identity_id, managed_device_id, failed_attempts, expires_at, created_at FROM pending_logins WHERE token_digest = $1 AND expires_at > now()
+SELECT id, token_digest, account_id, auth_identity_id, managed_device_id, failed_attempts, expires_at, created_at, auth_method FROM pending_logins WHERE token_digest = $1 AND expires_at > now()
 `
 
 func (q *Queries) GetPendingLogin(ctx context.Context, tokenDigest []byte) (PendingLogin, error) {
@@ -1083,12 +1158,13 @@ func (q *Queries) GetPendingLogin(ctx context.Context, tokenDigest []byte) (Pend
 		&i.FailedAttempts,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.AuthMethod,
 	)
 	return i, err
 }
 
 const getPendingLoginForUpdate = `-- name: GetPendingLoginForUpdate :one
-SELECT id, token_digest, account_id, auth_identity_id, managed_device_id, failed_attempts, expires_at, created_at FROM pending_logins WHERE token_digest = $1 AND expires_at > now() FOR UPDATE
+SELECT id, token_digest, account_id, auth_identity_id, managed_device_id, failed_attempts, expires_at, created_at, auth_method FROM pending_logins WHERE token_digest = $1 AND expires_at > now() FOR UPDATE
 `
 
 func (q *Queries) GetPendingLoginForUpdate(ctx context.Context, tokenDigest []byte) (PendingLogin, error) {
@@ -1103,6 +1179,7 @@ func (q *Queries) GetPendingLoginForUpdate(ctx context.Context, tokenDigest []by
 		&i.FailedAttempts,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+		&i.AuthMethod,
 	)
 	return i, err
 }
@@ -1720,6 +1797,24 @@ func (q *Queries) SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChall
 	return err
 }
 
+const setEmailCodeEnabled = `-- name: SetEmailCodeEnabled :execrows
+UPDATE auth_identities SET email_code_enabled = $1, updated_at = now()
+WHERE id = $2 AND kind = 'password' AND email_code_enabled IS DISTINCT FROM $1
+`
+
+type SetEmailCodeEnabledParams struct {
+	Enabled bool
+	ID      uuid.UUID
+}
+
+func (q *Queries) SetEmailCodeEnabled(ctx context.Context, arg SetEmailCodeEnabledParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setEmailCodeEnabled, arg.Enabled, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const touchSession = `-- name: TouchSession :one
 UPDATE sessions SET last_seen_at = now(),
   idle_expires_at = LEAST(now() + make_interval(secs => idle_timeout_seconds), absolute_expires_at)
@@ -1745,7 +1840,7 @@ UPDATE auth_identities SET identifier_display = $1,
     identifier_normalized = $2, verified_at = COALESCE(verified_at, now()),
     disabled_at = NULL, updated_at = now()
 WHERE account_id = $3 AND kind = 'pin'
-RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
+RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at, email_code_enabled
 `
 
 type UpdatePINIdentityParams struct {
@@ -1771,6 +1866,7 @@ func (q *Queries) UpdatePINIdentity(ctx context.Context, arg UpdatePINIdentityPa
 		&i.VerifiedAt,
 		&i.DisabledAt,
 		&i.LastUsedAt,
+		&i.EmailCodeEnabled,
 	)
 	return i, err
 }

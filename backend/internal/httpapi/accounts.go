@@ -331,10 +331,11 @@ func accountDTO(account accounts.Account) openapi.Account {
 			account.FirstAuthenticatedAt,
 			func(value time.Time) time.Time { return value },
 		),
-		PasswordStatus: openapi.PasswordStatus(account.PasswordStatus),
-		LoginEmail:     optionalLoginEmail(account.LoginEmail),
-		AuthIdentities: identities,
-		Version:        account.Version, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
+		PasswordStatus:   openapi.PasswordStatus(account.PasswordStatus),
+		LoginEmail:       optionalLoginEmail(account.LoginEmail),
+		EmailCodeEnabled: account.EmailCodeEnabled,
+		AuthIdentities:   identities,
+		Version:          account.Version, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
 	}
 }
 
@@ -352,6 +353,47 @@ func accountSummaryDTO(account accounts.Account) openapi.AccountSummary {
 		ProvisioningSource: openapi.AccountSummaryProvisioningSource(
 			full.ProvisioningSource,
 		), FirstAuthenticatedAt: full.FirstAuthenticatedAt,
-		LoginEmail: full.LoginEmail, AuthIdentities: full.AuthIdentities, Version: full.Version,
+		LoginEmail: full.LoginEmail, EmailCodeEnabled: full.EmailCodeEnabled, AuthIdentities: full.AuthIdentities,
+		Version: full.Version,
 	}
+}
+
+func (s *Server) EnableAccountEmailCode(
+	ctx context.Context,
+	request openapi.EnableAccountEmailCodeRequestObject,
+) (openapi.EnableAccountEmailCodeResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	account, err := s.accounts.SetEmailCode(
+		ctx, principal, request.AccountId, true, request.Body.ExpectedVersion, requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.EnableAccountEmailCode200JSONResponse(accountDTO(account)), nil
+}
+
+func (s *Server) DisableAccountEmailCode(
+	ctx context.Context,
+	request openapi.DisableAccountEmailCodeRequestObject,
+) (openapi.DisableAccountEmailCodeResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	account, err := s.accounts.SetEmailCode(
+		ctx, principal, request.AccountId, false, request.Body.ExpectedVersion, requestIDPointer(ctx),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.DisableAccountEmailCode200JSONResponse(accountDTO(account)), nil
 }

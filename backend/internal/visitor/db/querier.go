@@ -14,16 +14,16 @@ import (
 type Querier interface {
 	AddAllowedDeviceType(ctx context.Context, deviceTypeID uuid.UUID) error
 	ClearAllowedDeviceTypes(ctx context.Context) error
+	// Withdraws a code whose mail could not be delivered, unless a newer code replaced it meanwhile.
+	ClearEnrollmentEmailCode(ctx context.Context, arg ClearEnrollmentEmailCodeParams) error
+	// The verified address now lives on the account; the used context keeps no copy of it.
 	ConsumeEnrollmentContext(ctx context.Context, id uuid.UUID) (int64, error)
 	CreateEnrollmentContext(ctx context.Context, arg CreateEnrollmentContextParams) (VisitorEnrollmentContext, error)
 	CreateVisitorAccount(ctx context.Context, arg CreateVisitorAccountParams) (Account, error)
-	CreateVisitorInvitation(ctx context.Context, arg CreateVisitorInvitationParams) (AuthChallenge, error)
-	CreateVisitorPINCredential(ctx context.Context, arg CreateVisitorPINCredentialParams) error
-	CreateVisitorPINIdentity(ctx context.Context, arg CreateVisitorPINIdentityParams) (AuthIdentity, error)
-	CreateVisitorPasswordIdentity(ctx context.Context, arg CreateVisitorPasswordIdentityParams) (AuthIdentity, error)
 	CreateVisitorPerson(ctx context.Context, arg CreateVisitorPersonParams) (Person, error)
 	DeleteExpiredEnrollmentContexts(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeviceTypeExists(ctx context.Context, id uuid.UUID) (bool, error)
+	EnableVisitorEmailCode(ctx context.Context, accountID uuid.UUID) (int64, error)
 	GetConfiguration(ctx context.Context) (VisitorEnrollmentConfiguration, error)
 	GetConfigurationForUpdate(ctx context.Context) (VisitorEnrollmentConfiguration, error)
 	GetEnrollmentContext(ctx context.Context, tokenDigest []byte) (VisitorEnrollmentContext, error)
@@ -34,9 +34,12 @@ type Querier interface {
 	GetVisitorRole(ctx context.Context) (Role, error)
 	IsDeviceTypeAllowed(ctx context.Context, managedDeviceID uuid.UUID) (*bool, error)
 	ListAllowedDeviceTypes(ctx context.Context) ([]uuid.UUID, error)
-	PINLoginNameTaken(ctx context.Context, identifierNormalized *string) (bool, error)
-	SetChallengeDelivery(ctx context.Context, arg SetChallengeDeliveryParams) error
+	LoginEmailTaken(ctx context.Context, identifierNormalized string) (bool, error)
+	RecordEnrollmentEmailCodeFailure(ctx context.Context, id uuid.UUID) error
+	// A new code replaces the previous one and its address, and clears an earlier verification.
+	SetEnrollmentEmailCode(ctx context.Context, arg SetEnrollmentEmailCodeParams) error
 	UpdateConfiguration(ctx context.Context, arg UpdateConfigurationParams) (VisitorEnrollmentConfiguration, error)
+	VerifyEnrollmentEmail(ctx context.Context, id uuid.UUID) error
 }
 
 var _ Querier = (*Queries)(nil)

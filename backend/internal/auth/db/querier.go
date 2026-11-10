@@ -17,6 +17,8 @@ type Querier interface {
 	ClearSecondFactorThrottle(ctx context.Context, accountID uuid.UUID) error
 	ConfirmTOTPCredential(ctx context.Context, arg ConfirmTOTPCredentialParams) error
 	ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateLimitParams) (*bool, error)
+	// Uses an emailed sign-in code once; zero rows means it was used, replaced, exhausted or expired meanwhile.
+	ConsumeEmailLoginChallenge(ctx context.Context, id uuid.UUID) (int64, error)
 	// Single use: the row is deleted whether or not the assertion then verifies.
 	ConsumeWebAuthnChallenge(ctx context.Context, arg ConsumeWebAuthnChallengeParams) (WebauthnChallenge, error)
 	CountSecondFactors(ctx context.Context, accountID uuid.UUID) (int64, error)
@@ -26,8 +28,10 @@ type Querier interface {
 	CreatePasskeySession(ctx context.Context, arg CreatePasskeySessionParams) (uuid.UUID, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	CreatePendingLogin(ctx context.Context, arg CreatePendingLoginParams) error
-	// A password session: normal assurance, or strong_mfa when the login also verified a second factor.
+	// A session of the login email identity (password or emailed code): normal assurance, or strong_mfa when the login
+	// also verified a second factor.
 	CreateSession(ctx context.Context, arg CreateSessionParams) (uuid.UUID, error)
+	DeleteEmailLoginChallengesForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeleteExpiredAuthSecurityState(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteExpiredPasswordResetTokens(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteExpiredPendingLogins(ctx context.Context, beforeTime time.Time) (int64, error)
@@ -35,6 +39,8 @@ type Querier interface {
 	DeleteExpiredWebAuthnChallenges(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeletePINEnrollmentChallengeForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeletePINIdentity(ctx context.Context, id uuid.UUID) error
+	// Removes only the password of a login email identity that also signs in with an emailed code.
+	DeletePasswordCredential(ctx context.Context, authIdentityID uuid.UUID) error
 	DeletePasswordIdentity(ctx context.Context, id uuid.UUID) error
 	DeletePasswordResetToken(ctx context.Context, id uuid.UUID) error
 	DeletePendingLogin(ctx context.Context, id uuid.UUID) error
@@ -45,6 +51,8 @@ type Querier interface {
 	DeleteWebAuthnChallengesForSession(ctx context.Context, arg DeleteWebAuthnChallengesForSessionParams) error
 	DeleteWebAuthnCredential(ctx context.Context, arg DeleteWebAuthnCredentialParams) (int64, error)
 	EnableInvitedAccount(ctx context.Context, accountID uuid.UUID) error
+	// The login email identity behind an address, whether or not it signs in with an emailed code.
+	FindEmailCodeTarget(ctx context.Context, identifierNormalized string) (FindEmailCodeTargetRow, error)
 	FindLoginAccountByEmail(ctx context.Context, identifierNormalized string) (uuid.UUID, error)
 	FindPINLogin(ctx context.Context, identifierNormalized string) (FindPINLoginRow, error)
 	FindPasswordIdentityTarget(ctx context.Context, identifierNormalized string) (FindPasswordIdentityTargetRow, error)
@@ -99,6 +107,7 @@ type Querier interface {
 	RevokeSessionsForAccount(ctx context.Context, arg RevokeSessionsForAccountParams) error
 	SecondFactorThrottleBlocked(ctx context.Context, accountID uuid.UUID) (bool, error)
 	SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChallengeDeliveryParams) error
+	SetEmailCodeEnabled(ctx context.Context, arg SetEmailCodeEnabledParams) (int64, error)
 	TouchSession(ctx context.Context, id uuid.UUID) (TouchSessionRow, error)
 	UpdatePINIdentity(ctx context.Context, arg UpdatePINIdentityParams) (AuthIdentity, error)
 	UpdateWebAuthnCredentialUse(ctx context.Context, arg UpdateWebAuthnCredentialUseParams) error

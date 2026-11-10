@@ -653,7 +653,7 @@ var Tables = []Table{
 	{Name: "training_processes"},
 	{Name: "training_records", Columns: map[string]Treatment{"status": System, "notes": Cleared}},
 	{Name: "trainings", Columns: map[string]Treatment{"name": Catalog, "description": Catalog}},
-	{Name: "visitor_enrollment_configuration", Columns: map[string]Treatment{"allowed_methods": System}},
+	{Name: "visitor_enrollment_configuration"},
 	{Name: "visitor_enrollment_contexts", Emptied: EmptiedSignInState},
 	{Name: "visitor_enrollment_device_types"},
 	{Name: "visits", Columns: map[string]Treatment{

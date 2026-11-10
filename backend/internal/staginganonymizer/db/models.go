@@ -99,6 +99,7 @@ type AuthIdentity struct {
 	VerifiedAt           pgtype.Timestamptz
 	DisabledAt           pgtype.Timestamptz
 	LastUsedAt           pgtype.Timestamptz
+	EmailCodeEnabled     bool
 }
 
 type AuthRateLimit struct {
@@ -1368,6 +1369,7 @@ type PendingLogin struct {
 	FailedAttempts  int32
 	ExpiresAt       time.Time
 	CreatedAt       time.Time
+	AuthMethod      string
 }
 
 type Person struct {
@@ -2417,7 +2419,6 @@ type Visit struct {
 type VisitorEnrollmentConfiguration struct {
 	Singleton          bool
 	Enabled            bool
-	AllowedMethods     []string
 	Version            int64
 	UpdatedByAccountID *uuid.UUID
 	CreatedAt          time.Time
@@ -2425,14 +2426,21 @@ type VisitorEnrollmentConfiguration struct {
 }
 
 type VisitorEnrollmentContext struct {
-	ID                uuid.UUID
-	ManagedDeviceID   uuid.UUID
-	TokenDigest       []byte
-	CsrfDigest        []byte
-	ExpiresAt         time.Time
-	UsedAt            pgtype.Timestamptz
-	CreatedAt         time.Time
-	LabRulesVersionID *uuid.UUID
+	ID                 uuid.UUID
+	ManagedDeviceID    uuid.UUID
+	TokenDigest        []byte
+	CsrfDigest         []byte
+	ExpiresAt          time.Time
+	UsedAt             pgtype.Timestamptz
+	CreatedAt          time.Time
+	LabRulesVersionID  *uuid.UUID
+	EmailDisplay       *string
+	EmailNormalized    *string
+	EmailCodeDigest    []byte
+	EmailCodeExpiresAt pgtype.Timestamptz
+	EmailCodeAttempts  int16
+	EmailCodesSent     int16
+	EmailVerifiedAt    pgtype.Timestamptz
 }
 
 type VisitorEnrollmentDeviceType struct {

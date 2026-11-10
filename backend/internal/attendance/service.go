@@ -28,6 +28,11 @@ import (
 type CredentialVerifier interface {
 	VerifyPasswordForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
 	VerifyPINForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
+	VerifyEmailCodeForAttendance(context.Context, string, string, string) (auth.VerifiedIdentity, error)
+	RequestEmailCode(ctx context.Context, email, sourceKey string, requestID *uuid.UUID) error
+	// ConsumeVerifiedTx uses up a one-time proof (an emailed code) inside the attendance transaction, so it is spent
+	// exactly when the check-in or check-out commits.
+	ConsumeVerifiedTx(ctx context.Context, tx pgx.Tx, verified auth.VerifiedIdentity) error
 }
 
 type LabRules interface {
@@ -250,7 +255,7 @@ func (s *Service) KioskContext(ctx context.Context, device manageddevices.Device
 	if err != nil {
 		return KioskContext{}, err
 	}
-	methods := []string{"password", "pin"}
+	methods := []string{"password", "pin", "email_code"}
 	return KioskContext{DeviceID: row.ID, DeviceName: row.Name, AllowTapCheckout: row.AllowTapCheckout,
 		OfferSurveysAtCheckout: row.OfferSurveysAtCheckout, KioskResetSeconds: row.KioskResetSeconds,
 		CheckInAssurance: authorization.Assurance(row.CheckInAssurance), CheckOutAssurance: authorization.Assurance(row.CheckOutAssurance),
@@ -313,6 +318,39 @@ func (s *Service) PINCheckIn(
 	requestID *uuid.UUID,
 ) (Visit, error) {
 	verified, err := s.auth.VerifyPINForAttendance(ctx, login, pin, source)
+	if err != nil {
+		return Visit{}, err
+	}
+	return s.checkIn(ctx, device, verified, choice, requestID)
+}
+
+// RequestEmailCode mails a check-in code to an account that signs in with an emailed code. Like the web request it
+// never tells whether the address belongs to one.
+func (s *Service) RequestEmailCode(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	email, source string,
+	requestID *uuid.UUID,
+) error {
+	if _, err := s.kiosk(ctx, device); err != nil {
+		return err
+	}
+	return s.auth.RequestEmailCode(ctx, email, source, requestID)
+}
+
+// EmailCodeCheckIn checks in with an emailed code. The code stays valid until a check-in succeeds, so the kiosk can
+// repeat the request after showing the Lab Rules.
+func (s *Service) EmailCodeCheckIn(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	email, code, source string,
+	choice LabRulesChoice,
+	requestID *uuid.UUID,
+) (Visit, error) {
+	if _, err := s.kiosk(ctx, device); err != nil {
+		return Visit{}, err
+	}
+	verified, err := s.auth.VerifyEmailCodeForAttendance(ctx, email, code, source)
 	if err != nil {
 		return Visit{}, err
 	}
@@ -420,6 +458,9 @@ func (s *Service) checkIn(
 	if err = s.afterCheckIn(ctx, tx, row.ID); err != nil {
 		return Visit{}, err
 	}
+	if err = s.auth.ConsumeVerifiedTx(ctx, tx, verified); err != nil {
+		return Visit{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return Visit{}, err
 	}
@@ -446,6 +487,22 @@ func (s *Service) PINCheckOut(
 	requestID *uuid.UUID,
 ) (Visit, error) {
 	verified, err := s.auth.VerifyPINForAttendance(ctx, login, pin, source)
+	if err != nil {
+		return Visit{}, err
+	}
+	return s.verifiedCheckOut(ctx, device, verified, requestID)
+}
+
+func (s *Service) EmailCodeCheckOut(
+	ctx context.Context,
+	device manageddevices.DeviceContext,
+	email, code, source string,
+	requestID *uuid.UUID,
+) (Visit, error) {
+	if _, err := s.kiosk(ctx, device); err != nil {
+		return Visit{}, err
+	}
+	verified, err := s.auth.VerifyEmailCodeForAttendance(ctx, email, code, source)
 	if err != nil {
 		return Visit{}, err
 	}
@@ -499,6 +556,9 @@ func (s *Service) verifiedCheckOut(
 		}
 	}
 	if err = s.archive(ctx, tx, row.ID); err != nil {
+		return Visit{}, err
+	}
+	if err = s.auth.ConsumeVerifiedTx(ctx, tx, verified); err != nil {
 		return Visit{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

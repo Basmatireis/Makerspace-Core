@@ -135,8 +135,8 @@ func declarations() []privacy.Definition {
 		},
 		{
 			ID: AuthPendingState, Owner: Identity, Name: "Pending sign-in and enrollment state",
-			Description:    "Pending second-factor logins, passkey challenges, OIDC flows and kiosk enrollment contexts that expired.",
-			Contains:       "Pending second-factor logins, passkey challenges, OIDC flows, kiosk enrollment contexts",
+			Description:    "Pending second-factor logins, passkey challenges, OIDC flows and kiosk enrollment contexts (with the address being verified and its code digest) that expired.",
+			Contains:       "Pending second-factor logins, passkey challenges, OIDC flows, kiosk enrollment contexts with the visitor's email address under verification",
 			ErasureOutcome: privacy.ErasureErased,
 			Fields: []string{
 				"pending_logins.token_digest", "webauthn_challenges.*", "oidc_flows.*", "visitor_enrollment_contexts.*",

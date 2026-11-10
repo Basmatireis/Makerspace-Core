@@ -21,7 +21,10 @@ import (
 )
 
 // identityVerifier accepts every credential and answers with the person registered for the login.
-type identityVerifier struct{ people map[string]seededAccount }
+type identityVerifier struct {
+	noEmailCodes
+	people map[string]seededAccount
+}
 
 func (v identityVerifier) verify(email string) (auth.VerifiedIdentity, error) {
 	account, ok := v.people[email]

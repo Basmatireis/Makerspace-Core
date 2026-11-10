@@ -48,6 +48,8 @@ GET /visitor-enrollment/lab-rules.pdf GetVisitorEnrollmentLabRulesPDF
 GET /visitor-enrollment/state GetVisitorEnrollmentState
 PATCH /public/event-signups/current UpdateCurrentEventSignup
 PATCH /scim/v2/Users/{scimUserId} PatchSCIMUser
+POST /auth/email-code RequestEmailLoginCode
+POST /auth/email-code/login LoginWithEmailCode
 POST /auth/email-verification/complete CompleteEmailVerification
 POST /auth/invitations/complete CompleteInvitation
 POST /auth/login Login
@@ -73,11 +75,14 @@ POST /public/survey-links/{token} SubmitPublicSurveyByLink
 POST /public/surveys/{token} SubmitPublicSurvey
 POST /scim/v2/Users CreateSCIMUser
 POST /signage/player/heartbeat PostSignagePlayerHeartbeat
+POST /terminal/check-in/email-code TerminalEmailCodeCheckIn
 POST /terminal/check-in/password TerminalPasswordCheckIn
 POST /terminal/check-in/pin TerminalPinCheckIn
+POST /terminal/check-out/email-code TerminalEmailCodeCheckOut
 POST /terminal/check-out/password TerminalPasswordCheckOut
 POST /terminal/check-out/pin TerminalPinCheckOut
 POST /terminal/consents TerminalAnswerConsents
+POST /terminal/email-code RequestTerminalEmailCode
 POST /terminal/presence/{visitId}/check-out TerminalPublicCheckOut
 POST /terminal/survey-offers/{token}/answer-now TerminalSurveyOfferAnswerNow
 POST /terminal/survey-offers/{token}/decline TerminalSurveyOfferDecline
@@ -85,7 +90,8 @@ POST /terminal/survey-offers/{token}/never TerminalSurveyOfferNever
 POST /terminal/survey-offers/{token}/responses TerminalSurveyOfferSubmit
 POST /terminal/survey-offers/{token}/send-email TerminalSurveyOfferSendEmail
 POST /visitor-enrollment/context BeginVisitorEnrollment
-POST /visitor-enrollment/login-name-suggestions SuggestVisitorPinLoginName
+POST /visitor-enrollment/email-verification SendVisitorEnrollmentEmailCode
+POST /visitor-enrollment/email-verification/confirm ConfirmVisitorEnrollmentEmail
 POST /visitor-enrollment/submissions SubmitVisitorEnrollment
 PUT /managed-devices/self/hardware ReportOwnManagedDeviceHardware
 PUT /printer-connector/self/assignments/{assignmentId}/runs/{runId}/artifact UploadPrinterConnectorRunArtifact
