@@ -1,6 +1,7 @@
 import { Tile, Toggle } from '@carbon/react';
 import { Locked } from '@carbon/icons-react';
 import type { NotificationSettings } from '../../api/generated/models';
+import { LegalLinks } from '../branding/LegalLinks';
 import { useChangeConsent, useChangeFeedbackAtCheckout } from './mutations';
 
 const answerDate = (iso: string) =>
@@ -23,6 +24,7 @@ export function ConsentCards({ settings }: { settings: NotificationSettings }) {
           {answered ? `Your answer from ${answerDate(answered)}. ` : ''}
           Service &amp; safety is always on; you can still mute single rules below.
         </p>
+        <LegalLinks />
       </div>
       <div className="mn-cards">
         {settings.consents.map((entry) => (
