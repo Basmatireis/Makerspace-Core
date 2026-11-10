@@ -29,22 +29,22 @@ export interface SignageStatusWidget {
   showRemaining: boolean;
   /**
      * Badge colour of a printing machine; absent is green.
-     * @pattern ^#[0-9a-f]{6}$
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
      */
   busyColor?: string;
   /**
      * Badge colour of an idle machine; absent is a light veil.
-     * @pattern ^#[0-9a-f]{6}$
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
      */
   idleColor?: string;
   /**
      * Badge colour of a machine with unknown state; absent is yellow.
-     * @pattern ^#[0-9a-f]{6}$
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
      */
   unknownColor?: string;
   /**
      * Colour of the progress bar; absent is green.
-     * @pattern ^#[0-9a-f]{6}$
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
      */
   progressColor?: string;
 }

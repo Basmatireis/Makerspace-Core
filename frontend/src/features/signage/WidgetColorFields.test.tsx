@@ -15,6 +15,10 @@ describe('WidgetColorFields', () => {
     rerender(<WidgetColorFields widget={qr} onChange={onChange} />);
     await userEvent.click(screen.getByRole('button', { name: 'Code background: Reset' }));
     expect(onChange.mock.lastCall?.[0]).not.toHaveProperty('lightColor');
+    await userEvent.click(screen.getByRole('button', { name: 'Code background: transparent' }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ lightColor: 'transparent' }));
+    fireEvent.change(screen.getByLabelText('Code'), { target: { value: 'Transparent' } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ darkColor: 'transparent' }));
   });
 
   it('shows nothing for widgets without own colours', () => {

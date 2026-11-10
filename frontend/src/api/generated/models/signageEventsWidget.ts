@@ -51,12 +51,12 @@ export interface SignageEventsWidget {
   fontAssetIds?: UUIDv7[];
   /**
      * Colour of the date and time column; absent keeps the text colour.
-     * @pattern ^#[0-9a-f]{6}$
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
      */
   accentColor?: string;
   /**
      * Colour of the planned competencies; absent keeps the text colour.
-     * @pattern ^#[0-9a-f]{6}$
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
      */
   competencyColor?: string;
 }

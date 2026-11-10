@@ -88,7 +88,8 @@ export function screenColors(draft: Draft): ScreenColor[] {
   const counts = new Map<string, number>();
   for (const slot of slots(draft)) {
     const color = slot.get()?.toLowerCase();
-    if (color) counts.set(color, (counts.get(color) ?? 0) + 1);
+    // "transparent" is no colour to change in one place.
+    if (color && color !== 'transparent') counts.set(color, (counts.get(color) ?? 0) + 1);
   }
   return [...counts].map(([color, count]) => ({ color, count })).sort((a, b) => b.count - a.count);
 }

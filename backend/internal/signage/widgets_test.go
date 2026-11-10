@@ -148,7 +148,7 @@ func TestCalendarHideLegendIsOptional(t *testing.T) {
 func TestWidgetColoursAreOptionalHexValues(t *testing.T) {
 	list := `{"type":"open_days","count":5}`
 	for name, raw := range map[string]string{
-		"qr":        `{"type":"qr","url":"https://example.org","caption":"","darkColor":"#123456","lightColor":"#fafafa"}`,
+		"qr":        `{"type":"qr","url":"https://example.org","caption":"","darkColor":"#123456","lightColor":"transparent"}`,
 		"status":    `{"type":"status","machineIds":[],"showProgress":true,"showRemaining":false,"busyColor":"#00ff00","progressColor":"#0000ff"}`,
 		"open days": strings.TrimSuffix(list, "}") + `,"accentColor":"#ff0000","competencyColor":"#00ff00"}`,
 	} {

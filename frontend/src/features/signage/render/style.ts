@@ -164,7 +164,7 @@ export function widgetColorCss(widget: SignageWidget): CSSProperties {
   const put = (name: string, color: string | undefined, withText = false) => {
     if (!color) return;
     css[name] = color;
-    if (withText) css[`${name}-text`] = readableOn(color);
+    if (withText && color !== 'transparent') css[`${name}-text`] = readableOn(color);
   };
   switch (widget.type) {
     case 'status':

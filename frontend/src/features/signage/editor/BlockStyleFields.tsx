@@ -1,5 +1,16 @@
 import { useState, type ReactNode } from 'react';
-import { AccordionItem, Button, NumberInput, Select, SelectItem, Slider, TextInput, Toggle } from '@carbon/react';
+import {
+  AccordionItem,
+  Button,
+  IconButton,
+  NumberInput,
+  Select,
+  SelectItem,
+  Slider,
+  TextInput,
+  Toggle,
+} from '@carbon/react';
+import { Opacity } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import type { SignageBlock, SignageBlockStyle } from '../../../api/generated/models';
 import { ColorFieldRow, ColorPicker } from '../../../app/ColorPicker';
@@ -20,6 +31,7 @@ export function ColorField({
   mixed = false,
   emptyText = 'Not set',
   fallback,
+  allowTransparent = false,
   onChange,
 }: {
   id: string;
@@ -27,6 +39,8 @@ export function ColorField({
   value: string | null;
   nullable?: boolean;
   mixed?: boolean;
+  /** Also takes the word "transparent". */
+  allowTransparent?: boolean;
   /** Placeholder while no colour is set, e.g. what is used instead. */
   emptyText?: string;
   /** Swatch colour while no colour is set. */
@@ -37,7 +51,8 @@ export function ColorField({
   const [typed, setTyped] = useState<string | null>(null);
   const text = typed ?? value ?? '';
   const valid = HEX.test(text);
-  const invalid = typed !== null && !valid && !(nullable && typed === '');
+  const transparent = allowTransparent && text.toLowerCase() === 'transparent';
+  const invalid = typed !== null && !valid && !transparent && !(nullable && typed === '');
   return (
     <ColorFieldRow>
       <TextInput
@@ -47,18 +62,21 @@ export function ColorField({
         autoComplete="off"
         value={text}
         invalid={invalid}
-        invalidText="Enter a hex colour like #161616"
+        invalidText={
+          allowTransparent ? 'Enter a hex colour like #161616 or transparent' : 'Enter a hex colour like #161616'
+        }
         onChange={(event) => {
           const next = event.target.value.trim();
           setTyped(next);
-          if (HEX.test(next)) onChange(next.toLowerCase());
+          if (HEX.test(next) || (allowTransparent && next.toLowerCase() === 'transparent'))
+            onChange(next.toLowerCase());
           else if (next === '' && nullable) onChange(null);
         }}
         onBlur={() => setTyped(null)}
       />
       <ColorPicker
         label={label}
-        value={valid || (typed === null && value) ? text : null}
+        value={valid || (typed === null && value && !transparent) ? text : null}
         fallback={fallback}
         onChange={(next) => {
           setTyped(null);
@@ -69,7 +87,7 @@ export function ColorField({
   );
 }
 
-/** A colour field with a button that clears it ("None" for fills, "Reset" for colours that have a fallback). */
+/** A colour field with a button that clears it ("None" for fills, "Reset" for colours that have a fallback), optionally one for transparent. */
 export function ColorRow({
   id,
   label,
@@ -78,6 +96,7 @@ export function ColorRow({
   clearLabel,
   emptyText,
   fallback,
+  allowTransparent = false,
   onChange,
 }: {
   id: string;
@@ -87,6 +106,8 @@ export function ColorRow({
   clearLabel: 'None' | 'Reset';
   emptyText?: string;
   fallback?: string;
+  /** Adds a button that makes the colour transparent. */
+  allowTransparent?: boolean;
   onChange: (value: string | null) => void;
 }) {
   return (
@@ -98,8 +119,21 @@ export function ColorRow({
         mixed={mixed}
         emptyText={emptyText}
         fallback={fallback}
+        allowTransparent={allowTransparent}
         onChange={onChange}
       />
+      {allowTransparent && (
+        <IconButton
+          label={`${label}: transparent`}
+          kind="ghost"
+          size="sm"
+          align="top-end"
+          isSelected={value === 'transparent'}
+          onClick={() => onChange('transparent')}
+        >
+          <Opacity />
+        </IconButton>
+      )}
       <Button
         kind="ghost"
         size="sm"

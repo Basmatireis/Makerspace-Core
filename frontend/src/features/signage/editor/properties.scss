@@ -98,7 +98,9 @@
 }
 .sg-props__color {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-auto-columns: auto;
+  grid-auto-flow: column;
+  grid-template-columns: minmax(0, 1fr);
   align-items: end;
   gap: $spacing-03;
 }

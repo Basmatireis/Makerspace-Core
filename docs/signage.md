@@ -193,9 +193,9 @@ Asset kind `font`: WOFF2 only (`font/woff2`, magic `wOF2`, at most 2 MiB; width,
 
 ### Widget colours and screen colours
 
-- Optional colour fields (lowercase `#rrggbb`; absent keeps the previous look and is omitted, so existing scenes keep their bytes): `status` `busyColor`, `idleColor`, `unknownColor`, `progressColor`; `camera` `liveColor`, `progressColor`; `timelapse` `captionColor`; `open_days`, `events` and `agenda` `accentColor` (date and time column) and `competencyColor`; `qr` `darkColor` and `lightColor`.
+- Optional colour fields (lowercase `#rrggbb` or `transparent`; absent keeps the previous look and is omitted, so existing scenes keep their bytes): `status` `busyColor`, `idleColor`, `unknownColor`, `progressColor`; `camera` `liveColor`, `progressColor`; `timelapse` `captionColor`; `open_days`, `events` and `agenda` `accentColor` (date and time column) and `competencyColor`; `qr` `darkColor` and `lightColor`.
 - The renderer passes them to the widget as CSS custom properties (`--sg-busy`, `--sg-progress`, `--sg-accent`, …; badges also get a readable `-text` colour) that fall back to the defaults.
-- Screen colours in the editor are derived, not stored: the Screen section lists every colour set on the screen (background, block background, text and border colours, calendar categories and the widget colours above) with how often it is used, and changing one replaces it everywhere (`frontend/src/features/signage/widgetColors.ts`). Colours inside rich text are not included.
+- Screen colours in the editor are derived, not stored: the Screen section lists every colour set on the screen (background, block background, text and border colours, calendar categories and the widget colours above) with how often it is used, and changing one replaces it everywhere (`frontend/src/features/signage/widgetColors.ts`). Colours inside rich text and `transparent` are not included.
 
 ### Calendar widget
 

@@ -35,6 +35,12 @@ describe('screen colours', () => {
     expect(next.backgroundColor).toBe('#161616');
   });
 
+  it('leaves transparent out of the screen colours', () => {
+    const qr = { ...defaultWidget('qr'), lightColor: 'transparent' } as SignageWidget;
+    const draft = draftWith([block('q', 0, 0, 100, 100, { widget: qr }, 'qr')]);
+    expect(screenColors(draft).map((item) => item.color)).toEqual(['#161616']);
+  });
+
   it('includes the calendar categories', () => {
     const calendar = block('c', 0, 0, 100, 100, {}, 'calendar');
     const draft = draftWith([calendar]);

@@ -422,7 +422,7 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 			)
 		}
 		if !optionalColors(w.DarkColor, w.LightColor) {
-			return nil, refs, blockError(block, "QR colours must be lowercase #rrggbb")
+			return nil, refs, blockError(block, "QR colours must be lowercase #rrggbb or transparent")
 		}
 	case WidgetClock:
 		var w clockW
@@ -442,7 +442,7 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 			return nil, refs, blockError(block, "camera source, multi mode or fallback is invalid")
 		}
 		if !optionalColors(w.LiveColor, w.ProgressColor) {
-			return nil, refs, blockError(block, "camera colours must be lowercase #rrggbb")
+			return nil, refs, blockError(block, "camera colours must be lowercase #rrggbb or transparent")
 		}
 		if w.Source == CameraSourceMachine && w.MachineID == nil {
 			return nil, refs, blockError(block, "a camera bound to a machine needs machineId")
@@ -484,7 +484,7 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 			return nil, refs, blockError(block, "a status widget lists at most %d machines", maxStatusMachines)
 		}
 		if !optionalColors(w.BusyColor, w.IdleColor, w.UnknownColor, w.ProgressColor) {
-			return nil, refs, blockError(block, "status colours must be lowercase #rrggbb")
+			return nil, refs, blockError(block, "status colours must be lowercase #rrggbb or transparent")
 		}
 		w.MachineIDs = distinct(w.MachineIDs)
 		refs.Machines = append(refs.Machines, w.MachineIDs...)
@@ -501,7 +501,7 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 			return nil, refs, blockError(block, "only open-day widgets show competencies")
 		}
 		if !w.listColors.valid() {
-			return nil, refs, blockError(block, "list colours must be lowercase #rrggbb")
+			return nil, refs, blockError(block, "list colours must be lowercase #rrggbb or transparent")
 		}
 		if !validHeading(w.Title) || !multilineText(w.EmptyText, maxListEmptyRunes) ||
 			!multilineText(w.EntryTemplate, maxEntryTemplateRun) {
@@ -524,7 +524,7 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 			return nil, refs, blockError(block, "title, emptyText or a template is too long or not text")
 		}
 		if !w.listColors.valid() {
-			return nil, refs, blockError(block, "list colours must be lowercase #rrggbb")
+			return nil, refs, blockError(block, "list colours must be lowercase #rrggbb or transparent")
 		}
 		if err := w.validate(block, &refs); err != nil {
 			return nil, refs, err
@@ -580,7 +580,7 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 			return nil, refs, blockError(block, "transition must be cut or fade and fit contain or cover")
 		}
 		if !optionalColors(w.CaptionColor) {
-			return nil, refs, blockError(block, "timelapse caption colour must be lowercase #rrggbb")
+			return nil, refs, blockError(block, "timelapse caption colour must be lowercase #rrggbb or transparent")
 		}
 		// Only checked to exist: the clips never add machines to the live machine list.
 		refs.Machines = append(refs.Machines, w.MachineIDs...)
@@ -643,10 +643,10 @@ func validateHTTPSURL(raw string) error {
 	return nil
 }
 
-// optionalColors reports whether every colour is absent or lowercase #rrggbb.
+// optionalColors reports whether every colour is absent, lowercase #rrggbb or "transparent".
 func optionalColors(colors ...string) bool {
 	for _, color := range colors {
-		if color != "" && !colorPattern.MatchString(color) {
+		if color != "" && color != "transparent" && !colorPattern.MatchString(color) {
 			return false
 		}
 	}

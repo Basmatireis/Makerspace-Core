@@ -60,7 +60,7 @@ export interface SignageTimelapseWidget {
   fit: SignageFit;
   /**
      * Text colour of the caption; absent is white.
-     * @pattern ^#[0-9a-f]{6}$
+     * @pattern ^(#[0-9a-f]{6}|transparent)$
      */
   captionColor?: string;
 }

@@ -26,6 +26,7 @@ export function WidgetColorFields({
           clearLabel="Reset"
           emptyText={spec.emptyText}
           fallback={spec.fallback}
+          allowTransparent
           onChange={(color) => onChange(withField(widget, spec.key, color ?? undefined))}
         />
       ))}
