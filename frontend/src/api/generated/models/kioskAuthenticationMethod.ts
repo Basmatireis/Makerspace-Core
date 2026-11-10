@@ -19,13 +19,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type TerminalContextAuthenticationMethodsItem = typeof TerminalContextAuthenticationMethodsItem[keyof typeof TerminalContextAuthenticationMethodsItem];
+/**
+ * A way a person identifies at an entrance kiosk.
+ */
+export type KioskAuthenticationMethod = typeof KioskAuthenticationMethod[keyof typeof KioskAuthenticationMethod];
 
 
-export const TerminalContextAuthenticationMethodsItem = {
-  password: 'password',
-  pin: 'pin',
+export const KioskAuthenticationMethod = {
   email_code: 'email_code',
-  oidc: 'oidc',
-  nfc: 'nfc',
+  pin: 'pin',
+  password: 'password',
 } as const;

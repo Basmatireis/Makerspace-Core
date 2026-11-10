@@ -48,7 +48,7 @@ export function CredentialsScreen({
   onCancel,
 }: {
   mode: 'check-in' | 'check-out';
-  methods: string[];
+  methods: KioskAuthMethod[];
   onSuccess: (result: Visit) => void;
   /** Check-in was refused until the person deals with the Lab Rules; the credentials go on to that screen. */
   onLabRulesNeeded?: (credentials: Credentials, need: LabRulesNeed) => void;

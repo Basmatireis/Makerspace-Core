@@ -31,7 +31,9 @@ export interface TerminalSurveyOffer {
   questionCount: number;
   anonymous: boolean;
   canAnswerNow: boolean;
-  /** The person has an e-mail address. Sending works without their Surveys & feedback consent: it is a one-off request. */
+  /** The person has an e-mail address. Sending works without their Surveys & feedback consent: it is a one-off request. Always false after a tap check-out. */
   canSendByEmail: boolean;
+  /** The person may switch the question off (`/never`). False after a tap check-out: the offer names nobody, so its answers are anonymous and only answer-now and decline work. */
+  canStopAsking: boolean;
   expiresAt: string;
 }

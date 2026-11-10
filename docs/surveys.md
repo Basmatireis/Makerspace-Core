@@ -4,7 +4,7 @@ Surveys collect feedback from visitors and members. A survey has an editable def
 
 ## Definition and lifecycle
 
-Surveys have editable drafts, immutable published versions, ordered typed questions, options, and optional `visit_checked_out` triggers. Supported question kinds are single choice, multiple choice, free text, rating, and yes/no. Closing a Survey disables its trigger and cancels outstanding invitations. Checkout creates eligible invitations in the Visit transaction. The `visit_checked_out` trigger is configured on the survey settings page (`surveys.manage`): enabled switch, delay after check-out in minutes (0 to 10080, stored as seconds) and cooldown in days (0 to 3650, no new invitation to the same person within that period) and **Ask at the tablet** (`askAtTablet`, editable on drafts and published surveys; the entrance tablet then offers the survey after a self check-out, see [kiosk-attendance-surveys.md](kiosk-attendance-surveys.md)). The automatic e-mail invitation is only created for people who granted the Surveys & feedback consent. The values can be saved on a draft, but the trigger can only be enabled once the survey is published; the survey summary shows them as, for example, "Sent 30 min after check-out · cooldown 30 days".
+Surveys have editable drafts, immutable published versions, ordered typed questions, options, and optional `visit_checked_out` triggers. Supported question kinds are single choice, multiple choice, free text, rating, and yes/no. Closing a Survey disables its trigger and cancels outstanding invitations. Checkout creates eligible invitations in the Visit transaction. The `visit_checked_out` trigger is configured on the survey settings page (`surveys.manage`): enabled switch, delay after check-out in minutes (0 to 10080, stored as seconds) and cooldown in days (0 to 3650, no new invitation to the same person within that period) and **Ask at the tablet** (`askAtTablet`, editable on drafts and published surveys; the entrance tablet then offers the survey after a check-out there; after a tap in the presence list the answers are stored without a person, see [kiosk-attendance-surveys.md](kiosk-attendance-surveys.md)). The automatic e-mail invitation is only created for people who granted the Surveys & feedback consent. The values can be saved on a draft, but the trigger can only be enabled once the survey is published; the survey summary shows them as, for example, "Sent 30 min after check-out · cooldown 30 days".
 
 Status moves `draft -> published -> closed`, and `closed -> published` again through **reopen**. The model keeps one version row per survey (`revision` 1): the "published version" is the survey definition as it stands while it has responses.
 
@@ -17,12 +17,12 @@ Status moves `draft -> published -> closed`, and `closed -> published` again thr
 
 A question may carry a `condition` that refers to an **earlier** question of the same survey. In requests the source question and its options are given by **position** (1-based, in the submitted `questions` array and the source's `options`), because ids do not exist before the survey is saved; responses return ids. Allowed combinations:
 
-| Source kind     | Operator       | Value                          |
-| --------------- | -------------- | ------------------------------ |
-| single choice   | `one_of`       | `optionPositions` (one or more) |
-| multiple choice | `includes_any` | `optionPositions`              |
+| Source kind     | Operator         | Value                                            |
+| --------------- | ---------------- | ------------------------------------------------ |
+| single choice   | `one_of`         | `optionPositions` (one or more)                  |
+| multiple choice | `includes_any`   | `optionPositions`                                |
 | rating          | `lte`/`gte`/`eq` | `numericValue` within the source's rating bounds |
-| yes/no          | `eq`           | `booleanValue`                 |
+| yes/no          | `eq`             | `booleanValue`                                   |
 
 Free-text questions cannot be a source. The condition is part of the (frozen) definition. When a response is submitted, conditions are evaluated in question order against the **validated** answers of visible questions, so a question that depends on a hidden question is hidden as well. A hidden question is never required, and an answer to it is **rejected** with 422 `survey_answer_not_applicable` (clients must not send answers for questions they hide).
 

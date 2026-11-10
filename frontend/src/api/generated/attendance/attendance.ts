@@ -147,6 +147,8 @@ export const getTerminalPasswordCheckInUrl = () => {
  * answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
  * `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
  * A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+ * 403 `attendance_method_not_allowed` when this kiosk's `checkInMethods` do not include this way of identifying;
+ * the credentials are then not checked.
  */
 export const terminalPasswordCheckIn = async (terminalPasswordCheckInRequest: TerminalPasswordCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
@@ -189,6 +191,8 @@ export const getTerminalPinCheckInUrl = () => {
  * answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
  * `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
  * A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+ * 403 `attendance_method_not_allowed` when this kiosk's `checkInMethods` do not include this way of identifying;
+ * the credentials are then not checked.
  */
 export const terminalPinCheckIn = async (terminalPinCheckInRequest: TerminalPinCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
@@ -227,7 +231,8 @@ export const getRequestTerminalEmailCodeUrl = () => {
 /**
  * Same rules, budget and answer as `POST /auth/email-code`: the code goes only to an enabled account that signs
  * in with an emailed code, and the answer never tells whether the address belongs to one. The code works only
- * for `/terminal/check-in/email-code` and `/terminal/check-out/email-code`, not for the web login.
+ * for `/terminal/check-in/email-code` and `/terminal/check-out/email-code`, not for the web login. 403
+ * `attendance_method_not_allowed` when this kiosk accepts the emailed code neither for check-in nor for check-out.
  * @summary Mail a one-time code for checking in or out at this kiosk
  */
 export const requestTerminalEmailCode = async (requestEmailLoginCodeRequest: RequestEmailLoginCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -276,6 +281,8 @@ export const getTerminalEmailCodeCheckInUrl = () => {
  * `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
  * A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
  * The check-in has `normal` assurance.
+ * 403 `attendance_method_not_allowed` when this kiosk's `checkInMethods` do not include this way of identifying;
+ * the credentials are then not checked.
  */
 export const terminalEmailCodeCheckIn = async (terminalEmailCodeCheckInRequest: TerminalEmailCodeCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
@@ -311,6 +318,9 @@ export const getTerminalPasswordCheckOutUrl = () => {
   return `/api/v1/terminal/check-out/password`
 }
 
+/**
+ * 403 `attendance_method_not_allowed` when this kiosk's `checkOutMethods` do not include this way of identifying; the credentials are then not checked.
+ */
 export const terminalPasswordCheckOut = async (attendancePasswordRequest: AttendancePasswordRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
@@ -345,6 +355,9 @@ export const getTerminalPinCheckOutUrl = () => {
   return `/api/v1/terminal/check-out/pin`
 }
 
+/**
+ * 403 `attendance_method_not_allowed` when this kiosk's `checkOutMethods` do not include this way of identifying; the credentials are then not checked.
+ */
 export const terminalPinCheckOut = async (attendancePinRequest: AttendancePinRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
     const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
@@ -380,7 +393,7 @@ export const getTerminalEmailCodeCheckOutUrl = () => {
 }
 
 /**
- * Checks out with the code from `POST /terminal/email-code`; the code is consumed only by a successful check-out.
+ * Checks out with the code from `POST /terminal/email-code`; the code is consumed only by a successful check-out. 403 `attendance_method_not_allowed` when this kiosk's `checkOutMethods` do not include `email_code`.
  */
 export const terminalEmailCodeCheckOut = async (attendanceEmailCodeRequest: AttendanceEmailCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
@@ -479,7 +492,7 @@ export const getTerminalSurveyOfferSubmitUrl = (token: string,) => {
 }
 
 /**
- * Anonymous surveys store the response exactly like an anonymous invitation redemption (no person, no visit). Identified surveys link the response to the person. The offer is consumed and the post-visit invitation of that visit is cancelled.
+ * Anonymous surveys store the response exactly like an anonymous invitation redemption (no person, no visit). Identified surveys link the response to the person. The offer is consumed and the post-visit invitation of that visit is cancelled. The answers to an offer made after a tap check-out are always stored without a person and leave the invitations alone.
  * @summary Submit the answers to the offered survey
  */
 export const terminalSurveyOfferSubmit = async (token: string,
@@ -518,7 +531,7 @@ export const getTerminalSurveyOfferSendEmailUrl = (token: string,) => {
 }
 
 /**
- * Bypasses the trigger delay and works even when the person's Surveys & feedback consent is off (it is an explicit one-off request; the consent stays as it is). 422 `no_email` when the person has no e-mail address.
+ * Bypasses the trigger delay and works even when the person's Surveys & feedback consent is off (it is an explicit one-off request; the consent stays as it is). 422 `no_email` when the person has no e-mail address; 404 for an offer made after a tap check-out.
  * @summary Send the survey invitation by e-mail right away
  */
 export const terminalSurveyOfferSendEmail = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -542,7 +555,7 @@ export const getTerminalSurveyOfferDeclineUrl = (token: string,) => {
 }
 
 /**
- * Consumes the offer and cancels the post-visit invitation of that visit. The survey's cooldown for this person started with the offer.
+ * Consumes the offer and cancels the post-visit invitation of that visit. The survey's cooldown for this person started with the offer. An offer made after a tap check-out is only consumed.
  * @summary Decline the offered survey ("No thanks")
  */
 export const terminalSurveyOfferDecline = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -566,7 +579,7 @@ export const getTerminalSurveyOfferNeverUrl = (token: string,) => {
 }
 
 /**
- * Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit.
+ * Sets the person's "feedback at check-out" choice to off, consumes the offer and cancels the post-visit invitation of that visit. 404 for an offer made after a tap check-out, which names nobody.
  * @summary Decline and switch off feedback questions at check-out for this person
  */
 export const terminalSurveyOfferNever = async (token: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
@@ -589,6 +602,11 @@ export const getTerminalPublicCheckOutUrl = (visitId: UUIDv7,) => {
   return `/api/v1/terminal/presence/${visitId}/check-out`
 }
 
+/**
+ * 403 unless the kiosk has `allowTapCheckout`. When the kiosk offers surveys, the answer may carry `surveyOffer`.
+ * Anyone can tap any name, so that offer names nobody: it is bound only to this tablet, single use and valid for
+ * 15 minutes, and its answers are stored without a person; e-mail and "never ask again" are not available.
+ */
 export const terminalPublicCheckOut = async (visitId: UUIDv7, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
 
   return apiFetch<Visit>(getTerminalPublicCheckOutUrl(visitId),

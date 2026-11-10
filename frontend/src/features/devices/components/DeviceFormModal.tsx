@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  CheckboxGroup,
   FormGroup,
   InlineNotification,
   Modal,
@@ -17,8 +18,8 @@ import { Copy } from '@carbon/icons-react';
 import { useState } from 'react';
 import { createManagedDevice } from '../../../api/generated/managed-devices/managed-devices';
 import type {
-  AuthenticationAssurance,
   DeviceCapability,
+  KioskAuthenticationMethod,
   ManagedDevice,
   ManagedDeviceCredentialDelivery,
   ManagedDeviceProvisioning,
@@ -27,16 +28,19 @@ import type {
 } from '../../../api/generated/models';
 import { instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../../app/dateTime';
 import {
+  allKioskMethods,
   applyDeviceUse,
-  assuranceLabels,
   capabilityLabels,
+  checkInMethodsProblem,
+  checkOutMethodsProblem,
   configurationProblem,
   describeDeviceUse,
   deviceUseOf,
   deviceUseOptions,
   isKioskResetValid,
+  kioskMethodOptions,
   kioskResetRange,
-  kioskShowOptions,
+  toggleKioskMethod,
   type DeviceConfiguration,
   type DeviceUse,
 } from './deviceShared';
@@ -64,8 +68,8 @@ export function CreateDeviceModal({
     sessionPolicyId: null,
     terminalEnabled: false,
     allowedApplicationModes: ['staff_ui'],
-    checkInAssurance: 'low',
-    checkOutAssurance: 'low',
+    checkInMethods: allKioskMethods,
+    checkOutMethods: allKioskMethods,
     allowTapCheckout: false,
     offerSurveysAtCheckout: false,
     kioskResetSeconds: 60,
@@ -186,8 +190,8 @@ export function DeviceFormModal({
     sessionPolicyId: device.sessionPolicyId,
     terminalEnabled: device.terminalEnabled,
     allowedApplicationModes: device.allowedApplicationModes,
-    checkInAssurance: device.checkInAssurance,
-    checkOutAssurance: device.checkOutAssurance,
+    checkInMethods: device.checkInMethods,
+    checkOutMethods: device.checkOutMethods,
     allowTapCheckout: device.allowTapCheckout,
     offerSurveysAtCheckout: device.offerSurveysAtCheckout,
     kioskResetSeconds: device.kioskResetSeconds,
@@ -261,30 +265,40 @@ export function DeviceFormModal({
   );
 }
 
-function AssuranceSelect({
+/** Which ways of identifying the kiosk takes for one action; any combination of the three. */
+function KioskMethodsGroup({
   id,
-  labelText,
+  legendText,
+  helperText,
   value,
+  invalidText,
   onChange,
 }: {
   id: string;
-  labelText: string;
-  value: AuthenticationAssurance;
-  onChange: (value: AuthenticationAssurance) => void;
+  legendText: string;
+  helperText: string;
+  value: KioskAuthenticationMethod[];
+  /** Set while the choice cannot be saved. */
+  invalidText: string | null;
+  onChange: (value: KioskAuthenticationMethod[]) => void;
 }) {
-  const reachable = kioskShowOptions.some((option) => option.value === value);
   return (
-    <Select
-      id={id}
-      labelText={labelText}
-      value={value}
-      onChange={(event) => onChange(event.target.value as AuthenticationAssurance)}
+    <CheckboxGroup
+      legendText={legendText}
+      helperText={invalidText ? undefined : helperText}
+      invalid={invalidText !== null}
+      invalidText={invalidText ?? undefined}
     >
-      {!reachable && <SelectItem value={value} text={`${assuranceLabels[value]} (the kiosk cannot ask for this)`} />}
-      {kioskShowOptions.map((option) => (
-        <SelectItem key={option.value} value={option.value} text={option.label} />
+      {kioskMethodOptions.map((option) => (
+        <Checkbox
+          key={option.value}
+          id={`${id}-${option.value}`}
+          labelText={option.label}
+          checked={value.includes(option.value)}
+          onChange={(_, { checked }) => onChange(toggleKioskMethod(value, option.value, checked))}
+        />
       ))}
-    </Select>
+    </CheckboxGroup>
   );
 }
 
@@ -346,17 +360,27 @@ export function DevicePolicyFields({
       {value.terminalEnabled && (
         <FormGroup legendText="Kiosk">
           <Stack gap={5}>
-            <AssuranceSelect
-              id={`${id}-check-in-assurance`}
-              labelText="To check in, people show"
-              value={value.checkInAssurance}
-              onChange={(checkInAssurance) => onChange({ ...value, checkInAssurance })}
+            <KioskMethodsGroup
+              id={`${id}-check-in-method`}
+              legendText="To check in, people use"
+              helperText="The kiosk offers the chosen ways, email code first."
+              value={value.checkInMethods}
+              invalidText={value.checkInMethods.length === 0 ? checkInMethodsProblem : null}
+              onChange={(checkInMethods) => onChange({ ...value, checkInMethods })}
             />
-            <AssuranceSelect
-              id={`${id}-check-out-assurance`}
-              labelText="To check out, people show"
-              value={value.checkOutAssurance}
-              onChange={(checkOutAssurance) => onChange({ ...value, checkOutAssurance })}
+            <KioskMethodsGroup
+              id={`${id}-check-out-method`}
+              legendText="To check out, people use"
+              helperText={
+                value.allowTapCheckout
+                  ? 'Leave all unticked to check out only by a tap in the list.'
+                  : 'Tick at least one, or allow a tap in the list below.'
+              }
+              value={value.checkOutMethods}
+              invalidText={
+                value.checkOutMethods.length === 0 && !value.allowTapCheckout ? checkOutMethodsProblem : null
+              }
+              onChange={(checkOutMethods) => onChange({ ...value, checkOutMethods })}
             />
             <Checkbox
               id={`${id}-allow-tap-checkout`}
@@ -368,7 +392,7 @@ export function DevicePolicyFields({
             <Checkbox
               id={`${id}-offer-surveys`}
               labelText="Offer surveys at check-out"
-              helperText="Only after a check-out with what people show above, never after a tap in the list: then the tablet can't know who is standing in front of it. Which survey is offered is set on the survey."
+              helperText="Also after a tap in the list: anyone can tap anyone, so those answers are stored anonymously, without a person. Which survey is offered is set on the survey."
               checked={value.offerSurveysAtCheckout}
               onChange={(_, { checked }) => onChange({ ...value, offerSurveysAtCheckout: checked })}
             />

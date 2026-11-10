@@ -18,19 +18,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AuthenticationAssurance } from './authenticationAssurance';
 import type { DeviceCapability } from './deviceCapability';
+import type { KioskAuthenticationMethod } from './kioskAuthenticationMethod';
 import type { KioskNotice } from './kioskNotice';
-import type { TerminalContextAuthenticationMethodsItem } from './terminalContextAuthenticationMethodsItem';
 import type { TerminalContextStaffDestination } from './terminalContextStaffDestination';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface TerminalContext {
   deviceId: UUIDv7;
   deviceName: string;
-  /** Also lets a person check out by tapping their name in the presence list. Checking out with PIN or password is always possible. */
+  /** Also lets a person check out by tapping their name in the presence list. Required while `checkOutMethods` is empty. */
   allowTapCheckout: boolean;
-  /** Offer the check-out survey on this tablet after a person checked out with PIN or password. */
+  /** Offer the check-out survey on this tablet after a check-out. After a tap in the presence list the answers are stored without a person. */
   offerSurveysAtCheckout: boolean;
   /**
      * Seconds of inactivity after which the tablet returns to its start screen.
@@ -38,9 +37,17 @@ export interface TerminalContext {
      * @maximum 600
      */
   kioskResetSeconds: number;
-  checkInAssurance: AuthenticationAssurance;
-  checkOutAssurance: AuthenticationAssurance;
-  authenticationMethods: TerminalContextAuthenticationMethodsItem[];
+  /**
+     * How people may identify to check in at this kiosk.
+     * @minItems 1
+     * @maxItems 3
+     */
+  checkInMethods: KioskAuthenticationMethod[];
+  /**
+     * How people may identify to check out at this kiosk. Empty only while `allowTapCheckout` is on.
+     * @maxItems 3
+     */
+  checkOutMethods: KioskAuthenticationMethod[];
   capabilities: DeviceCapability[];
   staffDestination: TerminalContextStaffDestination;
   /**

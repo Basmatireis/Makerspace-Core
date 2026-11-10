@@ -36,8 +36,8 @@ const device = {
   sessionPolicyId: null,
   terminalEnabled: false,
   allowedApplicationModes: ['staff_ui' as const],
-  checkInAssurance: 'low' as const,
-  checkOutAssurance: 'low' as const,
+  checkInMethods: ['email_code' as const, 'pin' as const, 'password' as const],
+  checkOutMethods: ['email_code' as const, 'pin' as const, 'password' as const],
   allowTapCheckout: false,
   offerSurveysAtCheckout: false,
   kioskResetSeconds: 60 as const,
@@ -197,8 +197,8 @@ describe('Managed devices administration', () => {
         sessionPolicyId: null,
         terminalEnabled: false,
         allowedApplicationModes: ['staff_ui'],
-        checkInAssurance: 'low',
-        checkOutAssurance: 'low',
+        checkInMethods: ['email_code', 'pin', 'password'],
+        checkOutMethods: ['email_code', 'pin', 'password'],
         allowTapCheckout: false,
         offerSurveysAtCheckout: false,
         kioskResetSeconds: 60,
@@ -248,18 +248,37 @@ describe('Managed devices administration', () => {
     await user.type(within(dialog).getByLabelText('Device name'), 'Lobby kiosk');
     await user.selectOptions(within(dialog).getByLabelText('Device type'), typeId);
     // The kiosk settings appear only for a kiosk.
-    expect(within(dialog).queryByLabelText('To check in, people show')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('group', { name: 'To check in, people use' })).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('radio', { name: 'Kiosk with staff sign-in' }));
     expect(within(dialog).getByRole('button', { name: 'Create device' })).toBeDisabled();
     await user.selectOptions(within(dialog).getByLabelText('Session policy'), policyId);
 
-    const checkIn = within(dialog).getByLabelText('To check in, people show');
+    const create = within(dialog).getByRole('button', { name: 'Create device' });
+    const checkIn = within(dialog).getByRole('group', { name: 'To check in, people use' });
     expect(
       within(checkIn)
-        .getAllByRole('option')
-        .map((option) => option.textContent),
-    ).toEqual(['PIN or password', 'Password only']);
-    await user.selectOptions(within(dialog).getByLabelText('To check out, people show'), 'normal');
+        .getAllByRole('checkbox')
+        .map((box) => [box.getAttribute('id'), (box as HTMLInputElement).checked]),
+    ).toEqual([
+      ['create-check-in-method-email_code', true],
+      ['create-check-in-method-pin', true],
+      ['create-check-in-method-password', true],
+    ]);
+    // Any combination works, but not none.
+    for (const name of ['Email code', 'PIN', 'Password'])
+      await user.click(within(checkIn).getByRole('checkbox', { name }));
+    expect(within(dialog).getByText('Choose at least one way to check in.')).toBeInTheDocument();
+    expect(create).toBeDisabled();
+    await user.click(within(checkIn).getByRole('checkbox', { name: 'PIN' }));
+    await user.click(within(checkIn).getByRole('checkbox', { name: 'Email code' }));
+    // Check-out may name no way only while a tap in the list checks out.
+    const checkOut = within(dialog).getByRole('group', { name: 'To check out, people use' });
+    for (const name of ['Email code', 'PIN', 'Password'])
+      await user.click(within(checkOut).getByRole('checkbox', { name }));
+    expect(
+      within(dialog).getByText('Choose a way to check out, or allow checking out by a tap in the list.'),
+    ).toBeInTheDocument();
+    expect(create).toBeDisabled();
     await user.click(
       within(dialog).getByRole('checkbox', { name: 'Also check out by tapping a name in the presence list' }),
     );
@@ -271,7 +290,7 @@ describe('Managed devices administration', () => {
     await user.clear(reset);
     await user.type(reset, '120');
     expect(
-      within(dialog).getByText('Check-in with PIN or password · check-out with password only or a tap in the list'),
+      within(dialog).getByText('Check-in with email code or PIN · check-out with a tap in the list'),
     ).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Create device' }));
 
@@ -284,8 +303,8 @@ describe('Managed devices administration', () => {
         sessionPolicyId: policyId,
         terminalEnabled: true,
         allowedApplicationModes: ['visitor_terminal', 'staff_ui'],
-        checkInAssurance: 'low',
-        checkOutAssurance: 'normal',
+        checkInMethods: ['email_code', 'pin'],
+        checkOutMethods: [],
         allowTapCheckout: true,
         offerSurveysAtCheckout: true,
         kioskResetSeconds: 120,
@@ -359,8 +378,8 @@ describe('Managed devices administration', () => {
       sessionPolicyId: policyId,
       terminalEnabled: true,
       allowedApplicationModes: ['visitor_terminal'],
-      checkInAssurance: 'normal',
-      checkOutAssurance: 'normal',
+      checkInMethods: ['email_code', 'password'],
+      checkOutMethods: ['email_code', 'password'],
       allowTapCheckout: false,
       offerSurveysAtCheckout: false,
       kioskResetSeconds: 60,
@@ -368,14 +387,14 @@ describe('Managed devices administration', () => {
     });
   });
 
-  it('edits a kiosk into a staff device and shows stored assurance values the kiosk cannot ask for', async () => {
+  it('edits a tap-only kiosk into a staff device', async () => {
     let put: Record<string, unknown> | undefined;
     const kiosk = {
       ...device,
       terminalEnabled: true,
       allowedApplicationModes: ['visitor_terminal' as const],
       sessionPolicyId: policyId,
-      checkOutAssurance: 'strong' as const,
+      checkOutMethods: [],
       allowTapCheckout: true,
     };
     server.use(
@@ -397,18 +416,22 @@ describe('Managed devices administration', () => {
     const dialog = await screen.findByRole('dialog');
 
     expect(within(dialog).getByRole('radio', { name: 'Kiosk' })).toBeChecked();
-    expect(within(dialog).getByLabelText('To check out, people show')).toHaveValue('strong');
+    const checkOut = within(dialog).getByRole('group', { name: 'To check out, people use' });
     expect(
-      within(dialog).getByRole('option', { name: /Strong \(the kiosk cannot ask for this\)/ }),
-    ).toBeInTheDocument();
+      within(checkOut)
+        .getAllByRole('checkbox')
+        .some((box) => (box as HTMLInputElement).checked),
+    ).toBe(false);
+    expect(within(dialog).getByText('Leave all unticked to check out only by a tap in the list.')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('radio', { name: 'Staff device' }));
-    expect(within(dialog).queryByLabelText('To check in, people show')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('group', { name: 'To check out, people use' })).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
 
     await waitFor(() =>
       expect(put).toMatchObject({
         terminalEnabled: false,
         allowedApplicationModes: ['staff_ui'],
+        checkOutMethods: [],
         expectedVersion: 1,
       }),
     );

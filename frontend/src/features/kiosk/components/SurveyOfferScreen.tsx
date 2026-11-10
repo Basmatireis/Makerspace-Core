@@ -127,15 +127,17 @@ function OfferStep({
           No thanks
         </Button>
       </div>
-      <Link
-        href="#never"
-        onClick={(event) => {
-          event.preventDefault();
-          if (!busy) never.mutate();
-        }}
-      >
-        Don&apos;t ask me at check-out again
-      </Link>
+      {offer.canStopAsking && (
+        <Link
+          href="#never"
+          onClick={(event) => {
+            event.preventDefault();
+            if (!busy) never.mutate();
+          }}
+        >
+          Don&apos;t ask me at check-out again
+        </Link>
+      )}
     </div>
   );
 }
