@@ -32,7 +32,8 @@ import { useNow } from './preview';
 import { PairDisplayModal } from './PairDisplayModal';
 import { signagePaths } from './paths';
 import { toPlaybackRule } from './publishedView';
-import { displaysQuery, groupsQuery, rulesQuery, scenesQuery } from './queries';
+import { displaysQuery, embedsQuery, groupsQuery, rulesQuery, scenesQuery } from './queries';
+import { memberSummary } from './webEmbeds';
 
 /** What the display reported it plays (heartbeat), with names; a rule is spelled out from the display's rule list. */
 function NowShowing({ display }: { display: SignageDisplay }) {
@@ -64,6 +65,8 @@ function GroupsSection({ canManage }: { canManage: boolean }) {
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const query = useQuery(groupsQuery());
+  const displayItems = useQuery(displaysQuery()).data?.items;
+  const embedItems = useQuery(embedsQuery()).data?.items;
   const groups: SignageDisplayGroup[] = query.data?.items ?? [];
   const newButton = canManage ? (
     <Button kind="tertiary" size="md" renderIcon={Add} onClick={() => setCreating(true)}>
@@ -116,7 +119,12 @@ function GroupsSection({ canManage }: { canManage: boolean }) {
                       </CarbonLink>
                     </TableCell>
                     <TableCell className="sg-hide-narrow">{aspectLabel(group.aspectRatio)}</TableCell>
-                    <TableCell>{group.displayIds.length}</TableCell>
+                    <TableCell>
+                      {memberSummary(
+                        displayItems?.filter((item) => item.groupId === group.id).length ?? group.displayIds.length,
+                        embedItems?.filter((item) => item.groupId === group.id).length ?? 0,
+                      )}
+                    </TableCell>
                     <TableCell>
                       {group.pendingChanges.length > 0 ? (
                         <Tag type="warm-gray" size="md">

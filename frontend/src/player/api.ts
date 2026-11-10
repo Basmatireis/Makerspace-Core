@@ -1,4 +1,5 @@
 import type {
+  SignageEmbedManifestResponse,
   SignagePairingPoll,
   SignagePairingStart,
   SignagePlayerHeartbeat,
@@ -52,14 +53,22 @@ function retryAfter(response: Response): number | null {
   return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 3600) * 1000 : null;
 }
 
-export function createPlayerApi(fetchImpl: typeof fetch = (input, init) => fetch(input, init)): PlayerApi {
-  async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+type FetchImpl = typeof fetch;
+
+/** The calls a web embed makes: public, cookie-free and read-only (no pairing, no heartbeat). */
+export type EmbedApi = {
+  manifest(known: number | null): Promise<SignageEmbedManifestResponse>;
+  live(): Promise<SignagePlayerLive>;
+};
+
+function makeRequest(base: string, credentials: RequestCredentials, fetchImpl: FetchImpl) {
+  return async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     let response: Response;
     try {
-      response = await fetchImpl(`${BASE}${path}`, {
+      response = await fetchImpl(`${base}${path}`, {
         ...init,
         cache: 'no-store',
-        credentials: 'same-origin',
+        credentials,
         headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}) },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
@@ -84,7 +93,20 @@ export function createPlayerApi(fetchImpl: typeof fetch = (input, init) => fetch
     } catch {
       throw new PlayerNetworkError('Unreadable response');
     }
-  }
+  };
+}
+
+/** The embed page's API: everything below `/public/signage/embeds/{key}`, fetched without credentials. */
+export function createEmbedApi(key: string, fetchImpl: FetchImpl = (input, init) => fetch(input, init)): EmbedApi {
+  const request = makeRequest(`${BASE}/public/signage/embeds/${encodeURIComponent(key)}`, 'omit', fetchImpl);
+  return {
+    manifest: (known) => request(`/manifest${known === null ? '' : `?known=${known}`}`),
+    live: () => request('/live'),
+  };
+}
+
+export function createPlayerApi(fetchImpl: FetchImpl = (input, init) => fetch(input, init)): PlayerApi {
+  const request = makeRequest(BASE, 'same-origin', fetchImpl);
   return {
     startPairing: () => request('/public/signage/pairing', { method: 'POST' }),
     pollPairing: () => request('/public/signage/pairing'),

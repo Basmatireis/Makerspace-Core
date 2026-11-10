@@ -8,6 +8,7 @@ import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { errorMessage, isStaleWrite } from './helpers';
 import { signagePaths } from './paths';
 import { settingsOf, useUpdateDisplay } from './displayMutations';
+import { useUpdateEmbed } from './embedMutations';
 import { useUpdateGroup } from './groupMutations';
 import { ownerInfo, type PlaybackOwner } from './playbackOwner';
 import { signageKeys } from './queries';
@@ -79,7 +80,8 @@ export function DefaultScenesModal({ owner, onClose }: { owner: PlaybackOwner; o
   const [showError, setShowError] = useState(false);
   const updateDisplay = useUpdateDisplay(info.id);
   const updateGroup = useUpdateGroup(info.id);
-  const update = owner.kind === 'group' ? updateGroup : updateDisplay;
+  const updateEmbed = useUpdateEmbed(info.id);
+  const update = owner.kind === 'group' ? updateGroup : owner.kind === 'embed' ? updateEmbed : updateDisplay;
   const error = sceneListError(scenes);
   const save = () => {
     if (error) {
@@ -101,6 +103,8 @@ export function DefaultScenesModal({ owner, onClose }: { owner: PlaybackOwner; o
         },
         { onSuccess: onClose },
       );
+    else if (owner.kind === 'embed')
+      updateEmbed.mutate({ expectedVersion: owner.embed.version, defaultScenes }, { onSuccess: onClose });
     else
       updateDisplay.mutate(
         { ...settingsOf(owner.display), expectedVersion: owner.display.version, defaultScenes },

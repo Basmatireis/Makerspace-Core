@@ -174,6 +174,9 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         pathname === '/signage' || pathname.startsWith('/signage/displays') || pathname.startsWith('/signage/groups'),
     });
   }
+  if (canReadSignage) {
+    signage.push({ label: 'Web embeds', to: '/signage/embeds', active: pathname.startsWith('/signage/embeds') });
+  }
   if (canReadSignage || hasPermission(currentUser, 'signage.override')) {
     signage.push({
       label: 'Announcements',
