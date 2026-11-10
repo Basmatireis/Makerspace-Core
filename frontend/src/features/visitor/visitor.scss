@@ -224,7 +224,7 @@ body:has(.visitor-flow) {
 .visitor-photo__frame {
   display: grid;
   place-items: center;
-  inline-size: min(100%, 30rem, 50dvh);
+  inline-size: min(100%, 30rem, 38dvh);
   aspect-ratio: 1;
   overflow: hidden;
   background: $layer-02;
