@@ -32,6 +32,20 @@ export const isTypingTarget = (target: EventTarget | null) =>
     (target instanceof HTMLInputElement &&
       !['button', 'checkbox', 'radio', 'range', 'submit', 'reset', 'file', 'color'].includes(target.type)));
 
+/**
+ * True where Delete, Enter and the arrows belong to the canvas: the focusable canvas region itself or the page body.
+ * On any other control (buttons, radios, tabs, sliders, dropdowns) those keys keep their own meaning.
+ */
+export const isCanvasKeyTarget = (target: EventTarget | null) =>
+  target === null ||
+  target === document.body ||
+  target === document.documentElement ||
+  (target instanceof Element && target.hasAttribute('data-canvas-region'));
+
+/** Widgets that own the keyboard while open: dialogs, menus, listboxes (Carbon dropdowns, comboboxes). */
+export const OWNS_KEYS_SELECTOR =
+  '[role="dialog"], [role="menu"], [role="listbox"], [role="combobox"], .cds--overflow-menu-options, .cds--list-box';
+
 const ARROWS: Record<string, [number, number]> = {
   ArrowLeft: [-1, 0],
   ArrowRight: [1, 0],
@@ -57,6 +71,7 @@ export function editorKeyAction(
     return { kind: 'order', step: forward ? (event.altKey ? 'top' : 'front') : event.altKey ? 'bottom' : 'back' };
   }
   if (mod || event.altKey) return null;
+  if (!isCanvasKeyTarget(event.target)) return null;
   if (event.key === 'Delete' || event.key === 'Backspace') return { kind: 'delete' };
   if (event.key === 'Enter') return { kind: 'editText' };
   const arrow = ARROWS[event.key];
@@ -80,7 +95,7 @@ export function useEditorKeys(enabled: boolean, handle: (action: EditorKeyAction
       const target = event.target;
       if (
         document.body.classList.contains('cds--body--with-modal-open') ||
-        (target instanceof Element && target.closest('[role="dialog"], [role="menu"], .cds--overflow-menu-options'))
+        (target instanceof Element && target.closest(OWNS_KEYS_SELECTOR))
       )
         return;
       const action = editorKeyAction(event);

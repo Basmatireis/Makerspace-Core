@@ -85,17 +85,40 @@ describe('Screen editor', () => {
     renderRoute(<App />, editor);
     const user = userEvent.setup();
     await user.click(await layer('header'));
+    // Block keys act on the canvas region, not on the list button that has the focus.
+    await user.keyboard('{ArrowRight}');
+    expect(block('header')).toHaveStyle({ left: '0px' });
+    act(() => screen.getByRole('application', { name: 'Screen canvas' }).focus());
     await user.keyboard('{Shift>}{ArrowRight}{/Shift}{ArrowDown}');
     expect(block('header')).toHaveStyle({ left: '10px', top: '1px' });
     // Nudges right after each other are one undo step.
     await user.click(screen.getByRole('button', { name: /^Undo/ }));
     expect(block('header')).toHaveStyle({ left: '0px', top: '0px' });
+    act(() => screen.getByRole('application', { name: 'Screen canvas' }).focus());
     await user.keyboard('{Control>}{Shift>}z{/Shift}{/Control}');
     expect(block('header')).toHaveStyle({ left: '10px', top: '1px' });
     await user.keyboard('{Control>}z{/Control}');
     expect(block('header')).toHaveStyle({ left: '0px' });
     await user.keyboard('{Delete}');
     expect(block('header')).toBeNull();
+  });
+
+  it('leaves Enter and Delete on a focused button alone and announces the selection', async () => {
+    mockSignage(editing);
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    const row = await layer('header');
+    await user.click(row);
+    expect(screen.getByText('header selected')).toBeInTheDocument();
+    row.focus();
+    await user.keyboard('{Enter}{Delete}{Backspace}');
+    expect(block('header')).not.toBeNull();
+    expect(document.querySelector('.sg-canvas [contenteditable="true"]')).toBeNull();
+    // On the canvas region Delete removes the selection.
+    act(() => screen.getByRole('application', { name: 'Screen canvas' }).focus());
+    await user.keyboard('{Delete}');
+    expect(block('header')).toBeNull();
+    expect(screen.getByText('Nothing selected')).toBeInTheDocument();
   });
 
   it('selects several blocks with Shift and aligns them with the group toolbar', async () => {
@@ -199,6 +222,7 @@ describe('Screen editor', () => {
     // Blocks can be selected to look at them, but keys change nothing.
     await user.click(await layer('header'));
     expect(screen.getByRole('button', { name: 'header', pressed: true })).toBeInTheDocument();
+    act(() => screen.getByRole('application', { name: 'Screen canvas' }).focus());
     await user.keyboard('{ArrowRight}{Delete}');
     expect(block('header')).toHaveStyle({ left: '0px' });
     expect(screen.queryByRole('toolbar', { name: /Actions for/ })).not.toBeInTheDocument();

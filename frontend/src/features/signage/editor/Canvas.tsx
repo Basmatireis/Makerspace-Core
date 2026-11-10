@@ -262,6 +262,7 @@ export function Canvas(props: CanvasProps) {
     if (event.button !== 0 || live) return;
     const target = event.target as Element;
     if (target.closest('[data-canvas-ui]')) return;
+    if (!editingId) wrapRef.current?.focus({ preventScroll: true });
     const handle = (target as HTMLElement).dataset?.handle as Handle | undefined;
     if (handle && single && canEdit) {
       event.preventDefault();
@@ -351,7 +352,30 @@ export function Canvas(props: CanvasProps) {
   const index = single ? draft.blocks.findIndex((b) => b.id === single.id) : -1;
 
   return (
-    <div className="sg-canvas" ref={wrapRef} {...dropProps}>
+    <div
+      className="sg-canvas"
+      ref={wrapRef}
+      role="application"
+      aria-label="Screen canvas"
+      aria-describedby="sg-canvas-keys"
+      // The canvas is a keyboard widget: it takes the focus for the block shortcuts.
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+      tabIndex={0}
+      data-canvas-region
+      {...dropProps}
+    >
+      <p id="sg-canvas-keys" className="sg-sr-only">
+        {canEdit
+          ? 'Arrow keys move the selected blocks by one unit, Shift with arrows by ten. Enter edits a text block. Delete removes the selection. Escape clears the selection.'
+          : 'This screen is read-only.'}
+      </p>
+      <p className="sg-sr-only" role="status" aria-live="polite">
+        {selected.length === 0
+          ? 'Nothing selected'
+          : selected.length === 1
+            ? `${selected[0].name} selected`
+            : `${selected.length} blocks selected`}
+      </p>
       <div className="sg-canvas__inner" style={{ padding: `${PAD_Y}px ${PAD_X}px` }}>
         <div className="sg-canvas__box" ref={boxRef} style={{ width: grid.width * scale, height: grid.height * scale }}>
           <ScreenFrame aspectRatio={draft.aspectRatio} scale={scale}>
@@ -400,6 +424,7 @@ export function Canvas(props: CanvasProps) {
                   key={handle}
                   className={`sg-canvas__handle sg-canvas__handle--${handle}`}
                   data-handle={handle}
+                  aria-hidden="true"
                   style={{ left: (single.x + single.w * fx) * scale, top: (single.y + single.h * fy) * scale }}
                 />
               ))}

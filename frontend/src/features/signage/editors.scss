@@ -463,24 +463,16 @@ textarea.sg-code {
 .sg-layers__row--drop-below::after {
   inset-block-end: -1px;
 }
-.sg-layers__name {
-  display: flex;
+.sg-layers__name.cds--btn {
   flex: 1 1 auto;
-  align-items: center;
+  justify-content: flex-start;
   gap: $spacing-03;
   min-inline-size: 0;
+  max-inline-size: none;
   min-block-size: 2rem;
   padding: 0 $spacing-02;
-  border: 0;
-  background: transparent;
   color: theme.$text-primary;
   text-align: start;
-  cursor: pointer;
-  @include type-style('body-compact-01');
-}
-.sg-layers__name:focus-visible {
-  outline: 2px solid theme.$focus;
-  outline-offset: -2px;
 }
 .sg-layers__name svg {
   flex: 0 0 auto;
@@ -504,7 +496,22 @@ textarea.sg-code {
 }
 
 // Canvas: the screen centred in a scrolling area with room for the floating toolbars
+.sg-sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.sg-canvas:focus-visible {
+  outline: 2px solid theme.$focus;
+  outline-offset: -2px;
+}
 .sg-canvas {
+  position: relative;
   min-block-size: 0;
   overflow: auto;
   background: theme.$layer-02;

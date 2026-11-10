@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
-import { IconButton } from '@carbon/react';
+import { Button, IconButton } from '@carbon/react';
 import { Locked, Unlocked, View, ViewOff, WarningAltFilled } from '@carbon/icons-react';
 import type { SignageBlock } from '../../../api/generated/models';
 import { orderBlock, reorderFromList, updateBlocks } from './blockOps';
@@ -111,8 +111,10 @@ export function BlocksList({
                   if (next && next !== blocks) onBlocks(next);
                 }}
               >
-                <button
+                <Button
                   type="button"
+                  kind="ghost"
+                  size="sm"
                   className="sg-layers__name"
                   aria-pressed={selected}
                   aria-describedby={canEdit ? 'sg-layers-keys' : undefined}
@@ -121,7 +123,7 @@ export function BlocksList({
                 >
                   <Icon aria-hidden="true" />
                   <span className="sg-layers__label">{block.name}</span>
-                </button>
+                </Button>
                 {overflowIds.has(block.id) && (
                   <WarningAltFilled className="sg-layers__warning" role="img" aria-label="Content does not fit">
                     <title>Content does not fit</title>
