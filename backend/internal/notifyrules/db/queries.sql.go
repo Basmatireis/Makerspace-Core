@@ -1740,7 +1740,7 @@ const insertSignageRuleNotice = `-- name: InsertSignageRuleNotice :execrows
 INSERT INTO signage_rule_notices (id, firing_id, display_id, title, body, tone, starts_at, ends_at)
 SELECT $1, $2, d.id, $3, $4, $5, $6,
        $7
-FROM signage_displays d WHERE d.id = $8
+FROM signage_displays d WHERE d.id = $8 AND d.kind = 'device'
 `
 
 type InsertSignageRuleNoticeParams struct {
@@ -2307,9 +2307,10 @@ func (q *Queries) ListExistingDeviceIDs(ctx context.Context, ids []string) ([]uu
 }
 
 const listExistingDisplayIDs = `-- name: ListExistingDisplayIDs :many
-SELECT id FROM signage_displays WHERE id = ANY($1::text[]::uuid[])
+SELECT id FROM signage_displays WHERE id = ANY($1::text[]::uuid[]) AND kind = 'device'
 `
 
+// Only screens with a device take rule notices; web embeds show public information only.
 func (q *Queries) ListExistingDisplayIDs(ctx context.Context, ids []string) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listExistingDisplayIDs, ids)
 	if err != nil {

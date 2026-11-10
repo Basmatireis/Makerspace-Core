@@ -14,6 +14,7 @@ import type {
   SignageRule,
   SignageScene,
   SignageWidget,
+  SignageWebEmbed,
 } from '../../api/generated/models';
 import { currentUserFixture } from '../../test/fixtures';
 import { server } from '../../test/server';
@@ -31,6 +32,7 @@ export const ids = {
   rule: '0192f6f8-743e-7c77-a349-cd07c3e8a171',
   rule2: '0192f6f8-743e-7c77-a349-cd07c3e8a172',
   machine: '0192f6f8-743e-7c77-a349-cd07c3e8a181',
+  embed: '0192f6f8-743e-7c77-a349-cd07c3e8a1c1',
 };
 const stamp = '2026-10-19T08:00:00Z';
 
@@ -170,6 +172,35 @@ export const displayFixture = (overrides: Partial<SignageDisplay> = {}): Signage
   ...overrides,
 });
 
+export const embedFixture = (overrides: Partial<SignageWebEmbed> = {}): SignageWebEmbed => ({
+  id: ids.embed,
+  name: 'Open days on the student council site',
+  aspectRatio: { width: 16, height: 9 },
+  groupId: null,
+  defaultScenes: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }],
+  embedKey: 'k7Hq2pX9wLm4k7Hq2pX9wLm4k7Hq2pX9',
+  embedUrl: 'https://core.example/embed/k7Hq2pX9wLm4k7Hq2pX9wLm4k7Hq2pX9',
+  allowedOrigins: ['https://fachschaft-muster.example', 'https://www.fachschaft-muster.example'],
+  openDirectly: false,
+  enabled: true,
+  cameraEnabled: false,
+  cameraMachineIds: [],
+  cameraViewerLimit: 10,
+  timelapseEnabled: false,
+  timelapseCount: 5,
+  timelapseMaxAgeDays: 14,
+  publishedRevision: 4,
+  publishedAt: stamp,
+  pendingChanges: [],
+  hasUnpublishedChanges: false,
+  lastLoadedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
+  loadsToday: 212,
+  version: 3,
+  createdAt: stamp,
+  updatedAt: stamp,
+  ...overrides,
+});
+
 export const groupFixture = (overrides: Partial<SignageDisplayGroup> = {}): SignageDisplayGroup => ({
   id: ids.group,
   name: 'Hallway screens',
@@ -230,6 +261,7 @@ type Content = {
   groups?: SignageDisplayGroup[];
   groupRules?: SignageRule[];
   displays?: SignageDisplay[];
+  embeds?: SignageWebEmbed[];
   rules?: SignageRule[];
   preview?: SignageDisplayPreview;
   scenes?: SignageScene[];
@@ -249,6 +281,7 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
     announcements = [],
     machines = [],
     displays = [],
+    embeds = [],
     groups = [],
     rules = [],
     groupRules = [],
@@ -275,9 +308,19 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
         ? HttpResponse.json(display)
         : HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 });
     }),
-    http.get('*/api/v1/signage/displays/:id/rules', () =>
-      HttpResponse.json({ items: rules, ownerVersion: displays[0]?.version ?? 1 }),
+    http.get('*/api/v1/signage/displays/:id/rules', ({ params }) =>
+      HttpResponse.json({
+        items: rules,
+        ownerVersion: (embeds.find((item) => item.id === params.id) ?? displays[0])?.version ?? 1,
+      }),
     ),
+    http.get('*/api/v1/signage/web-embeds', () => HttpResponse.json({ items: embeds })),
+    http.get('*/api/v1/signage/web-embeds/:id', ({ params }) => {
+      const embed = embeds.find((item) => item.id === params.id);
+      return embed
+        ? HttpResponse.json(embed)
+        : HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 });
+    }),
     http.get('*/api/v1/signage/groups', () => HttpResponse.json({ items: groups })),
     http.get('*/api/v1/signage/groups/:id', ({ params }) => {
       const group = groups.find((item) => item.id === params.id);

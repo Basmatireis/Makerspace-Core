@@ -113,10 +113,19 @@ func (s *Service) timelapseSelection(
 	q *signagedb.Queries,
 	manifest Manifest,
 	now time.Time,
+	caps *timelapseCaps,
 ) (clips []LiveTimelapse, present bool, err error) {
 	needs, present := timelapseNeedsOf(manifest)
 	if !present {
 		return nil, false, nil
+	}
+	if caps != nil {
+		for index := range needs {
+			needs[index].count = min(needs[index].count, caps.count)
+			if needs[index].maxAgeDays == 0 || needs[index].maxAgeDays > caps.maxAgeDays {
+				needs[index].maxAgeDays = caps.maxAgeDays
+			}
+		}
 	}
 	seen := map[uuid.UUID]struct{}{}
 	clips = []LiveTimelapse{}
@@ -153,10 +162,45 @@ func (s *Service) timelapseSelection(
 		}
 		return bytes.Compare(clips[i].RunID[:], clips[j].RunID[:]) > 0
 	})
-	if len(clips) > maxLiveTimelapses {
-		clips = clips[:maxLiveTimelapses]
+	limit := maxLiveTimelapses
+	if caps != nil {
+		limit = min(limit, caps.count)
+	}
+	if len(clips) > limit {
+		clips = clips[:limit]
 	}
 	return clips, true, nil
+}
+
+// timelapseCaps bounds the timelapse widgets of a web embed: at most count clips per widget and in total, and only
+// clips of prints that ended within maxAgeDays.
+type timelapseCaps struct {
+	count, maxAgeDays int
+}
+
+// displayTimelapses is the timelapse selection of a display's publication: nil without a timelapse widget. A web
+// embed gets clips only while its timelapses are switched on now and were when it was published (an empty list
+// otherwise, so its widgets show their fallback), capped by its settings.
+func (s *Service) displayTimelapses(
+	ctx context.Context,
+	q *signagedb.Queries,
+	display PlayerDisplay,
+	manifest Manifest,
+	now time.Time,
+) ([]LiveTimelapse, error) {
+	var caps *timelapseCaps
+	if display.embed != nil {
+		allowed, embedCaps := display.embed.timelapsesFor(manifest)
+		if !allowed {
+			if _, present := timelapseNeedsOf(manifest); present {
+				return []LiveTimelapse{}, nil
+			}
+			return nil, nil
+		}
+		caps = &embedCaps
+	}
+	clips, _, err := s.timelapseSelection(ctx, q, manifest, now, caps)
+	return clips, err
 }
 
 // OpenPlayerTimelapse opens a timelapse video for a player, but only while the run is in the display's
@@ -175,7 +219,7 @@ func (s *Service) OpenPlayerTimelapse(
 	if !ok {
 		return TimelapseFile{}, apperror.NotFound
 	}
-	clips, _, err := s.timelapseSelection(ctx, q, manifest, s.now())
+	clips, err := s.displayTimelapses(ctx, q, display, manifest, s.now())
 	if err != nil {
 		return TimelapseFile{}, err
 	}

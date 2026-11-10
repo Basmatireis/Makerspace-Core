@@ -14,24 +14,24 @@ ALTER TABLE signage_scenes
 
 -- +goose StatementBegin
 -- n / d rounded half up (d > 0); integer division truncates towards zero like Go's.
-CREATE FUNCTION signage_00129_round_div(n bigint, d bigint) RETURNS integer
+CREATE FUNCTION signage_00130_round_div(n bigint, d bigint) RETURNS integer
 LANGUAGE sql IMMUTABLE AS $$ SELECT ((2 * n + d) / (2 * d))::integer $$;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-CREATE FUNCTION signage_00129_clamp(value integer, low integer, high integer) RETURNS integer
+CREATE FUNCTION signage_00130_clamp(value integer, low integer, high integer) RETURNS integer
 LANGUAGE sql IMMUTABLE AS $$ SELECT least(greatest(value, low), high) $$;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
 -- The text of a JSON string, '' for anything else.
-CREATE FUNCTION signage_00129_str(value jsonb) RETURNS text
+CREATE FUNCTION signage_00130_str(value jsonb) RETURNS text
 LANGUAGE sql IMMUTABLE AS $$ SELECT CASE WHEN jsonb_typeof(value) = 'string' THEN value #>> '{}' ELSE '' END $$;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
 -- The grid lines of fr-weighted tracks across total units (1-based: lines[1] = 0).
-CREATE FUNCTION signage_00129_edges(total integer, weights integer[]) RETURNS integer[]
+CREATE FUNCTION signage_00130_edges(total integer, weights integer[]) RETURNS integer[]
 LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
     tracks integer[] := CASE WHEN coalesce(cardinality(weights), 0) = 0 THEN ARRAY[1] ELSE weights END;
@@ -48,7 +48,7 @@ BEGIN
     END IF;
     FOREACH weight IN ARRAY tracks LOOP
         running := running + weight;
-        lines := lines || signage_00129_round_div(total::bigint * running, weight_sum);
+        lines := lines || signage_00130_round_div(total::bigint * running, weight_sum);
     END LOOP;
     RETURN lines;
 END
@@ -57,7 +57,7 @@ $$;
 
 -- +goose StatementBegin
 -- The nine built-in layouts in the shape of a custom grid layout; an unknown id rendered as full.
-CREATE FUNCTION signage_00129_builtin_layout(layout_id text) RETURNS jsonb
+CREATE FUNCTION signage_00130_builtin_layout(layout_id text) RETURNS jsonb
 LANGUAGE sql IMMUTABLE AS $$
 SELECT coalesce(layouts -> layout_id, layouts -> 'full') FROM (SELECT '{
   "full": {"columns": [1], "rows": [1], "zones": [
@@ -101,12 +101,12 @@ $$;
 
 -- +goose StatementBegin
 -- The zones of a grid layout as boxes {id, label, x, y, w, h} in grid units; placements are clamped to the tracks.
-CREATE FUNCTION signage_00129_grid_zones(grid_w integer, grid_h integer, columns integer[], rows integer[], zones jsonb)
+CREATE FUNCTION signage_00130_grid_zones(grid_w integer, grid_h integer, columns integer[], rows integer[], zones jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
-    col_lines integer[] := signage_00129_edges(grid_w, columns);
-    row_lines integer[] := signage_00129_edges(grid_h, rows);
+    col_lines integer[] := signage_00130_edges(grid_w, columns);
+    row_lines integer[] := signage_00130_edges(grid_h, rows);
     col_count integer := cardinality(col_lines) - 1;
     row_count integer := cardinality(row_lines) - 1;
     placed jsonb := '[]'::jsonb;
@@ -120,10 +120,10 @@ BEGIN
     FOR zone IN SELECT e.value FROM jsonb_array_elements(zones) WITH ORDINALITY AS e(value, n) ORDER BY e.n LOOP
         place := CASE WHEN jsonb_typeof(zone -> 'grid') = 'object' THEN zone -> 'grid'
             ELSE '{"col": 1, "row": 1, "colSpan": 1, "rowSpan": 1}'::jsonb END;
-        col := signage_00129_clamp(coalesce((place ->> 'col')::integer, 0), 1, col_count);
-        row_index := signage_00129_clamp(coalesce((place ->> 'row')::integer, 0), 1, row_count);
-        col_span := signage_00129_clamp(coalesce((place ->> 'colSpan')::integer, 0), 1, col_count - col + 1);
-        row_span := signage_00129_clamp(coalesce((place ->> 'rowSpan')::integer, 0), 1, row_count - row_index + 1);
+        col := signage_00130_clamp(coalesce((place ->> 'col')::integer, 0), 1, col_count);
+        row_index := signage_00130_clamp(coalesce((place ->> 'row')::integer, 0), 1, row_count);
+        col_span := signage_00130_clamp(coalesce((place ->> 'colSpan')::integer, 0), 1, col_count - col + 1);
+        row_span := signage_00130_clamp(coalesce((place ->> 'rowSpan')::integer, 0), 1, row_count - row_index + 1);
         placed := placed || jsonb_build_array(jsonb_build_object(
             'id', coalesce(zone ->> 'id', ''),
             'label', coalesce(zone ->> 'label', ''),
@@ -139,7 +139,7 @@ $$;
 
 -- +goose StatementBegin
 -- A percentage in hundredths, rounded half away from zero and clamped to 0–100 %; fallback when not a number.
-CREATE FUNCTION signage_00129_hundredths(value jsonb, fallback integer) RETURNS integer
+CREATE FUNCTION signage_00130_hundredths(value jsonb, fallback integer) RETURNS integer
 LANGUAGE sql IMMUTABLE AS $$
 SELECT CASE WHEN jsonb_typeof(value) = 'number'
     THEN least(greatest(round((value #>> '{}')::numeric * 100), 0), 10000)::integer
@@ -149,7 +149,7 @@ $$;
 
 -- +goose StatementBegin
 -- The zones of a free layout (percent rectangles) as boxes in grid units.
-CREATE FUNCTION signage_00129_free_zones(grid_w integer, grid_h integer, zones jsonb) RETURNS jsonb
+CREATE FUNCTION signage_00130_free_zones(grid_w integer, grid_h integer, zones jsonb) RETURNS jsonb
 LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
     placed jsonb := '[]'::jsonb;
@@ -165,19 +165,19 @@ BEGIN
     FOR zone IN SELECT e.value FROM jsonb_array_elements(zones) WITH ORDINALITY AS e(value, n) ORDER BY e.n LOOP
         rect := CASE WHEN jsonb_typeof(zone -> 'rect') = 'object' THEN zone -> 'rect'
             ELSE '{"x": 0, "y": 0, "width": 100, "height": 100}'::jsonb END;
-        x := signage_00129_hundredths(rect -> 'x', 0);
-        y := signage_00129_hundredths(rect -> 'y', 0);
-        w := signage_00129_hundredths(rect -> 'width', 10000);
-        h := signage_00129_hundredths(rect -> 'height', 10000);
-        box_left := signage_00129_round_div(grid_w::bigint * x, 10000);
-        box_top := signage_00129_round_div(grid_h::bigint * y, 10000);
+        x := signage_00130_hundredths(rect -> 'x', 0);
+        y := signage_00130_hundredths(rect -> 'y', 0);
+        w := signage_00130_hundredths(rect -> 'width', 10000);
+        h := signage_00130_hundredths(rect -> 'height', 10000);
+        box_left := signage_00130_round_div(grid_w::bigint * x, 10000);
+        box_top := signage_00130_round_div(grid_h::bigint * y, 10000);
         placed := placed || jsonb_build_array(jsonb_build_object(
             'id', coalesce(zone ->> 'id', ''),
             'label', coalesce(zone ->> 'label', ''),
             'x', box_left,
             'y', box_top,
-            'w', signage_00129_round_div(grid_w::bigint * (x + w), 10000) - box_left,
-            'h', signage_00129_round_div(grid_h::bigint * (y + h), 10000) - box_top));
+            'w', signage_00130_round_div(grid_w::bigint * (x + w), 10000) - box_left,
+            'h', signage_00130_round_div(grid_h::bigint * (y + h), 10000) - box_top));
     END LOOP;
     RETURN placed;
 END
@@ -188,7 +188,7 @@ $$;
 -- One zone with its widget as a block: the zone style moves into a block style that reproduces the old look, and
 -- the widget's own fields are adapted (text loses size and align and gains fit, announcements lose size, cameras
 -- show the live badge and the name, images are not dimmed). Anything that is not a widget object becomes empty.
-CREATE FUNCTION signage_00129_block(zone jsonb, stored jsonb) RETURNS jsonb
+CREATE FUNCTION signage_00130_block(zone jsonb, stored jsonb) RETURNS jsonb
 LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
     widget jsonb := stored;
@@ -210,19 +210,19 @@ DECLARE
     block_id text;
     block_name text;
 BEGIN
-    IF jsonb_typeof(widget) IS DISTINCT FROM 'object' OR signage_00129_str(widget -> 'type') = '' THEN
+    IF jsonb_typeof(widget) IS DISTINCT FROM 'object' OR signage_00130_str(widget -> 'type') = '' THEN
         widget := '{"type": "empty"}'::jsonb;
     END IF;
-    kind := signage_00129_str(widget -> 'type');
+    kind := signage_00130_str(widget -> 'type');
     style_key := CASE WHEN kind = 'announcement' THEN 'boxStyle' ELSE 'style' END;
     zone_style := CASE WHEN jsonb_typeof(widget -> style_key) = 'object' THEN widget -> style_key END;
     widget := widget - style_key;
 
     font_scale := coalesce((zone_style ->> 'fontScale')::integer, 100);
-    rich := signage_00129_str(widget -> 'format') NOT IN ('', 'plain');
+    rich := signage_00130_str(widget -> 'format') NOT IN ('', 'plain');
     -- A zone without a style kept the renderer's default 2u padding; a style replaced it, even with 0.
     IF zone_style IS NOT NULL THEN
-        padding := signage_00129_clamp(signage_00129_round_div(coalesce((zone_style ->> 'padding')::integer, 0) * 108, 10), 0, 400);
+        padding := signage_00130_clamp(signage_00130_round_div(coalesce((zone_style ->> 'padding')::integer, 0) * 108, 10), 0, 400);
     ELSIF kind IN ('text', 'status', 'clock', 'open_days', 'events', 'agenda', 'calendar', 'qr') THEN
         padding := 22;
     ELSE
@@ -235,14 +235,14 @@ BEGIN
         family := zone_style ->> 'fontFamily';
     END IF;
     IF kind IN ('text', 'announcement') THEN
-        text_size := signage_00129_round_div(
-            (CASE signage_00129_str(widget -> 'size') WHEN 's' THEN 30 WHEN 'l' THEN 70 WHEN 'xl' THEN 100 ELSE 46 END)::bigint
+        text_size := signage_00130_round_div(
+            (CASE signage_00130_str(widget -> 'size') WHEN 's' THEN 30 WHEN 'l' THEN 70 WHEN 'xl' THEN 100 ELSE 46 END)::bigint
                 * 108 * font_scale,
             10000);
     ELSE
-        text_size := signage_00129_round_div(32::bigint * font_scale, 100);
+        text_size := signage_00130_round_div(32::bigint * font_scale, 100);
     END IF;
-    text_size := signage_00129_clamp(text_size, 8, 400);
+    text_size := signage_00130_clamp(text_size, 8, 400);
     IF kind = 'text' AND NOT rich THEN
         font_weight := '600';
         line_height := 115;
@@ -255,9 +255,9 @@ BEGIN
     zone_align := coalesce(zone_style ->> 'align', '');
     align := CASE
         WHEN kind IN ('clock', 'qr') THEN 'center'
-        WHEN kind = 'announcement' AND signage_00129_str(widget -> 'style') = 'full' THEN 'center'
+        WHEN kind = 'announcement' AND signage_00130_str(widget -> 'style') = 'full' THEN 'center'
         WHEN zone_align IN ('start', 'center', 'end') THEN zone_align
-        WHEN kind = 'text' AND signage_00129_str(widget -> 'align') IN ('start', 'center', 'end') THEN signage_00129_str(widget -> 'align')
+        WHEN kind = 'text' AND signage_00130_str(widget -> 'align') IN ('start', 'center', 'end') THEN signage_00130_str(widget -> 'align')
         ELSE 'start' END;
     zone_vertical := coalesce(zone_style ->> 'verticalAlign', '');
     vertical := CASE
@@ -286,23 +286,23 @@ BEGIN
     RETURN jsonb_build_object(
         'id', block_id,
         'name', block_name,
-        'x', signage_00129_clamp((zone ->> 'x')::integer, -120000, 120000),
-        'y', signage_00129_clamp((zone ->> 'y')::integer, -120000, 120000),
-        'w', signage_00129_clamp((zone ->> 'w')::integer, 8, 120000),
-        'h', signage_00129_clamp((zone ->> 'h')::integer, 8, 120000),
+        'x', signage_00130_clamp((zone ->> 'x')::integer, -120000, 120000),
+        'y', signage_00130_clamp((zone ->> 'y')::integer, -120000, 120000),
+        'w', signage_00130_clamp((zone ->> 'w')::integer, 8, 120000),
+        'h', signage_00130_clamp((zone ->> 'h')::integer, 8, 120000),
         'hidden', false,
         'locked', false,
         'widget', widget,
         'style', jsonb_build_object(
             'backgroundColor', CASE WHEN jsonb_typeof(zone_style -> 'backgroundColor') = 'string' THEN zone_style -> 'backgroundColor' ELSE 'null'::jsonb END,
-            'backgroundOpacity', signage_00129_clamp(coalesce((zone_style ->> 'backgroundOpacity')::integer, 100), 0, 100),
+            'backgroundOpacity', signage_00130_clamp(coalesce((zone_style ->> 'backgroundOpacity')::integer, 100), 0, 100),
             'backgroundAssetId', NULL,
             'backgroundDim', 0,
             'textColor', CASE WHEN jsonb_typeof(zone_style -> 'textColor') = 'string' THEN zone_style -> 'textColor' ELSE 'null'::jsonb END,
-            'borderWidth', signage_00129_clamp(signage_00129_round_div(coalesce((zone_style ->> 'borderWidth')::integer, 0) * 108, 100), 0, 40),
+            'borderWidth', signage_00130_clamp(signage_00130_round_div(coalesce((zone_style ->> 'borderWidth')::integer, 0) * 108, 100), 0, 40),
             'borderStyle', 'solid',
             'borderColor', CASE WHEN jsonb_typeof(zone_style -> 'borderColor') = 'string' THEN zone_style -> 'borderColor' ELSE 'null'::jsonb END,
-            'radius', signage_00129_clamp(signage_00129_round_div(coalesce((zone_style ->> 'radius')::integer, 0) * 108, 10), 0, 400),
+            'radius', signage_00130_clamp(signage_00130_round_div(coalesce((zone_style ->> 'radius')::integer, 0) * 108, 10), 0, 400),
             'shadow', 'none',
             'fontFamily', family,
             'fontAssetId', font_asset,
@@ -322,7 +322,7 @@ $$;
 -- +goose StatementBegin
 -- The blocks of a scene: its layout's zones in order (free layouts: the stacking order), empty zones included. A
 -- scene on a missing or empty custom layout, like one with an unknown layout id, rendered as full.
-CREATE FUNCTION signage_00129_scene_blocks(
+CREATE FUNCTION signage_00130_scene_blocks(
     aspect_w integer,
     aspect_h integer,
     layout_id text,
@@ -346,21 +346,21 @@ BEGIN
         aspect_h := 9;
     END IF;
     IF aspect_w >= aspect_h THEN
-        grid_w := signage_00129_round_div(1080::bigint * aspect_w, aspect_h);
+        grid_w := signage_00130_round_div(1080::bigint * aspect_w, aspect_h);
         grid_h := 1080;
     ELSE
         grid_w := 1080;
-        grid_h := signage_00129_round_div(1080::bigint * aspect_h, aspect_w);
+        grid_h := signage_00130_round_div(1080::bigint * aspect_h, aspect_w);
     END IF;
     IF layout_id = 'custom' AND jsonb_typeof(custom_zones) = 'array' AND jsonb_array_length(custom_zones) > 0 THEN
         IF custom_mode = 'free' THEN
-            placed := signage_00129_free_zones(grid_w, grid_h, custom_zones);
+            placed := signage_00130_free_zones(grid_w, grid_h, custom_zones);
         ELSE
-            placed := signage_00129_grid_zones(grid_w, grid_h, custom_columns, custom_rows, custom_zones);
+            placed := signage_00130_grid_zones(grid_w, grid_h, custom_columns, custom_rows, custom_zones);
         END IF;
     ELSE
-        builtin := signage_00129_builtin_layout(layout_id);
-        placed := signage_00129_grid_zones(
+        builtin := signage_00130_builtin_layout(layout_id);
+        placed := signage_00130_grid_zones(
             grid_w,
             grid_h,
             ARRAY(SELECT e.value::integer FROM jsonb_array_elements_text(builtin -> 'columns') WITH ORDINALITY AS e(value, n) ORDER BY e.n),
@@ -368,7 +368,7 @@ BEGIN
             builtin -> 'zones');
     END IF;
     FOR zone IN SELECT e.value FROM jsonb_array_elements(placed) WITH ORDINALITY AS e(value, n) ORDER BY e.n LOOP
-        blocks := blocks || jsonb_build_array(signage_00129_block(
+        blocks := blocks || jsonb_build_array(signage_00130_block(
             zone,
             coalesce(zones -> (zone ->> 'id'), '{"type": "empty"}'::jsonb)));
     END LOOP;
@@ -378,21 +378,21 @@ $$;
 -- +goose StatementEnd
 
 UPDATE signage_scenes s
-SET blocks = signage_00129_scene_blocks(
+SET blocks = signage_00130_scene_blocks(
     s.aspect_width, s.aspect_height, s.layout_id, l.mode, l.columns, l.rows, l.zones, s.zones)
 FROM signage_scenes source LEFT JOIN signage_custom_layouts l ON l.id = source.custom_layout_id
 WHERE source.id = s.id;
 
-DROP FUNCTION signage_00129_scene_blocks(integer, integer, text, text, integer[], integer[], jsonb, jsonb);
-DROP FUNCTION signage_00129_block(jsonb, jsonb);
-DROP FUNCTION signage_00129_free_zones(integer, integer, jsonb);
-DROP FUNCTION signage_00129_hundredths(jsonb, integer);
-DROP FUNCTION signage_00129_grid_zones(integer, integer, integer[], integer[], jsonb);
-DROP FUNCTION signage_00129_builtin_layout(text);
-DROP FUNCTION signage_00129_edges(integer, integer[]);
-DROP FUNCTION signage_00129_str(jsonb);
-DROP FUNCTION signage_00129_clamp(integer, integer, integer);
-DROP FUNCTION signage_00129_round_div(bigint, bigint);
+DROP FUNCTION signage_00130_scene_blocks(integer, integer, text, text, integer[], integer[], jsonb, jsonb);
+DROP FUNCTION signage_00130_block(jsonb, jsonb);
+DROP FUNCTION signage_00130_free_zones(integer, integer, jsonb);
+DROP FUNCTION signage_00130_hundredths(jsonb, integer);
+DROP FUNCTION signage_00130_grid_zones(integer, integer, integer[], integer[], jsonb);
+DROP FUNCTION signage_00130_builtin_layout(text);
+DROP FUNCTION signage_00130_edges(integer, integer[]);
+DROP FUNCTION signage_00130_str(jsonb);
+DROP FUNCTION signage_00130_clamp(integer, integer, integer);
+DROP FUNCTION signage_00130_round_div(bigint, bigint);
 
 -- Layouts and zones are replaced by the blocks converted above; Down cannot restore them.
 DROP INDEX signage_scenes_custom_layout_idx;
@@ -433,7 +433,7 @@ ALTER TABLE signage_scenes
 CREATE INDEX signage_scenes_custom_layout_idx ON signage_scenes (custom_layout_id) WHERE custom_layout_id IS NOT NULL;
 
 -- +goose StatementBegin
-CREATE FUNCTION signage_00129_zone_widget(blocks jsonb) RETURNS jsonb
+CREATE FUNCTION signage_00130_zone_widget(blocks jsonb) RETURNS jsonb
 LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
     block jsonb;
@@ -467,7 +467,7 @@ END
 $$;
 -- +goose StatementEnd
 
-UPDATE signage_scenes SET zones = jsonb_build_object('main', signage_00129_zone_widget(blocks)), version = version + 1;
-DROP FUNCTION signage_00129_zone_widget(jsonb);
+UPDATE signage_scenes SET zones = jsonb_build_object('main', signage_00130_zone_widget(blocks)), version = version + 1;
+DROP FUNCTION signage_00130_zone_widget(jsonb);
 ALTER TABLE signage_scenes ALTER COLUMN layout_id DROP DEFAULT, ALTER COLUMN zones DROP DEFAULT;
 ALTER TABLE signage_scenes DROP COLUMN blocks;

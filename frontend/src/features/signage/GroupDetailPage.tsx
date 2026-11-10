@@ -27,7 +27,12 @@ import { Add, Upload } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
-import type { SignageDisplay, SignageDisplayGroup, SignageDisplayList } from '../../api/generated/models';
+import type {
+  SignageDisplay,
+  SignageDisplayGroup,
+  SignageDisplayList,
+  SignageWebEmbed,
+} from '../../api/generated/models';
 import { publishSignageDisplayGroup } from '../../api/generated/signage/signage';
 import { ApiError } from '../../api/http-client';
 import { PageShell } from '../../app/PageShell';
@@ -38,7 +43,8 @@ import { hasPermission, PermissionId } from '../auth/permissions';
 import { aspectFieldsOf, aspectOfFields, type AspectFields } from './aspectFields';
 import { AspectRatioFields } from './AspectRatioFields';
 import { QueryBoundary } from './components';
-import { displaysQuery, groupQuery, signageKeys } from './queries';
+import { displaysQuery, embedsQuery, groupQuery, signageKeys } from './queries';
+import { EmbedStatusTag } from './webEmbedParts';
 import { PublishedScreen, StatusTag } from './displayParts';
 import { AddMembersModal, DeleteGroupDialog, RemoveMemberDialog } from './GroupDialogs';
 import { useGroupPublishedView, useRefreshGroup, useUpdateGroup } from './groupMutations';
@@ -92,6 +98,7 @@ function Detail({ group, crumbs }: { group: SignageDisplayGroup; crumbs: { label
   const { preview, view, now } = useGroupPublishedView(group.id);
   const displaysResult = useQuery(displaysQuery());
   const members = (displaysResult.data?.items ?? []).filter((display) => display.groupId === group.id);
+  const embedMembers = (useQuery(embedsQuery()).data?.items ?? []).filter((embed) => embed.groupId === group.id);
   const playable = members.filter((display) => display.status !== 'revoked');
   const pending = group.pendingChanges;
   const neverPublished = playable.some((display) => display.publishedRevision === null);
@@ -163,7 +170,7 @@ function Detail({ group, crumbs }: { group: SignageDisplayGroup; crumbs: { label
             }
           />
         )}
-        {displaysResult.isSuccess && members.length === 0 && (
+        {displaysResult.isSuccess && members.length === 0 && embedMembers.length === 0 && (
           <InlineNotification
             kind="info"
             lowContrast
@@ -234,6 +241,7 @@ function Detail({ group, crumbs }: { group: SignageDisplayGroup; crumbs: { label
                     group={group}
                     displaysResult={displaysResult}
                     members={members}
+                    embedMembers={embedMembers}
                     canManage={canManage}
                     now={now}
                   />
@@ -243,7 +251,7 @@ function Detail({ group, crumbs }: { group: SignageDisplayGroup; crumbs: { label
                     key={group.id}
                     group={group}
                     canManage={canManage}
-                    hasMembers={members.length > 0}
+                    hasMembers={members.length + embedMembers.length > 0}
                   />
                 </TabPanel>
               </TabPanels>
@@ -260,12 +268,14 @@ function MembersTab({
   group,
   displaysResult,
   members,
+  embedMembers,
   canManage,
   now,
 }: {
   group: SignageDisplayGroup;
   displaysResult: UseQueryResult<SignageDisplayList>;
   members: SignageDisplay[];
+  embedMembers: SignageWebEmbed[];
   canManage: boolean;
   now: number;
 }) {
@@ -286,7 +296,7 @@ function MembersTab({
         {addButton}
       </div>
       <QueryBoundary query={displaysResult} label="members">
-        {members.length === 0 ? (
+        {members.length === 0 && embedMembers.length === 0 ? (
           <p className="sg-secondary">This group has no members.</p>
         ) : (
           <TableContainer>
@@ -323,6 +333,26 @@ function MembersTab({
                             Remove
                           </Button>
                         </RowActions>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+                {embedMembers.map((embed) => (
+                  <TableRow key={embed.id}>
+                    <TableCell>
+                      <div className="sg-cell-stack">
+                        <CarbonLink as={Link} to={signagePaths.embed(embed.id)}>
+                          {embed.name}
+                        </CarbonLink>
+                        <span className="sg-secondary">Web embed</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <EmbedStatusTag embed={embed} />
+                    </TableCell>
+                    {canManage && (
+                      <TableCell>
+                        <span className="sg-secondary">Leaves under Content on the embed</span>
                       </TableCell>
                     )}
                   </TableRow>

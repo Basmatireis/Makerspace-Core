@@ -21,11 +21,11 @@ import type {
   SignageRuleRequest,
 } from '../../api/generated/models';
 import { errorMessage, isStaleWrite } from './helpers';
-import { ownerInfo, ownerRulesKey, ruleApi, type PlaybackOwner } from './playbackOwner';
+import { ownerInfo, ownerRefreshKeys, ownerRulesKey, ruleApi, type PlaybackOwner } from './playbackOwner';
 import { useMachineOptions } from './preview';
 import { SceneListFields } from './SceneListFields';
 import { newSceneListItem, sceneListDraftOf, sceneListError, type SceneListDraftItem } from './sceneListDraft';
-import { scenesQuery, signageKeys, templatesQuery } from './queries';
+import { scenesQuery, templatesQuery } from './queries';
 import { visibleWidgets } from './widgets';
 
 const WEEKDAYS = [
@@ -108,10 +108,7 @@ export function RuleModal({
   const templateItems: Option[] = (templates ?? []).map((template) => ({ id: template.id, label: template.name }));
 
   // The owner, the lists and the preview follow the owner's drafts (a group's members' pending changes too).
-  const ownerKeys =
-    ownerKind === 'group'
-      ? [signageKeys.group(ownerId), signageKeys.groups(), signageKeys.groupPreview(ownerId), signageKeys.displays()]
-      : [signageKeys.display(ownerId), signageKeys.displays(), signageKeys.preview(ownerId)];
+  const ownerKeys = ownerRefreshKeys({ kind: ownerKind, id: ownerId });
 
   const mutation = useMutation({
     mutationFn: (values: Values) => {

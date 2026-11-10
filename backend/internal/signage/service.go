@@ -38,6 +38,7 @@ type Service struct {
 	claimFailures   *ratelimit.Limiter // wrong pairing codes entered per staff account
 	pairingPolls    *ratelimit.Limiter // pairing polls per client IP
 
+	embedLoads *embedLoadCounter // page loads of web embeds until the next flush
 }
 
 // Option customises the service at construction.
@@ -69,6 +70,7 @@ func NewService(
 		pairingRequests: ratelimit.New(pairingRequestsPerWindow, pairingRequestWindow),
 		claimFailures:   ratelimit.New(claimFailuresPerWindow, claimFailureWindow),
 		pairingPolls:    ratelimit.New(pairingPollsPerWindow, pairingPollWindow),
+		embedLoads:      newEmbedLoadCounter(),
 	}
 	for _, option := range options {
 		option(service)

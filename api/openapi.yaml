@@ -51,6 +51,8 @@ tags:
   - name: Branding
   - name: Signage
   - name: Signage Player
+  - name: Signage Embed
+    description: Public endpoints of signage web embeds, addressed by the embed key.
   - name: Notifications
     description: "In-app notifications: the signed-in account's own inbox and manual messages to roles (docs/notifications.md)."
   - name: NotificationRules
@@ -6130,6 +6132,245 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/web-embeds:
+    get:
+      tags: [Signage]
+      operationId: listSignageWebEmbeds
+      summary: List web embeds
+      description: Requires `signage.read`. Web embeds show a signage screen in an iframe on other websites; they are signage displays without a device and are not listed by `listSignageDisplays`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Web embeds by name., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbedList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: createSignageWebEmbed
+      summary: Create a web embed
+      description: |
+        Requires `signage.manage`. Creates the embed with a new random embed key, switched on, without cameras and timelapses. `allowedOrigins` lists the websites that may frame it (1 to 20 origins `https://host[:port]`, lower-case host, no path, query or fragment; 422 otherwise). Like a display it needs `defaultScenes` without `groupId` and none with it. Nothing is shown until the first publication.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSignageWebEmbedRequest"}}}}
+      responses:
+        "201": {description: Web embed created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbed"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/web-embeds/{embedId}:
+    parameters: [{$ref: "#/components/parameters/SignageWebEmbedId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageWebEmbed
+      description: Requires `signage.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Web embed., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbed"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Signage]
+      operationId: updateSignageWebEmbed
+      summary: Change a web embed
+      description: |
+        Requires `signage.manage`. Omitted fields stay unchanged. Name, aspect ratio, group and default scenes are drafts that reach the websites with the next publication, as for displays. Switching the embed, its camera or its timelapses off takes effect immediately; switching camera or timelapses on takes effect only after the next publication. The last allowed website cannot be removed (422). The audit event lists the changed field names only.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageWebEmbedRequest"}}}}
+      responses:
+        "200": {description: Updated web embed., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbed"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignageWebEmbed
+      summary: Delete a web embed
+      description: Requires `signage.manage`. Deletes the embed with its rules, default list, publications and announcement targets. Websites that still frame it show the neutral "not available" page.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Web embed deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/web-embeds/{embedId}/rotate-key:
+    parameters: [{$ref: "#/components/parameters/SignageWebEmbedId"}]
+    post:
+      tags: [Signage]
+      operationId: rotateSignageWebEmbedKey
+      summary: Give a web embed a new embed key
+      description: Requires `signage.manage`. The old embed code stops working immediately; every website must use the new one. The audit event records that the key changed, never the key.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Web embed with its new key., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbed"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/web-embeds/{embedId}/publish:
+    parameters: [{$ref: "#/components/parameters/SignageWebEmbedId"}]
+    post:
+      tags: [Signage]
+      operationId: publishSignageWebEmbed
+      summary: Publish the web embed's current drafts
+      description: Requires `signage.publish`. Like `publishSignageDisplay`; the publication also records whether the camera and timelapses are switched on and which cameras are chosen, so switching them on reaches the websites only now. Rules and the preview of an embed use the display endpoints with the embed id as `displayId`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Web embed with its new published revision., content: {application/json: {schema: {$ref: "#/components/schemas/SignageWebEmbed"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/frame-policy:
+    parameters: [{$ref: "#/components/parameters/SignageEmbedKey"}]
+    get:
+      tags: [Signage Embed]
+      operationId: getSignageEmbedFramePolicy
+      summary: Websites that may frame the embed (for the web server)
+      description: |
+        Public. The web server asks this before it serves the embed page and puts `frameAncestors` into the page's `Content-Security-Policy: frame-ancestors`. It always answers 200, because the web server's sub-request treats other answers as failures: an unknown key answers `'none'`, a known key (switched on or off) its allowed websites separated by spaces. The same value is in the `X-Embed-Frame-Ancestors` header. Not rate-limited, because the web server asks it for every page load.
+      security: []
+      responses:
+        "200":
+          description: Frame ancestors.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            X-Embed-Frame-Ancestors: {schema: {type: string, maxLength: 2000}}
+          content: {application/json: {schema: {$ref: "#/components/schemas/SignageEmbedFramePolicy"}}}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/manifest:
+    parameters: [{$ref: "#/components/parameters/SignageEmbedKey"}]
+    get:
+      tags: [Signage Embed]
+      operationId: getSignageEmbedManifest
+      summary: The web embed's latest publication
+      description: |
+        Public. Like `getSignagePlayerManifest` with the embed settings the player needs. Unknown key: 404. Switched off: `embed.enabled` false without a manifest, so the player shows its neutral page. Before the first publication: 404 `signage_not_published`. A request without `known` (or with 0) to a switched-on embed counts as a page load. Asset URLs point to the embed's asset endpoint; scene, asset and custom-layout names are empty. Never sets cookies. Rate-limited per client address.
+      security: []
+      parameters:
+        - {name: known, in: query, required: false, schema: {type: integer, minimum: 0, maximum: 1000000000}}
+      responses:
+        "200": {description: Manifest or unchanged marker., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignageEmbedManifestResponse"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/live:
+    parameters: [{$ref: "#/components/parameters/SignageEmbedKey"}]
+    get:
+      tags: [Signage Embed]
+      operationId: getSignageEmbedLive
+      summary: Live data of a web embed
+      description: |
+        Public. What a display that is visible from outside gets: machine status, announcements that name the embed itself (never those for all displays or for a group), open days and events; never rule notices. `streams` only while the embed's camera is switched on now and in its latest publication, for the chosen machines; `timelapses` only while its timelapses are switched on now and in its latest publication, capped by the embed's count and age. Paths point to the embed's endpoints. Unknown or switched-off embed: 404. Rate-limited per client address.
+      security: []
+      responses:
+        "200": {description: Live data., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlayerLive"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/assets/{assetId}/{sha256}:
+    parameters:
+      - {$ref: "#/components/parameters/SignageEmbedKey"}
+      - {$ref: "#/components/parameters/SignageAssetId"}
+      - {name: sha256, in: path, required: true, schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+    get:
+      tags: [Signage Embed]
+      operationId: getSignageEmbedAsset
+      summary: Asset bytes of the web embed's latest publication
+      description: Public. Like `getSignagePlayerAsset` for the embed's latest publication; 404 for an unknown or switched-off embed. Rate-limited per client address.
+      security: []
+      responses:
+        "200":
+          description: Asset bytes.
+          headers:
+            Cache-Control: {schema: {type: string}}
+            ETag: {schema: {type: string}}
+            X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
+            Content-Security-Policy: {schema: {type: string}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+            image/webp: {schema: {type: string, format: binary}}
+            video/mp4: {schema: {type: string, format: binary}}
+            font/woff2: {schema: {type: string, format: binary}}
+        "206":
+          description: Partial content for a Range request.
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "416": {description: Range not satisfiable.}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/timelapses/{runId}/{sha256}:
+    parameters:
+      - {$ref: "#/components/parameters/SignageEmbedKey"}
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: sha256, in: path, required: true, schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+    get:
+      tags: [Signage Embed]
+      operationId: getSignageEmbedTimelapse
+      summary: Timelapse video listed in the web embed's live timelapses
+      description: Public. Like `getSignagePlayerTimelapse` for the embed's current timelapse selection; 404 while its timelapses are not allowed. Rate-limited per client address.
+      security: []
+      responses:
+        "200":
+          description: Video bytes.
+          headers:
+            Cache-Control: {schema: {type: string}}
+            ETag: {schema: {type: string}}
+            X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
+            Content-Security-Policy: {schema: {type: string}}
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "206":
+          description: Partial content for a Range request.
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "416": {description: Range not satisfiable.}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/embeds/{embedKey}/cameras/{machineId}/stream:
+    parameters:
+      - {$ref: "#/components/parameters/SignageEmbedKey"}
+      - {name: machineId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Signage Embed]
+      operationId: streamSignageEmbedCamera
+      summary: Websocket relay of a printer camera for a web embed (MSE)
+      description: |
+        Public. A websocket upgrade like `streamSignagePlayerCamera`; answers a normal error response before the upgrade. The `Origin` header is required and must be the application's public origin (the embed page runs on it inside the iframe). Allowed while the embed is switched on, its camera is switched on now and in its latest publication, the machine is one of its chosen cameras and the usual camera rules hold (camera widget published, run not hidden, camera switch on). Re-checked every 15 seconds; close codes 4403, 4404 and 4503. Over the embed's viewer limit, or when web embeds already use half of the local service's streams: 409 `camera_busy`. One client address holds at most 2 streams of one embed (429).
+      security: []
+      responses:
+        "101": {description: Switching Protocols. The websocket relay is open.}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {description: "The embed's viewer limit is reached (`camera_busy`) or the local service is not connected (`camera_offline`).", content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+
   /public/signage/pairing:
     post:
       tags: [Signage]
@@ -12185,6 +12426,17 @@ components:
       in: path
       required: true
       schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageWebEmbedId:
+      name: embedId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageEmbedKey:
+      name: embedKey
+      in: path
+      required: true
+      description: The public embed key from the embed code.
+      schema: {type: string, pattern: "^[A-Za-z0-9_-]{20,64}$"}
     SignageDisplayGroupId:
       name: groupId
       in: path
@@ -23748,6 +24000,129 @@ components:
           items: {$ref: "#/components/schemas/SignageSceneListItem"}
           description: "Must be empty with `groupId` and list at least one scene without it (422 otherwise). When a display leaves its group with an empty list it keeps a copy of the group's default list."
         groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional; omitted or null means standalone. Joining needs the group's aspect ratio."}
+
+    SignageWebEmbedOrigin:
+      type: string
+      maxLength: 300
+      pattern: "^https://[a-z0-9.-]+(:[0-9]{1,5})?$"
+      description: A website that may frame the embed, as an origin `https://host[:port]` with a lower-case host.
+      example: https://www.example.org
+    SignageWebEmbedOrigins:
+      type: array
+      minItems: 1
+      maxItems: 20
+      items: {$ref: "#/components/schemas/SignageWebEmbedOrigin"}
+    SignageWebEmbedOriginInput:
+      type: array
+      maxItems: 20
+      description: "1 to 20 origins `https://host[:port]`; upper-case hosts are lower-cased and duplicates dropped. An empty list (removing the last website), a path, query, fragment, wildcard or another scheme answer 422."
+      items: {type: string, maxLength: 300}
+    SignageWebEmbed:
+      type: object
+      additionalProperties: false
+      description: A signage screen shown in an iframe on other websites; a display without a device. Its id is also its display id for the rule and preview endpoints.
+      required: [id, name, aspectRatio, groupId, defaultScenes, embedKey, embedUrl, allowedOrigins, openDirectly, enabled, cameraEnabled, cameraMachineIds, cameraViewerLimit, timelapseEnabled, timelapseCount, timelapseMaxAgeDays, publishedRevision, publishedAt, pendingChanges, hasUnpublishedChanges, lastLoadedAt, loadsToday, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "The group the embed belongs to; its rules and default list are then the group's."}
+        defaultScenes:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items: {$ref: "#/components/schemas/SignageSceneListItem"}
+          description: The embed's own default scene list; empty while it is in a group.
+        embedKey: {type: string, pattern: "^[A-Za-z0-9_-]{20,64}$", description: "Public identifier in the embed code; not a secret. A new key (`rotateSignageWebEmbedKey`) ends every copy of the old code."}
+        embedUrl: {type: string, maxLength: 400, description: "Absolute URL of the embed page (`<public origin>/embed/<embedKey>`) for the iframe's `src`."}
+        allowedOrigins: {$ref: "#/components/schemas/SignageWebEmbedOrigins"}
+        openDirectly: {type: boolean, description: "Whether the embed page also shows its content when opened directly instead of inside an iframe."}
+        enabled: {type: boolean, description: "Switched off, websites show a neutral \"not available\" page; takes effect immediately."}
+        cameraEnabled: {type: boolean, description: "Live cameras may be shown. Switching off takes effect immediately, switching on with the next publication."}
+        cameraMachineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}, description: Machines whose camera the embed may show.}
+        cameraViewerLimit: {type: integer, minimum: 1, maximum: 20, description: Concurrent camera viewers of this embed; more see the camera widget's fallback.}
+        timelapseEnabled: {type: boolean, description: "Timelapse clips may be shown. Switching off takes effect immediately, switching on with the next publication."}
+        timelapseCount: {type: integer, minimum: 1, maximum: 20, description: At most this many clips per timelapse widget and in total.}
+        timelapseMaxAgeDays: {type: integer, minimum: 1, maximum: 90, description: Only clips of prints that ended within this many days.}
+        publishedRevision: {type: integer, nullable: true, description: Null until the first publication.}
+        publishedAt: {type: string, format: date-time, nullable: true}
+        pendingChanges:
+          type: array
+          maxItems: 500
+          description: "Differences between the drafts and the latest publication, as for displays; switching camera or timelapses on is a `display` change named `Data shown`. Empty when never published."
+          items: {$ref: "#/components/schemas/SignagePendingChange"}
+        hasUnpublishedChanges: {type: boolean, description: True when never published or `pendingChanges` is not empty.}
+        lastLoadedAt: {type: string, format: date-time, nullable: true, description: Last page load on any website.}
+        loadsToday: {type: integer, minimum: 0, description: Page loads on the current UTC day.}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SignageWebEmbedList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageWebEmbed"}}}
+    CreateSignageWebEmbedRequest:
+      type: object
+      additionalProperties: false
+      required: [name, aspectRatio, allowedOrigins]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+        allowedOrigins: {$ref: "#/components/schemas/SignageWebEmbedOriginInput"}
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Optional; omitted or null means standalone. Joining needs the group's aspect ratio."}
+        defaultScenes:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items: {$ref: "#/components/schemas/SignageSceneListItem"}
+          description: "Required (1 or more scenes) without `groupId`, empty or omitted with it."
+    UpdateSignageWebEmbedRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+        groupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Omitted keeps the group; null leaves it (the embed keeps a copy of the group's rules and, without `defaultScenes`, of its default list)."}
+        defaultScenes:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items: {$ref: "#/components/schemas/SignageSceneListItem"}
+          description: "The embed's own default list; must be empty in a group."
+        allowedOrigins: {$ref: "#/components/schemas/SignageWebEmbedOriginInput"}
+        openDirectly: {type: boolean}
+        enabled: {type: boolean}
+        cameraEnabled: {type: boolean}
+        cameraMachineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
+        cameraViewerLimit: {type: integer, minimum: 1, maximum: 20}
+        timelapseEnabled: {type: boolean}
+        timelapseCount: {type: integer, minimum: 1, maximum: 20}
+        timelapseMaxAgeDays: {type: integer, minimum: 1, maximum: 90}
+    SignageEmbedFramePolicy:
+      type: object
+      additionalProperties: false
+      required: [frameAncestors]
+      properties:
+        frameAncestors: {type: string, maxLength: 2000, description: "Value for CSP `frame-ancestors`: the allowed origins separated by spaces, or `'none'` for an unknown key."}
+    SignageEmbedSettings:
+      type: object
+      additionalProperties: false
+      required: [enabled, openDirectly, aspectRatio]
+      properties:
+        enabled: {type: boolean, description: False shows the neutral "not available" page.}
+        openDirectly: {type: boolean, description: False shows the neutral page when the embed page is not inside an iframe.}
+        aspectRatio: {$ref: "#/components/schemas/SignageAspectRatio"}
+    SignageEmbedManifestResponse:
+      type: object
+      additionalProperties: false
+      required: [embed, unchanged]
+      properties:
+        embed: {$ref: "#/components/schemas/SignageEmbedSettings"}
+        unchanged: {type: boolean, description: "True when the page already runs the requested `known` revision; `manifest` is then omitted. Always false while the embed is switched off."}
+        manifest: {$ref: "#/components/schemas/SignagePlayerManifest"}
 
     SignageRuleConditionKind:
       type: string

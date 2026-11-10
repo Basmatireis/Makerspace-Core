@@ -12,9 +12,17 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Viewer identifies who wants to watch which camera, and through which connector assignment.
+// Viewer identifies who wants to watch which camera, and through which connector assignment. DeviceID is the signage
+// player's managed device, or the display id of a web embed, whose browsers all count against the embed.
 type Viewer struct {
 	DeviceID, MachineID, ConnectorID, AssignmentID uuid.UUID
+	// Limit, when positive, marks a web embed viewer and replaces the per-device limits: at most Limit sessions of this
+	// DeviceID in total, over all machines (the embed's viewer limit). Exceeding it, or the share of a connector that
+	// all embeds together may use, answers 409 camera_busy.
+	Limit int
+	// Client identifies the viewer's client address for a web embed; one address holds at most
+	// MaxEmbedSessionsPerClient sessions of one embed.
+	Client string
 }
 
 type sessionState uint8
@@ -67,10 +75,17 @@ func (h *Hub) Open(ctx context.Context, viewer Viewer) (*Session, error) {
 	case c == nil:
 		h.mu.Unlock()
 		return nil, ErrCameraOffline
-	case h.byDeviceMachine[key] >= MaxStreamsPerDeviceMachine:
+	case viewer.Limit > 0 && (h.byDevice[viewer.DeviceID] >= viewer.Limit ||
+		h.embedsByConnector[viewer.ConnectorID] >= MaxEmbedSessionsPerConnector):
+		h.mu.Unlock()
+		return nil, ErrViewerLimit
+	case viewer.Limit > 0 && h.byEmbedClient[embedClientOf(viewer)] >= MaxEmbedSessionsPerClient:
+		h.mu.Unlock()
+		return nil, streamLimit("This address already watches too many cameras of this embed")
+	case viewer.Limit <= 0 && h.byDeviceMachine[key] >= MaxStreamsPerDeviceMachine:
 		h.mu.Unlock()
 		return nil, streamLimit("This device already watches this camera too often")
-	case h.byDevice[viewer.DeviceID] >= MaxStreamsPerDevice:
+	case viewer.Limit <= 0 && h.byDevice[viewer.DeviceID] >= MaxStreamsPerDevice:
 		h.mu.Unlock()
 		return nil, streamLimit("This device already watches too many cameras")
 	case h.byConnector[viewer.ConnectorID] >= MaxSessionsPerConnector || len(h.sessions) >= maxSessions:
@@ -81,6 +96,10 @@ func (h *Hub) Open(ctx context.Context, viewer Viewer) (*Session, error) {
 	h.byDeviceMachine[key]++
 	h.byDevice[viewer.DeviceID]++
 	h.byConnector[viewer.ConnectorID]++
+	if viewer.Limit > 0 {
+		h.embedsByConnector[viewer.ConnectorID]++
+		h.byEmbedClient[embedClientOf(viewer)]++
+	}
 	h.mu.Unlock()
 
 	open := encodeControl(controlMessage{Type: "open", SessionID: s.id, Stream: StreamName(viewer.AssignmentID)})
@@ -173,6 +192,10 @@ func (s *Session) end(code int, reason string) {
 	decrement(h.byDeviceMachine, key)
 	decrement(h.byDevice, s.viewer.DeviceID)
 	decrement(h.byConnector, s.viewer.ConnectorID)
+	if s.viewer.Limit > 0 {
+		decrement(h.embedsByConnector, s.viewer.ConnectorID)
+		decrement(h.byEmbedClient, embedClientOf(s.viewer))
+	}
 	c := h.controls[s.viewer.ConnectorID]
 	data, viewer := s.data, s.viewerConn
 	h.mu.Unlock()

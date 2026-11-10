@@ -1,7 +1,8 @@
 import { Component, lazy, Suspense, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { RuleNotices } from '../features/signage/render/RuleNotices';
 import { SceneRenderer, ScreenFrame } from '../features/signage/render/SceneRenderer';
-import type { PlayerApi } from './api';
+import type { EmbedApi, PlayerApi } from './api';
+import { isTopLevel } from './embed';
 import { PlayerRuntime } from './runtime';
 
 const reloadPage = () => window.location.reload();
@@ -11,16 +12,29 @@ const PairingScreen = lazy(() => import('./PairingScreen').then((module) => ({ d
 
 export function PlayingScreen({ api, onRevoked }: { api: PlayerApi; onRevoked: () => void }) {
   const [runtime] = useState(() => new PlayerRuntime({ api }));
+  return <Stage runtime={runtime} onRevoked={onRevoked} />;
+}
+
+function Stage({
+  runtime,
+  onRevoked,
+  embed = false,
+}: {
+  runtime: PlayerRuntime;
+  onRevoked?: () => void;
+  embed?: boolean;
+}) {
   const snapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   useEffect(() => {
     runtime.start();
     return () => runtime.stop();
   }, [runtime]);
   useEffect(() => {
-    if (snapshot.status === 'revoked') onRevoked();
+    if (snapshot.status === 'revoked') onRevoked?.();
   }, [snapshot.status, onRevoked]);
 
   const { view, display } = snapshot;
+  if (embed && (snapshot.status === 'unavailable' || snapshot.status === 'unpublished')) return <UnavailableScreen />;
   return (
     <div className="pl-stage">
       {view && display ? (
@@ -37,7 +51,7 @@ export function PlayingScreen({ api, onRevoked }: { api: PlayerApi; onRevoked: (
         <p className="pl-message" role="status">
           {snapshot.status === 'unpublished'
             ? 'Waiting for content. Publish this display in Makerspace Core.'
-            : !snapshot.online
+            : !snapshot.online && !embed
               ? 'Connecting to Makerspace Core'
               : ''}
         </p>
@@ -47,6 +61,23 @@ export function PlayingScreen({ api, onRevoked }: { api: PlayerApi; onRevoked: (
       )}
     </div>
   );
+}
+
+/** Shown in a web embed that is switched off, unknown, unpublished or not meant to be opened directly. */
+function UnavailableScreen() {
+  return (
+    <div className="pl-stage">
+      <p className="pl-message" role="status">
+        This screen isn&apos;t available
+      </p>
+    </div>
+  );
+}
+
+/** A web embed: public API, no pairing, no heartbeat, no Cache Storage; the stage letterboxes inside the iframe. */
+export function EmbedApp({ api, isTop = isTopLevel }: { api: EmbedApi; isTop?: () => boolean }) {
+  const [runtime] = useState(() => new PlayerRuntime({ api, embed: { isTopLevel: isTop } }));
+  return <Stage runtime={runtime} embed />;
 }
 
 /** Unpaired displays show the pairing screen; a revoked credential brings the display back to it. */

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -604,4 +605,75 @@ func TestCloseEndsEveryConnectionWithoutLeakingGoroutines(t *testing.T) {
 	_ = r.data.Close()
 
 	waitFor(t, "goroutines to end", func() bool { return runtime.NumGoroutine() <= baseline })
+}
+
+func TestEmbedViewerLimitReplacesTheDeviceLimits(t *testing.T) {
+	cfg := testConfig()
+	cfg.PendingTimeout = time.Minute
+	hub, p := newTestHub(t, cfg), newPairs(t)
+	f := connect(t, hub, p, uuid.New(), allow)
+	pending := 0
+	hold := func(viewer Viewer) {
+		t.Helper()
+		openAsync(hub, viewer)
+		pending++
+		waitFor(t, "pending session", func() bool { return hub.Stats().Sessions == pending })
+	}
+	// Six browsers of one embed may watch the same camera, beyond the per-device-and-machine limit of a player.
+	embed, machine := uuid.New(), uuid.New()
+	viewer := Viewer{DeviceID: embed, MachineID: machine, ConnectorID: f.id, AssignmentID: uuid.New(), Limit: 6}
+	for client := range 6 {
+		browser := viewer
+		browser.Client = "192.0.2." + strconv.Itoa(client)
+		hold(browser)
+	}
+	_, err := hub.Open(context.Background(), viewer)
+	expectCode(t, err, http.StatusConflict, "camera_busy")
+	other := viewer
+	other.MachineID = uuid.New()
+	_, err = hub.Open(context.Background(), other)
+	expectCode(t, err, http.StatusConflict, "camera_busy")
+	hub.Close()
+	waitFor(t, "all sessions released", func() bool { return hub.Stats().Sessions == 0 })
+}
+
+func TestEmbedsShareHalfAConnectorAndTwoSessionsPerAddress(t *testing.T) {
+	cfg := testConfig()
+	cfg.PendingTimeout = time.Minute
+	hub, p := newTestHub(t, cfg), newPairs(t)
+	f := connect(t, hub, p, uuid.New(), allow)
+	pending := 0
+	hold := func(viewer Viewer) {
+		t.Helper()
+		openAsync(hub, viewer)
+		pending++
+		waitFor(t, "pending session", func() bool { return hub.Stats().Sessions == pending })
+	}
+	embed := uuid.New()
+	viewer := func(embed uuid.UUID, client string) Viewer {
+		return Viewer{
+			DeviceID: embed, MachineID: uuid.New(), ConnectorID: f.id, AssignmentID: uuid.New(), Limit: 20,
+			Client: client,
+		}
+	}
+	// One address holds two sessions of an embed; a third is refused, another address is not.
+	hold(viewer(embed, "203.0.113.1"))
+	hold(viewer(embed, "203.0.113.1"))
+	_, err := hub.Open(context.Background(), viewer(embed, "203.0.113.1"))
+	expectCode(t, err, http.StatusTooManyRequests, "camera_stream_limit")
+	// All embeds together use at most half of the connector.
+	for client := 2; pending < MaxEmbedSessionsPerConnector; client++ {
+		hold(viewer(uuid.New(), "203.0.113."+strconv.Itoa(client)))
+	}
+	_, err = hub.Open(context.Background(), viewer(uuid.New(), "198.51.100.1"))
+	expectCode(t, err, http.StatusConflict, "camera_busy")
+	// A display still finds room.
+	hold(Viewer{DeviceID: uuid.New(), MachineID: uuid.New(), ConnectorID: f.id, AssignmentID: uuid.New()})
+	hub.Close()
+	waitFor(t, "all sessions released", func() bool { return hub.Stats().Sessions == 0 })
+	hub.mu.Lock()
+	defer hub.mu.Unlock()
+	if len(hub.embedsByConnector) != 0 || len(hub.byEmbedClient) != 0 {
+		t.Fatalf("embed counters kept keys: %v %v", hub.embedsByConnector, hub.byEmbedClient)
+	}
 }

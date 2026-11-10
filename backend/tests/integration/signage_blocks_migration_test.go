@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// legacyWidgetFixtures are widgets as stored before migration 00129: every widget type without a zone style and
+// legacyWidgetFixtures are widgets as stored before migration 00130: every widget type without a zone style and
 // with one (announcements in boxStyle), including partial and odd styles.
 func legacyWidgetFixtures() []string {
 	machine, image, video, template, font := ids.New(), ids.New(), ids.New(), ids.New(), ids.New()
@@ -95,14 +95,14 @@ func migrationFile(t *testing.T, prefix string) (before []string, file string) {
 	return before, file
 }
 
-// Migration 00129 converts every scene into blocks with exactly the rules that convert older publications in Go
+// Migration 00130 converts every scene into blocks with exactly the rules that convert older publications in Go
 // (signage.ConvertLegacyScene): all built-in layouts, custom grid and free layouts, every widget type with and
 // without a style, on landscape, portrait, square and odd aspect ratios. The result validates as blocks, scene
 // versions are kept, and the lossy Down migration leaves a valid older schema.
 func TestSignageBlocksMigrationMatchesGoConversion(t *testing.T) {
 	pool := emptySchemaPool(t)
 	ctx := testContext(t)
-	before, migration := migrationFile(t, "00129_")
+	before, migration := migrationFile(t, "00130_")
 	applyMigrationFiles(t, pool, before)
 	exec := func(query string, args ...any) {
 		t.Helper()
@@ -265,7 +265,7 @@ func TestSignageBlocksMigrationMatchesGoConversion(t *testing.T) {
 		t.Fatalf("100:1 split right block at x=%d w=%d, want x=54000 and a width beyond the old limit", wideRightX, wideRightW)
 	}
 	var leftovers int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_proc WHERE proname LIKE 'signage_00129_%'`).Scan(&leftovers); err != nil ||
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_proc WHERE proname LIKE 'signage_00130_%'`).Scan(&leftovers); err != nil ||
 		leftovers != 0 {
 		t.Fatalf("helper functions left behind: %d, %v", leftovers, err)
 	}
