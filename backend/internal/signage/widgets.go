@@ -500,7 +500,7 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 		if w.Type == WidgetEvents && w.ShowCompetencies {
 			return nil, refs, blockError(block, "only open-day widgets show competencies")
 		}
-		if !w.listColors.valid() {
+		if !w.valid() {
 			return nil, refs, blockError(block, "list colours must be lowercase #rrggbb or transparent")
 		}
 		if !validHeading(w.Title) || !multilineText(w.EmptyText, maxListEmptyRunes) ||
@@ -523,7 +523,7 @@ func ValidateWidget(block string, raw json.RawMessage) (RawWidget, WidgetRefs, e
 			!multilineText(w.OpenDayTemplate, maxEntryTemplateRun) || !multilineText(w.EventTemplate, maxEntryTemplateRun) {
 			return nil, refs, blockError(block, "title, emptyText or a template is too long or not text")
 		}
-		if !w.listColors.valid() {
+		if !w.valid() {
 			return nil, refs, blockError(block, "list colours must be lowercase #rrggbb or transparent")
 		}
 		if err := w.validate(block, &refs); err != nil {
