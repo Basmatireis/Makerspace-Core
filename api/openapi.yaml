@@ -13995,7 +13995,7 @@ components:
         legalBasis: {type: string, maxLength: 500}
         reason: {type: string, maxLength: 2000}
         status: {$ref: "#/components/schemas/RetentionPolicyStatus"}
-        sourceTemplate: {type: string, maxLength: 200, nullable: true, description: "`legacy:<source>` for seeded drafts, otherwise null."}
+        sourceTemplate: {type: string, maxLength: 200, nullable: true, description: "`recommended` for drafts seeded from the category's recommendation, `legacy:<source>` for drafts seeded from a legacy default, otherwise null."}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
         approvedAt: {type: string, format: date-time, nullable: true}

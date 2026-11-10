@@ -84,6 +84,18 @@ type LegacyDefault struct {
 	Automatic bool
 }
 
+// Recommendation is the retention decision the project proposes for a
+// category. It is seeded as a complete draft, ready for approval; it never
+// takes effect without the approval and activation of a policy.
+type Recommendation struct {
+	Trigger    Trigger
+	PeriodDays int32
+	Action     Action
+	Purpose    string
+	LegalBasis string
+	Reason     string
+}
+
 // ModuleID names the built-in feature area that owns a category, for example
 // "identity" or "orders". The owner is informational: it tells the operator
 // where the data lives and which code answers for it.
@@ -109,6 +121,8 @@ type Definition struct {
 	Actions  []Action
 	Subject  Subject
 	Legacy   *LegacyDefault
+	// Recommended is the proposed decision seeded as the category's first draft.
+	Recommended *Recommendation
 	// RetentionNote explains limits, for example why a category can only be redacted.
 	RetentionNote string
 }
@@ -182,6 +196,14 @@ func (d Definition) Validate() error {
 		}
 		if !d.supports(d.Legacy.Trigger, d.Legacy.Action) {
 			return fmt.Errorf("category %q: legacy default uses an unsupported trigger or action", d.ID)
+		}
+	}
+	if r := d.Recommended; r != nil {
+		if !d.supports(r.Trigger, r.Action) || r.PeriodDays < 0 || r.PeriodDays > 36500 {
+			return fmt.Errorf("category %q: recommendation uses an unsupported trigger, action or period", d.ID)
+		}
+		if strings.TrimSpace(r.Purpose) == "" || strings.TrimSpace(r.LegalBasis) == "" || strings.TrimSpace(r.Reason) == "" {
+			return fmt.Errorf("category %q: recommendation needs purpose, legal basis and reason", d.ID)
 		}
 	}
 	return nil
