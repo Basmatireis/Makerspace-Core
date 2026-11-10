@@ -2,7 +2,8 @@ package visitor
 
 import (
 	"context"
-	"math/rand/v2"
+	"crypto/rand"
+	"math/big"
 	"slices"
 	"strconv"
 	"strings"
@@ -73,7 +74,12 @@ func (s *Service) SuggestLoginName(ctx context.Context, _ Context, firstName, la
 		if !taken {
 			return candidate, nil
 		}
-		candidate = base + strconv.Itoa(2+rand.IntN(998))
+		// A login name signs in together with a PIN, so its number is not left to a predictable generator.
+		suffix, err := rand.Int(rand.Reader, big.NewInt(998))
+		if err != nil {
+			return "", err
+		}
+		candidate = base + strconv.FormatInt(2+suffix.Int64(), 10)
 	}
 	return "", apperror.InvalidField("no free login name found; choose one yourself")
 }
