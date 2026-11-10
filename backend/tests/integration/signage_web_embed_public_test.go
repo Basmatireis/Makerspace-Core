@@ -31,7 +31,7 @@ func TestSignageEmbedPublicEndpoints(t *testing.T) {
 	ctx := testContext(t)
 	staff := e.allStaff()
 	asset := e.fixture.uploadImage(t, "Embed background")
-	input := sceneInput("Embed scene", "full")
+	input := sceneInput("Embed scene")
 	input.BackgroundAssetID = &asset.ID
 	scene, err := e.fixture.service.CreateScene(ctx, e.fixture.admin, input, nil)
 	if err != nil {
@@ -202,8 +202,8 @@ func TestSignageEmbedTimelapsesNeedThePublishedAndTheCurrentSwitch(t *testing.T)
 	clip("30 days", 3, false)                        // older than the embed's default 14 days
 	hiddenRun, hiddenSum := clip("3 hours", 4, true) // its operator kept it off signage
 
-	input := sceneInput("Embed timelapses", "full")
-	input.Zones = map[string]json.RawMessage{"main": timelapseWidget("all", nil, 10, 0)}
+	input := sceneInput("Embed timelapses")
+	input.Blocks = widgetBlocks(timelapseWidget("all", nil, 10, 0))
 	scene, err := e.fixture.service.CreateScene(ctx, e.fixture.admin, input, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -369,10 +369,10 @@ func TestSignageEmbedCameraChoiceHiddenRunsAndEndingSessions(t *testing.T) {
 		second); err != nil {
 		t.Fatal(err)
 	}
-	input := sceneInput("Automatic embed cameras", "full")
-	input.Zones = map[string]json.RawMessage{"main": json.RawMessage(
-		`{"type":"camera","source":"auto","multi":"split","showProgress":false,"showRemaining":false,"fallback":"text","fallbackMediaId":null}`,
-	)}
+	input := sceneInput("Automatic embed cameras")
+	input.Blocks = widgetBlocks(json.RawMessage(
+		`{"type":"camera","source":"auto","multi":"split","showLive":true,"showName":true,"showProgress":false,"showRemaining":false,"fallback":"text","fallbackMediaId":null}`,
+	))
 	scene, err := r.fixture.service.CreateScene(ctx, r.fixture.admin, input, nil)
 	if err != nil {
 		t.Fatal(err)

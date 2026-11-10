@@ -1,13 +1,14 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { SignagePlayerCalendar, SignageWidget, SignageWidgetStyle } from '../../../api/generated/models';
-import type { CustomLayoutShape } from '../layouts';
+import type { SignageBlockStyle, SignagePlayerCalendar, SignageWidget } from '../../../api/generated/models';
 import { buildPreviewData } from '../preview';
 import { SceneRenderer } from './SceneRenderer';
+import { blockOf, sceneOf } from './testScenes';
 import type { RenderData, RenderScene } from './types';
 
 const NOW = Date.parse('2026-10-22T10:00:00Z'); // Thursday, week 43, Vienna time zone
 const FONT = '0192f6f8-743e-7c77-a349-cd07c3e8f001';
+const IMAGE = '0192f6f8-743e-7c77-a349-cd07c3e8f0b1';
 
 const data = (patch: Partial<RenderData> = {}): RenderData => ({
   now: NOW,
@@ -17,218 +18,299 @@ const data = (patch: Partial<RenderData> = {}): RenderData => ({
   openDays: [],
   events: [],
   timeZone: 'Europe/Vienna',
-  assetUrl: (id) => (id === FONT ? '/api/v1/signage/assets/font/content?v=abc' : null),
+  assetUrl: (id) =>
+    id === FONT ? '/api/v1/signage/assets/font/content?v=abc' : id === IMAGE ? '/media/photo.png' : null,
   assetName: (id) => (id === FONT ? 'Fira "Sans"' : null),
   ...patch,
 });
 
-const scene = (zones: Record<string, SignageWidget>, patch: Partial<RenderScene> = {}): RenderScene => ({
-  aspectRatio: { width: 16, height: 9 },
-  layoutId: 'full',
-  customLayoutId: null,
-  backgroundColor: '#161616',
-  backgroundAssetId: null,
-  backgroundFit: 'cover',
-  backgroundDim: 0,
-  theme: 'dark',
-  zones,
-  ...patch,
-});
-
-const style = (patch: Partial<SignageWidgetStyle> = {}): SignageWidgetStyle => ({
-  textColor: null,
-  backgroundColor: null,
-  borderColor: null,
-  backgroundOpacity: 100,
-  padding: 2,
-  radius: 0,
-  borderWidth: 0,
-  fontScale: 100,
-  fontFamily: 'inherit',
-  fontAssetId: null,
-  align: 'inherit',
-  verticalAlign: 'inherit',
-  ...patch,
-});
+/** One full-screen block per entry (in order); `styles` patches a block's style. */
+const scene = (
+  widgets: Record<string, SignageWidget>,
+  patch: Partial<RenderScene> = {},
+  styles: Record<string, Partial<SignageBlockStyle>> = {},
+): RenderScene =>
+  sceneOf(
+    Object.entries(widgets).map(([id, widget]) => blockOf(widget, { id, name: id, style: styles[id] })),
+    patch,
+  );
 
 const text = (extra: Record<string, unknown> = {}): SignageWidget =>
-  ({ type: 'text', text: 'Hello', size: 'm', align: 'start', ...extra }) as SignageWidget;
+  ({ type: 'text', text: 'Hello', fit: false, ...extra }) as SignageWidget;
 
-const zoneEl = (container: HTMLElement, type: string) => container.querySelector<HTMLElement>(`.sg-zone--${type}`)!;
+const blockEl = (container: HTMLElement, id = 'main') =>
+  container.querySelector<HTMLElement>(`[data-block-id="${id}"]`)!;
 const shadowOf = (container: HTMLElement) => container.querySelector<HTMLElement>('.sg-rich')?.shadowRoot ?? null;
 
-describe('custom layouts', () => {
-  const free: CustomLayoutShape = {
-    id: 'free-1',
-    mode: 'free',
-    columns: [1],
-    rows: [1],
-    zones: [
-      { id: 'back', label: 'Back', grid: null, rect: { x: 0, y: 0, width: 100, height: 100 } },
-      { id: 'badge', label: 'Badge', grid: null, rect: { x: 62.5, y: 5.25, width: 30, height: 12.5 } },
-    ],
-  };
-  const grid: CustomLayoutShape = {
-    id: 'grid-1',
-    mode: 'grid',
-    columns: [2, 1],
-    rows: [1, 3],
-    zones: [
-      { id: 'a', label: 'A', grid: { col: 1, row: 1, colSpan: 2, rowSpan: 1 }, rect: null },
-      { id: 'b', label: 'B', grid: { col: 2, row: 2, colSpan: 1, rowSpan: 1 }, rect: null },
-    ],
-  };
-
-  it('places free zones absolutely in percent and stacks them in array order', () => {
+describe('block geometry and stacking', () => {
+  it('lays the scene out at its grid size and places blocks in grid pixels, later blocks on top', () => {
     const { container } = render(
       <SceneRenderer
-        scene={scene(
-          { back: text({ text: 'Back' }), badge: text({ text: 'Badge' }) },
-          { layoutId: 'custom', customLayoutId: 'free-1' },
-        )}
-        data={data({ customLayouts: [free] })}
-      />,
-    );
-    const zones = container.querySelectorAll<HTMLElement>('.sg-zone');
-    expect(container.querySelector('.sg-scene')).toHaveClass('sg-scene--free');
-    expect(zones).toHaveLength(2);
-    expect(zones[1].style.insetInlineStart).toBe('62.5%');
-    expect(zones[1].style.insetBlockStart).toBe('5.25%');
-    expect(zones[1].style.inlineSize).toBe('30%');
-    expect(zones[1].style.blockSize).toBe('12.5%');
-    expect(Number(zones[1].style.zIndex)).toBeGreaterThan(Number(zones[0].style.zIndex));
-    expect(screen.getByText('Badge')).toBeInTheDocument();
-  });
-
-  it('lays out custom grids with fr tracks', () => {
-    const { container } = render(
-      <SceneRenderer
-        scene={scene(
-          { a: text({ text: 'A' }), b: text({ text: 'B' }) },
-          { layoutId: 'custom', customLayoutId: 'grid-1' },
-        )}
-        data={data({ customLayouts: [grid] })}
+        scene={sceneOf([
+          blockOf(text({ text: 'Back' }), { id: 'back', x: 0, y: 0, w: 1920, h: 1080 }),
+          blockOf(text({ text: 'Badge' }), { id: 'badge', x: 1200, y: 57, w: 576, h: 135 }),
+        ])}
+        data={data()}
       />,
     );
     const root = container.querySelector<HTMLElement>('.sg-scene')!;
-    expect(root.style.gridTemplateColumns).toBe('2fr 1fr');
-    expect(root.style.gridTemplateRows).toBe('1fr 3fr');
-    expect(container.querySelectorAll<HTMLElement>('.sg-zone')[1].style.gridColumn).toBe('2 / span 1');
+    expect(root.style.width).toBe('1920px');
+    expect(root.style.height).toBe('1080px');
+    const blocks = [...container.querySelectorAll<HTMLElement>('.sg-block')];
+    expect(blocks.map((block) => block.dataset.blockId)).toEqual(['back', 'badge']);
+    expect(blocks[1].style.left).toBe('1200px');
+    expect(blocks[1].style.top).toBe('57px');
+    expect(blocks[1].style.width).toBe('576px');
+    expect(blocks[1].style.height).toBe('135px');
+    // Document order is the stacking order: no z-index.
+    expect(blocks[1].style.zIndex).toBe('');
+    expect(within(blocks[1]).getByText('Badge')).toBeInTheDocument();
   });
 
-  it('takes the layout list from the prop when given', () => {
+  it('uses a short side of 1080 for portrait scenes', () => {
     const { container } = render(
-      <SceneRenderer
-        scene={scene({ back: text() }, { layoutId: 'custom', customLayoutId: 'free-1' })}
-        data={data()}
-        customLayouts={[free]}
-      />,
+      <SceneRenderer scene={scene({ main: text() }, { aspectRatio: { width: 9, height: 16 } })} data={data()} />,
     );
-    expect(container.querySelector('.sg-scene')).toHaveClass('sg-scene--free');
+    const root = container.querySelector<HTMLElement>('.sg-scene')!;
+    expect([root.style.width, root.style.height]).toEqual(['1080px', '1920px']);
   });
 
-  it('falls back to the first built-in layout when the custom layout is missing', () => {
+  it('leaves hidden blocks out on displays and draws them faded in the editor', () => {
+    const hidden = sceneOf([
+      blockOf(text({ text: 'Shown' }), { id: 'shown' }),
+      blockOf(text({ text: 'Secret' }), { id: 'secret', hidden: true }),
+    ]);
+    const display = render(<SceneRenderer scene={hidden} data={data()} />);
+    expect(display.container.querySelector('[data-block-id="secret"]')).toBeNull();
+    expect(screen.queryByText('Secret')).toBeNull();
+    display.unmount();
     const { container } = render(
-      <SceneRenderer
-        scene={scene({ main: text({ text: 'Fallback' }) }, { layoutId: 'custom', customLayoutId: 'gone' })}
-        data={data()}
-      />,
+      <SceneRenderer scene={hidden} data={data()} showHidden selectedBlockIds={['secret']} />,
     );
-    expect(container.querySelector('.sg-scene')).not.toHaveClass('sg-scene--free');
-    expect(screen.getByText('Fallback')).toBeInTheDocument();
+    const block = blockEl(container, 'secret');
+    expect(block).toHaveClass('sg-block--hidden', 'sg-block--selected');
+    expect(block.style.opacity).toBe('0.3');
+    expect(blockEl(container, 'shown')).not.toHaveClass('sg-block--selected');
+  });
+
+  it('renders no font asset of a hidden block', () => {
+    const hidden = sceneOf([
+      blockOf(text(), { id: 'secret', hidden: true, style: { fontFamily: 'custom', fontAssetId: FONT } }),
+    ]);
+    render(<SceneRenderer scene={hidden} data={data()} />);
+    const rules = [...document.head.querySelectorAll('style[data-signage-fonts]')].map((item) => item.textContent);
+    expect(rules.join('\n')).not.toContain('content?v=abc');
   });
 });
 
-describe('widget style', () => {
-  it('applies colours, padding, radius, border, font scale and alignment to the zone box', () => {
+describe('block style', () => {
+  it('maps every style field onto the block box and its content box', () => {
     const { container } = render(
       <SceneRenderer
-        scene={scene({
-          main: text({
-            style: style({
+        scene={scene(
+          { main: text() },
+          {},
+          {
+            main: {
               textColor: '#ff0000',
               backgroundColor: '#0000ff',
               backgroundOpacity: 50,
               borderColor: '#00ff00',
-              borderWidth: 5,
-              padding: 3,
-              radius: 1.5,
-              fontScale: 150,
+              borderWidth: 6,
+              borderStyle: 'dashed',
+              radius: 16,
+              shadow: 'soft',
+              padding: 33,
+              textSize: 64,
               fontFamily: 'serif',
+              fontWeight: '700',
+              lineHeight: 140,
+              letterSpacing: 5,
+              uppercase: true,
               align: 'center',
               verticalAlign: 'end',
-            }),
-          }),
-        })}
-        data={data()}
-      />,
-    );
-    const zone = zoneEl(container, 'text');
-    expect(zone.style.color).toBe('rgb(255, 0, 0)');
-    expect(zone.style.background).toBe('rgba(0, 0, 255, 0.5)');
-    expect(zone.style.padding).toBe('calc(var(--sg-u) * 3)');
-    expect(zone.style.borderRadius).toBe('calc(var(--sg-u) * 1.5)');
-    expect(zone.style.border).toContain('solid');
-    expect(zone.style.border).toContain('calc(var(--sg-u) * 0.5)');
-    expect(zone.style.getPropertyValue('--u')).toBe('calc(var(--sg-u) * 1.5)');
-    expect(zone.style.fontFamily).toContain('IBM Plex Serif');
-    expect(zone.style.textAlign).toBe('center');
-    expect(zone.style.alignItems).toBe('flex-end');
-    expect(zone).toHaveClass('sg-zone--valign');
-    // The widget's own align is overridden by the style's.
-    expect(screen.getByText('Hello')).toHaveStyle({ textAlign: 'center' });
-  });
-
-  it('leaves zones without a style as before', () => {
-    const { container } = render(<SceneRenderer scene={scene({ main: text() })} data={data()} />);
-    const zone = zoneEl(container, 'text');
-    // Only the grid placement: no colours, padding or font settings.
-    expect(zone.getAttribute('style')).not.toMatch(/color|padding|font|--u/);
-    expect(zone).not.toHaveClass('sg-zone--styled');
-  });
-
-  it('turns an empty widget with a style into a coloured box', () => {
-    const { container } = render(
-      <SceneRenderer
-        scene={scene({ main: { type: 'empty', style: style({ backgroundColor: '#112233' }) } })}
-        data={data()}
-      />,
-    );
-    expect(zoneEl(container, 'empty').style.background).toBe('rgb(17, 34, 51)');
-  });
-
-  it('uses the style of the announcement widget from boxStyle', () => {
-    const { container } = render(
-      <SceneRenderer
-        scene={scene({
-          main: {
-            type: 'announcement',
-            templateIds: [],
-            style: 'card',
-            size: 'm',
-            whenNone: 'empty',
-            fallbackText: '',
-            whenMany: 'stack',
-            rotateSeconds: 10,
-            boxStyle: style({ backgroundColor: '#112233' }),
+              opacity: 80,
+            },
           },
-        })}
+        )}
         data={data()}
       />,
     );
-    expect(zoneEl(container, 'announcement').style.background).toBe('rgb(17, 34, 51)');
+    const block = blockEl(container);
+    expect(block.style.color).toBe('rgb(255, 0, 0)');
+    expect(block.style.backgroundColor).toBe('rgba(0, 0, 255, 0.5)');
+    expect(block.style.border).toBe('6px dashed rgb(0, 255, 0)');
+    expect(block.style.borderRadius).toBe('16px');
+    expect(block.style.boxShadow).toContain('24px');
+    expect(block.style.fontSize).toBe('64px');
+    expect(block.style.fontFamily).toContain('IBM Plex Serif');
+    expect(block.style.fontWeight).toBe('700');
+    expect(block.style.lineHeight).toBe('1.4');
+    expect(block.style.getPropertyValue('--sg-letter-spacing')).toBe('0.05em');
+    expect(block.style.textTransform).toBe('uppercase');
+    expect(block.style.textAlign).toBe('center');
+    expect(block.style.opacity).toBe('0.8');
+    const inner = block.querySelector<HTMLElement>('.sg-block__in')!;
+    expect(inner.style.padding).toBe('33px');
+    expect(inner.style.justifyContent).toBe('flex-end');
+    expect(within(block).getByText('Hello')).toBeInTheDocument();
   });
 
-  it('registers the scene fonts once per document, named by the asset, and uses them in the zone', () => {
-    const widget = text({ style: style({ fontFamily: 'custom', fontAssetId: FONT }), fontAssetIds: [FONT] });
-    const { container, rerender } = render(<SceneRenderer scene={scene({ main: widget })} data={data()} />);
-    rerender(<SceneRenderer scene={scene({ main: widget })} data={data({ now: NOW + 1000 })} />);
+  it('puts a dimmed background image under non-media widgets only', () => {
+    const style = { backgroundAssetId: IMAGE, backgroundDim: 40, backgroundColor: '#112233' };
+    const { container } = render(
+      <SceneRenderer
+        scene={sceneOf([
+          blockOf(text(), { id: 'text', style }),
+          blockOf({ type: 'image', mediaId: null, fit: 'cover', dim: 0 }, { id: 'image', style }),
+        ])}
+        data={data()}
+      />,
+    );
+    const textBox = blockEl(container, 'text').style;
+    expect(textBox.backgroundImage).toContain('rgba(0, 0, 0, 0.4)');
+    expect(textBox.backgroundImage).toContain('/media/photo.png');
+    expect(textBox.backgroundSize).toBe('cover');
+    expect(textBox.backgroundColor).toBe('rgb(17, 34, 51)');
+    const image = blockEl(container, 'image').style;
+    expect(image.backgroundImage).toBe('');
+    expect(image.backgroundColor).toBe('rgb(17, 34, 51)');
+  });
+
+  it('lets a glow use the border colour, else the text colour, else the theme colour', () => {
+    const glow = (style: Partial<SignageBlockStyle>, theme: 'dark' | 'light' = 'dark') => {
+      const { container, unmount } = render(
+        <SceneRenderer
+          scene={scene({ main: text() }, { theme }, { main: { shadow: 'glow', ...style } })}
+          data={data()}
+        />,
+      );
+      const value = blockEl(container).style.boxShadow;
+      unmount();
+      return value;
+    };
+    expect(glow({ borderColor: '#00ff00', textColor: '#ff0000' })).toContain('rgba(0, 255, 0, 0.7)');
+    expect(glow({ textColor: '#ff0000' })).toContain('rgba(255, 0, 0, 0.7)');
+    expect(glow({}, 'light')).toContain('rgba(22, 22, 22, 0.7)');
+  });
+
+  it('keeps the default look minimal: no colours, border, shadow or opacity', () => {
+    const { container } = render(<SceneRenderer scene={scene({ main: { type: 'empty' } })} data={data()} />);
+    const style = blockEl(container).getAttribute('style') ?? '';
+    expect(style).not.toMatch(/color|border|shadow|opacity|background/);
+  });
+
+  it('sizes the widget unit --u by the text size, 32 being the default look', () => {
+    const unit = (widget: SignageWidget, textSize: number) => {
+      const { container, unmount } = render(
+        <SceneRenderer scene={scene({ main: widget }, {}, { main: { textSize } })} data={data()} />,
+      );
+      const value = blockEl(container).style.getPropertyValue('--u');
+      unmount();
+      return value;
+    };
+    const clock = { type: 'clock', mode: 'time' } as SignageWidget;
+    expect(unit(clock, 32)).toBe('10.8px');
+    expect(unit(clock, 64)).toBe('21.6px');
+    expect(unit(clock, 16)).toBe('5.4px');
+    // Text and announcement blocks use the text size as their font size; their unit follows the old size "m" (50).
+    expect(unit(text(), 50)).toBe('10.8px');
+    expect(unit(text(), 100)).toBe('21.6px');
+  });
+
+  it('sizes announcement titles from the text size: 0.8 for banners and cards, the body 0.6 of the title', () => {
+    const announcement = (style: 'banner' | 'card' | 'full') =>
+      ({
+        type: 'announcement',
+        templateIds: [],
+        style,
+        whenNone: 'empty',
+        fallbackText: '',
+        whenMany: 'newest',
+        rotateSeconds: 10,
+      }) as SignageWidget;
+    const sizes = (style: 'banner' | 'card' | 'full') => {
+      const { container, unmount } = render(
+        <SceneRenderer
+          scene={scene({ main: announcement(style) }, {}, { main: { textSize: 100 } })}
+          data={data({
+            announcements: [{ id: 'a', templateId: 't', tone: 'info', title: 'T', body: 'B', startsAt: NOW }],
+          })}
+        />,
+      );
+      const result = [
+        container.querySelector<HTMLElement>('.sg-ann__title')!.style.fontSize,
+        container.querySelector<HTMLElement>('.sg-ann__body')!.style.fontSize,
+      ];
+      unmount();
+      return result;
+    };
+    expect(sizes('full')).toEqual(['100px', '60px']);
+    expect(sizes('banner')).toEqual(['80px', '48px']);
+    expect(sizes('card')).toEqual(['80px', '48px']);
+  });
+
+  it('registers the block fonts once per document, named by the asset, and uses them in the block', () => {
+    const widget = text({ fontAssetIds: [FONT] });
+    const styled = scene({ main: widget }, {}, { main: { fontFamily: 'custom', fontAssetId: FONT } });
+    const { container, rerender } = render(<SceneRenderer scene={styled} data={data()} />);
+    rerender(<SceneRenderer scene={styled} data={data({ now: NOW + 1000 })} />);
     const rules = [...document.head.querySelectorAll('style[data-signage-fonts]')].map((item) => item.textContent);
     expect(rules).toHaveLength(1);
     expect(rules[0]).toContain('font-family: "Fira \\"Sans\\""');
     expect(rules[0]).toContain('url("/api/v1/signage/assets/font/content?v=abc")');
     expect(rules[0]).toContain('format("woff2")');
-    expect(zoneEl(container, 'text').style.fontFamily).toContain('Fira');
+    expect(blockEl(container).style.fontFamily).toContain('Fira');
+  });
+});
+
+describe('new widget fields', () => {
+  const camera = (patch: Record<string, unknown>) =>
+    ({
+      type: 'camera',
+      source: 'auto',
+      machineId: null,
+      multi: 'split',
+      showProgress: false,
+      showRemaining: false,
+      showLive: true,
+      showName: true,
+      fallback: 'text',
+      fallbackMediaId: null,
+      ...patch,
+    }) as SignageWidget;
+  const printing = data({
+    machines: [
+      { machineId: 'm', name: 'Prusa', state: 'printing', progressPercent: 40, remainingMinutes: 10, stale: false },
+    ],
+  });
+
+  it('shows the live badge and the machine name only when asked', () => {
+    const first = render(<SceneRenderer scene={scene({ main: camera({}) })} data={printing} />);
+    expect(first.container.querySelector('.sg-camera__live')).toHaveTextContent('Live');
+    expect(first.container.querySelector('.sg-camera__caption')).toHaveTextContent('Prusa');
+    first.unmount();
+    const { container } = render(
+      <SceneRenderer scene={scene({ main: camera({ showLive: false, showName: false }) })} data={printing} />,
+    );
+    expect(container.querySelector('.sg-camera__live')).toBeNull();
+    // Nothing left for the caption: no empty gradient bar.
+    expect(container.querySelector('.sg-camera__caption')).toBeNull();
+  });
+
+  it('darkens an image by its dim value', () => {
+    const { container } = render(
+      <SceneRenderer
+        scene={scene({ main: { type: 'image', mediaId: IMAGE, fit: 'contain', dim: 35 } })}
+        data={data()}
+      />,
+    );
+    expect(container.querySelector('img')!.style.objectFit).toBe('contain');
+    expect(container.querySelector<HTMLElement>('.sg-dim')!.style.background).toBe('rgba(0, 0, 0, 0.35)');
+    const plain = render(
+      <SceneRenderer scene={scene({ main: { type: 'image', mediaId: IMAGE, fit: 'cover', dim: 0 } })} data={data()} />,
+    );
+    expect(plain.container.querySelector('.sg-dim')).toBeNull();
   });
 });
 
@@ -236,7 +318,7 @@ describe('fonts', () => {
   const fontRules = () =>
     [...document.head.querySelectorAll('style[data-signage-fonts]')].map((item) => item.textContent ?? '').join('\n');
 
-  it('registers the font of a widget style from the data the admin previews build', () => {
+  it('registers the font of a block style from the data the admin previews build', () => {
     const id = '0192f6f8-743e-7c77-a349-cd07c3e8f0a1';
     const preview = buildPreviewData({
       preset: 'idle',
@@ -246,25 +328,28 @@ describe('fonts', () => {
       timeZone: 'Europe/Vienna',
       assets: [{ id, sha256: 'a'.repeat(64), name: 'Preview Display' }],
     });
-    const widget = text({ style: style({ fontFamily: 'custom', fontAssetId: id }) });
-    const { container } = render(<SceneRenderer scene={scene({ main: widget })} data={preview} />);
+    const { container } = render(
+      <SceneRenderer
+        scene={scene({ main: text() }, {}, { main: { fontFamily: 'custom', fontAssetId: id } })}
+        data={preview}
+      />,
+    );
     expect(fontRules()).toContain(`font-family: "Preview Display"; src: url("/api/v1/signage/assets/${id}/content?v=`);
-    expect(zoneEl(container, 'text').style.fontFamily).toMatch(/^"Preview Display", /);
+    expect(blockEl(container).style.fontFamily).toMatch(/^"Preview Display", /);
   });
 
-  it('gives the scene root the scene font and lets zones inherit it', () => {
+  it('gives the scene root the scene font and lets blocks inherit it', () => {
     const id = '0192f6f8-743e-7c77-a349-cd07c3e8f0a2';
     const withFont = data({
       assetUrl: (asset) => (asset === id ? `/api/v1/signage/assets/${id}/content?v=abc` : null),
       assetName: (asset) => (asset === id ? 'Scene Display' : null),
     });
-    const widget = text({ style: style({ fontFamily: 'inherit' }) });
     const { container } = render(
-      <SceneRenderer scene={scene({ main: widget }, { fontFamily: 'custom', fontAssetId: id })} data={withFont} />,
+      <SceneRenderer scene={scene({ main: text() }, { fontFamily: 'custom', fontAssetId: id })} data={withFont} />,
     );
     expect(fontRules()).toContain('font-family: "Scene Display"');
     expect(container.querySelector<HTMLElement>('.sg-scene')!.style.fontFamily).toMatch(/^"Scene Display", /);
-    expect(zoneEl(container, 'text').style.fontFamily).toBe('');
+    expect(blockEl(container).style.fontFamily).toBe('');
   });
 
   it('uses the font stacks for sans, serif and mono and falls back to sans for an unknown uploaded font', () => {
@@ -354,7 +439,6 @@ describe('announcement body', () => {
             type: 'announcement',
             templateIds: [],
             style: 'card',
-            size: 'm',
             whenNone: 'empty',
             fallbackText: '',
             whenMany: 'stack',
@@ -390,7 +474,6 @@ describe('announcement body', () => {
             type: 'announcement',
             templateIds: [],
             style: 'card',
-            size: 'm',
             whenNone: 'empty',
             fallbackText: '',
             whenMany: 'stack',

@@ -189,24 +189,26 @@ func (s *Service) AuthorizeEmbedCamera(ctx context.Context, key string, machineI
 }
 
 // publicManifest is the manifest a web embed page gets: without the recorded media switches and without the names
-// of scenes, assets and custom layouts, which only staff need.
+// of scenes, blocks and assets, which only staff need.
 func publicManifest(manifest Manifest) *Manifest {
 	public := manifest
 	public.EmbedMedia = nil
 	public.Scenes = make([]ManifestScene, len(manifest.Scenes))
 	for index, scene := range manifest.Scenes {
 		scene.Name = ""
+		// Block names are editor labels; the block id keeps the field non-empty without telling anything.
+		blocks := make([]Block, len(scene.Blocks))
+		for blockIndex, block := range scene.Blocks {
+			block.Name = block.ID
+			blocks[blockIndex] = block
+		}
+		scene.Blocks = blocks
 		public.Scenes[index] = scene
 	}
 	public.Assets = make([]ManifestAsset, len(manifest.Assets))
 	for index, asset := range manifest.Assets {
 		asset.Name = ""
 		public.Assets[index] = asset
-	}
-	public.CustomLayouts = make([]ManifestCustomLayout, len(manifest.CustomLayouts))
-	for index, layout := range manifest.CustomLayouts {
-		layout.Name = ""
-		public.CustomLayouts[index] = layout
 	}
 	return &public
 }

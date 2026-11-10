@@ -1,0 +1,94 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/theme' as theme;
+
+// Layout glue for the screen editor's properties pane; the controls are Carbon components.
+.sg-props {
+  display: grid;
+  align-content: start;
+  gap: $spacing-04;
+  min-inline-size: 0;
+  padding-block-end: $spacing-07;
+}
+.sg-props__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-03;
+  padding-inline: $spacing-05;
+  padding-block-start: $spacing-04;
+}
+.sg-props__title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  @include type-style('heading-03');
+}
+.sg-props__note {
+  padding-inline: $spacing-05;
+}
+.sg-props .cds--inline-notification {
+  inline-size: auto;
+  max-inline-size: none;
+  margin-inline: $spacing-05;
+}
+.sg-props__fields {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.sg-props__section {
+  display: grid;
+  gap: $spacing-05;
+  min-inline-size: 0;
+  padding-inline-end: $spacing-05;
+}
+.sg-props__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-04;
+}
+.sg-props__color {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: $spacing-03;
+}
+.sg-props__tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}
+.sg-props__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-02;
+}
+.sg-props__rotate {
+  transform: rotate(90deg);
+}
+.sg-props__shown {
+  display: grid;
+  gap: $spacing-04;
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: $spacing-03;
+  }
+}
+.sg-props__shown-name {
+  @include type-style('heading-compact-01');
+}
+.sg-props__keys {
+  display: grid;
+  gap: $spacing-03;
+  dt {
+    @include type-style('heading-compact-01');
+  }
+}
+.sg-props .sg-secondary {
+  color: theme.$text-secondary;
+}

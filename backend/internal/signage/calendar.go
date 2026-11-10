@@ -53,24 +53,22 @@ func allCalendarCategories() calendarCategories {
 // calendarCategoriesOf collects the categories the calendar widgets of a publication show. present
 // reports whether the publication has any calendar widget at all.
 func calendarCategoriesOf(manifest Manifest) (categories calendarCategories, present bool) {
-	for _, scene := range manifest.Scenes {
-		for _, raw := range scene.Zones {
-			var widget struct {
-				Type         WidgetType `json:"type"`
-				ShowHolidays bool       `json:"showHolidays"`
-				ShowBreaks   bool       `json:"showBreaks"`
-				ShowOpenDays bool       `json:"showOpenDays"`
-				ShowEvents   bool       `json:"showEvents"`
-			}
-			if json.Unmarshal(raw, &widget) != nil || widget.Type != WidgetCalendar {
-				continue
-			}
-			present = true
-			categories.holidays = categories.holidays || widget.ShowHolidays
-			categories.breaks = categories.breaks || widget.ShowBreaks
-			categories.openDays = categories.openDays || widget.ShowOpenDays
-			categories.events = categories.events || widget.ShowEvents
+	for _, raw := range manifestWidgets(manifest) {
+		var widget struct {
+			Type         WidgetType `json:"type"`
+			ShowHolidays bool       `json:"showHolidays"`
+			ShowBreaks   bool       `json:"showBreaks"`
+			ShowOpenDays bool       `json:"showOpenDays"`
+			ShowEvents   bool       `json:"showEvents"`
 		}
+		if json.Unmarshal(raw, &widget) != nil || widget.Type != WidgetCalendar {
+			continue
+		}
+		present = true
+		categories.holidays = categories.holidays || widget.ShowHolidays
+		categories.breaks = categories.breaks || widget.ShowBreaks
+		categories.openDays = categories.openDays || widget.ShowOpenDays
+		categories.events = categories.events || widget.ShowEvents
 	}
 	return categories, present
 }

@@ -68,7 +68,7 @@ export function PublishedScreen({
   return (
     <ScreenFrame aspectRatio={aspectRatio} width={width}>
       <div className={`sg-screen${view.transition === 'fade' ? ' sg-fade' : ''}`} key={view.itemKey}>
-        <SceneRenderer scene={view.scene} data={view.data} screenAspectRatio={aspectRatio} />
+        <SceneRenderer scene={view.scene} data={view.data} />
       </div>
     </ScreenFrame>
   );

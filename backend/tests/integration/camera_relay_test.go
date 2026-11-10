@@ -53,8 +53,8 @@ func newRelayEnv(t *testing.T) *relayEnv {
 		t.Fatal(err)
 	}
 	r.connectorToken = r.enroll(r.connector)
-	input := sceneInput("Relay camera", "full")
-	input.Zones = map[string]json.RawMessage{"main": cameraWidget(r.machine)}
+	input := sceneInput("Relay camera")
+	input.Blocks = widgetBlocks(cameraWidget(r.machine))
 	scene, err := g.fixture.service.CreateScene(testContext(t), g.fixture.admin, input, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -90,10 +90,10 @@ func (r *relayEnv) publish() {
 // showOnly replaces the scene's camera widget with a status widget for the same machine.
 func (r *relayEnv) showOnlyStatus() {
 	r.t.Helper()
-	input := sceneInput("Relay camera", "full")
-	input.Zones = map[string]json.RawMessage{"main": json.RawMessage(
+	input := sceneInput("Relay camera")
+	input.Blocks = widgetBlocks(json.RawMessage(
 		`{"type":"status","machineIds":["` + r.machine.String() + `"],"showProgress":true,"showRemaining":true}`,
-	)}
+	))
 	if _, err := r.fixture.service.UpdateScene(testContext(r.t), r.fixture.admin, r.scene.ID, r.sceneVersion, input, nil); err != nil {
 		r.t.Fatal(err)
 	}
@@ -368,10 +368,10 @@ func TestCameraRelayRefusesViewersThatMayNotWatch(t *testing.T) {
 	r.expectViewerRefused(uuid.Must(uuid.NewV7()), http.StatusForbidden, "camera_forbidden")
 
 	// Another paired display whose published scene has no camera may not watch this one.
-	statusScene := sceneInput("Status only", "full")
-	statusScene.Zones = map[string]json.RawMessage{"main": json.RawMessage(
+	statusScene := sceneInput("Status only")
+	statusScene.Blocks = widgetBlocks(json.RawMessage(
 		`{"type":"status","machineIds":["` + r.machine.String() + `"],"showProgress":true,"showRemaining":true}`,
-	)}
+	))
 	scene, err := r.fixture.service.CreateScene(testContext(t), r.fixture.admin, statusScene, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -462,8 +462,8 @@ func TestCameraRelayReauthorizationEndsRunningStreams(t *testing.T) {
 	r.showOnlyStatus()
 	r.publish()
 	expectViewerClosed(t, viewer, camerarelay.CloseForbidden)
-	input := sceneInput("Relay camera", "full")
-	input.Zones = map[string]json.RawMessage{"main": cameraWidget(r.machine)}
+	input := sceneInput("Relay camera")
+	input.Blocks = widgetBlocks(cameraWidget(r.machine))
 	if _, err := r.fixture.service.UpdateScene(testContext(t), r.fixture.admin, r.scene.ID, r.sceneVersion, input, nil); err != nil {
 		t.Fatal(err)
 	}

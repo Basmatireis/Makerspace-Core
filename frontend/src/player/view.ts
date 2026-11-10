@@ -152,8 +152,6 @@ export function resolveView(input: ViewInput): { view: PlayerView; hold: Hold } 
     calendar: live?.calendar ?? null,
     timelapses: live?.timelapses ?? null,
     timelapseUrl: input.timelapseUrl ?? ((clip) => clip.url),
-    // A manifest cached before custom layouts has none.
-    customLayouts: manifest.customLayouts ?? [],
     assetUrl: input.assetUrl,
     assetName: input.assetName,
     multiMode: result.multiMode,

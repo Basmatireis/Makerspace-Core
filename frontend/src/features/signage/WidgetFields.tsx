@@ -1,5 +1,4 @@
 import {
-  ComboBox,
   ContainedList,
   ContainedListItem,
   IconButton,
@@ -11,6 +10,7 @@ import {
   RadioButtonGroup,
   Select,
   SelectItem,
+  Slider,
   TextInput,
   Toggle,
 } from '@carbon/react';
@@ -26,28 +26,15 @@ import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { machineLogbookPaths } from '../machinelogbook/shared/paths';
 import { CalendarFields } from './CalendarFields';
-import { AssetPicker, FitField } from './components';
+import { FitField } from './components';
 import { ListFields } from './ListFields';
 import type { MachineOption } from './preview';
 import { CodeArea, FormatSelect, RichTextAdvanced } from './RichTextFields';
+import { MediaPicker } from './MediaPicker';
 import { TimelapseFields } from './TimelapseFields';
-import { WidgetStyleFields } from './WidgetStyleFields';
-import { clampInt, formatOf, LIMITS, styleOf, widgetError, withRichText, withStyle } from './widgets';
+import { clampInt, formatOf, LIMITS, widgetError, withRichText } from './widgets';
 
 type Option = { id: string; label: string };
-type TextSize = 's' | 'm' | 'l' | 'xl';
-
-function SizeField({ id, value, onChange }: { id: string; value: TextSize; onChange: (size: TextSize) => void }) {
-  return (
-    <Select id={id} labelText="Text size" value={value} onChange={(event) => onChange(event.target.value as TextSize)}>
-      <SelectItem value="s" text="S" />
-      <SelectItem value="m" text="M" />
-      <SelectItem value="l" text="L" />
-      <SelectItem value="xl" text="XL" />
-    </Select>
-  );
-}
-
 /** Shown instead of the camera machine pickers while no machine has a camera; points to the printer connectors when the person may change them. */
 function NoCameraNote() {
   const canSetUp = hasPermission(useCurrentUser(), PermissionId.printer_connectorsmanage);
@@ -83,32 +70,25 @@ type Props = {
   machines: readonly MachineOption[];
   /** False while the machine list is still loading (the "no camera" note waits for it). Defaults to true. */
   machinesKnown?: boolean;
-  /** Names of displays that show this scene and are visible from outside (camera warning). Empty until displays exist (2b). */
-  outsideDisplays: readonly string[];
+  /** Names of displays that show this screen and are visible from outside (camera warning). */
+  outsideDisplays?: readonly string[];
   onChange: (widget: SignageWidget) => void;
 };
 
-/** Widget-specific properties of the selected zone, then the common style. Every change is applied (and autosaved) immediately. */
+/** The content fields of the selected block's widget. Text size, colours and the box style live in the style sections. */
 export function WidgetFields(props: Props) {
-  const { widget, assets, onChange } = props;
-  const error = widgetError(widget);
-  return (
-    <>
-      <TypeFields {...props} />
-      {error && widget.type !== 'qr' && widget.type !== 'text' && (
-        <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} />
-      )}
-      <WidgetStyleFields
-        id={widget.type === 'announcement' ? 'wf-box-style' : 'wf-style'}
-        style={styleOf(widget)}
-        assets={assets}
-        onChange={(style) => onChange(withStyle(widget, style))}
-      />
-    </>
-  );
+  return <TypeFields {...props} />;
 }
 
-function TypeFields({ widget, assets, templates, machines, machinesKnown = true, outsideDisplays, onChange }: Props) {
+function TypeFields({
+  widget,
+  assets,
+  templates,
+  machines,
+  machinesKnown = true,
+  outsideDisplays = [],
+  onChange,
+}: Props) {
   const error = widgetError(widget);
   const fieldError = error ? (
     <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} />
@@ -119,29 +99,40 @@ function TypeFields({ widget, assets, templates, machines, machinesKnown = true,
 
   switch (widget.type) {
     case 'empty':
-      return <p className="sg-secondary">This zone is empty. Choose a widget type to fill it.</p>;
+      return <p className="sg-secondary">This block is empty. Choose what it shows above.</p>;
     case 'image':
       return (
         <>
-          <AssetPicker
+          <MediaPicker
             id="wf-image"
-            label="Image"
+            labelText="Image"
             kind="image"
-            assets={assets}
             value={widget.mediaId}
             onChange={(mediaId) => onChange({ ...widget, mediaId })}
           />
           <FitField id="wf-fit" value={widget.fit} onChange={(fit) => onChange({ ...widget, fit })} />
+          <Slider
+            id="wf-dim"
+            labelText="Darken image"
+            ariaLabelInput="Darken image"
+            min={0}
+            max={90}
+            step={5}
+            formatLabel={(value) => `${value}%`}
+            value={widget.dim}
+            onChange={({ value }) => {
+              if (value !== widget.dim) onChange({ ...widget, dim: value });
+            }}
+          />
         </>
       );
     case 'video':
       return (
         <>
-          <AssetPicker
+          <MediaPicker
             id="wf-video"
-            label="Video"
+            labelText="Video"
             kind="video"
-            assets={assets}
             value={widget.mediaId}
             onChange={(mediaId) => onChange({ ...widget, mediaId })}
           />
@@ -195,15 +186,13 @@ function TypeFields({ widget, assets, templates, machines, machinesKnown = true,
               </ContainedListItem>
             ))}
           </ContainedList>
-          <ComboBox<SignageAsset>
+          <MediaPicker
             id="wf-slide-add"
-            titleText="Add slide"
-            placeholder="Choose an image"
-            items={assets.filter((item) => item.kind === 'image')}
-            itemToString={(item) => item?.name ?? ''}
-            selectedItem={null}
-            onChange={({ selectedItem }) => {
-              if (selectedItem) onChange({ ...widget, mediaIds: [...widget.mediaIds, selectedItem.id] });
+            labelText="Add slide"
+            kind="image"
+            value={null}
+            onChange={(mediaId) => {
+              if (mediaId) onChange({ ...widget, mediaIds: [...widget.mediaIds, mediaId] });
             }}
           />
           <NumberInput
@@ -237,17 +226,6 @@ function TypeFields({ widget, assets, templates, machines, machinesKnown = true,
             value={formatOf(widget)}
             onChange={(format) => onChange(withRichText(widget, { format }))}
           />
-          <SizeField id="wf-size" value={widget.size} onChange={(size) => onChange({ ...widget, size })} />
-          <RadioButtonGroup
-            legendText="Alignment"
-            name="wf-align"
-            valueSelected={widget.align}
-            onChange={(value) => onChange({ ...widget, align: value as 'start' | 'center' | 'end' })}
-          >
-            <RadioButton id="wf-align-start" value="start" labelText="Left" />
-            <RadioButton id="wf-align-center" value="center" labelText="Centre" />
-            <RadioButton id="wf-align-end" value="end" labelText="Right" />
-          </RadioButtonGroup>
           <RichTextAdvanced id="wf-text" widget={widget} assets={assets} onChange={(next) => onChange(next)} />
           {fieldError}
         </>
@@ -373,6 +351,24 @@ function TypeFields({ widget, assets, templates, machines, machinesKnown = true,
             toggled={widget.showRemaining}
             onToggle={(showRemaining) => onChange({ ...widget, showRemaining })}
           />
+          <Toggle
+            id="wf-show-live"
+            size="sm"
+            labelText="Show the live picture"
+            labelA="Off"
+            labelB="On"
+            toggled={widget.showLive}
+            onToggle={(showLive) => onChange({ ...widget, showLive })}
+          />
+          <Toggle
+            id="wf-show-name"
+            size="sm"
+            labelText="Show the machine name"
+            labelA="Off"
+            labelB="On"
+            toggled={widget.showName}
+            onToggle={(showName) => onChange({ ...widget, showName })}
+          />
           <Select
             id="wf-fallback"
             labelText="When the camera is unavailable"
@@ -384,14 +380,13 @@ function TypeFields({ widget, assets, templates, machines, machinesKnown = true,
           >
             <SelectItem value="image" text="Show image" />
             <SelectItem value="text" text="Show status text" />
-            <SelectItem value="hide" text="Hide zone" />
+            <SelectItem value="hide" text="Hide the block" />
           </Select>
           {widget.fallback === 'image' && (
-            <AssetPicker
+            <MediaPicker
               id="wf-fallback-image"
-              label="Fallback image"
+              labelText="Fallback image"
               kind="image"
-              assets={assets}
               value={widget.fallbackMediaId}
               onChange={(fallbackMediaId) => onChange({ ...widget, fallbackMediaId })}
             />
@@ -482,16 +477,15 @@ function TypeFields({ widget, assets, templates, machines, machinesKnown = true,
           >
             <SelectItem value="banner" text="Banner (one slim line)" />
             <SelectItem value="card" text="Card" />
-            <SelectItem value="full" text="Full zone" />
+            <SelectItem value="full" text="Full block" />
           </Select>
-          <SizeField id="wf-ann-size" value={widget.size} onChange={(size) => onChange({ ...widget, size })} />
           <Select
             id="wf-ann-none"
             labelText="When none is active"
             value={widget.whenNone}
             onChange={(event) => onChange({ ...widget, whenNone: event.target.value as 'empty' | 'text' })}
           >
-            <SelectItem value="empty" text="Leave the zone empty" />
+            <SelectItem value="empty" text="Leave the block empty" />
             <SelectItem value="text" text="Show fallback text" />
           </Select>
           {widget.whenNone === 'text' && (

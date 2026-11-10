@@ -176,28 +176,36 @@ func TestValidateRuleInputNormalises(t *testing.T) {
 	}
 }
 
-func sampleScene(name string, version int64, zones map[string]json.RawMessage) ManifestScene {
+func sampleScene(name string, version int64, widget string) ManifestScene {
 	return ManifestScene{
-		ID: uuid.Must(
-			uuid.NewV7(),
-		), Name: name, AspectRatio: AspectRatio{Width: 16, Height: 9}, LayoutID: "full", BackgroundColor: "#101820", BackgroundFit: "cover", Theme: "dark",
-		Zones: zones, Version: version,
+		ID:              uuid.Must(uuid.NewV7()),
+		Name:            name,
+		AspectRatio:     AspectRatio{Width: 16, Height: 9},
+		BackgroundColor: "#101820",
+		BackgroundFit:   "cover",
+		Theme:           "dark",
+		Blocks:          []Block{{ID: "main", Name: "Main", W: 1920, H: 1080, Widget: json.RawMessage(widget)}},
+		Version:         version,
 	}
 }
 
 func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 	image, video, unused := ids.New(), ids.New(), ids.New()
 	machine := ids.New()
-	ruleScene := sampleScene("Rule scene", 1, map[string]json.RawMessage{
-		"main": json.RawMessage(`{"type":"video","mediaId":"` + video.String() + `","fit":"cover"}`),
+	ruleScene := sampleScene("Rule scene", 1, `{"type":"video","mediaId":"`+video.String()+`","fit":"cover"}`)
+	// A hidden block's asset is not published: displays never show it.
+	ruleScene.Blocks = append(ruleScene.Blocks, Block{
+		ID:     "hidden",
+		Hidden: true,
+		Widget: json.RawMessage(`{"type":"image","mediaId":"` + unused.String() + `","fit":"cover","dim":0}`),
 	})
-	listScene := sampleScene("Default scene", 1, map[string]json.RawMessage{
-		"main": json.RawMessage(
-			`{"type":"status","machineIds":["` + machine.String() + `"],"showProgress":true,"showRemaining":true}`,
-		),
-	})
+	listScene := sampleScene(
+		"Default scene",
+		1,
+		`{"type":"status","machineIds":["`+machine.String()+`"],"showProgress":true,"showRemaining":true}`,
+	)
 	listScene.BackgroundAssetID = &image
-	orphan := sampleScene("Orphan", 1, map[string]json.RawMessage{"main": json.RawMessage(`{"type":"empty"}`)})
+	orphan := sampleScene("Orphan", 1, `{"type":"empty"}`)
 	defaultScenes := []SceneListItem{{SceneID: listScene.ID, Seconds: 10, Transition: "cut"}}
 	content := manifestContent{
 		scenes: map[uuid.UUID]ManifestScene{ruleScene.ID: ruleScene, listScene.ID: listScene, orphan.ID: orphan},
@@ -245,9 +253,6 @@ func TestAssembleManifestIncludesOnlyReachableContent(t *testing.T) {
 	}
 	if machines := ManifestMachineIDs(manifest); len(machines) != 1 || machines[0] != machine {
 		t.Fatalf("machine ids = %v, want [%s]", machines, machine)
-	}
-	if manifest.LayoutsVersion != LayoutsVersion {
-		t.Fatal("layouts version missing")
 	}
 	again, err := assembleManifest(
 		displayDraft{
@@ -307,6 +312,24 @@ func TestDiffManifests(t *testing.T) {
 	if changes := diffManifests(base, modified); len(changes) != 1 ||
 		changes[0] != (PendingChange{Kind: "scene", Name: "A", Change: "modified"}) {
 		t.Fatalf("scene version bump = %#v", changes)
+	}
+	// Equal versions with different blocks (a publication upgraded from an older custom layout) are a change too;
+	// equal blocks in another key order are not.
+	moved := base
+	moved.Scenes = []ManifestScene{
+		{ID: sceneA.ID, Name: "A", Version: 1, Blocks: []Block{{ID: "main", W: 10, Widget: json.RawMessage(`{"type":"empty"}`)}}},
+		sceneB,
+	}
+	if changes := diffManifests(base, moved); len(changes) != 1 || changes[0].Change != "modified" {
+		t.Fatalf("changed blocks = %#v", changes)
+	}
+	reordered := moved
+	reordered.Scenes = []ManifestScene{
+		{ID: sceneA.ID, Name: "A", Version: 1, Blocks: []Block{{ID: "main", W: 10, Widget: json.RawMessage(`{ "type": "empty" }`)}}},
+		sceneB,
+	}
+	if changes := diffManifests(moved, reordered); len(changes) != 0 {
+		t.Fatalf("equal blocks differ: %#v", changes)
 	}
 
 	changed := base

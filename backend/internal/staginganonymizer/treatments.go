@@ -595,13 +595,6 @@ var Tables = []Table{
 	{Name: "signage_announcement_values", Columns: map[string]Treatment{"key": System, "value": Catalog}},
 	{Name: "signage_announcements"},
 	{Name: "signage_assets", Columns: map[string]Treatment{"kind": System, "name": Catalog}},
-	{Name: "signage_custom_layouts", Columns: map[string]Treatment{
-		"name":    Catalog,
-		"mode":    System,
-		"columns": System,
-		"rows":    System,
-		"zones":   Catalog,
-	}},
 	{Name: "signage_default_scenes", Columns: map[string]Treatment{"transition": System}},
 	{Name: "signage_display_groups", Columns: map[string]Treatment{"name": Catalog}},
 	{Name: "signage_display_states", Columns: map[string]Treatment{
@@ -624,11 +617,10 @@ var Tables = []Table{
 	}},
 	{Name: "signage_scenes", Columns: map[string]Treatment{
 		"name":             Catalog,
-		"layout_id":        System,
 		"background_color": Catalog,
 		"background_fit":   System,
 		"theme":            System,
-		"zones":            Catalog,
+		"blocks":           Catalog,
 		"font_family":      Catalog,
 	}},
 	// Embeds are switched off on staging and get a new key, so production embed codes do not reach staging.

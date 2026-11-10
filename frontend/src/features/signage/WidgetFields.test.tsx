@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SignageWidget } from '../../api/generated/models';
 import { renderRoute } from '../../test/render';
-import { assetFixture, ids } from './testFixtures';
+import { assetFixture, ids, mockSignage } from './testFixtures';
 import { WidgetFields } from './WidgetFields';
-import { defaultWidget, sceneAssetIds, styleOf, widgetAssetIds, widgetError } from './widgets';
+import { defaultWidget, widgetAssetIds, widgetError } from './widgets';
+
+vi.mock('../auth/auth', () => ({
+  useCurrentUser: () => ({ permissions: [], authentication: { reauthenticationRequired: [] } }),
+}));
 
 const font = assetFixture({ id: ids.video, kind: 'font', name: 'Space Grotesk', contentType: 'font/woff2' });
 
@@ -30,68 +34,48 @@ function Harness({ initial, onWidget }: { initial: SignageWidget; onWidget: (wid
 
 function setup(initial: SignageWidget) {
   const seen: { current: SignageWidget } = { current: initial };
+  mockSignage([]);
   renderRoute(<Harness initial={initial} onWidget={(widget) => (seen.current = widget)} />);
   return seen;
 }
 
 describe('Widget fields', () => {
-  it('writes a complete, valid style object and removes it again on reset', async () => {
-    const seen = setup(defaultWidget('text'));
+  it('edits the image: fit and darken, and switches camera overlays', async () => {
+    const seen = setup(defaultWidget('image'));
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Style' }));
-    fireEvent.change(screen.getByLabelText('Zone text colour'), { target: { value: '#FFAA00' } });
-    fireEvent.change(screen.getByLabelText('Zone background colour'), { target: { value: '#112233' } });
-    fireEvent.change(screen.getByLabelText('Padding'), { target: { value: '3' } });
-    fireEvent.change(screen.getByLabelText('Font size (%)'), { target: { value: '150' } });
-    await user.selectOptions(screen.getByLabelText('Horizontal alignment'), 'center');
-    const style = styleOf(seen.current);
-    expect(style).toEqual({
-      textColor: '#ffaa00',
-      backgroundColor: '#112233',
-      borderColor: null,
-      backgroundOpacity: 100,
-      padding: 3,
-      radius: 0,
-      borderWidth: 0,
-      fontScale: 150,
-      fontFamily: 'inherit',
-      fontAssetId: null,
-      align: 'center',
-      verticalAlign: 'inherit',
+    await user.selectOptions(screen.getByLabelText('Fit'), 'contain');
+    fireEvent.change(screen.getByLabelText('Darken image', { selector: 'input[type="number"]' }), {
+      target: { value: '40' },
     });
+    expect(seen.current).toMatchObject({ type: 'image', fit: 'contain', dim: 40 });
     expect(widgetError(seen.current)).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Reset style' }));
-    expect(styleOf(seen.current)).toBeUndefined();
   });
 
-  it('keeps an incomplete colour out of the widget and flags it', () => {
-    const seen = setup(defaultWidget('text'));
-    fireEvent.change(screen.getByLabelText('Zone text colour'), { target: { value: '#12' } });
-    expect(screen.getAllByText('Enter a hex colour like #161616').length).toBeGreaterThan(0);
-    expect(styleOf(seen.current)).toBeUndefined();
-  });
-
-  it('needs an uploaded font for the custom family and references it for the font protection', async () => {
-    const seen = setup(defaultWidget('empty'));
+  it('switches the live picture and the machine name of a camera', async () => {
+    const seen = setup(defaultWidget('camera'));
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Style' }));
-    await user.selectOptions(screen.getByLabelText('Font family'), 'custom');
-    expect(widgetError(seen.current)).toMatch(/font/i);
-    await user.click(screen.getByRole('combobox', { name: 'Font' }));
-    await user.click(await screen.findByRole('option', { name: 'Space Grotesk' }));
-    expect(styleOf(seen.current)).toMatchObject({ fontFamily: 'custom', fontAssetId: ids.video });
-    expect(widgetError(seen.current)).toBeNull();
-    expect(widgetAssetIds(seen.current)).toEqual([ids.video]);
+    await user.click(screen.getByRole('switch', { name: 'Show the live picture' }));
+    await user.click(screen.getByRole('switch', { name: 'Show the machine name' }));
+    expect(seen.current).toMatchObject({ showLive: false, showName: false, showProgress: true });
   });
 
-  it('stores the announcement box style in boxStyle and leaves its presentation style alone', async () => {
-    const seen = setup(defaultWidget('announcement'));
+  it('orders and removes slides and adds one from Media', async () => {
+    const second = '0192f6f8-743e-7c77-a349-cd07c3e8a199';
+    const seen = setup({ ...defaultWidget('slideshow'), mediaIds: [ids.asset, second] } as SignageWidget);
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Style' }));
-    fireEvent.change(screen.getByLabelText('Zone background colour'), { target: { value: '#000000' } });
-    const widget = seen.current;
-    expect(widget.type === 'announcement' && widget.style).toBe('banner');
-    expect(widget.type === 'announcement' && widget.boxStyle?.backgroundColor).toBe('#000000');
+    await user.click(screen.getAllByRole('button', { name: 'Move down' })[0]);
+    expect(seen.current).toMatchObject({ mediaIds: [second, ids.asset] });
+    await user.click(screen.getAllByRole('button', { name: 'Remove slide' })[0]);
+    expect(seen.current).toMatchObject({ mediaIds: [ids.asset] });
+    await user.click(await screen.findByRole('combobox', { name: 'Add slide' }));
+    await user.click(await screen.findByRole('option', { name: 'poster.png' }));
+    expect(seen.current).toMatchObject({ mediaIds: [ids.asset, ids.asset] });
+  });
+
+  it('has no size or style fields: those live in the style sections', () => {
+    setup(defaultWidget('text'));
+    expect(screen.queryByLabelText('Text size')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Alignment')).not.toBeInTheDocument();
   });
 
   it('sets the text format, CSS and fonts used in CSS', async () => {
@@ -107,7 +91,6 @@ describe('Widget fields', () => {
     await user.click(await screen.findByRole('option', { name: 'Space Grotesk' }));
     expect(seen.current).toMatchObject({ css: 'h1 { color: red; }', fontAssetIds: [ids.video] });
     expect(widgetAssetIds(seen.current)).toEqual([ids.video]);
-    expect(sceneAssetIds({ backgroundAssetId: null, zones: { main: seen.current } })).toEqual([ids.video]);
   });
 
   it('accepts text up to 20 000 characters and rejects more', () => {

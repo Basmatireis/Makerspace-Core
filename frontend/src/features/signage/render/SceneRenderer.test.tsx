@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import type { SignageWidget } from '../../../api/generated/models';
 import { SceneRenderer } from './SceneRenderer';
+import { sceneWith } from './testScenes';
 import type { RenderData, RenderMachine, RenderScene } from './types';
 
 const machine = (id: string, name: string, state: RenderMachine['state'] = 'printing'): RenderMachine => ({
@@ -21,28 +23,19 @@ const data = (machines: RenderMachine[]): RenderData => ({
   assetUrl: () => null,
 });
 const scene = (camera: Record<string, unknown>): RenderScene =>
-  ({
-    aspectRatio: { width: 16, height: 9 },
-    layoutId: 'full',
-    backgroundColor: '#161616',
-    backgroundAssetId: null,
-    backgroundFit: 'cover',
-    backgroundDim: 0,
-    theme: 'dark',
-    zones: {
-      main: {
-        type: 'camera',
-        source: 'auto',
-        machineId: null,
-        multi: 'split',
-        showProgress: false,
-        showRemaining: false,
-        fallback: 'text',
-        fallbackMediaId: null,
-        ...camera,
-      },
-    },
-  }) as RenderScene;
+  sceneWith({
+    type: 'camera',
+    source: 'auto',
+    machineId: null,
+    multi: 'split',
+    showProgress: false,
+    showRemaining: false,
+    showLive: true,
+    showName: true,
+    fallback: 'text',
+    fallbackMediaId: null,
+    ...camera,
+  } as SignageWidget);
 
 describe('camera widget machine list', () => {
   const machines = [machine('a', 'Alpha'), machine('b', 'Beta'), machine('c', 'Gamma', 'idle')];

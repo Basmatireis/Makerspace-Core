@@ -19,10 +19,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SignageRichTextFormat } from './signageRichTextFormat';
-import type { SignageTextSize } from './signageTextSize';
-import type { SignageTextWidgetAlign } from './signageTextWidgetAlign';
 import type { SignageTextWidgetType } from './signageTextWidgetType';
-import type { SignageWidgetStyle } from './signageWidgetStyle';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageTextWidget {
@@ -32,18 +29,17 @@ export interface SignageTextWidget {
      * @maxLength 20000
      */
   text: string;
-  size: SignageTextSize;
-  align: SignageTextWidgetAlign;
   format?: SignageRichTextFormat;
   /**
-     * Sanitized by the browser; only affects the zone.
+     * Sanitized by the browser; only affects the block.
      * @maxLength 20000
      */
   css?: string;
+  /** Shrinks the text until it fits the block; the block's text size is the largest size. */
+  fit: boolean;
   /**
      * Font assets the CSS uses (distinct, kind `font`).
      * @maxItems 10
      */
   fontAssetIds?: UUIDv7[];
-  style?: SignageWidgetStyle;
 }

@@ -43,7 +43,7 @@ function Stage({
           width={`min(100vw, calc(100vh * ${display.aspectRatio.width / display.aspectRatio.height}))`}
         >
           <div key={view.sceneKey} className={`pl-layer${view.transition === 'fade' ? ' sg-fade' : ''}`}>
-            <SceneRenderer scene={view.scene} data={view.data} screenAspectRatio={display.aspectRatio} />
+            <SceneRenderer scene={view.scene} data={view.data} />
           </div>
           <RuleNotices notices={view.ruleNotices} />
         </ScreenFrame>

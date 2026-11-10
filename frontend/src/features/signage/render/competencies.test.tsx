@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { SignagePlayerCalendar, SignageWidget } from '../../../api/generated/models';
 import { entryValues, openDayEntry } from './entries';
 import { SceneRenderer } from './SceneRenderer';
+import { sceneWith } from './testScenes';
 import type { RenderData, RenderOpenDay, RenderScene } from './types';
 
 const NOW = Date.parse('2026-10-22T10:00:00Z');
@@ -34,17 +35,7 @@ const data = (patch: Partial<RenderData> = {}): RenderData => ({
   ...patch,
 });
 
-const scene = (widget: SignageWidget): RenderScene => ({
-  aspectRatio: { width: 16, height: 9 },
-  layoutId: 'full',
-  customLayoutId: null,
-  backgroundColor: '#161616',
-  backgroundAssetId: null,
-  backgroundFit: 'cover',
-  backgroundDim: 0,
-  theme: 'dark',
-  zones: { main: widget },
-});
+const scene = (widget: SignageWidget): RenderScene => sceneWith(widget);
 
 describe('planned competencies on signage', () => {
   it('fills the {competencies} placeholder and tolerates old cached data', () => {

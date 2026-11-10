@@ -9,12 +9,16 @@ import type {
   SignageDisplayGroup,
   SignageDisplayPreview,
   SignageMachine,
+  SignageBlock,
+  SignageBlockStyle,
   SignageRule,
   SignageScene,
+  SignageWidget,
   SignageWebEmbed,
 } from '../../api/generated/models';
 import { currentUserFixture } from '../../test/fixtures';
 import { server } from '../../test/server';
+import { defaultBlockStyle } from './widgets';
 
 export const ids = {
   scene: '0192f6f8-743e-7c77-a349-cd07c3e8a111',
@@ -32,12 +36,26 @@ export const ids = {
 };
 const stamp = '2026-10-19T08:00:00Z';
 
+/** A visible, unlocked block with the default style of its widget (patched by `style`). */
+export const blockFixture = (
+  id: string,
+  rect: Pick<SignageBlock, 'x' | 'y' | 'w' | 'h'>,
+  widget: SignageWidget,
+  style: Partial<SignageBlockStyle> = {},
+): SignageBlock => ({
+  id,
+  name: id,
+  ...rect,
+  hidden: false,
+  locked: false,
+  widget,
+  style: { ...defaultBlockStyle(widget.type), ...style },
+});
+
 export const sceneFixture = (overrides: Partial<SignageScene> = {}): SignageScene => ({
   id: ids.scene,
   name: 'Open days poster',
   aspectRatio: { width: 9, height: 16 },
-  layoutId: 'stack3',
-  customLayoutId: null,
   backgroundColor: '#161616',
   backgroundAssetId: null,
   backgroundFit: 'cover',
@@ -45,11 +63,23 @@ export const sceneFixture = (overrides: Partial<SignageScene> = {}): SignageScen
   fontFamily: 'sans',
   fontAssetId: null,
   theme: 'dark',
-  zones: {
-    header: { type: 'text', text: 'Welcome', size: 'l', align: 'center' },
-    main: { type: 'image', mediaId: ids.asset, fit: 'cover' },
-    footer: { type: 'empty' },
-  },
+  blocks: [
+    blockFixture(
+      'header',
+      { x: 0, y: 0, w: 1080, h: 384 },
+      { type: 'text', text: 'Welcome', fit: false },
+      {
+        textSize: 76,
+        align: 'center',
+      },
+    ),
+    blockFixture(
+      'main',
+      { x: 0, y: 384, w: 1080, h: 1152 },
+      { type: 'image', mediaId: ids.asset, fit: 'cover', dim: 0 },
+    ),
+    blockFixture('footer', { x: 0, y: 1536, w: 1080, h: 384 }, { type: 'empty' }),
+  ],
   version: 3,
   createdAt: stamp,
   updatedAt: stamp,
@@ -208,10 +238,8 @@ export const previewFixture = (overrides: Partial<SignageDisplayPreview> = {}): 
     revision: 2,
     display: { aspectRatio: { width: 9, height: 16 }, visibleFromOutside: true },
     rules: [],
-    manifestVersion: 3,
+    manifestVersion: 4,
     defaultScenes: [{ sceneId: ids.scene, seconds: 20, transition: 'fade' }],
-    layoutsVersion: 2,
-    customLayouts: [],
     scenes: [{ ...sceneFixture(), version: 3 }],
     assets: [],
   },
@@ -272,7 +300,6 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
     http.get('*/api/v1/signage/announcement-templates', () => HttpResponse.json({ items: templates })),
     http.get('*/api/v1/signage/announcements', () => HttpResponse.json({ items: announcements })),
     http.get('*/api/v1/signage/machines', () => HttpResponse.json({ items: machines })),
-    http.get('*/api/v1/signage/custom-layouts', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/signage/calendar', () => HttpResponse.json(calendar)),
     http.get('*/api/v1/signage/displays', () => HttpResponse.json({ items: displays })),
     http.get('*/api/v1/signage/displays/:id', ({ params }) => {

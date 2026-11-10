@@ -20,7 +20,6 @@
  */
 import type { SignageEventsWidgetType } from './signageEventsWidgetType';
 import type { SignageRichTextFormat } from './signageRichTextFormat';
-import type { SignageWidgetStyle } from './signageWidgetStyle';
 import type { UUIDv7 } from './uUIDv7';
 
 export interface SignageEventsWidget {
@@ -50,5 +49,4 @@ export interface SignageEventsWidget {
   css?: string;
   /** @maxItems 10 */
   fontAssetIds?: UUIDv7[];
-  style?: SignageWidgetStyle;
 }

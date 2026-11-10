@@ -4,6 +4,9 @@ import {
   Button,
   ClickableTile,
   Link as CarbonLink,
+  OverflowMenu,
+  OverflowMenuItem,
+  Search,
   Table,
   TableBody,
   TableCell,
@@ -16,9 +19,10 @@ import {
 import { Add, Copy, Edit, TrashCan } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import type { SignageAnnouncementTemplate, SignageTone } from '../../api/generated/models';
+import type { SignageAnnouncementTemplate, SignageScene, SignageTone } from '../../api/generated/models';
 import {
   deleteSignageAnnouncementTemplate,
+  deleteSignageScene,
   duplicateSignageAnnouncementTemplate,
   duplicateSignageScene,
 } from '../../api/generated/signage/signage';
@@ -31,18 +35,16 @@ import { hasPermission, PermissionId } from '../auth/permissions';
 import { AnnouncementTemplateModal } from './AnnouncementTemplateModal';
 import { useDuplicate } from './duplicate';
 import { DeleteDialog, QueryBoundary, SceneThumbnail } from './components';
+import { shapeName } from './aspectFields';
 import { aspectLabel, orientationOf, pluralize } from './helpers';
 import { NewSceneModal } from './NewContentModals';
 import { signagePaths } from './paths';
-import { CustomLayoutsTable } from './CustomLayoutsTable';
-import { customLayoutsQuery } from './layoutQueries';
 import { announcementsQuery, scenesQuery, templatesQuery } from './queries';
 
-type Section = 'scenes' | 'announcements' | 'layouts';
+type Section = 'scenes' | 'announcements';
 const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'scenes', label: 'Scenes' },
-  { id: 'announcements', label: 'Announcements' },
-  { id: 'layouts', label: 'Layouts' },
+  { id: 'scenes', label: 'Screens' },
+  { id: 'announcements', label: 'Announcement templates' },
 ];
 const TONE_TAG: Record<SignageTone, 'blue' | 'warm-gray' | 'red' | 'gray'> = {
   info: 'blue',
@@ -62,8 +64,10 @@ export function ContentPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const requested = params.get('section');
-  const section: Section = requested === 'announcements' || requested === 'layouts' ? requested : 'scenes';
+  const section: Section = requested === 'announcements' ? requested : 'scenes';
   const [creating, setCreating] = useState<'scene' | null>(null);
+  const [search, setSearch] = useState('');
+  const [deletingScene, setDeletingScene] = useState<SignageScene | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<SignageAnnouncementTemplate | 'new' | null>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<SignageAnnouncementTemplate | null>(null);
   const duplicateScene = useDuplicate(duplicateSignageScene, (copy) => void navigate(signagePaths.scene(copy.id)));
@@ -71,60 +75,77 @@ export function ContentPage() {
   const scenes = useQuery(scenesQuery());
   const templates = useQuery(templatesQuery());
   const announcements = useQuery(announcementsQuery());
-  const layouts = useQuery(customLayoutsQuery());
-  const query = section === 'scenes' ? scenes : section === 'layouts' ? layouts : templates;
+  const query = section === 'scenes' ? scenes : templates;
 
-  const createLabel = section === 'scenes' ? 'New scene' : section === 'layouts' ? 'New layout' : 'New template';
-  const create = canEdit ? (
-    <Button
-      renderIcon={Add}
-      onClick={() => {
-        if (section === 'announcements') setEditingTemplate('new');
-        else if (section === 'layouts') void navigate(signagePaths.newLayout);
-        else setCreating('scene');
-      }}
-    >
-      {createLabel}
+  const newScreen = canEdit ? (
+    <Button renderIcon={Add} onClick={() => setCreating('scene')}>
+      New screen
     </Button>
   ) : undefined;
+  const newTemplate = canEdit ? (
+    <Button renderIcon={Add} onClick={() => setEditingTemplate('new')}>
+      New template
+    </Button>
+  ) : undefined;
+  const needle = search.trim().toLowerCase();
+  const shownScenes = (scenes.data?.items ?? []).filter((scene) =>
+    needle
+      .split(/\s+/)
+      .every((word) =>
+        `${scene.name} ${aspectLabel(scene.aspectRatio)} ${shapeName(scene.aspectRatio)}`.toLowerCase().includes(word),
+      ),
+  );
   const open = (event: { preventDefault: () => void }, to: string) => {
     event.preventDefault();
     void navigate(to);
   };
 
   return (
-    <PageShell title="Content" width="wide" breadcrumbs={[{ label: 'Signage' }]} actions={create}>
+    <PageShell
+      title="Screens"
+      width="wide"
+      breadcrumbs={[{ label: 'Signage' }]}
+      actions={section === 'announcements' ? newTemplate : undefined}
+    >
       <div className="sg-stack">
         <SectionSwitcher
-          label="Content type"
+          label="Screens and announcement templates"
           sections={SECTIONS}
           selected={section}
           onChange={(id) => setParams(id === 'scenes' ? {} : { section: id }, { replace: true })}
         />
         {duplicateScene.error}
         {duplicateTemplate.error}
-        <QueryBoundary
-          query={query}
-          label={section === 'scenes' ? 'scenes' : section === 'layouts' ? 'layouts' : 'announcement templates'}
-        >
-          {section === 'layouts' && (
-            <CustomLayoutsTable layouts={layouts.data?.items ?? []} canEdit={canEdit} create={create} />
-          )}
+        {section === 'scenes' && (
+          <div className="sg-screens-toolbar">
+            <Search
+              size="lg"
+              labelText="Search screens"
+              placeholder="Search screens"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            {newScreen}
+          </div>
+        )}
+        <QueryBoundary query={query} label={section === 'scenes' ? 'screens' : 'announcement templates'}>
           {section === 'scenes' &&
             (scenes.data?.items.length === 0 ? (
               <EmptyState
-                title="No scenes yet"
-                description="A scene fills the screen with one layout and a widget per zone."
-                action={create}
+                title="No screens yet"
+                description="A screen fills a display with blocks: text, images, video, live data and more."
+                action={newScreen}
               />
+            ) : shownScenes.length === 0 ? (
+              <EmptyState title="No screens match" description="Try another name or shape." />
             ) : (
               <div className="sg-tile-grid">
-                {scenes.data?.items.map((scene) => (
+                {shownScenes.map((scene) => (
                   <div key={scene.id} className="sg-scene-card">
                     <ClickableTile
                       className="sg-scene-tile"
                       href={signagePaths.scene(scene.id)}
-                      aria-label={`Scene ${scene.name}`}
+                      aria-label={`Screen ${scene.name}`}
                       onClick={(event: { preventDefault: () => void }) => open(event, signagePaths.scene(scene.id))}
                     >
                       <div className={`sg-scene-tile__thumb sg-scene-tile__thumb--${orientationOf(scene.aspectRatio)}`}>
@@ -134,22 +155,32 @@ export function ContentPage() {
                         <strong>{scene.name}</strong>
                         <div className="sg-inline">
                           <Tag size="sm" type="cool-gray">
-                            {aspectLabel(scene.aspectRatio)}
+                            {shapeName(scene.aspectRatio)} {aspectLabel(scene.aspectRatio)}
                           </Tag>
                         </div>
                       </div>
                     </ClickableTile>
                     {canEdit && (
-                      <Button
-                        kind="ghost"
-                        size="sm"
-                        renderIcon={Copy}
-                        disabled={duplicateScene.pending}
-                        onClick={() => duplicateScene.duplicate(scene.id)}
-                      >
-                        Duplicate
-                        <span className="cds--visually-hidden"> {scene.name}</span>
-                      </Button>
+                      <div className="sg-scene-card__menu">
+                        <OverflowMenu
+                          size="md"
+                          flipped
+                          aria-label={`Actions for ${scene.name}`}
+                          iconDescription={`Actions for ${scene.name}`}
+                        >
+                          <OverflowMenuItem
+                            itemText="Duplicate"
+                            disabled={duplicateScene.pending}
+                            onClick={() => duplicateScene.duplicate(scene.id)}
+                          />
+                          <OverflowMenuItem
+                            itemText="Delete"
+                            isDelete
+                            hasDivider
+                            onClick={() => setDeletingScene(scene)}
+                          />
+                        </OverflowMenu>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -160,7 +191,7 @@ export function ContentPage() {
               <EmptyState
                 title="No announcement templates yet"
                 description="A template defines the fields and the message of a kind of announcement, such as “Closed”."
-                action={create}
+                action={newTemplate}
               />
             ) : (
               <TableContainer>
@@ -262,6 +293,21 @@ export function ContentPage() {
         </QueryBoundary>
       </div>
       {creating === 'scene' && <NewSceneModal onClose={() => setCreating(null)} />}
+      {deletingScene && (
+        <DeleteDialog
+          title={`Delete “${deletingScene.name}”?`}
+          noun="Screen"
+          confirmLabel="Delete screen"
+          remove={() => deleteSignageScene(deletingScene.id, { expectedVersion: deletingScene.version })}
+          onDeleted={() => setDeletingScene(null)}
+          onClose={() => setDeletingScene(null)}
+        >
+          <p>
+            The screen is removed for good. A screen that a display's default screens or rules still use cannot be
+            deleted.
+          </p>
+        </DeleteDialog>
+      )}
       {editingTemplate && (
         <AnnouncementTemplateModal
           template={editingTemplate === 'new' ? undefined : editingTemplate}

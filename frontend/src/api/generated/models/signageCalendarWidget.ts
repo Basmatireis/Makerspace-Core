@@ -21,7 +21,6 @@
 import type { SignageCalendarColors } from './signageCalendarColors';
 import type { SignageCalendarWidgetType } from './signageCalendarWidgetType';
 import type { SignageCalendarWidgetView } from './signageCalendarWidgetView';
-import type { SignageWidgetStyle } from './signageWidgetStyle';
 
 /**
  * Month grid or a number of weeks, starting on Monday. The player receives the data in `SignagePlayerLive.calendar`.
@@ -48,5 +47,4 @@ export interface SignageCalendarWidget {
   title?: string;
   /** Weeks view: adds the planned competencies to open days, the first two and +N; absent means false. */
   showCompetencies?: boolean;
-  style?: SignageWidgetStyle;
 }

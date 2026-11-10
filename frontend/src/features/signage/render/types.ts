@@ -5,26 +5,17 @@ import type {
   SignageScene,
   SignageTone,
 } from '../../../api/generated/models';
-import type { CustomLayoutShape } from '../layouts';
 import type { RichTextFormat } from './escape';
 
 // Data contract of the shared scene renderer. The renderer is plain React and plain CSS: no Carbon, no TanStack Query
 // and no imports from src/app, because the separate player app imports it too. Widgets get everything through props.
 
+/** A scene as the renderer needs it: its shape, background, theme, font and blocks (array order = stacking order). */
 export type RenderScene = Pick<
   SignageScene,
-  | 'aspectRatio'
-  | 'layoutId'
-  | 'backgroundColor'
-  | 'backgroundAssetId'
-  | 'backgroundFit'
-  | 'backgroundDim'
-  | 'theme'
-  | 'zones'
+  'aspectRatio' | 'backgroundColor' | 'backgroundAssetId' | 'backgroundFit' | 'backgroundDim' | 'theme' | 'blocks'
 > & {
-  /** Names the custom layout (in `RenderData.customLayouts`) when `layoutId` is `custom`. */
-  customLayoutId?: string | null;
-  /** The scene font; absent (a manifest cached before scene fonts) means sans-serif. */
+  /** The scene font; absent means sans-serif. */
   fontFamily?: SignageScene['fontFamily'];
   fontAssetId?: string | null;
 };
@@ -86,8 +77,6 @@ export type RenderData = {
   timelapses?: readonly RenderTimelapse[] | null;
   /** The URL a clip plays from; null skips the clip (the player has not cached it yet). Absent plays nothing. */
   timelapseUrl?: (clip: RenderTimelapse) => string | null;
-  /** The custom layouts scenes may use (the manifest's, or the admin list). */
-  customLayouts?: readonly CustomLayoutShape[];
   /** Asset id to URL; null when the asset is unknown (it renders as a placeholder). */
   assetUrl: (assetId: string) => string | null;
   /** Asset id to name; fonts are registered under their asset name, so CSS can use it as `font-family`. */

@@ -32,9 +32,13 @@ function graphOf(entry, { lazy = false } = {}) {
   return visited;
 }
 
-/** Every JS and CSS file the entry loads statically, or (with `lazy`) also on demand. */
+/** Every JS and CSS file the entry loads statically, or (with `lazy`) also on demand, and the assets (fonts) of its CSS. */
 function graphOfFiles(entry, options) {
-  return [...graphOf(entry, options)].flatMap((key) => [manifest[key].file, ...(manifest[key].css ?? [])]);
+  return [...graphOf(entry, options)].flatMap((key) => [
+    manifest[key].file,
+    ...(manifest[key].css ?? []),
+    ...(manifest[key].assets ?? []),
+  ]);
 }
 
 const compressedSize = (files) =>
@@ -71,7 +75,8 @@ if (/__PLAYER_SHELL_(FILES|VERSION)__/.test(workerSource))
   );
 if (/^\s*(import|export)\b/m.test(workerSource) || (worker.imports ?? []).length > 0)
   throw new Error('The player service worker must be self-contained (no imports).');
-// Lazy chunks (the rich text renderer) are loaded on demand, so a display that starts offline needs them cached too.
+// Lazy chunks (the rich text renderer) are loaded on demand and fonts when text needs them, so a display that starts
+// offline needs them cached too.
 for (const file of graphOfFiles('player.html', { lazy: true })) {
   if (!workerSource.includes(`"/${file}"`)) throw new Error(`The player service worker does not precache /${file}.`);
 }

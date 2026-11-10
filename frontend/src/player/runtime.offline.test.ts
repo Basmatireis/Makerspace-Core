@@ -239,20 +239,9 @@ describe('PlayerRuntime offline cache', () => {
         openDays: [],
         events: [],
       };
-      const customLayouts = [
-        {
-          id: 'cl-1',
-          name: 'Free',
-          mode: 'free' as const,
-          columns: [1],
-          rows: [1],
-          zones: [{ id: 'a', label: 'A', grid: null, rect: { x: 0, y: 0, width: 100, height: 100 } }],
-          version: 1,
-        },
-      ];
       const online = new PlayerRuntime({
         api: fakeApi({
-          manifest: async () => ({ unchanged: false, manifest: manifest(1, { customLayouts }) }),
+          manifest: async () => ({ unchanged: false, manifest: manifest(1) }),
           live: async () => live({ calendar }),
         }),
         store,
@@ -268,7 +257,6 @@ describe('PlayerRuntime offline cache', () => {
       await settle(5_000);
       const data = offline.getSnapshot().view?.data;
       expect(data?.calendar).toEqual(calendar);
-      expect(data?.customLayouts).toEqual(customLayouts);
       offline.stop();
     });
 
@@ -505,14 +493,45 @@ describe('PlayerRuntime offline cache', () => {
     runtime.stop();
   });
 
-  it('does not restore a persisted manifest of the older shape (no manifestVersion)', async () => {
+  it('does not restore a persisted manifest of an older shape (no manifestVersion, or before blocks)', async () => {
+    for (const manifestVersion of [undefined, 3]) {
+      const { store } = env();
+      await store.saveManifest({ ...manifest(1), manifestVersion } as unknown as ReturnType<typeof manifest>);
+      const runtime = new PlayerRuntime({ api: offlineApi(), store });
+      runtime.start();
+      await settle(5_000);
+      expect(runtime.getSnapshot().view).toBeNull();
+      runtime.stop();
+    }
+  });
+
+  it('restores a persisted manifest of version 4 and refetches an old one once the server answers', async () => {
     const { store } = env();
-    await store.saveManifest({ ...manifest(1), manifestVersion: undefined } as unknown as ReturnType<typeof manifest>);
-    const runtime = new PlayerRuntime({ api: offlineApi(), store });
-    runtime.start();
+    await store.saveManifest(manifest(1));
+    const offline = new PlayerRuntime({ api: offlineApi(), store });
+    offline.start();
     await settle(5_000);
-    expect(runtime.getSnapshot().view).toBeNull();
-    runtime.stop();
+    expect(offline.getSnapshot().view?.sceneId).toBe('scene-a');
+    offline.stop();
+
+    await store.saveManifest({ ...manifest(1), manifestVersion: 3 });
+    let known: number | null = -1;
+    const online = new PlayerRuntime({
+      api: fakeApi({
+        manifest: async (revision) => {
+          known = revision;
+          return { unchanged: false, manifest: manifest(2) };
+        },
+      }),
+      store,
+    });
+    online.start();
+    await settle(5_000);
+    // The old revision is not offered as known: the server sends the whole current manifest.
+    expect(known).toBeNull();
+    expect(online.getSnapshot().view?.sceneId).toBe('scene-a');
+    expect((await store.loadManifest())?.manifestVersion).toBe(4);
+    online.stop();
   });
 
   describe('timelapses', () => {

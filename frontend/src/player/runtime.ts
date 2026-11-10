@@ -22,6 +22,8 @@ import { PLAYER_VERSION } from './version';
 export const LIVE_INTERVAL_MS = 10_000;
 export const HEARTBEAT_INTERVAL_MS = 30_000;
 export const MANIFEST_INTERVAL_MS = 60_000;
+/** Shape of the manifests this player plays (scenes made of blocks); a persisted manifest of an older shape is refetched. */
+export const MANIFEST_VERSION = 4;
 /** Web embeds poll live data less often than devices (no heartbeat either). */
 export const EMBED_LIVE_INTERVAL_MS = 30_000;
 const UNPUBLISHED_INTERVAL_MS = 10_000;
@@ -197,8 +199,13 @@ export class PlayerRuntime {
     if (!this.store) return;
     try {
       const manifest = await this.store.loadManifest();
-      // A manifest stored before scene lists has another shape: fetch the current one instead.
-      if (!manifest || (manifest.manifestVersion ?? 0) < 3 || !(await this.store.hasAll(manifest.assets))) return;
+      // A manifest stored before scene blocks has another shape: fetch the current one instead.
+      if (
+        !manifest ||
+        (manifest.manifestVersion ?? 0) < MANIFEST_VERSION ||
+        !(await this.store.hasAll(manifest.assets))
+      )
+        return;
       this.active = activeOf(manifest);
       const saved = await this.store.loadLive();
       if (saved && this.now() - saved.savedAt <= PERSISTED_LIVE_MAX_AGE_MS) {

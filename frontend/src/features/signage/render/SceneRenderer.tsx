@@ -1,28 +1,33 @@
-import { lazy, Suspense, useEffect, type CSSProperties, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import type {
   SignageAnnouncementWidget,
   SignageAspectRatio,
+  SignageBlock,
   SignageCameraWidget,
+  SignageImageWidget,
   SignageStatusWidget,
-  SignageWidget,
+  SignageTextWidget,
 } from '../../../api/generated/models';
-import { resolveLayout, type CustomLayoutShape } from '../layouts';
 import { RichText } from './RichTextView';
 import {
+  blockBoxCss,
+  blockInnerCss,
+  cssUrl,
   fontAssetIdsOf,
   registerFontFaces,
   sceneFontCss,
-  styleTextAlign,
-  widgetStyleOf,
-  zoneBoxCss,
+  sceneTextColor,
   type FontFace,
 } from './style';
-import { orientationOf, type Orientation } from './aspect';
+import { frameScale, sceneGridSize, type Orientation } from './aspect';
+import { shrinkToFit } from './fit';
 import { isPrinting, type RenderData, type RenderMachine, type RenderScene } from './types';
 import './render.css';
 
-// The one renderer behind preview frames, thumbnails, the editor canvas and (later) the player.
-// Sizes use the container-relative unit --u (1u = 1 % of the design width), so a scene looks the same at any scale.
+// The one renderer behind preview frames, thumbnails, the editor canvas and the player. A scene is laid out at exactly
+// its grid size in CSS pixels (short side 1080, see sceneGridSize) with absolutely positioned blocks, and ScreenFrame
+// scales the whole picture with a transform, so text wraps the same way at every size. Inside a block, widget CSS is
+// written in the unit --u (see blockUnit).
 
 // Only scenes with a QR code, a list, a calendar or timelapses need these widgets; the player's initial JavaScript has a budget (its chunk is precached).
 const QrCode = lazy(() => import('./QrCode').then((module) => ({ default: module.QrCode })));
@@ -30,7 +35,9 @@ const ListWidget = lazy(() => import('./ListWidget').then((module) => ({ default
 const CalendarWidget = lazy(() => import('./CalendarWidget').then((module) => ({ default: module.CalendarWidget })));
 const TimelapseWidget = lazy(() => import('./TimelapseWidget').then((module) => ({ default: module.TimelapseWidget })));
 
-const TEXT_SIZE = { s: 3, m: 4.6, l: 7, xl: 10 } as const;
+/** Announcement titles of banners and cards are 0.8 of the block's text size; the body is 0.6 of the title. */
+const ANNOUNCEMENT_TITLE = { full: 1, banner: 0.8, card: 0.8 } as const;
+const ANNOUNCEMENT_BODY = 0.6;
 const STATE_LABEL: Record<RenderMachine['state'], string> = {
   idle: 'Idle',
   preparing: 'Preparing',
@@ -50,6 +57,18 @@ const clockTime = (instant: number | string, timeZone?: string) =>
 function MediaImage({ url, fit, label }: { url: string | null; fit: 'contain' | 'cover'; label: string }) {
   if (!url) return <div className="sg-placeholder">{label}</div>;
   return <img className="sg-media" src={url} alt="" style={{ objectFit: fit }} />;
+}
+
+/** The image widget, darkened by `dim` percent (so text on top stays readable). */
+function ImageWidget({ widget, data }: { widget: SignageImageWidget; data: RenderData }) {
+  const url = widget.mediaId ? data.assetUrl(widget.mediaId) : null;
+  if (!url || !(widget.dim > 0)) return <MediaImage url={url} fit={widget.fit} label="No image selected" />;
+  return (
+    <div className="sg-media-box">
+      <MediaImage url={url} fit={widget.fit} label="" />
+      <div className="sg-dim" style={{ background: `rgba(0, 0, 0, ${Math.min(90, widget.dim) / 100})` }} />
+    </div>
+  );
 }
 
 function Progress({ value }: { value: number }) {
@@ -75,6 +94,8 @@ function CameraTile({
   widget: SignageCameraWidget;
   data: RenderData;
 }) {
+  const progress = widget.showProgress && machine.progressPercent !== null;
+  const remaining = widget.showRemaining && machine.remainingMinutes !== null;
   return (
     <div className="sg-camera" role="img" aria-label={`Camera of ${machine.name}`}>
       {data.cameraView?.(machine) ?? (
@@ -88,16 +109,19 @@ function CameraTile({
           <span className="sg-camera__note">Live camera (shown on the display)</span>
         </>
       )}
-      <div className="sg-camera__caption">
-        <strong>{machine.name}</strong>
-        {widget.showProgress && machine.progressPercent !== null && (
-          <>
-            <Progress value={machine.progressPercent} />
-            <span>{machine.progressPercent} %</span>
-          </>
-        )}
-        {widget.showRemaining && <Remaining machine={machine} data={data} />}
-      </div>
+      {widget.showLive && <span className="sg-camera__live">Live</span>}
+      {(widget.showName || progress || remaining) && (
+        <div className="sg-camera__caption">
+          {widget.showName && <strong>{machine.name}</strong>}
+          {progress && (
+            <>
+              <Progress value={machine.progressPercent!} />
+              <span>{machine.progressPercent} %</span>
+            </>
+          )}
+          {remaining && <Remaining machine={machine} data={data} />}
+        </div>
+      )}
     </div>
   );
 }
@@ -202,15 +226,21 @@ function StatusWidget({ widget, data }: { widget: SignageStatusWidget; data: Ren
 }
 
 /** Announcements matching the widget's filter, shown per the "several active" setting; nothing active falls back as configured. */
-function AnnouncementWidget({ widget, data }: { widget: SignageAnnouncementWidget; data: RenderData }) {
+function AnnouncementWidget({
+  widget,
+  data,
+  textSize,
+}: {
+  widget: SignageAnnouncementWidget;
+  data: RenderData;
+  textSize: number;
+}) {
   const matching = data.announcements.filter(
     (item) => widget.templateIds.length === 0 || widget.templateIds.includes(item.templateId),
   );
   if (matching.length === 0)
     return widget.whenNone === 'text' && widget.fallbackText.trim() !== '' ? (
-      <div className="sg-text" style={{ fontSize: `calc(var(--u) * ${TEXT_SIZE[widget.size]})` }}>
-        {widget.fallbackText}
-      </div>
+      <div className="sg-text">{widget.fallbackText}</div>
     ) : null;
   const shown =
     widget.whenMany === 'stack'
@@ -223,7 +253,8 @@ function AnnouncementWidget({ widget, data }: { widget: SignageAnnouncementWidge
             ],
           ];
   const rotating = widget.whenMany === 'rotate' && matching.length > 1;
-  const unit = TEXT_SIZE[widget.size] * (widget.style === 'full' ? 1 : 0.8);
+  const title = textSize * ANNOUNCEMENT_TITLE[widget.style];
+  const body = title * ANNOUNCEMENT_BODY;
   return (
     <div className={`sg-ann-list sg-ann-list--${widget.style}`} key={rotating ? shown[0].id : undefined}>
       {shown.map((item) => (
@@ -232,16 +263,16 @@ function AnnouncementWidget({ widget, data }: { widget: SignageAnnouncementWidge
           className={`sg-ann sg-ann--${item.tone} sg-ann--${widget.style}${rotating ? ' sg-fade' : ''}`}
           role="status"
         >
-          <strong className="sg-ann__title" style={{ fontSize: `calc(var(--u) * ${unit})` }}>
+          <strong className="sg-ann__title" style={{ fontSize: `${title}px` }}>
             {item.title}
           </strong>
           {item.body.trim() !== '' &&
             (item.bodyFormat && item.bodyFormat !== 'plain' ? (
-              <div className="sg-ann__body sg-ann__body--rich" style={{ fontSize: `calc(var(--u) * ${unit * 0.6})` }}>
+              <div className="sg-ann__body sg-ann__body--rich" style={{ fontSize: `${body}px` }}>
                 <RichText format={item.bodyFormat} text={item.body} css={item.bodyCss} />
               </div>
             ) : (
-              <span className="sg-ann__body" style={{ fontSize: `calc(var(--u) * ${unit * 0.6})` }}>
+              <span className="sg-ann__body" style={{ fontSize: `${body}px` }}>
                 {item.body}
               </span>
             ))}
@@ -251,26 +282,59 @@ function AnnouncementWidget({ widget, data }: { widget: SignageAnnouncementWidge
   );
 }
 
-function WidgetView({
+/**
+ * The text widget: plain text as text nodes, markdown and HTML in a shadow root. With `fit` the text shrinks until the
+ * block's content fits (fit.ts); the size is set on the element, so React never resets it. It is measured again when
+ * the block, the text or a font changes.
+ */
+function TextWidget({
   widget,
-  data,
-  orientation,
+  textSize,
+  layoutKey,
 }: {
-  widget: SignageWidget;
-  data: RenderData;
-  orientation: Orientation;
+  widget: SignageTextWidget;
+  textSize: number;
+  layoutKey: string;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { fit, text, format, css } = widget;
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!fit || !element) return;
+    const run = () => shrinkToFit(element, textSize);
+    run();
+    // Rich text arrives asynchronously (lazy renderer, shadow root): a size change of the text measures again. The
+    // search ends on the same size, so it settles after one more call.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(run);
+    observer?.observe(element);
+    const fonts = element.ownerDocument.fonts as FontFaceSet | undefined;
+    fonts?.addEventListener?.('loadingdone', run);
+    return () => {
+      observer?.disconnect();
+      fonts?.removeEventListener?.('loadingdone', run);
+      element.style.removeProperty('font-size');
+    };
+  }, [fit, textSize, text, format, css, layoutKey]);
+  if (!format || format === 'plain')
+    return (
+      <div ref={ref} className="sg-text">
+        {text || ' '}
+      </div>
+    );
+  return (
+    <div ref={ref} className="sg-text sg-text--rich">
+      <RichText format={format} text={text} css={css} className="sg-rich--block" />
+    </div>
+  );
+}
+
+function WidgetView({ block, data }: { block: SignageBlock; data: RenderData }) {
+  const { widget } = block;
   switch (widget.type) {
     case 'empty':
       return null;
     case 'image':
-      return (
-        <MediaImage
-          url={widget.mediaId ? data.assetUrl(widget.mediaId) : null}
-          fit={widget.fit}
-          label="No image selected"
-        />
-      );
+      return <ImageWidget widget={widget} data={data} />;
     case 'video': {
       const url = widget.mediaId ? data.assetUrl(widget.mediaId) : null;
       if (!url) return <div className="sg-placeholder">No video selected</div>;
@@ -287,23 +351,14 @@ function WidgetView({
         </div>
       );
     }
-    case 'text': {
-      const style = {
-        fontSize: `calc(var(--u) * ${TEXT_SIZE[widget.size]})`,
-        textAlign: styleTextAlign(widget.style) ?? widget.align,
-      };
-      if (!widget.format || widget.format === 'plain')
-        return (
-          <div className="sg-text" style={style}>
-            {widget.text || ' '}
-          </div>
-        );
+    case 'text':
       return (
-        <div className="sg-text sg-text--rich" style={style}>
-          <RichText format={widget.format} text={widget.text} css={widget.css} />
-        </div>
+        <TextWidget
+          widget={widget}
+          textSize={block.style.textSize}
+          layoutKey={`${block.w}x${block.h}:${JSON.stringify(block.style)}`}
+        />
       );
-    }
     case 'qr':
       return (
         <Suspense fallback={null}>
@@ -312,7 +367,7 @@ function WidgetView({
       );
     case 'clock':
       return (
-        <div className="sg-center">
+        <div className="sg-center sg-center--aligned">
           <strong className={widget.mode === 'date' ? 'sg-clock sg-clock--date' : 'sg-clock'}>
             {widget.mode === 'date'
               ? formatter(data.timeZone, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(
@@ -328,11 +383,11 @@ function WidgetView({
         </div>
       );
     case 'camera':
-      return <CameraWidget widget={widget} data={data} orientation={orientation} />;
+      return <CameraWidget widget={widget} data={data} orientation={block.w >= block.h ? 'landscape' : 'portrait'} />;
     case 'status':
       return <StatusWidget widget={widget} data={data} />;
     case 'announcement':
-      return <AnnouncementWidget widget={widget} data={data} />;
+      return <AnnouncementWidget widget={widget} data={data} textSize={block.style.textSize} />;
     case 'open_days':
     case 'events':
     case 'agenda':
@@ -348,7 +403,7 @@ function WidgetView({
         </Suspense>
       );
     case 'timelapse':
-      // Nothing to load without clips: the zone shows only its style box.
+      // Nothing to load without clips: the block shows only its style box.
       if (!data.timelapses?.length) return null;
       return (
         <Suspense fallback={null}>
@@ -358,28 +413,66 @@ function WidgetView({
   }
 }
 
-/** Aspect-ratio box that also provides the container for the relative units. */
+/**
+ * A box of the screen's aspect ratio that shows its children on a stage of the screen's grid size (`.sg-stage`,
+ * sceneGridSize), scaled with `transform: scale()` to the box. Without `scale` the box is `width` wide (default 100 %)
+ * and follows its size with a ResizeObserver; with `scale` (the editor's zoom) the box is the scaled grid size.
+ * `onScaleChange` reports the scale in use, e.g. to convert pointer positions into grid units.
+ */
 export function ScreenFrame({
   aspectRatio,
   width,
+  scale,
+  onScaleChange,
   className,
   children,
 }: {
   aspectRatio: SignageAspectRatio;
   width?: string;
+  scale?: number;
+  onScaleChange?: (scale: number) => void;
   className?: string;
   children: ReactNode;
 }) {
-  const style: CSSProperties = {
-    aspectRatio: `${aspectRatio.width} / ${aspectRatio.height}`,
-    ...(width ? { inlineSize: width } : {}),
-  };
+  const grid = sceneGridSize(aspectRatio);
+  const frame = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLDivElement>(null);
+  const report = useRef(onScaleChange);
+  useLayoutEffect(() => {
+    report.current = onScaleChange;
+  });
+  useLayoutEffect(() => {
+    const box = frame.current;
+    const target = stage.current;
+    if (!box || !target) return;
+    let current = -1;
+    const apply = (next: number) => {
+      if (next === current) return;
+      current = next;
+      target.style.transform = `scale(${next})`;
+      report.current?.(next);
+    };
+    if (scale !== undefined) {
+      apply(scale);
+      return;
+    }
+    // Set directly on the stage: a resize must not re-render the scene.
+    const measure = () => apply(frameScale(box.clientWidth, box.clientHeight, grid.width, grid.height));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [scale, grid.width, grid.height]);
+  const style: CSSProperties =
+    scale !== undefined
+      ? { inlineSize: `${grid.width * scale}px`, blockSize: `${grid.height * scale}px` }
+      : { aspectRatio: `${aspectRatio.width} / ${aspectRatio.height}`, ...(width ? { inlineSize: width } : {}) };
   return (
-    <div
-      className={`sg-frame sg-frame--${orientationOf(aspectRatio)}${className ? ` ${className}` : ''}`}
-      style={style}
-    >
-      {children}
+    <div ref={frame} className={`sg-frame${className ? ` ${className}` : ''}`} style={style}>
+      <div ref={stage} className="sg-stage" style={{ width: `${grid.width}px`, height: `${grid.height}px` }}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -392,26 +485,26 @@ function sceneBackground(scene: RenderScene, data: RenderData): string {
     scene.theme === 'dark'
       ? `rgba(0, 0, 0, ${scene.backgroundDim / 100})`
       : `rgba(255, 255, 255, ${scene.backgroundDim / 100})`;
-  return `linear-gradient(${veil}, ${veil}), url("${url.replace(/["\\\n]/g, encodeURIComponent)}") center / ${scene.backgroundFit} no-repeat, ${scene.backgroundColor}`;
+  return `linear-gradient(${veil}, ${veil}), ${cssUrl(url)} center / ${scene.backgroundFit} no-repeat, ${scene.backgroundColor}`;
 }
 
 export type SceneRendererProps = {
   scene: RenderScene | null;
   data: RenderData;
-  /** Aspect ratio of the screen the scene is shown on (sets the unit scale). Defaults to the scene's own. */
-  screenAspectRatio?: SignageAspectRatio;
-  selectedZone?: string | null;
-  onSelectZone?: (zoneId: string) => void;
-  /** Custom layouts for this scene; defaults to `data.customLayouts` (the editor passes its own list). */
-  customLayouts?: readonly CustomLayoutShape[];
+  /**
+   * Editor: draw hidden blocks faded (class `sg-block--hidden`) instead of leaving them out like displays do.
+   */
+  showHidden?: boolean;
+  /** Editor: blocks that get the class `sg-block--selected` (styled by the editor). */
+  selectedBlockIds?: readonly string[];
 };
 
-/** Font assets of every widget in the scene, named by their asset name (the @font-face family). */
-function sceneFonts(scene: RenderScene, data: RenderData): FontFace[] {
+/** Font assets of the scene and its blocks, named by their asset name (the @font-face family). */
+function sceneFonts(scene: RenderScene, data: RenderData, blocks: readonly SignageBlock[]): FontFace[] {
   const fonts = new Map<string, FontFace>();
   const ids = [
     ...(scene.fontFamily === 'custom' && scene.fontAssetId ? [scene.fontAssetId] : []),
-    ...Object.values(scene.zones).flatMap(fontAssetIdsOf),
+    ...blocks.flatMap(fontAssetIdsOf),
   ];
   for (const id of ids) {
     const family = data.assetName?.(id);
@@ -421,83 +514,54 @@ function sceneFonts(scene: RenderScene, data: RenderData): FontFace[] {
   return [...fonts.values()];
 }
 
-export function SceneRenderer({
-  scene,
-  data,
-  screenAspectRatio,
-  selectedZone,
-  onSelectZone,
-  customLayouts,
-}: SceneRendererProps) {
+/**
+ * Renders a scene at its grid size (`.sg-scene`, W × H CSS pixels) with its blocks absolutely positioned in grid
+ * pixels, later blocks on top. Every block is `<div class="sg-block sg-block--{widget type}" data-block-id>` with the
+ * box style, holding `.sg-block__in` (padding, vertical alignment) with the widget. Put it in a ScreenFrame to scale it.
+ * The editor finds blocks with `[data-block-id]` (event delegation) and overflow with `overflowingBlockIds` (fit.ts).
+ */
+export function SceneRenderer({ scene, data, showHidden = false, selectedBlockIds }: SceneRendererProps) {
+  const blocks = scene ? scene.blocks.filter((block) => showHidden || !block.hidden) : [];
   // The fonts as a string, so the effect only runs when a family or URL changes (the data object is new every second).
-  const fontKey = JSON.stringify(scene ? sceneFonts(scene, data) : []);
+  const fontKey = JSON.stringify(scene ? sceneFonts(scene, data, blocks) : []);
   useEffect(() => {
     registerFontFaces(JSON.parse(fontKey) as FontFace[]);
   }, [fontKey]);
   if (!scene) return <div className="sg-scene sg-scene--empty" />;
-  const ratio = screenAspectRatio ?? scene.aspectRatio;
-  const orientation = orientationOf(ratio);
-  const layout = resolveLayout(scene.layoutId, scene.customLayoutId, customLayouts ?? data.customLayouts);
-  // `u` is 1 % of the design width. Portrait screens design against their full width (1cqw); landscape screens design
-  // against a 16:9-style width tied to the height: height / width cqw (0.5625 for 16:9, 0.4286 for 21:9, 0.75 for 4:3).
-  const unit = orientation === 'portrait' ? '1cqw' : `${Number((ratio.height / ratio.width).toFixed(4))}cqw`;
-  const style = {
-    '--u': unit,
-    // The unscaled unit: zone padding and borders keep their size when a widget scales its font.
-    '--sg-u': unit,
+  const grid = sceneGridSize(scene.aspectRatio);
+  const textColor = sceneTextColor(scene.theme);
+  const style: CSSProperties = {
+    width: `${grid.width}px`,
+    height: `${grid.height}px`,
     background: sceneBackground(scene, data),
     fontFamily: sceneFontCss(
       scene,
       scene.fontFamily === 'custom' && scene.fontAssetId ? (data.assetName?.(scene.fontAssetId) ?? null) : null,
     ),
-    ...(layout.kind === 'grid' ? { gridTemplateColumns: layout.columns, gridTemplateRows: layout.rows } : {}),
-  } as CSSProperties;
+  };
   return (
-    <div
-      className={`sg-scene sg-scene--${scene.theme}${layout.kind === 'free' ? ' sg-scene--free' : ''}`}
-      style={style}
-    >
-      {layout.zones.map((zone, index) => {
-        const widget = scene.zones[zone.id] ?? { type: 'empty' as const };
-        const widgetStyle = widgetStyleOf(widget);
-        const fontId = widgetStyle?.fontFamily === 'custom' ? widgetStyle.fontAssetId : null;
-        const placement: CSSProperties =
-          'col' in zone
-            ? { gridColumn: `${zone.col} / span ${zone.colSpan}`, gridRow: `${zone.row} / span ${zone.rowSpan}` }
-            : {
-                position: 'absolute',
-                insetInlineStart: `${zone.x}%`,
-                insetBlockStart: `${zone.y}%`,
-                inlineSize: `${zone.width}%`,
-                blockSize: `${zone.height}%`,
-                zIndex: index + 1,
-              };
-        const box = widgetStyle
-          ? zoneBoxCss(widgetStyle, fontId ? (data.assetName?.(fontId) ?? null) : null)
-          : undefined;
+    <div className={`sg-scene sg-scene--${scene.theme}`} style={style}>
+      {blocks.map((block) => {
+        const fontId = block.style.fontFamily === 'custom' ? block.style.fontAssetId : null;
+        const box = blockBoxCss(block, {
+          sceneTextColor: textColor,
+          fontName: fontId ? (data.assetName?.(fontId) ?? null) : null,
+          backgroundUrl: block.style.backgroundAssetId ? data.assetUrl(block.style.backgroundAssetId) : null,
+          hidden: block.hidden,
+        });
         const className = [
-          'sg-zone',
-          `sg-zone--${widget.type}`,
-          widgetStyle ? 'sg-zone--styled' : '',
-          widgetStyle && widgetStyle.verticalAlign !== 'inherit' ? 'sg-zone--valign' : '',
-          selectedZone === zone.id ? 'sg-zone--selected' : '',
+          'sg-block',
+          `sg-block--${block.widget.type}`,
+          block.hidden ? 'sg-block--hidden' : '',
+          selectedBlockIds?.includes(block.id) ? 'sg-block--selected' : '',
         ]
           .filter(Boolean)
           .join(' ');
         return (
-          <div key={zone.id} className={className} style={{ ...placement, ...box }}>
-            <WidgetView widget={widget} data={data} orientation={orientation} />
-            {onSelectZone && (
-              <button
-                type="button"
-                className="sg-zone__select"
-                aria-pressed={selectedZone === zone.id}
-                aria-label={`Select zone ${zone.label}`}
-                onClick={() => onSelectZone(zone.id)}
-              >
-                <span className="sg-zone__label">{zone.label}</span>
-              </button>
-            )}
+          <div key={block.id} className={className} style={box} data-block-id={block.id}>
+            <div className="sg-block__in" style={blockInnerCss(block.style)}>
+              <WidgetView block={block} data={data} />
+            </div>
           </div>
         );
       })}

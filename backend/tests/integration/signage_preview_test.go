@@ -21,12 +21,10 @@ func TestSignageDisplayPreview(t *testing.T) {
 	watched := e.printer("Preview printer")
 	watched.report("printing", time.Now().UTC())
 
-	input := sceneInput("Preview scene", "full")
-	input.Zones = map[string]json.RawMessage{
-		"main": json.RawMessage(
-			`{"type":"status","machineIds":["` + watched.machineID.String() + `"],"showProgress":true,"showRemaining":true}`,
-		),
-	}
+	input := sceneInput("Preview scene")
+	input.Blocks = widgetBlocks(json.RawMessage(
+		`{"type":"status","machineIds":["` + watched.machineID.String() + `"],"showProgress":true,"showRemaining":true}`,
+	))
 	scene, err := svc.CreateScene(ctx, admin, input, nil)
 	if err != nil {
 		t.Fatal(err)

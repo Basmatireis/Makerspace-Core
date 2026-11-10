@@ -514,20 +514,14 @@ func signageManifestDTO(manifest signage.Manifest, base string) (openapi.Signage
 	}
 	scenes := make([]openapi.SignagePlayerScene, 0, len(manifest.Scenes))
 	for _, scene := range manifest.Scenes {
-		zones := make(openapi.SignageZones, len(scene.Zones))
-		for key, raw := range scene.Zones {
-			var widget openapi.SignageWidget
-			if err := widget.UnmarshalJSON(raw); err != nil {
-				return openapi.SignagePlayerManifest{}, err
-			}
-			zones[key] = widget
+		blocks, err := signageBlocksDTO(scene.Blocks)
+		if err != nil {
+			return openapi.SignagePlayerManifest{}, err
 		}
 		scenes = append(scenes, openapi.SignagePlayerScene{
 			Id:                scene.ID,
 			Name:              scene.Name,
 			AspectRatio:       signageAspectRatioDTO(scene.AspectRatio),
-			LayoutId:          openapi.SignageLayoutId(scene.LayoutID),
-			CustomLayoutId:    nullableValue(scene.CustomLayoutID),
 			BackgroundColor:   scene.BackgroundColor,
 			BackgroundAssetId: nullableValue(scene.BackgroundAssetID),
 			BackgroundFit:     openapi.SignageFit(scene.BackgroundFit),
@@ -535,7 +529,7 @@ func signageManifestDTO(manifest signage.Manifest, base string) (openapi.Signage
 			Theme:             openapi.SignagePlayerSceneTheme(scene.Theme),
 			FontFamily:        openapi.SignageSceneFontFamily(scene.FontFamily),
 			FontAssetId:       nullableValue(scene.FontAssetID),
-			Zones:             zones,
+			Blocks:            blocks,
 			Version:           scene.Version,
 		})
 	}
@@ -554,24 +548,10 @@ func signageManifestDTO(manifest signage.Manifest, base string) (openapi.Signage
 			Url: base + "/assets/" + asset.ID.String() + "/" + asset.SHA256,
 		})
 	}
-	customLayouts := make([]openapi.SignagePlayerCustomLayout, 0, len(manifest.CustomLayouts))
-	for _, layout := range manifest.CustomLayouts {
-		customLayouts = append(customLayouts, openapi.SignagePlayerCustomLayout{
-			Id:      layout.ID,
-			Name:    layout.Name,
-			Mode:    openapi.SignageCustomLayoutMode(layout.Mode),
-			Columns: layout.Columns,
-			Rows:    layout.Rows,
-			Zones:   signageCustomZoneDTOs(layout.Zones),
-			Version: layout.Version,
-		})
-	}
 	return openapi.SignagePlayerManifest{
 		ManifestVersion: manifest.ManifestVersion,
 		Revision:        manifest.Revision,
 		DefaultScenes:   signageSceneListDTO(manifest.DefaultScenes),
-		CustomLayouts:   customLayouts,
-		LayoutsVersion:  manifest.LayoutsVersion,
 		Display: openapi.SignagePlayerManifestDisplay{
 			AspectRatio:        signageAspectRatioDTO(manifest.Display.AspectRatio),
 			VisibleFromOutside: manifest.Display.VisibleFromOutside,
