@@ -9,17 +9,35 @@ import {
   TextInput,
 } from '@carbon/react';
 import { ArrowLeft, UserFollow } from '@carbon/icons-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { Visit } from '../../../api/generated/models';
 import { ApiError } from '../../../api/http-client';
 import { useSecretMutation } from '../../../api/use-secret-mutation';
 import { PinKeypad } from './PinKeypad';
-import { checkIn, checkOut, labRulesNeed, type Credentials, type KioskAuthMethod, type LabRulesNeed } from './checkIn';
+import {
+  checkIn,
+  checkOut,
+  labRulesNeed,
+  requestEmailCode,
+  type Credentials,
+  type KioskAuthMethod,
+  type LabRulesNeed,
+} from './checkIn';
 import { useIdleCountdown } from './useIdleCountdown';
 import { useKeyboardAvoidance } from '../useKeyboardAvoidance';
 
 const pinLength = { min: 6, max: 12 };
+const emailCodeLength = 6;
+const emailPattern = /^\S+@\S+\.\S+$/;
+// Visitors sign in with the emailed code, so it comes first when the terminal offers it.
+const methodOrder = ['email_code', 'pin', 'password'] as const;
+const methodLabels: Record<KioskAuthMethod, string> = {
+  email_code: 'Email code',
+  pin: 'Login name and PIN',
+  password: 'Email and password',
+};
 
 // Credentials are entered here for check-in and, when the kiosk has no public tap checkout, for check-out.
 export function CredentialsScreen({
@@ -36,22 +54,51 @@ export function CredentialsScreen({
   onLabRulesNeeded?: (credentials: Credentials, need: LabRulesNeed) => void;
   onCancel: () => void;
 }) {
-  const available = (['pin', 'password'] as const).filter((item) => methods.includes(item));
+  const available = methodOrder.filter((item) => methods.includes(item));
   const [method, setMethod] = useState<KioskAuthMethod>(available[0] ?? 'pin');
   const [identifier, setIdentifier] = useState('');
   const [secret, setSecret] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const codeInput = useRef<HTMLInputElement>(null);
   useKeyboardAvoidance();
   const idleLeft = useIdleCountdown(onCancel);
   const activeMethod = available.includes(method) ? method : (available[0] ?? 'pin');
-  const ready = identifier.trim() !== '' && (activeMethod === 'pin' ? secret.length >= pinLength.min : secret !== '');
+  const emailCode = activeMethod === 'email_code';
+  const ready = emailCode
+    ? codeSent
+      ? secret.length === emailCodeLength
+      : emailPattern.test(identifier.trim())
+    : identifier.trim() !== '' && (activeMethod === 'pin' ? secret.length >= pinLength.min : secret !== '');
   const label = mode === 'check-in' ? 'Check in' : 'Check out';
 
   const attendance = useSecretMutation((credentials: Credentials): Promise<Visit> =>
     mode === 'check-in' ? checkIn(credentials) : checkOut(credentials),
   );
 
+  // The answer is the same for every address, so only a transport failure can show here.
+  const sendCode = useMutation({ mutationFn: (email: string) => requestEmailCode(email) });
+
+  useEffect(() => {
+    if (codeSent) codeInput.current?.focus();
+  }, [codeSent]);
+
+  async function send() {
+    attendance.reset();
+    try {
+      await sendCode.mutateAsync(identifier.trim());
+      setSecret('');
+      setCodeSent(true);
+    } catch {
+      /* rendered below */
+    }
+  }
+
   async function submit() {
-    if (!ready || attendance.isPending) return;
+    if (!ready || attendance.isPending || sendCode.isPending) return;
+    if (emailCode && !codeSent) {
+      await send();
+      return;
+    }
     const credentials = { method: activeMethod, identifier: identifier.trim(), secret };
     setSecret('');
     try {
@@ -74,7 +121,9 @@ export function CredentialsScreen({
     setMethod(next);
     setIdentifier('');
     setSecret('');
+    setCodeSent(false);
     attendance.reset();
+    sendCode.reset();
   }
 
   const error = attendance.isError && (
@@ -83,7 +132,7 @@ export function CredentialsScreen({
       lowContrast
       hideCloseButton
       title={`${label} failed`}
-      subtitle={errorText(attendance.error, method)}
+      subtitle={errorText(attendance.error, activeMethod)}
     />
   );
   const submitButton = (
@@ -126,15 +175,82 @@ export function CredentialsScreen({
       {available.length > 1 && (
         <ContentSwitcher
           size="lg"
-          selectedIndex={activeMethod === 'pin' ? 0 : 1}
+          selectedIndex={available.indexOf(activeMethod)}
           onChange={({ name }) => chooseMethod(name as KioskAuthMethod)}
         >
-          <Switch name="pin" text="Login name and PIN" />
-          <Switch name="password" text="Email and password" />
+          {available.map((item) => (
+            <Switch key={item} name={item} text={methodLabels[item]} />
+          ))}
         </ContentSwitcher>
       )}
 
-      {activeMethod === 'pin' ? (
+      {emailCode ? (
+        <Stack gap={5} className="tablet-password">
+          <TextInput
+            id="tablet-code-email"
+            size="lg"
+            type="email"
+            labelText="Email"
+            helperText={codeSent ? 'We sent a six-digit code to this address. It is valid for ten minutes.' : undefined}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            readOnly={codeSent}
+            value={identifier}
+            onChange={(event) => setIdentifier(event.target.value)}
+          />
+          {codeSent && (
+            <TextInput
+              id="tablet-email-code"
+              ref={codeInput}
+              size="lg"
+              className="tablet-code-input"
+              labelText="Code"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={emailCodeLength}
+              autoComplete="one-time-code"
+              spellCheck={false}
+              value={secret}
+              onChange={(event) => setSecret(event.target.value.replace(/\D/g, ''))}
+            />
+          )}
+          {sendCode.isError && (
+            <InlineNotification
+              kind="error"
+              lowContrast
+              hideCloseButton
+              title="Code not sent"
+              subtitle="The code could not be sent. Try again in a moment."
+            />
+          )}
+          {error}
+          {codeSent ? (
+            <div className="tablet-code-actions">
+              {submitButton}
+              <Button type="button" kind="ghost" size="lg" disabled={sendCode.isPending} onClick={() => void send()}>
+                Send a new code
+              </Button>
+              <Button
+                type="button"
+                kind="ghost"
+                size="lg"
+                onClick={() => {
+                  setCodeSent(false);
+                  setSecret('');
+                  attendance.reset();
+                }}
+              >
+                Change email
+              </Button>
+            </div>
+          ) : (
+            <Button type="submit" size="2xl" className="tablet-submit" disabled={!ready || sendCode.isPending}>
+              {sendCode.isPending ? 'Sending…' : 'Send code'}
+            </Button>
+          )}
+        </Stack>
+      ) : activeMethod === 'pin' ? (
         <div className="tablet-pin">
           <Stack gap={5}>
             <TextInput
@@ -212,6 +328,7 @@ export function CredentialsScreen({
 // The API answers wrong names and wrong secrets alike with 401; name the credentials actually used on this screen.
 function errorText(error: Error, method: KioskAuthMethod) {
   if (error instanceof ApiError && error.status === 401) {
+    if (method === 'email_code') return 'The code is not correct or has expired.';
     return method === 'pin' ? 'The login name or PIN is not correct.' : 'The email or password is not correct.';
   }
   return error.message;
