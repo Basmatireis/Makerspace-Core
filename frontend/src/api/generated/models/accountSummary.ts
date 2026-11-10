@@ -33,6 +33,8 @@ export interface AccountSummary {
   passwordStatus: PasswordStatus;
   /** The account's login email, which is also the person's email. Null only for accounts that were provisioned without an email (for example phone-only visitors or accounts created before every account had one); clients should prompt for one. */
   loginEmail: Email | null;
+  /** Whether the account can sign in (and check in at a kiosk) with a one-time code mailed to its login email. Always false without a login email. */
+  emailCodeEnabled: boolean;
   provisioningSource: AccountSummaryProvisioningSource;
   /** @nullable */
   firstAuthenticatedAt: string | null;

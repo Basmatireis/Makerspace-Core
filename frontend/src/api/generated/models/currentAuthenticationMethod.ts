@@ -27,4 +27,5 @@ export const CurrentAuthenticationMethod = {
   pin: 'pin',
   oidc: 'oidc',
   passkey: 'passkey',
+  email_code: 'email_code',
 } as const;

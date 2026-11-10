@@ -19,10 +19,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface VisitorLoginNameSuggestion {
-  /**
-     * @minLength 3
-     * @maxLength 64
-     */
-  loginName: string;
-}
+/**
+ * The six-digit code from the mail.
+ * @pattern ^[0-9]{6}$
+ */
+export type EmailLoginCode = string;

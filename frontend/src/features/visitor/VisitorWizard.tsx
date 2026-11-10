@@ -1,27 +1,22 @@
 import {
   Button,
   Checkbox,
-  ContentSwitcher,
   Form,
   InlineNotification,
   Modal,
-  PasswordInput,
   ProgressIndicator,
   ProgressStep,
-  Switch,
   TextInput,
   Toggle,
 } from '@carbon/react';
 import { ArrowLeft, ArrowRight } from '@carbon/icons-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   submitVisitorEnrollment,
-  suggestVisitorPinLoginName,
   type getVisitorEnrollmentState,
 } from '../../api/generated/visitor-enrollment/visitor-enrollment';
-import type { VisitorAuthenticationMethod } from '../../api/generated/models';
 import { apiErrorCode } from '../../api/http-client';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { BrandMark } from '../../app/BrandMark';
@@ -36,15 +31,14 @@ import './visitor.scss';
 
 const idleSeconds = 30;
 const graceSeconds = 30;
-type StepKey = 'about' | 'method' | 'messages' | 'rules';
+// TODO(email-code enrollment): the email-verification step (POST /visitor-enrollment/email-verification and
+// /confirm) is not built yet; the submission needs a verified address on the context.
+type StepKey = 'about' | 'messages' | 'rules';
 const stepTitles: Record<StepKey, string> = {
   about: 'About you',
-  method: 'Sign-in method',
   messages: 'Messages',
   rules: 'Lab Rules',
 };
-const pinPattern = /^[0-9]{6,12}$/;
-const loginNamePattern = /^[A-Za-z0-9._-]{3,64}$/;
 const emailPattern = /^\S+@\S+\.\S+$/;
 
 type EnrollmentState = Awaited<ReturnType<typeof getVisitorEnrollmentState>>;
@@ -76,7 +70,6 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const [step, setStep] = useState(0);
   const steps: StepKey[] = [
     'about',
-    'method',
     ...(state.consentCategories.length > 0 ? (['messages'] as const) : []),
     ...(state.labRulesRequired ? (['rules'] as const) : []),
   ];
@@ -88,10 +81,6 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const [email, setEmail] = useState('');
   const [emailTouched, setEmailTouched] = useState(false);
   const [image, setImage] = useState<ProfileImage>();
-  const [chosen, setChosen] = useState<VisitorAuthenticationMethod>();
-  // Undefined until the visitor types: the field shows the suggestion from the backend instead.
-  const [loginName, setLoginName] = useState<string>();
-  const [pin, setPIN] = useState('');
   const [granted, setGranted] = useState<Record<string, boolean>>({});
   const [ready, setReady] = useState(false);
   const [rulesChanged, setRulesChanged] = useState(false);
@@ -115,34 +104,10 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
   const sources = { camera: state.capabilities.includes('camera'), upload: state.capabilities.includes('file_upload') };
   const photoRequired = sources.camera || sources.upload;
   const emailValid = emailPattern.test(email.trim());
-  const options = (['password', 'pin'] as const).filter((method) => state.allowedMethods.includes(method));
-  // The email invitation is preselected: the address is already there from the first step.
-  const method = chosen && options.includes(chosen) ? chosen : options[0];
-
-  // A free login name built from the name, asked only once the visitor chooses a PIN. It is a suggestion; the
-  // submission checks the name again.
   const names = { firstName: firstName.trim(), lastName: lastName.trim() };
-  const suggestion = useQuery({
-    queryKey: ['visitor-enrollment', 'login-name', names.firstName, names.lastName],
-    queryFn: ({ signal }) => suggestVisitorPinLoginName(names, { signal }),
-    enabled:
-      current === 'method' &&
-      method === 'pin' &&
-      loginName === undefined &&
-      names.firstName !== '' &&
-      names.lastName !== '',
-    retry: false,
-    staleTime: Infinity,
-    gcTime: 0,
-  });
-  const effectiveLoginName = loginName ?? suggestion.data?.loginName ?? '';
 
   const valid: Record<StepKey, boolean> = {
     about: names.firstName !== '' && names.lastName !== '' && emailValid && (!photoRequired || Boolean(image)),
-    method:
-      method === 'password'
-        ? emailValid
-        : method === 'pin' && loginNamePattern.test(effectiveLoginName.trim()) && pinPattern.test(pin),
     // Nothing is preselected and every answer may be "No".
     messages: true,
     rules: ready && Boolean(state.currentLabRules),
@@ -155,16 +120,11 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
       setStep(step + 1);
       return;
     }
-    if (!method) return;
     setRulesChanged(false);
     try {
-      const result = await mutation.mutateAsync({
+      await mutation.mutateAsync({
         firstName: names.firstName,
         lastName: names.lastName,
-        email: email.trim(),
-        authMethods: [method],
-        pinLoginName: method === 'pin' ? effectiveLoginName.trim() : null,
-        pin: method === 'pin' ? pin : null,
         profileImageBase64: image?.base64 ?? null,
         profileImageFilename: image?.filename ?? null,
         labRulesAccepted: state.labRulesRequired && ready,
@@ -175,13 +135,9 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
       });
       setOutcome({
         firstName: names.firstName,
-        invitationDelivery: result.invitationDelivery,
-        method,
         email: email.trim(),
-        loginName: effectiveLoginName.trim(),
         labRulesConfirmed: state.labRulesRequired,
       });
-      setPIN('');
       setImage(undefined);
     } catch (error) {
       if (apiErrorCode(error) === 'lab_rules_changed') {
@@ -282,99 +238,6 @@ export function VisitorWizard({ state }: { state: EnrollmentState }) {
                 />
               </div>
               <ProfilePhotoPicker image={image} sources={sources} required={photoRequired} onChange={setImage} />
-            </div>
-          )}
-
-          {current === 'method' && (
-            <div className="visitor-flow__methods">
-              {options.length === 0 ? (
-                <InlineNotification
-                  kind="warning"
-                  lowContrast
-                  hideCloseButton
-                  title="No sign-in method available"
-                  subtitle="Visitor enrollment is not configured with a sign-in method. Ask a staff member."
-                />
-              ) : (
-                <>
-                  {options.length > 1 && (
-                    <>
-                      <p className="visitor-flow__question" id="visitor-method-label">
-                        How do you want to sign in at this tablet?
-                      </p>
-                      {/* The same switch the check-in screen uses for its two sign-in methods. */}
-                      <ContentSwitcher
-                        size="lg"
-                        aria-labelledby="visitor-method-label"
-                        selectedIndex={options.indexOf(method ?? options[0])}
-                        onChange={({ name }) => setChosen(name as VisitorAuthenticationMethod)}
-                      >
-                        {options.map((option) => (
-                          <Switch
-                            key={option}
-                            name={option}
-                            text={option === 'password' ? 'Email and password' : 'Login name and PIN'}
-                          />
-                        ))}
-                      </ContentSwitcher>
-                    </>
-                  )}
-                  {method === 'password' && (
-                    <div className="visitor-flow__method-fields">
-                      <p className="visitor-flow__method-lead">
-                        We email you a link to choose a password for your next check-in. Check the address before you
-                        continue.
-                      </p>
-                      <TextInput
-                        id="visitor-invitation-email"
-                        type="email"
-                        labelText="Email"
-                        helperText="The same address as on the first step; a change here applies to both."
-                        required
-                        autoComplete="off"
-                        invalid={!emailValid}
-                        invalidText="Enter a valid email address."
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                      />
-                    </div>
-                  )}
-                  {method === 'pin' && (
-                    <div className="visitor-flow__method-fields">
-                      <p className="visitor-flow__method-lead">
-                        Choose a login name and a PIN of 6 to 12 digits to check in at this tablet. We suggest a login
-                        name from your name.
-                      </p>
-                      <div className="visitor-flow__pair">
-                        <TextInput
-                          id="visitor-login-name"
-                          labelText="Login name"
-                          helperText="3–64 letters, numbers, dots, underscores or hyphens."
-                          autoComplete="off"
-                          autoCapitalize="none"
-                          spellCheck={false}
-                          required
-                          invalid={effectiveLoginName !== '' && !loginNamePattern.test(effectiveLoginName.trim())}
-                          invalidText="Use 3–64 letters, numbers, dots, underscores or hyphens."
-                          value={effectiveLoginName}
-                          onChange={(event) => setLoginName(event.target.value)}
-                        />
-                        <PasswordInput
-                          id="visitor-pin-value"
-                          labelText="PIN (6–12 digits)"
-                          helperText="Digits only. Keep it to yourself."
-                          required
-                          pattern="[0-9]{6,12}"
-                          inputMode="numeric"
-                          autoComplete="new-password"
-                          value={pin}
-                          onChange={(event) => setPIN(event.target.value.replace(/\D/g, ''))}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
             </div>
           )}
 

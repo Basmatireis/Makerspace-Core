@@ -1,4 +1,4 @@
-import { Button, InlineNotification } from '@carbon/react';
+import { Button } from '@carbon/react';
 import { CheckmarkFilled } from '@carbon/icons-react';
 import { useReturnCountdown } from '../../kiosk/components/useIdleCountdown';
 
@@ -6,10 +6,7 @@ const returnAfterSeconds = 30;
 
 export type EnrollmentOutcome = {
   firstName: string;
-  invitationDelivery: 'sent' | 'failed' | null | undefined;
-  method: 'password' | 'pin';
   email: string;
-  loginName: string;
   labRulesConfirmed: boolean;
 };
 
@@ -38,23 +35,9 @@ export function EnrollmentDone({ outcome, onDone }: { outcome: EnrollmentOutcome
         </div>
         <div className="visitor-done__column">
           <h2 className="visitor-done__heading">How you sign in</h2>
-          {outcome.method === 'pin' ? (
-            <p className="visitor-done__lead">
-              Use your login name <strong>{outcome.loginName}</strong> and your PIN at the check-in screen.
-            </p>
-          ) : outcome.invitationDelivery === 'sent' ? (
-            <p className="visitor-done__lead">
-              We sent an invitation to <strong>{outcome.email}</strong>. Open it to choose your password.
-            </p>
-          ) : (
-            <InlineNotification
-              kind="warning"
-              lowContrast
-              hideCloseButton
-              title="Invitation not delivered"
-              subtitle="The password invitation could not be sent. Ask an administrator to resend it."
-            />
-          )}
+          <p className="visitor-done__lead">
+            Next time, enter <strong>{outcome.email}</strong> at the check-in screen and the code we email you.
+          </p>
         </div>
       </div>
 

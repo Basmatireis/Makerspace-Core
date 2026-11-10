@@ -22,14 +22,11 @@ import type { UUIDv7 } from './uUIDv7';
 import type { VisitorEnrollmentResultAccountStatus } from './visitorEnrollmentResultAccountStatus';
 import type { VisitorEnrollmentResultAdmission } from './visitorEnrollmentResultAdmission';
 import type { VisitorEnrollmentResultAttendance } from './visitorEnrollmentResultAttendance';
-import type { VisitorEnrollmentResultInvitationDelivery } from './visitorEnrollmentResultInvitationDelivery';
 
 export interface VisitorEnrollmentResult {
   personId: UUIDv7;
   accountId: UUIDv7;
   accountStatus: VisitorEnrollmentResultAccountStatus;
-  /** @nullable */
-  invitationDelivery: VisitorEnrollmentResultInvitationDelivery;
   /** The visitor confirmed the Lab Rules while enrolling (or their role does not ask for them) and is admitted. */
   admission: VisitorEnrollmentResultAdmission;
   /** Completing enrollment counts as arriving. */

@@ -18,11 +18,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { Email } from './email';
+import type { EmailLoginCode } from './emailLoginCode';
+import type { UUIDv7 } from './uUIDv7';
 
-export type VisitorAuthenticationMethod = typeof VisitorAuthenticationMethod[keyof typeof VisitorAuthenticationMethod];
-
-
-export const VisitorAuthenticationMethod = {
-  password: 'password',
-  pin: 'pin',
-} as const;
+export interface TerminalEmailCodeCheckInRequest {
+  email: Email;
+  code: EmailLoginCode;
+  /** The Lab Rules version the person read and confirms while checking in; it must be the current one. */
+  confirmLabRulesVersionId?: UUIDv7;
+  /** Check in without confirming; only allowed when the person's role merely warns. */
+  deferLabRules?: boolean;
+}

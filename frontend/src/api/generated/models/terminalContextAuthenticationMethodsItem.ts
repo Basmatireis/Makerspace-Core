@@ -25,6 +25,7 @@ export type TerminalContextAuthenticationMethodsItem = typeof TerminalContextAut
 export const TerminalContextAuthenticationMethodsItem = {
   password: 'password',
   pin: 'pin',
+  email_code: 'email_code',
   oidc: 'oidc',
   nfc: 'nfc',
 } as const;

@@ -354,7 +354,9 @@ export const getRemoveAccountAuthIdentityUrl = (accountId: string,
  * `accounts.password.remove.all`, `accounts.pin.remove.all`, or
  * `identities.oidc.unlink.all`. The account lifecycle state is unchanged;
  * dependent credentials and challenges are deleted, and existing account
- * sessions are revoked.
+ * sessions are revoked. Removing the password identity of an account that
+ * signs in with an emailed code deletes only the password and keeps the
+ * login email, so the emailed code keeps working.
  * @summary Remove an authentication method from an account
  */
 export const removeAccountAuthIdentity = async (accountId: string,
@@ -376,6 +378,86 @@ export const removeAccountAuthIdentity = async (accountId: string,
     return headers;
   };
 return apiFetch<void>(getRemoveAccountAuthIdentityUrl(accountId,identityId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getEnableAccountEmailCodeUrl = (accountId: string,) => {
+
+
+
+
+  return `/api/v1/accounts/${accountId}/email-code`
+}
+
+/**
+ * Requires `accounts.email_code.manage.all`; only a master may change a master account. The account needs a
+ * login email (`422 login_email_required`).
+ * @summary Turn on sign-in with an emailed code for an account
+ */
+export const enableAccountEmailCode = async (accountId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Account> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<Account>(getEnableAccountEmailCodeUrl(accountId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getDisableAccountEmailCodeUrl = (accountId: string,) => {
+
+
+
+
+  return `/api/v1/accounts/${accountId}/email-code`
+}
+
+/**
+ * Requires `accounts.email_code.manage.all`; only a master may change a master account. Outstanding sign-in
+ * codes are deleted and the account's sessions are revoked.
+ * @summary Turn off sign-in with an emailed code for an account
+ */
+export const disableAccountEmailCode = async (accountId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Account> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<Account>(getDisableAccountEmailCodeUrl(accountId),
   {
     ...options,
     method: 'DELETE',

@@ -62,6 +62,8 @@ const catalog: Catalog = {
     ['accounts.pin.enroll.self', 'Enroll own PIN'],
     ['accounts.pin.enroll.all', 'Enroll account PINs'],
     ['accounts.pin.reset', 'Reset PINs'],
+    ['accounts.email_code.manage.self', 'Switch own emailed sign-in code'],
+    ['accounts.email_code.manage.all', 'Switch account emailed sign-in codes'],
     ['identities.oidc.link.self', 'Link own OIDC identity'],
     ['identities.oidc.link.all', 'Link account OIDC identities'],
     ['accounts.mfa.reset', 'Reset second factors'],

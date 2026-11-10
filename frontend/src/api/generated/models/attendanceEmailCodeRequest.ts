@@ -18,14 +18,10 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { Email } from './email';
+import type { EmailLoginCode } from './emailLoginCode';
 
-/**
- * @nullable
- */
-export type VisitorEnrollmentResultInvitationDelivery = typeof VisitorEnrollmentResultInvitationDelivery[keyof typeof VisitorEnrollmentResultInvitationDelivery] | null;
-
-
-export const VisitorEnrollmentResultInvitationDelivery = {
-  sent: 'sent',
-  failed: 'failed',
-} as const;
+export interface AttendanceEmailCodeRequest {
+  email: Email;
+  code: EmailLoginCode;
+}

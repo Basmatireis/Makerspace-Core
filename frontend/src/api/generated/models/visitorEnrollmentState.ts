@@ -20,11 +20,17 @@
  */
 import type { DeviceCapability } from './deviceCapability';
 import type { TerminalConsentCategory } from './terminalConsentCategory';
-import type { VisitorAuthenticationMethod } from './visitorAuthenticationMethod';
 import type { VisitorLabRulesVersion } from './visitorLabRulesVersion';
 
 export interface VisitorEnrollmentState {
-  allowedMethods: VisitorAuthenticationMethod[];
+  /**
+     * The address the last verification code was mailed to on this context, or null before one was sent.
+     * @maxLength 254
+     * @nullable
+     */
+  email: string | null;
+  /** Whether that address was confirmed with its code; the submission needs it. */
+  emailVerified: boolean;
   /**
      * Notification categories that need the visitor's consent, asked during enrollment. Nothing is preselected.
      * @maxItems 50

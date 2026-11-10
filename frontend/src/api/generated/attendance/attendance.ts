@@ -19,16 +19,19 @@
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  AttendanceEmailCodeRequest,
   AttendancePasswordRequest,
   AttendancePinRequest,
   AttendanceStatistics,
   GetAttendanceStatisticsParams,
   PublicPresenceList,
   PublicSurvey,
+  RequestEmailLoginCodeRequest,
   SubmitSurveyResponse,
   SupervisedCheckInRequest,
   TerminalConsentRequest,
   TerminalContext,
+  TerminalEmailCodeCheckInRequest,
   TerminalLabRules,
   TerminalPasswordCheckInRequest,
   TerminalPinCheckInRequest,
@@ -213,6 +216,91 @@ return apiFetch<Visit>(getTerminalPinCheckInUrl(),
 );}
 
 
+export const getRequestTerminalEmailCodeUrl = () => {
+
+
+
+
+  return `/api/v1/terminal/email-code`
+}
+
+/**
+ * Same rules and answer as `POST /auth/email-code`: the code goes only to an enabled account that signs in with
+ * an emailed code, and the answer never tells whether the address belongs to one.
+ * @summary Mail a one-time code for checking in or out at this kiosk
+ */
+export const requestTerminalEmailCode = async (requestEmailLoginCodeRequest: RequestEmailLoginCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getRequestTerminalEmailCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(requestEmailLoginCodeRequest)
+  }
+);}
+
+
+export const getTerminalEmailCodeCheckInUrl = () => {
+
+
+
+
+  return `/api/v1/terminal/check-in/email-code`
+}
+
+/**
+ * Checks in with the code from `POST /terminal/email-code`. Wrong, expired and unknown codes answer
+ * `401 invalid_credentials`; after five wrong codes a new one must be requested. The code is consumed only by
+ * a successful check-in, so after a Lab Rules answer the terminal repeats the check-in with the same code.
+ * When the person must confirm the current Lab Rules, the terminal shows them and repeats the check-in with
+ * `confirmLabRulesVersionId` (records the confirmation, method `kiosk`, and admits the person) or, for roles
+ * that only warn, `deferLabRules` (admits the person with admission decision `warning`). Without either the
+ * answer is 409 `lab_rules_confirmation_required` (the role blocks admission) or
+ * `lab_rules_confirmation_suggested` (the role only warns, so the person may defer), and nothing is recorded.
+ * A `confirmLabRulesVersionId` that is no longer the current version answers 409 `lab_rules_version_outdated`.
+ * The check-in has `normal` assurance.
+ */
+export const terminalEmailCodeCheckIn = async (terminalEmailCodeCheckInRequest: TerminalEmailCodeCheckInRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<Visit>(getTerminalEmailCodeCheckInUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(terminalEmailCodeCheckInRequest)
+  }
+);}
+
+
 export const getTerminalPasswordCheckOutUrl = () => {
 
 
@@ -277,6 +365,43 @@ return apiFetch<Visit>(getTerminalPinCheckOutUrl(),
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(attendancePinRequest)
+  }
+);}
+
+
+export const getTerminalEmailCodeCheckOutUrl = () => {
+
+
+
+
+  return `/api/v1/terminal/check-out/email-code`
+}
+
+/**
+ * Checks out with the code from `POST /terminal/email-code`; the code is consumed only by a successful check-out.
+ */
+export const terminalEmailCodeCheckOut = async (attendanceEmailCodeRequest: AttendanceEmailCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<Visit> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<Visit>(getTerminalEmailCodeCheckOutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(attendanceEmailCodeRequest)
   }
 );}
 

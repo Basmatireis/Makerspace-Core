@@ -561,6 +561,7 @@ function currentUser(permissions: string[]) {
     id: id(91),
     personId: id(90),
     loginEmail: 'lena.login@example.test',
+    emailCodeEnabled: false,
     provisioningSource: 'local',
     firstAuthenticatedAt: at(1),
     authIdentities: [],

@@ -53,6 +53,8 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   const errors: Error[] = [];
   page.on('pageerror', (error) => errors.push(error));
   let contexts = 0;
+  let pendingEmail: string | null = null;
+  let verifiedEmail: string | null = null;
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path.endsWith('/visitor-enrollment/context')) {
@@ -61,7 +63,8 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
     } else if (path.endsWith('/visitor-enrollment/state')) {
       await route.fulfill({
         json: {
-          allowedMethods: ['pin'],
+          email: verifiedEmail,
+          emailVerified: verifiedEmail !== null,
           capabilities: ['camera', 'file_upload'],
           labRulesRequired: true,
           currentLabRules: {
@@ -80,8 +83,19 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
           expiresAt: '2030-01-01T00:00:00Z',
         },
       });
-    } else if (path.endsWith('/visitor-enrollment/login-name-suggestions')) {
-      await route.fulfill({ json: { loginName: 'local.visitor' } });
+    } else if (path.endsWith('/visitor-enrollment/email-verification')) {
+      pendingEmail = (route.request().postDataJSON() as { email: string }).email;
+      await route.fulfill({ status: 202 });
+    } else if (path.endsWith('/visitor-enrollment/email-verification/confirm')) {
+      if ((route.request().postDataJSON() as { code: string }).code !== '123456') {
+        await route.fulfill({
+          status: 422,
+          json: { code: 'challenge_invalid', message: 'The code is invalid or expired' },
+        });
+        return;
+      }
+      verifiedEmail = pendingEmail;
+      await route.fulfill({ status: 204 });
     } else if (path.endsWith('/visitor-enrollment/lab-rules.pdf')) {
       await route.fulfill({ contentType: 'application/pdf', body: labRulesPdf });
     } else if (path.endsWith('/visitor-enrollment/submissions')) {
@@ -91,7 +105,6 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
           personId: '0192f6f8-743e-7c77-a349-cd07c3e8ab02',
           accountId: '0192f6f8-743e-7c77-a349-cd07c3e8ab03',
           accountStatus: 'enabled',
-          invitationDelivery: null,
           admission: 'admitted',
           attendance: 'checked_in',
         },
@@ -116,11 +129,7 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('visitor-step-1.png') });
-  await page.getByRole('button', { name: 'Next' }).click();
-  await expect(page.getByRole('heading', { name: 'Sign-in method' })).toBeFocused();
-  await expect(page.getByLabel('Login name', { exact: true })).toHaveValue('local.visitor');
-  await page.getByLabel('PIN (6–12 digits)', { exact: true }).fill('654321');
-  await page.screenshot({ path: testInfo.outputPath('visitor-step-2.png') });
+  // TODO(email-code enrollment): the frontend adds the email-verification step here (code 123456 in this mock).
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByRole('heading', { name: 'Messages' })).toBeFocused();
   // Carbon draws the switch over its button; a visitor taps the drawn switch.
@@ -174,7 +183,8 @@ test('opens an external privacy policy in a dialog instead of leaving the kiosk'
     } else if (path.endsWith('/visitor-enrollment/state')) {
       await route.fulfill({
         json: {
-          allowedMethods: ['pin'],
+          email: null,
+          emailVerified: false,
           capabilities: [],
           labRulesRequired: false,
           consentCategories: [],
