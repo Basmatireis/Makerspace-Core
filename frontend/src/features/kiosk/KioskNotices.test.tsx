@@ -107,3 +107,27 @@ describe('kiosk rule notices', () => {
     expect(screen.getByRole('button', { name: /^Done · \d+ s$/ })).toBeInTheDocument();
   });
 });
+
+describe('kiosk legal links', () => {
+  it('links the privacy policy and returns to the kiosk from it', async () => {
+    mockKiosk([]);
+    server.use(
+      http.get('*/api/v1/public/legal/privacy', () =>
+        HttpResponse.json({
+          kind: 'privacy',
+          title: 'Privacy policy',
+          mode: 'internal',
+          markdown: 'Text',
+          externalUrl: null,
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    const { router } = renderRoute(<App />, '/kiosk');
+
+    await user.click(await screen.findByRole('link', { name: 'Privacy policy' }));
+    expect(await screen.findByRole('heading', { name: 'Privacy policy' })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Back' }));
+    expect(router.state.location.pathname).toBe('/kiosk');
+  });
+});

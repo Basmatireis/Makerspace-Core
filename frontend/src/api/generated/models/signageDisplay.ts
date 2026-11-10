@@ -37,7 +37,7 @@ export interface SignageDisplay {
   location: string;
   aspectRatio: SignageAspectRatio;
   visibleFromOutside: boolean;
-  /** Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams. Takes effect immediately (no publication needed). */
+  /** Only meaningful with visibleFromOutside. Without it, a display that is visible from outside may not watch camera streams or play timelapses. Takes effect immediately (no publication needed). */
   allowCameraOutside: boolean;
   /**
      * The display's own default scene list; empty while the display is in a group (the group's list applies).

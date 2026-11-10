@@ -36,6 +36,7 @@ type Querier interface {
 	CountSurveyInvitations(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	CountSurveyResponses(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	CountTrainingRecords(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
+	// Open visits plus the kept last visit date; completed visits are not kept.
 	CountVisits(ctx context.Context, subjectPerson uuid.UUID) (int64, error)
 	DeleteExportFilesQueueBlobs(ctx context.Context, fileIds []string) error
 	DeleteProcessingActivity(ctx context.Context, arg DeleteProcessingActivityParams) (uuid.UUID, error)

@@ -187,8 +187,9 @@ func TestSurveyIsOfferedOnlyAfterASelfCheckOutThatQualifies(t *testing.T) {
 		t.Fatal("the offer must be stored by digest only")
 	}
 	// The automatic e-mail waits until the offer has run out.
-	if e.count(`SELECT count(*) FROM survey_invitations WHERE visit_id = $1 AND status = 'pending' AND due_at >= $2`,
-		visit.ID, offer.ExpiresAt.Add(-time.Second)) != 1 {
+	if e.count(`SELECT count(*) FROM survey_invitations WHERE person_id = $1 AND status = 'pending' AND due_at >= $2`,
+		a.personID, offer.ExpiresAt.Add(-time.Second)) != 1 ||
+		e.count(`SELECT count(*) FROM survey_invitations WHERE visit_id = $1`, visit.ID) != 0 {
 		t.Fatal("the automatic invitation was not postponed behind the offer")
 	}
 
@@ -317,7 +318,7 @@ func TestSendingTheOfferByEmailWorksWithoutConsentAndLeavesConsentAlone(t *testi
 	if err := e.svc.SendOfferedByEmail(e.ctx, e.device.Device.ID, visit.SurveyOffer.Token, nil); err != nil {
 		t.Fatal(err)
 	}
-	if e.count(`SELECT count(*) FROM survey_invitations WHERE visit_id = $1 AND person_id = $2 AND status = 'pending'
+	if e.count(`SELECT count(*) FROM survey_invitations WHERE visit_id <> $1 AND person_id = $2 AND status = 'pending'
 		AND due_at <= now() AND recipient_email = 'checkout-mail@example.test'`, visit.ID, a.personID) != 1 {
 		t.Fatal("the invitation is not due right away")
 	}
@@ -337,8 +338,8 @@ func TestSendingTheOfferByEmailWorksWithoutConsentAndLeavesConsentAlone(t *testi
 	if err := e.svc.SendOfferedByEmail(e.ctx, e.device.Device.ID, second.SurveyOffer.Token, nil); err != nil {
 		t.Fatal(err)
 	}
-	if e.count(`SELECT count(*) FROM survey_invitations WHERE visit_id = $1 AND due_at <= now()`, second.ID) != 1 ||
-		e.count(`SELECT count(*) FROM survey_invitations WHERE visit_id = $1`, second.ID) != 1 {
+	if e.count(`SELECT count(*) FROM survey_invitations WHERE person_id = $1 AND due_at <= now()`, b.personID) != 1 ||
+		e.count(`SELECT count(*) FROM survey_invitations WHERE person_id = $1`, b.personID) != 1 {
 		t.Fatal("the existing invitation was not brought forward")
 	}
 
@@ -459,7 +460,7 @@ func TestAutomaticInvitationNeedsTheSurveysConsent(t *testing.T) {
 		if visit.SurveyOffer != nil {
 			t.Fatalf("%s: offered on a tablet that does not offer", c.name)
 		}
-		if got := e.count(`SELECT count(*) FROM survey_invitations WHERE visit_id = $1`, visit.ID); got != c.want {
+		if got := e.count(`SELECT count(*) FROM survey_invitations WHERE person_id = $1`, account.personID); got != c.want {
 			t.Fatalf("%s: %d automatic invitations, want %d", c.name, got, c.want)
 		}
 	}

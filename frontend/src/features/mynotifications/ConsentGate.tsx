@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { answerOwnNotificationConsents } from '../../api/generated/notification-rules/notification-rules';
 import { ErrorState } from '../../app/PageState';
 import { authQueryKey, useCurrentUser } from '../auth/auth';
+import { LegalLinks } from '../branding/LegalLinks';
 import { myNotificationKeys, ownSettingsQuery } from './queries';
 import './mynotifications.scss';
 
@@ -54,6 +55,7 @@ export default function ConsentGate() {
           only if you say yes. You can change this any time under <strong>My notifications</strong> in the profile menu,
           top right.
         </p>
+        <LegalLinks />
         {settings.isError ? (
           <ErrorState message="The questions could not be loaded." onRetry={() => void settings.refetch()} />
         ) : !settings.data ? (

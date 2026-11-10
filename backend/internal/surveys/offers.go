@@ -55,7 +55,7 @@ func (s *Service) OfferAtCheckOut(ctx context.Context, tx pgx.Tx, personID, visi
 	if err != nil || len(candidates) == 0 {
 		return nil, err
 	}
-	person, err := q.GetVisitPersonForOffer(ctx, visitID)
+	person, err := q.GetOfferPerson(ctx, personID)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (s *Service) OfferAtCheckOut(ctx context.Context, tx pgx.Tx, personID, visi
 	}
 	expires := time.Now().UTC().Add(OfferLifetime)
 	if err = q.CreateSurveyOffer(ctx, surveysdb.CreateSurveyOfferParams{
-		ID: ids.New(), TokenDigest: digest, VisitID: &visitID, DeviceID: deviceID, SurveyID: candidate.SurveyID,
+		ID: ids.New(), TokenDigest: digest, VisitID: &visitID, PersonID: &personID, DeviceID: deviceID, SurveyID: candidate.SurveyID,
 		SurveyVersionID: candidate.SurveyVersionID, ExpiresAt: expires,
 	}); err != nil {
 		return nil, err
@@ -161,16 +161,12 @@ func (s *Service) SubmitOffered(ctx context.Context, deviceID uuid.UUID, token s
 	if err != nil {
 		return err
 	}
-	if Status(offer.SurveyStatus) != StatusPublished || offer.VisitID == nil {
+	if Status(offer.SurveyStatus) != StatusPublished || offer.VisitID == nil || offer.PersonID == nil {
 		return errSurveyUnavailable
 	}
 	var personID *uuid.UUID
 	if !offer.Anonymous {
-		person, personErr := q.GetVisitPersonForOffer(ctx, *offer.VisitID)
-		if personErr != nil {
-			return personErr
-		}
-		personID = &person.ID
+		personID = offer.PersonID
 	}
 	responseID, err := storeResponse(ctx, q, offer.SurveyVersionID, SourceInvitation, nil, personID, answers)
 	if err != nil {
@@ -203,10 +199,10 @@ func (s *Service) SendOfferedByEmail(ctx context.Context, deviceID uuid.UUID, to
 	if err != nil {
 		return err
 	}
-	if Status(offer.SurveyStatus) != StatusPublished || offer.VisitID == nil {
+	if Status(offer.SurveyStatus) != StatusPublished || offer.VisitID == nil || offer.PersonID == nil {
 		return errSurveyUnavailable
 	}
-	person, err := q.GetVisitPersonForOffer(ctx, *offer.VisitID)
+	person, err := q.GetOfferPerson(ctx, *offer.PersonID)
 	if err != nil {
 		return err
 	}
@@ -235,7 +231,7 @@ func (s *Service) SendOfferedByEmail(ctx context.Context, deviceID uuid.UUID, to
 		return err
 	}
 	if err = audit.Write(ctx, tx, audit.Event{
-		Action: "survey_offer.email_requested", ResourceType: "visit", ResourceID: &visitID, RequestID: requestID,
+		Action: "survey_offer.email_requested", ResourceType: "survey_offer", ResourceID: &offer.ID, RequestID: requestID,
 	}); err != nil {
 		return err
 	}
@@ -262,20 +258,16 @@ func (s *Service) DeclineOffered(ctx context.Context, deviceID uuid.UUID, token 
 	if err != nil {
 		return err
 	}
-	if offer.VisitID == nil {
+	if offer.VisitID == nil || offer.PersonID == nil {
 		return apperror.NotFound
 	}
 	visitID := *offer.VisitID
 	if never {
-		person, personErr := q.GetVisitPersonForOffer(ctx, visitID)
-		if personErr != nil {
-			return personErr
-		}
-		if err = q.DisableAskFeedbackAtCheckout(ctx, person.ID); err != nil {
+		if err = q.DisableAskFeedbackAtCheckout(ctx, *offer.PersonID); err != nil {
 			return err
 		}
 		if err = audit.Write(ctx, tx, audit.Event{
-			Action: "survey_offer.never", ResourceType: "person_notification_settings", ResourceID: &person.ID,
+			Action: "survey_offer.never", ResourceType: "person_notification_settings", ResourceID: offer.PersonID,
 			RequestID: requestID, ChangedFields: []string{"askFeedbackAtCheckout"},
 		}); err != nil {
 			return err

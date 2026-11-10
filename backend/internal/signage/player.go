@@ -472,7 +472,8 @@ func (s *Service) previewDisplayFor(ctx context.Context, q *signagedb.Queries, i
 	if err != nil {
 		return PlayerDisplay{}, err
 	}
-	display := PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location}
+	display := PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location,
+		VisibleFromOutside: row.VisibleFromOutside, AllowCameraOutside: row.AllowCameraOutside}
 	if DisplayKind(row.Kind) == DisplayKindWebEmbed {
 		rows, err := q.ListSignageWebEmbeds(ctx, []string{id.String()})
 		if err != nil {

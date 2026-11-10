@@ -143,7 +143,7 @@ export function ExcuseDialog({
       <TextArea
         id="staffing-excuse-reason"
         labelText="Reason (optional)"
-        helperText="Only people who see the staffing overview can read it."
+        helperText="Only people who see the staffing overview can read it. Do not enter health or medical details."
         rows={3}
         value={reason}
         invalid={tooLong}

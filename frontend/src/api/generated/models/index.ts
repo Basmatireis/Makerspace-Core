@@ -387,7 +387,6 @@ export * from './listSurveysOrder';
 export * from './listSurveysParams';
 export * from './listSurveysSort';
 export * from './listSurveysStatus';
-export * from './listVisitsParams';
 export * from './localServiceUpdate';
 export * from './localServiceUpdateOffer';
 export * from './localServiceUpdaterReport';

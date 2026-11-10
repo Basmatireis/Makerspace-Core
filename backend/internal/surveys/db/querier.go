@@ -14,7 +14,6 @@ import (
 type Querier interface {
 	CancelSurveyInvitationForVisitVersion(ctx context.Context, arg CancelSurveyInvitationForVisitVersionParams) (int64, error)
 	CancelSurveyInvitationsForSurvey(ctx context.Context, surveyID uuid.UUID) (int64, error)
-	CancelSurveyInvitationsForVisit(ctx context.Context, visitID *uuid.UUID) (int64, error)
 	ClaimDueSurveyInvitations(ctx context.Context, pageLimit int32) ([]ClaimDueSurveyInvitationsRow, error)
 	CloseSurvey(ctx context.Context, arg CloseSurveyParams) (Survey, error)
 	ConsumeSurveyInvitation(ctx context.Context, id uuid.UUID) (int64, error)
@@ -34,6 +33,7 @@ type Querier interface {
 	CreateSurveyTrigger(ctx context.Context, arg CreateSurveyTriggerParams) (SurveyTrigger, error)
 	CreateSurveyVersion(ctx context.Context, arg CreateSurveyVersionParams) (SurveyVersion, error)
 	DeleteExpiredSurveyInvitationPII(ctx context.Context, beforeTime time.Time) (int64, error)
+	// An offer that ran out unused still names the person and the check-out time, so it goes as soon as it expires.
 	DeleteExpiredSurveyOffers(ctx context.Context) error
 	DeleteStaleSurveyAsks(ctx context.Context) error
 	DeleteSurvey(ctx context.Context, id uuid.UUID) (int64, error)
@@ -45,6 +45,8 @@ type Querier interface {
 	DisableAskFeedbackAtCheckout(ctx context.Context, personID uuid.UUID) error
 	DisableSurveyTriggers(ctx context.Context, surveyID uuid.UUID) error
 	GetLatestSurveyVersionForUpdate(ctx context.Context, surveyID uuid.UUID) (SurveyVersion, error)
+	// The person who checked out. The visit is gone by the time the tablet answers, so the offer carries the person.
+	GetOfferPerson(ctx context.Context, personID uuid.UUID) (GetOfferPersonRow, error)
 	GetPersonAskFeedback(ctx context.Context, personID uuid.UUID) (bool, error)
 	GetPublicSurveyInvitation(ctx context.Context, tokenDigest []byte) (GetPublicSurveyInvitationRow, error)
 	GetPublicSurveyInvitationForUpdate(ctx context.Context, tokenDigest []byte) (GetPublicSurveyInvitationForUpdateRow, error)
@@ -58,7 +60,6 @@ type Querier interface {
 	GetSurveyShareLink(ctx context.Context, arg GetSurveyShareLinkParams) (GetSurveyShareLinkRow, error)
 	GetSurveyShareLinkByDigest(ctx context.Context, tokenDigest []byte) (GetSurveyShareLinkByDigestRow, error)
 	GetSurveyTrigger(ctx context.Context, surveyID uuid.UUID) (SurveyTrigger, error)
-	GetVisitPersonForOffer(ctx context.Context, visitID uuid.UUID) (GetVisitPersonForOfferRow, error)
 	ListEligiblePostVisitTriggers(ctx context.Context, personID uuid.UUID) ([]ListEligiblePostVisitTriggersRow, error)
 	// Published surveys whose check-out trigger asks at the tablet and whose cooldown allows asking this person. The
 	// invitations of the visit being checked out do not count: they were created a moment ago.

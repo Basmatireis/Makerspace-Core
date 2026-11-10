@@ -68,7 +68,7 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
           </StructuredListRow>
           {display.visibleFromOutside && (
             <StructuredListRow>
-              <StructuredListCell noWrap>Live cameras</StructuredListCell>
+              <StructuredListCell noWrap>Live cameras and timelapses</StructuredListCell>
               <StructuredListCell>{display.allowCameraOutside ? 'Shown' : 'Not shown'}</StructuredListCell>
             </StructuredListRow>
           )}
@@ -162,7 +162,7 @@ export function DisplaySettingsTab({ display, canManage }: { display: SignageDis
           render={({ field }) => (
             <Toggle
               id="ds-camera-outside"
-              labelText="Show live cameras on this outside-visible display"
+              labelText="Show live cameras and timelapses on this outside-visible display"
               labelA="No"
               labelB="Yes"
               toggled={field.value}

@@ -153,7 +153,7 @@ describe('Display detail', () => {
   it('warns when the publication has a camera widget but the display does not allow live cameras', async () => {
     mockSignage([PermissionId.signageread], { displays: [displayFixture()], preview: cameraPreview() });
     renderRoute(<App />, route);
-    expect(await screen.findByText('Live cameras are not shown')).toBeInTheDocument();
+    expect(await screen.findByText('Live cameras and timelapses are not shown')).toBeInTheDocument();
   });
 
   it.each([
@@ -164,7 +164,7 @@ describe('Display detail', () => {
     mockSignage([PermissionId.signageread], { displays: [display], preview });
     renderRoute(<App />, route);
     expect(await screen.findByText(/Now showing/)).toBeInTheDocument();
-    expect(screen.queryByText('Live cameras are not shown')).not.toBeInTheDocument();
+    expect(screen.queryByText('Live cameras and timelapses are not shown')).not.toBeInTheDocument();
   });
 
   it('says neutrally when the display reports something else', async () => {

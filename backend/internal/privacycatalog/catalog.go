@@ -151,23 +151,25 @@ func Definitions() []privacy.Definition {
 		},
 		{
 			ID: AttendanceVisits, Owner: Attendance, Name: "Visits",
-			Description:    "Who was in the lab when, including kiosk check-ins and corrections.",
-			Contains:       "Check-in and check-out times, corrections",
+			Description:    "Who is in the lab right now, and the date of each person's last visit.",
+			Contains:       "Check-in time, method and device of open visits; date of the last completed visit",
 			ErasureOutcome: privacy.ErasureErased,
-			Fields:         []string{"visits.*"},
+			Fields:         []string{"visits.*", "people.last_visit_on"},
 			Triggers:       []privacy.Trigger{privacy.TriggerCompletedAt},
 			Actions:        []privacy.Action{privacy.ActionAnonymize, privacy.ActionDelete},
 			Subject:        privacy.SubjectPerson,
 			Legacy:         &privacy.LegacyDefault{Trigger: privacy.TriggerCompletedAt, Period: 90 * day, Action: privacy.ActionAnonymize, Source: "admin cleanup (code)"},
-			RetentionNote: "Completed visits are rolled into non-identifying daily aggregates before their detail is deleted; " +
-				"open visits are never removed.",
+			RetentionNote: "Check-out rolls the visit into non-identifying daily aggregates and deletes it in the same " +
+				"transaction, keeping only the person's last visit date; voiding deletes an open visit. Nothing completed " +
+				"is left for this policy, and open visits are never removed. The last visit date stays until the person " +
+				"is deleted.",
 		},
 		{
 			ID: SurveyInvitations, Owner: Attendance, Name: "Survey invitations",
-			Description:    "Delivery identity of post-visit survey invitations: recipient address and the link to person and visit.",
-			Contains:       "Recipient e-mail, link to the person and the visit, invitation token",
+			Description:    "Delivery identity of post-visit survey invitations and of the tablet's check-out offers: recipient address and the link to the person.",
+			Contains:       "Recipient e-mail, link to the person, check-out reference, invitation token",
 			ErasureOutcome: privacy.ErasureErased,
-			Fields:         []string{"survey_invitations.recipient_email", "survey_invitations.person_id", "survey_invitations.visit_id", "survey_invitations.token_digest", "survey_ask_cooldowns.person_id"},
+			Fields:         []string{"survey_invitations.recipient_email", "survey_invitations.person_id", "survey_invitations.visit_id", "survey_invitations.token_digest", "survey_offers.person_id", "survey_ask_cooldowns.person_id"},
 			Triggers:       []privacy.Trigger{privacy.TriggerExpiredAt},
 			Actions:        []privacy.Action{privacy.ActionUnlink, privacy.ActionDelete},
 			Subject:        privacy.SubjectPerson,
@@ -175,14 +177,15 @@ func Definitions() []privacy.Definition {
 		},
 		{
 			ID: SurveyOffers, Owner: Attendance, Name: "Tablet survey offers",
-			Description:   "A survey the tablet offered after a check-out: only the digest of its single-use token, the tablet and the survey, valid for a few minutes.",
-			Contains:      "The digest of the offer's token, the tablet, the survey and the expiry time; the link to the visit is cleared when the offer is used",
-			Fields:        []string{"survey_offers.token_digest", "survey_offers.visit_id"},
-			Triggers:      []privacy.Trigger{privacy.TriggerExpiredAt},
-			Actions:       []privacy.Action{privacy.ActionDelete},
-			Subject:       privacy.SubjectNone,
-			Legacy:        &privacy.LegacyDefault{Trigger: privacy.TriggerExpiredAt, Period: day, Action: privacy.ActionDelete, Source: "tablet survey offers (code)", Automatic: true},
-			RetentionNote: "Offers are deleted one day after they expire; an offer also disappears with its visit.",
+			Description: "A survey the tablet offered after a check-out: the digest of its single-use token, the person, the tablet and the survey, valid for 15 minutes.",
+			Contains:    "The digest of the offer's token, the person and a check-out reference (both cleared when the offer is used), the tablet, the survey and the expiry time",
+			Fields:      []string{"survey_offers.token_digest", "survey_offers.visit_id"},
+			Triggers:    []privacy.Trigger{privacy.TriggerExpiredAt},
+			Actions:     []privacy.Action{privacy.ActionDelete},
+			Subject:     privacy.SubjectNone,
+			Legacy:      &privacy.LegacyDefault{Trigger: privacy.TriggerExpiredAt, Period: day, Action: privacy.ActionDelete, Source: "tablet survey offers (code)", Automatic: true},
+			RetentionNote: "The survey delivery loop deletes offers as soon as they expire (about every minute); this policy " +
+				"catches the rest one day after expiry. Deleting the person deletes their open offers.",
 		},
 		{
 			ID: SurveyResponses, Owner: Attendance, Name: "Survey responses",

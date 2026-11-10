@@ -1,15 +1,16 @@
 import { Button, InlineNotification, Stack, Tile } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { getPublicLegalDocument } from '../../api/generated/branding/branding';
 import { BrandMark } from '../../app/BrandMark';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useBranding, usePageTitle } from './branding';
-import { LegalLinks } from './LegalLinks';
+import { LegalLinks, type LegalReturnState } from './LegalLinks';
 
 export function LegalPage({ kind }: { kind: 'imprint' | 'privacy' }) {
   const branding = useBranding();
+  const returnTo = useReturnTo();
   const documentQuery = useQuery({
     queryKey: ['branding', 'legal', kind],
     queryFn: ({ signal }) => getPublicLegalDocument(kind, { signal }),
@@ -79,8 +80,8 @@ export function LegalPage({ kind }: { kind: 'imprint' | 'privacy' }) {
                   subtitle="No content has been published for this legal document."
                 />
               )}
-              <Button kind="ghost" as={Link} to="/login">
-                Back to sign in
+              <Button kind="ghost" as={Link} to={returnTo ?? '/login'}>
+                {returnTo ? 'Back' : 'Back to sign in'}
               </Button>
             </Stack>
           </Tile>
@@ -89,4 +90,14 @@ export function LegalPage({ kind }: { kind: 'imprint' | 'privacy' }) {
       </Stack>
     </main>
   );
+}
+
+/** The in-app page a legal link was opened from (kiosk, survey, signup), so the visitor gets back to it. */
+function useReturnTo() {
+  const state = useLocation().state as LegalReturnState | null;
+  const returnTo = state?.returnTo;
+  // Only same-origin paths: "//host" would leave the application.
+  return returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//') && !returnTo.startsWith('/legal/')
+    ? returnTo
+    : null;
 }

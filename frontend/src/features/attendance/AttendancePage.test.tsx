@@ -54,7 +54,7 @@ describe('Attendance corrections', () => {
     await openVoidDialog(user);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('Void attendance record for Grace Hopper?')).toBeInTheDocument();
-    expect(within(dialog).getByText(/survey invitations are cancelled/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/does not count in the statistics/i)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
     expect(within(dialog).getByRole('button', { name: 'Void record' })).toBeDisabled();
     expect(submitted).toBeUndefined();

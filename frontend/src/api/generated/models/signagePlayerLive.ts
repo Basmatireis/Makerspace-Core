@@ -55,7 +55,7 @@ export interface SignagePlayerLive {
      */
   streams: SignagePlayerStream[];
   /**
-     * Present only while the display's publication contains a timelapse widget: the union of the clips the published timelapse widgets need, newest first, at most 50. Only finished recorded runs with a stored timelapse that are not hidden from signage.
+     * Present only while the display's publication contains a timelapse widget: the union of the clips the published timelapse widgets need, newest first, at most 50. Only finished recorded runs with a stored timelapse that are not hidden from signage. Empty for a display that is visible from outside without `allowCameraOutside`.
      * @maxItems 50
      * @nullable
      */

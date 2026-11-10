@@ -13,7 +13,6 @@ import (
 	attendancedb "github.com/Basmatireis/Makerspace-Core/backend/internal/attendance/db"
 	surveysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/surveys/db"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 func TestKioskAttendanceSurveyMigrationConstraints(t *testing.T) {
@@ -67,10 +66,7 @@ func TestKioskAttendanceSurveyMigrationConstraints(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = attendancedb.New(pool).ArchiveExpiredVisitDetail(
-		ctx,
-		pgtype.Timestamptz{Time: time.Now().UTC().Add(2 * time.Hour), Valid: true},
-	); err != nil {
+	if _, err = attendancedb.New(pool).ArchiveCheckedOutVisit(ctx, firstVisit); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(t, pool, "SELECT count(*) FROM visits WHERE id='"+firstVisit.String()+"'", 0)
