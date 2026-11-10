@@ -24,6 +24,9 @@ const (
 	PolicyRetired  = "retired"
 )
 
+// recommendedTemplate marks a draft seeded from the category's recommendation.
+const recommendedTemplate = "recommended"
+
 // Policy is one version of a category's retention decision.
 type Policy struct {
 	ID             uuid.UUID
@@ -321,10 +324,12 @@ func (s *Service) auditPolicy(
 	})
 }
 
-// EnsurePolicyDrafts seeds one draft per category with a legacy default so the
-// operator reviews what the installation did before, instead of starting from
-// nothing. A legacy opt-out (a configured 0) becomes retain_with_review. It
-// runs once per process.
+// EnsurePolicyDrafts seeds one draft per category from its recommendation, so
+// the operator reviews a complete proposal instead of starting from nothing.
+// A legacy opt-out (a configured 0) is seeded as retain_with_review instead,
+// and a category without a recommendation starts from its legacy default. A
+// draft seeded from a legacy default that nobody touched is replaced by the
+// recommendation. It runs once per process.
 func (s *Service) EnsurePolicyDrafts(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -333,19 +338,44 @@ func (s *Service) EnsurePolicyDrafts(ctx context.Context) error {
 	}
 	q := privacydb.New(s.pool)
 	for _, definition := range s.catalog.Definitions() {
-		if definition.Legacy == nil {
-			continue
+		var period time.Duration
+		var disabled bool
+		if definition.Legacy != nil {
+			var err error
+			if period, disabled, err = s.legacyPeriod(ctx, definition); err != nil {
+				return err
+			}
 		}
 		count, err := q.CountPoliciesForCategory(ctx, string(definition.ID))
 		if err != nil {
 			return err
 		}
-		if count > 0 {
+		if recommendation := definition.Recommended; recommendation != nil && !disabled {
+			if count > 1 {
+				continue
+			}
+			source := recommendedTemplate
+			if count == 1 {
+				if _, err := q.ReplaceUntouchedSeededDraft(ctx, privacydb.ReplaceUntouchedSeededDraftParams{
+					Trigger: string(recommendation.Trigger), PeriodDays: recommendation.PeriodDays, Action: string(recommendation.Action),
+					Purpose: recommendation.Purpose, LegalBasis: recommendation.LegalBasis, Reason: recommendation.Reason,
+					SourceTemplate: &source, CategoryID: string(definition.ID),
+				}); err != nil {
+					return err
+				}
+				continue
+			}
+			if _, err := q.InsertPolicy(ctx, privacydb.InsertPolicyParams{
+				ID: ids.New(), CategoryID: string(definition.ID), Version: 1, Trigger: string(recommendation.Trigger),
+				PeriodDays: recommendation.PeriodDays, Action: string(recommendation.Action), Purpose: recommendation.Purpose,
+				LegalBasis: recommendation.LegalBasis, Reason: recommendation.Reason, SourceTemplate: &source,
+			}); err != nil {
+				return err
+			}
 			continue
 		}
-		period, disabled, err := s.legacyPeriod(ctx, definition)
-		if err != nil {
-			return err
+		if definition.Legacy == nil || count > 0 {
+			continue
 		}
 		action := definition.Legacy.Action
 		reason := "Seeded from the installation's previous behaviour (" + definition.Legacy.Source + "); review before approval."

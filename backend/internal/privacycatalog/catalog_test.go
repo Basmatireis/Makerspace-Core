@@ -90,3 +90,16 @@ func TestLegacyDefaultsMatchTheRoutinesTheyReplace(t *testing.T) {
 		}
 	}
 }
+
+// Every category carries a recommended decision, except stored files, which go with the record that references
+// them; the catalog validation checks that each recommendation is supported and complete.
+func TestEveryCategoryHasARecommendation(t *testing.T) {
+	for _, definition := range Definitions() {
+		if (definition.Recommended == nil) != (definition.ID == FileBlobs) {
+			t.Errorf("%s: recommendation = %+v", definition.ID, definition.Recommended)
+		}
+	}
+	if len(recommendations) != len(Definitions())-1 {
+		t.Errorf("recommendations name %d categories, want %d", len(recommendations), len(Definitions())-1)
+	}
+}

@@ -833,6 +833,46 @@ func (q *Queries) ReleaseHold(ctx context.Context, arg ReleaseHoldParams) (Priva
 	return i, err
 }
 
+const replaceUntouchedSeededDraft = `-- name: ReplaceUntouchedSeededDraft :execrows
+UPDATE privacy_policy_versions AS policy
+SET trigger = $1, period_days = $2, action = $3, purpose = $4,
+    legal_basis = $5, reason = $6, source_template = $7, updated_at = now()
+WHERE policy.category_id = $8 AND policy.version = 1 AND policy.status = 'draft'
+    AND policy.created_by_account_id IS NULL AND policy.updated_at = policy.created_at AND policy.source_template LIKE 'legacy:%'
+    AND NOT EXISTS (
+        SELECT 1 FROM privacy_policy_versions later WHERE later.category_id = policy.category_id AND later.version > 1
+    )
+`
+
+type ReplaceUntouchedSeededDraftParams struct {
+	Trigger        string
+	PeriodDays     int32
+	Action         string
+	Purpose        string
+	LegalBasis     string
+	Reason         string
+	SourceTemplate *string
+	CategoryID     string
+}
+
+// Replaces the draft seeded from a legacy default when nobody has edited it and no later version exists.
+func (q *Queries) ReplaceUntouchedSeededDraft(ctx context.Context, arg ReplaceUntouchedSeededDraftParams) (int64, error) {
+	result, err := q.db.Exec(ctx, replaceUntouchedSeededDraft,
+		arg.Trigger,
+		arg.PeriodDays,
+		arg.Action,
+		arg.Purpose,
+		arg.LegalBasis,
+		arg.Reason,
+		arg.SourceTemplate,
+		arg.CategoryID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const retirePolicy = `-- name: RetirePolicy :one
 UPDATE privacy_policy_versions
 SET status = 'retired', retired_at = now(), updated_at = now()

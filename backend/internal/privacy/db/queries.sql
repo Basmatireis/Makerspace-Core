@@ -57,6 +57,17 @@ INSERT INTO privacy_policy_versions (
     sqlc.arg(purpose), sqlc.arg(legal_basis), sqlc.arg(reason), 'draft', sqlc.narg(source_template), sqlc.narg(created_by_account_id)
 ) RETURNING *;
 
+-- name: ReplaceUntouchedSeededDraft :execrows
+-- Replaces the draft seeded from a legacy default when nobody has edited it and no later version exists.
+UPDATE privacy_policy_versions AS policy
+SET trigger = sqlc.arg(trigger), period_days = sqlc.arg(period_days), action = sqlc.arg(action), purpose = sqlc.arg(purpose),
+    legal_basis = sqlc.arg(legal_basis), reason = sqlc.arg(reason), source_template = sqlc.arg(source_template), updated_at = now()
+WHERE policy.category_id = sqlc.arg(category_id) AND policy.version = 1 AND policy.status = 'draft'
+    AND policy.created_by_account_id IS NULL AND policy.updated_at = policy.created_at AND policy.source_template LIKE 'legacy:%'
+    AND NOT EXISTS (
+        SELECT 1 FROM privacy_policy_versions later WHERE later.category_id = policy.category_id AND later.version > 1
+    );
+
 -- name: UpdateDraftPolicy :one
 UPDATE privacy_policy_versions
 SET trigger = sqlc.arg(trigger), period_days = sqlc.arg(period_days), action = sqlc.arg(action), purpose = sqlc.arg(purpose),

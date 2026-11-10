@@ -44,7 +44,7 @@ export interface RetentionPolicy {
   reason: string;
   status: RetentionPolicyStatus;
   /**
-     * `legacy:<source>` for seeded drafts, otherwise null.
+     * `recommended` for drafts seeded from the category's recommendation, `legacy:<source>` for drafts seeded from a legacy default, otherwise null.
      * @maxLength 200
      * @nullable
      */

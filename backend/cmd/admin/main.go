@@ -19,6 +19,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacy"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/privacycatalog"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/staginganonymizer"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
@@ -129,16 +130,26 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
+		if *auditBeforeRaw != "" {
+			// The cutoff replaces the legacy audit period only; an active policy is changed in the privacy settings.
+			active, err := engine.HasActivePolicy(ctx, privacycatalog.AuditEvents)
+			if err != nil {
+				return err
+			}
+			if active {
+				return errors.New("audit events follow an active retention policy; change the policy instead of passing --audit-before")
+			}
+		}
 		mode := privacy.ModeExecute
 		if *dryRun {
 			mode = privacy.ModeDryRun
 		}
-		run, err := engine.RunLegacyCleanup(ctx, mode, categories.ids())
+		run, err := engine.RunCleanup(ctx, mode, categories.ids())
 		if err != nil {
 			return err
 		}
 		if run.ID == uuid.Nil {
-			fmt.Println("nothing to clean up: no category has a legacy retention routine or all are opted out")
+			fmt.Println("nothing to clean up: no active policy or legacy retention routine applies")
 			return nil
 		}
 		fmt.Printf("retention run %s (%s) %s\n", run.ID, run.Mode, run.Status)

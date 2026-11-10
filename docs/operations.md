@@ -39,7 +39,7 @@ The command requires a TTY, prompts for the existing login email or identifier, 
 
 ## Cleanup and retention
 
-`admin cleanup` is the legacy mode of the retention engine. It removes expired and revoked sessions, expired password-reset tokens and expired pending sign-in state, and applies the legacy periods of the other categories, using the same queries as before. Each run is recorded and appears in the execution history of Settings › Data › Privacy & data retention.
+`admin cleanup` runs the retention engine from the command line. Each category with an active retention policy is cleaned according to that policy; every other category keeps its legacy period (expired and revoked sessions, expired password-reset tokens and pending sign-in state, and the periods from `AUDIT_RETENTION`, `EVENT_SIGNUP_RETENTION` and the code), using the same queries as before. Each run is recorded and appears in the execution history of Settings › Data › Privacy & data retention.
 
 ```sh
 docker compose --profile tools run --rm --build admin cleanup
@@ -49,7 +49,7 @@ Flags:
 
 - `--dry-run` reports what would change without changing anything;
 - `--category <id>` limits the run to one data category (repeatable, for example `--category audit.events`);
-- `--audit-before <RFC 3339>` sets a one-off audit cutoff (non-secret), overriding the period from `AUDIT_RETENTION`:
+- `--audit-before <RFC 3339>` sets a one-off audit cutoff (non-secret), overriding the period from `AUDIT_RETENTION`; it is refused while audit events follow an active policy, which is changed in the privacy settings instead:
 
 ```sh
 docker compose --profile tools run --rm --build admin cleanup --audit-before 2026-01-01T00:00:00Z
