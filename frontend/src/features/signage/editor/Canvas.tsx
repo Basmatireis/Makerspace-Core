@@ -344,7 +344,8 @@ export function Canvas(props: CanvasProps) {
   const groupBounds = selected.length > 1 ? boundsOf(selected.map(geometry)) : null;
   const toolbarRect = groupBounds ?? (single ? geometry(single) : null);
   const showToolbar = canEdit && toolbarRect && !live && !marquee && (!single || editingId !== single.id);
-  const toolbarAbove = toolbarRect ? toolbarRect.y * scale >= 56 : true;
+  // Above unless that would leave the padding around the screen (the toolbar is about 40 pixels high).
+  const toolbarAbove = toolbarRect ? toolbarRect.y * scale + PAD_Y >= 56 : true;
   const editing = editingId ? byId.get(editingId) : undefined;
   const textColor = sceneTextColor(draft.theme);
   const index = single ? draft.blocks.findIndex((b) => b.id === single.id) : -1;
@@ -460,7 +461,7 @@ export function Canvas(props: CanvasProps) {
               <div
                 ref={toolbarRef}
                 className="sg-canvas__toolbar"
-                style={toolbarPosition(geometry(editing), scale, editing.y * scale >= 56)}
+                style={toolbarPosition(geometry(editing), scale, editing.y * scale + PAD_Y >= 56)}
               >
                 <TextFormatBar onDone={() => props.onEditText(null)} />
               </div>

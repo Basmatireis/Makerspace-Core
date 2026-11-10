@@ -103,7 +103,7 @@ export function AppShell() {
     const media = window.matchMedia(NARROW_SHELL_QUERY);
     const handleChange = (event: MediaQueryListEvent) => {
       setIsNarrow(event.matches);
-      setSideNavExpanded(!event.matches);
+      setSideNavExpanded(!event.matches && !FULL_WIDTH_PATHS.test(window.location.pathname));
     };
     media.addEventListener('change', handleChange);
     return () => media.removeEventListener('change', handleChange);
