@@ -117,7 +117,6 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   await expect(page.getByRole('heading', { name: 'About you' })).toBeFocused();
   await page.getByLabel('First name', { exact: true }).fill('Local');
   await page.getByLabel('Last name', { exact: true }).fill('Visitor');
-  await page.getByLabel('Email', { exact: true }).fill('local@example.test');
   await page
     .getByLabel('or upload a profile photo', { exact: true })
     .setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: photoPng() });
@@ -129,8 +128,24 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('visitor-step-1.png') });
-  // TODO(email-code enrollment): the frontend adds the email-verification step here (code 123456 in this mock).
   await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByRole('heading', { name: 'Email' })).toBeFocused();
+  await page.getByLabel('Email', { exact: true }).fill('local@example.test');
+  await expect(page.getByRole('button', { name: 'Send code' })).toBeEnabled();
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('visitor-email.png') });
+  await page.getByRole('button', { name: 'Send code' }).click();
+  await expect(page.getByRole('heading', { name: 'Code' })).toBeVisible();
+  await expect(page.getByLabel('Code', { exact: true })).toBeFocused();
+  // A wrong code stays on the step; the mock accepts 123456.
+  await page.getByLabel('Code', { exact: true }).fill('000000');
+  await page.getByRole('button', { name: 'Verify code' }).click();
+  await expect(page.getByText(/The code is not correct or has expired/)).toBeVisible();
+  await page.getByLabel('Code', { exact: true }).fill('123456');
+  await page.mouse.move(0, 0);
+  expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath('visitor-code.png') });
+  await page.getByRole('button', { name: 'Verify code' }).click();
   await expect(page.getByRole('heading', { name: 'Messages' })).toBeFocused();
   // Carbon draws the switch over its button; a visitor taps the drawn switch.
   await page
@@ -142,6 +157,7 @@ test('clears a completed kiosk enrollment before the next visitor', async ({ pag
   await page.screenshot({ path: testInfo.outputPath('visitor-messages.png') });
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByRole('heading', { name: 'Lab Rules' })).toBeFocused();
+  await expect(page.getByLabel('I have read and accept the Lab Rules')).toBeDisabled();
   await page.getByRole('button', { name: 'View current Lab Rules PDF' }).click();
   const rules = page.getByRole('dialog', { name: 'Lab Rules, revision 2026-09' });
   await expect(rules.getByRole('img', { name: 'Page 1 of 1' })).toBeVisible();

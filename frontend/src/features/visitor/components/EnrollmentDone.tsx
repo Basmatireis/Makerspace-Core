@@ -36,7 +36,8 @@ export function EnrollmentDone({ outcome, onDone }: { outcome: EnrollmentOutcome
         <div className="visitor-done__column">
           <h2 className="visitor-done__heading">How you sign in</h2>
           <p className="visitor-done__lead">
-            Next time, enter <strong>{outcome.email}</strong> at the check-in screen and the code we email you.
+            Next time, choose <strong>Email code</strong> at the check-in screen, enter <strong>{outcome.email}</strong>{' '}
+            and the six-digit code we email you.
           </p>
         </div>
       </div>

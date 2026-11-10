@@ -132,6 +132,7 @@ body:has(.visitor-flow) {
 }
 
 .visitor-flow__fields,
+.visitor-flow__email,
 .visitor-flow__methods,
 .visitor-flow__rules,
 .visitor-flow__consent {
@@ -141,6 +142,25 @@ body:has(.visitor-flow) {
 
 .visitor-flow__rules {
   justify-items: center;
+}
+
+.visitor-flow__email {
+  inline-size: 100%;
+  max-inline-size: 36rem;
+  margin-inline: auto;
+}
+
+.visitor-flow__code-input input {
+  @include type-style('heading-05');
+  text-align: center;
+  letter-spacing: 0.4em;
+}
+
+.visitor-flow__code-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: $spacing-03;
 }
 
 .visitor-flow__pair {
@@ -199,18 +219,18 @@ body:has(.visitor-flow) {
   justify-items: start;
 }
 
+// Live preview and taken photo share one large centred square, so what the person sees is what is captured. The
+// preview is deliberately not mirrored: it matches the photo that is taken.
 .visitor-photo__frame {
   display: grid;
   place-items: center;
-  inline-size: min(100%, 20rem);
-  aspect-ratio: 4 / 3;
+  inline-size: min(100%, 30rem, 50dvh);
+  aspect-ratio: 1;
   overflow: hidden;
   background: $layer-02;
 }
 
 .visitor-photo__frame--round {
-  inline-size: 12rem;
-  aspect-ratio: 1;
   border-radius: 50%;
 }
 
@@ -219,6 +239,19 @@ body:has(.visitor-flow) {
   block-size: 100%;
   object-fit: cover;
   grid-area: 1 / 1;
+  transform: none;
+}
+
+// A soft oval to position the face in.
+.visitor-photo__guide {
+  grid-area: 1 / 1;
+  z-index: 1;
+  inline-size: 70%;
+  block-size: 84%;
+  border: 2px dashed rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 .visitor-photo__media[hidden] {
@@ -231,7 +264,7 @@ body:has(.visitor-flow) {
 }
 
 .visitor-photo .cds--file {
-  inline-size: min(100%, 20rem);
+  inline-size: min(100%, 30rem);
 }
 
 .visitor-photo .cds--file-browse-btn {
