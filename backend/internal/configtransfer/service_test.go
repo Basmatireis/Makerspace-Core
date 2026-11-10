@@ -1021,7 +1021,9 @@ func TestPrivacyDecisionsImportAsDraftsAndAreNeverRemoved(t *testing.T) {
 		// A file without a category keeps the target's decision; an unknown category or trigger is a conflict; insert mode
 		// leaves existing decisions untouched; the processing activity missing from the file is deleted in overwrite mode.
 		trimmed := withPrivacySection(t, data, func(entry *privacyEntry) {
-			entry.RetentionPolicies = slices.DeleteFunc(entry.RetentionPolicies, func(p retentionPolicyEntry) bool { return p.Category == audit })
+			entry.RetentionPolicies = slices.DeleteFunc(entry.RetentionPolicies, func(p retentionPolicyEntry) bool {
+				return p.Category == audit || p.Category == "events.content"
+			})
 			entry.RetentionPolicies = append(entry.RetentionPolicies, retentionPolicyEntry{
 				Category: "events.content", Trigger: "created_at", PeriodDays: 10, Action: "delete", Purpose: "x", LegalBasis: "y", Reason: "z",
 			})

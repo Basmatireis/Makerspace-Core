@@ -39,6 +39,8 @@ type Querier interface {
 	// Marks every snapshot that is not in the list of currently declared categories.
 	OrphanCategorySnapshots(ctx context.Context, declared []string) (int64, error)
 	ReleaseHold(ctx context.Context, arg ReleaseHoldParams) (PrivacyRetentionHold, error)
+	// Replaces the draft seeded from a legacy default when nobody has edited it and no later version exists.
+	ReplaceUntouchedSeededDraft(ctx context.Context, arg ReplaceUntouchedSeededDraftParams) (int64, error)
 	RetirePolicy(ctx context.Context, id uuid.UUID) (PrivacyPolicyVersion, error)
 	SumRunAffected(ctx context.Context, runID uuid.UUID) (int64, error)
 	UpdateDraftPolicy(ctx context.Context, arg UpdateDraftPolicyParams) (PrivacyPolicyVersion, error)

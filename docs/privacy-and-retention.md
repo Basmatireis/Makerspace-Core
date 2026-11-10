@@ -6,7 +6,7 @@ The privacy registry records which personal data the makerspace stores, which fe
 
 - **What it is.** Every built-in feature area (called the owner module of a category) declares its data categories in code, in `backend/internal/privacycatalog`. The registry validates these declarations, persists a snapshot of them, and shows them in Settings › Data › Privacy & data retention. The categories page is the entry of the privacy area; retention policies, holds, execution history, data requests, processing activities and settings are its sub-pages, reached from the context line under the summary tiles and from the rows themselves.
 - **Always on.** The registry has no switch. A category stays registered after the code that declared it is gone, so later retention and data-subject requests still reach that data.
-- **Retention.** The retention engine (`backend/internal/privacy`) applies approved retention policies to the categories that have a retention routine. It runs from `admin cleanup` (legacy mode, manually or from the deployment's scheduler), from the dry run and execute buttons, and from the API scheduler when automatic runs are enabled. Until a category has an active policy, its legacy period applies unchanged.
+- **Retention.** The retention engine (`backend/internal/privacy`) applies approved retention policies to the categories that have a retention routine. It runs from `admin cleanup` (manually or from the deployment's scheduler), from the dry run and execute buttons, and from the API scheduler when automatic runs are enabled. Until a category has an active policy, its legacy period applies unchanged.
 - **Data-subject requests.** Access and erasure requests walk through a manual identity check, an assessment, an approval and the execution; each category answers through its subject handler. See [Data-subject requests](#data-subject-requests).
 
 The registry is implemented in `backend/internal/privacy`; the declarations and the legacy defaults live in `backend/internal/privacycatalog`.
@@ -67,6 +67,39 @@ The table lists every built-in category. Legacy defaults are the behaviour that 
 | `files.blobs` | Stored files | `platform` | none | none |
 | `configuration.contacts` | Configured contact addresses | `platform` | none | none |
 
+### Recommended decisions
+
+Each category except `files.blobs` declares a recommended decision in `backend/internal/privacycatalog/recommendations.go`. The aim: personal data goes as soon as its purpose is served but not earlier, legal periods are kept, and data without a person link stays as long as it is useful. Categories marked "no handler" have no retention routine; their decision documents what happens (usually deletion with the person or the account) and runs report them as `skipped_no_handler`.
+
+| Category | Trigger | Period | Action | Handler |
+| --- | --- | --- | --- | --- |
+| `people.identity` | last used | 365 days (two semesters without a visit) | delete | no handler; deletion takes trainings and Lab Rules confirmations with it |
+| `accounts.credentials`, `guides.progress`, `accounts.preferences`, `calendar.feeds`, `notifications.rules` | account closed | 0 | delete | no handler; deleted with the account or person |
+| `platform.actor_references` | account closed | 0 | unlink | no handler |
+| `auth.sessions` | expired | 0 | delete | yes |
+| `auth.pending_state` | expired | 1 day | delete | yes |
+| `devices.credentials` | expired | 0 | delete | no handler |
+| `scim.mappings` | account closed | — | keep with review | no handler |
+| `attendance.visits` | completed | 0 | anonymize | yes |
+| `surveys.invitations` | expired | 7 days | unlink | yes |
+| `surveys.offers` | expired | 1 day | delete | yes |
+| `surveys.responses`, `events.content`, `opendays.assignments`, `opendays.staffing_excusals`, `trainings.records`, `laborordnung.requests`, `machinelogbook.jobs` | per category | — | keep with review | no handler |
+| `events.external_signups` | completed | 90 days | redact | yes |
+| `audit.events` | created | 365 days | delete | yes |
+| `orders.financial_records`, `machinelogbook.inventory` | legal period end | seven years (§ 132 BAO) | keep with review | no handler |
+| `orders.idempotency` | created | seven years | keep with review | no handler |
+| `organizations.contacts`, `configuration.contacts` | last used | review after three years | keep with review | no handler |
+| `printing.artifacts` | created | 365 days | delete | yes |
+| `printing.telemetry` | created | 90 days | delete | yes |
+| `runrecordings.timelapses` | created | 90 days | delete | yes; shorten if people are recognizable |
+| `inbox.notifications` | created | 90 days | delete | yes |
+| `notifications.deliveries` | created | 90 days | delete | yes |
+| `notifications.consents` | ended (withdrawn) | three years | delete | yes |
+| `signage.announcements` | ended | 30 days | delete | yes |
+| `privacy.records` | completed | three years | delete | yes |
+
+The recommendations are a starting point, not legal advice; the operator confirms each decision on approval.
+
 ### Inventory tests
 
 The inventory is enforced by tests in `backend/internal/privacycatalog/catalog_test.go`:
@@ -74,6 +107,7 @@ The inventory is enforced by tests in `backend/internal/privacycatalog/catalog_t
 - `TestCatalogIsValid` checks every declaration's shape and that no category is declared twice.
 - `TestEveryPersonalDataColumnBelongsToACategory` proves that every known personal-data column and every foreign key to people belongs to exactly one category, and that no field is claimed twice.
 - `TestLegacyDefaultsMatchTheRoutinesTheyReplace` checks each legacy default against the routine it describes.
+- `TestEveryCategoryHasARecommendation` requires a recommended decision for every category except stored files; the catalog validation checks that it uses a supported trigger and action and names purpose, legal basis and reason.
 
 Adding a column that holds personal data without declaring it fails the build's tests. The staging anonymizer (see [Staging copy of production data](operations.md#staging-copy-of-production-data)) has its own schema-wide coverage test and refuses to keep a column declared here unless the exception is documented.
 
@@ -92,7 +126,7 @@ The installation's privacy settings are stored in `privacy_settings` (a single r
 
 - `controllerName` and `controllerAddress`: the controller named in the privacy notice;
 - `dataProtectionContact`: who answers data protection questions;
-- `automaticRunsEnabled`: whether the API scheduler runs active retention policies on its own. It defaults to **off**. While it is off, the scheduler runs only the legacy routines described in [Scheduler and legacy behaviour](#scheduler-and-legacy-behaviour), and `admin cleanup` from the deployment's scheduler remains the production path for the other categories;
+- `automaticRunsEnabled`: whether the API scheduler runs active retention policies on its own. It defaults to **off**. While it is off, the scheduler runs only the legacy routines described in [Scheduler and legacy behaviour](#scheduler-and-legacy-behaviour), and `admin cleanup` from the deployment's scheduler remains the production path for the other categories and for the active policies;
 - `runIntervalMinutes`: how often the scheduler runs active policies while automatic runs are on, from 5 to 1440 minutes (default 60);
 - `version`: an optimistic version that every update must send as `expectedVersion`.
 
@@ -102,8 +136,8 @@ Changes are audited as `privacy.settings_updated` with the names of the changed 
 
 A retention policy is a versioned decision for one data category: its trigger (for example `created_at` or `completed_at`), period in days, action, purpose, legal basis and reason. Each version moves through the lifecycle **draft → approved → active → retired**.
 
-- **Seeded drafts.** The first read seeds one draft per category from its legacy default (`sourceTemplate: legacy:<source>`). Drafts are not in force until they are approved and activated.
-- **Opt-out.** A configured opt-out (`AUDIT_RETENTION=0`, `EVENT_SIGNUP_RETENTION=0`, or a timelapse retention of 0) is seeded as `retain_with_review`, with the reason to confirm.
+- **Seeded drafts.** The first read seeds one draft per category from its [recommended decision](#recommended-decisions) (`sourceTemplate: recommended`), complete with purpose, legal basis and reason. A category without a recommendation starts from its legacy default (`legacy:<source>`). A draft seeded from a legacy default that nobody edited, with no later version, is replaced by the recommendation. Drafts are not in force until they are approved and activated.
+- **Opt-out.** A configured opt-out, which takes precedence over the recommendation, (`AUDIT_RETENTION=0`, `EVENT_SIGNUP_RETENTION=0`, or a timelapse retention of 0) is seeded as `retain_with_review`, with the reason to confirm.
 - **Editing.** Only drafts can be edited (`PUT /privacy/policies/{policyId}`; 409 `policy_not_draft` otherwise). To change an approved or active decision, create a new draft.
 - **Approval.** Approval requires purpose, legal basis and reason (409 `policy_incomplete` otherwise).
 - **Four eyes.** The person who approved a version cannot activate it (409 `policy_four_eyes`). Masters are excepted.
@@ -155,7 +189,7 @@ Each run takes a PostgreSQL transaction-scoped advisory lock (`pg_try_advisory_x
 - signage announcements, 30 days;
 - printer telemetry, 30 days.
 
-`admin cleanup` from the deployment's scheduler stays the production path for sessions, audit events, attendance visits, survey invitations and external event sign-ups.
+`admin cleanup` from the deployment's scheduler stays the production path for sessions, audit events, attendance visits, survey invitations, external event sign-ups and the notification delivery log, and applies the active policies of all categories.
 
 **When `automaticRunsEnabled` is on,** active policies run every `runIntervalMinutes`, and a category with an active policy is governed by that policy. No category is handled twice in one run.
 
@@ -227,13 +261,13 @@ The section `privacy` of the [configuration export and import](configuration-tra
 
 ## admin cleanup
 
-`admin cleanup` is the legacy mode of the retention engine. It uses the same queries and the same periods as before (`AUDIT_RETENTION`, `EVENT_SIGNUP_RETENTION` and the code constants), and records a run.
+`admin cleanup` runs the retention engine from the command line, like the Execute button: each category with an active policy follows that policy, and every other category keeps the legacy period it had before the registry (`AUDIT_RETENTION`, `EVENT_SIGNUP_RETENTION` and the code constants). It records a run. A daily `admin cleanup` therefore applies a policy that keeps data longer than the legacy period as well as a shorter one.
 
 | Flag | Effect |
 | --- | --- |
 | `--dry-run` | Report what would change; change nothing. |
 | `--category <id>` | Limit the run to one data category. Repeatable. |
-| `--audit-before <RFC 3339>` | One-off audit cutoff; overrides `AUDIT_RETENTION`, as before. |
+| `--audit-before <RFC 3339>` | One-off audit cutoff; overrides `AUDIT_RETENTION`, as before. Refused while `audit.events` has an active policy. |
 
 The output lists the run, then one line per category with its action, affected count and status. The former four-counter line is gone.
 

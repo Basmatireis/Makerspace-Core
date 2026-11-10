@@ -3,6 +3,7 @@ package integration_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,7 +69,7 @@ func TestLegacyRetentionRunMatchesTheFormerCleanup(t *testing.T) {
 	}
 	engine := retentionEngine(t, pool, 365*24*time.Hour, 180*24*time.Hour)
 
-	dry, err := engine.RunLegacyCleanup(ctx, privacy.ModeDryRun, nil)
+	dry, err := engine.RunCleanup(ctx, privacy.ModeDryRun, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +97,7 @@ func TestLegacyRetentionRunMatchesTheFormerCleanup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := engine.RunLegacyCleanup(ctx, privacy.ModeExecute, nil)
+	run, err := engine.RunCleanup(ctx, privacy.ModeExecute, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +119,7 @@ func TestLegacyRetentionRunMatchesTheFormerCleanup(t *testing.T) {
 	if _, err := engine.ReleaseHold(ctx, principal, hold.ID, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := engine.RunLegacyCleanup(ctx, privacy.ModeExecute, []privacy.CategoryID{"audit.events"}); err != nil {
+	if _, err := engine.RunCleanup(ctx, privacy.ModeExecute, []privacy.CategoryID{"audit.events"}); err != nil {
 		t.Fatal(err)
 	}
 	if countRows(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'test.event'`) != 1 {
@@ -131,7 +132,7 @@ func TestLegacyRetentionRunMatchesTheFormerCleanup(t *testing.T) {
 	}
 	// An opt-out is honoured: with AUDIT_RETENTION=0 nothing is planned for audit events.
 	optOut := retentionEngine(t, pool, 0, 0)
-	run, err = optOut.RunLegacyCleanup(ctx, privacy.ModeDryRun, []privacy.CategoryID{"audit.events", "events.external_signups"})
+	run, err = optOut.RunCleanup(ctx, privacy.ModeDryRun, []privacy.CategoryID{"audit.events", "events.external_signups"})
 	if err != nil || run.ID != uuid.Nil {
 		t.Fatalf("opt-out planned a run: %+v err=%v", run, err)
 	}
@@ -159,12 +160,22 @@ func TestRetentionPoliciesLifecycleAndScheduledRuns(t *testing.T) {
 		}
 		seeded[policy.Category] = policy
 	}
-	if seeded["audit.events"].PeriodDays != 365 || seeded["events.external_signups"].PeriodDays != 180 || seeded["attendance.visits"].PeriodDays != 90 {
+	// Drafts are seeded from the recommendations, complete with purpose, legal basis and reason.
+	if seeded["audit.events"].PeriodDays != 365 || seeded["events.external_signups"].PeriodDays != 90 || seeded["attendance.visits"].PeriodDays != 0 ||
+		*seeded["audit.events"].SourceTemplate != "recommended" || seeded["audit.events"].LegalBasis == "" {
 		t.Fatalf("seeded periods = %+v", seeded)
+	}
+	if _, stored := seeded["files.blobs"]; stored {
+		t.Fatal("a draft was seeded for a category without a recommendation or legacy default")
 	}
 
 	// Approval needs purpose, legal basis and reason.
-	draft := seeded["audit.events"]
+	draft, err := engine.UpdatePolicy(ctx, authorP, seeded["audit.events"].ID, privacy.PolicyInput{
+		Trigger: privacy.TriggerCreatedAt, PeriodDays: 365, Action: privacy.ActionDelete,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := engine.TransitionPolicy(ctx, authorP, draft.ID, privacy.PolicyApproved, nil); !apperror.IsCode(err, "policy_incomplete") {
 		t.Fatalf("incomplete approval = %v", err)
 	}
@@ -258,5 +269,123 @@ func TestRetentionPoliciesLifecycleAndScheduledRuns(t *testing.T) {
 	}
 	if _, err := engine.StartRun(ctx, nonMaster, privacy.ModeExecute, nil, nil); !errors.Is(err, apperror.PermissionDenied) {
 		t.Fatalf("run without permission = %v", err)
+	}
+}
+
+// admin cleanup applies the active policy of a category instead of its legacy period, in both directions,
+// and refuses a one-off audit cutoff while audit events follow a policy.
+func TestCleanupFollowsActivePolicies(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	engine := retentionEngine(t, pool, 365*24*time.Hour, 180*24*time.Hour)
+	manager := seedAccount(t, pool, "cleanup-policy-manager", true)
+	principal := authorization.Principal{AccountID: manager.accountID, PersonID: manager.personID, Master: true}
+	for _, age := range []string{"400 days", "100 days"} {
+		if _, err := pool.Exec(ctx, `INSERT INTO audit_events (id, actor_type, actor_account_id, action, resource_type, occurred_at, changed_fields, metadata, source)
+			VALUES ($1, 'user', $2, 'test.cleanup', 'test', now() - $3::interval, '{}', '{}', 'http')`, ids.New(), manager.accountID, age); err != nil {
+			t.Fatal(err)
+		}
+	}
+	activate := func(periodDays int32) uuid.UUID {
+		t.Helper()
+		policy, err := engine.CreatePolicy(ctx, principal, privacy.PolicyInput{
+			Category: "audit.events", Trigger: privacy.TriggerCreatedAt, PeriodDays: periodDays, Action: privacy.ActionDelete,
+			Purpose: "p", LegalBasis: "l", Reason: "r",
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, status := range []string{privacy.PolicyApproved, privacy.PolicyActive} {
+			if _, err := engine.TransitionPolicy(ctx, principal, policy.ID, status, nil); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return policy.ID
+	}
+	auditItem := func(run privacy.Run) privacy.RunItem {
+		t.Helper()
+		for _, item := range run.Items {
+			if item.Category == "audit.events" {
+				return item
+			}
+		}
+		t.Fatalf("no audit item in %+v", run)
+		return privacy.RunItem{}
+	}
+
+	// A longer policy keeps what the legacy period of 365 days would delete.
+	longer := activate(730)
+	run, err := engine.RunCleanup(ctx, privacy.ModeExecute, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item := auditItem(run); item.PolicyID == nil || *item.PolicyID != longer || item.Affected != 0 {
+		t.Fatalf("longer policy item = %+v", item)
+	}
+	if countRows(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'test.cleanup'`) != 2 {
+		t.Fatal("cleanup applied the legacy period over a longer policy")
+	}
+	// Categories without an active policy keep their legacy period.
+	legacySessions := false
+	for _, item := range run.Items {
+		legacySessions = legacySessions || (item.Category == "auth.sessions" && item.PolicyID == nil)
+	}
+	if !legacySessions {
+		t.Fatalf("cleanup skipped the legacy sessions routine: %+v", run)
+	}
+
+	// A shorter policy deletes what the legacy period would keep.
+	activate(30)
+	if _, err := engine.RunCleanup(ctx, privacy.ModeExecute, []privacy.CategoryID{"audit.events"}); err != nil {
+		t.Fatal(err)
+	}
+	if countRows(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'test.cleanup'`) != 0 {
+		t.Fatal("cleanup did not apply the shorter policy")
+	}
+	if active, err := engine.HasActivePolicy(ctx, "audit.events"); err != nil || !active {
+		t.Fatalf("HasActivePolicy = %v err=%v", active, err)
+	}
+	if active, err := engine.HasActivePolicy(ctx, "auth.sessions"); err != nil || active {
+		t.Fatalf("HasActivePolicy(sessions) = %v err=%v", active, err)
+	}
+}
+
+// A draft seeded from a legacy default that nobody edited is replaced by the recommendation; an edited draft and a
+// configured opt-out are kept.
+func TestRecommendationsReplaceOnlyUntouchedLegacyDrafts(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	manager := seedAccount(t, pool, "recommendation-manager", true)
+	principal := authorization.Principal{AccountID: manager.accountID, PersonID: manager.personID, Master: true}
+	seed := func(category string, edited bool) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, `INSERT INTO privacy_policy_versions (id, category_id, version, trigger, period_days, action, reason, status, source_template, created_at, updated_at)
+			VALUES ($1, $2, 1, 'created_at', 30, 'delete', 'Seeded from the installation''s previous behaviour', 'draft', 'legacy:test', now(), now() + $3::interval)`,
+			ids.New(), category, map[bool]string{false: "0 seconds", true: "1 minute"}[edited]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("inbox.notifications", false)
+	seed("printing.telemetry", true)
+	policies, err := retentionEngine(t, pool, 0, 180*24*time.Hour).ListPolicies(ctx, principal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byCategory := map[privacy.CategoryID][]privacy.Policy{}
+	for _, policy := range policies {
+		byCategory[policy.Category] = append(byCategory[policy.Category], policy)
+	}
+	inbox := byCategory["inbox.notifications"]
+	if len(inbox) != 1 || inbox[0].PeriodDays != 90 || *inbox[0].SourceTemplate != "recommended" || inbox[0].Purpose == "" {
+		t.Fatalf("untouched legacy draft = %+v", inbox)
+	}
+	telemetry := byCategory["printing.telemetry"]
+	if len(telemetry) != 1 || telemetry[0].PeriodDays != 30 || *telemetry[0].SourceTemplate != "legacy:test" {
+		t.Fatalf("edited legacy draft = %+v", telemetry)
+	}
+	// AUDIT_RETENTION=0 is an opt-out: the draft keeps the data with review instead of the recommended deletion.
+	audit := byCategory["audit.events"]
+	if len(audit) != 1 || audit[0].Action != privacy.ActionRetainWithReview || !strings.HasPrefix(*audit[0].SourceTemplate, "legacy:") {
+		t.Fatalf("opt-out draft = %+v", audit)
 	}
 }

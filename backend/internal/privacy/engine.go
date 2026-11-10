@@ -100,7 +100,7 @@ type RunRequest struct {
 	Trigger    string
 	Actor      *uuid.UUID
 	Categories []CategoryID
-	// Legacy applies the legacy defaults instead of active policies (admin cleanup).
+	// Legacy applies the legacy defaults instead of active policies (the scheduler while automatic runs are off).
 	Legacy bool
 	// AutomaticOnly limits a legacy run to categories whose routine ran inside the API process.
 	AutomaticOnly bool
@@ -152,6 +152,20 @@ func (s *Service) HandledCategories() []CategoryID {
 	return result
 }
 
+// HasActivePolicy reports whether a version of the category is in force.
+func (s *Service) HasActivePolicy(ctx context.Context, category CategoryID) (bool, error) {
+	rows, err := privacydb.New(s.pool).ListActivePolicies(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if CategoryID(row.CategoryID) == category {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // SetLegacyPeriods supplies the configured legacy periods.
 func (s *Service) SetLegacyPeriods(periods LegacyPeriods) { s.legacy = periods }
 
@@ -194,10 +208,11 @@ func (s *Service) RunScheduled(ctx context.Context) (Run, error) {
 	return run, s.auditRun(ctx, nil, run, nil, "system")
 }
 
-// RunLegacyCleanup is what `admin cleanup` calls: the legacy routines with the
-// configured periods, as before the registry, now recorded as a run.
-func (s *Service) RunLegacyCleanup(ctx context.Context, mode string, categories []CategoryID) (Run, error) {
-	run, err := s.run(ctx, RunRequest{Mode: mode, Trigger: TriggerCLI, Legacy: true, Categories: categories})
+// RunCleanup is what `admin cleanup` calls: the active policies, and the
+// legacy routines with the configured periods for categories without an
+// active policy, recorded as a run.
+func (s *Service) RunCleanup(ctx context.Context, mode string, categories []CategoryID) (Run, error) {
+	run, err := s.run(ctx, RunRequest{Mode: mode, Trigger: TriggerCLI, Categories: categories})
 	if err != nil {
 		return run, err
 	}

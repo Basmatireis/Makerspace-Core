@@ -75,8 +75,18 @@ func Catalog() (*privacy.Catalog, error) {
 	return privacy.NewCatalog(Definitions()...)
 }
 
-// Definitions lists every built-in data category.
+// Definitions lists every built-in data category with its recommended retention decision.
 func Definitions() []privacy.Definition {
+	definitions := declarations()
+	for index := range definitions {
+		if recommendation, ok := recommendations[definitions[index].ID]; ok {
+			definitions[index].Recommended = &recommendation
+		}
+	}
+	return definitions
+}
+
+func declarations() []privacy.Definition {
 	return []privacy.Definition{
 		{
 			ID: PeopleIdentity, Owner: Identity, Name: "Person records",
