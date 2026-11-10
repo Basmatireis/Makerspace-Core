@@ -11,6 +11,8 @@ export type StepProps = {
   lookup: NameLookup;
   /** A personal subscription: only in-app and e-mail, always to the owner, no escalation and no manual trigger. */
   personal?: boolean;
+  /** "Selected machines" chosen in the When step, for the event named; empty selection is invalid, not "all". */
+  machineScope?: { choosingFor?: string; setChoosingFor: (event?: string) => void; invalid: boolean };
   edit: (recipe: (draft: Definition) => void, options?: { prune?: boolean }) => void;
 };
 

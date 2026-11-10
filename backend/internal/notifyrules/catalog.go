@@ -178,6 +178,16 @@ func findField(fields []Field, key string) (Field, bool) {
 	return Field{}, false
 }
 
+// MachineScopeField is the field of an event that names its machine. A trigger with it lets a rule limit itself to
+// some machines.
+const MachineScopeField = "machine"
+
+// MachineScope reports whether the trigger's events concern one machine, so a rule may list the machines it reacts to.
+func (t Trigger) MachineScope() bool {
+	_, ok := t.Field(MachineScopeField)
+	return ok
+}
+
 // Field returns the trigger's field with the given bare key.
 func (t Trigger) Field(key string) (Field, bool) {
 	return findField(t.Fields, key)
@@ -347,6 +357,14 @@ func openDayChange(key, label, help string, extra ...Placeholder) Trigger {
 	}
 }
 
+var runOutcomeOptions = options(
+	"successful", "Successful", "partial_failure", "Finished with problems", "failed", "Failed", "cancelled", "Cancelled",
+)
+
+// printPagePlaceholder is the address of a run's print page. People who cannot sign in with a password get it empty in
+// their e-mails, since the page needs a sign-in.
+var printPagePlaceholder = Placeholder{"printPage", "Address of the print's page (needs a sign-in)", "https://makerspace.example/prints/…"}
+
 var coreTriggers = []Trigger{
 	{
 		Key: "printer_error", Area: "Workshop", Label: "A printer reports an error",
@@ -386,9 +404,7 @@ var coreTriggers = []Trigger{
 		Subject: SubjectLab, Permission: authorization.MachineJobsRead,
 		Fields: []Field{
 			{Key: "machine", Label: "Machine", Type: FieldEnum, OptionsFrom: SourceMachines},
-			{Key: "outcome", Label: "Outcome", Type: FieldEnum, Options: options(
-				"successful", "Successful", "partial_failure", "Finished with problems", "failed", "Failed", "cancelled", "Cancelled",
-			)},
+			{Key: "outcome", Label: "Outcome", Type: FieldEnum, Options: runOutcomeOptions},
 			{Key: "duration", Label: "Duration", Type: FieldNumber, Unit: "h"},
 			{Key: "recipientType", Label: "Job's recipient is", Type: FieldEnum, Options: options(
 				"person", "A person", "organization", "An organization",
@@ -402,6 +418,28 @@ var coreTriggers = []Trigger{
 			{"ending", "How it ended", "finished"},
 			{"duration", "Duration", "5 h 40 min"},
 			{"jobNote", "\" of \"job title\"\", empty without a title", " of \"Lamp shade\""},
+			printPagePlaceholder,
+		},
+		ThrottleSubjects: triggerSubjects("machine", "machine"),
+	},
+	{
+		Key: "timelapse_ready", Area: "Workshop", Label: "A print's timelapse is ready",
+		Help: "Fires when a printer connector has uploaded the timelapse video of a recorded run and Core stored it. " +
+			"Runs without a job notify nobody. {printPage} links to the print's own page, which the job's recipient " +
+			"can open after signing in; e-mails carry that link only to people who can sign in with a password.",
+		Subject: SubjectLab, Permission: authorization.MachineJobsRead,
+		Fields: []Field{
+			{Key: "machine", Label: "Machine", Type: FieldEnum, OptionsFrom: SourcePrinters},
+			{Key: "outcome", Label: "Outcome", Type: FieldEnum, Options: runOutcomeOptions},
+			{Key: "recipientType", Label: "Job's recipient is", Type: FieldEnum, Options: customerTypeOptions},
+		},
+		Recipients: triggerSubjects("operator", "Operator of the job", "recipient", "Job's recipient"),
+		Placeholders: []Placeholder{
+			{"run", "Run", "R-2026-000421"},
+			{"job", "Job", "Lamp shade"},
+			{"machine", "Machine", "Bambu Lab X1C #1"},
+			{"title", "Job title, else the print's file name", "Lamp shade"},
+			printPagePlaceholder,
 		},
 		ThrottleSubjects: triggerSubjects("machine", "machine"),
 	},

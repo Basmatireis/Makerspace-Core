@@ -145,6 +145,9 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	// One event source raises the system events of every service inside the caller's transaction; the central
 	// notification rules decide who is told what.
 	notifyDispatcher := notifyrules.NewDispatcher(pool, location)
+	if cfg.PublicBaseURL != nil {
+		notifyDispatcher.WithPublicBaseURL(cfg.PublicBaseURL.String())
+	}
 	notificationEmitter := notifyrules.NewSystemEvents(notifyDispatcher)
 	openDaysService, err := opendays.NewService(pool, notificationEmitter, cfg)
 	if err != nil {
@@ -229,7 +232,8 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config, relay *camerarelay.Hub, lo
 	attendanceService := attendance.NewService(pool, authService, labRulesService, surveyService).
 		WithNotifications(notificationEmitter)
 	visitorService.SetAttendance(attendanceService)
-	runRecordingsService := runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg))
+	runRecordingsService := runrecordings.NewService(pool, fileService, machineLogbook, timelapseMaxBytes(cfg)).
+		WithNotifications(notificationEmitter)
 	auditRetention, eventSignupRetention := cfg.AuditRetention, cfg.EventSignupRetention
 	privacycatalog.RegisterBuiltinHandlers(privacyService, runRecordingsService, privacy.LegacyPeriods{
 		AuditRetention:       &auditRetention,

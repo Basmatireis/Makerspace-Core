@@ -129,6 +129,11 @@ func (s *Service) UploadTimelapse(
 	}); err != nil {
 		return TimelapseUploadResult{}, err
 	}
+	if s.notices != nil {
+		if err = s.notices.TimelapseReady(ctx, tx, upload.RunID); err != nil {
+			return TimelapseUploadResult{}, err
+		}
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return TimelapseUploadResult{}, err
 	}
