@@ -40,8 +40,8 @@ func TestConvertLegacySceneTilesEveryBuiltInLayout(t *testing.T) {
 		}
 	}
 	wide, err := ConvertLegacyScene(AspectRatio{100, 1}, "split", nil, nil)
-	if err != nil || wide[1].X != maxBlockCoordinate || wide[1].W != maxBlockExtent {
-		t.Fatalf("an extreme ratio is not clamped to the block bounds: %+v %v", wide, err)
+	if err != nil || wide[1].X != 54000 || wide[1].W != 54000 || wide[1].X+wide[1].W > maxBlockCoordinate {
+		t.Fatalf("an extreme ratio is not laid out within the block bounds: %+v %v", wide, err)
 	}
 	unknown, err := ConvertLegacyScene(AspectRatio{16, 9}, "carousel", nil, nil)
 	if err != nil || len(unknown) != 1 || unknown[0].ID != "main" || unknown[0].W != 1920 {
