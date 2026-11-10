@@ -495,10 +495,11 @@
   background: rgba(127, 127, 127, 0.14);
   outline: 1px solid transparent;
 }
+/* One spacing inside a day: the same as its padding, between the number and the entries and between entries. */
 .sg-cal__cell {
   display: flex;
   flex-direction: column;
-  gap: calc(var(--u) * 0.2);
+  gap: calc(var(--u) * 0.4);
   block-size: 100%;
   min-inline-size: 0;
 }
@@ -530,7 +531,6 @@
   padding: calc(var(--u) * 0.25) calc(var(--u) * 0.5);
   border-inline-start: calc(var(--u) * 0.4) solid currentColor;
   border-radius: calc(var(--u) * 0.2);
-  background: var(--sg-cal-fill);
   font-size: calc(var(--u) * 1.5);
   line-height: 1.2;
 }
@@ -610,11 +610,12 @@
 @container sg-cal-day (max-height: 3.4em) {
   .sg-cal__cell {
     flex-direction: row;
-    align-items: flex-start;
-    gap: 0.4em;
+    align-items: center;
   }
+  /* Room for two digits, so the entries of single- and double-digit days start at the same place. */
   .sg-cal__number {
     flex: none;
+    min-inline-size: 2ch;
   }
   .sg-cal__entry {
     flex: 0 1 auto;
@@ -625,30 +626,6 @@
     min-inline-size: 0;
   }
   .sg-cal__until {
-    display: none;
-  }
-}
-/* Too small even for a time: each entry is a dot in its colour, the number keeps the cell readable. */
-@container sg-cal-day (max-height: 1.7em) or (max-width: 5.5em) {
-  .sg-cal__cell {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.25em;
-  }
-  .sg-cal__entry {
-    flex: none;
-    inline-size: 0.6em;
-    block-size: 0.6em;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: var(--sg-cal-color);
-  }
-  .sg-cal__entry > * {
-    display: none;
-  }
-  .sg-cal__more {
     display: none;
   }
 }
