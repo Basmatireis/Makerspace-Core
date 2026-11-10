@@ -117,7 +117,13 @@ export function defaultWidget(type: WidgetType): SignageWidget {
     case 'slideshow':
       return { type, mediaIds: [], seconds: 8 };
     case 'text':
-      return { type, text: 'Your text', fit: false };
+      // New text starts as formatted text, so it can be written directly on the screen.
+      return {
+        type,
+        text: '<h2>Heading</h2><p>Double-click to write something for the screen.</p>',
+        format: 'html',
+        fit: false,
+      };
     case 'qr':
       return { type, url: 'https://', caption: 'Scan for details' };
     case 'clock':
