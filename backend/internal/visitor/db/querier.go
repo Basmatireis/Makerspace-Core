@@ -34,6 +34,7 @@ type Querier interface {
 	GetVisitorRole(ctx context.Context) (Role, error)
 	IsDeviceTypeAllowed(ctx context.Context, managedDeviceID uuid.UUID) (*bool, error)
 	ListAllowedDeviceTypes(ctx context.Context) ([]uuid.UUID, error)
+	PINLoginNameTaken(ctx context.Context, identifierNormalized *string) (bool, error)
 	SetChallengeDelivery(ctx context.Context, arg SetChallengeDeliveryParams) error
 	UpdateConfiguration(ctx context.Context, arg UpdateConfigurationParams) (VisitorEnrollmentConfiguration, error)
 }

@@ -18,6 +18,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ConsentAnswer } from './consentAnswer';
 import type { VisitorAuthenticationMethod } from './visitorAuthenticationMethod';
 
 export interface VisitorEnrollmentSubmission {
@@ -31,14 +32,12 @@ export interface VisitorEnrollmentSubmission {
      * @maxLength 100
      */
   lastName: string;
-  /** @nullable */
-  email: string | null;
   /**
-     * @minLength 1
-     * @maxLength 64
-     * @nullable
+     * Required: the visitor's contact address and the account's login email.
+     * @minLength 3
+     * @maxLength 320
      */
-  phone: string | null;
+  email: string;
   /** @minItems 1 */
   authMethods: VisitorAuthenticationMethod[];
   /**
@@ -67,4 +66,9 @@ export interface VisitorEnrollmentSubmission {
   profileImageFilename: string | null;
   /** The visitor read and accepts the pinned Lab Rules ("I have read and accept the Lab Rules"). Must be true when the visitor role asks for the Lab Rules. */
   labRulesAccepted: boolean;
+  /**
+     * Answers to the enrollment state's consent categories; may be empty.
+     * @maxItems 50
+     */
+  consents: ConsentAnswer[];
 }

@@ -247,8 +247,8 @@ func (q *Queries) CreateVisitorPasswordIdentity(ctx context.Context, arg CreateV
 }
 
 const createVisitorPerson = `-- name: CreateVisitorPerson :one
-INSERT INTO people (id, first_name, last_name, email, phone, profile_image_file_id, profile_image_source, member_since)
-VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $6::uuid IS NULL THEN NULL ELSE 'terminal_capture' END, $7)
+INSERT INTO people (id, first_name, last_name, email, profile_image_file_id, profile_image_source, member_since)
+VALUES ($1, $2, $3, $4, $5, CASE WHEN $5::uuid IS NULL THEN NULL ELSE 'terminal_capture' END, $6)
 RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
 `
 
@@ -257,7 +257,6 @@ type CreateVisitorPersonParams struct {
 	FirstName          string
 	LastName           string
 	Email              *string
-	Phone              *string
 	ProfileImageFileID *uuid.UUID
 	MemberSince        pgtype.Date
 }
@@ -268,7 +267,6 @@ func (q *Queries) CreateVisitorPerson(ctx context.Context, arg CreateVisitorPers
 		arg.FirstName,
 		arg.LastName,
 		arg.Email,
-		arg.Phone,
 		arg.ProfileImageFileID,
 		arg.MemberSince,
 	)
@@ -534,6 +532,19 @@ func (q *Queries) ListAllowedDeviceTypes(ctx context.Context) ([]uuid.UUID, erro
 		return nil, err
 	}
 	return items, nil
+}
+
+const pINLoginNameTaken = `-- name: PINLoginNameTaken :one
+SELECT EXISTS (
+    SELECT 1 FROM auth_identities WHERE kind = 'pin' AND identifier_normalized = $1
+)::boolean AS taken
+`
+
+func (q *Queries) PINLoginNameTaken(ctx context.Context, identifierNormalized *string) (bool, error) {
+	row := q.db.QueryRow(ctx, pINLoginNameTaken, identifierNormalized)
+	var taken bool
+	err := row.Scan(&taken)
+	return taken, err
 }
 
 const setChallengeDelivery = `-- name: SetChallengeDelivery :exec

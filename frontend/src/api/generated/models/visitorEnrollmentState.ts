@@ -19,11 +19,17 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DeviceCapability } from './deviceCapability';
+import type { TerminalConsentCategory } from './terminalConsentCategory';
 import type { VisitorAuthenticationMethod } from './visitorAuthenticationMethod';
 import type { VisitorLabRulesVersion } from './visitorLabRulesVersion';
 
 export interface VisitorEnrollmentState {
   allowedMethods: VisitorAuthenticationMethod[];
+  /**
+     * Notification categories that need the visitor's consent, asked during enrollment. Nothing is preselected.
+     * @maxItems 50
+     */
+  consentCategories: TerminalConsentCategory[];
   /** Effective capabilities of the enrolling device. A profile photo is required exactly when this includes camera or file_upload. */
   capabilities: DeviceCapability[];
   currentLabRules: VisitorLabRulesVersion | null;
