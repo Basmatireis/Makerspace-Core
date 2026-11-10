@@ -660,7 +660,7 @@ describe('calendar widget', () => {
     expect(within(day(container, '2026-10-22')).getByText(/Soldering workshop/)).toBeInTheDocument();
     expect(within(day(container, '2026-10-22')).getByText('20:00')).toBeInTheDocument();
     expect(within(day(container, '2026-10-23')).getByText(/Open day/)).toBeInTheDocument();
-    expect(within(day(container, '2026-10-23')).getByText('16:00–20:00')).toBeInTheDocument();
+    expect(day(container, '2026-10-23').querySelector('.sg-cal__time')).toHaveTextContent('16:00–20:00');
     expect(within(day(container, '2026-10-26')).getByText('National Day')).toBeInTheDocument();
   });
 

@@ -21,6 +21,17 @@ const MAX_ENTRIES = { month: 2, weeks: 4 } as const;
 
 type Props = { widget: SignageCalendarWidget; data: RenderData };
 
+/** `HH:MM–HH:MM` with the end in its own span, which small cells leave out. */
+function EntryTime({ time }: { time: string }) {
+  const [start, end] = time.split('–');
+  return (
+    <span className="sg-cal__time">
+      {start}
+      {end !== undefined && <span className="sg-cal__until">–{end}</span>}
+    </span>
+  );
+}
+
 function DayCell({ day, widget, limit }: { day: CalendarDay; widget: SignageCalendarWidget; limit: number }) {
   const shown = day.entries.slice(0, limit);
   const more = day.entries.length - shown.length;
@@ -33,33 +44,38 @@ function DayCell({ day, widget, limit }: { day: CalendarDay; widget: SignageCale
       style={style}
       data-date={day.key}
     >
-      <span className="sg-cal__number">{day.day}</span>
-      {shown.map((entry, index) => {
-        const color = widget.colors[entry.category];
-        const entryStyle = {
-          borderInlineStartColor: color,
-          background: withOpacity(color, 30),
-        } satisfies CSSProperties;
-        return (
-          <span
-            key={`${entry.category}-${index}`}
-            className={`sg-cal__entry sg-cal__entry--${entry.category}${entry.cancelled ? ' sg-cal__entry--cancelled' : ''}${
-              entry.competencies ? ' sg-cal__entry--detailed' : ''
-            }`}
-            style={entryStyle}
-          >
-            {entry.time !== '' && <span className="sg-cal__time">{entry.time}</span>}
-            {/* Holiday names come from the Austrian calendar in German; the language lets the browser hyphenate them. */}
-            <span className="sg-cal__label" lang={entry.category === 'holiday' ? 'de' : undefined}>
-              {entry.label}
+      {/* The day is the size container; its content is laid out by the inner box, which the size rules can restyle. */}
+      <div className="sg-cal__cell">
+        <span className="sg-cal__number">{day.day}</span>
+        {shown.map((entry, index) => {
+          const color = widget.colors[entry.category];
+          // The fill and the plain colour (a dot in the smallest cells) are left to the stylesheet.
+          const entryStyle = {
+            borderInlineStartColor: color,
+            '--sg-cal-fill': withOpacity(color, 30),
+            '--sg-cal-color': color,
+          } as CSSProperties;
+          return (
+            <span
+              key={`${entry.category}-${index}`}
+              className={`sg-cal__entry sg-cal__entry--${entry.category}${entry.cancelled ? ' sg-cal__entry--cancelled' : ''}${
+                entry.competencies ? ' sg-cal__entry--detailed' : ''
+              }`}
+              style={entryStyle}
+            >
+              {entry.time !== '' && <EntryTime time={entry.time} />}
+              {/* Holiday names come from the Austrian calendar in German; the language lets the browser hyphenate them. */}
+              <span className="sg-cal__label" lang={entry.category === 'holiday' ? 'de' : undefined}>
+                {entry.label}
+              </span>
+              {entry.competencies && (
+                <CompetencyChips labels={entry.competencies} limit={CALENDAR_COMPETENCIES[widget.view]} />
+              )}
             </span>
-            {entry.competencies && (
-              <CompetencyChips labels={entry.competencies} limit={CALENDAR_COMPETENCIES[widget.view]} />
-            )}
-          </span>
-        );
-      })}
-      {more > 0 && <span className="sg-cal__more">+{more}</span>}
+          );
+        })}
+        {more > 0 && <span className="sg-cal__more">+{more}</span>}
+      </div>
     </div>
   );
 }

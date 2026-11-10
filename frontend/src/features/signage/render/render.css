@@ -488,9 +488,6 @@
 }
 .sg-cal__day {
   container: sg-cal-day / size;
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--u) * 0.2);
   min-inline-size: 0;
   min-block-size: 0;
   overflow: hidden;
@@ -498,13 +495,20 @@
   background: rgba(127, 127, 127, 0.14);
   outline: 1px solid transparent;
 }
+.sg-cal__cell {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.2);
+  block-size: 100%;
+  min-inline-size: 0;
+}
 .sg-cal__day--weekend {
   background: rgba(127, 127, 127, 0.08);
 }
 .sg-cal__day--outside {
   background: rgba(127, 127, 127, 0.06);
 }
-.sg-cal__day--outside > * {
+.sg-cal__day--outside .sg-cal__cell > * {
   opacity: 0.55;
 }
 .sg-cal__day--today {
@@ -526,6 +530,7 @@
   padding: calc(var(--u) * 0.25) calc(var(--u) * 0.5);
   border-inline-start: calc(var(--u) * 0.4) solid currentColor;
   border-radius: calc(var(--u) * 0.2);
+  background: var(--sg-cal-fill);
   font-size: calc(var(--u) * 1.5);
   line-height: 1.2;
 }
@@ -596,8 +601,54 @@
     white-space: nowrap;
   }
 }
-@container sg-cal-day (max-height: 2.6em) or (max-width: 7em) {
+@container sg-cal-day (max-height: 3.4em) or (max-width: 7em) {
   .sg-cal__entry:has(.sg-cal__time) .sg-cal__label {
+    display: none;
+  }
+}
+/* No room for a line below the day number: the entries sit beside it. */
+@container sg-cal-day (max-height: 3.4em) {
+  .sg-cal__cell {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.4em;
+  }
+  .sg-cal__number {
+    flex: none;
+  }
+  .sg-cal__entry {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+  }
+  .sg-cal__time {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+  }
+  .sg-cal__until {
+    display: none;
+  }
+}
+/* Too small even for a time: each entry is a dot in its colour, the number keeps the cell readable. */
+@container sg-cal-day (max-height: 1.7em) or (max-width: 5.5em) {
+  .sg-cal__cell {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25em;
+  }
+  .sg-cal__entry {
+    flex: none;
+    inline-size: 0.6em;
+    block-size: 0.6em;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--sg-cal-color);
+  }
+  .sg-cal__entry > * {
+    display: none;
+  }
+  .sg-cal__more {
     display: none;
   }
 }
