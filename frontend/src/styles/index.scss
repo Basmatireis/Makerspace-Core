@@ -254,6 +254,10 @@ body.panel-sheet-open .app-main > * {
   margin-inline-start: 16rem;
 }
 
+.app-main--full-width {
+  padding: 0;
+}
+
 .cds--side-nav {
   isolation: isolate;
   top: 3rem;
