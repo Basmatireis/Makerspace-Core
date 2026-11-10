@@ -22,12 +22,13 @@ describe('Signage navigation', () => {
     expect(screen.queryByRole('button', { name: 'Signage' })).not.toBeInTheDocument();
   });
 
-  it('lists Displays, Announcements, Content and Media for signage.read and opens the group on signage pages', () => {
+  it('lists Displays, Web embeds, Announcements, Content and Media for signage.read and opens the group on signage pages', () => {
     renderNavigation([PermissionId.signageread], '/signage/scenes/some-scene');
     expect(screen.getByRole('button', { name: 'Signage' })).toHaveAttribute('aria-expanded', 'true');
     const links = screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/signage'));
     expect(links.map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
       ['Displays', '/signage'],
+      ['Web embeds', '/signage/embeds'],
       ['Announcements', '/signage/announcements'],
       ['Content', '/signage/content'],
       ['Media', '/signage/media'],

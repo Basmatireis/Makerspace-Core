@@ -160,10 +160,24 @@ func TestStagingAnonymizerLeavesNoPersonalData(t *testing.T) {
 		t.Fatalf("seed contains the canary in only %d columns: %v", len(n), n)
 	}
 
+	embedID := ids.New()
+	const productionKey = "productionEmbedKey0123456789-_ab"
+	if _, err := pool.Exec(ctx, `INSERT INTO signage_displays (id, kind, name, aspect_width, aspect_height, visible_from_outside)
+		VALUES ($1, 'web_embed', 'Website', 16, 9, true)`, embedID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO signage_web_embeds (display_id, embed_key, allowed_origins)
+		VALUES ($1, $2, '{https://www.example.org}')`, embedID, productionKey); err != nil {
+		t.Fatal(err)
+	}
+
 	result, err := staginganonymizer.NewService(pool).Anonymize(ctx, "http://localhost:8080")
 	if err != nil {
 		t.Fatalf("anonymize: %v", err)
 	}
+	// Web embeds are switched off on staging and get a fresh key in the embed key format.
+	assertCount(t, pool, `SELECT count(*) FROM signage_web_embeds WHERE display_id = $1 AND NOT enabled
+		AND embed_key <> $2 AND embed_key ~ '^[A-Za-z0-9_-]{32}$'`, 1, embedID, productionKey)
 
 	if leaks := stagingCanaryCells(t, pool); len(leaks) > 0 {
 		t.Errorf("canary survives in %d columns:\n  %s", len(leaks), strings.Join(leaks, "\n  "))

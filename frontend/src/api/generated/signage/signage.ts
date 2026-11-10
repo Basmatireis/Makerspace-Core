@@ -23,6 +23,7 @@ import type {
   CreateSignageCustomLayoutRequest,
   CreateSignageDisplayGroupRequest,
   CreateSignageSceneRequest,
+  CreateSignageWebEmbedRequest,
   DownloadSignageAssetParams,
   DownloadSignageTimelapseParams,
   ListSignageAssetsParams,
@@ -52,6 +53,8 @@ import type {
   SignageRuleRequest,
   SignageScene,
   SignageSceneList,
+  SignageWebEmbed,
+  SignageWebEmbedList,
   StartSignageAnnouncementRequest,
   UUIDv7,
   UpdateSignageAnnouncementRequest,
@@ -60,6 +63,7 @@ import type {
   UpdateSignageDisplayGroupRequest,
   UpdateSignageDisplayRequest,
   UpdateSignageSceneRequest,
+  UpdateSignageWebEmbedRequest,
   VersionRequest
 } from '../models';
 
@@ -1943,6 +1947,232 @@ return apiFetch<SignageRuleList>(getReorderSignageGroupRulesUrl(groupId),
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
     body: JSON.stringify(reorderSignageRulesRequest)
+  }
+);}
+
+
+export const getListSignageWebEmbedsUrl = () => {
+
+
+
+
+  return `/api/v1/signage/web-embeds`
+}
+
+/**
+ * Requires `signage.read`. Web embeds show a signage screen in an iframe on other websites; they are signage displays without a device and are not listed by `listSignageDisplays`.
+ * @summary List web embeds
+ */
+export const listSignageWebEmbeds = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbedList> => {
+
+  return apiFetch<SignageWebEmbedList>(getListSignageWebEmbedsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getCreateSignageWebEmbedUrl = () => {
+
+
+
+
+  return `/api/v1/signage/web-embeds`
+}
+
+/**
+ * Requires `signage.manage`. Creates the embed with a new random embed key, switched on, without cameras and timelapses. `allowedOrigins` lists the websites that may frame it (1 to 20 origins `https://host[:port]`, lower-case host, no path, query or fragment; 422 otherwise). Like a display it needs `defaultScenes` without `groupId` and none with it. Nothing is shown until the first publication.
+ * @summary Create a web embed
+ */
+export const createSignageWebEmbed = async (createSignageWebEmbedRequest: CreateSignageWebEmbedRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageWebEmbed>(getCreateSignageWebEmbedUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(createSignageWebEmbedRequest)
+  }
+);}
+
+
+export const getGetSignageWebEmbedUrl = (embedId: string,) => {
+
+
+
+
+  return `/api/v1/signage/web-embeds/${embedId}`
+}
+
+/**
+ * Requires `signage.read`.
+ */
+export const getSignageWebEmbed = async (embedId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
+
+  return apiFetch<SignageWebEmbed>(getGetSignageWebEmbedUrl(embedId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+export const getUpdateSignageWebEmbedUrl = (embedId: string,) => {
+
+
+
+
+  return `/api/v1/signage/web-embeds/${embedId}`
+}
+
+/**
+ * Requires `signage.manage`. Omitted fields stay unchanged. Name, aspect ratio, group and default scenes are drafts that reach the websites with the next publication, as for displays. Switching the embed, its camera or its timelapses off takes effect immediately; switching camera or timelapses on takes effect only after the next publication. The last allowed website cannot be removed (422). The audit event lists the changed field names only.
+ * @summary Change a web embed
+ */
+export const updateSignageWebEmbed = async (embedId: string,
+    updateSignageWebEmbedRequest: UpdateSignageWebEmbedRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageWebEmbed>(getUpdateSignageWebEmbedUrl(embedId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(updateSignageWebEmbedRequest)
+  }
+);}
+
+
+export const getDeleteSignageWebEmbedUrl = (embedId: string,) => {
+
+
+
+
+  return `/api/v1/signage/web-embeds/${embedId}`
+}
+
+/**
+ * Requires `signage.manage`. Deletes the embed with its rules, default list, publications and announcement targets. Websites that still frame it show the neutral "not available" page.
+ * @summary Delete a web embed
+ */
+export const deleteSignageWebEmbed = async (embedId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<void>(getDeleteSignageWebEmbedUrl(embedId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getRotateSignageWebEmbedKeyUrl = (embedId: string,) => {
+
+
+
+
+  return `/api/v1/signage/web-embeds/${embedId}/rotate-key`
+}
+
+/**
+ * Requires `signage.manage`. The old embed code stops working immediately; every website must use the new one. The audit event records that the key changed, never the key.
+ * @summary Give a web embed a new embed key
+ */
+export const rotateSignageWebEmbedKey = async (embedId: string,
+    versionRequest: VersionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return apiFetch<SignageWebEmbed>(getRotateSignageWebEmbedKeyUrl(embedId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(versionRequest)
+  }
+);}
+
+
+export const getPublishSignageWebEmbedUrl = (embedId: string,) => {
+
+
+
+
+  return `/api/v1/signage/web-embeds/${embedId}/publish`
+}
+
+/**
+ * Requires `signage.publish`. Like `publishSignageDisplay`; the publication also records whether the camera and timelapses are switched on and which cameras are chosen, so switching them on reaches the websites only now. Rules and the preview of an embed use the display endpoints with the embed id as `displayId`.
+ * @summary Publish the web embed's current drafts
+ */
+export const publishSignageWebEmbed = async (embedId: string, options?: Parameters<typeof apiFetch>[1]): Promise<SignageWebEmbed> => {
+
+  return apiFetch<SignageWebEmbed>(getPublishSignageWebEmbedUrl(embedId),
+  {
+    ...options,
+    method: 'POST'
+
+
   }
 );}
 

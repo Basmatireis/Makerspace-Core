@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/google/uuid"
@@ -98,6 +99,25 @@ type Manifest struct {
 	// layouts existed do not have the field.
 	CustomLayouts  []ManifestCustomLayout `json:"customLayouts"`
 	LayoutsVersion int                    `json:"layoutsVersion"`
+	// EmbedMedia is set on publications of web embeds only: the media switches at publish time. It is never sent to
+	// a player; the public endpoints combine it with the current switches.
+	EmbedMedia *ManifestEmbedMedia `json:"embedMedia,omitempty"`
+}
+
+// ManifestEmbedMedia records which media a web embed was allowed to show when it was published. Switching a medium
+// on takes effect with the next publication; switching it off takes effect at once, because the public endpoints
+// require the published and the current switch.
+type ManifestEmbedMedia struct {
+	Camera           bool        `json:"camera"`
+	CameraMachineIDs []uuid.UUID `json:"cameraMachineIds"`
+	Timelapses       bool        `json:"timelapses"`
+}
+
+func embedMediaEqual(a, b *ManifestEmbedMedia) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Camera == b.Camera && a.Timelapses == b.Timelapses && slices.Equal(a.CameraMachineIDs, b.CameraMachineIDs)
 }
 
 // displayDraft is the editable state of one display that a manifest is built from.
@@ -108,6 +128,8 @@ type displayDraft struct {
 	VisibleFromOutside bool
 	DefaultScenes      []SceneListItem
 	Rules              []Rule
+	// EmbedMedia is set for web embeds only.
+	EmbedMedia *ManifestEmbedMedia
 }
 
 // manifestContent holds the scenes, assets and custom layouts that drafts can reach.
@@ -160,6 +182,7 @@ func assembleManifest(draft displayDraft, content manifestContent) (Manifest, er
 		Assets:         []ManifestAsset{},
 		CustomLayouts:  []ManifestCustomLayout{},
 		LayoutsVersion: LayoutsVersion,
+		EmbedMedia:     draft.EmbedMedia,
 	}
 	sceneIDs := map[uuid.UUID]struct{}{}
 	for _, item := range draft.DefaultScenes {
@@ -325,6 +348,9 @@ func diffManifests(published, draft Manifest) []PendingChange {
 	}
 	if !sceneListsEqual(published.DefaultScenes, draft.DefaultScenes) {
 		changes = append(changes, PendingChange{Kind: ChangeTargetDisplay, Name: "Default scenes", Change: ChangeModified})
+	}
+	if !embedMediaEqual(published.EmbedMedia, draft.EmbedMedia) {
+		changes = append(changes, PendingChange{Kind: ChangeTargetDisplay, Name: "Data shown", Change: ChangeModified})
 	}
 	changes = append(changes, diffRules(published.Rules, draft.Rules)...)
 	scenes := func(manifest Manifest) map[uuid.UUID]versioned {

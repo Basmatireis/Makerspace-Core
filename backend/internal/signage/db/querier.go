@@ -12,6 +12,9 @@ import (
 )
 
 type Querier interface {
+	// Adds page loads counted in memory to the bucket of their UTC day, starting a new bucket on another day. A batch of
+	// an older day than the stored bucket is dropped; last_loaded_at only moves forward.
+	AddSignageWebEmbedLoads(ctx context.Context, arg AddSignageWebEmbedLoadsParams) error
 	BumpSignageDisplayGroupVersion(ctx context.Context, arg BumpSignageDisplayGroupVersionParams) (int64, error)
 	BumpSignageDisplayVersion(ctx context.Context, arg BumpSignageDisplayVersionParams) (int64, error)
 	ClaimSignagePairingRequest(ctx context.Context, arg ClaimSignagePairingRequestParams) error
@@ -29,6 +32,7 @@ type Querier interface {
 	// Custom layouts ----------------------------------------------------------------------------------------------
 	CreateSignageCustomLayout(ctx context.Context, arg CreateSignageCustomLayoutParams) (SignageCustomLayout, error)
 	// Displays ----------------------------------------------------------------------------------------------------
+	// A display of kind device has a managed device; a web embed has none.
 	CreateSignageDisplay(ctx context.Context, arg CreateSignageDisplayParams) (uuid.UUID, error)
 	// Display groups ----------------------------------------------------------------------------------------------
 	CreateSignageDisplayGroup(ctx context.Context, arg CreateSignageDisplayGroupParams) error
@@ -37,6 +41,8 @@ type Querier interface {
 	CreateSignageScene(ctx context.Context, arg CreateSignageSceneParams) (SignageScene, error)
 	// Announcement templates --------------------------------------------------------------------------------------
 	CreateSignageTemplate(ctx context.Context, arg CreateSignageTemplateParams) (SignageAnnouncementTemplate, error)
+	// Web embeds --------------------------------------------------------------------------------------------------
+	CreateSignageWebEmbed(ctx context.Context, arg CreateSignageWebEmbedParams) error
 	DeleteEndedAnnouncementsOfTemplate(ctx context.Context, arg DeleteEndedAnnouncementsOfTemplateParams) error
 	DeleteExpiredSignageAnnouncements(ctx context.Context, cutoff time.Time) ([]uuid.UUID, error)
 	// Pairing -----------------------------------------------------------------------------------------------------
@@ -59,6 +65,8 @@ type Querier interface {
 	DeleteSignageScene(ctx context.Context, arg DeleteSignageSceneParams) (uuid.UUID, error)
 	DeleteSignageTemplate(ctx context.Context, arg DeleteSignageTemplateParams) (uuid.UUID, error)
 	DeleteSignageTemplateFields(ctx context.Context, templateID uuid.UUID) error
+	// Deletes a web embed's display; its embed row, rules, default list, publications and announcement targets cascade.
+	DeleteSignageWebEmbedDisplay(ctx context.Context, arg DeleteSignageWebEmbedDisplayParams) (uuid.UUID, error)
 	GetLatestSignagePublication(ctx context.Context, displayID uuid.UUID) (GetLatestSignagePublicationRow, error)
 	GetOpenSignagePairingRequestByCode(ctx context.Context, arg GetOpenSignagePairingRequestByCodeParams) (uuid.UUID, error)
 	GetSignageAnnouncement(ctx context.Context, id uuid.UUID) (SignageAnnouncement, error)
@@ -69,7 +77,7 @@ type Querier interface {
 	// Scene writes share-lock the layout so that a concurrent layout update or deletion waits for them.
 	GetSignageCustomLayoutForShare(ctx context.Context, id uuid.UUID) (SignageCustomLayout, error)
 	GetSignageCustomLayoutForUpdate(ctx context.Context, id uuid.UUID) (SignageCustomLayout, error)
-	GetSignageDisplayByDevice(ctx context.Context, managedDeviceID uuid.UUID) (GetSignageDisplayByDeviceRow, error)
+	GetSignageDisplayByDevice(ctx context.Context, managedDeviceID *uuid.UUID) (GetSignageDisplayByDeviceRow, error)
 	GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) (GetSignageDisplayForUpdateRow, error)
 	GetSignageDisplayGroupForShare(ctx context.Context, id uuid.UUID) (GetSignageDisplayGroupForShareRow, error)
 	GetSignageDisplayGroupForUpdate(ctx context.Context, id uuid.UUID) (GetSignageDisplayGroupForUpdateRow, error)
@@ -84,6 +92,8 @@ type Querier interface {
 	// The timelapse of one run, only while the run is a finished recorded run that neither it nor its job opted out
 	// of signage.
 	GetSignageTimelapse(ctx context.Context, runID uuid.UUID) (GetSignageTimelapseRow, error)
+	// The embed behind a public embed key together with what its public endpoints need of the display.
+	GetSignageWebEmbedByKey(ctx context.Context, embedKey string) (GetSignageWebEmbedByKeyRow, error)
 	InsertSignageAnnouncementDisplay(ctx context.Context, arg InsertSignageAnnouncementDisplayParams) error
 	InsertSignageAnnouncementGroup(ctx context.Context, arg InsertSignageAnnouncementGroupParams) error
 	InsertSignageAnnouncementValue(ctx context.Context, arg InsertSignageAnnouncementValueParams) error
@@ -97,6 +107,8 @@ type Querier interface {
 	ListGroupsWithDefaultScene(ctx context.Context, sceneID uuid.UUID) ([]ListGroupsWithDefaultSceneRow, error)
 	ListLatestSignagePublications(ctx context.Context, displayIds []string) ([]ListLatestSignagePublicationsRow, error)
 	ListLiveSignageAnnouncements(ctx context.Context, now time.Time) ([]SignageAnnouncement, error)
+	// Announcements in force for one display. Without broadcasts (web embeds) only announcements that name the display
+	// itself count, never those for all displays or for its group.
 	ListLiveSignageAnnouncementsForDisplay(ctx context.Context, arg ListLiveSignageAnnouncementsForDisplayParams) ([]SignageAnnouncement, error)
 	// Notices a notification rule put on this display that are in force now.
 	ListLiveSignageRuleNotices(ctx context.Context, arg ListLiveSignageRuleNoticesParams) ([]ListLiveSignageRuleNoticesRow, error)
@@ -122,8 +134,9 @@ type Querier interface {
 	// Groups with their default list (as JSON) and their member display ids by display name. ids empty means all.
 	ListSignageDisplayGroupViews(ctx context.Context, ids []string) ([]ListSignageDisplayGroupViewsRow, error)
 	ListSignageDisplayIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
-	ListSignageDisplayViews(ctx context.Context) ([]ListSignageDisplayViewsRow, error)
-	// Member displays of groups by name, with what a group publication and the pending-change diff need.
+	// Displays of one kind: devices (the Displays page) or web embeds.
+	ListSignageDisplayViews(ctx context.Context, kind string) ([]ListSignageDisplayViewsRow, error)
+	// Member displays and web embeds of groups by name, with what a group publication and the pending-change diff need.
 	ListSignageGroupMembers(ctx context.Context, groupIds []string) ([]ListSignageGroupMembersRow, error)
 	// Machines whose currently running run was opted out of signage, by its own flag or its job's. A manual run
 	// is running until its planned end; a recorded run while its state says so.
@@ -150,6 +163,7 @@ type Querier interface {
 	// Finished recorded runs with a stored timelapse that were not opted out of signage (by the run or its job),
 	// newest first. Without all_machines only the given machines; ended_after NULL means any age.
 	ListSignageTimelapses(ctx context.Context, arg ListSignageTimelapsesParams) ([]ListSignageTimelapsesRow, error)
+	ListSignageWebEmbeds(ctx context.Context, ids []string) ([]ListSignageWebEmbedsRow, error)
 	// The scenes a scene list refers to, share-locked so that a concurrent deletion or change of a scene's ratio
 	// either waits for this transaction or is seen by it.
 	LockSignageScenesForShare(ctx context.Context, ids []string) ([]LockSignageScenesForShareRow, error)
@@ -161,6 +175,8 @@ type Querier interface {
 	SetSignageRulePosition(ctx context.Context, arg SetSignageRulePositionParams) error
 	// Rewrites the widgets of a scene whose custom layout changed its zones.
 	SetSignageSceneZones(ctx context.Context, arg SetSignageSceneZonesParams) error
+	// The caller holds the display's row lock.
+	SetSignageWebEmbedKey(ctx context.Context, arg SetSignageWebEmbedKeyParams) error
 	UpdateSignageAnnouncement(ctx context.Context, arg UpdateSignageAnnouncementParams) (SignageAnnouncement, error)
 	UpdateSignageCustomLayout(ctx context.Context, arg UpdateSignageCustomLayoutParams) (SignageCustomLayout, error)
 	UpdateSignageDisplay(ctx context.Context, arg UpdateSignageDisplayParams) (uuid.UUID, error)
@@ -168,6 +184,8 @@ type Querier interface {
 	UpdateSignageRule(ctx context.Context, arg UpdateSignageRuleParams) (int64, error)
 	UpdateSignageScene(ctx context.Context, arg UpdateSignageSceneParams) (SignageScene, error)
 	UpdateSignageTemplate(ctx context.Context, arg UpdateSignageTemplateParams) (SignageAnnouncementTemplate, error)
+	// The caller holds the display's row lock.
+	UpdateSignageWebEmbed(ctx context.Context, arg UpdateSignageWebEmbedParams) error
 	// Player ------------------------------------------------------------------------------------------------------
 	UpsertSignageDisplayState(ctx context.Context, arg UpsertSignageDisplayStateParams) error
 }

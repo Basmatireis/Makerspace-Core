@@ -96,6 +96,7 @@ func (s *Service) Anonymize(ctx context.Context, baseURL string) (Result, error)
 		{"delete connector credentials", q.DeletePrinterConnectorCredentials},
 		{"delete signage pairing requests", q.DeleteSignagePairingRequests},
 		{"replace device tokens", q.ReplaceManagedDeviceTokens},
+		{"disable signage web embeds", q.DisableSignageWebEmbeds},
 		{"clear printer secrets", q.ClearPrinterConnectorSecrets},
 
 		{"delete audit events", q.DeleteAuditEvents},

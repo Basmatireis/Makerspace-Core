@@ -111,6 +111,9 @@ func run() error {
 	if err := application.WaitConnections(shutdownContext); err != nil {
 		logger.Warn("camera relay connections did not end before the shutdown timeout")
 	}
+	if err := application.FlushCounters(shutdownContext); err != nil {
+		logger.Warn("signage web embed page loads were not written before shutdown")
+	}
 	select {
 	case <-backgroundDone:
 	case <-shutdownContext.Done():

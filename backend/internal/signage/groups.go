@@ -139,6 +139,10 @@ func (s *Service) loadGroups(
 	for index := range groups {
 		byID[groups[index].ID] = &groups[index]
 	}
+	media, err := embedMediaOf(ctx, q, embedMemberIDs(members))
+	if err != nil {
+		return nil, err
+	}
 	drafts := []displayDraft{}
 	for _, member := range members {
 		if _, ok := published[member.ID]; !ok || member.Revoked {
@@ -150,6 +154,7 @@ func (s *Service) loadGroups(
 			VisibleFromOutside: member.VisibleFromOutside,
 			DefaultScenes:      group.DefaultScenes,
 			Rules:              rules[member.GroupID],
+			EmbedMedia:         media[member.ID],
 		})
 	}
 	manifests, err := s.buildManifests(ctx, q, drafts)
@@ -482,7 +487,12 @@ func (s *Service) publishGroup(
 		return Group{}, err
 	}
 	content := contents[id]
+	media, err := embedMediaOf(ctx, q, embedMemberIDs(members))
+	if err != nil {
+		return Group{}, err
+	}
 	drafts := []displayDraft{}
+	kinds := map[uuid.UUID]DisplayKind{}
 	for _, member := range members {
 		// The member's row lock serialises this publication with the member's own publish and edits.
 		row, err := q.GetSignageDisplayForUpdate(ctx, member.ID)
@@ -492,11 +502,13 @@ func (s *Service) publishGroup(
 		if row.RevokedAt.Valid || row.DeviceRevokedAt.Valid || row.GroupID == nil || *row.GroupID != id {
 			continue
 		}
+		kinds[row.ID] = DisplayKind(row.Kind)
 		drafts = append(drafts, displayDraft{
 			ID: row.ID, Name: row.Name, AspectRatio: aspectRatioOf(row.AspectWidth, row.AspectHeight),
 			VisibleFromOutside: row.VisibleFromOutside,
 			DefaultScenes:      content.DefaultScenes,
 			Rules:              content.Rules,
+			EmbedMedia:         media[row.ID],
 		})
 	}
 	if len(drafts) == 0 {
@@ -510,9 +522,9 @@ func (s *Service) publishGroup(
 		if err := s.storePublication(ctx, q, principal, draft.ID, manifests[draft.ID]); err != nil {
 			return Group{}, err
 		}
+		action, resource := publishedAudit(kinds[draft.ID])
 		if err := writeAudit(
-			ctx, tx, principal, "signage_display.published", "signage_display", draft.ID, requestID,
-			[]string{"revision", "groupId"},
+			ctx, tx, principal, action, resource, draft.ID, requestID, []string{"revision", "groupId"},
 		); err != nil {
 			return Group{}, err
 		}
@@ -571,11 +583,9 @@ func (s *Service) PreviewGroup(
 	}
 	display := PlayerDisplay{Name: groups[0].Name}
 	if chosen != nil {
-		row, err := q.GetSignageDisplayView(ctx, *chosen)
-		if err != nil {
+		if display, err = s.previewDisplayFor(ctx, q, *chosen); err != nil {
 			return DisplayPreview{}, err
 		}
-		display = PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location}
 	}
 	// The preview never offers camera streams: it is not a display itself.
 	live, err := s.playerLive(ctx, display, false)

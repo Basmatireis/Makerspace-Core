@@ -168,7 +168,8 @@ SELECT id FROM roles WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
 SELECT id FROM people WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
 
 -- name: ListExistingDisplayIDs :many
-SELECT id FROM signage_displays WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
+-- Only screens with a device take rule notices; web embeds show public information only.
+SELECT id FROM signage_displays WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) AND kind = 'device';
 
 -- name: ListExistingDeviceIDs :many
 SELECT id FROM managed_devices WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]);
@@ -910,7 +911,7 @@ SELECT count(*)::bigint FROM open_day_assignments WHERE created_at >= sqlc.arg(s
 INSERT INTO signage_rule_notices (id, firing_id, display_id, title, body, tone, starts_at, ends_at)
 SELECT sqlc.arg(id), sqlc.narg(firing_id), d.id, sqlc.arg(title), sqlc.arg(body), sqlc.arg(tone), sqlc.arg(starts_at),
        sqlc.arg(ends_at)
-FROM signage_displays d WHERE d.id = sqlc.arg(display_id);
+FROM signage_displays d WHERE d.id = sqlc.arg(display_id) AND d.kind = 'device';
 
 -- name: InsertKioskRuleNotice :execrows
 INSERT INTO kiosk_rule_notices (id, group_id, firing_id, device_id, mode, person_id, title, body, level, must_tap,
