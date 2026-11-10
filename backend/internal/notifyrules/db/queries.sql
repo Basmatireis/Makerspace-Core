@@ -382,12 +382,39 @@ WHERE ir.notification_id = sqlc.arg(notification_id) AND ir.delivered_at IS NULL
 -- Facts for the events the application itself raises (system notifications).
 
 -- name: GetRunEventFacts :one
-SELECT r.id, r.display_id, r.outcome, r.state, r.started_at, r.ended_at, m.id AS machine_id, m.name AS machine_name,
+SELECT r.id, r.display_id, r.source, r.outcome, r.state, r.started_at, r.ended_at, m.id AS machine_id, m.name AS machine_name,
        j.id AS job_id, j.title AS job_title, j.operator_person_id, j.customer_person_id, j.customer_organization_id
 FROM machine_runs r
 JOIN machines m ON m.id = r.machine_id
 LEFT JOIN machine_jobs j ON j.id = r.job_id
 WHERE r.id = sqlc.arg(id);
+
+-- name: GetTimelapseEventFacts :one
+-- A recorded run with a live job whose timelapse was stored; runs or jobs in the recycle bin are left out.
+SELECT r.id, r.display_id, r.outcome, r.state, m.id AS machine_id, m.name AS machine_name,
+       j.title AS job_title, j.display_id AS job_display_id, j.operator_person_id, j.customer_person_id,
+       j.customer_organization_id
+FROM machine_runs r
+JOIN machines m ON m.id = r.machine_id
+JOIN machine_jobs j ON j.id = r.job_id AND j.deleted_at IS NULL
+WHERE r.id = sqlc.arg(id) AND r.deleted_at IS NULL AND r.source = 'recorded';
+
+-- name: GetRunPrintName :one
+-- What a print is called without a job title: the 3MF's original file name, the printer's file name, or the run's number.
+SELECT COALESCE(NULLIF(btrim(f.original_filename), ''), NULLIF(btrim(r.file_name), ''), r.display_id)::text AS name
+FROM machine_runs r
+LEFT JOIN print_artifacts pa ON pa.id = r.artifact_id
+LEFT JOIN files f ON f.id = pa.original_file_id
+WHERE r.id = sqlc.arg(id);
+
+-- name: ListPeopleWithPasswordAccount :many
+-- People who can sign in with a password: an enabled account with a usable password identity.
+SELECT DISTINCT a.person_id
+FROM accounts a
+JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password' AND i.disabled_at IS NULL
+JOIN password_credentials pc ON pc.auth_identity_id = i.id
+WHERE a.person_id = ANY(sqlc.arg(person_ids)::text[]::uuid[]) AND a.status = 'enabled'
+ORDER BY a.person_id;
 
 -- name: GetMachineEventFacts :one
 -- The machine and the operator of the run that is printing on it right now, if any.
@@ -700,6 +727,11 @@ SELECT count(*)::bigint FROM printer_error_occurrences WHERE first_observed_at >
 -- name: CountFinishedJobRunsSince :one
 SELECT count(*)::bigint FROM machine_runs
 WHERE job_id IS NOT NULL AND deleted_at IS NULL AND ended_at >= sqlc.arg(since);
+
+-- name: CountJobRunTimelapsesSince :one
+SELECT count(*)::bigint FROM machine_run_timelapses t
+JOIN machine_runs r ON r.id = t.run_id
+WHERE r.job_id IS NOT NULL AND r.deleted_at IS NULL AND t.created_at >= sqlc.arg(since);
 
 -- name: CountLabRulesPublishedSince :one
 SELECT count(*)::bigint FROM laborordnung_versions WHERE status = 'published' AND effective_at >= sqlc.arg(since);
