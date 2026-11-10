@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// Before migration 00129 (and in publications before manifest version 4) a scene was a layout with one widget per
+// Before migration 00130 (and in publications before manifest version 4) a scene was a layout with one widget per
 // zone, and widgets carried an optional zone style. ConvertLegacyScene turns such a scene into blocks that render
-// exactly as before. Migration 00129 implements the same rules in PL/pgSQL for the stored scenes, and
+// exactly as before. Migration 00130 implements the same rules in PL/pgSQL for the stored scenes, and
 // TestSignageBlocksMigrationMatchesGoConversion keeps both equal; change neither without the other.
 //
 // The old renderer measured everything in u, 1 % of the scene's short side, so 1u is 10.8 grid units. All
@@ -90,7 +90,7 @@ var legacyLayouts = map[string]legacyGrid{
 	}},
 }
 
-// LegacyCustomLayout is a custom layout as stored before migration 00129 and published before manifest version 4.
+// LegacyCustomLayout is a custom layout as stored before migration 00130 and published before manifest version 4.
 type LegacyCustomLayout struct {
 	ID      uuid.UUID          `json:"id"`
 	Mode    string             `json:"mode"`
