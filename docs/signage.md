@@ -191,6 +191,12 @@ Asset kind `font`: WOFF2 only (`font/woff2`, magic `wOF2`, at most 2 MiB; width,
 - `open_days` and `agenda` widgets: optional `showCompetencies` (absent = false) adds the planned competencies as outlined chips below the standard open-day row, the first four and `+n`. Templates use `{competencies}` instead. Events widgets reject the field.
 - Live data: `openDays` and `events` hold up to 20 entries (`liveListLimit` 20); events gain `endsAt` (nullable). `GET /signage/calendar` follows.
 
+### Widget colours and screen colours
+
+- Optional colour fields (lowercase `#rrggbb`; absent keeps the previous look and is omitted, so existing scenes keep their bytes): `status` `busyColor`, `idleColor`, `unknownColor`, `progressColor`; `camera` `liveColor`, `progressColor`; `timelapse` `captionColor`; `open_days`, `events` and `agenda` `accentColor` (date and time column) and `competencyColor`; `qr` `darkColor` and `lightColor`.
+- The renderer passes them to the widget as CSS custom properties (`--sg-busy`, `--sg-progress`, `--sg-accent`, …; badges also get a readable `-text` colour) that fall back to the defaults.
+- Screen colours in the editor are derived, not stored: the Screen section lists every colour set on the screen (background, block background, text and border colours, calendar categories and the widget colours above) with how often it is used, and changing one replaces it everywhere (`frontend/src/features/signage/widgetColors.ts`). Colours inside rich text are not included.
+
 ### Calendar widget
 
 - Widget `calendar`: `view` (`month`|`weeks`), `weeks` 1–6 (weeks view, starting with the current ISO week), `showHolidays`, `showBreaks`, `showOpenDays`, `showEvents`, `colors: {holiday, break, openDay, event}` (`#rrggbb`), `showWeekNumbers`, `title` (≤ 200, empty hides), `style`, optional `showCompetencies` (absent = false: open days show their first planned competency in the month view, the first two in the weeks view, then `+n`; cancelled days show none), optional `hideLegend` (absent = false: the colour legend is shown). Weeks start on Monday.

@@ -8,6 +8,7 @@ import { MediaPicker } from '../MediaPicker';
 import { assetsQuery } from '../queries';
 import { sceneGridSize } from '../render/aspect';
 import type { Draft } from '../sceneDraft';
+import { replaceScreenColor, screenColors } from '../widgetColors';
 import { stretchToRatio } from './blockOps';
 import { ColorField, PickField, RangeField } from './BlockStyleFields';
 import type { Change } from './arrangeActions';
@@ -52,6 +53,7 @@ export function ScreenProperties({
     setParts(ratioPartsOf(draft.aspectRatio));
   }
   const patch = (partial: Partial<Draft>, key?: string) => onChange({ ...draft, ...partial }, key);
+  const colors = screenColors(draft);
 
   /** Changing the shape stretches the blocks so they keep their relative place and size. */
   const commitShape = (next: RatioParts) => {
@@ -131,6 +133,33 @@ export function ScreenProperties({
                 value={draft.backgroundDim}
                 onChange={(backgroundDim) => patch({ backgroundDim }, 'screen:backgroundDim')}
               />
+            </>
+          )}
+        </fieldset>
+      </AccordionItem>
+      <AccordionItem title="Screen colours" open>
+        <fieldset className="sg-props__section sg-props__fields" disabled={!canEdit}>
+          {colors.length === 0 ? (
+            <p className="sg-secondary">No colours are set on this screen yet.</p>
+          ) : (
+            <>
+              <p className="sg-props__help sg-props__help--top">
+                Every colour used on this screen. Changing one changes it everywhere it is used.
+              </p>
+              {colors.map((item, index) => (
+                <ColorField
+                  // By position, so the field keeps its picker open while its colour changes.
+                  key={index}
+                  id={`sp-screen-color-${index}`}
+                  label={item.count === 1 ? 'Used once' : `Used ${item.count} times`}
+                  nullable={false}
+                  value={item.color}
+                  onChange={(next) => {
+                    if (next && next !== item.color)
+                      onChange(replaceScreenColor(draft, item.color, next), `screen-colors:${index}`);
+                  }}
+                />
+              ))}
             </>
           )}
         </fieldset>

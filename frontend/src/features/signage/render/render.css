@@ -201,7 +201,7 @@
 }
 .sg-progress__bar {
   block-size: 100%;
-  background: #42be65;
+  background: var(--sg-progress, #42be65);
 }
 
 /* Announcement widget: tone colours follow Carbon's support colours. */
@@ -333,7 +333,7 @@
   inline-size: calc(var(--u) * 1.1);
   block-size: calc(var(--u) * 1.1);
   border-radius: 50%;
-  background: #fa4d56;
+  background: var(--sg-live, #fa4d56);
 }
 .sg-camera__caption {
   position: absolute;
@@ -385,15 +385,16 @@
 .sg-status__state {
   padding: calc(var(--u) * 0.3) calc(var(--u) * 1.4);
   font-size: calc(var(--u) * 2.4);
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--sg-idle, rgba(255, 255, 255, 0.18));
+  color: var(--sg-idle-text, inherit);
 }
 .sg-status__state--busy {
-  background: #198038;
-  color: #fff;
+  background: var(--sg-busy, #198038);
+  color: var(--sg-busy-text, #fff);
 }
 .sg-status__state--unknown {
-  background: #f1c21b;
-  color: #161616;
+  background: var(--sg-unknown, #f1c21b);
+  color: var(--sg-unknown-text, #161616);
 }
 .sg-list {
   display: flex;
@@ -411,8 +412,12 @@
   gap: calc(var(--u) * 2);
 }
 .sg-list__row span:last-child {
+  color: var(--sg-accent, inherit);
   opacity: 0.8;
   text-align: end;
+}
+.sg-list .sg-chips {
+  color: var(--sg-competency, inherit);
 }
 .sg-list__empty {
   opacity: 0.7;
@@ -689,7 +694,7 @@
   padding: calc(var(--u) * 0.4) calc(var(--u) * 1);
   border-radius: calc(var(--u) * 0.4);
   background: rgb(0 0 0 / 60%);
-  color: #fff;
+  color: var(--sg-caption, #fff);
   font-size: calc(var(--u) * 1.8);
 }
 

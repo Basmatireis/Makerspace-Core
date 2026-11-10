@@ -1,7 +1,18 @@
 import { useMemo } from 'react';
 import { qrModules } from './qr';
 
-export function QrCode({ url, caption }: { url: string; caption: string }) {
+/** `dark` and `light` replace the black modules and the white quiet zone. */
+export function QrCode({
+  url,
+  caption,
+  dark = '#161616',
+  light = '#fff',
+}: {
+  url: string;
+  caption: string;
+  dark?: string;
+  light?: string;
+}) {
   // Encoding a QR code is real work; the matrix only changes with the URL.
   const modules = useMemo(() => qrModules(url), [url]);
   return (
@@ -14,11 +25,9 @@ export function QrCode({ url, caption }: { url: string; caption: string }) {
           aria-label={`QR code for ${url}`}
           shapeRendering="crispEdges"
         >
-          <rect x="-2" y="-2" width={modules.length + 4} height={modules.length + 4} fill="#fff" />
+          <rect x="-2" y="-2" width={modules.length + 4} height={modules.length + 4} fill={light} />
           {modules.flatMap((row, y) =>
-            row.map((on, x) =>
-              on ? <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill="#161616" /> : null,
-            ),
+            row.map((on, x) => (on ? <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill={dark} /> : null)),
           )}
         </svg>
       ) : (

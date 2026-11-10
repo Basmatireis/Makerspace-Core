@@ -18,6 +18,8 @@ export function ColorField({
   value,
   nullable = true,
   mixed = false,
+  emptyText = 'Not set',
+  fallback,
   onChange,
 }: {
   id: string;
@@ -25,6 +27,10 @@ export function ColorField({
   value: string | null;
   nullable?: boolean;
   mixed?: boolean;
+  /** Placeholder while no colour is set, e.g. what is used instead. */
+  emptyText?: string;
+  /** Swatch colour while no colour is set. */
+  fallback?: string;
   onChange: (value: string | null) => void;
 }) {
   // While typing, the half-finished text is kept here; it is dropped on blur so the field shows the stored value again.
@@ -37,7 +43,7 @@ export function ColorField({
       <TextInput
         id={id}
         labelText={label}
-        placeholder={mixed ? 'Mixed' : nullable ? 'Not set' : '#rrggbb'}
+        placeholder={mixed ? 'Mixed' : nullable ? emptyText : '#rrggbb'}
         autoComplete="off"
         value={text}
         invalid={invalid}
@@ -53,6 +59,7 @@ export function ColorField({
       <ColorPicker
         label={label}
         value={valid || (typed === null && value) ? text : null}
+        fallback={fallback}
         onChange={(next) => {
           setTyped(null);
           onChange(next);
@@ -69,6 +76,8 @@ export function ColorRow({
   value,
   mixed = false,
   clearLabel,
+  emptyText,
+  fallback,
   onChange,
 }: {
   id: string;
@@ -76,11 +85,21 @@ export function ColorRow({
   value: string | null;
   mixed?: boolean;
   clearLabel: 'None' | 'Reset';
+  emptyText?: string;
+  fallback?: string;
   onChange: (value: string | null) => void;
 }) {
   return (
     <div className="sg-props__color">
-      <ColorField id={id} label={label} value={value} mixed={mixed} onChange={onChange} />
+      <ColorField
+        id={id}
+        label={label}
+        value={value}
+        mixed={mixed}
+        emptyText={emptyText}
+        fallback={fallback}
+        onChange={onChange}
+      />
       <Button
         kind="ghost"
         size="sm"

@@ -44,4 +44,14 @@ export interface SignageCameraWidget {
      * @maxItems 20
      */
   machineIds?: UUIDv7[];
+  /**
+     * Colour of the live dot; absent is red.
+     * @pattern ^#[0-9a-f]{6}$
+     */
+  liveColor?: string;
+  /**
+     * Colour of the progress bar; absent is green.
+     * @pattern ^#[0-9a-f]{6}$
+     */
+  progressColor?: string;
 }

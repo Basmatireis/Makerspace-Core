@@ -144,3 +144,33 @@ func TestCalendarHideLegendIsOptional(t *testing.T) {
 		t.Fatalf("false flag kept: %s (%v)", canonical, err)
 	}
 }
+
+func TestWidgetColoursAreOptionalHexValues(t *testing.T) {
+	list := `{"type":"open_days","count":5}`
+	for name, raw := range map[string]string{
+		"qr":        `{"type":"qr","url":"https://example.org","caption":"","darkColor":"#123456","lightColor":"#fafafa"}`,
+		"status":    `{"type":"status","machineIds":[],"showProgress":true,"showRemaining":false,"busyColor":"#00ff00","progressColor":"#0000ff"}`,
+		"open days": strings.TrimSuffix(list, "}") + `,"accentColor":"#ff0000","competencyColor":"#00ff00"}`,
+	} {
+		canonical, _, err := ValidateWidget("main", []byte(raw))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if !strings.Contains(string(canonical), "Color") {
+			t.Fatalf("%s lost its colours: %s", name, canonical)
+		}
+	}
+	// Absent colours stay absent, so existing widgets keep their bytes.
+	if canonical, _, err := ValidateWidget("main", []byte(list)); err != nil || strings.Contains(string(canonical), "Color") {
+		t.Fatalf("absent colours added: %s (%v)", canonical, err)
+	}
+	for name, raw := range map[string]string{
+		"upper case": `{"type":"qr","url":"https://example.org","caption":"","darkColor":"#ABCDEF"}`,
+		"no hash":    `{"type":"status","machineIds":[],"showProgress":true,"showRemaining":false,"busyColor":"00ff00"}`,
+		"agenda":     `{"type":"agenda","count":5,"includeOpenDays":true,"includeEvents":true,"accentColor":"red"}`,
+	} {
+		if _, _, err := ValidateWidget("main", []byte(raw)); err == nil {
+			t.Fatalf("%s: invalid colour accepted", name)
+		}
+	}
+}

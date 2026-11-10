@@ -65,6 +65,9 @@
   color: theme.$text-secondary;
   @include type-style('helper-text-01');
 }
+.sg-props__help--top {
+  margin-block-start: 0;
+}
 .sg-props__group {
   display: grid;
   gap: $spacing-02;
