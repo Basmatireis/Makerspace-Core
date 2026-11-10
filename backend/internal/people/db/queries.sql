@@ -435,6 +435,13 @@ WITH visits_moved AS (
     UPDATE visits SET person_id = sqlc.arg(target_person_id)::uuid WHERE person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
 ), invitations_moved AS (
     UPDATE survey_invitations SET person_id = sqlc.arg(target_person_id)::uuid WHERE person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
+), offers_moved AS (
+    UPDATE survey_offers SET person_id = sqlc.arg(target_person_id)::uuid WHERE person_id = sqlc.arg(source_person_id)::uuid RETURNING 1
+), last_visit_kept AS (
+    -- Only the date of the last completed visit is kept per person; the merged person keeps the later one.
+    UPDATE people SET last_visit_on = GREATEST(people.last_visit_on,
+        (SELECT source.last_visit_on FROM people source WHERE source.id = sqlc.arg(source_person_id)::uuid))
+    WHERE people.id = sqlc.arg(target_person_id)::uuid RETURNING 1
 ), responses_moved AS (
     UPDATE survey_responses SET identified_person_id = sqlc.arg(target_person_id)::uuid
     WHERE identified_person_id = sqlc.arg(source_person_id)::uuid RETURNING 1

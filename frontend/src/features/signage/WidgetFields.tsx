@@ -451,7 +451,9 @@ function TypeFields({
     case 'calendar':
       return <CalendarFields widget={widget} onChange={onChange} />;
     case 'timelapse':
-      return <TimelapseFields widget={widget} machines={machines} onChange={onChange} />;
+      return (
+        <TimelapseFields widget={widget} machines={machines} outsideDisplays={outsideDisplays} onChange={onChange} />
+      );
     case 'announcement':
       return (
         <>

@@ -30,8 +30,8 @@ func cameraNotFound() error {
 	return apperror.New(http.StatusNotFound, "camera_not_found", "This machine has no streaming camera")
 }
 
-// cameraAllowed tells whether a display may show cameras at all: displays that are visible from outside need the
-// explicit allowCameraOutside setting.
+// cameraAllowed tells whether a display may show camera images at all, live streams and timelapse recordings alike:
+// displays that are visible from outside need the explicit allowCameraOutside setting.
 func cameraAllowed(display PlayerDisplay) bool {
 	return !display.VisibleFromOutside || display.AllowCameraOutside
 }

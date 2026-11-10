@@ -12,7 +12,7 @@ export const attendanceKeys = {
 export function visitsOptions(enabled: boolean) {
   return queryOptions({
     queryKey: attendanceKeys.visits,
-    queryFn: ({ signal }) => listVisits({ currentlyHere: true }, { signal }),
+    queryFn: ({ signal }) => listVisits({ signal }),
     refetchInterval: 5_000,
     enabled,
   });

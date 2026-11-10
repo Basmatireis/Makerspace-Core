@@ -231,11 +231,6 @@ UPDATE survey_invitations SET status = 'redeemed', redeemed_at = now(),
   person_id = NULL, visit_id = NULL, recipient_email = NULL
 WHERE id = sqlc.arg(id) AND status IN ('pending', 'sent', 'failed') AND expires_at > now();
 
--- name: CancelSurveyInvitationsForVisit :execrows
-UPDATE survey_invitations SET status = 'cancelled', person_id = NULL, visit_id = NULL,
-  recipient_email = NULL, delivery_claimed_at = NULL
-WHERE visit_id = sqlc.arg(visit_id) AND status IN ('pending', 'delivering', 'sent', 'failed');
-
 -- name: CreateSurveyResponse :one
 INSERT INTO survey_responses (id, survey_version_id, submitted_on, identified_person_id, source, share_link_id)
 VALUES (sqlc.arg(id), sqlc.arg(survey_version_id), sqlc.arg(submitted_on), sqlc.narg(identified_person_id),
@@ -440,14 +435,15 @@ ON CONFLICT (person_id, survey_id) DO UPDATE SET asked_at = EXCLUDED.asked_at;
 DELETE FROM survey_ask_cooldowns WHERE asked_at < now() - interval '3651 days';
 
 -- name: DeleteExpiredSurveyOffers :exec
-DELETE FROM survey_offers WHERE expires_at < now() - interval '1 day';
+-- An offer that ran out unused still names the person and the check-out time, so it goes as soon as it expires.
+DELETE FROM survey_offers WHERE expires_at < now();
 
 -- name: DeleteSurveyOffersExpiredBefore :execrows
 DELETE FROM survey_offers WHERE expires_at < sqlc.arg(cutoff);
 
 -- name: CreateSurveyOffer :exec
-INSERT INTO survey_offers (id, token_digest, visit_id, device_id, survey_id, survey_version_id, expires_at)
-VALUES (sqlc.arg(id), sqlc.arg(token_digest), sqlc.arg(visit_id), sqlc.arg(device_id), sqlc.arg(survey_id),
+INSERT INTO survey_offers (id, token_digest, visit_id, person_id, device_id, survey_id, survey_version_id, expires_at)
+VALUES (sqlc.arg(id), sqlc.arg(token_digest), sqlc.arg(visit_id), sqlc.arg(person_id), sqlc.arg(device_id), sqlc.arg(survey_id),
   sqlc.arg(survey_version_id), sqlc.arg(expires_at));
 
 -- name: GetSurveyOffer :one
@@ -461,7 +457,7 @@ WHERE o.token_digest = sqlc.arg(token_digest) AND o.device_id = sqlc.arg(device_
   AND o.consumed_at IS NULL AND o.expires_at > now();
 
 -- name: GetSurveyOfferForUpdate :one
-SELECT o.id, o.visit_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status
+SELECT o.id, o.visit_id, o.person_id, o.survey_id, o.survey_version_id, o.expires_at, s.anonymous, s.status AS survey_status
 FROM survey_offers o
 JOIN surveys s ON s.id = o.survey_id
 WHERE o.token_digest = sqlc.arg(token_digest) AND o.device_id = sqlc.arg(device_id)
@@ -469,11 +465,12 @@ WHERE o.token_digest = sqlc.arg(token_digest) AND o.device_id = sqlc.arg(device_
 FOR UPDATE OF o;
 
 -- name: ConsumeSurveyOffer :execrows
-UPDATE survey_offers SET consumed_at = now(), visit_id = NULL
+UPDATE survey_offers SET consumed_at = now(), visit_id = NULL, person_id = NULL
 WHERE id = sqlc.arg(id) AND consumed_at IS NULL;
 
--- name: GetVisitPersonForOffer :one
-SELECT p.id, p.email FROM visits v JOIN people p ON p.id = v.person_id WHERE v.id = sqlc.arg(visit_id);
+-- name: GetOfferPerson :one
+-- The person who checked out. The visit is gone by the time the tablet answers, so the offer carries the person.
+SELECT p.id, p.email FROM people p WHERE p.id = sqlc.arg(person_id);
 
 -- name: CancelSurveyInvitationForVisitVersion :execrows
 UPDATE survey_invitations SET status = 'cancelled', person_id = NULL, visit_id = NULL,

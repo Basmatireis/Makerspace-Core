@@ -1384,6 +1384,7 @@ type Person struct {
 	ProfileImageFileID  *uuid.UUID
 	ProfileImageSource  *string
 	MemberSince         pgtype.Date
+	LastVisitOn         pgtype.Date
 }
 
 type PersonNotificationSetting struct {
@@ -2287,6 +2288,7 @@ type SurveyOffer struct {
 	ExpiresAt       time.Time
 	ConsumedAt      pgtype.Timestamptz
 	CreatedAt       time.Time
+	PersonID        *uuid.UUID
 }
 
 type SurveyQuestion struct {

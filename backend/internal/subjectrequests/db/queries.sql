@@ -185,11 +185,14 @@ SELECT jsonb_build_object(
     'visits', (SELECT COALESCE(jsonb_agg(jsonb_build_object(
         'checkedInAt', v.checked_in_at, 'checkedOutAt', v.checked_out_at, 'status', v.status, 'checkInMethod', v.check_in_method,
         'checkOutMethod', v.check_out_method, 'admissionDecision', v.admission_decision, 'correctionReason', v.correction_reason)
-        ORDER BY v.checked_in_at), '[]'::jsonb) FROM visits v WHERE v.person_id = sqlc.arg(subject_person)::uuid)
+        ORDER BY v.checked_in_at), '[]'::jsonb) FROM visits v WHERE v.person_id = sqlc.arg(subject_person)::uuid),
+    'lastVisitOn', (SELECT p.last_visit_on FROM people p WHERE p.id = sqlc.arg(subject_person)::uuid)
 )::jsonb AS document;
 
 -- name: CountVisits :one
-SELECT count(*)::bigint AS total FROM visits v WHERE v.person_id = sqlc.arg(subject_person)::uuid;
+-- Open visits plus the kept last visit date; completed visits are not kept.
+SELECT ((SELECT count(*) FROM visits v WHERE v.person_id = sqlc.arg(subject_person)::uuid)
+    + (SELECT count(*) FROM people p WHERE p.id = sqlc.arg(subject_person)::uuid AND p.last_visit_on IS NOT NULL))::bigint AS total;
 
 -- name: ExportSurveyInvitations :one
 SELECT jsonb_build_object(

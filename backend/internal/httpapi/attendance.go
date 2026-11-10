@@ -229,19 +229,13 @@ func (s *Server) TerminalPublicCheckOut(
 
 func (s *Server) ListVisits(
 	ctx context.Context,
-	request openapi.ListVisitsRequestObject,
+	_ openapi.ListVisitsRequestObject,
 ) (openapi.ListVisitsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.attendance.List(
-		ctx,
-		p,
-		request.Params.CurrentlyHere != nil && *request.Params.CurrentlyHere,
-		request.Params.From,
-		request.Params.To,
-	)
+	items, err := s.attendance.List(ctx, p)
 	if err != nil {
 		return nil, err
 	}

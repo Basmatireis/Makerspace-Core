@@ -188,6 +188,10 @@ Volume example (stop the stack first for a consistent copy):
 docker run --rm -v makerspace-connector_connector_data:/data:ro -v "$PWD":/backup alpine tar -czf /backup/connector-data.tar.gz -C /data .
 ```
 
+### Logs
+
+Both containers log to stdout. The frontend's nginx uses its own access-log format (`frontend/nginx/default.conf`): the request path without its query string, the token segment of token URLs (`/survey/<token>`, `/survey/link/<token>`, `/api/v1/calendar/<token>.ics`, the public survey and survey-offer API paths) masked, and no Referer. Query parameters such as OIDC `code`/`state`, `?account=` or `?token=` therefore never reach the log. The nginx error log is unchanged and may name the request line of a failed upstream request. The API logs no request paths. Keep the log retention of whatever collects stdout short (the HTU deployment keeps 7 days).
+
 ### Coming from the previous layout
 
 - The connector stack was called `makerspace-printer-connector` (development: `...-dev`); it is `makerspace-connector` now and gets a new, empty data volume. Enroll the connector again: in Core revoke or delete the old connector, create a new one and put its secret into `.env`. The old volume can be removed with `docker volume rm makerspace-printer-connector_connector_data`.

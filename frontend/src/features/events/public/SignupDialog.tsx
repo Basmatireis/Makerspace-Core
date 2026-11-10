@@ -17,6 +17,7 @@ import {
   createPublicEventSignup,
 } from '../../../api/generated/public-events/public-events';
 import type { PublicEvent, PublicEventRequirement, PublicEventShift } from '../../../api/generated/models';
+import { LegalLinks } from '../../branding/LegalLinks';
 import { FieldRow } from '../components/FormSection';
 import { formatLocalDate, formatTimeRange } from '../format';
 import { eventKeys } from '../queries';
@@ -209,6 +210,7 @@ export function SignupDialog({
               Provide at least one email address or phone number. We use your details only to organize this event.
               External signups receive a private management link to change or cancel the signup.
             </p>
+            <LegalLinks />
           </>
         )}
       </Stack>

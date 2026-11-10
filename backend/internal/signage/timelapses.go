@@ -181,6 +181,7 @@ type timelapseCaps struct {
 // displayTimelapses is the timelapse selection of a display's publication: nil without a timelapse widget. A web
 // embed gets clips only while its timelapses are switched on now and were when it was published (an empty list
 // otherwise, so its widgets show their fallback), capped by its settings.
+// Timelapses are camera recordings, so a display visible from outside without allowCameraOutside gets none either.
 func (s *Service) displayTimelapses(
 	ctx context.Context,
 	q *signagedb.Queries,
@@ -188,6 +189,12 @@ func (s *Service) displayTimelapses(
 	manifest Manifest,
 	now time.Time,
 ) ([]LiveTimelapse, error) {
+	if display.embed == nil && !cameraAllowed(display) {
+		if _, present := timelapseNeedsOf(manifest); present {
+			return []LiveTimelapse{}, nil
+		}
+		return nil, nil
+	}
 	var caps *timelapseCaps
 	if display.embed != nil {
 		allowed, embedCaps := display.embed.timelapsesFor(manifest)
@@ -204,7 +211,8 @@ func (s *Service) displayTimelapses(
 }
 
 // OpenPlayerTimelapse opens a timelapse video for a player, but only while the run is in the display's
-// current timelapse selection with exactly this checksum; everything else is 404.
+// current timelapse selection with exactly this checksum; everything else is 404, including every clip for a
+// display visible from outside without allowCameraOutside.
 func (s *Service) OpenPlayerTimelapse(
 	ctx context.Context,
 	display PlayerDisplay,

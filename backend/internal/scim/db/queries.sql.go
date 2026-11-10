@@ -291,7 +291,7 @@ func (q *Queries) CreateProvisionedAccount(ctx context.Context, arg CreateProvis
 const createProvisionedPerson = `-- name: CreateProvisionedPerson :one
 INSERT INTO people (id, first_name, last_name, email, phone, member_since)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source, member_since, last_visit_on
 `
 
 type CreateProvisionedPersonParams struct {
@@ -327,6 +327,7 @@ func (q *Queries) CreateProvisionedPerson(ctx context.Context, arg CreateProvisi
 		&i.ProfileImageFileID,
 		&i.ProfileImageSource,
 		&i.MemberSince,
+		&i.LastVisitOn,
 	)
 	return i, err
 }
