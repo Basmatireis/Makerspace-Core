@@ -32,6 +32,8 @@ export interface NotificationCatalogTrigger {
      * @maxLength 40
      */
   subject: string;
+  /** The trigger's events concern one machine: a rule may limit itself to some machines with `trigger.machines`, chosen from the options of its `machine` field. */
+  machineScope: boolean;
   fields: NotificationCatalogField[];
   recipients: NotificationCatalogChoice[];
   placeholders: NotificationCatalogPlaceholder[];

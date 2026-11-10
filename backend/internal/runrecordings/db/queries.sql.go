@@ -212,6 +212,51 @@ func (q *Queries) GetOpenRunCommand(ctx context.Context, arg GetOpenRunCommandPa
 	return i, err
 }
 
+const getPrintPageRun = `-- name: GetPrintPageRun :one
+SELECT r.id, r.display_id, r.file_name, COALESCE(r.started_at, r.first_observed_at)::timestamptz AS started_at,
+       r.ended_at, r.outcome, m.name AS machine_name, j.title AS job_title, j.customer_person_id,
+       f.original_filename AS artifact_filename
+FROM machine_runs r
+JOIN machines m ON m.id = r.machine_id
+JOIN machine_jobs j ON j.id = r.job_id AND j.deleted_at IS NULL
+LEFT JOIN print_artifacts pa ON pa.id = r.artifact_id
+LEFT JOIN files f ON f.id = pa.original_file_id
+WHERE r.id = $1 AND r.deleted_at IS NULL AND r.source = 'recorded'
+`
+
+type GetPrintPageRunRow struct {
+	ID               uuid.UUID
+	DisplayID        string
+	FileName         *string
+	StartedAt        time.Time
+	EndedAt          pgtype.Timestamptz
+	Outcome          *string
+	MachineName      string
+	JobTitle         *string
+	CustomerPersonID *uuid.UUID
+	ArtifactFilename *string
+}
+
+// A recorded run with its job for the run's print page. Manual runs, runs without a job and runs or jobs in the
+// recycle bin are left out; the page never reads material, prices, the operator or the recipient's name.
+func (q *Queries) GetPrintPageRun(ctx context.Context, runID uuid.UUID) (GetPrintPageRunRow, error) {
+	row := q.db.QueryRow(ctx, getPrintPageRun, runID)
+	var i GetPrintPageRunRow
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayID,
+		&i.FileName,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.Outcome,
+		&i.MachineName,
+		&i.JobTitle,
+		&i.CustomerPersonID,
+		&i.ArtifactFilename,
+	)
+	return i, err
+}
+
 const getRecordingSettings = `-- name: GetRecordingSettings :one
 SELECT singleton, timelapse_enabled, timelapse_retention_days, version, updated_at, timelapse_max_bytes, timelapse_max_count, timelapse_max_total_bytes, artifact_max_bytes, artifact_retention_days, artifact_max_count, artifact_max_total_bytes FROM run_recording_settings WHERE singleton
 `

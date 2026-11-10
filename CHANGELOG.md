@@ -29,6 +29,9 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - **Web sign-in permission.** New permission `web.sign_in`: without it an account cannot sign in to the web app (password, PIN, passkey, OIDC) and its sessions stop working; sign-in and check-in at the tablet terminal and visitor enrollment stay possible. The Visitor role does not hold it, so visitors use only the terminal (#58).
 - **Open-day view follows you.** The List/Calendar choice of the open-day pages is stored on the account and restored on every device (#55).
 - **Open-day notifications.** New notification trigger "An open-day schedule is published or changed" and the ready-made subscription "Reminder for my upcoming open-day slot" (#47).
+- **Print page.** Each recorded print has its own page at `/prints/{runId}` with title, printer, times, outcome, the timelapse, the 3MF previews and downloads, without material, prices or names. The job's recipient (a person) and staff with `machine_jobs.read` can open it after signing in; anyone else gets "not found" (`GET /print-pages/{runId}` and its content endpoints).
+- **Timelapse notifications.** New trigger "A print's timelapse is ready" (`timelapse_ready`) when a connector's timelapse of a run with a job is stored, with the `{printPage}` placeholder (also on `run_finished`). E-mails link to the print page only for recipients who can sign in with a password; organizations and people without a password get the mail without the link.
+- **Machine scope for notification rules.** Rules on triggers about a machine (printer errors, finished runs, filament changes, timelapses, new jobs) can be limited to some machines (`definition.trigger.machines`; empty means all; the catalog marks these triggers with `machineScope`).
 
 ### Removed
 

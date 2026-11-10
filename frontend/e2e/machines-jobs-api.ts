@@ -1629,6 +1629,39 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       return found ? ok(route, found) : notFound(route);
     }
 
+    // Print pages (opened by link outside the shell): the linked run has one, everything else is "not available".
+    if ((match = path.match(/^\/api\/v1\/print-pages\/([^/]+)$/)) && method === 'GET') {
+      if (match[1] !== ids.runLinked) return notFound(route);
+      return ok(route, {
+        runId: ids.runLinked,
+        displayId: 'RN-2026-000061',
+        title: 'Gearbox housing',
+        machineName: 'Bambu H2D',
+        startedAt: '2026-09-15T08:00:00Z',
+        endedAt: '2026-09-15T11:30:00Z',
+        durationSeconds: 12600,
+        outcome: 'successful',
+        timelapse: null,
+        timelapseStatus: { state: 'not_found', reason: 'timelapse_not_recorded', detail: null },
+        artifact: { originalFileName: 'gearbox.3mf', sizeBytes: 2097152 },
+        previews: [{ id: id(114), role: 'plate', plateNumber: 1, primary: true }],
+        viewerIsStaff: true,
+      });
+    }
+    if ((match = path.match(/^\/api\/v1\/print-pages\/([^/]+)\/previews\/[^/]+\/content$/)) && method === 'GET') {
+      // A 1x1 transparent PNG stands in for the plate image.
+      return route.fulfill({
+        status: 200,
+        contentType: 'image/png',
+        body: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+          'base64',
+        ),
+      });
+    }
+    if (path.match(/^\/api\/v1\/print-pages\/[^/]+\/(timelapse|file)\/content$/) && method === 'GET')
+      return notFound(route);
+
     // Machines › Printers and the printer setup page (see printerMock below).
     const printerResponse = printerMock(world, method, path, params, body);
     if (printerResponse) return ok(route, printerResponse.body, printerResponse.status);

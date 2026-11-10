@@ -34,6 +34,7 @@ type Querier interface {
 	CountFinalizedOrdersSince(ctx context.Context, since time.Time) (int64, error)
 	CountFinishedJobRunsSince(ctx context.Context, since pgtype.Timestamptz) (int64, error)
 	CountInvoiceRequestEventsSince(ctx context.Context, since time.Time) (int64, error)
+	CountJobRunTimelapsesSince(ctx context.Context, since time.Time) (int64, error)
 	CountJobsCreatedSince(ctx context.Context, since time.Time) (int64, error)
 	CountLabRulesPublishedSince(ctx context.Context, since pgtype.Timestamptz) (int64, error)
 	CountOpenDaySignupsSince(ctx context.Context, since time.Time) (int64, error)
@@ -93,11 +94,15 @@ type Querier interface {
 	GetRuleForUpdate(ctx context.Context, id uuid.UUID) (NotificationRule, error)
 	// Facts for the events the application itself raises (system notifications).
 	GetRunEventFacts(ctx context.Context, id uuid.UUID) (GetRunEventFactsRow, error)
+	// What a print is called without a job title: the 3MF's original file name, the printer's file name, or the run's number.
+	GetRunPrintName(ctx context.Context, id uuid.UUID) (string, error)
 	// How a spool is named to people: its label and its article.
 	GetSpoolEventFacts(ctx context.Context, id uuid.UUID) (GetSpoolEventFactsRow, error)
 	GetStaffingWarningDays(ctx context.Context) (int32, error)
 	// Only the survey itself: a response is never tied to a person here, whether the survey is anonymous or not.
 	GetSurveyResponseEventFacts(ctx context.Context, id uuid.UUID) (GetSurveyResponseEventFactsRow, error)
+	// A recorded run with a live job whose timelapse was stored; runs or jobs in the recycle bin are left out.
+	GetTimelapseEventFacts(ctx context.Context, id uuid.UUID) (GetTimelapseEventFactsRow, error)
 	GetTrainingName(ctx context.Context, id uuid.UUID) (string, error)
 	// The facts of a visit for the check-in and check-out triggers. first_visit is true when the person has no earlier
 	// visit that still counts.
@@ -161,6 +166,8 @@ type Querier interface {
 	ListPeopleNotDelivered(ctx context.Context, notificationID uuid.UUID) ([]uuid.UUID, error)
 	ListPeopleSignedUpBetween(ctx context.Context, arg ListPeopleSignedUpBetweenParams) ([]uuid.UUID, error)
 	ListPeopleWithEnabledAccount(ctx context.Context, personIds []string) ([]uuid.UUID, error)
+	// People who can sign in with a password: an enabled account with a usable password identity.
+	ListPeopleWithPasswordAccount(ctx context.Context, personIds []string) ([]uuid.UUID, error)
 	ListPersonIDsByRoles(ctx context.Context, roleIds []string) ([]uuid.UUID, error)
 	ListPersonIDsOfAccounts(ctx context.Context, accountIds []string) ([]uuid.UUID, error)
 	ListPreferencesOfAccount(ctx context.Context, accountID uuid.UUID) ([]NotificationRulePreference, error)

@@ -186,3 +186,16 @@ WITH deleted AS (
 )
 INSERT INTO file_blob_deletions (storage_key) SELECT storage_key FROM deleted
 ON CONFLICT (storage_key) DO NOTHING;
+
+-- name: GetPrintPageRun :one
+-- A recorded run with its job for the run's print page. Manual runs, runs without a job and runs or jobs in the
+-- recycle bin are left out; the page never reads material, prices, the operator or the recipient's name.
+SELECT r.id, r.display_id, r.file_name, COALESCE(r.started_at, r.first_observed_at)::timestamptz AS started_at,
+       r.ended_at, r.outcome, m.name AS machine_name, j.title AS job_title, j.customer_person_id,
+       f.original_filename AS artifact_filename
+FROM machine_runs r
+JOIN machines m ON m.id = r.machine_id
+JOIN machine_jobs j ON j.id = r.job_id AND j.deleted_at IS NULL
+LEFT JOIN print_artifacts pa ON pa.id = r.artifact_id
+LEFT JOIN files f ON f.id = pa.original_file_id
+WHERE r.id = sqlc.arg(run_id) AND r.deleted_at IS NULL AND r.source = 'recorded';

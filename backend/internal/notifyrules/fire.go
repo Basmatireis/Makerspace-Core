@@ -114,6 +114,10 @@ func (d *Dispatcher) emitRule(
 	if err != nil {
 		return false, fmt.Errorf("the rule's definition cannot be read")
 	}
+	// A rule limited to some machines ignores the events of every other machine before anything else is looked at.
+	if !def.Trigger.MatchesMachine(ev.Fields) {
+		return false, nil
+	}
 	if info.personal() {
 		owner := info.OwnerPersonID
 		if owner == nil {

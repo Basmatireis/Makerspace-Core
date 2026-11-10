@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/google/uuid"
 )
@@ -30,6 +31,7 @@ const (
 	MaxEscalationMinutes = 30 * 24 * 60
 	MaxFallbackMinutes   = 1440
 	MaxDurationMinutes   = 1440
+	MaxMachines          = 50
 )
 
 // TriggerType says what makes a rule fire.
@@ -175,6 +177,19 @@ type TriggerDef struct {
 	Type     TriggerType `json:"type"`
 	Event    string      `json:"event,omitempty"`
 	Schedule *Schedule   `json:"schedule,omitempty"`
+	// Machines limits an event rule whose trigger has a machine field to events of these machines; empty means all.
+	Machines []uuid.UUID `json:"machines,omitempty"`
+}
+
+// MatchesMachine reports whether an event with the given fields is about one of the rule's machines. A rule without
+// a machine list matches every event.
+func (t TriggerDef) MatchesMachine(fields map[string]any) bool {
+	if len(t.Machines) == 0 {
+		return true
+	}
+	value, _ := fields[MachineScopeField].(string)
+	machine, err := uuid.Parse(value)
+	return err == nil && slices.Contains(t.Machines, machine)
 }
 
 // Schedule is the timetable of a schedule rule, in the makerspace's time zone.
